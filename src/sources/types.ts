@@ -123,6 +123,7 @@ export interface NewsCollectionAnalytics {
   readonly relevantBeforeSeenFilterCount: number;
   readonly relevantSuppressedBySeenFilterCount: number;
   readonly relevantSelectedCount: number;
+  readonly floorEligibleSelectedCount: number;
   readonly repeatFallbackKeptCount: number;
   readonly relevantRepeatKeptCount?: number;
   readonly selectedNewsSourceCount: number;

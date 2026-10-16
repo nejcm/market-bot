@@ -41,6 +41,7 @@ function baseAnalytics(): RunAnalytics {
       relevantBeforeSeenFilterCount: 0,
       relevantSuppressedBySeenFilterCount: 0,
       relevantSelectedCount: 0,
+      floorEligibleSelectedCount: 0,
       repeatFallbackKeptCount: 0,
       selectedNewsSourceCount: 0,
       repeatFallbackUsed: false,

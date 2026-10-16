@@ -351,6 +351,7 @@ function newsDedupe(input: BuildRunAnalyticsInput): RunAnalytics["newsDedupe"] {
     relevantBeforeSeenFilterCount: 0,
     relevantSuppressedBySeenFilterCount: 0,
     relevantSelectedCount: 0,
+    floorEligibleSelectedCount: 0,
     repeatFallbackKeptCount: 0,
     selectedNewsSourceCount: selectedNewsSources.length,
     repeatFallbackUsed: sourceGaps(input.collectedSources).some((gap) => isRepeatFallbackGap(gap)),

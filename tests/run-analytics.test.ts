@@ -348,6 +348,7 @@ describe("run analytics", () => {
         relevantBeforeSeenFilterCount: 0,
         relevantSuppressedBySeenFilterCount: 0,
         relevantSelectedCount: 0,
+        floorEligibleSelectedCount: 0,
         repeatFallbackKeptCount: 0,
         selectedNewsSourceCount: 1,
         repeatFallbackUsed: false,
@@ -453,6 +454,7 @@ describe("run analytics", () => {
       relevantBeforeSeenFilterCount: 0,
       relevantSuppressedBySeenFilterCount: 0,
       relevantSelectedCount: 0,
+      floorEligibleSelectedCount: 0,
       repeatFallbackKeptCount: 0,
       selectedNewsSourceCount: 1,
       repeatFallbackUsed: false,
@@ -576,6 +578,19 @@ describe("run analytics", () => {
       executedTools: ["sec_latest_filing"],
       emittedGapCount: 0,
     });
+  });
+
+  test("emits zero floor-eligible count when collection telemetry is absent", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.newsDedupe.floorEligibleSelectedCount).toBe(0);
   });
 
   test("records prediction-kind guidance assessments beside the dimension slices", () => {

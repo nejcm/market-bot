@@ -858,6 +858,7 @@ describe("multi-news", () => {
     expect(titles).toContain("Chip demand emerges");
     expect(titles).toContain("Cloud spend grows");
     expect(result.newsAnalytics?.relevantSelectedCount).toBe(4);
+    expect(result.newsAnalytics?.floorEligibleSelectedCount).toBe(2);
     expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
   });
 
@@ -952,6 +953,7 @@ describe("multi-news", () => {
       "Tech roundup",
       "NVDA data-center demand rises",
     ]);
+    expect(result.newsAnalytics?.floorEligibleSelectedCount).toBe(0);
   });
 
   test("still selects a snippet-only relevant source when it is not a repeat", async () => {
@@ -973,5 +975,6 @@ describe("multi-news", () => {
 
     expect(result.newsSources.map((item) => item.title)).toEqual(["Chip demand emerges"]);
     expect(result.newsAnalytics?.selectedRelevantTickerNewsSourceCount).toBe(1);
+    expect(result.newsAnalytics?.floorEligibleSelectedCount).toBe(0);
   });
 });

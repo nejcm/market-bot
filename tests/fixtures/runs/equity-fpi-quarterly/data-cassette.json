@@ -42,7 +42,7 @@
       },
       "body": "{\"cik\":\"0009000001\",\"entityType\":\"operating\",\"sic\":\"7372\",\"name\":\"Fixture Quarterly FPI N.V.\",\"tickers\":[\"FPIQ\"],\"exchanges\":[\"Nasdaq\"],\"filings\":{\"recent\":{\"accessionNumber\":[\"0000000000-26-000002\",\"0000000000-26-000001\"],\"filingDate\":[\"2026-08-15\",\"2026-03-15\"],\"reportDate\":[\"2026-03-31\",\"2025-12-31\"],\"acceptanceDateTime\":[\"20260815120000\",\"20260315120000\"],\"act\":[\"34\",\"34\"],\"form\":[\"6-K\",\"20-F\"],\"fileNumber\":[\"001-00000\",\"001-00000\"],\"filmNumber\":[\"26000002\",\"26000001\"],\"items\":[\"\",\"\"],\"core_type\":[\"6-K\",\"20-F\"],\"size\":[120000,900000],\"isXBRL\":[1,1],\"isInlineXBRL\":[1,1],\"primaryDocument\":[\"fpiq-2026-interim.htm\",\"fpiq-2025-20f.htm\"],\"primaryDocDescription\":[\"Interim financial report\",\"Annual report\"]},\"files\":[]}}"
     },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/FPIQ?events=history&interval=1d&period1=1746921600&period2=1781568000": {
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/FPIQ?events=div%2Csplits&interval=1d&period1=1622505600&period2=1781568000": {
       "status": 200,
       "headers": {
         "content-type": "application/json"

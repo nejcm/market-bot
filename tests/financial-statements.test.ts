@@ -14,7 +14,7 @@ import {
 } from "../app/client/run-workspace-financials";
 import { dedupeSourceGaps } from "../src/domain/source-gaps";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
-import { strengthLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import { summaryLens } from "./support/financial-lens";
 import {
   financialStatementFacts,
   latestFinancialStatementFact,
@@ -683,6 +683,44 @@ describe("canonical financial statements", () => {
     );
   });
 
+  test("ratio-input series never sway the taxonomy election", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          NetIncomeLoss: { USD: [annual(100, 2025)] },
+          NetCashProvidedByUsedInOperatingActivities: { USD: [annual(200, 2025)] },
+        },
+        "ifrs-full": {
+          Revenue: { USD: [annual(1000, 2025, "20-F")] },
+          ProfitLoss: { USD: [annual(100, 2025, "20-F")] },
+          InterestExpense: { USD: [annual(40, 2025, "20-F")] },
+          IncomeTaxExpenseContinuingOperations: { USD: [annual(32, 2025, "20-F")] },
+          ProfitLossBeforeTax: { USD: [annual(160, 2025, "20-F")] },
+        },
+      }),
+    );
+
+    expect(artifact.taxonomy).toBe("us-gaap");
+  });
+
+  test("ratio-input series never sway the revenue-absent currency election", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          NetIncomeLoss: { USD: [annual(100, 2024)] },
+          InterestExpense: { EUR: [annual(40, 2025)] },
+          DepreciationDepletionAndAmortization: { EUR: [annual(50, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.reportingCurrency).toBe("USD");
+    expect(artifact.statements.incomeStatement.netIncome.annual).toEqual([
+      expect.objectContaining({ value: 100 }),
+    ]);
+  });
+
   test("chooses the first standard concept eligible at the cutoff and reporting currency", () => {
     const artifact = derive(
       payload({
@@ -729,6 +767,291 @@ describe("canonical financial statements", () => {
     expect(artifact.statements.cashFlowStatement.dividendsPaid.annual).toEqual([
       expect.objectContaining({ value: 40, concept: "PaymentsOfDividends" }),
     ]);
+  });
+
+  test("prefers declared over cash-paid dividends per share on the same period", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(0.98, 2025)] },
+          CommonStockDividendsPerShareDeclared: { "USD/shares": [annual(1.04, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare).toMatchObject({
+      label: "Dividends per share",
+      statement: "perShare",
+      annual: [
+        {
+          value: 1.04,
+          concept: "CommonStockDividendsPerShareDeclared",
+          unit: "USD/shares",
+          currency: "USD",
+        },
+      ],
+    });
+  });
+
+  test("falls back to cash-paid dividends per share when nothing is declared", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(0.98, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 0.98, concept: "CommonStockDividendsPerShareCashPaid" }),
+    ]);
+  });
+
+  test("drops dividend-per-share declaration spans that are not statement periods", () => {
+    const declared = (periodStart: string, value: number) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalYear: 2025,
+        fiscalPeriod: "FY",
+        filedAt: "2026-02-15",
+        periodStart,
+        periodEnd: "2025-12-31",
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              declared("2025-01-01", 9.66),
+              declared("2025-10-01", 2.38),
+              declared("2025-12-01", 2.52),
+              fact({
+                value: 2.52,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodEnd: "2025-12-15",
+              }),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-03-01" },
+    );
+
+    const dividends = artifact.statements.perShare.dividendsPerShare;
+    expect(dividends.annual.map((item) => item.value)).toEqual([9.66]);
+    expect(dividends.interim.map((item) => [item.periodStart, item.value])).toEqual([
+      ["2025-10-01", 2.38],
+    ]);
+    expect(artifact.omissionNotes.filter((note) => note.code === "declaration-span")).toEqual([
+      expect.objectContaining({
+        seriesKey: "dividendsPerShare",
+        periodKey: "duration:1|2025-12-31",
+      }),
+    ]);
+
+    const spansOnly = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: { "USD/shares": [declared("2025-12-01", 2.52)] },
+        },
+      }),
+      { analysisAsOf: "2026-03-01" },
+    );
+    expect(financialStatementFacts(spansOnly.statements.perShare.dividendsPerShare)).toEqual([]);
+    expect(spansOnly.omissionNotes).toContainEqual(
+      expect.objectContaining({ code: "declaration-span", seriesKey: "dividendsPerShare" }),
+    );
+    expect(historyGapMessages(spansOnly)).toEqual([
+      expect.stringContaining("dividends per share has 1 non-zero declaration-date facts"),
+    ]);
+  });
+
+  test("ranks only year-length annual dividend-per-share bases, so a declared stub cannot win", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              fact({
+                value: 0.8,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodStart: "2025-03-01",
+                periodEnd: "2025-12-31",
+              }),
+            ],
+          },
+          CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(0.98, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 0.98, concept: "CommonStockDividendsPerShareCashPaid" }),
+    ]);
+  });
+
+  test("keeps declared annual dividends per share over a newer interim-only cash-paid tag", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: { "USD/shares": [annual(1.04, 2025)] },
+          CommonStockDividendsPerShareCashPaid: {
+            "USD/shares": [
+              interim({
+                value: 0.26,
+                year: 2026,
+                endMonthDay: "03-31",
+                form: "10-Q",
+                fiscalPeriod: "Q1",
+              }),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-09-01" },
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 1.04, concept: "CommonStockDividendsPerShareDeclared" }),
+    ]);
+  });
+
+  test("selects IFRS dividends per share in the reporting currency only", () => {
+    const artifact = derive(
+      payload({
+        "ifrs-full": {
+          Revenue: { EUR: [annual(1000, 2025, "20-F")] },
+          DividendsRecognisedAsDistributionsToOwnersPerShare: {
+            "EUR/shares": [annual(1.05, 2025, "20-F")],
+            "USD/shares": [annual(1.2, 2025, "20-F")],
+          },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 1.05, unit: "EUR/shares", currency: "EUR" }),
+    ]);
+  });
+
+  test("leaves dividends per share empty when the issuer files no per-share dividend tag", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          PaymentsOfDividends: { USD: [annual(40, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare).toMatchObject({
+      annual: [],
+      interim: [],
+    });
+  });
+
+  test("selects ratio-input series by us-gaap priority into their own statements", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          InterestExpense: { USD: [annual(40, 2025)] },
+          InterestExpenseNonoperating: { USD: [annual(41, 2025)] },
+          IncomeTaxExpenseBenefit: { USD: [annual(32, 2025)] },
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest:
+            {
+              USD: [annual(160, 2025)],
+            },
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments:
+            { USD: [annual(161, 2025)] },
+          DepreciationDepletionAndAmortization: { USD: [annual(50, 2025)] },
+          DepreciationAndAmortization: { USD: [annual(51, 2025)] },
+        },
+      }),
+    );
+    const { incomeStatement, cashFlowStatement } = artifact.statements;
+
+    expect(incomeStatement.interestExpense.annual).toEqual([
+      expect.objectContaining({ value: 40, concept: "InterestExpense" }),
+    ]);
+    expect(incomeStatement.incomeTaxExpense.annual).toEqual([
+      expect.objectContaining({ value: 32, concept: "IncomeTaxExpenseBenefit" }),
+    ]);
+    expect(incomeStatement.pretaxIncome).toMatchObject({
+      label: "Pretax income from continuing operations",
+      statement: "incomeStatement",
+      annual: [{ value: 160 }],
+    });
+    expect(cashFlowStatement.depreciationAndAmortization).toMatchObject({
+      statement: "cashFlowStatement",
+      annual: [{ value: 50, concept: "DepreciationDepletionAndAmortization" }],
+    });
+  });
+
+  test("falls back to the later ratio-input aliases when the first is not filed", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          InterestExpenseDebt: { USD: [annual(39, 2025)] },
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments:
+            { USD: [annual(161, 2025)] },
+          DepreciationAndAmortization: { USD: [annual(51, 2025)] },
+        },
+      }),
+    );
+    const { incomeStatement, cashFlowStatement } = artifact.statements;
+
+    expect(incomeStatement.interestExpense.annual).toEqual([
+      expect.objectContaining({ value: 39, concept: "InterestExpenseDebt" }),
+    ]);
+    expect(incomeStatement.pretaxIncome.annual).toEqual([expect.objectContaining({ value: 161 })]);
+    expect(cashFlowStatement.depreciationAndAmortization.annual).toEqual([
+      expect.objectContaining({ value: 51, concept: "DepreciationAndAmortization" }),
+    ]);
+    expect(incomeStatement.incomeTaxExpense).toMatchObject({ annual: [], interim: [] });
+  });
+
+  test("selects IFRS ratio-input series in the reporting currency only", () => {
+    const both = (eur: number, usd: number) => ({
+      EUR: [annual(eur, 2025, "20-F")],
+      USD: [annual(usd, 2025, "20-F")],
+    });
+    const artifact = derive(
+      payload({
+        "ifrs-full": {
+          Revenue: { EUR: [annual(1000, 2025, "20-F")] },
+          InterestExpense: both(40, 44),
+          IncomeTaxExpenseContinuingOperations: both(32, 35),
+          ProfitLossBeforeTax: both(160, 176),
+          DepreciationAndAmortisationExpense: both(50, 55),
+        },
+      }),
+    );
+    const { incomeStatement, cashFlowStatement } = artifact.statements;
+
+    for (const series of [
+      incomeStatement.interestExpense,
+      incomeStatement.incomeTaxExpense,
+      incomeStatement.pretaxIncome,
+      cashFlowStatement.depreciationAndAmortization,
+    ]) {
+      expect(series.annual).toEqual([expect.objectContaining({ currency: "EUR" })]);
+    }
+    expect(incomeStatement.pretaxIncome.annual[0]?.value).toBe(160);
   });
 
   describe("stale concept history", () => {
@@ -993,6 +1316,105 @@ describe("canonical financial statements", () => {
         withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics
           ?.dilutedEpsDeltaPercent,
       ).toBeCloseTo(10);
+    });
+
+    test("declares never-refiled pre-split dividends per share on the earlier share basis", () => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: revenue,
+            EarningsPerShareDiluted: {
+              "USD/shares": [
+                fy(4, 2022, "2023-02-15"),
+                fy(4.5, 2023, "2024-02-15"),
+                fy(0.9, 2023, "2026-02-15"),
+                fy(5, 2024, "2025-02-15"),
+                fy(1, 2024, "2026-02-15"),
+                fy(1.2, 2025, "2026-02-15"),
+              ],
+            },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [
+                fy(100, 2022, "2023-02-15"),
+                fy(100, 2023, "2024-02-15"),
+                fy(500, 2023, "2026-02-15"),
+                fy(100, 2024, "2025-02-15"),
+                fy(500, 2024, "2026-02-15"),
+                fy(505, 2025, "2026-02-15"),
+              ],
+            },
+            CommonStockDividendsPerShareDeclared: {
+              "USD/shares": [
+                fy(2, 2022, "2023-02-15"),
+                fy(2, 2023, "2024-02-15"),
+                fy(0.4, 2023, "2026-02-15"),
+                fy(2.5, 2024, "2025-02-15"),
+                fy(0.5, 2024, "2026-02-15"),
+                fy(0.6, 2025, "2026-02-15"),
+              ],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+      expect(
+        artifact.omissionNotes
+          .filter((note) => note.code === "earlier-share-basis")
+          .map((note) => [note.seriesKey, note.periodKey]),
+      ).toEqual([
+        ["dilutedEps", "duration:12|2022-12-31"],
+        ["dilutedShares", "duration:12|2022-12-31"],
+        ["dividendsPerShare", "duration:12|2022-12-31"],
+      ]);
+      expect(
+        artifact.statements.perShare.dividendsPerShare.annual.map((item) => item.value),
+      ).toEqual([2, 0.4, 0.5, 0.6]);
+    });
+
+    test("keeps split protection when the restating filing also corrects dividends per share", () => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: revenue,
+            EarningsPerShareDiluted: {
+              "USD/shares": [
+                fy(4, 2022, "2023-02-15"),
+                fy(5, 2024, "2025-02-15"),
+                fy(1, 2024, "2026-02-15"),
+                fy(1.2, 2025, "2026-02-15"),
+              ],
+            },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [
+                fy(100, 2022, "2023-02-15"),
+                fy(100, 2024, "2025-02-15"),
+                fy(500, 2024, "2026-02-15"),
+                fy(505, 2025, "2026-02-15"),
+              ],
+            },
+            CommonStockDividendsPerShareDeclared: {
+              "USD/shares": [
+                fy(2, 2022, "2023-02-15"),
+                fy(2.5, 2024, "2025-02-15"),
+                fy(0.6, 2024, "2026-02-15"),
+                fy(0.65, 2025, "2026-02-15"),
+              ],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+      expect(
+        artifact.omissionNotes
+          .filter((note) => note.code === "earlier-share-basis")
+          .map((note) => [note.seriesKey, note.periodKey]),
+      ).toEqual([
+        ["dilutedEps", "duration:12|2022-12-31"],
+        ["dilutedShares", "duration:12|2022-12-31"],
+        ["dividendsPerShare", "duration:12|2022-12-31"],
+      ]);
     });
 
     test("reads a per-share fact against the share count filed with it", () => {
@@ -1430,6 +1852,115 @@ describe("canonical financial statements", () => {
     expect(annualPeriods.has("2009-01-01|2009-12-31")).toBe(false);
     expect(annualPeriods.has("2010-01-01|2010-12-31")).toBe(false);
     expect(artifact.omissionNotes).toContainEqual(expect.objectContaining({ code: "history-cap" }));
+  });
+
+  test("caps per-share dividend periods apart from the statements' interim window", () => {
+    const quarter = (value: number, year: number, endMonth: number, startMonth = endMonth - 2) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalYear: year,
+        fiscalPeriod: `Q${String(endMonth / 3)}`,
+        filedAt: `${String(year)}-${String(endMonth + 1).padStart(2, "0")}-20`,
+        periodStart: `${String(year)}-${String(startMonth).padStart(2, "0")}-01`,
+        periodEnd: `${String(year)}-${String(endMonth).padStart(2, "0")}-${endMonth === 6 || endMonth === 9 ? "30" : "31"}`,
+      });
+    const quarters = [2022, 2023, 2024, 2025].flatMap((year) =>
+      [3, 6, 9].map((month) => quarter(100, year, month)),
+    );
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(400, 2024), ...quarters] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              ...quarters.map((item) => ({ ...item, val: 0.25 })),
+              quarter(0.5, 2025, 6, 1),
+              quarter(0.75, 2025, 9, 1),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2025-12-01T00:00:00.000Z" },
+    );
+    const { revenue } = artifact.statements.incomeStatement;
+    const { dividendsPerShare } = artifact.statements.perShare;
+
+    expect(revenue.interim).toHaveLength(12);
+    expect(dividendsPerShare.interim).toHaveLength(12);
+    expect(dividendsPerShare.interim.map((item) => item.value)).toEqual(
+      expect.arrayContaining([0.5, 0.75]),
+    );
+    expect(artifact.omissionNotes.filter((note) => note.code === "history-cap")).toEqual([
+      expect.objectContaining({ seriesKey: "dividendsPerShare" }),
+      expect.objectContaining({ seriesKey: "dividendsPerShare" }),
+    ]);
+  });
+
+  test("keeps ratio-input periods inside the statements' window without displacing one", () => {
+    const quarter = (value: number, year: number, endMonth: number, startMonth = endMonth - 2) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalYear: year,
+        fiscalPeriod: `Q${String(endMonth / 3)}`,
+        filedAt: `${String(year)}-${String(endMonth + 1).padStart(2, "0")}-20`,
+        periodStart: `${String(year)}-${String(startMonth).padStart(2, "0")}-01`,
+        periodEnd: `${String(year)}-${String(endMonth).padStart(2, "0")}-${endMonth === 6 || endMonth === 9 ? "30" : "31"}`,
+      });
+    const quarters = [2022, 2023, 2024, 2025].flatMap((year) =>
+      [3, 6, 9].map((month) => quarter(100, year, month)),
+    );
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(400, 2024), ...quarters] },
+          InterestExpense: {
+            USD: [
+              annual(9, 2020),
+              annual(10, 2024),
+              ...quarters.map((item) => ({ ...item, val: 5 })),
+              quarter(10, 2025, 6, 1),
+              quarter(15, 2025, 9, 1),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2025-12-01T00:00:00.000Z" },
+    );
+    const { revenue, interestExpense } = artifact.statements.incomeStatement;
+
+    expect(revenue.interim).toHaveLength(12);
+    expect(interestExpense.interim.map((item) => item.periodKey)).toEqual(
+      revenue.interim.map((item) => item.periodKey),
+    );
+    expect(interestExpense.annual.map((item) => item.periodEnd)).toEqual(["2024-12-31"]);
+    expect(
+      artifact.omissionNotes
+        .filter((note) => note.seriesKey === "interestExpense")
+        .map(({ code, periodKey }) => [code, periodKey]),
+    ).toEqual([
+      ["history-cap", "annual|duration:12|2020-12-31"],
+      ["history-cap", "interim|duration:6|2025-06-30"],
+      ["history-cap", "interim|duration:9|2025-09-30"],
+    ]);
+  });
+
+  test("keeps dividends-per-share annual periods the statements do not carry", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(400, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [annual(0.4, 2020), annual(0.6, 2025)],
+          },
+        },
+      }),
+    );
+
+    expect(
+      artifact.statements.perShare.dividendsPerShare.annual.map((item) => item.periodEnd),
+    ).toEqual(["2020-12-31", "2025-12-31"]);
   });
 
   test("does not treat different duration keys with the same end date as complete", () => {
@@ -3236,7 +3767,7 @@ describe("canonical debt basis selection", () => {
 });
 
 function debtLabel(item: ExtendedEvidenceItem | undefined): string | undefined {
-  return strengthLens(item, "2026-08-15T00:00:00.000Z").lens.metrics.find(
+  return summaryLens(item, "Financial Strength", "2026-08-15T00:00:00.000Z").metrics.find(
     (metric) => metric.key === "debt",
   )?.label;
 }

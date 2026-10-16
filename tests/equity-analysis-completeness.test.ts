@@ -72,6 +72,8 @@ function statements(input: {
           netIncome: "NetIncomeLoss",
           operatingCashFlow: "NetCashProvidedByUsedInOperatingActivities",
           dilutedEps: "EarningsPerShareDiluted",
+          dilutedShares: "WeightedAverageNumberOfDilutedSharesOutstanding",
+          shareRepurchases: "PaymentsForRepurchaseOfCommonStock",
           cash: "CashAndCashEquivalentsAtCarryingValue",
           totalAssets: "Assets",
           totalLiabilities: "Liabilities",
@@ -83,6 +85,8 @@ function statements(input: {
           netIncome: "ProfitLoss",
           operatingCashFlow: "CashFlowsFromUsedInOperatingActivities",
           dilutedEps: "DilutedEarningsLossPerShare",
+          dilutedShares: "AdjustedWeightedAverageShares",
+          shareRepurchases: "PaymentsToAcquireOrRedeemEntitysShares",
           cash: "CashAndCashEquivalents",
           totalAssets: "Assets",
           totalLiabilities: "Liabilities",
@@ -227,6 +231,8 @@ function statements(input: {
               "USD/shares": durations.map((item) => ({ ...item, val: Number(item.val) / 100 })),
             },
           },
+          [concepts.dilutedShares]: { units: { shares: durations } },
+          [concepts.shareRepurchases]: { units: { USD: durations } },
           [concepts.cash]: { units: { USD: instant } },
           [concepts.totalAssets]: { units: { USD: instant } },
           [concepts.totalLiabilities]: { units: { USD: instant } },
@@ -355,18 +361,11 @@ function capitalOwnership(
     version: 1,
     generatedAt: AS_OF,
     symbol: "TEST",
-    dilutedShares: periods,
     stockBasedCompensation: periods.map((period) => ({
       ...period,
       concept: "ShareBasedCompensation",
       unit: "USD",
     })),
-    buybacks: periods.map((period) => ({
-      ...period,
-      concept: "PaymentsForRepurchaseOfCommonStock",
-      unit: "USD",
-    })),
-    dividendsPaid: [],
     omissions: [],
     ...overrides,
   };
@@ -793,14 +792,28 @@ describe("equity analysis completeness", () => {
     const complete = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
       assetClass: "equity",
+      financialStatements: statements({}),
       capitalOwnership: capitalOwnership(),
     });
+    const financialStatements = statements({});
     const partial = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
       assetClass: "equity",
+      financialStatements: {
+        ...financialStatements,
+        statements: {
+          ...financialStatements.statements,
+          cashFlowStatement: {
+            ...financialStatements.statements.cashFlowStatement,
+            shareRepurchases: {
+              ...financialStatements.statements.cashFlowStatement.shareRepurchases,
+              annual: [],
+            },
+          },
+        },
+      },
       capitalOwnership: capitalOwnership({
         stockBasedCompensation: [],
-        buybacks: [],
         omissions: [
           { code: "debt-maturity-untagged", message: "Debt maturity buckets are missing" },
         ],
@@ -822,7 +835,7 @@ describe("equity analysis completeness", () => {
         "subsequent-financing-unreconciled",
       ],
     });
-    expect(partial.financialCoreStatus).toBe("blocked");
+    expect(partial.financialCoreStatus).toBe("complete");
   });
 
   test("adds ownership context without changing the SEC-governed capital status", () => {
@@ -830,11 +843,13 @@ describe("equity analysis completeness", () => {
     const baseline = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
       assetClass: "equity",
+      financialStatements: statements({}),
       capitalOwnership: secComplete,
     });
     const available = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
       assetClass: "equity",
+      financialStatements: statements({}),
       capitalOwnership: secComplete,
       institutionalOwnershipSignal: {
         status: "available",
@@ -844,6 +859,7 @@ describe("equity analysis completeness", () => {
     const forbidden = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
       assetClass: "equity",
+      financialStatements: statements({}),
       capitalOwnership: secComplete,
       institutionalOwnershipSignal: { status: "forbidden", sourceIds: [] },
     });
@@ -865,6 +881,7 @@ describe("equity analysis completeness", () => {
     const result = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
       assetClass: "equity",
+      financialStatements: statements({}),
       capitalOwnership: capitalOwnership({ stockBasedCompensation: [] }),
       institutionalOwnershipSignal: { status: "forbidden", sourceIds: [] },
     });
@@ -1446,6 +1463,7 @@ describe("equity analysis completeness freshness gaps", () => {
         input: {
           asOf: AS_OF,
           assetClass: "equity",
+          financialStatements: statements({}),
           capitalOwnership: capitalOwnership({
             subsequentFinancing: { eventCount: 1, reconciled: false, sourceIds: [SOURCE_ID] },
           }),

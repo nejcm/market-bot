@@ -18,7 +18,7 @@ import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuat
 import { readValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { researchReport, reverseDcfWorkbench } from "./support/fixtures";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
-import { growthLens, qualityLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import { summaryLens } from "./support/financial-lens";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -186,9 +186,10 @@ describe("continuing-operations cash-flow aliases", () => {
       sourceId: "sec-clfd",
     });
     const item = canonicalSecItem(clfdConcepts());
-    const labels = [...qualityLens(item).metrics, ...growthLens(item).metrics].map(
-      (metric) => metric.label,
-    );
+    const labels = [
+      ...summaryLens(item, "Quality", AS_OF, statementsFor(clfdConcepts())).metrics,
+      ...summaryLens(item, "Growth", AS_OF, statementsFor(clfdConcepts())).metrics,
+    ].map((metric) => metric.label);
 
     for (const history of [canonical, legacy]) {
       expect(history.series.operatingCashFlow.concept).toBe(CONTINUING_OCF);
@@ -201,7 +202,12 @@ describe("continuing-operations cash-flow aliases", () => {
     }
     expect(item.metrics?.operatingCashFlowScope).toBe("continuing operations");
     expect(labels).toContain("Operating cash flow YoY (continuing operations)");
-    expect(labels).toContain("FCF proxy (continuing operations)");
+    expect(labels).toContain("FCF proxy");
+    expect(
+      summaryLens(item, "Quality", AS_OF, statementsFor(clfdConcepts())).metrics.find(
+        ({ key }) => key === "freeCashFlowProxy",
+      )?.value,
+    ).toBe(7_345_000 - 2_917_000);
   });
 
   test("the total tag wins an equal period even when only the continuing tag has a prior", () => {

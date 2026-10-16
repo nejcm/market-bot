@@ -591,7 +591,7 @@ export function yahooChartWindowUrl(symbol: string, from: Date, to: Date): strin
   return `${YAHOO_CHART_URL}/${encodeURIComponent(symbol)}?${params.toString()}`;
 }
 
-function yahooScoringWindowUrl(symbol: string, from: Date, to: Date): string {
+export function yahooScoringWindowUrl(symbol: string, from: Date, to: Date): string {
   const start = new Date(from);
   const end = new Date(to);
   start.setUTCHours(0, 0, 0, 0);
@@ -1197,7 +1197,7 @@ function splitEventsFromYahooChart(
   return parsed.toSorted((left, right) => left.date.localeCompare(right.date));
 }
 
-function splitAdjustedObservationsFromYahooChart(
+export function splitAdjustedObservationsFromYahooChart(
   symbol: string,
   payload: unknown,
 ): readonly Observation[] {

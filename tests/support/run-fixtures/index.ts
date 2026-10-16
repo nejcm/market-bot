@@ -307,3 +307,17 @@ export async function runFixture(
     },
   };
 }
+
+// Every fixture `bun run check` replays through the real equity pipeline.
+export const EQUITY_RUN_FIXTURES = [
+  "equity-aapl-brief",
+  "equity-aapl-deep",
+  "equity-earnings-release-deep",
+  "equity-nbis-deep",
+  "equity-fpi-quarterly",
+  "equity-fpi-ifrs-semiannual",
+  "equity-analysis-comprehensive",
+  "equity-analysis-estimated-suppressed",
+  "equity-web-fallback-deep",
+  "equity-depository-deep",
+] as const;

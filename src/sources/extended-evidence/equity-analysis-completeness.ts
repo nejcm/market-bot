@@ -19,6 +19,7 @@ import {
   financialStatementPeriodsYearAligned,
   financialStatementSeries,
   latestFinancialStatementFact,
+  isYearAligned,
 } from "./financial-statement-selection";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
 import type {
@@ -560,23 +561,39 @@ function ownershipInformationalReasons(
     : [];
 }
 
+function yearAlignedAnnualFacts(
+  series: FinancialStatementSeries | undefined,
+): readonly FinancialStatementFact[] {
+  return (series?.annual ?? []).filter(
+    (fact) =>
+      fact.periodType === "annual" &&
+      fact.periodStart !== undefined &&
+      isYearAligned(fact.periodStart, fact.periodEnd),
+  );
+}
+
 function capitalOwnershipDimension(
   artifact: CapitalOwnershipArtifact | undefined,
+  statements: FinancialStatementsArtifact | undefined,
   yahoo: ExtendedEvidenceItem | undefined,
   ownershipSignal: InstitutionalOwnershipSignal | undefined,
   asOf: string,
 ): EquityAnalysisCompletenessDimension {
+  const dilutedShares = yearAlignedAnnualFacts(statements?.statements.perShare.dilutedShares);
+  const buybacks = yearAlignedAnnualFacts(
+    statements?.statements.cashFlowStatement.shareRepurchases,
+  );
+  const dividendsPaid = yearAlignedAnnualFacts(
+    statements?.statements.cashFlowStatement.dividendsPaid,
+  );
   const reasons = [
-    ...(artifact === undefined || artifact.dilutedShares.length < MIN_ANNUAL_PERIODS
+    ...(unique(dilutedShares.map((fact) => fact.periodEnd)).length < MIN_ANNUAL_PERIODS
       ? ["diluted-share-history-missing"]
       : []),
     ...(artifact === undefined || artifact.stockBasedCompensation.length < MIN_ANNUAL_PERIODS
       ? ["sbc-history-missing"]
       : []),
-    ...(artifact === undefined ||
-    (artifact.buybacks.length === 0 && artifact.dividendsPaid.length === 0)
-      ? ["payout-evidence-missing"]
-      : []),
+    ...(buybacks.length === 0 && dividendsPaid.length === 0 ? ["payout-evidence-missing"] : []),
     ...(artifact?.omissions.some((omission) => omission.code === "debt-maturity-untagged") === true
       ? ["debt-maturity-untagged"]
       : []),
@@ -584,10 +601,10 @@ function capitalOwnershipDimension(
   ];
   const informationalReasons = ownershipInformationalReasons(ownershipSignal);
   const sourceIds = unique([
-    ...(artifact?.dilutedShares.flatMap((fact) => fact.sourceIds) ?? []),
+    ...dilutedShares.flatMap((fact) => fact.sourceIds),
     ...(artifact?.stockBasedCompensation.flatMap((fact) => fact.sourceIds) ?? []),
-    ...(artifact?.buybacks.flatMap((fact) => fact.sourceIds) ?? []),
-    ...(artifact?.dividendsPaid.flatMap((fact) => fact.sourceIds) ?? []),
+    ...buybacks.flatMap((fact) => fact.sourceIds),
+    ...dividendsPaid.flatMap((fact) => fact.sourceIds),
     ...(artifact?.debtPrincipal?.current?.sourceIds ?? []),
     ...(artifact?.debtPrincipal?.noncurrent?.sourceIds ?? []),
     ...(artifact?.subsequentFinancing?.sourceIds ?? []),
@@ -597,7 +614,7 @@ function capitalOwnershipDimension(
   return {
     status: reasons.length === 0 ? "complete" : "partial",
     reasonCodes: unique([...reasons, ...informationalReasons]),
-    asOf: artifact?.generatedAt ?? yahoo?.observedAt ?? asOf,
+    asOf: artifact?.generatedAt ?? statements?.generatedAt ?? yahoo?.observedAt ?? asOf,
     sourceIds,
   };
 }
@@ -745,6 +762,7 @@ function nonCoreDimensions(
     expectations: expectationsDimension(input),
     capitalOwnership: capitalOwnershipDimension(
       input.capitalOwnership,
+      input.financialStatements,
       yahoo,
       input.institutionalOwnershipSignal,
       input.asOf,

@@ -1,27 +1,14 @@
-/**
- * Verified Market Snapshot collector (ADR 0004).
- *
- * Fetches ≥400 calendar days of daily OHLCV bars for an equity ticker via
- * ctx.request.json (cache + rate-limit + circuit-breaker), computes canonical
- * technical indicators, and returns a VerifiedMarketSnapshot or a SourceGap.
- *
- * Session discipline:
- * - The newest bar is accepted only once its regular session has closed, judged against the
- *   payload's own exchange schedule (see classifyLatestSession). Field presence cannot decide
- *   this: an open session populates OHLCV with running values.
- * - Indicators are computed after any such bar is removed, never before.
- *
- * Strict fetch discipline:
- * - MUST go through ctx.request.json (collector seam) with adapter
- *   "yahoo-verified-chart" and yahooResilientFetchWrapper.
- * - MUST NOT call fetchYahooCloseWindow or fetchYahooJsonWithResilience directly.
- * - On failure → SourceGap with evidenceQualityImpact "core-cap", no Massive fallback.
- */
+// Standalone snapshots request yahoo-verified-chart; equity ticker runs reuse yahoo-price-history.
 
 import type { OhlcvBar, VerifiedMarketSnapshot } from "../domain/market-data";
 import type { SourceGap } from "../domain/sources";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
-import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "./types";
+import {
+  isFetchJsonResult,
+  type CollectContext,
+  type RawSourceSnapshot,
+  type FetchJsonResult,
+} from "./types";
 import {
   classifyLatestSession,
   parseYahooChartOhlcv,
@@ -47,7 +34,6 @@ export function verifiedMarketSnapshotSourceId(symbol: string): string {
 
 export interface VerifiedSnapshotResult {
   readonly snapshot?: VerifiedMarketSnapshot;
-  readonly priceHistory?: readonly Pick<OhlcvBar, "date" | "close">[];
   readonly rawSnapshot?: RawSourceSnapshot;
   readonly sourceGaps: readonly SourceGap[];
 }
@@ -91,8 +77,21 @@ export async function collectVerifiedMarketSnapshot(
     };
   }
 
-  const { bars: parsedBars, droppedBars } = parseYahooChartOhlcv(fetched.payload, analysisDate);
-  const { fetchedAt } = fetched.rawSnapshot;
+  return verifiedMarketSnapshotFromChart(fetched, symbol, analysisDate);
+}
+
+export function verifiedMarketSnapshotFromChart(
+  fetched: FetchJsonResult,
+  symbol: string,
+  analysisDate: string,
+): VerifiedSnapshotResult {
+  const parsed = parseYahooChartOhlcv(fetched.payload, analysisDate);
+  const oldestDate = new Date(Date.parse(analysisDate) - CHART_LOOKBACK_CALENDAR_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const parsedBars = parsed.bars.filter(({ date }) => date >= oldestDate);
+  const { droppedBars } = parsed;
+  const { fetchedAt, adapter } = fetched.rawSnapshot;
   const latestParsedBar = parsedBars.at(-1);
   const latestSession: LatestSessionVerdict =
     latestParsedBar === undefined
@@ -113,12 +112,13 @@ export async function collectVerifiedMarketSnapshot(
     return {
       rawSnapshot: fetched.rawSnapshot,
       sourceGaps: [
-        ...latestSessionGaps(symbol, latestSession, latestParsedBar?.date, fetchedAt, {
+        ...latestSessionGaps(adapter, symbol, latestSession, latestParsedBar?.date, fetchedAt, {
           kind: "no-snapshot",
           completedBarCount: bars.length,
         }),
         sourceGap({
-          source: ADAPTER_ID,
+          source: adapter,
+          symbol,
           message: `insufficient OHLCV bars for ${symbol}: got ${String(bars.length)}, need ≥${String(MIN_BARS_FOR_SNAPSHOT)}`,
           provider: "yahoo",
           capability: "market-data",
@@ -136,7 +136,7 @@ export async function collectVerifiedMarketSnapshot(
     .filter((dropped) => dropped.date > latestBar.date)
     .map((dropped) =>
       sourceGap({
-        source: ADAPTER_ID,
+        source: adapter,
         message: `Yahoo chart bar ${dropped.date} has missing or non-numeric fields: ${dropped.missingFields.join(", ")}; latest usable session is ${latestBar.date}`,
         symbol,
         provider: "yahoo",
@@ -162,10 +162,9 @@ export async function collectVerifiedMarketSnapshot(
 
   return {
     snapshot,
-    priceHistory: bars.map(({ date, close }) => ({ date, close })),
     rawSnapshot: fetched.rawSnapshot,
     sourceGaps: [
-      ...latestSessionGaps(symbol, latestSession, latestParsedBar?.date, fetchedAt, {
+      ...latestSessionGaps(adapter, symbol, latestSession, latestParsedBar?.date, fetchedAt, {
         kind: "anchored",
         latestCompletedDate: latestBar.date,
       }),
@@ -185,6 +184,7 @@ type LatestSessionOutcome =
   | { readonly kind: "no-snapshot"; readonly completedBarCount: number };
 
 function latestSessionGaps(
+  source: string,
   symbol: string,
   verdict: LatestSessionVerdict,
   latestBarDate: string | undefined,
@@ -207,7 +207,7 @@ function latestSessionGaps(
         : `it was dropped before indicators, leaving ${String(outcome.completedBarCount)} completed bars — below the ${String(MIN_BARS_FOR_SNAPSHOT)} required, so no snapshot was produced`;
     return [
       sourceGap({
-        source: ADAPTER_ID,
+        source,
         message: `Yahoo chart bar ${latestBarDate} was an in-progress session at fetch time ${fetchedAt} (regular session closes ${verdict.closesAt}); ${consequence}`,
         symbol,
         provider: "yahoo",
@@ -220,7 +220,7 @@ function latestSessionGaps(
   }
   return [
     sourceGap({
-      source: ADAPTER_ID,
+      source,
       message: `Yahoo chart bar ${latestBarDate} could not be verified as a completed session at fetch time ${fetchedAt} (${verdict.reason}); the bar is retained and may be an in-progress session`,
       symbol,
       provider: "yahoo",

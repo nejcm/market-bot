@@ -49,6 +49,9 @@
                 <div class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground">
                   {metric.label}
                 </div>
+                {#if metric.period !== undefined}
+                  <div class="mt-0.5 font-mono text-[10px] text-[#8a8f96]">{metric.period}</div>
+                {/if}
               </div>
             {/each}
           </div>

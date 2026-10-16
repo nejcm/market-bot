@@ -101,6 +101,9 @@ export type FinancialStatementSeriesKey =
   | "netIncome"
   | "consolidatedNetIncome"
   | "continuingIncome"
+  | "interestExpense"
+  | "incomeTaxExpense"
+  | "pretaxIncome"
   | "cash"
   | "currentAssets"
   | "currentLiabilities"
@@ -110,11 +113,13 @@ export type FinancialStatementSeriesKey =
   | "debt"
   | "operatingCashFlow"
   | "capitalExpenditure"
+  | "depreciationAndAmortization"
   | "dividendsPaid"
   | "shareRepurchases"
   | "dilutedEps"
   | "continuingDilutedEps"
-  | "dilutedShares";
+  | "dilutedShares"
+  | "dividendsPerShare";
 
 export interface OriginalFiling {
   readonly value: number;
@@ -210,7 +215,8 @@ export interface FinancialStatementNote {
     | "stale-instant-series"
     | "stale-concept-history"
     | "mixed-share-basis"
-    | "earlier-share-basis";
+    | "earlier-share-basis"
+    | "declaration-span";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
@@ -244,7 +250,10 @@ export interface FinancialStatementsArtifact {
         | "operatingIncome"
         | "netIncome"
         | "consolidatedNetIncome"
-        | "continuingIncome",
+        | "continuingIncome"
+        | "interestExpense"
+        | "incomeTaxExpense"
+        | "pretaxIncome",
         FinancialStatementSeries
       >
     >;
@@ -262,14 +271,25 @@ export interface FinancialStatementsArtifact {
     >;
     readonly cashFlowStatement: Readonly<
       Record<
-        "operatingCashFlow" | "capitalExpenditure" | "dividendsPaid" | "shareRepurchases",
+        | "operatingCashFlow"
+        | "capitalExpenditure"
+        | "depreciationAndAmortization"
+        | "dividendsPaid"
+        | "shareRepurchases",
         FinancialStatementSeries
       >
     >;
     readonly perShare: Readonly<
-      Record<"dilutedEps" | "continuingDilutedEps" | "dilutedShares", FinancialStatementSeries>
+      Record<
+        "dilutedEps" | "continuingDilutedEps" | "dilutedShares" | "dividendsPerShare",
+        FinancialStatementSeries
+      >
     >;
   };
+  // Any positive filed dividend per share or non-zero dividends paid; absent on pre-flag artifacts.
+  readonly dividendPaymentFiled?: boolean;
+  // Series with no observable raw fact under any alias in any taxonomy; absent on pre-flag artifacts.
+  readonly unfiledSeries?: readonly FinancialStatementSeriesKey[];
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
   readonly structuredFinancialGaps: readonly StructuredFinancialGap[];
@@ -284,6 +304,9 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "netIncome",
   "consolidatedNetIncome",
   "continuingIncome",
+  "interestExpense",
+  "incomeTaxExpense",
+  "pretaxIncome",
   "cash",
   "currentAssets",
   "currentLiabilities",
@@ -293,11 +316,13 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "debt",
   "operatingCashFlow",
   "capitalExpenditure",
+  "depreciationAndAmortization",
   "dividendsPaid",
   "shareRepurchases",
   "dilutedEps",
   "continuingDilutedEps",
   "dilutedShares",
+  "dividendsPerShare",
 ];
 
 // Artifacts written before a later series was added read it as empty, not as invalid.
@@ -314,6 +339,17 @@ const LATER_SERIES: Readonly<
   continuingDilutedEps: {
     label: "Diluted EPS from continuing operations",
     statement: "perShare",
+  },
+  dividendsPerShare: { label: "Dividends per share", statement: "perShare" },
+  interestExpense: { label: "Interest expense", statement: "incomeStatement" },
+  incomeTaxExpense: { label: "Income tax expense", statement: "incomeStatement" },
+  pretaxIncome: {
+    label: "Pretax income from continuing operations",
+    statement: "incomeStatement",
+  },
+  depreciationAndAmortization: {
+    label: "Depreciation and amortization",
+    statement: "cashFlowStatement",
   },
 };
 
@@ -593,6 +629,12 @@ export function readFinancialStatementsArtifact(
     !isRecord(value.statements) ||
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||
+    (value.dividendPaymentFiled !== undefined && typeof value.dividendPaymentFiled !== "boolean") ||
+    (value.unfiledSeries !== undefined &&
+      (!Array.isArray(value.unfiledSeries) ||
+        !value.unfiledSeries.every((key) =>
+          FINANCIAL_STATEMENT_SERIES_KEYS.includes(key as FinancialStatementSeriesKey),
+        ))) ||
     !Array.isArray(value.structuredFinancialGaps)
   ) {
     return undefined;
@@ -620,6 +662,12 @@ export function readFinancialStatementsArtifact(
     return undefined;
   }
   const allSeries = { ...income, ...balance, ...cashFlow, ...perShare };
+  const byStatement = {
+    incomeStatement: income,
+    balanceSheet: balance,
+    cashFlowStatement: cashFlow,
+    perShare,
+  };
   const series: Partial<Record<FinancialStatementSeriesKey, FinancialStatementSeries>> = {};
   const drops: ArtifactObservationDrop[] = [...(equityStack?.drops ?? [])];
   const backfills: ArtifactObservationDrop[] = [...(equityStack?.backfills ?? [])];
@@ -627,7 +675,7 @@ export function readFinancialStatementsArtifact(
     const later = LATER_SERIES[key];
     if (allSeries[key] === undefined && later !== undefined) {
       series[key] = { key, ...later, annual: [], interim: [] };
-      (later.statement === "incomeStatement" ? income : perShare)[key] = series[key];
+      byStatement[later.statement][key] = series[key];
       continue;
     }
     const read = readFinancialStatementSeries(allSeries[key], key);

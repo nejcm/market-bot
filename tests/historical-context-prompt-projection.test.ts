@@ -27,6 +27,10 @@ async function writeRun(
     assetClass: "equity",
     symbol: "AMD",
     generatedAt,
+    dataGaps: [
+      "price-performance: no completed price history",
+      ...Array.from({ length: 8 }, (_, i) => `existing gap ${String(i)}`),
+    ],
     predictions: ["hit", "miss", "pending"].map((id) =>
       prediction({
         id: `${runId}-${id}`,
@@ -79,6 +83,17 @@ describe("compactHistoricalContext", () => {
       now: new Date("2026-10-01T00:00:00.000Z"),
     });
 
+    expect(
+      context.runs.every(
+        (run) => run.dataGaps.length === 8 && run.dataGaps[0]?.startsWith("price-performance: "),
+      ),
+    ).toBe(true);
+    const all = compactHistoricalContext(context, "all").runs as typeof context.runs;
+    const web = compactHistoricalContext(context, "web-gather").runs as typeof context.runs;
+    expect(all.every((run) => run.dataGaps[0]?.startsWith("price-performance: "))).toBe(true);
+    expect(
+      web.every((run) => run.dataGaps.every((gap) => !gap.startsWith("price-performance: "))),
+    ).toBe(true);
     const runs = compactHistoricalContext(context, "all").runs as readonly {
       readonly runId: string;
       readonly predictions: readonly { readonly id: string; readonly measurableAs: string }[];

@@ -94,6 +94,16 @@ function statementSurfaceNotes(
   );
 }
 
+export function operatingRatioNotes(
+  artifact: FinancialStatementsArtifact | undefined,
+): readonly FinancialStatementNote[] | undefined {
+  return artifact?.omissionNotes?.filter(
+    (note) =>
+      note.code === "incomplete-composite-series" &&
+      note.seriesKey === "depreciationAndAmortization",
+  );
+}
+
 function latestPositionValue(
   artifact: FinancialStatementsArtifact,
   key: "cash" | "debt" | "dilutedShares",

@@ -17,7 +17,11 @@ import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 import { isRecord } from "../guards";
 import { validatePredictionShortfall } from "./prediction-shortfall";
-import { businessFrameworkSourceRows, webSubjectProfileSourceRows } from "./report-extras-contract";
+import {
+  businessFrameworkSourceRows,
+  metricSectionsSourceRows,
+  webSubjectProfileSourceRows,
+} from "./report-extras-contract";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -126,6 +130,8 @@ function validateScenarios(
  *                            duplicate report.catalysts (scanned below), macro labels are
  *                            collector titles, prediction labels are code templates
  *   extras.*.gaps            Source Gap strings emitted by code, never by the model
+ *   extras.metricSections    research/extended-evidence-projections.ts; engine labels, values,
+ *                            basis, reasons and causes. Assembly always strips a draft's copy
  * One model-authored surface stays unscanned, unchanged by this scoping: report.dataGaps,
  * which merges model payload.dataGaps with deterministic text (report-assembly.ts:761).
  * Predictions need no scan -- claim is rendered from the parsed expression
@@ -484,6 +490,40 @@ function validateBusinessFrameworkExtra(
   }
 }
 
+function validateMetricSectionsExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
+  for (const row of metricSectionsSourceRows(extra)) {
+    validateKnownSourceIds(
+      `Metric Sections ${row.label ?? row.path}`,
+      row.sourceIds ?? [],
+      knownSourceIds,
+      false,
+      errors,
+    );
+  }
+  const metrics = (Array.isArray(extra) ? extra : []).flatMap((section) =>
+    isRecord(section) && Array.isArray(section.metrics) ? section.metrics : [],
+  );
+  for (const metric of metrics) {
+    if (
+      isRecord(metric) &&
+      "cause" in metric &&
+      (typeof metric.cause !== "string" ||
+        !["not-filed", "insufficient-history", "outside-price-history-window"].includes(
+          metric.cause,
+        ) ||
+        metric.status !== "missing")
+    ) {
+      errors.push(
+        `Metric Sections ${String(metric.id)} has cause ${JSON.stringify(metric.cause)} on a ${String(metric.status)} metric`,
+      );
+    }
+  }
+}
+
 function validateWebSubjectProfileExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
@@ -625,6 +665,7 @@ function validateRenderedExtras(
   validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds, errors);
   validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds, errors);
   validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds, errors);
+  validateMetricSectionsExtra(extras.metricSections, knownSourceIds, errors);
 }
 
 function validateEquityAnalysisCompleteness(

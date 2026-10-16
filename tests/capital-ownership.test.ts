@@ -3,6 +3,8 @@ import {
   deriveCapitalOwnershipArtifact,
   readCapitalOwnershipArtifact,
 } from "../src/sources/extended-evidence/capital-ownership";
+import { deriveEquityAnalysisCompleteness } from "../src/sources/extended-evidence/equity-analysis-completeness";
+import { capitalReturnSection } from "../src/sources/extended-evidence/capital-return";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
@@ -109,17 +111,14 @@ describe("capital ownership artifact", () => {
       version: 1,
       generatedAt: GENERATED_AT,
       symbol: "TEST",
-      dilutedShares: [],
       stockBasedCompensation: [],
-      buybacks: [],
-      dividendsPaid: [],
       omissions: [],
     };
     const malformedArtifacts = [
       [
         {
           ...artifact,
-          dilutedShares: [
+          stockBasedCompensation: [
             {
               value: "not-numeric",
               periodStart: "2025-01-01",
@@ -127,13 +126,13 @@ describe("capital ownership artifact", () => {
               filedAt: "2026-02-15",
               form: "10-K",
               taxonomy: "us-gaap",
-              concept: "WeightedAverageNumberOfDilutedSharesOutstanding",
-              unit: "shares",
+              concept: "ShareBasedCompensation",
+              unit: "USD",
               sourceIds: [SOURCE_ID],
             },
           ],
         },
-        "capitalOwnership.dilutedShares.invalid",
+        "capitalOwnership.stockBasedCompensation.invalid",
       ],
       [{ ...artifact, omissions: ["garbage"] }, "capitalOwnership.omissions.invalid"],
     ] as const;
@@ -152,37 +151,27 @@ describe("capital ownership artifact", () => {
     }
   });
 
-  test.each(["PaymentsOfDividendsCommonStock", "PaymentsOfOrdinaryDividends"])(
-    "derives dividends paid from %s when the total is absent",
-    (dividendConcept) => {
-      const payload = {
-        facts: {
-          "us-gaap": {
-            RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [
-              annual(100, 2025),
-            ]),
-            [dividendConcept]: concept("USD", [annual(7, 2025)]),
-          },
-        },
-      };
-      const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
-
-      expect(artifact.dividendsPaid).toEqual([
-        expect.objectContaining({ value: 7, concept: dividendConcept, periodEnd: "2025-12-31" }),
-      ]);
-    },
-  );
-
   test("derives filed annual histories and debt maturity buckets", () => {
     const payload = companyfacts();
 
     const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
 
-    expect(artifact.dilutedShares).toHaveLength(3);
     expect(artifact.stockBasedCompensation).toHaveLength(3);
-    expect(artifact.buybacks).toHaveLength(3);
-    expect(artifact.dividendsPaid).toHaveLength(3);
-    expect(artifact.buybacks.some((fact) => fact.value === 0)).toBe(true);
+    for (const field of ["dilutedShares", "buybacks", "dividendsPaid"]) {
+      expect(artifact).not.toHaveProperty(field);
+      expect(readCapitalOwnershipArtifact(artifact)).not.toHaveProperty(field);
+    }
+    expect(readCapitalOwnershipArtifact(artifact)?.stockBasedCompensation).toEqual(
+      artifact.stockBasedCompensation,
+    );
+    expect(
+      deriveEquityAnalysisCompleteness({
+        asOf: GENERATED_AT,
+        assetClass: "equity",
+        financialStatements: statements(payload),
+        capitalOwnership: artifact,
+      }).dimensions.capitalOwnership,
+    ).toMatchObject({ status: "complete", sourceIds: [SOURCE_ID] });
     expect(artifact.debtPrincipal).toMatchObject({
       current: { value: 50, sourceIds: [SOURCE_ID] },
       noncurrent: { value: 200, sourceIds: [SOURCE_ID] },
@@ -194,12 +183,79 @@ describe("capital ownership artifact", () => {
     expect(artifact.omissions).toEqual([]);
   });
 
+  test.each([
+    [350, "10-K", false],
+    [380, "10-K", false],
+    [349, "10-K", true],
+    [381, "10-K", true],
+    [90, "10-Q", true],
+  ] as const)(
+    "completeness uses only year-aligned statements: %s days, %s",
+    (days, form, missing) => {
+      const facts = [2023, 2024, 2025].map((year) => ({
+        ...annual(0, year),
+        end: new Date(Date.UTC(year, 0, 1) + days * 86_400_000).toISOString().slice(0, 10),
+        form,
+        fp: form === "10-Q" ? "Q1" : "FY",
+      }));
+      const financialStatements = statements({
+        facts: {
+          "us-gaap": {
+            Revenues: concept(
+              "USD",
+              [2023, 2024, 2025].map((year) => annual(100, year)),
+            ),
+            WeightedAverageNumberOfDilutedSharesOutstanding: concept("shares", facts),
+            PaymentsForRepurchaseOfCommonStock: concept("USD", facts),
+            PaymentsOfDividends: concept("USD", facts),
+          },
+        },
+      });
+      const capitalPayload = companyfacts();
+      const capitalOwnership = deriveCapitalOwnershipArtifact(capitalPayload, {
+        ...statements(capitalPayload),
+        sourceId: "capital-source",
+      });
+      const dimension = deriveEquityAnalysisCompleteness({
+        asOf: GENERATED_AT,
+        assetClass: "equity",
+        financialStatements,
+        capitalOwnership,
+      }).dimensions.capitalOwnership;
+
+      expect(dimension.reasonCodes).toEqual(
+        missing ? ["diluted-share-history-missing", "payout-evidence-missing"] : [],
+      );
+      expect(dimension.sourceIds.includes(SOURCE_ID)).toBe(!missing);
+      expect(dimension.sourceIds).toContain("capital-source");
+    },
+  );
+
+  test("declares missing statement inputs even when capital ownership is present", () => {
+    const payload = companyfacts();
+    const capitalOwnership = deriveCapitalOwnershipArtifact(payload, statements(payload));
+    const dimension = deriveEquityAnalysisCompleteness({
+      asOf: GENERATED_AT,
+      assetClass: "equity",
+      capitalOwnership,
+    }).dimensions.capitalOwnership;
+    expect(dimension.reasonCodes).toEqual([
+      "diluted-share-history-missing",
+      "payout-evidence-missing",
+    ]);
+    const result = capitalReturnSection({ symbol: "TEST", capitalOwnership });
+    expect(result.section.metrics.find(({ id }) => id === "dividendsLatestFy")).toMatchObject({
+      status: "missing",
+    });
+    expect(result.sourceGaps.some(({ message }) => message.includes("dividends"))).toBe(true);
+  });
+
   test("prefers the annual fact over a same-period-end Q4 fact filed in a 10-K", () => {
     const payload = {
       facts: {
         "us-gaap": {
           RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
-          PaymentsOfDividends: concept("USD", [
+          ShareBasedCompensation: concept("USD", [
             annual(42, 2025),
             {
               start: "2025-10-01",
@@ -218,17 +274,17 @@ describe("capital ownership artifact", () => {
 
     const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
 
-    expect(artifact.dividendsPaid).toEqual([
+    expect(artifact.stockBasedCompensation).toEqual([
       expect.objectContaining({ value: 42, periodEnd: "2025-12-31" }),
     ]);
   });
 
-  test("rejects a quarter-length fact mis-tagged FY in the MELI shape", () => {
+  test("rejects a quarter-length SBC fact mis-tagged FY", () => {
     const payload = {
       facts: {
         "us-gaap": {
           RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
-          WeightedAverageNumberOfDilutedSharesOutstanding: concept("shares", [
+          ShareBasedCompensation: concept("USD", [
             annual(51_006_860, 2025),
             {
               start: "2025-10-01",
@@ -247,7 +303,7 @@ describe("capital ownership artifact", () => {
 
     const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
 
-    expect(artifact.dilutedShares).toEqual([
+    expect(artifact.stockBasedCompensation).toEqual([
       expect.objectContaining({ value: 51_006_860, periodEnd: "2025-12-31" }),
     ]);
   });
@@ -257,7 +313,7 @@ describe("capital ownership artifact", () => {
       facts: {
         "us-gaap": {
           RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
-          PaymentsForRepurchaseOfCommonStock: concept("USD", [
+          ShareBasedCompensation: concept("USD", [
             untagged("2024-01-01", "2024-12-30", 364, "week-52"),
             untagged("2024-01-01", "2025-01-06", 371, "week-53"),
             untagged("2025-10-01", "2025-12-31", 90, "quarter"),
@@ -268,7 +324,9 @@ describe("capital ownership artifact", () => {
 
     const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
 
-    expect(artifact.buybacks.map((fact) => fact.value).toSorted()).toEqual([364, 371]);
+    expect(artifact.stockBasedCompensation.map((fact) => fact.value).toSorted()).toEqual([
+      364, 371,
+    ]);
   });
 
   test("drops an undated fact and declares the missing annual history", () => {
@@ -276,7 +334,7 @@ describe("capital ownership artifact", () => {
       facts: {
         "us-gaap": {
           RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
-          WeightedAverageNumberOfDilutedSharesOutstanding: concept("shares", [
+          ShareBasedCompensation: concept("USD", [
             {
               end: "2025-12-31",
               val: 999,
@@ -292,10 +350,10 @@ describe("capital ownership artifact", () => {
 
     const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
 
-    expect(artifact.dilutedShares).toEqual([]);
+    expect(artifact.stockBasedCompensation).toEqual([]);
     expect(artifact.omissions).toContainEqual({
-      code: "diluted-share-history-missing",
-      message: "Annual diluted-share history is missing",
+      code: "sbc-history-missing",
+      message: "Annual stock-based compensation history is missing",
     });
   });
 
@@ -304,15 +362,19 @@ describe("capital ownership artifact", () => {
 
     const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
 
-    expect(artifact.dilutedShares).toEqual([]);
     expect(artifact.stockBasedCompensation).toEqual([]);
-    expect(artifact.buybacks).toEqual([]);
-    expect(artifact.dividendsPaid).toEqual([]);
-    expect(artifact.omissions.map((omission) => omission.code)).toEqual([
-      "diluted-share-history-missing",
-      "sbc-history-missing",
-      "payout-evidence-missing",
-    ]);
+    expect(artifact.omissions.map((omission) => omission.code)).toEqual(["sbc-history-missing"]);
+    const result = capitalReturnSection({
+      symbol: "TEST",
+      statements: statements(payload),
+      capitalOwnership: artifact,
+    });
+    expect(result.section.metrics.find(({ id }) => id === "sbcLatestFy")).toMatchObject({
+      status: "missing",
+    });
+    expect(
+      result.sourceGaps.some(({ message }) => message.includes("stock-based compensation")),
+    ).toBe(true);
   });
 
   test("keeps subsequent financing separate from filed balances", () => {

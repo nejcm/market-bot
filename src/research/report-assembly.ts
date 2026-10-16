@@ -14,7 +14,11 @@ import { type Source, type SourceGap } from "../domain/sources";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { classifyGap } from "../report/gap-triage";
 import { derivePredictionShortfall } from "../report/prediction-shortfall";
-import { validatePredictions, validateResearchReport } from "../report/schema";
+import {
+  assertSafeReportLanguage,
+  validatePredictions,
+  validateResearchReport,
+} from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
 import {
@@ -44,12 +48,18 @@ import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { isGapShapedClaimForRelocation } from "./gap-shaped-claims";
 import { assessSourcePlan, buildSourcePlan } from "./source-plan";
+import {
+  assertNoUnresolvedMetricReferences,
+  citeMetricReferences,
+  resolveMetricReferences,
+} from "./metric-references";
 
 // ---------------------------------------------------------------------------
 // Raw model payload
 // ---------------------------------------------------------------------------
 
 export interface ModelReportPayload {
+  readonly rawResponseContent?: string;
   readonly summary?: unknown;
   readonly keyFindings?: unknown;
   readonly bullCase?: unknown;
@@ -707,13 +717,14 @@ export function assembleResearchReportWithRelocations(
     runId,
     generatedAt,
     command,
-    payload,
+    payload: draftPayload,
     predResult,
     collectedSources,
     depthProfile,
     context,
     sources,
   } = input;
+  const payload = citeMetricReferences(draftPayload, collectedSources.metricSections ?? []);
   const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
   /*
    * `classifyGap` is a heuristic over a gap's source, provider and prose. A collector that already
@@ -804,7 +815,12 @@ export function assembleResearchReportWithRelocations(
     ).label;
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
-  const { spotlights: modelSpotlights, ...authoredExtras } = modelExtras;
+  // A draft never supplies Metric Sections, even when none were collected (ADR 0001 exemption).
+  const {
+    spotlights: modelSpotlights,
+    metricSections: _metricSections,
+    ...authoredExtras
+  } = modelExtras;
   // Spotlights originate only in a market-update selection (ADR 0003); the model refines rationale.
   const resolvedSpotlights = isMarketUpdateJobType(command.jobType)
     ? mergeSpotlightsExtra(modelSpotlights, defaultSpotlights)
@@ -828,6 +844,7 @@ export function assembleResearchReportWithRelocations(
       : undefined;
   const { equityAnalysisCompleteness } = input;
 
+  // Screen authored prose before substituting deterministic metric values (ADR 0005).
   const report = validateResearchReport({
     runId,
     jobType: command.jobType,
@@ -889,5 +906,12 @@ export function assembleResearchReportWithRelocations(
         : {}),
     },
   });
-  return { report, relocatedGapClaims, sourceGaps };
+  const resolvedReport = resolveMetricReferences(report, collectedSources.metricSections ?? []);
+  assertNoUnresolvedMetricReferences(resolvedReport, collectedSources);
+  assertSafeReportLanguage(resolvedReport);
+  return {
+    report: resolvedReport,
+    relocatedGapClaims,
+    sourceGaps,
+  };
 }

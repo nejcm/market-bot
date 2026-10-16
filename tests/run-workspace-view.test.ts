@@ -549,6 +549,55 @@ function tableOfContentsFixture(summaryOverrides: Partial<RunSummary> = {}): Run
           sourceIds: ["source-bull"],
           gaps: [],
         },
+        metricSections: [
+          {
+            id: "capital-return",
+            title: "Capital Return",
+            metrics: [
+              {
+                id: "buybackYield",
+                label: "Buyback yield",
+                unit: "ratio-percent",
+                basis: "latest FY share repurchases / current quote market cap",
+                status: "value",
+                value: 0.025,
+                periodEnd: "2025-09-27",
+                inputs: [
+                  {
+                    artifact: "statements",
+                    label: "share repurchases",
+                    value: 25,
+                    unit: "USD",
+                    periodType: "annual",
+                    periodStart: "2024-09-29",
+                    periodEnd: "2025-09-27",
+                    sourceIds: ["source-bull"],
+                  },
+                ],
+                sourceIds: ["source-bull"],
+              },
+              {
+                id: "malformedValue",
+                label: "Malformed value sentinel",
+                unit: "furlongs",
+                status: "value",
+                value: 1,
+                inputs: [],
+                sourceIds: [],
+              },
+              {
+                id: "sbcLatestFy",
+                label: "Stock-based compensation (latest FY)",
+                unit: "currency",
+                basis: "stock-based compensation in the latest annual filing",
+                status: "missing",
+                reason: "no year-aligned annual stock-based compensation fact",
+                inputs: [],
+                sourceIds: [],
+              },
+            ],
+          },
+        ],
         webSubjectProfile: {
           subjectKind: "company",
           subjectLabel: "Apple Inc.",
@@ -622,6 +671,59 @@ function htmlText(html: string): string {
 }
 
 describe("run workspace view", () => {
+  test("routes D&A omission notes only to Operating Ratios", async () => {
+    const note = {
+      code: "incomplete-composite-series" as const,
+      seriesKey: "depreciationAndAmortization" as const,
+      message: "SEC depreciation and amortization omitted: matching components are incomplete.",
+    };
+    const base = tableOfContentsFixture();
+    const detail = {
+      ...base,
+      financialStatements: {
+        ...base.financialStatements!,
+        omissionNotes: [...base.financialStatements!.omissionNotes, note],
+      },
+      report: {
+        ...base.report!,
+        extras: {
+          metricSections: [
+            { id: "capital-return", title: "Capital Return", metrics: [] },
+            { id: "operating-ratios", title: "Operating Ratios", metrics: [] },
+          ],
+        },
+      },
+    };
+    const view = buildRunWorkspaceView(detail);
+    expect(
+      view.evidence.metricSections?.find(({ id }) => id === "operating-ratios")?.notes,
+    ).toEqual([note.message]);
+    expect(
+      view.evidence.metricSections?.find(({ id }) => id === "capital-return")?.notes,
+    ).toBeUndefined();
+    const { financialStatements, ...withoutStatements } = detail;
+    const unavailable = buildRunWorkspaceView(withoutStatements);
+    expect(
+      unavailable.evidence.metricSections?.find(({ id }) => id === "operating-ratios")?.notes,
+    ).toBeUndefined();
+    const checked = buildRunWorkspaceView({
+      ...detail,
+      financialStatements: { ...financialStatements, omissionNotes: [] },
+    });
+    expect(
+      checked.evidence.metricSections?.find(({ id }) => id === "operating-ratios")?.notes,
+    ).toEqual([]);
+    expect(view.equityPresentation?.defaultView.financialPosition?.notes).not.toContainEqual(note);
+    expect(view.equityPresentation?.advanced.balanceSheetHistory?.notes).not.toContainEqual(note);
+    const advanced = await renderRunWorkspaceComponent(detail, "advanced");
+    expect(advanced.split(note.message)).toHaveLength(2);
+    expect(advanced).toContain("Operating Ratios</h3>");
+    expect(advanced.indexOf(note.message)).toBeGreaterThan(
+      advanced.indexOf("Operating Ratios</h3>"),
+    );
+    expect(await renderRunWorkspaceComponent(detail)).not.toContain(note.message);
+  });
+
   test("keeps stale instant-series notes out of current statement values", () => {
     const note = {
       code: "stale-instant-series" as const,
@@ -776,6 +878,7 @@ describe("run workspace view", () => {
       "extendedEvidence",
       "webSubjectProfile",
       "businessFramework",
+      "metricSections",
       "equityCompleteness",
       "history",
       "gaps",
@@ -785,7 +888,7 @@ describe("run workspace view", () => {
       ...Array.from({ length: 9 }, () => false),
       ...Array.from({ length: 4 }, () => true),
       false,
-      ...Array.from({ length: 10 }, () => true),
+      ...Array.from({ length: 11 }, () => true),
       false,
       true,
     ]);
@@ -817,11 +920,12 @@ describe("run workspace view", () => {
       "extendedEvidence",
       "webSubjectProfile",
       "businessFramework",
+      "metricSections",
       "history",
       "gaps",
     ]);
     expect(entries.map((entry) => entry.advancedOnly)).toEqual(
-      Array.from({ length: 16 }, () => false),
+      Array.from({ length: 17 }, () => false),
     );
   });
 
@@ -922,6 +1026,7 @@ describe("run workspace view", () => {
         "equity-ledger-header.svelte",
         "web-subject-profile.svelte",
         "business-framework.svelte",
+        "metric-sections.svelte",
         "observable-forecasts.svelte",
       ].map((file) =>
         readFileSync(new URL(`../app/client/components/${file}`, import.meta.url), "utf8"),
@@ -952,6 +1057,7 @@ describe("run workspace view", () => {
       history: "Historical context audit",
       webSubjectProfile: "Web Subject Profile",
       businessFramework: "Business framework",
+      metricSections: "Capital Return",
       forecasts: "Observable forecasts",
       rawMarkdown: "Raw markdown",
     };
@@ -969,6 +1075,27 @@ describe("run workspace view", () => {
         ),
       );
     }
+  }, 15_000);
+
+  test("renders Metric Section tiles in Advanced: value with period and basis, reason otherwise", async () => {
+    const html = await renderRunWorkspaceComponent(tableOfContentsFixture(), "advanced");
+    const simple = await renderRunWorkspaceComponent(tableOfContentsFixture(), "simple");
+
+    for (const text of [
+      "Capital Return",
+      "Buyback yield",
+      "2.5%",
+      "FY ending 2025-09-27",
+      "latest FY share repurchases / current quote market cap",
+      "Stock-based compensation (latest FY)",
+      "no year-aligned annual stock-based compensation fact",
+      "Malformed value sentinel",
+      "not available",
+      "no value",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(simple).not.toContain("Buyback yield");
   }, 15_000);
 
   test("projects equity completeness without changing dimension evidence", () => {
@@ -1732,7 +1859,7 @@ describe("run workspace view", () => {
           periodEnd: "2025-12-31",
           publicAt: "2026-02-01",
           price: "200.00 USD · 2026-02-02",
-          priceToEarnings: { status: "populated", display: "100.00x" },
+          priceToEarnings: { status: "value", display: "100.00x" },
         },
       ],
       peerSupportability: "screening-only",
@@ -1815,44 +1942,51 @@ describe("run workspace view", () => {
     expect(view?.excludedPeerRows[0]?.sourceIds).toEqual([]);
   });
 
-  test("collapses missing-price-history observations out of the console rows", () => {
-    const base = valuationWorkbench();
-    const [observation] = base.historicalMultiples.observations;
-    if (observation === undefined) {
-      throw new Error("valuation workbench fixture observation missing");
-    }
-    const noHistory = {
-      status: "suppressed" as const,
-      display: "—" as const,
-      reason: "price-history-unavailable" as const,
-      detail: "No verified close is available within 7 calendar days on or after publicAt.",
-      sourceIds: [],
-    };
-    const workbench = valuationWorkbench({
-      historicalMultiples: {
-        ...base.historicalMultiples,
-        observations: [
-          {
-            ...observation,
-            price: null,
-            metrics: {
-              priceToEarnings: noHistory,
-              priceToSales: noHistory,
-              enterpriseValueToRevenue: noHistory,
-              priceToFreeCashFlow: noHistory,
+  test.each([undefined, "outside-price-history-window"] as const)(
+    "collapses missing-price-history observations out of the console rows (cause %s)",
+    (cause) => {
+      const base = valuationWorkbench();
+      const [observation] = base.historicalMultiples.observations;
+      if (observation === undefined) {
+        throw new Error("valuation workbench fixture observation missing");
+      }
+      const noHistory = {
+        status: "missing" as const,
+        id: "fixture",
+        label: "fixture",
+        unit: "ratio" as const,
+        basis: "fixture",
+        inputs: [],
+        reason: "price-history-unavailable" as const,
+        ...(cause === undefined ? {} : { cause }),
+        sourceIds: [],
+      };
+      const workbench = valuationWorkbench({
+        historicalMultiples: {
+          ...base.historicalMultiples,
+          observations: [
+            {
+              ...observation,
+              price: null,
+              metrics: {
+                priceToEarnings: noHistory,
+                priceToSales: noHistory,
+                enterpriseValueToRevenue: noHistory,
+                priceToFreeCashFlow: noHistory,
+              },
             },
-          },
-          observation,
-        ],
-      },
-    });
+            observation,
+          ],
+        },
+      });
 
-    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
+      const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
 
-    expect(view?.rows).toHaveLength(1);
-    expect(view?.rows[0]?.price).toBe("200.00 USD · 2026-02-02");
-    expect(view?.unpricedPeriods).toEqual([`ANNUAL ${observation.periodEnd}`]);
-  });
+      expect(view?.rows).toHaveLength(1);
+      expect(view?.rows[0]?.price).toBe("200.00 USD · 2026-02-02");
+      expect(view?.unpricedPeriods).toEqual([`ANNUAL ${observation.periodEnd}`]);
+    },
+  );
 
   test("keeps missing-quote-currency observations in the console rows", () => {
     const base = valuationWorkbench();
@@ -1861,10 +1995,13 @@ describe("run workspace view", () => {
       throw new Error("valuation workbench fixture observation missing");
     }
     const quoteMissing = {
-      status: "suppressed" as const,
-      display: "—" as const,
+      status: "missing" as const,
+      id: "fixture",
+      label: "fixture",
+      unit: "ratio" as const,
+      basis: "fixture",
+      inputs: [],
       reason: "quote-currency-unavailable" as const,
-      detail: "Quote currency is unavailable.",
       sourceIds: [],
     };
     const workbench = valuationWorkbench({
@@ -1889,7 +2026,7 @@ describe("run workspace view", () => {
 
     expect(view?.rows).toHaveLength(1);
     expect(view?.rows[0]?.price).toBe("—");
-    expect(view?.rows[0]?.priceToEarnings.status).toBe("suppressed");
+    expect(view?.rows[0]?.priceToEarnings.status).toBe("missing");
     expect(view?.unpricedPeriods).toEqual([]);
   });
 

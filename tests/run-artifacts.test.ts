@@ -378,6 +378,21 @@ describe("loadRunArtifact", () => {
     expect(readDeepEquityEvidenceBundle(candidate)).toBeUndefined();
   });
 
+  test("accepts derived Metric Sections in a deep-equity bundle and rejects a non-array", () => {
+    const base = deepEquityEvidenceBundle();
+    const withSections = (metricSections: unknown) => ({
+      ...base,
+      derived: { ...base.derived, metricSections },
+    });
+
+    expect(
+      readDeepEquityEvidenceBundle(
+        withSections([{ id: "capital-return", title: "Capital Return", metrics: [] }]),
+      ),
+    ).toBeDefined();
+    expect(readDeepEquityEvidenceBundle(withSections({ id: "capital-return" }))).toBeUndefined();
+  });
+
   test("round-trips canonical statements and equity completeness", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "canonical-financials");
@@ -452,10 +467,7 @@ describe("loadRunArtifact", () => {
       version: 1 as const,
       generatedAt: "2026-06-01T00:00:00.000Z",
       symbol: "FPI",
-      dilutedShares: [],
       stockBasedCompensation: [],
-      buybacks: [],
-      dividendsPaid: [],
       omissions: [
         { code: "diluted-share-history-missing", message: "Diluted-share history is missing" },
       ],
@@ -493,6 +505,77 @@ describe("loadRunArtifact", () => {
         /^Financial statement facts without firstPublicAt: \d+ dated to their selected filing \(financialStatements\.revenue\.annual\.firstPublicAt-backfilled: 2/u,
       ),
     );
+  });
+
+  test("reads later series as empty, each in its own statement, from statements written before them", async () => {
+    const preDividendsPerShare: unknown = await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json();
+    const briefDir = join(tempRunsDir(), "pre-dps-brief");
+    await writeJson(join(briefDir, "report.json"), researchReport({ runId: "pre-dps-brief" }));
+    await writeJson(
+      join(briefDir, "normalized", "financial-statements.json"),
+      preDividendsPerShare,
+    );
+    const deepDir = join(tempRunsDir(), "pre-dps-deep");
+    await writeJson(
+      join(deepDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "pre-dps-deep",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "ASTS",
+        extras: { depth: "deep" },
+        sources: [
+          {
+            id: "extended-sec-edgar-asts-fundamentals",
+            title: "ASTS SEC fundamentals",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "market-data",
+          },
+        ],
+      }),
+    );
+    const base = deepEquityEvidenceBundle();
+    await writeJson(
+      join(deepDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        derived: { ...base.derived, financialStatements: preDividendsPerShare as never },
+      }),
+    );
+
+    for (const runDir of [briefDir, deepDir]) {
+      const { artifact, status } = await loadRunArtifact(runDir);
+
+      expect(status.evidenceBundle).toBe(runDir === deepDir ? "ok" : undefined);
+      expect(artifact?.financialStatements?.statements.perShare.dividendsPerShare).toEqual({
+        key: "dividendsPerShare",
+        label: "Dividends per share",
+        statement: "perShare",
+        annual: [],
+        interim: [],
+      });
+      expect(
+        artifact?.financialStatements?.statements.incomeStatement.revenue.annual.length,
+      ).toBeGreaterThan(0);
+      const statements = artifact?.financialStatements?.statements;
+      for (const [statement, key] of [
+        ["incomeStatement", "interestExpense"],
+        ["incomeStatement", "incomeTaxExpense"],
+        ["incomeStatement", "pretaxIncome"],
+        ["cashFlowStatement", "depreciationAndAmortization"],
+      ] as const) {
+        expect(
+          (statements?.[statement] as Record<string, unknown> | undefined)?.[key],
+        ).toMatchObject({ key, statement, annual: [], interim: [] });
+      }
+      expect(Object.keys(statements?.perShare ?? {}).toSorted()).toEqual([
+        "continuingDilutedEps",
+        "dilutedEps",
+        "dilutedShares",
+        "dividendsPerShare",
+      ]);
+    }
   });
 
   test("keeps historical reports readable without Phase 2 fields", async () => {

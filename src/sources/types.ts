@@ -9,6 +9,7 @@ import type { UntaggedFinancialStatementsArtifact } from "./extended-evidence/un
 import type { SecTargetPacket } from "./sec-target-packet";
 import type { TradierPacket } from "./tradier-packet";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
+import type { MetricSection } from "./extended-evidence/metric-engine";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
@@ -199,6 +200,7 @@ export interface CollectedSources {
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
   readonly capitalOwnership?: CapitalOwnershipArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
+  readonly metricSections?: readonly MetricSection[];
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
   readonly webSubjectProfileReuse?: {
     readonly runDirName: string;

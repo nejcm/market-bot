@@ -47,6 +47,7 @@ interface FinalSynthesisState {
   readonly output: StageOutput;
   readonly payload: ModelReportPayload;
   readonly predResult: ReturnType<typeof readPredictions>;
+  readonly parseError?: SyntaxError;
 }
 
 interface SynthesisProgress {
@@ -385,6 +386,7 @@ interface RepairedReport {
 // Unguarded: a persistent violation crashed the whole run. Recommendation-shaped subjects reliably
 // Draw reader-directed advice, so the crash point needs bounded, steered repairs.
 export const MAX_REPORT_VALIDATION_REPROMPTS = 2;
+const MAX_RAW_RESPONSE_CHARS = 20_000;
 
 // Recursive rather than a loop because each repair reprompt depends on the previous attempt's error;
 // The reduce/recursion form also keeps the awaits out of a bare for-loop (no-await-in-loop).
@@ -506,7 +508,23 @@ async function runAndReadFinalSynthesis(
     ...reprompt,
     allowedSourceIds: [...input.knownSourceIds].toSorted(),
   });
-  const payload = parseModelPayload(output.content);
+  let payload: ModelReportPayload = {};
+  try {
+    payload = parseModelPayload(output.content);
+  } catch (error: unknown) {
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
+    return {
+      output,
+      payload: { rawResponseContent: output.content.slice(0, MAX_RAW_RESPONSE_CHARS) },
+      predResult: { predictions: [], errors: [], issues: [] },
+      parseError: new SyntaxError(
+        `Invalid final-synthesis JSON: ${error.message}. Return exactly one complete JSON object.`,
+        { cause: error },
+      ),
+    };
+  }
   const predResult = readPredictions(
     payload.predictions,
     input.knownSourceIds,
@@ -526,6 +544,9 @@ function buildReportWithRelocations(
   input: SynthesizeReportUntilValidInput,
   state: FinalSynthesisState,
 ): ReturnType<typeof assembleResearchReportWithRelocations> {
+  if (state.parseError !== undefined) {
+    throw state.parseError;
+  }
   return assembleResearchReportWithRelocations({
     runId: input.runId,
     generatedAt: input.generatedAt,

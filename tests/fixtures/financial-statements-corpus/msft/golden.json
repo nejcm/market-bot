@@ -1156,6 +1156,27 @@
       "interim": [],
       "ttm": null
     },
+    "interestExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "incomeTaxExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "pretaxIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
       "selectedFact": {
@@ -3166,6 +3187,13 @@
       ],
       "ttm": null
     },
+    "depreciationAndAmortization": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "dividendsPaid": {
       "selectedConcept": null,
       "selectedFact": null,
@@ -3910,6 +3938,13 @@
           "unit": "shares"
         }
       ],
+      "ttm": null
+    },
+    "dividendsPerShare": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
       "ttm": null
     }
   },
@@ -5306,6 +5341,7 @@
             "value": 66987000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30",
             "periodMonths": 12
           },
@@ -5406,6 +5442,7 @@
             "value": 20935000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30"
           },
           "debt": {
@@ -5414,6 +5451,7 @@
             "value": 40294000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30"
           },
           "netDebt": {
@@ -5422,6 +5460,7 @@
             "value": 19359000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30"
           },
           "currentRatio": {

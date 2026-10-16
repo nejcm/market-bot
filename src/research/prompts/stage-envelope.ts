@@ -53,38 +53,34 @@ export interface StagePromptParts {
 }
 
 export function assembleStagePrompt(parts: StagePromptParts): string {
-  return JSON.stringify(
-    {
-      instruction: parts.instruction,
-      stage: parts.stage,
-      stageGoal: parts.stageGoal,
-      depthProfile: parts.depthProfile,
-      evidence: parts.evidence,
-      ...(parts.playbooks !== undefined && parts.playbooks.length > 0
-        ? { domainPlaybooks: parts.playbooks }
-        : {}),
-      priorStages: parts.priorStages,
-      ...(parts.predictionRepromptErrors.length > 0
-        ? {
-            predictionRepromptErrors: parts.predictionRepromptErrors,
-            predictionRepair: parts.predictionRepair,
-          }
-        : {}),
-      ...(parts.sourceIdGuidance !== undefined
-        ? { allowedSourceIds: parts.allowedSourceIds, sourceIdGuidance: parts.sourceIdGuidance }
-        : {}),
-      ...(parts.postSynthesisAuditGuidance !== undefined
-        ? { postSynthesisAuditGuidance: parts.postSynthesisAuditGuidance }
-        : {}),
-      ...(parts.reportValidationErrors.length > 0
-        ? { reportValidationErrors: parts.reportValidationErrors }
-        : {}),
-      ...(parts.reportLanguageRepair !== undefined
-        ? { reportLanguageRepair: parts.reportLanguageRepair }
-        : {}),
-      requiredShape: parts.requiredShape,
-    },
-    undefined,
-    2,
-  );
+  return JSON.stringify({
+    instruction: parts.instruction,
+    stage: parts.stage,
+    stageGoal: parts.stageGoal,
+    depthProfile: parts.depthProfile,
+    evidence: parts.evidence,
+    ...(parts.playbooks !== undefined && parts.playbooks.length > 0
+      ? { domainPlaybooks: parts.playbooks }
+      : {}),
+    priorStages: parts.priorStages,
+    ...(parts.predictionRepromptErrors.length > 0
+      ? {
+          predictionRepromptErrors: parts.predictionRepromptErrors,
+          predictionRepair: parts.predictionRepair,
+        }
+      : {}),
+    ...(parts.sourceIdGuidance !== undefined
+      ? { allowedSourceIds: parts.allowedSourceIds, sourceIdGuidance: parts.sourceIdGuidance }
+      : {}),
+    ...(parts.postSynthesisAuditGuidance !== undefined
+      ? { postSynthesisAuditGuidance: parts.postSynthesisAuditGuidance }
+      : {}),
+    ...(parts.reportValidationErrors.length > 0
+      ? { reportValidationErrors: parts.reportValidationErrors }
+      : {}),
+    ...(parts.reportLanguageRepair !== undefined
+      ? { reportLanguageRepair: parts.reportLanguageRepair }
+      : {}),
+    requiredShape: parts.requiredShape,
+  });
 }

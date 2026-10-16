@@ -44,6 +44,7 @@ interface CodexEvent {
   readonly item?: {
     readonly type?: string;
     readonly text?: string;
+    readonly phase?: string;
   };
 }
 
@@ -94,7 +95,11 @@ function parseEventStream(jsonl: string): { content: string; tokenEstimate: numb
       continue;
     }
 
-    if (event.type === "item.completed" && event.item?.type === "agent_message") {
+    if (
+      event.type === "item.completed" &&
+      event.item?.type === "agent_message" &&
+      event.item.phase !== "commentary"
+    ) {
       content = event.item.text ?? "";
     }
 

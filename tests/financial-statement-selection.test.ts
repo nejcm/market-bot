@@ -338,6 +338,45 @@ describe("financial statement selection", () => {
         },
       },
       {
+        key: "interestExpense",
+        label: "Interest expense",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["InterestExpense", "InterestExpenseNonoperating", "InterestExpenseDebt"],
+          "ifrs-full": ["InterestExpense"],
+        },
+      },
+      {
+        key: "incomeTaxExpense",
+        label: "Income tax expense",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["IncomeTaxExpenseBenefit"],
+          "ifrs-full": ["IncomeTaxExpenseContinuingOperations"],
+        },
+      },
+      {
+        key: "pretaxIncome",
+        label: "Pretax income from continuing operations",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": [
+            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+          ],
+          "ifrs-full": ["ProfitLossBeforeTax"],
+        },
+      },
+      {
         key: "cash",
         label: "Cash and cash equivalents",
         statement: "balanceSheet",
@@ -449,6 +488,18 @@ describe("financial statement selection", () => {
         },
       },
       {
+        key: "depreciationAndAmortization",
+        label: "Depreciation and amortization",
+        statement: "cashFlowStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
+          "ifrs-full": ["DepreciationAndAmortisationExpense"],
+        },
+      },
+      {
         key: "dividendsPaid",
         label: "Dividends paid",
         statement: "cashFlowStatement",
@@ -512,6 +563,21 @@ describe("financial statement selection", () => {
         concepts: {
           "us-gaap": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
           "ifrs-full": ["AdjustedWeightedAverageShares"],
+        },
+      },
+      {
+        key: "dividendsPerShare",
+        label: "Dividends per share",
+        statement: "perShare",
+        kind: "duration",
+        unitKind: "per-share",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": [
+            "CommonStockDividendsPerShareDeclared",
+            "CommonStockDividendsPerShareCashPaid",
+          ],
+          "ifrs-full": ["DividendsRecognisedAsDistributionsToOwnersPerShare"],
         },
       },
     ]);

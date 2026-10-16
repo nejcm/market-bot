@@ -325,6 +325,39 @@ describe("createCodexProvider — generate", () => {
     expect(result.content).toBe('{"summary":"ok"}');
   });
 
+  test("uses only the last completed agent message from exec JSON events", async () => {
+    const spawn = makeSpawn({
+      exec: {
+        exitCode: 0,
+        stdout: [
+          {
+            type: "item.completed",
+            item: { type: "agent_message", text: '{"summary":"draft"}', phase: "final_answer" },
+          },
+          {
+            type: "item.completed",
+            item: { type: "agent_message", text: '{"summary":"ok"}', phase: "final_answer" },
+          },
+          {
+            type: "item.completed",
+            item: { type: "agent_message", text: "hidden", phase: "commentary" },
+          },
+          { type: "turn.completed", usage: { input_tokens: 20, output_tokens: 20 } },
+        ]
+          .map((event) => JSON.stringify(event))
+          .join("\n"),
+      },
+    });
+    const result = await createCodexProvider(baseConfig, spawn).generate({
+      model: "gpt-5.4-mini",
+      responseFormat: "json",
+      messages: [{ role: "user", content: "return json" }],
+    });
+
+    expect(JSON.parse(result.content)).toEqual({ summary: "ok" });
+    expect(result.tokenEstimate).toBe(40);
+  });
+
   test("does not strip fences when responseFormat is not json", async () => {
     const raw = '```json\n{"summary":"ok"}\n```';
     const spawn = makeSpawn({ exec: { exitCode: 0, stdout: agentMessageStream(raw) } });
@@ -603,6 +636,39 @@ describe("createCodexProvider — generate", () => {
 });
 
 describe("createCodexProvider — generateStream", () => {
+  test.each([true, false])(
+    "separates final items and retains the last answer (last has deltas: %s)",
+    async (lastHasDeltas) => {
+      const appServer = fakeAppServer((message, server) => {
+        appServerHandshake(message, server, () => {
+          for (const [id, text] of [
+            ["draft", '{"summary":"draft"}'],
+            ["final", '{"summary":"ok"}'],
+          ]) {
+            const item = { type: "agentMessage", id, phase: "final_answer", text };
+            server.emit({ method: "item/started", params: { item: { ...item, text: "" } } });
+            if (id === "draft" || lastHasDeltas) {
+              server.emit({
+                method: "item/agentMessage/delta",
+                params: { itemId: id, delta: text },
+              });
+            }
+            server.emit({ method: "item/completed", params: { item } });
+          }
+          server.emit({
+            method: "turn/completed",
+            params: { turn: { id: "turn-1", status: "completed" } },
+          });
+        });
+      });
+      const provider = createCodexProvider(baseConfig, makeSpawn({}), appServer.spawn);
+
+      expect(
+        await collectText(await provider.generateStream({ model: "gpt-5.4-mini", messages: [] })),
+      ).toBe('{"summary":"draft"}\n\n{"summary":"ok"}');
+    },
+  );
+
   test("performs the app-server handshake and streams final-answer deltas only", async () => {
     const appServer = fakeAppServer((message, server) => {
       appServerHandshake(message, server, () => {

@@ -123,6 +123,7 @@ export interface OfflineCorpusAllowance {
   readonly kind:
     | "legacy-form-unsupported"
     | "canonical-exact-period-correction"
+    | "filed-currency"
     | "selection-policy"
     | "history-property-not-rederivable";
   readonly justification: string;
@@ -218,6 +219,7 @@ async function loadOfflineCorpusAllowances(): Promise<readonly OfflineCorpusAllo
         /^[a-f0-9]{64}$/u.test(item.legacySha256) &&
         (item.kind === "legacy-form-unsupported" ||
           item.kind === "canonical-exact-period-correction" ||
+          item.kind === "filed-currency" ||
           item.kind === "selection-policy" ||
           item.kind === "history-property-not-rederivable") &&
         typeof item.justification === "string" &&
@@ -347,14 +349,18 @@ function legacyEvidence(input: OfflineFinancialStatementInput<string>): Extended
 function deriveLens(
   input: OfflineFinancialStatementInput<string>,
   evidence: ExtendedEvidence,
-): FinancialLensArtifact | undefined {
+  statements?: FinancialStatementsArtifact,
+) {
   return addFinancialLensEvidence(
     { jobType: "equity", assetClass: "equity", symbol: input.symbol, depth: "deep" },
     [],
     evidence,
     undefined,
     input.analysisAsOf,
-  ).artifact;
+    undefined,
+    undefined,
+    statements,
+  );
 }
 
 export function runOfflineFinancialStatementCorpus<Fixture extends string>(
@@ -377,13 +383,14 @@ export function runOfflineFinancialStatementCorpus<Fixture extends string>(
     analysisAsOf: input.analysisAsOf,
     sourceId: input.sourceId,
   });
+  const canonicalLens = deriveLens(input, canonicalFinancialLensEvidence, artifact);
   const canonicalConsumers: ProjectedConsumers = {
     fundamentalHistory: projectHistory(canonicalHistory),
-    financialLens: projectLenses(deriveLens(input, canonicalFinancialLensEvidence)),
+    financialLens: projectLenses(canonicalLens.artifact),
   };
   const legacyConsumers: ProjectedConsumers = {
     fundamentalHistory: projectHistory(legacyHistory),
-    financialLens: projectLenses(deriveLens(input, legacy)),
+    financialLens: projectLenses(deriveLens(input, legacy).artifact),
   };
   const projection: OfflineCorpusProjection<Fixture> = {
     fixture: input.fixture,

@@ -2,6 +2,7 @@ import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/bus
 import type { WebSubjectProfileArtifact } from "../web-evidence";
 import type {
   BusinessFrameworkExtra,
+  MetricSectionsExtra,
   WebSubjectProfileExtra,
 } from "../report/report-extras-contract";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
@@ -61,7 +62,7 @@ function businessFrameworkExtra(
         name: section.name,
         posture: section.posture,
         summary: section.summary,
-        metrics: section.metrics,
+        metricSectionIds: section.metricSectionIds,
         sourceIds:
           modelSection !== undefined && modelSection.sourceIds.length > 0
             ? modelSection.sourceIds
@@ -140,6 +141,12 @@ const EXTENDED_EVIDENCE_EXTRA_PROJECTORS: readonly ExtraProjector[] = [
     codeAssembledDigest: true,
     project: (_modelExtras, collectedSources) =>
       webSubjectProfileExtra(collectedSources.webSubjectProfile),
+  },
+  {
+    key: "metricSections",
+    codeAssembledDigest: true,
+    project: (_modelExtras, collectedSources): MetricSectionsExtra | undefined =>
+      collectedSources.metricSections,
   },
   {
     key: "earningsSetup",

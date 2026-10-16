@@ -14,6 +14,7 @@ import {
 } from "../src/health/provider-health";
 import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { verifiedMarketSnapshotFromChart } from "../src/sources/verified-market-snapshot";
 import { deepEquityEvidenceBundle, failedRunOutcomesArtifact } from "./support/fixtures";
 
 type WebGatherAuditEntry = WebGatherLoopAudit["acceptedRequests"][number];
@@ -235,6 +236,44 @@ async function writeBaselineRuns(
 }
 
 describe("provider health", () => {
+  test.each(["yahoo-price-history", "yahoo-verified-chart"])(
+    "groups chart validation gaps under their %s request adapter",
+    async (adapter) => {
+      const fetchedAt = "2026-06-01T00:00:00.000Z";
+      const result = verifiedMarketSnapshotFromChart(
+        {
+          payload: {},
+          rawSnapshot: { id: "chart", adapter, fetchedAt, payload: {} },
+        },
+        "MSFT",
+        "2026-06-01",
+      );
+      await writeRun({
+        runId: "chart-gap",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "MSFT",
+        gaps: result.sourceGaps,
+      });
+
+      const summary = await buildProviderHealthSummary(dataDir, new Date(fetchedAt));
+      expect(summary.routes).toEqual([
+        expect.objectContaining({
+          route: adapter,
+          provider: "yahoo",
+          total: 1,
+          causes: { "validation-failed": 1 },
+        }),
+      ]);
+      expect(summary.validation.routeClassifications).toContainEqual(
+        expect.objectContaining({
+          route: adapter,
+          classification: "blocking",
+        }),
+      );
+    },
+  );
+
   test("keeps news repeat counters independent and ignores absent relevant-repeat fields", async () => {
     await writeRun({
       runId: "relevant-repeat",

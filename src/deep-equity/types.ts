@@ -36,6 +36,7 @@ import type { ValuationCompsArtifact } from "../sources/extended-evidence/valuat
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "../sources/extended-evidence/reverse-dcf";
 import type { BusinessFrameworkArtifact } from "../sources/extended-evidence/business-framework";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 
 export interface DeepEquityEvidenceBundleV1 {
@@ -67,6 +68,7 @@ export interface DeepEquityEvidenceBundleV1 {
     readonly reverseDcf?: ReverseDcfArtifact;
     readonly earningsSetup?: EarningsSetupCollected;
     readonly businessFramework?: BusinessFrameworkArtifact;
+    readonly metricSections?: readonly MetricSection[];
   };
   readonly governance: {
     readonly sourceGaps: readonly SourceGap[];

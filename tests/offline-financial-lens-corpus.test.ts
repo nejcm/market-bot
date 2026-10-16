@@ -302,7 +302,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 63 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 72 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -330,7 +330,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(63);
+    expect(lensAllowances).toHaveLength(72);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(
@@ -388,4 +388,22 @@ describe("offline financial-statement corpus — financial-lens properties and c
       expect(() => auditOfflineCorpusCase(mutated)).toThrow(expected);
     });
   }
+});
+
+test("the offline corpus uses statements and withholds MARA cash conversion without a latest-period partner", async () => {
+  const { execution } = await loadOfflineCorpusCase("mara");
+  const quality = execution.projection.canonical.financialLens.Quality;
+  expect(quality?.metrics.cashConversion).toBeUndefined();
+});
+
+test("offline lens allowances reject a forged currency even after its hash is regenerated", async () => {
+  const corpusCase = await loadOfflineCorpusCase("aapl");
+  const path = "financialLens.Financial Strength.metrics.cash";
+  const mutated = mutateOfflineCorpusCase(corpusCase, {
+    mutations: [[`${path}.currency`, "set", "CAD"]],
+    allowanceUpdates: [{ path }],
+  });
+  expect(() => auditOfflineCorpusCase(mutated)).toThrow(
+    /not reproduced by financial-lens properties/u,
+  );
 });

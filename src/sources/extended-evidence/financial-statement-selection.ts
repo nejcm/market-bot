@@ -1,4 +1,5 @@
 import {
+  CAP_FOLLOWER_SERIES,
   DEBT_CONCEPTS,
   type DebtTaxonomyConcepts,
   type FinancialStatementSeriesDefinition,
@@ -856,7 +857,37 @@ export function incompleteFinancialStatementNotes(
   return notes;
 }
 
+function isDividendsPerShare(item: FinancialStatementSeries): boolean {
+  return item.key === "dividendsPerShare";
+}
+
+// Dividend declarations keep their own window so neither cadence displaces the other's periods.
 export function capFinancialStatementPeriods(series: readonly FinancialStatementSeries[]): {
+  readonly series: readonly FinancialStatementSeries[];
+  readonly notes: readonly FinancialStatementNote[];
+} {
+  const nonDividend = series.filter((item) => !isDividendsPerShare(item));
+  const statements = capSharedPeriods(
+    nonDividend,
+    nonDividend.filter((item) => !CAP_FOLLOWER_SERIES.has(item.key)),
+  );
+  const dividends = capSharedPeriods(series.filter(isDividendsPerShare));
+  const capped = new Map(
+    [...statements.series, ...dividends.series].map((item) => [item.key, item]),
+  );
+  return {
+    series: series.map((item) => capped.get(item.key)!),
+    notes: [
+      ...statements.notes,
+      ...dividends.notes.map((note) => ({ ...note, seriesKey: "dividendsPerShare" as const })),
+    ],
+  };
+}
+
+function capSharedPeriods(
+  series: readonly FinancialStatementSeries[],
+  keySeries: readonly FinancialStatementSeries[] = series,
+): {
   readonly series: readonly FinancialStatementSeries[];
   readonly notes: readonly FinancialStatementNote[];
 } {
@@ -873,7 +904,7 @@ export function capFinancialStatementPeriods(series: readonly FinancialStatement
     const allowedByShape = { duration: new Set<string>(), instant: new Set<string>() };
     for (const shape of ["duration", "instant"] as const) {
       const periodFacts = new Map<string, FinancialStatementFact>();
-      for (const fact of series.flatMap((item) => item[period])) {
+      for (const fact of keySeries.flatMap((item) => item[period])) {
         if ((fact.periodStart === undefined ? "instant" : "duration") === shape) {
           periodFacts.set(fact.periodKey, fact);
         }
@@ -903,6 +934,19 @@ export function capFinancialStatementPeriods(series: readonly FinancialStatement
     const shape = fact.periodStart === undefined ? "instant" : "duration";
     return periods[shape].has(fact.periodKey);
   };
+  for (const item of series.filter((candidate) => !keySeries.includes(candidate))) {
+    for (const period of ["annual", "interim"] as const) {
+      const dropped = item[period].filter((fact) => !keep(period, fact));
+      for (const periodKey of new Set(dropped.map((fact) => fact.periodKey))) {
+        notes.push({
+          code: "history-cap",
+          seriesKey: item.key,
+          periodKey: `${period}|${periodKey}`,
+          message: `${item.label} ${period} period ${periodKey} omitted: the core statements do not retain it`,
+        });
+      }
+    }
+  }
   return {
     series: series.map((item) => ({
       ...item,

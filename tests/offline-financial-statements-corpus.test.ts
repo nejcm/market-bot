@@ -9,10 +9,10 @@ import {
 describe("offline financial-statement corpus", () => {
   test("locks every issuer projection and classifies every consumer difference offline", async () => {
     const expectedClassifications = {
-      aapl: { matched: 74, allowances: 0 },
-      msft: { matched: 78, allowances: 0 },
-      mara: { matched: 69, allowances: 10 },
-      nbis: { matched: 38, allowances: 37 },
+      aapl: { matched: 70, allowances: 4 },
+      msft: { matched: 74, allowances: 4 },
+      mara: { matched: 65, allowances: 13 },
+      nbis: { matched: 38, allowances: 35 },
       "fpi-quarterly": { matched: 24, allowances: 52 },
       "fpi-ifrs-semiannual": { matched: 33, allowances: 43 },
     } as const;
@@ -86,10 +86,13 @@ describe("offline financial-statement corpus", () => {
       .toSorted();
 
     expect(maraCase.allowances.map((allowance) => allowance.path).toSorted()).toEqual([
+      "financialLens.Financial Strength.metrics.cash",
+      "financialLens.Financial Strength.metrics.debt",
+      "financialLens.Financial Strength.metrics.netDebt",
       "financialLens.Growth.metrics.grossProfitDeltaPercent",
       "financialLens.Growth.metrics.netIncomeDeltaPercent",
-      "financialLens.Quality.metrics.cashConversion",
       "financialLens.Quality.metrics.consolidatedNetIncome",
+      "financialLens.Quality.metrics.freeCashFlowProxy",
       "financialLens.Quality.metrics.grossMargin",
       "financialLens.Quality.metrics.netMargin",
       "financialLens.Quality.metrics.roa",
@@ -100,7 +103,6 @@ describe("offline financial-statement corpus", () => {
     expect(exactPeriodPaths).toEqual([
       "financialLens.Growth.metrics.grossProfitDeltaPercent",
       "financialLens.Growth.metrics.netIncomeDeltaPercent",
-      "financialLens.Quality.metrics.cashConversion",
       "financialLens.Quality.metrics.consolidatedNetIncome",
       "financialLens.Quality.metrics.grossMargin",
       "financialLens.Quality.metrics.netMargin",

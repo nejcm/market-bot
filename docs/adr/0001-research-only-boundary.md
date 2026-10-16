@@ -8,7 +8,7 @@ Accepted
 
 2026-06-30 (consolidated 2026-07-15; amended 2026-07-23; amended 2026-08-09:
 attributed third-party source-text boundary; amended 2026-08-26: model-authored report
-validation scope)
+validation scope; amended 2026-10-15: Metric Sections; amended 2026-10-16: metric reference substitution)
 
 ## Context
 
@@ -74,9 +74,22 @@ assembly text is outside report validation:
   (`src/research/report-assembly.ts:128-188`) _move_ uncited findings and business-framework text
   out of scanned fields into `dataGaps`, so a gap-shaped sentence can carry advice past the screen.
   Closing it is tracked separately.
+- `extras.metricSections` (amended 2026-10-15): labels, values, basis and reasons are code templates
+  in `src/sources/extended-evidence/` projected by
+  `src/research/extended-evidence-projections.ts`; the definitions' template test runs every
+  string through the research-only patterns. The exemption holds only because
+  `src/research/report-assembly.ts` strips a draft's `metricSections` unconditionally, so the
+  field is never model-authored, even in a run that collected none.
 - `predictions[]` needs no screen: `claim` is rendered from the parsed observable expression
   (`src/forecast/observable-candidates.ts:172`) and `measurableAs` is a parsed DSL expression, not
   free prose. Neither carries model wording the patterns could act on.
+
+Metric references (2026-10-16, ADR 0005) preserve this boundary: assembly validates the authored
+prose with `<<metric:<section>.<id>>>` intact (legacy brace-delimited tokens are malformed), then
+substitutes only deterministic formatted metric values and screens the resolved prose again inside
+the bounded report repair loop: substitution can construct blocked phrases such as a percentage
+followed by "gap". Claim citations are merged before validation. No surrounding prose is exempted,
+and tokens cannot be used in the qualitative summary, data gaps, or Prediction expressions.
 
 The exempt list above is closed. Adding another exempt surface requires an amendment to this
 record, not a judgement call at the call site.

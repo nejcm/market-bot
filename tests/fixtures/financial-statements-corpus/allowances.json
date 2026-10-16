@@ -33,16 +33,8 @@
   },
   {
     "fixture": "mara",
-    "path": "financialLens.Quality.metrics.cashConversion",
-    "canonicalSha256": "933ede7ac12986c5f436765a4406cac52f61018c582d45786d3bd55bc5440ad9",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "canonical-exact-period-correction",
-    "justification": "MARA canonical cash conversion uses exact-period 2025 operating-cash-flow and net-income facts; the legacy selector omits the metric."
-  },
-  {
-    "fixture": "mara",
     "path": "financialLens.Quality.metrics.consolidatedNetIncome",
-    "canonicalSha256": "b8e42523c3b9dcd8070f6f753c7f4efdbefe6f8e7e46eecad1faf4a2f8c8939f",
+    "canonicalSha256": "f168415b1fcad8e9ca8f8d98feeaf12d656065b4f8ae275c59f54beb590754cf",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "canonical-exact-period-correction",
     "justification": "MARA canonical consolidated net income reads the 2025 annual ProfitLoss fact on net income's own exact period; the legacy revenue-anchored selector finds no 2026 NetIncomeLoss fact, omits net income, and so withholds the consolidated figure."
@@ -242,34 +234,18 @@
   {
     "fixture": "nbis",
     "path": "financialLens.Financial Strength.metrics.cash",
-    "canonicalSha256": "7b8f2d3ea98ab74957c8966d21be39aca469dc97ed88c21fddbc03d8b1b98a51",
+    "canonicalSha256": "10b587e191a07eb5d6d93a2470a90072dfe2ce0119f070cfd1bed2ef0b019595",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Financial Strength.metrics.cash comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   },
   {
     "fixture": "nbis",
-    "path": "financialLens.Financial Strength.metrics.currentRatio",
-    "canonicalSha256": "d2416cd38aa3cf618a8ad0ab4225493cd084969ae639b226651e205b0df9d2b8",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Financial Strength.metrics.currentRatio comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
     "path": "financialLens.Financial Strength.metrics.debt",
-    "canonicalSha256": "0c3e24007844aae84664bfc50388ebaa52d21ca7824f4e062bd19facd30a4ce0",
+    "canonicalSha256": "6a9d979aead27287eaf253909583a2f95e83a054cbcb69379a9619ff6de11847",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Financial Strength.metrics.debt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
-    "path": "financialLens.Financial Strength.metrics.netDebt",
-    "canonicalSha256": "066fb61d31f7dfddc5ece0d7486906e03e706c380e50dc11155f59b1d32fb132",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Financial Strength.metrics.netDebt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   },
   {
     "fixture": "nbis",
@@ -338,7 +314,7 @@
   {
     "fixture": "nbis",
     "path": "financialLens.Quality.metrics.freeCashFlowProxy",
-    "canonicalSha256": "00b56315c19b8a03e8e554352ab2b338c3b7c7766c62fcc46209f0d1e17ce545",
+    "canonicalSha256": "67e9a4ff829b916a8101bee560c1641c96c3a2c574c0bcb07ff2a8946d477c6d",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Quality.metrics.freeCashFlowProxy comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -650,7 +626,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "financialLens.Financial Strength.metrics.cash",
-    "canonicalSha256": "e10766d7617fca796b0d612795964c47c8de8c7743c1453fd6e881a4a944fa58",
+    "canonicalSha256": "3a3e09240906546a29e53efffe032ba8280f44747321fe30f91fd34ea300ebe7",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical Financial Strength.metrics.cash comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -658,7 +634,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "financialLens.Financial Strength.metrics.debt",
-    "canonicalSha256": "2073f974005da993d7cc47ac2a851bf13a8e367cf828c6d919b4360e64f9eece",
+    "canonicalSha256": "3fa03e01c511eff1a5e49264627cb101a5acb6edb179fe770f916fc4d82ff767",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical Financial Strength.metrics.debt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -674,7 +650,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "financialLens.Financial Strength.metrics.netDebt",
-    "canonicalSha256": "00ca233d9b9b9ace25ff9f9db1aec278e93838ff2a2a3a26b9eb8b5ee81db886",
+    "canonicalSha256": "a5b2971671c50ee56bbc8798a781a2d2be0c2a40ac61b9598268a8610ca83c2c",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical Financial Strength.metrics.netDebt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -994,7 +970,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "financialLens.Financial Strength.metrics.cash",
-    "canonicalSha256": "94e0e3a6985ee5ebef90fb96ff213b838e72a521af23e567e32b050250227e01",
+    "canonicalSha256": "c398db14dceb576be1adb01d63967c396a95f1ba5369220d9ca9c8f9ec43fcc6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical Financial Strength.metrics.cash comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -1002,7 +978,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "financialLens.Financial Strength.metrics.debt",
-    "canonicalSha256": "b5ab5833e095d08d5f2c94624564c7068d0b2c3f4779cb774ddf4e3ecd086f75",
+    "canonicalSha256": "866976ef7629af8f02e0ad1f68997398ae907772612d9a2a619b9e527a957adc",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical Financial Strength.metrics.debt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -1018,7 +994,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "financialLens.Financial Strength.metrics.netDebt",
-    "canonicalSha256": "86c2112e7ef780623d0ac3c88f1e964fd563e5f6cccffd0b2c6cbefb24bcbd7d",
+    "canonicalSha256": "ef5b4d42159e7333d2db5d812500bf58a226767641fe5f304921a3e436eed17b",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical Financial Strength.metrics.netDebt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -1134,5 +1110,101 @@
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical Quality.metrics.roe comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+  },
+  {
+    "fixture": "aapl",
+    "path": "financialLens.Financial Strength.metrics.cash",
+    "canonicalSha256": "1a35b8785545ccbf127db1a2ee1f028c447b55214644364e51283c4757d00b10",
+    "legacySha256": "53802465848c3dda8c4fc6db30244b1637feea8a1074e43d37812287d8c6aa9c",
+    "kind": "filed-currency",
+    "justification": "aapl statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "aapl",
+    "path": "financialLens.Financial Strength.metrics.debt",
+    "canonicalSha256": "629232b23aa5d9cdfa7a4db5ed2e13c3c1d973c6bf22ca62ea5c4b8aa8987b15",
+    "legacySha256": "c197c21ffeb73ee68bdc8ae8ab27e7960620394d0925fae1a471f07d4b534dce",
+    "kind": "filed-currency",
+    "justification": "aapl statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "aapl",
+    "path": "financialLens.Financial Strength.metrics.netDebt",
+    "canonicalSha256": "0bfb982b9a58447e6149e4102e492ceea27e88ef1ba3ea278dab355defe2d416",
+    "legacySha256": "91a8f0d65e765620ed4117a10331ebbad66cf065992ef4569b9f64c956205efc",
+    "kind": "filed-currency",
+    "justification": "aapl statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "aapl",
+    "path": "financialLens.Quality.metrics.freeCashFlowProxy",
+    "canonicalSha256": "37e0cff80eabd2f3f87e1a3cf27fb7328eb181a9095e2c7cffa69697aa0ccb05",
+    "legacySha256": "2bba9a1ba18d66ad6bbc1d7fba052329fa02a877cc2dddc3a72ef8df2a974c65",
+    "kind": "filed-currency",
+    "justification": "aapl statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "msft",
+    "path": "financialLens.Financial Strength.metrics.cash",
+    "canonicalSha256": "aabf99116ccb12c3dd62e4c99707251c6f2a955cc63a852edf50d246026e4b1c",
+    "legacySha256": "12b14bebe64bbf9c32e015568a20a22b856b1d93219a2a18a423d8576edf78a0",
+    "kind": "filed-currency",
+    "justification": "msft statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "msft",
+    "path": "financialLens.Financial Strength.metrics.debt",
+    "canonicalSha256": "09ce3d0ac7f810b1bf7215dd2c0aa0949bf1460e14d83dfe85b0e38aa6edaf57",
+    "legacySha256": "f552206fcd7367d501fefe2ae195433ea437c6174c7c96cbed16f3facec80dca",
+    "kind": "filed-currency",
+    "justification": "msft statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "msft",
+    "path": "financialLens.Financial Strength.metrics.netDebt",
+    "canonicalSha256": "1dc055c1621bd2a79964cbf9cd1cd4b8e8e28c770eec41739eb1748e75cb63d3",
+    "legacySha256": "5efb4420f2917fe347c68872e1dfbf68dd642491d981b743a3ebe93f1a8dbe6e",
+    "kind": "filed-currency",
+    "justification": "msft statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "msft",
+    "path": "financialLens.Quality.metrics.freeCashFlowProxy",
+    "canonicalSha256": "333bd61ca7f1ced460410b39ceac284ac00f0d061a512a8b7a516ca26dd3168c",
+    "legacySha256": "33f7cf168c893dd5416aefd535d975fb3e87b81d85e943e81c9f98e9a34538be",
+    "kind": "filed-currency",
+    "justification": "msft statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "mara",
+    "path": "financialLens.Financial Strength.metrics.cash",
+    "canonicalSha256": "888eac3ec81cf21c90dce0b7d634509a0e0aaff498a79476cabe28582f3e0015",
+    "legacySha256": "7bf529556a92b06b0de4b6e1245f47e6762bc9de95691b2079e174464dda1aee",
+    "kind": "filed-currency",
+    "justification": "mara statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "mara",
+    "path": "financialLens.Financial Strength.metrics.debt",
+    "canonicalSha256": "d2c52ea56574ed394e684becd5a9c7da4b0d42512b7e1c740421fbfa7b62f32d",
+    "legacySha256": "f8423aa1257c2bce4568f4ab6477456c395d4c8380d0450936f842458e24a026",
+    "kind": "filed-currency",
+    "justification": "mara statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "mara",
+    "path": "financialLens.Financial Strength.metrics.netDebt",
+    "canonicalSha256": "68282c2882525383c36e6c15d10935bd9931367c683cf8a0d6da876bab43d45b",
+    "legacySha256": "316d1e072a814fc0de146117191002b22ba829e6e20b33d049fcaf3e32f377d1",
+    "kind": "filed-currency",
+    "justification": "mara statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "mara",
+    "path": "financialLens.Quality.metrics.freeCashFlowProxy",
+    "canonicalSha256": "a92d4f760f460520d81c0c585e9b8bc147ecaa30ab498105631aa3767fb06b8e",
+    "legacySha256": "ccc3425735a567c9d4ee041101f6fc5b222070976982f2d124e5114d55549262",
+    "kind": "filed-currency",
+    "justification": "mara statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
   }
 ]

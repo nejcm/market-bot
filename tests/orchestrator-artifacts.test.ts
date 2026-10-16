@@ -641,15 +641,7 @@ describe("runResearchJob artifact persistence", () => {
               name: "Phase",
               posture: "criteria-supported",
               summary: "Phase criteria-supported (Phase capital-return)",
-              metrics: [
-                {
-                  key: "phase",
-                  label: "Phase",
-                  value: "capital-return",
-                  unit: "text",
-                  sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
-                },
-              ],
+              metricSectionIds: [],
               sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
               gaps: [],
             },

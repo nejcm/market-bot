@@ -22,6 +22,7 @@ import {
 import { buildCalibrationBlock } from "../calibration-context";
 import type { SpotlightSelectionResult } from "../spotlights";
 import { deterministicSourceGaps } from "../deterministic-gaps";
+import { sourceGapScopedReportText } from "../../domain/source-gaps";
 import { moverLimitFor } from "../depth-profile";
 import {
   collectedSourcesForGapView,
@@ -29,6 +30,7 @@ import {
   type SourceGapView,
 } from "./source-gap-view";
 import { isFreshWebSource, userSteeringField } from "./steering";
+import { metricReferenceEvidence, withoutRestatedMetricValues } from "./metric-references";
 
 function normalizedSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
@@ -77,9 +79,29 @@ const projectMarketContext: EvidenceProjector = (_options, _command, collectedSo
     ? { marketContext: collectedSources.marketContext }
     : {};
 
-const projectExtendedEvidence: EvidenceProjector = (_options, command, collectedSources) =>
-  isInstrumentCommand(command) && collectedSources.extendedEvidence !== undefined
-    ? { extendedEvidence: collectedSources.extendedEvidence }
+const projectExtendedEvidence: EvidenceProjector = (_options, command, collectedSources) => {
+  if (!isInstrumentCommand(command) || collectedSources.extendedEvidence === undefined) {
+    return {};
+  }
+  const evidence = withoutRestatedMetricValues(
+    collectedSources.extendedEvidence,
+    collectedSources.metricSections ?? [],
+  );
+  const declaredGaps = new Set(deterministicSourceGaps(command, collectedSources));
+  return {
+    extendedEvidence: {
+      ...evidence,
+      gaps: evidence.gaps.filter((gap) => !declaredGaps.has(sourceGapScopedReportText(gap))),
+    },
+  };
+};
+
+const projectMetricReferences: EvidenceProjector = (options, command, collectedSources) =>
+  isInstrumentCommand(command) &&
+  command.assetClass === "equity" &&
+  options.sourceGapView === "all" &&
+  collectedSources.metricSections !== undefined
+    ? metricReferenceEvidence(collectedSources.metricSections)
     : {};
 
 const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSources) =>
@@ -206,6 +228,7 @@ const projectWebSubjectProfile: EvidenceProjector = (_options, command, collecte
 const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectMarketContext,
   projectExtendedEvidence,
+  projectMetricReferences,
   projectEarningsSetup,
   projectEarningsBasis,
   projectVerifiedMarketSnapshot,
@@ -348,9 +371,6 @@ function historicalRunsForGapView(
   runs: HistoricalResearchContext["runs"],
   sourceGapView: SourceGapView,
 ): HistoricalResearchContext["runs"] {
-  if (sourceGapView === "all") {
-    return runs;
-  }
   let changed = false;
   const projectedRuns = runs.map((run) => {
     const dataGaps = run.dataGaps.filter((gap) => sourceGapVisibleForView(sourceGapView, gap));

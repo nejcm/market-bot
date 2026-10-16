@@ -42,7 +42,7 @@
       },
       "body": "{\"filings\":{\"recent\":{\"form\":[\"8-K\"],\"filingDate\":[\"2026-05-01\"]}}}"
     },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=history&interval=1d&period1=1746921600&period2=1781568000": {
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=div%2Csplits&interval=1d&period1=1622505600&period2=1781568000": {
       "status": 200,
       "headers": {
         "content-type": "application/json"

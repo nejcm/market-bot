@@ -20,6 +20,9 @@ import type { BusinessFrameworkArtifact } from "../../src/sources/extended-evide
 import type { WebSubjectProfileArtifact } from "../../src/web-evidence";
 import type { CollectedSources } from "../../src/sources/types";
 import type { Source } from "../../src/domain/sources";
+import { capitalReturnSection } from "../../src/sources/extended-evidence/capital-return";
+import { operatingRatiosSection } from "../../src/sources/extended-evidence/operating-ratios";
+import { pricePerformanceSection } from "../../src/sources/extended-evidence/price-performance";
 import { buildForecastDisagreementPrompt } from "../../src/research/forecast-disagreement";
 import {
   collectedSources,
@@ -502,6 +505,39 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
   );
 
   add("stage:final-synthesis:primary", buildStagePrompt("final-synthesis", stageInput()));
+  const metricResults = [
+    capitalReturnSection({ symbol: "AAPL", asOf: ANALYSIS_AS_OF }),
+    operatingRatiosSection({ symbol: "AAPL", asOf: ANALYSIS_AS_OF }),
+    pricePerformanceSection({
+      symbol: "AAPL",
+      asOf: ANALYSIS_AS_OF,
+      priceHistory: ["AAPL", "SPY"].map((symbol) => ({
+        symbol,
+        sourceId: `price-history-${symbol}`,
+        priceMode: "split-adjusted-close",
+        bars: ["2021-05-28", "2023-06-01", "2025-05-30", "2026-05-29"].map((date, i) => ({
+          date,
+          close: 100 + i * 10,
+          completed: true,
+        })),
+      })),
+    }),
+  ];
+  const metricInput = stageInput({
+    collectedSources: collectedSources({
+      ...richEquitySources(),
+      metricSections: metricResults.map(({ section }) => section),
+      sourceGaps: metricResults.flatMap(({ sourceGaps }) => sourceGaps),
+    }),
+  });
+  for (const stage of [
+    "specialist-analysis",
+    "final-synthesis",
+    "web-gather",
+    "web-subject-profile",
+  ] as const) {
+    add(`stage:${stage}:metric-references`, buildStagePrompt(stage, metricInput));
+  }
   add(
     "stage:final-synthesis:repair",
     buildStagePrompt(

@@ -1,3 +1,4 @@
+import { evaluateMetricSection, type MetricSection } from "./metric-engine";
 import type { ExtendedEvidence } from "../../domain/evidence";
 import type { OhlcvBar } from "../../domain/market-data";
 import type { Source, SourceGap } from "../../domain/sources";
@@ -11,7 +12,7 @@ import {
   valuationPeriodInputs,
   type ValuationPeriodInputs,
 } from "./valuation-workbench-inputs";
-import { metricResults } from "./valuation-workbench-metrics";
+import { valuationMetricSection, workbenchMetricRecord } from "./valuation-workbench-metrics";
 import type { ValuationCompsArtifact } from "./valuation-comps";
 import type {
   HistoricalValuationObservation,
@@ -32,6 +33,7 @@ export interface BuildValuationWorkbenchInput {
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly valuationComps?: ValuationCompsArtifact;
   readonly priceHistory: readonly Pick<OhlcvBar, "date" | "close">[];
+  readonly priceHistoryRequestedFrom?: string;
   readonly priceSourceId?: string;
   readonly quoteCurrency?: string;
   // Carried only to classify the issuer's industry; see depositoryIssuerSic.
@@ -76,7 +78,11 @@ function observation(
   // Classified once per issuer by the caller, never per period: a per-period decision would let
   // One row print a multiple and the next declare the metric inapplicable for the same issuer.
   depositorySic: string | undefined,
-): HistoricalValuationObservation {
+): {
+  readonly observation: HistoricalValuationObservation;
+  readonly section: MetricSection;
+  readonly sourceGaps: readonly SourceGap[];
+} {
   const publicAt = periodPublicAt(periodInputs);
   const price = selectedPrice(input, publicAt);
   const reportingCurrency = input.financialStatements?.reportingCurrency;
@@ -89,14 +95,6 @@ function observation(
     fxCandidate.date <= price.sessionDate
       ? fxCandidate
       : undefined;
-  const metricPrice =
-    price !== null && fxClose !== undefined && reportingCurrency !== undefined
-      ? {
-          ...price,
-          close: price.close * fxClose.quoteCurrencyPerBaseCurrency,
-          currency: reportingCurrency,
-        }
-      : price;
   const inputs = {
     ...(periodInputs.revenue !== undefined ? { revenue: periodInputs.revenue } : {}),
     ...(periodInputs.netIncome !== undefined ? { netIncome: periodInputs.netIncome } : {}),
@@ -113,31 +111,51 @@ function observation(
     ...(price === null ? [] : [price.sourceId]),
     ...(fxClose === undefined ? [] : [fxClose.sourceId]),
   ]);
-  return {
-    basis: periodInputs.basis,
-    periodEnd: periodInputs.periodEnd,
-    publicAt,
+  const result = valuationMetricSection({
+    symbol: input.symbol,
+    period: periodInputs,
     price,
-    ...(fxClose !== undefined
-      ? {
-          fxConversion: {
+    outsidePriceHistoryWindow:
+      input.priceHistoryRequestedFrom !== undefined &&
+      Date.parse(publicAt) + MAX_PRICE_ALIGNMENT_DAYS * DAY_MS <
+        Date.parse(input.priceHistoryRequestedFrom) &&
+      input.priceHistory.some(({ close }) => Number.isFinite(close) && close > 0),
+    reportingCurrency,
+    quoteCurrency: input.quoteCurrency,
+    depositorySic,
+    statements: input.financialStatements,
+    ...(fxClose === undefined
+      ? {}
+      : {
+          fx: {
             rate: fxClose.quoteCurrencyPerBaseCurrency,
-            rateDate: fxClose.date,
+            date: fxClose.date,
             pair: fxClose.pair,
             sourceId: fxClose.sourceId,
           },
-        }
-      : {}),
-    inputs,
-    metrics: metricResults(
-      periodInputs,
-      metricPrice,
-      reportingCurrency,
-      input.quoteCurrency,
-      depositorySic,
-      fxClose === undefined ? [] : [fxClose.sourceId],
-    ),
-    sourceIds,
+        }),
+  });
+  return {
+    ...result,
+    observation: {
+      basis: periodInputs.basis,
+      periodEnd: periodInputs.periodEnd,
+      publicAt,
+      price,
+      ...(fxClose !== undefined
+        ? {
+            fxConversion: {
+              rate: fxClose.quoteCurrencyPerBaseCurrency,
+              rateDate: fxClose.date,
+              pair: fxClose.pair,
+              sourceId: fxClose.sourceId,
+            },
+          }
+        : {}),
+      inputs,
+      metrics: workbenchMetricRecord(result.section),
+      sourceIds,
+    },
   };
 }
 
@@ -168,9 +186,7 @@ function trailingBasis(
   };
 }
 
-// The peer table's only multiple is EV/revenue and the reference range is derived from peer EV
-// Multiples, so the whole comparison is EV-based and inapplicable for a depository issuer.
-// Saying "unavailable" here would restate the decision as a missing input.
+// Peer comparisons are EV-based, so depository issuers are inapplicable rather than missing inputs.
 function peerComparison(
   valuationComps: ValuationCompsArtifact | undefined,
   depositorySic: string | undefined,
@@ -194,18 +210,49 @@ function peerComparison(
   return { status: "available", valuationComps };
 }
 
-export function buildValuationWorkbench(
+function buildValuationWorkbenchResult(
   input: BuildValuationWorkbenchInput,
   fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>> = {},
-): ValuationWorkbenchArtifact {
+): {
+  readonly artifact: ValuationWorkbenchArtifact;
+  readonly metricSections: readonly MetricSection[];
+  readonly sourceGaps: readonly SourceGap[];
+} {
   const artifact = input.financialStatements;
   const inputsForArtifact = artifact === undefined ? undefined : valuationPeriodInputs(artifact);
   const ttm = inputsForArtifact?.ttm;
   const periodInputs = inputsForArtifact?.periods ?? [];
   const depositorySic = depositoryIssuerSic(input.extendedEvidence);
-  const observations = periodInputs.map((period) =>
+  const results = periodInputs.map((period) =>
     observation(input, period, fxClosesByPriceDate, depositorySic),
   );
+  const observations = results.map((result) => result.observation);
+  const unavailable =
+    results.length > 0
+      ? []
+      : [
+          evaluateMetricSection(
+            "valuation-workbench-unavailable",
+            "Valuation Workbench",
+            [
+              {
+                id: "priceToFreeCashFlow",
+                label: "P/FCF proxy",
+                unit: "ratio",
+                basis: PRICE_SELECTION_RULE,
+                compute: () => ({
+                  status: "missing",
+                  reason:
+                    artifact === undefined
+                      ? "canonical financial statements unavailable"
+                      : "no annual or reconciled TTM valuation basis available",
+                }),
+              },
+            ],
+            { symbol: input.symbol },
+          ),
+        ];
+  const sectionResults = [...results, ...unavailable];
   const suppressionReasons = [
     ...(artifact === undefined ? ["canonical financial statements unavailable"] : []),
     ...(observations.length === 0 ? ["no annual or reconciled TTM valuation basis available"] : []),
@@ -217,41 +264,54 @@ export function buildValuationWorkbench(
     ...(input.valuationComps?.sourceIds ?? []),
   ]);
   return {
-    version: 1,
-    generatedAt: input.generatedAt,
-    analysisAsOf: artifact?.analysisAsOf ?? input.generatedAt,
-    symbol: input.symbol,
-    reportingCurrency: artifact?.reportingCurrency ?? null,
-    quoteCurrency: input.quoteCurrency ?? null,
-    historicalMultiples: {
-      priceSelectionRule: PRICE_SELECTION_RULE,
-      observations,
-      trailingBasis: trailingBasis(artifact, ttm),
-      suppressionReasons,
+    metricSections: sectionResults.map(({ section }) => section),
+    sourceGaps: sectionResults.flatMap(({ sourceGaps }) => sourceGaps),
+    artifact: {
+      version: 1,
+      generatedAt: input.generatedAt,
+      analysisAsOf: artifact?.analysisAsOf ?? input.generatedAt,
+      symbol: input.symbol,
+      reportingCurrency: artifact?.reportingCurrency ?? null,
+      quoteCurrency: input.quoteCurrency ?? null,
+      historicalMultiples: {
+        priceSelectionRule: PRICE_SELECTION_RULE,
+        observations,
+        trailingBasis: trailingBasis(artifact, ttm),
+        suppressionReasons,
+      },
+      peerComparison: peerComparison(input.valuationComps, depositorySic),
+      sourceIds,
     },
-    peerComparison: peerComparison(input.valuationComps, depositorySic),
-    sourceIds,
   };
+}
+
+export function buildValuationWorkbench(
+  input: BuildValuationWorkbenchInput,
+  fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>> = {},
+): ValuationWorkbenchArtifact {
+  return buildValuationWorkbenchResult(input, fxClosesByPriceDate).artifact;
 }
 
 export async function collectValuationWorkbench(
   input: BuildValuationWorkbenchInput & { readonly fetchImpl?: FetchLike },
 ): Promise<{
   readonly artifact: ValuationWorkbenchArtifact;
+  readonly metricSections: readonly MetricSection[];
   readonly sources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
 }> {
   const { fetchImpl, ...buildInput } = input;
-  const initialArtifact = buildValuationWorkbench(buildInput);
+  const initialResult = buildValuationWorkbenchResult(buildInput);
+  const initialArtifact = initialResult.artifact;
   const { reportingCurrency, quoteCurrency } = initialArtifact;
   if (reportingCurrency === null || quoteCurrency === null || reportingCurrency === quoteCurrency) {
-    return { artifact: initialArtifact, sources: [], sourceGaps: [] };
+    return { ...initialResult, sources: [] };
   }
   const priceDates = initialArtifact.historicalMultiples.observations.flatMap(({ price }) =>
     price === null ? [] : [price.sessionDate],
   );
   if (priceDates.length === 0) {
-    return { artifact: initialArtifact, sources: [], sourceGaps: [] };
+    return { ...initialResult, sources: [] };
   }
 
   // The equity's quote currency is the FX base leg: USD price × (CAD/USD) = CAD.
@@ -262,8 +322,9 @@ export async function collectValuationWorkbench(
     fetchImpl,
   );
   const [firstClose] = Object.values(fxResult.closesByRequestedDate);
+  const finalResult = buildValuationWorkbenchResult(buildInput, fxResult.closesByRequestedDate);
   return {
-    artifact: buildValuationWorkbench(buildInput, fxResult.closesByRequestedDate),
+    ...finalResult,
     sources:
       firstClose === undefined
         ? []
@@ -277,6 +338,6 @@ export async function collectValuationWorkbench(
               provider: "yahoo",
             },
           ],
-    sourceGaps: fxResult.sourceGaps,
+    sourceGaps: [...finalResult.sourceGaps, ...fxResult.sourceGaps],
   };
 }

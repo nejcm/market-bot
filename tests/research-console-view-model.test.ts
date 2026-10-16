@@ -14,6 +14,7 @@ import {
   dashboardMetrics,
   extendedEvidenceItems,
   financialLensMetricTiles,
+  financialLensSectionTiles,
   financialLensStatTiles,
   forecastDisagreements,
   forecastGroups,
@@ -55,9 +56,23 @@ import {
   instrumentPath,
   isFailedRun,
 } from "../app/client/view-model";
+import { metricSectionsView } from "../app/client/view-model-metric-sections";
+import { financialLensGroupViews } from "../app/client/run-workspace-detail";
 import { parseCalibrationContext } from "../src/research/calibration-context";
 import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 import { resolvedPair } from "./support/research-context-helpers";
+
+function frameworkSection(name: string, metricSectionIds?: readonly string[]) {
+  return {
+    name,
+    posture: "criteria-supported",
+    summary: `${name} summary.`,
+    ...(metricSectionIds !== undefined ? { metricSectionIds } : {}),
+    metrics: [{ key: "legacy", label: "Legacy", value: 1, unit: "ratio", sourceIds: [] }],
+    sourceIds: [],
+    gaps: [],
+  };
+}
 
 describe("research console app view model", () => {
   test("round-trips instrument routes with normalized symbols", () => {
@@ -2052,7 +2067,6 @@ describe("report artifact parsers", () => {
           text: "Model-authored framework text.",
           metrics: [
             {
-              key: "grossMargin",
               label: "Gross margin",
               value: "42.0%",
               sourceIds: ["report-source"],
@@ -2101,6 +2115,333 @@ describe("report artifact parsers", () => {
         extras: { businessFramework: { phase: "invalid", sections: [] } },
       }),
     ).toBeUndefined();
+  });
+
+  test("framework tiles come from referenced Metric Sections, value rows only", () => {
+    const view = businessFrameworkView({
+      extras: {
+        businessFramework: {
+          version: 3,
+          phase: "operating-leverage",
+          sections: [
+            frameworkSection("Moat", ["business-framework-moat"]),
+            frameworkSection("Growth", ["business-framework-unknown"]),
+            frameworkSection("Management", []),
+          ],
+          sourceIds: [],
+          gaps: [],
+        },
+        metricSections: [
+          {
+            id: "business-framework-moat",
+            title: "Business Framework: Moat",
+            metrics: [
+              {
+                label: "Gross margin",
+                unit: "ratio-percent",
+                status: "value",
+                value: 0.42,
+                periodEnd: "2026-03-31",
+                periodMonths: 3,
+                inputs: [
+                  { periodType: "interim", periodStart: "2026-01-01", periodEnd: "2026-03-31" },
+                ],
+                sourceIds: ["sec"],
+              },
+              {
+                label: "Operating margin",
+                unit: "ratio-percent",
+                status: "missing",
+                reason: "no interim operatingIncome fact",
+                sourceIds: [],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(view?.sections.map(({ name, metrics }) => ({ name, metrics }))).toEqual([
+      {
+        name: "Moat",
+        metrics: [
+          {
+            label: "Gross margin",
+            value: "42.0%",
+            period: "3-month period ending 2026-03-31",
+            sourceIds: ["sec"],
+          },
+        ],
+      },
+      { name: "Growth", metrics: [] },
+      { name: "Management", metrics: [] },
+    ]);
+  });
+
+  test("projects Metric Sections: absent stays absent, empty stays empty", () => {
+    expect(metricSectionsView(undefined)).toBeUndefined();
+    expect(metricSectionsView({ extras: {} })).toBeUndefined();
+    expect(metricSectionsView({ extras: { metricSections: [] } })).toEqual([]);
+  });
+
+  test("formats value tiles and keeps a non-value tile's reason without a value", () => {
+    const view = metricSectionsView({
+      extras: {
+        metricSections: [
+          {
+            id: "capital-return",
+            title: "Capital Return",
+            metrics: [
+              {
+                label: "Dividends paid (latest FY)",
+                unit: "currency",
+                currency: "CAD",
+                status: "value",
+                value: 5_875_000_000,
+                periodEnd: "2025-10-31",
+                inputs: [
+                  { periodType: "annual", periodStart: "2024-11-01", periodEnd: "2025-10-31" },
+                ],
+                basis: "cash dividends paid",
+                sourceIds: ["sec"],
+              },
+              {
+                label: "Diluted share count trend (3y)",
+                unit: "text",
+                status: "value",
+                value: "stable",
+                sourceIds: [],
+              },
+              {
+                label: "Dividends per share (latest FY)",
+                unit: "currency-per-share",
+                currency: "CHF",
+                status: "value",
+                value: 1.05,
+                sourceIds: [],
+              },
+              {
+                label: "Dividends per share (latest FY)",
+                unit: "currency-per-share",
+                currency: "USD",
+                status: "value",
+                value: 1234.5,
+                sourceIds: [],
+              },
+              {
+                label: "Dividend yield (filed)",
+                unit: "ratio-percent",
+                status: "missing",
+                value: 0.01,
+                reason: "reporting currency CAD differs from quote currency USD",
+                sourceIds: ["sec", "quote"],
+              },
+              { unit: "ratio", status: "value", value: 1, sourceIds: ["unlabelled"] },
+              { label: "  ", unit: "ratio", status: "value", value: 1, sourceIds: [] },
+              { label: "Unknown unit", unit: "furlongs", status: "value", value: 1, sourceIds: [] },
+              { label: "No value", unit: "ratio", status: "value", sourceIds: [] },
+              { label: "Empty text", unit: "text", status: "value", value: "", sourceIds: [] },
+            ],
+          },
+          { id: "untitled", metrics: [] },
+          { id: "blank", title: " ", metrics: [] },
+        ],
+      },
+    });
+
+    expect(view).toEqual([
+      {
+        id: "capital-return",
+        title: "Capital Return",
+        sourceLabel: "sourced inputs",
+        metrics: [
+          {
+            label: "Dividends paid (latest FY)",
+            status: "value",
+            value: "CAD 5.9B",
+            period: "FY ending 2025-10-31",
+            basis: "cash dividends paid",
+            sourceIds: ["sec"],
+          },
+          {
+            label: "Diluted share count trend (3y)",
+            status: "value",
+            value: "stable",
+            sourceIds: [],
+          },
+          ...["CHF 1.05", "$1234.50"].map((value) => ({
+            label: "Dividends per share (latest FY)",
+            status: "value",
+            value,
+            sourceIds: [],
+          })),
+          {
+            label: "Dividend yield (filed)",
+            status: "missing",
+            reason: "reporting currency CAD differs from quote currency USD",
+            sourceIds: ["sec", "quote"],
+          },
+          ...["Unknown unit", "No value", "Empty text"].map((label) => ({
+            label,
+            status: "value",
+            reason: "no value",
+            sourceIds: [],
+          })),
+        ],
+      },
+    ]);
+  });
+
+  test("lens tiles read the frozen Metric Sections, the artifact only when they are absent", () => {
+    const lensMetrics = [
+      {
+        key: "grossMargin",
+        label: "Gross margin",
+        value: 0.3,
+        unit: "ratio-percent",
+        sourceIds: ["extended-sec-edgar-x"],
+      },
+    ];
+    const artifact = {
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "X",
+      sourceIds: ["extended-sec-edgar-x"],
+      lenses: [
+        {
+          name: "Quality",
+          posture: "criteria-supported",
+          metrics: lensMetrics,
+          sourceIds: ["extended-sec-edgar-x"],
+        },
+      ],
+    };
+    const report = {
+      extras: {
+        metricSections: [
+          {
+            id: "financial-lens-quality",
+            title: "Financial Lens: Quality",
+            metrics: [
+              {
+                id: "grossMargin",
+                label: "Gross margin",
+                unit: "ratio-percent",
+                status: "value",
+                value: 0.42,
+                periodEnd: "2025-12-31",
+                periodMonths: 12,
+                sourceIds: ["extended-sec-edgar-x"],
+              },
+              {
+                id: "cash",
+                label: "Cash",
+                unit: "currency",
+                currency: "CAD",
+                status: "value",
+                value: 8_732_000_000,
+                periodEnd: "2026-01-31",
+                sourceIds: ["extended-sec-edgar-x"],
+              },
+              {
+                id: "netMargin",
+                label: "Net margin",
+                unit: "ratio-percent",
+                status: "missing",
+                reason: "no same-period net income",
+                sourceIds: ["extended-sec-edgar-x"],
+              },
+            ],
+          },
+          {
+            id: "capital-return",
+            title: "Capital Return",
+            metrics: [
+              {
+                id: "buybacksLatestFy",
+                label: "Buybacks",
+                unit: "currency",
+                status: "value",
+                value: 1,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    expect(financialLensSectionTiles(report)).toEqual([
+      {
+        key: "grossMargin",
+        lens: "Quality",
+        label: "Gross margin",
+        value: "42.0%",
+        tone: "strong",
+        assessment: "Strong",
+        caption: "SEC EDGAR · FY period ended 2025-12-31",
+      },
+      {
+        key: "cash",
+        lens: "Quality",
+        label: "Cash",
+        value: "CAD 8.7B",
+        tone: "neutral",
+        caption: "SEC EDGAR · balance sheet 2026-01-31",
+      },
+    ]);
+    expect(
+      financialLensGroupViews({
+        report,
+        financialLenses: artifact,
+      } as unknown as Parameters<typeof financialLensGroupViews>[0]),
+    ).toEqual([
+      {
+        lens: "Quality",
+        posture: "criteria-supported",
+        sourceIds: ["extended-sec-edgar-x"],
+        tiles: [
+          {
+            key: "grossMargin",
+            lens: "Quality",
+            label: "Gross margin",
+            value: "42.0%",
+            tone: "strong",
+            assessment: "Strong",
+            caption: "SEC EDGAR · FY period ended 2025-12-31",
+          },
+          {
+            key: "cash",
+            lens: "Quality",
+            label: "Cash",
+            value: "CAD 8.7B",
+            tone: "neutral",
+            caption: "SEC EDGAR · balance sheet 2026-01-31",
+          },
+        ],
+      },
+    ]);
+    expect(
+      financialLensGroupViews({
+        financialLenses: artifact,
+      } as unknown as Parameters<typeof financialLensGroupViews>[0]),
+    ).toEqual([
+      {
+        lens: "Quality",
+        posture: "criteria-supported",
+        sourceIds: ["extended-sec-edgar-x"],
+        tiles: [
+          {
+            key: "grossMargin",
+            lens: "Quality",
+            label: "Gross margin",
+            value: "30.0%",
+            tone: "healthy",
+            assessment: "Healthy",
+            caption: "SEC EDGAR",
+          },
+        ],
+      },
+    ]);
   });
 
   test("parses Web Subject Profile from report extras before sidecar fallback", () => {
@@ -2713,4 +3054,57 @@ describe("report artifact parsers", () => {
       sourceIds: [],
     });
   });
+});
+
+test("lens section selection is per lens and respects empty and all-missing sections", () => {
+  const artifact = {
+    lenses: ["Quality", "Momentum"].map((name) => ({
+      name,
+      posture: "criteria-supported",
+      sourceIds: [],
+      metrics: [
+        {
+          key: "grossMargin",
+          label: "Gross margin",
+          value: 0.3,
+          unit: "ratio-percent",
+          sourceIds: [],
+        },
+      ],
+    })),
+  };
+  for (const metrics of [
+    [],
+    [
+      {
+        id: "grossMargin",
+        label: "Gross margin",
+        status: "missing",
+        reason: "no same-period revenue",
+        unit: "ratio-percent",
+        sourceIds: [],
+      },
+    ],
+    [
+      {
+        id: "grossMargin",
+        label: "Gross margin",
+        status: "value",
+        value: 0.42,
+        unit: "ratio-percent",
+        sourceIds: [],
+      },
+    ],
+  ]) {
+    const groups = financialLensGroupViews({
+      financialLenses: artifact,
+      report: {
+        extras: { metricSections: [{ id: "financial-lens-quality", title: "Quality", metrics }] },
+      },
+    } as unknown as Parameters<typeof financialLensGroupViews>[0]);
+    expect(groups.find((group) => group.lens === "Quality")?.tiles).toHaveLength(
+      metrics.some((metric) => metric.status === "value") ? 1 : 0,
+    );
+    expect(groups.find((group) => group.lens === "Momentum")?.tiles).toHaveLength(1);
+  }
 });

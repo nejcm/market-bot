@@ -399,9 +399,20 @@ export async function createCodexAppServerStream(
 
     const finalItemIds = new Set<string>();
     const commentaryItemIds = new Set<string>();
-    let fallback = "";
-    let emitted = false;
+    const emittedItemIds = new Set<string>();
     let finished = false;
+
+    const enqueueText = (
+      itemId: string,
+      text: string,
+      controller: ReadableStreamDefaultController<string>,
+    ): void => {
+      if (!emittedItemIds.has(itemId) && emittedItemIds.size > 0) {
+        controller.enqueue("\n\n");
+      }
+      emittedItemIds.add(itemId);
+      controller.enqueue(text);
+    };
 
     const handleMessage = async (
       message: JsonRpcMessage,
@@ -437,8 +448,9 @@ export async function createCodexAppServerStream(
         finalItemIds.add(itemId);
         if (message.method === "item/completed") {
           const text = readString(item, "text");
-          if (text !== undefined && text !== "") {
-            fallback = text;
+          if (text !== undefined && text !== "" && !emittedItemIds.has(itemId)) {
+            enqueueText(itemId, text, controller);
+            return true;
           }
         }
         return false;
@@ -454,8 +466,7 @@ export async function createCodexAppServerStream(
           finalItemIds.has(itemId) &&
           !commentaryItemIds.has(itemId)
         ) {
-          emitted = true;
-          controller.enqueue(delta);
+          enqueueText(itemId, delta, controller);
           return true;
         }
         return false;
@@ -480,11 +491,7 @@ export async function createCodexAppServerStream(
         );
       }
       finished = true;
-      if (!emitted && fallback !== "") {
-        emitted = true;
-        controller.enqueue(fallback);
-      }
-      if (!emitted) {
+      if (emittedItemIds.size === 0) {
         throw new Error("Codex stream did not include a final agent message");
       }
       await cleanup(true);

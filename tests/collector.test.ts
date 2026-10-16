@@ -6,6 +6,7 @@ import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { deterministicSourceGaps } from "../src/research/deterministic-gaps";
 import { summarizeMarketRegime } from "../src/research/regime";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { collectSources, researchNewsRelevanceTargets } from "../src/sources/collector";
@@ -600,7 +601,7 @@ describe("collectSources", () => {
     expect(result.extendedSources.map((source) => source.id)).toContain(
       "extended-sec-edgar-amd-fundamentals",
     );
-    expect(result.sourceGaps.map((gap) => gap.source)).toContain("yahoo-verified-chart");
+    expect(result.sourceGaps.map((gap) => gap.source)).toContain("yahoo-price-history");
     expect(
       result.extendedEvidence?.items.find((item) => item.category === "valuation")?.metrics,
     ).toMatchObject({
@@ -664,6 +665,109 @@ describe("collectSources", () => {
     ).toHaveLength(1);
   });
 
+  test("carries the statement Metric Sections and their gaps into deterministic source gaps", async () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      return jsonResponse(url.includes("/v8/finance/chart") ? { chart: { result: [] } } : {});
+    };
+
+    const result = await collectSources(
+      command,
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+        cacheDir: tempCacheDir(),
+      },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.metricSections?.map((section) => section.id)).toEqual([
+      "business-framework-business",
+      "business-framework-phase",
+      "business-framework-moat",
+      "business-framework-growth",
+      "business-framework-risk",
+      "business-framework-valuation",
+      "financial-lens-quality",
+      "financial-lens-growth",
+      "financial-lens-financial-strength",
+      "financial-lens-value",
+      "capital-return",
+      "operating-ratios",
+      "valuation-workbench-unavailable",
+      "price-performance",
+    ]);
+    expect(
+      result.metricSections?.find(({ id }) => id === "valuation-workbench-unavailable")?.metrics[0],
+    ).toMatchObject({
+      status: "missing",
+      reason: "no annual or reconciled TTM valuation basis available",
+    });
+    expect(
+      result.sourceGaps.filter(({ source }) => source === "valuation-workbench-unavailable"),
+    ).toMatchObject([
+      { triage: "material", evidenceQualityImpact: "no-cap", provider: "market-bot" },
+    ]);
+    expect(
+      deterministicSourceGaps(command, result).filter((gap) =>
+        gap.startsWith("valuation-workbench-unavailable: "),
+      ),
+    ).toHaveLength(1);
+    expect(
+      result.metricSections
+        ?.find((section) => section.id === "operating-ratios")
+        ?.metrics.find((m) => m.id === "effectiveTaxRate"),
+    ).toMatchObject({
+      status: "missing",
+      reason: "income tax expense and pretax income not filed by the issuer",
+      cause: "not-filed",
+    });
+    expect(
+      deterministicSourceGaps(command, result).filter((gap) =>
+        gap.startsWith("operating-ratios: Operating Ratios metrics for AAPL not computed: "),
+      ),
+    ).toHaveLength(1);
+    expect(
+      result.metricSections
+        ?.find((section) => section.id === "capital-return")
+        ?.metrics.find((m) => m.id === "buybacksLatestFy"),
+    ).toMatchObject({
+      status: "missing",
+      reason: "share repurchases not filed by the issuer",
+      cause: "not-filed",
+    });
+    expect(result.sourceGaps.filter((gap) => gap.source === "capital-return")).toMatchObject([
+      { triage: "material", evidenceQualityImpact: "no-cap", provider: "market-bot" },
+    ]);
+    expect(
+      deterministicSourceGaps(command, result).filter((gap) =>
+        gap.startsWith("capital-return: Capital Return metrics for AAPL not computed: "),
+      ),
+    ).toHaveLength(1);
+  });
+
   test("derives the no-packet legacy fallback from a single company facts fetch", async () => {
     const fundamentalHistoryModule =
       await import("../src/sources/extended-evidence/fundamental-history");
@@ -704,6 +808,17 @@ describe("collectSources", () => {
     );
 
     expect(result.financialStatements).toBeUndefined();
+    expect(result.metricSections?.map((section) => section.id)).toContain("capital-return");
+    expect(
+      result.metricSections
+        ?.find((section) => section.id === "business-framework-business")
+        ?.metrics.map(({ status, reason }) => [status, reason]),
+    ).toEqual([
+      ["missing", "financial statements unavailable"],
+      ["missing", "financial statements unavailable"],
+      ["missing", "financial statements unavailable"],
+    ]);
+    expect(result.sourceGaps.some((gap) => gap.source === "capital-return")).toBe(true);
     expect(result.fundamentalHistory).toBeUndefined();
     expect(legacyFundamentalHistory).toHaveBeenCalledTimes(1);
     expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(2);
@@ -1168,9 +1283,9 @@ describe("collectSources", () => {
         .flatMap(({ metrics }) => metrics)
         .filter(({ key }) => key === "enterpriseValue" || key === "evToAnnualizedRevenue") ?? [];
     const businessFrameworkEvMetrics =
-      result.businessFramework?.sections
-        .flatMap(({ metrics }) => metrics)
-        .filter(({ key }) => key === "evToAnnualizedRevenue") ?? [];
+      result.metricSections
+        ?.flatMap(({ metrics }) => metrics)
+        .filter(({ id, status }) => id === "evToAnnualizedRevenue" && status === "value") ?? [];
 
     expect(evOperandCoercions).toBe(0);
     expect(valuationComps.gaps).toEqual([]);
@@ -3589,4 +3704,96 @@ describe("researchNewsRelevanceTargets", () => {
 
     expect(targets).toHaveLength(0);
   });
+});
+
+test("missing statements still declare Capital Return and Operating Ratios", async () => {
+  const result = await collectSources(
+    { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    {
+      equityMoverLimit: 1,
+      cryptoMoverLimit: 1,
+      newsLimit: 1,
+      sourceTimeoutMs: 1000,
+      cacheDir: tempCacheDir(),
+    },
+    {
+      now: new Date("2026-07-15T00:00:00Z"),
+      fetchImpl: async (input) =>
+        jsonResponse(
+          String(input).includes("/v7/finance/quote")
+            ? { quoteResponse: { result: [collectorQuote("AAPL", 1000)] } }
+            : {},
+        ),
+    },
+  );
+  expect(result.financialStatements).toBeUndefined();
+  for (const id of ["capital-return", "operating-ratios"]) {
+    const section = result.metricSections?.find((row) => row.id === id);
+    expect(section?.metrics.length).toBeGreaterThan(0);
+    expect(section?.metrics.some(({ status }) => status === "missing")).toBe(true);
+    expect(result.sourceGaps.find(({ source }) => source === id)?.triage).toBe("material");
+  }
+});
+
+test("workbench consumes the same split-adjusted history as Price Performance without a technical snapshot", async () => {
+  const chartRequests: string[] = [];
+  const result = await collectSources(
+    { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    {
+      equityMoverLimit: 1,
+      cryptoMoverLimit: 1,
+      newsLimit: 1,
+      sourceTimeoutMs: 1000,
+      cacheDir: tempCacheDir(),
+    },
+    {
+      now: new Date("2026-07-15T00:00:00Z"),
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.includes("/v7/finance/quote")) {
+          return jsonResponse({
+            quoteResponse: {
+              result: [{ ...collectorQuote("AAPL", 1_000_000_000), currency: "USD" }],
+            },
+          });
+        }
+        if (url.includes("company_tickers.json")) {
+          return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+        }
+        if (url.includes("companyfacts")) {
+          return jsonResponse(collectorBankSecPayload());
+        }
+        if (url.includes("/v8/finance/chart")) {
+          chartRequests.push(url);
+          const symbol = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!);
+          const timestamp = Date.parse("2026-02-16T00:00:00Z") / 1000;
+          return jsonResponse({
+            chart: {
+              result: [
+                {
+                  meta: { symbol, currency: "USD" },
+                  timestamp: [timestamp],
+                  events: { splits: {} },
+                  indicators: { quote: [{ close: [100] }] },
+                },
+              ],
+            },
+          });
+        }
+        return jsonResponse({});
+      },
+    },
+  );
+  expect(result.verifiedMarketSnapshot).toBeUndefined();
+  const observation = result.valuationWorkbench?.historicalMultiples.observations[0];
+  expect(observation?.price).toMatchObject({
+    close: 100,
+    sessionDate: "2026-02-16",
+    sourceId: "price-history-AAPL",
+    currency: "USD",
+  });
+  expect(chartRequests.filter((url) => new URL(url).pathname.endsWith("/AAPL"))).toHaveLength(1);
+  expect(
+    chartRequests.every((url) => new URL(url).searchParams.get("events") === "div,splits"),
+  ).toBe(true);
 });

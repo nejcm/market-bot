@@ -44,4 +44,4 @@ const componentModule =
 const result = render(componentModule.default, {
   props: { providerHealth },
 });
-process.stdout.write(result.body);
+await Bun.write(Bun.stdout, result.body);

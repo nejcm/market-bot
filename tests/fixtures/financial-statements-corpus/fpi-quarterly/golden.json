@@ -516,6 +516,27 @@
       "interim": [],
       "ttm": null
     },
+    "interestExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "incomeTaxExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "pretaxIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
       "selectedFact": {
@@ -976,6 +997,13 @@
       "interim": [],
       "ttm": null
     },
+    "depreciationAndAmortization": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "dividendsPaid": {
       "selectedConcept": null,
       "selectedFact": null,
@@ -1122,6 +1150,13 @@
       "ttm": null
     },
     "dilutedShares": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "dividendsPerShare": {
       "selectedConcept": null,
       "selectedFact": null,
       "annual": [],
@@ -1778,6 +1813,7 @@
             "value": 780000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
+            "currency": "USD",
             "periodEnd": "2026-03-31"
           },
           "debt": {
@@ -1786,6 +1822,7 @@
             "value": 3900000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
+            "currency": "USD",
             "periodEnd": "2026-03-31"
           },
           "netDebt": {
@@ -1794,6 +1831,7 @@
             "value": 3120000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
+            "currency": "USD",
             "periodEnd": "2026-03-31"
           },
           "debtToEquity": {

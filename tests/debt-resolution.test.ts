@@ -11,14 +11,14 @@ import {
   formatSecFundamentalsSummary,
   summarizeSecFundamentals,
 } from "../src/sources/extended-evidence/sec-edgar";
-import { strengthLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import { summaryLens } from "./support/financial-lens";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { balanceSheetPeriodDivergence } from "../src/sources/extended-evidence/valuation-comps-support";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { marketSnapshot } from "./support/fixtures";
 import type { ValuationFundamentalInput } from "../src/sources/extended-evidence/valuation-workbench-contract";
-import { metricResults } from "../src/sources/extended-evidence/valuation-workbench-metrics";
+import { valuationMetricSection } from "../src/sources/extended-evidence/valuation-workbench-metrics";
 
 const ANALYSIS_AS_OF = "2026-10-08T00:00:00.000Z";
 
@@ -807,8 +807,9 @@ function fundamental(value: number, periodEnd: string): ValuationFundamentalInpu
 }
 
 function evToRevenue(debtPeriodEnd: string) {
-  return metricResults(
-    {
+  return valuationMetricSection({
+    symbol: "TEST",
+    period: {
       basis: "ttm",
       periodEnd: "2026-06-30",
       revenue: fundamental(100, "2026-06-30"),
@@ -816,23 +817,21 @@ function evToRevenue(debtPeriodEnd: string) {
       cash: fundamental(20, "2026-06-30"),
       debt: fundamental(30, debtPeriodEnd),
     },
-    { close: 10, sessionDate: "2026-08-07", currency: "USD", sourceId: "quote" },
-    "USD",
-    "USD",
-    undefined,
-  ).enterpriseValueToRevenue;
+    price: { close: 10, sessionDate: "2026-08-07", currency: "USD", sourceId: "quote" },
+    reportingCurrency: "USD",
+    quoteCurrency: "USD",
+  }).section.metrics.find(({ id }) => id === "enterpriseValueToRevenue");
 }
 
 describe("valuation workbench balance-sheet period gate", () => {
   test("populates EV/revenue when cash and debt are 92 days apart", () => {
-    expect(evToRevenue("2026-03-30")).toMatchObject({ status: "populated", value: 1.1 });
+    expect(evToRevenue("2026-03-30")).toMatchObject({ status: "value", value: 1.1 });
   });
 
   test("suppresses EV/revenue with a declared reason at 93 days apart", () => {
     expect(evToRevenue("2026-03-29")).toMatchObject({
-      status: "suppressed",
+      status: "missing",
       reason: "mixed-period-balance-sheet",
-      detail: "Cash (2026-06-30) and debt (2026-03-29) period ends diverge by 93 days.",
     });
   });
 });
@@ -852,10 +851,11 @@ describe("SEC fundamentals prose dates older debt behind a newer incomplete inst
     expect(legacy?.summary).toContain(
       "debt 33500000 as of 2014-06-30; incomplete as of 2025-12-31",
     );
-    const lensDebt = strengthLens(
+    const lensDebt = summaryLens(
       secEvidenceFrom(legacy?.metrics).items[0],
+      "Financial Strength",
       ANALYSIS_AS_OF,
-    ).lens.metrics.find((metric) => metric.key === "debt");
+    ).metrics.find((metric) => metric.key === "debt");
     expect(lensDebt?.label).toBe("Debt as of 2014-06-30; incomplete as of 2025-12-31");
   });
 
@@ -881,9 +881,11 @@ describe("SEC fundamentals prose dates older debt behind a newer incomplete inst
     expect(legacy?.metrics.debtIncompletePeriodEnd).toBeUndefined();
     expect(legacy?.summary).toContain("debt 100");
     expect(
-      strengthLens(secEvidenceFrom(legacy?.metrics).items[0], ANALYSIS_AS_OF).lens.metrics.find(
-        (metric) => metric.key === "debt",
-      )?.label,
+      summaryLens(
+        secEvidenceFrom(legacy?.metrics).items[0],
+        "Financial Strength",
+        ANALYSIS_AS_OF,
+      ).metrics.find((metric) => metric.key === "debt")?.label,
     ).toBe("Debt");
   });
 });

@@ -79,7 +79,14 @@ type FinancialTableValidationField =
 export type FinancialTableSemanticField =
   | Exclude<
       FinancialStatementSeriesKey,
-      "consolidatedNetIncome" | "continuingIncome" | "continuingDilutedEps"
+      | "consolidatedNetIncome"
+      | "continuingIncome"
+      | "continuingDilutedEps"
+      | "dividendsPerShare"
+      | "interestExpense"
+      | "incomeTaxExpense"
+      | "pretaxIncome"
+      | "depreciationAndAmortization"
     >
   | FinancialTableValidationField
   | "mezzanineEquity";

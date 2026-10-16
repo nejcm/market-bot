@@ -22,14 +22,24 @@ import type { FetchLike } from "../../../src/sources/types";
 import { makeReplayFetch } from "./data-cassette";
 import { createProvider } from "../../../src/model/factory";
 import { createLiveFixtureConfig, loadFixture, runFixture } from "./index";
-import type { LIVE_STAGE } from "./llm-cassette";
-import { makeFinalSynthesisLiveProvider } from "./llm-cassette";
+import {
+  type LIVE_STAGE,
+  makeFinalSynthesisLiveProvider,
+  makeReplayProvider,
+} from "./llm-cassette";
 
 export const EVALS_ROOT = join(import.meta.dir, "../../../data/evals");
 const EVAL_SAMPLE_FILE = "eval-sample.json";
 const SUMMARY_FILE = "summary.json";
 const CASSETTE_MISS_PREFIX = "Fixture data cassette miss: ";
+const MAX_RAW_RESPONSE_CHARS = 20_000;
 const PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+
+// Older Bun releases (CI pins one) omit the "Name: message" header from error.stack.
+function errorStackWithMessage(error: Error, stack: string): string {
+  const header = `${error.name}: ${error.message}`;
+  return stack.startsWith(header) ? stack : `${header}\n${stack.replace(/^\w*Error\n/u, "")}`;
+}
 // Same predicate the final-synthesis language repair prompt uses to pick gate errors.
 const LANGUAGE_GATE_ERROR = "trade-action language";
 // AGENTS.md: a deep live equity run is ~438k tokens; synthetic cassettes record far less.
@@ -64,6 +74,8 @@ interface EvalSampleRecord {
   readonly durationMs: number;
   readonly cassetteMisses: { readonly count: number; readonly keys: readonly string[] };
   readonly error?: string;
+  readonly errorStack?: string;
+  readonly rawResponseContent?: string;
 }
 
 interface EvalSampleMetrics {
@@ -172,20 +184,31 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
   );
   const startedAt = performance.now();
   const restoreEnv = disableIndexAccess();
+  let rawResponseContent: string | undefined = undefined;
   const runError = await (async () => {
+    const baseProvider =
+      input.provider ??
+      (input.llm === "replay" && input.liveStages === undefined
+        ? makeReplayProvider(fixture.llmCassette)
+        : createProvider(createLiveFixtureConfig(fixture.meta, dataDir)));
     const provider =
       input.liveStages === undefined
-        ? input.provider
-        : makeFinalSynthesisLiveProvider(
-            fixture.llmCassette,
-            input.provider ?? createProvider(createLiveFixtureConfig(fixture.meta, dataDir)),
-          );
+        ? baseProvider
+        : makeFinalSynthesisLiveProvider(fixture.llmCassette, baseProvider);
     return runFixture(input.fixture, {
       llm: input.llm,
       dataDir,
       keepDataDir: true,
       fetchImpl,
-      ...(provider !== undefined ? { provider } : {}),
+      provider: {
+        ...provider,
+        generate: async (request) => {
+          rawResponseContent = undefined;
+          const response = await provider.generate(request);
+          rawResponseContent = response.content.slice(0, MAX_RAW_RESPONSE_CHARS);
+          return response;
+        },
+      },
     });
   })()
     .then(
@@ -212,6 +235,10 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
     ...(runError !== undefined
       ? { error: runError instanceof Error ? runError.message : String(runError) }
       : {}),
+    ...(runError instanceof Error && runError.stack !== undefined
+      ? { errorStack: errorStackWithMessage(runError, runError.stack) }
+      : {}),
+    ...(runError !== undefined && rawResponseContent !== undefined ? { rawResponseContent } : {}),
   };
   await writeFile(join(sampleDir, EVAL_SAMPLE_FILE), `${JSON.stringify(record, undefined, 2)}\n`);
   return { ...record, sampleDir, ...(runDir !== undefined ? { runDir } : {}) };

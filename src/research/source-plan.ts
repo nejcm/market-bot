@@ -238,13 +238,20 @@ interface LaneDefinition {
     resolvedSubject: ResolvedResearchSubject | undefined,
   ) => boolean;
   readonly sourceIds: (collectedSources: CollectedSources) => readonly string[];
-  readonly gapMatches: (gap: SourceGap) => boolean;
+  readonly gapMatches: (gap: SourceGap, run: SourcePlanRun) => boolean;
 }
 
-function isMarketDataLaneGap(gap: SourceGap): boolean {
+function isVerifiedPriceHistoryGap(gap: SourceGap, run: SourcePlanRun): boolean {
+  return (
+    gap.source === "yahoo-verified-chart" ||
+    (gap.source === "yahoo-price-history" && run.symbol !== undefined && gap.symbol === run.symbol)
+  );
+}
+
+function isMarketDataLaneGap(gap: SourceGap, run: SourcePlanRun): boolean {
   return (
     gap.capability === "market-data" &&
-    gap.source !== "yahoo-verified-chart" &&
+    !isVerifiedPriceHistoryGap(gap, run) &&
     gap.source !== "massive-supplemental-market" &&
     !gap.source.startsWith("yahoo-research-snapshot-") &&
     !gap.source.startsWith("massive-research-snapshot-")
@@ -335,7 +342,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
       sources.verifiedMarketSnapshot === undefined
         ? []
         : [verifiedSnapshotSourceId(sources.verifiedMarketSnapshot.symbol)],
-    gapMatches: (gap) => gap.source === "yahoo-verified-chart",
+    gapMatches: isVerifiedPriceHistoryGap,
   },
   {
     lane: "regulatory-filings",
@@ -709,7 +716,7 @@ export function assessSourcePlan(
     const matchedGaps =
       definition === undefined
         ? []
-        : collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));
+        : collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap, sourcePlan.run));
     const syntheticNoProxyGap = noProxySourcePlanGap(
       sourcePlan.run,
       collectedSources,

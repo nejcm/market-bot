@@ -151,6 +151,9 @@ export function readDeepEquityEvidenceBundle(
     !optionalRecord(value.derived, "reverseDcf") ||
     !optionalRecord(value.derived, "earningsSetup") ||
     !optionalRecord(value.derived, "businessFramework") ||
+    (value.derived.metricSections !== undefined &&
+      (!Array.isArray(value.derived.metricSections) ||
+        !value.derived.metricSections.every(isRecord))) ||
     !isRecord(value.governance) ||
     !Array.isArray(value.governance.sourceGaps) ||
     !value.governance.sourceGaps.every(isSourceGap) ||

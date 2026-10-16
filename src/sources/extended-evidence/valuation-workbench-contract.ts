@@ -1,3 +1,4 @@
+import type { MetricInput, MetricResult } from "./metric-engine";
 import type { ValuationCompsArtifact } from "./valuation-comps";
 import { isRecord, readNumber, readString, readStringArray } from "../../guards";
 import {
@@ -48,6 +49,7 @@ export interface ValuationFundamentalInput {
   readonly currency: string | null;
   readonly unit: string;
   readonly sourceIds: readonly string[];
+  readonly lineage?: readonly MetricInput[];
   readonly derivation?: string;
   readonly scope?: string;
 }
@@ -66,40 +68,6 @@ interface ValuationFxConversion {
   readonly sourceId: string;
 }
 
-export type ValuationMetricResult =
-  | {
-      readonly status: "populated";
-      readonly value: number;
-      readonly display: string;
-      readonly numerator: number;
-      readonly denominator: number;
-      readonly formula: string;
-      readonly sourceIds: readonly string[];
-    }
-  | {
-      readonly status: "not-meaningful";
-      readonly display: "N/M";
-      readonly reason: ValuationMetricNotMeaningfulReason;
-      readonly denominator: number;
-      readonly formula: string;
-      readonly sourceIds: readonly string[];
-    }
-  | {
-      readonly status: "suppressed";
-      readonly display: "—";
-      readonly reason: ValuationMetricSuppressionReason;
-      readonly detail: string;
-      readonly sourceIds: readonly string[];
-    }
-  | {
-      readonly status: "not-applicable";
-      readonly display: "not applicable";
-      readonly rule: string;
-      readonly inputs: Readonly<Record<string, number | string>>;
-      readonly rationale: string;
-      readonly sourceIds: readonly string[];
-    };
-
 export interface HistoricalValuationObservation {
   readonly basis: ValuationObservationBasis;
   readonly periodEnd: string;
@@ -115,7 +83,7 @@ export interface HistoricalValuationObservation {
     readonly cash?: ValuationFundamentalInput;
     readonly debt?: ValuationFundamentalInput;
   };
-  readonly metrics: Readonly<Record<ValuationMetricKey, ValuationMetricResult>>;
+  readonly metrics: Readonly<Record<ValuationMetricKey, MetricResult>>;
   readonly sourceIds: readonly string[];
 }
 
@@ -237,7 +205,7 @@ function hasFxConversionShape(value: unknown): boolean {
   );
 }
 
-function hasMetricResultShape(value: unknown): boolean {
+function hasLegacyMetricResultShape(value: unknown): boolean {
   if (!isRecord(value)) {
     return false;
   }
@@ -284,6 +252,73 @@ function hasMetricResultShape(value: unknown): boolean {
     );
   }
   return false;
+}
+
+function hasMetricResultShape(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (!Array.isArray(value.inputs)) {
+    return hasLegacyMetricResultShape(value);
+  }
+  return (
+    readString(value, "id") !== undefined &&
+    readString(value, "label") !== undefined &&
+    value.unit === "ratio" &&
+    readString(value, "basis") !== undefined &&
+    readStringArray(value, "sourceIds") !== undefined &&
+    value.inputs.every(
+      (input) =>
+        isRecord(input) &&
+        (typeof input.value === "string" || readNumber(input, "value") !== undefined) &&
+        readString(input, "artifact") !== undefined &&
+        readString(input, "label") !== undefined &&
+        readString(input, "unit") !== undefined &&
+        readStringArray(input, "sourceIds") !== undefined,
+    ) &&
+    (value.status === "value"
+      ? readNumber(value, "value") !== undefined
+      : ["missing", "not-meaningful", "not-applicable"].includes(String(value.status)) &&
+        readString(value, "reason") !== undefined)
+  );
+}
+
+function normalizeObservation(
+  value: HistoricalValuationObservation,
+): HistoricalValuationObservation {
+  return {
+    ...value,
+    metrics: Object.fromEntries(
+      Object.entries(value.metrics).map(([id, metric]) => {
+        if (Array.isArray(metric.inputs)) {
+          return [id, metric];
+        }
+        const legacy = metric as unknown as Record<string, unknown>;
+        return [
+          id,
+          {
+            id,
+            label: id,
+            unit: "ratio",
+            basis: "historical filing-date close",
+            periodEnd: value.periodEnd,
+            status:
+              legacy.status === "populated"
+                ? "value"
+                : legacy.status === "suppressed"
+                  ? "missing"
+                  : legacy.status,
+            ...(typeof legacy.value === "number" ? { value: legacy.value } : {}),
+            ...(legacy.status === "populated"
+              ? {}
+              : { reason: legacy.reason ?? legacy.rationale ?? legacy.detail }),
+            inputs: [],
+            sourceIds: metric.sourceIds,
+          },
+        ];
+      }),
+    ) as unknown as HistoricalValuationObservation["metrics"],
+  };
 }
 
 function hasObservationShape(value: unknown): boolean {
@@ -383,7 +418,7 @@ export function readValuationWorkbenchArtifact(
       ...value,
       historicalMultiples: {
         ...value.historicalMultiples,
-        observations: observations.observations,
+        observations: observations.observations.map(normalizeObservation),
       },
     } as unknown as ValuationWorkbenchArtifact,
     previous,

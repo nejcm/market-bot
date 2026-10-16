@@ -9,6 +9,7 @@ export type LensValueUnit =
   | "ratio-percent"
   | "whole-percent"
   | "currency"
+  | "currency-per-share"
   | "number"
   | "text";
 
@@ -81,5 +82,58 @@ export function formatLensValue(value: number, unit: LensValueUnit, currency?: s
   if (unit === "currency") {
     return formatCurrency(value, currency);
   }
+  if (unit === "currency-per-share") {
+    const amount = clampRoundedZero(value, 2).toFixed(2);
+    const code = currency ?? "USD";
+    const symbol = CURRENCY_SYMBOLS[code];
+    return symbol === undefined ? `${code} ${amount}` : `${symbol}${amount}`;
+  }
   return clampRoundedZero(value, 2).toFixed(2);
+}
+
+// One Metric Section display for report.md and the Console; undefined means nothing to show.
+export function formatMetricValue(
+  value: number | string | undefined,
+  unit: LensValueUnit | undefined,
+  currency?: string,
+): string | undefined {
+  if (typeof value === "string") {
+    return value === "" ? undefined : value;
+  }
+  return value === undefined || !Number.isFinite(value) || unit === undefined
+    ? undefined
+    : formatLensValue(value, unit, currency);
+}
+
+export function metricPeriodLabel(
+  periodEnd: string,
+  periodMonths?: number,
+  sectionId?: string,
+  inputs: readonly {
+    readonly periodType?: string;
+    readonly periodStart?: string;
+    readonly periodEnd?: string;
+  }[] = [],
+): string {
+  if (sectionId === "price-performance") {
+    return `Session ending ${periodEnd}`;
+  }
+  const flows = inputs.filter(
+    (input) =>
+      input.periodStart !== undefined &&
+      (input.periodType === "annual" || input.periodType === "interim"),
+  );
+  if (flows.length === 0) {
+    return `As of ${periodEnd}`;
+  }
+  const annual = flows.every((input) => {
+    const days =
+      (Date.parse(input.periodEnd ?? "") - Date.parse(input.periodStart ?? "")) / 86_400_000;
+    return input.periodType === "annual" && days >= 350 && days <= 380;
+  });
+  return annual
+    ? `FY ending ${periodEnd}`
+    : periodMonths === undefined
+      ? `Period ending ${periodEnd}`
+      : `${String(periodMonths)}-month period ending ${periodEnd}`;
 }

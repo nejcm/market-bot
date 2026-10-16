@@ -19,6 +19,7 @@ import { config, researchContext, stagePromptFromArgs } from "./support/research
 import { verifiedSnapshotCitationRule } from "../src/research/verified-snapshot-contract";
 import { hasFreshWebEvidence } from "../src/research/prompts/steering";
 import { buildWebSourceSynthesisInputs } from "../src/research/prompts/web-source-synthesis-inputs";
+import { sourceGap, sourceGapScopedReportText } from "../src/domain/source-gaps";
 
 function evidenceFor(
   command: ResearchCommand,
@@ -141,6 +142,25 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(evidenceFor(command, { marketContext: marketContextValue }).marketContext).toEqual(
       marketContextValue,
     );
+  });
+
+  test("prompt removes only Extended Evidence gaps already declared with the same symbol scope", () => {
+    const declared = sourceGap({
+      source: "sec-edgar",
+      message: "Missing company facts",
+      symbol: "AAPL",
+    });
+    const peer = sourceGap({
+      source: "sec-edgar",
+      message: "Missing company facts",
+      symbol: "MSFT",
+    });
+    const evidence = evidenceFor(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { sourceGaps: [declared], extendedEvidence: { items: [], gaps: [declared, peer] } },
+    );
+    expect(evidence.sourceGaps).toContain(sourceGapScopedReportText(declared));
+    expect((evidence.extendedEvidence as ExtendedEvidence).gaps).toEqual([peer]);
   });
 
   test("verified-snapshot projector contributes all three of its keys", () => {

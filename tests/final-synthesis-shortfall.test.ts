@@ -49,11 +49,16 @@ test.each([
         },
       },
       sources: [newsSource({ id: "market-aapl", kind: "market-data" })],
-      knownSourceIds: new Set(["market-aapl"]),
+      knownSourceIds: new Set(["market-aapl", "price-history-AAPL", "price-history-SPY"]),
       allowedSubjects: new Set(["AAPL"]),
       priorStages: [],
       maxPredictionReprompts: 0,
-      runFinalSynthesis: async () => {
+      runFinalSynthesis: async (_prior, reprompt) => {
+        expect(reprompt?.allowedSourceIds).toEqual([
+          "market-aapl",
+          "price-history-AAPL",
+          "price-history-SPY",
+        ]);
         calls += 1;
         return {
           stage: "final-synthesis",

@@ -108,7 +108,7 @@
       },
       "body": "{\"earningsCalendar\":[{\"symbol\":\"AAPL\",\"date\":\"2026-10-28\",\"hour\":\"amc\",\"quarter\":4,\"year\":2026,\"epsEstimate\":2.0468,\"epsActual\":null,\"revenueEstimate\":116373130794,\"revenueActual\":null},{\"symbol\":\"AAPL\",\"date\":\"2026-07-30\",\"hour\":\"amc\",\"quarter\":2,\"year\":2026,\"epsEstimate\":1.9271,\"epsActual\":1.91,\"revenueEstimate\":110823804698,\"revenueActual\":109417000000},{\"symbol\":\"AAPL\",\"date\":\"2026-07-30\",\"hour\":\"amc\",\"quarter\":3,\"year\":2026,\"epsEstimate\":2.0512,\"epsActual\":1.91,\"revenueEstimate\":117137116720,\"revenueActual\":109417000000}]}"
     },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=history&interval=1d&period1=1751760000&period2=1786406400": {
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=div%2Csplits&interval=1d&period1=1627344000&period2=1786406400": {
       "status": 200,
       "headers": {
         "content-type": "application/json;charset=utf-8"

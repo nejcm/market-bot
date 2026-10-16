@@ -195,6 +195,25 @@ without pretending the project has a global security master.
   lanes and executable acquisition task keys; it is not a generic task graph. The collector derives
   its parallel-provider dispatch set from the recipe and starts supplemental market acquisition in
   that batch rather than after SEC and Tradier packet finalization.
+- Metric Sections are a flat ordered list of pure definitions over one context, with no task graph:
+  a metric reads raw inputs, never another metric's result. They persist in the deep bundle's
+  `derived.metricSections` and are read through `report.extras.metricSections` in every layout.
+  Amendment 2026-10-16: Capital Return and Operating Ratios emit missing rows and section Source
+  Gaps when statements are unavailable. Structural `not-filed`, bounded issuer `insufficient-history`,
+  and workbench `outside-price-history-window` causes are diagnostic; other missing inputs remain
+  material. Joined metrics in Capital Return and Operating Ratios keep `missing (not-filed)` when
+  an input is unfiled: absence is not zero, and imputing zero debt or buybacks can overstate or
+  understate the metric. Issuer `insufficient-history` applies only when returned completed history
+  starts 8–14 calendar days after the anniversary; SPY rows also require benchmark coverage there. Later
+  starts remain material because a short response alone cannot establish listing age. Issuer returns
+  use issuer sessions independently; SPY comparison rows require common completed sessions. Missing
+  SPY history preserves issuer returns, and SPY fetch failures declare a Yahoo Source Gap.
+  The workbench uses the requested history start, requires usable returned closes, and
+  keeps `missing` / `price-history-unavailable`; missing bars inside the window and provider
+  failures stay material. Independent unresolved inputs keep their section material. A lifecycle phase needs cited
+  classification inputs to emit a value. The issuer Yahoo history request is shared by Price
+  Performance, the Valuation Workbench and the Verified Market Snapshot; the workbench and Price
+  Performance consume the same completed split-adjusted closes and source IDs.
 - A deep US-equity `SecTargetPacket` fetches target CIK mapping, company facts, and submissions once,
   then retains SIC plus eligible 10-K, newer 10-Q, and recent 8-K/6-K filing packets. Statement,
   history, lens, financing, ownership, valuation, and framework derivations consume the shared
@@ -321,6 +340,19 @@ without pretending the project has a global security master.
   and dimensional facts, so completeness is a rule over standard tags, not proof. Direct facts
   remain `sec-companyfacts` without a `composite` field. The artifact-level extraction method stays
   `sec-companyfacts`.
+- Amendment 2026-10-16: US GAAP D&A prefers a combined concept for each period unless its selected
+  value is smaller than either selected same-period, same-duration, same-unit component by more
+  than 1% of that component's absolute value, allowing rounding. An absent
+  or rejected combined fact falls back to the full component sum:
+  `Depreciation` (or `DepreciationNonproduction`) and `AmortizationOfIntangibleAssets` only with
+  identical start/end dates and currency. Both components must be observable at the cutoff;
+  absence never establishes zero, and an incomplete sum is never used, even after rejecting a
+  combined fact. Equality and differences within the 1% tolerance retain the combined fact.
+  Rejection with incomplete components emits a period-specific `incomplete-composite-series`
+  omission note with a neutral reason, projected to Source Gaps and the Operating Ratios
+  section in Markdown and the Research Console. The derived fact retains composite
+  lineage, and the EBITDA proxy names its depreciation + intangible amortization basis.
+  IFRS selection is unchanged.
 - Amendment: debt basis may be gross principal when net debt is untagged. Some filers tag current
   balance-sheet debt only with issuer extensions or dimensional members, which companyfacts omits,
   leaving the standard undimensioned `DebtInstrumentCarryingAmount` (principal before discount and
@@ -512,8 +544,8 @@ without pretending the project has a global security master.
   92 days of the newest current balance-sheet period end. Canonical ratios check their paired
   selected period; the legacy fallback checks every input. Net debt and current ratio outside that
   window are unknown, not failed, so the remaining current criteria still decide the posture, and
-  Business Framework Risk applies the same current-ratio eligibility while labelling the historical
-  value with its date. Debt/equity, debt/market cap, and net debt/market cap are withheld when an
+  Business Framework Risk applies the same current-ratio eligibility; since its Metric Section
+  (amended 2026-10-15) a stale current ratio is `missing` with its date in the reason. Debt/equity, debt/market cap, and net debt/market cap are withheld when an
   input is not current. Dated raw debt, cash, and historical net debt stay displayed, and the
   valuation and financial-lens producers each declare a no-cap Source Gap naming the withheld
   inputs and their period ends.

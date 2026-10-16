@@ -72,7 +72,7 @@ export function reconcileBusinessFramework(
   framework: BusinessFrameworkArtifact,
   profile: WebSubjectProfileArtifact,
 ): ReconciliationResult {
-  if (framework.version !== 2 || profile.subjectKind !== "company" || profile.version !== 3) {
+  if (framework.version === 1 || profile.subjectKind !== "company" || profile.version !== 3) {
     return unchanged(framework);
   }
 

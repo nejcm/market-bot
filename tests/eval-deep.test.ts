@@ -250,12 +250,14 @@ describe("final-synthesis-only live provider", () => {
         expect(
           liveRequests.every((request) => llmCassetteKey(request).startsWith("final-synthesis|")),
         ).toBe(true);
+        const user = liveRequests[0]!.messages.findLast(({ role }) => role === "user")!.content;
+        expect(user).toBe(JSON.stringify(JSON.parse(user)));
         firstPrompts.push(
           liveRequests[0]?.messages.map((message) => message.content).join("\n") ?? "",
         );
       }
       expect(firstPrompts[1]).toBe(firstPrompts[0]);
-      expect(firstPrompts[0]).toContain('"durationMs": 0');
+      expect(firstPrompts[0]).toContain('"durationMs":0');
 
       // eslint-disable-next-line no-await-in-loop -- sequential with the runs above
       const estimate = await liveTokenEstimate(fixtureName, "final-synthesis");
@@ -327,7 +329,13 @@ describe("frozen-input eval replay", () => {
       true,
     );
     expect(base.status).toBe("completed");
-    expect(base.cassetteMisses).toEqual({ count: 0, keys: [] });
+    const priceHistoryMisses = [
+      "GET  https://query1.finance.yahoo.com/v8/finance/chart/SPY?events=div%2Csplits&interval=1d&period1=1622505600&period2=1781568000",
+    ];
+    expect({ ...base.cassetteMisses, keys: base.cassetteMisses.keys.toSorted() }).toEqual({
+      count: 1,
+      keys: priceHistoryMisses,
+    });
     expect(base.runDir?.startsWith(join(root, "base", FIXTURE, "1", "runs"))).toBe(true);
     for (const state of ["calibration", "cache", "news-seen.json"]) {
       expect(existsSync(join(base.sampleDir, state))).toBe(true);
@@ -353,11 +361,14 @@ describe("frozen-input eval replay", () => {
       fetchImpl: missingNews,
     });
     expect(next.status).toBe("completed");
-    expect(next.cassetteMisses.count).toBe(1);
-    expect(next.cassetteMisses.keys[0]).toContain("finnhub.io/api/v1/company-news");
+    expect(next.cassetteMisses.count).toBe(2);
+    expect(next.cassetteMisses.keys).toEqual(expect.arrayContaining(priceHistoryMisses));
+    expect(
+      next.cassetteMisses.keys.some((key) => key.includes("finnhub.io/api/v1/company-news")),
+    ).toBe(true);
 
     const metrics = await extractSampleMetrics(FIXTURE, "1", next.sampleDir);
-    expect(metrics.metrics.cassetteMisses).toBe(1);
+    expect(metrics.metrics.cassetteMisses).toBe(2);
     expect(metrics.metrics["sourceGaps.fetch-failed"]).toBeGreaterThan(0);
     expect(metrics.metrics["status.completed"]).toBe(1);
     expect(metrics.metrics["tokens.total"]).toBeGreaterThan(0);
@@ -373,27 +384,184 @@ describe("frozen-input eval replay", () => {
       await readEvalSummary(root, "next"),
     );
     expect(compare).toContain("| fixture | metric | base mean [range] | next mean [range] |");
-    expect(compare).toContain(`| ${FIXTURE} | cassetteMisses | 0 [0–0] | 1 [1–1] |`);
+    expect(compare).toContain(`| ${FIXTURE} | cassetteMisses | 1 [1–1] | 2 [2–2] |`);
     expect(compare).toMatch(/\| tokens\.total \| \d+ \[\d+–\d+\] \|/u);
   });
 
-  test("persists a sample record when the run throws", async () => {
-    const root = await tempRoot();
-    const failing = await withAmbientIndexEnv(() =>
-      runEvalSample({
+  test.each([
+    { finalOnly: false, error: new Error("model down") },
+    { finalOnly: true, error: new Error("model down") },
+    { finalOnly: true, error: new SyntaxError("provider response decode failed") },
+    { finalOnly: true, error: new Error("quota exceeded") },
+    { finalOnly: true, error: new Error("model stopped early") },
+  ])(
+    "persists $error without a stale response (final synthesis only: $finalOnly)",
+    async ({ finalOnly, error }) => {
+      const root = await tempRoot();
+      const fixture = await loadFixture(FIXTURE);
+      const replay = makeReplayProvider(fixture.llmCassette);
+      const failing = await withAmbientIndexEnv(() =>
+        runEvalSample({
+          root,
+          label: "broken",
+          fixture: FIXTURE,
+          sample: "1",
+          llm: "replay",
+          provider: {
+            name: "failing",
+            generate: (request) =>
+              !finalOnly || llmCassetteKey(request).startsWith("final-synthesis|")
+                ? Promise.reject(error)
+                : replay.generate(request),
+          },
+        }),
+      );
+      expect(failing.status).toBe("threw");
+      expect(failing.error).toBe(error.message);
+      const record = JSON.parse(
+        await readFile(join(failing.sampleDir, "eval-sample.json"), "utf8"),
+      );
+      expect(record.errorStack).toContain(`${error.name}: ${error.message}`);
+      expect(failing.runDir).toBeUndefined();
+      expect(record.rawResponseContent).toBeUndefined();
+      const metrics = await extractSampleMetrics(FIXTURE, "1", failing.sampleDir);
+      expect(metrics.metrics[`status.${failing.status}`]).toBe(1);
+      expect(metrics.unavailable).toContain("sourceGaps");
+    },
+  );
+
+  test.each(["trailing brace", "missing brace", "malformed repair reply"])(
+    "publishes a report after repairing final-synthesis JSON with a %s",
+    async (malformation) => {
+      const root = await tempRoot();
+      const fixture = await loadFixture(FIXTURE);
+      const replay = makeReplayProvider(fixture.llmCassette);
+      const report = fixture.llmCassette.entries["final-synthesis|fixture-synthesis"]?.[0];
+      expect(report).toBeDefined();
+      const malformedAttempt = malformation === "malformed repair reply" ? 2 : 1;
+      const prompts: Record<string, unknown>[] = [];
+      const sample = await runEvalSample({
         root,
-        label: "broken",
+        label: "repaired-json",
         fixture: FIXTURE,
         sample: "1",
         llm: "replay",
-        provider: { name: "failing", generate: () => Promise.reject(new Error("model down")) },
-      }),
+        provider: {
+          name: replay.name,
+          generate: async (request) => {
+            if (!llmCassetteKey(request).startsWith("final-synthesis|")) {
+              return replay.generate(request);
+            }
+            prompts.push(JSON.parse(request.messages[1]?.content ?? "{}"));
+            const valid = report!;
+            let { content } = valid;
+            if (prompts.length === malformedAttempt) {
+              content =
+                malformation === "missing brace" ? valid.content.slice(0, -1) : `${valid.content}}`;
+            } else if (prompts.length < malformedAttempt) {
+              content = JSON.stringify({ ...JSON.parse(valid.content), summary: "Buy the dip." });
+            }
+            return { ...valid, content };
+          },
+        },
+      });
+
+      expect(sample.status).toBe("completed");
+      expect(prompts).toHaveLength(malformedAttempt + 1);
+      expect(prompts[malformedAttempt]?.reportValidationErrors).toEqual(
+        expect.arrayContaining([expect.stringContaining("JSON Parse error:")]),
+      );
+      expect(prompts[malformedAttempt]?.reportValidationErrors).toEqual(
+        expect.arrayContaining([expect.stringContaining("one complete JSON object")]),
+      );
+      expect(existsSync(join(sample.runDir!, "report.json"))).toBe(true);
+      expect(existsSync(join(sample.runDir!, "report.md"))).toBe(true);
+      const { metrics } = await extractSampleMetrics(FIXTURE, "1", sample.sampleDir);
+      expect(metrics["repairs.reportValidation"]).toBe(1);
+      expect(metrics["repairs.predictionErrors"]).toBeUndefined();
+    },
+  );
+
+  test("exhausts report repairs and retains raw malformed final-synthesis replies", async () => {
+    const root = await tempRoot();
+    const fixture = await loadFixture(FIXTURE);
+    const replay = makeReplayProvider(fixture.llmCassette);
+    const raw = `${JSON.stringify({ summary: "x".repeat(20_000) })}}`;
+    let finalCalls = 0;
+    const sample = await runEvalSample({
+      root,
+      label: "invalid-json",
+      fixture: FIXTURE,
+      sample: "1",
+      llm: "replay",
+      provider: {
+        name: replay.name,
+        generate: async (request) => {
+          if (!llmCassetteKey(request).startsWith("final-synthesis|")) {
+            return replay.generate(request);
+          }
+          finalCalls += 1;
+          return { content: raw, tokenEstimate: 1 };
+        },
+      },
+    });
+
+    expect(sample.status).toBe("failed-final-synthesis");
+    expect(finalCalls).toBe(4);
+    const record = JSON.parse(await readFile(join(sample.sampleDir, "eval-sample.json"), "utf8"));
+    expect(record.errorStack).toContain("FinalSynthesisRejectedError:");
+    expect(record.error).toContain("JSON Parse error:");
+    expect(record.rawResponseContent).toBe(raw.slice(0, 20_000));
+    const rejected = JSON.parse(
+      await readFile(join(sample.runDir!, "rejected-report.json"), "utf8"),
     );
-    expect(failing.status).toBe("threw");
-    expect(failing.error).toContain("model down");
-    const metrics = await extractSampleMetrics(FIXTURE, "1", failing.sampleDir);
-    expect(metrics.metrics[`status.${failing.status}`]).toBe(1);
-    expect(metrics.unavailable).toContain("sourceGaps");
+    expect(rejected).toEqual({ rawResponseContent: record.rawResponseContent });
+    const failure = JSON.parse(await readFile(join(sample.runDir!, "failure.json"), "utf8"));
+    expect(failure.totalCalls).toBe(4);
+    expect(failure.reportRepairReprompts).toBe(3);
+    expect(existsSync(join(sample.runDir!, "report.json"))).toBe(false);
+    const stages = JSON.parse(await readFile(join(sample.runDir!, "stages.json"), "utf8")) as {
+      stage: string;
+      content: string;
+    }[];
+    expect(
+      stages.filter((stage) => stage.stage === "final-synthesis").map((stage) => stage.content),
+    ).toEqual([raw, raw, raw, raw]);
+    const { metrics } = await extractSampleMetrics(FIXTURE, "1", sample.sampleDir);
+    expect(metrics["repairs.reportValidation"]).toBe(3);
+    expect(metrics["repairs.predictionErrors"]).toBeUndefined();
+    const summary = await writeEvalSummary(root, "invalid-json");
+    expect(formatEvalCompare(summary, await readEvalSummary(root, "invalid-json"))).toContain(
+      `| ${FIXTURE} | status.failed-final-synthesis | 1 [1–1] | 1 [1–1] |`,
+    );
+  });
+
+  test("keeps a valid JSON non-object outside the parse-error repair boundary", async () => {
+    const root = await tempRoot();
+    const fixture = await loadFixture(FIXTURE);
+    const replay = makeReplayProvider(fixture.llmCassette);
+    let finalCalls = 0;
+    const sample = await runEvalSample({
+      root,
+      label: "invalid-shape",
+      fixture: FIXTURE,
+      sample: "1",
+      llm: "replay",
+      provider: {
+        name: replay.name,
+        generate: async (request) => {
+          if (!llmCassetteKey(request).startsWith("final-synthesis|")) {
+            return replay.generate(request);
+          }
+          finalCalls += 1;
+          return { content: "[]", tokenEstimate: 1 };
+        },
+      },
+    });
+    expect(sample.status).toBe("threw");
+    expect(sample.error).toBe("Model report payload must be a JSON object");
+    expect(finalCalls).toBe(1);
+    expect(sample.runDir).toBeUndefined();
   });
 
   test("keeps retained Source Gaps of a failed final synthesis and marks report metrics unavailable", async () => {

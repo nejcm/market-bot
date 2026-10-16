@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { canonicalRequestUrl } from "../src/sources/cache";
 import type { FetchLike } from "../src/sources/types";
 import { runFixture, type FixtureMeta } from "../tests/support/run-fixtures";
-import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
+import { createRecordingFetch } from "../src/replay/data-cassette";
 import {
   makeReplayProvider,
   type LlmCassette,
   type LlmCassetteEntry,
-} from "../tests/support/run-fixtures/llm-cassette";
+} from "../src/replay/llm-cassette";
 import { type CacheEntry, selectDateDirEntries } from "./fixture-cache-selection";
 
 const USAGE =

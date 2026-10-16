@@ -22,8 +22,8 @@ import {
   runFixture,
   type RunFixtureResult,
 } from "../support/run-fixtures";
-import { makeReplayProvider } from "../support/run-fixtures/llm-cassette";
-import { countCassetteMisses, makeReplayFetch } from "../support/run-fixtures/data-cassette";
+import { makeReplayProvider } from "../../src/replay/llm-cassette";
+import { countCassetteMisses, makeReplayFetch } from "../../src/replay/data-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";

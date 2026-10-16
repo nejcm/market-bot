@@ -15,7 +15,7 @@ import {
 import { readJsonFile } from "./run-artifact-json-reader";
 import { predictionShortfallGapCount } from "./report/prediction-shortfall";
 import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
-import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
+import { RUN_ARTIFACT_FILES, isReplayCapturePath } from "./run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "./scoring/types";
 import type {
   ArtifactFileRow,
@@ -74,6 +74,9 @@ async function listArtifactFiles(
     await Promise.all(
       entries.map(async (entry) => {
         const fullPath = join(dir, entry.name);
+        if (isReplayCapturePath(relative(runDir, fullPath))) {
+          return;
+        }
         if (entry.isDirectory()) {
           await visit(fullPath);
           return;

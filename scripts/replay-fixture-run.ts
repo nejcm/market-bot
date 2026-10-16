@@ -1,6 +1,6 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   EVALS_ROOT,
   liveTokenEstimate,
@@ -29,7 +29,9 @@ if (live) {
     process.exit(0);
   }
 }
-const root = live ? EVALS_ROOT : await mkdtemp(join(tmpdir(), `market-bot-${fixtureName}-`));
+const root = live
+  ? EVALS_ROOT
+  : await mkdtemp(join(tmpdir(), `market-bot-${basename(fixtureName)}-`));
 const label = live ? `replay-live-${new Date().toISOString().replaceAll(/[:.]/gu, "-")}` : "replay";
 process.exitCode = await runEvalBatch({
   root,

@@ -1,3 +1,4 @@
+import { replayValue } from "../replay/session";
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { writeFileAtomic } from "../artifacts";
@@ -96,18 +97,20 @@ function readEntry(value: unknown): NewsSeenEntry | undefined {
 }
 
 export async function readNewsSeenEntries(path: string): Promise<readonly NewsSeenEntry[]> {
-  try {
-    const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
-    if (!isRecord(parsed) || !Array.isArray(parsed.entries)) {
+  return replayValue("news-seen", async () => {
+    try {
+      const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
+      if (!isRecord(parsed) || !Array.isArray(parsed.entries)) {
+        return [];
+      }
+
+      return parsed.entries
+        .map(readEntry)
+        .filter((entry): entry is NewsSeenEntry => entry !== undefined);
+    } catch {
       return [];
     }
-
-    return parsed.entries
-      .map(readEntry)
-      .filter((entry): entry is NewsSeenEntry => entry !== undefined);
-  } catch {
-    return [];
-  }
+  });
 }
 
 async function writeNewsSeenIndex(path: string, index: NewsSeenIndex): Promise<void> {

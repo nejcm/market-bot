@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { dataCassetteKey } from "../tests/support/run-fixtures/data-cassette";
+import { dataCassetteKey } from "../src/replay/data-cassette";
 
 interface UnsupportedInputSpec {
   readonly file: string;

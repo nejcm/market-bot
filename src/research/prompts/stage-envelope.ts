@@ -1,4 +1,3 @@
-import type { AppConfig } from "../../config";
 import type { ResearchCommand } from "../../cli/args";
 import type { CollectedSources } from "../../sources/types";
 import type { LoadedPrompt, StageLabel } from "../prompt-loader";
@@ -9,13 +8,20 @@ import type { DepthProfile, ResearchContext } from "../research-context-types";
 export interface StageInput {
   readonly command: ResearchCommand;
   readonly collectedSources: CollectedSources;
-  readonly config: AppConfig;
+  readonly config: StageSettings;
   readonly context: ResearchContext;
   readonly loaded: LoadedPrompt;
   readonly priorStages?: readonly unknown[];
   readonly predictionRepromptErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
+}
+
+export interface StageSettings {
+  readonly sourceOptions: {
+    readonly equityMoverLimit: number;
+    readonly cryptoMoverLimit: number;
+  };
 }
 
 // The domain playbooks attached to a stage, if any. Bespoke stages without playbook

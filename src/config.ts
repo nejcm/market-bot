@@ -96,6 +96,7 @@ interface RunArtifactIndexOptions {
 }
 
 export interface AppConfig {
+  readonly captureReplay?: boolean;
   readonly provider: ProviderName;
   readonly baseUrl?: string;
   readonly apiKey?: string;
@@ -566,6 +567,7 @@ export function resolveConfig(
     ...(synthesisReasoningEffort !== undefined ? { synthesisReasoningEffort } : {}),
     ...(codexQuickReasoningEffort !== undefined ? { codexQuickReasoningEffort } : {}),
     ...(codexSynthesisReasoningEffort !== undefined ? { codexSynthesisReasoningEffort } : {}),
+    captureReplay: readBoolean(env.MARKET_BOT_CAPTURE_REPLAY),
     modelTimeoutMs: readPositiveInteger(env.MARKET_BOT_MODEL_TIMEOUT_MS, DEFAULT_MODEL_TIMEOUT_MS),
     dataDir,
     promptDir: readOptionalString(env.MARKET_BOT_PROMPT_DIR) ?? DEFAULT_PROMPT_DIR,

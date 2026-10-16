@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import type { PredictionKind } from "../../../src/domain/prediction";
 import type { SourceGap } from "../../../src/domain/sources";
 import { isRecord } from "../../../src/guards";
@@ -20,7 +20,7 @@ import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { readSourceGaps } from "../../../src/run-artifact-report-reader";
 import { loadRunArtifact, type RunArtifact } from "../../../src/run-artifacts";
 import type { FetchLike } from "../../../src/sources/types";
-import { countCassetteMisses, makeReplayFetch } from "./data-cassette";
+import { countCassetteMisses, makeReplayFetch } from "../../../src/replay/data-cassette";
 import { createProvider } from "../../../src/model/factory";
 import { createFixtureConfig, createLiveFixtureConfig, loadFixture, runFixture } from "./index";
 import {
@@ -30,9 +30,11 @@ import {
   makeReplayProvider,
   ModelReplayError,
   type ReplayProvider,
-} from "./llm-cassette";
+} from "../../../src/replay/llm-cassette";
 
-export const EVALS_ROOT = join(import.meta.dir, "../../../data/evals");
+import { EVALS_ROOT } from "../../../src/replay/eval-output";
+
+export { EVALS_ROOT } from "../../../src/replay/eval-output";
 const EVAL_SAMPLE_FILE = "eval-sample.json";
 const SUMMARY_FILE = "summary.json";
 const MAX_RAW_RESPONSE_CHARS = 20_000;
@@ -152,7 +154,15 @@ export function evalSampleDir(
   fixture: string,
   sample: string,
 ): string {
-  return join(evalLabelDir(root, label), pathSegment(fixture), pathSegment(sample));
+  return join(
+    evalLabelDir(root, label),
+    pathSegment(
+      fixture.includes("/")
+        ? `${basename(resolve(fixture, ".."))}-${new Bun.CryptoHasher("sha256").update(resolve(fixture)).digest("hex").slice(0, 8)}`
+        : fixture,
+    ),
+    pathSegment(sample),
+  );
 }
 
 function disableIndexAccess(): () => void {
@@ -284,7 +294,11 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
         ? "failed-final-synthesis"
         : "threw";
   }
-  if (missKeys.length > 0 || modelMissKeys.length > 0) {
+  if (
+    missKeys.length > 0 ||
+    modelMissKeys.length > 0 ||
+    (runError instanceof Error && /Replay state/iu.test(runError.message))
+  ) {
     status = "incomplete";
   } else if (
     runError === undefined &&
@@ -658,7 +672,7 @@ export async function liveTokenEstimate(
         : liveStages === "evidence-request"
           ? config.evidenceRequestOptions.maxRounds
           : liveStages === "forecast-disagreement"
-            ? (meta.challengerModels?.length ?? 0)
+            ? (config.forecastDisagreementOptions?.challengerModels.length ?? 0)
             : 1;
   const perCall = Math.ceil(
     1.25 *

@@ -1,3 +1,4 @@
+import { replayValue } from "../replay/session";
 import { readdirSync } from "node:fs";
 import { mkdir, rm, unlink } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
@@ -359,7 +360,9 @@ export function withCache<TPayload = unknown>(
       ? join(options.dir, ACCESSION_DIR, `${sha}.json`)
       : entryPath(options.dir, today, sha);
 
-    const cached = await readEntry(entryFile);
+    const cached = await replayValue(`cache:${sha}:${accession ? "accession" : today}`, () =>
+      readEntry(entryFile),
+    );
     let validCached = cached;
     if (cached !== undefined) {
       const cachedDate =
@@ -407,14 +410,16 @@ export function withCache<TPayload = unknown>(
         ? [{ date: today, entry: await readEntry(entryPath(options.dir, today, sha)) }]
         : []),
     ];
-    const stale = await findStaleFallback(
-      options.dir,
-      sha,
-      today,
-      effectiveFallbackDays,
-      adapter,
-      candidates,
-      validator?.isPayload ?? (() => true),
+    const stale = await replayValue(`cache-stale:${sha}`, () =>
+      findStaleFallback(
+        options.dir,
+        sha,
+        today,
+        effectiveFallbackDays,
+        adapter,
+        candidates,
+        validator?.isPayload ?? (() => true),
+      ),
     );
     if (stale !== undefined) {
       const ageDays = dateDiffDays(today, stale.cachedDate);

@@ -1,3 +1,4 @@
+import { replayValue } from "../replay/session";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type { SourceGap } from "../domain/sources";
@@ -191,14 +192,16 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
       input.command,
       collectedSources.resolvedSubject,
     );
-    const reusableWebSubjectProfile = await findReusableWebSubjectProfile({
-      dataDir: input.config.dataDir,
-      command: profileCommand,
-      now: input.now,
-      reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
-      ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
-      currentSources: collectedSources.extendedSources,
-    });
+    const reusableWebSubjectProfile = await replayValue("reused-profile", () =>
+      findReusableWebSubjectProfile({
+        dataDir: input.config.dataDir,
+        command: profileCommand,
+        now: input.now,
+        reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
+        ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
+        currentSources: collectedSources.extendedSources,
+      }),
+    );
     if (reusableWebSubjectProfile !== undefined) {
       collectedSources = attachReusableWebSubjectProfile({
         command: profileCommand,

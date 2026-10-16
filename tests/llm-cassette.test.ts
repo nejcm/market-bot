@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { runForecastDisagreement } from "../src/research/forecast-disagreement";
 import { prediction, researchReport } from "./support/fixtures";
 import type { ModelRequest } from "../src/model/types";
-import { LIVE_STAGES, makeReplayProvider } from "./support/run-fixtures/llm-cassette";
+import { LIVE_STAGES, makeReplayProvider } from "../src/replay/llm-cassette";
 
 function request(stage: string, model: string): ModelRequest {
   return {

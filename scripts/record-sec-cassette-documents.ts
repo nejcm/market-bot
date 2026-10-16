@@ -2,10 +2,7 @@
 // Usage: bun run scripts/record-sec-cassette-documents.ts <fixture> <sec.gov URL>...
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  dataCassetteKey,
-  type DataCassetteEntry,
-} from "../tests/support/run-fixtures/data-cassette";
+import { dataCassetteKey, type DataCassetteEntry } from "../src/replay/data-cassette";
 
 const USER_AGENT =
   process.env.MARKET_BOT_SEC_USER_AGENT ?? "market-bot fixture recorder contact@example.invalid";

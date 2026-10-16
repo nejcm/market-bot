@@ -9,12 +9,8 @@ import { resolveConfig } from "../src/config";
 import { loadRunArtifact } from "../src/run-artifacts";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
 import { createLiveFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
-import { countCassetteMisses, makeReplayFetch } from "./support/run-fixtures/data-cassette";
-import {
-  llmCassetteKey,
-  makeReplayProvider,
-  type LiveStage,
-} from "./support/run-fixtures/llm-cassette";
+import { countCassetteMisses, makeReplayFetch } from "../src/replay/data-cassette";
+import { llmCassetteKey, makeReplayProvider, type LiveStage } from "../src/replay/llm-cassette";
 import {
   evalSampleDir,
   extractSampleMetrics,

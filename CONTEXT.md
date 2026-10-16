@@ -217,6 +217,26 @@ Persisted diagnostics from a run whose final synthesis never produced a valid Re
 
 Engineering-only deterministic test/eval run using real orchestration with HTTP/model boundaries replaced by cassettes or a live eval model.
 
+## Replay Capture
+
+Opt-in, local engineering sidecar at `<run>/replay/`: sanitized effective settings, Data and LLM
+Cassettes, the recorded clock and consumed cross-run/cache state, plus a Final-Synthesis Input.
+Publication follows validation and secret scanning; failure does not invalidate the Run Artifact.
+It is excluded from report fields, Calibration, history and the Run Artifact Index.
+
+## Final-Synthesis Input
+
+Versioned structured input saved before prompt rendering for direct execution of final synthesis
+and its deterministic report audits. Includes normalized evidence, allowed source/subject identities,
+prior outputs, consumed context and recorded model responses; current Domain Playbooks reload on
+replay. Direct outputs are partial evaluation artifacts, not new completed Run Artifacts.
+
+## Report Rerun
+
+Zero-network, zero-model projection and rendering of a past report with its saved normalized
+inputs, writing a separate evaluation candidate. It tests current projections, validation and
+renderers without recomputing source collection or model reasoning.
+
 ## Data Cassette
 
 Secret-scrubbed canonical HTTP request-to-response map replayed beneath the cache, leaving collector, normalization, and Source-Gap behavior active.
@@ -235,7 +255,7 @@ Fixture mode replaying Data Cassettes while calling the configured live model, k
 
 ## Frozen-Input Eval
 
-Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. `--live-stages <stage>` keeps one validated stage live, including its phase-bounded loops/repairs; all other model reasoning stays recorded. This is selected-stage evaluation within pipeline execution, not direct phase replay. Selected-stage planning measures current prompt sizes in a strict offline preflight and adds bounded-attempt headroom; estimates are not provider-enforced cost caps. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps. HTTP and model replay misses make the sample incomplete and block subsequent model spending; recorded provider failures remain valid inputs. Samples also record replayed/live call counts, separate successful-response token estimates, evaluation scope and available response-consumption diagnostics. A selected stage with zero invocations is not exercised. Adaptive requests remain cassette-only.
+Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. `--live-stages <stage>` keeps one validated stage live, including its phase-bounded loops/repairs; all other model reasoning stays recorded. This is selected-stage evaluation within pipeline execution. `--input <file>` instead evaluates a Final-Synthesis Input directly, with no upstream execution. Selected-stage planning measures current prompt sizes in a strict offline preflight and adds bounded-attempt headroom; estimates are not provider-enforced cost caps. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps. HTTP and model replay misses make the sample incomplete and block subsequent model spending; recorded provider failures remain valid inputs. Samples also record replayed/live call counts, separate successful-response token estimates, evaluation scope and available response-consumption diagnostics. A selected stage with zero invocations is not exercised. Adaptive requests remain cassette-only.
 
 ## Run Artifact Index
 

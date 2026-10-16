@@ -1,3 +1,4 @@
+import { replayValue, replayValueSync, isReplayingState } from "../replay/session";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { historyOptions, type AppConfig, type HistoryOptions } from "../config";
 import { DAY_MS } from "../config/shared";
@@ -881,10 +882,18 @@ function buildHistoricalContext(
 export async function createHistoricalContextReader(
   dataDir: string,
 ): Promise<HistoricalContextReader> {
-  const scan = toScanResult(await scanRunArtifacts(dataDir));
+  const scan = toScanResult(
+    isReplayingState() ? { artifacts: [], entries: [] } : await scanRunArtifacts(dataDir),
+  );
   return {
-    load: async (input) => buildHistoricalContext({ ...input, dataDir }, scan),
-    findForecastPersistenceBaseline: (report) => findForecastPersistenceBaseline(scan, report),
+    load: async (input) =>
+      replayValue(`history:${JSON.stringify(input.spotlightSymbols ?? null)}`, async () =>
+        buildHistoricalContext({ ...input, dataDir }, scan),
+      ),
+    findForecastPersistenceBaseline: (report) =>
+      replayValueSync("forecast-persistence-baseline", () =>
+        findForecastPersistenceBaseline(scan, report),
+      ),
   };
 }
 

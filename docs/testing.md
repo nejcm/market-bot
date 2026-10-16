@@ -15,6 +15,70 @@ bun run fmt:check
 bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build + test:coverage
 ```
 
+## Choosing the iteration loop
+
+| Change to exercise                                       | Use                                                                                                                | Inputs and scope                                                            |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Parser, calculation, small deterministic rule            | Module test                                                                                                        | Small saved provider input; fastest behavioral assertion                    |
+| Evidence projection, report extra or Markdown            | `scripts/rerun-report.ts <run-id-or-path> --label <fresh>`                                                         | Saved normalized evidence plus `report.json`; zero network/model            |
+| Final-synthesis prompt construction, retries or assembly | `scripts/replay-stage.ts --input <file> --label <fresh>`                                                           | Final-Synthesis Input; strict recorded responses, current prompts/playbooks |
+| Collection and downstream integration                    | `scripts/replay-fixture-run.ts <name-or-capture-directory>`                                                        | Whole pipeline, HTTP/model cassettes, isolated state, no pacing             |
+| Selected model behavior                                  | `scripts/eval-deep.ts --fixtures <case> --live-stages <stage> --label <fresh>` or `--input <file> --label <fresh>` | Estimate-only first; an approved batch uses the existing approval flag      |
+| Changed source request or unavailable recording          | Explicitly authorized fresh research run                                                                           | Fresh acquisition; enable capture for subsequent offline iteration          |
+
+`bun run check` remains the final verification gate. Replayed model responses prove wiring and
+contract behavior, not model quality after a prompt change.
+
+### Capturing a future authorized run
+
+Set `MARKET_BOT_CAPTURE_REPLAY=1` for an already-authorized research run. This adds no source/model
+calls. A successful capture publishes `<run>/replay/{meta,data-cassette,llm-cassette,state}.json`,
+`final-synthesis-input.json` and any large hashed bodies under `bodies/`. It records ordered HTTP
+failures and every model boundary, plus the actual consumed cache/news-seen/learned-peer/history,
+Calibration, profile-reuse, alpha and circuit state. Circuit decisions use per-host run-length
+sequences, retaining transitions and exact invocation counts without one state row per URL.
+The ordinary report stays unchanged.
+Configured SEC contact identities, local paths and credentials are redacted at recording boundaries;
+auth headers are excluded, with the existing
+fixture-secret scan as the publication gate. If capture fails, use the research report normally;
+`capture-failure.json` means no ready replay capture was published; handled failures remove only
+their own private staging directory and leave research artifacts intact. Partial capture directories
+are not supported cases. No capture is written with the flag off.
+
+```sh
+bun run scripts/replay-fixture-run.ts /absolute/run/replay
+bun run scripts/rerun-report.ts /absolute/run --label projection-case
+bun run scripts/replay-stage.ts --input /absolute/run/replay/final-synthesis-input.json --label synthesis-case
+bun run scripts/eval-deep.ts --input /absolute/run/replay/final-synthesis-input.json --label synthesis-eval
+```
+
+The final command prints an offline planning estimate and spends nothing without the existing
+approval flag. It reserves bounded synthesis repair attempts with 25% headroom; estimates are not
+provider cost caps. Tests inject fake providers and never invoke a spending script or approval flag.
+
+Direct scripts write only fresh `data/evals/<label>/` directories and reject live flags; they never
+refresh production Calibration/history/index/news-seen state. Their `eval-sample.json` declares
+partial scope, duration, call counts and errors. Stage replay also stores current requests,
+validated report/Markdown, synthesis attempts, audit diagnostics, token groups and semantic fact
+deltas against the captured baseline; failures exit nonzero. Direct-input eval summaries have
+phase-only scope; inspect their per-sample facts rather than the pipeline-only `--compare` view.
+Report Rerun recomputes projections/renderers from stored derived evidence, not the original
+collector calculations. Missing required normalized inputs fail; explicit null retains absence.
+Older runs without a complete Final-Synthesis Input cannot use direct stage replay. Direct replay
+supports only final synthesis, excludes challenger calls and does not fabricate trace/analytics
+for a completed run. Pipeline capture replay still includes recorded challengers.
+
+Captured cases can be passed as directories to `--fixtures` for pipeline eval. The harness restores
+captured effective settings with placeholder credentials and isolated paths. HTTP/model/state
+misses never enable network access and fail the sample even if production catches them. Large
+body paths and hashes are checked before use. New source queries may require a new capture.
+
+Offline wall times on 2026-10-16: `equity-aapl-deep` 14.145 s before harness pacing removal,
+0.170 s after; realistic `equity-depository-deep` 12.257 s before, 0.312 s after. These are single
+local measurements including Bun startup, not live-quality or provider-speed claims. The Console
+report/workspace is unchanged. Its artifact file browser and index file-list projection exclude
+capture directories, private partial captures and capture-failure markers through a shared filter.
+
 ## Unused-code gate
 
 `bun run knip` is the unused-code gate. It reports nothing today because the repo is clean on the

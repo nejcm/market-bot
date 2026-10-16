@@ -295,6 +295,25 @@ Client conventions: loose `Record<string, unknown>` payloads at the wire, valida
 
 A prompt or stage change is verified by a Frozen-Input Eval: `scripts/eval-deep.ts --fixtures a,b --label <name> --yes` runs each fixture N times (default 2) with Data Cassettes replayed and the model live (`--live-stages <stage>` selects one validated stage, including its phase-bounded repeats, and strictly replays all other model reasoning; missing, ambiguous, or exhausted recordings fail), through `tests/support/run-fixtures/eval.ts`. Selected-stage estimates first replay the pipeline offline in temporary state to measure current prompt sizes, then reserve bounded attempts with headroom. The existing approval gate remains the only spending path; estimates are not provider-enforced cost caps. Adaptive requests remain cassette-only, and zero selected calls are `not-exercised`. Sample/summary/compare outputs label recorded downstream reasoning and separate live/replayed token estimates. Each sample gets its own state root, `data/evals/<label>/<fixture>/<sample>/`, holding the run dir under `runs/` and the cache, calibration, news-seen, and learned-peer files beside it; index access is disabled. HTTP and model replay misses invalidate samples even when production recovers and block later model calls. Metrics come only from artifacts (predictions, report-integrity findings, final-synthesis repairs, citation coverage, data and Source Gaps, cassette misses, tokens per stage, duration) and land in `data/evals/<label>/summary.json`; `--compare <base> <new>` prints a per-metric mean and range table for a PR body. A run review of a fresh real run is the final check after a batch of changes, not the check for each fix.
 
+Replay infrastructure lives in `src/replay/`. `withRunCapture` wraps standard research and
+`runDeepEquity` before collection when enabled. Its async context records consumed state without
+serializing clients, environment configuration or credentials. Captures publish at `<run>/replay/`
+only after the secret-scan gate; large bodies are hashed files. Ordinary report/index readers and
+Console view models do not consume these sidecars. Shared path filtering also excludes capture,
+partial-capture and capture-failure files from the index file list and Console file browser. Capture failure stays separate from research
+success.
+
+`research/model-stage-prompt.ts` builds the request for production and direct final-synthesis replay;
+`research/finalize-synthesis.ts` shares post-synthesis warnings, Report Integrity Audit, shortfall
+re-derivation and earnings reconciliation. `replay-stage.ts` restores validated sets/context and
+strict recorded responses, reloads current Domain Playbooks, and writes partial eval outputs.
+`eval-deep.ts --input` is the existing gated spending path for that same interface.
+`rerun-report.ts` reads normalized evidence and the existing report, projects extras, validates
+schema/language/citations and renders Markdown without source or model adapters. Both scripts
+refuse existing eval labels. Captured cases also feed the existing pipeline replay/eval harness
+by directory path. Offline harness scope removes provider pacing and retry waits while preserving
+recorded circuit decisions and response order.
+
 ## Data flow
 
 ```

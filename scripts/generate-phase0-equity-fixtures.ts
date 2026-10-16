@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { dataCassetteKey, type DataCassette } from "../tests/support/run-fixtures/data-cassette";
+import { dataCassetteKey, type DataCassette } from "../src/replay/data-cassette";
 import type { FixtureMeta } from "../tests/support/run-fixtures";
 
 interface CassetteEntry {

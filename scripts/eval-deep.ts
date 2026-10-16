@@ -9,16 +9,23 @@ import {
   runEvalSample,
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
-import { validateLiveStage } from "../tests/support/run-fixtures/llm-cassette";
+import { validateLiveStage } from "../src/replay/llm-cassette";
+import { estimateSynthesisFile, replaySynthesisFile } from "../src/replay/replay-synthesis";
+import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
+import { createProvider } from "../src/model/factory";
+import { resolveConfig } from "../src/config";
+import { join } from "node:path";
 
 const USAGE =
   "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
+  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
   options: {
     fixtures: { type: "string" },
+    input: { type: "string" },
     samples: { type: "string", default: "2" },
     label: { type: "string" },
     compare: { type: "boolean", default: false },
@@ -27,6 +34,53 @@ const { values, positionals } = parseArgs({
   },
   allowPositionals: true,
 });
+
+if (values.input !== undefined) {
+  if (
+    values.fixtures !== undefined ||
+    values.compare ||
+    values.label === undefined ||
+    positionals.length > 0 ||
+    (values["live-stages"] !== undefined && values["live-stages"] !== "final-synthesis") ||
+    !Number.isInteger(Number(values.samples)) ||
+    Number(values.samples) < 1
+  ) {
+    throw new Error(USAGE);
+  }
+  const labelDir = evalLabelDir(EVALS_ROOT, values.label);
+  if (existsSync(labelDir)) {
+    throw new Error(`Eval label already exists: ${labelDir}`);
+  }
+  const estimate = await estimateSynthesisFile(values.input);
+  process.stdout.write(
+    `Final synthesis input: ${String(estimate.observedCalls)} recorded call(s), planning ${String(estimate.boundedCalls)} bounded calls/sample, ~${String(estimate.perRun * Number(values.samples))} tokens total with 25% headroom. Not a provider-enforced cost cap.\n`,
+  );
+  if (!values.yes) {
+    process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
+    process.exit(0);
+  }
+  const dir = await freshEvalDir(values.label);
+  const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+  const provider = createProvider(config);
+  const samples = [];
+  for (let sample = 1; sample <= Number(values.samples); sample += 1) {
+    samples.push(
+      // oxlint-disable-next-line no-await-in-loop -- each sample writes an isolated directory
+      await replaySynthesisFile({
+        input: values.input,
+        label: String(sample),
+        root: dir,
+        provider: {
+          ...provider,
+          generate: (request) => provider.generate({ ...request, model: config.synthesisModel }),
+        },
+      }),
+    );
+  }
+  await writeEvalJson(dir, "summary.json", { scope: "final-synthesis-only", samples });
+  process.stdout.write(`${join(dir, "summary.json")}\n`);
+  process.exit(samples.every((sample) => sample.status === "completed") ? 0 : 1);
+}
 
 if (values.compare) {
   const [base, next] = positionals;

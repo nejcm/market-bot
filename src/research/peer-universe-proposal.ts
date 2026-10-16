@@ -210,6 +210,7 @@ async function generatePeerProposal(
 ): Promise<string | null> {
   try {
     const response = await deps.provider.generate({
+      stage: "peer-universe-proposal",
       model: deps.model,
       responseFormat: "json",
       params: {

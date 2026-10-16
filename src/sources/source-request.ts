@@ -1,3 +1,4 @@
+import { isOfflineReplay, usesReplayState, replayValueSync } from "../replay/session";
 // Source request execution: per-host resilience (serialized queues, minimum delay, circuit
 // Breaker), capped response reads, retry/gap handling, response caching, and the
 // CollectContext/SourceRequestExecutor factories built on top. Sits below the source
@@ -110,6 +111,9 @@ async function runWithHostResilience<T>(
   adapter: string,
   task: () => Promise<T>,
 ): Promise<T> {
+  if (isOfflineReplay() && !usesReplayState()) {
+    return task();
+  }
   const host = hostForUrl(url);
   const state = hostStates.get(host) ?? {
     queue: Promise.resolve(),
@@ -134,12 +138,12 @@ async function runWithHostResilience<T>(
 
   try {
     const now = Date.now();
-    if (state.openedUntil > now) {
+    if (replayValueSync(`host-circuit:${host}`, () => state.openedUntil > now)) {
       throw new SourceCircuitOpenError(adapter, host);
     }
 
     const waitMs = Math.max(0, hostMinDelayMs - (now - state.lastStartedAt));
-    if (waitMs > 0) {
+    if (waitMs > 0 && !isOfflineReplay()) {
       await sleep(waitMs);
     }
     state.lastStartedAt = Date.now();
@@ -341,7 +345,9 @@ async function fetchJsonWithRetry(
     if (nextDelay === undefined || !isTransientError(error)) {
       throw error;
     }
-    await sleep(nextDelay);
+    if (!isOfflineReplay()) {
+      await sleep(nextDelay);
+    }
     return fetchJsonWithRetry(
       url,
       adapter,
@@ -375,7 +381,9 @@ async function fetchTextWithRetry(
     if (nextDelay === undefined || !isTransientError(error)) {
       throw error;
     }
-    await sleep(nextDelay);
+    if (!isOfflineReplay()) {
+      await sleep(nextDelay);
+    }
     return fetchTextWithRetry(
       url,
       adapter,

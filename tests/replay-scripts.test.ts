@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadFixture } from "./support/run-fixtures";
 import { readEvalSummary, runEvalBatch, runEvalSample } from "./support/run-fixtures/eval";
-import { makeReplayProvider } from "./support/run-fixtures/llm-cassette";
+import { makeReplayProvider } from "../src/replay/llm-cassette";
 
 const roots: string[] = [];
 

@@ -1,0 +1,559 @@
+import { afterAll, expect, test } from "bun:test";
+import { mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, basename } from "node:path";
+import { loadFixture, runFixture, createFixtureConfig } from "./support/run-fixtures";
+import { runDeepEquity } from "../src/deep-equity";
+import { parseArgs } from "../src/cli/args";
+import { makeReplayFetch, createRecordingFetch } from "../src/replay/data-cassette";
+import { makeReplayProvider, createRecordingProvider } from "../src/replay/llm-cassette";
+import {
+  withReplaySession,
+  replayValue,
+  replayValueSync,
+  captureSynthesisInput,
+  type ReplayState,
+} from "../src/replay/session";
+import { createSourceRequestContext } from "../src/sources/source-request";
+import { readSynthesisReplayInput } from "../src/replay/synthesis-input";
+import {
+  executeSynthesisInput,
+  replaySynthesisFile,
+  estimateSynthesisFile,
+} from "../src/replay/replay-synthesis";
+import { rerunReport } from "../src/replay/rerun-report";
+import { resolveConfig } from "../src/config";
+import { assertNoSecretsInFiles } from "../scripts/fixture-secret-scan";
+import { runEvalSample } from "./support/run-fixtures/eval";
+import { withRunCapture } from "../src/replay/capture";
+import { readRecordedBody } from "../src/replay/body-file";
+import { indexRowsForRun } from "../src/run-artifact-index-rows";
+import { readRunDetail, readRunFile } from "../app/artifacts";
+
+const roots: string[] = [];
+afterAll(async () => {
+  await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+});
+async function createRoot(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "market-bot-capture-"));
+  roots.push(dir);
+  return dir;
+}
+
+const modelRequest = (stage: string, model: string) => ({
+  model,
+  messages: [{ role: "user" as const, content: JSON.stringify({ stage }) }],
+});
+
+async function forbidden(): Promise<unknown> {
+  throw new Error("state reader touched");
+}
+
+test("capture is opt-in and disabled pipeline runs publish no replay sidecar", async () => {
+  expect(resolveConfig({}).captureReplay).toBe(false);
+  expect(resolveConfig({ MARKET_BOT_CAPTURE_REPLAY: "1" }).captureReplay).toBe(true);
+  const result = await runFixture("equity-aapl-brief");
+  try {
+    expect(await readdir(result.artifacts.runDir)).not.toContain("replay");
+  } finally {
+    await result.cleanup();
+  }
+});
+
+test("report rerun treats canonical null as absence and a missing normalized dependency as failure", async () => {
+  const dir = await createRoot();
+  const produced = await runFixture("equity-aapl-brief");
+  try {
+    await writeFile(join(produced.artifacts.normalizedDir, "business-framework.json"), "null");
+    const absent = await rerunReport({
+      run: produced.artifacts.runDir,
+      label: "absent",
+      root: dir,
+    });
+    expect(absent.status).toBe("completed");
+    expect(
+      JSON.parse(await readFile(join(absent.dir, "report.json"), "utf8")).extras.businessFramework,
+    ).toBeUndefined();
+    await rm(join(produced.artifacts.normalizedDir, "business-framework.json"));
+    const missing = await rerunReport({
+      run: produced.artifacts.runDir,
+      label: "missing-normalized",
+      root: dir,
+    });
+    expect(missing.status).toBe("failed");
+    expect(await readFile(join(missing.dir, "eval-sample.json"), "utf8")).toContain(
+      "business-framework.json",
+    );
+  } finally {
+    await produced.cleanup();
+  }
+});
+
+test("production deep capture round-trips HTTP failures, state, synthesis repairs, projections and markdown offline", async () => {
+  const dir = await createRoot();
+  const fixture = await loadFixture("equity-depository-deep");
+  const command = parseArgs(fixture.meta.argv);
+  if (command.jobType !== "equity") {
+    throw new Error("expected equity fixture");
+  }
+  const secret = "synthetic-model-and-http-secret";
+  const email = "private-contact@capture.test";
+  const config = {
+    ...createFixtureConfig(fixture.meta, join(dir, "runs")),
+    apiKey: secret,
+    baseUrl: "https://internal.capture.test/v1",
+    indexOptions: { disabled: true, dbPath: join(dir, "private-index.sqlite") },
+    sourceOptions: {
+      ...createFixtureConfig(fixture.meta, join(dir, "runs")).sourceOptions,
+      secUserAgent: `Private research client ${email}`,
+    },
+    captureReplay: true,
+  };
+  const originalFetch = globalThis.fetch;
+  let defaultFetchCalls = 0;
+  globalThis.fetch = Object.assign(
+    () => {
+      defaultFetchCalls += 1;
+      throw new Error("default network path touched");
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  try {
+    const produced = await withReplaySession(
+      { mode: "offline", offline: true, state: { values: {} }, indexes: new Map(), failures: [] },
+      () =>
+        runDeepEquity(
+          { command, config, now: new Date(fixture.meta.now) },
+          {
+            provider: makeReplayProvider(fixture.llmCassette),
+            fetchImpl: async (input, init) => {
+              const response = await makeReplayFetch(fixture.dataCassette, fixture.dir)(
+                input,
+                init,
+              );
+              return response.status === 503
+                ? new Response(
+                    `unavailable ${secret} ${email} ${config.dataDir} ${config.baseUrl} ${config.indexOptions.dbPath}`,
+                    { status: 503 },
+                  )
+                : response;
+            },
+            retryDelaysMs: [],
+          },
+        ),
+    );
+    const capture = join(produced.artifacts.runDir, "replay");
+    const runId = basename(produced.artifacts.runDir);
+    const indexed = await indexRowsForRun(config.dataDir, runId);
+    expect(indexed.files.some((file) => file.path.startsWith("replay/"))).toBe(false);
+    const detail = await readRunDetail(config.dataDir, runId);
+    expect(detail?.summary.availableFiles.some((file) => file.startsWith("replay/"))).toBe(false);
+    expect(await readRunFile(config.dataDir, runId, "replay/meta.json")).toBeUndefined();
+    expect(await readdir(produced.artifacts.runDir)).not.toContain("capture-failure.json");
+    const loaded = await loadFixture(capture);
+    expect(loaded.meta.captureVersion).toBe(1);
+    expect(loaded.state?.values.calibration).toHaveLength(1);
+    expect(Object.values(loaded.dataCassette.entries).some((row) => row.status === 503)).toBe(true);
+    expect(await readdir(join(capture, "bodies"))).not.toHaveLength(0);
+    const body = Object.values(loaded.dataCassette.entries).find(
+      (row) => row.bodyFile !== undefined,
+    )!;
+    await expect(readRecordedBody(capture, body.bodyFile!, "0".repeat(64))).rejects.toThrow(
+      "hash mismatch",
+    );
+    await expect(readRecordedBody(capture, "../report.json")).rejects.toThrow(
+      "Unsafe cassette body path",
+    );
+    const captureFiles = await Array.fromAsync(
+      new Bun.Glob("**/*").scan({ cwd: capture, onlyFiles: true }),
+    );
+    await assertNoSecretsInFiles(
+      captureFiles.map((file) => join(capture, file)),
+      [
+        secret,
+        email,
+        config.sourceOptions.secUserAgent,
+        config.dataDir,
+        config.promptDir,
+        config.baseUrl,
+        config.indexOptions.dbPath,
+      ],
+    );
+    const replay = await runFixture(capture, { llm: "replay" });
+    expect(replay.report.symbol).toBe(produced.report.symbol);
+    expect(replay.report.predictions.map((row) => row.measurableAs)).toEqual(
+      produced.report.predictions.map((row) => row.measurableAs),
+    );
+    expect(replay.collectedSources.sourceGaps.some((gap) => gap.message.includes("503"))).toBe(
+      true,
+    );
+    await replay.cleanup();
+    const file = join(capture, "final-synthesis-input.json");
+    const saved = readSynthesisReplayInput(JSON.parse(await readFile(file, "utf8")));
+    expect(Object.keys(saved.input.settings)).toEqual(["sourceOptions"]);
+    const stage = await replaySynthesisFile({ input: file, label: "stage", root: dir });
+    expect(stage.status).toBe("completed");
+    const report = JSON.parse(await readFile(join(stage.dir, "report.json"), "utf8"));
+    expect(report.symbol).toBe(produced.report.symbol);
+    expect(await readFile(join(stage.dir, "report.md"), "utf8")).toContain("Research-only");
+    const metrics = JSON.parse(await readFile(join(stage.dir, "eval-sample.json"), "utf8"));
+    expect(metrics.partial).toBe(true);
+    expect(metrics.modelCalls).toEqual({ live: 0, replayed: 1 });
+    expect(metrics.comparison.predictionDelta).toBe(0);
+    expect(metrics.comparison.addedClaims).toEqual([]);
+    expect(metrics.tokens.live).toBe(0);
+    expect(metrics.tokens.replayed).toBeGreaterThan(0);
+    expect(saved.promptProvenance).toHaveLength(1);
+    const estimate = await estimateSynthesisFile(file);
+    expect(estimate.observedCalls).toBe(1);
+    expect(estimate.maxInputTokens).toBeGreaterThan(1000);
+    expect(estimate.perRun).toBeGreaterThan(estimate.maxInputTokens);
+    const fake = makeReplayProvider(saved.responses);
+    const live = await replaySynthesisFile({
+      input: file,
+      label: "fake-live",
+      root: dir,
+      provider: fake,
+    });
+    expect(live.status).toBe("completed");
+    expect(
+      JSON.parse(await readFile(join(live.dir, "eval-sample.json"), "utf8")).modelCalls,
+    ).toEqual({ live: 1, replayed: 0 });
+    const frozen = structuredClone(saved);
+    Object.assign(frozen.input.context, {
+      domainPlaybooks: [
+        {
+          stage: "final-synthesis",
+          playbooks: [{ id: "stale-playbook", content: "STALE_INSTRUCTION" }],
+        },
+      ],
+    });
+    const rebuilt = await executeSynthesisInput(frozen, {
+      onRequest: (request) => {
+        expect(request.messages[1]?.content).not.toContain("STALE_INSTRUCTION");
+        expect(request.messages[1]?.content).toContain("domainPlaybooks");
+      },
+    });
+    expect(rebuilt.report.symbol).toBe(produced.report.symbol);
+    const rerun = await rerunReport({
+      run: produced.artifacts.runDir,
+      label: "projection",
+      root: dir,
+    });
+    expect(rerun.status).toBe("completed");
+    expect(
+      JSON.parse(await readFile(join(rerun.dir, "report.json"), "utf8")).extras.metricSections,
+    ).toBeDefined();
+    await expect(replaySynthesisFile({ input: file, label: "stage", root: dir })).rejects.toThrow();
+    await expect(
+      rerunReport({ run: produced.artifacts.runDir, label: "../escape", root: dir }),
+    ).rejects.toThrow("Unsafe eval label");
+    for (const value of [
+      { ...saved, version: 2 },
+      { ...saved, input: { ...saved.input, knownSourceIds: ["missing"] } },
+      {
+        ...saved,
+        input: { ...saved.input, settings: { ...saved.input.settings, apiKey: "sentinel-secret" } },
+      },
+      {
+        ...saved,
+        input: {
+          ...saved.input,
+          context: { ...saved.input.context, evidenceQualityAssessment: { label: "low" } },
+        },
+      },
+      {
+        ...saved,
+        input: {
+          ...saved.input,
+          collectedSources: {
+            ...saved.input.collectedSources,
+            businessFramework: {
+              ...saved.input.collectedSources.businessFramework,
+              sections: [null],
+            },
+          },
+        },
+      },
+      {
+        ...saved,
+        input: {
+          ...saved.input,
+          collectedSources: {
+            ...saved.input.collectedSources,
+            metricSections: [{ id: "bad", title: "Bad", metrics: [null] }],
+          },
+        },
+      },
+    ]) {
+      expect(() => readSynthesisReplayInput(value)).toThrow();
+    }
+    const noResponses = { ...saved, responses: { entries: {} } };
+    await writeFile(join(dir, "missing-responses.json"), JSON.stringify(noResponses));
+    const failed = await replaySynthesisFile({
+      input: join(dir, "missing-responses.json"),
+      label: "missing",
+      root: dir,
+    });
+    expect(failed.status).toBe("failed");
+    expect(await readFile(join(failed.dir, "eval-sample.json"), "utf8")).toContain("LLM cassette");
+    delete loaded.state!.values.calibration;
+    await writeFile(join(capture, "state.json"), JSON.stringify(loaded.state));
+    const incomplete = await runEvalSample({
+      fixture: capture,
+      sample: "1",
+      label: "incomplete",
+      root: dir,
+      llm: "replay",
+    });
+    expect(incomplete.status).not.toBe("completed");
+    expect(incomplete.modelCalls.live).toBe(0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    expect(defaultFetchCalls).toBe(0);
+  }
+});
+
+test("capture errors leave the research result usable and never publish a valid capture", async () => {
+  const dir = await createRoot();
+  const artifacts = { runDir: join(dir, "run") };
+  await mkdir(artifacts.runDir);
+  await writeFile(join(artifacts.runDir, "report.json"), JSON.stringify({ preserved: true }));
+  const fixture = await loadFixture("equity-aapl-brief");
+  const command = parseArgs(fixture.meta.argv);
+  if (command.jobType !== "equity") {
+    throw new Error("expected equity");
+  }
+  const result = await withRunCapture(
+    {
+      command,
+      config: { ...createFixtureConfig(fixture.meta, dir), captureReplay: true },
+      now: new Date(fixture.meta.now),
+      provider: {
+        name: "throwing",
+        generate: async () => {
+          throw new Error("default model touched");
+        },
+      },
+      fetchImpl: async () => {
+        throw new Error("default HTTP touched");
+      },
+    },
+    async () => {
+      captureSynthesisInput({ invalid: "checkpoint" });
+      return { artifacts, value: "research survived" };
+    },
+  );
+  expect(result.value).toBe("research survived");
+  expect(await readdir(artifacts.runDir)).toContain("capture-failure.json");
+  expect(await readdir(artifacts.runDir)).not.toContain("replay");
+  expect((await readdir(artifacts.runDir)).some((name) => name.startsWith(".replay-"))).toBe(false);
+  expect(JSON.parse(await readFile(join(artifacts.runDir, "report.json"), "utf8"))).toEqual({
+    preserved: true,
+  });
+});
+
+test("circuit capture stays compact across distinct requests while preserving transitions and exhaustion", async () => {
+  const dir = await createRoot();
+  const fixture = await loadFixture("equity-aapl-brief");
+  const options = { ...createFixtureConfig(fixture.meta, dir).sourceOptions, cacheDisabled: true };
+  const state: ReplayState = { values: {} };
+  const http = createRecordingFetch(
+    async (input) => new Response("{}", { status: String(input).includes("limited") ? 429 : 200 }),
+  );
+  await withReplaySession(
+    { mode: "record", offline: true, state, indexes: new Map(), failures: [] },
+    async () => {
+      const { request } = createSourceRequestContext(
+        options,
+        new Date(fixture.meta.now),
+        http.fetch,
+        [],
+      );
+      for (let index = 0; index < 100; index += 1) {
+        const result = await request.json({
+          url: `https://compact-circuit.test/quote?symbol=${String(index)}`,
+          adapter: "capture-test",
+        });
+        expect("rawSnapshot" in result).toBe(true);
+      }
+      await request.json({ url: "https://compact-circuit.test/limited", adapter: "capture-test" });
+      const blocked = await request.json({
+        url: "https://compact-circuit.test/blocked",
+        adapter: "capture-test",
+      });
+      expect("cause" in blocked && blocked.cause).toBe("circuit-open");
+    },
+  );
+  expect(JSON.stringify(state).length).toBeLessThan(200);
+  await withReplaySession(
+    { mode: "replay", offline: true, state, indexes: new Map(), failures: [] },
+    async () => {
+      const { request } = createSourceRequestContext(
+        options,
+        new Date(fixture.meta.now),
+        makeReplayFetch(http.cassette()),
+        [],
+      );
+      for (let index = 0; index < 100; index += 1) {
+        const result = await request.json({
+          url: `https://compact-circuit.test/quote?symbol=${String(index)}`,
+          adapter: "capture-test",
+        });
+        expect("rawSnapshot" in result).toBe(true);
+      }
+      const limited = await request.json({
+        url: "https://compact-circuit.test/limited",
+        adapter: "capture-test",
+      });
+      expect("cause" in limited && limited.cause).toBe("fetch-failed");
+      const blocked = await request.json({
+        url: "https://compact-circuit.test/blocked",
+        adapter: "capture-test",
+      });
+      expect("cause" in blocked && blocked.cause).toBe("circuit-open");
+      expect(() => replayValueSync(Object.keys(state.values)[0]!, () => false)).toThrow(
+        "Replay state miss",
+      );
+    },
+  );
+  const key = Object.keys(state.values)[0]!;
+  const failures: string[] = [];
+  state.values[key] = [{ value: false, count: 0 }];
+  await withReplaySession(
+    { mode: "replay", offline: true, state, indexes: new Map(), failures },
+    async () => {
+      expect(() => replayValueSync(key, () => false)).toThrow("Invalid replay state count");
+    },
+  );
+  expect(failures).toEqual([`Invalid replay state count: ${key}`]);
+});
+
+test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
+  "%s captures its conditional stages and repairs through the real producer",
+  async (name) => {
+    const dir = await createRoot();
+    const produced = await runFixture(name, {
+      llm: "replay",
+      capture: true,
+      dataDir: join(dir, "runs"),
+    });
+    const capture = join(produced.artifacts.runDir, "replay");
+    const saved = readSynthesisReplayInput(
+      JSON.parse(await readFile(join(capture, "final-synthesis-input.json"), "utf8")),
+    );
+    const replay = await runFixture(capture);
+    try {
+      expect(replay.report.symbol).toBe(produced.report.symbol);
+      expect(replay.report.extras?.webSubjectProfile).toBeDefined();
+      const stage = await executeSynthesisInput(saved);
+      expect(stage.calls).toBe(name === "equity-earnings-release-deep" ? 2 : 1);
+      expect(stage.report.extras?.webSubjectProfile).toBeDefined();
+    } finally {
+      await replay.cleanup();
+    }
+  },
+);
+
+test("model recording covers bypass stages, challenger models, ordered concurrent calls and provider errors", async () => {
+  const recorder = createRecordingProvider({
+    name: "fake",
+    generate: async (request) => {
+      if (request.model === "failed") {
+        throw new Error("recorded provider failure");
+      }
+      await Promise.resolve();
+      return { content: request.model, tokenEstimate: 10 };
+    },
+  });
+  const requests = [
+    modelRequest("financial-table-mapping", "quick"),
+    modelRequest("spotlight-selection", "quick"),
+    modelRequest("peer-universe-proposal", "quick"),
+    modelRequest("forecast-disagreement", "one"),
+    modelRequest("forecast-disagreement", "two"),
+  ];
+  await Promise.all(requests.map((row) => recorder.provider.generate(row)));
+  await expect(
+    recorder.provider.generate(modelRequest("forecast-disagreement", "failed")),
+  ).rejects.toThrow("recorded provider failure");
+  const replay = makeReplayProvider(recorder.cassette());
+  for (const row of requests) {
+    // oxlint-disable-next-line no-await-in-loop -- each recorded identity is independently consumed
+    const response = await replay.generate(row);
+    expect(response.content).toBe(row.model);
+  }
+  await expect(replay.generate(modelRequest("forecast-disagreement", "failed"))).rejects.toThrow(
+    "recorded provider failure",
+  );
+});
+
+test("offline scripts reject live flags before opening inputs or creating outputs", async () => {
+  const process = Bun.spawn(["bun", "run", "scripts/replay-stage.ts", "--live"], {
+    cwd: join(import.meta.dir, ".."),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  expect(await process.exited).not.toBe(0);
+  expect(await new Response(process.stderr).text()).toContain("Unknown option");
+});
+
+test("captures 403 responses and redacts query credentials, auth headers and large echoed bodies before persistence", async () => {
+  const secret = "synthetic-sentinel-credential";
+  const recorder = createRecordingFetch(
+    async () =>
+      new Response(`${secret} forbidden`, {
+        status: 403,
+        headers: { authorization: `Bearer ${secret}` },
+      }),
+    (text) => text.replaceAll(secret, "redacted"),
+  );
+  const response = await recorder.fetch(
+    `https://example.test/data?token=${secret}&apiKey=${secret}&key=${secret}`,
+    {
+      headers: { authorization: `Bearer ${secret}` },
+    },
+  );
+  expect(response.status).toBe(403);
+  const text = JSON.stringify(recorder.cassette());
+  expect(text).not.toContain(secret);
+  expect(text).not.toContain("authorization");
+  const replay = await makeReplayFetch(recorder.cassette())(
+    "https://example.test/data?token=replay",
+  );
+  expect(replay.status).toBe(403);
+  expect(await replay.text()).toContain("forbidden");
+});
+
+test("HTTP transport failures preserve their retry classification when recorded and replayed", async () => {
+  const recorder = createRecordingFetch(() => {
+    const error = new Error("timed out");
+    error.name = "TimeoutError";
+    throw error;
+  });
+  await expect(recorder.fetch("https://example.test/timeout")).rejects.toThrow("timed out");
+  const error = await makeReplayFetch(recorder.cassette())("https://example.test/timeout").catch(
+    (error: unknown) => error,
+  );
+  expect(error).toBeInstanceOf(Error);
+  expect((error as Error).name).toBe("TimeoutError");
+});
+
+test("state replay distinguishes omitted values from empty values and fails closed on missing reads", async () => {
+  const state: ReplayState = { values: {} };
+  await withReplaySession(
+    { mode: "record", offline: true, state, indexes: new Map(), failures: [] },
+    async () => {
+      await replayValue("optional", async () => undefined);
+      await replayValue("empty", async () => []);
+    },
+  );
+  await withReplaySession(
+    { mode: "replay", offline: true, state, indexes: new Map(), failures: [] },
+    async () => {
+      expect(await replayValue("optional", forbidden)).toBeUndefined();
+      expect(await replayValue("empty", forbidden)).toEqual([]);
+      await expect(replayValue("unrecorded", forbidden)).rejects.toThrow("Replay state miss");
+    },
+  );
+});

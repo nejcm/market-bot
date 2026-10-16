@@ -8,7 +8,8 @@ Accepted
 
 2026-06-30 (consolidated 2026-07-15; amended 2026-07-25: bundle-only deep-equity
 persistence and migration; amended 2026-08-26: failed-run diagnostics; amended 2026-08-28:
-Subsystem Outcomes; amended 2026-10-10: no run-output goldens)
+Subsystem Outcomes; amended 2026-10-10: no run-output goldens; amended 2026-10-16:
+opt-in replay captures and direct final-synthesis inputs)
 
 ## Context
 
@@ -102,9 +103,42 @@ derived indexes, and pipeline fixtures were previously split across several reco
   configured model provider and may incur cost.
 - Direct `CollectedSources` injection remains appropriate for narrow unit tests, not the primary
   pipeline fixture tier.
-- Recording is dev-only, stores canonicalized requests, and fails when known token values appear in
-  written fixtures. Replays assert invariants, not byte-exact output
+- Standalone fixture recording is dev-only. Opt-in research-run Replay Capture stores a local
+  engineering sidecar at `<run>/replay/`, outside report fields and index projections. Both paths
+  canonicalize requests and reject known credentials through `scripts/fixture-secret-scan.ts`. Replays assert invariants, not byte-exact output
   ([ADR 0008](./0008-replay-invariants-no-output-snapshots.md)).
+
+### Replay Capture and direct evaluation
+
+- `MARKET_BOT_CAPTURE_REPLAY` defaults off and applies globally to research runs. It wraps source
+  HTTP and every model request before collection, including peer proposals and challenger calls.
+  Explicit request metadata identifies prose-only stages without changing their prompt text.
+- Captures contain versioned metadata, allowlisted effective settings, ordered HTTP/model cassettes,
+  consumed cache and cross-run state, and a versioned Final-Synthesis Input with embedded model
+  responses. HTTP statuses and transport/model failures remain recorded failures. Large HTTP and
+  state bodies use content-addressed files whose hashes and path containment are checked on read.
+- Captures, private partial directories and failure markers are excluded from the Run Artifact Index
+  file projection and Console file browser/read endpoint.
+- Credentials, configured SEC contact identities and local paths are redacted before entering
+  recordings; request auth headers are never stored.
+  Captures publish by renaming a private partial directory only after validation and secret scans.
+  Handled capture failure removes only its private staging directory, never the research artifacts.
+  Failure never invalidates research output and never publishes a ready capture. An optional
+  `capture-failure.json` records failure without including credential-bearing errors.
+- Captured state includes the actual consumed clock, cache entries/fallbacks, host circuit decisions,
+  news-seen, learned-peer reads, Historical Research Context, Calibration, profile reuse and alpha
+  context. Unavailable values differ from missing recordings; a missing dependency fails replay.
+  Replay writes all mutable state inside its isolated sample root.
+- Final synthesis shares production prompt construction, phase retries and deterministic post-audit
+  functions with direct replay. Input readers validate the version, settings, evidence/context and
+  source identities; current Domain Playbooks reload by default. Direct outputs remain partial:
+  they do not run upstream collection, Forecast Disagreement, scoring or production state writers.
+- Offline direct scripts accept no live flags. Only `eval-deep.ts` evaluates a saved synthesis input
+  with a live model, after offline planning and the existing explicit approval gate. Offline fixture
+  execution skips provider pacing and retry waits through a harness-scoped context, never an env var.
+- Deterministic report reruns project saved normalized evidence and validate/render the report under
+  fresh `data/evals/<label>/` roots. Missing canonical normalized files fail; recorded null remains
+  absence. Original Run Artifacts stay unchanged.
 
 ## Consequences
 

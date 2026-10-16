@@ -3,6 +3,7 @@ import { createPeerUniverseProposer } from "../src/research/peer-universe-propos
 import { MAX_PEERS, MIN_PROPOSED_PEERS } from "../src/research/peer-universe";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
 import type { FetchJsonResult, FetchTextResult, SourceRequestExecutor } from "../src/sources/types";
+import { createRecordingProvider, makeReplayProvider } from "../src/replay/llm-cassette";
 
 const generatedAt = "2026-06-29T00:00:00.000Z";
 
@@ -106,6 +107,32 @@ function peersJson(peers: readonly Record<string, unknown>[]): string {
 }
 
 describe("createPeerUniverseProposer", () => {
+  test("the real proposal request records and strictly replays its stage identity", async () => {
+    const recorded = createRecordingProvider(
+      modelProvider(
+        peersJson([
+          { symbol: "AAPL", name: "Apple", role: "core", rationale: "tech" },
+          { symbol: "MSFT", name: "Microsoft", role: "core", rationale: "software" },
+          { symbol: "GOOGL", name: "Alphabet", role: "secondary", rationale: "platform" },
+        ]),
+      ),
+    );
+    const deps = { model: "proposal-model", request: secTickersExecutor() };
+    const original = await createPeerUniverseProposer({ ...deps, provider: recorded.provider })(
+      "NVDA",
+    );
+    expect(Object.keys(recorded.cassette().entries)).toEqual([
+      "peer-universe-proposal|proposal-model",
+    ]);
+    const replay = await createPeerUniverseProposer({
+      ...deps,
+      provider: makeReplayProvider(recorded.cassette()),
+    })("NVDA");
+    expect(replay.universe?.peers.map((peer) => peer.symbol)).toEqual(
+      original.universe?.peers.map((peer) => peer.symbol),
+    );
+    expect(replay.universe?.peers).toHaveLength(3);
+  });
   test("proposes a validated universe when all candidates pass", async () => {
     const propose = createPeerUniverseProposer({
       provider: modelProvider(

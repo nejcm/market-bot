@@ -1,11 +1,13 @@
-import { isRecord } from "../../../src/guards";
-import type { StageLabel } from "../../../src/research/prompt-loader";
-import type { ModelProvider, ModelRequest } from "../../../src/model/types";
+import { isRecord } from "../guards";
+import type { StageLabel } from "../research/prompt-loader";
+import type { ModelProvider, ModelRequest } from "../model/types";
 
 export interface LlmCassetteEntry {
   readonly content: string;
   readonly tokenEstimate: number;
   readonly costEstimateUsd?: number;
+  readonly error?: string;
+  readonly errorName?: string;
 }
 
 export interface LlmCassette {
@@ -18,6 +20,9 @@ export interface LlmRecorder {
 }
 
 export function requestStage(request: ModelRequest): string {
+  if (request.stage !== undefined && request.stage.trim().length > 0) {
+    return request.stage;
+  }
   const user = request.messages.findLast((message) => message.role === "user")?.content;
   if (user === undefined) {
     return "unknown";
@@ -162,30 +167,43 @@ export function makeReplayProvider(
         return fail(exactKey, `LLM cassette miss for ${key} call ${String(index + 1)}`);
       }
       indexes.set(key, index + 1);
+      if (entry.error !== undefined) {
+        const error = new Error(entry.error);
+        error.name = entry.errorName ?? "Error";
+        throw error;
+      }
       return entry;
     },
   };
 }
 
-export function createRecordingProvider(baseProvider: ModelProvider): LlmRecorder {
+export function createRecordingProvider(
+  baseProvider: ModelProvider,
+  redact: (value: string) => string = (value) => value,
+): LlmRecorder {
   const entries: Record<string, LlmCassetteEntry[]> = {};
   return {
     cassette: () => ({ entries }),
     provider: {
+      ...baseProvider,
       name: baseProvider.name,
       generate: async (request) => {
-        const response = await baseProvider.generate(request);
         const key = llmCassetteKey(request);
-        entries[key] = [
-          ...(entries[key] ?? []),
-          {
-            content: response.content,
-            tokenEstimate: response.tokenEstimate,
-            ...(response.costEstimateUsd !== undefined
-              ? { costEstimateUsd: response.costEstimateUsd }
-              : {}),
-          },
-        ];
+        const sequence = (entries[key] ??= []);
+        const index = sequence.length;
+        sequence.push({ content: "", tokenEstimate: 0, error: "Unfinished model capture" });
+        const response = await Promise.resolve()
+          .then(() => baseProvider.generate(request))
+          .catch((error: unknown) => {
+            sequence[index] = {
+              content: "",
+              tokenEstimate: 0,
+              error: redact(error instanceof Error ? error.message : "Model request failed"),
+              errorName: error instanceof Error ? error.name : "Error",
+            };
+            throw error;
+          });
+        sequence[index] = { ...response, content: redact(response.content) };
         return response;
       },
     },

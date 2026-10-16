@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isNewsRelevant } from "../src/sources/news-relevance";
+import { isNewsRelevant, isNewsRelevantByTitleOrSymbol } from "../src/sources/news-relevance";
 import type { Source } from "../src/domain/sources";
 import type { NewsRelevanceTarget } from "../src/sources/types";
 
@@ -88,5 +88,35 @@ describe("isNewsRelevant", () => {
   test("returns false when no target matches at all", () => {
     const src = source({ title: "Nvidia posts blowout quarter" });
     expect(isNewsRelevant(src, [target({ symbol: "AAPL", name: "Apple Inc." })])).toBe(false);
+  });
+});
+
+describe("isNewsRelevantByTitleOrSymbol", () => {
+  test("matches title tickers, title company terms, and source.symbol", () => {
+    expect(
+      isNewsRelevantByTitleOrSymbol(source({ title: "AAPL closes at new high" }), [target()]),
+    ).toBe(true);
+    expect(
+      isNewsRelevantByTitleOrSymbol(source({ title: "Apple supplier sees record orders" }), [
+        target({ name: "Apple Inc." }),
+      ]),
+    ).toBe(true);
+    expect(isNewsRelevantByTitleOrSymbol(source({ symbol: "AAPL" }), [target()])).toBe(true);
+  });
+
+  test("does not count a subject that appears only in summary or snippet", () => {
+    const src = source({
+      title: "New chip demand emerges",
+      summary: "The article name-checks $AAPL in passing.",
+      snippet: "Apple Inc. is mentioned once.",
+    });
+    expect(isNewsRelevant(src, [target({ name: "Apple Inc." })])).toBe(true);
+    expect(isNewsRelevantByTitleOrSymbol(src, [target({ name: "Apple Inc." })])).toBe(false);
+  });
+
+  test("returns false when targets is empty", () => {
+    expect(isNewsRelevantByTitleOrSymbol(source({ title: "AAPL closes at new high" }), [])).toBe(
+      false,
+    );
   });
 });

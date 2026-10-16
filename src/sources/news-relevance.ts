@@ -34,21 +34,14 @@ const GENERIC_TOPIC_TERMS = new Set([
   "stocks",
 ]);
 
-function normalizedSearchText(source: Source): string {
-  return [source.symbol, source.title, source.summary, source.snippet]
-    .filter((value): value is string => value !== undefined && value.trim() !== "")
-    .join(" ")
-    .toLowerCase();
-}
-
-function sourceSearchText(source: Source): string {
-  return [source.title, source.summary, source.snippet]
+function joinedSearchText(...values: readonly (string | undefined)[]): string {
+  return values
     .filter((value): value is string => value !== undefined && value.trim() !== "")
     .join(" ");
 }
 
-function symbolTokens(source: Source): ReadonlySet<string> {
-  const tokens = sourceSearchText(source).match(/\$?[A-Za-z][A-Za-z0-9.-]*/gu) ?? [];
+function symbolTokens(text: string): ReadonlySet<string> {
+  const tokens = text.match(/\$?[A-Za-z][A-Za-z0-9.-]*/gu) ?? [];
   return new Set(
     tokens.flatMap((token) => {
       if (token.startsWith("$")) {
@@ -59,14 +52,8 @@ function symbolTokens(source: Source): ReadonlySet<string> {
   );
 }
 
-function caseInsensitiveSymbolTokens(source: Source): ReadonlySet<string> {
-  const tokens = normalizedSearchText(source).match(/[a-z][a-z0-9.-]*/gu) ?? [];
-  return new Set(tokens);
-}
-
-function companySearchTokens(source: Source): ReadonlySet<string> {
-  const tokens = normalizedSearchText(source).match(/[a-z][a-z0-9.-]*/gu) ?? [];
-  return new Set(tokens);
+function lowercaseTokens(text: string): ReadonlySet<string> {
+  return new Set(text.toLowerCase().match(/[a-z][a-z0-9.-]*/gu));
 }
 
 function companyNameTerms(name: string | undefined): readonly string[] {
@@ -84,26 +71,53 @@ function companyNameTerms(name: string | undefined): readonly string[] {
   ];
 }
 
-export function isNewsRelevant(source: Source, targets: readonly NewsRelevanceTarget[]): boolean {
-  if (targets.length === 0) {
+function matchesTargets(args: {
+  readonly sourceSymbol: string | undefined;
+  readonly targets: readonly NewsRelevanceTarget[];
+  readonly tickerText: string;
+  readonly companyText: string;
+}): boolean {
+  if (args.targets.length === 0) {
     return false;
   }
-  const sourceSymbol = source.symbol?.toUpperCase();
-  const tickerTokens = symbolTokens(source);
-  const lowercaseSymbolTokens = caseInsensitiveSymbolTokens(source);
-  const companyTokens = companySearchTokens(source);
-  return targets.some((target) => {
+  const tickerTokens = symbolTokens(args.tickerText);
+  const lowerTokens = lowercaseTokens(args.companyText);
+  return args.targets.some((target) => {
     const symbol = target.symbol.toUpperCase();
-    const lowercaseSymbol = target.symbol.toLowerCase();
-    if (sourceSymbol === symbol) {
+    if (args.sourceSymbol === symbol) {
       return true;
     }
     if (tickerTokens.has(symbol)) {
       return true;
     }
-    if (target.allowLowercaseSymbolMention === true && lowercaseSymbolTokens.has(lowercaseSymbol)) {
+    if (
+      target.allowLowercaseSymbolMention === true &&
+      lowerTokens.has(target.symbol.toLowerCase())
+    ) {
       return true;
     }
-    return companyNameTerms(target.name).some((term) => companyTokens.has(term));
+    return companyNameTerms(target.name).some((term) => lowerTokens.has(term));
+  });
+}
+
+export function isNewsRelevant(source: Source, targets: readonly NewsRelevanceTarget[]): boolean {
+  return matchesTargets({
+    sourceSymbol: source.symbol?.toUpperCase(),
+    targets,
+    tickerText: joinedSearchText(source.title, source.summary, source.snippet),
+    companyText: joinedSearchText(source.symbol, source.title, source.summary, source.snippet),
+  });
+}
+
+// The floor-counting variant: summary/snippet-only subject matches do not count toward it.
+export function isNewsRelevantByTitleOrSymbol(
+  source: Source,
+  targets: readonly NewsRelevanceTarget[],
+): boolean {
+  return matchesTargets({
+    sourceSymbol: source.symbol?.toUpperCase(),
+    targets,
+    tickerText: joinedSearchText(source.title),
+    companyText: joinedSearchText(source.symbol, source.title),
   });
 }

@@ -369,7 +369,7 @@ Fetched market, news, or reference item with an ID for claim citations.
 
 ## Relevant News Source
 
-News Source matching a News Relevance Target. Same-day repeats stay visible through the Grace Window; if seen-dedupe removes all relevant instrument news while generic items remain, the newest relevant repeat is restored per instrument lane and disclosed as `repeat-fallback`.
+News Source matching a News Relevance Target. Same-day repeats stay visible through the Grace Window. A Source counts toward an instrument lane's min-relevant-keep floor only when the subject appears in its title or `source.symbol`; summary/snippet-only matches stay selectable but do not satisfy the floor. If seen-dedupe leaves the floor unmet, the newest qualifying repeats are restored up to it and disclosed as `repeat-fallback`.
 
 ## Grace Window
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0](https://github.com/nejcm/market-bot/compare/v1.2.2...v1.3.0) (2026-10-16)
+
+### Features
+
+- deterministic metric engine with narrative metric references (#104) ([426c7bc](https://github.com/nejcm/market-bot/commit/426c7bcb433424b677f9a9645581f6c6582bcc42))
+
 ## [1.2.2](https://github.com/nejcm/market-bot/compare/v1.2.1...v1.2.2) (2026-10-14)
 
 ### Bug Fixes

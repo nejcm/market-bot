@@ -347,8 +347,8 @@ without pretending the project has a global security master.
   absence never establishes zero, and an incomplete sum is never used, even after rejecting a
   combined fact. Equality and differences within the 1% tolerance retain the combined fact.
   Rejection with incomplete components emits a period-specific `incomplete-composite-series`
-  omission note with a neutral reason, projected to Source Gaps and the existing statement-note
-  surfaces in Markdown and the Research Console. The derived fact retains composite
+  omission note with a neutral reason, projected to Source Gaps and the Operating Ratios
+  section in Markdown and the Research Console. The derived fact retains composite
   lineage, and the EBITDA proxy names its depreciation + intangible amortization basis.
   IFRS selection is unchanged.
 - Amendment: debt basis may be gross principal when net debt is untagged. Some filers tag current

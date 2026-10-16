@@ -377,7 +377,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const historicalContext = historicalContextAuditView(detail.trace);
   const webSubjectProfile = webSubjectProfileView(report, detail.webSubjectProfile);
   const businessFramework = businessFrameworkView(report, detail.businessFramework);
-  const metricSections = metricSectionsView(report);
+  const metricSections = metricSectionsView(report, detail.financialStatements);
   const marketSnapshot = matchingMarketSnapshot(detail);
   const extendedItems = extendedEvidenceItems(report).map((item) => ({
     ...item,

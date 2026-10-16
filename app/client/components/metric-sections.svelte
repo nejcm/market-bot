@@ -52,5 +52,8 @@
         </li>
       {/each}
     </ul>
+    {#each section.notes ?? [] as note}
+      <p class="mt-2 text-[11px] text-muted-foreground">{note}</p>
+    {/each}
   {/each}
 </section>

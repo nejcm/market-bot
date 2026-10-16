@@ -471,7 +471,14 @@ describe("operatingRatiosSection", () => {
       DepreciationDepletionAndAmortization: {
         units: { USD: [fact(total, year)] },
       },
-      [concept]: { units: { USD: [fact(component, year)] } },
+      Depreciation: {
+        units: { USD: [fact(concept === "Depreciation" ? component : 1000, year)] },
+      },
+      AmortizationOfIntangibleAssets: {
+        units: {
+          USD: [fact(concept === "AmortizationOfIntangibleAssets" ? component : 1000, year)],
+        },
+      },
     });
     const result = evaluate(
       context(concepts, {}, "us-gaap", `${String(year + 1)}-07-23T00:00:00.000Z`),
@@ -487,6 +494,23 @@ describe("operatingRatiosSection", () => {
     expect(
       invariantRun(result.ctx, result.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
     ).not.toThrow();
+    const demoted = evaluate(
+      context(
+        { ...concepts, DepreciationDepletionAndAmortization: undefined },
+        {},
+        "us-gaap",
+        `${String(year + 1)}-07-23T00:00:00.000Z`,
+      ),
+    );
+    expect(
+      demoted.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ extractionMethod: "derived-sec-companyfacts" }]);
+    expect(
+      invariantRun(demoted.ctx, demoted.section.metrics, {
+        cik: 1,
+        facts: { "us-gaap": concepts },
+      }),
+    ).toThrow(/D&A.*retain the combined fact/u);
   });
 
   test("an older component rejects a newer combined D&A more than 1% below it", () => {
@@ -575,15 +599,31 @@ describe("operatingRatiosSection", () => {
     );
     const history = balanceSheetHistory(statements, AS_OF);
     const position = financialPosition(statements, AS_OF);
-    expect(history?.notes).toEqual(expect.arrayContaining(notes));
-    expect(position?.notes).toEqual(expect.arrayContaining(notes));
-    expect(balanceSheetHistoryFromProjection(history)?.notes).toEqual(
-      expect.arrayContaining(notes),
+    const report = researchReport({
+      jobType: "equity",
+      extras: { metricSections: [result.section] },
+    });
+    const sections = metricSectionsView({ extras: report.extras }, statements);
+    expect(sections?.find(({ id }) => id === "operating-ratios")?.notes).toEqual(
+      notes.map(({ message }) => message),
     );
-    expect(financialPositionFromProjection(position)?.notes).toEqual(expect.arrayContaining(notes));
-    const markdown = renderBalanceSheetAndShareCount(researchReport(), history);
+    const markdown = renderMarkdownReport(
+      report,
+      undefined,
+      collectedSources({ financialStatements: statements }),
+    );
+    expect(markdown).toContain("### Operating Ratios");
+    const balanceSheetMarkdown = renderBalanceSheetAndShareCount(report, history);
     for (const note of notes) {
-      expect(markdown).toContain(note.message);
+      expect(history?.notes).not.toContainEqual(note);
+      expect(position?.notes).not.toContainEqual(note);
+      expect(balanceSheetHistoryFromProjection(history)?.notes).not.toContainEqual(note);
+      expect(financialPositionFromProjection(position)?.notes).not.toContainEqual(note);
+      expect(markdown.split(note.message)).toHaveLength(2);
+      expect(markdown.indexOf(note.message)).toBeGreaterThan(
+        markdown.indexOf("### Operating Ratios"),
+      );
+      expect(balanceSheetMarkdown).not.toContain(note.message);
       expect(violatesResearchOnly(note.message)).toBeNull();
     }
   });

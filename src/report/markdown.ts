@@ -96,7 +96,8 @@ export function renderMarkdownReport(
       renderBalanceSheet: renderBalanceSheetAndShareCount,
       renderScenarios,
       renderBusinessFramework,
-      renderMetricSections,
+      renderMetricSections: () =>
+        renderMetricSections(report, collectedSources?.financialStatements),
       renderWebSubjectProfile,
       renderAnalystDistributions: renderAnalystEstimateDistributions,
       renderAnalystAndOwnershipContext,

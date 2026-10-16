@@ -671,6 +671,59 @@ function htmlText(html: string): string {
 }
 
 describe("run workspace view", () => {
+  test("routes D&A omission notes only to Operating Ratios", async () => {
+    const note = {
+      code: "incomplete-composite-series" as const,
+      seriesKey: "depreciationAndAmortization" as const,
+      message: "SEC depreciation and amortization omitted: matching components are incomplete.",
+    };
+    const base = tableOfContentsFixture();
+    const detail = {
+      ...base,
+      financialStatements: {
+        ...base.financialStatements!,
+        omissionNotes: [...base.financialStatements!.omissionNotes, note],
+      },
+      report: {
+        ...base.report!,
+        extras: {
+          metricSections: [
+            { id: "capital-return", title: "Capital Return", metrics: [] },
+            { id: "operating-ratios", title: "Operating Ratios", metrics: [] },
+          ],
+        },
+      },
+    };
+    const view = buildRunWorkspaceView(detail);
+    expect(
+      view.evidence.metricSections?.find(({ id }) => id === "operating-ratios")?.notes,
+    ).toEqual([note.message]);
+    expect(
+      view.evidence.metricSections?.find(({ id }) => id === "capital-return")?.notes,
+    ).toBeUndefined();
+    const { financialStatements, ...withoutStatements } = detail;
+    const unavailable = buildRunWorkspaceView(withoutStatements);
+    expect(
+      unavailable.evidence.metricSections?.find(({ id }) => id === "operating-ratios")?.notes,
+    ).toBeUndefined();
+    const checked = buildRunWorkspaceView({
+      ...detail,
+      financialStatements: { ...financialStatements, omissionNotes: [] },
+    });
+    expect(
+      checked.evidence.metricSections?.find(({ id }) => id === "operating-ratios")?.notes,
+    ).toEqual([]);
+    expect(view.equityPresentation?.defaultView.financialPosition?.notes).not.toContainEqual(note);
+    expect(view.equityPresentation?.advanced.balanceSheetHistory?.notes).not.toContainEqual(note);
+    const advanced = await renderRunWorkspaceComponent(detail, "advanced");
+    expect(advanced.split(note.message)).toHaveLength(2);
+    expect(advanced).toContain("Operating Ratios</h3>");
+    expect(advanced.indexOf(note.message)).toBeGreaterThan(
+      advanced.indexOf("Operating Ratios</h3>"),
+    );
+    expect(await renderRunWorkspaceComponent(detail)).not.toContain(note.message);
+  });
+
   test("keeps stale instant-series notes out of current statement values", () => {
     const note = {
       code: "stale-instant-series" as const,

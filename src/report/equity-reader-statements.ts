@@ -87,12 +87,20 @@ function statementSurfaceNotes(
   return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
-      (note.code === "incomplete-composite-series" &&
-        note.seriesKey === "depreciationAndAmortization") ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||
       ((note.code === "untagged-balance-sheet-series" ||
         note.code === "incomplete-composite-series") &&
         note.seriesKey === "debt"),
+  );
+}
+
+export function operatingRatioNotes(
+  artifact: FinancialStatementsArtifact | undefined,
+): readonly FinancialStatementNote[] | undefined {
+  return artifact?.omissionNotes?.filter(
+    (note) =>
+      note.code === "incomplete-composite-series" &&
+      note.seriesKey === "depreciationAndAmortization",
   );
 }
 

@@ -1,4 +1,6 @@
 import type { ResearchReport } from "../domain/report";
+import type { FinancialStatementsArtifact } from "../sources/extended-evidence/financial-statements-contract";
+import { operatingRatioNotes } from "./equity-reader-statements";
 import { formatMetricValue, metricPeriodLabel } from "../sources/extended-evidence/value-format";
 import { citedSourceIds, markdownText, sourceRefs } from "./markdown-primitives";
 import { readMetricSectionsExtra } from "./report-extras-contract";
@@ -33,7 +35,10 @@ function metricLine(
   ];
 }
 
-export function renderMetricSections(report: ResearchReport): string {
+export function renderMetricSections(
+  report: ResearchReport,
+  financialStatements?: FinancialStatementsArtifact,
+): string {
   const sections = readMetricSectionsExtra(report.extras?.metricSections) ?? [];
   return sections
     .flatMap((section) =>
@@ -43,6 +48,11 @@ export function renderMetricSections(report: ResearchReport): string {
             `## ${markdownText(section.title)}`,
             "",
             ...section.metrics.flatMap((metric) => metricLine(report, metric, section.id)),
+            ...(section.id === "operating-ratios"
+              ? (operatingRatioNotes(financialStatements) ?? []).map(
+                  (note) => `- ${markdownText(note.message)}`,
+                )
+              : []),
             "",
           ],
     )

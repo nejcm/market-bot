@@ -25,6 +25,8 @@ export const DEPRECIATION_AND_AMORTIZATION_COMPONENTS: readonly (readonly string
 ];
 
 export const DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE = 0.01;
+export const MIN_ANNUAL_DURATION_MONTHS = 10;
+export const MAX_ANNUAL_DURATION_MONTHS = 14;
 
 interface DebtSideConcepts {
   readonly generic: readonly string[];

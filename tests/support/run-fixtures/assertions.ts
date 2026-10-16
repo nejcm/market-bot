@@ -40,6 +40,8 @@ import {
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  MIN_ANNUAL_DURATION_MONTHS,
+  MAX_ANNUAL_DURATION_MONTHS,
   isDebtPresenceConcept,
   scopedLabel,
 } from "../../../src/sources/extended-evidence/financial-statement-definitions";
@@ -491,7 +493,7 @@ function assertNotFiledCause(
   }
 }
 
-function assertDirectDepreciationAndAmortization(run: MetricInvariantRun): void {
+function assertDepreciationAndAmortizationSelection(run: MetricInvariantRun): void {
   const statements = run.collectedSources.financialStatements;
   const root = targetCompanyFacts(run)?.["us-gaap"];
   if (statements === undefined || !isRecord(root)) {
@@ -499,14 +501,17 @@ function assertDirectDepreciationAndAmortization(run: MetricInvariantRun): void 
   }
   const cutoff = statements.analysisAsOf.slice(0, 10);
   const series = statements.statements.cashFlowStatement.depreciationAndAmortization;
+  const totals = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    ({ key }) => key === "depreciationAndAmortization",
+  )!.concepts["us-gaap"];
   for (const fact of financialStatementFacts(series).filter(
-    (item) => item.taxonomy === "us-gaap" && item.composite === undefined,
+    (item) => item.taxonomy === "us-gaap",
   )) {
     const { periodStart } = fact;
     if (periodStart === undefined) {
       continue;
     }
-    for (const aliases of DEPRECIATION_AND_AMORTIZATION_COMPONENTS) {
+    const selectRawFact = (aliases: readonly string[]) => {
       const components = aliases.map((concept) => {
         const units = isRecord(root[concept]) ? root[concept].units : undefined;
         const rows = isRecord(units) ? units[fact.unit] : undefined;
@@ -525,7 +530,9 @@ function assertDirectDepreciationAndAmortization(run: MetricInvariantRun): void 
             row.start !== fact.periodStart ||
             period.end !== fact.periodEnd ||
             period.filed > cutoff ||
-            (isAnnualReportForm(form.canonicalForm) && months >= 10 && months <= 14) !==
+            (isAnnualReportForm(form.canonicalForm) &&
+              months >= MIN_ANNUAL_DURATION_MONTHS &&
+              months <= MAX_ANNUAL_DURATION_MONTHS) !==
               (fact.periodType === "annual")
           ) {
             return [];
@@ -542,12 +549,31 @@ function assertDirectDepreciationAndAmortization(run: MetricInvariantRun): void 
           ];
         });
       });
-      const [component] =
-        components.find((rows) => rows.length > 0)?.toSorted(compareFinancialStatementFacts) ?? [];
-      if (component !== undefined) {
+      return components
+        .find((rows) => rows.length > 0)
+        ?.toSorted(compareFinancialStatementFacts)[0];
+    };
+    const components = DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flatMap((aliases) => {
+      const component = selectRawFact(aliases);
+      return component === undefined ? [] : [component];
+    });
+    if (fact.composite !== undefined) {
+      const total = selectRawFact(totals);
+      if (total !== undefined) {
+        expect(
+          components.some(
+            (component) =>
+              component.value - total.value >
+              Math.abs(component.value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
+          ),
+          `D&A ${fact.periodKey} must retain the combined fact within ${String(DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE * 100)}% component tolerance`,
+        ).toBe(true);
+      }
+    } else {
+      for (const component of components) {
         expect(
           component.value - fact.value,
-          `D&A ${fact.periodKey} must dominate each selected component within 1% rounding tolerance`,
+          `D&A ${fact.periodKey} must dominate each selected component within ${String(DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE * 100)}% rounding tolerance`,
         ).toBeLessThanOrEqual(
           Math.abs(component.value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
         );
@@ -1478,7 +1504,7 @@ export function assertOperatingRatioInvariants(
   run: MetricInvariantRun,
   report: ResearchReport,
 ): void {
-  assertDirectDepreciationAndAmortization(run);
+  assertDepreciationAndAmortizationSelection(run);
   const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
   const statements = run.collectedSources.financialStatements;
   const section = sections?.find(({ id }) => id === "operating-ratios");

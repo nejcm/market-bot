@@ -13,6 +13,8 @@ import {
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  MIN_ANNUAL_DURATION_MONTHS,
+  MAX_ANNUAL_DURATION_MONTHS,
   isDebtPresenceConcept,
   isRevenueConceptInRecencyBucket,
   type FinancialStatementSeriesDefinition,
@@ -118,8 +120,6 @@ export interface FinancialStatementsDeriveInput {
 }
 
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
-const MIN_ANNUAL_DURATION_MONTHS = 10;
-const MAX_ANNUAL_DURATION_MONTHS = 14;
 const STATEMENT_DURATION_MONTHS = new Set([3, 6, 9, 12]);
 const DAY_MS = 86_400_000;
 const QUARTERLY_REPORTING_PERIOD_DAYS = 120;
@@ -432,7 +432,7 @@ function factsForDepreciationAndAmortization(
           code: "incomplete-composite-series",
           seriesKey: definition.key,
           periodKey: periodKey(total),
-          message: `SEC depreciation and amortization for ${total.periodStart ?? "instant"} to ${total.periodEnd} omitted: the combined fact is more than 1% below a same-period component and the matching component set is incomplete`,
+          message: `SEC depreciation and amortization for ${total.periodStart ?? "instant"} to ${total.periodEnd} omitted: the combined fact is more than ${String(DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE * 100)}% below a same-period component and the matching component set is incomplete`,
         });
       }
       return [];

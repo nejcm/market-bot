@@ -1,4 +1,6 @@
 import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
+import { operatingRatioNotes } from "../../src/report/equity-reader-statements";
+import type { FinancialStatementsArtifact } from "../../src/sources/extended-evidence/financial-statements-contract";
 import {
   formatMetricValue,
   metricPeriodLabel,
@@ -20,13 +22,16 @@ export interface MetricSectionView {
   readonly title: string;
   readonly sourceLabel: string;
   readonly metrics: readonly MetricTileView[];
+  readonly notes?: readonly string[];
 }
 
 // Undefined when the report carries no Metric Sections; `[]` is kept apart for a bare header.
 export function metricSectionsView(
   report: Record<string, unknown> | undefined,
+  financialStatements?: FinancialStatementsArtifact,
 ): readonly MetricSectionView[] | undefined {
   const sections = readMetricSectionsExtra(readRecord(report?.extras)?.metricSections);
+  const notes = operatingRatioNotes(financialStatements)?.map((note) => note.message);
   return sections?.flatMap(({ id, title, metrics }): readonly MetricSectionView[] =>
     title === undefined || title.trim() === "" || id?.startsWith("valuation-workbench-")
       ? []
@@ -35,6 +40,7 @@ export function metricSectionsView(
             ...(id !== undefined ? { id } : {}),
             title,
             sourceLabel: id === "price-performance" ? "Yahoo price history" : "sourced inputs",
+            ...(id === "operating-ratios" && notes !== undefined ? { notes } : {}),
             metrics: metrics.flatMap((metric): readonly MetricTileView[] => {
               if (metric.label === undefined || metric.label.trim() === "") {
                 return [];

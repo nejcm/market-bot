@@ -11,7 +11,7 @@
 ## Research-only boundary
 
 - [ ] No buy/sell calls, position sizing, or execution language.
-- [ ] Any predictions are observable and resolvable from public price data (ADR 0004).
+- [ ] Any predictions are observable and resolvable from public price data (ADR 0003).
 
 ## Checks
 

@@ -157,7 +157,7 @@ Each fixture contains:
 - `meta.json` — pinned run config, clock, command, and model settings.
 
 Replays assert invariants, not byte-exact output
-([ADR 0008](./adr/0008-replay-invariants-no-output-snapshots.md)). Every fixture in
+([ADR 0005](./adr/0005-testing-and-replay.md)). Every fixture in
 `tests/equity-fixture/run.test.ts` must complete with a readable `report.json` and no
 `failure.json`, persist exactly what the run generated (report, Markdown, analytics, outcomes,
 evidence bundle), validate the persisted report against the report schema, pass the research-language gate, resolve every
@@ -203,7 +203,7 @@ code that every check in this repo will pass. The `SecFilingForm` export in
 
 An automated mutation runner was considered and rejected. Its output is noisy by construction:
 equivalent mutants that change nothing observable read as failures, and a check that cries wolf gets
-suppressed. No mutation framework is added as a dependency either; [ADR 0002](./adr/0002-typescript-bun-orchestration.md)
+suppressed. No mutation framework is added as a dependency either; [ADR 0002](./adr/0002-platform-and-persistence.md)
 fixes this repo on Bun and oxc, which rules out the Node-based options. The manual version above is
 what actually found the real defects, and it takes minutes.
 

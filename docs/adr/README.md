@@ -1,24 +1,21 @@
 # Architecture Decision Records
 
-ADRs record accepted architecture and material implementation constraints.
+ADRs contain accepted decisions, binding constraints, and consequences maintainers must preserve.
 
 ## Canonical decisions
 
-| ADR                                                                    | Decision                                                           |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [0001](./0001-research-only-boundary.md)                               | Research output boundary                                           |
-| [0002](./0002-typescript-bun-orchestration.md)                         | Platform, configuration, persistence, and validation               |
-| [0003](./0003-forecasts-scoring-calibration-cross-run-intelligence.md) | Forecasts, scoring, calibration, and cross-run context             |
-| [0004](./0004-evidence-identity-providers-deterministic-analysis.md)   | Evidence, identity, providers, and deterministic analysis          |
-| [0005](./0005-research-workflows-model-stage-pipeline.md)              | Research workflows, model stages, metric references, table mapping |
-| [0006](./0006-deep-equity-legacy-reasoning-retained.md)                | Deep-equity legacy reasoning retained                              |
-| [0007](./0007-golden-invariance-live-correctness-invariants.md)        | Live correctness invariants (golden layer superseded)              |
-| [0008](./0008-replay-invariants-no-output-snapshots.md)                | Replay and invariants, no byte-exact output snapshots              |
+| ADR                                                 | Decision                           |
+| --------------------------------------------------- | ---------------------------------- |
+| [0001](./0001-research-only-boundary.md)            | Research-only boundary             |
+| [0002](./0002-platform-and-persistence.md)          | Platform and persistence           |
+| [0003](./0003-forecasts-scoring-and-calibration.md) | Forecasts, scoring and calibration |
+| [0004](./0004-evidence-and-model-stage-pipeline.md) | Evidence and model-stage pipeline  |
+| [0005](./0005-testing-and-replay.md)                | Testing and replay                 |
 
 ## Conventions
 
-- Use four-digit sequential numbers.
-- Use `Accepted` or `Deprecated` status.
-- Add a decision date.
+- Use contiguous four-digit numbers and `Accepted` or `Deprecated` status.
+- Keep each record concise: Status, short Context, Decision bullets, Consequences bullets.
 - Amend a canonical ADR when behavior remains within its decision boundary.
 - Add a new ADR only for a new boundary, authority, durable contract, or irreversible tradeoff.
+- Implementation maps and operational details belong in the linked code and other documentation.

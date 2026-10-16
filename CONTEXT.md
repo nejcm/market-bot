@@ -106,7 +106,7 @@ Public market value, point-in-time or windowed, used to resolve a Prediction.
 
 ## Prediction
 
-Observable forecast whose `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5 under the asymmetric grammar. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed through the structured `ResearchReport.predictionShortfall` contract, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+Observable forecast whose `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5 under the asymmetric grammar. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed through the structured `ResearchReport.predictionShortfall` contract, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
 ## Prediction Shortfall
 
@@ -117,7 +117,7 @@ The valid final-synthesis report's count stands; no follow-up pass requests more
 
 ## Scoring Policy
 
-Versioned, persisted Prediction clock contract selected through a registry. New Predictions are stamped v3; unversioned legacy forecasts remain v2 and scoring passes never change a resolved score (only a Score Repair can). V3 uses provider-observed completed sessions for equity and earnings — a session still trading at the scoring clock is withheld, not graded — target UTC date for crypto, and calendar days for macro/IV. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+Versioned, persisted Prediction clock contract selected through a registry. New Predictions are stamped v3; unversioned legacy forecasts remain v2 and scoring passes never change a resolved score (only a Score Repair can). V3 uses provider-observed completed sessions for equity and earnings — a session still trading at the scoring clock is withheld, not graded — target UTC date for crypto, and calendar days for macro/IV. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
 ## Score Repair
 
@@ -145,7 +145,7 @@ Positive monotonic milliseconds awaiting a model-stage attempt, recorded as opti
 
 ## Prediction Subject
 
-Declared set an instrument or Market Overview Prediction may concern. Direction/range/volatility/IV use the forecast subject; relative uses its primary instrument. Research runs instead use their dedicated prediction gate. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+Declared set an instrument or Market Overview Prediction may concern. Direction/range/volatility/IV use the forecast subject; relative uses its primary instrument. Research runs instead use their dedicated prediction gate. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
 ## Forecast Disagreement
 
@@ -279,7 +279,7 @@ Deterministic Market Overview summary of changes from the comparable previous ov
 
 ## Verified Market Snapshot
 
-Analysis-date-anchored, citeable OHLCV and technical-indicator block for an equity Instrument. V1 uses Yahoo daily bars with a ≥400-day lookback; it retains a latest session that provider metadata cannot prove closed, marks it `latestSessionStatus: "unverified"`, and stops describing that session as verified. It is supplemental evidence, not a scoring Observation. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Analysis-date-anchored, citeable OHLCV and technical-indicator block for an equity Instrument. V1 uses Yahoo daily bars with a ≥400-day lookback; it retains a latest session that provider metadata cannot prove closed, marks it `latestSessionStatus: "unverified"`, and stops describing that session as verified. It is supplemental evidence, not a scoring Observation. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Origin Anchor Quarantine
 
@@ -337,7 +337,7 @@ Deterministic grade of evidence completeness, recency, corroboration, and tracea
 
 ## Equity Analysis Completeness
 
-Deterministic grade of what an equity issuer's reporting surface makes achievable, including due interim coverage, filing cadence, and per-share and payout evidence. It is distinct from Evidence Quality, which grades what sourcing achieved: complete sourcing can expose an incomplete reporting surface, such as a due quarter the issuer has not filed. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Deterministic grade of what an equity issuer's reporting surface makes achievable, including due interim coverage, filing cadence, and per-share and payout evidence. It is distinct from Evidence Quality, which grades what sourcing achieved: complete sourcing can expose an incomplete reporting surface, such as a due quarter the issuer has not filed. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Temporal Integrity
 
@@ -353,7 +353,7 @@ Narrative absence-of-evidence claim recognized by two consumer-specific predicat
 
 ## Report Integrity Audit
 
-No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (the summary has no citation field; an emptied summary gets a fixed neutral fallback), then validates/persists the result. Missing posture labels remain advisory; pruned Predictions never score. See [ADR 0005](./docs/adr/0005-research-workflows-model-stage-pipeline.md).
+No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (the summary has no citation field; an emptied summary gets a fixed neutral fallback), then validates/persists the result. Missing posture labels remain advisory; pruned Predictions never score. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Report Integrity
 
@@ -414,7 +414,7 @@ block.
 
 ## Source Plan
 
-Deterministic, pre-collection policy for intended Evidence Lanes classified core, material, or supplemental. It is frozen from the command and checked-in subject, so credentials, availability, and outcomes cannot change it. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Deterministic, pre-collection policy for intended Evidence Lanes classified core, material, or supplemental. It is frozen from the command and checked-in subject, so credentials, availability, and outcomes cannot change it. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Evidence Lane
 
@@ -458,7 +458,7 @@ Sourced issuer operating and financial facts used as Extended Evidence.
 
 ## Accounting Scope
 
-The basis an earnings or cash-flow figure is measured on, along three independent axes: continuing versus total operations (total includes discontinued operations), parent-attributable versus including noncontrolling interests (NCI), and SEC filing versus provider earnings basis. Figures are compared, divided, or called conflicting only within one scope; equal values never imply equal scope. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+The basis an earnings or cash-flow figure is measured on, along three independent axes: continuing versus total operations (total includes discontinued operations), parent-attributable versus including noncontrolling interests (NCI), and SEC filing versus provider earnings basis. Figures are compared, divided, or called conflicting only within one scope; equal values never imply equal scope. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Earnings Basis Disclosure
 
@@ -470,7 +470,7 @@ Bounded text from up to two recent SEC current reports — 8-K for domestic file
 
 ## Valuation Evidence
 
-Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, and supportability. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, and supportability. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Valuation Workbench
 
@@ -482,7 +482,7 @@ An isolated versioned equity sidecar that solves the five-year FCF growth input 
 
 ## Financial Lens Evidence
 
-Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. Its numbers are Metric Sections (`financial-lens-<lens>`, one per lens with a filed input) and the `financial-lens` Extended Evidence item is rebuilt from them with unchanged keys. Financial Strength counts only current balance-sheet criteria: within 180 days of the analysis cutoff and 92 days of the newest balance-sheet period; an older input is `missing` with a `stale <input> as of <end>` reason and is declared in the lens section's Source Gap, never displayed as a dated historical figure. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. Its numbers are Metric Sections (`financial-lens-<lens>`, one per lens with a filed input) and the `financial-lens` Extended Evidence item is rebuilt from them with unchanged keys. Financial Strength counts only current balance-sheet criteria: within 180 days of the analysis cutoff and 92 days of the newest balance-sheet period; an older input is `missing` with a `stale <input> as of <end>` reason and is declared in the lens section's Source Gap, never displayed as a dated historical figure. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Business Framework Evidence
 
@@ -506,7 +506,7 @@ No-model post-profile pass for `equity --deep` that removes a Business Framework
 
 ## Yahoo Fundamentals Evidence
 
-Typed fundamentals captured once from normalized Yahoo quotes and emitted as `yahoo-fundamentals`: P/E, P/B, yield, EPS, shares, dividend, and book value. It supports non-US ratios and price-relative ratios with source provenance. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Typed fundamentals captured once from normalized Yahoo quotes and emitted as `yahoo-fundamentals`: P/E, P/B, yield, EPS, shares, dividend, and book value. It supports non-US ratios and price-relative ratios with source provenance. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Earnings Setup
 
@@ -522,4 +522,4 @@ Passive Market Overview list of narrative catalysts, observed macro context, and
 
 ## Peer Universe
 
-Deterministic, auditable comparable-Instrument set for peer valuation. It resolves in order from checked-in ticker mapping, Subject Registry, or model-proposed candidates that code validates and caches; the model never authors the set. All candidates face tier-scoped comparability gates, and insufficient valid peers yield a valuation Source Gap. A learned set's evaluation feedback (usable-peer count plus each excluded peer's cause) is recorded per cache generation and shown to the next allowed re-proposal; a transient fetch failure or stale fallback withholds it. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Deterministic, auditable comparable-Instrument set for peer valuation. It resolves in order from checked-in ticker mapping, Subject Registry, or model-proposed candidates that code validates and caches; the model never authors the set. All candidates face tier-scoped comparability gates, and insufficient valid peers yield a valuation Source Gap. A learned set's evaluation feedback (usable-peer count plus each excluded peer's cause) is recorded per cache generation and shown to the next allowed re-proposal; a transient fetch failure or stale fallback withholds it. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).

@@ -15,9 +15,9 @@ The `run-review` skill is heavy on purpose — invoke it only when I name it. If
 ## Non-negotiables
 
 1. **Research-only.** No buy/sell/hold calls, sizing, or execution language ([ADR 0001](./docs/adr/0001-research-only-boundary.md)).
-2. **Predictions must be observable.** Resolvable from public price data ([ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)).
+2. **Predictions must be observable.** Resolvable from public price data ([ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md)).
 3. **No secrets in code, tests, or fixtures.** Env vars only.
-4. **Bun + oxc only.** No Node, Prettier, ESLint, or Biome ([ADR 0002](./docs/adr/0002-typescript-bun-orchestration.md)).
+4. **Bun + oxc only.** No Node, Prettier, ESLint, or Biome ([ADR 0002](./docs/adr/0002-platform-and-persistence.md)).
 5. **No unsolicited planning docs, and never commit one.** `plans/` is gitignored in
    full — write there only when I ask for a document, and never `git add -f` it,
    move it under `docs/`, or reproduce it in a commit message or PR body. A
@@ -78,7 +78,7 @@ The recurring defect is a change that lands only on the path you tested (see `68
 
 SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a sweep delta with `bun run sweep:sec`.
 
-**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the fixture invariants (`tests/equity-fixture/run.test.ts` and `tests/support/run-fixtures/assertions.ts`, replayed by `bun run check` for every listed fixture; there are no output snapshots, so a behavior worth keeping needs its own assertion — [ADR 0008](./docs/adr/0008-replay-invariants-no-output-snapshots.md); `bun run scripts/replay-fixture-run.ts <name>` — a fixture name, not a path — prints a replayed run directory to read; prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`, refreshed with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "fixture invariants unaffected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
+**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the fixture invariants (`tests/equity-fixture/run.test.ts` and `tests/support/run-fixtures/assertions.ts`, replayed by `bun run check` for every listed fixture; there are no output snapshots, so a behavior worth keeping needs its own assertion — [ADR 0005](./docs/adr/0005-testing-and-replay.md); `bun run scripts/replay-fixture-run.ts <name>` — a fixture name, not a path — prints a replayed run directory to read; prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`, refreshed with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "fixture invariants unaffected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
 
 **A new evidence field or report section:**
 

@@ -532,11 +532,11 @@ test("HTTP transport failures preserve their retry classification when recorded 
     throw error;
   });
   await expect(recorder.fetch("https://example.test/timeout")).rejects.toThrow("timed out");
-  const error = await makeReplayFetch(recorder.cassette())("https://example.test/timeout").catch(
-    (error: unknown) => error,
-  );
-  expect(error).toBeInstanceOf(Error);
-  expect((error as Error).name).toBe("TimeoutError");
+  const replayError = await makeReplayFetch(recorder.cassette())(
+    "https://example.test/timeout",
+  ).catch((error: unknown) => error);
+  expect(replayError).toBeInstanceOf(Error);
+  expect((replayError as Error).name).toBe("TimeoutError");
 });
 
 test("state replay distinguishes omitted values from empty values and fails closed on missing reads", async () => {

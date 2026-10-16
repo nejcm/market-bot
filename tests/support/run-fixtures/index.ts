@@ -20,6 +20,7 @@ import { makeReplayFetch, type DataCassette } from "./data-cassette";
 import { makeReplayProvider, type LlmCassette } from "./llm-cassette";
 
 export interface FixtureMeta {
+  readonly replayClassification: "clean" | "missing-source" | "incomplete";
   readonly now: string;
   readonly argv: readonly string[];
   readonly quickModel?: string;

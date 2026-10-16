@@ -10,6 +10,7 @@ import {
 
 const CONFIGURED_PROVIDERS = ["exa", "finnhub", "firecrawl", "tradier"] as const;
 const FIXTURE_META: FixtureMeta = {
+  replayClassification: "clean",
   now: "2026-08-15T00:00:00.000Z",
   argv: ["equity", "BNS", "--deep"],
   configuredProviders: CONFIGURED_PROVIDERS,

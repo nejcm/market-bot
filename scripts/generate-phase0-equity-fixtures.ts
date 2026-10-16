@@ -334,6 +334,7 @@ async function writeSyntheticFpi(profile: SyntheticFpiProfile): Promise<void> {
   const dir = join(FIXTURE_ROOT, profile.fixtureName);
   await mkdir(dir, { recursive: true });
   const meta: FixtureMeta = {
+    replayClassification: "incomplete",
     now: NOW,
     argv: ["equity", profile.symbol, "--deep"],
     quickModel: "fixture-quick",

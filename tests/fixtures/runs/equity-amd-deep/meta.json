@@ -17,5 +17,6 @@
     "maxRounds": 2,
     "maxToolCalls": 4,
     "sourceBudget": 8
-  }
+  },
+  "replayClassification": "incomplete"
 }

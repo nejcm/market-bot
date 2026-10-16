@@ -79,6 +79,7 @@ async function main(): Promise<void> {
     const configuredProviders = configuredFixtureProviders(liveConfig.sourceOptions);
     // Record under exactly the config replay rebuilds from meta.json, or the cassettes cannot replay.
     const meta: FixtureMeta & { readonly codeVersion: unknown } = {
+      replayClassification: "incomplete",
       now: now.toISOString(),
       argv,
       quickModel: liveConfig.quickModel,

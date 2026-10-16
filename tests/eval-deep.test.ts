@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveConfig } from "../src/config";
+import { loadRunArtifact } from "../src/run-artifacts";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
-import type { FetchLike } from "../src/sources/types";
 import { createLiveFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
 import { makeReplayFetch } from "./support/run-fixtures/data-cassette";
 import {
@@ -300,7 +300,7 @@ describe("final-synthesis-only live provider", () => {
 });
 
 describe("frozen-input eval replay", () => {
-  test("isolates state, refuses overwrite, counts misses, and compares labels", async () => {
+  test("isolates state, refuses overwrite, replays recorded source failures, and compares labels", async () => {
     const root = await tempRoot();
     const fixture = await loadFixture(FIXTURE);
     const replayProvider = makeReplayProvider(fixture.llmCassette);
@@ -329,13 +329,7 @@ describe("frozen-input eval replay", () => {
       true,
     );
     expect(base.status).toBe("completed");
-    const priceHistoryMisses = [
-      "GET  https://query1.finance.yahoo.com/v8/finance/chart/SPY?events=div%2Csplits&interval=1d&period1=1622505600&period2=1781568000",
-    ];
-    expect({ ...base.cassetteMisses, keys: base.cassetteMisses.keys.toSorted() }).toEqual({
-      count: 1,
-      keys: priceHistoryMisses,
-    });
+    expect(base.cassetteMisses).toEqual({ count: 0, keys: [] });
     expect(base.runDir?.startsWith(join(root, "base", FIXTURE, "1", "runs"))).toBe(true);
     for (const state of ["calibration", "cache", "news-seen.json"]) {
       expect(existsSync(join(base.sampleDir, state))).toBe(true);
@@ -344,31 +338,44 @@ describe("frozen-input eval replay", () => {
       runEvalSample({ root, label: "base", fixture: FIXTURE, sample: "1", llm: "replay" }),
     ).rejects.toThrow("EEXIST");
 
-    const replay = makeReplayFetch(fixture.dataCassette, fixture.dir);
-    const missingNews: FetchLike = async (input, init) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url.includes("finnhub.io/api/v1/company-news")) {
-        throw new Error(`Fixture data cassette miss: GET  ${url}`);
-      }
-      return replay(input, init);
-    };
+    const newsKey = Object.keys(fixture.dataCassette.entries).find((key) =>
+      key.includes("finnhub.io/api/v1/company-news"),
+    );
+    expect(newsKey).toBeDefined();
+    const unavailableNews = makeReplayFetch(
+      {
+        entries: {
+          ...fixture.dataCassette.entries,
+          [newsKey!]: {
+            status: 403,
+            headers: { "content-type": "application/json" },
+            body: '{"error":"Forbidden"}',
+          },
+        },
+      },
+      fixture.dir,
+    );
     const next = await runEvalSample({
       root,
       label: "next",
       fixture: FIXTURE,
       sample: "1",
       llm: "replay",
-      fetchImpl: missingNews,
+      fetchImpl: unavailableNews,
     });
     expect(next.status).toBe("completed");
-    expect(next.cassetteMisses.count).toBe(2);
-    expect(next.cassetteMisses.keys).toEqual(expect.arrayContaining(priceHistoryMisses));
-    expect(
-      next.cassetteMisses.keys.some((key) => key.includes("finnhub.io/api/v1/company-news")),
-    ).toBe(true);
+    expect(next.cassetteMisses).toEqual({ count: 0, keys: [] });
+    const { artifact } = await loadRunArtifact(next.runDir!);
+    expect(artifact?.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "finnhub-news",
+        cause: "fetch-failed",
+        message: expect.stringContaining("403"),
+      }),
+    );
 
     const metrics = await extractSampleMetrics(FIXTURE, "1", next.sampleDir);
-    expect(metrics.metrics.cassetteMisses).toBe(2);
+    expect(metrics.metrics.cassetteMisses).toBe(0);
     expect(metrics.metrics["sourceGaps.fetch-failed"]).toBeGreaterThan(0);
     expect(metrics.metrics["status.completed"]).toBe(1);
     expect(metrics.metrics["tokens.total"]).toBeGreaterThan(0);
@@ -384,7 +391,7 @@ describe("frozen-input eval replay", () => {
       await readEvalSummary(root, "next"),
     );
     expect(compare).toContain("| fixture | metric | base mean [range] | next mean [range] |");
-    expect(compare).toContain(`| ${FIXTURE} | cassetteMisses | 1 [1–1] | 2 [2–2] |`);
+    expect(compare).toContain(`| ${FIXTURE} | cassetteMisses | 0 [0–0] | 0 [0–0] |`);
     expect(compare).toMatch(/\| tokens\.total \| \d+ \[\d+–\d+\] \|/u);
   });
 

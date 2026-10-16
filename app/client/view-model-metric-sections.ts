@@ -18,6 +18,7 @@ interface MetricTileView {
 export interface MetricSectionView {
   readonly id?: string;
   readonly title: string;
+  readonly sourceLabel: string;
   readonly metrics: readonly MetricTileView[];
 }
 
@@ -33,6 +34,7 @@ export function metricSectionsView(
           {
             ...(id !== undefined ? { id } : {}),
             title,
+            sourceLabel: id === "price-performance" ? "Yahoo price history" : "sourced inputs",
             metrics: metrics.flatMap((metric): readonly MetricTileView[] => {
               if (metric.label === undefined || metric.label.trim() === "") {
                 return [];

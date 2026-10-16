@@ -113,7 +113,7 @@ function isYearAlignedFact(fact: FinancialStatementFact): boolean {
   return fact.periodStart !== undefined && isYearAligned(fact.periodStart, fact.periodEnd);
 }
 
-// R1 for latest-period metrics: an annual fact counts only when it spans 350-380 days.
+// For latest-period metrics, an annual fact counts only when it spans 350-380 days.
 function eligibleFacts(
   ctx: MetricContext,
   key: FrameworkSeries,
@@ -297,7 +297,7 @@ function unanchoredMargin(
     : { ...numerator, ...periodOf(denominator), inputs };
 }
 
-// R1 join: the numerator anchors the period; the denominator must share its exact period identity.
+// The numerator anchors the period; the denominator must share its exact period identity.
 function margin(numeratorKey: FrameworkSeries, denominatorKey: FrameworkSeries) {
   return (ctx: MetricContext): MetricOutcome => {
     if (ctx.statements === undefined) {
@@ -480,7 +480,7 @@ function currentRatio(ctx: MetricContext): MetricOutcome {
     itemByCategory(ctx.evidence, "financial-lens")?.metrics,
     "currentRatioPeriodEnd",
   );
-  // R8: a balance sheet past its next filing due date is withheld, never shown as current.
+  // A balance sheet past its next filing due date is withheld, never shown as current.
   if (
     ctx.asOf === undefined ||
     !currentRatioIsCurrent(secFundamentalItem(ctx.evidence), ctx.asOf)

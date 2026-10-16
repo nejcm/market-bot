@@ -359,7 +359,7 @@ describe("operatingRatiosSection", () => {
     expect(result.metric("interestCoverage")).toMatchObject({ value: 8 });
   });
 
-  test("R1: a 13-month fact never anchors and an older same-period fact is never used", () => {
+  test("a 13-month fact never anchors and an older same-period fact is never used", () => {
     const longYear = evaluate(
       context(
         usGaap({
@@ -389,7 +389,7 @@ describe("operatingRatiosSection", () => {
     expect(olderPretax.sourceGaps[0]?.triage).toBe("material");
   });
 
-  test("R1b: an instant at any other date than the flow's period end gives a material missing", () => {
+  test("an instant at any other date than the flow's period end gives a material missing", () => {
     const result = evaluate(
       context(
         usGaap({
@@ -414,7 +414,7 @@ describe("operatingRatiosSection", () => {
     expect(result.sourceGaps[0]?.triage).toBe("material");
   });
 
-  test("R2: zero or negative denominators are not meaningful; nothing is clamped", () => {
+  test("zero or negative denominators are not meaningful; nothing is clamped", () => {
     const negative = evaluate(
       context(
         usGaap({
@@ -490,7 +490,7 @@ describe("operatingRatiosSection", () => {
     expect(result.sourceGaps[0]?.triage).toBe("diagnostic");
   });
 
-  test("R8: a stale fiscal year is missing, never an old value", () => {
+  test("a stale fiscal year is missing, never an old value", () => {
     const result = evaluate(context(usGaap(), {}, "us-gaap", "2028-07-01T00:00:00.000Z"));
 
     expect(result.metric("effectiveTaxRate")).toMatchObject({

@@ -453,7 +453,7 @@ describe("capitalReturnSection", () => {
     }
   });
 
-  test("R7(c): only an affirmed non-payer gets not-applicable dividend history", () => {
+  test("only an affirmed non-payer gets not-applicable dividend history", () => {
     const zeroPaid = series("USD", () => 0);
     const zeroPerShare = series("USD/shares", () => 0);
     const history = ["dpsCagr3y", "dpsCagr5y", "earliestDividendFyInHistory"];
@@ -559,7 +559,7 @@ describe("capitalReturnSection", () => {
     ).toEqual(["not-meaningful", "not-meaningful", "missing"]);
   });
 
-  test("R7(c) rests on raw dividend evidence, not on the selected per-share series", () => {
+  test("Non-payer classification rests on raw dividend evidence, not on the selected per-share series", () => {
     const history = ["dpsCagr3y", "dpsCagr5y", "earliestDividendFyInHistory"];
     const zeroPaid = series("USD", () => 0);
     const stub = fy(0.8, 2025, { start: "2025-03-01" });
@@ -647,6 +647,7 @@ describe("capitalReturnSection", () => {
     expect(result.metric("dpsCagr3y")).toMatchObject({
       status: "not-meaningful",
       reason: "latest dividends per share is negative",
+      periodEnd: "2025-12-31",
     });
   });
 
@@ -658,7 +659,7 @@ describe("capitalReturnSection", () => {
     expect(result.sourceGaps[0]?.triage).toBe("material");
   });
 
-  test("R1: a 13-month annual fact never anchors; the latest year-aligned FY does", () => {
+  test("a 13-month annual fact never anchors; the latest year-aligned FY does", () => {
     const ctx = context(
       usGaap({
         PaymentsForRepurchaseOfCommonStock: {
@@ -685,7 +686,7 @@ describe("capitalReturnSection", () => {
     });
   });
 
-  test("R1: an interim 12-month fact never anchors", () => {
+  test("an interim 12-month fact never anchors", () => {
     const ctx = context(
       usGaap({
         PaymentsForRepurchaseOfCommonStock: {
@@ -715,7 +716,7 @@ describe("capitalReturnSection", () => {
     });
   });
 
-  test("R1: a denominator only in an older FY is missing, not an older-period value", () => {
+  test("a denominator only in an older FY is missing, not an older-period value", () => {
     const result = evaluate(
       context(
         usGaap({
@@ -736,7 +737,7 @@ describe("capitalReturnSection", () => {
     expect(result.metric("fcfPayoutRatio").value).toBeUndefined();
   });
 
-  test("R8: a stale anchor is missing with its lineage; a current FY is a value", () => {
+  test("a stale anchor is missing with its lineage; a current FY is a value", () => {
     const stale = evaluate(
       context(
         usGaap({
@@ -768,7 +769,7 @@ describe("capitalReturnSection", () => {
     });
   });
 
-  test("R8 cutoff is calendar-aware: FY end + 16 months (month-end kept) + 7 days", () => {
+  test("Annual filing cutoff is calendar-aware: FY end + 16 months (month-end kept) + 7 days", () => {
     const ctx = context(
       usGaap({
         PaymentsForRepurchaseOfCommonStock: {
@@ -812,7 +813,7 @@ describe("capitalReturnSection", () => {
     expect(buybacksAsOf("2026-02-05T00:00:00.000Z", "2024-09-28")).toBe("missing");
   });
 
-  test("R1: an undated FY stock-based compensation fact is missing, not a value", () => {
+  test("an undated FY stock-based compensation fact is missing, not a value", () => {
     const ctx = context(
       usGaap({
         ShareBasedCompensation: { units: { USD: [{ ...fy(25, 2025), start: undefined }] } },
@@ -830,7 +831,7 @@ describe("capitalReturnSection", () => {
     });
   });
 
-  test("R2: zero or negative free cash flow is not-meaningful with its inputs kept", () => {
+  test("zero or negative free cash flow is not-meaningful with its inputs kept", () => {
     const result = evaluate(
       context(usGaap({ PaymentsToAcquirePropertyPlantAndEquipment: series("USD", () => 400) })),
     );
@@ -838,12 +839,13 @@ describe("capitalReturnSection", () => {
     expect(result.metric("fcfPayoutRatio")).toMatchObject({
       status: "not-meaningful",
       reason: "free cash flow is zero or negative for the fiscal year ending 2025-12-31",
+      periodEnd: "2025-12-31",
       sourceIds: [SOURCE_ID],
     });
     expect(result.sourceGaps[0]?.triage).toBe("diagnostic");
   });
 
-  test("R6: an earlier-share-basis period inside the window makes the change not-meaningful", () => {
+  test("an earlier-share-basis period inside the window makes the change not-meaningful", () => {
     const ctx = context(usGaap());
     const statements = ctx.statements!;
     const fact2023 = statements.statements.perShare.dilutedShares.annual.find(
@@ -874,12 +876,14 @@ describe("capitalReturnSection", () => {
     expect(result.metric("shareCountChange3y")).toMatchObject({
       status: "not-meaningful",
       reason: "diluted shares inside the window are on an earlier share basis",
+      periodEnd: "2025-12-31",
     });
     expect(result.metric("shareCountTrend").status).toBe("not-meaningful");
     expect(result.metric("dpsLatestFy").status).toBe("value");
     expect(result.metric("dpsCagr3y")).toMatchObject({
       status: "not-meaningful",
       reason: "dividends per share inside the window are on an earlier share basis",
+      periodEnd: "2025-12-31",
       inputs: [{ periodEnd: "2022-12-31" }, { periodEnd: "2025-12-31" }],
     });
     expect(result.metric("earliestDividendFyInHistory").status).toBe("value");
@@ -904,6 +908,37 @@ describe("capitalReturnSection", () => {
       inputs: [{ series: "dividendsPaid" }, { artifact: "quote", currency: "EUR" }],
       sourceIds: [SOURCE_ID, QUOTE_SOURCE_ID],
     });
+  });
+
+  test("not-meaningful share and payout rows retain the known fiscal year", () => {
+    const result = evaluate(
+      context(
+        usGaap({
+          WeightedAverageNumberOfDilutedSharesOutstanding: series("shares", (year) =>
+            year < 2025 ? 0 : 100,
+          ),
+          CommonStockDividendsPerShareDeclared: series("USD/shares", (year) =>
+            year < 2025 ? 0 : 0.5,
+          ),
+        }),
+        { quote: { marketCap: 0, currency: "USD", asOf: AS_OF, sourceId: QUOTE_SOURCE_ID } },
+      ),
+    );
+    for (const id of [
+      "shareCountChange1y",
+      "shareCountChange3y",
+      "shareCountChange5y",
+      "dpsCagr3y",
+      "dpsCagr5y",
+      "buybackYield",
+      "dividendYieldFiled",
+      "shareholderYield",
+    ]) {
+      expect(result.metric(id)).toMatchObject({
+        status: "not-meaningful",
+        periodEnd: "2025-12-31",
+      });
+    }
   });
 
   test("no quote market cap: yields are missing", () => {

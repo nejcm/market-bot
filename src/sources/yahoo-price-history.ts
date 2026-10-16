@@ -3,7 +3,7 @@ import {
   type VerifiedSnapshotResult,
 } from "./verified-market-snapshot";
 import { sourceGapWithContext } from "../domain/source-gaps";
-import type { Source } from "../domain/sources";
+import type { Source, SourceGap } from "../domain/sources";
 import { isRecord, readString } from "../guards";
 import type { MetricContext } from "./extended-evidence/metric-engine";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "./types";
@@ -26,6 +26,7 @@ export async function collectPriceHistory(
   readonly verifiedSnapshot: VerifiedSnapshotResult;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly sources: readonly Source[];
+  readonly sourceGaps: readonly SourceGap[];
 }> {
   const to = new Date(ctx.fetchedAt.slice(0, 10));
   const from = new Date(to);
@@ -41,14 +42,23 @@ export async function collectPriceHistory(
       });
       const sourceId = `price-history-${ticker}`;
       if (!isFetchJsonResult(fetched)) {
+        const benchmark = ticker !== symbol.toUpperCase();
+        const gap = sourceGapWithContext(
+          {
+            ...fetched,
+            source: benchmark ? "yahoo-price-history" : "yahoo-verified-chart",
+            message: benchmark ? `${ticker}: ${fetched.message}` : fetched.message,
+          },
+          {
+            provider: "yahoo",
+            capability: "market-data",
+            evidenceQualityImpact: benchmark ? "no-cap" : "core-cap",
+          },
+        );
         return {
+          sourceGaps: benchmark ? [gap] : [],
           verifiedSnapshot: {
-            sourceGaps: [
-              sourceGapWithContext(
-                { ...fetched, source: "yahoo-verified-chart" },
-                { provider: "yahoo", capability: "market-data", evidenceQualityImpact: "core-cap" },
-              ),
-            ],
+            sourceGaps: benchmark ? [] : [gap],
           },
           history: {
             symbol: ticker,
@@ -131,6 +141,7 @@ export async function collectPriceHistory(
   );
   return {
     priceHistory: results.map(({ history }) => history),
+    sourceGaps: results.flatMap((result) => result.sourceGaps ?? []),
     verifiedSnapshot: results[0]!.verifiedSnapshot,
     rawSnapshots: results.flatMap((result) =>
       result.rawSnapshot === undefined ? [] : [result.rawSnapshot],

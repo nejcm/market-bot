@@ -91,6 +91,9 @@ test("markdown labels a balance-sheet instant as of its date", () => {
 
 test("console labels a balance-sheet instant as of its date", () => {
   expect(
+    metricSectionsView(instantReport() as unknown as Record<string, unknown>)?.[0]?.sourceLabel,
+  ).toBe("sourced inputs");
+  expect(
     metricSectionsView(instantReport() as unknown as Record<string, unknown>)?.[0]?.metrics[0]
       ?.period,
   ).toBe("As of 2026-03-31");

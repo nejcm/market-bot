@@ -47,7 +47,7 @@ function notMeaningful(
   };
 }
 
-// R2: a filed input at or below the bound makes the ratio not meaningful.
+// A filed input at or below the bound makes the ratio not meaningful.
 function boundGate(key: JoinSeries, reason: string, inclusive = true): Gate {
   return (_ctx, facts, keys) => {
     const fact = factOf(facts, keys, key);
@@ -77,7 +77,7 @@ function depository(reason: string) {
       : `depository issuer (SIC ${ctx.depositorySic}): ${reason}`;
 }
 
-// R1b: balance-sheet inputs are the instants at the flow anchor's own period end, never a nearby one.
+// Balance-sheet inputs are the instants at the flow anchor's own period end, never a nearby one.
 function instantAt(
   ctx: MetricContext,
   key: InvestedCapitalSeries,

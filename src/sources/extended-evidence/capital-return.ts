@@ -63,7 +63,7 @@ const DAYS_PER_YEAR = 365;
 const ENDPOINT_TOLERANCE_DAYS = 15;
 const SHARE_TREND_BAND = 0.03;
 const SHARE_TREND_YEARS = 3;
-// R8: the next fiscal year (12 months) plus the 20-F four-month deadline; past this a newer FY was due.
+// The next fiscal year (12 months) plus the 20-F four-month deadline; past this a newer FY was due.
 const NEXT_ANNUAL_FILING_DUE_MONTHS = 16;
 // A 52/53-week year can end up to a week after the calendar anniversary.
 const FISCAL_YEAR_END_SLACK_DAYS = 7;
@@ -132,7 +132,7 @@ function staleAnchor(ctx: MetricContext, label: string, periodEnd: string): stri
     : undefined;
 }
 
-// R1: the first series anchors the fiscal year; every other series must share its exact period.
+// The first series anchors the fiscal year; every other series must share its exact period.
 function fiscalYearFacts(ctx: MetricContext, keys: FiscalYearSeries): FiscalYearSelection {
   const [anchorKey, ...joinedKeys] = keys;
   const [anchor] = eligibleAnnualFacts(ctx, anchorKey);
@@ -167,8 +167,7 @@ export type Gate = (
 
 const NO_GATE: Gate = () => undefined;
 
-// Unfiled inputs are wildcards: the filed ones still run the full anchor, join, freshness and gate path,
-// And any failure there wins; only a would-be value becomes not-filed.
+// Filed-input failures take precedence; only an otherwise usable result becomes not-filed.
 export function joinedMetric(
   keys: FiscalYearSeries,
   gate: Gate,
@@ -249,7 +248,7 @@ type Endpoints =
     }
   | { readonly outcome: MetricOutcome };
 
-// R6: a split inside the window makes the endpoints incomparable; they are refused, not adjusted.
+// A split inside the window makes the endpoints incomparable; they are refused, not adjusted.
 function annualEndpoints(
   ctx: MetricContext,
   key: "dilutedShares" | "dividendsPerShare",
@@ -301,6 +300,7 @@ function annualEndpoints(
       outcome: {
         status: "not-meaningful",
         reason: `${label} inside the window are on an earlier share basis`,
+        periodEnd: latest.periodEnd,
         inputs,
       },
     };
@@ -318,6 +318,7 @@ function shareCountChange(ctx: MetricContext, years: number): MetricOutcome {
     return {
       status: "not-meaningful",
       reason: "earlier diluted share count is not positive",
+      periodEnd: latest.periodEnd,
       inputs,
     };
   }
@@ -342,6 +343,7 @@ function dividendsPerShareCagr(ctx: MetricContext, years: number): MetricOutcome
         prior.value <= 0
           ? `dividends per share ${String(years)}y earlier is not positive`
           : "latest dividends per share is negative",
+      periodEnd: latest.periodEnd,
       inputs,
     };
   }
@@ -398,7 +400,7 @@ function zeroDividendFacts(ctx: MetricContext): boolean {
   );
 }
 
-// R7(c): only an affirmed non-payer, never one whose dividend facts are absent, stale or filtered out.
+// Only an affirmed non-payer, never one whose dividend facts are absent, stale or filtered out.
 function noDividendHistory(ctx: MetricContext): string | undefined {
   return ctx.statements?.dividendPaymentFiled === false && zeroDividendFacts(ctx)
     ? "no dividend history in filed data"
@@ -471,6 +473,7 @@ const quoteGate: Gate = (ctx, facts, keys) => {
     ? {
         status: "not-meaningful",
         reason: "market cap is not positive",
+        ...(facts[0] === undefined ? {} : { periodEnd: facts[0].periodEnd }),
         inputs: [...inputsOf(facts, keys), quoteInput(quote)],
       }
     : undefined;
@@ -502,6 +505,7 @@ const freeCashFlowGate: Gate = (_ctx, facts, keys) => {
     ? {
         status: "not-meaningful",
         reason: `free cash flow is zero or negative for the fiscal year ending ${facts[0]!.periodEnd}`,
+        periodEnd: facts[0]!.periodEnd,
         inputs: inputsOf(facts, keys),
       }
     : undefined;

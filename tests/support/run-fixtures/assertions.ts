@@ -1310,7 +1310,7 @@ const OPERATING_RATIO_INPUTS: Readonly<Record<string, readonly FinancialStatemen
 const INVESTED_CAPITAL = new Set<string>(["stockholdersEquity", "debt", "cash"]);
 const OPERATING_RATIO_DEPOSITORY = new Set(["freeCashFlowMargin", "interestCoverage", "roic"]);
 
-// R2 bounds re-checked over raw values; a not-meaningful metric must hit one, a value must not.
+// Denominator bounds re-checked over raw values; a not-meaningful metric must hit one, a value must not.
 function operatingRatioBound(
   metricId: string,
   valueOf: (key: string) => number | undefined,
@@ -2775,14 +2775,20 @@ export function assertPricePerformanceInvariants(
   const histories = run.collectedSources.rawSnapshots.filter(
     ({ adapter }) => adapter === "yahoo-price-history",
   );
-  const rawFor = (symbol: string) =>
-    histories.find(({ payload }) => {
-      if (!isRecord(payload) || !isRecord(payload.chart) || !Array.isArray(payload.chart.result)) {
-        return false;
-      }
-      const [result] = payload.chart.result;
-      return isRecord(result) && isRecord(result.meta) && result.meta.symbol === symbol;
-    });
+  const rawFor = (symbol: string) => histories.find(({ id }) => id.endsWith(`-${symbol}`));
+  if (rawFor(report.symbol ?? "") !== undefined && rawFor("SPY") === undefined) {
+    for (const metric of section!.metrics.filter(({ id }) => !id.startsWith("spy"))) {
+      expect(metric.reason ?? "", "issuer returns do not depend on SPY history").not.toContain(
+        "SPY",
+      );
+    }
+    expect(run.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "yahoo-price-history",
+        message: expect.stringContaining("SPY"),
+      }),
+    );
+  }
   for (const metric of section!.metrics) {
     expect(metric.sourceIds.toSorted()).toEqual(
       [...new Set(metric.inputs.flatMap(({ sourceIds }) => sourceIds))].toSorted(),
@@ -2823,19 +2829,24 @@ export function assertPricePerformanceInvariants(
     expectClose(metric.value, Number(end!.value) / Number(start!.value) - 1, metric.id);
     expect(metric.basis).toContain("price return, not total return");
     expect(metric.basis).toContain("split-adjusted");
-    const counterpart = section!.metrics.find(
-      ({ id }) =>
-        id ===
-        (metric.id.startsWith("spy")
-          ? `priceReturn${String(years)}y`
-          : `spyPriceReturn${String(years)}y`),
-    );
-    expect(counterpart?.inputs.map(({ periodEnd }) => periodEnd)).toEqual([
-      start!.periodEnd,
-      end!.periodEnd,
-    ]);
     if (metric.id.startsWith("spy")) {
       expect(metric.label).toContain("SPY (S&P 500 proxy)");
+      const subject = rawFor(report.symbol!);
+      expect(subject).toBeDefined();
+      const bars = splitAdjustedObservationsFromYahooChart(report.symbol!, subject!.payload);
+      for (const input of metric.inputs) {
+        expect(
+          bars.some(
+            ({ date }) =>
+              date === input.periodEnd &&
+              classifyLatestSession(
+                readYahooRegularSession(subject!.payload),
+                date,
+                subject!.fetchedAt,
+              ).status === "complete",
+          ),
+        ).toBe(true);
+      }
     }
   }
 }

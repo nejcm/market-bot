@@ -17,10 +17,13 @@
     <h2 class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
       Metric sections
     </h2>
-    <span class="font-mono text-[10px] text-[#8a8f96]">deterministic · filed data</span>
+    <span class="font-mono text-[10px] text-[#8a8f96]">deterministic</span>
   </div>
   {#each sections as section}
-    <h3 class="mt-3.5 text-[12.5px] font-semibold text-foreground">{section.title}</h3>
+    <div class="mt-3.5 flex flex-wrap items-baseline justify-between gap-2">
+      <h3 class="text-[12.5px] font-semibold text-foreground">{section.title}</h3>
+      <span class="font-mono text-[10px] text-[#8a8f96]">{section.sourceLabel}</span>
+    </div>
     <ul class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
       {#each section.metrics as metric}
         <li class="rounded-md border border-border bg-secondary px-2.5 py-2">

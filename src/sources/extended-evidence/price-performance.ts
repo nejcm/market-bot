@@ -28,14 +28,15 @@ function priceInput(history: History, date: string): MetricInput {
 function priceReturn(ctx: MetricContext, years: number, benchmark: boolean): MetricOutcome {
   const subject = ctx.priceHistory?.find(({ symbol }) => symbol === ctx.symbol.toUpperCase());
   const spy = ctx.priceHistory?.find(({ symbol }) => symbol === "SPY");
+  const histories = benchmark ? [subject, spy] : [subject];
   const missing = [
     subject === undefined || subject.bars.length === 0 ? ctx.symbol : undefined,
-    spy === undefined || spy.bars.length === 0 ? BENCHMARK : undefined,
+    benchmark && (spy === undefined || spy.bars.length === 0) ? BENCHMARK : undefined,
   ].filter((label) => label !== undefined);
   if (missing.length > 0) {
     return {
       status: "missing",
-      reason: `no completed price history for ${missing.join(" or ")}${[subject, spy].flatMap((history) => (history?.reason === undefined ? [] : [`; ${history.symbol}: ${history.reason}`])).join("")}`,
+      reason: `no completed price history for ${missing.join(" or ")}${histories.flatMap((history) => (history?.reason === undefined ? [] : [`; ${history.symbol}: ${history.reason}`])).join("")}`,
     };
   }
   const eligible = (history: History) =>
@@ -48,14 +49,17 @@ function priceReturn(ctx: MetricContext, years: number, benchmark: boolean): Met
         close > 0 &&
         date <= (ctx.asOf ?? "").slice(0, 10),
     );
-  const spyDates = new Set(eligible(spy!).map(({ date }) => date));
+  const spyDates = new Set(benchmark ? eligible(spy!).map(({ date }) => date) : []);
   const dates = eligible(subject!)
     .map(({ date }) => date)
-    .filter((date) => spyDates.has(date))
+    .filter((date) => !benchmark || spyDates.has(date))
     .toSorted();
   const end = dates.at(-1);
+  const sessions = benchmark
+    ? `common completed sessions with ${BENCHMARK}`
+    : "issuer completed sessions";
   if (end === undefined) {
-    return { status: "missing", reason: `no common completed session with ${BENCHMARK}` };
+    return { status: "missing", reason: `no ${sessions}` };
   }
   const history = benchmark ? spy! : subject!;
   const endInput = priceInput(history, end);
@@ -63,7 +67,7 @@ function priceReturn(ctx: MetricContext, years: number, benchmark: boolean): Met
   if (!Number.isFinite(age) || age > ENDPOINT_TOLERANCE_DAYS || age < 0) {
     return {
       status: "missing",
-      reason: `stale common completed session as of ${end}`,
+      reason: `stale ${sessions} as of ${end}`,
       periodEnd: end,
       inputs: [endInput],
     };
@@ -87,19 +91,20 @@ function priceReturn(ctx: MetricContext, years: number, benchmark: boolean): Met
       .toSorted()[0];
     const shortHistory =
       subject!.reason === undefined &&
-      spy!.reason === undefined &&
+      (!benchmark || spy!.reason === undefined) &&
       firstSubject !== undefined &&
       Date.parse(firstSubject) > anniversary.getTime() + ENDPOINT_TOLERANCE_DAYS * DAY_MS &&
       Date.parse(firstSubject) <= anniversary.getTime() + SHORT_HISTORY_TOLERANCE_DAYS * DAY_MS &&
-      eligible(spy!).some(
-        ({ date }) =>
-          Math.abs(Date.parse(date) - anniversary.getTime()) <= ENDPOINT_TOLERANCE_DAYS * DAY_MS,
-      );
+      (!benchmark ||
+        eligible(spy!).some(
+          ({ date }) =>
+            Math.abs(Date.parse(date) - anniversary.getTime()) <= ENDPOINT_TOLERANCE_DAYS * DAY_MS,
+        ));
     return {
       status: "missing",
       reason: shortHistory
         ? `issuer price history begins ${firstSubject}, after the ${String(years)}-year anniversary`
-        : `no common completed session within ±7 days of the ${String(years)}-year anniversary`,
+        : `no ${sessions} within ±7 days of the ${String(years)}-year anniversary`,
       ...(shortHistory ? { cause: "insufficient-history" as const } : {}),
       periodEnd: end,
       inputs: [endInput],
@@ -119,7 +124,7 @@ function priceReturn(ctx: MetricContext, years: number, benchmark: boolean): Met
     status: "value",
     value,
     periodEnd: end,
-    basis: `${String(years)}-year cumulative price return, not total return; split-adjusted closes, ${start} to ${end}, common completed sessions with ${BENCHMARK}; quote currency ${history.currency ?? "unknown"}, no FX conversion`,
+    basis: `${String(years)}-year cumulative price return, not total return; split-adjusted closes, ${start} to ${end}, ${sessions}; quote currency ${history.currency ?? "unknown"}, no FX conversion`,
     inputs: [startInput, endInput],
   };
 }
@@ -130,8 +135,7 @@ const METRICS: readonly MetricDefinition[] = [1, 3, 5].flatMap((years) =>
       id: `${benchmark ? "spyPriceReturn" : "priceReturn"}${String(years)}y`,
       label: `${benchmark ? BENCHMARK : "Issuer"} ${String(years)}-year price return`,
       unit: "ratio-percent",
-      basis:
-        "cumulative price return, not total return; common completed sessions; anniversaries within ±7 days",
+      basis: `cumulative price return, not total return; ${benchmark ? "common" : "issuer"} completed sessions; anniversaries within ±7 days`,
       compute: (ctx) => priceReturn(ctx, years, benchmark),
     }),
   ),

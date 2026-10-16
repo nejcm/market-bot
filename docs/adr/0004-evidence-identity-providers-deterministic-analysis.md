@@ -199,9 +199,14 @@ without pretending the project has a global security master.
   a metric reads raw inputs, never another metric's result. They persist in the deep bundle's
   `derived.metricSections` and are read through `report.extras.metricSections` in every layout.
   Amendment 2026-10-16: Capital Return and Operating Ratios emit missing rows and section Source
-  Gaps when statements are unavailable. Structural `not-filed`, issuer `insufficient-history`,
+  Gaps when statements are unavailable. Structural `not-filed`, bounded issuer `insufficient-history`,
   and workbench `outside-price-history-window` causes are diagnostic; other missing inputs remain
-  material. The workbench uses the requested history start, requires usable returned closes, and
+  material. Issuer `insufficient-history` applies only when returned completed history starts
+  8–14 calendar days after the anniversary; SPY rows also require benchmark coverage there. Later
+  starts remain material because a short response alone cannot establish listing age. Issuer returns
+  use issuer sessions independently; SPY comparison rows require common completed sessions. Missing
+  SPY history preserves issuer returns, and SPY fetch failures declare a Yahoo Source Gap.
+  The workbench uses the requested history start, requires usable returned closes, and
   keeps `missing` / `price-history-unavailable`; missing bars inside the window and provider
   failures stay material. Independent unresolved inputs keep their section material. A lifecycle phase needs cited
   classification inputs to emit a value. The issuer Yahoo history request is shared by Price
@@ -530,7 +535,7 @@ without pretending the project has a global security master.
   selected period; the legacy fallback checks every input. Net debt and current ratio outside that
   window are unknown, not failed, so the remaining current criteria still decide the posture, and
   Business Framework Risk applies the same current-ratio eligibility; since its Metric Section
-  (amended 2026-10-15) a stale current ratio is `missing` with its date in the reason (R8). Debt/equity, debt/market cap, and net debt/market cap are withheld when an
+  (amended 2026-10-15) a stale current ratio is `missing` with its date in the reason. Debt/equity, debt/market cap, and net debt/market cap are withheld when an
   input is not current. Dated raw debt, cash, and historical net debt stay displayed, and the
   valuation and financial-lens producers each declare a no-cap Source Gap naming the withheld
   inputs and their period ends.

@@ -106,7 +106,7 @@ async function collect(payloadFor: (symbol: string) => unknown, at = AS_OF) {
 describe("Price Performance Metric Section", () => {
   test("uses price closes for six cumulative returns with common sessions and frozen reader values", async () => {
     const collected = await collect((symbol) =>
-      chart(symbol, DATES, symbol === "SPY" ? [100, 150, 200, 240] : [50, 75, 100, 120]),
+      chart(symbol, DATES, symbol === "SPY" ? [100, 120, 150, 180] : [50, 75, 100, 120]),
     );
     expect(collected.rawSnapshots.map(({ adapter }) => adapter)).toEqual([
       "yahoo-price-history",
@@ -127,7 +127,7 @@ describe("Price Performance Metric Section", () => {
     }
     const { section, sourceGaps } = evaluate(collected.priceHistory);
     expect(sourceGaps).toEqual([]);
-    for (const [i, expected] of [0.2, 0.2, 0.6, 0.6, 1.4, 1.4].entries()) {
+    for (const [i, expected] of [0.2, 0.2, 0.6, 0.5, 1.4, 0.8].entries()) {
       expect(Number(section.metrics[i]?.value)).toBeCloseTo(expected, 12);
     }
     expect(section.metrics.every(({ periodEnd }) => periodEnd === "2026-07-24")).toBe(true);
@@ -140,6 +140,7 @@ describe("Price Performance Metric Section", () => {
     expect(section.metrics[1]?.sourceIds).toEqual(["price-history-SPY"]);
     const report = researchReport({
       generatedAt: AS_OF,
+      symbol: "TEST",
       dataGaps: [],
       extras: { metricSections: [section] },
       sources: collected.sources,
@@ -154,6 +155,9 @@ describe("Price Performance Metric Section", () => {
       period: "Session ending 2026-07-24",
       basis: expect.stringContaining("quote currency CAD"),
     });
+    expect(metricSectionsView(report as unknown as Record<string, unknown>)?.[0]?.sourceLabel).toBe(
+      "Yahoo price history",
+    );
     const run = {
       collectedSources: collectedSources({
         rawSnapshots: collected.rawSnapshots,
@@ -185,7 +189,55 @@ describe("Price Performance Metric Section", () => {
     ).toEqual([]);
   });
 
-  test("aligns both endpoints, with nearest anniversary within inclusive ±7 days and no older fallback", () => {
+  test("retains issuer returns when SPY history is absent or empty", () => {
+    for (const histories of [
+      [history("TEST")],
+      [history("TEST"), { ...history("SPY"), bars: [] }],
+    ]) {
+      const { section, sourceGaps } = evaluate(histories);
+      for (const [i, expected] of [0.2, 0.6, 1.4].entries()) {
+        expect(section.metrics[i * 2]).toMatchObject({ status: "value" });
+        expect(Number(section.metrics[i * 2]?.value)).toBeCloseTo(expected, 12);
+        expect(section.metrics[i * 2 + 1]).toMatchObject({
+          status: "missing",
+          reason: expect.stringContaining("SPY"),
+        });
+      }
+      expect(sourceGaps).toMatchObject([{ source: "price-performance", triage: "material" }]);
+    }
+  });
+
+  test("declares a SPY fetch failure while retaining issuer returns and its snapshot", async () => {
+    const recentDates = Array.from({ length: 100 }, (_, i) =>
+      new Date(Date.parse(DATES[3]!) - (100 - i) * 86_400_000).toISOString().slice(0, 10),
+    );
+    const collected = await collect((symbol) => {
+      if (symbol === "SPY") {
+        throw new Error("synthetic SPY failure");
+      }
+      return chart(
+        symbol,
+        [...DATES.slice(0, 3), ...recentDates, DATES[3]!],
+        [50, 75, 100, ...recentDates.map(() => 110), 120],
+      );
+    });
+    expect(collected.sourceGaps).toMatchObject([
+      {
+        source: "yahoo-price-history",
+        provider: "yahoo",
+        capability: "market-data",
+        evidenceQualityImpact: "no-cap",
+        message: expect.stringContaining("SPY"),
+      },
+    ]);
+    expect(collected.verifiedSnapshot.snapshot?.symbol).toBe("TEST");
+    expect(collected.verifiedSnapshot.sourceGaps).toEqual([]);
+    const { section } = evaluate(collected.priceHistory);
+    expect(section.metrics[0]).toMatchObject({ status: "value", value: expect.closeTo(0.2, 12) });
+    expect(section.metrics[1]).toMatchObject({ status: "missing" });
+  });
+
+  test("uses issuer sessions and common benchmark endpoints, with nearest anniversary within inclusive ±7 days and no older fallback", () => {
     const subject = history("TEST");
     const spy = history("SPY");
     const shifted = (date: string, benchmark = false) => {
@@ -221,14 +273,15 @@ describe("Price Performance Metric Section", () => {
       ...subject,
       bars: [...subject.bars, { date: "2026-07-23", close: 110, completed: true }],
     };
-    expect(evaluate([commonPrior, laggingSpy]).section.metrics[0]?.periodEnd).toBe("2026-07-23");
+    expect(evaluate([commonPrior, laggingSpy]).section.metrics[0]?.periodEnd).toBe("2026-07-24");
     expect(evaluate([commonPrior, laggingSpy]).section.metrics[1]?.periodEnd).toBe("2026-07-23");
     const laterSubject = {
       ...subject,
       bars: [...subject.bars, { date: "2026-07-25", close: 999, completed: true }],
     };
     expect(evaluate([laterSubject, spy]).section.metrics[0]?.periodEnd).toBe("2026-07-24");
-    expect(evaluate([shifted("2025-07-25"), spy]).section.metrics[0]?.status).toBe("missing");
+    expect(evaluate([shifted("2025-07-25"), spy]).section.metrics[0]?.status).toBe("value");
+    expect(evaluate([shifted("2025-07-25"), spy]).section.metrics[1]?.status).toBe("missing");
     const choices = {
       ...subject,
       bars: [...subject.bars, { date: "2025-07-23", close: 90, completed: true }],
@@ -270,7 +323,14 @@ describe("Price Performance Metric Section", () => {
         })),
       }));
       const result = evaluate(histories, "2026-07-24T18:00:00Z");
-      expect(result.section.metrics.every(({ status }) => status === "missing")).toBe(true);
+      expect(
+        result.section.metrics
+          .filter(({ id }) => symbol === "TEST" || id.startsWith("spy"))
+          .every(({ status }) => status === "missing"),
+      ).toBe(true);
+      if (symbol === "SPY") {
+        expect(result.section.metrics[0]?.status).toBe("value");
+      }
       expect(result.sourceGaps).toHaveLength(1);
     }
   });
@@ -317,6 +377,7 @@ describe("Price Performance Metric Section", () => {
     }
     const report = researchReport({
       generatedAt: AS_OF,
+      symbol: "TEST",
       dataGaps: [],
       extras: { metricSections: [section] },
       sources: collected.sources,
@@ -377,9 +438,7 @@ describe("Price Performance Metric Section", () => {
     for (const histories of [
       undefined,
       [],
-      [history("TEST")],
       [history("SPY")],
-      [history("TEST"), { ...history("SPY"), bars: [] }],
       [history("TEST", [50, 75, 0, Number.NaN]), history("SPY")],
     ]) {
       const result = evaluate(histories);
@@ -471,7 +530,7 @@ describe("Price Performance Metric Section", () => {
     expect(renderMetricSections(report)).toContain("no completed price history");
     expect(
       metricSectionsView(report as unknown as Record<string, unknown>)?.[0]?.metrics[0]?.reason,
-    ).toContain("SPY (S&P 500 proxy)");
+    ).toContain("TEST");
     for (const evaluated of [evaluate(), evaluate([history("TEST"), history("SPY")])]) {
       expect(violatesResearchOnly(JSON.stringify(evaluated))).toBeNull();
     }
@@ -485,7 +544,7 @@ test("truncated issuer history and benchmark gaps remain material", () => {
   for (const metric of result.section.metrics.slice(2)) {
     expect(metric).toMatchObject({
       status: "missing",
-      reason: expect.stringContaining("no common completed session"),
+      reason: expect.stringContaining("completed sessions"),
     });
     expect(metric).not.toHaveProperty("cause");
   }

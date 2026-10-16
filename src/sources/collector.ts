@@ -625,6 +625,7 @@ export async function collectSources(
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),
+      ...(priceHistoryResult?.sourceGaps ?? []),
       ...representativeVerifiedGaps,
       ...(enrichmentResult.identityResult?.gap !== undefined
         ? [enrichmentResult.identityResult.gap]

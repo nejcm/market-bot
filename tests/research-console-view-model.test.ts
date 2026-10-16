@@ -2253,6 +2253,7 @@ describe("report artifact parsers", () => {
       {
         id: "capital-return",
         title: "Capital Return",
+        sourceLabel: "sourced inputs",
         metrics: [
           {
             label: "Dividends paid (latest FY)",

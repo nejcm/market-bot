@@ -189,7 +189,7 @@ describe("Web Subject Profile evidence payload", () => {
       config,
       contextWithHistory(commands[0]!),
     );
-    expect(payload.extendedEvidence).toBe(sources.extendedEvidence);
+    expect(payload.extendedEvidence).toEqual(sources.extendedEvidence);
     expect(payload.verifiedMarketSnapshotSourceId).toBeDefined();
     expect(citedIds(payload.webSources)).toEqual([webSource.id]);
   });

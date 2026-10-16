@@ -87,7 +87,7 @@ function withoutStageDurations(request: ModelRequest): ModelRequest {
       const priorStages: unknown[] = prompt.priorStages.map((stage: unknown) =>
         isRecord(stage) && "durationMs" in stage ? { ...stage, durationMs: 0 } : stage,
       );
-      return { ...message, content: JSON.stringify({ ...prompt, priorStages }, undefined, 2) };
+      return { ...message, content: JSON.stringify({ ...prompt, priorStages }) };
     }),
   };
 }

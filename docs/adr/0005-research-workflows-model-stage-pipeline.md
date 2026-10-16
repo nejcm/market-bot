@@ -119,8 +119,14 @@ research boundaries without sharing persistence or scoring semantics.
 - Phase 10 deliberately exposes Capital Return, all five Operating Ratios from Phase 6, and the six
   issuer/SPY Price Performance metrics. Business Framework and Financial Lens metrics retain their
   visibility through the same catalog; Valuation Workbench observations also become referencable.
-  Each catalog row carries section/metric ID, exact reference, label, status, formatted value only
-  when available, unit/currency, basis, period, reason/cause and source IDs, without raw input rows.
+  Each catalog row carries the exact reference (including section/metric ID), label, status,
+  formatted value only when available, unit/currency, basis, period and source IDs. Identical
+  metadata across every row in a section is inherited from its `defaults`; absent fields are never
+  inherited from a different row. Raw input rows and duplicate row IDs stay out of the prompt.
+  Reasons/causes remain in full Run Artifacts and declared Source Gaps rather than being repeated
+  for each catalog row. Stage envelopes use compact JSON; the final-synthesis-only eval provider
+  preserves that serialization when freezing durations. Exact symbol-scoped Extended Evidence
+  gaps already declared in top-level `sourceGaps` are omitted from the nested prompt copy only.
 - Evidence request, analysis/coverage-panel, critique and final synthesis (including repairs) receive
   `evidence.metricReferences` and its narrative-reference instruction. Web Subject Profile and Web
   Gather do not receive the catalog. All Extended Evidence prompt projections remove repeated

@@ -82,4 +82,4 @@ const result = render(componentModule.default, {
     onOpenInstrument: () => {},
   },
 });
-process.stdout.write(result.body);
+await Bun.write(Bun.stdout, result.body);

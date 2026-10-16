@@ -250,12 +250,14 @@ describe("final-synthesis-only live provider", () => {
         expect(
           liveRequests.every((request) => llmCassetteKey(request).startsWith("final-synthesis|")),
         ).toBe(true);
+        const user = liveRequests[0]!.messages.findLast(({ role }) => role === "user")!.content;
+        expect(user).toBe(JSON.stringify(JSON.parse(user)));
         firstPrompts.push(
           liveRequests[0]?.messages.map((message) => message.content).join("\n") ?? "",
         );
       }
       expect(firstPrompts[1]).toBe(firstPrompts[0]);
-      expect(firstPrompts[0]).toContain('"durationMs": 0');
+      expect(firstPrompts[0]).toContain('"durationMs":0');
 
       // eslint-disable-next-line no-await-in-loop -- sequential with the runs above
       const estimate = await liveTokenEstimate(fixtureName, "final-synthesis");

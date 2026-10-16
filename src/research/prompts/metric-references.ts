@@ -6,19 +6,45 @@ export function metricReferenceEvidence(
   sections: readonly MetricSection[],
 ): Record<string, unknown> {
   return {
-    metricReferences: sections.map((section) => ({
-      id: section.id,
-      title: section.title,
-      metrics: section.metrics.map(({ inputs: _inputs, value, ...metric }) => ({
-        ...metric,
-        reference: `{{metric:${section.id}.${metric.id}}}`,
-        ...(metric.status === "value"
-          ? { value: formatMetricValue(value, metric.unit, metric.currency) }
-          : {}),
-      })),
-    })),
+    metricReferences: sections.map((section) => {
+      const metrics = section.metrics.map(
+        (metric): Record<string, unknown> => ({
+          reference: `{{metric:${section.id}.${metric.id}}}`,
+          label: metric.label,
+          status: metric.status,
+          unit: metric.unit,
+          basis: metric.basis,
+          ...(metric.currency !== undefined ? { currency: metric.currency } : {}),
+          ...(metric.periodEnd !== undefined ? { periodEnd: metric.periodEnd } : {}),
+          ...(metric.periodMonths !== undefined ? { periodMonths: metric.periodMonths } : {}),
+          sourceIds: metric.sourceIds,
+          ...(metric.status === "value"
+            ? { value: formatMetricValue(metric.value, metric.unit, metric.currency) }
+            : {}),
+        }),
+      );
+      const defaults = Object.fromEntries(
+        Object.entries(metrics[0] ?? {}).filter(
+          ([key, value]) =>
+            key !== "reference" &&
+            key !== "label" &&
+            key !== "status" &&
+            key !== "value" &&
+            metrics.length > 1 &&
+            metrics.every((metric) => JSON.stringify(metric[key]) === JSON.stringify(value)),
+        ),
+      );
+      return {
+        id: section.id,
+        title: section.title,
+        ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
+        metrics: metrics.map((metric) =>
+          Object.fromEntries(Object.entries(metric).filter(([key]) => !(key in defaults))),
+        ),
+      };
+    }),
     metricReferenceInstruction:
-      "For narrative claims about catalog metrics, copy the exact {{metric:<section>.<id>}} reference instead of restating or calculating its number. Use only status=value references; retain the label, basis and period in prose and cite sourceIds. Assembly formats values and adds their citations. Unknown, unavailable, malformed or unciteable references reject the report for repair. References belong only in cited findings, cases, risks, catalysts, scenarios, Business Framework text, Earnings Setup bullets or Spotlight rationales, never summary, dataGaps or prediction DSL.",
+      "Each metric inherits its section defaults; missing-metric reasons are declared in sourceGaps. For narrative claims about catalog metrics, copy the exact {{metric:<section>.<id>}} reference instead of restating or calculating its number. Use only status=value references; retain the label, basis and period in prose and cite sourceIds. Assembly formats values and adds their citations. Unknown, unavailable, malformed or unciteable references reject the report for repair. References belong only in cited findings, cases, risks, catalysts, scenarios, Business Framework text, Earnings Setup bullets or Spotlight rationales, never summary, dataGaps or prediction DSL.",
   };
 }
 

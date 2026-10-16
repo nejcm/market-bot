@@ -22,6 +22,7 @@ import {
 import { buildCalibrationBlock } from "../calibration-context";
 import type { SpotlightSelectionResult } from "../spotlights";
 import { deterministicSourceGaps } from "../deterministic-gaps";
+import { sourceGapScopedReportText } from "../../domain/source-gaps";
 import { moverLimitFor } from "../depth-profile";
 import {
   collectedSourcesForGapView,
@@ -78,15 +79,22 @@ const projectMarketContext: EvidenceProjector = (_options, _command, collectedSo
     ? { marketContext: collectedSources.marketContext }
     : {};
 
-const projectExtendedEvidence: EvidenceProjector = (_options, command, collectedSources) =>
-  isInstrumentCommand(command) && collectedSources.extendedEvidence !== undefined
-    ? {
-        extendedEvidence: withoutRestatedMetricValues(
-          collectedSources.extendedEvidence,
-          collectedSources.metricSections ?? [],
-        ),
-      }
-    : {};
+const projectExtendedEvidence: EvidenceProjector = (_options, command, collectedSources) => {
+  if (!isInstrumentCommand(command) || collectedSources.extendedEvidence === undefined) {
+    return {};
+  }
+  const evidence = withoutRestatedMetricValues(
+    collectedSources.extendedEvidence,
+    collectedSources.metricSections ?? [],
+  );
+  const declaredGaps = new Set(deterministicSourceGaps(command, collectedSources));
+  return {
+    extendedEvidence: {
+      ...evidence,
+      gaps: evidence.gaps.filter((gap) => !declaredGaps.has(sourceGapScopedReportText(gap))),
+    },
+  };
+};
 
 const projectMetricReferences: EvidenceProjector = (options, command, collectedSources) =>
   isInstrumentCommand(command) &&

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { InstrumentCommand, ResearchCommand } from "../src/cli/args";
-import { sourceGap } from "../src/domain/source-gaps";
+import { sourceGap, sourceGapScopedReportText } from "../src/domain/source-gaps";
 import type { ResearchReport } from "../src/domain/report";
 import type { RunTrace } from "../src/domain/run-trace";
 import type { SourceGap } from "../src/domain/sources";
@@ -531,7 +531,7 @@ describe("Web Gather Source Gap view", () => {
     }
   });
 
-  test("narrows extendedEvidence gaps while preserving sibling order", () => {
+  test("narrows Extended Evidence gaps and declares surviving gaps only at top level", () => {
     const extendedGaps = (
       payload(
         "web-gather",
@@ -545,7 +545,10 @@ describe("Web Gather Source Gap view", () => {
       ).extendedEvidence as { readonly gaps: readonly SourceGap[] }
     ).gaps;
 
-    expect(extendedGaps).toEqual([segmentMix, secCompanyFacts, marketauxNews]);
+    expect(extendedGaps).toEqual([]);
+    expect(payload("web-gather", sourcesWithGaps(allGaps)).sourceGaps).toEqual(
+      [segmentMix, secCompanyFacts, marketauxNews].map(sourceGapScopedReportText),
+    );
   });
 
   test("narrows marketContext gaps", () => {
@@ -641,7 +644,7 @@ describe("Web Gather Source Gap view", () => {
         true,
       );
       expect(parsed.evidence.extendedEvidence?.gaps).toEqual(
-        stage === "web-subject-profile" ? undefined : droppedGaps,
+        stage === "web-subject-profile" ? undefined : [],
       );
     }
   });
@@ -755,7 +758,8 @@ describe("Web Gather Source Gap view", () => {
     expect((gather.extendedEvidence as { readonly gaps: readonly SourceGap[] }).gaps).toEqual([]);
     expect(
       (payload("all", sources).extendedEvidence as { readonly gaps: readonly SourceGap[] }).gaps,
-    ).toEqual(droppedGaps);
+    ).toEqual([]);
+    expect(payload("all", sources).sourceGaps).toEqual(droppedGaps.map(sourceGapScopedReportText));
   });
 
   test("hides collectAnalystExpectations 403 estimate gaps from web-gather and keeps them on persisted surfaces", async () => {

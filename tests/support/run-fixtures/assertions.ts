@@ -43,11 +43,67 @@ import {
   financialStatementPeriodMonths,
 } from "../../../src/sources/extended-evidence/financial-statement-selection";
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
+import { formatMetricValue } from "../../../src/sources/extended-evidence/value-format";
+import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
+import { parseArgs } from "../../../src/cli/args";
 import type { FixtureMeta, RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
 
 function asWritten(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
+export function assertMetricPromptCatalog(
+  result: RunFixtureResult,
+  meta: FixtureMeta,
+  requests: readonly ModelRequest[],
+): void {
+  const command = parseArgs(meta.argv);
+  if (command.jobType !== "equity") {
+    throw new Error("Metric catalog invariant requires an equity fixture");
+  }
+  for (const request of requests) {
+    const user = request.messages.findLast(({ role }) => role === "user")!.content;
+    const prompt = JSON.parse(user);
+    if (
+      ![
+        "specialist-analysis",
+        "instrument-evidence-analysis",
+        "market-behavior-analysis",
+        "critique",
+        "final-synthesis",
+      ].includes(prompt.stage)
+    ) {
+      continue;
+    }
+    const catalog = prompt.evidence.metricReferences as {
+      id: string;
+      defaults?: Record<string, unknown>;
+      metrics: Record<string, unknown>[];
+    }[];
+    const sections = result.collectedSources.metricSections ?? [];
+    expect(catalog.map(({ id }) => id)).toEqual(sections.map(({ id }) => id));
+    for (const [index, section] of sections.entries()) {
+      const projected = catalog[index]!;
+      expect(projected.metrics).toHaveLength(section.metrics.length);
+      for (const [rowIndex, metric] of section.metrics.entries()) {
+        const { id, inputs: _inputs, reason: _reason, cause: _cause, value, ...preserved } = metric;
+        expect(asWritten({ ...projected.defaults, ...projected.metrics[rowIndex] })).toEqual(
+          asWritten({
+            ...preserved,
+            reference: `{{metric:${section.id}.${id}}}`,
+            ...(metric.status === "value"
+              ? { value: formatMetricValue(value, metric.unit, metric.currency) }
+              : {}),
+          }),
+        );
+      }
+    }
+    expect(prompt.evidence.sourceGaps).toEqual(
+      deterministicSourceGaps(command, result.collectedSources),
+    );
+    expect(user).toBe(JSON.stringify(prompt));
+  }
 }
 
 // Equity-aapl-brief's cassette carries controlled model gaps: the anchored options restatement
@@ -1979,7 +2035,9 @@ export function assertEstimatedEarningsSuppressionPath(
   );
   expect(finalSynthesisPrompt).not.toContain("kind earnings-direction with measurableAs");
   expect(finalSynthesisPrompt).not.toContain("kind earnings-move with measurableAs");
-  expect(finalSynthesisPrompt).toContain('"kind": "direction|relative|iv|range|conditional"');
+  expect(JSON.parse(finalSynthesisPrompt!).requiredShape.predictions[0].kind).toBe(
+    "direction|relative|iv|range|conditional",
+  );
   expect(
     modelOutputs.some(
       (output) =>

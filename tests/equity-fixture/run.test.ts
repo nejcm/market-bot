@@ -10,6 +10,7 @@ import {
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
   assertMarketRegimeRendered,
+  assertMetricPromptCatalog,
   assertNbisUnsupportedInputs,
   assertProviderGapRestatementsDropped,
   factForms,
@@ -44,11 +45,6 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-web-fallback-deep": ["complete", "substantial"],
   "equity-depository-deep": ["partial", "limited"],
 } as const;
-
-const CAPTURE_EARNINGS_FIXTURES = new Set<string>([
-  "equity-analysis-comprehensive",
-  "equity-analysis-estimated-suppressed",
-]);
 
 const runResults: RunFixtureResult[] = [];
 
@@ -164,103 +160,98 @@ describe("static equity run fixtures", () => {
       } = {};
       const result = await runFixture(name, {
         llm: "replay",
-        ...(CAPTURE_EARNINGS_FIXTURES.has(name) || name === "equity-aapl-deep"
-          ? {
-              provider: {
-                name: replayProvider.name,
-                generate: async (request: ModelRequest) => {
-                  modelRequests.push(request);
-                  const response = await replayProvider.generate(request);
-                  const prompt = JSON.parse(request.messages[1]?.content ?? "{}");
-                  if (name === "equity-aapl-deep" && prompt.stage === "final-synthesis") {
-                    const catalog = prompt.evidence.metricReferences as readonly {
-                      id: string;
-                      metrics: readonly { id: string; unit: string }[];
-                    }[];
-                    expect(catalog.map(({ id }) => id)).toEqual(
-                      expect.arrayContaining([
-                        "capital-return",
-                        "operating-ratios",
-                        "price-performance",
-                      ]),
-                    );
-                    for (const item of prompt.evidence.extendedEvidence.items as readonly {
-                      category: string;
-                      summary: string;
-                      metrics?: Record<string, unknown>;
-                    }[]) {
-                      if (
-                        item.category !== "business-framework" &&
-                        item.category !== "financial-lens"
-                      ) {
-                        continue;
-                      }
-                      expect(item.summary).toContain("criteria-");
-                      if (item.category === "financial-lens") {
-                        expect(item.summary).toContain(
-                          "Latest close $217, SMA50 212.51, RSI14 52.73, MACD histogram 0.08",
-                        );
-                        expect(item.summary).not.toContain("Gross margin 47.6%");
-                      }
-                      for (const metric of catalog
-                        .filter(({ id }) => id.startsWith(`${item.category}-`))
-                        .flatMap(({ metrics }) => metrics)) {
-                        if (metric.unit === "text") {
-                          continue;
-                        }
-                        expect(item.metrics).not.toHaveProperty(metric.id);
-                        expect(item.metrics).not.toHaveProperty(`${metric.id}PeriodEnd`);
-                      }
-                    }
-                    injection.metric = prompt.evidence.metricReferences
-                      .flatMap(
-                        (section: {
-                          metrics: readonly {
-                            status: string;
-                            reference: string;
-                            value: string;
-                            sourceIds: readonly string[];
-                          }[];
-                        }) => section.metrics,
-                      )
-                      .find(
-                        (metric: {
-                          status: string;
-                          unit: string;
-                          value: unknown;
-                          sourceIds: readonly string[];
-                        }) =>
-                          metric.status === "value" &&
-                          metric.unit !== "text" &&
-                          typeof metric.value === "string" &&
-                          metric.sourceIds.length > 0,
-                      );
-                    expect(injection.metric).toBeDefined();
-                    const payload = JSON.parse(response.content);
-                    return {
-                      ...response,
-                      content: JSON.stringify({
-                        ...payload,
-                        keyFindings: [
-                          ...payload.keyFindings,
-                          {
-                            text: `Filed metric reference: ${injection.metric!.reference}.`,
-                            sourceIds: [],
-                          },
-                        ],
-                      }),
-                    };
+        provider: {
+          name: replayProvider.name,
+          generate: async (request: ModelRequest) => {
+            modelRequests.push(request);
+            const response = await replayProvider.generate(request);
+            const prompt = JSON.parse(request.messages[1]?.content ?? "{}");
+            if (name === "equity-aapl-deep" && prompt.stage === "final-synthesis") {
+              const catalog = prompt.evidence.metricReferences as readonly {
+                id: string;
+                defaults?: { unit?: string };
+                metrics: readonly { reference: string; unit?: string }[];
+              }[];
+              expect(catalog.map(({ id }) => id)).toEqual(
+                expect.arrayContaining(["capital-return", "operating-ratios", "price-performance"]),
+              );
+              for (const item of prompt.evidence.extendedEvidence.items as readonly {
+                category: string;
+                summary: string;
+                metrics?: Record<string, unknown>;
+              }[]) {
+                if (item.category !== "business-framework" && item.category !== "financial-lens") {
+                  continue;
+                }
+                expect(item.summary).toContain("criteria-");
+                if (item.category === "financial-lens") {
+                  expect(item.summary).toContain(
+                    "Latest close $217, SMA50 212.51, RSI14 52.73, MACD histogram 0.08",
+                  );
+                  expect(item.summary).not.toContain("Gross margin 47.6%");
+                }
+                for (const metric of catalog
+                  .filter(({ id }) => id.startsWith(`${item.category}-`))
+                  .flatMap(({ defaults, metrics }) =>
+                    metrics.map((row) => ({ ...defaults, ...row })),
+                  )) {
+                  if (metric.unit === "text") {
+                    continue;
                   }
-                  modelOutputs.push(response.content);
-                  return response;
-                },
-              },
+                  const id = metric.reference.split(".").at(-1)!.slice(0, -2);
+                  expect(item.metrics).not.toHaveProperty(id);
+                  expect(item.metrics).not.toHaveProperty(`${id}PeriodEnd`);
+                }
+              }
+              injection.metric = prompt.evidence.metricReferences
+                .flatMap(
+                  (section: {
+                    defaults?: Record<string, unknown>;
+                    metrics: readonly {
+                      status: string;
+                      reference: string;
+                      value: string;
+                      sourceIds: readonly string[];
+                    }[];
+                  }) => section.metrics.map((metric) => ({ ...section.defaults, ...metric })),
+                )
+                .find(
+                  (metric: {
+                    status: string;
+                    unit: string;
+                    value: unknown;
+                    sourceIds: readonly string[];
+                  }) =>
+                    metric.status === "value" &&
+                    metric.unit !== "text" &&
+                    typeof metric.value === "string" &&
+                    metric.sourceIds.length > 0,
+                );
+              expect(injection.metric).toBeDefined();
+              const payload = JSON.parse(response.content);
+              return {
+                ...response,
+                content: JSON.stringify({
+                  ...payload,
+                  keyFindings: [
+                    ...payload.keyFindings,
+                    {
+                      text: `Filed metric reference: ${injection.metric!.reference}.`,
+                      sourceIds: [],
+                    },
+                  ],
+                }),
+              };
             }
-          : {}),
+            modelOutputs.push(response.content);
+            return response;
+          },
+        },
       });
       runResults.push(result);
 
       await assertInvariants(result, fixture.meta, name);
+      assertMetricPromptCatalog(result, fixture.meta, modelRequests);
       const injectedMetric = injection.metric;
       if (injectedMetric !== undefined) {
         expect(result.report.keyFindings).toContainEqual({

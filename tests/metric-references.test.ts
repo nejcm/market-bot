@@ -18,8 +18,12 @@ import {
   verifiedMarketSnapshot,
 } from "./support/fixtures";
 import { researchContext } from "./support/research-context-helpers";
-import { withoutRestatedMetricValues } from "../src/research/prompts/metric-references";
+import {
+  metricReferenceEvidence,
+  withoutRestatedMetricValues,
+} from "../src/research/prompts/metric-references";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { formatMetricValue } from "../src/sources/extended-evidence/value-format";
 
 const command = {
   jobType: "equity",
@@ -98,6 +102,53 @@ const sources = [
   newsSource({ id: "market-aapl", kind: "market-data" }),
   newsSource({ id: "metric-source", kind: "market-data" }),
 ];
+
+test("compact metric catalog preserves values, units, periods, statuses and citations through defaults", () => {
+  const dated = evaluateMetricSection(
+    "dated",
+    "Dated metrics",
+    definitions.map((definition, index) => ({
+      ...definition,
+      compute: (ctx) => ({
+        ...definition.compute(ctx),
+        ...(index === 0 ? { periodEnd: "2026-03-31", periodMonths: 12 } : {}),
+      }),
+    })),
+    { symbol: "AAPL" },
+  ).section;
+  for (const produced of [
+    section,
+    dated,
+    { ...section, metrics: [] },
+    { ...section, metrics: section.metrics.slice(0, 1) },
+  ]) {
+    const catalog = metricReferenceEvidence([produced]).metricReferences as {
+      defaults?: Record<string, unknown>;
+      metrics: Record<string, unknown>[];
+    }[];
+    expect(catalog[0]!.metrics).toHaveLength(produced.metrics.length);
+    for (const [index, row] of catalog[0]!.metrics.entries()) {
+      const {
+        id,
+        inputs: _inputs,
+        reason: _reason,
+        cause: _cause,
+        value,
+        ...preserved
+      } = produced.metrics[index]!;
+      expect({ ...catalog[0]!.defaults, ...row }).toEqual({
+        ...preserved,
+        reference: `{{metric:${produced.id}.${id}}}`,
+        ...(preserved.status === "value"
+          ? { value: formatMetricValue(value, preserved.unit, preserved.currency) }
+          : {}),
+      });
+      expect(row).not.toHaveProperty("inputs");
+      expect(row).not.toHaveProperty("reason");
+      expect(row).not.toHaveProperty("id");
+    }
+  }
+});
 
 function input(payload: ModelReportPayload, metricSections = [section]) {
   return {

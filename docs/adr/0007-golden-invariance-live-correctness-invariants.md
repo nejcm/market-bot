@@ -119,6 +119,10 @@ payload to its declared live version.
   contributors (one basis per series, value equals the component sum within the identity
   tolerance, shared period end, and source-id closure) and is a live-run invariant in the
   A-series. Mutating a contributor without updating the fact value must fail.
+- Amendment 2026-10-16: D&A alone may mix direct and composite facts across periods, since its
+  combined concept wins per period and complete same-duration components provide the fallback.
+  A8 still re-derives every composite sum and checks period ends and source-id closure; the
+  one-basis-per-series restriction remains for all other series.
 
 ## Implementation validation
 

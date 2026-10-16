@@ -9,6 +9,8 @@ import type { MetricContext } from "../src/sources/extended-evidence/metric-engi
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { collectedSources, researchReport } from "./support/fixtures";
 import { assertOperatingRatioInvariants } from "./support/run-fixtures/assertions";
+import { assertCompositeFactIntegrity } from "./support/run-fixtures/financial-invariants";
+import { metricSectionsView } from "../app/client/view-model-metric-sections";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 const AS_OF = "2026-07-23T00:00:00.000Z";
@@ -200,6 +202,140 @@ describe("operatingRatiosSection", () => {
     ]);
     expect(result.sourceGaps).toEqual([]);
     expect(invariantRun(context(usGaap()), result.section.metrics)).not.toThrow();
+  });
+
+  test.each(["Depreciation", "DepreciationNonproduction"])(
+    "uses %s plus intangible amortization only where combined D&A is absent",
+    (depreciation) => {
+      const result = evaluate(
+        context(
+          usGaap({
+            DepreciationDepletionAndAmortization: flow((year) => (year === 2024 ? 50 : undefined)),
+            DepreciationAndAmortization: flow((year) => (year === 2024 ? 51 : undefined)),
+            [depreciation]: flow(() => 40),
+            AmortizationOfIntangibleAssets: flow(() => 15),
+          }),
+        ),
+      );
+      const statements = result.ctx.statements!;
+      const series = statements.statements.cashFlowStatement.depreciationAndAmortization;
+      expect(series.annual.map(({ value, extractionMethod }) => [value, extractionMethod])).toEqual(
+        [
+          [55, "derived-sec-companyfacts"],
+          [50, "sec-companyfacts"],
+          [55, "derived-sec-companyfacts"],
+        ],
+      );
+      expect(series.annual.at(-1)).toMatchObject({
+        periodStart: "2025-01-01",
+        periodEnd: "2025-12-31",
+        firstPublicAt: "2026-02-15",
+        composite: {
+          components: [
+            { concept: depreciation, value: 40 },
+            { concept: "AmortizationOfIntangibleAssets", value: 15 },
+          ],
+        },
+      });
+      expect(statements.unfiledSeries).not.toContain("depreciationAndAmortization");
+      expect(() => assertCompositeFactIntegrity(statements)).not.toThrow();
+      const metric = result.metric("ebitdaProxy");
+      expect(metric).toMatchObject({
+        status: "value",
+        value: 255,
+        currency: "USD",
+        sourceIds: [SOURCE_ID],
+      });
+      expect(metric.basis).toContain("depreciation + intangible amortization");
+      const report = researchReport({
+        jobType: "equity",
+        symbol: "TEST",
+        sources: [evidenceSource(SOURCE_ID)],
+        extras: { metricSections: [result.section] },
+      });
+      expect(renderMarkdownReport(report)).toContain(
+        "D&A basis: depreciation + intangible amortization",
+      );
+      expect(
+        metricSectionsView({ extras: report.extras })?.[0]?.metrics.find(
+          ({ label }) => label === metric.label,
+        )?.basis,
+      ).toBe(metric.basis);
+      expect(invariantRun(result.ctx, result.section.metrics)).not.toThrow();
+    },
+  );
+
+  test("combined D&A wins over components and depreciation aliases are alternatives", () => {
+    const concepts = usGaap({
+      Depreciation: flow(() => 40),
+      DepreciationNonproduction: flow(() => 41),
+      AmortizationOfIntangibleAssets: flow(() => 15),
+    });
+    const direct = evaluate(context(concepts));
+    expect(direct.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 250 });
+    expect(direct.metric("ebitdaProxy").basis).not.toContain("intangible amortization");
+    const fallback = evaluate(
+      context({ ...concepts, DepreciationDepletionAndAmortization: undefined }),
+    );
+    expect(fallback.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 255 });
+  });
+
+  test.each(["Depreciation", "AmortizationOfIntangibleAssets"])(
+    "missing %s keeps the not-filed cause",
+    (missing) => {
+      const result = evaluate(
+        context(
+          usGaap({
+            DepreciationDepletionAndAmortization: undefined,
+            Depreciation: flow(() => 40),
+            AmortizationOfIntangibleAssets: flow(() => 15),
+            [missing]: undefined,
+          }),
+        ),
+      );
+      expect(result.metric("ebitdaProxy")).toMatchObject({
+        status: "missing",
+        cause: "not-filed",
+        reason: "depreciation and amortization not filed by the issuer",
+      });
+      expect(result.metric("ebitdaProxy").value).toBeUndefined();
+    },
+  );
+
+  test.each([
+    { name: "different fiscal years", overrides: { start: "2024-01-01", end: "2024-12-31" } },
+    { name: "same end, different duration", overrides: { start: "2025-07-01" } },
+    { name: "same duration bucket, different start", overrides: { start: "2025-01-02" } },
+    { name: "amortization after cutoff", overrides: { filed: "2026-08-01" } },
+  ])("never combines D&A with $name", ({ overrides }) => {
+    const result = evaluate(
+      context(
+        usGaap({
+          DepreciationDepletionAndAmortization: undefined,
+          Depreciation: { units: { USD: [fact(40, 2025)] } },
+          AmortizationOfIntangibleAssets: { units: { USD: [fact(15, 2025, overrides)] } },
+        }),
+      ),
+    );
+    expect(
+      result.ctx.statements?.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toEqual([]);
+    expect(result.metric("ebitdaProxy").status).toBe("missing");
+    expect(result.metric("ebitdaProxy").value).toBeUndefined();
+  });
+
+  test("does not sum D&A components in different currencies", () => {
+    const result = evaluate(
+      context(
+        usGaap({
+          DepreciationDepletionAndAmortization: undefined,
+          Depreciation: flow(() => 40),
+          AmortizationOfIntangibleAssets: flow(() => 15, "EUR"),
+        }),
+      ),
+    );
+    expect(result.metric("ebitdaProxy").status).toBe("missing");
+    expect(result.metric("ebitdaProxy").value).toBeUndefined();
   });
 
   test("labels an IFRS figure with its filed currency, never a quote currency", () => {

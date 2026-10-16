@@ -10,6 +10,7 @@ import {
 } from "./sec-edgar";
 import {
   CAP_FOLLOWER_SERIES,
+  DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   isDebtPresenceConcept,
   isRevenueConceptInRecencyBucket,
@@ -254,6 +255,9 @@ function factsForDefinition(
     return [];
   }
   const concepts = definition.concepts[taxonomy];
+  if (definition.key === "depreciationAndAmortization" && taxonomy === "us-gaap") {
+    return factsForDepreciationAndAmortization(root, definition, eligible);
+  }
   if (definition.key === "dividendsPerShare") {
     // Declarations are annual-anchored; a newer interim cash-paid tag must not hide declared annual history.
     const annualBasis = factsForLatestPeriodConcept(
@@ -337,6 +341,7 @@ function compositeFromContributors(
     amendment: anchor.amendment,
     accessionNumber: identity.accessionNumber,
     filedAt: identity.filedAt,
+    ...(anchor.periodStart !== undefined ? { periodStart: anchor.periodStart } : {}),
     periodEnd: anchor.periodEnd,
     fiscalYear: anchor.fiscalYear,
     fiscalPeriod: anchor.fiscalPeriod,
@@ -379,6 +384,44 @@ function withCompositeFirstPublicAt(
     ...composite,
     firstPublicAt: firstPublicDate(composite.value, composite.filedAt, histories),
   };
+}
+
+function factsForDepreciationAndAmortization(
+  root: Record<string, unknown>,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): readonly ParsedFact[] {
+  const totals = definition.concepts["us-gaap"];
+  const concepts = [...totals, ...DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flat()];
+  const periods = new Map<string, ParsedFact[]>();
+  for (const fact of concepts.flatMap((concept) => unitFacts("us-gaap", root, concept))) {
+    const key = `${fact.periodStart ?? "instant"}|${fact.periodEnd}|${fact.unit}|${periodType(fact, definition)}`;
+    periods.set(key, [...(periods.get(key) ?? []), fact]);
+  }
+  return [...periods.values()].flatMap((facts) => {
+    const candidates = facts.filter((fact) => eligible(fact));
+    const total = totals.find((concept) => candidates.some((fact) => fact.concept === concept));
+    if (total !== undefined) {
+      return facts.filter((fact) => fact.concept === total);
+    }
+    const contributors = DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flatMap((aliases) => {
+      const concept = aliases.find((alias) => candidates.some((fact) => fact.concept === alias));
+      const [selected] = candidates
+        .filter((fact) => fact.concept === concept && fact.periodStart !== undefined)
+        .toSorted(compareFinancialStatementFacts);
+      return selected === undefined ? [] : [selected];
+    });
+    return contributors.length !== DEPRECIATION_AND_AMORTIZATION_COMPONENTS.length
+      ? []
+      : [
+          withCompositeFirstPublicAt(
+            compositeFromContributors(contributors),
+            definition,
+            candidates,
+            new Set(),
+          ),
+        ];
+  });
 }
 
 function debtRestatements(
@@ -578,7 +621,14 @@ function unfiledSeries(
         ? !Object.keys(taxonomyRoot(payload, taxonomy) ?? {}).some(
             (concept) => isDebtPresenceConcept(taxonomy, concept) && filed(taxonomy, concept),
           )
-        : !definition.concepts[taxonomy].some((concept) => filed(taxonomy, concept)),
+        : !definition.concepts[taxonomy].some((concept) => filed(taxonomy, concept)) &&
+          !(
+            definition.key === "depreciationAndAmortization" &&
+            taxonomy === "us-gaap" &&
+            DEPRECIATION_AND_AMORTIZATION_COMPONENTS.every((aliases) =>
+              aliases.some((concept) => filed(taxonomy, concept)),
+            )
+          ),
     ),
   ).map((definition) => definition.key);
 }

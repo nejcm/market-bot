@@ -34,6 +34,7 @@ import type {
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import {
   conceptScope,
+  DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   isDebtPresenceConcept,
   scopedLabel,
@@ -471,6 +472,14 @@ function assertNotFiledCause(
           rawFiledCount(facts, taxonomy, concept, cutoff),
           `${label}: ${key} unfiled but ${taxonomy}:${concept} has facts`,
         ).toBe(0);
+      }
+      if (key === "depreciationAndAmortization" && taxonomy === "us-gaap") {
+        expect(
+          DEPRECIATION_AND_AMORTIZATION_COMPONENTS.every((aliases) =>
+            aliases.some((concept) => rawFiledCount(facts, taxonomy, concept, cutoff) > 0),
+          ),
+          `${label}: D&A unfiled but every component has facts`,
+        ).toBe(false);
       }
     }
   }
@@ -1497,6 +1506,16 @@ export function assertOperatingRatioInvariants(
       metric.basis.endsWith(`; pretax income is ${pretaxLabel}`),
       `${label} basis names the pretax scope`,
     ).toBe(pretaxLabel !== "pretax income");
+    if (id === "ebitdaProxy" && metric.status === "value") {
+      const da = metric.inputs.find(({ series }) => series === "depreciationAndAmortization");
+      const fact = statements.statements.cashFlowStatement.depreciationAndAmortization.annual.find(
+        (candidate) => candidate.periodKey === da?.periodKey,
+      );
+      expect(
+        metric.basis.includes("depreciation + intangible amortization"),
+        `${label} names its component basis`,
+      ).toBe(fact?.composite !== undefined);
+    }
     if (metric.cause === "not-filed") {
       assertNotFiledCause(run, label, required, (artifact, filed) =>
         operatingRatioFiledFailure(run, id, artifact, filed),

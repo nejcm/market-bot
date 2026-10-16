@@ -406,7 +406,11 @@ export function assertCompositeFactIntegrity(
   for (const series of financialStatementSeries(artifact)) {
     const facts = financialStatementFacts(series);
     const methods = new Set(facts.map((fact) => fact.extractionMethod));
-    check(methods.size <= 1, "A8", `${series.key} mixes composite and direct bases`);
+    check(
+      series.key === "depreciationAndAmortization" || methods.size <= 1,
+      "A8",
+      `${series.key} mixes composite and direct bases`,
+    );
     for (const fact of facts) {
       if (fact.composite === undefined) {
         check(

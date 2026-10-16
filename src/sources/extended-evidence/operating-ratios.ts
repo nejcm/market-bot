@@ -177,6 +177,7 @@ function roic(ctx: MetricContext): MetricOutcome {
 }
 
 const FISCAL_YEAR = "all from one year-aligned fiscal year";
+const EBITDA_PROXY_BASIS = `operating income + depreciation and amortization as filed (an add-back is positive), ${FISCAL_YEAR}; negative depreciation and amortization is not meaningful`;
 
 // A scoped pretax label marks the fallback concept, which excludes equity-method income.
 function withPretaxScope(
@@ -227,7 +228,7 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
     id: "ebitdaProxy",
     label: "Operating income + D&A (EBITDA proxy)",
     unit: "currency",
-    basis: `operating income + depreciation and amortization as filed (an add-back is positive), ${FISCAL_YEAR}; negative depreciation and amortization is not meaningful`,
+    basis: EBITDA_PROXY_BASIS,
     compute: joinedMetric(
       ["operatingIncome", "depreciationAndAmortization"],
       boundGate("depreciationAndAmortization", "depreciation and amortization is negative", false),
@@ -237,6 +238,11 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
         ...(facts[0]!.currency !== null ? { currency: facts[0]!.currency } : {}),
         periodEnd: facts[0]!.periodEnd,
         inputs: inputsOf(facts, ["operatingIncome", "depreciationAndAmortization"]),
+        ...(facts[1]!.composite === undefined
+          ? {}
+          : {
+              basis: `${EBITDA_PROXY_BASIS}; D&A basis: depreciation + intangible amortization`,
+            }),
       }),
     ),
   },

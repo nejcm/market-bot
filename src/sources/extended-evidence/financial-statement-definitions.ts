@@ -19,6 +19,11 @@ export interface FinancialStatementSeriesDefinition {
   readonly concepts: FinancialStatementConceptAliases;
 }
 
+export const DEPRECIATION_AND_AMORTIZATION_COMPONENTS: readonly (readonly string[])[] = [
+  ["Depreciation", "DepreciationNonproduction"],
+  ["AmortizationOfIntangibleAssets"],
+];
+
 interface DebtSideConcepts {
   readonly generic: readonly string[];
   readonly instruments: readonly (readonly string[])[];

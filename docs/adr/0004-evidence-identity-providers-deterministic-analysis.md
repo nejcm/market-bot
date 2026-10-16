@@ -333,6 +333,11 @@ without pretending the project has a global security master.
   and dimensional facts, so completeness is a rule over standard tags, not proof. Direct facts
   remain `sec-companyfacts` without a `composite` field. The artifact-level extraction method stays
   `sec-companyfacts`.
+- Amendment 2026-10-16: US GAAP D&A prefers a combined concept for each period; otherwise it sums
+  `Depreciation` (or `DepreciationNonproduction`) and `AmortizationOfIntangibleAssets` only with
+  identical start/end dates and currency. Both components must be observable at the cutoff;
+  absence never establishes zero. The derived fact retains composite lineage, and the EBITDA
+  proxy names its depreciation + intangible amortization basis. IFRS selection is unchanged.
 - Amendment: debt basis may be gross principal when net debt is untagged. Some filers tag current
   balance-sheet debt only with issuer extensions or dimensional members, which companyfacts omits,
   leaving the standard undimensioned `DebtInstrumentCarryingAmount` (principal before discount and

@@ -674,9 +674,9 @@ export function createMultiNewsAdapter(
           relevantBeforeSeenFilterCount - relevantAfterSeenFilterCount,
         ),
         relevantSelectedCount,
-        floorEligibleSelectedCount: isInstrumentCommand(ctx.command)
-          ? floorEligibleNewsCount(newsSources, targets)
-          : 0,
+        ...(isInstrumentCommand(ctx.command)
+          ? { floorEligibleSelectedCount: floorEligibleNewsCount(newsSources, targets) }
+          : {}),
         repeatFallbackKeptCount: repeatFallbackUsed ? filtered.newsSources.length : 0,
         relevantRepeatKeptCount: relevantKeep.keptRelevantRepeat.length,
         selectedNewsSourceCount: newsSources.length,

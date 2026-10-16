@@ -157,7 +157,7 @@ export async function assertInvariants(
   );
   expect(await persisted(RUN_ARTIFACT_FILES.analytics)).toEqual(asWritten(result.analytics));
   const command = parseArgs(meta.argv);
-  if (command.jobType === "equity") {
+  if (command.jobType === "equity" && result.collectedSources.newsAnalytics !== undefined) {
     const name = deriveCanonicalInstrumentIdentity(
       result.collectedSources.marketSnapshots,
       command.symbol,
@@ -174,6 +174,8 @@ export async function assertInvariants(
         isNewsRelevantByTitleOrSymbol(source, targets),
       ).length,
     );
+  } else {
+    expect(result.analytics.newsDedupe).not.toHaveProperty("floorEligibleSelectedCount");
   }
   expect(result.analytics.predictions).not.toHaveProperty("replacementAttempted");
   expect(result.trace).not.toHaveProperty("predictionReplacementAttempted");

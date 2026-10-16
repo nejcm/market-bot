@@ -77,7 +77,8 @@ News collection fans out to enabled providers, skips missing MarketAux/Finnhub t
 
 `analytics.json:newsDedupe.floorEligibleSelectedCount` counts selected instrument news matching
 the title/symbol floor predicate; `relevantSelectedCount` retains broader summary/snippet relevance.
-The floor-eligible count is zero for non-instrument runs or absent collection telemetry.
+The floor-eligible count is omitted for non-instrument runs or absent collection telemetry;
+instrument runs with collection telemetry emit zero when no selected items qualify.
 
 All provider-controlled prose and short metadata entering model context pass through
 `src/sources/model-input-sanitizer.ts` at normalized emit boundaries. The open-web, news, SEC filing,

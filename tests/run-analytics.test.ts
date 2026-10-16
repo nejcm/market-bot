@@ -580,9 +580,9 @@ describe("run analytics", () => {
     });
   });
 
-  test("emits zero floor-eligible count when collection telemetry is absent", () => {
+  test("omits floor-eligible count when collection telemetry is absent", () => {
     const analytics = buildRunAnalytics({
-      report: researchReport(),
+      report: researchReport({ jobType: "equity", symbol: "AAPL" }),
       trace,
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
@@ -590,7 +590,7 @@ describe("run analytics", () => {
       outcomes: [],
     });
 
-    expect(analytics.newsDedupe.floorEligibleSelectedCount).toBe(0);
+    expect(analytics.newsDedupe).not.toHaveProperty("floorEligibleSelectedCount");
   });
 
   test("records prediction-kind guidance assessments beside the dimension slices", () => {

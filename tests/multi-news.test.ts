@@ -953,7 +953,7 @@ describe("multi-news", () => {
       "Tech roundup",
       "NVDA data-center demand rises",
     ]);
-    expect(result.newsAnalytics?.floorEligibleSelectedCount).toBe(0);
+    expect(result.newsAnalytics).not.toHaveProperty("floorEligibleSelectedCount");
   });
 
   test("still selects a snippet-only relevant source when it is not a repeat", async () => {

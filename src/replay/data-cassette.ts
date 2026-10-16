@@ -1,5 +1,5 @@
 import { readRecordedBody } from "./body-file";
-import { canonicalRequestUrl } from "../sources/cache";
+import { canonicalRequestUrl, isCredentialQueryParam } from "../sources/cache";
 import type { FetchLike } from "../sources/types";
 
 export interface DataCassetteEntry {
@@ -55,11 +55,7 @@ function requestUrl(input: string | URL | Request): string {
     return url;
   }
   for (const key of new Set(parsed.searchParams.keys())) {
-    if (
-      /^(?:api[-_]?key|api[-_]?token|access[-_]?token|token|key|secret|password|authorization)$/iu.test(
-        key,
-      )
-    ) {
+    if (isCredentialQueryParam(key)) {
       parsed.searchParams.delete(key);
     }
   }

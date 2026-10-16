@@ -34,7 +34,9 @@ interface CacheEntry {
 }
 
 const CACHE_KEY_VERSION = "v3";
-const CREDENTIAL_QUERY_PARAMS = new Set(["api_key", "api_token", "token", "access_token"]);
+// Cache keys must not embed credential values or a capture cannot replay under a fixture token.
+const CREDENTIAL_QUERY_PARAM =
+  /^(?:api[-_]?key|api[-_]?token|access[-_]?token|token|key|secret|password|authorization)$/iu;
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
@@ -79,6 +81,10 @@ function compareText(left: string, right: string): number {
   return 0;
 }
 
+export function isCredentialQueryParam(name: string): boolean {
+  return CREDENTIAL_QUERY_PARAM.test(name);
+}
+
 export function canonicalRequestUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -90,7 +96,7 @@ export function canonicalRequestUrl(url: string): string {
 
     const sorted = new URLSearchParams();
     [...parsed.searchParams.entries()]
-      .filter(([key]) => !CREDENTIAL_QUERY_PARAMS.has(key.toLowerCase()))
+      .filter(([key]) => !isCredentialQueryParam(key))
       .toSorted(([leftKey, leftValue], [rightKey, rightValue]) => {
         const keyOrder = compareText(leftKey, rightKey);
         return keyOrder === 0 ? compareText(leftValue, rightValue) : keyOrder;

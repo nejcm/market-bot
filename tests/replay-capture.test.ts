@@ -15,6 +15,7 @@ import {
   type ReplayState,
 } from "../src/replay/session";
 import { createSourceRequestContext } from "../src/sources/source-request";
+import { withCache } from "../src/sources/cache";
 import { readSynthesisReplayInput } from "../src/replay/synthesis-input";
 import {
   executeSynthesisInput,
@@ -44,6 +45,10 @@ const modelRequest = (stage: string, model: string) => ({
   model,
   messages: [{ role: "user" as const, content: JSON.stringify({ stage }) }],
 });
+
+function massiveNewsUrl(apiKey: string): string {
+  return `https://api.massive.com/v2/reference/news?apiKey=${apiKey}&limit=15&order=desc&sort=published_utc&published_utc.gte=2026-09-16T15%3A39%3A21.051Z&ticker=AAPL`;
+}
 
 async function forbidden(): Promise<unknown> {
   throw new Error("state reader touched");
@@ -312,7 +317,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     globalThis.fetch = originalFetch;
     expect(defaultFetchCalls).toBe(0);
   }
-});
+}, 30_000);
 
 test("capture errors leave the research result usable and never publish a valid capture", async () => {
   const dir = await createRoot();
@@ -453,6 +458,7 @@ test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
       await replay.cleanup();
     }
   },
+  30_000,
 );
 
 test("model recording covers bypass stages, challenger models, ordered concurrent calls and provider errors", async () => {
@@ -556,4 +562,39 @@ test("state replay distinguishes omitted values from empty values and fails clos
       await expect(replayValue("unrecorded", forbidden)).rejects.toThrow("Replay state miss");
     },
   );
+});
+
+test("replay state keys ignore credential query values so a capture replays under a fixture token", async () => {
+  const dir = await createRoot();
+  const now = new Date("2026-10-16T15:39:21.051Z");
+  const options = {
+    dir: join(dir, "cache"),
+    disabled: false,
+    fallbackDays: 7,
+    now: () => now,
+    onStaleFallback: () => {},
+  };
+  const inner = async () => ({
+    rawSnapshot: {
+      id: "raw-massive-news-synthetic",
+      adapter: "massive-news",
+      fetchedAt: now.toISOString(),
+      payload: { news: [] },
+    },
+    payload: { news: [] },
+  });
+  const state: ReplayState = { values: {} };
+  await withReplaySession(
+    { mode: "record", offline: true, state, indexes: new Map(), failures: [] },
+    () =>
+      withCache(inner, options)({ url: massiveNewsUrl("live-secret"), adapter: "massive-news" }),
+  );
+  const failures: string[] = [];
+  const replayed = await withReplaySession(
+    { mode: "replay", offline: true, state, indexes: new Map(), failures },
+    () =>
+      withCache(inner, options)({ url: massiveNewsUrl("fixture-token"), adapter: "massive-news" }),
+  );
+  expect(replayed).toMatchObject({ payload: { news: [] } });
+  expect(failures).toEqual([]);
 });

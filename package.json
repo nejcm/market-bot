@@ -1,6 +1,6 @@
 {
   "name": "market-bot",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Research-only CLI for sourced market updates, ticker briefs, observable predictions, and calibration",
   "keywords": [
     "bun",

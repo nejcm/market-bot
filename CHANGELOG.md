@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0](https://github.com/nejcm/market-bot/compare/v1.4.0...v1.5.0) (2026-10-17)
+
+### Features
+
+- **news:** same-day grace window and title/symbol floor (#106) ([b435cfe](https://github.com/nejcm/market-bot/commit/b435cfe540a1145ebe6c3b6bfbb8486eb386dfc8))
+
 ## [1.4.0](https://github.com/nejcm/market-bot/compare/v1.3.0...v1.4.0) (2026-10-16)
 
 ### Features

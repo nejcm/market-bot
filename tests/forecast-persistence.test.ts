@@ -44,6 +44,7 @@ describe("buildForecastPersistence", () => {
         report,
         baseline: {
           runId: "baseline-run",
+          depth: "brief",
           predictions: [
             { measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.65 },
             { measurableAs: "close(QQQ, +10) > close(QQQ, 0)", probability: 0.6 },
@@ -72,6 +73,7 @@ describe("buildForecastPersistence", () => {
         report,
         baseline: {
           runId: "baseline-run",
+          depth: "brief",
           predictions: [
             { measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.5 },
             { measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.24 },
@@ -99,6 +101,7 @@ describe("buildForecastPersistence", () => {
         report,
         baseline: {
           runId: "baseline-run",
+          depth: "brief",
           predictions: [{ measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.24 }],
         },
       }),
@@ -121,6 +124,7 @@ describe("buildForecastPersistence", () => {
         report,
         baseline: {
           runId: "baseline-run",
+          depth: "brief",
           predictions: [{ measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.65 }],
         },
       }),
@@ -145,6 +149,7 @@ describe("buildForecastPersistence", () => {
         report,
         baseline: {
           runId: "baseline-run",
+          depth: "brief",
           predictions: [{ measurableAs: "custom metric stays above threshold", probability: 0.55 }],
         },
       }),
@@ -163,7 +168,7 @@ describe("buildForecastPersistence", () => {
     expect(
       buildForecastPersistence({
         report,
-        baseline: { runId: "baseline-run", predictions: [] },
+        baseline: { runId: "baseline-run", depth: "brief", predictions: [] },
       }),
     ).toEqual({
       baselineRunId: "baseline-run",

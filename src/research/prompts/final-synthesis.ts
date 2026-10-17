@@ -34,7 +34,7 @@ const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
 const MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE = 10;
 const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
-const NEAR_BASE_RATE_PROBABILITY_RULE = `probability outside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band. A probability inside that band signals an uninformative claim: either commit to the probability the cited evidence actually supports, or choose a different observable claim with more resolving power. Never inflate a probability beyond the evidence just to leave the band`;
+const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band; replace or omit low-signal claims rather than shifting their probabilities`;
 
 function finalReportShape(
   command: ResearchCommand,
@@ -160,8 +160,8 @@ function buildForecastDiversityGuidance(
 // The slot would be wasted. Default output is unchanged for every path that keeps range.
 function buildPolarityGuidance(excludedKinds: readonly PredictionKind[]): string {
   return excludedKinds.includes("range")
-    ? ` The grammar only expresses up; to express a bearish view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up expression.`
-    : ` The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up/outside expression.`;
+    ? ` The grammar only expresses up; to express a bearish view, set probability below 0.5 on the up expression.`
+    : ` The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.`;
 }
 
 const RANGE_REFERENCE_MIN_CLOSES = 11;

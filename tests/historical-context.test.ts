@@ -9,6 +9,7 @@ import {
   loadHistoricalContext,
 } from "../src/research/historical-context";
 import { researchIdentityExtras } from "../src/research/research-subject-identity";
+import { withReplaySession } from "../src/replay/session";
 import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -744,13 +745,14 @@ describe("loadHistoricalContext", () => {
 });
 
 describe("findForecastPersistenceBaseline", () => {
-  test("picks the newest comparable prior run and projects its predictions", async () => {
+  test.each(["brief", "deep"] as const)("picks the newest comparable %s run", async (depth) => {
     const dataDir = tempRunsDir();
     await writeRun({
       dataDir,
       runDirName: "older-comparable",
       report: researchReport({
         runId: "older-comparable",
+        extras: { depth },
         jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
@@ -763,6 +765,7 @@ describe("findForecastPersistenceBaseline", () => {
       runDirName: "newest-comparable",
       report: researchReport({
         runId: "newest-comparable",
+        extras: { depth },
         jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
@@ -782,6 +785,7 @@ describe("findForecastPersistenceBaseline", () => {
       runDirName: "other-symbol",
       report: researchReport({
         runId: "other-symbol",
+        extras: { depth },
         jobType: "equity",
         assetClass: "equity",
         symbol: "MSFT",
@@ -793,6 +797,7 @@ describe("findForecastPersistenceBaseline", () => {
       runDirName: "after-current",
       report: researchReport({
         runId: "after-current",
+        extras: { depth },
         jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
@@ -800,10 +805,28 @@ describe("findForecastPersistenceBaseline", () => {
       }),
     });
 
+    for (const [runId, candidateDepth] of [
+      ["newer-other-depth", depth === "brief" ? "deep" : "brief"],
+      ["newer-unknown-depth", undefined],
+    ] as const) {
+      await writeRun({
+        dataDir,
+        runDirName: runId,
+        report: researchReport({
+          runId,
+          jobType: "equity",
+          assetClass: "equity",
+          symbol: "AAPL",
+          generatedAt: "2026-05-28T00:00:00.000Z",
+          extras: { depth: candidateDepth },
+        }),
+      });
+    }
     const reader = await createHistoricalContextReader(dataDir);
     const baseline = reader.findForecastPersistenceBaseline(
       researchReport({
         runId: "current",
+        extras: { depth },
         jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
@@ -813,12 +836,54 @@ describe("findForecastPersistenceBaseline", () => {
 
     expect(baseline).toEqual({
       runId: "newest-comparable",
+      depth,
       predictions: [{ measurableAs: "close(AAPL, +5) > close(AAPL, 0)", probability: 0.62 }],
     });
   });
 
+  test.each([
+    ["brief", "deep"],
+    ["deep", "brief"],
+    ["brief", undefined],
+    ["brief", "invalid"],
+    [undefined, "brief"],
+    ["invalid", "brief"],
+    [undefined, undefined],
+    ["invalid", "invalid"],
+  ])("omits a baseline for incompatible or unknown depths %s / %s", async (depth, priorDepth) => {
+    const dataDir = tempRunsDir();
+    const report = researchReport({
+      jobType: "equity",
+      symbol: "AAPL",
+      extras: { depth: priorDepth },
+      generatedAt: "2026-05-20T00:00:00.000Z",
+    });
+    await writeRun({ dataDir, runDirName: report.runId, report });
+    const reader = await createHistoricalContextReader(dataDir);
+
+    expect(
+      reader.findForecastPersistenceBaseline({
+        ...report,
+        runId: "current",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        extras: { depth },
+      }),
+    ).toBeUndefined();
+  });
+
   test("matches research runs on subject identity regardless of prediction count", async () => {
     const dataDir = tempRunsDir();
+    const xbiExtras = {
+      ...researchIdentityExtras({
+        jobType: "research",
+        assetClass: "equity",
+        subject: "ai biotech",
+        subjectKey: "ai-biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      }),
+      depth: "deep",
+    };
     await writeRun({
       dataDir,
       runDirName: "research-xbi",
@@ -828,14 +893,7 @@ describe("findForecastPersistenceBaseline", () => {
         assetClass: "equity",
         generatedAt: "2026-05-20T00:00:00.000Z",
         predictions: [],
-        extras: researchIdentityExtras({
-          jobType: "research",
-          assetClass: "equity",
-          subject: "ai biotech",
-          subjectKey: "ai-biotech",
-          predictionProxySymbol: "XBI",
-          depth: "deep",
-        }),
+        extras: xbiExtras,
       }),
     });
     await writeRun({
@@ -846,14 +904,17 @@ describe("findForecastPersistenceBaseline", () => {
         jobType: "research",
         assetClass: "equity",
         generatedAt: "2026-05-25T00:00:00.000Z",
-        extras: researchIdentityExtras({
-          jobType: "research",
-          assetClass: "equity",
-          subject: "semis",
-          subjectKey: "semiconductors",
-          predictionProxySymbol: "SMH",
+        extras: {
+          ...researchIdentityExtras({
+            jobType: "research",
+            assetClass: "equity",
+            subject: "semis",
+            subjectKey: "semiconductors",
+            predictionProxySymbol: "SMH",
+            depth: "deep",
+          }),
           depth: "deep",
-        }),
+        },
       }),
     });
 
@@ -864,19 +925,48 @@ describe("findForecastPersistenceBaseline", () => {
         jobType: "research",
         assetClass: "equity",
         generatedAt: "2026-06-01T00:00:00.000Z",
-        extras: researchIdentityExtras({
-          jobType: "research",
-          assetClass: "equity",
-          subject: "ai biotech",
-          subjectKey: "ai-biotech",
-          predictionProxySymbol: "XBI",
-          depth: "deep",
-        }),
+        extras: xbiExtras,
       }),
     );
 
-    expect(baseline).toEqual({ runId: "research-xbi", predictions: [] });
+    expect(baseline).toEqual({ runId: "research-xbi", depth: "deep", predictions: [] });
   });
+
+  test.each(["brief", "deep", undefined, "invalid"])(
+    "validates restored baseline depth %s",
+    async (depth) => {
+      const dataDir = tempRunsDir();
+      const report = researchReport({
+        jobType: "equity",
+        symbol: "AAPL",
+        extras: { depth: "brief" },
+        generatedAt: "2026-05-20T00:00:00.000Z",
+      });
+      await writeRun({ dataDir, runDirName: report.runId, report });
+      const current = { ...report, runId: "current", generatedAt: "2026-06-01T00:00:00.000Z" };
+      const reader = await createHistoricalContextReader(dataDir);
+      const baseline = reader.findForecastPersistenceBaseline(current);
+      expect(baseline?.depth).toBe("brief");
+
+      const restored = await withReplaySession(
+        {
+          mode: "replay",
+          state: {
+            values: { "forecast-persistence-baseline": [{ value: { ...baseline, depth } }] },
+          },
+          failures: [],
+          indexes: new Map(),
+          offline: true,
+        },
+        async () => {
+          const replayReader = await createHistoricalContextReader(dataDir);
+          return replayReader.findForecastPersistenceBaseline(current);
+        },
+      );
+
+      expect(restored).toEqual(depth === "brief" ? baseline : undefined);
+    },
+  );
 
   test("excludes market-update horizon-bucket mismatches and returns undefined without a match", async () => {
     const dataDir = tempRunsDir();
@@ -885,6 +975,7 @@ describe("findForecastPersistenceBaseline", () => {
       runDirName: "daily-market",
       report: researchReport({
         runId: "daily-market",
+        extras: { depth: "brief" },
         jobType: "daily",
         assetClass: "equity",
         generatedAt: "2026-05-20T00:00:00.000Z",
@@ -896,6 +987,7 @@ describe("findForecastPersistenceBaseline", () => {
       researchReport({
         runId: "current",
         jobType: "weekly",
+        extras: { depth: "brief" },
         assetClass: "equity",
         generatedAt: "2026-06-01T00:00:00.000Z",
       }),

@@ -31,11 +31,13 @@ export interface FilterSeenNewsOptions {
   readonly retentionDays: number;
   readonly command: ResearchCommand;
   readonly now: Date;
+  readonly graceMs: number;
 }
 
 export interface FilterSeenNewsResult {
   readonly newsSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
+  readonly graceExemptedNewsSourceCount: number;
 }
 
 export interface RecordSeenNewsOptions {
@@ -48,6 +50,8 @@ export interface RecordSeenNewsOptions {
 }
 
 const INDEX_VERSION = 1;
+
+export const NEWS_SEEN_GRACE_MS = DAY_MS;
 
 export function newsSeenLane(command: ResearchCommand): string {
   if (isInstrumentCommand(command)) {
@@ -68,6 +72,11 @@ function ageDays(now: Date, then: string): number {
 
 function isFresh(entry: NewsSeenEntry, now: Date, retentionDays: number): boolean {
   return ageDays(now, entry.lastSeenAt) <= retentionDays;
+}
+
+function isWithinGrace(entry: NewsSeenEntry, now: Date, graceMs: number): boolean {
+  const firstSeenAt = Date.parse(entry.firstSeenAt);
+  return Number.isFinite(firstSeenAt) && now.getTime() - firstSeenAt < graceMs;
 }
 
 function readEntry(value: unknown): NewsSeenEntry | undefined {
@@ -132,19 +141,29 @@ export async function filterSeenNewsSources(
 ): Promise<FilterSeenNewsResult> {
   const lane = newsSeenLane(options.command);
   const entries = await readNewsSeenEntries(options.path);
+  const freshEntries = entries.filter(
+    (entry) => entry.lane === lane && isFresh(entry, options.now, options.retentionDays),
+  );
+  const withinGrace = (entry: NewsSeenEntry): boolean =>
+    isWithinGrace(entry, options.now, options.graceMs);
+  const graceExemptedUrls = new Set(
+    freshEntries.filter((entry) => withinGrace(entry)).map((entry) => entry.canonicalUrl),
+  );
   const seen = new Set(
-    entries
-      .filter((entry) => entry.lane === lane && isFresh(entry, options.now, options.retentionDays))
-      .map((entry) => entry.canonicalUrl),
+    freshEntries.filter((entry) => !withinGrace(entry)).map((entry) => entry.canonicalUrl),
   );
 
   const newsSources = sources.filter((source) => {
     const canonicalUrl = toCanonical(source);
     return canonicalUrl === undefined || !seen.has(canonicalUrl);
   });
+  const graceExemptedNewsSourceCount = sources.filter((source) => {
+    const canonicalUrl = toCanonical(source);
+    return canonicalUrl !== undefined && graceExemptedUrls.has(canonicalUrl);
+  }).length;
 
   if (newsSources.length > 0 || sources.length === 0) {
-    return { newsSources, sourceGaps: [] };
+    return { newsSources, sourceGaps: [], graceExemptedNewsSourceCount };
   }
 
   const repeatFallback = sources.toSorted(newestFirst).slice(0, 1);
@@ -159,6 +178,7 @@ export async function filterSeenNewsSources(
         evidenceQualityImpact: "no-cap",
       }),
     ],
+    graceExemptedNewsSourceCount,
   };
 }
 

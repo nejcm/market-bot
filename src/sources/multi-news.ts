@@ -1,8 +1,8 @@
 import type { Source, SourceGap, SourceProviderAlias } from "../domain/sources";
 import { isInstrumentCommand } from "../cli/args";
 import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
-import { filterSeenNewsSources, newsSeenLane } from "./news-seen";
-import { isNewsRelevant } from "./news-relevance";
+import { filterSeenNewsSources, NEWS_SEEN_GRACE_MS, newsSeenLane } from "./news-seen";
+import { isNewsRelevant, isNewsRelevantByTitleOrSymbol } from "./news-relevance";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
 import { executeWebGatherTool } from "./web-gather-tools";
 import type { WebGatherSubject } from "./web-gather-emit";
@@ -284,6 +284,13 @@ function relevantNewsCount(
   return sources.filter((source) => isNewsRelevant(source, targets)).length;
 }
 
+function floorEligibleNewsCount(
+  sources: readonly Source[],
+  targets: readonly NewsRelevanceTarget[],
+): number {
+  return sources.filter((source) => isNewsRelevantByTitleOrSymbol(source, targets)).length;
+}
+
 // Deep runs demand a mostly-relevant slate; the floor is clamped by available relevant sources, so it never invents items.
 const DEEP_TICKER_RELEVANCE_RATIO = 0.75;
 
@@ -317,10 +324,8 @@ function keepRelevantSeenSources(args: {
   if (!isInstrumentCommand(command) || targets.length === 0) {
     return { pool: survivors, keptRelevantRepeat: [], gap: undefined };
   }
-  const relevantSurvivorCount = survivors.filter((source) =>
-    isNewsRelevant(source, targets),
-  ).length;
-  const availableRelevantCount = relevantNewsCount(dedupedSources, targets);
+  const relevantSurvivorCount = floorEligibleNewsCount(survivors, targets);
+  const availableRelevantCount = floorEligibleNewsCount(dedupedSources, targets);
   const requiredRelevantCount = Math.min(
     tickerRelevanceFloor(newsLimit, command.depth),
     availableRelevantCount,
@@ -341,7 +346,7 @@ function keepRelevantSeenSources(args: {
       return (
         canonical !== undefined &&
         !survivorCanonicals.has(canonical) &&
-        isNewsRelevant(source, targets)
+        isNewsRelevantByTitleOrSymbol(source, targets)
       );
     })
     .toSorted((left, right) => fetchedAtMs(right) - fetchedAtMs(left));
@@ -419,20 +424,29 @@ function selectRelevantFirst(
   limit: number,
   providerOrder: readonly string[],
   targets: readonly NewsRelevanceTarget[],
+  command: CollectContext["command"],
 ): readonly Source[] {
   if (targets.length === 0) {
     return selectRoundRobin(sources, limit, providerOrder);
   }
   const relevant = sources.filter((source) => isNewsRelevant(source, targets));
   const generic = sources.filter((source) => !isNewsRelevant(source, targets));
-  const selectedRelevant = selectRoundRobin(relevant, limit, providerOrder);
-  if (selectedRelevant.length >= limit) {
-    return selectedRelevant;
+  // Floor-eligible matches lead only for instrument runs, where selection must keep the relevance floor.
+  const tiers = isInstrumentCommand(command)
+    ? [
+        relevant.filter((source) => isNewsRelevantByTitleOrSymbol(source, targets)),
+        relevant.filter((source) => !isNewsRelevantByTitleOrSymbol(source, targets)),
+        generic,
+      ]
+    : [relevant, generic];
+  const selected: Source[] = [];
+  for (const tier of tiers) {
+    if (selected.length >= limit) {
+      break;
+    }
+    selected.push(...selectRoundRobin(tier, limit - selected.length, providerOrder));
   }
-  return [
-    ...selectedRelevant,
-    ...selectRoundRobin(generic, limit - selectedRelevant.length, providerOrder),
-  ];
+  return selected;
 }
 
 function assignSourceIds(sources: readonly Source[]): readonly Source[] {
@@ -620,8 +634,9 @@ export function createMultiNewsAdapter(
             retentionDays: ctx.newsSeenRetentionDays,
             command: ctx.command,
             now: new Date(ctx.fetchedAt),
+            graceMs: NEWS_SEEN_GRACE_MS,
           })
-        : { newsSources: dedupedSources, sourceGaps: [] };
+        : { newsSources: dedupedSources, sourceGaps: [], graceExemptedNewsSourceCount: 0 };
     const relevantAfterSeenFilterCount = relevantNewsCount(filtered.newsSources, targets);
     const relevantKeep = keepRelevantSeenSources({
       command: ctx.command,
@@ -632,7 +647,7 @@ export function createMultiNewsAdapter(
     });
     const repeatFallbackGaps = relevantKeep.gap === undefined ? [] : [relevantKeep.gap];
     const newsSources = assignSourceIds(
-      selectRelevantFirst(relevantKeep.pool, ctx.newsLimit, providerOrder, targets),
+      selectRelevantFirst(relevantKeep.pool, ctx.newsLimit, providerOrder, targets, ctx.command),
     );
     const relevantSelectedCount = relevantNewsCount(newsSources, targets);
     const repeatFallbackUsed = filtered.sourceGaps.some((gap) => isRepeatFallbackGap(gap));
@@ -652,12 +667,16 @@ export function createMultiNewsAdapter(
         canonicalDedupedNewsSourceCount: dedupedSources.length,
         canonicalDuplicateNewsSourceCount: fetchedNewsSourceCount - dedupedSources.length,
         persistentSuppressedNewsSourceCount,
+        graceExemptedNewsSourceCount: filtered.graceExemptedNewsSourceCount,
         relevantBeforeSeenFilterCount,
         relevantSuppressedBySeenFilterCount: Math.max(
           0,
           relevantBeforeSeenFilterCount - relevantAfterSeenFilterCount,
         ),
         relevantSelectedCount,
+        ...(isInstrumentCommand(ctx.command)
+          ? { floorEligibleSelectedCount: floorEligibleNewsCount(newsSources, targets) }
+          : {}),
         repeatFallbackKeptCount: repeatFallbackUsed ? filtered.newsSources.length : 0,
         relevantRepeatKeptCount: relevantKeep.keptRelevantRepeat.length,
         selectedNewsSourceCount: newsSources.length,

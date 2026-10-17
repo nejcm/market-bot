@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
-import { readNewsSeenEntries, recordSeenNewsSources } from "../src/sources/news-seen";
+import {
+  filterSeenNewsSources,
+  NEWS_SEEN_GRACE_MS,
+  readNewsSeenEntries,
+  recordSeenNewsSources,
+} from "../src/sources/news-seen";
 import { newsSource } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -125,5 +130,142 @@ describe("news seen index", () => {
 
     expect(entries.map((entry) => entry.canonicalUrl)).toEqual(["https://example.test/new"]);
     expect(readdirSync(dirname(path)).filter((entry) => entry.endsWith(".tmp"))).toEqual([]);
+  });
+
+  test("does not suppress a repeat first sighted within the grace window", async () => {
+    const path = tempSeenPath();
+    const command = legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" });
+    await recordSeenNewsSources({
+      path,
+      retentionDays: 30,
+      command,
+      runId: "run-1",
+      seenAt: "2026-05-20T11:00:00.000Z",
+      sources: [newsSource({ title: "Same-day story", url: "https://example.test/same-day" })],
+    });
+
+    const result = await filterSeenNewsSources(
+      [newsSource({ title: "Same-day story", url: "https://example.test/same-day" })],
+      {
+        path,
+        retentionDays: 30,
+        command,
+        now: new Date("2026-05-20T12:00:00.000Z"),
+        graceMs: NEWS_SEEN_GRACE_MS,
+      },
+    );
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.graceExemptedNewsSourceCount).toBe(1);
+    expect(result.sourceGaps).toEqual([]);
+  });
+
+  test("suppresses a repeat first seen 25 h ago but re-seen 1 h ago", async () => {
+    const path = tempSeenPath();
+    const command = legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" });
+    const repeated = newsSource({ title: "Daily repeat", url: "https://example.test/daily" });
+    const fresh = newsSource({ title: "New story", url: "https://example.test/new" });
+
+    await recordSeenNewsSources({
+      path,
+      retentionDays: 30,
+      command,
+      runId: "run-1",
+      seenAt: "2026-05-19T11:00:00.000Z",
+      sources: [repeated],
+    });
+    await recordSeenNewsSources({
+      path,
+      retentionDays: 30,
+      command,
+      runId: "run-2",
+      seenAt: "2026-05-20T11:00:00.000Z",
+      sources: [repeated],
+    });
+
+    const result = await filterSeenNewsSources([repeated, fresh], {
+      path,
+      retentionDays: 30,
+      command,
+      now: new Date("2026-05-20T12:00:00.000Z"),
+      graceMs: NEWS_SEEN_GRACE_MS,
+    });
+
+    expect(result.newsSources.map((source) => source.title)).toEqual(["New story"]);
+    expect(result.graceExemptedNewsSourceCount).toBe(0);
+  });
+
+  test("treats a repeat first sighted exactly at the grace boundary as suppressed", async () => {
+    const path = tempSeenPath();
+    const command = legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" });
+    const now = new Date("2026-05-20T12:00:00.000Z");
+    const atBoundary = newsSource({
+      title: "Boundary story",
+      url: "https://example.test/boundary",
+    });
+    const justInside = newsSource({ title: "Inside story", url: "https://example.test/inside" });
+    await recordSeenNewsSources({
+      path,
+      retentionDays: 30,
+      command,
+      runId: "run-1",
+      seenAt: new Date(now.getTime() - NEWS_SEEN_GRACE_MS).toISOString(),
+      sources: [atBoundary],
+    });
+    await recordSeenNewsSources({
+      path,
+      retentionDays: 30,
+      command,
+      runId: "run-2",
+      seenAt: new Date(now.getTime() - NEWS_SEEN_GRACE_MS + 1).toISOString(),
+      sources: [justInside],
+    });
+
+    const result = await filterSeenNewsSources([atBoundary, justInside], {
+      path,
+      retentionDays: 30,
+      command,
+      now,
+      graceMs: NEWS_SEEN_GRACE_MS,
+    });
+
+    expect(result.newsSources.map((source) => source.title)).toEqual(["Inside story"]);
+    expect(result.graceExemptedNewsSourceCount).toBe(1);
+  });
+
+  test("keeps suppression and grace scoped to the command lane", async () => {
+    const path = tempSeenPath();
+    const equityCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "brief",
+    });
+    const cryptoCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "crypto",
+      depth: "brief",
+    });
+    const source = newsSource({
+      title: "Lane story",
+      url: "https://example.test/lane",
+      assetClass: "crypto",
+    });
+    await recordSeenNewsSources({
+      path,
+      retentionDays: 30,
+      command: cryptoCommand,
+      runId: "run-1",
+      seenAt: "2026-05-20T11:00:00.000Z",
+      sources: [source],
+    });
+
+    const result = await filterSeenNewsSources([source], {
+      path,
+      retentionDays: 30,
+      command: equityCommand,
+      now: new Date("2026-05-20T12:00:00.000Z"),
+      graceMs: NEWS_SEEN_GRACE_MS,
+    });
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.graceExemptedNewsSourceCount).toBe(0);
   });
 });

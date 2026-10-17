@@ -119,9 +119,11 @@ export interface NewsCollectionAnalytics {
   readonly canonicalDedupedNewsSourceCount: number;
   readonly canonicalDuplicateNewsSourceCount: number;
   readonly persistentSuppressedNewsSourceCount: number;
+  readonly graceExemptedNewsSourceCount: number;
   readonly relevantBeforeSeenFilterCount: number;
   readonly relevantSuppressedBySeenFilterCount: number;
   readonly relevantSelectedCount: number;
+  readonly floorEligibleSelectedCount?: number;
   readonly repeatFallbackKeptCount: number;
   readonly relevantRepeatKeptCount?: number;
   readonly selectedNewsSourceCount: number;
@@ -129,6 +131,7 @@ export interface NewsCollectionAnalytics {
   readonly selectedGenericTickerNewsSourceCount?: number;
   readonly selectedRelevantMoverNewsSourceCount?: number;
   readonly selectedGenericMoverNewsSourceCount?: number;
+  // The all-suppressed one-repeat fallback; relevantRepeatKeptCount is the separate relevance-floor backfill.
   readonly repeatFallbackUsed: boolean;
 }
 

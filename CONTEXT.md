@@ -153,7 +153,7 @@ Deep-run uncertainty signal summarizing configured challenger-model probability 
 
 ## Forecast Persistence Telemetry
 
-Per-run comparison with the newest comparable prior run, counting repeated canonical claims and unchanged probabilities, plus `changedProbabilityCount` and `maxAbsProbabilityDelta`. It is descriptive Cross-run Intelligence only.
+Per-run comparison with the newest comparable prior run of the same known depth, counting repeated canonical claims and unchanged probabilities, plus `changedProbabilityCount` and `maxAbsProbabilityDelta`. Omitted when no matching baseline exists or the current depth is unknown. It is descriptive Cross-run Intelligence only; Historical Research Context selection remains independent of depth.
 
 ## Forecast Event
 
@@ -369,7 +369,11 @@ Fetched market, news, or reference item with an ID for claim citations.
 
 ## Relevant News Source
 
-News Source matching a News Relevance Target. If seen-dedupe removes all relevant instrument news while generic items remain, the newest relevant repeat is restored per instrument lane and disclosed as `repeat-fallback`.
+News Source matching a News Relevance Target. Same-day repeats stay visible through the Grace Window. A Source counts toward an instrument lane's min-relevant-keep floor only when the subject appears in its title or `source.symbol`; summary/snippet-only matches stay selectable but do not satisfy the floor. If seen-dedupe leaves the floor unmet, the newest qualifying repeats are restored up to it and disclosed as `repeat-fallback`.
+
+## Grace Window
+
+The 24 h exemption from seen-news suppression measured from an entry's `firstSeenAt`: a repeat first sighted less than 24 h before the run is not suppressed, so a same-day rerun of a lane still sees that day's news. Cross-day suppression stays: re-records keep the original `firstSeenAt`, so the exemption lapses 24 h after the first sighting.
 
 ## News Relevance Target
 
@@ -487,6 +491,8 @@ Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, 
 ## Business Framework Evidence
 
 Deterministic framework for Business, Phase, Moat, Growth, Management, Risk, and Valuation, persisted in `normalized/business-framework.json`. Its numbers are Metric Sections (`business-framework-<section>`, none for Management) referenced by each section's `metricSectionIds`; the framework keeps phase, posture, model text and qualitative gaps. It has neutral section postures and lifecycle labels; on deep web-enabled equity runs, Evidence Reconciliation may clear qualitative gaps but never numeric postures or phase.
+
+Brief runs retain the eleven profile-mapped qualitative gaps as `suppressed-by-design`, with text declaring that Web Subject Profile is excluded at brief depth. Analyst consensus remains an independent `provider-data-missing` gap.
 
 ## Metric Section
 

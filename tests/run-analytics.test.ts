@@ -344,9 +344,11 @@ describe("run analytics", () => {
         canonicalDedupedNewsSourceCount: 2,
         canonicalDuplicateNewsSourceCount: 1,
         persistentSuppressedNewsSourceCount: 1,
+        graceExemptedNewsSourceCount: 0,
         relevantBeforeSeenFilterCount: 0,
         relevantSuppressedBySeenFilterCount: 0,
         relevantSelectedCount: 0,
+        floorEligibleSelectedCount: 0,
         repeatFallbackKeptCount: 0,
         selectedNewsSourceCount: 1,
         repeatFallbackUsed: false,
@@ -448,9 +450,11 @@ describe("run analytics", () => {
       canonicalDedupedNewsSourceCount: 2,
       canonicalDuplicateNewsSourceCount: 1,
       persistentSuppressedNewsSourceCount: 1,
+      graceExemptedNewsSourceCount: 0,
       relevantBeforeSeenFilterCount: 0,
       relevantSuppressedBySeenFilterCount: 0,
       relevantSelectedCount: 0,
+      floorEligibleSelectedCount: 0,
       repeatFallbackKeptCount: 0,
       selectedNewsSourceCount: 1,
       repeatFallbackUsed: false,
@@ -475,7 +479,6 @@ describe("run analytics", () => {
       retryErrorCount: 1,
       validationErrorCount: 1,
       trimWarningCount: 1,
-      replacementAttempted: false,
       byKind: { direction: 1, iv: 1 },
       citedCount: 1,
       uncitedCount: 1,
@@ -575,6 +578,19 @@ describe("run analytics", () => {
       executedTools: ["sec_latest_filing"],
       emittedGapCount: 0,
     });
+  });
+
+  test("omits floor-eligible count when collection telemetry is absent", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport({ jobType: "equity", symbol: "AAPL" }),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.newsDedupe).not.toHaveProperty("floorEligibleSelectedCount");
   });
 
   test("records prediction-kind guidance assessments beside the dimension slices", () => {
@@ -745,15 +761,6 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.trimWarningCount).toBe(1);
     expect(result.validationErrorCount).toBe(0);
     expect(result.retryErrorCount).toBe(0);
-  });
-
-  test("retains legacy replacement telemetry", () => {
-    const result = predictionsFor([prediction({ id: "pred-1", sourceIds: ["src-1"] })], {
-      ...baseTrace,
-      predictionReplacementAttempted: true,
-    });
-
-    expect(result.replacementAttempted).toBe(true);
   });
 
   test("straddling set produces correct nearBaseRateCount and informativeCount", () => {

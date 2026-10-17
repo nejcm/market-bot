@@ -172,7 +172,6 @@ describe("runResearchJob prediction shortfall and redundancy", () => {
     expect(finalPrompts[0]?.predictionRepromptErrors).toBeUndefined();
     expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
     expect(result.trace.predictionTrimWarnings).toContain(redundancyReason);
-    expect(result.trace.predictionReplacementAttempted).toBeUndefined();
     expect(result.report.predictions).toHaveLength(3);
     expect(result.report.predictions.map((p) => p.id)).toEqual([
       "pred-1",

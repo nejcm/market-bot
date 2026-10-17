@@ -275,6 +275,7 @@ describe("runResearchJob pipeline stages", () => {
     await writeHistoricalRun({
       dataDir,
       runId: "prior-aapl-ticker",
+      depth: "deep",
       jobType: "equity",
       symbol: "AAPL",
       generatedAt: "2026-05-01T00:00:00.000Z",
@@ -293,6 +294,15 @@ describe("runResearchJob pipeline stages", () => {
           sourceIds: [],
         },
       ],
+    });
+    await writeHistoricalRun({
+      dataDir,
+      runId: "newer-aapl-brief",
+      depth: "brief",
+      jobType: "equity",
+      symbol: "AAPL",
+      generatedAt: "2026-05-15T00:00:00.000Z",
+      snapshots: marketSnapshots,
     });
     await writeHistoricalRun({
       dataDir,
@@ -346,6 +356,7 @@ describe("runResearchJob pipeline stages", () => {
 
     expect(prompts[0]?.stage).toBe("evidence-request");
     expect(evidencePrompt.evidence?.historicalContext?.runs?.map((run) => run.runId)).toEqual([
+      "newer-aapl-brief",
       "prior-daily-equity",
       "prior-aapl-ticker",
     ]);
@@ -356,9 +367,8 @@ describe("runResearchJob pipeline stages", () => {
       "history-report-prior-aapl-ticker",
     );
     expect(result.report.extras?.historicalContext).toBeDefined();
-    expect(result.trace.historicalContext?.selectedRunCount).toBe(2);
-    // Forecast Persistence Telemetry: prior-aapl-ticker is the newest comparable
-    // Prior run and shares one claim (same canonical measurableAs and probability).
+    expect(result.trace.historicalContext?.selectedRunCount).toBe(3);
+    // Persistence skips the newer brief run while prompt history retains it.
     expect(result.analytics.forecastPersistence).toEqual({
       baselineRunId: "prior-aapl-ticker",
       repeatedClaimCount: 1,

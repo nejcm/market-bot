@@ -54,6 +54,8 @@ import {
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import { formatMetricValue } from "../../../src/sources/extended-evidence/value-format";
 import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
+import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrument-identity";
+import { isNewsRelevantByTitleOrSymbol } from "../../../src/sources/news-relevance";
 import { parseArgs } from "../../../src/cli/args";
 import type { FixtureMeta, RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
@@ -154,6 +156,33 @@ export async function assertInvariants(
     result.markdown,
   );
   expect(await persisted(RUN_ARTIFACT_FILES.analytics)).toEqual(asWritten(result.analytics));
+  const command = parseArgs(meta.argv);
+  if (command.jobType === "equity" && result.collectedSources.newsAnalytics !== undefined) {
+    const name = deriveCanonicalInstrumentIdentity(
+      result.collectedSources.marketSnapshots,
+      command.symbol,
+    ).identity?.displayName;
+    const targets = [
+      {
+        symbol: command.symbol,
+        ...(name !== undefined ? { name } : {}),
+        allowLowercaseSymbolMention: true,
+      },
+    ];
+    expect(result.analytics.newsDedupe.floorEligibleSelectedCount).toBe(
+      result.collectedSources.newsSources.filter((source) =>
+        isNewsRelevantByTitleOrSymbol(source, targets),
+      ).length,
+    );
+  } else {
+    expect(result.analytics.newsDedupe).not.toHaveProperty("floorEligibleSelectedCount");
+  }
+  expect(result.analytics.predictions).not.toHaveProperty("replacementAttempted");
+  expect(result.trace).not.toHaveProperty("predictionReplacementAttempted");
+  expect(result.analytics.providerEndpointAvailability).toHaveProperty("massiveNews");
+  if (result.collectedSources.newsSources.some(({ provider }) => provider === "massive")) {
+    expect(result.analytics.providerEndpointAvailability?.massiveNews?.status).toBe("available");
+  }
   expect(await persisted(RUN_ARTIFACT_FILES.outcomes)).toEqual(asWritten(result.outcomes));
   if (result.deepEquityEvidenceBundle !== undefined) {
     expect(await persisted(RUN_ARTIFACT_FILES.evidenceBundle)).toEqual(

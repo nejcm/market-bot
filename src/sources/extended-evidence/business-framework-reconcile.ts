@@ -111,13 +111,13 @@ export function reconcileBusinessFramework(
   };
   return {
     artifact,
-    sourceGaps: frameworkGaps(framework.symbol, gaps),
+    sourceGaps: frameworkGaps(framework.symbol, gaps, "deep"),
   };
 }
 
 function unchanged(framework: BusinessFrameworkArtifact): ReconciliationResult {
   return {
     artifact: framework,
-    sourceGaps: frameworkGaps(framework.symbol, framework.gaps),
+    sourceGaps: frameworkGaps(framework.symbol, framework.gaps, "deep"),
   };
 }

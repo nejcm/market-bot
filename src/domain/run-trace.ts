@@ -163,8 +163,6 @@ export interface RunTrace {
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionTrimWarnings?: readonly string[];
-  /** Legacy artifacts only. */
-  readonly predictionReplacementAttempted?: boolean;
   readonly predictionErrors?: readonly string[];
   readonly earningsForecasts?: EarningsForecastTelemetry;
   readonly reportValidationRetryErrors?: readonly string[];

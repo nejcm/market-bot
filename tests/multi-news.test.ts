@@ -6,6 +6,7 @@ import { createMultiNewsAdapter } from "../src/sources/multi-news";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 import type { CollectContext, NewsAdapter } from "../src/sources/types";
 import type { Source } from "../src/domain/sources";
+import { legacyMarketOverviewCommand } from "./support/commands";
 
 const seenTmpDirs: string[] = [];
 
@@ -664,5 +665,316 @@ describe("multi-news", () => {
     expect(result.newsAnalytics?.selectedRelevantTickerNewsSourceCount).toBe(2);
     expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(2);
     expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
+  });
+
+  test("keeps a same-day lane rerun's selection visible through the grace window", async () => {
+    const newsSeenPath = tempSeenPath();
+    const relevant = {
+      ...source(
+        "a-relevant",
+        "provider-a",
+        "AAPL supplier demand rises",
+        "2026-06-01T11:00:00.000Z",
+      ),
+      url: "https://example.test/aapl-same-day",
+    };
+    const generic = {
+      ...source("b-generic", "provider-b", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+      url: "https://example.test/generic-same-day",
+    };
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", [relevant]), adapter("provider-b", [generic])],
+      ["provider-a", "provider-b"],
+    );
+
+    const first = await multi.collect({ ...context(), newsSeenPath, newsSeenRetentionDays: 30 });
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "first-run",
+      seenAt: context().fetchedAt,
+      sources: first.newsSources,
+    });
+
+    const second = await multi.collect({
+      ...context(),
+      fetchedAt: "2026-06-01T00:30:00.000Z",
+      newsSeenPath,
+      newsSeenRetentionDays: 30,
+    });
+
+    expect(second.newsSources.map((item) => item.title)).toEqual(
+      first.newsSources.map((item) => item.title),
+    );
+    expect(second.newsAnalytics).toMatchObject({
+      graceExemptedNewsSourceCount: first.newsSources.length,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantRepeatKeptCount: 0,
+      repeatFallbackUsed: false,
+    });
+  });
+
+  test("skips the seen filter without an index and reports zero grace exemptions", async () => {
+    const multi = createMultiNewsAdapter(
+      [
+        adapter("provider-a", [
+          source("a", "provider-a", "AAPL update", "2026-06-01T11:00:00.000Z"),
+        ]),
+      ],
+      ["provider-a"],
+    );
+
+    const withPathOnly = await multi.collect({ ...context(), newsSeenPath: tempSeenPath() });
+    const withRetentionOnly = await multi.collect({ ...context(), newsSeenRetentionDays: 30 });
+
+    for (const result of [withPathOnly, withRetentionOnly]) {
+      expect(result.newsAnalytics).toMatchObject({
+        graceExemptedNewsSourceCount: 0,
+        persistentSuppressedNewsSourceCount: 0,
+        relevantSuppressedBySeenFilterCount: 0,
+      });
+    }
+  });
+
+  test("restores only title or symbol matches toward the relevance floor", async () => {
+    const newsSeenPath = tempSeenPath();
+    const seenTitled = {
+      ...source(
+        "seen-titled",
+        "provider-a",
+        "AAPL supplier demand rises",
+        "2026-06-01T10:00:00.000Z",
+      ),
+      url: "https://example.test/seen-titled",
+    };
+    const seenSnippetOnly = {
+      ...source(
+        "seen-snippet",
+        "provider-a",
+        "New chip demand emerges",
+        "2026-06-01T09:00:00.000Z",
+      ),
+      summary: "Analysts mention AAPL in passing.",
+      url: "https://example.test/seen-snippet",
+    };
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: [seenTitled, seenSnippetOnly],
+    });
+    const generic = Array.from({ length: 4 }, (_, index) => ({
+      ...source(
+        `generic-${index}`,
+        "provider-b",
+        `Markets rise broadly ${index}`,
+        "2026-06-01T12:00:00.000Z",
+      ),
+      url: `https://example.test/generic-floor-${index}`,
+    }));
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", [seenTitled, seenSnippetOnly]), adapter("provider-b", generic)],
+      ["provider-a", "provider-b"],
+    );
+
+    const result = await multi.collect({ ...context(), newsSeenPath, newsSeenRetentionDays: 30 });
+
+    // Floor 2; only the title match is floor-eligible, so the deficit restores one repeat, not two.
+    expect(result.newsSources).toHaveLength(4);
+    const titles = result.newsSources.map((item) => item.title);
+    expect(titles).toContain("AAPL supplier demand rises");
+    expect(titles).not.toContain("New chip demand emerges");
+    expect(result.newsAnalytics).toMatchObject({
+      relevantRepeatKeptCount: 1,
+      relevantSuppressedBySeenFilterCount: 2,
+      persistentSuppressedNewsSourceCount: 2,
+    });
+    expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
+  });
+
+  test("does not let snippet-only survivors satisfy the relevance floor", async () => {
+    const newsSeenPath = tempSeenPath();
+    const seenRepeats = ["platform", "margin"].map((topic, index) => ({
+      ...source(
+        `seen-${topic}`,
+        "provider-a",
+        `AAPL ${topic} update`,
+        `2026-06-01T1${index}:00:00.000Z`,
+      ),
+      url: `https://example.test/seen-${topic}`,
+    }));
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: seenRepeats,
+    });
+    const snippetSurvivors = [
+      {
+        ...source("a-snippet", "provider-a", "Chip demand emerges", "2026-06-01T11:00:00.000Z"),
+        summary: "AAPL is mentioned in passing.",
+        url: "https://example.test/snippet-a",
+      },
+      {
+        ...source("a-snippet-b", "provider-a", "Cloud spend grows", "2026-06-01T10:30:00.000Z"),
+        snippet: "AAPL watch.",
+        url: "https://example.test/snippet-b",
+      },
+    ];
+    const generic = Array.from({ length: 4 }, (_, index) => ({
+      ...source(
+        `generic-${index}`,
+        "provider-b",
+        `Markets rise broadly ${index}`,
+        "2026-06-01T12:00:00.000Z",
+      ),
+      url: `https://example.test/generic-survivor-${index}`,
+    }));
+    const multi = createMultiNewsAdapter(
+      [
+        adapter("provider-a", [...seenRepeats, ...snippetSurvivors]),
+        adapter("provider-b", generic),
+      ],
+      ["provider-a", "provider-b"],
+    );
+
+    const result = await multi.collect({
+      ...context(),
+      newsLimit: 6,
+      newsSeenPath,
+      newsSeenRetentionDays: 30,
+    });
+
+    // Floor 3, but only two floor-eligible repeats exist, so both are restored; snippet-only survivors do not count.
+    expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(2);
+    const titles = result.newsSources.map((item) => item.title);
+    expect(titles).toContain("AAPL platform update");
+    expect(titles).toContain("AAPL margin update");
+    expect(titles).toContain("Chip demand emerges");
+    expect(titles).toContain("Cloud spend grows");
+    expect(result.newsAnalytics?.relevantSelectedCount).toBe(4);
+    expect(result.newsAnalytics?.floorEligibleSelectedCount).toBe(2);
+    expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
+  });
+
+  test("keeps floor-eligible repeats selected when summary-only survivors saturate the limit", async () => {
+    const newsSeenPath = tempSeenPath();
+    const seenTitled = ["platform", "margin"].map((topic, index) => ({
+      ...source(
+        `seen-${topic}`,
+        "provider-a",
+        `AAPL ${topic} update`,
+        `2026-06-01T0${index}:00:00.000Z`,
+      ),
+      url: `https://example.test/seen-${topic}`,
+    }));
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: seenTitled,
+    });
+    const snippetSurvivors = Array.from({ length: 4 }, (_, index) => ({
+      ...source(
+        `a-snippet-${index}`,
+        "provider-a",
+        `Chip demand emerges ${index}`,
+        `2026-06-01T1${index}:00:00.000Z`,
+      ),
+      summary: "AAPL is mentioned in passing.",
+      url: `https://example.test/snippet-saturate-${index}`,
+    }));
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", [...seenTitled, ...snippetSurvivors])],
+      ["provider-a"],
+    );
+
+    const result = await multi.collect({ ...context(), newsSeenPath, newsSeenRetentionDays: 30 });
+
+    // Floor 2 with limit 4: older restored title matches must survive selection against newer summary-only survivors.
+    expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(2);
+    expect(result.newsSources).toHaveLength(4);
+    const titles = result.newsSources.map((item) => item.title);
+    expect(titles).toContain("AAPL platform update");
+    expect(titles).toContain("AAPL margin update");
+    expect(titles.filter((title) => title.startsWith("AAPL "))).toHaveLength(2);
+  });
+
+  test("keeps broad relevance round-robin for non-instrument runs", async () => {
+    const aaplSummaryOnly = {
+      ...source("a-aapl", "provider-a", "Tech roundup", "2026-06-01T12:00:00.000Z"),
+      summary: "Apple Inc. and other vendors were mentioned.",
+      url: "https://example.test/tech-roundup",
+    };
+    const nvidia: Source[] = [
+      {
+        ...source(
+          "b-nvda",
+          "provider-b",
+          "NVDA data-center demand rises",
+          "2026-06-01T11:00:00.000Z",
+        ),
+        url: "https://example.test/nvda-1",
+      },
+      {
+        ...source(
+          "b-nvda-2",
+          "provider-b",
+          "NVIDIA launches a new platform",
+          "2026-06-01T10:00:00.000Z",
+        ),
+        url: "https://example.test/nvda-2",
+      },
+    ];
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", [aaplSummaryOnly]), adapter("provider-b", nvidia)],
+      ["provider-a", "provider-b"],
+    );
+
+    const result = await multi.collect({
+      ...context(),
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+      newsLimit: 2,
+      newsRelevanceTargets: [
+        { symbol: "AAPL", name: "Apple Inc." },
+        { symbol: "NVDA", name: "NVIDIA Corporation" },
+      ],
+    });
+
+    // Market-overview runs carry no floor: the summary-only mover story must keep its slot.
+    expect(result.newsSources.map((item) => item.title)).toEqual([
+      "Tech roundup",
+      "NVDA data-center demand rises",
+    ]);
+    expect(result.newsAnalytics).not.toHaveProperty("floorEligibleSelectedCount");
+  });
+
+  test("still selects a snippet-only relevant source when it is not a repeat", async () => {
+    const snippetOnly = {
+      ...source("a-snippet", "provider-a", "Chip demand emerges", "2026-06-01T11:00:00.000Z"),
+      summary: "The piece name-checks AAPL and its services growth.",
+      url: "https://example.test/snippet-select",
+    };
+    const generic = {
+      ...source("b-generic", "provider-b", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+      url: "https://example.test/generic-select",
+    };
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", [snippetOnly]), adapter("provider-b", [generic])],
+      ["provider-a", "provider-b"],
+    );
+
+    const result = await multi.collect({ ...context(), newsLimit: 1 });
+
+    expect(result.newsSources.map((item) => item.title)).toEqual(["Chip demand emerges"]);
+    expect(result.newsAnalytics?.selectedRelevantTickerNewsSourceCount).toBe(1);
+    expect(result.newsAnalytics?.floorEligibleSelectedCount).toBe(0);
   });
 });

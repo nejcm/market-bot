@@ -8,6 +8,7 @@ import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
   type AssetClass,
+  type Depth,
   type JobType,
 } from "../domain/job-type";
 import { type MarketSnapshot } from "../domain/market-data";
@@ -630,12 +631,11 @@ function comparableRunKey(run: HistoricalRunContext): string | undefined {
     : [withoutDay, run.generatedAt.slice(0, 10)].join("|");
 }
 
-// Newest comparable prior run (same day-less comparable-run key, generatedAt strictly
-// Before the current run) regardless of prediction count — the deterministic baseline
-// For Forecast Persistence Telemetry. A zero-prediction baseline yields zero repeats.
+// Newest prior run with the same identity and known depth, including zero-prediction runs.
 function findForecastPersistenceBaseline(
   scan: ScanResult,
   report: ResearchReport,
+  depth: Depth,
 ): ForecastPersistenceBaseline | undefined {
   const key = comparableRunKeyWithoutDay(reportComparableKeyFields(report));
   if (key === undefined) {
@@ -650,6 +650,7 @@ function findForecastPersistenceBaseline(
       (artifact) =>
         artifact.report.runId !== report.runId &&
         generatedAtMs(artifact) < currentMs &&
+        artifact.report.extras?.depth === depth &&
         comparableRunKeyWithoutDay(reportComparableKeyFields(artifact.report)) === key,
     )
     .toSorted(sortNewest)
@@ -659,6 +660,7 @@ function findForecastPersistenceBaseline(
   }
   return {
     runId: baseline.report.runId,
+    depth,
     predictions: baseline.report.predictions.map((prediction) => ({
       measurableAs: prediction.measurableAs,
       probability: prediction.probability,
@@ -890,10 +892,16 @@ export async function createHistoricalContextReader(
       replayValue(`history:${JSON.stringify(input.spotlightSymbols ?? null)}`, async () =>
         buildHistoricalContext({ ...input, dataDir }, scan),
       ),
-    findForecastPersistenceBaseline: (report) =>
-      replayValueSync("forecast-persistence-baseline", () =>
-        findForecastPersistenceBaseline(scan, report),
-      ),
+    findForecastPersistenceBaseline: (report) => {
+      const depth = report.extras?.depth;
+      if (depth !== "brief" && depth !== "deep") {
+        return undefined;
+      }
+      const baseline = replayValueSync("forecast-persistence-baseline", () =>
+        findForecastPersistenceBaseline(scan, report, depth),
+      );
+      return baseline?.depth === depth ? baseline : undefined;
+    },
   };
 }
 

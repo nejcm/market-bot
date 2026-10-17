@@ -25,8 +25,10 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   `predictionShortfall` with non-negative integer emitted/target/missing counts and `missing = target - emitted > 0`.
   Render canonical disclosure from counts, never a new `dataGaps` protocol. Tolerant readers adapt only
   anchored legacy `predictionShortfall: emitted N of T` text; conflicting/unparseable gaps stay verbatim.
-- Prompt primary synthesis outside the inclusive 0.40–0.60 Near-Base-Rate band without inflating probabilities
-  beyond evidence. In-band Predictions remain valid telemetry; never pad the target with coin flips.
+- Treat the inclusive 0.40–0.60 Near-Base-Rate band as claim-selection guidance: replace or omit low-signal
+  claims; kept Predictions carry the evidence-supported probability, even inside the band. In-band Predictions
+  remain valid telemetry; never pad the target with coin flips. (Amended 2026-10-17: previously prompted
+  probabilities outside the band, which flipped direction across frozen-input samples.)
 - Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical IDs; only primary
   probabilities are scored. Run-specific subject gates bind all predictions; thematic research scores only
   its resolved listed proxy and emits none without one.

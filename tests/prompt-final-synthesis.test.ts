@@ -575,7 +575,7 @@ describe("buildStagePrompt final-synthesis prediction steering", () => {
     const parsed = JSON.parse(buildPrompt()) as { readonly instruction?: string };
 
     expect(parsed.instruction).toContain(
-      "The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.40 on the up/outside expression.",
+      "The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.",
     );
   });
 

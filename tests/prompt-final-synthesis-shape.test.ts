@@ -65,7 +65,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
 
     expect(parsed.instruction).toContain("Do not write a claim field");
     expect(parsed.instruction).toContain(
-      "Every prediction must have probability outside the inclusive 0.40-0.60 near-base-rate band",
+      "Every prediction must have an evidence-supported probability, even inside the inclusive 0.40-0.60 near-base-rate band",
     );
     expect(parsed.instruction).not.toContain("never emit a coin-flip");
     expect(parsed.instruction).toContain("probability is the probability that the measurableAs");

@@ -127,6 +127,31 @@ describe("evaluateMetricSection", () => {
     expect(mixed.sourceGaps[0]?.triage).toBe("material");
   });
 
+  test("suppressed-by-design only when every missing metric is outside the price history window", () => {
+    const outsideWindowMetric: MetricDefinition = {
+      ...missingMetric,
+      id: "multiple",
+      label: "Multiple",
+      compute: () => ({
+        status: "missing",
+        reason: "price-history-unavailable",
+        cause: "outside-price-history-window",
+      }),
+    };
+    const gapFor = (definitions: readonly MetricDefinition[]) =>
+      evaluateMetricSection("s", "Section", definitions, CTX).sourceGaps[0];
+
+    expect(gapFor([valueMetric, notMeaningfulMetric, outsideWindowMetric])).toMatchObject({
+      cause: "suppressed-by-design",
+      triage: "diagnostic",
+    });
+    expect(gapFor([outsideWindowMetric, missingMetric])).toMatchObject({
+      cause: "provider-data-missing",
+      triage: "material",
+    });
+    expect(gapFor([missingMetric])?.cause).toBe("provider-data-missing");
+  });
+
   test("applicable short-circuits compute into not-applicable with no inputs", () => {
     let computed = 0;
     const gated: MetricDefinition = {

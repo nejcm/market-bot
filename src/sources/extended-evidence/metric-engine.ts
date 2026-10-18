@@ -207,7 +207,9 @@ function sectionGap(
     symbol,
     provider: "market-bot",
     capability: "extended-evidence",
-    cause: missing.length > 0 ? "provider-data-missing" : "suppressed-by-design",
+    cause: missing.some((metric) => metric.cause !== "outside-price-history-window")
+      ? "provider-data-missing"
+      : "suppressed-by-design",
     evidenceQualityImpact: "no-cap",
     triage: material ? "material" : "diagnostic",
   });

@@ -2264,6 +2264,12 @@ function assertValuationWorkbenchInvariants(
           ? "material"
           : "diagnostic",
       );
+      const missing = unresolved.filter(({ status }) => status === "missing");
+      expect(gap.cause).toBe(
+        missing.some(({ cause }) => cause !== "outside-price-history-window")
+          ? "provider-data-missing"
+          : "suppressed-by-design",
+      );
       for (const metric of unresolved) {
         expect(gap.message).toContain(metric.label);
       }

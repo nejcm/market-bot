@@ -44,6 +44,7 @@ describe("reproducibility fingerprints", () => {
       "glassnodeApiKey",
       "massiveApiKey",
       "exaApiKey",
+      "firecrawlApiKey",
       "secUserAgent",
     ] as const;
     const base = Object.fromEntries(secretFields.map((field) => [field, "value-a"]));

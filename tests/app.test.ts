@@ -1,16 +1,20 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AlphaSearchWorkflowResult } from "../src/alpha-search/workflow";
 import { runCli, scorePassOptions } from "../src/app";
+import * as codeVersionModule from "../src/code-version";
+import { runDeepEquity } from "../src/deep-equity";
+import type { RunResearchJobInput } from "../src/research/orchestrator";
 import type { ModelProvider } from "../src/model/types";
 import type { PersistedResearchJobResult } from "../src/research/orchestrator";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
 import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
 import { collectedSources, researchReport } from "./support/fixtures";
+import { config } from "./support/orchestrator-helpers";
 
 // Minimal run-quality analytics that renderRunAnalyticsConsole can summarize without
 // Throwing. These doubles cast the result through `unknown`, so full type fidelity is
@@ -383,6 +387,60 @@ describe("runCli", () => {
     expect(scoreTimestamps[1]?.getTime()).toBeGreaterThan(
       persistTimestamps[0]?.getTime() ?? Infinity,
     );
+  });
+
+  test("records the code version read before collection, not after a mid-run checkout", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-code-version-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    let head = "start";
+    const readCodeVersion = spyOn(codeVersionModule, "readCodeVersion").mockImplementation(() => ({
+      version: head,
+      commit: head,
+      dirty: false,
+    }));
+    const persisted: RunResearchJobInput[] = [];
+    const collectThenCheckout = async () => {
+      head = "after-checkout";
+      return collectedSources();
+    };
+    const persistAndStop = async (input: RunResearchJobInput): Promise<never> => {
+      persisted.push(input);
+      throw new Error("stop after persist input");
+    };
+    const provider: ModelProvider = {
+      name: "test",
+      generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+    };
+    try {
+      await expect(
+        runCli(["daily", "--asset", "equity"], {
+          createProvider: () => provider,
+          collectSources: collectThenCheckout,
+          persistResearchJob: persistAndStop,
+          runScorePass: async () => ({ scored: 0, skipped: 0, touchedRunDirs: [] }),
+          buildAndWriteCalibration: async () => null,
+          writeThroughRunArtifactIndex: async () => {},
+          rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+        }),
+      ).rejects.toThrow("stop after persist input");
+      head = "start";
+      await expect(
+        runDeepEquity(
+          {
+            command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+            config: { ...config, dataDir },
+          },
+          { provider, collectSources: collectThenCheckout, persistResearchJob: persistAndStop },
+        ),
+      ).rejects.toThrow("stop after persist input");
+    } finally {
+      readCodeVersion.mockRestore();
+    }
+    expect(persisted.map((input) => input.codeVersion?.commit)).toEqual(["start", "start"]);
   });
 
   test("indexes pre-run score mutations before a later collection failure", async () => {

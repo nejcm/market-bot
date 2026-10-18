@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAlphaRejectedCandidateFile } from "../src/alpha-search/cohorts";
 import { runAlphaSearchWorkflow } from "../src/alpha-search/workflow";
+import * as codeVersionModule from "../src/code-version";
 import type { AppConfig } from "../src/config";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { resetSourceResilienceForTests } from "../src/sources/source-request";
@@ -493,6 +494,34 @@ function unmappedSecFetchImpl(requestedUrls: string[]): FetchLike {
 }
 
 describe("alpha-search workflow", () => {
+  test("records the code version read before collection, not after a mid-run checkout", async () => {
+    let head = "start";
+    const readCodeVersion = spyOn(codeVersionModule, "readCodeVersion").mockImplementation(() => ({
+      version: head,
+      commit: head,
+      dirty: false,
+    }));
+    const collect = fetchImpl([]);
+    try {
+      const result = await runAlphaSearchWorkflow({
+        command: { jobType: "alpha-search", assetClass: "equity", depth: "brief" },
+        config: config(),
+        now: new Date("2026-06-01T00:00:00.000Z"),
+        fetchImpl: async (input, init) => {
+          head = "after-checkout";
+          return collect(input, init);
+        },
+        retryDelaysMs: [],
+      });
+      const analytics = JSON.parse(
+        await readFile(join(result.artifacts.runDir, "analytics.json"), "utf8"),
+      );
+      expect(analytics.codeVersion.commit).toBe("start");
+    } finally {
+      readCodeVersion.mockRestore();
+    }
+  });
+
   test("persists ApeWisdom-ranked Yahoo-validated research leads without predictions", async () => {
     const requestedUrls: string[] = [];
     const result = await runAlphaSearchWorkflow({

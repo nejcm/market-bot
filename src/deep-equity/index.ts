@@ -64,6 +64,7 @@ export async function runDeepEquity(
         provider: capturedDependencies.provider,
         collectedSources,
         sourcePlan,
+        ...runtime.codeState,
         now,
         ...(input.endClock !== undefined ? { endClock: input.endClock } : {}),
         ...(capturedDependencies.fetchImpl !== undefined

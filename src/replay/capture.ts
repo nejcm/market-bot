@@ -4,7 +4,8 @@ import type { ResearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type { ModelProvider } from "../model/types";
 import type { FetchLike } from "../sources/types";
-import { readCodeVersion } from "../code-version";
+import { readCodeVersion, type CodeVersion } from "../code-version";
+import { dirtySourceHash } from "../reproducibility";
 import { assertNoSecretsInText } from "./secret-scan";
 import { createRecordingFetch, type DataCassetteEntry } from "./data-cassette";
 import { createRecordingProvider, requestStage } from "./llm-cassette";
@@ -22,10 +23,20 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
     readonly fetchImpl?: FetchLike;
     readonly retryDelaysMs?: readonly number[];
   },
-  run: (runtime: { readonly provider: ModelProvider; readonly fetchImpl: FetchLike }) => Promise<T>,
+  run: (runtime: {
+    readonly provider: ModelProvider;
+    readonly fetchImpl: FetchLike;
+    readonly codeState: { readonly codeVersion: CodeVersion; readonly sourceStateHash?: string };
+  }) => Promise<T>,
 ): Promise<T> {
+  const codeVersion = readCodeVersion();
+  const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
+  const codeState = {
+    codeVersion,
+    ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
+  };
   if (input.config.captureReplay !== true) {
-    return run({ provider: input.provider, fetchImpl: input.fetchImpl ?? fetch });
+    return run({ provider: input.provider, fetchImpl: input.fetchImpl ?? fetch, codeState });
   }
   const secrets = [
     input.config.apiKey,
@@ -167,7 +178,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
           makeSynthesisReplayInput(
             checkpoint,
             llm.cassette(),
-            readCodeVersion(),
+            codeVersion,
             promptProvenance,
             baseline === undefined ? undefined : synthesisReplayFacts(baseline),
           ),
@@ -200,7 +211,9 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
     }
   };
   try {
-    const result = await withReplaySession(session, () => run({ provider, fetchImpl: http.fetch }));
+    const result = await withReplaySession(session, () =>
+      run({ provider, fetchImpl: http.fetch, codeState }),
+    );
     await publish(result.artifacts.runDir);
     return result;
   } catch (error) {

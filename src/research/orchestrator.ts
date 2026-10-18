@@ -2,7 +2,7 @@ import { buildModelStageRequest } from "./model-stage-prompt";
 import { finalizeSynthesis } from "./finalize-synthesis";
 import { replayValue, captureSynthesisInput } from "../replay/session";
 import type { AppConfig } from "../config";
-import { readCodeVersion } from "../code-version";
+import { readCodeVersion, type CodeVersion } from "../code-version";
 import { progress } from "../progress";
 import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
@@ -117,6 +117,9 @@ export interface RunResearchJobInput {
   // Identical plan from the command, since plan contents never depend on
   // Collection outcomes.
   readonly sourcePlan?: SourcePlanArtifactV2;
+  // Captured before collection so a checkout during a long run is not recorded.
+  readonly codeVersion?: CodeVersion;
+  readonly sourceStateHash?: string;
   readonly now?: Date;
   readonly endClock?: () => Date;
   readonly sourceFetchImpl?: FetchLike;
@@ -464,6 +467,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const generatedAt = now.toISOString();
   const completedAt = (): string => (input.endClock?.() ?? new Date()).toISOString();
   const runId = createRunId(now);
+  const codeVersion = input.codeVersion ?? readCodeVersion();
+  const sourceStateHash =
+    input.codeVersion === undefined && codeVersion.dirty
+      ? dirtySourceHash()
+      : input.sourceStateHash;
   const calibrationContext = await replayValue("calibration", () =>
     refreshCalibrationContext(input.config.dataDir, now),
   );
@@ -734,8 +742,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     }
 
     try {
-      const codeVersion = readCodeVersion();
-      const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
       const stageOutputs: readonly StageOutput[] = [
         ...evidenceLoop.stageOutputs,
         ...financialTableExtraction.stageOutputs,
@@ -833,8 +839,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     reportValidationErrors,
     relocatedGapClaims,
   } = synthesis;
-  const codeVersion = readCodeVersion();
-  const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
     ...financialTableExtraction.stageOutputs,

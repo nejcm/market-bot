@@ -6,6 +6,7 @@ import {
   formatEvalCompare,
   liveTokenEstimate,
   readEvalSummary,
+  unreplayableFixtureError,
   runEvalSample,
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
@@ -113,6 +114,14 @@ if (existsSync(evalLabelDir(EVALS_ROOT, label))) {
   throw new Error(
     `Eval label already exists; pick a new --label: ${evalLabelDir(EVALS_ROOT, label)}`,
   );
+}
+for (const fixture of fixtures) {
+  // oxlint-disable-next-line no-await-in-loop -- reject before any replay starts
+  const error = await unreplayableFixtureError(fixture);
+  if (error !== undefined) {
+    process.stderr.write(`${error}\n`);
+    process.exit(1);
+  }
 }
 
 if (liveStages !== undefined) {

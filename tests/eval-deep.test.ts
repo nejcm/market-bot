@@ -978,6 +978,7 @@ describe("frozen-input eval replay", () => {
       "dataGaps",
       "integrity",
       "postSynthesisAudit",
+      "synthesis",
     ]);
   });
 
@@ -1049,4 +1050,127 @@ describe("frozen-input eval replay", () => {
     expect(compare).toContain(`| ${FIXTURE} | predictions.count | 1 [0–2] | 4 [4–4] |`);
     expect(compare).toContain(`| ${FIXTURE} | status.threw | 0.50 [0–1] | 0 [0–0] |`);
   });
+
+  test("compares final-synthesis-only labels and rejects comparing across scopes", async () => {
+    const root = await tempRoot();
+    const fixtureSample = await runEvalSample({
+      root,
+      label: "fixtures",
+      fixture: FIXTURE,
+      sample: "1",
+      llm: "replay",
+    });
+    const fixtures = await writeEvalSummary(root, "fixtures");
+    const writeLabel = async (
+      label: string,
+      samples: (Record<string, unknown> | undefined)[],
+      dirs = samples.map((_, index) => `/moved/${label}/${String(index + 1)}`),
+    ) => {
+      for (const [index, sample] of samples.entries()) {
+        await mkdir(join(root, label, String(index + 1)), { recursive: true });
+        await writeFile(
+          join(root, label, String(index + 1), "eval-sample.json"),
+          JSON.stringify(
+            sample === undefined
+              ? {}
+              : {
+                  modelCalls: { replayed: 0, live: 1 },
+                  modelReplayMisses: [],
+                  metrics: { calls: 1 },
+                  ...sample,
+                },
+          ),
+        );
+      }
+      await writeFile(
+        join(root, label, "summary.json"),
+        JSON.stringify({ scope: "final-synthesis-only", samples: dirs.map((dir) => ({ dir })) }),
+      );
+    };
+    await writeLabel("base", [
+      { status: "completed", durationMs: 10, tokens: { replayed: 0, live: 100 } },
+      { status: "failed", durationMs: 30, tokens: { replayed: 0, live: 300 } },
+      undefined,
+    ]);
+    await writeLabel("next", [
+      { status: "completed", durationMs: 20, tokens: { replayed: 0, live: 50 } },
+    ]);
+    await writeFile(
+      join(root, "base", "1", "report.json"),
+      await readFile(join(fixtureSample.runDir!, "report.json")),
+    );
+    await writeFile(
+      join(root, "base", "1", "validation.json"),
+      JSON.stringify({
+        integrity: {
+          reportIntegrity: "medium",
+          prunedItemCount: 1,
+          pruned: [{ location: "keyFindings[2]" }],
+          advisories: [],
+        },
+      }),
+    );
+    const base = await readEvalSummary(root, "base");
+    expect(base.samples.map((sample) => sample.status)).toEqual([
+      "completed",
+      "failed-final-synthesis",
+      "incomplete",
+    ]);
+    const compare = formatEvalCompare(base, await readEvalSummary(root, "next"));
+    expect(compare).toContain(
+      "| final-synthesis-only | modelTokens.live | 200 [100–300] (n=2/3) | 50 [50–50] |",
+    );
+    expect(compare).toContain(
+      "| final-synthesis-only | durationMs | 20 [10–30] (n=2/3) | 20 [20–20] |",
+    );
+    expect(compare).toContain(
+      "| final-synthesis-only | synthesis.calls | 1 [1–1] (n=2/3) | 1 [1–1] |",
+    );
+    expect(compare).toMatch(
+      /\| final-synthesis-only \| predictions\.count \| \d+ \[\d+–\d+\] \(n=1\/3\) \| — \(n=0\/1\) \|/u,
+    );
+    expect(compare).toContain(
+      "| final-synthesis-only | integrity.label.medium | 1 [1–1] (n=1/3) | — (n=0/1) |",
+    );
+    expect(compare).toContain(
+      "| final-synthesis-only | integrity.pruned.keyFindings | 1 [1–1] (n=1/3) | — (n=0/1) |",
+    );
+
+    await writeFile(
+      join(root, "next", "1", "validation.json"),
+      JSON.stringify({
+        integrity: { reportIntegrity: "high", prunedItemCount: 0, advisories: [null] },
+      }),
+    );
+    expect((await readEvalSummary(root, "next")).samples[0]!.unavailable).toContain("integrity");
+
+    await writeLabel("escape", [undefined], ["/moved/.."]);
+    await expect(readEvalSummary(root, "escape")).rejects.toThrow("Eval path segment must match");
+
+    expect(() => formatEvalCompare(fixtures, base)).toThrow(
+      "Cannot compare eval labels of different scopes: fixtures (fixtures) vs base (final-synthesis-only)",
+    );
+  });
+
+  test.each([
+    {
+      script: "eval-deep.ts",
+      args: ["--fixtures", "equity-amd-deep", "--label", `incomplete-${String(process.pid)}`],
+    },
+    { script: "replay-fixture-run.ts", args: ["equity-amd-deep", "--live"] },
+  ])(
+    "$script rejects an incomplete fixture before any replay or output",
+    async ({ script, args }) => {
+      const child = Bun.spawn([process.execPath, "run", `scripts/${script}`, ...args], {
+        cwd: join(import.meta.dir, ".."),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      expect(await child.exited).toBe(1);
+      expect(await new Response(child.stderr).text()).toBe(
+        'Fixture equity-amd-deep is not replayable: replayClassification "incomplete"\n',
+      );
+      expect(await new Response(child.stdout).text()).toBe("");
+    },
+  );
 });

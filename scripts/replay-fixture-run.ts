@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import {
   EVALS_ROOT,
   liveTokenEstimate,
+  unreplayableFixtureError,
   runEvalSample,
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
@@ -20,6 +21,11 @@ if (flags.includes("--yes") && !live) {
   throw new Error("--yes only applies to --live");
 }
 if (live) {
+  const error = await unreplayableFixtureError(fixtureName);
+  if (error !== undefined) {
+    process.stderr.write(`${error}\n`);
+    process.exit(1);
+  }
   const { recorded, perRun } = await liveTokenEstimate(fixtureName);
   process.stdout.write(
     `Planned: 1 live-LLM run of ${fixtureName}, recorded cassette ${String(recorded)} tokens, planning ~${String(perRun)}\n`,

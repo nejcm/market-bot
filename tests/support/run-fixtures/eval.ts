@@ -37,6 +37,7 @@ import { EVALS_ROOT } from "../../../src/replay/eval-output";
 export { EVALS_ROOT } from "../../../src/replay/eval-output";
 const EVAL_SAMPLE_FILE = "eval-sample.json";
 const SUMMARY_FILE = "summary.json";
+const SYNTHESIS_SCOPE = "final-synthesis-only";
 const MAX_RAW_RESPONSE_CHARS = 20_000;
 const PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
@@ -69,6 +70,7 @@ const METRIC_GROUPS = [
   "sourceGaps",
   "integrity",
   "postSynthesisAudit",
+  "synthesis",
 ] as const;
 type MetricGroup = (typeof METRIC_GROUPS)[number];
 
@@ -117,6 +119,7 @@ interface EvalSampleMetrics {
 
 interface EvalSummary {
   readonly label: string;
+  readonly scope?: typeof SYNTHESIS_SCOPE;
   readonly samples: readonly EvalSampleMetrics[];
 }
 
@@ -540,10 +543,132 @@ export async function writeEvalSummary(root: string, label: string): Promise<Eva
   return summary;
 }
 
+interface SynthesisSampleRecord {
+  readonly status: "completed" | "failed";
+  readonly durationMs: number;
+  readonly modelCalls: EvalSampleRecord["modelCalls"];
+  readonly tokens: EvalSampleRecord["tokens"];
+  readonly modelReplayMisses: readonly string[];
+  readonly metrics: Readonly<Record<string, number>>;
+}
+
+function isCounts(value: unknown): value is { readonly replayed: number; readonly live: number } {
+  return isRecord(value) && typeof value.replayed === "number" && typeof value.live === "number";
+}
+
+function isSynthesisSampleRecord(value: unknown): value is SynthesisSampleRecord {
+  return (
+    isRecord(value) &&
+    (value.status === "completed" || value.status === "failed") &&
+    typeof value.durationMs === "number" &&
+    isCounts(value.modelCalls) &&
+    isCounts(value.tokens) &&
+    Array.isArray(value.modelReplayMisses) &&
+    isRecord(value.metrics) &&
+    Object.values(value.metrics).every((metric) => typeof metric === "number")
+  );
+}
+
+function isIntegrityAudit(value: unknown): value is Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    typeof value.reportIntegrity === "string" &&
+    typeof value.prunedItemCount === "number" &&
+    (value.advisories === undefined ||
+      (Array.isArray(value.advisories) &&
+        value.advisories.every(
+          (advisory) => isRecord(advisory) && typeof advisory.code === "string",
+        )))
+  );
+}
+
+async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetrics> {
+  const sample = basename(sampleDir);
+  const file = await readJsonFile(join(sampleDir, EVAL_SAMPLE_FILE));
+  const record =
+    file.status === "ok" && isSynthesisSampleRecord(file.value) ? file.value : undefined;
+  if (record === undefined) {
+    return {
+      fixture: SYNTHESIS_SCOPE,
+      sample,
+      status: "incomplete",
+      cassetteMissKeys: [],
+      modelReplayMissKeys: [],
+      metrics: { "status.incomplete": 1 },
+      unavailable: METRIC_GROUPS,
+    };
+  }
+  const status = record.status === "failed" ? "failed-final-synthesis" : record.status;
+  const metrics: Record<string, number> = {
+    [`status.${status}`]: 1,
+    durationMs: record.durationMs,
+    modelReplayMisses: record.modelReplayMisses.length,
+    "modelCalls.replayed": record.modelCalls.replayed,
+    "modelCalls.live": record.modelCalls.live,
+    "modelTokens.replayed": record.tokens.replayed,
+    "modelTokens.live": record.tokens.live,
+  };
+  for (const [key, value] of Object.entries(record.metrics)) {
+    metrics[`synthesis.${key}`] = value;
+  }
+  const available = new Set<MetricGroup>([
+    "durationMs",
+    "modelReplayMisses",
+    "modelCalls",
+    "modelTokens",
+    "synthesis",
+  ]);
+  const { artifact } = await loadRunArtifact(sampleDir);
+  if (artifact !== undefined) {
+    reportMetrics(artifact, metrics);
+    available.add("predictions").add("citations").add("dataGaps");
+  }
+  const validation = await readJsonFile(join(sampleDir, "validation.json"));
+  const audit =
+    validation.status === "ok" && isRecord(validation.value)
+      ? validation.value.integrity
+      : undefined;
+  if (isIntegrityAudit(audit)) {
+    analyticsMetrics(
+      {
+        reportIntegrity: {
+          label: audit.reportIntegrity,
+          prunedItemCount: audit.prunedItemCount,
+          advisories: audit.advisories,
+        },
+      } as Partial<RunAnalytics>,
+      metrics,
+    );
+    prunedMetrics({ reportIntegrityAudit: audit }, metrics);
+    available.add("integrity");
+  }
+  return {
+    fixture: SYNTHESIS_SCOPE,
+    sample,
+    status,
+    cassetteMissKeys: [],
+    modelReplayMissKeys: record.modelReplayMisses,
+    metrics,
+    unavailable: METRIC_GROUPS.filter((group) => !available.has(group)),
+  };
+}
+
 export async function readEvalSummary(root: string, label: string): Promise<EvalSummary> {
-  return JSON.parse(
-    await readFile(join(evalLabelDir(root, label), SUMMARY_FILE), "utf8"),
-  ) as EvalSummary;
+  const labelDir = evalLabelDir(root, label);
+  const summary = JSON.parse(await readFile(join(labelDir, SUMMARY_FILE), "utf8")) as {
+    readonly scope?: string;
+    readonly samples: readonly unknown[];
+  };
+  if (summary.scope !== SYNTHESIS_SCOPE) {
+    return summary as EvalSummary;
+  }
+  // Summary dirs are absolute at write time; resolve them under this label so moved labels still read.
+  const samples = [];
+  for (const { dir } of summary.samples as readonly { dir: string }[]) {
+    // oxlint-disable-next-line no-await-in-loop -- small, ordered sample list
+    samples.push(await synthesisSampleMetrics(join(labelDir, pathSegment(basename(dir)))));
+  }
+  return { label, scope: SYNTHESIS_SCOPE, samples };
 }
 
 function formatNumber(value: number): string {
@@ -578,6 +703,11 @@ function cell(samples: readonly EvalSampleMetrics[], metric: string): string {
 }
 
 export function formatEvalCompare(base: EvalSummary, next: EvalSummary): string {
+  if (base.scope !== next.scope) {
+    throw new Error(
+      `Cannot compare eval labels of different scopes: ${base.label} (${base.scope ?? "fixtures"}) vs ${next.label} (${next.scope ?? "fixtures"})`,
+    );
+  }
   const fixtures = [
     ...new Set([...base.samples, ...next.samples].map((s) => s.fixture)),
   ].toSorted();
@@ -609,6 +739,13 @@ export function formatEvalCompare(base: EvalSummary, next: EvalSummary): string 
       ? ""
       : `Selected-stage evaluation (${selectedStages.join(", ")}): other model reasoning stays recorded; source requests are cassette-only.\n\n`;
   return `${scope}${lines.join("\n")}\n`;
+}
+
+export async function unreplayableFixtureError(fixture: string): Promise<string | undefined> {
+  const { replayClassification } = (await loadFixture(fixture)).meta;
+  return replayClassification === "incomplete"
+    ? `Fixture ${fixture} is not replayable: replayClassification "${replayClassification}"`
+    : undefined;
 }
 
 export async function liveTokenEstimate(

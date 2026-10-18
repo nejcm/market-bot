@@ -61,7 +61,8 @@ refresh production Calibration/history/index/news-seen state. Their `eval-sample
 partial scope, duration, call counts and errors. Stage replay also stores current requests,
 validated report/Markdown, synthesis attempts, audit diagnostics, token groups and semantic fact
 deltas against the captured baseline; failures exit nonzero. Direct-input eval summaries have
-phase-only scope; inspect their per-sample facts rather than the pipeline-only `--compare` view.
+phase-only scope: `--compare` shows status, durations, call/token counts and report-derived
+predictions, citations, data gaps and integrity, and refuses to compare them with fixture labels.
 Report Rerun recomputes projections/renderers from stored derived evidence, not the original
 collector calculations. Missing required normalized inputs fail; explicit null retains absence.
 Older runs without a complete Final-Synthesis Input cannot use direct stage replay. Direct replay
@@ -296,7 +297,8 @@ recorded selected output, with another 25% headroom. This is a planning estimate
 provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
 differ from preflight. A zero-call preflight is disclosed. Only recorded fixtures
 (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real upstream
-outputs; AMD remains incomplete as described below.
+outputs; AMD remains incomplete as described below, and `eval-deep` rejects `incomplete` fixtures
+before any replay.
 
 The existing estimate-first workflow still applies: inspect the estimate, obtain explicit approval
 for that batch, then use the same invocation with `--yes`. No additional spending entry point was

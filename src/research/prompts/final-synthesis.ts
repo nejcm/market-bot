@@ -10,7 +10,6 @@ import {
   MIN_PREDICTION_HORIZON_TRADING_DAYS,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "../../forecast/observable";
-import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
 import { EVIDENCE_POSTURE_LABELS } from "../post-synthesis-audit";
 import type { StageLabel } from "../prompt-loader";
@@ -42,8 +41,6 @@ function finalReportShape(
   depthProfile: DepthProfile,
   hasEarningsSetup: boolean,
   hasBusinessFramework: boolean,
-  hasWebSubjectProfile: boolean,
-  webSubjectKind: ReturnType<typeof subjectKindForCommand>,
   hasSpotlightSelection: boolean,
   excludedKinds: readonly PredictionKind[] = [],
 ): Record<string, unknown> {
@@ -78,11 +75,6 @@ function finalReportShape(
             },
           ],
         },
-      }
-    : {};
-  const webSubjectProfileShape = hasWebSubjectProfile
-    ? {
-        webSubjectProfile: webSubjectProfileRequiredShape(webSubjectKind ?? "company"),
       }
     : {};
   return {
@@ -124,7 +116,6 @@ function finalReportShape(
         : {}),
       ...earningsSetupShape,
       ...businessFrameworkShape,
-      ...webSubjectProfileShape,
     },
   };
 }
@@ -348,11 +339,11 @@ function buildPrimaryPredictionInstruction(
       : "";
   const profileEvidence = options.webSubjectProfileEvidence ?? {
     projected: true,
-    path: "evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile",
+    path: "evidence.webSubjectProfile",
   };
   const webSubjectProfileInstruction =
     hasWebSubjectProfile && profileEvidence.projected
-      ? ` A cited Web Subject Profile is in ${profileEvidence.path}. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects.`
+      ? ` A cited Web Subject Profile is in ${profileEvidence.path}. It is read-only and code-assembled into extras.webSubjectProfile; do not author that key. Treat web evidence as low-trust context only: put claims resting on the profile or fresh web sources in keyFindings, risks, catalysts, bullCase, or bearCase with their web sourceIds, disclose gaps, and do not let web content widen the run symbol or prediction subjects.`
       : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
   return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(collectedSources, excludedKinds)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
@@ -429,7 +420,6 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
   const hasBusinessFramework =
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
-  const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
   const hasSpotlightSelection =
     isMarketUpdateJobType(command.jobType) &&
     (context.spotlightSelection?.selected.length ?? 0) > 0;
@@ -443,8 +433,6 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     context.depthProfile,
     hasEarningsSetup,
     hasBusinessFramework,
-    hasWebSubjectProfile,
-    subjectKindForCommand(command),
     hasSpotlightSelection,
   );
   return assembleStagePrompt({

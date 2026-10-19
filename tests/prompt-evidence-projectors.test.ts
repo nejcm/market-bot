@@ -544,6 +544,40 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(parsed.instruction).not.toContain("Reused web subject profile");
   });
 
+  test("final-synthesis does not ask the model to author the code-assembled profile", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const prompt = stagePromptFromArgs(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        webSubjectProfile: webProfileForProjection,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly requiredShape?: { readonly extras?: Record<string, unknown> };
+      readonly evidence?: { readonly webSubjectProfile?: unknown };
+    };
+    expect(parsed.evidence?.webSubjectProfile).toBeDefined();
+    expect(parsed.instruction).toContain(
+      "A cited Web Subject Profile is in evidence.webSubjectProfile.",
+    );
+    expect(parsed.requiredShape?.extras).toBeDefined();
+    expect(parsed.requiredShape?.extras).not.toHaveProperty("webSubjectProfile");
+    expect(parsed.instruction).toContain("do not author that key");
+    expect(parsed.instruction).toContain("keyFindings, risks, catalysts, bullCase, or bearCase");
+  });
+
   test("final-synthesis steers against restating the reused-profile staleness gap", () => {
     const command: ResearchCommand = {
       jobType: "equity",

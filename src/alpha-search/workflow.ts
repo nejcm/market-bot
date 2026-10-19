@@ -2,7 +2,7 @@ import { createRunId, publishRunArtifacts, type RunArtifactPaths } from "../arti
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import { progress } from "../progress";
-import { readCodeVersion } from "../code-version";
+import { readCodeVersion, type CodeVersion } from "../code-version";
 import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
 import { type KeyFinding, type ResearchReport } from "../domain/report";
 import { type RunTrace, type SourceTextResearchOnlySummary } from "../domain/run-trace";
@@ -355,9 +355,10 @@ function buildTrace(input: {
   readonly completedAt: string;
   readonly sourceGaps: readonly SourceGap[];
   readonly report: ResearchReport;
+  readonly codeVersion: CodeVersion;
+  readonly sourceStateHash: string | undefined;
 }): RunTrace {
-  const codeVersion = readCodeVersion();
-  const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
+  const { codeVersion, sourceStateHash } = input;
   return {
     schemaVersion: 2,
     runId: input.runId,
@@ -470,6 +471,8 @@ export async function runAlphaSearchWorkflow(input: {
   const now = input.now ?? new Date();
   const startedAt = now.toISOString();
   const runId = createRunId(now);
+  const codeVersion = readCodeVersion();
+  const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   const { alphaSearchOptions } = input.config;
   const rankedCandidateLimit = Math.max(
     alphaSearchOptions.topCandidateLimit,
@@ -593,6 +596,8 @@ export async function runAlphaSearchWorkflow(input: {
     completedAt,
     sourceGaps,
     report,
+    codeVersion,
+    sourceStateHash,
   });
   const analytics = buildAlphaSearchAnalytics({
     report,

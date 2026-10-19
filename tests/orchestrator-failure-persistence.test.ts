@@ -308,4 +308,42 @@ describe("Failed Run Artifact persistence", () => {
       await rm(stage, { recursive: true, force: true });
     }
   });
+
+  test("records the code version captured before collection on success and rejection", async () => {
+    const codeState = {
+      codeVersion: { version: "0.0.0-captured", commit: "c".repeat(40), dirty: true },
+      sourceStateHash: "captured-source-hash",
+    };
+    const successDir = tempDataDir("market-bot-captured-code-success");
+    const result = await persistResearchJob({
+      command,
+      config: { ...config, dataDir: successDir },
+      provider: providerReturningFinal(modelPayload("Captured code version run.")),
+      collectedSources: sources(),
+      ...codeState,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const analytics = JSON.parse(
+      await readFile(join(result.artifacts.runDir, "analytics.json"), "utf8"),
+    );
+    expect(analytics.codeVersion).toEqual(codeState.codeVersion);
+    expect(analytics.reproducibility.dirtySourceHash).toBe(codeState.sourceStateHash);
+    expect(result.trace.codeVersion).toEqual(codeState.codeVersion);
+
+    const failedDir = tempDataDir("market-bot-captured-code-failed");
+    await expect(
+      persistResearchJob({
+        command,
+        config: { ...config, dataDir: failedDir },
+        provider: providerReturningFinal(modelPayload("Buy AAPL after catalyst.")),
+        collectedSources: sources(),
+        ...codeState,
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      }),
+    ).rejects.toBeInstanceOf(FinalSynthesisRejectedError);
+    const [runId] = await readdir(failedDir);
+    const failure = JSON.parse(await readFile(join(failedDir, runId!, "failure.json"), "utf8"));
+    expect(failure.codeVersion).toEqual(codeState.codeVersion);
+    expect(failure.sourceStateHash).toBe(codeState.sourceStateHash);
+  });
 });

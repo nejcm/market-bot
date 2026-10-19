@@ -443,6 +443,7 @@ export async function runFixture(
           provider: runtime.provider,
           collectedSources,
           sourcePlan,
+          ...runtime.codeState,
           now,
           endClock: () => now,
           sourceFetchImpl: runtime.fetchImpl,

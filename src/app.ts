@@ -507,6 +507,7 @@ async function runStandardResearch(input: {
         provider: runtime.provider,
         collectedSources,
         sourcePlan,
+        ...runtime.codeState,
         sourceFetchImpl: runtime.fetchImpl,
         now: input.invokedAt,
       });

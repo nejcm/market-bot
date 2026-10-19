@@ -7,6 +7,7 @@ Bun + TypeScript CLI that turns public market data into sourced research artifac
 - [CONTEXT.md](./CONTEXT.md) — domain glossary. Use its terms (Observable Prediction, Source Gap, Run Artifact, Web Gather, Extended Evidence, Domain Playbook, Miss Autopsy, Calibration) verbatim; don't paraphrase them into generic finance words.
 - [docs/architecture.md](./docs/architecture.md) — layout, subsystems, data flow. The map lives there, not here.
 - [docs/conventions.md](./docs/conventions.md) — code style, testing, commits.
+- [docs/how-it-works.md](./docs/how-it-works.md) — end-to-end flow and full command reference.
 - [docs/configuration.md](./docs/configuration.md) — env vars.
 - [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index.
 
@@ -73,6 +74,7 @@ Retest a change against saved run data instead of a fresh live run. Pick the nar
 - `<run>/replay/` exists only for runs made with `MARKET_BOT_CAPTURE_REPLAY=1`. Older runs support `rerun-report` only; they never stored request URLs or model identities.
 - Replay is strict: a missing or exhausted recording fails the sample and blocks later live calls. A miss after a parser or query change means the recorded request no longer matches — recapture, don't loosen replay.
 - Outputs go under `data/evals/<label>/` (fresh label each time) or a temp dir; original runs are never touched. Replays still don't replace `bun run check`.
+- Judging a live-run delta: [docs/run-variance-baseline.md](./docs/run-variance-baseline.md) has same-code noise bands (AMD `--deep`) and a command to check whether they still apply.
 
 Always fine: `bun test`, `bun run check`, fixture replays without `--live`, `scripts/eval-deep.ts` / `replay-fixture-run.ts --live` without `--yes` (prints the plan only), `eval-deep.ts --compare`, reading anything under `data/runs/` or `data/evals/`.
 
@@ -86,6 +88,10 @@ Failed final-synthesis runs leave `failure.json`, `outcomes.json`, `rejected-rep
 
 To find a cached payload, filter by adapter: `jq -r 'select(.adapter=="sec-companyfacts") | "\(input_filename) \(.payload.cik) \(.payload.entityName)"' data/cache/<date>/*.json`. Filenames are request-fingerprint hashes; neither cache entries nor `raw/snapshots.json` record the request URL.
 
+Every run records `codeVersion` (package version, git branch/commit, dirty flag) in `trace.json`, `analytics.json`, and `failure.json` — check it before comparing runs across commits.
+
+Outside `data/`, `.reviews/` (run-review output), `TODO.md`, and `plans/` are gitignored working files, none a repo record.
+
 `prompts/` holds the model stage prompts and Domain Playbooks — a stage's behavior is usually changed there, not in `src/`.
 
 ## Hit every surface
@@ -94,7 +100,13 @@ The recurring defect is a change that lands only on the path you tested (see `68
 
 SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a sweep delta with `bun run sweep:sec`.
 
-**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the fixture invariants (`tests/equity-fixture/run.test.ts` and `tests/support/run-fixtures/assertions.ts`, replayed by `bun run check` for every listed fixture; there are no output snapshots, so a behavior worth keeping needs its own assertion — [ADR 0005](./docs/adr/0005-testing-and-replay.md); `bun run scripts/replay-fixture-run.ts <name>` — a fixture name, not a path — prints a replayed run directory to read; prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`, refreshed with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "fixture invariants unaffected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
+**Every change, not just the ones below:** before calling a task done, check whether these need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "fixture invariants unaffected because Z"):
+
+- Svelte Research Console — `app/client/**`.
+- Fixture invariants — `tests/equity-fixture/run.test.ts` and `tests/support/run-fixtures/assertions.ts`, replayed by `bun run check` for every listed fixture. There are no output snapshots, so a behavior worth keeping needs its own assertion ([ADR 0005](./docs/adr/0005-testing-and-replay.md)). `bun run scripts/replay-fixture-run.ts <fixture-name | <run>/replay>` prints a replayed run directory to read.
+- Prompt baseline — prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`; refresh with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`.
+
+The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
 
 **A new evidence field or report section:**
 

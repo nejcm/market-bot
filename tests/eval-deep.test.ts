@@ -158,12 +158,10 @@ describe("final-synthesis-only live provider", () => {
       },
     );
 
-    expect((await provider.generate(stageRequest("critique", "live-quick"))).content).toBe(
-      '{"recorded":1}',
-    );
-    expect((await provider.generate(stageRequest("final-synthesis", "live-sol"))).content).toBe(
-      '{"live":1}',
-    );
+    const recorded = await provider.generate(stageRequest("critique", "live-quick"));
+    expect(recorded.content).toBe('{"recorded":1}');
+    const live = await provider.generate(stageRequest("final-synthesis", "live-sol"));
+    expect(live.content).toBe('{"live":1}');
     expect(liveModels).toEqual(["live-sol"]);
     await expect(provider.generate(stageRequest("critique", "live-quick"))).rejects.toThrow(
       "LLM cassette miss for critique|recorded-quick call 2",
@@ -273,10 +271,12 @@ describe("final-synthesis-only live provider", () => {
       expect(estimate.observedCalls).toBe(fixtureName === "equity-earnings-release-deep" ? 2 : 1);
       expect(estimate.maxInputTokens).toBeGreaterThan(1000);
       expect(estimate.perRun).toBeGreaterThanOrEqual(7 * perCall * 1.25);
+      expect(estimate.expectedPerRun).toBeGreaterThanOrEqual(estimate.observedCalls! * perCall);
+      expect(estimate.expectedPerRun).toBeLessThan(estimate.perRun);
     }
-    expect(
-      (await liveTokenEstimate("equity-nbis-deep", "final-synthesis")).perRun,
-    ).toBeGreaterThanOrEqual(437_500);
+    const synthetic = await liveTokenEstimate("equity-nbis-deep", "final-synthesis");
+    expect(synthetic.perRun).toBeGreaterThanOrEqual(437_500);
+    expect(synthetic.expectedPerRun).toBeGreaterThanOrEqual(synthetic.observedCalls! * 50_000);
   });
 
   test("fails the run without a live call when an upstream stage swallows a replay miss", async () => {
@@ -539,12 +539,14 @@ describe("selected-stage evaluation", () => {
     expect(estimate.observedCalls).toBe(1);
     expect(estimate.boundedCalls).toBe(1);
     expect(estimate.perRun).toBeGreaterThanOrEqual(62_500);
+    expect(estimate.perRun).toBe(Math.ceil(1.25 * estimate.expectedPerRun!));
     expect(estimate.recorded).toBe(
       fixture.llmCassette.entries["critique|fixture-quick"]![0]!.tokenEstimate,
     );
     const off = await liveTokenEstimate("equity-aapl-brief", "web-gather");
     expect(off.observedCalls).toBe(0);
     expect(off.perRun).toBe(0);
+    expect(off.expectedPerRun).toBe(0);
     await expect(
       liveTokenEstimate("does-not-exist", "critique,final-synthesis" as LiveStage),
     ).rejects.toThrow("Select exactly one supported live stage");
@@ -1142,7 +1144,8 @@ describe("frozen-input eval replay", () => {
         integrity: { reportIntegrity: "high", prunedItemCount: 0, advisories: [null] },
       }),
     );
-    expect((await readEvalSummary(root, "next")).samples[0]!.unavailable).toContain("integrity");
+    const nextSummary = await readEvalSummary(root, "next");
+    expect(nextSummary.samples[0]!.unavailable).toContain("integrity");
 
     await writeLabel("escape", [undefined], ["/moved/.."]);
     await expect(readEvalSummary(root, "escape")).rejects.toThrow("Eval path segment must match");

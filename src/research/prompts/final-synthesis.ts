@@ -33,7 +33,7 @@ const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
 const MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE = 10;
 const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
-const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band; replace or omit low-signal claims rather than shifting their probabilities`;
+const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band; do not shade a probability to just outside the band to clear it`;
 
 function finalReportShape(
   command: ResearchCommand,
@@ -140,8 +140,12 @@ function buildForecastDiversityGuidance(
     shapes.push("earnings-direction or earnings-move (event-anchored)");
   }
   shapes.push("conditional (if-then when evidence supports a setup)");
+  const referencedHorizons =
+    buildRangeVolatilityReference(collectedSources, excludedKinds) === ""
+      ? ""
+      : ` The range reference already carries ±1σ bands at ${RANGE_REFERENCE_HORIZONS.map((horizon) => `+${String(horizon)}`).join(", ")} trading days, so a non-redundant further forecast may be the same kind at another referenced horizon rather than a new kind.`;
 
-  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
+  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.${referencedHorizons} A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
 }
 
 // The observable grammar only ever asserts the positive side of a comparison, so a bearish or

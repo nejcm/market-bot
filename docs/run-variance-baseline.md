@@ -6,6 +6,10 @@ controlled-warm band (Band 2). Deltas that fall inside the ranges below are
 single-run noise unless corroborated by independent evidence. Treat the ranges
 as stale once any path in the command below changes after the baseline commit.
 
+**Status: stale.** As of 2026-10-19 the watch list returns 100+ changed files
+against `87aa497`, `prompts/` included. Treat every band below as historical
+until three fresh live `equity AMD --deep` runs re-record it (needs approval).
+
 Cold-start Band 1 was not recorded. Three runs were authorized, not six.
 
 - Commit: `87aa497da528` (`docs(adr): align 0004 completeness wording…`), clean
@@ -31,6 +35,7 @@ Check whether this baseline still applies with one command:
 
 ```sh
 git diff --name-only 87aa497..HEAD -- \
+  prompts \
   src/research/prompts \
   src/research/final-synthesis.ts \
   src/web-evidence \
@@ -55,7 +60,9 @@ omission is `src/research/run-analytics.ts`, which produces nearly every row bel
 `src/domain/equity-analysis-completeness.ts` (`coverageLevel` and
 `operatingKpis`), and `src/research/deterministic-gaps.ts` (declared Source
 Gaps) have not drifted versus `0110528` yet; they are on the list because they
-feed recorded rows. The other added paths have drifted.
+feed recorded rows. The other added paths have drifted. Top-level `prompts/`
+(stage prompts and Domain Playbooks) was added later: it steers synthesis as
+directly as `src/research/prompts`.
 
 ## Isolation
 
@@ -98,12 +105,15 @@ was checked with before/after snapshots of file counts and newest mtimes for
 `data/calibration`, and `data/history`. All three runs produced zero drift in
 the real `data/` (`data/cache` held at exactly 1520 files throughout).
 
-`effectiveConfigHash` differs per run. That is expected, not drift.
-Run 1 `4842dfd1cd22`, run 2 `9f5daf07f760`, run 3 `905f98863831`. The hash
-(`src/reproducibility.ts:35`) covers the whole non-secret config, including
+`effectiveConfigHash` differs per run in this band. That is expected, not
+drift. Run 1 `4842dfd1cd22`, run 2 `9f5daf07f760`, run 3 `905f98863831`. When
+these were recorded the hash covered the whole non-secret config, including
 `dataDir` / `cacheDir` / `newsSeenPath`, which differ per throwaway root by
-design. Per-run throwaway roots make an identical config hash unobtainable. Do
-not read this divergence as config drift.
+design. The hash (`src/reproducibility.ts`) now excludes behavior-neutral keys —
+storage paths (`dataDir`, `cacheDir`, `newsSeenPath`, `peerUniverseLearnedPath`,
+index `dbPath`) and `captureReplay` — so a rerun in per-run throwaway roots on
+one config shares one hash. `promptDir` is still hashed. Do not compare these
+historical hashes with post-change ones.
 
 ## Observed metrics
 

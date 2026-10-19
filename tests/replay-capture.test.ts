@@ -213,6 +213,12 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(estimate.observedCalls).toBe(1);
     expect(estimate.maxInputTokens).toBeGreaterThan(1000);
     expect(estimate.perRun).toBeGreaterThan(estimate.maxInputTokens);
+    expect(estimate.expectedPerRun).toBe(
+      Object.values(saved.responses.entries)
+        .flat()
+        .reduce((sum, response) => sum + response.tokenEstimate, 0),
+    );
+    expect(estimate.expectedPerRun).toBeLessThan(estimate.perRun);
     const fake = makeReplayProvider(saved.responses);
     const live = await replaySynthesisFile({
       input: file,

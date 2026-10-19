@@ -58,6 +58,39 @@ describe("reproducibility fingerprints", () => {
     );
   });
 
+  test("ignores storage paths and replay capture but keeps promptDir", () => {
+    const base = {
+      captureReplay: false,
+      dataDir: "data/runs",
+      promptDir: "prompts",
+      sourceOptions: {
+        cacheDir: "data/cache",
+        newsSeenPath: "data/news-seen.json",
+        peerUniverseLearnedPath: "data/peer-universe-learned.json",
+      },
+      indexOptions: { dbPath: "data/index.sqlite", disabled: false },
+    };
+    const baseline = effectiveConfigHash(base);
+
+    expect(
+      effectiveConfigHash({
+        ...base,
+        captureReplay: true,
+        dataDir: "/tmp/root/runs",
+        sourceOptions: {
+          cacheDir: "/tmp/root/cache",
+          newsSeenPath: "/tmp/root/news-seen.json",
+          peerUniverseLearnedPath: "/tmp/root/peer-universe-learned.json",
+        },
+        indexOptions: { dbPath: "/tmp/root/index.sqlite", disabled: false },
+      }),
+    ).toBe(baseline);
+    expect(effectiveConfigHash({ ...base, promptDir: "/tmp/prompts" })).not.toBe(baseline);
+    expect(
+      effectiveConfigHash({ ...base, indexOptions: { ...base.indexOptions, disabled: true } }),
+    ).not.toBe(baseline);
+  });
+
   test("changes with dirty source state and excludes ignored secrets", async () => {
     const dir = await mkdtemp(join(tmpdir(), "market-bot-repro-"));
     try {

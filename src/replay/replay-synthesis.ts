@@ -193,6 +193,7 @@ export async function estimateSynthesisFile(input: string): Promise<{
   readonly boundedCalls: number;
   readonly maxInputTokens: number;
   readonly perRun: number;
+  readonly expectedPerRun: number;
 }> {
   const saved = readSynthesisReplayInput(JSON.parse(await readFile(input, "utf8")));
   const requests: ModelRequest[] = [];
@@ -212,5 +213,8 @@ export async function estimateSynthesisFile(input: string): Promise<{
     boundedCalls,
     maxInputTokens,
     perRun: Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25),
+    expectedPerRun: Object.values(saved.responses.entries)
+      .flat()
+      .reduce((sum, response) => sum + response.tokenEstimate, 0),
   };
 }

@@ -136,6 +136,22 @@ describe("range volatility reference", () => {
     expect(reference(rangeReferenceCloses(10))).not.toContain("Range reference");
     expect(kindMixSynthesisInstruction(command)).not.toContain("Range reference");
   });
+
+  test("deep diversity guidance points at referenced horizons only when the reference renders", () => {
+    const deep: ResearchCommand = { ...command, depth: "deep" };
+    const horizonHint =
+      "The range reference already carries ±1σ bands at +1, +5, +10, +20 trading days, so a non-redundant further forecast may be the same kind at another referenced horizon";
+    const withCloses = (count: number) =>
+      kindMixSynthesisInstruction(deep, {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          recentCloses: rangeReferenceCloses(count),
+        }),
+      });
+
+    expect(withCloses(21)).toContain(horizonHint);
+    expect(withCloses(10)).not.toContain(horizonHint);
+    expect(reference(rangeReferenceCloses(21))).not.toContain(horizonHint);
+  });
 });
 
 describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {

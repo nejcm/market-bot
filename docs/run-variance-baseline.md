@@ -105,15 +105,15 @@ was checked with before/after snapshots of file counts and newest mtimes for
 `data/calibration`, and `data/history`. All three runs produced zero drift in
 the real `data/` (`data/cache` held at exactly 1520 files throughout).
 
-`effectiveConfigHash` differs per run in this band. That is expected, not
-drift. Run 1 `4842dfd1cd22`, run 2 `9f5daf07f760`, run 3 `905f98863831`. When
-these were recorded the hash covered the whole non-secret config, including
-`dataDir` / `cacheDir` / `newsSeenPath`, which differ per throwaway root by
-design. The hash (`src/reproducibility.ts`) now excludes behavior-neutral keys —
-storage paths (`dataDir`, `cacheDir`, `newsSeenPath`, `peerUniverseLearnedPath`,
-index `dbPath`) and `captureReplay` — so a rerun in per-run throwaway roots on
-one config shares one hash. `promptDir` is still hashed. Do not compare these
-historical hashes with post-change ones.
+`effectiveConfigHash` differs per run. That is expected, not drift.
+Run 1 `4842dfd1cd22`, run 2 `9f5daf07f760`, run 3 `905f98863831`. The hash
+(`src/reproducibility.ts`) covers the non-secret config, including `dataDir` /
+`cacheDir` / `newsSeenPath`, which differ per throwaway root by design. Those
+roots feed calibration, prior-run context, cached payloads, and news
+suppression, so they stay hashed; per-run throwaway roots make an identical
+config hash unobtainable. Only output-only keys (`captureReplay`, index
+`dbPath`) are excluded, and that exclusion postdates this band, so do not
+compare these hashes with post-change ones.
 
 ## Observed metrics
 

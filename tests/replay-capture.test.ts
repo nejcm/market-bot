@@ -356,9 +356,10 @@ test("capture errors leave the research result usable and never publish a valid 
     },
   );
   expect(result.value).toBe("research survived");
-  expect(await readdir(artifacts.runDir)).toContain("capture-failure.json");
-  expect(await readdir(artifacts.runDir)).not.toContain("replay");
-  expect((await readdir(artifacts.runDir)).some((name) => name.startsWith(".replay-"))).toBe(false);
+  const runDirEntries = await readdir(artifacts.runDir);
+  expect(runDirEntries).toContain("capture-failure.json");
+  expect(runDirEntries).not.toContain("replay");
+  expect(runDirEntries.some((name) => name.startsWith(".replay-"))).toBe(false);
   expect(JSON.parse(await readFile(join(artifacts.runDir, "report.json"), "utf8"))).toEqual({
     preserved: true,
   });

@@ -271,12 +271,12 @@ describe("final-synthesis-only live provider", () => {
       expect(estimate.observedCalls).toBe(fixtureName === "equity-earnings-release-deep" ? 2 : 1);
       expect(estimate.maxInputTokens).toBeGreaterThan(1000);
       expect(estimate.perRun).toBeGreaterThanOrEqual(7 * perCall * 1.25);
-      expect(estimate.expectedPerRun).toBeGreaterThanOrEqual(estimate.observedCalls! * perCall);
+      expect(estimate.expectedPerRun).toBeGreaterThan(estimate.maxInputTokens!);
       expect(estimate.expectedPerRun).toBeLessThan(estimate.perRun);
     }
     const synthetic = await liveTokenEstimate("equity-nbis-deep", "final-synthesis");
     expect(synthetic.perRun).toBeGreaterThanOrEqual(437_500);
-    expect(synthetic.expectedPerRun).toBeGreaterThanOrEqual(synthetic.observedCalls! * 50_000);
+    expect(synthetic.expectedPerRun).toBeLessThan(synthetic.perRun);
   });
 
   test("fails the run without a live call when an upstream stage swallows a replay miss", async () => {
@@ -539,7 +539,13 @@ describe("selected-stage evaluation", () => {
     expect(estimate.observedCalls).toBe(1);
     expect(estimate.boundedCalls).toBe(1);
     expect(estimate.perRun).toBeGreaterThanOrEqual(62_500);
-    expect(estimate.perRun).toBe(Math.ceil(1.25 * estimate.expectedPerRun!));
+    const critiqueEntry = fixture.llmCassette.entries["critique|fixture-quick"]![0]!;
+    expect(estimate.expectedPerRun).toBe(
+      Math.max(
+        critiqueEntry.tokenEstimate,
+        inputTokens + Math.ceil(critiqueEntry.content.length / 4),
+      ),
+    );
     expect(estimate.recorded).toBe(
       fixture.llmCassette.entries["critique|fixture-quick"]![0]!.tokenEstimate,
     );

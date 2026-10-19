@@ -58,7 +58,7 @@ describe("reproducibility fingerprints", () => {
     );
   });
 
-  test("ignores storage paths and replay capture but keeps promptDir", () => {
+  test("ignores output-only keys but keeps input roots and promptDir", () => {
     const base = {
       captureReplay: false,
       dataDir: "data/runs",
@@ -76,19 +76,22 @@ describe("reproducibility fingerprints", () => {
       effectiveConfigHash({
         ...base,
         captureReplay: true,
-        dataDir: "/tmp/root/runs",
-        sourceOptions: {
-          cacheDir: "/tmp/root/cache",
-          newsSeenPath: "/tmp/root/news-seen.json",
-          peerUniverseLearnedPath: "/tmp/root/peer-universe-learned.json",
-        },
         indexOptions: { dbPath: "/tmp/root/index.sqlite", disabled: false },
       }),
     ).toBe(baseline);
-    expect(effectiveConfigHash({ ...base, promptDir: "/tmp/prompts" })).not.toBe(baseline);
-    expect(
-      effectiveConfigHash({ ...base, indexOptions: { ...base.indexOptions, disabled: true } }),
-    ).not.toBe(baseline);
+    for (const changed of [
+      { ...base, promptDir: "/tmp/prompts" },
+      { ...base, dataDir: "/tmp/root/runs" },
+      { ...base, sourceOptions: { ...base.sourceOptions, cacheDir: "/tmp/root/cache" } },
+      { ...base, sourceOptions: { ...base.sourceOptions, newsSeenPath: "/tmp/root/news.json" } },
+      {
+        ...base,
+        sourceOptions: { ...base.sourceOptions, peerUniverseLearnedPath: "/tmp/root/peers.json" },
+      },
+      { ...base, indexOptions: { ...base.indexOptions, disabled: true } },
+    ]) {
+      expect(effectiveConfigHash(changed)).not.toBe(baseline);
+    }
   });
 
   test("changes with dirty source state and excludes ignored secrets", async () => {

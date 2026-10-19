@@ -796,6 +796,7 @@ export async function liveTokenEstimate(
   const restoreEnv = disableIndexAccess();
   let maxInputTokens = 0;
   let observedCalls = 0;
+  let expectedPerRun = 0;
   try {
     const replay = makeReplayProvider(llmCassette);
     await runFixture(fixture, {
@@ -805,15 +806,18 @@ export async function liveTokenEstimate(
         llmCassette,
         {
           name: "offline-prompt-measurement",
-          generate: (request) => {
-            observedCalls += 1;
-            maxInputTokens = Math.max(
-              maxInputTokens,
-              Math.ceil(
-                request.messages.reduce((sum, message) => sum + message.content.length, 0) / 4,
-              ),
+          generate: async (request) => {
+            const inputTokens = Math.ceil(
+              request.messages.reduce((sum, message) => sum + message.content.length, 0) / 4,
             );
-            return replay.generate(request);
+            observedCalls += 1;
+            maxInputTokens = Math.max(maxInputTokens, inputTokens);
+            const response = await replay.generate(request);
+            expectedPerRun += Math.max(
+              response.tokenEstimate,
+              inputTokens + Math.ceil(response.content.length / 4),
+            );
+            return response;
           },
         },
         liveStages,
@@ -836,6 +840,6 @@ export async function liveTokenEstimate(
     boundedCalls: Math.max(boundedCalls, observedCalls),
     observedCalls,
     maxInputTokens,
-    expectedPerRun: observedCalls * callTokens,
+    expectedPerRun,
   };
 }

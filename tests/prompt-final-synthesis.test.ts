@@ -103,7 +103,7 @@ describe("range volatility reference", () => {
     const instruction = reference(rangeReferenceCloses(21));
 
     expect(instruction).toMatch(
-      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /,
+      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /u,
     );
     expect(instruction).toContain("Daily returns are fat-tailed");
     expect(instruction).not.toContain("32%");

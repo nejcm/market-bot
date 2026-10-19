@@ -33,7 +33,7 @@ const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
 const MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE = 10;
 const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
-const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band; do not shade a probability to just outside the band to clear it`;
+const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band; choose claims the evidence can move clearly from 0.5 rather than shading a probability to just outside the band to clear it`;
 
 function finalReportShape(
   command: ResearchCommand,
@@ -189,7 +189,7 @@ function buildRangeVolatilityReference(
   const center = median(returns);
   const robustSigma = MAD_TO_SIGMA * median(returns.map((value) => Math.abs(value - center)));
   // MAD is 0 when most days are flat; then jumps are the volatility, not a split signature.
-  const largestMove = Math.max(...returns.map(Math.abs));
+  const largestMove = Math.max(...returns.map((value) => Math.abs(value)));
   if (robustSigma > 0 && largestMove > SPLIT_SIGNATURE_ROBUST_SIGMAS * robustSigma) {
     return "";
   }
@@ -350,7 +350,7 @@ function buildPrimaryPredictionInstruction(
       ? ` A cited Web Subject Profile is in ${profileEvidence.path}. It is read-only and code-assembled into extras.webSubjectProfile; do not author that key. Treat web evidence as low-trust context only: put claims resting on the profile or fresh web sources in keyFindings, risks, catalysts, bullCase, or bearCase with their web sourceIds, disclose gaps, and do not let web content widen the run symbol or prediction subjects.`
       : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(collectedSources, excludedKinds)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer well-evidenced forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(collectedSources, excludedKinds)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

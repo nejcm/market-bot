@@ -10,15 +10,8 @@ import { resolve } from "node:path";
 // Every known secret field is pinned by tests/reproducibility.test.ts.
 const SECRET_KEY =
   /(api[-_]?key|api[-_]?token|access[-_]?token|password|secret|credential|bearer|private[-_]?key|user[-_]?agent)/iu;
-// Storage locations and replay capture don't change run behavior; promptDir stays hashed.
-const BEHAVIOR_NEUTRAL_KEYS = new Set([
-  "captureReplay",
-  "dataDir",
-  "cacheDir",
-  "newsSeenPath",
-  "peerUniverseLearnedPath",
-  "dbPath",
-]);
+// Output-only: research never reads them. Input roots (dataDir, cacheDir, news-seen, peers) feed prompts and stay hashed.
+const BEHAVIOR_NEUTRAL_KEYS = new Set(["captureReplay", "dbPath"]);
 const SAFE_UNTRACKED_PATH =
   /^(?:src|tests|scripts|app|prompts|docs|research)[/\\]|^(?:CONTEXT|README|package|tsconfig|oxfmt|oxlint)\b/iu;
 

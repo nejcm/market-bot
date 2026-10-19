@@ -295,7 +295,8 @@ count for Forecast Disagreement, one for other stages; observed calls provide a 
 Web Gather's configured rounds conservatively include its deep-equity parse retry. Per-call tokens
 are the largest of 50k, the largest recorded selected call, or measured maximum input plus largest
 recorded selected output, with another 25% headroom. The plan also prints an expected figure:
-observed preflight calls times that per-call figure, without the headroom. This is a planning estimate, not a
+the sum over observed preflight calls of measured input plus recorded output (or the recorded
+token estimate when larger), without headroom. A whole-run plan prints no expected figure. This is a planning estimate, not a
 provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
 differ from preflight. A zero-call preflight is disclosed. Only recorded fixtures
 (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real upstream

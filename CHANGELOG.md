@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1](https://github.com/nejcm/market-bot/compare/v1.5.0...v1.5.1) (2026-10-19)
+
+### Bug Fixes
+
+- AMD deep run-review fixes (gap cause, provenance, web profile, eval tooling) (#107) ([6190713](https://github.com/nejcm/market-bot/commit/61907139d74a8e126f01c21b994314e5a94bb528))
+
 ## [1.5.0](https://github.com/nejcm/market-bot/compare/v1.4.0...v1.5.0) (2026-10-17)
 
 ### Features

@@ -34,6 +34,7 @@ import {
 } from "../../../src/replay/llm-cassette";
 
 import { EVALS_ROOT } from "../../../src/replay/eval-output";
+import { synthesisFigureCounts } from "../../../src/replay/eval-cases";
 
 export { EVALS_ROOT } from "../../../src/replay/eval-output";
 const EVAL_SAMPLE_FILE = "eval-sample.json";
@@ -611,6 +612,29 @@ async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetr
   };
   for (const [key, value] of Object.entries(record.metrics)) {
     metrics[`synthesis.${key}`] = value;
+  }
+  // Derived here, not at write time, so samples from an older commit compare on the same figures.
+  const synthesis = await readJsonFile(join(sampleDir, "synthesis.json"));
+  const accepted =
+    synthesis.status === "ok" &&
+    isRecord(synthesis.value) &&
+    Array.isArray(synthesis.value.stageOutputs)
+      ? synthesis.value.stageOutputs.findLast(
+          (row: unknown) => isRecord(row) && row.stage === "final-synthesis",
+        )
+      : undefined;
+  if (isRecord(accepted) && typeof accepted.content === "string") {
+    const counts = synthesisFigureCounts(accepted.content);
+    metrics["synthesis.metricReferences"] = counts.metricReferences;
+    metrics["synthesis.typedFigures"] = counts.typedFigures;
+  }
+  const { defects } = file.value as { readonly defects?: unknown };
+  if (isRecord(defects) && Array.isArray(defects.unmatchedFigures)) {
+    metrics["synthesis.unmatchedFigures"] = defects.unmatchedFigures.reduce(
+      (sum: number, row: unknown) =>
+        sum + (isRecord(row) && Array.isArray(row.figures) ? row.figures.length : 0),
+      0,
+    );
   }
   const available = new Set<MetricGroup>([
     "durationMs",

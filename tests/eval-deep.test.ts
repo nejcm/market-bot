@@ -1101,8 +1101,27 @@ describe("frozen-input eval replay", () => {
       undefined,
     ]);
     await writeLabel("next", [
-      { status: "completed", durationMs: 20, tokens: { replayed: 0, live: 50 } },
+      {
+        status: "completed",
+        durationMs: 20,
+        tokens: { replayed: 0, live: 50 },
+        defects: { unmatchedFigures: [{ location: "keyFindings[0]", figures: ["$1", "2%"] }] },
+      },
     ]);
+    await writeFile(
+      join(root, "next", "1", "synthesis.json"),
+      JSON.stringify({
+        stageOutputs: [
+          { stage: "final-synthesis", content: JSON.stringify({ keyFindings: [] }) },
+          {
+            stage: "final-synthesis",
+            content: JSON.stringify({
+              keyFindings: [{ text: "Close <<metric:market-session.close>>, up 2%." }],
+            }),
+          },
+        ],
+      }),
+    );
     await writeFile(
       join(root, "base", "1", "report.json"),
       await readFile(join(fixtureSample.runDir!, "report.json")),
@@ -1134,6 +1153,15 @@ describe("frozen-input eval replay", () => {
     expect(compare).toContain(
       "| final-synthesis-only | synthesis.calls | 1 [1–1] (n=2/3) | 1 [1–1] |",
     );
+    for (const [metric, value] of [
+      ["metricReferences", 1],
+      ["typedFigures", 1],
+      ["unmatchedFigures", 2],
+    ] as const) {
+      expect(compare).toContain(
+        `| final-synthesis-only | synthesis.${metric} | 0 [0–0] (n=2/3) | ${String(value)} [${String(value)}–${String(value)}] |`,
+      );
+    }
     expect(compare).toMatch(
       /\| final-synthesis-only \| predictions\.count \| \d+ \[\d+–\d+\] \(n=1\/3\) \| — \(n=0\/1\) \|/u,
     );

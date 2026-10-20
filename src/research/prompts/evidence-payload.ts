@@ -31,6 +31,7 @@ import {
 } from "./source-gap-view";
 import { isFreshWebSource, userSteeringField } from "./steering";
 import { metricReferenceEvidence, withoutRestatedMetricValues } from "./metric-references";
+import { referenceMetricSections } from "../metric-references";
 
 function normalizedSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
@@ -101,7 +102,7 @@ const projectMetricReferences: EvidenceProjector = (options, command, collectedS
   command.assetClass === "equity" &&
   options.sourceGapView === "all" &&
   collectedSources.metricSections !== undefined
-    ? metricReferenceEvidence(collectedSources.metricSections)
+    ? metricReferenceEvidence(referenceMetricSections(collectedSources))
     : {};
 
 const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSources) =>

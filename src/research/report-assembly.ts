@@ -53,6 +53,7 @@ import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 import {
   assertNoUnresolvedMetricReferences,
   citeMetricReferences,
+  referenceMetricSections,
   resolveMetricReferences,
 } from "./metric-references";
 
@@ -728,7 +729,7 @@ export function assembleResearchReportWithRelocations(
     context,
     sources,
   } = input;
-  const payload = citeMetricReferences(draftPayload, collectedSources.metricSections ?? []);
+  const payload = citeMetricReferences(draftPayload, referenceMetricSections(collectedSources));
   const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
   /*
    * `classifyGap` is a heuristic over a gap's source, provider and prose. A collector that already
@@ -921,7 +922,7 @@ export function assembleResearchReportWithRelocations(
         : {}),
     },
   });
-  const resolvedReport = resolveMetricReferences(report, collectedSources.metricSections ?? []);
+  const resolvedReport = resolveMetricReferences(report, referenceMetricSections(collectedSources));
   assertNoUnresolvedMetricReferences(resolvedReport, collectedSources);
   assertSafeReportLanguage(resolvedReport);
   return {

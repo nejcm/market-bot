@@ -50,7 +50,7 @@ Ephemeral Run Chat has a deliberately different boundary.
 - `report.dataGaps` remains an existing unscanned mixed-authorship surface, not an added exemption.
   Relocation of uncited findings/Business Framework text into it can bypass the screen; closing that gap is
   separate work, not a change authorized by consolidation.
-- Metric references use `<<metric:<section>.<id>>>`; brace-delimited forms are malformed. Merge citations,
+- Metric references use `<<metric:<section>.<id>>>` or `<<metric:<section>.<id>|period>>`; brace-delimited forms are malformed. Merge citations,
   validate authored prose with tokens intact, substitute only deterministic formatted metric values, then
   screen resolved prose again inside the bounded report repair loop: substitution can construct blocked
   phrases such as a percentage followed by “gap”. No surrounding prose becomes exempt. Summary, data gaps,

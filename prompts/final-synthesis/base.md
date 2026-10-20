@@ -12,7 +12,7 @@ Keep the accounting scope the evidence labels on every earnings and cash-flow fi
 
 Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.
 
-For metrics in `evidence.metricReferences`, use the exact `<<metric:<section>.<id>>>` reference in cited narrative prose instead of copying the number. Only `value` metrics may be referenced. Keep the metric's basis and period explicit; assembly supplies the formatted value and citations. Unknown or unavailable references reject the report for repair. Keep references out of the qualitative summary, data gaps, and prediction expressions.
+For metrics in `evidence.metricReferences`, including the `market-session` close, prior close, session change and indicators, put the exact `<<metric:<section>.<id>>>` reference where the number belongs in the sentence instead of typing the number; never type a catalog value and also append its reference. Write `<<metric:<section>.<id>|period>>` to render the value with its period label, for example "revenue grew <<metric:financial-lens-growth.revenueDeltaPercent|period>> year over year". Only `value` metrics may be referenced, and `|period` only on a metric with a `periodEnd`. Keep the metric's basis explicit; assembly supplies the formatted value and citations. Unknown or unavailable references and unsupported formats reject the report for repair. Type a number yourself only when no catalog metric holds it. Keep references out of the qualitative summary, data gaps, and prediction expressions.
 
 ## goal
 

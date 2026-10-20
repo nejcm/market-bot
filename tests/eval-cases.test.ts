@@ -12,6 +12,7 @@ import {
   scoreReportDefects,
   sourceFacts,
   staleSupport,
+  synthesisFigureCounts,
   unsupportedFigures,
 } from "../src/replay/eval-cases";
 import { stageDeletionStatistics } from "../src/replay/eval-decision";
@@ -22,7 +23,12 @@ import {
   judgeItem,
 } from "../src/replay/eval-judge";
 import { makeReplayProvider } from "../src/replay/llm-cassette";
-import { researchReport } from "./support/fixtures";
+import { collectedSources, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
+import {
+  referenceMetricSections,
+  resolveMetricReferences,
+} from "../src/research/metric-references";
+import { metricReferenceEvidence } from "../src/research/prompts/metric-references";
 
 const cases = parseEvalCases(
   await Bun.file(join(import.meta.dir, "fixtures/eval-cases/cases.json")).json(),
@@ -585,6 +591,53 @@ describe("deterministic checks", () => {
         ablation: baseline,
       }),
     ).toThrow(/control arm/u);
+  });
+
+  test("rendered metric references are verified figures; typed ones are still checked", () => {
+    const sections = referenceMetricSections(
+      collectedSources({ verifiedMarketSnapshot: verifiedMarketSnapshot() }),
+    );
+    const report = resolveMetricReferences(
+      researchReport({
+        keyFindings: [
+          {
+            text: "Close <<metric:market-session.close|period>>, change <<metric:market-session.sessionChangePercent>>, RSI14 <<metric:market-session.rsi14>>.",
+            sourceIds: [],
+          },
+          { text: "Close $118.00 <<metric:market-session.close>>.", sourceIds: [] },
+        ],
+      }),
+      sections,
+    );
+    expect(report.keyFindings[0]!.text).toBe(
+      "Close 108.00 (as of 2026-05-18), change 2.9%, RSI14 55.00.",
+    );
+    expect(
+      scoreReportDefects({
+        report,
+        knownSourceIds: ["verified-snapshot-AAPL"],
+        historicalContext: undefined,
+        evidence: metricReferenceEvidence(sections),
+        omissionCases: [],
+      }).unmatchedFigures,
+    ).toEqual([{ location: "keyFindings[1]", figures: ["$118.00"] }]);
+  });
+
+  test("synthesis figure counts split rendered references from typed figures", () => {
+    expect(
+      synthesisFigureCounts(
+        JSON.stringify({
+          keyFindings: [
+            {
+              text: "Revenue grew 44.1% <<metric:financial-lens-growth.revenueDeltaPercent|period>>; close <<metric:market-session.close>>.",
+              sourceIds: ["sec-10q-2026"],
+            },
+          ],
+          scenarios: [{ name: "Base", description: "Margin near 20%." }],
+          predictions: [{ measurableAs: "AAPL close outside [$100, $120] on 2026-06-01" }],
+        }),
+      ),
+    ).toEqual({ metricReferences: 2, typedFigures: 2 });
   });
 
   test("rejects malformed and duplicate cases", () => {

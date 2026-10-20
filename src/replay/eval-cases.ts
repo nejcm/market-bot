@@ -3,6 +3,7 @@ import type { ResearchReport } from "../domain/report";
 import { claimsForReport, isHistoricalForecastOutcome } from "../research/post-synthesis-audit";
 import { judgeItem, type JudgeItem, type JudgeMeter, type JudgeResult } from "./eval-judge";
 import { modelAuthoredReportSegments } from "../report/schema";
+import { splitMetricReferences } from "../research/metric-references";
 import type { ModelProvider } from "../model/types";
 
 const EVAL_CHECKS = [
@@ -252,6 +253,29 @@ export function unsupportedFigures(
         !directlySupported(token, all) && !sortedGroups.some((group) => derivable(token, group)),
     )
     .map(({ raw }) => raw);
+}
+
+// One accepted final-synthesis output: metric references the renderer resolves vs figures the model typed; predictions excluded.
+export function synthesisFigureCounts(content: string): {
+  readonly metricReferences: number;
+  readonly typedFigures: number;
+} {
+  const { predictions: _predictions, ...payload } = JSON.parse(content) as Record<string, unknown>;
+  let metricReferences = 0;
+  let typedFigures = 0;
+  const walk = (node: unknown): void => {
+    if (typeof node === "string") {
+      const { prose, references } = splitMetricReferences(node);
+      metricReferences += references;
+      typedFigures += figureTokens(prose).length;
+    } else if (Array.isArray(node)) {
+      node.forEach((child) => walk(child));
+    } else if (isRecord(node)) {
+      Object.entries(node).forEach(([key, child]) => key !== "sourceIds" && walk(child));
+    }
+  };
+  walk(payload);
+  return { metricReferences, typedFigures };
 }
 
 const METADATA_KEY =

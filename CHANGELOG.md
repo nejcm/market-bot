@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.3](https://github.com/nejcm/market-bot/compare/v1.5.2...v1.5.3) (2026-10-20)
+
+### Bug Fixes
+
+- **synthesis:** anchor range forecasts to the ±1σ base rate (#109) ([579d631](https://github.com/nejcm/market-bot/commit/579d631b0f3f5d9feb6b1be6adcd6575940db8ae))
+
 ## [1.5.2](https://github.com/nejcm/market-bot/compare/v1.5.1...v1.5.2) (2026-10-20)
 
 ### Bug Fixes

@@ -105,8 +105,12 @@ describe("range volatility reference", () => {
     expect(instruction).toMatch(
       /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /u,
     );
-    expect(instruction).toContain("Daily returns are fat-tailed");
-    expect(instruction).not.toContain("32%");
+    expect(instruction).toMatch(
+      /±1σ close bands \+1: \[[\d.]+, [\d.]+\]; \+5: \[[\d.]+, [\d.]+\]; \+10: \[[\d.]+, [\d.]+\]; \+20: \[[\d.]+, [\d.]+\]\. A close outside one of these ±1σ bands has a base rate of about 0\.32 \(Gaussian one-sigma\) at each listed horizon\. A range forecast on one of these bands uses 0\.32 unless a catalyst inside its window/u,
+    );
+    expect(instruction).toContain("cited in that prediction's sourceIds");
+    expect(instruction).toContain("does not carry over to a band of another width");
+    expect(instruction).not.toMatch(/2σ|two-sigma|\b(?:5|4\.6|95)%/u);
   });
 
   test.each([

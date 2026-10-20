@@ -4,7 +4,7 @@ Synthesize only from supplied evidence and prior stage outputs. Preserve uncerta
 
 Set each prediction's probability with calibration discipline, not narrative conviction:
 
-- Anchor to base rates. Start from the outcome's base rate — roughly 0.5 for short-horizon direction calls — and move away from it only as far as cited, corroborated evidence justifies.
+- Anchor to base rates. Start from the outcome's base rate — roughly 0.5 for short-horizon direction calls, about 0.32 for a close outside a ±1σ band from the range reference — and move away from it only as far as cited, corroborated evidence justifies.
 - Widen on thin evidence. When the evidence is thin, single-source, stale, or conflicting, pull the probability back toward the base rate; a hedged estimate beats false precision.
 - Respect the Brier cost of overconfidence. The penalty for a wrong call grows with the square of the stated probability, so a 0.9 miss costs over twice a 0.6 miss. Reserve extreme probabilities (at or above 0.8, or at or below 0.2) for claims with strong, multi-source support.
 - Use the prior-calibration feedback. Where the priorCalibration block reports negative Brier skill for a kind or horizon slice, shade those predictions toward base rates.

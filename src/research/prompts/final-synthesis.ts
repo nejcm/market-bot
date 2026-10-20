@@ -164,7 +164,7 @@ const RANGE_REFERENCE_HORIZONS = [1, 5, 10, 20] as const;
 // Closes are split-unadjusted (ADR 0004); a move far outside the MAD scale reads as a split.
 const MAD_TO_SIGMA = 1.4826;
 const SPLIT_SIGNATURE_ROBUST_SIGMAS = 8;
-// Gaussian P(|z| > 1); this band construction on 5y AAPL/AMD/MSFT/SPY closes landed outside 0.29–0.33.
+// Gaussian P(|z| > 1); this construction on 5y AAPL/AMD/MSFT/SPY closes pooled 0.285–0.334 over +1..+20.
 const RANGE_REFERENCE_OUTSIDE_PROBABILITY = "0.32";
 
 function median(values: readonly number[]): number {
@@ -204,7 +204,7 @@ function buildRangeVolatilityReference(
     const move = sigma * Math.sqrt(horizon);
     return `+${String(horizon)}: [${(spot * Math.exp(-move)).toFixed(2)}, ${(spot * Math.exp(move)).toFixed(2)}]`;
   }).join("; ");
-  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returns.length)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. A close outside one of these ±1σ bands has a reference probability of ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} at each listed horizon. A range forecast on one of these bands uses ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} unless a catalyst inside its window, such as a confirmed earnings date, is cited in that prediction's sourceIds; move off ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
+  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returns.length)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. A close outside one of these ±1σ bands has a base rate of about ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} (Gaussian one-sigma) at each listed horizon. A range forecast on one of these bands uses ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} unless a catalyst inside its window, such as a confirmed earnings date, is cited in that prediction's sourceIds; move off ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
 }
 
 export function buildConditionalPredictionActivationGuidance(

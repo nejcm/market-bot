@@ -131,9 +131,10 @@ export function metricPeriodLabel(
       (Date.parse(input.periodEnd ?? "") - Date.parse(input.periodStart ?? "")) / 86_400_000;
     return input.periodType === "annual" && days >= 350 && days <= 380;
   });
-  return annual
-    ? `FY ending ${periodEnd}`
-    : periodMonths === undefined
-      ? `Period ending ${periodEnd}`
-      : `${String(periodMonths)}-month period ending ${periodEnd}`;
+  if (annual) {
+    return `FY ending ${periodEnd}`;
+  }
+  return periodMonths === undefined
+    ? `Period ending ${periodEnd}`
+    : `${String(periodMonths)}-month period ending ${periodEnd}`;
 }

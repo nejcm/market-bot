@@ -338,7 +338,10 @@ function coveredDebtConcepts(
     ...usedUmbrellas.flatMap((umbrella) => [umbrella, ...(concepts.umbrellas?.[umbrella] ?? [])]),
   ]);
   for (const [umbrella, legs] of Object.entries(concepts.umbrellas ?? {})) {
-    if (legs.every((leg) => covered.has(leg)) || (isTagged(umbrella) && legs.some(isTagged))) {
+    if (
+      legs.every((leg) => covered.has(leg)) ||
+      (isTagged(umbrella) && legs.some((leg) => isTagged(leg)))
+    ) {
       covered.add(umbrella);
     }
   }
@@ -490,15 +493,21 @@ export function resolveDebtAtInstant<T>(
   const sum = (names: readonly string[]) =>
     names.reduce((acc, name) => acc + valueOf(tagged.get(name) as T), 0);
   const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
-  const componentReason =
-    total !== undefined
-      ? undefined
-      : mismatched.length > 0
-        ? `${mismatched.join(", ")} differs from the sum of its tagged legs`
-        : overlap.length > 0
-          ? `${overlap.join(", ")} may overlap a generic long-term-debt line`
-          : (incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history) ??
-            restatedDebtComponentReason(instant, used, tagged, history, valueOf));
+  const componentReason = (() => {
+    if (total !== undefined) {
+      return undefined;
+    }
+    if (mismatched.length > 0) {
+      return `${mismatched.join(", ")} differs from the sum of its tagged legs`;
+    }
+    if (overlap.length > 0) {
+      return `${overlap.join(", ")} may overlap a generic long-term-debt line`;
+    }
+    return (
+      incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history) ??
+      restatedDebtComponentReason(instant, used, tagged, history, valueOf)
+    );
+  })();
   const incompleteReason =
     excess === undefined
       ? componentReason
@@ -871,7 +880,7 @@ export function capFinancialStatementPeriods(series: readonly FinancialStatement
     nonDividend,
     nonDividend.filter((item) => !CAP_FOLLOWER_SERIES.has(item.key)),
   );
-  const dividends = capSharedPeriods(series.filter(isDividendsPerShare));
+  const dividends = capSharedPeriods(series.filter((item) => isDividendsPerShare(item)));
   const capped = new Map(
     [...statements.series, ...dividends.series].map((item) => [item.key, item]),
   );

@@ -17,6 +17,19 @@ import type {
   ValuationPriceInput,
 } from "./valuation-workbench-contract";
 
+const DENOMINATOR_LABELS = {
+  dilutedEps: "earnings",
+  freeCashFlow: "free-cash-flow",
+  revenue: "revenue",
+} as const;
+
+function notMeaningfulReason(value: number) {
+  if (!Number.isFinite(value)) {
+    return "non-finite-denominator";
+  }
+  return value === 0 ? "zero-denominator" : "negative-denominator";
+}
+
 const METRICS = [
   ["priceToEarnings", "P/E", "close / diluted EPS", "dilutedEps"],
   ["priceToSales", "P/S", "(close × diluted shares) / revenue", "revenue"],
@@ -61,12 +74,14 @@ export function valuationMetricSection(input: {
       basis: `${period.basis.toUpperCase()}; ${formula}; ${priceBasis}`,
       ...(id === "enterpriseValueToRevenue" || id === "priceToFreeCashFlow"
         ? {
-            applicable: () =>
-              input.depositorySic === undefined
-                ? undefined
-                : id === "enterpriseValueToRevenue"
-                  ? `deposit-funded issuer; enterprise value is not defined (SIC ${input.depositorySic})`
-                  : `depository issuer; capex-based free cash flow is not defined (SIC ${input.depositorySic})`,
+            applicable: () => {
+              if (input.depositorySic === undefined) {
+                return undefined;
+              }
+              return id === "enterpriseValueToRevenue"
+                ? `deposit-funded issuer; enterprise value is not defined (SIC ${input.depositorySic})`
+                : `depository issuer; capex-based free cash flow is not defined (SIC ${input.depositorySic})`;
+            },
           }
         : {}),
       compute: (): MetricOutcome => {
@@ -170,10 +185,7 @@ export function valuationMetricSection(input: {
               ? ["operatingCashFlow", "capitalExpenditure"]
               : [denominatorKey];
           const absent = keys.filter((key) => !lineage.some((row) => row.series === key));
-          return missing(
-            `${denominatorKey === "dilutedEps" ? "earnings" : denominatorKey === "freeCashFlow" ? "free-cash-flow" : "revenue"}-unavailable`,
-            absent,
-          );
+          return missing(`${DENOMINATOR_LABELS[denominatorKey]}-unavailable`, absent);
         }
         if (
           period.basis === "annual" &&
@@ -190,11 +202,7 @@ export function valuationMetricSection(input: {
         if (!Number.isFinite(denominator.value) || denominator.value <= 0) {
           return {
             status: "not-meaningful",
-            reason: !Number.isFinite(denominator.value)
-              ? "non-finite-denominator"
-              : denominator.value === 0
-                ? "zero-denominator"
-                : "negative-denominator",
+            reason: notMeaningfulReason(denominator.value),
             periodEnd: period.periodEnd,
             inputs: lineage,
           };
@@ -208,12 +216,12 @@ export function valuationMetricSection(input: {
         }
         const close = price.close * (fx?.rate ?? 1);
         const marketCap = close * (period.dilutedShares?.value ?? 1);
-        const numerator =
-          id === "priceToEarnings"
-            ? close
-            : id === "enterpriseValueToRevenue"
-              ? marketCap + (period.debt?.value ?? 0) - (period.cash?.value ?? 0)
-              : marketCap;
+        let numerator = marketCap;
+        if (id === "priceToEarnings") {
+          numerator = close;
+        } else if (id === "enterpriseValueToRevenue") {
+          numerator = marketCap + (period.debt?.value ?? 0) - (period.cash?.value ?? 0);
+        }
         const value = numerator / denominator.value;
         return Number.isFinite(value)
           ? { status: "value", value, periodEnd: period.periodEnd, inputs: lineage }

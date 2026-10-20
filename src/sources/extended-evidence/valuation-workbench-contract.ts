@@ -283,6 +283,8 @@ function hasMetricResultShape(value: unknown): boolean {
   );
 }
 
+const LEGACY_STATUS: Record<string, string> = { populated: "value", suppressed: "missing" };
+
 function normalizeObservation(
   value: HistoricalValuationObservation,
 ): HistoricalValuationObservation {
@@ -302,12 +304,7 @@ function normalizeObservation(
             unit: "ratio",
             basis: "historical filing-date close",
             periodEnd: value.periodEnd,
-            status:
-              legacy.status === "populated"
-                ? "value"
-                : legacy.status === "suppressed"
-                  ? "missing"
-                  : legacy.status,
+            status: LEGACY_STATUS[legacy.status as string] ?? legacy.status,
             ...(typeof legacy.value === "number" ? { value: legacy.value } : {}),
             ...(legacy.status === "populated"
               ? {}

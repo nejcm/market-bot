@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   evalCaseLabel,
+  cancelMatchedItems,
   judgeReport,
   omits,
   parseEvalCases,
@@ -29,6 +30,10 @@ const cases = parseEvalCases(
 
 function vote(verdict: string) {
   return { content: JSON.stringify({ verdict, reason: "stub" }), tokenEstimate: 1 };
+}
+
+function secReport(texts: readonly string[]) {
+  return researchReport({ keyFindings: texts.map((text) => ({ text, sourceIds: ["sec"] })) });
 }
 
 function claim(text: string, sourceIds: readonly string[]) {
@@ -66,12 +71,12 @@ describe("labeled eval cases", () => {
     expect(results.map((row) => row.pass)).toEqual(results.map(() => undefined));
   });
 
-  test("judge path aggregates k=3 cassette votes per judged case", async () => {
+  test("judge path aggregates cassette votes per judged case, stopping at a settled majority", async () => {
     const judged = cases.filter((row) => isJudged(row));
     const votes = judged.flatMap((row, index) => {
       const majority = row.defect ? "yes" : "no";
       const dissent = row.defect ? "no" : "yes";
-      return index === 0 ? [majority, dissent, majority] : [majority, majority, "maybe"];
+      return index === 0 ? [majority, dissent, majority] : [majority, majority];
     });
     const provider = makeReplayProvider({
       entries: { [`${JUDGE_STAGE}|stub-judge`]: votes.map((verdict) => vote(verdict)) },
@@ -279,7 +284,7 @@ describe("deterministic checks", () => {
       ["conveyance", omission.id],
     ]);
     expect(items[1]!.item.evidence).toEqual([
-      { sourceId: "news-2", text: '. {"id":"news-2","title":"UBS: shorter waits"}' },
+      { sourceId: "news-2", text: '[1] {"id":"news-2","title":"UBS: shorter waits"}' },
     ]);
     expect(reportJudgeItems(report, [], [])[0]!.item.evidence[0]!.text).toMatch(
       /carries no record/u,
@@ -288,9 +293,9 @@ describe("deterministic checks", () => {
     const provider = makeReplayProvider({
       entries: {
         [`${JUDGE_STAGE}|stub-judge`]: [
-          ["no", "no", "no"],
-          ["yes", "yes", "no"],
-          ["insufficient-evidence", "insufficient-evidence", "no"],
+          ["no", "no"],
+          ["yes", "no", "yes"],
+          ["insufficient-evidence", "insufficient-evidence"],
           ["yes", "maybe", "no"],
         ]
           .flat()
@@ -328,6 +333,126 @@ describe("deterministic checks", () => {
         omissionCases: [],
       }),
     ).toMatchObject({ claims: 1, unmatchedFigures: [{ location: "summary", figures: ["99%"] }] });
+  });
+
+  test("model-authored data gaps are judged against the whole projection", () => {
+    const omission = cases.find((row) => row.check === "omission");
+    if (omission?.check !== "omission") {
+      throw new Error("missing omission case");
+    }
+    const report = researchReport({ dataGaps: ["AMD Data Center revenue collapsed by 99%."] });
+    const items = reportJudgeItems(report, [omission], [{ id: "sec", revenue: 6_718_000_000 }]);
+    expect(items.map((row) => [row.kind, row.key])).toEqual([
+      ["contradiction", "dataGaps[0]"],
+      ["conveyance", omission.id],
+    ]);
+    expect(items[0]!.item.evidence.map((row) => row.sourceId)).toEqual([
+      "final-synthesis-evidence",
+    ]);
+    expect(items[1]!.item.claim).toContain("collapsed by 99%");
+  });
+
+  test("citations resolve sibling snapshot ids and metric-section defaults, keeping provenance", () => {
+    // Shapes copied from the capture 6b4aa8ab final-synthesis projection.
+    const evidence = {
+      metricReferences: [
+        {
+          id: "business-framework-business",
+          title: "Business Framework: Business",
+          defaults: {
+            unit: "currency",
+            currency: "USD",
+            periodEnd: "2026-06-27",
+            periodMonths: 6,
+            sourceIds: ["extended-sec-edgar-amd-fundamentals"],
+          },
+          metrics: [
+            {
+              reference: "<<metric:business-framework-business.revenue>>",
+              label: "Revenue",
+              status: "value",
+              value: "$21.8B",
+            },
+          ],
+        },
+        {
+          id: "segments",
+          defaults: { unit: "currency", periodEnd: "2026-06-27", sourceIds: ["sec"] },
+          metrics: [{ label: "Data Center revenue", value: "$6.718 billion" }],
+        },
+      ],
+      verifiedMarketSnapshot: {
+        symbol: "AMD",
+        latestSessionDate: "2026-10-19",
+        ohlcv: { date: "2026-10-19", close: 538.05 },
+        indicators: { rsi14: 40.47 },
+      },
+      verifiedMarketSnapshotSourceId: "verified-snapshot-AMD",
+      historicalContext: {
+        runs: [{ runId: "r0", summary: "Prior run prose.", sourceIds: ["verified-snapshot-AMD"] }],
+      },
+    };
+    const report = researchReport({
+      keyFindings: [
+        { text: "Data Center revenue was $6.718 billion.", sourceIds: ["sec"] },
+        {
+          text: "First-half revenue was $21.8B.",
+          sourceIds: ["extended-sec-edgar-amd-fundamentals"],
+        },
+        { text: "AMD's October 19 close was $538.05.", sourceIds: ["verified-snapshot-AMD"] },
+      ],
+    });
+    const [segment, revenue, snapshot] = reportJudgeItems(report, [], evidence).map(
+      (row) => row.item.evidence[0]!.text,
+    );
+    expect(segment).toContain('"value":"$6.718 billion"');
+    expect(segment).toContain('"periodEnd":"2026-06-27"');
+    expect(revenue).toMatch(
+      /metricReferences\[0\]\.metrics\[0\] .*"currency":"USD".*"value":"\$21\.8B"/u,
+    );
+    expect(snapshot).toContain("verifiedMarketSnapshot.ohlcv");
+    expect(snapshot).toContain("538.05");
+    expect(snapshot).toContain("historicalContext.runs[0]");
+    expect(
+      scoreReportDefects({
+        report,
+        knownSourceIds: ["sec", "extended-sec-edgar-amd-fundamentals", "verified-snapshot-AMD"],
+        historicalContext: undefined,
+        evidence,
+        omissionCases: [],
+      }).unmatchedFigures,
+    ).toEqual([]);
+  });
+
+  test("paired cancellation matches complete requests as a multiset", () => {
+    const evidence = [{ id: "sec", note: "Revenue rose." }];
+    const control = reportJudgeItems(secReport(["Same.", "Same.", "Only control."]), [], evidence);
+    const ablation = reportJudgeItems(secReport(["Same.", "Only ablation."]), [], evidence);
+    const otherEvidence = reportJudgeItems(
+      secReport(["Same."]),
+      [],
+      [{ id: "sec", note: "Other." }],
+    );
+    const paired = cancelMatchedItems(control, ablation);
+    expect(paired.canceled).toEqual([{ control: "keyFindings[0]", ablation: "keyFindings[0]" }]);
+    expect(paired.control.map((row) => row.key)).toEqual(["keyFindings[1]", "keyFindings[2]"]);
+    expect(paired.ablation.map((row) => row.key)).toEqual(["keyFindings[1]"]);
+    expect(cancelMatchedItems(control, otherEvidence).canceled).toEqual([]);
+  });
+
+  test("a judgment stops once two valid votes agree", async () => {
+    const provider = makeReplayProvider({
+      entries: {
+        [`${JUDGE_STAGE}|m`]: ["no", "no", "invalid", "yes", "no"].map((verdict) => vote(verdict)),
+      },
+    });
+    const meter = { calls: 0, tokens: 0 };
+    const item = { question: "q", claim: "c", evidence: [] };
+    const settled = await judgeItem(provider, "m", item, meter);
+    expect(settled.votes).toEqual(["no", "no"]);
+    expect(meter.calls).toBe(2);
+    const contested = await judgeItem(provider, "m", item, meter);
+    expect(contested.votes).toEqual(["invalid", "yes", "no"]);
   });
 
   test("the judge meter keeps calls and tokens spent before a failure", async () => {
@@ -392,7 +517,14 @@ describe("deterministic checks", () => {
       vetoes: [],
     });
     expect(same.meanDifference).toBe(0);
-    expect(same.upperBound).toBeGreaterThan(0);
+    expect(same.upperBound).toBe(0);
+    const noisy = stageDeletionStatistics({
+      ...scope,
+      control: baseline,
+      ablation: { a: [2, 3, 3], b: [1, 2, 1], c: [4, 3, 5] },
+    });
+    expect(noisy.meanDifference).toBeCloseTo(1 / 3);
+    expect(noisy.upperBound).toBeGreaterThan(noisy.meanDifference);
     expect("pass" in same).toBe(false);
     const constant = { a: [2, 2, 2], b: [1, 1, 1] };
     const shifted = stageDeletionStatistics({

@@ -123,20 +123,20 @@ export function stageDeletionStatistics(input: {
   if (vetoes.length > 0) {
     return { ...scope, meanDifference: Number.NaN, upperBound: Number.NaN, vetoes };
   }
-  const arms = captures.map((capture) => ({
-    control: input.control[capture] as readonly number[],
-    ablation: input.ablation[capture] as readonly number[],
-  }));
+  // Paired by sample index: canceled judge requests make each score relative to its control, not absolute.
+  const differences = captures.map((capture) =>
+    input.ablation[capture]!.map((value, index) => value! - input.control[capture]![index]!),
+  );
   const random = mulberry32(SEED);
   const resample = (rows: readonly number[]) =>
     mean(rows.map(() => rows[Math.floor(random() * rows.length)]!));
-  // Stratified: captures are the fixed corpus, only samples within each capture are resampled.
+  // Stratified: captures are the fixed corpus, only paired differences within each capture are resampled.
   const means = Array.from({ length: RESAMPLES }, () =>
-    mean(arms.map((rows) => resample(rows.ablation) - resample(rows.control))),
+    mean(differences.map((rows) => resample(rows))),
   ).toSorted((a, b) => a - b);
   return {
     ...scope,
-    meanDifference: mean(arms.map((rows) => mean(rows.ablation) - mean(rows.control))),
+    meanDifference: mean(differences.map((rows) => mean(rows))),
     upperBound: means[Math.ceil(0.95 * RESAMPLES) - 1]!,
     vetoes,
   };

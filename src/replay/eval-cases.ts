@@ -149,7 +149,7 @@ export function omits(cited: ReadonlySet<string>, required: readonly string[]): 
 }
 
 const FIGURE_PATTERN =
-  /(\p{Sc})?\s?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(?:\s?(%|trillion|billion|million)|([x×TBM])(?![a-z]))?/giu;
+  /(\p{Sc})?\s?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(?:\s?(%|trillion|billion|million)|([x×TBM])(?![a-z\d]))?/giu;
 const UNIT_SCALE: Readonly<Record<string, number>> = {
   trillion: 1e12,
   t: 1e12,
@@ -259,14 +259,14 @@ const METADATA_KEY =
 const METADATA_TEXT =
   /https?:\/\/\S+|\b\d{10}-\d{2}-\d{6}\b|\b\d+-[a-z]+\b|\b\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?\b|\b[a-z][\w^.]*(?:-[\w^.]+)+\b/giu;
 const TEXT_NUMBER =
-  /(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(?:e[+-]?\d+)?(?:\s?(trillion|billion|million|thousand))?/giu;
+  /(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(?:e[+-]?\d+)?(?:\s?(trillion|billion|million|thousand)|([TBM])(?![a-z\d]))?/giu;
 
 // Unscaled prose/table numbers may be stated in thousands or millions; structured fields and scaled words are absolute.
 function textNumbers(text: string): readonly number[] {
   const stripped = text.replaceAll(METADATA_TEXT, (match) => (/\d/u.test(match) ? " " : match));
   return [...stripped.matchAll(TEXT_NUMBER)].flatMap((match) => {
     const value = Number(`${match[1]!.replaceAll(",", "")}${match[2] ?? ""}`);
-    const scale = UNIT_SCALE[match[3]?.toLowerCase() ?? ""];
+    const scale = UNIT_SCALE[(match[3] ?? match[4])?.toLowerCase() ?? ""];
     return scale === undefined ? [value, value * 1e3, value * 1e6] : [value * scale];
   });
 }
@@ -276,6 +276,37 @@ function recordTags(node: Readonly<Record<string, unknown>>): readonly string[] 
   return Array.isArray(node.sourceIds)
     ? [...tags, ...node.sourceIds.filter((id): id is string => typeof id === "string")]
     : tags;
+}
+
+// The projection links evidence by a sibling `<name>SourceId` field and by metric-section `defaults`; make both plain tags.
+function resolveEvidenceLinks(node: unknown): unknown {
+  if (Array.isArray(node)) {
+    return node.map((child) => resolveEvidenceLinks(child));
+  }
+  if (!isRecord(node)) {
+    return node;
+  }
+  const resolved: Record<string, unknown> = Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [key, resolveEvidenceLinks(value)]),
+  );
+  for (const [key, value] of Object.entries(node)) {
+    const target = key.endsWith("SourceId")
+      ? resolved[key.slice(0, -"SourceId".length)]
+      : undefined;
+    if (typeof value === "string" && isRecord(target) && target.sourceId === undefined) {
+      resolved[key.slice(0, -"SourceId".length)] = { sourceId: value, ...target };
+    }
+  }
+  const { defaults, metrics, ...section } = resolved;
+  if (isRecord(defaults) && Array.isArray(metrics)) {
+    return {
+      ...section,
+      metrics: metrics.map((metric: unknown) =>
+        isRecord(metric) ? { ...defaults, ...metric } : metric,
+      ),
+    };
+  }
+  return resolved;
 }
 
 // Numeric fact groups per source id: one group per record tagged by id/sourceId/sourceIds, metadata excluded.
@@ -311,7 +342,7 @@ export function sourceFacts(
       group?.push(...textNumbers(node));
     }
   };
-  walk(evidence, [], undefined);
+  walk(resolveEvidenceLinks(evidence), [], undefined);
   return facts;
 }
 
@@ -380,7 +411,8 @@ export function historicalSourceIds(context: unknown): ReadonlySet<string> {
   return ids;
 }
 
-// Evaluation units: every model-authored report surface (summary, findings, scenarios, extras) plus prediction claims.
+// Evaluation units: every model-authored report surface (summary, findings, scenarios, extras, data gaps) plus predictions.
+// The language gate skips dataGaps (model and assembly text mixed); evaluation judges all of it.
 function evalUnits(report: ResearchReport): readonly {
   readonly location: string;
   readonly text: string;
@@ -394,6 +426,11 @@ function evalUnits(report: ResearchReport): readonly {
         text: segment.text,
         sourceIds: segment.sourceIds ?? [],
       })),
+    ...report.dataGaps.map((text, index) => ({
+      location: `dataGaps[${String(index)}]`,
+      text,
+      sourceIds: [],
+    })),
     ...claimsForReport(report).filter((claim) => claim.location.startsWith("predictions[")),
   ];
 }
@@ -429,7 +466,9 @@ export function scoreReportDefects(input: {
         location: claim.location,
         figures: unsupportedFigures(
           claim.text,
-          claim.sourceIds.flatMap((id) => facts.get(id) ?? []),
+          claim.sourceIds.length === 0
+            ? [...facts.values()].flat()
+            : claim.sourceIds.flatMap((id) => facts.get(id) ?? []),
         ),
       }))
       .filter((row) => row.figures.length > 0),
@@ -446,23 +485,31 @@ const LONG_TEXT = 300;
 const MISSING_EVIDENCE = "(the final-synthesis evidence carries no record with this source id)";
 const UNCITED = "final-synthesis-evidence";
 
+interface SourceRecord {
+  // Projection path, so primary evidence stays distinguishable from historical model prose.
+  readonly path: string;
+  readonly node: unknown;
+}
+
 // Records per source id inside the model-visible evidence projection, tagged by id/sourceId/sourceIds.
-function sourceRecords(evidence: unknown): ReadonlyMap<string, readonly unknown[]> {
-  const records = new Map<string, unknown[]>();
-  const walk = (node: unknown): void => {
+function sourceRecords(evidence: unknown): ReadonlyMap<string, readonly SourceRecord[]> {
+  const records = new Map<string, SourceRecord[]>();
+  const walk = (node: unknown, path: string): void => {
     if (Array.isArray(node)) {
-      node.forEach((child) => walk(child));
+      node.forEach((child, index) => walk(child, `${path}[${String(index)}]`));
     } else if (isRecord(node)) {
       for (const tag of recordTags(node)) {
         records
           .set(tag, records.get(tag) ?? [])
           .get(tag)!
-          .push(node);
+          .push({ path, node });
       }
-      Object.values(node).forEach((child) => walk(child));
+      for (const [key, child] of Object.entries(node)) {
+        walk(child, path === "" ? key : `${path}.${key}`);
+      }
     }
   };
-  walk(evidence);
+  walk(evidence, "");
   return records;
 }
 
@@ -525,9 +572,9 @@ const claimTerms = (text: string) =>
   );
 
 // Whole records when they fit; otherwise the lines sharing the most claim terms and figures, with their record rows, in order.
-function relevantEvidence(records: readonly unknown[], claim: string): string {
+function relevantEvidence(records: readonly SourceRecord[], claim: string): string {
   const lines: EvidenceLine[] = [];
-  records.forEach((record) => evidenceLines(record, "", lines));
+  records.forEach((record) => evidenceLines(record.node, record.path, lines));
   if (lines.reduce((sum, line) => sum + line.text.length + 1, 0) <= EVIDENCE_CHARS_PER_SOURCE) {
     return lines.map((line) => line.text).join("\n");
   }
@@ -558,13 +605,16 @@ function relevantEvidence(records: readonly unknown[], claim: string): string {
 }
 
 function unitEvidence(
-  records: ReadonlyMap<string, readonly unknown[]>,
+  records: ReadonlyMap<string, readonly SourceRecord[]>,
   evidence: unknown,
   unit: ReturnType<typeof evalUnits>[number],
 ): JudgeItem["evidence"] {
   if (unit.sourceIds.length === 0) {
     return [
-      { sourceId: UNCITED, text: relevantEvidence([evidence], unit.text) || MISSING_EVIDENCE },
+      {
+        sourceId: UNCITED,
+        text: relevantEvidence([{ path: "", node: evidence }], unit.text) || MISSING_EVIDENCE,
+      },
     ];
   }
   return unit.sourceIds.map((sourceId) => ({
@@ -584,7 +634,8 @@ export function reportJudgeItems(
   readonly kind: "contradiction" | "conveyance";
   readonly item: JudgeItem;
 }[] {
-  const records = sourceRecords(evidence);
+  const resolved = resolveEvidenceLinks(evidence);
+  const records = sourceRecords(resolved);
   const units = evalUnits(report);
   return [
     ...units.map((unit) => ({
@@ -593,7 +644,7 @@ export function reportJudgeItems(
       item: {
         question: CONTRADICTION_QUESTION,
         claim: unit.text,
-        evidence: unitEvidence(records, evidence, unit),
+        evidence: unitEvidence(records, resolved, unit),
       },
     })),
     ...omissionCases.map((row) => ({
@@ -606,6 +657,39 @@ export function reportJudgeItems(
       },
     })),
   ];
+}
+
+type ReportJudgeItems = ReturnType<typeof reportJudgeItems>;
+
+const judgeRequestKey = (row: ReportJudgeItems[number]) => JSON.stringify([row.kind, row.item]);
+
+// Pre-paired samples skip byte-identical complete requests (kind, question, claim, evidence), matched as multisets.
+export function cancelMatchedItems(
+  control: ReportJudgeItems,
+  ablation: ReportJudgeItems,
+): {
+  readonly control: ReportJudgeItems;
+  readonly ablation: ReportJudgeItems;
+  readonly canceled: readonly { readonly control: string; readonly ablation: string }[];
+} {
+  const open = new Map<string, string[]>();
+  for (const row of control) {
+    open.set(judgeRequestKey(row), [...(open.get(judgeRequestKey(row)) ?? []), row.key]);
+  }
+  const canceled: { control: string; ablation: string }[] = [];
+  const ablationLeft = ablation.filter((row) => {
+    const match = open.get(judgeRequestKey(row))?.shift();
+    if (match !== undefined) {
+      canceled.push({ control: match, ablation: row.key });
+    }
+    return match === undefined;
+  });
+  const canceledControl = new Set(canceled.map((pair) => pair.control));
+  return {
+    control: control.filter((row) => !canceledControl.has(row.key)),
+    ablation: ablationLeft,
+    canceled,
+  };
 }
 
 // Undecided and insufficient-evidence count against the report: as a contradiction, and as not conveyed.

@@ -11,7 +11,11 @@ import {
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
 import { validateLiveStage } from "../src/replay/llm-cassette";
-import { estimateSynthesisFile, replaySynthesisFile } from "../src/replay/replay-synthesis";
+import {
+  estimateSynthesisFile,
+  replayPairedSample,
+  replaySynthesisFile,
+} from "../src/replay/replay-synthesis";
 import { ABLATION_ARMS } from "../src/replay/eval-decision";
 import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
 import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
@@ -76,7 +80,7 @@ if (values.input !== undefined) {
       omissionCases,
     );
     process.stdout.write(
-      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} sample(s) each): expected ~${String((estimate.totalExpectedPerRun + paired.totalExpectedPerRun) * samplesCount)}, worst case ~${String((estimate.totalWorstPerRun + paired.totalWorstPerRun) * samplesCount)}. Run the control under its own --ablate label (none for baseline).\n`,
+      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${String((estimate.totalEarlyStopPerRun + paired.totalEarlyStopPerRun) * samplesCount)}-${String((estimate.totalExpectedPerRun + paired.totalExpectedPerRun) * samplesCount)} (judge early stop on every item / on none; canceled identical requests lower both), worst case ~${String((estimate.totalWorstPerRun + paired.totalWorstPerRun) * samplesCount)}.\n`,
     );
   }
   if (!values.yes) {
@@ -86,21 +90,26 @@ if (values.input !== undefined) {
   const dir = await freshEvalDir(values.label);
   const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
   const provider = createProvider(config);
+  const shared = {
+    input: values.input,
+    root: dir,
+    omissionCases,
+    judge: { provider, model: config.synthesisModel },
+    provider,
+    models: { quick: config.quickModel, synthesis: config.synthesisModel },
+  };
   const samples = [];
   for (let sample = 1; sample <= samplesCount; sample += 1) {
-    samples.push(
-      // oxlint-disable-next-line no-await-in-loop -- each sample writes an isolated directory
-      await replaySynthesisFile({
-        input: values.input,
-        label: String(sample),
-        root: dir,
-        ablation: ablate,
-        omissionCases,
-        judge: { provider, model: config.synthesisModel },
-        provider,
-        models: { quick: config.quickModel, synthesis: config.synthesisModel },
-      }),
-    );
+    if (ablate !== undefined && control !== undefined) {
+      // oxlint-disable-next-line no-await-in-loop -- each pair writes isolated directories
+      const pair = await replayPairedSample({ ...shared, index: sample, ablation: ablate });
+      samples.push(pair.control, pair.ablation);
+    } else {
+      samples.push(
+        // oxlint-disable-next-line no-await-in-loop -- each sample writes an isolated directory
+        await replaySynthesisFile({ ...shared, label: String(sample), ablation: ablate }),
+      );
+    }
   }
   await writeEvalJson(dir, "summary.json", {
     scope: "final-synthesis-only",

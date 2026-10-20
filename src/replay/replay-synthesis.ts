@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ModelProvider, ModelRequest, ModelResponse } from "../model/types";
 import { buildModelStageRequest } from "../research/model-stage-prompt";
@@ -26,8 +26,14 @@ import {
   type SynthesisReplayInput,
 } from "./synthesis-input";
 import { freshEvalDir, writeEvalJson } from "./eval-output";
-import { judgeReport, reportJudgeItems, scoreReportDefects, type OmissionCase } from "./eval-cases";
-import { estimateJudgeTokens, type JudgeMeter } from "./eval-judge";
+import {
+  cancelMatchedItems,
+  judgeReport,
+  reportJudgeItems,
+  scoreReportDefects,
+  type OmissionCase,
+} from "./eval-cases";
+import { estimateJudgeTokens, JUDGE_MAJORITY_VOTES, type JudgeMeter } from "./eval-judge";
 import { ABLATION_ARMS } from "./eval-decision";
 import { finalSynthesisEvidencePayload } from "../research/prompts/final-synthesis";
 
@@ -377,6 +383,88 @@ export async function replaySynthesisFile(options: {
   return { status, dir, durationMs };
 }
 
+type SampleResult = Awaited<ReturnType<typeof replaySynthesisFile>>;
+
+async function addPairedJudgement(
+  sample: SampleResult,
+  judged: object | undefined,
+  meter: JudgeMeter,
+  error: string | undefined,
+): Promise<SampleResult> {
+  const record = JSON.parse(await readFile(join(sample.dir, "eval-sample.json"), "utf8"));
+  const status = error === undefined ? sample.status : "failed";
+  await writeEvalJson(sample.dir, "eval-sample.json", {
+    ...record,
+    status,
+    judged,
+    error: error ?? record.error,
+    modelCalls: {
+      ...record.modelCalls,
+      live: record.modelCalls.live + meter.calls,
+      judge: meter.calls,
+    },
+    tokens: { ...record.tokens, live: record.tokens.live + meter.tokens, judge: meter.tokens },
+  });
+  return { ...sample, status };
+}
+
+// One pre-paired sample index: control and ablation generate first, then judge with matched requests canceled.
+export async function replayPairedSample(options: {
+  readonly input: string;
+  readonly index: number;
+  readonly root: string;
+  readonly ablation: AblationArm;
+  readonly provider: ModelProvider;
+  readonly models?: { readonly quick: string; readonly synthesis: string };
+  readonly omissionCases?: readonly OmissionCase[];
+  readonly judge: { readonly provider: ModelProvider; readonly model: string };
+}): Promise<{ readonly control: SampleResult; readonly ablation: SampleResult }> {
+  const { judge, index, ablation: ablationArm, ...shared } = options;
+  const definition = ABLATION_ARMS[ablationArm];
+  if (!("control" in definition)) {
+    throw new Error(`${ablationArm} is a control arm, not an ablation`);
+  }
+  const control = await replaySynthesisFile({
+    ...shared,
+    label: `control-${String(index)}`,
+    ...(definition.control === "baseline" ? {} : { ablation: definition.control }),
+  });
+  const ablation = await replaySynthesisFile({
+    ...shared,
+    label: `ablation-${String(index)}`,
+    ablation: ablationArm,
+  });
+  if (control.status === "failed" || ablation.status === "failed") {
+    return { control, ablation };
+  }
+  const saved = await loadSynthesisReplayInput(options.input);
+  const evidence = judgeEvidence(saved);
+  const omissionCases = captureOmissionCases(saved, options.omissionCases);
+  const items = async (sample: SampleResult) =>
+    reportJudgeItems(
+      JSON.parse(await readFile(join(sample.dir, "report.json"), "utf8")),
+      omissionCases,
+      evidence,
+    );
+  const paired = cancelMatchedItems(await items(control), await items(ablation));
+  const meters = { control: { calls: 0, tokens: 0 }, ablation: { calls: 0, tokens: 0 } };
+  const judged: Partial<Record<"control" | "ablation", object>> = {};
+  let judgeError: string | undefined = undefined;
+  try {
+    for (const side of ["control", "ablation"] as const) {
+      // oxlint-disable-next-line no-await-in-loop -- votes stay in a stable order for cassette replay
+      const result = await judgeReport(judge.provider, judge.model, paired[side], meters[side]);
+      judged[side] = { ...result, canceled: paired.canceled.map((pair) => pair[side]) };
+    }
+  } catch (error) {
+    judgeError = error instanceof Error ? error.message : String(error);
+  }
+  return {
+    control: await addPairedJudgement(control, judged.control, meters.control, judgeError),
+    ablation: await addPairedJudgement(ablation, judged.ablation, meters.ablation, judgeError),
+  };
+}
+
 export async function estimateSynthesisFile(
   input: string,
   ablation?: AblationArm,
@@ -390,7 +478,9 @@ export async function estimateSynthesisFile(
   readonly expectedPerRun: number;
   readonly judgeItems: number;
   readonly judgePerRun: number;
+  readonly judgeEarlyStopPerRun: number;
   readonly totalExpectedPerRun: number;
+  readonly totalEarlyStopPerRun: number;
   readonly totalWorstPerRun: number;
 }> {
   const saved = await loadAblatedInput(input, ablation);
@@ -415,6 +505,11 @@ export async function estimateSynthesisFile(
     judgeEvidence(saved),
   );
   const judgePerRun = estimateJudgeTokens(judgeItems.map((row) => row.item));
+  // Lower bound: every judgment stops after its first votes agree.
+  const judgeEarlyStopPerRun = estimateJudgeTokens(
+    judgeItems.map((row) => row.item),
+    JUDGE_MAJORITY_VOTES,
+  );
   const perRun = Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25) + analysisWorst;
   const expectedPerRun =
     Object.values(saved.responses.entries)
@@ -424,12 +519,14 @@ export async function estimateSynthesisFile(
     arm: armRecord(ablation),
     judgeItems: judgeItems.length,
     judgePerRun,
+    judgeEarlyStopPerRun,
     observedCalls: requests.length,
     boundedCalls,
     maxInputTokens,
     perRun,
     expectedPerRun,
     totalExpectedPerRun: expectedPerRun + judgePerRun,
+    totalEarlyStopPerRun: expectedPerRun + judgeEarlyStopPerRun,
     totalWorstPerRun: perRun + judgePerRun,
   };
 }

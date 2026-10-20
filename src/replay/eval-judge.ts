@@ -4,6 +4,7 @@ import type { ModelProvider } from "../model/types";
 
 export const JUDGE_STAGE = "eval-judge";
 const JUDGE_SAMPLES = 3;
+export const JUDGE_MAJORITY_VOTES = Math.floor(JUDGE_SAMPLES / 2) + 1;
 
 type JudgeVote = "yes" | "no" | "insufficient-evidence" | "invalid";
 
@@ -82,7 +83,12 @@ export async function judgeItem(
       ],
     });
     tally.tokens += response.tokenEstimate;
-    votes.push(parseVote(response.content));
+    const vote = parseVote(response.content);
+    votes.push(vote);
+    // Remaining votes cannot change a majority already reached (k=3: two identical valid votes).
+    if (vote !== "invalid" && votes.filter((row) => row === vote).length > samples / 2) {
+      break;
+    }
   }
   return aggregateVotes(votes);
 }

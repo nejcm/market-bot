@@ -305,17 +305,35 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(saved.input.priorStages.map((row) => row.stage)).toContain("critique");
     const ablatedEstimate = await estimateSynthesisFile(file, "critique");
     expect(ablatedEstimate.maxInputTokens).toBeLessThan(estimate.maxInputTokens);
+    expect(ablatedEstimate.judgeItems).toBeGreaterThan(0);
+    expect(ablatedEstimate.judgePerRun).toBeGreaterThan(ablatedEstimate.judgeItems * 3);
+    const joint = await estimateSynthesisFile(file, "specialist-analysis+dependents");
+    expect(joint.maxInputTokens).toBeLessThan(ablatedEstimate.maxInputTokens);
+    const judgeRequests: string[] = [];
     const ablated = await replaySynthesisFile({
       input: file,
       label: "no-critique",
       root: dir,
       provider: makeReplayProvider(saved.responses),
-      withoutStage: "critique",
+      ablation: "critique",
       omissionCases: [],
+      judge: {
+        model: "stub-judge",
+        provider: {
+          name: "stub",
+          generate: async (request) => {
+            judgeRequests.push(request.stage ?? "");
+            return { content: JSON.stringify({ verdict: "no" }), tokenEstimate: 1 };
+          },
+        },
+      },
     });
     const ablatedSample = JSON.parse(await readFile(join(ablated.dir, "eval-sample.json"), "utf8"));
-    expect(ablatedSample.ablatedStage).toBe("critique");
+    expect(ablatedSample.ablation).toBe("critique");
     expect(ablatedSample.defects.claims).toBeGreaterThan(0);
+    expect(ablatedSample.judged).toEqual({ contradictions: [], unconveyed: [], undecided: 0 });
+    expect(judgeRequests).toHaveLength(ablatedSample.defects.claims * 3);
+    expect(new Set(judgeRequests)).toEqual(new Set(["eval-judge"]));
     const noCritique = join(dir, "no-critique-final-synthesis-input.json");
     await writeFile(
       noCritique,
@@ -328,7 +346,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       }),
     );
     await expect(estimateSynthesisFile(noCritique, "critique")).rejects.toThrow(
-      "no such prior stage",
+      "has no critique stage",
     );
     const frozen = structuredClone(saved);
     Object.assign(frozen.input.context, {

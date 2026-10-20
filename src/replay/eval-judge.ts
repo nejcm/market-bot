@@ -46,6 +46,14 @@ function parseVote(content: string): JudgeVote {
   }
 }
 
+const JUDGE_SYSTEM =
+  'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no","reason":string}.';
+const JUDGE_OUTPUT_TOKENS = 120;
+
+function judgeUserMessage(item: JudgeItem): string {
+  return JSON.stringify({ stage: JUDGE_STAGE, ...item });
+}
+
 export async function judgeItem(
   provider: ModelProvider,
   model: string,
@@ -60,15 +68,26 @@ export async function judgeItem(
       model,
       responseFormat: "json",
       messages: [
-        {
-          role: "system",
-          content:
-            'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no","reason":string}.',
-        },
-        { role: "user", content: JSON.stringify({ stage: JUDGE_STAGE, ...item }) },
+        { role: "system", content: JUDGE_SYSTEM },
+        { role: "user", content: judgeUserMessage(item) },
       ],
     });
     votes.push(parseVote(response.content));
   }
   return aggregateVotes(votes);
+}
+
+// Planning estimate only: characters/4 input plus a fixed output allowance per vote.
+export function estimateJudgeTokens(
+  items: readonly JudgeItem[],
+  samples: number = JUDGE_SAMPLES,
+): number {
+  return items.reduce(
+    (sum, item) =>
+      sum +
+      samples *
+        (Math.ceil((JUDGE_SYSTEM.length + judgeUserMessage(item).length) / 4) +
+          JUDGE_OUTPUT_TOKENS),
+    0,
+  );
 }

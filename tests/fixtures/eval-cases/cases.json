@@ -321,7 +321,8 @@
           "excerpt": "{\"text\":\"The launch narrative has conflicting signals: coverage reports strong iPhone Duo preorders, while separate reports cite shortening iPhone 18 Pro delivery waits as a demand concern. Either could reflect supply or demand conditions; neither is confirmed by preorder counts, inventory, sell-through, or production data. The launch case is therefore not yet established. [news-equity-7, news-equity-9, news-equity-1"
         }
       ],
-      "why": "news-equity-5 (UBS: shorter iPhone Pro wait times) is in the report's sources but no claim cites it, while findings cite only sell-out/preorder coverage. Same-day runs' critiques flagged the equivalent UBS item as conflicting launch-demand evidence."
+      "why": "news-equity-5 (UBS: shorter iPhone Pro wait times) is in the report's sources but no claim cites it, while findings cite only sell-out/preorder coverage. Same-day runs' critiques flagged the equivalent UBS item as conflicting launch-demand evidence.",
+      "conveyance": "Does the report state that UBS observed shorter delivery wait times for new iPhone models, or an equivalent signal of possibly softer iPhone demand?"
     },
     {
       "id": "aapl-1016-deep-uncited-ubs-wait-times",
@@ -388,7 +389,8 @@
           "excerpt": "{\"text\":\"The launch narrative has conflicting signals: coverage reports strong iPhone Duo preorders, while separate reports cite shortening iPhone 18 Pro delivery waits as a demand concern. Either could reflect supply or demand conditions; neither is confirmed by preorder counts, inventory, sell-through, or production data. The launch case is therefore not yet established. [news-equity-7, news-equity-9, news-equity-1"
         }
       ],
-      "why": "Deep run: news-equity-5 (UBS shorter wait times) listed in sources, never cited; launch-demand claims cite only sell-out coverage."
+      "why": "Deep run: news-equity-5 (UBS shorter wait times) listed in sources, never cited; launch-demand claims cite only sell-out coverage.",
+      "conveyance": "Does the report state that UBS observed shorter delivery wait times for new iPhone models, or an equivalent signal of possibly softer iPhone demand?"
     },
     {
       "id": "aapl-1016-brief-c-cites-ubs-wait-times",
@@ -433,7 +435,8 @@
           "excerpt": "{\"text\":\"Reports of strong iPhone Duo preorders and shorter iPhone 18 Pro delivery waits point in different directions. Neither is confirmed by preorder counts, inventory, realized sell-through, margins, or production-capacity evidence. [news-equity-7, news-equity-9, news-equity-12]\",\"sourceIds\":[\"news-equity-7\",\"news-equity-9\",\"news-equity-12\"]}"
         }
       ],
-      "why": "UBS wait-time coverage (news-equity-12) is cited alongside preorder coverage."
+      "why": "UBS wait-time coverage (news-equity-12) is cited alongside preorder coverage.",
+      "conveyance": "Does the report state that UBS observed shorter delivery wait times for new iPhone models, or an equivalent signal of possibly softer iPhone demand?"
     },
     {
       "id": "aapl-1016-brief-d-cites-ubs-wait-times",
@@ -476,12 +479,13 @@
           "excerpt": "{\"text\":\"Conflicting evidence: News reports describe strong iPhone Duo preorder interest, while UBS commentary treats shorter iPhone 18 Pro delivery waits as a possible demand concern. Neither signal is supported here by verified preorder counts, inventory, sell-through, margins, or production-capacity data. [news-equity-7, news-equity-9, news-equity-12]\",\"sourceIds\":[\"news-equity-7\",\"news-equity-9\",\"news-equity-12\"]"
         }
       ],
-      "why": "UBS wait-time coverage (news-equity-12) is cited as conflicting evidence."
+      "why": "UBS wait-time coverage (news-equity-12) is cited as conflicting evidence.",
+      "conveyance": "Does the report state that UBS observed shorter delivery wait times for new iPhone models, or an equivalent signal of possibly softer iPhone demand?"
     },
     {
       "id": "aapl-1016-deep-critique-misread-range-miss",
       "capture": "2026-10-16T15-39-22-261Z-db41e526",
-      "check": "contradiction",
+      "check": "unsupported-inference",
       "defect": true,
       "target": {
         "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
@@ -492,7 +496,7 @@
         "text": "The prior five-session range claim resolved as a miss: AAPL closed at $336.13, inside the stated $309–$344 range. That error is a calibration warning against making a narrow short-horizon range claim from limited market context; the historical run does not establish how the current setup will resolve.",
         "sourceIds": ["history-report-2026-09-11T07-37-46-327Z-ebdb627a"]
       },
-      "question": "Does the claim contradict the quoted evidence, i.e. state or imply something the evidence shows to be false? Read forecast records carefully: probability is the stated chance of the claimed event, and a miss means the event did not occur.",
+      "question": "Rubric: an unsupported calibration inference draws a general conclusion about forecast accuracy or calibration (calling an outcome an error, or saying forecasts understated or overstated a frequency) from outcome records that cannot support it: fewer than 5 resolved outcomes, or every cited outcome landed on the side the forecast favoured (probability above 0.5 for that side). Does the claim make an unsupported calibration inference under this rubric?",
       "evidence": [
         {
           "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
@@ -505,7 +509,7 @@
     {
       "id": "amd-1020a-critique-misread-range-misses",
       "capture": "2026-10-20T07-09-03-517Z-6b4aa8ab",
-      "check": "contradiction",
+      "check": "unsupported-inference",
       "defect": true,
       "target": {
         "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
@@ -519,7 +523,7 @@
           "history-report-2026-10-08T04-20-15-100Z-2e656117"
         ]
       },
-      "question": "Does the claim contradict the quoted evidence, i.e. state or imply something the evidence shows to be false? Read forecast records carefully: probability is the stated chance of the claimed event, and a miss means the event did not occur.",
+      "question": "Rubric: an unsupported calibration inference draws a general conclusion about forecast accuracy or calibration (calling an outcome an error, or saying forecasts understated or overstated a frequency) from outcome records that cannot support it: fewer than 5 resolved outcomes, or every cited outcome landed on the side the forecast favoured (probability above 0.5 for that side). Does the claim make an unsupported calibration inference under this rubric?",
       "evidence": [
         {
           "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
@@ -581,8 +585,8 @@
         },
         {
           "file": "2026-10-16T18-47-34-489Z-4d2d421b/replay/final-synthesis-input.json",
-          "pointer": ["input", "collectedSources", "newsSources", 6, "summary"],
-          "excerpt": "Apple's iPhone Duo foldable phone launches Friday at $1,999, likely appealing primarily to existing Apple customers rather than Android switchers. While sales could reach 5-10 million units annually, the real growth opportunity lies in Apple's expanding connected home ecosystem with new affordable devices like HomeView ($299) and HomePod mini 2 ($149), which could strengthen customer loyalty and ecosystem lock-in."
+          "pointer": ["input", "collectedSources", "newsSources", 8, "title"],
+          "excerpt": "Preorders Are Off to a Strong Start"
         }
       ],
       "why": "States that preorder strength and shorter iPhone 18 Pro waits point in different directions, matching the UBS and preorder coverage."
@@ -604,19 +608,31 @@
       "facts": [
         {
           "sourceId": "extended-sec-edgar-amd-10q",
-          "value": 6718000000
+          "value": 6718000000,
+          "pointer": ["input", "collectedSources", "extendedSources", 29, "snippet"],
+          "excerpt": "6,718",
+          "scale": 1000000.0
         },
         {
           "sourceId": "extended-sec-edgar-amd-10q",
-          "value": 11536000000
+          "value": 11536000000,
+          "pointer": ["input", "collectedSources", "extendedSources", 29, "snippet"],
+          "excerpt": "11,536",
+          "scale": 1000000.0
         },
         {
           "sourceId": "extended-sec-edgar-amd-10q",
-          "value": 12493000000
+          "value": 12493000000,
+          "pointer": ["input", "collectedSources", "extendedSources", 29, "snippet"],
+          "excerpt": "12,493",
+          "scale": 1000000.0
         },
         {
           "sourceId": "extended-sec-edgar-amd-10q",
-          "value": 6914000000
+          "value": 6914000000,
+          "pointer": ["input", "collectedSources", "extendedSources", 29, "snippet"],
+          "excerpt": "6,914",
+          "scale": 1000000.0
         }
       ],
       "why": "$6.718B is the Q2 Data Center line; 58.2% = 6,718/11,536 Q2 total; 81% = 12,493/6,914 - 1 first-half growth.",
@@ -645,23 +661,33 @@
       "facts": [
         {
           "sourceId": "extended-sec-edgar-aapl-fundamentals",
-          "value": 364357000000
+          "value": 364357000000,
+          "pointer": ["input", "collectedSources", "extendedEvidence", "items", 0, "summary"],
+          "excerpt": "364357000000"
         },
         {
           "sourceId": "extended-sec-edgar-aapl-fundamentals",
-          "value": 178782000000
+          "value": 178782000000,
+          "pointer": ["input", "collectedSources", "extendedEvidence", "items", 0, "summary"],
+          "excerpt": "178782000000"
         },
         {
           "sourceId": "extended-sec-edgar-aapl-fundamentals",
-          "value": 122432000000
+          "value": 122432000000,
+          "pointer": ["input", "collectedSources", "extendedEvidence", "items", 0, "summary"],
+          "excerpt": "122432000000"
         },
         {
           "sourceId": "extended-sec-edgar-aapl-fundamentals",
-          "value": 116996000000
+          "value": 116996000000,
+          "pointer": ["input", "collectedSources", "extendedEvidence", "items", 0, "summary"],
+          "excerpt": "116996000000"
         },
         {
           "sourceId": "extended-sec-edgar-aapl-fundamentals",
-          "value": 6799000000
+          "value": 6799000000,
+          "pointer": ["input", "collectedSources", "extendedEvidence", "items", 0, "summary"],
+          "excerpt": "6799000000"
         }
       ],
       "why": "Gross margin 178,782/364,357 = 49.1%; operating margin 122,432/364,357 = 33.6%; FCF proxy 116,996 - 6,799 = $110.2B.",
@@ -690,15 +716,21 @@
       "facts": [
         {
           "sourceId": "market-yahoo-equity-aapl",
-          "value": 346.085
+          "value": 346.085,
+          "pointer": ["input", "collectedSources", "marketSnapshots", 0, "open"],
+          "excerpt": "346.085"
         },
         {
           "sourceId": "market-yahoo-equity-aapl",
-          "value": 342
+          "value": 342,
+          "pointer": ["input", "collectedSources", "marketSnapshots", 0, "previousClose"],
+          "excerpt": "342"
         },
         {
           "sourceId": "market-yahoo-equity-aapl",
-          "value": 345.345
+          "value": 345.345,
+          "pointer": ["input", "collectedSources", "marketSnapshots", 0, "price"],
+          "excerpt": "345.345"
         }
       ],
       "why": "Open 346.085, previous close 342, quote 345.345; 1.19% = 346.085/342 - 1.",
@@ -712,6 +744,11 @@
           "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
           "pointer": ["input", "collectedSources", "marketSnapshots", 0, "previousClose"],
           "excerpt": "342"
+        },
+        {
+          "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "marketSnapshots", 0, "price"],
+          "excerpt": "345.345"
         }
       ]
     },
@@ -732,27 +769,67 @@
       "facts": [
         {
           "sourceId": "verified-snapshot-AMD",
-          "value": 547.5499877929688
+          "value": 547.5499877929688,
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv", "open"],
+          "excerpt": "547.5499877929688"
         },
         {
           "sourceId": "verified-snapshot-AMD",
-          "value": 550.9600219726562
+          "value": 550.9600219726562,
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv", "high"],
+          "excerpt": "550.9600219726562"
         },
         {
           "sourceId": "verified-snapshot-AMD",
-          "value": 526.8300170898438
+          "value": 526.8300170898438,
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv", "low"],
+          "excerpt": "526.8300170898438"
         },
         {
           "sourceId": "verified-snapshot-AMD",
-          "value": 528.75
+          "value": 528.75,
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv", "close"],
+          "excerpt": "528.75"
         }
       ],
-      "why": "October 16 OHLC from the verified snapshot.",
+      "why": "October 16 OHLC from the verified snapshot. Indicators: close 528.75 below sma50 537.14 and above sma200 394.25; rsi14 37.77; MACD histogram negative.",
       "evidence": [
         {
           "file": "2026-10-18T08-13-28-001Z-1e2720bc/replay/final-synthesis-input.json",
           "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv"],
           "excerpt": "{\"date\":\"2026-10-16\",\"open\":547.5499877929688,\"high\":550.9600219726562,\"low\":526.8300170898438,\"close\":528.75,\"volume\":22481800}"
+        },
+        {
+          "file": "2026-10-18T08-13-28-001Z-1e2720bc/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "indicators", "sma50"],
+          "excerpt": "537.1383996582031"
+        },
+        {
+          "file": "2026-10-18T08-13-28-001Z-1e2720bc/replay/final-synthesis-input.json",
+          "pointer": [
+            "input",
+            "collectedSources",
+            "verifiedMarketSnapshot",
+            "indicators",
+            "sma200"
+          ],
+          "excerpt": "394.2475003051758"
+        },
+        {
+          "file": "2026-10-18T08-13-28-001Z-1e2720bc/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "indicators", "rsi14"],
+          "excerpt": "37.765730203462155"
+        },
+        {
+          "file": "2026-10-18T08-13-28-001Z-1e2720bc/replay/final-synthesis-input.json",
+          "pointer": [
+            "input",
+            "collectedSources",
+            "verifiedMarketSnapshot",
+            "indicators",
+            "macdHistogram"
+          ],
+          "excerpt": "-14.100151277541741"
         }
       ]
     },
@@ -773,15 +850,35 @@
       "facts": [
         {
           "sourceId": "verified-snapshot-AMD",
-          "value": 538.0499877929688
+          "value": 538.0499877929688,
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv", "close"],
+          "excerpt": "538.0499877929688"
         },
         {
           "sourceId": "verified-snapshot-AMD",
-          "value": 528.75
+          "value": 528.75,
+          "pointer": [
+            "input",
+            "collectedSources",
+            "verifiedMarketSnapshot",
+            "recentCloses",
+            28,
+            "close"
+          ],
+          "excerpt": "528.75"
         },
         {
           "sourceId": "verified-snapshot-AMD",
-          "value": 649.4199829101562
+          "value": 649.4199829101562,
+          "pointer": [
+            "input",
+            "collectedSources",
+            "verifiedMarketSnapshot",
+            "recentCloses",
+            20,
+            "close"
+          ],
+          "excerpt": "649.4199829101562"
         }
       ],
       "why": "Close 538.05, prior close 528.75 (+1.76%), October 6 close 649.42 in recentCloses.",
@@ -795,6 +892,11 @@
           "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
           "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "recentCloses", 20],
           "excerpt": "{\"date\":\"2026-10-06\",\"close\":649.4199829101562}"
+        },
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "recentCloses", 28],
+          "excerpt": "{\"date\":\"2026-10-16\",\"close\":528.75}"
         }
       ]
     }

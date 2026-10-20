@@ -12,7 +12,7 @@ import {
 } from "../tests/support/run-fixtures/eval";
 import { validateLiveStage } from "../src/replay/llm-cassette";
 import {
-  ABLATABLE_STAGES,
+  ABLATION_ARMS,
   estimateSynthesisFile,
   replaySynthesisFile,
 } from "../src/replay/replay-synthesis";
@@ -24,7 +24,7 @@ import { join } from "node:path";
 
 const USAGE =
   "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
-  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--ablate <stage>] [--yes]\n" +
+  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--ablate <arm>] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
@@ -42,7 +42,9 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
 });
 
-const ablate = ABLATABLE_STAGES.find((stage) => stage === values.ablate);
+const ablate = Object.keys(ABLATION_ARMS).find((arm) => arm === values.ablate) as
+  | keyof typeof ABLATION_ARMS
+  | undefined;
 if (values.input !== undefined) {
   if (
     (values.ablate !== undefined && ablate === undefined) ||
@@ -60,9 +62,13 @@ if (values.input !== undefined) {
   if (existsSync(labelDir)) {
     throw new Error(`Eval label already exists: ${labelDir}`);
   }
-  const estimate = await estimateSynthesisFile(values.input, ablate);
+  const omissionCases = parseEvalCases(
+    await Bun.file(join(import.meta.dir, "../tests/fixtures/eval-cases/cases.json")).json(),
+  ).filter((row): row is OmissionCase => row.check === "omission");
+  const estimate = await estimateSynthesisFile(values.input, ablate, omissionCases);
+  const samplesCount = Number(values.samples);
   process.stdout.write(
-    `Final synthesis input${ablate === undefined ? "" : ` without ${ablate}`}: ${String(estimate.observedCalls)} recorded call(s). Expected ~${String(estimate.expectedPerRun * Number(values.samples))} tokens total at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded calls/sample, 25% headroom) ~${String(estimate.perRun * Number(values.samples))}. Not a provider-enforced cost cap.\n`,
+    `Final synthesis input${ablate === undefined ? "" : ` without ${ablate}`}: ${String(estimate.observedCalls)} recorded call(s). Expected ~${String(estimate.expectedPerRun * samplesCount)} tokens total at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded calls/sample, 25% headroom) ~${String(estimate.perRun * samplesCount)}. k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample, ~${String(estimate.judgePerRun * samplesCount)} tokens total. Not a provider-enforced cost cap.\n`,
   );
   if (!values.yes) {
     process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
@@ -71,19 +77,17 @@ if (values.input !== undefined) {
   const dir = await freshEvalDir(values.label);
   const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
   const provider = createProvider(config);
-  const omissionCases = parseEvalCases(
-    await Bun.file(join(import.meta.dir, "../tests/fixtures/eval-cases/cases.json")).json(),
-  ).filter((row): row is OmissionCase => row.check === "omission");
   const samples = [];
-  for (let sample = 1; sample <= Number(values.samples); sample += 1) {
+  for (let sample = 1; sample <= samplesCount; sample += 1) {
     samples.push(
       // oxlint-disable-next-line no-await-in-loop -- each sample writes an isolated directory
       await replaySynthesisFile({
         input: values.input,
         label: String(sample),
         root: dir,
-        withoutStage: ablate,
+        ablation: ablate,
         omissionCases,
+        judge: { provider, model: config.synthesisModel },
         provider: {
           ...provider,
           generate: (request) => provider.generate({ ...request, model: config.synthesisModel }),
@@ -93,7 +97,7 @@ if (values.input !== undefined) {
   }
   await writeEvalJson(dir, "summary.json", {
     scope: "final-synthesis-only",
-    ablatedStage: ablate,
+    ablation: ablate,
     samples,
   });
   process.stdout.write(`${join(dir, "summary.json")}\n`);

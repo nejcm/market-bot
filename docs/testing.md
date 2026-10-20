@@ -353,40 +353,88 @@ entry point.
 `tests/fixtures/eval-cases/cases.json` holds frozen labeled cases cut from replay captures under
 `data/runs/<run>/replay/`. Each case names one claim by file, sha256 and JSON pointer (`$json` descends
 into a stage's JSON-string `content`) and cites the evidence that justifies its label. Labels are
-`stale-support`, `omission`, `contradiction`, `extraction-error`, or `clean` (a control, `defect: false`).
-No `extraction-error` positive could be justified from the captured runs; those cases are clean controls
-that pin the figure check. A case whose label cannot be traced to an artifact is left out.
+`stale-support`, `omission` (a required source no claim cites, which is citation coverage, not proof the
+content is missing), `unsupported-inference`, `contradiction`, `extraction-error`, or `clean` (a control,
+`defect: false`). No `contradiction` or `extraction-error` positive could be justified from the captured
+runs; those checks have clean controls only. A case whose label cannot be traced to an artifact is left out.
+
+`unsupported-inference` cases carry their rubric in `question`: a general calibration conclusion (an outcome
+called an error, a frequency called understated) drawn from fewer than 5 resolved outcomes, or from
+outcomes that all landed on the side the forecast favoured.
 
 ```sh
-bun run scripts/eval-cases.ts [--runs <dir>]   # offline: re-hash targets, re-check excerpts, run the deterministic checks
+bun run scripts/eval-cases.ts --runs <data/runs dir>   # offline; never calls a provider
 ```
 
-`tests/eval-cases.test.ts` runs the same checks without the captures. Stale support, omission and
-figure extraction are deterministic (`src/replay/eval-cases.ts`). Contradiction needs a judge
-(`src/replay/eval-judge.ts`): k=3 votes through any `ModelProvider` under stage `eval-judge`, strict
-majority or `undecided`, unparseable output counts as an invalid vote. Tests drive it from a cassette;
-nothing calls a live judge.
+The verifier re-hashes each target and re-derives every operand from the capture: claim text and
+`sourceIds` at the pointer, stale-support current/historical memberships from `knownSourceIds` and the
+Historical Research Context, omission citation sets from the report's claims, and each numeric fact from its
+own pointer and excerpt. `tests/eval-cases.test.ts` runs the checks without the captures.
 
-`eval-deep.ts --input <file> --ablate <critique|specialist-analysis|market-behavior-analysis>` drops that
-stage's output from the saved `priorStages` and replays only final synthesis. Arms differ only in that
-input: same synthesis model, bounded attempts and sample count. Every `--input` sample, ablated or not,
-records `defects` in `eval-sample.json` from `scoreReportDefects`: stale-support claim locations,
-figures matching no number in the saved evidence, and the omission cases for that capture still unmet.
-Ablating a stage the input lacks throws (brief captures carry no `market-behavior-analysis`). The critique
-ran after the other two stages, so it can carry their content into those arms.
+Deterministic checks (`src/replay/eval-cases.ts`):
+
+- Stale support: a citation outside `knownSourceIds`, or history-report-only support without a stale or
+  missing posture.
+- Citation coverage: no claim cites any of a case's required sources.
+- Figures: a currency, percent, multiple or scaled figure must match a number from a source the claim
+  cites. Numbers come from records tagged with that id (`id`, `sourceId`, `sourceIds`); URLs, accession
+  numbers, form names, dates, ids and metadata keys are excluded, and so are `rawSnapshots` and the raw SEC
+  packet, which no prompt carries. Registered derivations, both operands from one record of 200 numbers
+  or fewer: percent as ratio, margin, share or percent change; multiple as ratio; currency as difference.
+  Unit rescale (thousand/million/billion) is a direct match. On the 8 captured reports this flags no
+  figure, and it catches 11 of 16 currency figures shifted by +7.
+
+The judge (`src/replay/eval-judge.ts`) runs k=3 votes through any `ModelProvider` under stage
+`eval-judge`: strict majority or `undecided`, unparseable output is an invalid vote. Tests drive it from
+a cassette; nothing calls a live judge outside an approved `eval-deep.ts --yes` batch.
+
+`eval-deep.ts --input <file> --ablate <arm>` replays only final synthesis on a saved input with the arm's
+stages removed from `priorStages`. Each analysis stage feeds its consumers (`src/research/analysis-phase.ts`:
+specialist feeds both coverage panels and critique; both panels feed critique), so a frozen drop of a
+non-terminal stage would keep its content in its descendants. Arms are therefore joint ablations:
+
+| Arm                                 | Removed                                                     | Captures |
+| ----------------------------------- | ----------------------------------------------------------- | -------- |
+| `critique`                          | critique (terminal, so an isolated deletion)                | all 8    |
+| `market-behavior-analysis+critique` | market-behavior-analysis, critique                          | 3 deep   |
+| `specialist-analysis+dependents`    | specialist and every consumer: on every capture, all stages | all 8    |
+
+The specialist arm therefore measures deleting the whole analysis phase, not the specialist alone.
+Regenerating descendants live without the removed input needs a pipeline skip hook that does not exist;
+until it does, a single non-terminal stage cannot be deleted on this evidence. An arm whose root stage
+is absent throws. Arms differ only in that input: same synthesis model, bounded attempts and sample count.
+
+Every `--input` sample records `defects` in `eval-sample.json` (stale-support locations, unmatched-figure
+locations, `uncitedRequiredSources`) and, in a `--yes` batch, `judged`: k=3 judge verdicts on every claim
+of the generated report against its cited sources (`contradictions`, with `undecided` counted as a
+contradiction) and on each omission case's conveyance question (`unconveyed`, with `undecided` counted as not
+conveyed). The judge uses the configured synthesis model. The plan without `--yes` prints the judge
+item count and token estimate.
 
 ### Stage deletion rule (pre-registered)
 
-A stage may be deleted only when its ablation arm is non-inferior to the baseline arm:
+Experiment identity: one baseline arm and one ablation arm, both from the same commit, over the same
+captures, with the same synthesis and judge model. Arms run as separate `eval-deep.ts --input` labels per
+capture.
 
-- Metric: mean defects per report = stale-support locations + unmatched-figure locations + unmet omission
-  cases, from `eval-sample.json` `defects`, over completed samples. A failed sample counts as a loss.
-- Margin: ablation mean ≤ baseline mean + 0.5, and no labeled omission case met in ≥2/3 baseline samples
-  falls below 2/3 in the ablation arm.
-- Minimum: 3 samples per capture per arm, all 8 captured runs for `critique` and `specialist-analysis`
-  (≥24 samples per arm), all 3 deep captures for `market-behavior-analysis` (≥9).
-- Contradiction labels enter only through an approved k=3 judge batch; until then the rule is decided on
-  the deterministic metric and the result says so.
+- Report score: stale-support locations + unmatched-figure locations + judged contradiction locations
+  (`yes` or `undecided`) from that sample's `eval-sample.json`.
+- Paired difference per capture: mean ablation score minus mean baseline score. Captures weigh equally,
+  whatever their claim count.
+- Decision: one-sided 95% upper bound of the mean paired difference, from a cluster bootstrap over
+  captures (10,000 resamples, fixed seed), must be ≤ 0.5. `stageDeletionVerdict` in
+  `src/replay/eval-decision.ts` computes it.
+- Failed sample: a veto for that arm. Each failed sample may be rerun once, with at most
+  ceil(10% of the arm's samples) reruns per arm; a sample still failing, or a sample without `judged`,
+  vetoes.
+- Omission veto: an omission case whose conveyance is `yes` in ≥2/3 of baseline samples and in < 2/3 of
+  ablation samples vetoes. Citation coverage alone never certifies conveyance.
+- Sample size: the pilot is exactly 3 samples per capture per arm and decides nothing. The confirmatory
+  batch uses n = max(3, ceil(2 · s² · (1.645 / 0.25)² / C)) samples per capture per arm, where s² is the
+  pooled within-capture variance of the pilot's report scores and C is the arm's capture count. n is
+  recorded before the confirmatory batch runs; pilot samples are not reused.
+- No stage is deleted until both arms have been judged. Every live batch, pilot or confirmatory, needs
+  approval after its printed estimate.
 
 ## Deep-equity presentation assertions
 

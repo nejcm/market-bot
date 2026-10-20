@@ -78,7 +78,7 @@ re-derived properties and targeted assertions, not approving large output snapsh
 - Deterministic report reruns project saved normalized evidence, validate/render into fresh
   `data/evals/<label>/` roots, and never change original Run Artifacts. Missing canonical files fail; recorded
   null stays absence. No live evaluation writes to `data/runs/`.
-- Deleting a pipeline stage requires a non-inferior `eval-deep.ts --input --ablate` result under the rule
+- Deleting a pipeline stage requires a judged, non-inferior `eval-deep.ts --input --ablate` result under the rule
   pre-registered in `docs/testing.md` (metric, margin and minimum cases fixed before any arm runs).
 
 ## Consequences

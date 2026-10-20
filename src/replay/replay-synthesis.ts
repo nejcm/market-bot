@@ -21,28 +21,64 @@ import {
   type SynthesisReplayInput,
 } from "./synthesis-input";
 import { freshEvalDir, writeEvalJson } from "./eval-output";
-import { scoreReportDefects, type OmissionCase } from "./eval-cases";
+import { judgeReport, reportJudgeItems, scoreReportDefects, type OmissionCase } from "./eval-cases";
+import { estimateJudgeTokens } from "./eval-judge";
+import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 
-export const ABLATABLE_STAGES = [
-  "critique",
-  "specialist-analysis",
-  "market-behavior-analysis",
-] as const;
-type AblatableStage = (typeof ABLATABLE_STAGES)[number];
+// Joint ablations: each arm drops its root stage and every stage that consumed it (analysis-phase.ts).
+export const ABLATION_ARMS = {
+  critique: ["critique"],
+  "market-behavior-analysis+critique": ["market-behavior-analysis", "critique"],
+  "specialist-analysis+dependents": [
+    "specialist-analysis",
+    "instrument-evidence-analysis",
+    "market-behavior-analysis",
+    "critique",
+  ],
+} as const;
+type AblationArm = keyof typeof ABLATION_ARMS;
 
 async function loadAblatedInput(
   input: string,
-  withoutStage: AblatableStage | undefined,
+  arm: AblationArm | undefined,
 ): Promise<SynthesisReplayInput> {
   const saved = await loadSynthesisReplayInput(input);
-  if (withoutStage === undefined) {
+  if (arm === undefined) {
     return saved;
   }
-  const priorStages = saved.input.priorStages.filter((row) => row.stage !== withoutStage);
-  if (priorStages.length === saved.input.priorStages.length) {
-    throw new Error(`Cannot ablate ${withoutStage}: the saved input has no such prior stage`);
+  const dropped: readonly string[] = ABLATION_ARMS[arm];
+  if (!saved.input.priorStages.some((row) => row.stage === dropped[0])) {
+    throw new Error(`Cannot ablate ${arm}: the saved input has no ${dropped[0]} stage`);
   }
+  const priorStages = saved.input.priorStages.filter((row) => !dropped.includes(row.stage));
   return { ...saved, input: { ...saved.input, priorStages } };
+}
+
+function captureOmissionCases(
+  saved: SynthesisReplayInput,
+  cases: readonly OmissionCase[] | undefined,
+): readonly OmissionCase[] {
+  return (cases ?? []).filter((row) => row.capture === saved.input.runId);
+}
+
+function scoringEvidence(saved: SynthesisReplayInput): unknown {
+  // Raw payloads and the SEC packet never reach a prompt; their ~600k numbers would match any figure.
+  const {
+    rawSnapshots: _rawSnapshots,
+    secTargetPacket: _secTargetPacket,
+    verifiedMarketSnapshot,
+    ...collected
+  } = saved.input.collectedSources;
+  return [
+    collected,
+    saved.input.sources,
+    verifiedMarketSnapshot === undefined
+      ? []
+      : {
+          ...verifiedMarketSnapshot,
+          id: verifiedMarketSnapshotSourceId(verifiedMarketSnapshot.symbol),
+        },
+  ];
 }
 
 type SynthesisReplayResult = ReturnType<typeof finalizeSynthesis> & {
@@ -128,14 +164,16 @@ export async function replaySynthesisFile(options: {
   readonly root?: string;
   readonly provider?: ModelProvider;
   readonly promptDir?: string;
-  readonly withoutStage?: AblatableStage | undefined;
+  readonly ablation?: AblationArm | undefined;
   readonly omissionCases?: readonly OmissionCase[];
+  readonly judge?: { readonly provider: ModelProvider; readonly model: string };
 }): Promise<{
   readonly status: "completed" | "failed";
   readonly dir: string;
   readonly durationMs: number;
 }> {
-  const saved = await loadAblatedInput(options.input, options.withoutStage);
+  const saved = await loadAblatedInput(options.input, options.ablation);
+  const omissionCases = captureOmissionCases(saved, options.omissionCases);
   const dir = await freshEvalDir(options.label, options.root);
   const started = performance.now();
   const requests: ModelRequest[] = [];
@@ -146,6 +184,7 @@ export async function replaySynthesisFile(options: {
   const modelMisses: string[] = [];
   let facts: ReturnType<typeof synthesisReplayFacts> | undefined = undefined;
   let defects: ReturnType<typeof scoreReportDefects> | undefined = undefined;
+  let judged: Awaited<ReturnType<typeof judgeReport>> | undefined = undefined;
   try {
     const result = await executeSynthesisInput(saved, {
       ...options,
@@ -159,15 +198,12 @@ export async function replaySynthesisFile(options: {
     });
     ({ calls } = result);
     facts = synthesisReplayFacts(result.report);
-    const { rawSnapshots: _rawSnapshots, ...evidence } = saved.input.collectedSources;
     defects = scoreReportDefects({
       report: result.report,
       knownSourceIds: saved.input.knownSourceIds,
       historicalContext: saved.input.context.historicalContext,
-      evidence: [evidence, saved.input.sources],
-      omissionCases: (options.omissionCases ?? []).filter(
-        (row) => row.capture === saved.input.runId,
-      ),
+      evidence: scoringEvidence(saved),
+      omissionCases,
     });
     await writeEvalJson(dir, "report.json", result.report);
     await writeFile(join(dir, "report.md"), result.markdown);
@@ -176,6 +212,13 @@ export async function replaySynthesisFile(options: {
       warnings: result.postSynthesisWarnings,
       integrity: result.integrityAudit,
     });
+    if (options.judge !== undefined) {
+      judged = await judgeReport(
+        options.judge.provider,
+        options.judge.model,
+        reportJudgeItems(result.report, omissionCases),
+      );
+    }
   } catch (error) {
     status = "failed";
     failureMessage = error instanceof Error ? error.message : String(error);
@@ -190,8 +233,9 @@ export async function replaySynthesisFile(options: {
     scope: "final-synthesis-only",
     partial: true,
     input: resolve(options.input),
-    ablatedStage: options.withoutStage,
+    ablation: options.ablation,
     defects,
+    judged,
     durationMs,
     error: failureMessage,
     modelCalls: {
@@ -231,17 +275,20 @@ export async function replaySynthesisFile(options: {
 
 export async function estimateSynthesisFile(
   input: string,
-  withoutStage?: AblatableStage,
+  ablation?: AblationArm,
+  omissionCases?: readonly OmissionCase[],
 ): Promise<{
   readonly observedCalls: number;
   readonly boundedCalls: number;
   readonly maxInputTokens: number;
   readonly perRun: number;
   readonly expectedPerRun: number;
+  readonly judgeItems: number;
+  readonly judgePerRun: number;
 }> {
-  const saved = await loadAblatedInput(input, withoutStage);
+  const saved = await loadAblatedInput(input, ablation);
   const requests: ModelRequest[] = [];
-  await executeSynthesisInput(saved, {
+  const { report } = await executeSynthesisInput(saved, {
     onRequest: (request) => {
       requests.push(request);
     },
@@ -252,7 +299,10 @@ export async function estimateSynthesisFile(
     ),
   );
   const boundedCalls = 1 + saved.input.maxPredictionReprompts + 2 + MAX_REPORT_VALIDATION_REPROMPTS;
+  const judgeItems = reportJudgeItems(report, captureOmissionCases(saved, omissionCases));
   return {
+    judgeItems: judgeItems.length,
+    judgePerRun: estimateJudgeTokens(judgeItems.map((row) => row.item)),
     observedCalls: requests.length,
     boundedCalls,
     maxInputTokens,

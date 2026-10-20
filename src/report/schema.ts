@@ -176,9 +176,10 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
   }
 }
 
-interface ModelAuthoredSegment {
+export interface ModelAuthoredSegment {
   readonly path: string;
   readonly text: string;
+  readonly sourceIds?: readonly string[];
 }
 
 /*
@@ -217,7 +218,10 @@ function attributeLanguageViolation(
   return segments.find((segment) => segment.text.toLowerCase().includes(wanted))?.path;
 }
 
-function modelAuthoredReportSegments(report: ResearchReport): readonly ModelAuthoredSegment[] {
+// Every model-authored prose surface of a report; the language gate and the eval judge both walk it.
+export function modelAuthoredReportSegments(
+  report: ResearchReport,
+): readonly ModelAuthoredSegment[] {
   return [
     { path: "summary", text: report.summary },
     ...(
@@ -232,11 +236,20 @@ function modelAuthoredReportSegments(report: ResearchReport): readonly ModelAuth
       findings.map((finding, index) => ({
         path: `${section}[${String(index)}]`,
         text: finding.text,
+        sourceIds: finding.sourceIds,
       })),
     ),
     ...report.scenarios.flatMap((scenario, index) => [
-      { path: `scenarios[${String(index)}].name`, text: scenario.name },
-      { path: `scenarios[${String(index)}].description`, text: scenario.description },
+      {
+        path: `scenarios[${String(index)}].name`,
+        text: scenario.name,
+        sourceIds: scenario.sourceIds,
+      },
+      {
+        path: `scenarios[${String(index)}].description`,
+        text: scenario.description,
+        sourceIds: scenario.sourceIds,
+      },
     ]),
     ...modelAuthoredExtraSegments(report.extras),
   ];
@@ -282,11 +295,18 @@ function spotlightsSegments(extra: unknown): readonly ModelAuthoredSegment[] {
           {
             path: `extras.spotlights.items[${String(index)}].rationale`,
             text: item.rationale,
+            sourceIds: readStringArray(item.sourceIds),
           },
         ];
       }
       return typeof item.text === "string"
-        ? [{ path: `extras.spotlights.items[${String(index)}].text`, text: item.text }]
+        ? [
+            {
+              path: `extras.spotlights.items[${String(index)}].text`,
+              text: item.text,
+              sourceIds: readStringArray(item.sourceIds),
+            },
+          ]
         : [];
     }),
   ];
@@ -305,6 +325,7 @@ function earningsSetupSegments(extra: unknown): readonly ModelAuthoredSegment[] 
           segments.push({
             path: `extras.earningsSetup.${key}[${String(index)}].text`,
             text: bullet.text,
+            sourceIds: readStringArray(bullet.sourceIds),
           });
         }
       }
@@ -314,14 +335,30 @@ function earningsSetupSegments(extra: unknown): readonly ModelAuthoredSegment[] 
 }
 
 function businessFrameworkSegments(extra: unknown): readonly ModelAuthoredSegment[] {
-  return businessFrameworkSourceRows(extra).flatMap(({ text }) =>
-    text === undefined ? [] : [{ path: `extras.businessFramework.${text.path}`, text: text.value }],
+  return businessFrameworkSourceRows(extra).flatMap(({ text, sourceIds }) =>
+    text === undefined
+      ? []
+      : [
+          {
+            path: `extras.businessFramework.${text.path}`,
+            text: text.value,
+            sourceIds: sourceIds ?? [],
+          },
+        ],
   );
 }
 
 function webSubjectProfileSegments(extra: unknown): readonly ModelAuthoredSegment[] {
-  return webSubjectProfileSourceRows(extra).flatMap(({ text }) =>
-    text === undefined ? [] : [{ path: `extras.webSubjectProfile.${text.path}`, text: text.value }],
+  return webSubjectProfileSourceRows(extra).flatMap(({ text, sourceIds }) =>
+    text === undefined
+      ? []
+      : [
+          {
+            path: `extras.webSubjectProfile.${text.path}`,
+            text: text.value,
+            sourceIds: sourceIds ?? [],
+          },
+        ],
   );
 }
 

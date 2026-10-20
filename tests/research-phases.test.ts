@@ -529,4 +529,41 @@ describe("research phase seams", () => {
       },
     ]);
   });
+
+  test("analysis phase skip hook regenerates downstream stages from surviving outputs", async () => {
+    const run = async (skipStage?: "specialist-analysis" | "market-behavior-analysis") => {
+      const calls: (readonly [string, readonly string[] | undefined])[] = [];
+      await runAnalysisPhase({
+        command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        collectedSources: collectedSources(),
+        context,
+        quickModel: "quick-test",
+        ...(skipStage === undefined ? {} : { skipStage }),
+        runStage: async (stage, _model, stageInput): Promise<StageOutput> => {
+          calls.push([stage, stageInput.priorStages?.map((item) => item.stage)]);
+          return { stage, content: "{}", tokenEstimate: 1 };
+        },
+      });
+      return calls;
+    };
+    expect(await run()).toEqual([
+      ["specialist-analysis", undefined],
+      ["instrument-evidence-analysis", ["specialist-analysis"]],
+      ["market-behavior-analysis", ["specialist-analysis"]],
+      [
+        "critique",
+        ["specialist-analysis", "instrument-evidence-analysis", "market-behavior-analysis"],
+      ],
+    ]);
+    expect(await run("specialist-analysis")).toEqual([
+      ["instrument-evidence-analysis", []],
+      ["market-behavior-analysis", []],
+      ["critique", ["instrument-evidence-analysis", "market-behavior-analysis"]],
+    ]);
+    expect(await run("market-behavior-analysis")).toEqual([
+      ["specialist-analysis", undefined],
+      ["instrument-evidence-analysis", ["specialist-analysis"]],
+      ["critique", ["specialist-analysis", "instrument-evidence-analysis"]],
+    ]);
+  });
 });

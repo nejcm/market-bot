@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Star from "@lucide/svelte/icons/star";
   import type {
     InstrumentTimelineDetail,
     InstrumentTimelineForecast,
@@ -11,11 +12,13 @@
     readonly detail: InstrumentTimelineDetail | null;
     readonly loading: boolean;
     readonly runs: readonly RunSummary[];
+    readonly starred: boolean;
     readonly onOpenRun: (runId: string) => void;
     readonly onGoHome: () => void;
+    readonly onToggleStar: () => void;
   }
 
-  let { detail, loading, runs, onOpenRun, onGoHome }: Props = $props();
+  let { detail, loading, runs, starred, onOpenRun, onGoHome, onToggleStar }: Props = $props();
 
   let WIDTH = $state(760);
   const HEIGHT = 220;
@@ -110,7 +113,17 @@
 
     <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 class="text-[21px] font-semibold tracking-tight">{detail.symbol}</h1>
+        <div class="flex items-center gap-2.5">
+          <h1 class="text-[21px] font-semibold tracking-tight">{detail.symbol}</h1>
+          <button
+            class="shrink-0 rounded-md border border-input bg-secondary p-1.5 text-foreground shadow-xs transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            type="button"
+            aria-label={starred ? "Remove star from instrument" : "Star instrument"}
+            onclick={onToggleStar}
+          >
+            <Star class="size-4.5 {starred ? 'fill-current text-[#c9a24b]' : ''}" />
+          </button>
+        </div>
         <div class="mt-1 font-mono text-xs text-[#5c6066]">{detail.assetClass}</div>
       </div>
       <div class="grid grid-cols-2 gap-4 text-right sm:grid-cols-4">

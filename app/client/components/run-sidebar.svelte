@@ -6,6 +6,7 @@
     Menu,
     Play,
     Search,
+    Star,
     Target,
   } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button";
@@ -19,8 +20,10 @@
     runLabel,
     type InstrumentRunHistoryRow,
     type SidebarView,
+    type StarredSidebarEntry,
   } from "../view-model";
   import type { View } from "./console-types";
+  import type { Star as StarRecord } from "../../types";
   import TickerLogo from "./ticker-logo.svelte";
   import logoUrl from "../../../assets/logo.png";
 
@@ -34,11 +37,14 @@
     readonly queryText: string;
     readonly typeFilter: string;
     readonly expandedGroups: readonly string[];
+    readonly stars: readonly StarredSidebarEntry[];
     readonly onQueryChange: (value: string) => void;
     readonly onTypeFilterChange: (value: string) => void;
     readonly onSelectRun: (runId: string) => void;
     readonly onToggleGroup: (groupKey: string) => void;
     readonly onNavigate: (view: SidebarView) => void;
+    readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
+    readonly onRemoveStar: (star: StarRecord) => void;
     mobileOpen?: boolean | undefined;
   }
 
@@ -64,11 +70,14 @@
     queryText,
     typeFilter,
     expandedGroups,
+    stars,
     onQueryChange,
     onTypeFilterChange,
     onSelectRun,
     onToggleGroup,
     onNavigate,
+    onOpenInstrument,
+    onRemoveStar,
     mobileOpen = $bindable(false),
   }: Props = $props();
 
@@ -105,6 +114,19 @@
   function selectAndClose(runId: string): void {
     onSelectRun(runId);
     mobileOpen = false;
+  }
+
+  function openStar(entry: StarredSidebarEntry): void {
+    if (entry.star.kind === "run") {
+      if (!entry.missing) {
+        selectAndClose(entry.star.key);
+      }
+      return;
+    }
+    if (entry.assetClass !== undefined && entry.symbol !== undefined) {
+      onOpenInstrument(entry.assetClass, entry.symbol);
+      mobileOpen = false;
+    }
   }
 </script>
 
@@ -159,6 +181,46 @@
         </button>
       {/each}
     </nav>
+
+    {#if stars.length > 0}
+      <div class="px-4.5 pb-1.5 pt-2">
+        <span class="font-mono text-[10px] tracking-widest text-[#6e757d]">STARRED</span>
+        <div class="mt-1 space-y-0.5">
+          {#each stars as entry}
+            {#if entry.missing}
+              <div class="flex items-center gap-2 rounded-md px-2.5 py-1.25">
+                <Star class="size-3 shrink-0 fill-current text-[#8a6116]" />
+                <span class="min-w-0 flex-1 truncate font-mono text-[10.5px] text-[#6e757d]">
+                  {entry.label}
+                </span>
+                <span
+                  class="shrink-0 rounded border border-[#d9c89a] px-1 py-px font-mono text-[9px] uppercase tracking-wide text-[#8a6116]"
+                >
+                  missing
+                </span>
+                <button
+                  class="shrink-0 rounded px-1 py-0.5 font-mono text-[10px] text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                  type="button"
+                  aria-label="Remove star from {entry.label}"
+                  onclick={() => onRemoveStar(entry.star)}
+                >
+                  ✕
+                </button>
+              </div>
+            {:else}
+              <button
+                class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.25 text-left transition hover:bg-[#262c31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                type="button"
+                onclick={() => openStar(entry)}
+              >
+                <Star class="size-3 shrink-0 fill-current text-[#c9a24b]" />
+                <span class="min-w-0 flex-1 truncate text-xs text-[#d6dadd]">{entry.label}</span>
+              </button>
+            {/if}
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <div class="mx-4.5 mb-3 mt-3.5 h-px shrink-0 bg-sidebar-border"></div>
 

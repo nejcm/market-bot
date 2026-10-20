@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    addStar,
     fetchAlphaCohorts,
     createJob,
     fetchCalibration,
@@ -11,6 +12,8 @@
     fetchRunFile,
     fetchRunSearch,
     fetchRuns,
+    fetchStars,
+    removeStar,
   } from "./api";
   import { appSettings, setReportDetail, setShowSources } from "./app-settings.svelte";
   import DashboardOverview from "./components/dashboard-overview.svelte";
@@ -32,6 +35,7 @@
     RunDetail,
     RunSearchResult,
     RunSummary,
+    Star,
   } from "../types";
   import {
     dashboardMetrics,
@@ -51,6 +55,7 @@
     searchQueryFromSearchParams,
     sidebarViewFromPathname,
     sidebarViewPath,
+    starredSidebarEntries,
     type SidebarView,
   } from "./view-model";
 
@@ -80,6 +85,7 @@
   let calibration = $state<CalibrationDetail>({});
   let alphaCohorts = $state<AlphaCohortDetail>({});
   let jobs = $state<readonly ConsoleJob[]>([]);
+  let stars = $state<readonly Star[]>([]);
   let searchResults = $state<readonly RunSearchResult[]>([]);
   let searchLoading = $state(false);
   let searchNotice = $state("");
@@ -118,6 +124,21 @@
   const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
   const compareCards = $derived(runCompareCards(compareDetails));
   const activeJobCount = $derived(jobs.filter((job) => job.status === "running" || job.status === "queued").length);
+  const starredRunIds = $derived(
+    new Set(stars.filter((star) => star.kind === "run").map((star) => star.key)),
+  );
+  const starredInstrumentKeys = $derived(
+    new Set(stars.filter((star) => star.kind === "instrument").map((star) => star.key)),
+  );
+  const starredEntries = $derived(starredSidebarEntries(stars, runs));
+  const selectedRunStarred = $derived(
+    detail === null ? false : starredRunIds.has(detail.summary.runId),
+  );
+  const selectedInstrumentStarred = $derived(
+    selectedInstrument === null
+      ? false
+      : starredInstrumentKeys.has(`${selectedInstrument.assetClass}:${selectedInstrument.symbol}`),
+  );
 
   function clearSelectedRun(): void {
     selectedRunId = "";
@@ -415,6 +436,46 @@
     jobs = await fetchJobs();
   }
 
+  async function refreshStars(): Promise<void> {
+    stars = await fetchStars();
+  }
+
+  async function toggleRunStar(runId: string): Promise<void> {
+    error = "";
+    try {
+      await (starredRunIds.has(runId) ? removeStar("run", runId) : addStar("run", runId));
+      await refreshStars();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function toggleInstrumentStar(): Promise<void> {
+    if (selectedInstrument === null) {
+      return;
+    }
+    const key = `${selectedInstrument.assetClass}:${selectedInstrument.symbol}`;
+    error = "";
+    try {
+      await (starredInstrumentKeys.has(key)
+        ? removeStar("instrument", key)
+        : addStar("instrument", key));
+      await refreshStars();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function unstar(star: Star): Promise<void> {
+    error = "";
+    try {
+      await removeStar(star.kind, star.key);
+      await refreshStars();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
   async function submitJob(): Promise<void> {
     error = "";
 
@@ -461,18 +522,21 @@
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
         const initialInstrument = instrumentFromPathname(globalThis.location.pathname);
         const initialSidebarView = sidebarViewFromPathname(globalThis.location.pathname);
-        const [nextRuns, nextProviderHealth, nextCalibration, nextAlphaCohorts, nextJobs] = await Promise.all([
-          fetchRuns(),
-          fetchProviderHealth(),
-          fetchCalibration(),
-          fetchAlphaCohorts(),
-          fetchJobs(),
-        ]);
+        const [nextRuns, nextProviderHealth, nextCalibration, nextAlphaCohorts, nextJobs, nextStars] =
+          await Promise.all([
+            fetchRuns(),
+            fetchProviderHealth(),
+            fetchCalibration(),
+            fetchAlphaCohorts(),
+            fetchJobs(),
+            fetchStars(),
+          ]);
         runs = nextRuns;
         providerHealth = nextProviderHealth;
         calibration = nextCalibration;
         alphaCohorts = nextAlphaCohorts;
         jobs = nextJobs;
+        stars = nextStars;
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
         } else if (initialInstrument !== undefined) {
@@ -510,11 +574,14 @@
     queryText={query.text}
     {typeFilter}
     expandedGroups={expandedRunHistoryGroups}
+    stars={starredEntries}
     onQueryChange={(value) => (query.text = value)}
     onTypeFilterChange={(value) => (typeFilter = value)}
     onSelectRun={(runId) => void openRun(runId)}
     onToggleGroup={toggleRunHistoryGroup}
     onNavigate={navigate}
+    onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+    onRemoveStar={(star) => void unstar(star)}
   />
 
   <main class="min-w-0 flex-1 {view === 'run' ? '' : 'pt-12 lg:pt-0'}">
@@ -551,6 +618,7 @@
           {selectedFile}
           {fileContent}
           {highlightSourceId}
+          starred={selectedRunStarred}
           onOpenMenu={() => (menuOpen = true)}
           onOpenRun={(runId) => void openRun(runId)}
           onTabChange={(tab) => (activeTab = tab)}
@@ -560,14 +628,17 @@
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+          onToggleStar={() => void toggleRunStar(selectedRunId)}
         />
       {:else if view === "instrument"}
         <InstrumentTimeline
           detail={instrumentDetail}
           loading={loadingInstrument}
           {runs}
+          starred={selectedInstrumentStarred}
           onOpenRun={(runId) => void openRun(runId)}
           onGoHome={() => navigate("dashboard")}
+          onToggleStar={() => void toggleInstrumentStar()}
         />
       {:else if view === "search"}
         <SearchView

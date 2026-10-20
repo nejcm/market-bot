@@ -77,6 +77,16 @@ export interface RunFile {
   readonly content: string;
 }
 
+export type StarKind = "run" | "instrument";
+
+export interface Star {
+  readonly kind: StarKind;
+  readonly key: string;
+  readonly createdAt: string;
+  /** Run star whose Run Artifact directory is gone. */
+  readonly missing?: boolean;
+}
+
 export interface ProviderHealthDetail {
   readonly summary?: Record<string, unknown>;
   readonly markdown?: string;

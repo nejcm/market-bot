@@ -46,6 +46,7 @@ import {
   sidebarViewPath,
   scenarios,
   sources,
+  starredSidebarEntries,
   textItems,
   tradingViewSymbol,
   tradingViewUrl,
@@ -516,6 +517,53 @@ describe("research console app view model", () => {
     expect(searchQueryFromSearchParams("?q=term+premium+%26+capex")).toBe("term premium & capex");
     expect(searchQueryFromSearchParams("?q=")).toBe("");
     expect(searchQueryFromSearchParams("")).toBeUndefined();
+  });
+
+  test("projects sidebar star entries with labels and missing runs", () => {
+    const baseRun = {
+      runId: "run-1",
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: [],
+    };
+
+    const entries = starredSidebarEntries(
+      [
+        { kind: "run", key: "run-1", createdAt: "2026-10-01T00:00:00.000Z" },
+        { kind: "run", key: "gone-1", createdAt: "2026-10-02T00:00:00.000Z", missing: true },
+        { kind: "instrument", key: "equity:AAPL", createdAt: "2026-10-03T00:00:00.000Z" },
+        { kind: "instrument", key: "malformed", createdAt: "2026-10-04T00:00:00.000Z" },
+      ],
+      [{ ...baseRun, jobType: "equity", assetClass: "equity", symbol: "AAPL" }],
+    );
+
+    expect(entries).toEqual([
+      {
+        star: { kind: "run", key: "run-1", createdAt: "2026-10-01T00:00:00.000Z" },
+        label: "equity / AAPL",
+        missing: false,
+      },
+      {
+        star: { kind: "run", key: "gone-1", createdAt: "2026-10-02T00:00:00.000Z", missing: true },
+        label: "gone-1",
+        missing: true,
+      },
+      {
+        star: { kind: "instrument", key: "equity:AAPL", createdAt: "2026-10-03T00:00:00.000Z" },
+        label: "equity:AAPL",
+        missing: false,
+        assetClass: "equity",
+        symbol: "AAPL",
+      },
+      {
+        star: { kind: "instrument", key: "malformed", createdAt: "2026-10-04T00:00:00.000Z" },
+        label: "malformed",
+        missing: false,
+      },
+    ]);
   });
 
   test("returns the five newest run summaries from the current order", () => {

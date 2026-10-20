@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import type { Database } from "bun:sqlite";
 import { resolveConfig, resolveResearchConsoleConfig } from "../src/config";
+import { isRecord } from "../src/guards";
 import { createProvider } from "../src/model/factory";
 import {
   listRunSummaries,
@@ -12,9 +14,11 @@ import {
   searchRunReports,
 } from "./artifacts";
 import { handleRunChat, type ChatEndpointDeps } from "./chat";
+import { addStar, consoleDbPath, listStars, openConsoleDb, removeStar } from "./console-db";
 import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 import { isSameOriginPost } from "./same-origin";
+import type { Star, StarKind } from "./types";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
 const INSTRUMENT_SYMBOL_PATTERN = /^[A-Z0-9._-]{1,20}$/u;
@@ -29,6 +33,7 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 
 interface ResearchConsoleRequestOptions {
   readonly dataDir?: string;
+  readonly consoleDbPath?: string;
   readonly jobQueue?: ResearchConsoleJobQueue;
   readonly chatDeps?: ChatEndpointDeps;
 }
@@ -227,6 +232,110 @@ async function handleJobRequest(
 
 const NO_PROVIDER_REASON = "Run chat is unavailable: no model provider is configured";
 
+const STAR_KEY_MAX_LENGTH = 200;
+
+function parseStarRequest(
+  value: unknown,
+): { readonly kind: StarKind; readonly key: string } | undefined {
+  if (!isRecord(value) || typeof value.kind !== "string" || typeof value.key !== "string") {
+    return undefined;
+  }
+  const { kind, key: rawKey } = value;
+  if (kind !== "run" && kind !== "instrument") {
+    return undefined;
+  }
+  const key = rawKey.trim();
+  if (
+    key === "" ||
+    key.length > STAR_KEY_MAX_LENGTH ||
+    key.includes("/") ||
+    key.includes("\\") ||
+    key.includes("..") ||
+    (kind === "run" && key.includes(":"))
+  ) {
+    return undefined;
+  }
+  if (kind === "instrument") {
+    const separator = key.indexOf(":");
+    if (separator <= 0) {
+      return undefined;
+    }
+    const assetClass = key.slice(0, separator);
+    const symbol = key.slice(separator + 1);
+    if (!isAssetClass(assetClass) || !INSTRUMENT_SYMBOL_PATTERN.test(symbol)) {
+      return undefined;
+    }
+  }
+  return { kind, key };
+}
+
+function withConsoleDb<T>(dbPath: string, run: (db: Database) => T): T {
+  const db = openConsoleDb(dbPath);
+  try {
+    return run(db);
+  } finally {
+    db.close();
+  }
+}
+
+function readStars(dbPath: string, dataDir: string): readonly Star[] {
+  // Absent DB reads empty without creating the file or its directory.
+  if (!existsSync(dbPath)) {
+    return [];
+  }
+  return withConsoleDb(dbPath, (db) =>
+    listStars(db).map((star) =>
+      star.kind === "run" && !existsSync(join(dataDir, star.key))
+        ? { ...star, missing: true }
+        : star,
+    ),
+  );
+}
+
+async function handleStarRequest(
+  request: Request,
+  url: URL,
+  dbPath: string,
+  dataDir: string,
+): Promise<Response | undefined> {
+  if (url.pathname !== "/api/stars") {
+    return undefined;
+  }
+
+  if (request.method === "GET") {
+    return jsonResponse({ stars: readStars(dbPath, dataDir) });
+  }
+
+  if (request.method !== "PUT" && request.method !== "DELETE") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  if (!isSameOriginPost(request, url)) {
+    return jsonResponse({ error: "Star request origin is not allowed" }, 403);
+  }
+
+  let parsed: { readonly kind: StarKind; readonly key: string } | undefined;
+  try {
+    parsed = parseStarRequest(await readRequestJson(request));
+  } catch (error: unknown) {
+    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+  if (parsed === undefined) {
+    return jsonResponse({ error: "Invalid star request" }, 400);
+  }
+
+  try {
+    if (request.method === "PUT") {
+      return jsonResponse(withConsoleDb(dbPath, (db) => addStar(db, parsed.kind, parsed.key)));
+    }
+    return jsonResponse(
+      withConsoleDb(dbPath, (db) => ({ removed: removeStar(db, parsed.kind, parsed.key) })),
+    );
+  } catch (error: unknown) {
+    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+}
+
 function buildChatDeps(dataDir: string): ChatEndpointDeps {
   const consoleConfig = resolveResearchConsoleConfig();
   if (consoleConfig.chat.disabled) {
@@ -271,6 +380,16 @@ export async function handleResearchConsoleRequest(
 
   const config = resolveResearchConsoleConfig();
   const dataDir = options.dataDir ?? config.dataDir;
+
+  const starResponse = await handleStarRequest(
+    request,
+    url,
+    options.consoleDbPath ?? consoleDbPath(dataDir),
+    dataDir,
+  );
+  if (starResponse !== undefined) {
+    return starResponse;
+  }
 
   // Chat endpoint — before read-only API and static handler
   const chatDeps = options.chatDeps ?? buildChatDeps(dataDir);

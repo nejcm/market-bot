@@ -9,6 +9,8 @@ import type {
   RunSearchFilters,
   RunSearchResult,
   RunSummary,
+  Star,
+  StarKind,
 } from "../types";
 import { isRecord } from "../../src/guards";
 
@@ -94,6 +96,15 @@ function isConsoleJob(value: unknown): value is ConsoleJob {
   );
 }
 
+function isStar(value: unknown): value is Star {
+  return (
+    isRecord(value) &&
+    (value.kind === "run" || value.kind === "instrument") &&
+    typeof value.key === "string" &&
+    typeof value.createdAt === "string"
+  );
+}
+
 async function fetchJson(path: string): Promise<unknown> {
   const response = await fetch(path);
   if (!response.ok) {
@@ -102,9 +113,9 @@ async function fetchJson(path: string): Promise<unknown> {
   return (await response.json()) as unknown;
 }
 
-async function postJson(path: string, body: unknown): Promise<unknown> {
+async function requestJson(method: string, path: string, body: unknown): Promise<unknown> {
   const response = await fetch(path, {
-    method: "POST",
+    method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -112,6 +123,10 @@ async function postJson(path: string, body: unknown): Promise<unknown> {
     throw new Error(`Request failed: ${String(response.status)}`);
   }
   return (await response.json()) as unknown;
+}
+
+async function postJson(path: string, body: unknown): Promise<unknown> {
+  return requestJson("POST", path, body);
 }
 
 export async function fetchRuns(): Promise<readonly RunSummary[]> {
@@ -216,6 +231,33 @@ export async function fetchJobs(): Promise<readonly ConsoleJob[]> {
   }
 
   return payload.jobs.filter(isConsoleJob);
+}
+
+export async function fetchStars(): Promise<readonly Star[]> {
+  const payload = await fetchJson("/api/stars");
+  if (!isRecord(payload) || !Array.isArray(payload.stars)) {
+    throw new Error("Star list response is invalid");
+  }
+
+  return payload.stars.filter(isStar);
+}
+
+export async function addStar(kind: StarKind, key: string): Promise<Star> {
+  const payload = await requestJson("PUT", "/api/stars", { kind, key });
+  if (!isStar(payload)) {
+    throw new Error("Star response is invalid");
+  }
+
+  return payload;
+}
+
+export async function removeStar(kind: StarKind, key: string): Promise<boolean> {
+  const payload = await requestJson("DELETE", "/api/stars", { kind, key });
+  if (!isRecord(payload) || typeof payload.removed !== "boolean") {
+    throw new Error("Star response is invalid");
+  }
+
+  return payload.removed;
 }
 
 export async function createJob(request: CreateJobRequest): Promise<ConsoleJob> {

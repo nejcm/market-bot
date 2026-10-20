@@ -833,6 +833,10 @@
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
           pinToggleDisabled={pins === null || pinRequestInFlight}
           onTogglePin={() => void togglePin(selectedRunId)}
+          {watchlists}
+          {watchlistLoadError}
+          onWatchlistChanged={(id) => void refreshAfterMembershipChange(id)}
+          onOpenWatchlists={() => navigate("watchlists")}
         />
       {:else if view === "instrument"}
         <InstrumentTimeline

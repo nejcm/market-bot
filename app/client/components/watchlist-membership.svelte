@@ -15,9 +15,11 @@
     readonly watchlistLoadError: string;
     readonly onChanged: (id: number) => void;
     readonly onOpenWatchlists: () => void;
+    readonly size?: "default" | "header";
   }
 
-  let { symbol, watchlists, watchlistLoadError, onChanged, onOpenWatchlists }: Props = $props();
+  let { symbol, watchlists, watchlistLoadError, onChanged, onOpenWatchlists, size = "default" }: Props =
+    $props();
 
   let open = $state(false);
   let memberIds = $state<readonly number[]>([]);
@@ -100,16 +102,22 @@
   }}
 >
   <Popover.Trigger
-    class="flex h-8 items-center gap-1.5 rounded-md border border-input bg-secondary px-2.5 font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="flex shrink-0 items-center gap-1.5 border bg-secondary font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {size ===
+    'header'
+      ? 'h-8.75 min-w-8.75 justify-center rounded-full border-border px-2.5 text-muted-foreground'
+      : 'h-8 rounded-md border-input px-2.5'}"
     aria-label="Watchlists for {symbol}"
   >
-    <List class="size-3.5" />
-    {memberIds.length > 0 ? `In ${String(memberIds.length)} watchlist${memberIds.length === 1 ? "" : "s"}` : "Watchlists"}
+    <List class={size === "header" ? "size-4" : "size-3.5"} />
+    <span class={size === "header" ? "hidden sm:inline" : ""}>
+      {memberIds.length > 0 ? `In ${String(memberIds.length)} watchlist${memberIds.length === 1 ? "" : "s"}` : "Watchlists"}
+    </span>
   </Popover.Trigger>
   <Popover.Portal>
     <Popover.Content
       align="start"
       sideOffset={6}
+      onOpenAutoFocus={(event) => event.preventDefault()}
       class="z-50 w-64 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md"
     >
       <div class="font-mono text-[10px] tracking-widest text-muted-foreground">WATCHLISTS</div>

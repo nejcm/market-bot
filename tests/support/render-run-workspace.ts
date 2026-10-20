@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Component } from "svelte";
-import { compile } from "svelte/compiler";
+import { compile, compileModule } from "svelte/compiler";
 import { render } from "svelte/server";
 import type { RunDetail, RunSummary } from "../../app/types";
 import type { ReportDetail } from "../../app/client/app-settings";
@@ -27,6 +27,10 @@ interface RunWorkspaceComponentProps {
   readonly onHighlightSource: () => void;
   readonly onOpenInstrument: () => void;
   readonly onTogglePin: () => void;
+  readonly watchlists: readonly [];
+  readonly watchlistLoadError: string;
+  readonly onWatchlistChanged: () => void;
+  readonly onOpenWatchlists: () => void;
 }
 
 const libRoot = resolve(import.meta.dir, "../../app/client/lib");
@@ -43,6 +47,11 @@ Bun.plugin({
         : `${candidate}/index.ts`;
       return { path: typescriptCandidate };
     });
+    build.onLoad({ filter: /\.svelte\.js$/u }, async ({ path }) => ({
+      contents: compileModule(await Bun.file(path).text(), { filename: path, generate: "server" })
+        .js.code,
+      loader: "js",
+    }));
     build.onLoad({ filter: /\.svelte$/u }, async ({ path }) => {
       const source = path.endsWith("run-chat.svelte") ? "<div></div>" : await Bun.file(path).text();
       return {
@@ -86,6 +95,10 @@ const result = render(componentModule.default, {
     onHighlightSource: () => {},
     onOpenInstrument: () => {},
     onTogglePin: () => {},
+    watchlists: [],
+    watchlistLoadError: "",
+    onWatchlistChanged: () => {},
+    onOpenWatchlists: () => {},
   },
 });
 await Bun.write(Bun.stdout, result.body);

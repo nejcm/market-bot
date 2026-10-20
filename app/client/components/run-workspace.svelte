@@ -3,13 +3,14 @@
   import Menu from "@lucide/svelte/icons/menu";
   import Pin from "@lucide/svelte/icons/pin";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { RunDetail, RunSummary } from "../../types";
+  import type { RunDetail, RunSummary, WatchlistSummary } from "../../types";
   import type { ReportDetail } from "../app-settings";
   import { formatDate, jsonBlock, runLabel } from "../view-model";
   import { buildRunWorkspaceView, type RunWorkspaceSectionKey } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import RunChat from "./run-chat.svelte";
   import RunNote from "./run-note.svelte";
+  import WatchlistMembership from "./watchlist-membership.svelte";
   import ObservableForecasts from "./observable-forecasts.svelte";
   import WebSubjectProfile from "./web-subject-profile.svelte";
   import BusinessFramework from "./business-framework.svelte";
@@ -54,6 +55,10 @@
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
     readonly pinToggleDisabled: boolean;
     readonly onTogglePin: () => void;
+    readonly watchlists: readonly WatchlistSummary[];
+    readonly watchlistLoadError: string;
+    readonly onWatchlistChanged: (id: number) => void;
+    readonly onOpenWatchlists: () => void;
     readonly onOpenMenu?: () => void;
   }
 
@@ -79,6 +84,10 @@
     onOpenInstrument,
     pinToggleDisabled,
     onTogglePin,
+    watchlists,
+    watchlistLoadError,
+    onWatchlistChanged,
+    onOpenWatchlists,
     onOpenMenu = () => {},
   }: Props = $props();
 
@@ -107,6 +116,9 @@
   const showRunHeader = $derived(equityPresentation === undefined && !failed);
   const hasInstrument = $derived(
     (detail?.summary.assetClass ?? "").trim() !== "" && (detail?.summary.symbol ?? "").trim() !== "",
+  );
+  const watchlistSymbol = $derived(
+    !failed && detail?.summary.jobType === "equity" ? (detail.summary.symbol ?? "").trim().toUpperCase() : "",
   );
   const visibleTabs = $derived(TABS.filter((tab) => tab !== "runs" || hasInstrument));
   const reportSummary = $derived(
@@ -480,6 +492,19 @@
           </button>
           / {detail.summary.runId}
         </div>
+        {#key detail.summary.runId}
+          <RunNote kind="run" noteKey={detail.summary.runId} size="header" />
+        {/key}
+        {#if watchlistSymbol !== ""}
+          <WatchlistMembership
+            symbol={watchlistSymbol}
+            {watchlists}
+            {watchlistLoadError}
+            onChanged={onWatchlistChanged}
+            {onOpenWatchlists}
+            size="header"
+          />
+        {/if}
         <button
           class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           type="button"
@@ -524,10 +549,6 @@
         {/each}
       </div>
     </div>
-
-    {#key detail.summary.runId}
-      <RunNote kind="run" noteKey={detail.summary.runId} />
-    {/key}
 
     {#if activeTab === "report" && !failed}
       <div class="mt-3 flex flex-wrap items-center justify-end gap-x-7 gap-y-2">

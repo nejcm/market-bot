@@ -600,3 +600,15 @@ function confidenceLabel(value: number): string {
 
   return "low";
 }
+
+type NoteIndicator = "error" | "unsaved" | "saved" | "empty";
+
+export function noteIndicator(notice: string, body: string, savedBody: string): NoteIndicator {
+  if (notice !== "") {
+    return "error";
+  }
+  if (body !== savedBody) {
+    return "unsaved";
+  }
+  return savedBody === "" ? "empty" : "saved";
+}

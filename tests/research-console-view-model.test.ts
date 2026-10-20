@@ -59,6 +59,7 @@ import {
   instrumentPath,
   isFailedRun,
   deepEquityJobForSymbol,
+  noteIndicator,
 } from "../app/client/view-model";
 
 function pinTestRun(runId: string, jobType = "equity") {
@@ -3191,5 +3192,15 @@ describe("deep equity job lookup", () => {
     expect(deepEquityJobForSymbol(jobs, "msft")?.status).toBe("running");
     expect(deepEquityJobForSymbol(jobs, "amzn")).toBeUndefined();
     expect(deepEquityJobForSymbol([], "AAPL")).toBeUndefined();
+  });
+});
+
+describe("note indicator", () => {
+  test("ranks error over unsaved draft over saved note", () => {
+    expect(noteIndicator("", "", "")).toBe("empty");
+    expect(noteIndicator("", "kept", "kept")).toBe("saved");
+    expect(noteIndicator("", "draft", "kept")).toBe("unsaved");
+    expect(noteIndicator("", "", "kept")).toBe("unsaved");
+    expect(noteIndicator("boom", "draft", "kept")).toBe("error");
   });
 });

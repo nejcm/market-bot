@@ -210,7 +210,7 @@
 
     <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <div class="flex items-center gap-2.5">
+        <div class="flex flex-wrap items-center gap-2.5">
           <h1 class="text-[21px] font-semibold tracking-tight">{detail.symbol}</h1>
           {#if detail.assetClass === "equity"}
             <WatchlistMembership
@@ -220,15 +220,18 @@
               onChanged={onWatchlistChanged}
               {onOpenWatchlists}
             />
+            {#key detail.instrumentKey}
+              <RunNote kind="instrument" noteKey={detail.instrumentKey} />
+            {/key}
             {#if runningJob !== undefined}
               <span
-                class="flex h-8 items-center rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary"
+                class="flex h-8 shrink-0 items-center whitespace-nowrap rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary"
               >
                 deep equity {runningJob.status}
               </span>
             {:else}
               <button
-                class="flex h-8 items-center rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                class="flex h-8 shrink-0 items-center whitespace-nowrap rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 type="button"
                 onclick={confirmRunDeepEquity}
               >
@@ -273,12 +276,6 @@
         </div>
       </div>
     </div>
-
-    {#if detail.assetClass === "equity"}
-      {#key detail.instrumentKey}
-        <RunNote kind="instrument" noteKey={detail.instrumentKey} />
-      {/key}
-    {/if}
 
     {#if detail.assetClass === "equity" && detail.profile !== undefined}
       <section class="mt-5 rounded-lg border border-border bg-card px-4.5 py-4" data-screen-label="Instrument profile">

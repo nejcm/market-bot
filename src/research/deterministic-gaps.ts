@@ -3,6 +3,7 @@ import { dedupeSourceGaps, sourceGapScopedReportText } from "../domain/source-ga
 import { marketUpdateHorizonOf } from "../domain/job-type";
 import { type SourceGapEvidenceQualityImpact } from "../domain/sources";
 import type { CollectedSources } from "../sources/types";
+import { rangeVolatilityReference } from "./range-volatility-reference";
 import { missingVerifiedSnapshotGapText } from "./verified-snapshot-contract";
 
 // Deterministic source gaps — disclosed in the prompt and in the final report.
@@ -94,8 +95,25 @@ export function deterministicSourceGapEntries(
     }
   }
 
+  const rangeReference =
+    command.assetClass === "equity"
+      ? rangeVolatilityReference(collectedSources.verifiedMarketSnapshot)
+      : undefined;
+  const rangeReferenceGaps =
+    rangeReference !== undefined && "gap" in rangeReference
+      ? [
+          {
+            text: sourceGapScopedReportText(rangeReference.gap),
+            ...(rangeReference.gap.evidenceQualityImpact !== undefined
+              ? { impact: rangeReference.gap.evidenceQualityImpact }
+              : {}),
+          },
+        ]
+      : [];
+
   return [
     ...gaps,
+    ...rangeReferenceGaps,
     ...marketGaps,
     ...newsGaps,
     ...tickerGaps,

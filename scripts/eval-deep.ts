@@ -119,7 +119,8 @@ for (const fixture of fixtures) {
   // oxlint-disable-next-line no-await-in-loop -- reject before any replay starts
   const error = await unreplayableFixtureError(fixture);
   if (error !== undefined) {
-    process.stderr.write(`${error}\n`);
+    // oxlint-disable-next-line no-await-in-loop -- flush before exiting on the first rejected fixture
+    await Bun.write(Bun.stderr, `${error}\n`);
     process.exit(1);
   }
 }

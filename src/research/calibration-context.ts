@@ -4,7 +4,6 @@ import type { ResearchCommand } from "../cli/args";
 import { marketUpdateHorizonBucket } from "../domain/job-type";
 import { isMarketRegimeLabel } from "../domain/report";
 import { isRecord, readString } from "../guards";
-import { brierSkillScore } from "../scoring/calibration";
 import {
   hasNoResolvedPredictions,
   isCalibrationCount,
@@ -162,10 +161,6 @@ function parseCountMap(value: unknown): Record<string, number> | undefined {
   return Object.fromEntries(entries);
 }
 
-function formatSkill(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
-}
-
 function calibrationSliceLabel(dimension: string, key: string): string {
   switch (dimension) {
     case "assetClass": {
@@ -250,7 +245,7 @@ export function buildCalibrationBlock(
     for (const slice of actionableSlices) {
       const { metric } = slice;
       lines.push(
-        `  ${calibrationSliceLabel(slice.dimension, slice.key)}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}, runs=${String(metric.runCount)}, lower bound=${slice.lowerConfidenceBound.toFixed(3)})`,
+        `  ${calibrationSliceLabel(slice.dimension, slice.key)}: Brier ${metric.brierScore.toFixed(3)} (n=${String(metric.count)}, runs=${String(metric.runCount)}, lower bound=${slice.lowerConfidenceBound.toFixed(3)}, fixed gate=0.250)`,
       );
     }
   }

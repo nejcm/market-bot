@@ -39,7 +39,6 @@ const EMPTY_CONDITIONAL_SUMMARY: ConditionalCalibrationSummary = {
 // Unparseable. Excluded from the regime slice but counted in coverage.
 export const UNKNOWN_REGIME_BUCKET = "unknown";
 
-// Brier score of the naive always-predict-0.5 forecaster on binary outcomes: (0.5 - {0,1})^2.
 export const MIN_CALIBRATION_SAMPLE = 5;
 
 const BASELINE_BRIER = 0.25;
@@ -91,8 +90,7 @@ function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
   };
 }
 
-// Brier skill score vs the always-0.5 baseline. Positive beats a coin flip, negative trails it.
-// For binary Brier in [0, 1] the skill lands in [-3, 1].
+// Brier skill against the fixed always-0.5 reference, not an empirical baseline.
 export function brierSkillScore(brier: number): number {
   return 1 - brier / BASELINE_BRIER;
 }

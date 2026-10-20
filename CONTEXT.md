@@ -133,7 +133,7 @@ Prediction whose event depends on an earlier observable condition. Its probabili
 
 ## Near-Base-Rate Prediction
 
-Emitted Prediction within a fixed band of 0.5. It remains valid; analytics counts it apart from informative Predictions.
+Emitted Prediction within an inclusive ±0.10 band of its applicable reference: 0.32 only when a range Prediction matches its subject's reconstructed ±1σ band at a listed reference horizon and printed two-decimal precision; 0.5 otherwise, including unavailable references. It remains valid; analytics counts it apart from informative Predictions.
 
 ## Forecast-Shape Diversity Guidance
 
@@ -162,6 +162,14 @@ The unit Calibration counts: one canonical claim per asset class and origin, whe
 ## Calibration
 
 Aggregate measurement of stated probabilities against resolved outcomes, counted in Forecast Events: resolved count, hit rate, Brier score, reliability bins, slices, and small-sample warnings. New dashboards use policy-v3 forecasts; legacy summaries remain readable.
+
+## Reference Skill
+
+Descriptive Brier skill against the fixed always-0.5 reference for all kinds. Construction-specific skill is deferred until per-Prediction reference stamps and index support are approved; this does not change Actionable Negative Calibration's fixed 0.25 gate.
+
+## Prediction Citation Classes
+
+Counts of Prediction `sourceIds` by existing Source `kind`, counting each citation occurrence across Predictions. Missing Source metadata uses `unknown`; no citations yields an empty count map. This text-free telemetry measures citation use, not evidence influence.
 
 ## Actionable Negative Calibration
 

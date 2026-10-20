@@ -23,7 +23,7 @@ if (flags.includes("--yes") && !live) {
 if (live) {
   const error = await unreplayableFixtureError(fixtureName);
   if (error !== undefined) {
-    process.stderr.write(`${error}\n`);
+    await Bun.write(Bun.stderr, `${error}\n`);
     process.exit(1);
   }
   const { recorded, perRun } = await liveTokenEstimate(fixtureName);

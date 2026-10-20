@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
+import { loadFixture } from "./support/run-fixtures";
+import { readPredictions } from "../src/research/report-assembly";
+import { verifiedMarketSnapshotFromChart } from "../src/sources/verified-market-snapshot";
 import { buildRunAnalytics } from "../src/research/run-analytics";
 import { sourceGap } from "../src/domain/source-gaps";
 import type { WebGatherFallbackAudit } from "../src/domain/gather-audit";
@@ -735,6 +738,7 @@ describe("forecast quality telemetry (3.2)", () => {
   function predictionsFor(
     preds: ReturnType<typeof prediction>[],
     traceOverride: RunTrace = baseTrace,
+    collected: CollectedSources = collectedSourceBundle(),
   ): ReturnType<typeof buildRunAnalytics>["predictions"] {
     return buildRunAnalytics({
       report: researchReport({
@@ -745,12 +749,44 @@ describe("forecast quality telemetry (3.2)", () => {
         sources: [aaplSource],
       }),
       trace: traceOverride,
-      collectedSources: collectedSourceBundle(),
+      collectedSources: collected,
       stageOutputs: [],
       targetPredictions: preds.length,
       outcomes: [],
     }).predictions;
   }
+
+  test("counts citation occurrences by existing Source kind, including missing metadata", () => {
+    const sources: Source[] = ["market-data", "extended-evidence", "web", "news"].map(
+      (kind, index) => ({
+        ...aaplSource,
+        id: `source-${String(index)}`,
+        kind: kind as Source["kind"],
+      }),
+    );
+    const build = (preds: ReturnType<typeof prediction>[]) =>
+      buildRunAnalytics({
+        report: researchReport({ sources, predictions: preds }),
+        trace: baseTrace,
+        collectedSources: collectedSourceBundle(),
+        stageOutputs: [],
+        targetPredictions: preds.length,
+        outcomes: [],
+      });
+    const analytics = build([
+      prediction({ sourceIds: ["source-0", "source-1", "source-2", "source-3", "missing"] }),
+      prediction({ id: "p2", sourceIds: ["source-0"] }),
+    ]);
+    expect(analytics.predictions.citedSourceClasses).toEqual({
+      "market-data": 2,
+      "extended-evidence": 1,
+      web: 1,
+      news: 1,
+      unknown: 1,
+    });
+    expect(build([prediction({ sourceIds: [] })]).predictions.citedSourceClasses).toEqual({});
+    expect(build([]).predictions.citedSourceClasses).toEqual({});
+  });
 
   test("counts redundancy trims separately from validation and retry errors", () => {
     const result = predictionsFor([prediction({ id: "pred-1", sourceIds: ["src-1"] })], {
@@ -764,8 +800,6 @@ describe("forecast quality telemetry (3.2)", () => {
   });
 
   test("straddling set produces correct nearBaseRateCount and informativeCount", () => {
-    // P1 and p2 are near base rate (within 0.1 of 0.5); p3 and p4 are informative.
-    // P4 uses range kind so the set is not all-direction and the direction warning stays silent.
     const preds = [
       prediction({ id: "p1", probability: 0.5 }),
       prediction({ id: "p2", probability: 0.56 }),
@@ -784,6 +818,141 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.informativeCount).toBe(2);
     expect(result.signalTargetMet).toBe(true);
     expect(result.mixWarnings).toHaveLength(0);
+  });
+
+  const referenceSnapshot = verifiedMarketSnapshot({
+    recentCloses: Array.from({ length: 21 }, (_, index) => ({
+      date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+      close: index % 2 === 0 ? 100 : 102,
+    })),
+  });
+  const referenceSources = collectedSourceBundle({ verifiedMarketSnapshot: referenceSnapshot });
+
+  test("equity-amd-deep has one near-base-rate Prediction on its recorded ±1σ band", async () => {
+    const fixture = await loadFixture("equity-amd-deep");
+    const chart = Object.entries(fixture.dataCassette.entries).find(([request]) =>
+      request.includes("/chart/AMD?"),
+    )![1];
+    const payload: unknown = JSON.parse(chart.body);
+    const { snapshot } = verifiedMarketSnapshotFromChart(
+      {
+        payload,
+        rawSnapshot: {
+          id: "fixture-amd-chart",
+          adapter: "yahoo-price-history",
+          fetchedAt: fixture.meta.now,
+          payload,
+        },
+      },
+      "AMD",
+      fixture.meta.now.slice(0, 10),
+    );
+    expect(snapshot).toBeDefined();
+    const output = JSON.parse(
+      fixture.llmCassette.entries["final-synthesis|gpt-6.1-sol"]![0]!.content,
+    );
+    const { predictions, errors } = readPredictions(
+      output.predictions,
+      new Set(["verified-snapshot-AMD"]),
+    );
+    expect(errors).toEqual([]);
+    expect(predictions.map(({ measurableAs }) => measurableAs)).toEqual([
+      "close(AMD, +5) outside [566.13, 653.18]",
+    ]);
+    const { predictions: analytics } = buildRunAnalytics({
+      report: researchReport({ symbol: "AMD", predictions }),
+      trace: { ...baseTrace, symbol: "AMD" },
+      collectedSources: collectedSourceBundle({ verifiedMarketSnapshot: snapshot! }),
+      stageOutputs: [],
+      targetPredictions: 1,
+      outcomes: [],
+    });
+    expect(analytics.nearBaseRateCount).toBe(1);
+    expect(analytics.informativeCount).toBe(0);
+  });
+
+  test("matched range telemetry uses the inclusive 0.22–0.42 band", () => {
+    const preds = [0.22, 0.32, 0.42, 0.21, 0.43, 0.5].map((probability, index) =>
+      prediction({
+        id: `range-${String(index)}`,
+        kind: "range",
+        subject: "AAPL",
+        measurableAs: "close(AAPL, +5) outside [95.56, 104.65]",
+        probability,
+      }),
+    );
+    const result = predictionsFor(preds, baseTrace, referenceSources);
+    expect(result.nearBaseRateCount).toBe(3);
+    expect(result.informativeCount).toBe(3);
+    expect(predictionsFor(preds.slice(0, 3), baseTrace, referenceSources).mixWarnings).toContain(
+      "all emitted probabilities cluster near their applicable base rates; predictions carry limited signal",
+    );
+  });
+
+  test.each([
+    [1, 97.99, 102.05],
+    [5, 95.56, 104.65],
+    [10, 93.78, 106.64],
+    [20, 91.31, 109.51],
+  ])("matches the printed two-decimal reference at +%s", (horizonTradingDays, lo, hi) => {
+    const pred = prediction({
+      kind: "range",
+      subject: "AAPL",
+      horizonTradingDays,
+      measurableAs: `close(AAPL, +${String(horizonTradingDays)}) outside [${String(lo)}, ${String(hi)}]`,
+      probability: 0.32,
+    });
+    expect(predictionsFor([pred], baseTrace, referenceSources).nearBaseRateCount).toBe(1);
+  });
+
+  test.each([
+    { measurableAs: "close(AAPL, +5) outside [170, 230]" },
+    { measurableAs: "close(AAPL, +5) outside [95.55, 104.65]" },
+    { measurableAs: "close(AAPL, +5) outside [95.56, 104.66]" },
+    { measurableAs: "close(AAPL, +5) outside [95.5601, 104.65]" },
+    { measurableAs: "close(AAPL, +15) outside [95.56, 104.65]", horizonTradingDays: 15 },
+    { measurableAs: "close(MSFT, +5) outside [95.56, 104.65]", subject: "MSFT" },
+    { measurableAs: "close(MSFT, +5) outside [95.56, 104.65]" },
+    { measurableAs: "close(AAPL, +5) outside [95.56, 104.65]", horizonTradingDays: 10 },
+    { measurableAs: "invalid" },
+    { measurableAs: "close(AAPL, +5) > close(AAPL, 0)" },
+  ])("keeps 0.5 for an unmatched range: %j", (overrides) => {
+    const pred = prediction({ kind: "range", subject: "AAPL", probability: 0.32, ...overrides });
+    expect(predictionsFor([pred], baseTrace, referenceSources).nearBaseRateCount).toBe(0);
+    expect(
+      predictionsFor([{ ...pred, probability: 0.5 }], baseTrace, referenceSources)
+        .nearBaseRateCount,
+    ).toBe(1);
+  });
+
+  test("keeps 0.5 when the range reference is missing, short or suppressed", () => {
+    const pred = prediction({
+      kind: "range",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5) outside [95.56, 104.65]",
+      probability: 0.32,
+    });
+    for (const collected of [
+      collectedSourceBundle(),
+      collectedSourceBundle({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          recentCloses: referenceSnapshot.recentCloses.slice(0, 10),
+        }),
+      }),
+      collectedSourceBundle({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          recentCloses: referenceSnapshot.recentCloses.map((bar, index) => ({
+            ...bar,
+            close: index >= 10 ? bar.close / 2 : bar.close,
+          })),
+        }),
+      }),
+    ]) {
+      expect(predictionsFor([pred], baseTrace, collected).nearBaseRateCount).toBe(0);
+      expect(
+        predictionsFor([{ ...pred, probability: 0.5 }], baseTrace, collected).nearBaseRateCount,
+      ).toBe(1);
+    }
   });
 
   test("near-base-rate band includes exact 0.4 and 0.6 boundaries", () => {
@@ -1765,5 +1934,23 @@ describe("forecast persistence telemetry", () => {
 
     expect(analytics.forecastPersistence).toBeUndefined();
     expect("forecastPersistence" in analytics).toBe(false);
+  });
+});
+
+describe("run analytics reference skill", () => {
+  test("uses fixed 0.5 skill and does not persist a per-kind reference loss", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+      calibrationContext: { byAssetClass: { equity: { brierScore: 0.1024, count: 3 } } },
+    });
+    expect(analytics.calibrationAtGeneration?.assetClass?.brierSkillScore).toBeCloseTo(
+      1 - 0.1024 / 0.25,
+    );
+    expect(analytics.calibrationAtGeneration?.assetClass).not.toHaveProperty("referenceBrierScore");
   });
 });

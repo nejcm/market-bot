@@ -30,7 +30,7 @@ export interface EarningsForecastTelemetry {
   readonly suppressionReason?: "event-date-not-confirmed" | "earnings-setup-not-present";
 }
 
-/** Maximum distance from 0.5 treated as near-base-rate forecast telemetry. */
+/** Maximum distance from the applicable reference treated as near-base-rate telemetry. */
 export const NEAR_BASE_RATE_BAND = 0.1;
 
 export interface Prediction {

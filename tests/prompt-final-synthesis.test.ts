@@ -109,6 +109,12 @@ describe("range volatility reference", () => {
       /±1σ close bands \+1: \[[\d.]+, [\d.]+\]; \+5: \[[\d.]+, [\d.]+\]; \+10: \[[\d.]+, [\d.]+\]; \+20: \[[\d.]+, [\d.]+\]\. A close outside one of these ±1σ bands has a base rate of about 0\.32 \(Gaussian one-sigma\) at each listed horizon\. A range forecast on one of these bands uses 0\.32 unless a catalyst inside its window/u,
     );
     expect(instruction).toContain("cited in that prediction's sourceIds");
+    expect(instruction).toContain(
+      "provider-estimated earnings date explicitly labeled as estimated",
+    );
+    expect(instruction).toContain(
+      "near-base-rate band (0.22-0.42 only for forecasts on a listed ±1σ range-reference band, 0.40-0.60 otherwise)",
+    );
     expect(instruction).toContain("does not carry over to a band of another width");
     expect(instruction).not.toMatch(/2σ|two-sigma|\b(?:5|4\.6|95)%/u);
   });
@@ -171,7 +177,7 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
     );
     expect(instruction).toContain("Use bare `direction` only when no better-measured kind fits");
     expect(instruction).toContain(
-      "Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off 0.5",
+      "Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off its applicable base rate",
     );
     expect(instruction).toContain(
       "Aim for at least 1 prediction(s) using a kind other than `direction`",

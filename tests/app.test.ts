@@ -36,6 +36,7 @@ const analyticsStub = {
     targetMet: true,
     informativeCount: 0,
     nearBaseRateCount: 0,
+    citedSourceClasses: {},
     signalTargetMet: true,
     mixWarnings: [],
   },

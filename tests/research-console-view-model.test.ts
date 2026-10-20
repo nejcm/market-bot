@@ -769,7 +769,12 @@ describe("research console app view model", () => {
               shortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
             },
             calibrationAtGeneration: {
-              jobType: { key: "equity", brierScore: 0.2, brierSkillScore: 0.2, count: 8 },
+              jobType: {
+                key: "equity",
+                brierScore: 0.2,
+                brierSkillScore: 0.9,
+                count: 8,
+              },
             },
             verifiedMarketSnapshot: {
               symbol: "AAPL",
@@ -797,10 +802,35 @@ describe("research console app view model", () => {
         forecasts: "2/3",
         targetMet: false,
         shortfall: "1 missing",
-        calibration: "skill +0.20",
+        calibration: "skill vs 0.5 +0.20 (Brier 0.200, n=8)",
         snapshotFreshness: "AAPL snapshot 1d",
       },
     ]);
+  });
+
+  test("compare cards use fixed 0.5 skill and withhold it without resolved outcomes", () => {
+    const summary = {
+      runId: "old",
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: [],
+    };
+    const card = (metric: Record<string, unknown>) =>
+      runCompareCards([
+        { summary, analytics: { calibrationAtGeneration: { jobType: metric } } },
+      ])[0];
+    expect(card({ brierScore: 0.2, count: 8, brierSkillScore: 0.2 })?.calibration).toBe(
+      "skill vs 0.5 +0.20 (Brier 0.200, n=8)",
+    );
+    expect(card({ brierScore: 0, count: 0, referenceBrierScore: 0.25 })?.calibration).toBe(
+      "cal n/a",
+    );
+    expect(
+      card({ brierScore: 0.1024, count: 8, referenceBrierScore: 0.1024 })?.calibration,
+    ).toContain("skill vs 0.5 +0.59");
   });
 
   test("labels an unverified latest session on the compare card", () => {

@@ -1,5 +1,5 @@
 import type { AlphaCohortDetail, CalibrationDetail, RunDetail } from "../types";
-import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
+import { brierSkillScore, MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 import {
   hasNoResolvedPredictions,
   isCalibrationCount,
@@ -223,11 +223,15 @@ function horizonBucketRank(bucket: string): number {
   return index === -1 ? HORIZON_BUCKET_ORDER.length : index;
 }
 
-function formatSkill(value: number | undefined): string {
-  if (value === undefined) {
+function formatRunCalibration(calibration: Record<string, unknown> | undefined): string {
+  const brier = readFiniteNumber(calibration?.brierScore);
+  const count = readFiniteNumber(calibration?.count);
+  if (!isUnitInterval(brier) || !isCalibrationCount(count) || count <= 0) {
     return "cal n/a";
   }
-  return `skill ${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+  const measured = `Brier ${brier.toFixed(3)}, n=${String(count)}`;
+  const skill = brierSkillScore(brier);
+  return `skill vs 0.5 ${skill >= 0 ? "+" : ""}${skill.toFixed(2)} (${measured})`;
 }
 
 function preferredCalibrationSlice(
@@ -277,7 +281,7 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
           shortfall === undefined
             ? "none"
             : `${String(numberAt(shortfall, ["missingCount"]))} missing`,
-        calibration: formatSkill(readFiniteNumber(calibration?.brierSkillScore)),
+        calibration: formatRunCalibration(calibration),
         snapshotFreshness,
       },
     ];

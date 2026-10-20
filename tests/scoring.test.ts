@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { resolveOutcome, type Observation } from "../src/scoring/resolver";
-import { buildCalibrationSummary } from "../src/scoring/calibration";
+import { brierSkillScore, buildCalibrationSummary } from "../src/scoring/calibration";
 import { resolutionDate } from "../src/scoring/exchange-calendar";
 import { assessNegativeCalibration } from "../src/research/calibration-guidance";
 import { renderCalibrationMarkdown } from "../src/scoring/calibration-markdown";
@@ -946,6 +946,25 @@ const makeScore = (
 ) => predictionScore(outcome, { scoringVersion: 3, ...overrides });
 
 describe("buildCalibrationSummary", () => {
+  test("keeps range skill against the fixed 0.5 reference", () => {
+    expect(brierSkillScore(0.32 ** 2)).toBeCloseTo(1 - 0.32 ** 2 / 0.25);
+    const summary = buildCalibrationSummary([
+      {
+        prediction: prediction({
+          kind: "range",
+          probability: 0.32,
+          measurableAs: "close(AAPL, +5) outside [170, 230]",
+        }),
+        score: makeScore("miss"),
+        assetClass: "equity",
+        jobType: "equity",
+        runId: "range",
+        generatedAt: "2026-05-01T00:00:00Z",
+      },
+    ]);
+    expect(summary.byKind.range).not.toHaveProperty("referenceBrierScore");
+  });
+
   test("computes Brier score for a perfectly calibrated set", () => {
     const pairs = [
       {

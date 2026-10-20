@@ -24,7 +24,13 @@ import { resolveResearchSubject } from "../src/research/research-subject-identit
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { auditSourceTextResearchOnly } from "../src/research/source-text-audit";
-import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";
+import {
+  collectedSources,
+  marketSnapshot,
+  newsSource,
+  prediction,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 
 const report: ResearchReport = {
   runId: "run-1",
@@ -656,6 +662,44 @@ describe("report schema and rendering", () => {
     expect(message).toContain("keyFindings[11] must reference at least one source ID");
     expect(message).not.toContain("keyFindings[12]");
     expect(message).toEndWith("(+1 more)");
+  });
+
+  test("carries a suppressed split-window range reference into the report and Markdown", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    let close = 100;
+    const recentCloses = Array.from({ length: 21 }, (_, index) => {
+      if (index > 0) {
+        close *= index % 2 === 0 ? 1 / 1.02 : 1.02;
+      }
+      if (index === 10) {
+        close *= 0.5;
+      }
+      return { date: `2026-05-${String(index + 1).padStart(2, "0")}`, close };
+    });
+    const collected = collectedSources({
+      verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses }),
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const assembled = assembleResearchReport({
+      runId: "split-reference",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: { summary: "AAPL evidence summary." },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+    const gap = assembled.dataGaps.find((text) => text.startsWith("range-volatility-reference:"));
+    expect(gap).toContain("split-like jump");
+    expect(renderMarkdownReport(assembled)).toContain(gap!.replace(" [AAPL]", ""));
+    expect(() => assertSafeReportLanguage(assembled)).not.toThrow();
   });
 
   test("relocates an uncited gap-shaped risk into data gaps", () => {

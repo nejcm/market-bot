@@ -79,6 +79,15 @@ export interface RunFile {
 
 export type StarKind = "run" | "instrument";
 
+export const RUN_NOTE_MAX_LENGTH = 10_000;
+
+export interface RunNote {
+  readonly kind: StarKind;
+  readonly key: string;
+  readonly body: string;
+  readonly updatedAt: string;
+}
+
 export type InstrumentStalenessInput =
   | { readonly state: "never-run" }
   | { readonly state: "index-unavailable" }

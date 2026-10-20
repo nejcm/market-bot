@@ -19,11 +19,13 @@ import {
   consoleDbPath,
   createWatchlist,
   deleteWatchlist,
+  getNote,
   getWatchlist,
   listStars,
   listWatchlistItems,
   listWatchlists,
   putProfileRow,
+  putNote,
   removeStar,
   removeWatchlistItem,
   renameWatchlist,
@@ -37,7 +39,7 @@ import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 import { isSameOriginPost } from "./same-origin";
 import { loadSecTickers, searchSecTickers } from "./sec-tickers";
-import type { Star, StarKind, WatchlistSummary } from "./types";
+import { RUN_NOTE_MAX_LENGTH, type Star, type StarKind, type WatchlistSummary } from "./types";
 import { readWatchlistDetail } from "./watchlists";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
@@ -265,9 +267,9 @@ async function handleJobRequest(
 
 const NO_PROVIDER_REASON = "Run chat is unavailable: no model provider is configured";
 
-const STAR_KEY_MAX_LENGTH = 200;
+const CONSOLE_KEY_MAX_LENGTH = 200;
 
-function parseStarRequest(
+function parseConsoleTarget(
   value: unknown,
 ): { readonly kind: StarKind; readonly key: string } | undefined {
   if (!isRecord(value) || typeof value.kind !== "string" || typeof value.key !== "string") {
@@ -280,7 +282,7 @@ function parseStarRequest(
   const key = rawKey.trim();
   if (
     key === "" ||
-    key.length > STAR_KEY_MAX_LENGTH ||
+    key.length > CONSOLE_KEY_MAX_LENGTH ||
     key.includes("/") ||
     key.includes("\\") ||
     key.includes("..") ||
@@ -363,7 +365,7 @@ async function handleStarRequest(
 
   let parsed: { readonly kind: StarKind; readonly key: string } | undefined;
   try {
-    parsed = parseStarRequest(await readRequestJson(request));
+    parsed = parseConsoleTarget(await readRequestJson(request));
   } catch (error: unknown) {
     return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
   }
@@ -378,6 +380,53 @@ async function handleStarRequest(
     return jsonResponse(
       withConsoleDb(dbPath, (db) => ({ removed: removeStar(db, parsed.kind, parsed.key) })),
     );
+  } catch (error: unknown) {
+    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+}
+
+async function handleNoteRequest(
+  request: Request,
+  url: URL,
+  dbPath: string,
+): Promise<Response | undefined> {
+  if (url.pathname !== "/api/notes") {
+    return undefined;
+  }
+  if (request.method !== "GET" && request.method !== "PUT") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (request.method === "PUT" && !isSameOriginPost(request, url)) {
+    return jsonResponse({ error: "Note request origin is not allowed" }, 403);
+  }
+  let value: unknown = undefined;
+  try {
+    value =
+      request.method === "GET"
+        ? { kind: url.searchParams.get("kind"), key: url.searchParams.get("key") }
+        : await readRequestJson(request);
+  } catch {
+    return jsonResponse({ error: "Request body must be JSON" }, 400);
+  }
+  const target = parseConsoleTarget(value);
+  const body = isRecord(value) ? value.body : undefined;
+  if (target === undefined) {
+    return jsonResponse({ error: "Invalid note request" }, 400);
+  }
+  try {
+    if (request.method === "GET") {
+      return jsonResponse({
+        note: existsSync(dbPath)
+          ? withConsoleDb(dbPath, (db) => getNote(db, target.kind, target.key))
+          : null,
+      });
+    }
+    if (typeof body !== "string" || body.length > RUN_NOTE_MAX_LENGTH) {
+      return jsonResponse({ error: "Invalid note request" }, 400);
+    }
+    return jsonResponse({
+      note: withConsoleDb(dbPath, (db) => putNote(db, target.kind, target.key, body)),
+    });
   } catch (error: unknown) {
     return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
@@ -756,6 +805,15 @@ export async function handleResearchConsoleRequest(
   const config = resolveResearchConsoleConfig();
   const dataDir = options.dataDir ?? config.dataDir;
   const providers = options.consoleProviders ?? defaultConsoleProviders(dataDir);
+
+  const noteResponse = await handleNoteRequest(
+    request,
+    url,
+    options.consoleDbPath ?? consoleDbPath(dataDir),
+  );
+  if (noteResponse !== undefined) {
+    return noteResponse;
+  }
 
   const starResponse = await handleStarRequest(
     request,

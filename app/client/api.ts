@@ -10,6 +10,7 @@ import type {
   RunSearchFilters,
   RunSearchResult,
   RunSummary,
+  RunNote,
   Star,
   StarKind,
   SymbolSearchResult,
@@ -27,6 +28,35 @@ export interface CreateJobRequest {
   readonly subject?: string;
   readonly depth?: string;
   readonly horizonTradingDays?: number;
+}
+
+function readNoteResponse(payload: unknown): RunNote | null {
+  if (isRecord(payload)) {
+    const { note } = payload;
+    if (note === null) {
+      return null;
+    }
+    if (
+      isRecord(note) &&
+      (note.kind === "instrument" || note.kind === "run") &&
+      typeof note.key === "string" &&
+      typeof note.body === "string" &&
+      typeof note.updatedAt === "string"
+    ) {
+      return { kind: note.kind, key: note.key, body: note.body, updatedAt: note.updatedAt };
+    }
+  }
+  throw new Error("Note response is invalid");
+}
+
+export async function fetchNote(kind: StarKind, key: string): Promise<RunNote | null> {
+  return readNoteResponse(
+    await fetchJson(`/api/notes?kind=${kind}&key=${encodeURIComponent(key)}`),
+  );
+}
+
+export async function saveNote(kind: StarKind, key: string, body: string): Promise<RunNote | null> {
+  return readNoteResponse(await requestJson("PUT", "/api/notes", { kind, key, body }));
 }
 
 function isRunSummary(value: unknown): value is RunSummary {

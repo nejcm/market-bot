@@ -10,6 +10,7 @@
   import { deepEquityJobForSymbol, formatClose, formatDate, formatDateMinute } from "../view-model";
   import InstrumentRunHistory from "./instrument-run-history.svelte";
   import SymbolSearch from "./symbol-search.svelte";
+  import RunNote from "./run-note.svelte";
 
   interface Props {
     readonly detail: InstrumentTimelineDetail | null;
@@ -266,6 +267,12 @@
         </div>
       </div>
     </div>
+
+    {#if detail.assetClass === "equity"}
+      {#key detail.instrumentKey}
+        <RunNote kind="instrument" noteKey={detail.instrumentKey} />
+      {/key}
+    {/if}
 
     {#if detail.assetClass === "equity" && detail.profile !== undefined}
       <section class="mt-5 rounded-lg border border-border bg-card px-4.5 py-4" data-screen-label="Instrument profile">

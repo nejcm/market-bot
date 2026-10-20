@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { dataRootFromRunsDir } from "../src/data-paths";
-import type { Star, StarKind } from "./types";
+import type { RunNote, Star, StarKind } from "./types";
 
 export function consoleDbPath(dataDir: string): string {
   return join(dataRootFromRunsDir(dataDir), "console", "console.sqlite");
@@ -11,8 +11,9 @@ export function consoleDbPath(dataDir: string): string {
 export function openConsoleDb(dbPath: string): Database {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
-  db.exec("PRAGMA foreign_keys = ON");
-  db.exec(`
+  try {
+    db.exec("PRAGMA foreign_keys = ON");
+    db.exec(`
     CREATE TABLE IF NOT EXISTS stars (
       kind TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -20,21 +21,21 @@ export function openConsoleDb(dbPath: string): Database {
       PRIMARY KEY (kind, key)
     )
   `);
-  db.exec(`
+    db.exec(`
     CREATE TABLE IF NOT EXISTS profiles (
       symbol TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       fetched_at TEXT NOT NULL
     )
   `);
-  db.exec(`
+    db.exec(`
     CREATE TABLE IF NOT EXISTS watchlists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       created_at TEXT NOT NULL
     )
   `);
-  db.exec(`
+    db.exec(`
     CREATE TABLE IF NOT EXISTS watchlist_items (
       watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
       asset_class TEXT NOT NULL,
@@ -43,13 +44,44 @@ export function openConsoleDb(dbPath: string): Database {
       PRIMARY KEY (watchlist_id, asset_class, symbol)
     )
   `);
-  db.exec(`
+    db.exec(`
     CREATE TABLE IF NOT EXISTS run_earnings_dates (
       run_id TEXT PRIMARY KEY,
       dates_json TEXT NOT NULL
     )
   `);
-  return db;
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS notes (
+      kind TEXT NOT NULL,
+      key TEXT NOT NULL,
+      body TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (kind, key)
+    )
+  `);
+    return db;
+  } catch (error: unknown) {
+    db.close();
+    throw error;
+  }
+}
+
+export function getNote(db: Database, kind: StarKind, key: string): RunNote | null {
+  return db
+    .query("SELECT kind, key, body, updated_at AS updatedAt FROM notes WHERE kind = ? AND key = ?")
+    .get(kind, key) as RunNote | null;
+}
+
+export function putNote(db: Database, kind: StarKind, key: string, body: string): RunNote | null {
+  if (body === "") {
+    db.prepare("DELETE FROM notes WHERE kind = ? AND key = ?").run(kind, key);
+    return null;
+  }
+  const updatedAt = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO notes (kind, key, body, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(kind, key) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at",
+  ).run(kind, key, body, updatedAt);
+  return { kind, key, body, updatedAt };
 }
 
 export interface ProfileRow {

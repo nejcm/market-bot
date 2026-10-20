@@ -49,6 +49,13 @@ scores are terminal scoring states and never count as open; a Prediction in a ru
 scored counts as open because no scoring verdict exists yet. Watchlists never enter research
 artifacts, prompts, exports, search, or history.
 
+## Run Note
+
+User-authored plain text attached to an Instrument or Run Artifact, stored only in the Console DB
+(`data/console/console.sqlite`) as a `notes(kind, key, body, updated_at)` row. Saving an empty body
+deletes the note; whitespace is preserved. Notes are limited to 10,000 characters and never enter
+Run Chat context, prompts, research artifacts, exports, or the history search index.
+
 ## Run Chat
 
 Ephemeral, per-Run Artifact Q&A in the Console. It is not persisted; when the Codex provider is active it may use web context, which never becomes a Source or Evidence.

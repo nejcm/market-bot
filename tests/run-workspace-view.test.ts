@@ -671,6 +671,16 @@ function htmlText(html: string): string {
 }
 
 describe("run workspace view", () => {
+  test("keeps the Run Note editor in the header on report, chat, and failed runs", async () => {
+    for (const detail of [tableOfContentsFixture(), failedDetail()]) {
+      for (const tab of ["report", "chat"] as const) {
+        const html = await renderRunWorkspaceComponent(detail, "simple", tab);
+        expect(html).toContain('data-screen-label="Run Note"');
+        expect(html).toContain("Excluded from Run Chat, prompts, exports and history search.");
+      }
+    }
+  });
+
   test("routes D&A omission notes only to Operating Ratios", async () => {
     const note = {
       code: "incomplete-composite-series" as const,

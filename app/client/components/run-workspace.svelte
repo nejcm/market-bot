@@ -9,6 +9,7 @@
   import { buildRunWorkspaceView, type RunWorkspaceSectionKey } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import RunChat from "./run-chat.svelte";
+  import RunNote from "./run-note.svelte";
   import ObservableForecasts from "./observable-forecasts.svelte";
   import WebSubjectProfile from "./web-subject-profile.svelte";
   import BusinessFramework from "./business-framework.svelte";
@@ -516,6 +517,10 @@
         {/each}
       </div>
     </div>
+
+    {#key detail.summary.runId}
+      <RunNote kind="run" noteKey={detail.summary.runId} />
+    {/key}
 
     {#if activeTab === "report" && !failed}
       <div class="mt-3 flex flex-wrap items-center justify-end gap-x-7 gap-y-2">

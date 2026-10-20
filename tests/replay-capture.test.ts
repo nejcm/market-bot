@@ -16,7 +16,7 @@ import {
 } from "../src/replay/session";
 import { createSourceRequestContext } from "../src/sources/source-request";
 import { withCache } from "../src/sources/cache";
-import { readSynthesisReplayInput } from "../src/replay/synthesis-input";
+import { loadSynthesisReplayInput, readSynthesisReplayInput } from "../src/replay/synthesis-input";
 import {
   executeSynthesisInput,
   replaySynthesisFile,
@@ -194,8 +194,20 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     );
     await replay.cleanup();
     const file = join(capture, "final-synthesis-input.json");
-    const saved = readSynthesisReplayInput(JSON.parse(await readFile(file, "utf8")));
+    const stored = await readFile(file, "utf8");
+    const saved = await loadSynthesisReplayInput(file);
     expect(Object.keys(saved.input.settings)).toEqual(["sourceOptions"]);
+    const storedCollected = JSON.parse(stored).input.collectedSources;
+    expect(storedCollected.secTargetPacket).toEqual({
+      bodyFile: expect.stringMatching(/^bodies\/[a-f0-9]{64}\.json$/u),
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
+    expect(JSON.stringify(storedCollected.rawSnapshots)).toContain('"bodyFile"');
+    expect(saved.input.collectedSources.secTargetPacket?.companyFacts).toBeDefined();
+    expect(stored.length * 2).toBeLessThan(JSON.stringify(saved).length);
+    const inline = join(dir, "inline-final-synthesis-input.json");
+    await writeFile(inline, JSON.stringify(saved));
+    expect(await loadSynthesisReplayInput(inline)).toEqual(saved);
     const stage = await replaySynthesisFile({ input: file, label: "stage", root: dir });
     expect(stage.status).toBe("completed");
     const report = JSON.parse(await readFile(join(stage.dir, "report.json"), "utf8"));
@@ -451,9 +463,7 @@ test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
       dataDir: join(dir, "runs"),
     });
     const capture = join(produced.artifacts.runDir, "replay");
-    const saved = readSynthesisReplayInput(
-      JSON.parse(await readFile(join(capture, "final-synthesis-input.json"), "utf8")),
-    );
+    const saved = await loadSynthesisReplayInput(join(capture, "final-synthesis-input.json"));
     const replay = await runFixture(capture);
     try {
       expect(replay.report.symbol).toBe(produced.report.symbol);

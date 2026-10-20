@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ModelProvider, ModelRequest, ModelResponse } from "../model/types";
 import { buildModelStageRequest } from "../research/model-stage-prompt";
@@ -16,7 +16,7 @@ import {
 } from "../research/playbooks";
 import { makeReplayProvider, ModelReplayError } from "./llm-cassette";
 import {
-  readSynthesisReplayInput,
+  loadSynthesisReplayInput,
   synthesisReplayFacts,
   type SynthesisReplayInput,
 } from "./synthesis-input";
@@ -110,7 +110,7 @@ export async function replaySynthesisFile(options: {
   readonly dir: string;
   readonly durationMs: number;
 }> {
-  const saved = readSynthesisReplayInput(JSON.parse(await readFile(options.input, "utf8")));
+  const saved = await loadSynthesisReplayInput(options.input);
   const dir = await freshEvalDir(options.label, options.root);
   const started = performance.now();
   const requests: ModelRequest[] = [];
@@ -198,7 +198,7 @@ export async function estimateSynthesisFile(input: string): Promise<{
   readonly perRun: number;
   readonly expectedPerRun: number;
 }> {
-  const saved = readSynthesisReplayInput(JSON.parse(await readFile(input, "utf8")));
+  const saved = await loadSynthesisReplayInput(input);
   const requests: ModelRequest[] = [];
   await executeSynthesisInput(saved, {
     onRequest: (request) => {

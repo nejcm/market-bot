@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { readRecordedBody } from "./body-file";
 import type { CodeVersion } from "../domain/run-trace";
 import { isRecord } from "../guards";
 import type { SynthesizeReportUntilValidInput } from "../research/final-synthesis";
@@ -438,6 +441,99 @@ export function readSynthesisReplayInput(value: unknown): SynthesisReplayInput {
     }
   }
   return value as unknown as SynthesisReplayInput;
+}
+
+interface BodyRef {
+  readonly bodyFile: string;
+  readonly sha256: string;
+}
+
+function isBodyRef(value: unknown): value is BodyRef {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === 2 &&
+    typeof value.bodyFile === "string" &&
+    typeof value.sha256 === "string"
+  );
+}
+
+async function resolveBodies(
+  dir: string,
+  text: string,
+  cache: Map<string, Promise<unknown>>,
+): Promise<unknown> {
+  const refs: BodyRef[] = [];
+  const parsed: unknown = JSON.parse(text, (_key, value: unknown) => {
+    if (isBodyRef(value)) {
+      refs.push(value);
+    }
+    return value;
+  });
+  if (refs.length === 0) {
+    return parsed;
+  }
+  const loaded = new Map(
+    await Promise.all(
+      refs.map(async (ref) => {
+        if (!cache.has(ref.bodyFile)) {
+          cache.set(
+            ref.bodyFile,
+            readRecordedBody(dir, ref.bodyFile, ref.sha256).then((body) =>
+              resolveBodies(dir, body, cache),
+            ),
+          );
+        }
+        return [ref.bodyFile, await cache.get(ref.bodyFile)] as const;
+      }),
+    ),
+  );
+  return JSON.parse(text, (_key, value: unknown) =>
+    isBodyRef(value) ? loaded.get(value.bodyFile) : value,
+  );
+}
+
+export async function loadSynthesisReplayInput(file: string): Promise<SynthesisReplayInput> {
+  return readSynthesisReplayInput(
+    await resolveBodies(dirname(file), await readFile(file, "utf8"), new Map()),
+  );
+}
+
+export function externalizeSynthesisBodies(
+  saved: SynthesisReplayInput,
+  store: (body: string) => BodyRef,
+): SynthesisReplayInput {
+  const externalize = (value: unknown): unknown => {
+    let mapped = value;
+    if (Array.isArray(value)) {
+      mapped = value.map((row) => externalize(row));
+    } else if (isRecord(value)) {
+      mapped = Object.fromEntries(
+        Object.entries(value).map(([key, row]) => [key, externalize(row)]),
+      );
+    } else if (typeof value !== "string") {
+      return value;
+    }
+    const body = JSON.stringify(mapped);
+    return body.length > 32_768 ? store(body) : mapped;
+  };
+  const collected = saved.input.collectedSources;
+  return {
+    ...saved,
+    input: {
+      ...saved.input,
+      collectedSources: {
+        ...collected,
+        rawSnapshots: externalize(collected.rawSnapshots) as typeof collected.rawSnapshots,
+        ...(collected.secTargetPacket === undefined
+          ? {}
+          : {
+              secTargetPacket: externalize(
+                collected.secTargetPacket,
+              ) as typeof collected.secTargetPacket,
+            }),
+      },
+    },
+  };
 }
 
 export function makeSynthesisReplayInput(

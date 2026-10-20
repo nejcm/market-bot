@@ -11,7 +11,11 @@ import { createRecordingFetch, type DataCassetteEntry } from "./data-cassette";
 import { createRecordingProvider, requestStage } from "./llm-cassette";
 import { captureSettings, CAPTURE_PROVIDERS } from "./settings";
 import { withReplaySession, isOfflineReplay, type ReplaySession } from "./session";
-import { makeSynthesisReplayInput, synthesisReplayFacts } from "./synthesis-input";
+import {
+  externalizeSynthesisBodies,
+  makeSynthesisReplayInput,
+  synthesisReplayFacts,
+} from "./synthesis-input";
 import { readReport } from "../run-artifact-report-reader";
 
 export async function withRunCapture<T extends { readonly artifacts: { readonly runDir: string } }>(
@@ -173,8 +177,8 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
           (text) => readReport(JSON.parse(text)),
           () => undefined,
         );
-        await write(
-          "final-synthesis-input.json",
+        const synthesisBodies = new Map<string, string>();
+        const synthesis = externalizeSynthesisBodies(
           makeSynthesisReplayInput(
             checkpoint,
             llm.cassette(),
@@ -182,7 +186,21 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
             promptProvenance,
             baseline === undefined ? undefined : synthesisReplayFacts(baseline),
           ),
+          (raw) => {
+            const body = redact(raw);
+            const sha256 = new Bun.CryptoHasher("sha256").update(body).digest("hex");
+            const bodyFile = `bodies/${sha256}.json`;
+            synthesisBodies.set(bodyFile, body);
+            return { bodyFile, sha256 };
+          },
         );
+        await Promise.all(
+          [...synthesisBodies].map(([bodyFile, body]) => {
+            assertNoSecretsInText("Synthesis body", body, secrets);
+            return writeFile(join(staged, bodyFile), body, "utf8");
+          }),
+        );
+        await write("final-synthesis-input.json", synthesis);
       }
       await write("meta.json", {
         replayClassification: "clean",

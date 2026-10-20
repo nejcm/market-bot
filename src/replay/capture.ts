@@ -189,9 +189,8 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
           (raw) => {
             const body = redact(raw);
             const sha256 = new Bun.CryptoHasher("sha256").update(body).digest("hex");
-            const bodyFile = `bodies/${sha256}.json`;
-            synthesisBodies.set(bodyFile, body);
-            return { bodyFile, sha256 };
+            synthesisBodies.set(`bodies/${sha256}.json`, body);
+            return sha256;
           },
         );
         await Promise.all(

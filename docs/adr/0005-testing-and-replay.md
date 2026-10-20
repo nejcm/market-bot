@@ -79,8 +79,9 @@ re-derived properties and targeted assertions, not approving large output snapsh
   `data/evals/<label>/` roots, and never change original Run Artifacts. Missing canonical files fail; recorded
   null stays absence. No live evaluation writes to `data/runs/`.
 - Deleting a pipeline stage is a human decision. It needs judged `eval-deep.ts --input --ablate` samples of
-  that stage's isolated arm whose statistics meet the rule pre-registered in `docs/testing.md` (metric,
-  margin and sample size fixed before any arm runs); a joint arm never supports deleting one of its stages.
+  that stage's isolated arm, compared against its matched control (the same consumers regenerated live with
+  the stage kept; the recorded baseline for terminal critique), whose statistics meet the rule
+  pre-registered in `docs/testing.md` (metric, margin and sample size fixed before any arm runs).
 
 ## Consequences
 

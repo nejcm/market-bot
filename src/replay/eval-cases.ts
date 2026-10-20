@@ -1,7 +1,8 @@
 import { isRecord } from "../guards";
 import type { ResearchReport } from "../domain/report";
 import { claimsForReport, isHistoricalForecastOutcome } from "../research/post-synthesis-audit";
-import { JUDGE_SAMPLES, judgeItem, type JudgeItem, type JudgeResult } from "./eval-judge";
+import { judgeItem, type JudgeItem, type JudgeMeter, type JudgeResult } from "./eval-judge";
+import { modelAuthoredReportSegments } from "../report/schema";
 import type { ModelProvider } from "../model/types";
 
 const EVAL_CHECKS = [
@@ -379,6 +380,24 @@ export function historicalSourceIds(context: unknown): ReadonlySet<string> {
   return ids;
 }
 
+// Evaluation units: every model-authored report surface (summary, findings, scenarios, extras) plus prediction claims.
+function evalUnits(report: ResearchReport): readonly {
+  readonly location: string;
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+}[] {
+  return [
+    ...modelAuthoredReportSegments(report)
+      .filter((segment) => segment.text.trim() !== "")
+      .map((segment) => ({
+        location: segment.path,
+        text: segment.text,
+        sourceIds: segment.sourceIds ?? [],
+      })),
+    ...claimsForReport(report).filter((claim) => claim.location.startsWith("predictions[")),
+  ];
+}
+
 // Deterministic defect counts for one report produced from a saved Final-Synthesis Input.
 export function scoreReportDefects(input: {
   readonly report: ResearchReport;
@@ -395,7 +414,7 @@ export function scoreReportDefects(input: {
   }[];
   readonly uncitedRequiredSources: readonly string[];
 } {
-  const claims = claimsForReport(input.report);
+  const claims = evalUnits(input.report);
   const current = new Set(input.knownSourceIds);
   const historical = historicalSourceIds(input.historicalContext);
   const facts = sourceFacts(input.evidence);
@@ -424,9 +443,10 @@ const CONTRADICTION_QUESTION =
   "Does the cited evidence directly contradict any statement in the claim? Missing support is not a contradiction; answer insufficient-evidence when the evidence shown cannot settle it.";
 const EVIDENCE_CHARS_PER_SOURCE = 4000;
 const LONG_TEXT = 300;
-const MISSING_EVIDENCE = "(no collected evidence carries this source id)";
+const MISSING_EVIDENCE = "(the final-synthesis evidence carries no record with this source id)";
+const UNCITED = "final-synthesis-evidence";
 
-// Model-visible records per source id: every record tagged by id/sourceId/sourceIds.
+// Records per source id inside the model-visible evidence projection, tagged by id/sourceId/sourceIds.
 function sourceRecords(evidence: unknown): ReadonlyMap<string, readonly unknown[]> {
   const records = new Map<string, unknown[]>();
   const walk = (node: unknown): void => {
@@ -446,18 +466,53 @@ function sourceRecords(evidence: unknown): ReadonlyMap<string, readonly unknown[
   return records;
 }
 
-// One line per short leaf ("path: value") and one per sentence of long text.
-function evidenceLines(node: unknown, path: string, lines: string[]): void {
+interface EvidenceLine {
+  readonly text: string;
+  // The record row (ids, period, unit) a sentence of long text belongs to.
+  readonly row?: number;
+}
+
+const isScalar = (value: unknown) =>
+  value !== null &&
+  typeof value !== "object" &&
+  !(typeof value === "string" && value.length > LONG_TEXT);
+
+// One line per record with its short fields (keeping ids, period and unit together), one per sentence of long text.
+function evidenceLines(node: unknown, path: string, lines: EvidenceLine[]): void {
   if (Array.isArray(node)) {
-    node.forEach((child, index) => evidenceLines(child, `${path}.${String(index)}`, lines));
-  } else if (isRecord(node)) {
-    Object.entries(node).forEach(([key, child]) =>
-      evidenceLines(child, path === "" ? key : `${path}.${key}`, lines),
-    );
-  } else if (typeof node === "string" && node.length > LONG_TEXT) {
-    lines.push(...node.split(/(?<=[.!?])\s+|\s(?=\[[A-Z][^\]]*\])/u).filter(Boolean));
-  } else if (node !== null && node !== undefined) {
-    lines.push(`${path}: ${String(node)}`);
+    node.forEach((child, index) => {
+      const childPath = `${path}[${String(index)}]`;
+      if (isScalar(child)) {
+        lines.push({ text: `${childPath}: ${String(child)}` });
+      } else {
+        evidenceLines(child, childPath, lines);
+      }
+    });
+    return;
+  }
+  if (!isRecord(node)) {
+    return;
+  }
+  const scalars = Object.entries(node).filter(([, value]) => isScalar(value));
+  const row = scalars.length > 0 ? lines.length : undefined;
+  if (row !== undefined) {
+    lines.push({ text: `${path || "."} ${JSON.stringify(Object.fromEntries(scalars))}` });
+  }
+  for (const [key, value] of Object.entries(node)) {
+    const childPath = path === "" ? key : `${path}.${key}`;
+    if (typeof value === "string" && value.length > LONG_TEXT) {
+      lines.push(
+        ...value
+          .split(/(?<=[.!?])\s+|\s(?=\[[A-Z][^\]]*\])/u)
+          .filter(Boolean)
+          .map((sentence) => ({
+            text: `${childPath}: ${sentence}`,
+            ...(row === undefined ? {} : { row }),
+          })),
+      );
+    } else if (value !== null && typeof value === "object") {
+      evidenceLines(value, childPath, lines);
+    }
   }
 }
 
@@ -469,49 +524,57 @@ const claimTerms = (text: string) =>
       ?.map((term) => term.replaceAll(",", "").replace(/\.$/u, "")),
   );
 
-// Whole records when they fit; otherwise the lines sharing the most claim terms and figures, in source order.
+// Whole records when they fit; otherwise the lines sharing the most claim terms and figures, with their record rows, in order.
 function relevantEvidence(records: readonly unknown[], claim: string): string {
-  const lines: string[] = [];
+  const lines: EvidenceLine[] = [];
   records.forEach((record) => evidenceLines(record, "", lines));
-  const unique = [...new Set(lines)];
-  if (unique.join("\n").length <= EVIDENCE_CHARS_PER_SOURCE) {
-    return unique.join("\n");
+  if (lines.reduce((sum, line) => sum + line.text.length + 1, 0) <= EVIDENCE_CHARS_PER_SOURCE) {
+    return lines.map((line) => line.text).join("\n");
   }
   const terms = claimTerms(claim);
-  const ranked = unique
+  const ranked = lines
     .map((line, index) => ({
       index,
-      line,
-      score: [...claimTerms(line)].filter((term) => terms.has(term)).length,
+      score: [...claimTerms(line.text)].filter((term) => terms.has(term)).length,
     }))
     .filter((row) => row.score > 0)
     .toSorted((a, b) => b.score - a.score || a.index - b.index);
-  const kept: typeof ranked = [];
+  const kept = new Set<number>();
   let used = 0;
-  for (const row of ranked) {
-    if (used + row.line.length <= EVIDENCE_CHARS_PER_SOURCE) {
-      kept.push(row);
-      used += row.line.length + 1;
+  for (const { index } of ranked) {
+    const wanted = [lines[index]!.row, index].filter(
+      (row): row is number => row !== undefined && !kept.has(row),
+    );
+    const cost = wanted.reduce((sum, row) => sum + lines[row]!.text.length + 1, 0);
+    if (used + cost <= EVIDENCE_CHARS_PER_SOURCE) {
+      wanted.forEach((row) => kept.add(row));
+      used += cost;
     }
   }
-  return kept
-    .toSorted((a, b) => a.index - b.index)
-    .map((row) => row.line)
+  return [...kept]
+    .toSorted((a, b) => a - b)
+    .map((index) => lines[index]!.text)
     .join("\n");
 }
 
-function citedEvidence(
+function unitEvidence(
   records: ReadonlyMap<string, readonly unknown[]>,
-  sourceIds: readonly string[],
-  claim: string,
+  evidence: unknown,
+  unit: ReturnType<typeof evalUnits>[number],
 ): JudgeItem["evidence"] {
-  return sourceIds.map((sourceId) => {
-    const text = relevantEvidence(records.get(sourceId) ?? [], claim);
-    return { sourceId, text: text === "" ? MISSING_EVIDENCE : text };
-  });
+  if (unit.sourceIds.length === 0) {
+    return [
+      { sourceId: UNCITED, text: relevantEvidence([evidence], unit.text) || MISSING_EVIDENCE },
+    ];
+  }
+  return unit.sourceIds.map((sourceId) => ({
+    sourceId,
+    text: relevantEvidence(records.get(sourceId) ?? [], unit.text) || MISSING_EVIDENCE,
+  }));
 }
 
-// Judge items for a generated report: one contradiction item per claim, one conveyance item per omission case.
+// Judge items for a generated report: one contradiction item per evaluation unit, one conveyance item per omission case.
+// `evidence` must be the final-synthesis evidence projection, so the judge sees only what generation saw.
 export function reportJudgeItems(
   report: ResearchReport,
   omissionCases: readonly OmissionCase[],
@@ -522,15 +585,15 @@ export function reportJudgeItems(
   readonly item: JudgeItem;
 }[] {
   const records = sourceRecords(evidence);
-  const claims = claimsForReport(report);
+  const units = evalUnits(report);
   return [
-    ...claims.map((claim) => ({
-      key: claim.location,
+    ...units.map((unit) => ({
+      key: unit.location,
       kind: "contradiction" as const,
       item: {
         question: CONTRADICTION_QUESTION,
-        claim: claim.text,
-        evidence: citedEvidence(records, claim.sourceIds, claim.text),
+        claim: unit.text,
+        evidence: unitEvidence(records, evidence, unit),
       },
     })),
     ...omissionCases.map((row) => ({
@@ -538,7 +601,7 @@ export function reportJudgeItems(
       kind: "conveyance" as const,
       item: {
         question: row.conveyance,
-        claim: claims.map((claim) => claim.text).join("\n"),
+        claim: units.map((unit) => unit.text).join("\n"),
         evidence: [],
       },
     })),
@@ -550,24 +613,20 @@ export async function judgeReport(
   provider: ModelProvider,
   model: string,
   items: ReturnType<typeof reportJudgeItems>,
+  meter?: JudgeMeter,
 ): Promise<{
   readonly contradictions: readonly string[];
   readonly unconveyed: readonly string[];
   readonly undecided: number;
   readonly insufficientEvidence: number;
-  readonly calls: number;
-  readonly tokens: number;
 }> {
   const contradictions: string[] = [];
   const unconveyed: string[] = [];
   let undecided = 0;
   let insufficientEvidence = 0;
-  let tokens = 0;
   for (const { key, kind, item } of items) {
     // oxlint-disable-next-line no-await-in-loop -- votes stay in a stable order for cassette replay
-    const result = await judgeItem(provider, model, item);
-    const { verdict } = result;
-    tokens += result.tokens;
+    const { verdict } = await judgeItem(provider, model, item, meter);
     undecided += verdict === "undecided" ? 1 : 0;
     insufficientEvidence += verdict === "insufficient-evidence" ? 1 : 0;
     if (kind === "contradiction" && verdict !== "no") {
@@ -576,12 +635,5 @@ export async function judgeReport(
       unconveyed.push(key);
     }
   }
-  return {
-    contradictions,
-    unconveyed,
-    undecided,
-    insufficientEvidence,
-    calls: items.length * JUDGE_SAMPLES,
-    tokens,
-  };
+  return { contradictions, unconveyed, undecided, insufficientEvidence };
 }

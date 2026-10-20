@@ -11,11 +11,8 @@ import {
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
 import { validateLiveStage } from "../src/replay/llm-cassette";
-import {
-  ABLATION_ARMS,
-  estimateSynthesisFile,
-  replaySynthesisFile,
-} from "../src/replay/replay-synthesis";
+import { estimateSynthesisFile, replaySynthesisFile } from "../src/replay/replay-synthesis";
+import { ABLATION_ARMS } from "../src/replay/eval-decision";
 import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
 import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
 import { createProvider } from "../src/model/factory";
@@ -70,6 +67,18 @@ if (values.input !== undefined) {
   process.stdout.write(
     `Final synthesis input${estimate.arm === undefined ? "" : ` arm ${estimate.arm.name} (removed: ${estimate.arm.removed.join(", ")}; regenerated live: ${estimate.arm.regenerated.join(", ") || "none"})`}: ${String(estimate.observedCalls)} recorded synthesis call(s). Generation expected ~${String(estimate.expectedPerRun * samplesCount)} tokens at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded synthesis calls/sample, 25% headroom) ~${String(estimate.perRun * samplesCount)}. k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample, ~${String(estimate.judgePerRun * samplesCount)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samplesCount)}, worst case ~${String(estimate.totalWorstPerRun * samplesCount)}. Not a provider-enforced cost cap.\n`,
   );
+  const control =
+    estimate.arm !== undefined && "control" in estimate.arm ? estimate.arm.control : undefined;
+  if (control !== undefined) {
+    const paired = await estimateSynthesisFile(
+      values.input,
+      control === "baseline" ? undefined : (control as keyof typeof ABLATION_ARMS),
+      omissionCases,
+    );
+    process.stdout.write(
+      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} sample(s) each): expected ~${String((estimate.totalExpectedPerRun + paired.totalExpectedPerRun) * samplesCount)}, worst case ~${String((estimate.totalWorstPerRun + paired.totalWorstPerRun) * samplesCount)}. Run the control under its own --ablate label (none for baseline).\n`,
+    );
+  }
   if (!values.yes) {
     process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
     process.exit(0);

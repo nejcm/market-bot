@@ -27,34 +27,10 @@ import {
 } from "./synthesis-input";
 import { freshEvalDir, writeEvalJson } from "./eval-output";
 import { judgeReport, reportJudgeItems, scoreReportDefects, type OmissionCase } from "./eval-cases";
-import { estimateJudgeTokens } from "./eval-judge";
-import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
+import { estimateJudgeTokens, type JudgeMeter } from "./eval-judge";
+import { ABLATION_ARMS } from "./eval-decision";
+import { finalSynthesisEvidencePayload } from "../research/prompts/final-synthesis";
 
-// Isolated arms skip one stage and regenerate its consumers live; joint arms drop the stage and every consumer (analysis-phase.ts).
-export const ABLATION_ARMS = {
-  critique: { removed: ["critique"], regenerated: [] },
-  "specialist-analysis": {
-    removed: ["specialist-analysis"],
-    regenerated: ["instrument-evidence-analysis", "market-behavior-analysis", "critique"],
-  },
-  "market-behavior-analysis": { removed: ["market-behavior-analysis"], regenerated: ["critique"] },
-  "market-behavior-analysis+critique": {
-    removed: ["market-behavior-analysis", "critique"],
-    regenerated: [],
-  },
-  "specialist-analysis+dependents": {
-    removed: [
-      "specialist-analysis",
-      "instrument-evidence-analysis",
-      "market-behavior-analysis",
-      "critique",
-    ],
-    regenerated: [],
-  },
-} as const satisfies Record<
-  string,
-  { readonly removed: readonly AnalysisStage[]; readonly regenerated: readonly AnalysisStage[] }
->;
 type AblationArm = keyof typeof ABLATION_ARMS;
 
 async function loadAblatedInput(
@@ -65,13 +41,13 @@ async function loadAblatedInput(
   if (arm === undefined) {
     return saved;
   }
-  const { removed, regenerated } = ABLATION_ARMS[arm];
+  const { stage, removed, regenerated } = ABLATION_ARMS[arm];
   // Market Overview panels consume specialist output too; the arms only encode the equity graph.
   if (saved.input.command.jobType !== "equity") {
     throw new Error(`Cannot ablate ${arm}: only equity inputs are supported`);
   }
-  if (!saved.input.priorStages.some((row) => row.stage === removed[0])) {
-    throw new Error(`Cannot ablate ${arm}: the saved input has no ${removed[0]} stage`);
+  if (!saved.input.priorStages.some((row) => row.stage === stage)) {
+    throw new Error(`Cannot ablate ${arm}: the saved input has no ${stage} stage`);
   }
   if (regenerated.length > 0) {
     return saved;
@@ -88,30 +64,25 @@ function captureOmissionCases(
   return (cases ?? []).filter((row) => row.capture === saved.input.runId);
 }
 
-function scoringEvidence(saved: SynthesisReplayInput): unknown {
-  // Raw payloads and the SEC packet never reach a prompt; their ~600k numbers would match any figure.
-  const {
-    rawSnapshots: _rawSnapshots,
-    secTargetPacket: _secTargetPacket,
-    verifiedMarketSnapshot,
-    ...collected
-  } = saved.input.collectedSources;
-  return [
-    collected,
-    saved.input.sources,
-    verifiedMarketSnapshot === undefined
-      ? []
-      : {
-          ...verifiedMarketSnapshot,
-          id: verifiedMarketSnapshotSourceId(verifiedMarketSnapshot.symbol),
-        },
-  ];
+// The evidence projection the final-synthesis prompt carries; judge and figure checks see nothing else.
+export function judgeEvidence(saved: SynthesisReplayInput): Record<string, unknown> {
+  const { input } = saved;
+  return finalSynthesisEvidencePayload({
+    command: input.command,
+    collectedSources: input.collectedSources,
+    config: input.settings,
+    context: input.context,
+  });
 }
 
 // Frozen upstream, live consumers; offline (no provider) a consumer's frozen output stands in for its regeneration.
 async function regenerateAnalysis(
   saved: SynthesisReplayInput,
-  arm: (typeof ABLATION_ARMS)[AblationArm],
+  arm: {
+    readonly stage: AnalysisStage;
+    readonly removed: readonly AnalysisStage[];
+    readonly regenerated: readonly AnalysisStage[];
+  },
   options: {
     readonly context: SynthesisReplayInput["input"]["context"];
     readonly promptDir: string;
@@ -121,13 +92,15 @@ async function regenerateAnalysis(
   },
 ): Promise<SynthesisReplayInput["input"]["priorStages"]> {
   const { input } = saved;
-  const { regenerated } = arm;
+  const { regenerated }: { readonly regenerated: readonly string[] } = arm;
   const { analysisOutputs, critiqueOutput } = await runAnalysisPhase({
     command: input.command,
     collectedSources: input.collectedSources,
     context: options.context,
     quickModel: options.model,
-    skipStage: arm.removed[0] as Exclude<AnalysisStage, "critique">,
+    ...(arm.removed.length === 0
+      ? {}
+      : { skipStage: arm.stage as Exclude<AnalysisStage, "critique"> }),
     runStage: async (stage, model, stageInput) => {
       const frozen = input.priorStages.find((row) => row.stage === stage);
       if (!regenerated.includes(stage)) {
@@ -262,7 +235,11 @@ const inputTokens = (request: ModelRequest) =>
   Math.ceil(request.messages.reduce((sum, row) => sum + row.content.length, 0) / 4);
 
 function armRecord(ablation: AblationArm | undefined) {
-  return ablation === undefined ? undefined : { name: ablation, ...ABLATION_ARMS[ablation] };
+  if (ablation === undefined) {
+    return undefined;
+  }
+  const { stage: _stage, ...arm } = ABLATION_ARMS[ablation];
+  return { name: ablation, ...arm };
 }
 
 export async function replaySynthesisFile(options: {
@@ -295,6 +272,7 @@ export async function replaySynthesisFile(options: {
   let facts: ReturnType<typeof synthesisReplayFacts> | undefined = undefined;
   let defects: ReturnType<typeof scoreReportDefects> | undefined = undefined;
   let judged: Awaited<ReturnType<typeof judgeReport>> | undefined = undefined;
+  const judgeMeter: JudgeMeter = { calls: 0, tokens: 0 };
   try {
     const result = await executeSynthesisInput(saved, {
       ...options,
@@ -313,7 +291,7 @@ export async function replaySynthesisFile(options: {
     });
     ({ calls } = result);
     facts = synthesisReplayFacts(result.report);
-    const evidence = scoringEvidence(saved);
+    const evidence = judgeEvidence(saved);
     defects = scoreReportDefects({
       report: result.report,
       knownSourceIds: saved.input.knownSourceIds,
@@ -333,6 +311,7 @@ export async function replaySynthesisFile(options: {
         options.judge.provider,
         options.judge.model,
         reportJudgeItems(result.report, omissionCases, evidence),
+        judgeMeter,
       );
     }
   } catch (error) {
@@ -359,19 +338,19 @@ export async function replaySynthesisFile(options: {
     error: failureMessage,
     modelCalls: {
       replayed: live ? 0 : generationCalls,
-      live: (live ? generationCalls : 0) + (judged?.calls ?? 0),
+      live: (live ? generationCalls : 0) + judgeMeter.calls,
       analysis: analysisCalls,
       synthesis: calls,
-      judge: judged?.calls ?? 0,
+      judge: judgeMeter.calls,
     },
     completedCalls: analysisCalls + calls,
     attemptedCalls: requests.length,
     tokens: {
       replayed: live ? 0 : generationTokens,
-      live: (live ? generationTokens : 0) + (judged?.tokens ?? 0),
+      live: (live ? generationTokens : 0) + judgeMeter.tokens,
       analysis: analysisTokens,
       synthesis: tokens,
-      judge: judged?.tokens ?? 0,
+      judge: judgeMeter.tokens,
     },
     modelReplayMisses: modelMisses,
     baseline: saved.baseline,
@@ -433,7 +412,7 @@ export async function estimateSynthesisFile(
   const judgeItems = reportJudgeItems(
     report,
     captureOmissionCases(saved, omissionCases),
-    scoringEvidence(saved),
+    judgeEvidence(saved),
   );
   const judgePerRun = estimateJudgeTokens(judgeItems.map((row) => row.item));
   const perRun = Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25) + analysisWorst;

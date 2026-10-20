@@ -27,6 +27,7 @@ import {
 } from "../src/replay/synthesis-input";
 import {
   executeSynthesisInput,
+  judgeEvidence,
   replaySynthesisFile,
   estimateSynthesisFile,
 } from "../src/replay/replay-synthesis";
@@ -311,49 +312,65 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(ablatedEstimate.maxInputTokens).toBeLessThan(estimate.maxInputTokens);
     expect(ablatedEstimate.judgeItems).toBeGreaterThan(0);
     expect(ablatedEstimate.judgePerRun).toBeGreaterThan(ablatedEstimate.judgeItems * 3);
-    const joint = await estimateSynthesisFile(file, "specialist-analysis+dependents");
-    expect(joint.maxInputTokens).toBeLessThan(ablatedEstimate.maxInputTokens);
     const isolatedEstimate = await estimateSynthesisFile(file, "specialist-analysis");
     expect(isolatedEstimate.arm).toEqual({
       name: "specialist-analysis",
       removed: ["specialist-analysis"],
       regenerated: ["instrument-evidence-analysis", "market-behavior-analysis", "critique"],
+      control: "specialist-analysis-control",
     });
     expect(isolatedEstimate.expectedPerRun).toBeGreaterThan(estimate.expectedPerRun);
     expect(isolatedEstimate.totalWorstPerRun).toBe(
       isolatedEstimate.perRun + isolatedEstimate.judgePerRun,
     );
-    const stageCalls: string[] = [];
-    const synthesisReplay = makeReplayProvider(saved.responses);
-    const isolated = await replaySynthesisFile({
-      input: file,
-      label: "isolated-market-behavior",
-      root: dir,
-      ablation: "market-behavior-analysis",
-      provider: {
-        name: "split",
-        generate: async (request) => {
-          const requested = requestStage(request);
-          stageCalls.push(requested);
-          return requested === "final-synthesis"
-            ? synthesisReplay.generate(request)
-            : { content: JSON.stringify({ stage: requested }), tokenEstimate: 7 };
+    const runArm = async (
+      ablation: "market-behavior-analysis" | "market-behavior-analysis-control",
+    ) => {
+      const stageCalls: string[] = [];
+      const critiquePrompts: string[] = [];
+      const synthesisReplay = makeReplayProvider(saved.responses);
+      const result = await replaySynthesisFile({
+        input: file,
+        label: ablation,
+        root: dir,
+        ablation,
+        provider: {
+          name: "split",
+          generate: async (request) => {
+            const requested = requestStage(request);
+            stageCalls.push(requested);
+            if (requested === "critique") {
+              critiquePrompts.push(request.messages.map((message) => message.content).join("\n"));
+            }
+            return requested === "final-synthesis"
+              ? synthesisReplay.generate(request)
+              : { content: JSON.stringify({ stage: requested }), tokenEstimate: 7 };
+          },
         },
-      },
-    });
-    expect(isolated.status).toBe("completed");
-    expect(stageCalls[0]).toBe("critique");
-    expect(stageCalls.slice(1).every((row) => row === "final-synthesis")).toBe(true);
-    const isolatedSample = JSON.parse(
-      await readFile(join(isolated.dir, "eval-sample.json"), "utf8"),
-    );
-    expect(isolatedSample.arm).toEqual({
+      });
+      expect(result.status).toBe("completed");
+      expect(stageCalls[0]).toBe("critique");
+      expect(stageCalls.slice(1).every((row) => row === "final-synthesis")).toBe(true);
+      const sample = JSON.parse(await readFile(join(result.dir, "eval-sample.json"), "utf8"));
+      expect(sample.modelCalls).toMatchObject({ analysis: 1, live: stageCalls.length });
+      expect(sample.tokens.analysis).toBe(7);
+      return { sample, critiquePrompt: critiquePrompts[0]! };
+    };
+    const isolated = await runArm("market-behavior-analysis");
+    expect(isolated.sample.arm).toEqual({
       name: "market-behavior-analysis",
       removed: ["market-behavior-analysis"],
       regenerated: ["critique"],
+      control: "market-behavior-analysis-control",
     });
-    expect(isolatedSample.modelCalls).toMatchObject({ analysis: 1, live: stageCalls.length });
-    expect(isolatedSample.tokens.analysis).toBe(7);
+    const control = await runArm("market-behavior-analysis-control");
+    expect(control.sample.arm).toEqual({
+      name: "market-behavior-analysis-control",
+      removed: [],
+      regenerated: ["critique"],
+    });
+    expect(control.critiquePrompt).toContain(`"stage":"market-behavior-analysis"`);
+    expect(isolated.critiquePrompt).not.toContain(`"stage":"market-behavior-analysis"`);
     const judgeRequests: string[] = [];
     const ablated = await replaySynthesisFile({
       input: file,
@@ -374,7 +391,12 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       },
     });
     const ablatedSample = JSON.parse(await readFile(join(ablated.dir, "eval-sample.json"), "utf8"));
-    expect(ablatedSample.arm).toEqual({ name: "critique", removed: ["critique"], regenerated: [] });
+    expect(ablatedSample.arm).toEqual({
+      name: "critique",
+      removed: ["critique"],
+      regenerated: [],
+      control: "baseline",
+    });
     expect(ablatedSample.defects.claims).toBeGreaterThan(0);
     const judgeCalls = ablatedSample.defects.claims * 3;
     expect(ablatedSample.judged).toEqual({
@@ -382,13 +404,48 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       unconveyed: [],
       undecided: 0,
       insufficientEvidence: 0,
-      calls: judgeCalls,
-      tokens: judgeCalls,
     });
     expect(ablatedSample.modelCalls).toMatchObject({ judge: judgeCalls, live: 1 + judgeCalls });
     expect(ablatedSample.tokens.live).toBe(ablatedSample.tokens.synthesis + judgeCalls);
     expect(judgeRequests).toHaveLength(ablatedSample.defects.claims * 3);
     expect(new Set(judgeRequests)).toEqual(new Set(["eval-judge"]));
+    let judgeAttempts = 0;
+    const brokenJudge = await replaySynthesisFile({
+      input: file,
+      label: "judge-fails-on-call-5",
+      root: dir,
+      provider: makeReplayProvider(saved.responses),
+      omissionCases: [],
+      judge: {
+        model: "stub-judge",
+        provider: {
+          name: "stub",
+          generate: async () => {
+            judgeAttempts += 1;
+            if (judgeAttempts === 5) {
+              throw new Error("judge outage");
+            }
+            return { content: JSON.stringify({ verdict: "no" }), tokenEstimate: 2 };
+          },
+        },
+      },
+    });
+    expect(brokenJudge.status).toBe("failed");
+    const brokenSample = JSON.parse(
+      await readFile(join(brokenJudge.dir, "eval-sample.json"), "utf8"),
+    );
+    expect(brokenSample.error).toBe("judge outage");
+    expect(brokenSample.modelCalls).toMatchObject({ judge: 5, live: 1 + 5 });
+    expect(brokenSample.tokens.judge).toBe(8);
+    const probe = structuredClone(saved);
+    // Capture 6b4aa8ab: a valuation-workbench revenue input the synthesis prompt never shows.
+    Object.assign(probe.input.collectedSources, {
+      valuationWorkbench: {
+        historicalMultiples: { observations: [{ inputs: { revenue: { value: 4_319_000_000 } } }] },
+      },
+    });
+    expect(JSON.stringify(probe.input.collectedSources)).toContain("4319000000");
+    expect(JSON.stringify(judgeEvidence(probe))).not.toContain("4319000000");
     const noCritique = join(dir, "no-critique-final-synthesis-input.json");
     await writeFile(
       noCritique,
@@ -411,7 +468,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
         input: { ...saved.input, command: { ...saved.input.command, jobType: "crypto" } },
       }),
     );
-    await expect(estimateSynthesisFile(overview, "specialist-analysis+dependents")).rejects.toThrow(
+    await expect(estimateSynthesisFile(overview, "specialist-analysis")).rejects.toThrow(
       "only equity inputs",
     );
     const frozen = structuredClone(saved);

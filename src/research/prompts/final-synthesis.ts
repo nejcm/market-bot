@@ -411,11 +411,23 @@ function buildReportLanguageRepairInstruction(
   return `Your previous report was rejected for reader-directed advice or trade-action language: ${languageErrors.join("; ")}. Rewrite every affected field in neutral, research-only language. Never instruct anyone to act: do not put "should", "could", "may want to", "might want to", "need to", or "must" after "investors", "traders", "readers", or "you"; do not put "buy", "sell", "hold", "open", "trim", "add", "exit", "enter", "reduce", "increase", or "rebalance" after "should", "must", or "need to". Avoid standalone trade verbs such as "buy", "sell", "hold", or "accumulate", or any recommendation, allocation, position-sizing, or execution phrasing. Replace advice with observational phrasing such as "evidence supports", "the data shows", "a source states", or "the setup is consistent with". Valuation-certainty wording is rejected by the same gate: never write "fair value", "margin of safety", "undervalued", "overvalued", "price target", or "target price" — even when quoting a source. Describe prices positionally instead, such as "trades below the peer-median multiple" or "the quote sits above the peer-implied reference range". Keep the same factual claims and sourceIds; change only the wording.`;
 }
 
+// The evidence the final-synthesis model sees; eval judges read the same projection.
+export function finalSynthesisEvidencePayload(
+  input: Pick<StageInput, "command" | "collectedSources" | "config" | "context">,
+): Record<string, unknown> {
+  return buildEvidencePayload(
+    { includePriorCalibration: true, sourceGapView: "all", webSourceText: "fresh-only" },
+    input.command,
+    input.collectedSources,
+    input.config,
+    input.context,
+  );
+}
+
 export function buildFinalSynthesisStagePrompt(input: StageInput): string {
   const {
     command,
     collectedSources,
-    config,
     context,
     loaded,
     priorStages = [],
@@ -448,13 +460,7 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
       loaded.instruction + buildPrimaryPredictionInstruction(command, collectedSources, context),
     stageGoal: loaded.goal,
     depthProfile: context.depthProfile,
-    evidence: buildEvidencePayload(
-      { includePriorCalibration: true, sourceGapView: "all", webSourceText: "fresh-only" },
-      command,
-      collectedSources,
-      config,
-      context,
-    ),
+    evidence: finalSynthesisEvidencePayload(input),
     playbooks: stagePlaybooks("final-synthesis", context),
     priorStages,
     predictionRepromptErrors,

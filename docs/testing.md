@@ -378,36 +378,45 @@ Deterministic checks (`src/replay/eval-cases.ts`):
 - Citation coverage: no claim cites any of a case's required sources.
 - Figures (diagnostic only, outside the deletion rule): a currency, percent, multiple or scaled figure must
   match a number from a source the claim cites. Numbers come from records tagged with that id (`id`,
-  `sourceId`, `sourceIds`); URLs, accession numbers, form names, dates, ids and metadata keys are excluded,
-  and so are `rawSnapshots` and the raw SEC packet, which no prompt carries. Structured numbers and numbers
+  `sourceId`, `sourceIds`) in the final-synthesis evidence projection (`judgeEvidence`, the same
+  `buildEvidencePayload` call the prompt makes); URLs, accession numbers, form names, dates, ids and
+  metadata keys are excluded. Structured numbers and numbers
   with a scale word are absolute; only unscaled prose or table numbers may be read in thousands or millions.
   Registered derivations need two distinct operands from one record of 200 numbers or fewer: percent as
   ratio, margin, share or percent change; multiple as ratio; currency as difference. On the 8 captured
-  reports this flags no figure and catches 11 of 16 currency figures shifted by +7; the matcher is not
+  reports this flags no figure and catches 12 of 16 currency figures shifted by +7; the matcher is not
   metric-, unit- or period-aware, so it does not certify extraction quality.
 
 The judge (`src/replay/eval-judge.ts`) runs k=3 votes through any `ModelProvider` under stage
 `eval-judge`. A vote is `yes`, `no` or `insufficient-evidence`; unparseable output is an invalid vote; a
-verdict needs a strict majority, otherwise `undecided`. Tests drive it from a cassette; nothing calls a live
-judge outside an approved `eval-deep.ts --yes` batch.
+verdict needs a strict majority, otherwise `undecided`. Its system prompt carries the untrusted-input rule
+(`withUntrustedModelInputRule`), since claims and evidence are model output and provider text. Tests drive
+it from a cassette; nothing calls a live judge outside an approved `eval-deep.ts --yes` batch.
+
+Eval units are every model-authored report surface: the `modelAuthoredReportSegments` list the language gate
+scans (summary, findings, scenarios, spotlights, earnings setup, Business Framework and Web Subject Profile
+prose) plus predictions. Stale support, figures, contradiction items and the conveyance claim all read the
+same units.
 
 `eval-deep.ts --input <file> --ablate <arm>` replays final synthesis on a saved equity input with the arm's
 stages changed. Each analysis stage feeds its consumers (`src/research/analysis-phase.ts`: specialist feeds
 both coverage panels and critique; both panels feed critique). Isolated arms use the eval-only `skipStage`
 hook in `runAnalysisPhase`: the removed stage never runs, upstream stages keep their frozen outputs, and
-every consumer is regenerated live from the surviving outputs. Joint arms drop the stage and every consumer
-from `priorStages` with nothing regenerated.
+every consumer is regenerated live from the surviving outputs. Each nonterminal arm has a matched control
+that regenerates the same consumers live with the stage kept (same frozen upstream, prompts and models), so
+the comparison isolates the deletion from live-regeneration variance. The terminal `critique` arm regenerates
+nothing and compares against the recorded baseline (no `--ablate`).
 
-| Arm                                 | Kind     | Removed                                    | Regenerated live             | Captures |
-| ----------------------------------- | -------- | ------------------------------------------ | ---------------------------- | -------- |
-| `critique`                          | isolated | critique (terminal)                        | none                         | all 8    |
-| `specialist-analysis`               | isolated | specialist                                 | both panels (deep), critique | all 8    |
-| `market-behavior-analysis`          | isolated | market-behavior-analysis                   | critique                     | 3 deep   |
-| `market-behavior-analysis+critique` | joint    | market-behavior-analysis, critique         | none                         | 3 deep   |
-| `specialist-analysis+dependents`    | joint    | specialist and every consumer (all stages) | none                         | all 8    |
+| Arm                                | Removed                  | Regenerated live             | Compared against                   | Captures |
+| ---------------------------------- | ------------------------ | ---------------------------- | ---------------------------------- | -------- |
+| `critique`                         | critique (terminal)      | none                         | baseline                           | all 8    |
+| `specialist-analysis`              | specialist               | both panels (deep), critique | `specialist-analysis-control`      | all 8    |
+| `specialist-analysis-control`      | none                     | both panels (deep), critique | (control)                          | all 8    |
+| `market-behavior-analysis`         | market-behavior-analysis | critique                     | `market-behavior-analysis-control` | 3 deep   |
+| `market-behavior-analysis-control` | none                     | critique                     | (control)                          | 3 deep   |
 
-A joint arm measures deleting all of its stages together and never supports deleting one of them. Only
-equity inputs are accepted (Market Overview panels have their own specialist consumers); an arm whose root
+The plan without `--yes` prints the approval subset for an ablation arm: its estimate plus its control's.
+Only equity inputs are accepted (Market Overview panels have their own specialist consumers); an arm whose root
 stage is absent throws. Offline (no provider, as in the dry-run estimate) a regenerated stage's frozen
 output stands in for it, so offline replays prove wiring, not the ablated quality. Arms differ only in that
 input: same models, bounded attempts and sample count. Every sample and estimate records the arm name with
@@ -416,33 +425,36 @@ its exact removed and regenerated stage lists.
 Every `--input` sample records `defects` in `eval-sample.json` (stale-support locations, unmatched-figure
 locations, `uncitedRequiredSources`) and, in a `--yes` batch, `judged`: k=3 judge verdicts on every claim
 of the generated report and on each omission case's conveyance question. Claim evidence is the
-model-visible collected evidence for each cited id (every record tagged with it, raw payloads and the SEC
-packet excluded): whole records when they fit 4,000 characters per source, otherwise the leaves and
-sentences sharing the most claim terms and figures. `contradictions` counts `yes`, `insufficient-evidence`
-and `undecided`; `unconveyed` counts anything but `yes`. Judge calls and tokens are counted separately
-(`modelCalls.judge`, `tokens.judge`) and included in the live totals. The judge uses the configured
+final-synthesis evidence projection (`judgeEvidence`), never the full collected object: for each cited id,
+every record tagged with it, one line per record with its short fields (ids, periods, units) and one line
+per long-text sentence; whole when it fits 4,000 characters per source, otherwise the sentences sharing the
+most claim terms and figures with their record lines. An uncited unit (the summary, open gaps) is judged
+against the whole projection the same way. `contradictions` counts `yes`, `insufficient-evidence`
+and `undecided`; `unconveyed` counts anything but `yes`. Judge calls and tokens are metered per vote
+(`modelCalls.judge`, `tokens.judge`), kept when a sample fails mid-judge, and included in the live totals.
+The judge uses the configured
 synthesis model. The plan without `--yes` prints generation, judge and total token estimates.
 
 ### Stage deletion rule (pre-registered)
 
-Experiment identity: one baseline arm and one ablation arm, both from the same commit, over the same
-captures, with the same quick, synthesis and judge models. Arms run as separate `eval-deep.ts --input`
-labels per capture.
+Experiment identity: one ablation arm and its matched control (the recorded baseline for `critique`), both
+from the same commit, over the same captures, with the same quick, synthesis and judge models. Arms run as
+separate `eval-deep.ts --input` labels per capture.
 
 - Inference target: the fixed capture corpus. The result says nothing about runs outside these captures.
 - Report score: stale-support locations + judged contradiction locations (`yes`, `insufficient-evidence` or
   `undecided`) from that sample's `eval-sample.json`. Unmatched figures are reported, not scored.
-- Difference per capture: mean ablation score minus mean baseline score. Captures weigh equally, whatever
+- Difference per capture: mean ablation score minus mean control score. Captures weigh equally, whatever
   their claim count.
 - Statistic: one-sided 95% upper bound of the mean per-capture difference from a stratified bootstrap
   that resamples samples within each capture, captures fixed (10,000 resamples, fixed seed).
-  `stageDeletionStatistics` in `src/replay/eval-decision.ts` computes it, with the arm, removed stages and
+  `stageDeletionStatistics` in `src/replay/eval-decision.ts` computes it, with the arm, its control, removed stages and
   vetoes; it returns statistics, not a decision.
 - Non-inferiority holds when that upper bound is ≤ 0.5 and no veto applies.
 - Failed sample: a veto for that arm. Each failed sample may be rerun once, with at most
   ceil(10% of the arm's samples) reruns per arm; a sample still failing, or a sample without `judged`,
   vetoes.
-- Omission veto: an omission case whose conveyance is `yes` in ≥2/3 of baseline samples and in < 2/3 of
+- Omission veto: an omission case whose conveyance is `yes` in ≥2/3 of control samples and in < 2/3 of
   ablation samples vetoes. Citation coverage alone never certifies conveyance.
 - Sample size: the pilot is exactly 3 samples per capture per arm and decides nothing. The confirmatory
   batch uses n = max(3, ceil(2 · s² · (1.645 / 0.25)² / C)) samples per capture per arm, where s² is the

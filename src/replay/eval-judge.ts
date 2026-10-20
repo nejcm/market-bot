@@ -1,8 +1,9 @@
 import { isRecord } from "../guards";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import type { ModelProvider } from "../model/types";
 
 export const JUDGE_STAGE = "eval-judge";
-export const JUDGE_SAMPLES = 3;
+const JUDGE_SAMPLES = 3;
 
 type JudgeVote = "yes" | "no" | "insufficient-evidence" | "invalid";
 
@@ -44,23 +45,32 @@ function parseVote(content: string): JudgeVote {
   }
 }
 
-const JUDGE_SYSTEM =
-  'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no"|"insufficient-evidence","reason":string}. Use "insufficient-evidence" when the evidence shown cannot settle the question.';
+const JUDGE_SYSTEM = withUntrustedModelInputRule(
+  'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no"|"insufficient-evidence","reason":string}. Use "insufficient-evidence" when the evidence shown cannot settle the question.',
+);
 const JUDGE_OUTPUT_TOKENS = 120;
 
 function judgeUserMessage(item: JudgeItem): string {
   return JSON.stringify({ stage: JUDGE_STAGE, ...item });
 }
 
+export interface JudgeMeter {
+  calls: number;
+  tokens: number;
+}
+
+// The meter is updated per vote, so a failed batch still accounts for the calls it made.
 export async function judgeItem(
   provider: ModelProvider,
   model: string,
   item: JudgeItem,
+  meter?: JudgeMeter,
   samples: number = JUDGE_SAMPLES,
-): Promise<JudgeResult & { readonly tokens: number }> {
+): Promise<JudgeResult> {
+  const tally = meter ?? { calls: 0, tokens: 0 };
   const votes: JudgeVote[] = [];
-  let tokens = 0;
   for (let sample = 0; sample < samples; sample += 1) {
+    tally.calls += 1;
     // oxlint-disable-next-line no-await-in-loop -- independent votes stay in recorded order for cassette replay
     const response = await provider.generate({
       stage: JUDGE_STAGE,
@@ -71,10 +81,10 @@ export async function judgeItem(
         { role: "user", content: judgeUserMessage(item) },
       ],
     });
-    tokens += response.tokenEstimate;
+    tally.tokens += response.tokenEstimate;
     votes.push(parseVote(response.content));
   }
-  return { ...aggregateVotes(votes), tokens };
+  return aggregateVotes(votes);
 }
 
 // Planning estimate only: characters/4 input plus a fixed output allowance per vote.

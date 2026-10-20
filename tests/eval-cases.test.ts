@@ -111,7 +111,6 @@ describe("judge vote aggregation", () => {
       verdict: "no",
       votes: ["no", "invalid", "no"],
       agreement: 2 / 3,
-      tokens: 3,
     });
   });
 });
@@ -280,9 +279,11 @@ describe("deterministic checks", () => {
       ["conveyance", omission.id],
     ]);
     expect(items[1]!.item.evidence).toEqual([
-      { sourceId: "news-2", text: "id: news-2\ntitle: UBS: shorter waits" },
+      { sourceId: "news-2", text: '. {"id":"news-2","title":"UBS: shorter waits"}' },
     ]);
-    expect(reportJudgeItems(report, [], [])[0]!.item.evidence[0]!.text).toMatch(/no collected/u);
+    expect(reportJudgeItems(report, [], [])[0]!.item.evidence[0]!.text).toMatch(
+      /carries no record/u,
+    );
     expect(estimateJudgeTokens(items.map((row) => row.item))).toBeGreaterThan(4 * 3 * 120);
     const provider = makeReplayProvider({
       entries: {
@@ -301,9 +302,52 @@ describe("deterministic checks", () => {
       unconveyed: [omission.id],
       undecided: 1,
       insufficientEvidence: 1,
-      calls: 12,
-      tokens: 12,
     });
+  });
+
+  test("summary prose is judged and checked like any model-authored claim", () => {
+    const omission = cases.find((row) => row.check === "omission");
+    if (omission?.check !== "omission") {
+      throw new Error("missing omission case");
+    }
+    const report = researchReport({ summary: "Data Center revenue collapsed by 99%." });
+    const evidence = [{ id: "sec", title: "AMD 10-Q", revenue: 6_718_000_000 }];
+    const items = reportJudgeItems(report, [omission], evidence);
+    expect(items.map((row) => [row.kind, row.key])).toEqual([
+      ["contradiction", "summary"],
+      ["conveyance", omission.id],
+    ]);
+    expect(items[0]!.item.claim).toBe("Data Center revenue collapsed by 99%.");
+    expect(items[1]!.item.claim).toContain("collapsed by 99%");
+    expect(
+      scoreReportDefects({
+        report,
+        knownSourceIds: ["sec"],
+        historicalContext: undefined,
+        evidence,
+        omissionCases: [],
+      }),
+    ).toMatchObject({ claims: 1, unmatchedFigures: [{ location: "summary", figures: ["99%"] }] });
+  });
+
+  test("the judge meter keeps calls and tokens spent before a failure", async () => {
+    const provider = makeReplayProvider({
+      entries: {
+        [`${JUDGE_STAGE}|m`]: ["no", "no", "no", "yes"].map((verdict, index) => ({
+          ...vote(verdict),
+          tokenEstimate: index + 1,
+        })),
+      },
+    });
+    const item = { question: "q", claim: "c", evidence: [] };
+    const meter = { calls: 0, tokens: 0 };
+    const items = [item, item].map((row, index) => ({
+      kind: "contradiction" as const,
+      key: `k${String(index)}`,
+      item: row,
+    }));
+    await expect(judgeReport(provider, "m", items, meter)).rejects.toThrow();
+    expect(meter).toEqual({ calls: 5, tokens: 10 });
   });
 
   test("judge evidence selects cited passages past the old 2,000-character cut", () => {
@@ -337,33 +381,52 @@ describe("deterministic checks", () => {
 
   test("stage deletion statistics carry the arm scope, a stratified bound and vetoes", () => {
     const baseline = { a: [2, 2, 3], b: [1, 1, 1], c: [4, 3, 4] };
-    const scope = { arm: "critique", removedStages: ["critique"] };
-    const same = stageDeletionStatistics({ ...scope, baseline, ablation: baseline });
-    expect(same).toMatchObject({ ...scope, captures: 3, margin: 0.5, vetoes: [] });
+    const scope = { arm: "market-behavior-analysis" } as const;
+    const same = stageDeletionStatistics({ ...scope, control: baseline, ablation: baseline });
+    expect(same).toMatchObject({
+      ...scope,
+      control: "market-behavior-analysis-control",
+      removedStages: ["market-behavior-analysis"],
+      captures: 3,
+      margin: 0.5,
+      vetoes: [],
+    });
     expect(same.meanDifference).toBe(0);
     expect(same.upperBound).toBeGreaterThan(0);
     expect("pass" in same).toBe(false);
     const constant = { a: [2, 2, 2], b: [1, 1, 1] };
     const shifted = stageDeletionStatistics({
       ...scope,
-      baseline: constant,
+      control: constant,
       ablation: { a: [3, 3, 3], b: [2, 2, 2] },
     });
     expect(shifted.meanDifference).toBe(1);
     expect(shifted.upperBound).toBe(1);
     expect(
-      stageDeletionStatistics({ ...scope, baseline, ablation: { ...baseline, b: [1, null, 1] } })
-        .vetoes,
-    ).toEqual(["failed or missing sample: b ablation"]);
+      stageDeletionStatistics({
+        ...scope,
+        control: { ...baseline, a: [null, 2, 3] },
+        ablation: { ...baseline, b: [1, null, 1] },
+      }).vetoes,
+    ).toEqual(["failed or missing sample: a control", "failed or missing sample: b ablation"]);
     expect(
       stageDeletionStatistics({
         ...scope,
-        baseline,
+        control: baseline,
         ablation: baseline,
-        conveyance: { ubs: { baseline: [true, true, false], ablation: [true, false, false] } },
+        conveyance: { ubs: { control: [true, true, false], ablation: [true, false, false] } },
       }).vetoes,
     ).toEqual(["omission regression: ubs"]);
-    expect(() => stageDeletionStatistics({ ...scope, baseline, ablation: { a: [1] } })).toThrow();
+    expect(() =>
+      stageDeletionStatistics({ ...scope, control: baseline, ablation: { a: [1] } }),
+    ).toThrow();
+    expect(() =>
+      stageDeletionStatistics({
+        arm: "market-behavior-analysis-control",
+        control: baseline,
+        ablation: baseline,
+      }),
+    ).toThrow(/control arm/u);
   });
 
   test("rejects malformed and duplicate cases", () => {

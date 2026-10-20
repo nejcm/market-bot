@@ -212,13 +212,13 @@
           }}
         >
           <Input
-            class="h-8 bg-background font-mono text-xs"
+            class="h-8 bg-background font-mono text-xs md:text-xs"
             value={newName}
             placeholder="Watchlist name"
             oninput={(event) => (newName = event.currentTarget.value)}
           />
           <button
-            class="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.75 text-xs font-semibold text-primary-foreground transition hover:bg-[#135f6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition hover:bg-[#135f6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="submit"
           >
             <Plus class="size-3.5" />
@@ -231,10 +231,10 @@
     <div class="mt-4.5 flex flex-wrap items-center gap-1.5">
       {#each lists as list (list.id)}
         <button
-          class="rounded-md border px-2.5 py-1.25 font-mono text-[11px] transition hover:border-[#4a525a] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {selectedId ===
+          class="h-7 rounded-md border px-2.5 font-mono text-[11px] transition hover:border-[#4a525a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {selectedId ===
           list.id
             ? 'border-[#4a525a] bg-sidebar-accent text-[#e8eaec]'
-            : 'border-border bg-transparent text-[#7f868e]'}"
+            : 'border-border bg-transparent text-[#7f868e] hover:text-foreground'}"
           type="button"
           onclick={() => onSelectList(list.id)}
         >
@@ -249,13 +249,13 @@
         }}
       >
         <Input
-          class="h-7.5 w-36 bg-background font-mono text-[11px]"
+          class="h-7 w-36 bg-background font-mono text-[11px] md:text-[11px]"
           value={newName}
           placeholder="New list…"
           oninput={(event) => (newName = event.currentTarget.value)}
         />
         <button
-          class="flex shrink-0 items-center gap-1 rounded-md border border-input bg-secondary px-2 py-1 font-mono text-[10.5px] text-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex h-7 shrink-0 items-center gap-1 rounded-md border border-input bg-secondary px-2.5 font-mono text-[11px] text-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           type="submit"
         >
           <Plus class="size-3" />
@@ -281,18 +281,18 @@
             }}
           >
             <Input
-              class="h-7.5 w-44 bg-background text-xs"
+              class="h-7 w-44 bg-background text-xs md:text-xs"
               value={editingName}
               oninput={(event) => (editingName = event.currentTarget.value)}
             />
             <button
-              class="rounded border border-[#cfe0e3] bg-accent px-2 py-1 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="h-7 rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[11px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="submit"
             >
               save
             </button>
             <button
-              class="rounded border border-input bg-secondary px-2 py-1 font-mono text-[10px] text-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="h-7 rounded-md border border-input bg-secondary px-2.5 font-mono text-[11px] text-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               onclick={() => (editingId = null)}
             >
@@ -302,7 +302,7 @@
         {:else}
           <h2 class="text-sm font-semibold">{selected.name}</h2>
           <button
-            class="font-mono text-[10px] text-[#7f868e] underline-offset-2 transition hover:text-[#d6dadd] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="h-7 rounded-md border border-input bg-secondary px-2.5 font-mono text-[11px] text-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
             onclick={() => {
               editingId = selected.id;
@@ -312,7 +312,7 @@
             rename
           </button>
           <button
-            class="flex items-center gap-1 rounded border border-input bg-secondary px-2 py-1 font-mono text-[10px] text-[#8a5a5a] transition hover:border-[#c9a29a] hover:text-[#b04848] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="flex h-7 items-center gap-1 rounded-md border border-input bg-secondary px-2.5 font-mono text-[11px] text-[#8a5a5a] transition hover:border-[#c9a29a] hover:text-[#b04848] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
             onclick={() => onDelete(selected.id)}
           >
@@ -333,13 +333,13 @@
         }}
       >
         <Input
-          class="h-8 w-40 bg-background font-mono text-xs uppercase"
+          class="h-8 w-40 bg-background font-mono text-xs uppercase md:text-xs"
           value={addSymbol}
           placeholder="Symbol, e.g. AAPL"
           oninput={(event) => (addSymbol = event.currentTarget.value)}
         />
         <button
-          class="flex items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-3 py-1.75 font-mono text-[11px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex h-8 items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-3 font-mono text-[11px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           type="submit"
         >
           <Plus class="size-3.5" />
@@ -376,7 +376,7 @@
               >
                 <div class="flex items-center gap-0.5">
                   <button
-                    class="rounded p-0.5 text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30"
+                    class="flex size-6 items-center justify-center rounded-md text-[#7f868e] transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30"
                     type="button"
                     aria-label="Move {item.symbol} up"
                     disabled={index === 0}
@@ -385,7 +385,7 @@
                     <ArrowUp class="size-3.5" />
                   </button>
                   <button
-                    class="rounded p-0.5 text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30"
+                    class="flex size-6 items-center justify-center rounded-md text-[#7f868e] transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30"
                     type="button"
                     aria-label="Move {item.symbol} down"
                     disabled={index === selectedDetail.items.length - 1}
@@ -454,13 +454,13 @@
                 <div>
                   {#if deepEquityJob(item.symbol) !== undefined}
                     <span
-                      class="rounded-md border border-[#cfe0e3] bg-accent px-2.5 py-1.5 font-mono text-[10.5px] text-primary"
+                      class="inline-flex h-6 items-center rounded-md border border-[#cfe0e3] bg-accent px-2 font-mono text-[10px] text-primary"
                     >
                       deep equity {deepEquityJob(item.symbol)?.status}
                     </span>
                   {:else}
                     <button
-                      class="flex items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-2 py-1 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      class="flex h-6 items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-2 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       type="button"
                       aria-label="Queue deep equity run for {item.symbol}"
                       onclick={() => confirmQueueDeepEquity(item.symbol)}
@@ -471,7 +471,7 @@
                   {/if}
                 </div>
                 <button
-                  class="justify-self-end rounded p-1 text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  class="flex size-6 items-center justify-center justify-self-end rounded-md text-[#7f868e] transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   type="button"
                   aria-label="Remove {item.symbol} from watchlist"
                   onclick={() => onRemoveItem(item.symbol)}

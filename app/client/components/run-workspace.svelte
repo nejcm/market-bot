@@ -461,12 +461,12 @@
         <!-- Below the sidebar breakpoint the run nav is the only chrome on
              screen, so it carries the sidebar trigger. -->
         <button
-          class="shrink-0 rounded-md border border-input bg-secondary p-1.5 text-foreground shadow-xs transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           type="button"
           aria-label="Open navigation"
           onclick={onOpenMenu}
         >
-          <Menu class="size-4.5" />
+          <Menu class="size-4" />
         </button>
         <div class="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
           <button
@@ -479,20 +479,20 @@
           / {detail.summary.runId}
         </div>
         <button
-          class="shrink-0 rounded-md border border-input bg-secondary p-1.5 text-foreground shadow-xs transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           type="button"
           aria-label={pinned ? "Unpin run" : "Pin run"}
           aria-pressed={pinned}
           title={pinned ? "Unpin run" : "Pin run to the top of run lists"}
           onclick={onTogglePin}
         >
-          <Pin class="size-4.5 {pinned ? 'fill-current text-[#c9a24b]' : ''}" />
+          <Pin class="size-4 {pinned ? 'fill-current text-[#c9a24b]' : ''}" />
         </button>
       </div>
       <!-- The pill row needs more width than a phone has next to the run path,
            so narrow viewports pick the tab from the platform's own menu. -->
       <select
-        class="shrink-0 rounded-full border border-border bg-secondary py-1.5 pl-3.5 pr-2 text-[12.5px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+        class="h-8.75 shrink-0 rounded-full border border-border bg-secondary pl-3.5 pr-2 text-[12.5px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
         aria-label="Run section"
         value={activeTab}
         onchange={(event) => onTabChange(event.currentTarget.value as Tab)}
@@ -502,7 +502,7 @@
         {/each}
       </select>
       <div
-        class="hidden items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-secondary p-0.75 scrollbar-none sm:flex [&::-webkit-scrollbar]:hidden"
+        class="hidden h-8.75 items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-secondary p-0.75 scrollbar-none sm:flex [&::-webkit-scrollbar]:hidden"
         role="tablist"
       >
         {#each visibleTabs as tab}

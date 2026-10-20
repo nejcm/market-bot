@@ -100,7 +100,7 @@
   }}
 >
   <Popover.Trigger
-    class="flex items-center gap-1.5 rounded-md border border-input bg-secondary px-2 py-1.5 font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="flex h-8 items-center gap-1.5 rounded-md border border-input bg-secondary px-2.5 font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     aria-label="Watchlists for {symbol}"
   >
     <List class="size-3.5" />
@@ -148,13 +148,13 @@
           }}
         >
           <input
-            class="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 font-mono text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="New watchlist name"
             placeholder="New list…"
             bind:value={newName}
           />
           <button
-            class="rounded-md border border-input bg-secondary px-2 py-1 font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            class="h-7 rounded-md border border-input bg-secondary px-2.5 font-mono text-[11px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             type="submit"
             disabled={creating || newName.trim() === ""}
           >

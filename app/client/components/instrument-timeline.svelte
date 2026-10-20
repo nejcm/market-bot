@@ -222,13 +222,13 @@
             />
             {#if runningJob !== undefined}
               <span
-                class="rounded-md border border-[#cfe0e3] bg-accent px-2.5 py-1.5 font-mono text-[10.5px] text-primary"
+                class="flex h-8 items-center rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary"
               >
                 deep equity {runningJob.status}
               </span>
             {:else}
               <button
-                class="rounded-md border border-[#cfe0e3] bg-accent px-2.5 py-1.5 font-mono text-[10.5px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                class="flex h-8 items-center rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 type="button"
                 onclick={confirmRunDeepEquity}
               >
@@ -295,7 +295,7 @@
               </span>
             </div>
             <button
-              class="flex items-center gap-1.5 rounded border border-[#cfe0e3] bg-accent px-2 py-1 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="flex h-6 items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-2 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               aria-label="Refresh profile for {detail.symbol}"
               onclick={() => onRefreshProfile(detail.symbol)}
@@ -309,7 +309,7 @@
           <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <h2 class="text-sm font-semibold">{profile.name}</h2>
             <button
-              class="flex items-center gap-1.5 rounded border border-[#cfe0e3] bg-accent px-2 py-1 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="flex h-6 items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-2 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
               aria-label="Refresh profile for {detail.symbol}"
               onclick={() => onRefreshProfile(detail.symbol)}

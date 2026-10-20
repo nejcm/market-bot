@@ -164,6 +164,8 @@ const RANGE_REFERENCE_HORIZONS = [1, 5, 10, 20] as const;
 // Closes are split-unadjusted (ADR 0004); a move far outside the MAD scale reads as a split.
 const MAD_TO_SIGMA = 1.4826;
 const SPLIT_SIGNATURE_ROBUST_SIGMAS = 8;
+// Gaussian P(|z| > 1); this band construction on 5y AAPL/AMD/MSFT/SPY closes landed outside 0.29–0.33.
+const RANGE_REFERENCE_OUTSIDE_PROBABILITY = "0.32";
 
 function median(values: readonly number[]): number {
   const sorted = values.toSorted((a, b) => a - b);
@@ -202,7 +204,7 @@ function buildRangeVolatilityReference(
     const move = sigma * Math.sqrt(horizon);
     return `+${String(horizon)}: [${(spot * Math.exp(-move)).toFixed(2)}, ${(spot * Math.exp(move)).toFixed(2)}]`;
   }).join("; ");
-  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returns.length)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. Daily returns are fat-tailed, so treat these bands as a scale for how wide an [Lo, Hi] range is relative to recent movement, not as exact probabilities. Anchor range probabilities to this reference and move above it only for a cited catalyst inside the window, such as a confirmed earnings date.`;
+  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returns.length)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. A close outside one of these ±1σ bands has a reference probability of ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} at each listed horizon. A range forecast on one of these bands uses ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} unless a catalyst inside its window, such as a confirmed earnings date, is cited in that prediction's sourceIds; move off ${RANGE_REFERENCE_OUTSIDE_PROBABILITY} only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
 }
 
 export function buildConditionalPredictionActivationGuidance(

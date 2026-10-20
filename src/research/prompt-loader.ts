@@ -16,7 +16,8 @@ export type StageLabel =
   | "market-behavior-analysis"
   | "critique"
   | "final-synthesis"
-  | "forecast-disagreement";
+  | "forecast-disagreement"
+  | "forecast-grid";
 
 export interface LoadedPrompt {
   readonly system: string;

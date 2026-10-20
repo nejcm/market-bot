@@ -1,6 +1,6 @@
 import type { AssetClass, JobType } from "./job-type";
 
-// Research/analysis run types. Today this is exactly the JobType set (seven
+// Research/analysis run types. Today this is exactly the JobType set (eight
 // Members); the alias names the intent so the capability registry below stays
 // A single source of truth even if operational job types are modelled
 // Elsewhere. Pure leaf module: no imports from cli/config/research/sources.
@@ -87,9 +87,17 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     supportsEvidenceRequest: false,
     producesSynthesisReport: true,
   },
+  "forecast-grid": {
+    assetArg: "none",
+    supportsDepth: false,
+    isInstrument: false,
+    supportsWebGather: false,
+    supportsEvidenceRequest: false,
+    producesSynthesisReport: false,
+  },
 };
 
-// Membership guard for the seven research job types. Returns false for
+// Membership guard for the eight research job types. Returns false for
 // Operational job types (score, calibration, cache-prune, provider-health,
 // History-*) and any other string, narrowing to ResearchJobType when true.
 export function isResearchJobType(value: string): value is ResearchJobType {

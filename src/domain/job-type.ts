@@ -6,7 +6,12 @@ export type MarketUpdateJobType = "market-overview" | LegacyMarketUpdateJobType;
 
 export type InstrumentJobType = "equity" | "crypto";
 
-export type JobType = MarketUpdateJobType | InstrumentJobType | "alpha-search" | "research";
+export type JobType =
+  | MarketUpdateJobType
+  | InstrumentJobType
+  | "alpha-search"
+  | "research"
+  | "forecast-grid";
 
 export type Depth = "brief" | "deep";
 

@@ -65,6 +65,9 @@ function reportTitle(report: ResearchReport): string {
   if (report.jobType === "research") {
     return `${report.assetClass} Thematic Research View`;
   }
+  if (report.jobType === "forecast-grid") {
+    return `${report.assetClass} Forecast Grid`;
+  }
   return `${report.assetClass} Market Overview`;
 }
 

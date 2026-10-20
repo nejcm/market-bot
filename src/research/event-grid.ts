@@ -19,6 +19,8 @@ const GRID_RANGE_HORIZONS = [1, 5, 20] as const;
 const GRID_RELATIVE_HORIZON = 5;
 const GRID_BENCHMARK = "SPY";
 
+type GridSources = Pick<CollectedSources, "verifiedMarketSnapshot" | "priceHistory">;
+
 export interface EventGridEvent {
   readonly id: string;
   readonly kind: "range" | "relative";
@@ -26,6 +28,14 @@ export interface EventGridEvent {
   readonly measurableAs: string;
   readonly horizonTradingDays: number;
   readonly sourceIds: readonly string[];
+}
+
+// Ids eventGrid issues when every input is present; dry runs plan from this without fetching.
+export function plannedEventGridIds(symbol: string): readonly string[] {
+  return [
+    ...GRID_RANGE_HORIZONS.map((horizon) => `grid-range-${String(horizon)}`),
+    ...(symbol === GRID_BENCHMARK ? [] : [`grid-relative-${String(GRID_RELATIVE_HORIZON)}`]),
+  ];
 }
 
 function priceHistorySourceId(symbol: string): string {
@@ -46,7 +56,7 @@ function gridGap(symbol: string, message: string): SourceGap {
 // The fixed Event Grid every equity instrument run issues; bounds reuse the prompt's ±1σ reference bands.
 export function eventGrid(
   command: ResearchCommand,
-  collectedSources: CollectedSources,
+  collectedSources: GridSources,
 ): { readonly events: readonly EventGridEvent[]; readonly gaps: readonly SourceGap[] } {
   if (!isInstrumentCommand(command)) {
     return { events: [], gaps: [] };
@@ -137,7 +147,7 @@ const UNAVAILABLE_REASON_TEXT: Record<ForecastBaselineUnavailableReason, string>
 };
 
 function closesBySymbol(
-  collectedSources: CollectedSources,
+  collectedSources: GridSources,
 ): ReadonlyMap<string, readonly BaselineClose[]> {
   const closes = new Map<string, readonly BaselineClose[]>(
     (collectedSources.priceHistory ?? []).map((history) => [
@@ -162,10 +172,11 @@ function closesBySymbol(
 // Stamps origin and Forecast Baseline and appends priced Event Grid events; every omission is a gap.
 export function issueForecastBook(input: {
   readonly command: ResearchCommand;
-  readonly collectedSources: CollectedSources;
+  readonly collectedSources: GridSources;
   readonly modelPredictions: readonly Prediction[];
   readonly modelEventGrid: unknown;
   readonly knownSourceIds: ReadonlySet<string>;
+  readonly pricedBy?: string;
 }): { readonly predictions: readonly Prediction[]; readonly gaps: readonly SourceGap[] } {
   const grid = eventGrid(input.command, input.collectedSources);
   const gaps: SourceGap[] = [...grid.gaps];
@@ -216,7 +227,7 @@ export function issueForecastBook(input: {
     gaps.push(
       gridGap(
         primarySymbol(grid.events[0]!),
-        `Event Grid events not issued because the final synthesis returned no valid eventGrid probability for them: ${unpriced.join(", ")}`,
+        `Event Grid events not issued because ${input.pricedBy ?? "the final synthesis"} returned no valid eventGrid probability for them: ${unpriced.join(", ")}`,
       ),
     );
   }

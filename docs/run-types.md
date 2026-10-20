@@ -7,7 +7,7 @@ collects, which model stages it executes, and what artifacts it produces.
 
 ### Run Type Registry
 
-The seven research/analysis run identities are declared in
+The eight research/analysis run identities are declared in
 `src/domain/run-types.ts` via `RUN_TYPE_REGISTRY`. The registry still includes
 legacy `daily` and `weekly` for artifact/history compatibility, but the public
 CLI parser normalizes new `daily` / `weekly` invocations into canonical
@@ -22,6 +22,7 @@ CLI parser normalizes new `daily` / `weekly` invocations into canonical
 | `crypto`          | implied crypto         | yes        | yes        | yes        | no           | yes              |
 | `alpha-search`    | fixed `--asset equity` | yes        | no         | no         | no           | no               |
 | `research`        | implied equity         | no         | no         | yes        | no           | yes              |
+| `forecast-grid`   | none (watchlist)       | no         | no         | no         | no           | no               |
 
 Operational commands (`score`, `score-repair`, `calibration`, `cache-prune`, `provider-health`,
 `history-*`, `index-rebuild`) are not research run types.
@@ -518,7 +519,50 @@ from persisted alpha-search artifacts.
 
 ---
 
-## 8. Operational Commands
+## 8. `forecast-grid`
+
+### CLI
+
+```sh
+market-bot forecast-grid --watchlist <name>        # dry run: plan only, spends nothing
+market-bot forecast-grid --watchlist <name> --yes  # spends one quick-model call per symbol
+```
+
+- The watchlist is read by exact name from the Research Console DB
+  (`data/console/console.sqlite`, opened read-only); an unknown, ambiguous, empty or crypto-only
+  watchlist throws before any fetch, provider call or write.
+- Without `--yes` it prints symbols x Event Grid events x a token estimate
+  (prompt chars / 4 with a placeholder fact sheet plus a 200-token output
+  allowance; reasoning tokens excluded). It makes no fetch or provider call, takes no lock, and writes nothing.
+- The Research Console cannot queue it (`jobRequestArgv` rejects it), so only an
+  explicit CLI `--yes` spends.
+
+### Data and Model Call
+
+Per equity symbol, in sequence: `yahoo-price-history` (issuer + SPY) feeds the
+Verified Market Snapshot, the deterministic Event Grid and the Forecast Baseline.
+When the grid has events, one `forecast-grid` stage call on `quickModel` prices
+them from a compact fact sheet: last close, 1/5/20/60-session returns, 20-day
+realized volatility, SPY 5/20-session returns and, when the newest instrument run
+is at most seven days old, its summary and market regime label. No report
+synthesis, no Web Gather, no news. Crypto items are declared gaps.
+
+### Output Artifacts
+
+One run dir per job under `data/runs/<run-id>/`, published atomically with
+`publishRunArtifacts`: `report.json` (`jobType: "forecast-grid"`, no `symbol`,
+Event Grid Predictions with ids suffixed `-<SYMBOL>`, Scoring Policy v3),
+`report.md`, `normalized/source-gaps.json`, `raw/snapshots.json`. Only parsed
+probabilities persist; model text is never stored. An invalid, missing or
+out-of-range probability, a failed call or a non-JSON response is a declared
+data gap, never a defaulted probability. The index update runs under
+`data/shared-state.lock`; `score`, calibration, the index and history pick the
+run up like any other run dir. Paired skill counts an event issued by both a
+grid job and an instrument run on the same session once.
+
+---
+
+## 9. Operational Commands
 
 All are handled directly in `src/app.ts`.
 
@@ -634,11 +678,12 @@ market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since] [--to
 
 ---
 
-## 9. Model Calls and Prompts
+## 10. Model Calls and Prompts
 
 ### Models
 
-- `quickModel` for all stages except final-synthesis and forecast-disagreement.
+- `quickModel` for all stages except final-synthesis and forecast-disagreement,
+  including the `forecast-grid` job's single stage.
 - `synthesisModel` for final-synthesis.
 - Challenger models for forecast-disagreement.
 - Provider selected by `MARKET_BOT_PROVIDER` (`openai`, `openai-compatible`,
@@ -674,7 +719,7 @@ prompt modules) builds a JSON prompt containing:
 
 ---
 
-## 10. Post-Research Score Pass
+## 11. Post-Research Score Pass
 
 After every synthesis-report research run:
 

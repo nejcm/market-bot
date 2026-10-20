@@ -100,7 +100,7 @@ function finalReportShape(
     scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
     dataGaps: ["string"],
     ...(eventGrid(command, collectedSources).events.length > 0
-      ? { eventGrid: [{ id: "grid-event-id", probability: 0.5 }] }
+      ? { eventGrid: [{ id: "grid-event-id", probability: "number 0-1" }] }
       : {}),
     // One exemplar only: this array conveys prediction shape, not how many to emit.
     // The soft target count lives in depthProfile.targetPredictions and the

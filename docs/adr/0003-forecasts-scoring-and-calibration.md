@@ -130,6 +130,12 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   model Prediction already using the event, crypto runs and SPY's own relative event each leave the event
   unissued and declare an `event-grid` data gap. Grid Predictions are scored and calibrated like any other
   but do not count toward the prediction target, shortfall, kind mix or citation telemetry.
+- The `forecast-grid` job issues the same Event Grid per watchlist equity, priced by one `quickModel` call
+  from a compact fact sheet (no synthesis, not shown the baseline). It publishes a run-artifact dir under
+  `data/runs/` so the existing score pass, Calibration, index and history read it unchanged; only parsed
+  probabilities persist. Spending needs an explicit CLI `--yes`; the Research Console cannot queue it. An
+  event it shares with an instrument run on the same session collapses through the Forecast Event dedupe.
+  (Added 2026-10-21.)
 - Actionable Negative Calibration independently assesses asset class, job type, default-horizon bucket,
   Market Regime, and Prediction kind. Require 30 resolved Forecast Events, 10 distinct Runs, and a
   Bonferroni-adjusted 98.75% one-sided bound `Brier - 2.2414 × standard error > 0.25`. Qualifying slices

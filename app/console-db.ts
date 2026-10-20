@@ -1,12 +1,16 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { dataRootFromRunsDir } from "../src/data-paths";
+import { dirname } from "node:path";
+import type { WatchlistItemRecord, WatchlistRecord } from "../src/console-watchlists";
 import type { NoteKind, Pin, RunNote } from "./types";
 
-export function consoleDbPath(dataDir: string): string {
-  return join(dataRootFromRunsDir(dataDir), "console", "console.sqlite");
-}
+export {
+  consoleDbPath,
+  listWatchlistItems,
+  listWatchlists,
+  type WatchlistItemRecord,
+  type WatchlistRecord,
+} from "../src/console-watchlists";
 
 export function openConsoleDb(dbPath: string): Database {
   mkdirSync(dirname(dbPath), { recursive: true });
@@ -162,24 +166,6 @@ export function putProfileRow(
   ).run(symbol, JSON.stringify(payload), fetchedAt);
 }
 
-export interface WatchlistRecord {
-  readonly id: number;
-  readonly name: string;
-  readonly createdAt: string;
-}
-
-export interface WatchlistItemRecord {
-  readonly assetClass: string;
-  readonly symbol: string;
-  readonly position: number | null;
-}
-
-export function listWatchlists(db: Database): readonly WatchlistRecord[] {
-  return db
-    .query("SELECT id, name, created_at AS createdAt FROM watchlists ORDER BY id")
-    .all() as readonly WatchlistRecord[];
-}
-
 export function createWatchlist(db: Database, name: string): WatchlistRecord {
   const createdAt = new Date().toISOString();
   const result = db
@@ -201,15 +187,6 @@ export function renameWatchlist(db: Database, id: number, name: string): boolean
 
 export function deleteWatchlist(db: Database, id: number): boolean {
   return db.prepare("DELETE FROM watchlists WHERE id = ?").run(id).changes > 0;
-}
-
-// Default (asset_class, symbol) order until a reorder writes positions; new items then append.
-export function listWatchlistItems(db: Database, id: number): readonly WatchlistItemRecord[] {
-  return db
-    .query(
-      "SELECT asset_class AS assetClass, symbol, position FROM watchlist_items WHERE watchlist_id = ? ORDER BY position IS NULL, position, asset_class, symbol",
-    )
-    .all(id) as readonly WatchlistItemRecord[];
 }
 
 export function addWatchlistItem(

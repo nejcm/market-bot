@@ -24,6 +24,7 @@ import { capitalReturnSection } from "../../src/sources/extended-evidence/capita
 import { operatingRatiosSection } from "../../src/sources/extended-evidence/operating-ratios";
 import { pricePerformanceSection } from "../../src/sources/extended-evidence/price-performance";
 import { buildForecastDisagreementPrompt } from "../../src/research/forecast-disagreement";
+import { forecastGridRequest } from "../../src/forecast/grid-job";
 import {
   collectedSources,
   marketSnapshot,
@@ -678,6 +679,33 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
         ],
       },
     }),
+  );
+
+  add(
+    "production:forecast-grid",
+    JSON.stringify(
+      forecastGridRequest(loadedPrompt, "baseline-model", undefined, {
+        symbol: "AAPL",
+        asOf: "2026-05-01",
+        lastClose: 201.5,
+        returnsPct: { "1": 0.4, "5": -1.2, "20": 3.1, "60": 5.6 },
+        realizedVol20dAnnualizedPct: 24.5,
+        benchmark: { symbol: "SPY", returnsPct: { "5": 0.3, "20": 1.9 } },
+        marketRegime: "risk-on",
+        latestRun: {
+          runId: "run-baseline",
+          generatedAt: ANALYSIS_AS_OF,
+          summary: "AAPL trades near its 50-day average.",
+        },
+        events: [
+          {
+            id: "grid-relative-5",
+            measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)",
+            horizonTradingDays: 5,
+          },
+        ],
+      }).messages,
+    ),
   );
 
   add(

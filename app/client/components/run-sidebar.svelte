@@ -57,6 +57,7 @@
     equity: "Equity",
     crypto: "Crypto",
     "alpha-search": "Alpha",
+    "forecast-grid": "Grid",
     research: "Research",
     run: "Other",
   };

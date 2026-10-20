@@ -43,6 +43,12 @@ import { readJsonFile } from "./run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import { withSharedStateLock } from "./shared-state-lock";
 import { assertRunStagingUsable } from "./artifacts";
+import {
+  planForecastGrid,
+  renderForecastGridDryRun,
+  runForecastGridJob,
+} from "./forecast/grid-job";
+import type { FetchLike } from "./sources/types";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -59,6 +65,7 @@ export interface RunCliDependencies {
   readonly rebuildRunArtifactIndexIfStale?: typeof rebuildRunArtifactIndexIfStale;
   readonly searchHistoryIndex?: typeof searchHistoryIndex;
   readonly buildThesisDelta?: typeof buildThesisDelta;
+  readonly fetchImpl?: FetchLike;
   readonly now?: () => Date;
 }
 
@@ -307,6 +314,25 @@ export async function runCli(
       now: now(),
     });
     return renderThesisDelta(delta);
+  }
+
+  if (command.jobType === "forecast-grid") {
+    const plan = planForecastGrid(config.dataDir, command.watchlist);
+    if (!command.yes) {
+      return renderForecastGridDryRun(plan, config);
+    }
+    await assertRunStagingUsable(config.dataDir);
+    const runDir = await runForecastGridJob({
+      plan,
+      config,
+      provider: (dependencies.createProvider ?? createProvider)(config),
+      ...(dependencies.fetchImpl !== undefined ? { fetchImpl: dependencies.fetchImpl } : {}),
+      now: now(),
+    });
+    await locked(() =>
+      updateRunArtifactIndex(config.dataDir, [runDir], dependencies, config.indexOptions?.dbPath),
+    );
+    return runDir;
   }
 
   if (command.jobType === "alpha-search") {

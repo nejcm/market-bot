@@ -9,6 +9,7 @@ import {
   isResearchCommand,
   USAGE,
   type CliCommand,
+  type ForecastGridCommand,
   type HistoryRebuildCommand,
   type HistorySearchCommand,
   type HistoryThesisDeltaCommand,
@@ -158,7 +159,7 @@ function readSection(value: string | undefined): HistorySection | undefined {
 }
 
 // Boolean flags stand alone; any other allowed flag consumes the next arg as its value.
-const BOOLEAN_FLAGS: ReadonlySet<string> = new Set(["--deep", "--narrative", "--apply"]);
+const BOOLEAN_FLAGS: ReadonlySet<string> = new Set(["--deep", "--narrative", "--apply", "--yes"]);
 
 function rejectUnknownHistoryArgs(
   args: readonly string[],
@@ -269,6 +270,19 @@ export function parseArgs(args: readonly string[]): CliCommand {
     return args.includes("--force") ? { jobType: "score", force: true } : { jobType: "score" };
   }
 
+  if (command === "forecast-grid") {
+    rejectUnknownArgs(args, 1, new Set(["--watchlist", "--yes"]));
+    const watchlist = readFlagValue(args, "--watchlist");
+    if (watchlist === undefined) {
+      throw new Error("forecast-grid requires --watchlist <name>");
+    }
+    return {
+      jobType: "forecast-grid",
+      watchlist,
+      yes: args.includes("--yes"),
+    } satisfies ForecastGridCommand;
+  }
+
   if (command === "calibration") {
     return { jobType: "calibration" };
   }
@@ -318,7 +332,7 @@ export function parseArgs(args: readonly string[]): CliCommand {
     const limit = readLimit(readFlagValue(args, "--limit"));
     if (jobType !== undefined && !isResearchJobType(jobType)) {
       throw new Error(
-        "Expected --job-type market-overview|daily|weekly|equity|crypto|alpha-search|research",
+        "Expected --job-type market-overview|daily|weekly|equity|crypto|alpha-search|research|forecast-grid",
       );
     }
     return {

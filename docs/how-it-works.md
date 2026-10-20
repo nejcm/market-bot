@@ -54,6 +54,7 @@ bun run src/cli.ts equity AAPL
 bun run src/cli.ts crypto BTC
 bun run src/cli.ts research AI biotech
 bun run src/cli.ts alpha-search --asset equity
+bun run src/cli.ts forecast-grid --watchlist core
 bun run src/cli.ts score
 bun run src/cli.ts calibration
 bun run src/cli.ts cache prune
@@ -72,6 +73,7 @@ market-bot equity AAPL --deep
 market-bot crypto BTC --deep
 market-bot research AI biotech
 market-bot alpha-search --asset equity --deep
+market-bot forecast-grid --watchlist core --yes
 market-bot score
 market-bot score repair --run <run-id> --prediction <id>
 market-bot calibration
@@ -91,6 +93,7 @@ Command behavior:
 | `equity <symbol>` / `crypto <symbol>`                              | Creates a detailed single-instrument research view with same-symbol historical context. The asset class is implied by the command. Symbols are normalized to uppercase and must match the instrument validator.                                                                                                                                                                                           |
 | `research <subject>`                                               | Creates a deep equity thematic Research View. Subject text is the non-flag words after `research`; `--asset`, `--deep`, and manual proxy flags are not accepted. Registry hits with a listed ETF proxy emit proxy-only forecasts and quote collection. Registry misses, or entries without a single proxy, still produce a report with zero scored predictions and a disclosed proxy gap.                 |
 | `alpha-search --asset equity`                                      | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol metadata, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects.                                           |
+| `forecast-grid --watchlist <name> [--yes]`                         | Prices the Event Grid for every equity on a Research Console watchlist with one quick-model call per symbol from a compact fact sheet, and publishes an atomic `forecast-grid` run dir whose Predictions flow into scoring and Calibration. Dry run by default: prints symbols x events x token estimate with no fetch, provider call, lock or write; `--yes` spends. Not queueable from the console.     |
 | `--deep`                                                           | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass.                                                                                                                                                                                                                                                               |
 | `score`                                                            | Resolves due predictions in previous runs and writes `score.json` files.                                                                                                                                                                                                                                                                                                                                  |
 | `score repair --run <run-id> --prediction <id> [--apply]`          | Audits one resolved score against the completed-session rule. Dry run by default (reads only, takes no lock); `--apply` rescores a proven-premature or suspect score from verified sessions, keeps the original under `repair`, and refreshes miss autopsies, the Run Artifact Index, and Calibration.                                                                                                    |

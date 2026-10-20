@@ -17,7 +17,8 @@ export function isJobType(value: unknown): value is JobType {
     value === "equity" ||
     value === "crypto" ||
     value === "alpha-search" ||
-    value === "research"
+    value === "research" ||
+    value === "forecast-grid"
   );
 }
 

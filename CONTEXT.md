@@ -148,7 +148,11 @@ The valid final-synthesis report's count stands; no follow-up pass requests more
 
 ## Event Grid
 
-Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response and stamped `origin: "grid"`. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response (or by a Forecast Grid Job) and stamped `origin: "grid"`. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+
+## Forecast Grid Job
+
+`forecast-grid --watchlist <name>`: issues the Event Grid with Forecast Baselines for every equity on a Research Console watchlist, priced by one quick-model call per symbol from a compact fact sheet (price history summary, regime and latest instrument-run summary when fresh). No report synthesis or Web Gather. Dry run by default; only `--yes` spends. Publishes one run dir (`jobType: "forecast-grid"`, no `symbol`) whose Predictions are scored and calibrated like any other; only parsed probabilities persist. An event it shares with an instrument run on the same session is one Forecast Event in Paired Skill.
 
 ## Forecast Baseline
 

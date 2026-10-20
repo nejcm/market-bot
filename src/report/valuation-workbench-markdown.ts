@@ -15,13 +15,16 @@ import { knownSourceIds, sourceRefs } from "./markdown-primitives";
 import { stringArrayValue } from "../guards";
 
 export function valuationMetricDisplay(metric: MetricResult): string {
-  return metric.status === "value"
-    ? (formatMetricValue(metric.value, metric.unit, metric.currency) ?? "—")
-    : metric.status === "not-meaningful"
-      ? "N/M"
-      : metric.status === "not-applicable"
-        ? `not applicable (${metric.reason?.replace(/ \(SIC \d+\)$/u, "") ?? "no reason"})`
-        : `— (${metric.reason ?? "no value"})`;
+  if (metric.status === "value") {
+    return formatMetricValue(metric.value, metric.unit, metric.currency) ?? "—";
+  }
+  if (metric.status === "not-meaningful") {
+    return "N/M";
+  }
+  if (metric.status === "not-applicable") {
+    return `not applicable (${metric.reason?.replace(/ \(SIC \d+\)$/u, "") ?? "no reason"})`;
+  }
+  return `— (${metric.reason ?? "no value"})`;
 }
 
 function cell(value: string): string {
@@ -49,7 +52,7 @@ export function hasNoPriceHistory(observation: HistoricalValuationObservation): 
 function unpricedPeriodsLine(
   observations: readonly HistoricalValuationObservation[],
 ): string | undefined {
-  const unpriced = observations.filter(hasNoPriceHistory);
+  const unpriced = observations.filter((observation) => hasNoPriceHistory(observation));
   if (unpriced.length === 0) {
     return undefined;
   }
@@ -242,18 +245,18 @@ export function renderValuationWorkbenchMarkdown(
   const renderableObservations = observations.filter(
     (observation) => !hasNoPriceHistory(observation),
   );
-  const historical =
-    observations.length === 0
-      ? [
-          `- Suppressed: ${artifact.historicalMultiples.suppressionReasons.join("; ") || "no historical basis available"}.`,
-        ]
-      : renderableObservations.length === 0
-        ? []
-        : [
-            "Basis | Statement period | First public date | First eligible close | P/E | P/S | EV/revenue | P/FCF proxy | Sources",
-            "--- | --- | --- | --- | ---: | ---: | ---: | ---: | ---",
-            ...renderableObservations.map((observation) => historicalRow(observation, report)),
-          ];
+  let historical: readonly string[] = [];
+  if (observations.length === 0) {
+    historical = [
+      `- Suppressed: ${artifact.historicalMultiples.suppressionReasons.join("; ") || "no historical basis available"}.`,
+    ];
+  } else if (renderableObservations.length > 0) {
+    historical = [
+      "Basis | Statement period | First public date | First eligible close | P/E | P/S | EV/revenue | P/FCF proxy | Sources",
+      "--- | --- | --- | --- | ---: | ---: | ---: | ---: | ---",
+      ...renderableObservations.map((observation) => historicalRow(observation, report)),
+    ];
+  }
   const unpricedLine = unpricedPeriodsLine(observations);
   const scopeDisclosure = valuationScopeDisclosure(observations);
   const trailing =

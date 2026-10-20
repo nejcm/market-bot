@@ -15,8 +15,8 @@ function hasMetricReference(value: unknown): boolean {
     return REFERENCE_START.test(value);
   }
   return Array.isArray(value)
-    ? value.some(hasMetricReference)
-    : isRecord(value) && Object.values(value).some(hasMetricReference);
+    ? value.some((item) => hasMetricReference(item))
+    : isRecord(value) && Object.values(value).some((item) => hasMetricReference(item));
 }
 
 function transformClaims(

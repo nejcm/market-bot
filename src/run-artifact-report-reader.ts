@@ -2,8 +2,8 @@ import {
   type ExtendedEvidence,
   type ExtendedEvidenceCategory,
   type ExtendedEvidenceItem,
+  type SubjectKind,
 } from "./domain/evidence";
-import { type SubjectKind } from "./domain/evidence";
 import {
   type Instrument,
   type InstrumentIdentity,

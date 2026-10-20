@@ -1,9 +1,12 @@
 import type { InstrumentCommand } from "../../cli/args";
 import { DAY_MS } from "../../config/shared";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
-import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../../domain/market-data";
+import {
+  marketCapQuotePhrase,
+  type MarketSnapshot,
+  type MarketSnapshotPriceAsOf,
+} from "../../domain/market-data";
 import type { SourceGap } from "../../domain/sources";
-import { marketCapQuotePhrase } from "../../domain/market-data";
 import { type SecFactMetricKey, type SecMetricKey } from "./financial-lens-canonical";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
 import { readNumberMetric } from "./utils";

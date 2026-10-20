@@ -35,13 +35,13 @@ export function classifyRunFreshness(
     return { state: "stale", reason: "unknown-date" };
   }
   const today = now.toISOString().slice(0, 10);
-  const passed = earningsDates
+  const [passed] = earningsDates
     .filter(
       // Dates before the run date cannot be evidence of that run; the
       // Collector guarantees the invariant, the filter makes it local.
       (date) => EARNINGS_DATE_PATTERN.test(date) && date >= runDay && date < today,
     )
-    .toSorted()[0];
+    .toSorted();
   if (passed !== undefined) {
     return { state: "stale", reason: "earnings", since: passed };
   }

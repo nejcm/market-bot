@@ -698,7 +698,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     command.jobType !== "research" ? new Set(runParams.predictionSubjects) : undefined;
 
   progress("final synthesis");
-  let synthesis: SynthesizeReportUntilValidResult;
+  let synthesis: SynthesizeReportUntilValidResult | undefined = undefined;
   try {
     const synthesisInput = {
       runId,

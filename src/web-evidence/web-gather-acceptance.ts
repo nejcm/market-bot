@@ -7,7 +7,11 @@ import type {
 } from "../domain/gather-audit";
 import type { SourceGap } from "../domain/sources";
 import { isRecord, readString } from "../guards";
-import { MAX_WEB_GATHER_SEARCH_RESULTS, WEB_GATHER_TOOL_UNITS } from "../sources/web-gather-tools";
+import {
+  MAX_WEB_GATHER_SEARCH_RESULTS,
+  WEB_GATHER_TOOL_UNITS,
+  type WebGatherSurfacedUrls,
+} from "../sources/web-gather-tools";
 import {
   WEB_GATHER_DUPLICATE_REQUEST_REASON,
   WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON,
@@ -34,7 +38,6 @@ import {
 } from "./web-gather-coverage";
 import { reject, requestKey, truncateRationale } from "./web-gather-merge";
 import { canonicalizeUrl } from "../sources/news-utils";
-import type { WebGatherSurfacedUrls } from "../sources/web-gather-tools";
 
 export function surfacedUrlGate(surfacedUrls: Set<string>): WebGatherSurfacedUrls {
   return {

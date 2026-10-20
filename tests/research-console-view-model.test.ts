@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { reportSearchCandidates } from "../app/report-artifact-view";
+import { metricSectionsView } from "../app/client/view-model-metric-sections";
+import { financialLensGroupViews } from "../app/client/run-workspace-detail";
+import { parseCalibrationContext } from "../src/research/calibration-context";
+import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
+import { resolvedPair } from "./support/research-context-helpers";
+import type { ConsoleJob } from "../app/types";
 import {
   calibrationAutopsyCauses,
   calibrationHeadline,
@@ -74,12 +80,6 @@ function pinTestRun(runId: string, jobType = "equity") {
     availableFiles: [],
   };
 }
-import { metricSectionsView } from "../app/client/view-model-metric-sections";
-import { financialLensGroupViews } from "../app/client/run-workspace-detail";
-import { parseCalibrationContext } from "../src/research/calibration-context";
-import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
-import { resolvedPair } from "./support/research-context-helpers";
-import type { ConsoleJob } from "../app/types";
 
 function frameworkSection(name: string, metricSectionIds?: readonly string[]) {
   return {

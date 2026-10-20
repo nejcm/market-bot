@@ -89,20 +89,19 @@ export async function indexIsFresh(
     .all(...MUTABLE_SIDECARS) as readonly ArtifactFileRow[];
   const sidecarsByKey = new Map(sidecars.map((row) => [`${row.run_id}:${row.path}`, row]));
 
-  const mismatches = (
-    await Promise.all(
-      runs.flatMap((run) =>
-        MUTABLE_SIDECARS.map((path) =>
-          mutableSidecarMismatch(
-            dataDir,
-            run.run_dir_name,
-            path,
-            sidecarsByKey.get(`${run.run_id}:${path}`),
-          ),
+  const sidecarChecks = await Promise.all(
+    runs.flatMap((run) =>
+      MUTABLE_SIDECARS.map((path) =>
+        mutableSidecarMismatch(
+          dataDir,
+          run.run_dir_name,
+          path,
+          sidecarsByKey.get(`${run.run_id}:${path}`),
         ),
       ),
-    )
-  ).filter((mismatch) => mismatch !== undefined);
+    ),
+  );
+  const mismatches = sidecarChecks.filter((mismatch) => mismatch !== undefined);
   if (mismatches.length > 0) {
     warn(
       `index stale (mutable sidecar mismatch: ${summarizeMismatches(mismatches)}), falling back to disk scan`,

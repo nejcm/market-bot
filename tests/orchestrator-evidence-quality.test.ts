@@ -167,8 +167,10 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
   test("skips Forecast Disagreement with a gap when the report emits no predictions", async () => {
     const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-empty-${Date.now()}`);
     dataDirs.push(dataDir);
-    const report = { ...(JSON.parse(modelReport("AAPL")) as Record<string, unknown>) };
-    report.predictions = [];
+    const report = {
+      ...(JSON.parse(modelReport("AAPL")) as Record<string, unknown>),
+      predictions: [],
+    };
 
     const result = await persistResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },

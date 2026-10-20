@@ -151,7 +151,7 @@ function providerAccessPattern(gap: SourceGap): RegExp | undefined {
     return undefined;
   }
   const subject = [
-    ...endpointGapSubjects(gap).map(gapSubjectPattern),
+    ...endpointGapSubjects(gap).map((item) => gapSubjectPattern(item)),
     "endpoint",
     "data",
     "api",
@@ -240,7 +240,7 @@ function endpointGapSubjects(gap: SourceGap): readonly string[] {
 }
 
 function endpointGapPattern(subjects: readonly string[]): RegExp {
-  const subject = subjects.map(gapSubjectPattern).join("|");
+  const subject = subjects.map((item) => gapSubjectPattern(item)).join("|");
   return new RegExp(
     `^(?:(?:${GAP_DETERMINERS})\\s+)?(?:${subject})(?:${GAP_SUBJECT_JOIN}(?:${subject}))*` +
       `\\s+(?:is|are)\\s+(?:${GAP_PREDICATE})(?:\\s+(?:${GAP_RUN_SUFFIX}))?\\.?$`,

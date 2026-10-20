@@ -1330,7 +1330,10 @@ function selectSeries(
         ...selected.omissionNotes,
         ...(depreciationAndAmortization?.notes ?? []),
         ...staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible),
-        ...declarationSpanNotes(declarationSpans.filter(eligible), definition),
+        ...declarationSpanNotes(
+          declarationSpans.filter((fact) => eligible(fact)),
+          definition,
+        ),
       ],
     };
   }

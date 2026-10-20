@@ -1221,12 +1221,8 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
         return noFact(ctx, "debt");
       }
       const cash = id === "netDebtToMarketCap" ? samePeriodFact(ctx, anchor, "cash") : undefined;
-      const numerator =
-        id === "debtToMarketCap"
-          ? anchor.value
-          : cash === undefined
-            ? undefined
-            : anchor.value - cash.value;
+      const netDebt = cash === undefined ? undefined : anchor.value - cash.value;
+      const numerator = id === "debtToMarketCap" ? anchor.value : netDebt;
       const inputs = [
         ...(marketCap === undefined ? [] : [marketCap]),
         factInput(anchor, "debt"),
@@ -1848,12 +1844,7 @@ function momentumDefinitions(): readonly MetricDefinition[] {
     ...(["sma50", "sma200", "rsi14", "macdHistogram"] as const).map(
       (key): MetricDefinition => ({
         id: key,
-        label:
-          key === "macdHistogram"
-            ? "MACD histogram"
-            : key === "rsi14"
-              ? "RSI14"
-              : key.toUpperCase(),
+        label: key === "macdHistogram" ? "MACD histogram" : key.toUpperCase(),
         unit: "number",
         basis: "last completed session indicator from the verified market snapshot",
         compute: (ctx) => {
@@ -1926,15 +1917,20 @@ function growthPosture(section: readonly MetricResult[] | undefined): FinancialL
   );
 }
 
+function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
+  if (evidenceDisplayNetDebt(ctx) === undefined || !summaryCurrentness(ctx, "netDebt").current) {
+    return undefined;
+  }
+  return meets(evidenceGuardedNetDebt(ctx), (value) => value <= 0);
+}
+
 function strengthPosture(
   ctx: MetricContext,
   section: readonly MetricResult[] | undefined,
 ): FinancialLensPosture {
   const netDebtCriterion =
     ctx.statements === undefined
-      ? evidenceDisplayNetDebt(ctx) === undefined || !summaryCurrentness(ctx, "netDebt").current
-        ? undefined
-        : meets(evidenceGuardedNetDebt(ctx), (value) => value <= 0)
+      ? summaryNetDebtCriterion(ctx)
       : meets(valueOf(section, "netDebt"), (value) => value <= 0);
   return postureFrom([
     netDebtCriterion,

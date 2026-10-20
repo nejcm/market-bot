@@ -89,6 +89,15 @@ export async function collectPriceHistory(
       const currency = isRecord(result?.meta) ? readString(result.meta, "currency") : undefined;
       const returnedSymbol = isRecord(result?.meta) ? readString(result.meta, "symbol") : undefined;
       const mismatch = returnedSymbol !== undefined && returnedSymbol.toUpperCase() !== ticker;
+      let reason: string | undefined = undefined;
+      if (mismatch) {
+        reason = `Yahoo returned ${returnedSymbol} for ${ticker}`;
+      } else if (adjusted.length === 0) {
+        reason =
+          Array.isArray(result?.timestamp) && result.timestamp.length > 0
+            ? "split-adjusted history unavailable: invalid closes or split metadata"
+            : "price history unavailable: no rows returned";
+      }
       return {
         verifiedSnapshot: mismatch
           ? {
@@ -115,16 +124,7 @@ export async function collectPriceHistory(
           priceMode: "split-adjusted-close" as const,
           requestedFrom: from.toISOString().slice(0, 10),
           bars: mismatch ? [] : bars,
-          ...(mismatch
-            ? { reason: `Yahoo returned ${returnedSymbol} for ${ticker}` }
-            : adjusted.length === 0
-              ? {
-                  reason:
-                    Array.isArray(result?.timestamp) && result.timestamp.length > 0
-                      ? "split-adjusted history unavailable: invalid closes or split metadata"
-                      : "price history unavailable: no rows returned",
-                }
-              : {}),
+          ...(reason === undefined ? {} : { reason }),
           ...(currency === undefined ? {} : { currency }),
         },
         rawSnapshot: { ...fetched.rawSnapshot, id: `${fetched.rawSnapshot.id}-${ticker}` },

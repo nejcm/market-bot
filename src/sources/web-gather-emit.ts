@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
-import type { ExtendedEvidenceItem } from "../domain/evidence";
+import type { ExtendedEvidenceItem, SubjectKind } from "../domain/evidence";
 import type {
   WebGatherFallbackAudit,
   WebGatherSanitizerAudit,
   WebSearchType,
 } from "../domain/gather-audit";
-import type { SubjectKind } from "../domain/evidence";
 import type { AssetClass } from "../domain/job-type";
 import type { Source, SourceGap, SourceGapAttempts } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";

@@ -903,45 +903,47 @@ export async function loadResolvedPairsFromIndex(
       )
       .all() as readonly ResolvedPairQueryRow[];
 
-    return rows.filter(hasParseableGeneratedAt).map((row) => {
-      const jobType = row.job_type as JobType;
-      const claim = predictionClaimFromRow(row);
-      const horizonBucket = marketUpdateBucketForRow(jobType, row.run_horizon_trading_days);
-      return {
-        prediction: {
-          id: row.id,
-          claim,
-          kind: row.kind as PredictionKind,
-          subject: row.subject,
-          measurableAs: row.measurable_as,
-          horizonTradingDays: row.horizon_trading_days,
-          probability: row.probability,
-          sourceIds: parseStringArrayJson(row.source_ids_json),
-        },
-        score: {
-          predictionId: row.prediction_id,
+    return rows
+      .filter((row) => hasParseableGeneratedAt(row))
+      .map((row) => {
+        const jobType = row.job_type as JobType;
+        const claim = predictionClaimFromRow(row);
+        const horizonBucket = marketUpdateBucketForRow(jobType, row.run_horizon_trading_days);
+        return {
+          prediction: {
+            id: row.id,
+            claim,
+            kind: row.kind as PredictionKind,
+            subject: row.subject,
+            measurableAs: row.measurable_as,
+            horizonTradingDays: row.horizon_trading_days,
+            probability: row.probability,
+            sourceIds: parseStringArrayJson(row.source_ids_json),
+          },
+          score: {
+            predictionId: row.prediction_id,
+            runId: row.run_id,
+            ...(row.status !== null ? { status: row.status as PredictionScoreStatus } : {}),
+            resolved: true,
+            outcome: row.outcome as PredictionScore["outcome"],
+            observedAt: row.observed_at ?? undefined,
+            ...(row.scoring_version !== null ? { scoringVersion: row.scoring_version } : {}),
+            attemptCount: 0,
+            evidence: {},
+          },
+          assetClass: row.asset_class as AssetClass,
+          jobType,
           runId: row.run_id,
-          ...(row.status !== null ? { status: row.status as PredictionScoreStatus } : {}),
-          resolved: true,
-          outcome: row.outcome as PredictionScore["outcome"],
-          observedAt: row.observed_at ?? undefined,
-          ...(row.scoring_version !== null ? { scoringVersion: row.scoring_version } : {}),
-          attemptCount: 0,
-          evidence: {},
-        },
-        assetClass: row.asset_class as AssetClass,
-        jobType,
-        runId: row.run_id,
-        generatedAt: row.generated_at,
-        ...(horizonBucket !== undefined ? { marketUpdateHorizonBucket: horizonBucket } : {}),
-        ...(isMarketRegimeLabel(row.market_regime_label)
-          ? { marketRegimeLabel: row.market_regime_label }
-          : {}),
-        ...(isMissAutopsyCause(row.miss_autopsy_cause)
-          ? { missAutopsyCause: row.miss_autopsy_cause }
-          : {}),
-      };
-    });
+          generatedAt: row.generated_at,
+          ...(horizonBucket !== undefined ? { marketUpdateHorizonBucket: horizonBucket } : {}),
+          ...(isMarketRegimeLabel(row.market_regime_label)
+            ? { marketRegimeLabel: row.market_regime_label }
+            : {}),
+          ...(isMissAutopsyCause(row.miss_autopsy_cause)
+            ? { missAutopsyCause: row.miss_autopsy_cause }
+            : {}),
+        };
+      });
   });
 }
 
@@ -964,7 +966,7 @@ export async function loadConditionalCalibrationCountsFromIndex(
     }[];
     const voidedEvents = new Set(
       rows
-        .filter(hasParseableGeneratedAt)
+        .filter((row) => hasParseableGeneratedAt(row))
         .map((row) => forecastEventKey(row.asset_class, row.measurable_as, row.generated_at)),
     );
     // Activated conditionals are the resolved conditional pairs already passed

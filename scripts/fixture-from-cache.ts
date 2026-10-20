@@ -137,9 +137,8 @@ async function stageEntries(id: string): Promise<StageRecord[]> {
 }
 
 const entries: Record<string, LlmCassetteEntry[]> = {};
-const profileStage = (await stageEntries(profileRunId)).find(
-  (stage) => stage.stage === "web-subject-profile",
-);
+const profileStages = await stageEntries(profileRunId);
+const profileStage = profileStages.find((stage) => stage.stage === "web-subject-profile");
 if (profileStage === undefined) {
   throw new Error(`${profileRunId} has no web-subject-profile stage output`);
 }

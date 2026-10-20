@@ -1,5 +1,9 @@
 import type { MetricResult } from "../../src/sources/extended-evidence/metric-engine";
-import { valuationMetricDisplay } from "../../src/report/valuation-workbench-markdown";
+import {
+  hasNoPriceHistory,
+  valuationMetricDisplay,
+  valuationScopeDisclosure,
+} from "../../src/report/valuation-workbench-markdown";
 import type { RunDetail } from "../types";
 import type { MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import type { EquityReaderValuationContext } from "../../src/report/equity-reader";
@@ -11,10 +15,6 @@ import type { ValuationWorkbenchArtifact } from "../../src/sources/extended-evid
 import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
-import {
-  hasNoPriceHistory,
-  valuationScopeDisclosure,
-} from "../../src/report/valuation-workbench-markdown";
 import { stringArrayValue } from "../../src/guards";
 import { priceAsOfLabel, projectEquityReaderForDetail } from "./run-workspace-detail";
 
@@ -224,14 +224,11 @@ export function peerImpliedRangeFromProjection(
 }
 
 function valuationMetricCell(metric: MetricResult): RunWorkspaceValuationMetricCell {
+  const detail = metric.status === "value" ? metric.basis : metric.reason;
   return {
     display: valuationMetricDisplay(metric),
     status: metric.status,
-    ...(metric.status === "value"
-      ? { detail: metric.basis }
-      : metric.reason === undefined
-        ? {}
-        : { detail: metric.reason }),
+    ...(detail === undefined ? {} : { detail }),
   };
 }
 
@@ -299,7 +296,7 @@ export function valuationWorkbenchView(
         priceToFreeCashFlow: valuationMetricCell(observation.metrics.priceToFreeCashFlow),
       })),
     unpricedPeriods: observations
-      .filter(hasNoPriceHistory)
+      .filter((observation) => hasNoPriceHistory(observation))
       .map((observation) => `${observation.basis.toUpperCase()} ${observation.periodEnd}`),
     suppressionReasons: artifact.historicalMultiples.suppressionReasons,
     peerSupportability,

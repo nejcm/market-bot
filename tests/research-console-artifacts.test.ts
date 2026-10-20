@@ -111,7 +111,8 @@ describe("research console app artifacts", () => {
     const malformed = await readRunDetail(dataDir, "run-bad-clock");
     expect(malformed?.reportStatus).toBe("malformed");
     expect(malformed?.report?.generatedAt).toBe("not-a-date");
-    expect((await readRunDetail(dataDir, "run-valid"))?.reportStatus).toBeUndefined();
+    const valid = await readRunDetail(dataDir, "run-valid");
+    expect(valid?.reportStatus).toBeUndefined();
   });
 
   test("projects deep-equity detail evidence from the bundle", async () => {

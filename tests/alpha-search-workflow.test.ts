@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAlphaRejectedCandidateFile } from "../src/alpha-search/cohorts";
 import { runAlphaSearchWorkflow } from "../src/alpha-search/workflow";
-import * as codeVersionModule from "../src/code-version";
 import type { AppConfig } from "../src/config";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { resetSourceResilienceForTests } from "../src/sources/source-request";
@@ -496,6 +495,7 @@ function unmappedSecFetchImpl(requestedUrls: string[]): FetchLike {
 describe("alpha-search workflow", () => {
   test("records the code version read before collection, not after a mid-run checkout", async () => {
     let head = "start";
+    const codeVersionModule = await import("../src/code-version");
     const readCodeVersion = spyOn(codeVersionModule, "readCodeVersion").mockImplementation(() => ({
       version: head,
       commit: head,

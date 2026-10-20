@@ -1006,7 +1006,7 @@ function reportWith(ctx: MetricContext, sourceIds: readonly string[]) {
   return researchReport({
     jobType: "equity",
     symbol: "TEST",
-    sources: sourceIds.map(evidenceSource),
+    sources: sourceIds.map((id) => evidenceSource(id)),
     extras,
   });
 }

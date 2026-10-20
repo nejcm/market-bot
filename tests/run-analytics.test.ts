@@ -830,9 +830,9 @@ describe("forecast quality telemetry (3.2)", () => {
 
   test("equity-amd-deep has one near-base-rate Prediction on its recorded ±1σ band", async () => {
     const fixture = await loadFixture("equity-amd-deep");
-    const chart = Object.entries(fixture.dataCassette.entries).find(([request]) =>
+    const [, chart] = Object.entries(fixture.dataCassette.entries).find(([request]) =>
       request.includes("/chart/AMD?"),
-    )![1];
+    )!;
     const payload: unknown = JSON.parse(chart.body);
     const { snapshot } = verifiedMarketSnapshotFromChart(
       {

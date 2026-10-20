@@ -221,7 +221,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
@@ -268,7 +268,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
@@ -323,7 +323,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
@@ -369,7 +369,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
@@ -434,7 +434,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
@@ -486,7 +486,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
@@ -543,7 +543,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
@@ -605,7 +605,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    let rejection: unknown;
+    let rejection: unknown = undefined;
     try {
       await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),

@@ -1460,10 +1460,8 @@ test("missing FCF partners propagate independently filed absence and keep availa
   );
   expect(result.sourceGaps[0]?.triage).toBe("diagnostic");
   Object.assign(filedStatements, { unfiledSeries: [] });
-  expect(
-    (await evaluateWorkbench({ ...value, financialStatements: filedStatements })).sourceGaps[0]
-      ?.triage,
-  ).toBe("material");
+  const filed = await evaluateWorkbench({ ...value, financialStatements: filedStatements });
+  expect(filed.sourceGaps[0]?.triage).toBe("material");
 });
 
 test("P/FCF keeps zero and negative denominators not meaningful and discloses its price basis", async () => {

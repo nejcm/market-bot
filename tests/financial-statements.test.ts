@@ -11,6 +11,7 @@ import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-s
 import {
   balanceSheetHistoryFromProjection,
   financialPositionFromProjection,
+  fundamentalHistoryView,
 } from "../app/client/run-workspace-financials";
 import { dedupeSourceGaps } from "../src/domain/source-gaps";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
@@ -26,7 +27,6 @@ import {
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import type { RunSummary } from "../app/types";
-import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import {

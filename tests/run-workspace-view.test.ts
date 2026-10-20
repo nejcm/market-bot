@@ -678,7 +678,7 @@ describe("run workspace view", () => {
         expect(html).toContain('data-screen-label="Run Note"');
         expect(html).toContain('aria-label="Run note"');
         expect(html).toContain('title="Run note"');
-        expect(html).not.toMatch(/>\s*Note\s*</);
+        expect(html).not.toMatch(/>\s*Note\s*</u);
       }
     }
   }, 20_000);
@@ -687,7 +687,7 @@ describe("run workspace view", () => {
     const equity = await renderRunWorkspaceComponent(tableOfContentsFixture(), "simple", "report");
     expect(equity).toContain('aria-label="Watchlists for AAPL"');
     expect(equity).toContain('title="Watchlists for AAPL"');
-    expect(equity).not.toMatch(/>\s*Watchlists\s*</);
+    expect(equity).not.toMatch(/>\s*Watchlists\s*</u);
     const crypto = await renderRunWorkspaceComponent(
       { summary: summary({ jobType: "crypto", assetClass: "crypto", symbol: "BTC" }) },
       "simple",

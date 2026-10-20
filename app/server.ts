@@ -480,7 +480,7 @@ async function handleWatchlistRequest(
       if (!isSameOriginPost(request, url)) {
         return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
       }
-      let name: string | undefined;
+      let name: string | undefined = undefined;
       try {
         const body = await readRequestJson(request);
         name = isRecord(body) ? parseWatchlistName(body.name) : undefined;
@@ -531,7 +531,7 @@ async function handleWatchlistRequest(
           );
         }
       }
-      let name: string | undefined;
+      let name: string | undefined = undefined;
       try {
         const body = await readRequestJson(request);
         name = isRecord(body) ? parseWatchlistName(body.name) : undefined;
@@ -574,7 +574,7 @@ async function handleWatchlistRequest(
       if (!isSameOriginPost(request, url)) {
         return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
       }
-      let item: { readonly assetClass: string; readonly symbol: string } | undefined;
+      let item: { readonly assetClass: string; readonly symbol: string } | undefined = undefined;
       try {
         const body = await readRequestJson(request);
         item = isRecord(body) ? parseWatchlistInstrument(body) : undefined;
@@ -636,7 +636,7 @@ async function handleWatchlistRequest(
     if (!isSameOriginPost(request, url)) {
       return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
     }
-    let ordered: readonly { readonly assetClass: string; readonly symbol: string }[];
+    let ordered: readonly { readonly assetClass: string; readonly symbol: string }[] = [];
     try {
       const body = await readRequestJson(request);
       const rawItems = isRecord(body) ? body.items : undefined;

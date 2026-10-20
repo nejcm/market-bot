@@ -129,8 +129,8 @@ function recentFilings(
     recent: {
       form: filings.map(([form]) => form),
       accessionNumber: filings.map(([, accession]) => accession),
-      reportDate: filings.map(([, , reportDate]) => reportDate),
-      filingDate: filings.map(([, , , filingDate]) => filingDate),
+      reportDate: filings.map((filing) => filing[2]),
+      filingDate: filings.map((filing) => filing[3]),
     },
   };
 }

@@ -24,9 +24,10 @@ const PROFILE_PAYLOAD = {
   exchange: "NASDAQ NMS - GLOBAL MARKET",
   finnhubIndustry: "Technology",
   ipo: "1980-12-12",
-  marketCapitalization: 2_940_000, // Finnhub unit: millions
+  // Finnhub unit for marketCapitalization and shareOutstanding: millions
+  marketCapitalization: 2_940_000,
   name: "Apple Inc",
-  shareOutstanding: 15_000, // Finnhub unit: millions
+  shareOutstanding: 15_000,
   ticker: "AAPL",
 };
 

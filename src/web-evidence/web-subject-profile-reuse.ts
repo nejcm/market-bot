@@ -1,12 +1,11 @@
 import { type ResearchCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
-import type { ExtendedEvidence } from "../domain/evidence";
+import type { ExtendedEvidence, SubjectKind } from "../domain/evidence";
 import type {
   WebEvidenceUtilizationLevel,
   WebGatherAcceptancePolicy,
 } from "../domain/gather-audit";
-import type { SubjectKind } from "../domain/evidence";
 import type { Source, SourceGap } from "../domain/sources";
 import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";

@@ -14,7 +14,8 @@ async function readJson(path: string): Promise<unknown> {
 
 async function readNormalizedArtifacts(runDir: string): Promise<Record<string, unknown>> {
   const normalizedDir = join(runDir, "normalized");
-  const files = (await readdir(normalizedDir)).filter((file) => file.endsWith(".json")).toSorted();
+  const names = await readdir(normalizedDir);
+  const files = names.filter((file) => file.endsWith(".json")).toSorted();
   const entries = await Promise.all(
     files.map(async (file) => [file, await readJson(join(normalizedDir, file))] as const),
   );

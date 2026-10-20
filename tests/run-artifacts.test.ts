@@ -782,10 +782,12 @@ describe("loadRunArtifact", () => {
       },
     });
     await writeJson(join(runDir, "normalized", "fundamental-history.json"), withRestatement(null));
-    expect((await loadRunArtifact(runDir)).artifact?.fundamentalHistory).toBeUndefined();
+    const unrestated = await loadRunArtifact(runDir);
+    expect(unrestated.artifact?.fundamentalHistory).toBeUndefined();
     const restated = withRestatement({ value: 90, filedAt: "2025-01-15" });
     await writeJson(join(runDir, "normalized", "fundamental-history.json"), restated);
-    expect((await loadRunArtifact(runDir)).artifact?.fundamentalHistory).toEqual(
+    const loaded = await loadRunArtifact(runDir);
+    expect(loaded.artifact?.fundamentalHistory).toEqual(
       restated as unknown as typeof fundamentalHistory,
     );
   });

@@ -65,7 +65,8 @@ import type { FixtureMeta, RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
 
 function asWritten(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value)) as unknown;
+  const written = JSON.stringify(value);
+  return JSON.parse(written) as unknown;
 }
 
 export function assertMetricPromptCatalog(
@@ -347,7 +348,7 @@ function resolveInput(
     resolvedInstrumentIdentity,
     extendedEvidence,
   } = run.collectedSources;
-  let resolved: ResolvedInput | undefined;
+  let resolved: ResolvedInput | undefined = undefined;
   if (input.artifact === "statements") {
     const series =
       financialStatements === undefined
@@ -850,6 +851,16 @@ const LENS_REQUIRED_METRICS: Readonly<Record<string, readonly string[]>> = {
 };
 
 // The lens reads the latest reported period, so its statement inputs are annual or interim by design.
+function lensRequiredMetricSeries(metric: string): string | undefined {
+  if (metric === "pcfRatio") {
+    return "operatingCashFlow";
+  }
+  if (metric.endsWith("DeltaPercent")) {
+    return metric.replace("DeltaPercent", "");
+  }
+  return LENS_METRIC_SERIES[metric]?.[0];
+}
+
 const LENS_METRIC_SERIES: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
   grossMargin: ["grossProfit", "revenue"],
   operatingMargin: ["operatingIncome", "revenue"],
@@ -1067,12 +1078,7 @@ export function assertFinancialLensMetricInvariants(
     if (
       statements !== undefined &&
       required.some((metric) => {
-        const key =
-          metric === "pcfRatio"
-            ? "operatingCashFlow"
-            : metric.endsWith("DeltaPercent")
-              ? metric.replace("DeltaPercent", "")
-              : LENS_METRIC_SERIES[metric]?.[0];
+        const key = lensRequiredMetricSeries(metric);
         const series =
           key === undefined
             ? undefined
@@ -1267,20 +1273,17 @@ export function assertFinancialLensMetricInvariants(
         case "roa": {
           const [numerator, denominator] = LENS_METRIC_SERIES[metricId] ?? [];
           const incomeInput = metric.inputs.find((input) => input.series === numerator);
-          const incomeFact =
+          const incomeSeries =
             statements === undefined || incomeInput?.series === undefined
               ? undefined
               : financialStatementSeriesByKey(
                   statements,
                   incomeInput.series as FinancialStatementSeriesKey,
-                )
-                  ?.annual.concat(
-                    financialStatementSeriesByKey(
-                      statements,
-                      incomeInput.series as FinancialStatementSeriesKey,
-                    )?.interim ?? [],
-                  )
-                  .find((fact) => fact.periodKey === incomeInput.periodKey);
+                );
+          const incomeFact = [
+            ...(incomeSeries?.annual ?? []),
+            ...(incomeSeries?.interim ?? []),
+          ].find((fact) => fact.periodKey === incomeInput?.periodKey);
           const months =
             incomeFact === undefined ? undefined : financialStatementPeriodMonths(incomeFact);
           expect(months, `${label} annualizes by net income's own period`).toBeGreaterThan(0);
@@ -1692,7 +1695,7 @@ export function assertOperatingRatioInvariants(
         operatingRatioFiledFailure(run, id, artifact, filed),
       );
     } else if (metric.status === "missing") {
-      const unfiled = new Set(statements.unfiledSeries ?? []);
+      const unfiled = new Set(statements.unfiledSeries);
       expect(
         operatingRatioFiledFailure(
           run,
@@ -1797,15 +1800,13 @@ export function assertBusinessFrameworkMetricInvariants(
         const ratio = FRAMEWORK_RATIOS[metric.id];
         // SEC-summary pass-through (no statements): inputs name evidence keys and YoY is filed.
         const passThrough = metric.inputs.every(({ artifact }) => artifact === "evidence");
+        if (ratio !== undefined && !passThrough) {
+          expect(resolved[0]?.periodKey, `${label} joins one period`).toBe(resolved[1]?.periodKey);
+        }
         if (ratio !== undefined) {
           expect(metric.inputs.map(({ series, key }) => (passThrough ? key : series))).toEqual<
             readonly (string | undefined)[]
           >(ratio);
-          if (!passThrough) {
-            expect(resolved[0]?.periodKey, `${label} joins one period`).toBe(
-              resolved[1]?.periodKey,
-            );
-          }
           expectClose(metric.value, (first ?? Number.NaN) / (second ?? Number.NaN), label);
         } else if (metric.id.endsWith("DeltaPercent") && !passThrough) {
           const prior = first ?? Number.NaN;
@@ -2374,7 +2375,7 @@ function assertValuationWorkbenchInvariants(
   const fundamentalValue = (input: ValuationFundamentalInput): number => {
     const lineage = input.lineage ?? [];
     expect(lineage.length, "a filed fundamental retains its raw inputs").toBeGreaterThan(0);
-    const facts = lineage.map(filedFact);
+    const facts = lineage.map((row) => filedFact(row));
     expect(input.periodEnd).toBe(
       facts
         .map(({ periodEnd }) => periodEnd)
@@ -2410,11 +2411,13 @@ function assertValuationWorkbenchInvariants(
       return annual.value + interim[1]!.value - interim[0]!.value;
     };
     const inputSeries = [...new Set(lineage.map(({ series }) => series!))];
-    return input.derivation === "operating cash flow - capital expenditure"
-      ? valueOf("operatingCashFlow") - valueOf("capitalExpenditure")
-      : input.derivation === "net income / diluted EPS"
-        ? valueOf("netIncome") / valueOf("dilutedEps")
-        : valueOf(inputSeries[0]!);
+    if (input.derivation === "operating cash flow - capital expenditure") {
+      return valueOf("operatingCashFlow") - valueOf("capitalExpenditure");
+    }
+    if (input.derivation === "net income / diluted EPS") {
+      return valueOf("netIncome") / valueOf("dilutedEps");
+    }
+    return valueOf(inputSeries[0]!);
   };
   for (const [index, observation] of observations.entries()) {
     const { basis, periodEnd, publicAt, inputs, metrics, price, fxConversion: fx } = observation;
@@ -2567,18 +2570,20 @@ function assertValuationWorkbenchInvariants(
       expect(metric.basis).toContain(`close ${price!.sessionDate} ${price!.currency}`);
       const close = price!.close * (fx?.rate ?? 1);
       const cap = close * (inputs.dilutedShares?.value ?? 1);
-      const numerator =
-        key === "priceToEarnings"
-          ? close
-          : key === "enterpriseValueToRevenue"
-            ? cap + inputs.debt!.value - inputs.cash!.value
-            : cap;
-      const denominator =
-        key === "priceToEarnings"
-          ? inputs.dilutedEps!.value
-          : key === "priceToFreeCashFlow"
-            ? inputs.freeCashFlow!.value
-            : inputs.revenue!.value;
+      let numerator = cap;
+      if (key === "priceToEarnings") {
+        numerator = close;
+      } else if (key === "enterpriseValueToRevenue") {
+        numerator = cap + inputs.debt!.value - inputs.cash!.value;
+      }
+      let denominator = Number.NaN;
+      if (key === "priceToEarnings") {
+        denominator = inputs.dilutedEps!.value;
+      } else if (key === "priceToFreeCashFlow") {
+        denominator = inputs.freeCashFlow!.value;
+      } else {
+        denominator = inputs.revenue!.value;
+      }
       expect(denominator).toBeGreaterThan(0);
       expectClose(metric.value, numerator / denominator, `${label}.${key} arithmetic`);
     }

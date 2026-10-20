@@ -551,7 +551,7 @@ describe("Web Gather Source Gap view", () => {
 
     expect(extendedGaps).toEqual([]);
     expect(payload("web-gather", sourcesWithGaps(allGaps)).sourceGaps).toEqual(
-      [segmentMix, secCompanyFacts, marketauxNews].map(sourceGapScopedReportText),
+      [segmentMix, secCompanyFacts, marketauxNews].map((gap) => sourceGapScopedReportText(gap)),
     );
   });
 
@@ -763,7 +763,9 @@ describe("Web Gather Source Gap view", () => {
     expect(
       (payload("all", sources).extendedEvidence as { readonly gaps: readonly SourceGap[] }).gaps,
     ).toEqual([]);
-    expect(payload("all", sources).sourceGaps).toEqual(droppedGaps.map(sourceGapScopedReportText));
+    expect(payload("all", sources).sourceGaps).toEqual(
+      droppedGaps.map((gap) => sourceGapScopedReportText(gap)),
+    );
   });
 
   test("hides collectAnalystExpectations 403 estimate gaps from web-gather and keeps them on persisted surfaces", async () => {

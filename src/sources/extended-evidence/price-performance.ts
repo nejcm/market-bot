@@ -86,9 +86,9 @@ function priceReturn(ctx: MetricContext, years: number, benchmark: boolean): Met
           Math.abs(Date.parse(b) - anniversary.getTime()) || a.localeCompare(b),
     );
   if (start === undefined) {
-    const firstSubject = eligible(subject!)
+    const [firstSubject] = eligible(subject!)
       .map(({ date }) => date)
-      .toSorted()[0];
+      .toSorted();
     const shortHistory =
       subject!.reason === undefined &&
       (!benchmark || spy!.reason === undefined) &&

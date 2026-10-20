@@ -5,11 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AlphaSearchWorkflowResult } from "../src/alpha-search/workflow";
 import { runCli, scorePassOptions } from "../src/app";
-import * as codeVersionModule from "../src/code-version";
 import { runDeepEquity } from "../src/deep-equity";
-import type { RunResearchJobInput } from "../src/research/orchestrator";
+import type { PersistedResearchJobResult, RunResearchJobInput } from "../src/research/orchestrator";
 import type { ModelProvider } from "../src/model/types";
-import type { PersistedResearchJobResult } from "../src/research/orchestrator";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
 import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
@@ -398,6 +396,7 @@ describe("runCli", () => {
     dataDirs.push(dataDir);
     process.env.MARKET_BOT_DATA_DIR = dataDir;
     let head = "start";
+    const codeVersionModule = await import("../src/code-version");
     const readCodeVersion = spyOn(codeVersionModule, "readCodeVersion").mockImplementation(() => ({
       version: head,
       commit: head,
@@ -526,7 +525,7 @@ describe("runCli", () => {
       return true;
     }) as typeof process.stderr.write;
 
-    let caught: unknown;
+    let caught: unknown = undefined;
     try {
       await runCli(["daily", "--asset", "equity"], {
         createProvider: () => ({

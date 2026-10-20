@@ -135,7 +135,7 @@
 
   // "FY ending 2024-12-28 (latest filed 2025-02-04)" → label + filed line.
   function splitPeriod(period: string): readonly [string, string | undefined] {
-    const match = /^(.*?)\s*\((.*)\)$/.exec(period);
+    const match = /^(.*?)\s*\((.*)\)$/u.exec(period);
     return match === null ? [period, undefined] : [match[1] ?? period, match[2]];
   }
 

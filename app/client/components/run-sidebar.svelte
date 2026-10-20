@@ -5,6 +5,8 @@
     List,
     ListFilter,
     Menu,
+    Pin,
+    PinOff,
     Play,
     Search,
     Target,
@@ -19,6 +21,7 @@
     runCountsLabel,
     runLabel,
     type InstrumentRunHistoryRow,
+    type PinnedSidebarEntry,
     type SidebarView,
   } from "../view-model";
   import type { View } from "./console-types";
@@ -27,6 +30,8 @@
 
   interface Props {
     readonly rows: readonly InstrumentRunHistoryRow[];
+    readonly pinned: readonly PinnedSidebarEntry[];
+    readonly pinsLoadError: string;
     readonly runTypes: readonly string[];
     readonly selectedRunId: string;
     readonly loadingRuns: boolean;
@@ -40,6 +45,7 @@
     readonly onSelectRun: (runId: string) => void;
     readonly onToggleGroup: (groupKey: string) => void;
     readonly onNavigate: (view: SidebarView) => void;
+    readonly onUnpin: (runId: string) => void;
     mobileOpen?: boolean | undefined;
   }
 
@@ -57,6 +63,8 @@
 
   let {
     rows,
+    pinned,
+    pinsLoadError,
     runTypes,
     selectedRunId,
     loadingRuns,
@@ -70,6 +78,7 @@
     onSelectRun,
     onToggleGroup,
     onNavigate,
+    onUnpin,
     mobileOpen = $bindable(false),
   }: Props = $props();
 
@@ -199,13 +208,67 @@
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-2.5 pb-4 pt-0.5">
+      {#if pinsLoadError !== ""}
+        <p class="px-2 pb-1.5 font-mono text-[10px] text-[#8a6116]">
+          Pins unavailable: {pinsLoadError}
+        </p>
+      {/if}
+      {#if !loadingRuns && pinned.length > 0}
+        <div class="mb-2 border-b border-sidebar-border pb-2" aria-label="Pinned runs">
+          <span class="px-2 font-mono text-[10px] tracking-widest text-[#6e757d]">PINNED</span>
+          {#each pinned as entry (entry.runId)}
+            {@const isSelected = view === "run" && entry.runId === selectedRunId}
+            <div class="mt-0.5 flex items-stretch gap-1">
+              {#if entry.run === undefined}
+                <div class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.25">
+                  <Pin class="size-3 shrink-0 text-[#6e757d]" />
+                  <span class="min-w-0 flex-1 truncate font-mono text-[10.5px] text-[#6e757d]">
+                    {entry.runId}
+                  </span>
+                  <span
+                    class="shrink-0 rounded border border-[#d9c89a] px-1 py-px font-mono text-[9px] uppercase tracking-wide text-[#8a6116]"
+                  >
+                    missing
+                  </span>
+                </div>
+              {:else}
+                {@const run = entry.run}
+                <button
+                  class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 py-1.25 text-left transition hover:bg-[#262c31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {isSelected
+                    ? 'bg-[#262c31]'
+                    : 'bg-transparent'}"
+                  type="button"
+                  onclick={() => selectAndClose(run.runId)}
+                >
+                  <Pin class="size-3 shrink-0 fill-current text-[#c9a24b]" />
+                  <span class="min-w-0 flex-1 truncate text-xs {isSelected ? 'text-white' : 'text-[#d6dadd]'}">
+                    {runLabel(run)}
+                  </span>
+                  <span class="shrink-0 font-mono text-[10px] text-[#6e757d]">
+                    {formatDateMinute(run.generatedAt)}
+                  </span>
+                </button>
+              {/if}
+              <button
+                class="shrink-0 rounded-md px-1.5 text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                type="button"
+                aria-label="Unpin {entry.run === undefined ? entry.runId : runLabel(entry.run)}"
+                title="Unpin"
+                onclick={() => onUnpin(entry.runId)}
+              >
+                <PinOff class="size-3" />
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
       {#if loadingRuns}
         <div class="space-y-1.5">
           {#each Array.from({ length: 6 }) as _}
             <Skeleton class="h-12 rounded-md bg-sidebar-accent" />
           {/each}
         </div>
-      {:else if rows.length === 0}
+      {:else if rows.length === 0 && pinned.length === 0}
         <p class="px-3 py-5 text-center text-xs leading-relaxed text-[#6e757d]">
           No runs match.<br />Clear the filter or queue a job.
         </p>

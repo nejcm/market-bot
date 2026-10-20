@@ -18,12 +18,15 @@ interface RunWorkspaceComponentProps {
   readonly selectedFile: string;
   readonly fileContent: string;
   readonly highlightSourceId: string;
+  readonly pinned: boolean;
+  readonly pinnedRunIds: ReadonlySet<string>;
   readonly onTabChange: () => void;
   readonly onLoadFile: () => void;
   readonly onGoHome: () => void;
   readonly onOpenRun: () => void;
   readonly onHighlightSource: () => void;
   readonly onOpenInstrument: () => void;
+  readonly onTogglePin: () => void;
 }
 
 const libRoot = resolve(import.meta.dir, "../../app/client/lib");
@@ -74,12 +77,15 @@ const result = render(componentModule.default, {
     selectedFile: "",
     fileContent: "",
     highlightSourceId: "",
+    pinned: false,
+    pinnedRunIds: new Set<string>(),
     onTabChange: () => {},
     onLoadFile: () => {},
     onGoHome: () => {},
     onOpenRun: () => {},
     onHighlightSource: () => {},
     onOpenInstrument: () => {},
+    onTogglePin: () => {},
   },
 });
 await Bun.write(Bun.stdout, result.body);

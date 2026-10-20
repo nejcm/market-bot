@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    addPin,
     addWatchlistItem,
     fetchAlphaCohorts,
     createJob,
@@ -9,6 +10,7 @@
     fetchCalibration,
     fetchInstrumentTimeline,
     fetchJobs,
+    fetchPins,
     fetchProviderHealth,
     fetchRunDetail,
     fetchRunFile,
@@ -17,6 +19,7 @@
     fetchWatchlistDetail,
     fetchWatchlists,
     refreshInstrumentProfile,
+    removePin,
     removeWatchlistItem,
     renameWatchlist,
     reorderWatchlist,
@@ -38,6 +41,7 @@
     AlphaCohortDetail,
     ConsoleJob,
     InstrumentTimelineDetail,
+    Pin,
     ProviderHealthDetail,
     RunDetail,
     RunSearchResult,
@@ -54,6 +58,8 @@
     instrumentRunHistory,
     instrumentRunHistoryGroupKey,
     instrumentRunHistoryRows,
+    pinnedFirst,
+    pinnedSidebarEntries,
     recentRunSummaries,
     runCompareCards,
     runIdFromPathname,
@@ -97,6 +103,8 @@
   let watchlistDetail = $state<WatchlistDetail | null>(null);
   let loadingWatchlist = $state(false);
   let watchlistLoadError = $state("");
+  let pins = $state<readonly Pin[]>([]);
+  let pinsLoadError = $state("");
   const queueingDeepSymbols = new Set<string>();
   let reorderingWatchlist = false;
   let searchResults = $state<readonly RunSearchResult[]>([]);
@@ -124,7 +132,11 @@
   const JOBS_POLL_INTERVAL_MS = 2000;
   const DASHBOARD_RECENT_RUN_LIMIT = 6;
 
-  const runHistoryEntries = $derived(instrumentRunHistory(runs));
+  const pinnedRunIds = $derived(new Set(pins.map((pin) => pin.runId)));
+  const pinnedEntries = $derived(pinnedSidebarEntries(pins, runs, typeFilter, query.text));
+  const runHistoryEntries = $derived(
+    instrumentRunHistory(runs.filter((run) => !pinnedRunIds.has(run.runId))),
+  );
   const filteredRunHistory = $derived(
     filterInstrumentRunHistory(runHistoryEntries, typeFilter, query.text),
   );
@@ -134,8 +146,15 @@
   const runTypes = $derived(groupedRunsByType(runs).map((group) => group.type));
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
-  const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
-  const compareCards = $derived(runCompareCards(compareDetails));
+  const recentRuns = $derived(
+    pinnedFirst(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT), pinnedRunIds, (run) => run.runId),
+  );
+  const compareCards = $derived(
+    pinnedFirst(runCompareCards(compareDetails), pinnedRunIds, (card) => card.runId),
+  );
+  const pinnedSearchResults = $derived(
+    pinnedFirst(searchResults, pinnedRunIds, (result) => result.run.runId),
+  );
   const activeJobCount = $derived(jobs.filter((job) => job.status === "running" || job.status === "queued").length);
   function clearSelectedRun(): void {
     selectedRunId = "";
@@ -319,7 +338,10 @@
       return;
     }
 
-    const list = visibleRunHistoryRows.map((row) => row.run);
+    const list = [
+      ...pinnedEntries.flatMap((entry) => (entry.run === undefined ? [] : [entry.run])),
+      ...visibleRunHistoryRows.map((row) => row.run),
+    ];
     if (list.length === 0) {
       return;
     }
@@ -587,6 +609,21 @@
     }
   }
 
+  async function refreshPins(): Promise<void> {
+    pins = await fetchPins();
+    pinsLoadError = "";
+  }
+
+  async function togglePin(runId: string): Promise<void> {
+    error = "";
+    try {
+      await (pinnedRunIds.has(runId) ? removePin(runId) : addPin(runId));
+      await refreshPins();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
   async function refreshAfterMembershipChange(id: number): Promise<void> {
     if (!watchlists.some((list) => list.id === id)) {
       await loadWatchlists();
@@ -663,6 +700,10 @@
     globalThis.addEventListener("popstate", handlePopState);
     globalThis.addEventListener("keydown", handleRunKeyNav);
 
+    // Pins load apart from the bootstrap so a console-DB failure never blocks the rest.
+    void refreshPins().catch((caughtError: unknown) => {
+      pinsLoadError = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    });
     void (async () => {
       try {
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
@@ -717,6 +758,8 @@
   <RunSidebar
     bind:mobileOpen={menuOpen}
     rows={visibleRunHistoryRows}
+    pinned={pinnedEntries}
+    {pinsLoadError}
     {runTypes}
     {selectedRunId}
     {loadingRuns}
@@ -730,6 +773,7 @@
     onSelectRun={(runId) => void openRun(runId)}
     onToggleGroup={toggleRunHistoryGroup}
     onNavigate={navigate}
+    onUnpin={(runId) => void togglePin(runId)}
   />
 
   <main class="min-w-0 flex-1 {view === 'run' ? '' : 'pt-12 lg:pt-0'}">
@@ -751,6 +795,7 @@
           {trend}
           {recentRuns}
           {compareCards}
+          {pinnedRunIds}
           {loadingRuns}
           onOpenRun={(runId) => void openRun(runId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
@@ -766,6 +811,8 @@
           {selectedFile}
           {fileContent}
           {highlightSourceId}
+          {pinnedRunIds}
+          pinned={detail !== null && pinnedRunIds.has(detail.summary.runId)}
           onOpenMenu={() => (menuOpen = true)}
           onOpenRun={(runId) => void openRun(runId)}
           onTabChange={(tab) => (activeTab = tab)}
@@ -775,12 +822,14 @@
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+          onTogglePin={() => void togglePin(selectedRunId)}
         />
       {:else if view === "instrument"}
         <InstrumentTimeline
           detail={instrumentDetail}
           loading={loadingInstrument}
           {runs}
+          {pinnedRunIds}
           {jobs}
           {watchlists}
           {watchlistLoadError}
@@ -794,7 +843,8 @@
         />
       {:else if view === "search"}
         <SearchView
-          {searchResults}
+          searchResults={pinnedSearchResults}
+          {pinnedRunIds}
           {searchLoading}
           {searchNotice}
           {searchForm}

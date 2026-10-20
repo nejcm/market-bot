@@ -14,17 +14,20 @@ import {
 } from "./artifacts";
 import { handleRunChat, type ChatEndpointDeps } from "./chat";
 import {
+  addPin,
   addWatchlistItem,
   consoleDbPath,
   createWatchlist,
   deleteWatchlist,
   getNote,
   getWatchlist,
+  listPins,
   listWatchlistItems,
   listWatchlistIdsContaining,
   listWatchlists,
   putProfileRow,
   putNote,
+  removePin,
   removeWatchlistItem,
   renameWatchlist,
   reorderWatchlistItems,
@@ -36,7 +39,7 @@ import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 import { isSameOriginPost } from "./same-origin";
 import { loadSecTickers, searchSecTickers } from "./sec-tickers";
-import { RUN_NOTE_MAX_LENGTH, type NoteKind, type WatchlistSummary } from "./types";
+import { RUN_NOTE_MAX_LENGTH, type NoteKind, type Pin, type WatchlistSummary } from "./types";
 import { readWatchlistDetail } from "./watchlists";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
@@ -299,6 +302,63 @@ function parseConsoleTarget(
     }
   }
   return { kind, key };
+}
+
+function readPins(dbPath: string, dataDir: string): readonly Pin[] {
+  // Absent DB reads empty without creating the file or its directory.
+  if (!existsSync(dbPath)) {
+    return [];
+  }
+  return withConsoleDb(dbPath, (db) =>
+    listPins(db).map((pin) =>
+      existsSync(join(dataDir, pin.runId)) ? pin : { ...pin, missing: true },
+    ),
+  );
+}
+
+async function handlePinRequest(
+  request: Request,
+  url: URL,
+  dbPath: string,
+  dataDir: string,
+): Promise<Response | undefined> {
+  if (url.pathname !== "/api/pins") {
+    return undefined;
+  }
+  if (request.method === "GET") {
+    try {
+      return jsonResponse({ pins: readPins(dbPath, dataDir) });
+    } catch (error: unknown) {
+      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+    }
+  }
+  if (request.method !== "PUT" && request.method !== "DELETE") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!isSameOriginPost(request, url)) {
+    return jsonResponse({ error: "Pin request origin is not allowed" }, 403);
+  }
+  let value: unknown = undefined;
+  try {
+    value = await readRequestJson(request);
+  } catch {
+    return jsonResponse({ error: "Request body must be JSON" }, 400);
+  }
+  const target = parseConsoleTarget({
+    kind: "run",
+    key: isRecord(value) ? value.runId : undefined,
+  });
+  if (target === undefined) {
+    return jsonResponse({ error: "Invalid pin request" }, 400);
+  }
+  try {
+    if (request.method === "PUT") {
+      return jsonResponse(withConsoleDb(dbPath, (db) => addPin(db, target.key)));
+    }
+    return jsonResponse(withConsoleDb(dbPath, (db) => ({ removed: removePin(db, target.key) })));
+  } catch (error: unknown) {
+    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
 }
 
 async function handleNoteRequest(
@@ -743,6 +803,16 @@ export async function handleResearchConsoleRequest(
   );
   if (noteResponse !== undefined) {
     return noteResponse;
+  }
+
+  const pinResponse = await handlePinRequest(
+    request,
+    url,
+    options.consoleDbPath ?? consoleDbPath(dataDir),
+    dataDir,
+  );
+  if (pinResponse !== undefined) {
+    return pinResponse;
   }
 
   const watchlistResponse = await handleWatchlistRequest(

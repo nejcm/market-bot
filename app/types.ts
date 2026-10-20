@@ -88,6 +88,13 @@ export interface RunNote {
   readonly updatedAt: string;
 }
 
+export interface Pin {
+  readonly runId: string;
+  readonly createdAt: string;
+  /** Pinned run whose Run Artifact directory is gone. */
+  readonly missing?: boolean;
+}
+
 export type InstrumentStalenessInput =
   | { readonly state: "never-run" }
   | { readonly state: "index-unavailable" }

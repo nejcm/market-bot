@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Pin from "@lucide/svelte/icons/pin";
   import {
     formatDateMinute,
     runCountsLabel,
@@ -17,6 +18,7 @@
     readonly recentRuns: readonly RunSummary[];
     readonly compareCards: readonly RunCompareCard[];
     readonly loadingRuns: boolean;
+    readonly pinnedRunIds: ReadonlySet<string>;
     readonly onOpenRun: (runId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
@@ -27,6 +29,7 @@
     recentRuns,
     compareCards,
     loadingRuns,
+    pinnedRunIds,
     onOpenRun,
     onOpenInstrument,
   }: Props = $props();
@@ -115,7 +118,7 @@
         >
               <span class="min-w-0">
                 <span class="block truncate text-[12.5px] font-semibold text-foreground">
-                  {card.label}
+                  {#if pinnedRunIds.has(card.runId)}<Pin class="mr-1 inline size-3 fill-current align-[-1px] text-[#c9a24b]" aria-label="Pinned" />{/if}{card.label}
                 </span>
                 <span class="mt-0.5 block font-mono text-[10px] text-[#a8acb1]">
                   {card.generatedAt}
@@ -172,7 +175,7 @@
               type="button"
               onclick={() => onOpenRun(run.runId)}
             >
-              {runLabel(run)}
+              {#if pinnedRunIds.has(run.runId)}<Pin class="mr-1 inline size-3 fill-current align-[-1px] text-[#c9a24b]" aria-label="Pinned" />{/if}{runLabel(run)}
             </button>
             <span class="shrink-0 font-mono text-[10px] text-muted-foreground">
               {formatDateMinute(run.generatedAt)}

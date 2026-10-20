@@ -12,6 +12,7 @@ import type {
   RunSummary,
   RunNote,
   NoteKind,
+  Pin,
   SymbolSearchResult,
   WatchlistDetail,
   WatchlistItem,
@@ -368,6 +369,37 @@ function isWatchlistDetail(value: unknown): value is WatchlistDetail {
     Array.isArray(value.items) &&
     value.items.every(isWatchlistItem)
   );
+}
+
+function isPin(value: unknown): value is Pin {
+  return isRecord(value) && typeof value.runId === "string" && typeof value.createdAt === "string";
+}
+
+export async function fetchPins(): Promise<readonly Pin[]> {
+  const payload = await fetchJson("/api/pins");
+  if (!isRecord(payload) || !Array.isArray(payload.pins)) {
+    throw new Error("Pin list response is invalid");
+  }
+
+  return payload.pins.filter(isPin);
+}
+
+export async function addPin(runId: string): Promise<Pin> {
+  const payload = await requestJson("PUT", "/api/pins", { runId });
+  if (!isPin(payload)) {
+    throw new Error("Pin response is invalid");
+  }
+
+  return payload;
+}
+
+export async function removePin(runId: string): Promise<boolean> {
+  const payload = await requestJson("DELETE", "/api/pins", { runId });
+  if (!isRecord(payload) || typeof payload.removed !== "boolean") {
+    throw new Error("Pin response is invalid");
+  }
+
+  return payload.removed;
 }
 
 export async function fetchWatchlists(): Promise<readonly WatchlistSummary[]> {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Pin from "@lucide/svelte/icons/pin";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import {
@@ -16,6 +17,7 @@
 
   interface Props {
     readonly searchResults: readonly RunSearchResult[];
+    readonly pinnedRunIds: ReadonlySet<string>;
     readonly searchLoading: boolean;
     readonly searchNotice: string;
     readonly searchForm: SearchFormState;
@@ -30,6 +32,7 @@
 
   let {
     searchResults,
+    pinnedRunIds,
     searchLoading,
     searchNotice,
     searchForm,
@@ -130,7 +133,9 @@
     {#each searchGroups as group}
       <div class="mt-6">
         <div class="flex items-baseline gap-2.5">
-          <span class="text-[13px] font-semibold">{runLabel(group.run)}</span>
+          <span class="text-[13px] font-semibold">
+            {#if pinnedRunIds.has(group.run.runId)}<Pin class="mr-1 inline size-3 fill-current align-[-1px] text-[#c9a24b]" aria-label="Pinned" />{/if}{runLabel(group.run)}
+          </span>
           <span class="font-mono text-[10.5px] text-muted-foreground">
             {formatDateMinute(group.run.generatedAt)}
           </span>

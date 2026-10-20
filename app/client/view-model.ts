@@ -1,4 +1,4 @@
-import type { ConsoleJob, ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
+import type { ConsoleJob, Pin, ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
 import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import type { InstrumentRunHistoryEntry } from "./view-model-history";
@@ -249,6 +249,42 @@ function matchesRunFilter(run: RunSummary, typeFilter: string, queryText: string
     (typeFilter === "all" || (run.jobType ?? "run") === typeFilter) &&
     (queryText.trim() === "" || matchesQuery(run, queryText))
   );
+}
+
+// Stable partition: pinned items first, each side keeps its incoming order.
+export function pinnedFirst<T>(
+  items: readonly T[],
+  pinnedRunIds: ReadonlySet<string>,
+  runIdOf: (item: T) => string,
+): readonly T[] {
+  return [
+    ...items.filter((item) => pinnedRunIds.has(runIdOf(item))),
+    ...items.filter((item) => !pinnedRunIds.has(runIdOf(item))),
+  ];
+}
+
+export interface PinnedSidebarEntry {
+  readonly runId: string;
+  readonly run?: RunSummary;
+}
+
+// Present pins follow the run list order and filter; missing ones always trail, unfiltered.
+export function pinnedSidebarEntries(
+  pins: readonly Pin[],
+  runs: readonly RunSummary[],
+  typeFilter: string,
+  queryText: string,
+): readonly PinnedSidebarEntry[] {
+  const runIds = new Set(runs.map((run) => run.runId));
+  const present = new Set(
+    pins.filter((pin) => pin.missing !== true && runIds.has(pin.runId)).map((pin) => pin.runId),
+  );
+  return [
+    ...runs
+      .filter((run) => present.has(run.runId) && matchesRunFilter(run, typeFilter, queryText))
+      .map((run) => ({ runId: run.runId, run })),
+    ...pins.filter((pin) => !present.has(pin.runId)).map((pin) => ({ runId: pin.runId })),
+  ];
 }
 
 // Keeps a group while any of its runs matches, so its head stays the newest run.

@@ -49,6 +49,14 @@ User-authored plain text attached to an Instrument or Run Artifact, stored only 
 deletes the note; whitespace is preserved. Notes are limited to 10,000 characters and never enter
 Run Chat context, prompts, research artifacts, exports, or the history search index.
 
+## Pin
+
+Console user state: the user pins a Run Artifact so it sorts to the top of every Console run list
+(sidebar, dashboard, instrument run history, search), each side keeping its existing order. Stored
+only in the Console DB as a `pins(run_id, created_at)` row. A pinned run whose directory is gone
+stays listed in the sidebar's pinned group as missing and can be unpinned. Pins never enter
+research artifacts, prompts, exports, or the history search index.
+
 ## Run Chat
 
 Ephemeral, per-Run Artifact Q&A in the Console. It is not persisted; when the Codex provider is active it may use web context, which never becomes a Source or Evidence.

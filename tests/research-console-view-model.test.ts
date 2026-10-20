@@ -31,6 +31,8 @@ import {
   matchesQuery,
   predictions,
   providerHealthIssueCounts,
+  pinnedFirst,
+  pinnedSidebarEntries,
   providerHealthRows,
   recentRunSummaries,
   reliabilityBins,
@@ -57,6 +59,19 @@ import {
   isFailedRun,
   deepEquityJobForSymbol,
 } from "../app/client/view-model";
+
+function pinTestRun(runId: string, jobType = "equity") {
+  return {
+    runId,
+    jobType,
+    findingCount: 0,
+    predictionCount: 0,
+    sourceCount: 0,
+    dataGapCount: 0,
+    hasScore: false,
+    availableFiles: [],
+  };
+}
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { financialLensGroupViews } from "../app/client/run-workspace-detail";
 import { parseCalibrationContext } from "../src/research/calibration-context";
@@ -518,6 +533,38 @@ describe("research console app view model", () => {
     expect(searchQueryFromSearchParams("?q=term+premium+%26+capex")).toBe("term premium & capex");
     expect(searchQueryFromSearchParams("?q=")).toBe("");
     expect(searchQueryFromSearchParams("")).toBeUndefined();
+  });
+
+  test("orders pinned runs first while keeping each side's order", () => {
+    const runs = [pinTestRun("r1"), pinTestRun("r2", "daily"), pinTestRun("r3"), pinTestRun("r4")];
+    const pinned = new Set(["r3", "r1", "gone"]);
+
+    expect(pinnedFirst(runs, pinned, (item) => item.runId).map((item) => item.runId)).toEqual([
+      "r1",
+      "r3",
+      "r2",
+      "r4",
+    ]);
+    expect(pinnedFirst(runs, new Set(), (item) => item.runId)).toEqual(runs);
+
+    const pins = [
+      { runId: "gone", createdAt: "2026-10-03T00:00:00.000Z", missing: true },
+      { runId: "r3", createdAt: "2026-10-02T00:00:00.000Z" },
+      { runId: "r2", createdAt: "2026-10-01T00:00:00.000Z" },
+      { runId: "r1", createdAt: "2026-10-01T00:00:00.000Z", missing: true },
+    ];
+    expect(pinnedSidebarEntries(pins, runs, "all", "")).toEqual([
+      { runId: "r2", run: pinTestRun("r2", "daily") },
+      { runId: "r3", run: pinTestRun("r3") },
+      { runId: "gone" },
+      { runId: "r1" },
+    ]);
+    expect(pinnedSidebarEntries(pins, runs, "equity", "").map((entry) => entry.runId)).toEqual([
+      "r3",
+      "gone",
+      "r1",
+    ]);
+    expect(pinnedSidebarEntries([], runs, "all", "")).toEqual([]);
   });
 
   test("returns the five newest run summaries from the current order", () => {

@@ -25,7 +25,7 @@ The CLI, Research Console, orchestration, and durable Run Artifacts share one pl
 - Files under `data/runs/<run-id>/` are canonical. `data/calibration/`, `data/history/`, `data/index.sqlite`,
   `data/cache/`, and shared news/peer state have separate ownership; indexes are rebuildable query layers.
   Rebuildability does not authorize deleting or pruning data.
-- Console user state — Watchlists and Run Notes — lives in a separate SQLite file
+- Console user state — Watchlists, Run Notes, and Pins — lives in a separate SQLite file
   `data/console/console.sqlite` (`bun:sqlite`), never `index.sqlite`. It is user-owned and
   non-rebuildable; prune, rebuild, and index paths never touch `data/console/`.
 - Publish complete run directories by staging then atomic rename. Parallel runs serialize scoring,

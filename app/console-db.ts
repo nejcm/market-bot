@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { dataRootFromRunsDir } from "../src/data-paths";
-import type { NoteKind, RunNote } from "./types";
+import type { NoteKind, Pin, RunNote } from "./types";
 
 export function consoleDbPath(dataDir: string): string {
   return join(dataRootFromRunsDir(dataDir), "console", "console.sqlite");
@@ -51,11 +51,43 @@ export function openConsoleDb(dbPath: string): Database {
       PRIMARY KEY (kind, key)
     )
   `);
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS pins (
+      run_id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL
+    )
+  `);
     return db;
   } catch (error: unknown) {
     db.close();
     throw error;
   }
+}
+
+export function listPins(db: Database): readonly Pin[] {
+  return db
+    .query(
+      "SELECT run_id AS runId, created_at AS createdAt FROM pins ORDER BY created_at DESC, run_id",
+    )
+    .all() as readonly Pin[];
+}
+
+export function addPin(db: Database, runId: string): Pin {
+  db.prepare("INSERT OR IGNORE INTO pins (run_id, created_at) VALUES (?, ?)").run(
+    runId,
+    new Date().toISOString(),
+  );
+  const row = db
+    .query("SELECT run_id AS runId, created_at AS createdAt FROM pins WHERE run_id = ?")
+    .get(runId) as Pin | null;
+  if (row === null) {
+    throw new Error("Pin insert failed");
+  }
+  return row;
+}
+
+export function removePin(db: Database, runId: string): boolean {
+  return db.prepare("DELETE FROM pins WHERE run_id = ?").run(runId).changes > 0;
 }
 
 export function getNote(db: Database, kind: NoteKind, key: string): RunNote | null {

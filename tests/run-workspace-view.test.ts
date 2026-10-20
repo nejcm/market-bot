@@ -3304,6 +3304,7 @@ describe("run workspace view", () => {
     expect(text).toContain("brief");
     expect(text).toContain("deep");
     expect(html).toContain('aria-current="true"');
+    expect(html).toContain('aria-label="Pin run"');
 
     const headlessSummary: RunSummary = {
       runId: "run-headless",

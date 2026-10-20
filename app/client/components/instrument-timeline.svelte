@@ -17,6 +17,7 @@
     readonly detail: InstrumentTimelineDetail | null;
     readonly loading: boolean;
     readonly runs: readonly RunSummary[];
+    readonly pinnedRunIds: ReadonlySet<string>;
     readonly jobs: readonly ConsoleJob[];
     readonly watchlists: readonly WatchlistSummary[];
     readonly watchlistLoadError: string;
@@ -33,6 +34,7 @@
     detail,
     loading,
     runs,
+    pinnedRunIds,
     jobs,
     onOpenRun,
     onGoHome,
@@ -435,6 +437,7 @@
 
     <InstrumentRunHistory
       {runs}
+      {pinnedRunIds}
       assetClass={detail.assetClass}
       symbol={detail.symbol}
       {onOpenRun}

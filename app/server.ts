@@ -15,10 +15,19 @@ import {
 import { handleRunChat, type ChatEndpointDeps } from "./chat";
 import {
   addStar,
+  addWatchlistItem,
   consoleDbPath,
+  createWatchlist,
+  deleteWatchlist,
+  getWatchlist,
   listStars,
+  listWatchlistItems,
+  listWatchlists,
   putProfileRow,
   removeStar,
+  removeWatchlistItem,
+  renameWatchlist,
+  reorderWatchlistItems,
   withConsoleDb,
 } from "./console-db";
 import { defaultConsoleProviders, type ConsoleProviderDeps } from "./console-providers";
@@ -27,7 +36,8 @@ import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 import { isSameOriginPost } from "./same-origin";
 import { loadSecTickers, searchSecTickers } from "./sec-tickers";
-import type { Star, StarKind } from "./types";
+import type { Star, StarKind, WatchlistSummary } from "./types";
+import { readWatchlistDetail } from "./watchlists";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
 const INSTRUMENT_SYMBOL_PATTERN = /^[A-Z0-9._-]{1,20}$/u;
@@ -349,6 +359,269 @@ async function handleStarRequest(
   }
 }
 
+const WATCHLIST_NAME_MAX_LENGTH = 100;
+
+function parseWatchlistId(raw: string): number | undefined {
+  if (!/^[1-9][0-9]*$/u.test(raw)) {
+    return undefined;
+  }
+  const id = Number(raw);
+  return Number.isSafeInteger(id) ? id : undefined;
+}
+
+function parseWatchlistName(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const name = value.trim();
+  return name === "" || name.length > WATCHLIST_NAME_MAX_LENGTH ? undefined : name;
+}
+
+function parseWatchlistInstrument(
+  value: unknown,
+): { readonly assetClass: string; readonly symbol: string } | undefined {
+  if (
+    !isRecord(value) ||
+    value.assetClass !== "equity" ||
+    typeof value.symbol !== "string" ||
+    !INSTRUMENT_SYMBOL_PATTERN.test(value.symbol.trim().toUpperCase())
+  ) {
+    return undefined;
+  }
+  return { assetClass: "equity", symbol: value.symbol.trim().toUpperCase() };
+}
+
+function readWatchlists(dbPath: string): readonly WatchlistSummary[] {
+  // Absent DB reads empty without creating the file or its directory.
+  if (!existsSync(dbPath)) {
+    return [];
+  }
+  return withConsoleDb(dbPath, (db) => listWatchlists(db));
+}
+
+async function handleWatchlistRequest(
+  request: Request,
+  url: URL,
+  dbPath: string,
+  dataDir: string,
+): Promise<Response | undefined> {
+  if (url.pathname === "/api/watchlists") {
+    if (request.method === "GET") {
+      try {
+        return jsonResponse({ watchlists: readWatchlists(dbPath) });
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+      }
+    }
+    if (request.method === "POST") {
+      if (!isSameOriginPost(request, url)) {
+        return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
+      }
+      let name: string | undefined;
+      try {
+        const body = await readRequestJson(request);
+        name = isRecord(body) ? parseWatchlistName(body.name) : undefined;
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
+      if (name === undefined) {
+        return jsonResponse({ error: "Invalid watchlist request" }, 400);
+      }
+      try {
+        return jsonResponse(withConsoleDb(dbPath, (db) => createWatchlist(db, name)));
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+      }
+    }
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const listMatch = /^\/api\/watchlists\/([0-9]+)$/u.exec(url.pathname);
+  if (listMatch !== null) {
+    const id = parseWatchlistId(listMatch[1] ?? "");
+    if (id === undefined) {
+      return jsonResponse({ error: "Invalid watchlist request" }, 400);
+    }
+    if (request.method === "GET") {
+      try {
+        const watchlist = await readWatchlistDetail(dataDir, dbPath, id);
+        return watchlist === undefined
+          ? jsonResponse({ error: "Watchlist not found" }, 404)
+          : jsonResponse({ watchlist });
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+      }
+    }
+    if (request.method === "PUT" || request.method === "DELETE") {
+      if (!isSameOriginPost(request, url)) {
+        return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
+      }
+      if (request.method === "DELETE") {
+        try {
+          return jsonResponse(
+            withConsoleDb(dbPath, (db) => ({ removed: deleteWatchlist(db, id) })),
+          );
+        } catch (error: unknown) {
+          return jsonResponse(
+            { error: error instanceof Error ? error.message : String(error) },
+            500,
+          );
+        }
+      }
+      let name: string | undefined;
+      try {
+        const body = await readRequestJson(request);
+        name = isRecord(body) ? parseWatchlistName(body.name) : undefined;
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
+      if (name === undefined) {
+        return jsonResponse({ error: "Invalid watchlist request" }, 400);
+      }
+      try {
+        const renamed = withConsoleDb(dbPath, (db) => {
+          if (getWatchlist(db, id) === undefined) {
+            return undefined;
+          }
+          renameWatchlist(db, id, name);
+          return getWatchlist(db, id);
+        });
+        return renamed === undefined
+          ? jsonResponse({ error: "Watchlist not found" }, 404)
+          : jsonResponse(renamed);
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+      }
+    }
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const itemsMatch = /^\/api\/watchlists\/([0-9]+)\/items(?:\/([^/]+)\/([^/]+))?$/u.exec(
+    url.pathname,
+  );
+  if (itemsMatch !== null) {
+    const id = parseWatchlistId(itemsMatch[1] ?? "");
+    if (id === undefined) {
+      return jsonResponse({ error: "Invalid watchlist request" }, 400);
+    }
+    if (itemsMatch[2] === undefined) {
+      if (request.method !== "PUT") {
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+      if (!isSameOriginPost(request, url)) {
+        return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
+      }
+      let item: { readonly assetClass: string; readonly symbol: string } | undefined;
+      try {
+        const body = await readRequestJson(request);
+        item = isRecord(body) ? parseWatchlistInstrument(body) : undefined;
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
+      if (item === undefined) {
+        return jsonResponse({ error: "Invalid watchlist request" }, 400);
+      }
+      try {
+        const added = withConsoleDb(dbPath, (db) => {
+          if (getWatchlist(db, id) === undefined) {
+            return undefined;
+          }
+          return addWatchlistItem(db, id, item.assetClass, item.symbol);
+        });
+        return added === undefined
+          ? jsonResponse({ error: "Watchlist not found" }, 404)
+          : jsonResponse({ item: added });
+      } catch (error: unknown) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+      }
+    }
+    const rawAssetClass = decodePathname(itemsMatch[2]);
+    const symbol = decodePathname(itemsMatch[3] ?? "")?.toUpperCase();
+    if (
+      rawAssetClass === undefined ||
+      symbol === undefined ||
+      parseWatchlistInstrument({ assetClass: rawAssetClass, symbol }) === undefined
+    ) {
+      return jsonResponse({ error: "Invalid watchlist request" }, 400);
+    }
+    if (request.method !== "DELETE") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+    if (!isSameOriginPost(request, url)) {
+      return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
+    }
+    try {
+      return jsonResponse(
+        withConsoleDb(dbPath, (db) => ({
+          removed: removeWatchlistItem(db, id, rawAssetClass, symbol),
+        })),
+      );
+    } catch (error: unknown) {
+      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+    }
+  }
+
+  const orderMatch = /^\/api\/watchlists\/([0-9]+)\/order$/u.exec(url.pathname);
+  if (orderMatch !== null) {
+    const id = parseWatchlistId(orderMatch[1] ?? "");
+    if (id === undefined) {
+      return jsonResponse({ error: "Invalid watchlist request" }, 400);
+    }
+    if (request.method !== "PUT") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+    if (!isSameOriginPost(request, url)) {
+      return jsonResponse({ error: "Watchlist request origin is not allowed" }, 403);
+    }
+    let ordered: readonly { readonly assetClass: string; readonly symbol: string }[];
+    try {
+      const body = await readRequestJson(request);
+      const rawItems = isRecord(body) ? body.items : undefined;
+      if (!Array.isArray(rawItems)) {
+        return jsonResponse({ error: "Invalid watchlist request" }, 400);
+      }
+      const parsed = rawItems.map((item) => parseWatchlistInstrument(item));
+      if (parsed.some((item) => item === undefined)) {
+        return jsonResponse({ error: "Invalid watchlist request" }, 400);
+      }
+      ordered = parsed as readonly { readonly assetClass: string; readonly symbol: string }[];
+    } catch (error: unknown) {
+      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+    const items = ordered;
+    try {
+      const reordered = withConsoleDb(dbPath, (db) => {
+        if (getWatchlist(db, id) === undefined) {
+          return undefined;
+        }
+        const existing = listWatchlistItems(db, id).map(
+          (item) => `${item.assetClass}:${item.symbol}`,
+        );
+        const requested = items.map((item) => `${item.assetClass}:${item.symbol}`);
+        if (
+          existing.length !== requested.length ||
+          new Set(requested).size !== requested.length ||
+          requested.some((key) => !existing.includes(key))
+        ) {
+          return false;
+        }
+        reorderWatchlistItems(db, id, items);
+        return true;
+      });
+      if (reordered === undefined) {
+        return jsonResponse({ error: "Watchlist not found" }, 404);
+      }
+      return reordered
+        ? jsonResponse({ reordered: true })
+        : jsonResponse({ error: "Reorder must include every watchlist item exactly once" }, 400);
+    } catch (error: unknown) {
+      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+    }
+  }
+
+  return undefined;
+}
+
 async function handleSymbolsRequest(
   request: Request,
   url: URL,
@@ -468,6 +741,16 @@ export async function handleResearchConsoleRequest(
   );
   if (starResponse !== undefined) {
     return starResponse;
+  }
+
+  const watchlistResponse = await handleWatchlistRequest(
+    request,
+    url,
+    options.consoleDbPath ?? consoleDbPath(dataDir),
+    dataDir,
+  );
+  if (watchlistResponse !== undefined) {
+    return watchlistResponse;
   }
 
   const symbolsResponse = await handleSymbolsRequest(request, url, providers);

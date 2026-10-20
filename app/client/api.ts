@@ -13,6 +13,10 @@ import type {
   Star,
   StarKind,
   SymbolSearchResult,
+  WatchlistDetail,
+  WatchlistItem,
+  WatchlistRowState,
+  WatchlistSummary,
 } from "../types";
 import { isRecord } from "../../src/guards";
 
@@ -318,4 +322,135 @@ export async function refreshInstrumentProfile(symbol: string): Promise<Instrume
   }
 
   return payload.profile;
+}
+
+function isWatchlistSummary(value: unknown): value is WatchlistSummary {
+  return (
+    isRecord(value) &&
+    typeof value.id === "number" &&
+    typeof value.name === "string" &&
+    typeof value.createdAt === "string"
+  );
+}
+
+function isWatchlistRowState(value: unknown): value is WatchlistRowState {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.state === "never-run" || value.state === "index-unavailable") {
+    return true;
+  }
+  if (
+    value.state !== "available" ||
+    typeof value.latestRunId !== "string" ||
+    typeof value.openPredictionCount !== "number" ||
+    (value.latestRunAt !== undefined && typeof value.latestRunAt !== "string") ||
+    (value.depth !== undefined && typeof value.depth !== "string") ||
+    (value.latestCalibration !== undefined &&
+      (!isRecord(value.latestCalibration) ||
+        (value.latestCalibration.outcome !== "hit" && value.latestCalibration.outcome !== "miss") ||
+        typeof value.latestCalibration.at !== "string"))
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isWatchlistItem(value: unknown): value is WatchlistItem {
+  return (
+    isRecord(value) &&
+    typeof value.assetClass === "string" &&
+    typeof value.symbol === "string" &&
+    (value.position === null || typeof value.position === "number") &&
+    isWatchlistRowState(value.row)
+  );
+}
+
+function isWatchlistDetail(value: unknown): value is WatchlistDetail {
+  return (
+    isRecord(value) &&
+    typeof value.id === "number" &&
+    typeof value.name === "string" &&
+    typeof value.createdAt === "string" &&
+    Array.isArray(value.items) &&
+    value.items.every(isWatchlistItem)
+  );
+}
+
+export async function fetchWatchlists(): Promise<readonly WatchlistSummary[]> {
+  const payload = await fetchJson("/api/watchlists");
+  if (!isRecord(payload) || !Array.isArray(payload.watchlists)) {
+    throw new Error("Watchlist list response is invalid");
+  }
+
+  return payload.watchlists.filter(isWatchlistSummary);
+}
+
+export async function createWatchlist(name: string): Promise<WatchlistSummary> {
+  const payload = await postJson("/api/watchlists", { name });
+  if (!isWatchlistSummary(payload)) {
+    throw new Error("Watchlist response is invalid");
+  }
+
+  return payload;
+}
+
+export async function renameWatchlist(id: number, name: string): Promise<WatchlistSummary> {
+  const payload = await requestJson("PUT", `/api/watchlists/${String(id)}`, { name });
+  if (!isWatchlistSummary(payload)) {
+    throw new Error("Watchlist response is invalid");
+  }
+
+  return payload;
+}
+
+export async function deleteWatchlist(id: number): Promise<boolean> {
+  const payload = await requestJson("DELETE", `/api/watchlists/${String(id)}`, {});
+  if (!isRecord(payload) || typeof payload.removed !== "boolean") {
+    throw new Error("Watchlist response is invalid");
+  }
+
+  return payload.removed;
+}
+
+export async function fetchWatchlistDetail(id: number): Promise<WatchlistDetail> {
+  const payload = await fetchJson(`/api/watchlists/${String(id)}`);
+  if (!isRecord(payload) || !isWatchlistDetail(payload.watchlist)) {
+    throw new Error("Watchlist detail response is invalid");
+  }
+
+  return payload.watchlist;
+}
+
+export async function addWatchlistItem(id: number, symbol: string): Promise<void> {
+  const payload = await requestJson("PUT", `/api/watchlists/${String(id)}/items`, {
+    assetClass: "equity",
+    symbol,
+  });
+  if (!isRecord(payload) || !isWatchlistItem(payload.item)) {
+    throw new Error("Watchlist item response is invalid");
+  }
+}
+
+export async function removeWatchlistItem(id: number, symbol: string): Promise<boolean> {
+  const payload = await requestJson(
+    "DELETE",
+    `/api/watchlists/${String(id)}/items/equity/${encodeURIComponent(symbol)}`,
+    {},
+  );
+  if (!isRecord(payload) || typeof payload.removed !== "boolean") {
+    throw new Error("Watchlist item response is invalid");
+  }
+
+  return payload.removed;
+}
+
+export async function reorderWatchlist(
+  id: number,
+  items: readonly { readonly assetClass: string; readonly symbol: string }[],
+): Promise<void> {
+  const payload = await requestJson("PUT", `/api/watchlists/${String(id)}/order`, { items });
+  if (!isRecord(payload) || payload.reordered !== true) {
+    throw new Error("Watchlist reorder response is invalid");
+  }
 }

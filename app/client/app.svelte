@@ -2,8 +2,11 @@
   import { onMount } from "svelte";
   import {
     addStar,
+    addWatchlistItem,
     fetchAlphaCohorts,
     createJob,
+    createWatchlist,
+    deleteWatchlist,
     fetchCalibration,
     fetchInstrumentTimeline,
     fetchJobs,
@@ -13,8 +16,13 @@
     fetchRunSearch,
     fetchRuns,
     fetchStars,
+    fetchWatchlistDetail,
+    fetchWatchlists,
     refreshInstrumentProfile,
     removeStar,
+    removeWatchlistItem,
+    renameWatchlist,
+    reorderWatchlist,
   } from "./api";
   import { appSettings, setReportDetail, setShowSources } from "./app-settings.svelte";
   import DashboardOverview from "./components/dashboard-overview.svelte";
@@ -27,6 +35,7 @@
   import RunSidebar from "./components/run-sidebar.svelte";
   import RunWorkspace from "./components/run-workspace.svelte";
   import SearchView from "./components/search-view.svelte";
+  import WatchlistsView from "./components/watchlists-view.svelte";
   import type {
     CalibrationDetail,
     AlphaCohortDetail,
@@ -37,6 +46,8 @@
     RunSearchResult,
     RunSummary,
     Star,
+    WatchlistDetail,
+    WatchlistSummary,
   } from "../types";
   import {
     dashboardMetrics,
@@ -87,6 +98,11 @@
   let alphaCohorts = $state<AlphaCohortDetail>({});
   let jobs = $state<readonly ConsoleJob[]>([]);
   let stars = $state<readonly Star[]>([]);
+  let watchlists = $state<readonly WatchlistSummary[]>([]);
+  let selectedWatchlistId = $state<number | null>(null);
+  let watchlistDetail = $state<WatchlistDetail | null>(null);
+  let loadingWatchlist = $state(false);
+  let watchlistLoadError = $state("");
   let searchResults = $state<readonly RunSearchResult[]>([]);
   let searchLoading = $state(false);
   let searchNotice = $state("");
@@ -517,6 +533,155 @@
     }
   }
 
+  async function loadWatchlists(): Promise<void> {
+    try {
+      const next = await fetchWatchlists();
+      watchlistLoadError = "";
+      watchlists = next;
+      const nextId =
+        selectedWatchlistId !== null && next.some((list) => list.id === selectedWatchlistId)
+          ? selectedWatchlistId
+          : (next[0]?.id ?? null);
+      if (nextId === null) {
+        selectedWatchlistId = null;
+        watchlistDetail = null;
+        return;
+      }
+      if (nextId !== selectedWatchlistId) {
+        selectedWatchlistId = nextId;
+        watchlistDetail = null;
+      }
+      await loadWatchlistDetail(nextId);
+    } catch (caughtError: unknown) {
+      watchlistLoadError = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      watchlists = [];
+      selectedWatchlistId = null;
+      watchlistDetail = null;
+    }
+  }
+
+  async function loadWatchlistDetail(id: number): Promise<void> {
+    loadingWatchlist = true;
+    try {
+      const next = await fetchWatchlistDetail(id);
+      if (selectedWatchlistId === id) {
+        watchlistDetail = next;
+      }
+    } catch (caughtError: unknown) {
+      if (selectedWatchlistId === id) {
+        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      }
+    } finally {
+      if (selectedWatchlistId === id) {
+        loadingWatchlist = false;
+      }
+    }
+  }
+
+  function selectWatchlist(id: number): void {
+    if (selectedWatchlistId === id && watchlistDetail?.id === id) {
+      return;
+    }
+    selectedWatchlistId = id;
+    watchlistDetail = null;
+    void loadWatchlistDetail(id);
+  }
+
+  async function createWatchlistHandler(name: string): Promise<void> {
+    error = "";
+    try {
+      const created = await createWatchlist(name);
+      await loadWatchlists();
+      selectWatchlist(created.id);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function renameWatchlistHandler(id: number, name: string): Promise<void> {
+    error = "";
+    try {
+      const renamed = await renameWatchlist(id, name);
+      watchlists = watchlists.map((list) => (list.id === id ? { ...list, name: renamed.name } : list));
+      if (watchlistDetail !== null && watchlistDetail.id === id) {
+        watchlistDetail = { ...watchlistDetail, name: renamed.name };
+      }
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function deleteWatchlistHandler(id: number): Promise<void> {
+    if (
+      !globalThis.confirm(
+        "Delete this watchlist? The list and its symbols are removed from the Console DB.",
+      )
+    ) {
+      return;
+    }
+    error = "";
+    try {
+      await deleteWatchlist(id);
+      await loadWatchlists();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function addWatchlistItemHandler(symbol: string): Promise<void> {
+    if (selectedWatchlistId === null) {
+      return;
+    }
+    error = "";
+    try {
+      await addWatchlistItem(selectedWatchlistId, symbol);
+      await loadWatchlistDetail(selectedWatchlistId);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function removeWatchlistItemHandler(symbol: string): Promise<void> {
+    if (selectedWatchlistId === null) {
+      return;
+    }
+    error = "";
+    try {
+      await removeWatchlistItem(selectedWatchlistId, symbol);
+      await loadWatchlistDetail(selectedWatchlistId);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function moveWatchlistItem(index: number, direction: -1 | 1): Promise<void> {
+    if (selectedWatchlistId === null || watchlistDetail === null) {
+      return;
+    }
+    const target = index + direction;
+    if (target < 0 || target >= watchlistDetail.items.length) {
+      return;
+    }
+    const items = [...watchlistDetail.items];
+    const moved = items[index];
+    const displaced = items[target];
+    if (moved === undefined || displaced === undefined) {
+      return;
+    }
+    items[index] = displaced;
+    items[target] = moved;
+    error = "";
+    try {
+      await reorderWatchlist(
+        selectedWatchlistId,
+        items.map(({ assetClass, symbol }) => ({ assetClass, symbol })),
+      );
+      await loadWatchlistDetail(selectedWatchlistId);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
   function updateSearchForm(field: SearchFormField, value: string): void {
     searchForm[field] = value;
   }
@@ -545,21 +710,29 @@
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
         const initialInstrument = instrumentFromPathname(globalThis.location.pathname);
         const initialSidebarView = sidebarViewFromPathname(globalThis.location.pathname);
-        const [nextRuns, nextProviderHealth, nextCalibration, nextAlphaCohorts, nextJobs, nextStars] =
-          await Promise.all([
-            fetchRuns(),
-            fetchProviderHealth(),
-            fetchCalibration(),
-            fetchAlphaCohorts(),
-            fetchJobs(),
-            fetchStars(),
-          ]);
+        const [
+          nextRuns,
+          nextProviderHealth,
+          nextCalibration,
+          nextAlphaCohorts,
+          nextJobs,
+          nextStars,
+        ] = await Promise.all([
+          fetchRuns(),
+          fetchProviderHealth(),
+          fetchCalibration(),
+          fetchAlphaCohorts(),
+          fetchJobs(),
+          fetchStars(),
+        ]);
         runs = nextRuns;
         providerHealth = nextProviderHealth;
         calibration = nextCalibration;
         alphaCohorts = nextAlphaCohorts;
         jobs = nextJobs;
         stars = nextStars;
+        // Watchlists load separately so a console-DB failure never blocks the rest.
+        void loadWatchlists();
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
         } else if (initialInstrument !== undefined) {
@@ -680,6 +853,24 @@
         />
       {:else if view === "jobs"}
         <JobsView {jobs} {jobForm} onJobFormChange={updateJobForm} onSubmitJob={() => void submitJob()} />
+      {:else if view === "watchlists"}
+        <WatchlistsView
+          lists={watchlists}
+          selectedId={selectedWatchlistId}
+          detail={watchlistDetail}
+          loading={loadingWatchlist}
+          loadError={watchlistLoadError}
+          {jobs}
+          onSelectList={selectWatchlist}
+          onCreate={(name) => void createWatchlistHandler(name)}
+          onRename={(id, name) => void renameWatchlistHandler(id, name)}
+          onDelete={(id) => void deleteWatchlistHandler(id)}
+          onAddItem={(symbol) => void addWatchlistItemHandler(symbol)}
+          onRemoveItem={(symbol) => void removeWatchlistItemHandler(symbol)}
+          onMoveItem={(index, direction) => void moveWatchlistItem(index, direction)}
+          onQueueDeepEquity={(symbol) => void queueDeepEquityRun(symbol)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+        />
       {:else if view === "calibration"}
         <CalibrationView {calibration} onNavigate={navigate} />
       {:else if view === "alpha-cohorts"}

@@ -33,6 +33,22 @@ User bookmark on a Run Artifact or an Instrument, persisted in the Console DB
 listed and is marked missing. Stars never enter research artifacts, prompts, exports, search, or
 history.
 
+## Watchlist
+
+Named, manually orderable list of equities in the Console, persisted in the Console DB as
+`watchlists` / `watchlist_items` rows. Rows show only derived data read from the Run Artifact
+Index — latest run date/age, depth, open Observable Predictions, and latest Calibration hit/miss —
+never stored notes or tags. A symbol with no runs renders as "never run", and an unavailable
+index is declared per row instead of silently omitted.
+
+An open Observable Prediction is one counted from that instrument's own runs — runs whose
+`symbol` matches the row's instrument, further filtered to Predictions whose `measurableAs`
+resolves to that instrument — that has no score row, or whose score is unresolved with a
+pending-family status (`pending`, `pending-condition`, `active-pending`). Voided and abandoned
+scores are terminal scoring states and never count as open; a Prediction in a run that was never
+scored counts as open because no scoring verdict exists yet. Watchlists never enter research
+artifacts, prompts, exports, search, or history.
+
 ## Run Chat
 
 Ephemeral, per-Run Artifact Q&A in the Console. It is not persisted; when the Codex provider is active it may use web context, which never becomes a Source or Evidence.

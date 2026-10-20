@@ -87,6 +87,41 @@ export interface Star {
   readonly missing?: boolean;
 }
 
+export interface WatchlistSummary {
+  readonly id: number;
+  readonly name: string;
+  readonly createdAt: string;
+}
+
+export type WatchlistRowState =
+  | {
+      readonly state: "available";
+      readonly latestRunId: string;
+      readonly latestRunAt?: string;
+      readonly depth?: string;
+      readonly openPredictionCount: number;
+      readonly latestCalibration?: {
+        readonly outcome: "hit" | "miss";
+        readonly at: string;
+      };
+    }
+  | { readonly state: "never-run" }
+  | { readonly state: "index-unavailable" };
+
+export interface WatchlistItem {
+  readonly assetClass: string;
+  readonly symbol: string;
+  readonly position: number | null;
+  readonly row: WatchlistRowState;
+}
+
+export interface WatchlistDetail {
+  readonly id: number;
+  readonly name: string;
+  readonly createdAt: string;
+  readonly items: readonly WatchlistItem[];
+}
+
 export interface ProviderHealthDetail {
   readonly summary?: Record<string, unknown>;
   readonly markdown?: string;

@@ -2,6 +2,7 @@
   import {
     Activity,
     LayoutGrid,
+    List,
     ListFilter,
     Menu,
     Play,
@@ -90,6 +91,12 @@
     },
     { key: "search" as SidebarView, label: "Search", icon: Search, badge: 0 },
     { key: "jobs" as SidebarView, label: "Jobs", icon: Play, badge: activeJobCount },
+    {
+      key: "watchlists" as SidebarView,
+      label: "Watchlists",
+      icon: List,
+      badge: 0,
+    },
     {
       key: "calibration" as SidebarView,
       label: "Calibration",

@@ -19,7 +19,7 @@ export {
   textItems,
 } from "../report-artifact-view";
 
-export { formatDate, formatDateMinute, runLabel } from "./view-model-format";
+export { formatAge, formatDate, formatDateMinute, runLabel } from "./view-model-format";
 
 export {
   financialLensMetricTiles,
@@ -82,6 +82,7 @@ const SIDEBAR_VIEW_PATHS = {
   dashboard: "/",
   search: "/search",
   jobs: "/jobs",
+  watchlists: "/watchlists",
   calibration: "/calibration",
   "alpha-cohorts": "/alpha-cohorts",
   health: "/health",

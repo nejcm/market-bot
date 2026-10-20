@@ -32,6 +32,7 @@ import {
 } from "./console-db";
 import { defaultConsoleProviders, type ConsoleProviderDeps } from "./console-providers";
 import { fetchFinnhubProfile } from "./finnhub-profile";
+import { readInstrumentStalenessInputs } from "./freshness";
 import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 import { isSameOriginPost } from "./same-origin";
@@ -301,17 +302,40 @@ function parseStarRequest(
   return { kind, key };
 }
 
-function readStars(dbPath: string, dataDir: string): readonly Star[] {
+async function readStarsWithStaleness(dbPath: string, dataDir: string): Promise<readonly Star[]> {
   // Absent DB reads empty without creating the file or its directory.
   if (!existsSync(dbPath)) {
     return [];
   }
-  return withConsoleDb(dbPath, (db) =>
+  const stars = withConsoleDb(dbPath, (db) =>
     listStars(db).map((star) =>
       star.kind === "run" && !existsSync(join(dataDir, star.key))
         ? { ...star, missing: true }
         : star,
     ),
+  );
+  const instrumentStars = stars.filter((star) => star.kind === "instrument");
+  if (instrumentStars.length === 0) {
+    return stars;
+  }
+  const inputs = await readInstrumentStalenessInputs(
+    dataDir,
+    dbPath,
+    instrumentStars.map((star) => {
+      const separator = star.key.indexOf(":");
+      return { assetClass: star.key.slice(0, separator), symbol: star.key.slice(separator + 1) };
+    }),
+  );
+  const inputByKey = new Map(
+    instrumentStars.map((star, index) => [star.key, inputs?.[index] ?? undefined]),
+  );
+  return stars.map((star) =>
+    star.kind === "instrument"
+      ? {
+          ...star,
+          staleness: inputByKey.get(star.key) ?? ({ state: "index-unavailable" } as const),
+        }
+      : star,
   );
 }
 
@@ -326,7 +350,7 @@ async function handleStarRequest(
   }
 
   if (request.method === "GET") {
-    return jsonResponse({ stars: readStars(dbPath, dataDir) });
+    return jsonResponse({ stars: await readStarsWithStaleness(dbPath, dataDir) });
   }
 
   if (request.method !== "PUT" && request.method !== "DELETE") {

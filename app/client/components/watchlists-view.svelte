@@ -8,6 +8,7 @@
     WatchlistSummary,
   } from "../../types";
   import { deepEquityJobForSymbol, formatAge, formatDate, formatDateMinute } from "../view-model";
+  import { instrumentFreshness, type RunFreshness } from "../run-freshness";
   import TickerLogo from "./ticker-logo.svelte";
 
   interface Props {
@@ -17,6 +18,8 @@
     readonly loading: boolean;
     readonly loadError: string;
     readonly jobs: readonly ConsoleJob[];
+    readonly staleAfterDays: number;
+    readonly onStaleAfterDaysChange: (value: number) => void;
     readonly onSelectList: (id: number) => void;
     readonly onCreate: (name: string) => void;
     readonly onRename: (id: number, name: string) => void;
@@ -35,6 +38,8 @@
     loading,
     loadError,
     jobs,
+    staleAfterDays,
+    onStaleAfterDaysChange,
     onSelectList,
     onCreate,
     onRename,
@@ -129,12 +134,54 @@
       ? "border-[#9fc2c8] bg-[#e7f1f3] text-[#166e7d]"
       : "border-border bg-secondary text-[#5c6066]";
   }
+
+  function stalenessOf(item: WatchlistItem): RunFreshness | undefined {
+    return instrumentFreshness(item.staleness, new Date(), staleAfterDays);
+  }
+
+  function stalenessTitle(item: WatchlistItem): string {
+    const freshness = stalenessOf(item);
+    if (freshness?.state !== "stale") {
+      return "";
+    }
+    if (freshness.reason === "earnings") {
+      return `stale: earnings date ${freshness.since} has passed`;
+    }
+    if (freshness.reason === "age") {
+      return `stale: latest successful run older than ${String(staleAfterDays)} days`;
+    }
+    return "stale: run date unknown";
+  }
 </script>
 
 <div data-screen-label="Watchlists">
-  <h1 class="text-xl font-semibold tracking-tight">Watchlists</h1>
-  <div class="mt-1 text-[12.5px] text-[#5c6066]">
-    Named lists of equities with derived run data from the Run Artifact Index.
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-xl font-semibold tracking-tight">Watchlists</h1>
+      <div class="mt-1 text-[12.5px] text-[#5c6066]">
+        Named lists of equities with derived run data from the Run Artifact Index.
+      </div>
+    </div>
+    <label
+      class="flex shrink-0 items-center gap-1.5 pt-0.5 font-mono text-[10.5px] text-muted-foreground"
+    >
+      stale after
+      <input
+        class="h-7 w-14 rounded-md border border-input bg-background px-1.5 text-center font-mono text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        type="number"
+        min="1"
+        value={staleAfterDays}
+        onchange={(event) => {
+          const parsed = Number(event.currentTarget.value);
+          if (Number.isInteger(parsed) && parsed >= 1) {
+            onStaleAfterDaysChange(parsed);
+          } else {
+            event.currentTarget.value = String(staleAfterDays);
+          }
+        }}
+      />
+      days
+    </label>
   </div>
 
   {#if lists.length === 0}
@@ -355,7 +402,25 @@
                   <TickerLogo symbol={item.symbol} class="size-4" />
                   <span class="font-mono text-xs text-primary hover:underline">{item.symbol}</span>
                 </button>
-                <div class="font-mono text-[11px] text-[#5c6066]">{latestRunText(item)}</div>
+                <div class="font-mono text-[11px] text-[#5c6066]">
+                  {#if stalenessOf(item)?.state === "never-run"}
+                    <span
+                      class="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[#8a8f96]"
+                    >
+                      never run
+                    </span>
+                  {:else}
+                    {latestRunText(item)}
+                    {#if stalenessOf(item)?.state === "stale"}
+                      <span
+                        class="ml-1.5 rounded border border-[#d9c89a] bg-[#fbf6ea] px-1 py-px font-mono text-[9px] uppercase tracking-wide text-[#8a6116]"
+                        title={stalenessTitle(item)}
+                      >
+                        stale
+                      </span>
+                    {/if}
+                  {/if}
+                </div>
                 <div>
                   {#if item.row.state === "available" && item.row.depth !== undefined}
                     <span

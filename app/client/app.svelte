@@ -24,7 +24,7 @@
     renameWatchlist,
     reorderWatchlist,
   } from "./api";
-  import { appSettings, setReportDetail, setShowSources } from "./app-settings.svelte";
+  import { appSettings, setReportDetail, setShowSources, setStaleAfterDays } from "./app-settings.svelte";
   import DashboardOverview from "./components/dashboard-overview.svelte";
   import AlphaCohortsView from "./components/alpha-cohorts-view.svelte";
   import type { JobFormField, SearchFormField, Tab, View } from "./components/console-types";
@@ -771,6 +771,7 @@
     {typeFilter}
     expandedGroups={expandedRunHistoryGroups}
     stars={starredEntries}
+    staleAfterDays={appSettings.staleAfterDays}
     onQueryChange={(value) => (query.text = value)}
     onTypeFilterChange={(value) => (typeFilter = value)}
     onSelectRun={(runId) => void openRun(runId)}
@@ -861,6 +862,8 @@
           loading={loadingWatchlist}
           loadError={watchlistLoadError}
           {jobs}
+          staleAfterDays={appSettings.staleAfterDays}
+          onStaleAfterDaysChange={setStaleAfterDays}
           onSelectList={selectWatchlist}
           onCreate={(name) => void createWatchlistHandler(name)}
           onRename={(id, name) => void renameWatchlistHandler(id, name)}

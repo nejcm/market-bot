@@ -79,12 +79,23 @@ export interface RunFile {
 
 export type StarKind = "run" | "instrument";
 
+export type InstrumentStalenessInput =
+  | { readonly state: "never-run" }
+  | { readonly state: "index-unavailable" }
+  | {
+      readonly state: "available";
+      readonly latestRunAt?: string;
+      readonly earningsDates: readonly string[];
+    };
+
 export interface Star {
   readonly kind: StarKind;
   readonly key: string;
   readonly createdAt: string;
   /** Run star whose Run Artifact directory is gone. */
   readonly missing?: boolean;
+  /** Instrument stars only: inputs for client-side staleness classification. */
+  readonly staleness?: InstrumentStalenessInput;
 }
 
 export interface WatchlistSummary {
@@ -113,6 +124,7 @@ export interface WatchlistItem {
   readonly symbol: string;
   readonly position: number | null;
   readonly row: WatchlistRowState;
+  readonly staleness: InstrumentStalenessInput;
 }
 
 export interface WatchlistDetail {

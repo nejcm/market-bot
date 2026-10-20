@@ -1086,3 +1086,33 @@ export async function readInstrumentWatchlistRows(
     ),
   );
 }
+
+export interface LatestSuccessfulInstrumentRun {
+  readonly runId: string;
+  readonly runDirName: string;
+  readonly generatedAt: string | null;
+}
+
+export async function readLatestSuccessfulInstrumentRuns(
+  dataDir: string,
+  instruments: readonly { readonly assetClass: string; readonly symbol: string }[],
+): Promise<readonly (LatestSuccessfulInstrumentRun | null)[] | undefined> {
+  // Failed runs carry no symbol in the index, so the status filter is defensive.
+  return await withFreshIndex(dataDir, async (db) =>
+    instruments.map(
+      (instrument) =>
+        db
+          .query(
+            `SELECT run_id AS runId, run_dir_name AS runDirName, generated_at AS generatedAt
+             FROM runs
+             WHERE asset_class = ? AND symbol = ? AND report_status != 'failed'
+             ORDER BY generated_at DESC, run_dir_name DESC
+             LIMIT 1`,
+          )
+          .get(
+            instrument.assetClass,
+            instrument.symbol.toUpperCase(),
+          ) as LatestSuccessfulInstrumentRun | null,
+    ),
+  );
+}

@@ -3,9 +3,12 @@ const SCHEMA_VERSION = 1;
 
 export type ReportDetail = "simple" | "advanced";
 
+const DEFAULT_STALE_AFTER_DAYS = 30;
+
 export interface AppSettings {
   reportDetail: ReportDetail;
   showSources: boolean;
+  staleAfterDays: number;
 }
 
 export interface AppSettingsStore {
@@ -17,10 +20,11 @@ interface StoredEnvelope {
   readonly v: number;
   readonly reportDetail: ReportDetail;
   readonly showSources?: boolean;
+  readonly staleAfterDays?: number;
 }
 
 function defaultSettings(): AppSettings {
-  return { reportDetail: "simple", showSources: false };
+  return { reportDetail: "simple", showSources: false, staleAfterDays: DEFAULT_STALE_AFTER_DAYS };
 }
 
 function defaultStore(): AppSettingsStore | null {
@@ -41,6 +45,10 @@ function isReportDetail(value: unknown): value is ReportDetail {
   return value === "simple" || value === "advanced";
 }
 
+function isStaleAfterDays(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
 // Source visibility arrived after the first envelope shipped, so a payload
 // Without it keeps its report detail and falls back to hidden chips.
 function isStoredEnvelope(value: unknown): value is StoredEnvelope {
@@ -48,7 +56,8 @@ function isStoredEnvelope(value: unknown): value is StoredEnvelope {
     isObject(value) &&
     value.v === SCHEMA_VERSION &&
     isReportDetail(value.reportDetail) &&
-    (value.showSources === undefined || typeof value.showSources === "boolean")
+    (value.showSources === undefined || typeof value.showSources === "boolean") &&
+    (value.staleAfterDays === undefined || isStaleAfterDays(value.staleAfterDays))
   );
 }
 
@@ -63,7 +72,11 @@ export function loadAppSettings(store: AppSettingsStore | null = defaultStore())
   try {
     const parsed: unknown = JSON.parse(raw);
     return isStoredEnvelope(parsed)
-      ? { reportDetail: parsed.reportDetail, showSources: parsed.showSources ?? false }
+      ? {
+          reportDetail: parsed.reportDetail,
+          showSources: parsed.showSources ?? false,
+          staleAfterDays: parsed.staleAfterDays ?? DEFAULT_STALE_AFTER_DAYS,
+        }
       : defaultSettings();
   } catch {
     return defaultSettings();
@@ -79,6 +92,7 @@ export function saveAppSettings(settings: AppSettings, store?: AppSettingsStore 
     v: SCHEMA_VERSION,
     reportDetail: settings.reportDetail,
     showSources: settings.showSources,
+    staleAfterDays: settings.staleAfterDays,
   };
   try {
     target.setItem(STORAGE_KEY, JSON.stringify(envelope));

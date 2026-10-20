@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { readInstrumentWatchlistRows } from "../src/run-artifact-index";
 import { getWatchlist, listWatchlistItems, withConsoleDb } from "./console-db";
-import type { WatchlistDetail, WatchlistRowState } from "./types";
+import { readInstrumentStalenessInputs } from "./freshness";
+import type { InstrumentStalenessInput, WatchlistDetail, WatchlistRowState } from "./types";
 
 export async function readWatchlistDetail(
   dataDir: string,
@@ -26,15 +27,18 @@ export async function readWatchlistDetail(
     return undefined;
   }
 
-  const rows = await readInstrumentWatchlistRows(
-    dataDir,
-    stored.items.map(({ assetClass, symbol }) => ({ assetClass, symbol })),
-  );
+  const instruments = stored.items.map(({ assetClass, symbol }) => ({ assetClass, symbol }));
+  const [rows, staleness] = await Promise.all([
+    readInstrumentWatchlistRows(dataDir, instruments),
+    readInstrumentStalenessInputs(dataDir, dbPath, instruments),
+  ]);
   return {
     ...stored.watchlist,
     items: stored.items.map((item, index) => ({
       ...item,
       row: rows?.[index] ?? ({ state: "index-unavailable" } satisfies WatchlistRowState),
+      staleness:
+        staleness?.[index] ?? ({ state: "index-unavailable" } satisfies InstrumentStalenessInput),
     })),
   };
 }

@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addStar, consoleDbPath, listStars, openConsoleDb, removeStar } from "../app/console-db";
 import { handleResearchConsoleRequest } from "../app/server";
+import { rebuildRunArtifactIndex } from "../src/run-artifact-index";
+import { researchReport } from "./support/fixtures";
 
 function tempDataDir(): string {
   return mkdtempSync(join(tmpdir(), "research-console-stars-"));
@@ -236,5 +238,70 @@ describe("research console app star API", () => {
     );
 
     expect(response.status).toBe(405);
+  });
+
+  test("attaches staleness inputs to instrument stars", async () => {
+    const root = tempDataDir();
+    const dataDir = join(root, "runs");
+    mkdirSync(dataDir);
+    const runDir = join(dataDir, "run-a");
+    mkdirSync(runDir);
+    writeFileSync(
+      join(runDir, "report.json"),
+      `${JSON.stringify(
+        researchReport({
+          runId: "run-a",
+          jobType: "equity",
+          assetClass: "equity",
+          symbol: "AMD",
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          extras: { earningsSetup: { event: { date: "2026-06-30" } } },
+        }),
+      )}\n`,
+      "utf8",
+    );
+    writeFileSync(join(runDir, "report.md"), "# Report\n", "utf8");
+
+    const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
+    process.env.MARKET_BOT_INDEX_DB_PATH = join(root, "index.sqlite");
+    try {
+      await rebuildRunArtifactIndex(dataDir, { dbPath: process.env.MARKET_BOT_INDEX_DB_PATH });
+      await handleResearchConsoleRequest(
+        jsonRequest("PUT", { kind: "instrument", key: "equity:AMD" }),
+        { dataDir },
+      );
+      await handleResearchConsoleRequest(jsonRequest("PUT", { kind: "run", key: "run-a" }), {
+        dataDir,
+      });
+
+      const response = await handleResearchConsoleRequest(
+        new Request("http://127.0.0.1/api/stars"),
+        { dataDir },
+      );
+      const payload = (await response.json()) as {
+        readonly stars: readonly {
+          readonly kind: string;
+          readonly key: string;
+          readonly staleness?: unknown;
+        }[];
+      };
+
+      expect(payload.stars.find((star) => star.kind === "instrument")).toMatchObject({
+        kind: "instrument",
+        key: "equity:AMD",
+        staleness: {
+          state: "available",
+          latestRunAt: "2026-06-01T00:00:00.000Z",
+          earningsDates: ["2026-06-30"],
+        },
+      });
+      expect(payload.stars.find((star) => star.kind === "run")?.staleness).toBeUndefined();
+    } finally {
+      if (originalIndexDbPath === undefined) {
+        delete process.env.MARKET_BOT_INDEX_DB_PATH;
+      } else {
+        process.env.MARKET_BOT_INDEX_DB_PATH = originalIndexDbPath;
+      }
+    }
   });
 });

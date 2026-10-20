@@ -25,6 +25,7 @@
   } from "../view-model";
   import type { View } from "./console-types";
   import type { Star as StarRecord } from "../../types";
+  import { instrumentFreshness, type RunFreshness } from "../run-freshness";
   import TickerLogo from "./ticker-logo.svelte";
   import logoUrl from "../../../assets/logo.png";
 
@@ -39,6 +40,7 @@
     readonly typeFilter: string;
     readonly expandedGroups: readonly string[];
     readonly stars: readonly StarredSidebarEntry[];
+    readonly staleAfterDays: number;
     readonly onQueryChange: (value: string) => void;
     readonly onTypeFilterChange: (value: string) => void;
     readonly onSelectRun: (runId: string) => void;
@@ -72,6 +74,7 @@
     typeFilter,
     expandedGroups,
     stars,
+    staleAfterDays,
     onQueryChange,
     onTypeFilterChange,
     onSelectRun,
@@ -134,6 +137,27 @@
       onOpenInstrument(entry.assetClass, entry.symbol);
       mobileOpen = false;
     }
+  }
+
+  function starFreshness(entry: StarredSidebarEntry): RunFreshness | undefined {
+    const staleness = entry.star.staleness;
+    return staleness === undefined
+      ? undefined
+      : instrumentFreshness(staleness, new Date(), staleAfterDays);
+  }
+
+  function starFreshnessTitle(entry: StarredSidebarEntry): string {
+    const freshness = starFreshness(entry);
+    if (freshness?.state !== "stale") {
+      return "";
+    }
+    if (freshness.reason === "earnings") {
+      return `stale: earnings date ${freshness.since} has passed`;
+    }
+    if (freshness.reason === "age") {
+      return `stale: latest successful run older than ${String(staleAfterDays)} days`;
+    }
+    return "stale: run date unknown";
   }
 </script>
 
@@ -222,6 +246,18 @@
               >
                 <Star class="size-3 shrink-0 fill-current text-[#c9a24b]" />
                 <span class="min-w-0 flex-1 truncate text-xs text-[#d6dadd]">{entry.label}</span>
+                {#if entry.star.kind === "instrument" && entry.star.staleness !== undefined}
+                  {#if starFreshness(entry)?.state === "stale"}
+                    <span
+                      class="shrink-0 rounded border border-[#d9c89a] px-1 py-px font-mono text-[9px] uppercase tracking-wide text-[#8a6116]"
+                      title={starFreshnessTitle(entry)}
+                    >
+                      stale
+                    </span>
+                  {:else if starFreshness(entry)?.state === "never-run"}
+                    <span class="shrink-0 font-mono text-[9px] text-[#6e757d]">never run</span>
+                  {/if}
+                {/if}
               </button>
             {/if}
           {/each}

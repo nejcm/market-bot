@@ -7,6 +7,7 @@ import {
   consoleDbPath,
   createWatchlist,
   deleteWatchlist,
+  getRunEarningsDates,
   getWatchlist,
   listWatchlistItems,
   listWatchlists,
@@ -65,10 +66,17 @@ function writeRun(
     readonly depth?: string;
     readonly predictions?: readonly ReturnType<typeof prediction>[];
     readonly scores?: readonly unknown[];
+    readonly extras?: Record<string, unknown>;
+    readonly failed?: boolean;
   },
 ): void {
   const runDir = join(dataDir, runDirName);
   mkdirSync(join(runDir, "normalized"), { recursive: true });
+  if (options.failed === true) {
+    // Failed final-synthesis runs leave a failure sidecar and no report.
+    writeFileSync(join(runDir, "failure.json"), "{}\n", "utf8");
+    return;
+  }
   writeFileSync(
     join(runDir, "report.json"),
     `${JSON.stringify(
@@ -79,7 +87,14 @@ function writeRun(
         symbol: options.symbol,
         generatedAt: options.generatedAt,
         predictions: options.predictions ?? [],
-        ...(options.depth !== undefined ? { extras: { depth: options.depth } } : {}),
+        ...(options.depth !== undefined || options.extras !== undefined
+          ? {
+              extras: {
+                ...(options.depth !== undefined ? { depth: options.depth } : {}),
+                ...options.extras,
+              },
+            }
+          : {}),
       }),
     )}\n`,
     "utf8",
@@ -656,5 +671,159 @@ describe("watchlists API", () => {
     expect(response.status).toBe(500);
     const payload = (await response.json()) as { readonly error: string };
     expect(typeof payload.error).toBe("string");
+  });
+});
+
+describe("watchlist staleness", () => {
+  async function detailFor(
+    dataDir: string,
+    symbol: string,
+  ): Promise<
+    readonly { readonly symbol: string; readonly row: unknown; readonly staleness: unknown }[]
+  > {
+    await handleResearchConsoleRequest(jsonRequest("POST", "/api/watchlists", { name: "Tech" }), {
+      dataDir,
+    });
+    await handleResearchConsoleRequest(
+      jsonRequest("PUT", "/api/watchlists/1/items", { assetClass: "equity", symbol }),
+      { dataDir },
+    );
+    const detailResponse = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/watchlists/1"),
+      { dataDir },
+    );
+    const payload = (await detailResponse.json()) as {
+      readonly watchlist: {
+        readonly items: readonly {
+          readonly symbol: string;
+          readonly row: unknown;
+          readonly staleness: unknown;
+        }[];
+      };
+    };
+    return payload.watchlist.items;
+  }
+
+  test("returns the latest successful run's earnings dates as staleness inputs", async () => {
+    const { dataDir } = tempDataDir();
+    const dbPath = join(dataDir, "..", "index.sqlite");
+    process.env.MARKET_BOT_INDEX_DB_PATH = dbPath;
+    writeRun(dataDir, "run-a", {
+      runId: "run-a",
+      symbol: "AAPL",
+      generatedAt: "2026-06-02T00:00:00.000Z",
+      extras: { earningsSetup: { event: { date: "2026-06-30" } } },
+    });
+    writeRun(dataDir, "run-b", {
+      runId: "run-b",
+      symbol: "AAPL",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const detail = await detailFor(dataDir, "aapl");
+
+    expect(detail).toMatchObject([
+      {
+        symbol: "AAPL",
+        staleness: {
+          state: "available",
+          latestRunAt: "2026-06-02T00:00:00.000Z",
+          earningsDates: ["2026-06-30"],
+        },
+      },
+    ]);
+  });
+
+  test("returns empty earnings dates when the run has no Finnhub events evidence", async () => {
+    const { dataDir } = tempDataDir();
+    const dbPath = join(dataDir, "..", "index.sqlite");
+    process.env.MARKET_BOT_INDEX_DB_PATH = dbPath;
+    writeRun(dataDir, "run-a", {
+      runId: "run-a",
+      symbol: "AAPL",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      extras: { earningsSetup: { expectationBar: [] } },
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const detail = await detailFor(dataDir, "aapl");
+
+    expect(detail).toMatchObject([
+      {
+        symbol: "AAPL",
+        staleness: {
+          state: "available",
+          latestRunAt: "2026-06-01T00:00:00.000Z",
+          earningsDates: [],
+        },
+      },
+    ]);
+  });
+
+  test("skips a failed latest run and uses the newest successful one", async () => {
+    const { dataDir } = tempDataDir();
+    const dbPath = join(dataDir, "..", "index.sqlite");
+    process.env.MARKET_BOT_INDEX_DB_PATH = dbPath;
+    writeRun(dataDir, "run-old", {
+      runId: "run-old",
+      symbol: "AMD",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      extras: { earningsSetup: { event: { date: "2026-06-10" } } },
+    });
+    // A failed run leaves no report, so it carries no symbol in the index.
+    writeRun(dataDir, "run-failed", {
+      runId: "run-failed",
+      symbol: "AMD",
+      generatedAt: "2026-06-02T00:00:00.000Z",
+      failed: true,
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const detail = await detailFor(dataDir, "amd");
+
+    expect(detail).toMatchObject([
+      {
+        symbol: "AMD",
+        row: { state: "available", latestRunId: "run-old" },
+        staleness: {
+          state: "available",
+          latestRunAt: "2026-06-01T00:00:00.000Z",
+          earningsDates: ["2026-06-10"],
+        },
+      },
+    ]);
+  });
+
+  test("declares never-run staleness for a symbol with no runs", async () => {
+    const { dataDir } = tempDataDir();
+    const dbPath = join(dataDir, "..", "index.sqlite");
+    process.env.MARKET_BOT_INDEX_DB_PATH = dbPath;
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const detail = await detailFor(dataDir, "msft");
+
+    expect(detail).toMatchObject([{ symbol: "MSFT", staleness: { state: "never-run" } }]);
+  });
+
+  test("caches the extracted dates in the console db for the next read", async () => {
+    const { dataDir } = tempDataDir();
+    const dbPath = join(dataDir, "..", "index.sqlite");
+    process.env.MARKET_BOT_INDEX_DB_PATH = dbPath;
+    writeRun(dataDir, "run-a", {
+      runId: "run-a",
+      symbol: "AAPL",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      extras: { earningsSetup: { event: { date: "2026-06-30" } } },
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    await detailFor(dataDir, "aapl");
+
+    const consoleDb = openConsoleDb(consoleDbPath(dataDir));
+    try {
+      expect(getRunEarningsDates(consoleDb, "run-a")).toEqual(["2026-06-30"]);
+    } finally {
+      consoleDb.close();
+    }
   });
 });

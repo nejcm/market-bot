@@ -43,12 +43,41 @@ export function openConsoleDb(dbPath: string): Database {
       PRIMARY KEY (watchlist_id, asset_class, symbol)
     )
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS run_earnings_dates (
+      run_id TEXT PRIMARY KEY,
+      dates_json TEXT NOT NULL
+    )
+  `);
   return db;
 }
 
 export interface ProfileRow {
   readonly payload: unknown;
   readonly fetchedAt: string;
+}
+
+export function getRunEarningsDates(db: Database, runId: string): readonly string[] | undefined {
+  const row = db
+    .query("SELECT dates_json AS datesJson FROM run_earnings_dates WHERE run_id = ?")
+    .get(runId) as { readonly datesJson: string } | null;
+  if (row === null) {
+    return undefined;
+  }
+  try {
+    const parsed: unknown = JSON.parse(row.datesJson);
+    return Array.isArray(parsed) && parsed.every((date) => typeof date === "string") ? parsed : [];
+  } catch {
+    // Unreadable stored dates: treat as an empty list rather than a cache hit.
+    return [];
+  }
+}
+
+export function putRunEarningsDates(db: Database, runId: string, dates: readonly string[]): void {
+  db.prepare("INSERT OR IGNORE INTO run_earnings_dates (run_id, dates_json) VALUES (?, ?)").run(
+    runId,
+    JSON.stringify(dates),
+  );
 }
 
 export function listStars(db: Database): readonly Star[] {

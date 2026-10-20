@@ -1,5 +1,5 @@
 <script lang="ts">
-  import List from "@lucide/svelte/icons/list";
+  import Bookmark from "@lucide/svelte/icons/bookmark";
   import { Popover } from "bits-ui";
   import {
     addWatchlistItem,
@@ -28,6 +28,9 @@
   let creating = $state(false);
   let newName = $state("");
   let error = $state("");
+  const membershipLabel = $derived(
+    `In ${String(memberIds.length)} watchlist${memberIds.length === 1 ? "" : "s"}`,
+  );
 
   function message(caughtError: unknown): string {
     return caughtError instanceof Error ? caughtError.message : String(caughtError);
@@ -104,14 +107,17 @@
   <Popover.Trigger
     class="flex shrink-0 items-center gap-1.5 border bg-secondary font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {size ===
     'header'
-      ? 'h-8.75 min-w-8.75 justify-center rounded-full border-border text-muted-foreground sm:px-2.5'
+      ? 'size-8.75 justify-center rounded-full border-border text-muted-foreground'
       : 'h-8 rounded-md border-input px-2.5'}"
-    aria-label="Watchlists for {symbol}"
+    aria-label="Watchlists for {symbol}{memberIds.length > 0 ? ` (${membershipLabel})` : ''}"
+    title="Watchlists for {symbol}{memberIds.length > 0 ? ` (${membershipLabel})` : ''}"
   >
-    <List class={size === "header" ? "size-4" : "size-3.5"} />
-    <span class={size === "header" ? "hidden sm:inline" : ""}>
-      {memberIds.length > 0 ? `In ${String(memberIds.length)} watchlist${memberIds.length === 1 ? "" : "s"}` : "Watchlists"}
-    </span>
+    <Bookmark
+      class="{size === 'header' ? 'size-4' : 'size-3.5'} {memberIds.length > 0 ? 'fill-current text-[#c9a24b]' : ''}"
+    />
+    {#if size !== "header"}
+      {memberIds.length > 0 ? membershipLabel : "Watchlists"}
+    {/if}
   </Popover.Trigger>
   <Popover.Portal>
     <Popover.Content

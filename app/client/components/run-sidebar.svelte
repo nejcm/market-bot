@@ -1,8 +1,8 @@
 <script lang="ts">
   import {
     Activity,
+    Bookmark,
     LayoutGrid,
-    List,
     ListFilter,
     Menu,
     Pin,
@@ -94,7 +94,7 @@
     {
       key: "watchlists" as SidebarView,
       label: "Watchlists",
-      icon: List,
+      icon: Bookmark,
       badge: 0,
     },
     {

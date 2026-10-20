@@ -67,7 +67,7 @@
 
   const label = $derived(kind === "instrument" ? "Instrument note" : "Run note");
   const noteState = $derived(noteIndicator(notice, body, savedBody));
-  const STATE_LABELS = { error: " (error)", unsaved: " (unsaved draft)", saved: " (has note)", empty: "" };
+  const STATE_LABELS = { error: " (error)", unsaved: " (unsaved draft)", saved: " (saved)", empty: "" };
   const DOT_CLASSES = { error: "bg-destructive", unsaved: "bg-[#c9a24b]", saved: "bg-primary", empty: "" };
 
   onMount(() => {
@@ -80,14 +80,19 @@
   <Popover.Trigger
     class="relative flex shrink-0 items-center gap-1.5 border bg-secondary font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {size ===
     'header'
-      ? 'h-8.75 min-w-8.75 justify-center rounded-full border-border text-muted-foreground sm:px-2.5'
+      ? 'size-8.75 justify-center rounded-full border-border text-muted-foreground'
       : 'h-8 rounded-md border-input px-2.5'}"
     aria-label="{label}{STATE_LABELS[noteState]}"
+    title="{label}{STATE_LABELS[noteState]}"
     data-screen-label="Run Note"
   >
-    <StickyNote class={size === "header" ? "size-4" : "size-3.5"} />
-    <span class={size === "header" ? "hidden sm:inline" : ""}>Note</span>
-    {#if noteState !== "empty"}
+    {#if size === "header"}
+      <StickyNote class="size-4 {noteState === 'saved' ? 'text-[#c9a24b]' : ''}" />
+    {:else}
+      <StickyNote class="size-3.5" />
+      Note
+    {/if}
+    {#if noteState !== "empty" && (size !== "header" || noteState !== "saved")}
       <span class="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-background {DOT_CLASSES[noteState]}"></span>
     {/if}
   </Popover.Trigger>

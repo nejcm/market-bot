@@ -79,6 +79,21 @@ function calibrationRunContext(
   };
 }
 
+describe("reference Brier context", () => {
+  test("retains valid reference loss through the shared reader and drops invalid values", () => {
+    for (const referenceBrierScore of [0.1024, 0, -1, 2, Number.NaN]) {
+      const parsed = parseCalibrationContext({
+        byAssetClass: { equity: { brierScore: 0.1, count: 2, referenceBrierScore } },
+      });
+      if (referenceBrierScore === 0.1024) {
+        expect(parsed?.byAssetClass?.equity?.referenceBrierScore).toBe(0.1024);
+      } else {
+        expect(parsed?.byAssetClass?.equity).not.toHaveProperty("referenceBrierScore");
+      }
+    }
+  });
+});
+
 describe("buildCalibrationBlock", () => {
   const actionableMetric = {
     brierScore: 0.4,
@@ -112,7 +127,7 @@ describe("buildCalibrationBlock", () => {
     "adds probability guidance for an actionable negative %s slice",
     (_name, triggerLabel, calibration) => {
       const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
-      expect(block).toContain(`${triggerLabel}: skill -0.60 (Brier 0.400, n=30, runs=10`);
+      expect(block).toContain(`${triggerLabel}: Brier 0.400 (n=30, runs=10`);
       expect(block).toContain("only to discipline probability confidence");
       expect(block).toContain("must not suppress prediction count");
       expect(block).toContain("reject forecast shapes");
@@ -215,7 +230,7 @@ describe("buildCalibrationBlock", () => {
       calibrationRunContext(),
     );
 
-    expect(block).toContain("prediction kind direction: skill -0.60 (Brier 0.400, n=30, runs=10");
+    expect(block).toContain("prediction kind direction: Brier 0.400 (n=30, runs=10");
     expect(block).toContain("Prediction-kind slices insufficient for guidance:");
     expect(block).toContain("prediction kind range: below the 30-event minimum (n=29)");
     expect(block).toContain("prediction kind volatility: below the 10-run minimum (n=30, runs=9)");

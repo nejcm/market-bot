@@ -25,10 +25,14 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   `predictionShortfall` with non-negative integer emitted/target/missing counts and `missing = target - emitted > 0`.
   Render canonical disclosure from counts, never a new `dataGaps` protocol. Tolerant readers adapt only
   anchored legacy `predictionShortfall: emitted N of T` text; conflicting/unparseable gaps stay verbatim.
-- Treat the inclusive 0.40–0.60 Near-Base-Rate band as claim-selection guidance: replace or omit low-signal
-  claims; kept Predictions carry the evidence-supported probability, even inside the band. In-band Predictions
+- Treat the inclusive ±0.10 Near-Base-Rate band around 0.32 for range and 0.5 for other kinds as
+  claim-selection guidance: replace or omit low-signal claims; kept Predictions carry the evidence-supported probability, even inside the band. In-band Predictions
   remain valid telemetry; never pad the target with coin flips. (Amended 2026-10-17: previously prompted
-  probabilities outside the band, which flipped direction across frozen-input samples.)
+  probabilities outside the band, which flipped direction across frozen-input samples. Amended 2026-10-20:
+  the old clause used 0.40–0.60 for every kind; the new clause centers range at 0.32 because Gaussian
+  outside-±1σ probability is about 0.32 and empirical frequency on 5y AAPL/AMD/MSFT/SPY history is
+  0.285–0.334. Report data does not persist the generated reference band, so all range forecasts use
+  0.32 for telemetry until reliable band matching is possible.)
 - Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical IDs; only primary
   probabilities are scored. Run-specific subject gates bind all predictions; thematic research scores only
   its resolved listed proxy and emits none without one.
@@ -73,6 +77,12 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   and explicitly name absence in persisted Markdown, stdout, and Console. Every read boundary normalizes old
   zero-count summaries by dropping those metrics and legacy `brierSkillScore`; Console also rewrites old
   Markdown headlines/skill legends. Missing/malformed counts are unknown, never normalized or collapsed to zero.
+- Run-analytics reference skill compares Brier with the mean squared loss of fixed kind references
+  (range 0.32, others 0.5) on the same deduplicated resolved outcomes. Persist `referenceBrierScore`
+  per Calibration slice; omit skill if that reference is absent. Console comparisons disclose these
+  references alongside Brier and count. This descriptive fixed-reference metric is not empirical skill.
+  (Amended 2026-10-20: replaces run analytics' always-0.5 reference, which credited range base-rate
+  differences as skill; the fixed 0.25 Actionable Negative Calibration gate remains unchanged.)
 - Empirical baseline skill stays deferred until at least 100 resolved v3 forecasts overall and 30 in one
   event-kind × horizon stratum; both thresholds trigger a separate design review, not an automatic metric.
 - Actionable Negative Calibration independently assesses asset class, job type, default-horizon bucket,

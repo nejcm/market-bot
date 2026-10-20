@@ -420,11 +420,11 @@ describe("run analytics", () => {
         generatedAt: "2026-05-18T00:00:00.000Z",
         resolvedCount: 12,
         byAssetClass: {
-          equity: { brierScore: 0.2, count: 8 },
+          equity: { brierScore: 0.2, referenceBrierScore: 0.25, count: 8 },
           crypto: { brierScore: 0.25, count: 4 },
         },
         byJobType: {
-          equity: { brierScore: 0.22, count: 6 },
+          equity: { brierScore: 0.22, referenceBrierScore: 0.25, count: 6 },
           crypto: { brierScore: 0.25, count: 4 },
         },
         byHorizonBucket: {
@@ -602,7 +602,7 @@ describe("run analytics", () => {
       targetPredictions: 0,
       outcomes: [],
       calibrationContext: {
-        byAssetClass: { equity: { brierScore: 0.2, count: 8 } },
+        byAssetClass: { equity: { brierScore: 0.2, referenceBrierScore: 0.25, count: 8 } },
         byKind: {
           direction: { brierScore: 0.4, count: 30, runCount: 10, brierStandardError: 0.05 },
           range: { brierScore: 0.3, count: 5 },
@@ -752,6 +752,38 @@ describe("forecast quality telemetry (3.2)", () => {
     }).predictions;
   }
 
+  test("counts citation occurrences by existing Source kind, including missing metadata", () => {
+    const sources: Source[] = ["market-data", "extended-evidence", "web", "news"].map(
+      (kind, index) => ({
+        ...aaplSource,
+        id: `source-${String(index)}`,
+        kind: kind as Source["kind"],
+      }),
+    );
+    const build = (preds: ReturnType<typeof prediction>[]) =>
+      buildRunAnalytics({
+        report: researchReport({ sources, predictions: preds }),
+        trace: baseTrace,
+        collectedSources: collectedSourceBundle(),
+        stageOutputs: [],
+        targetPredictions: preds.length,
+        outcomes: [],
+      });
+    const analytics = build([
+      prediction({ sourceIds: ["source-0", "source-1", "source-2", "source-3", "missing"] }),
+      prediction({ id: "p2", sourceIds: ["source-0"] }),
+    ]);
+    expect(analytics.predictions.citedSourceClasses).toEqual({
+      "market-data": 2,
+      "extended-evidence": 1,
+      web: 1,
+      news: 1,
+      unknown: 1,
+    });
+    expect(build([prediction({ sourceIds: [] })]).predictions.citedSourceClasses).toEqual({});
+    expect(build([]).predictions.citedSourceClasses).toEqual({});
+  });
+
   test("counts redundancy trims separately from validation and retry errors", () => {
     const result = predictionsFor([prediction({ id: "pred-1", sourceIds: ["src-1"] })], {
       ...baseTrace,
@@ -764,8 +796,6 @@ describe("forecast quality telemetry (3.2)", () => {
   });
 
   test("straddling set produces correct nearBaseRateCount and informativeCount", () => {
-    // P1 and p2 are near base rate (within 0.1 of 0.5); p3 and p4 are informative.
-    // P4 uses range kind so the set is not all-direction and the direction warning stays silent.
     const preds = [
       prediction({ id: "p1", probability: 0.5 }),
       prediction({ id: "p2", probability: 0.56 }),
@@ -776,7 +806,7 @@ describe("forecast quality telemetry (3.2)", () => {
         subject: "AAPL",
         measurableAs: "close(AAPL, +10) outside [170, 230]",
         horizonTradingDays: 10,
-        probability: 0.35,
+        probability: 0.45,
       }),
     ];
     const result = predictionsFor(preds);
@@ -784,6 +814,23 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.informativeCount).toBe(2);
     expect(result.signalTargetMet).toBe(true);
     expect(result.mixWarnings).toHaveLength(0);
+  });
+
+  test("range telemetry uses the inclusive 0.22–0.42 band", () => {
+    const preds = [0.22, 0.32, 0.42, 0.21, 0.43, 0.5].map((probability, index) =>
+      prediction({
+        id: `range-${String(index)}`,
+        kind: "range",
+        measurableAs: "close(AAPL, +5) outside [170, 230]",
+        probability,
+      }),
+    );
+    const result = predictionsFor(preds);
+    expect(result.nearBaseRateCount).toBe(3);
+    expect(result.informativeCount).toBe(3);
+    expect(predictionsFor(preds.slice(0, 3)).mixWarnings).toContain(
+      "all emitted probabilities cluster near their kind base rates (range 0.32, others 0.5); predictions carry limited signal",
+    );
   });
 
   test("near-base-rate band includes exact 0.4 and 0.6 boundaries", () => {
@@ -1765,5 +1812,37 @@ describe("forecast persistence telemetry", () => {
 
     expect(analytics.forecastPersistence).toBeUndefined();
     expect("forecastPersistence" in analytics).toBe(false);
+  });
+});
+
+describe("run analytics reference skill", () => {
+  test("uses the stored reference loss and withholds skill when it is absent or invalid", () => {
+    for (const referenceBrierScore of [undefined, 0, Number.NaN, 0.1024]) {
+      const analytics = buildRunAnalytics({
+        report: researchReport(),
+        trace,
+        collectedSources: collectedSourceBundle(),
+        stageOutputs: [],
+        targetPredictions: 0,
+        outcomes: [],
+        calibrationContext: {
+          byAssetClass: {
+            equity: {
+              brierScore: 0.1024,
+              count: 3,
+              ...(referenceBrierScore === undefined ? {} : { referenceBrierScore }),
+            },
+          },
+        },
+      });
+      const slice = analytics.calibrationAtGeneration?.assetClass;
+      if (referenceBrierScore === 0.1024) {
+        expect(slice?.brierSkillScore).toBe(0);
+        expect(slice?.referenceBrierScore).toBe(0.1024);
+      } else {
+        expect(slice).not.toHaveProperty("brierSkillScore");
+        expect(slice).not.toHaveProperty("referenceBrierScore");
+      }
+    }
   });
 });

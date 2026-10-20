@@ -61,6 +61,7 @@ function baseAnalytics(): RunAnalytics {
       horizonTradingDays: { min: 5, max: 10, average: 7 },
       citedCount: 5,
       uncitedCount: 0,
+      citedSourceClasses: {},
       targetCount: 5,
       targetMet: true,
       nearBaseRateCount: 2,
@@ -89,6 +90,16 @@ describe("run analytics console", () => {
         "  Evidence Quality: medium · 1 data gap(s)",
       ].join("\n"),
     );
+  });
+
+  test("reports prediction citation classes when present", () => {
+    const analytics = baseAnalytics();
+    expect(
+      renderRunAnalyticsConsole({
+        ...analytics,
+        predictions: { ...analytics.predictions, citedSourceClasses: { "market-data": 2, web: 1 } },
+      }),
+    ).toContain("citations [market-data:2, web:1]");
   });
 
   test("omits the symbol from the header when absent", () => {

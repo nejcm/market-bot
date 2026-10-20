@@ -2,7 +2,12 @@ import {
   type WebEvidenceUtilization,
   type WebGatherAcceptancePolicy,
 } from "../domain/gather-audit";
-import { NEAR_BASE_RATE_BAND, type EarningsForecastTelemetry } from "../domain/prediction";
+import {
+  NEAR_BASE_RATE_BAND,
+  predictionReferenceProbability,
+  type Prediction,
+  type EarningsForecastTelemetry,
+} from "../domain/prediction";
 import {
   researchReportEvidenceQuality,
   type PredictionShortfall,
@@ -10,10 +15,11 @@ import {
   type ResearchReport,
 } from "../domain/report";
 import { type RunTrace, type SourceTextResearchOnlySummary } from "../domain/run-trace";
-import { sourceProvider, type Source, type SourceGap } from "../domain/sources";
+import { sourceProvider, type Source, type SourceGap, type SourceKind } from "../domain/sources";
 import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { isRecord } from "../guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
+import { isPositiveCalibrationCount, isUnitInterval } from "../scoring/calibration-invariant";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationMetric } from "../scoring/types";
 import {
@@ -155,6 +161,7 @@ export interface RunAnalytics {
     };
     readonly citedCount: number;
     readonly uncitedCount: number;
+    readonly citedSourceClasses: Readonly<Partial<Record<SourceKind | "unknown", number>>>;
     readonly targetCount: number;
     readonly targetMet: boolean;
     readonly shortfall?: PredictionShortfall;
@@ -164,7 +171,7 @@ export interface RunAnalytics {
       readonly errorCount: number;
       readonly highDisagreementCount: number;
     };
-    /** Count of emitted predictions whose probability is within NEAR_BASE_RATE_BAND of 0.5. */
+    /** Count of emitted predictions whose probability is within NEAR_BASE_RATE_BAND of its kind reference. */
     readonly nearBaseRateCount: number;
     /** Count of emitted predictions outside the near-base-rate band (more informative). */
     readonly informativeCount: number;
@@ -284,14 +291,18 @@ function sanitizedPredictionTargetCount(targetCount: number): number {
  */
 const SIGNAL_INFORMATIVE_FLOOR = 0.5;
 
-function isNearBaseRateProbability(probability: number): boolean {
-  return Math.abs(probability - 0.5) <= NEAR_BASE_RATE_BAND + Number.EPSILON;
+function isNearBaseRateProbability(prediction: Prediction): boolean {
+  return (
+    Math.abs(prediction.probability - predictionReferenceProbability(prediction.kind)) <=
+    NEAR_BASE_RATE_BAND + Number.EPSILON
+  );
 }
 
 interface RunAnalyticsCalibrationSlice {
   readonly key: string;
   readonly brierScore: number;
-  readonly brierSkillScore: number;
+  readonly referenceBrierScore?: number;
+  readonly brierSkillScore?: number;
   readonly count: number;
 }
 
@@ -412,8 +423,8 @@ function calibrationMetricSlice(
   const metric = metrics[key];
   if (
     metric === undefined ||
-    !Number.isFinite(metric.brierScore) ||
-    !Number.isFinite(metric.count)
+    !isUnitInterval(metric.brierScore) ||
+    !isPositiveCalibrationCount(metric.count)
   ) {
     return undefined;
   }
@@ -421,7 +432,14 @@ function calibrationMetricSlice(
   return {
     key,
     brierScore: metric.brierScore,
-    brierSkillScore: brierSkillScore(metric.brierScore),
+    ...(metric.referenceBrierScore !== undefined &&
+    metric.referenceBrierScore > 0 &&
+    isUnitInterval(metric.referenceBrierScore)
+      ? {
+          referenceBrierScore: metric.referenceBrierScore,
+          brierSkillScore: brierSkillScore(metric.brierScore, metric.referenceBrierScore),
+        }
+      : {}),
     count: metric.count,
   };
 }
@@ -709,8 +727,9 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   const dataGapCount = predictionShortfallGapCount(report.predictionShortfall, report.dataGaps);
 
   const emittedPredictions = report.predictions;
+  const sourceKinds = new Map(report.sources.map((source) => [source.id, source.kind]));
   const nearBaseRateCount = emittedPredictions.filter((prediction) =>
-    isNearBaseRateProbability(prediction.probability),
+    isNearBaseRateProbability(prediction),
   ).length;
   const informativeCount = emittedPredictions.length - nearBaseRateCount;
   const signalTargetMet =
@@ -724,7 +743,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   }
   if (emittedPredictions.length > 0 && nearBaseRateCount === emittedPredictions.length) {
     mixWarnings.push(
-      "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal",
+      "all emitted probabilities cluster near their kind base rates (range 0.32, others 0.5); predictions carry limited signal",
     );
   }
   if (
@@ -831,6 +850,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ),
       citedCount,
       uncitedCount: report.predictions.length - citedCount,
+      citedSourceClasses: countBy(
+        report.predictions.flatMap((prediction) => prediction.sourceIds),
+        (id) => sourceKinds.get(id) ?? "unknown",
+      ),
       targetCount: targetPredictions,
       targetMet: report.predictions.length >= targetPredictions,
       ...(predictionShortfall !== undefined ? { shortfall: predictionShortfall } : {}),

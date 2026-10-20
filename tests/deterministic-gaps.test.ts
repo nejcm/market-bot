@@ -189,3 +189,51 @@ describe("phase 2.2 — deterministicSourceGaps for missing representative snaps
     expect(gaps.filter((g) => g.startsWith("researchRepresentative:"))).toHaveLength(0);
   });
 });
+
+describe("range reference Source Gap", () => {
+  const command: ResearchCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "deep",
+  };
+  const entries = (ratio?: number, count = 21, step = 0.02) => {
+    let close = 100;
+    const recentCloses = Array.from({ length: count }, (_, index) => {
+      if (index > 0) {
+        close *= index % 2 === 0 ? 1 / (1 + step) : 1 + step;
+      }
+      if (ratio !== undefined && index === 10) {
+        close *= ratio;
+      }
+      return { date: `2026-05-${String(index + 1).padStart(2, "0")}`, close };
+    });
+    return deterministicSourceGapEntries(
+      command,
+      collectedSources({ verifiedMarketSnapshot: verifiedSnapshotFixture({ recentCloses }) }),
+    ).filter(({ text }) => text.startsWith("range-volatility-reference:"));
+  };
+
+  test.each([0.5, 0.75])(
+    "discloses a suspected split with ratio %s without capping evidence quality",
+    (ratio) => {
+      expect(entries(ratio)).toEqual([
+        {
+          text: "range-volatility-reference: The ±1σ range reference is unavailable because a split-like jump in the unadjusted recent-close window makes the volatility estimate unreliable [AAPL]",
+          impact: "no-cap",
+        },
+      ]);
+    },
+  );
+
+  test("does not declare a split for ordinary, high-volatility, missing or short close windows", () => {
+    expect(entries()).toEqual([]);
+    expect(entries(undefined, 21, 0.1)).toEqual([]);
+    expect(entries(0.5, 10)).toEqual([]);
+    expect(
+      deterministicSourceGaps(command, collectedSources()).some((text) =>
+        text.startsWith("range-volatility-reference:"),
+      ),
+    ).toBe(false);
+  });
+});

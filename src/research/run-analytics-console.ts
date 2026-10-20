@@ -19,7 +19,10 @@ function predictionLine(predictions: RunAnalytics["predictions"]): string {
   const signal = `${String(predictions.informativeCount)} informative, ${String(
     predictions.nearBaseRateCount,
   )} near base rate${predictions.signalTargetMet ? "" : " (below signal floor)"}`;
-  return `  Predictions: ${target} · ${signal}`;
+  const citations = Object.entries(predictions.citedSourceClasses ?? {})
+    .map(([kind, count]) => `${kind}:${String(count)}`)
+    .join(", ");
+  return `  Predictions: ${target} · ${signal}${citations === "" ? "" : ` · citations [${citations}]`}`;
 }
 
 function earningsForecastLine(earnings: NonNullable<RunAnalytics["earningsForecasts"]>): string {

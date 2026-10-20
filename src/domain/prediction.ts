@@ -30,8 +30,13 @@ export interface EarningsForecastTelemetry {
   readonly suppressionReason?: "event-date-not-confirmed" | "earnings-setup-not-present";
 }
 
-/** Maximum distance from 0.5 treated as near-base-rate forecast telemetry. */
+/** Maximum distance from the kind reference treated as near-base-rate telemetry. */
 export const NEAR_BASE_RATE_BAND = 0.1;
+
+export function predictionReferenceProbability(kind: PredictionKind): number {
+  // Shortcut: report data does not persist the reference band; use 0.32 for all range until it does.
+  return kind === "range" ? 0.32 : 0.5;
+}
 
 export interface Prediction {
   readonly id: string;

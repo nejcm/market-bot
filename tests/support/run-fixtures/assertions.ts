@@ -177,6 +177,24 @@ export async function assertInvariants(
   } else {
     expect(result.analytics.newsDedupe).not.toHaveProperty("floorEligibleSelectedCount");
   }
+  const citationClasses: Record<string, number> = {};
+  for (const prediction of result.report.predictions) {
+    for (const id of prediction.sourceIds) {
+      const kind = result.report.sources.find((source) => source.id === id)?.kind ?? "unknown";
+      citationClasses[kind] = (citationClasses[kind] ?? 0) + 1;
+    }
+  }
+  expect(result.analytics.predictions.citedSourceClasses).toEqual(citationClasses);
+  expect(Object.values(citationClasses).reduce((total, count) => total + count, 0)).toBe(
+    result.report.predictions.reduce((total, prediction) => total + prediction.sourceIds.length, 0),
+  );
+  expect(result.analytics.predictions.nearBaseRateCount).toBe(
+    result.report.predictions.filter(({ kind, probability }) =>
+      kind === "range"
+        ? probability >= 0.22 && probability <= 0.42
+        : probability >= 0.4 && probability <= 0.6,
+    ).length,
+  );
   expect(result.analytics.predictions).not.toHaveProperty("replacementAttempted");
   expect(result.trace).not.toHaveProperty("predictionReplacementAttempted");
   expect(result.analytics.providerEndpointAvailability).toHaveProperty("massiveNews");

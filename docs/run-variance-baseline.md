@@ -62,6 +62,8 @@ steers synthesis as directly as `src/research/prompts`.
 
 ## Isolation
 
+`data/peer-universe-learned.json` now exists and must be seeded identically in each isolated root in the next re-record.
+
 Recipe actually used:
 
 ```sh

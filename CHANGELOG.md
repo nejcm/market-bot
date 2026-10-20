@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.0](https://github.com/nejcm/market-bot/compare/v1.5.4...v1.6.0) (2026-10-20)
+
+### Features
+
+- **console:** research console v2 (#111) ([339ff6d](https://github.com/nejcm/market-bot/commit/339ff6dbaa3855403db79126fec8cb9e45bc65ad))
+
 ## [1.5.4](https://github.com/nejcm/market-bot/compare/v1.5.3...v1.5.4) (2026-10-20)
 
 ### Bug Fixes

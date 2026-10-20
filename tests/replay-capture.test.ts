@@ -16,7 +16,11 @@ import {
 } from "../src/replay/session";
 import { createSourceRequestContext } from "../src/sources/source-request";
 import { withCache } from "../src/sources/cache";
-import { readSynthesisReplayInput } from "../src/replay/synthesis-input";
+import {
+  externalizeSynthesisBodies,
+  loadSynthesisReplayInput,
+  readSynthesisReplayInput,
+} from "../src/replay/synthesis-input";
 import {
   executeSynthesisInput,
   replaySynthesisFile,
@@ -194,8 +198,76 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     );
     await replay.cleanup();
     const file = join(capture, "final-synthesis-input.json");
-    const saved = readSynthesisReplayInput(JSON.parse(await readFile(file, "utf8")));
+    const stored = await readFile(file, "utf8");
+    const saved = await loadSynthesisReplayInput(file);
     expect(Object.keys(saved.input.settings)).toEqual(["sourceOptions"]);
+    const storedCollected = JSON.parse(stored).input.collectedSources;
+    expect(storedCollected.secTargetPacket).toEqual({
+      $replayBody: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
+    expect(JSON.stringify(storedCollected.rawSnapshots)).toContain('"$replayBody"');
+    expect(saved.input.collectedSources.secTargetPacket?.companyFacts).toBeDefined();
+    expect(stored.length * 2).toBeLessThan(JSON.stringify(saved).length);
+    const inline = join(dir, "inline-final-synthesis-input.json");
+    await writeFile(inline, JSON.stringify(saved));
+    expect(await loadSynthesisReplayInput(inline)).toEqual(saved);
+
+    const lookalikes = join(dir, "lookalikes");
+    await mkdir(join(lookalikes, "bodies"), { recursive: true });
+    const lookalikeRows = [
+      { bodyFile: "bodies/missing.json", sha256: "0".repeat(64) },
+      { meta: { bodyFile: "notes.txt", sha256: `abc${"d".repeat(40_000)}` } },
+    ];
+    const withLookalikes = {
+      ...saved,
+      input: {
+        ...saved.input,
+        collectedSources: {
+          ...saved.input.collectedSources,
+          rawSnapshots: [...saved.input.collectedSources.rawSnapshots, ...lookalikeRows],
+        },
+      },
+    } as typeof saved;
+    const lookalikeBodies = new Map<string, string>();
+    const external = externalizeSynthesisBodies(withLookalikes, (text) => {
+      const sha256 = new Bun.CryptoHasher("sha256").update(text).digest("hex");
+      lookalikeBodies.set(sha256, text);
+      return sha256;
+    });
+    await Promise.all(
+      [...lookalikeBodies].map(([sha256, text]) =>
+        writeFile(join(lookalikes, "bodies", `${sha256}.json`), text),
+      ),
+    );
+    const lookalikeFile = join(lookalikes, "final-synthesis-input.json");
+    await writeFile(lookalikeFile, JSON.stringify(external));
+    const reloaded = await loadSynthesisReplayInput(lookalikeFile);
+    expect(reloaded.input.collectedSources.rawSnapshots.slice(-2)).toEqual(lookalikeRows as never);
+    const reserved = {
+      ...withLookalikes,
+      input: {
+        ...withLookalikes.input,
+        collectedSources: {
+          ...withLookalikes.input.collectedSources,
+          rawSnapshots: [{ $replayBody: "0".repeat(64) }] as never,
+        },
+      },
+    } as typeof saved;
+    expect(() => externalizeSynthesisBodies(reserved, () => "")).toThrow("reserved key");
+    for (const ref of [{ $replayBody: "f".repeat(64) }, { $replayBody: "x", extra: 1 }]) {
+      const broken = join(lookalikes, "broken.json");
+      await writeFile(
+        broken,
+        JSON.stringify({
+          ...external,
+          input: {
+            ...external.input,
+            collectedSources: { ...external.input.collectedSources, secTargetPacket: ref },
+          },
+        }),
+      );
+      await expect(loadSynthesisReplayInput(broken)).rejects.toThrow();
+    }
     const stage = await replaySynthesisFile({ input: file, label: "stage", root: dir });
     expect(stage.status).toBe("completed");
     const report = JSON.parse(await readFile(join(stage.dir, "report.json"), "utf8"));
@@ -451,9 +523,7 @@ test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
       dataDir: join(dir, "runs"),
     });
     const capture = join(produced.artifacts.runDir, "replay");
-    const saved = readSynthesisReplayInput(
-      JSON.parse(await readFile(join(capture, "final-synthesis-input.json"), "utf8")),
-    );
+    const saved = await loadSynthesisReplayInput(join(capture, "final-synthesis-input.json"));
     const replay = await runFixture(capture);
     try {
       expect(replay.report.symbol).toBe(produced.report.symbol);

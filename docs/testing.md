@@ -33,7 +33,9 @@ contract behavior, not model quality after a prompt change.
 
 Set `MARKET_BOT_CAPTURE_REPLAY=1` for an already-authorized research run. This adds no source/model
 calls. A successful capture publishes `<run>/replay/{meta,data-cassette,llm-cassette,state}.json`,
-`final-synthesis-input.json` and any large hashed bodies under `bodies/`. It records ordered HTTP
+`final-synthesis-input.json` and any large hashed bodies under `bodies/`; the synthesis input's
+`rawSnapshots` and `secTargetPacket` subtrees over 32 KB are stored there once as `{"$replayBody": <sha256>}` refs and
+resolved on load (older inline captures still load). It records ordered HTTP
 failures and every model boundary, plus the actual consumed cache/news-seen/learned-peer/history,
 Calibration, profile-reuse, alpha and circuit state. Circuit decisions use per-host run-length
 sequences, retaining transitions and exact invocation counts without one state row per URL.

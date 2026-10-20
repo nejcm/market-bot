@@ -946,8 +946,9 @@ const makeScore = (
 ) => predictionScore(outcome, { scoringVersion: 3, ...overrides });
 
 describe("buildCalibrationSummary", () => {
-  test("scores kind references on the same deduplicated outcomes, including mixed slices", () => {
-    const pairs = [
+  test("keeps range skill against the fixed 0.5 reference", () => {
+    expect(brierSkillScore(0.32 ** 2)).toBeCloseTo(1 - 0.32 ** 2 / 0.25);
+    const summary = buildCalibrationSummary([
       {
         prediction: prediction({
           kind: "range",
@@ -955,44 +956,13 @@ describe("buildCalibrationSummary", () => {
           measurableAs: "close(AAPL, +5) outside [170, 230]",
         }),
         score: makeScore("miss"),
-        assetClass: "equity" as const,
-        jobType: "equity" as const,
-        runId: "r1",
+        assetClass: "equity",
+        jobType: "equity",
+        runId: "range",
         generatedAt: "2026-05-01T00:00:00Z",
       },
-      {
-        prediction: prediction({
-          kind: "range",
-          probability: 0.32,
-          measurableAs: "close(AAPL, +5) outside [170, 230]",
-        }),
-        score: makeScore("hit"),
-        assetClass: "equity" as const,
-        jobType: "equity" as const,
-        runId: "r2",
-        generatedAt: "2026-05-04T00:00:00Z",
-      },
-      {
-        prediction: prediction({ probability: 0.5 }),
-        score: makeScore("hit"),
-        assetClass: "equity" as const,
-        jobType: "equity" as const,
-        runId: "r3",
-        generatedAt: "2026-05-05T00:00:00Z",
-      },
-    ];
-    const summary = buildCalibrationSummary([...pairs, { ...pairs[0]!, runId: "duplicate" }]);
-    expect(summary.resolvedCount).toBe(3);
-    const range = summary.byKind.range!;
-    expect(range.referenceBrierScore).toBeCloseTo((0.32 ** 2 + 0.68 ** 2) / 2);
-    expect(brierSkillScore(range.brierScore, range.referenceBrierScore!)).toBeCloseTo(0);
-    expect(summary.byKind.direction?.referenceBrierScore).toBe(0.25);
-    expect(summary.byAssetClass.equity?.referenceBrierScore).toBeCloseTo(
-      (0.32 ** 2 + 0.68 ** 2 + 0.25) / 3,
-    );
-    expect(summary.byJobType.equity?.referenceBrierScore).toBe(
-      summary.byAssetClass.equity?.referenceBrierScore,
-    );
+    ]);
+    expect(summary.byKind.range).not.toHaveProperty("referenceBrierScore");
   });
 
   test("computes Brier score for a perfectly calibrated set", () => {

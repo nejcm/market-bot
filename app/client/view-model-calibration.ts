@@ -229,13 +229,9 @@ function formatRunCalibration(calibration: Record<string, unknown> | undefined):
   if (!isUnitInterval(brier) || !isCalibrationCount(count) || count <= 0) {
     return "cal n/a";
   }
-  const reference = readFiniteNumber(calibration?.referenceBrierScore);
   const measured = `Brier ${brier.toFixed(3)}, n=${String(count)}`;
-  if (reference === undefined || reference <= 0 || reference > 1) {
-    return measured;
-  }
-  const skill = brierSkillScore(brier, reference);
-  return `reference skill ${skill >= 0 ? "+" : ""}${skill.toFixed(2)} (${measured}; range 0.32, others 0.5)`;
+  const skill = brierSkillScore(brier);
+  return `skill vs 0.5 ${skill >= 0 ? "+" : ""}${skill.toFixed(2)} (${measured})`;
 }
 
 function preferredCalibrationSlice(

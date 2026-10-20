@@ -53,6 +53,10 @@ import {
 } from "../../../src/sources/extended-evidence/financial-statement-selection";
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import { formatMetricValue } from "../../../src/sources/extended-evidence/value-format";
+import {
+  rangeVolatilityReference,
+  rangeReferenceBand,
+} from "../../../src/research/range-volatility-reference";
 import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
 import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrument-identity";
 import { isNewsRelevantByTitleOrSymbol } from "../../../src/sources/news-relevance";
@@ -185,15 +189,37 @@ export async function assertInvariants(
     }
   }
   expect(result.analytics.predictions.citedSourceClasses).toEqual(citationClasses);
-  expect(Object.values(citationClasses).reduce((total, count) => total + count, 0)).toBe(
+  expect(
+    Object.values(result.analytics.predictions.citedSourceClasses).reduce(
+      (total, count) => total + count,
+      0,
+    ),
+  ).toBe(
     result.report.predictions.reduce((total, prediction) => total + prediction.sourceIds.length, 0),
   );
+  expect(result.analytics.predictions.citedSourceClasses).not.toHaveProperty("unknown");
+  const rangeSnapshot = result.collectedSources.verifiedMarketSnapshot;
+  const reference = rangeVolatilityReference(rangeSnapshot);
   expect(result.analytics.predictions.nearBaseRateCount).toBe(
-    result.report.predictions.filter(({ kind, probability }) =>
-      kind === "range"
-        ? probability >= 0.22 && probability <= 0.42
-        : probability >= 0.4 && probability <= 0.6,
-    ).length,
+    result.report.predictions.filter((prediction) => {
+      const expression = parseObservableExpression(prediction.measurableAs);
+      const band =
+        reference !== undefined && !("gap" in reference)
+          ? rangeReferenceBand(reference, prediction.horizonTradingDays)
+          : undefined;
+      const matchesReference =
+        prediction.kind === "range" &&
+        expression.kind === "range" &&
+        expression.subject === rangeSnapshot?.symbol &&
+        prediction.subject === rangeSnapshot?.symbol &&
+        expression.horizonTradingDays === prediction.horizonTradingDays &&
+        band !== undefined &&
+        expression.lo === band[0] &&
+        expression.hi === band[1];
+      return (
+        Math.abs(prediction.probability - (matchesReference ? 0.32 : 0.5)) <= 0.1 + Number.EPSILON
+      );
+    }).length,
   );
   expect(result.analytics.predictions).not.toHaveProperty("replacementAttempted");
   expect(result.trace).not.toHaveProperty("predictionReplacementAttempted");

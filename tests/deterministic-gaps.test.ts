@@ -197,7 +197,12 @@ describe("range reference Source Gap", () => {
     symbol: "AAPL",
     depth: "deep",
   };
-  const entries = (ratio?: number, count = 21, step = 0.02) => {
+  const entries = (
+    ratio?: number,
+    count = 21,
+    step = 0.02,
+    assetClass: "equity" | "crypto" = "equity",
+  ) => {
     let close = 100;
     const recentCloses = Array.from({ length: count }, (_, index) => {
       if (index > 0) {
@@ -209,7 +214,9 @@ describe("range reference Source Gap", () => {
       return { date: `2026-05-${String(index + 1).padStart(2, "0")}`, close };
     });
     return deterministicSourceGapEntries(
-      command,
+      assetClass === "equity"
+        ? command
+        : { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
       collectedSources({ verifiedMarketSnapshot: verifiedSnapshotFixture({ recentCloses }) }),
     ).filter(({ text }) => text.startsWith("range-volatility-reference:"));
   };
@@ -227,6 +234,7 @@ describe("range reference Source Gap", () => {
   );
 
   test("does not declare a split for ordinary, high-volatility, missing or short close windows", () => {
+    expect(entries(0.5, 21, 0.02, "crypto")).toEqual([]);
     expect(entries()).toEqual([]);
     expect(entries(undefined, 21, 0.1)).toEqual([]);
     expect(entries(0.5, 10)).toEqual([]);

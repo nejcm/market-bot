@@ -133,7 +133,7 @@ Prediction whose event depends on an earlier observable condition. Its probabili
 
 ## Near-Base-Rate Prediction
 
-Emitted Prediction within an inclusive ±0.10 band of its kind reference (range 0.32, others 0.5). Report data does not preserve the generated ±1σ band, so all range Predictions use the range reference for telemetry. It remains valid; analytics counts it apart from informative Predictions.
+Emitted Prediction within an inclusive ±0.10 band of its applicable reference: 0.32 only when a range Prediction matches its subject's reconstructed ±1σ band at a listed reference horizon and printed two-decimal precision; 0.5 otherwise, including unavailable references. It remains valid; analytics counts it apart from informative Predictions.
 
 ## Forecast-Shape Diversity Guidance
 
@@ -165,7 +165,7 @@ Aggregate measurement of stated probabilities against resolved outcomes, counted
 
 ## Reference Skill
 
-Descriptive Brier skill against fixed kind reference probabilities (range 0.32, others 0.5), evaluated on the same resolved Forecast Events. Each slice persists the reference's mean squared loss as `referenceBrierScore`; missing historical references withhold skill. This is not empirical baseline skill and does not change Actionable Negative Calibration's fixed 0.25 gate.
+Descriptive Brier skill against the fixed always-0.5 reference for all kinds. Construction-specific skill is deferred until per-Prediction reference stamps and index support are approved; this does not change Actionable Negative Calibration's fixed 0.25 gate.
 
 ## Prediction Citation Classes
 

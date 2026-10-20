@@ -153,6 +153,8 @@ config hash unobtainable. Only output-only keys (`captureReplay`, index
 | `operatingKpis.status`                                    | not-assessed                        | not-assessed                        | not-assessed                        | stable at `not-assessed`     |
 | Estimated tokens (`trace.json:tokenEstimate`)             | 394,112                             | 327,881                             | 323,311                             | 323,311–394,112              |
 
+The `nearBaseRateCount` / `informativeCount` band was measured under the old all-kind 0.5 rule; re-record it before comparing with the exact-reference rule amended on 2026-10-20.
+
 The seed itself read ratio 0.8 (5 accepted, 4 used), 3 predictions, 24 Source
 Gaps with the same by-cause mix, and 358,919 estimated tokens.
 

@@ -54,11 +54,6 @@ function parseCalibrationMetric(value: unknown): CalibrationMetric | undefined {
     return undefined;
   }
   const runCount = readNumberWhere(value, "runCount", isPositiveCalibrationCount);
-  const referenceBrierScore = readNumberWhere(
-    value,
-    "referenceBrierScore",
-    (candidate) => candidate > 0 && candidate <= 1,
-  );
   const brierStandardError = readNumberWhere(
     value,
     "brierStandardError",
@@ -66,7 +61,6 @@ function parseCalibrationMetric(value: unknown): CalibrationMetric | undefined {
   );
   return {
     brierScore,
-    ...(referenceBrierScore !== undefined ? { referenceBrierScore } : {}),
     count,
     ...(runCount !== undefined && runCount <= count ? { runCount } : {}),
     ...(brierStandardError !== undefined ? { brierStandardError } : {}),

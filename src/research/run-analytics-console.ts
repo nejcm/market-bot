@@ -19,7 +19,7 @@ function predictionLine(predictions: RunAnalytics["predictions"]): string {
   const signal = `${String(predictions.informativeCount)} informative, ${String(
     predictions.nearBaseRateCount,
   )} near base rate${predictions.signalTargetMet ? "" : " (below signal floor)"}`;
-  const citations = Object.entries(predictions.citedSourceClasses ?? {})
+  const citations = Object.entries(predictions.citedSourceClasses)
     .map(([kind, count]) => `${kind}:${String(count)}`)
     .join(", ");
   return `  Predictions: ${target} · ${signal}${citations === "" ? "" : ` · citations [${citations}]`}`;

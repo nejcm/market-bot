@@ -95,7 +95,10 @@ export function deterministicSourceGapEntries(
     }
   }
 
-  const rangeReference = rangeVolatilityReference(collectedSources.verifiedMarketSnapshot);
+  const rangeReference =
+    command.assetClass === "equity"
+      ? rangeVolatilityReference(collectedSources.verifiedMarketSnapshot)
+      : undefined;
   const rangeReferenceGaps =
     rangeReference !== undefined && "gap" in rangeReference
       ? [

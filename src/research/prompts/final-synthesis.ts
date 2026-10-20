@@ -1,11 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { ForecastKindMix } from "../../config/runs";
 import { isMarketUpdateJobType } from "../../domain/job-type";
-import {
-  NEAR_BASE_RATE_BAND,
-  predictionReferenceProbability,
-  type PredictionKind,
-} from "../../domain/prediction";
+import { NEAR_BASE_RATE_BAND, type PredictionKind } from "../../domain/prediction";
 import {
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
   BROAD_US_INDEX_CLASS,
@@ -30,21 +26,26 @@ import {
 import { FINAL_SYNTHESIS_SOURCE_ID_GUIDANCE } from "./source-id-guidance";
 import { assembleStagePrompt, stagePlaybooks, type StageInput } from "./stage-envelope";
 import { buildFreshWebSteering } from "./steering";
-import { rangeVolatilityReference, RANGE_REFERENCE_HORIZONS } from "../range-volatility-reference";
+import {
+  rangeVolatilityReference,
+  rangeReferenceBand,
+  RANGE_REFERENCE_HORIZONS,
+  RANGE_REFERENCE_OUTSIDE_PROBABILITY,
+} from "../range-volatility-reference";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 
 const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
 const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
 const RANGE_NEAR_BASE_RATE_LOWER_BOUND = (
-  predictionReferenceProbability("range") - NEAR_BASE_RATE_BAND
+  RANGE_REFERENCE_OUTSIDE_PROBABILITY - NEAR_BASE_RATE_BAND
 ).toFixed(2);
 const RANGE_NEAR_BASE_RATE_UPPER_BOUND = (
-  predictionReferenceProbability("range") + NEAR_BASE_RATE_BAND
+  RANGE_REFERENCE_OUTSIDE_PROBABILITY + NEAR_BASE_RATE_BAND
 ).toFixed(2);
 const MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE = 10;
 const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
-const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive near-base-rate band (${RANGE_NEAR_BASE_RATE_LOWER_BOUND}-${RANGE_NEAR_BASE_RATE_UPPER_BOUND} for range, ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} for other kinds); choose claims the evidence can move clearly from their kind reference (range 0.32, others 0.5) rather than shading a probability to just outside the band to clear it`;
+const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive near-base-rate band (${RANGE_NEAR_BASE_RATE_LOWER_BOUND}-${RANGE_NEAR_BASE_RATE_UPPER_BOUND} only for forecasts on a listed ±1σ range-reference band, ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} otherwise); choose claims the evidence can move clearly from their applicable base rates rather than shading a probability to just outside the band to clear it`;
 
 function finalReportShape(
   command: ResearchCommand,
@@ -184,10 +185,10 @@ function buildRangeVolatilityReference(
   const { sigma, spot, returnCount } = reference;
   const snapshot = collectedSources.verifiedMarketSnapshot!;
   const bands = RANGE_REFERENCE_HORIZONS.map((horizon) => {
-    const move = sigma * Math.sqrt(horizon);
-    return `+${String(horizon)}: [${(spot * Math.exp(-move)).toFixed(2)}, ${(spot * Math.exp(move)).toFixed(2)}]`;
+    const [lo, hi] = rangeReferenceBand(reference, horizon)!;
+    return `+${String(horizon)}: [${lo.toFixed(2)}, ${hi.toFixed(2)}]`;
   }).join("; ");
-  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returnCount)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. A close outside one of these ±1σ bands has a base rate of about ${String(predictionReferenceProbability("range"))} (Gaussian one-sigma) at each listed horizon. A range forecast on one of these bands uses ${String(predictionReferenceProbability("range"))} unless a catalyst inside its window, such as a confirmed earnings date or a provider-estimated earnings date explicitly labeled as estimated, is cited in that prediction's sourceIds; move off ${String(predictionReferenceProbability("range"))} only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
+  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returnCount)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. A close outside one of these ±1σ bands has a base rate of about ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} (Gaussian one-sigma) at each listed horizon. A range forecast on one of these bands uses ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} unless a catalyst inside its window, such as a confirmed earnings date or a provider-estimated earnings date explicitly labeled as estimated, is cited in that prediction's sourceIds; move off ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
 }
 
 export function buildConditionalPredictionActivationGuidance(
@@ -248,7 +249,7 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
     mix.minNonDirection !== undefined && mix.minNonDirection > 0
       ? ` Aim for at least ${String(mix.minNonDirection)} prediction(s) using a kind other than \`direction\` where the evidence supports it.`
       : "";
-  return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip. Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off its kind reference (range 0.32, others 0.5).${floor}`;
+  return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip. Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off its applicable base rate.${floor}`;
 }
 
 // Repair-pass steering for the validator's disallowed-subject and broad-US-index redundancy

@@ -1,5 +1,5 @@
 import { marketUpdateHorizonBucket, type AssetClass, type JobType } from "../domain/job-type";
-import { predictionReferenceProbability, type Prediction } from "../domain/prediction";
+import { type Prediction } from "../domain/prediction";
 import { MARKET_REGIME_LABELS, type MarketRegimeLabel } from "../domain/report";
 import {
   claimKey,
@@ -41,6 +41,7 @@ export const UNKNOWN_REGIME_BUCKET = "unknown";
 
 export const MIN_CALIBRATION_SAMPLE = 5;
 
+const BASELINE_BRIER = 0.25;
 const BIN_EDGES = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
 function makeBinLabel(lo: number, hi: number): string {
   return `${String(lo.toFixed(1))}-${String(hi.toFixed(1))}`;
@@ -67,20 +68,13 @@ function overallBrierScore(pairs: readonly ResolvedPair[]): number | undefined {
 
 function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
   const mean = meanBrierLoss(pairs);
-  const referenceBrierScore =
-    pairs.reduce(
-      (sum, { prediction, score }) =>
-        sum +
-        (predictionReferenceProbability(prediction.kind) - (score.outcome === "hit" ? 1 : 0)) ** 2,
-      0,
-    ) / pairs.length;
   const clusterSums = new Map<string, number>();
   for (const pair of pairs) {
     clusterSums.set(pair.runId, (clusterSums.get(pair.runId) ?? 0) + (brierLoss(pair) - mean));
   }
   const runCount = clusterSums.size;
   if (runCount < 2) {
-    return { brierScore: mean, referenceBrierScore, count: pairs.length, runCount };
+    return { brierScore: mean, count: pairs.length, runCount };
   }
   const squaredClusterSum = [...clusterSums.values()].reduce(
     (total, clusterSum) => total + clusterSum * clusterSum,
@@ -90,15 +84,15 @@ function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
     (runCount / (runCount - 1)) * (squaredClusterSum / (pairs.length * pairs.length));
   return {
     brierScore: mean,
-    referenceBrierScore,
     count: pairs.length,
     runCount,
     brierStandardError: Math.sqrt(variance),
   };
 }
 
-export function brierSkillScore(brier: number, referenceBrier: number): number {
-  return 1 - brier / referenceBrier;
+// Brier skill against the fixed always-0.5 reference, not an empirical baseline.
+export function brierSkillScore(brier: number): number {
+  return 1 - brier / BASELINE_BRIER;
 }
 
 function buildBins(pairs: readonly ResolvedPair[]): readonly CalibrationBin[] {

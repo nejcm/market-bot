@@ -79,21 +79,6 @@ function calibrationRunContext(
   };
 }
 
-describe("reference Brier context", () => {
-  test("retains valid reference loss through the shared reader and drops invalid values", () => {
-    for (const referenceBrierScore of [0.1024, 0, -1, 2, Number.NaN]) {
-      const parsed = parseCalibrationContext({
-        byAssetClass: { equity: { brierScore: 0.1, count: 2, referenceBrierScore } },
-      });
-      if (referenceBrierScore === 0.1024) {
-        expect(parsed?.byAssetClass?.equity?.referenceBrierScore).toBe(0.1024);
-      } else {
-        expect(parsed?.byAssetClass?.equity).not.toHaveProperty("referenceBrierScore");
-      }
-    }
-  });
-});
-
 describe("buildCalibrationBlock", () => {
   const actionableMetric = {
     brierScore: 0.4,

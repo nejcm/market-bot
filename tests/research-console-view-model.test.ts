@@ -772,7 +772,6 @@ describe("research console app view model", () => {
               jobType: {
                 key: "equity",
                 brierScore: 0.2,
-                referenceBrierScore: 0.25,
                 brierSkillScore: 0.9,
                 count: 8,
               },
@@ -803,13 +802,13 @@ describe("research console app view model", () => {
         forecasts: "2/3",
         targetMet: false,
         shortfall: "1 missing",
-        calibration: "reference skill +0.20 (Brier 0.200, n=8; range 0.32, others 0.5)",
+        calibration: "skill vs 0.5 +0.20 (Brier 0.200, n=8)",
         snapshotFreshness: "AAPL snapshot 1d",
       },
     ]);
   });
 
-  test("compare cards withhold legacy skill without a reference or resolved outcomes", () => {
+  test("compare cards use fixed 0.5 skill and withhold it without resolved outcomes", () => {
     const summary = {
       runId: "old",
       findingCount: 0,
@@ -824,14 +823,14 @@ describe("research console app view model", () => {
         { summary, analytics: { calibrationAtGeneration: { jobType: metric } } },
       ])[0];
     expect(card({ brierScore: 0.2, count: 8, brierSkillScore: 0.2 })?.calibration).toBe(
-      "Brier 0.200, n=8",
+      "skill vs 0.5 +0.20 (Brier 0.200, n=8)",
     );
     expect(card({ brierScore: 0, count: 0, referenceBrierScore: 0.25 })?.calibration).toBe(
       "cal n/a",
     );
     expect(
       card({ brierScore: 0.1024, count: 8, referenceBrierScore: 0.1024 })?.calibration,
-    ).toContain("reference skill +0.00");
+    ).toContain("skill vs 0.5 +0.59");
   });
 
   test("labels an unverified latest session on the compare card", () => {

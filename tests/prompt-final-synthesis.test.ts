@@ -113,7 +113,7 @@ describe("range volatility reference", () => {
       "provider-estimated earnings date explicitly labeled as estimated",
     );
     expect(instruction).toContain(
-      "near-base-rate band (0.22-0.42 for range, 0.40-0.60 for other kinds)",
+      "near-base-rate band (0.22-0.42 only for forecasts on a listed ±1σ range-reference band, 0.40-0.60 otherwise)",
     );
     expect(instruction).toContain("does not carry over to a band of another width");
     expect(instruction).not.toMatch(/2σ|two-sigma|\b(?:5|4\.6|95)%/u);
@@ -177,7 +177,7 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
     );
     expect(instruction).toContain("Use bare `direction` only when no better-measured kind fits");
     expect(instruction).toContain(
-      "Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off its kind reference (range 0.32, others 0.5)",
+      "Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off its applicable base rate",
     );
     expect(instruction).toContain(
       "Aim for at least 1 prediction(s) using a kind other than `direction`",

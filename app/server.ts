@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
-import type { Database } from "bun:sqlite";
 import { resolveConfig, resolveResearchConsoleConfig } from "../src/config";
 import { isRecord } from "../src/guards";
 import { createProvider } from "../src/model/factory";
@@ -14,10 +13,20 @@ import {
   searchRunReports,
 } from "./artifacts";
 import { handleRunChat, type ChatEndpointDeps } from "./chat";
-import { addStar, consoleDbPath, listStars, openConsoleDb, removeStar } from "./console-db";
+import {
+  addStar,
+  consoleDbPath,
+  listStars,
+  putProfileRow,
+  removeStar,
+  withConsoleDb,
+} from "./console-db";
+import { defaultConsoleProviders, type ConsoleProviderDeps } from "./console-providers";
+import { fetchFinnhubProfile } from "./finnhub-profile";
 import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 import { isSameOriginPost } from "./same-origin";
+import { loadSecTickers, searchSecTickers } from "./sec-tickers";
 import type { Star, StarKind } from "./types";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
@@ -36,6 +45,7 @@ interface ResearchConsoleRequestOptions {
   readonly consoleDbPath?: string;
   readonly jobQueue?: ResearchConsoleJobQueue;
   readonly chatDeps?: ChatEndpointDeps;
+  readonly consoleProviders?: ConsoleProviderDeps;
 }
 
 const DEFAULT_JOB_QUEUE = createJobQueue();
@@ -101,7 +111,14 @@ export function researchConsoleStaticPath(
   return existsSync(indexPath) ? indexPath : undefined;
 }
 
-async function handleApiRequest(url: URL, dataDir: string): Promise<Response | undefined> {
+async function handleApiRequest(
+  url: URL,
+  dataDir: string,
+  consoleOptions: {
+    readonly consoleDbPath: string;
+    readonly providers: ConsoleProviderDeps;
+  },
+): Promise<Response | undefined> {
   if (url.pathname === "/api/runs") {
     return jsonResponse({ runs: await listRunSummaries(dataDir) });
   }
@@ -156,7 +173,12 @@ async function handleApiRequest(url: URL, dataDir: string): Promise<Response | u
       return jsonResponse({ error: "Invalid instrument request" }, 400);
     }
 
-    return jsonResponse(await readInstrumentTimelineDetail(dataDir, assetClass, normalizedSymbol));
+    return jsonResponse(
+      await readInstrumentTimelineDetail(dataDir, assetClass, normalizedSymbol, {
+        consoleDbPath: consoleOptions.consoleDbPath,
+        ...consoleOptions.providers,
+      }),
+    );
   }
 
   const fileMatch = /^\/api\/runs\/([^/]+)\/files$/u.exec(url.pathname);
@@ -269,15 +291,6 @@ function parseStarRequest(
   return { kind, key };
 }
 
-function withConsoleDb<T>(dbPath: string, run: (db: Database) => T): T {
-  const db = openConsoleDb(dbPath);
-  try {
-    return run(db);
-  } finally {
-    db.close();
-  }
-}
-
 function readStars(dbPath: string, dataDir: string): readonly Star[] {
   // Absent DB reads empty without creating the file or its directory.
   if (!existsSync(dbPath)) {
@@ -336,6 +349,71 @@ async function handleStarRequest(
   }
 }
 
+async function handleSymbolsRequest(
+  request: Request,
+  url: URL,
+  providers: ConsoleProviderDeps,
+): Promise<Response | undefined> {
+  if (url.pathname !== "/api/symbols") {
+    return undefined;
+  }
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const query = optionalSearchParam(url, "q");
+  if (query === undefined) {
+    return jsonResponse({ error: "Search query is required" }, 400);
+  }
+
+  const list = await loadSecTickers({
+    cacheDir: providers.secTickersCacheDir,
+    fetchFn: providers.fetchFn,
+    ...(providers.secUserAgent !== undefined ? { secUserAgent: providers.secUserAgent } : {}),
+  });
+  if (!list.ok) {
+    return jsonResponse({ error: list.message }, 502);
+  }
+  return jsonResponse({ symbols: searchSecTickers(list.payload, query) });
+}
+
+async function handleProfileRequest(
+  request: Request,
+  url: URL,
+  dbPath: string,
+  providers: ConsoleProviderDeps,
+): Promise<Response | undefined> {
+  const match = /^\/api\/profiles\/([^/]+)\/refresh$/u.exec(url.pathname);
+  if (match === null) {
+    return undefined;
+  }
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!isSameOriginPost(request, url)) {
+    return jsonResponse({ error: "Profile request origin is not allowed" }, 403);
+  }
+
+  const symbol = decodePathname(match[1] ?? "")?.toUpperCase();
+  if (symbol === undefined || !INSTRUMENT_SYMBOL_PATTERN.test(symbol)) {
+    return jsonResponse({ error: "Invalid profile request" }, 400);
+  }
+
+  const fetched = await fetchFinnhubProfile(symbol, providers.finnhubApiToken, providers.fetchFn);
+  if (!fetched.ok) {
+    return jsonResponse({ error: fetched.message }, 502);
+  }
+
+  try {
+    withConsoleDb(dbPath, (db) => putProfileRow(db, symbol, fetched.payload, fetched.fetchedAt));
+  } catch (error: unknown) {
+    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+  return jsonResponse({
+    profile: { status: "available", profile: { ...fetched.profile, fetchedAt: fetched.fetchedAt } },
+  });
+}
+
 function buildChatDeps(dataDir: string): ChatEndpointDeps {
   const consoleConfig = resolveResearchConsoleConfig();
   if (consoleConfig.chat.disabled) {
@@ -380,6 +458,7 @@ export async function handleResearchConsoleRequest(
 
   const config = resolveResearchConsoleConfig();
   const dataDir = options.dataDir ?? config.dataDir;
+  const providers = options.consoleProviders ?? defaultConsoleProviders(dataDir);
 
   const starResponse = await handleStarRequest(
     request,
@@ -391,6 +470,21 @@ export async function handleResearchConsoleRequest(
     return starResponse;
   }
 
+  const symbolsResponse = await handleSymbolsRequest(request, url, providers);
+  if (symbolsResponse !== undefined) {
+    return symbolsResponse;
+  }
+
+  const profileResponse = await handleProfileRequest(
+    request,
+    url,
+    options.consoleDbPath ?? consoleDbPath(dataDir),
+    providers,
+  );
+  if (profileResponse !== undefined) {
+    return profileResponse;
+  }
+
   // Chat endpoint — before read-only API and static handler
   const chatDeps = options.chatDeps ?? buildChatDeps(dataDir);
   const chatResponse = await handleRunChat(request, url, chatDeps);
@@ -398,7 +492,10 @@ export async function handleResearchConsoleRequest(
     return chatResponse;
   }
 
-  const apiResponse = await handleApiRequest(url, dataDir);
+  const apiResponse = await handleApiRequest(url, dataDir, {
+    consoleDbPath: options.consoleDbPath ?? consoleDbPath(dataDir),
+    providers,
+  });
   if (apiResponse !== undefined) {
     return apiResponse;
   }

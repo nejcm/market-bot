@@ -9,6 +9,7 @@
   } from "../view-model";
   import type { RunSummary } from "../../types";
   import RunTrendChart from "./run-trend-chart.svelte";
+  import SymbolSearch from "./symbol-search.svelte";
 
   interface Props {
     readonly metrics: DashboardMetrics;
@@ -61,6 +62,12 @@
   <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
     <h1 class="text-xl font-semibold tracking-tight">Dashboard</h1>
     <span class="font-mono text-[11px] text-muted-foreground">{subtitle}</span>
+  </div>
+
+  <div class="mt-4.5">
+    <div class="max-w-md">
+      <SymbolSearch {onOpenInstrument} />
+    </div>
   </div>
 
   <div class="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">

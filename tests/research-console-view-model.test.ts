@@ -56,12 +56,14 @@ import {
   instrumentFromPathname,
   instrumentPath,
   isFailedRun,
+  deepEquityJobForSymbol,
 } from "../app/client/view-model";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { financialLensGroupViews } from "../app/client/run-workspace-detail";
 import { parseCalibrationContext } from "../src/research/calibration-context";
 import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 import { resolvedPair } from "./support/research-context-helpers";
+import type { ConsoleJob } from "../app/types";
 
 function frameworkSection(name: string, metricSectionIds?: readonly string[]) {
   return {
@@ -3155,4 +3157,30 @@ test("lens section selection is per lens and respects empty and all-missing sect
     );
     expect(groups.find((group) => group.lens === "Momentum")?.tiles).toHaveLength(1);
   }
+});
+
+const consoleJob = (status: string, argv: readonly string[]): ConsoleJob => ({
+  id: crypto.randomUUID(),
+  status: status as ConsoleJob["status"],
+  argv,
+  label: "equity aapl deep",
+  createdAt: "2026-06-05T00:00:00.000Z",
+  stdout: "",
+  stderr: "",
+});
+
+describe("deep equity job lookup", () => {
+  test("finds an in-flight deep equity job for the symbol", () => {
+    const jobs = [
+      consoleJob("queued", ["equity", "aapl", "--deep"]),
+      consoleJob("running", ["equity", "MSFT", "--deep"]),
+      consoleJob("succeeded", ["equity", "aapl", "--deep"]),
+      consoleJob("queued", ["equity", "aapl"]),
+    ];
+
+    expect(deepEquityJobForSymbol(jobs, "AAPL")?.status).toBe("queued");
+    expect(deepEquityJobForSymbol(jobs, "msft")?.status).toBe("running");
+    expect(deepEquityJobForSymbol(jobs, "amzn")).toBeUndefined();
+    expect(deepEquityJobForSymbol([], "AAPL")).toBeUndefined();
+  });
 });

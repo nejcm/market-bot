@@ -149,7 +149,34 @@ export interface InstrumentTimelineDetail {
     readonly malformedRunCount: number;
     readonly malformedPredictionCount: number;
   };
+  /** Equity info card; absent for crypto and for reads without console options. */
+  readonly profile?: InstrumentProfileState;
+  /** Equity symbol with no runs that is not in the SEC ticker list. */
+  readonly notFound?: boolean;
 }
+
+export interface SymbolSearchResult {
+  readonly symbol: string;
+  readonly name?: string;
+}
+
+export interface InstrumentProfile {
+  readonly name: string;
+  readonly ticker: string;
+  readonly exchange?: string;
+  readonly industry?: string;
+  /** Finnhub values are millions; scaled to whole units here. */
+  readonly marketCap?: number;
+  readonly shareOutstanding?: number;
+  readonly ipo?: string;
+  readonly currency?: string;
+  readonly country?: string;
+  readonly fetchedAt: string;
+}
+
+export type InstrumentProfileState =
+  | { readonly status: "available"; readonly profile: InstrumentProfile }
+  | { readonly status: "gap"; readonly message: string };
 
 export interface RunSearchFilters {
   readonly query: string;

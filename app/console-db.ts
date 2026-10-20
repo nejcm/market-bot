@@ -19,7 +19,19 @@ export function openConsoleDb(dbPath: string): Database {
       PRIMARY KEY (kind, key)
     )
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS profiles (
+      symbol TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      fetched_at TEXT NOT NULL
+    )
+  `);
   return db;
+}
+
+export interface ProfileRow {
+  readonly payload: unknown;
+  readonly fetchedAt: string;
 }
 
 export function listStars(db: Database): readonly Star[] {
@@ -48,4 +60,39 @@ export function addStar(db: Database, kind: StarKind, key: string): Star {
 
 export function removeStar(db: Database, kind: StarKind, key: string): boolean {
   return db.prepare("DELETE FROM stars WHERE kind = ? AND key = ?").run(kind, key).changes > 0;
+}
+
+export function getProfileRow(db: Database, symbol: string): ProfileRow | undefined {
+  const row = db
+    .query("SELECT payload, fetched_at AS fetchedAt FROM profiles WHERE symbol = ?")
+    .get(symbol) as { readonly payload: string; readonly fetchedAt: string } | null;
+  if (row === null) {
+    return undefined;
+  }
+  try {
+    return { payload: JSON.parse(row.payload) as unknown, fetchedAt: row.fetchedAt };
+  } catch {
+    // Unreadable stored payload: treat as absent so the caller refetches.
+    return undefined;
+  }
+}
+
+export function putProfileRow(
+  db: Database,
+  symbol: string,
+  payload: unknown,
+  fetchedAt: string,
+): void {
+  db.prepare(
+    "INSERT INTO profiles (symbol, payload, fetched_at) VALUES (?, ?, ?) ON CONFLICT(symbol) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at",
+  ).run(symbol, JSON.stringify(payload), fetchedAt);
+}
+
+export function withConsoleDb<T>(dbPath: string, run: (db: Database) => T): T {
+  const db = openConsoleDb(dbPath);
+  try {
+    return run(db);
+  } finally {
+    db.close();
+  }
 }

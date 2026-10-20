@@ -1,4 +1,4 @@
-import type { ProviderHealthDetail, RunSearchResult, RunSummary, Star } from "../types";
+import type { ConsoleJob, ProviderHealthDetail, RunSearchResult, RunSummary, Star } from "../types";
 import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import { runLabel } from "./view-model-format";
@@ -206,6 +206,20 @@ export function starredSidebarEntries(
 
 export function isFailedRun(run: RunSummary): boolean {
   return run.availableFiles.includes(RUN_ARTIFACT_FILES.failure);
+}
+
+export function deepEquityJobForSymbol(
+  jobs: readonly ConsoleJob[],
+  symbol: string,
+): ConsoleJob | undefined {
+  const normalized = symbol.trim().toUpperCase();
+  return jobs.find(
+    (job) =>
+      (job.status === "queued" || job.status === "running") &&
+      job.argv[0] === "equity" &&
+      job.argv.includes("--deep") &&
+      job.argv[1]?.toUpperCase() === normalized,
+  );
 }
 
 export function runPath(runId: string): string {

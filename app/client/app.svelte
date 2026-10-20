@@ -13,6 +13,7 @@
     fetchRunSearch,
     fetchRuns,
     fetchStars,
+    refreshInstrumentProfile,
     removeStar,
   } from "./api";
   import { appSettings, setReportDetail, setShowSources } from "./app-settings.svelte";
@@ -494,6 +495,28 @@
     }
   }
 
+  async function queueDeepEquityRun(symbol: string): Promise<void> {
+    error = "";
+    try {
+      await createJob({ jobType: "equity", assetClass: "equity", symbol, depth: "deep" });
+      await refreshJobs();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function refreshProfile(symbol: string): Promise<void> {
+    error = "";
+    try {
+      const profile = await refreshInstrumentProfile(symbol);
+      if (instrumentDetail !== null && selectedInstrument?.symbol === symbol) {
+        instrumentDetail = { ...instrumentDetail, profile };
+      }
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
   function updateSearchForm(field: SearchFormField, value: string): void {
     searchForm[field] = value;
   }
@@ -635,10 +658,14 @@
           detail={instrumentDetail}
           loading={loadingInstrument}
           {runs}
+          {jobs}
           starred={selectedInstrumentStarred}
           onOpenRun={(runId) => void openRun(runId)}
           onGoHome={() => navigate("dashboard")}
           onToggleStar={() => void toggleInstrumentStar()}
+          onQueueDeepEquity={(symbol) => void queueDeepEquityRun(symbol)}
+          onRefreshProfile={(symbol) => void refreshProfile(symbol)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
         />
       {:else if view === "search"}
         <SearchView

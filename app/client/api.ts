@@ -2,6 +2,7 @@ import type {
   CalibrationDetail,
   AlphaCohortDetail,
   ConsoleJob,
+  InstrumentProfileState,
   InstrumentTimelineDetail,
   ProviderHealthDetail,
   RunDetail,
@@ -11,6 +12,7 @@ import type {
   RunSummary,
   Star,
   StarKind,
+  SymbolSearchResult,
 } from "../types";
 import { isRecord } from "../../src/guards";
 
@@ -67,8 +69,29 @@ function isInstrumentTimelineDetail(value: unknown): value is InstrumentTimeline
     Array.isArray(value.entries) &&
     Array.isArray(value.pricePoints) &&
     isRecord(value.counts) &&
-    isRecord(value.warnings)
+    isRecord(value.warnings) &&
+    (value.profile === undefined || isInstrumentProfileState(value.profile)) &&
+    (value.notFound === undefined || typeof value.notFound === "boolean")
   );
+}
+
+function isInstrumentProfileState(value: unknown): value is InstrumentProfileState {
+  if (!isRecord(value) || (value.status !== "available" && value.status !== "gap")) {
+    return false;
+  }
+  if (value.status === "gap") {
+    return typeof value.message === "string";
+  }
+  return (
+    isRecord(value.profile) &&
+    typeof value.profile.name === "string" &&
+    typeof value.profile.ticker === "string" &&
+    typeof value.profile.fetchedAt === "string"
+  );
+}
+
+function isSymbolSearchResult(value: unknown): value is SymbolSearchResult {
+  return isRecord(value) && typeof value.symbol === "string";
 }
 
 function isRunSearchResult(value: unknown): value is RunSearchResult {
@@ -107,10 +130,15 @@ function isStar(value: unknown): value is Star {
 
 async function fetchJson(path: string): Promise<unknown> {
   const response = await fetch(path);
+  const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    throw new Error(`Request failed: ${String(response.status)}`);
+    const message =
+      isRecord(payload) && typeof payload.error === "string"
+        ? payload.error
+        : `Request failed: ${String(response.status)}`;
+    throw new Error(message);
   }
-  return (await response.json()) as unknown;
+  return payload;
 }
 
 async function requestJson(method: string, path: string, body: unknown): Promise<unknown> {
@@ -119,10 +147,15 @@ async function requestJson(method: string, path: string, body: unknown): Promise
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+  const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    throw new Error(`Request failed: ${String(response.status)}`);
+    const message =
+      isRecord(payload) && typeof payload.error === "string"
+        ? payload.error
+        : `Request failed: ${String(response.status)}`;
+    throw new Error(message);
   }
-  return (await response.json()) as unknown;
+  return payload;
 }
 
 async function postJson(path: string, body: unknown): Promise<unknown> {
@@ -267,4 +300,22 @@ export async function createJob(request: CreateJobRequest): Promise<ConsoleJob> 
   }
 
   return payload;
+}
+
+export async function fetchSymbols(query: string): Promise<readonly SymbolSearchResult[]> {
+  const payload = await fetchJson(`/api/symbols?q=${encodeURIComponent(query.trim())}`);
+  if (!isRecord(payload) || !Array.isArray(payload.symbols)) {
+    throw new Error("Symbol search response is invalid");
+  }
+
+  return payload.symbols.filter(isSymbolSearchResult);
+}
+
+export async function refreshInstrumentProfile(symbol: string): Promise<InstrumentProfileState> {
+  const payload = await postJson(`/api/profiles/${encodeURIComponent(symbol)}/refresh`, {});
+  if (!isRecord(payload) || !isInstrumentProfileState(payload.profile)) {
+    throw new Error("Profile response is invalid");
+  }
+
+  return payload.profile;
 }

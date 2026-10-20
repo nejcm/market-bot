@@ -82,11 +82,33 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   and explicitly name absence in persisted Markdown, stdout, and Console. Every read boundary normalizes old
   zero-count summaries by dropping those metrics and legacy `brierSkillScore`; Console also rewrites old
   Markdown headlines/skill legends. Missing/malformed counts are unknown, never normalized or collapsed to zero.
-- Run-analytics and Console skill retain the fixed always-0.5 reference for all kinds. The per-Prediction
-  Forecast Baseline stamp below exists; the index column, rebuild and any skill metric over it are not
-  approved here. The fixed 0.25 Actionable Negative Calibration gate remains unchanged.
-- Empirical baseline skill stays deferred until at least 100 resolved v3 forecasts overall and 30 in one
-  event-kind × horizon stratum; both thresholds trigger a separate design review, not an automatic metric.
+- Run-analytics keeps the fixed always-0.5 reference. The fixed 0.25 Actionable Negative Calibration gate
+  remains unchanged. (Amended 2026-10-20: the earlier deferral of empirical baseline skill is superseded by
+  the Paired Skill headline below.)
+- Calibration's headline is Paired Skill: ΔBrier = Brier(Forecast Baseline) − Brier(model) over resolved,
+  deduped Forecast Events that carry a baseline, overall and per kind; the fixed-0.5 skill stays a
+  secondary column. Events without a baseline are excluded and counted (`excludedWithoutBaselineCount`);
+  grid events count once through the Forecast Event dedupe. No backfill: older runs lack as-of-issue
+  split-adjusted closes, so their predictions stay excluded. Pre-registered policy
+  (`PAIRED_SKILL_POLICY`; any change needs an amendment here): 95% percentile block bootstrap, 2000
+  resamples, seed 20261020, over events sorted by issuance and blocks sorted by subject so input order
+  never moves the interval; blocks cluster by the subject's first leg and chain events issued before the
+  block's latest close due date (the Scoring Policy horizon end, not the score-pass clock), so overlapping
+  horizons never count as independent; floor 30 paired events and 5 blocks (the existing Actionable
+  Negative Calibration count floor, plus enough blocks for a resample to vary); minimum useful effect
+  ΔBrier ≥ 0.01. Status is `model-better` (interval above 0), `baseline-better` (below 0) or
+  `not-yet-decidable` (interval spans 0 or below the floor). The floor is a minimum, not power: 80% power
+  for ΔBrier 0.01 at SD 0.10 needs about 784 independent blocks (`poweredBlockCount`), so every surface
+  says to expect `not-yet-decidable` until then and to treat earlier statuses as provisional. The 0.01 bar
+  is deliberately one-sided: the model must clear it to keep its probabilities, while the free baseline
+  wins on any interval below 0. The index
+  stores the baseline stamp (schema 14); an older index falls back to disk until `index rebuild`.
+- Paired Skill review cadence (pre-registered): quarterly on 2027-01-15, 2027-04-15, 2027-07-15 and
+  2027-10-15, then every 15 Jan/Apr/Jul/Oct, per kind from the summary as written that day. `model-better`
+  meeting the minimum useful effect: keep model probabilities and consider an out-of-sample model/baseline
+  mixture. `not-yet-decidable`: keep recording, no change. `baseline-better`: publish the Forecast
+  Baseline for that kind as the stated probability and say so in reports. A decision is never taken
+  between review dates or on a slice that was not pre-registered here.
 - Assembly stamps every Prediction with `origin` (`model` or `grid`) and, where an estimator exists, a
   Forecast Baseline: `baselineProbability`, `baselineVersion` and `infoCutoff` (last split-adjusted close
   used). Estimators are frozen, pure and versioned (`ewma-0.94-w60-v1`): EWMA (λ 0.94) volatility over the

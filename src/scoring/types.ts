@@ -87,6 +87,45 @@ export interface CalibrationMetric {
   readonly brierStandardError?: number;
 }
 
+export type PairedSkillStatus = "model-better" | "baseline-better" | "not-yet-decidable";
+
+/** Paired Skill over Forecast Events carrying a Forecast Baseline; `deltaBrier` is baseline − model. */
+export interface PairedSkillMetric {
+  readonly count: number;
+  readonly subjectCount: number;
+  readonly blockCount: number;
+  readonly modelBrier: number;
+  readonly baselineBrier: number;
+  readonly deltaBrier: number;
+  /** Absent below two blocks, where a block bootstrap has nothing to resample. */
+  readonly ciLow?: number;
+  readonly ciHigh?: number;
+  /** Secondary column: the model's skill against the fixed always-0.5 reference on the same events. */
+  readonly skillVsHalf: number;
+  readonly status: PairedSkillStatus;
+  readonly meetsMinimumUsefulEffect: boolean;
+}
+
+export interface PairedSkillPolicy {
+  readonly minimumUsefulEffect: number;
+  readonly minPairedCount: number;
+  readonly minBlockCount: number;
+  readonly confidenceLevel: number;
+  readonly bootstrapResamples: number;
+  readonly seed: number;
+  /** Independent blocks for 80% power at the minimum useful effect (SD 0.10); below it expect not-yet-decidable. */
+  readonly poweredBlockCount: number;
+}
+
+export interface PairedSkillSummary {
+  readonly policy: PairedSkillPolicy;
+  /** Resolved Forecast Events without a Forecast Baseline, excluded from every paired metric. */
+  readonly excludedWithoutBaselineCount: number;
+  /** Absent when no resolved Forecast Event carries a baseline. */
+  readonly overall?: PairedSkillMetric;
+  readonly byKind: Record<string, PairedSkillMetric>;
+}
+
 export interface ConditionalCalibrationSummary {
   readonly activatedCount: number;
   readonly voidedCount: number;
@@ -135,4 +174,6 @@ export interface CalibrationSummary {
   readonly marketRegimeCoverage: Record<string, number>;
   readonly byMissAutopsyCause: Record<string, number>;
   readonly conditionalPredictions: ConditionalCalibrationSummary;
+  /** Headline metric; absent only in summaries written before Paired Skill existed. */
+  readonly pairedSkill?: PairedSkillSummary;
 }

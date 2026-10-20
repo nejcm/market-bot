@@ -1005,6 +1005,57 @@ describe("run artifact index", () => {
     expect(pairs?.[0]?.marketUpdateHorizonBucket).toBe("11-15d");
   });
 
+  test("round-trips origin and the Forecast Baseline stamp for Paired Skill", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const runDir = join(dataDir, "run-baseline");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-baseline",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        predictions: [
+          prediction({
+            id: "p-grid",
+            origin: "grid",
+            baselineProbability: 0.31,
+            baselineVersion: "ewma-0.94-w60-v1",
+            infoCutoff: "2026-05-29",
+          }),
+          prediction({
+            id: "p-plain",
+            subject: "MSFT",
+            measurableAs: "close(MSFT, +5) > close(MSFT, 0)",
+          }),
+        ],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), {
+      runId: "run-baseline",
+      scores: ["p-grid", "p-plain"].map((predictionId) =>
+        predictionScore("hit", {
+          predictionId,
+          runId: "run-baseline",
+          observedAt: "2026-06-08T00:00:00.000Z",
+          scoringVersion: 3,
+        }),
+      ),
+    });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const pairs = await loadResolvedPairsFromIndex(dataDir);
+    const byId = new Map(pairs?.map((pair) => [pair.prediction.id, pair.prediction]));
+    expect(byId.get("p-grid")).toMatchObject({
+      scoringPolicyVersion: 3,
+      origin: "grid",
+      baselineProbability: 0.31,
+      baselineVersion: "ewma-0.94-w60-v1",
+      infoCutoff: "2026-05-29",
+    });
+    expect(byId.get("p-plain")).not.toHaveProperty("baselineProbability");
+    expect(byId.get("p-plain")).not.toHaveProperty("origin");
+  });
+
   test("returns undefined when the index is disabled", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeRun(dataDir, "run-a");

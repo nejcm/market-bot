@@ -8,6 +8,7 @@
     calibrationSampleWarning,
     calibrationSlices,
     formatDateMinute,
+    pairedSkillView,
     reliabilityBins,
     type SidebarView,
     type CalibrationSliceGroup,
@@ -42,6 +43,11 @@
     })).filter((entry) => entry.rows.length > 0),
   );
   const hasSummary = $derived(calibration.summary !== undefined);
+  const paired = $derived(pairedSkillView(calibration));
+
+  function signed(value: number): string {
+    return `${value >= 0 ? "+" : ""}${value.toFixed(3)}`;
+  }
 
   function formatScore(value: number | undefined): string {
     return value === undefined ? "—" : value.toFixed(3);
@@ -88,6 +94,65 @@
           Small sample ({sampleWarning.resolvedCount} of {sampleWarning.minimum} minimum) —
           calibration metrics are not yet reliable.
         </span>
+      </div>
+    {/if}
+
+    {#if paired === undefined}
+      <div class="mt-5 rounded-lg border border-border bg-card px-4.5 py-3 text-[12.5px] text-muted-foreground">
+        Paired skill vs Forecast Baseline: not recorded in this summary.
+      </div>
+    {:else}
+      <div class="mt-5 overflow-hidden rounded-lg border border-border bg-card">
+        <div
+          class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border bg-secondary px-4.5 py-2.5"
+        >
+          <span class="text-xs font-semibold">Paired skill vs Forecast Baseline</span>
+          <span class="font-mono text-[10.5px] text-muted-foreground">
+            ΔBrier = baseline − model · {paired.summary.excludedWithoutBaselineCount} excluded without
+            a baseline
+          </span>
+        </div>
+        {#if paired.rows.length === 0}
+          <div class="px-4.5 py-3 text-[12.5px] text-muted-foreground">
+            No resolved Forecast Event carries a Forecast Baseline yet.
+          </div>
+        {:else}
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[560px] text-left">
+              <thead class="font-mono text-[10px] tracking-[0.08em] text-muted-foreground">
+                <tr class="border-b border-border">
+                  <th class="px-4.5 py-2 font-normal">KIND</th>
+                  <th class="px-2 py-2 text-right font-normal">N</th>
+                  <th class="px-2 py-2 text-right font-normal">BLOCKS</th>
+                  <th class="px-2 py-2 text-right font-normal">ΔBRIER</th>
+                  <th class="px-2 py-2 text-right font-normal">95% INTERVAL</th>
+                  <th class="px-2 py-2 font-normal">STATUS</th>
+                  <th class="px-4.5 py-2 text-right font-normal">SKILL VS 0.5</th>
+                </tr>
+              </thead>
+              <tbody class="font-mono text-[11.5px] text-[#5c6066]">
+                {#each paired.rows as row}
+                  <tr class="border-b border-[#f0ede7] last:border-b-0">
+                    <td class="px-4.5 py-2 text-[12.5px] font-medium text-foreground">{row.key}</td>
+                    <td class="px-2 py-2 text-right">{row.count}</td>
+                    <td class="px-2 py-2 text-right">{row.blockCount}</td>
+                    <td class="px-2 py-2 text-right">{signed(row.deltaBrier)}</td>
+                    <td class="px-2 py-2 text-right">
+                      {row.ciLow === undefined || row.ciHigh === undefined
+                        ? "—"
+                        : `[${signed(row.ciLow)}, ${signed(row.ciHigh)}]`}
+                    </td>
+                    <td class="px-2 py-2">{row.statusText}</td>
+                    <td class="px-4.5 py-2 text-right">{row.skillVsHalf.toFixed(3)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+        <p class="border-t border-border px-4.5 py-2.5 text-[11.5px] leading-normal text-muted-foreground">
+          {paired.policyNote}
+        </p>
       </div>
     {/if}
 

@@ -156,7 +156,7 @@ Frozen, versioned no-skill probability stamped on a Prediction (`baselineProbabi
 
 ## Paired Skill
 
-Brier of the Forecast Baseline minus Brier of the model probability over the same resolved Predictions (positive means the model beat the baseline). Defined so later phases share one name; not computed yet ([ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md)).
+Calibration headline: Brier of the Forecast Baseline minus Brier of the model probability over the same resolved Forecast Events (positive means the model beat the baseline), overall and per kind, with a subject-clustered block-bootstrap interval. Status is `model-better`, `baseline-better` or `not-yet-decidable` (interval spans 0 or below the 30-event / 5-block floor). Events without a baseline are excluded and counted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
 ## Scoring Policy
 
@@ -208,7 +208,7 @@ Aggregate measurement of stated probabilities against resolved outcomes, counted
 
 ## Reference Skill
 
-Descriptive Brier skill against the fixed always-0.5 reference for all kinds. Skill against the Forecast Baseline stamp is deferred until index support is approved; this does not change Actionable Negative Calibration's fixed 0.25 gate.
+Descriptive Brier skill against the fixed always-0.5 reference for all kinds; a secondary column beside Paired Skill. It does not change Actionable Negative Calibration's fixed 0.25 gate.
 
 ## Prediction Citation Classes
 

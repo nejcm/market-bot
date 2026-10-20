@@ -5,7 +5,14 @@ import {
   isPositiveCalibrationCount,
   isUnitInterval,
 } from "./calibration-invariant";
-import type { CalibrationBin, CalibrationMetric } from "./types";
+import type {
+  CalibrationBin,
+  CalibrationMetric,
+  PairedSkillMetric,
+  PairedSkillPolicy,
+  PairedSkillStatus,
+  PairedSkillSummary,
+} from "./types";
 
 // Structural parsers shared by the prompt path and the Research Console, so the
 // Two readers of summary.json cannot disagree about which bins and slices survive.
@@ -92,4 +99,128 @@ export function parseMarketRegimeMetricMap(
     return metric === undefined ? [] : [[key, metric] as const];
   });
   return Object.fromEntries(entries);
+}
+
+const PAIRED_SKILL_STATUSES: readonly PairedSkillStatus[] = [
+  "model-better",
+  "baseline-better",
+  "not-yet-decidable",
+];
+
+function isDelta(value: number): boolean {
+  return value >= -1 && value <= 1;
+}
+
+function parsePairedSkillMetric(value: unknown): PairedSkillMetric | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const count = readNumberWhere(value, "count", isPositiveCalibrationCount);
+  const subjectCount = readNumberWhere(value, "subjectCount", isPositiveCalibrationCount);
+  const blockCount = readNumberWhere(value, "blockCount", isPositiveCalibrationCount);
+  const modelBrier = readNumberWhere(value, "modelBrier", isUnitInterval);
+  const baselineBrier = readNumberWhere(value, "baselineBrier", isUnitInterval);
+  const deltaBrier = readNumberWhere(value, "deltaBrier", isDelta);
+  const skillVsHalf = readNumberWhere(value, "skillVsHalf", (candidate) => candidate <= 1);
+  const ciLow = readNumberWhere(value, "ciLow", isDelta);
+  const ciHigh = readNumberWhere(value, "ciHigh", isDelta);
+  const status = PAIRED_SKILL_STATUSES.find((candidate) => candidate === value.status);
+  if (
+    count === undefined ||
+    subjectCount === undefined ||
+    blockCount === undefined ||
+    modelBrier === undefined ||
+    baselineBrier === undefined ||
+    deltaBrier === undefined ||
+    skillVsHalf === undefined ||
+    status === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    count,
+    subjectCount,
+    blockCount,
+    modelBrier,
+    baselineBrier,
+    deltaBrier,
+    ...(ciLow !== undefined && ciHigh !== undefined && ciLow <= ciHigh ? { ciLow, ciHigh } : {}),
+    skillVsHalf,
+    status,
+    meetsMinimumUsefulEffect: value.meetsMinimumUsefulEffect === true,
+  };
+}
+
+export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | undefined {
+  if (!isRecord(value) || !isRecord(value.policy)) {
+    return undefined;
+  }
+  const { policy } = value;
+  const minimumUsefulEffect = readNumberWhere(policy, "minimumUsefulEffect", isUnitInterval);
+  const minPairedCount = readNumberWhere(policy, "minPairedCount", isCalibrationCount);
+  const minBlockCount = readNumberWhere(policy, "minBlockCount", isCalibrationCount);
+  const confidenceLevel = readNumberWhere(policy, "confidenceLevel", isUnitInterval);
+  const bootstrapResamples = readNumberWhere(policy, "bootstrapResamples", isCalibrationCount);
+  const seed = readNumberWhere(policy, "seed", isCalibrationCount);
+  const poweredBlockCount = readNumberWhere(policy, "poweredBlockCount", isCalibrationCount);
+  const excludedWithoutBaselineCount = readNumberWhere(
+    value,
+    "excludedWithoutBaselineCount",
+    isCalibrationCount,
+  );
+  if (
+    minimumUsefulEffect === undefined ||
+    minPairedCount === undefined ||
+    minBlockCount === undefined ||
+    confidenceLevel === undefined ||
+    bootstrapResamples === undefined ||
+    seed === undefined ||
+    poweredBlockCount === undefined ||
+    excludedWithoutBaselineCount === undefined
+  ) {
+    return undefined;
+  }
+  const overall = parsePairedSkillMetric(value.overall);
+  const byKind = isRecord(value.byKind)
+    ? Object.fromEntries(
+        Object.entries(value.byKind).flatMap(([kind, raw]) => {
+          const metric = parsePairedSkillMetric(raw);
+          return metric === undefined ? [] : [[kind, metric] as const];
+        }),
+      )
+    : {};
+  return {
+    policy: {
+      minimumUsefulEffect,
+      minPairedCount,
+      minBlockCount,
+      confidenceLevel,
+      bootstrapResamples,
+      seed,
+      poweredBlockCount,
+    },
+    excludedWithoutBaselineCount,
+    ...(overall === undefined ? {} : { overall }),
+    byKind,
+  };
+}
+
+export function pairedSkillStatusText(
+  metric: PairedSkillMetric,
+  policy: PairedSkillPolicy,
+): string {
+  const floors = [
+    ...(metric.count < policy.minPairedCount ? [`${String(policy.minPairedCount)}-event`] : []),
+    ...(metric.blockCount < policy.minBlockCount ? [`${String(policy.minBlockCount)}-block`] : []),
+  ];
+  if (floors.length > 0) {
+    return `${metric.status} (below ${floors.join(" and ")} floor)`;
+  }
+  return metric.meetsMinimumUsefulEffect
+    ? `${metric.status} (meets minimum useful effect)`
+    : metric.status;
+}
+
+export function pairedSkillPolicyNote(policy: PairedSkillPolicy): string {
+  return `Floor ${String(policy.minPairedCount)} events and ${String(policy.minBlockCount)} blocks; 80% power for ΔBrier ${String(policy.minimumUsefulEffect)} (SD 0.10) needs about ${String(policy.poweredBlockCount)} independent blocks, so expect not-yet-decidable until then and treat earlier statuses as provisional. Minimum useful effect ΔBrier ≥ ${String(policy.minimumUsefulEffect)} gates keeping model probabilities; baseline-better needs only an interval below 0.`;
 }

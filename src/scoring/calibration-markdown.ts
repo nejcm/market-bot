@@ -1,6 +1,13 @@
 import { MIN_CALIBRATION_SAMPLE, UNKNOWN_REGIME_BUCKET } from "./calibration";
 import { NO_RESOLVED_METRIC_TEXT } from "./calibration-invariant";
-import type { CalibrationMetric, CalibrationSummary } from "./types";
+import { pairedSkillPolicyNote, pairedSkillStatusText } from "./calibration-read";
+import type {
+  CalibrationMetric,
+  CalibrationSummary,
+  PairedSkillMetric,
+  PairedSkillPolicy,
+  PairedSkillSummary,
+} from "./types";
 
 function formatBrier(value: number): string {
   return value.toFixed(4);
@@ -59,6 +66,48 @@ function renderMarketRegimeSection(lines: string[], summary: CalibrationSummary)
   lines.push(`Excluded from the regime slice: ${parts.join("; ")}.`, "");
 }
 
+function signed(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(4)}`;
+}
+
+function pairedSkillRow(
+  label: string,
+  metric: PairedSkillMetric,
+  policy: PairedSkillPolicy,
+): string {
+  const interval =
+    metric.ciLow === undefined || metric.ciHigh === undefined
+      ? "—"
+      : `[${signed(metric.ciLow)}, ${signed(metric.ciHigh)}]`;
+  return `| ${label} | ${String(metric.count)} | ${String(metric.blockCount)} | ${signed(metric.deltaBrier)} | ${interval} | ${pairedSkillStatusText(metric, policy)} | ${formatBrier(metric.skillVsHalf)} |`;
+}
+
+function renderPairedSkillSection(lines: string[], paired: PairedSkillSummary | undefined): void {
+  lines.push("## Paired skill vs Forecast Baseline", "");
+  if (paired === undefined) {
+    lines.push("_Not recorded in this summary._", "");
+    return;
+  }
+  const { policy } = paired;
+  lines.push(
+    `ΔBrier = baseline Brier − model Brier on the same resolved Forecast Events; positive means the model beat the Forecast Baseline. ${String(Math.round(policy.confidenceLevel * 100))}% block-bootstrap interval clustered by subject. ${pairedSkillPolicyNote(policy)}`,
+    "",
+    `Excluded without a Forecast Baseline: ${String(paired.excludedWithoutBaselineCount)}`,
+    "",
+  );
+  if (paired.overall === undefined) {
+    lines.push("_No resolved Forecast Event carries a Forecast Baseline yet._", "");
+    return;
+  }
+  lines.push("| Kind | Paired | Blocks | ΔBrier | Interval | Status | Skill vs 0.5 |");
+  lines.push("|---|---|---|---|---|---|---|");
+  lines.push(pairedSkillRow("all", paired.overall, policy));
+  for (const [kind, metric] of Object.entries(paired.byKind)) {
+    lines.push(pairedSkillRow(kind, metric, policy));
+  }
+  lines.push("");
+}
+
 function renderAutopsyCauseTable(lines: string[], summary: CalibrationSummary): void {
   lines.push("## Forecast error taxonomy", "");
   const entries = Object.entries(summary.byMissAutopsyCause).toSorted(
@@ -103,9 +152,9 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     "",
     `Conditional Predictions: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,
     "",
-    "## Reliability bins",
-    "",
   );
+  renderPairedSkillSection(lines, summary.pairedSkill);
+  lines.push("## Reliability bins", "");
 
   if (summary.bins.length === 0) {
     lines.push("_No populated bins yet._", "");

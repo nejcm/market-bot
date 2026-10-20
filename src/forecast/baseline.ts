@@ -49,6 +49,7 @@ export function hasSplitSignature(returns: readonly number[]): boolean {
   return robustSigma > 0 && largestMove > SPLIT_SIGNATURE_ROBUST_SIGMAS * robustSigma;
 }
 
+// Shortcut: misses 5:4/4:3 splits and a split with a ~6% same-day move, and flags a real ±log2 day; upgrade to corporate-action data when splits are fetched.
 function hasAdjustedSplitSignature(returns: readonly number[]): boolean {
   const largestMove = Math.max(...returns.map((value) => Math.abs(value)));
   return (

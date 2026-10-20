@@ -144,7 +144,19 @@ Observable forecast whose `probability` is the chance `measurableAs` is true; be
 Structured disclosure that a report emitted fewer observable Predictions than its soft target after
 earnings and research-subject gates. It records emitted, target, and missing counts; presentation
 derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
-The valid final-synthesis report's count stands; no follow-up pass requests more Predictions.
+The valid final-synthesis report's count stands; no follow-up pass requests more Predictions. Event Grid Predictions are excluded from both counts.
+
+## Event Grid
+
+Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response and stamped `origin: "grid"`. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+
+## Forecast Baseline
+
+Frozen, versioned no-skill probability stamped on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`) from split-adjusted closes: EWMA volatility, zero drift, √h. Range, direction and relative only; missing inputs omit it with a declared gap. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
+
+## Paired Skill
+
+Brier of the Forecast Baseline minus Brier of the model probability over the same resolved Predictions (positive means the model beat the baseline). Defined so later phases share one name; not computed yet ([ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md)).
 
 ## Scoring Policy
 
@@ -196,7 +208,7 @@ Aggregate measurement of stated probabilities against resolved outcomes, counted
 
 ## Reference Skill
 
-Descriptive Brier skill against the fixed always-0.5 reference for all kinds. Construction-specific skill is deferred until per-Prediction reference stamps and index support are approved; this does not change Actionable Negative Calibration's fixed 0.25 gate.
+Descriptive Brier skill against the fixed always-0.5 reference for all kinds. Skill against the Forecast Baseline stamp is deferred until index support is approved; this does not change Actionable Negative Calibration's fixed 0.25 gate.
 
 ## Prediction Citation Classes
 

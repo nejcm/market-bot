@@ -336,11 +336,6 @@ function readDepthProfileTarget(report?: Record<string, unknown>): number | unde
   return typeof target === "number" && Number.isFinite(target) ? target : undefined;
 }
 
-function arrayCount(record: Record<string, unknown>, key: string): number {
-  const value = record[key];
-  return Array.isArray(value) ? value.length : 0;
-}
-
 export function predictionTargetHealth(
   analytics?: Record<string, unknown>,
   report?: Record<string, unknown>,
@@ -372,7 +367,8 @@ export function predictionTargetHealth(
     return undefined;
   }
 
-  const count = arrayCount(report, "predictions");
+  const items = Array.isArray(report.predictions) ? report.predictions : [];
+  const count = items.filter((item) => !isRecord(item) || item.origin !== "grid").length;
   return {
     count,
     target: fallbackTarget,

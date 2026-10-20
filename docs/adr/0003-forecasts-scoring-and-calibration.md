@@ -82,11 +82,32 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   and explicitly name absence in persisted Markdown, stdout, and Console. Every read boundary normalizes old
   zero-count summaries by dropping those metrics and legacy `brierSkillScore`; Console also rewrites old
   Markdown headlines/skill legends. Missing/malformed counts are unknown, never normalized or collapsed to zero.
-- Run-analytics and Console skill retain the fixed always-0.5 reference for all kinds. A construction-specific
-  skill reference requires a per-Prediction stamp, index column and rebuild; these are not approved here.
-  The fixed 0.25 Actionable Negative Calibration gate remains unchanged.
+- Run-analytics and Console skill retain the fixed always-0.5 reference for all kinds. The per-Prediction
+  Forecast Baseline stamp below exists; the index column, rebuild and any skill metric over it are not
+  approved here. The fixed 0.25 Actionable Negative Calibration gate remains unchanged.
 - Empirical baseline skill stays deferred until at least 100 resolved v3 forecasts overall and 30 in one
   event-kind × horizon stratum; both thresholds trigger a separate design review, not an automatic metric.
+- Assembly stamps every Prediction with `origin` (`model` or `grid`) and, where an estimator exists, a
+  Forecast Baseline: `baselineProbability`, `baselineVersion` and `infoCutoff` (last split-adjusted close
+  used). Estimators are frozen, pure and versioned (`ewma-0.94-w60-v1`): EWMA (λ 0.94) volatility over the
+  last 60 split-adjusted daily log returns, zero drift, √h aggregation. Range is the lognormal
+  outside-band probability; direction and relative (A−B) are 0.5 under zero drift but still require their
+  close windows. Conditional, volatility, IV, macro and earnings claims carry no baseline and are not
+  scored for skill. Fewer than 61 closes, a residual split (largest move above 8 robust σ and within
+  0.03 of the log of a common split ratio; ordinary large moves stay volatility), zero movement, a
+  missing series, or relative legs whose last closes are more than 4 days apart omit the baseline and
+  declare a `forecast-baseline` data gap; it is never defaulted to 0.5. A non-positive range bound
+  contributes zero tail probability. The primary symbol's window extends to the snapshot's newer
+  unverified closes so the baseline and the grid bands share one spot. Changing the math requires a new `baselineVersion`. (Added 2026-10-20; Forecast
+  Baseline is unrelated to the prior-run baseline of Forecast Persistence Telemetry.)
+- Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
+  (same bands the prompt lists) and relative vs SPY at h = 5. The primary synthesis prices them in the same
+  response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the
+  baseline; the 0.32 range-reference default is declared not to apply to grid rows. A repair attempt
+  that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, uncollected close sources, a
+  model Prediction already using the event, crypto runs and SPY's own relative event each leave the event
+  unissued and declare an `event-grid` data gap. Grid Predictions are scored and calibrated like any other
+  but do not count toward the prediction target, shortfall, kind mix or citation telemetry.
 - Actionable Negative Calibration independently assesses asset class, job type, default-horizon bucket,
   Market Regime, and Prediction kind. Require 30 resolved Forecast Events, 10 distinct Runs, and a
   Bonferroni-adjusted 98.75% one-sided bound `Brier - 2.2414 × standard error > 0.25`. Qualifying slices

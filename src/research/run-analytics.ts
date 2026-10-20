@@ -155,7 +155,9 @@ export interface RunAnalytics {
     };
   };
   readonly predictions: {
+    /** Model-chosen Predictions only; Event Grid events are counted in gridCount. */
     readonly count: number;
+    readonly gridCount: number;
     readonly retryErrorCount: number;
     readonly validationErrorCount: number;
     readonly trimWarningCount: number;
@@ -716,7 +718,9 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   const webGatherTelemetry = deriveWebGatherProviderTelemetry(trace.webGatherLoop);
   const { extendedEvidence, marketContext } = collectedSources;
   const runDurationMs = durationMs(trace);
-  const citedCount = input.report.predictions.filter(
+  // Event Grid events are code-issued; target, mix and signal telemetry describe the model's choices.
+  const modelPredictions = report.predictions.filter((prediction) => prediction.origin !== "grid");
+  const citedCount = modelPredictions.filter(
     (prediction) => prediction.sourceIds.length > 0,
   ).length;
   const evidenceRequestLoop =
@@ -744,13 +748,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           ).length,
         };
   const targetPredictions = sanitizedPredictionTargetCount(input.targetPredictions);
-  const predictionShortfall = derivePredictionShortfall(
-    report.predictions.length,
-    targetPredictions,
-  );
+  const predictionShortfall = derivePredictionShortfall(modelPredictions.length, targetPredictions);
   const dataGapCount = predictionShortfallGapCount(report.predictionShortfall, report.dataGaps);
 
-  const emittedPredictions = report.predictions;
+  const emittedPredictions = modelPredictions;
   const sourceKinds = new Map(report.sources.map((source) => [source.id, source.kind]));
   const nearBaseRateCount = emittedPredictions.filter(
     (prediction) =>
@@ -869,22 +870,23 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ...(evidenceRequestLoop !== undefined ? { evidenceRequestLoop } : {}),
     },
     predictions: {
-      count: report.predictions.length,
+      count: modelPredictions.length,
+      gridCount: report.predictions.length - modelPredictions.length,
       retryErrorCount: trace.predictionRetryErrors?.length ?? 0,
       validationErrorCount: trace.predictionErrors?.length ?? 0,
       trimWarningCount: trace.predictionTrimWarnings?.length ?? 0,
-      byKind: countBy(report.predictions, (prediction) => prediction.kind),
+      byKind: countBy(modelPredictions, (prediction) => prediction.kind),
       horizonTradingDays: horizonStats(
-        report.predictions.map((prediction) => prediction.horizonTradingDays),
+        modelPredictions.map((prediction) => prediction.horizonTradingDays),
       ),
       citedCount,
-      uncitedCount: report.predictions.length - citedCount,
+      uncitedCount: modelPredictions.length - citedCount,
       citedSourceClasses: countBy(
-        report.predictions.flatMap((prediction) => prediction.sourceIds),
+        modelPredictions.flatMap((prediction) => prediction.sourceIds),
         (id) => sourceKinds.get(id) ?? "unknown",
       ),
       targetCount: targetPredictions,
-      targetMet: report.predictions.length >= targetPredictions,
+      targetMet: modelPredictions.length >= targetPredictions,
       ...(predictionShortfall !== undefined ? { shortfall: predictionShortfall } : {}),
       ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
       nearBaseRateCount,

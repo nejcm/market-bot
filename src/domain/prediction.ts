@@ -30,6 +30,14 @@ export interface EarningsForecastTelemetry {
   readonly suppressionReason?: "event-date-not-confirmed" | "earnings-setup-not-present";
 }
 
+const PREDICTION_ORIGINS = ["grid", "model"] as const;
+
+export type PredictionOrigin = (typeof PREDICTION_ORIGINS)[number];
+
+export function isPredictionOrigin(value: unknown): value is PredictionOrigin {
+  return PREDICTION_ORIGINS.includes(value as PredictionOrigin);
+}
+
 /** Maximum distance from the applicable reference treated as near-base-rate telemetry. */
 export const NEAR_BASE_RATE_BAND = 0.1;
 
@@ -51,4 +59,10 @@ export interface Prediction {
   // Are never trusted. Absent on historical forecasts, which resolve
   // Permanently under scoring policy v2.
   readonly scoringPolicyVersion?: 3;
+  // Code-stamped at assembly; absent on historical forecasts, which were all model-chosen.
+  readonly origin?: PredictionOrigin;
+  // Forecast Baseline: omitted, never defaulted; a missing input is a declared data gap.
+  readonly baselineProbability?: number;
+  readonly baselineVersion?: string;
+  readonly infoCutoff?: string;
 }

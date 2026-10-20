@@ -49,6 +49,53 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-depository-deep": ["partial", "limited"],
 } as const;
 
+// Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
+const EXPECTED_EVENT_GRID: Record<
+  keyof typeof EXPECTED_COMPLETENESS_GRADES,
+  readonly (readonly [string, number | null])[]
+> = {
+  "equity-aapl-brief": [
+    ["grid-range-1", 0.2658],
+    ["grid-range-5", 0.2656],
+    ["grid-range-20", 0.2658],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-aapl-deep": [],
+  "equity-earnings-release-deep": [
+    ["grid-range-1", 0.3302],
+    ["grid-range-5", 0.3301],
+    ["grid-range-20", 0.3301],
+    ["grid-relative-5", null],
+  ],
+  "equity-nbis-deep": [
+    ["grid-range-1", 0.3524],
+    ["grid-range-5", 0.3523],
+    ["grid-range-20", 0.3524],
+    ["grid-relative-5", null],
+  ],
+  "equity-fpi-quarterly": [],
+  "equity-fpi-ifrs-semiannual": [],
+  "equity-analysis-comprehensive": [
+    ["grid-range-1", 0.2658],
+    ["grid-range-5", 0.2656],
+    ["grid-range-20", 0.2658],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-analysis-estimated-suppressed": [],
+  "equity-web-fallback-deep": [
+    ["grid-range-1", 0.2658],
+    ["grid-range-5", 0.2656],
+    ["grid-range-20", 0.2658],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-depository-deep": [
+    ["grid-range-1", 0.2903],
+    ["grid-range-5", 0.2893],
+    ["grid-range-20", 0.2894],
+    ["grid-relative-5", null],
+  ],
+};
+
 const runResults: RunFixtureResult[] = [];
 
 afterEach(async () => {
@@ -297,6 +344,22 @@ describe("static equity run fixtures", () => {
         result.report.equityAnalysisCompleteness?.financialCoreStatus,
         result.report.equityAnalysisCompleteness?.coverageLevel,
       ]).toEqual([...EXPECTED_COMPLETENESS_GRADES[name]]);
+      const expectedGrid = EXPECTED_EVENT_GRID[name];
+      expect(
+        result.report.predictions
+          .filter(({ origin }) => origin === "grid")
+          .map(({ id, baselineProbability }) => [id, baselineProbability ?? null]),
+      ).toEqual(expectedGrid.map(([id, baseline]) => [id, baseline]));
+      if (expectedGrid.length === 0) {
+        expect(result.report.dataGaps).toContainEqual(
+          expect.stringMatching(/^event-grid: .*no valid eventGrid probability.*grid-relative-5/u),
+        );
+      }
+      if (expectedGrid.some(([, baseline]) => baseline === null)) {
+        expect(result.report.dataGaps).toContain(
+          "forecast-baseline: Forecast Baseline omitted for grid-relative-5: no split-adjusted close history was collected for SPY",
+        );
+      }
       if (name === "equity-nbis-deep") {
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);

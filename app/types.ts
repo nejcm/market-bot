@@ -176,6 +176,8 @@ export interface InstrumentTimelineForecast {
   readonly claim: string;
   readonly subject: string;
   readonly probability: number;
+  readonly baselineProbability?: number;
+  readonly origin?: string;
   readonly horizonTradingDays: number;
   readonly outcome: InstrumentForecastOutcome;
   readonly observedAt?: string;

@@ -363,6 +363,8 @@ Prediction validation checks:
 
 Accepted predictions are canonicalized so the stored `measurableAs` matches the parser output. The stored public `claim` remains present for compatibility, but it is generated from the parsed `measurableAs`; model-authored claim text is ignored ([ADR 0003](./adr/0003-forecasts-scoring-and-calibration.md)). Legacy artifact display and indexes render from `measurableAs` when parseable and fall back to the stored `claim` otherwise.
 
+Equity instrument runs also issue a fixed Event Grid (±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5). The prompt lists each grid id with its `measurableAs`; synthesis returns `eventGrid: [{ id, probability }]` in the same response. Priced events become `origin: "grid"` Predictions; unpriced ones are not issued and appear as an `event-grid:` data gap. Every range, direction and relative Prediction also gets a Forecast Baseline (`baselineProbability`, `baselineVersion`, `infoCutoff`) or a `forecast-baseline:` data gap. Grid events are scored like other Predictions but excluded from the prediction target and shortfall.
+
 ## Report validation and rendering
 
 `src/report/schema.ts` is the report contract. It enforces:

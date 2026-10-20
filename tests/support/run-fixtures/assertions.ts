@@ -60,7 +60,9 @@ import {
 import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
 import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrument-identity";
 import { isNewsRelevantByTitleOrSymbol } from "../../../src/sources/news-relevance";
-import { parseArgs } from "../../../src/cli/args";
+import { isResearchCommand, parseArgs } from "../../../src/cli/args";
+import { FORECAST_BASELINE_VERSION } from "../../../src/forecast/baseline";
+import { eventGrid } from "../../../src/research/event-grid";
 import type { FixtureMeta, RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
 
@@ -142,6 +144,49 @@ export function assertProviderGapRestatementsDropped(result: RunFixtureResult): 
   expect(gaps).toContain("Issuer transcript unavailable.");
 }
 
+function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMeta): void {
+  const { report } = result;
+  const command = meta.command ?? parseArgs(meta.argv);
+  if (!isResearchCommand(command)) {
+    throw new Error("Fixture command must be a research run");
+  }
+  const grid = eventGrid(command, result.collectedSources);
+  const gridPredictions = report.predictions.filter(({ origin }) => origin === "grid");
+  expect(report.predictions.every(({ origin }) => origin === "grid" || origin === "model")).toBe(
+    true,
+  );
+  expect(result.analytics.predictions.gridCount).toBe(gridPredictions.length);
+  for (const event of grid.events) {
+    const issued = gridPredictions.find(({ id }) => id === event.id);
+    if (issued === undefined) {
+      expect(
+        report.dataGaps.some((gap) => gap.startsWith("event-grid: ") && gap.includes(event.id)),
+        `${event.id} neither issued nor declared`,
+      ).toBe(true);
+    } else {
+      expect(issued.measurableAs).toBe(event.measurableAs);
+      expect(result.markdown).toContain(`Event Grid: ${issued.claim}`);
+    }
+  }
+  expect(gridPredictions.every(({ id }) => grid.events.some((event) => event.id === id))).toBe(
+    true,
+  );
+  for (const prediction of report.predictions) {
+    const expression = parseObservableExpression(prediction.measurableAs);
+    if (prediction.baselineProbability !== undefined) {
+      expect(prediction.baselineVersion).toBe(FORECAST_BASELINE_VERSION);
+      expect(prediction.infoCutoff).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    } else if (["range", "direction", "relative"].includes(expression.kind)) {
+      expect(
+        report.dataGaps.some(
+          (gap) => gap.startsWith("forecast-baseline: ") && gap.includes(prediction.id),
+        ),
+        `${prediction.id} baseline neither stamped nor declared`,
+      ).toBe(true);
+    }
+  }
+}
+
 export async function assertInvariants(
   result: RunFixtureResult,
   meta: FixtureMeta,
@@ -182,8 +227,9 @@ export async function assertInvariants(
   } else {
     expect(result.analytics.newsDedupe).not.toHaveProperty("floorEligibleSelectedCount");
   }
+  const modelPredictions = result.report.predictions.filter(({ origin }) => origin !== "grid");
   const citationClasses: Record<string, number> = {};
-  for (const prediction of result.report.predictions) {
+  for (const prediction of modelPredictions) {
     for (const id of prediction.sourceIds) {
       const kind = result.report.sources.find((source) => source.id === id)?.kind ?? "unknown";
       citationClasses[kind] = (citationClasses[kind] ?? 0) + 1;
@@ -195,14 +241,12 @@ export async function assertInvariants(
       (total, count) => total + count,
       0,
     ),
-  ).toBe(
-    result.report.predictions.reduce((total, prediction) => total + prediction.sourceIds.length, 0),
-  );
+  ).toBe(modelPredictions.reduce((total, prediction) => total + prediction.sourceIds.length, 0));
   expect(result.analytics.predictions.citedSourceClasses).not.toHaveProperty("unknown");
   const rangeSnapshot = result.collectedSources.verifiedMarketSnapshot;
   const reference = rangeVolatilityReference(rangeSnapshot);
   expect(result.analytics.predictions.nearBaseRateCount).toBe(
-    result.report.predictions.filter((prediction) => {
+    modelPredictions.filter((prediction) => {
       const expression = parseObservableExpression(prediction.measurableAs);
       const band =
         reference !== undefined && !("gap" in reference)
@@ -267,14 +311,15 @@ export async function assertInvariants(
   }
   const { targetCount } = result.analytics.predictions;
   expect(report.predictionShortfall).toEqual(
-    report.predictions.length < targetCount
+    modelPredictions.length < targetCount
       ? {
-          emittedCount: report.predictions.length,
+          emittedCount: modelPredictions.length,
           targetCount,
-          missingCount: targetCount - report.predictions.length,
+          missingCount: targetCount - modelPredictions.length,
         }
       : undefined,
   );
+  assertForecastBookInvariants(result, meta);
   expect(result.markdown.match(/Research-only note/gu)?.length).toBe(1);
   // Two cassettes still return model spotlights; only market-update runs carry them (ADR 0003).
   expect(report.extras?.spotlights).toBeUndefined();

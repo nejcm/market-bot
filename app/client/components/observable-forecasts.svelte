@@ -129,6 +129,14 @@
               {forecast.kind}
             </span>
           {/if}
+          {#if forecast.origin === "grid"}
+            <span
+              class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
+              title="Event Grid: fixed event issued by code, priced by the model"
+            >
+              grid
+            </span>
+          {/if}
           <div class="contents">
             {#each subjectSymbols(forecast.subject) as symbol}
               <button
@@ -157,8 +165,22 @@
                 style:width="{pct}%"
               ></div>
               <div class="absolute inset-y-0 left-1/2 w-px bg-card" title="50%"></div>
+              {#if forecast.baselineProbability !== undefined}
+                <div
+                  class="absolute inset-y-0 w-0.5 bg-[#5c6066]"
+                  style:left="{forecast.baselineProbability * 100}%"
+                ></div>
+              {/if}
             </div>
             <span class="w-8.5 text-right font-mono text-xs font-medium tabular-nums">{pct}%</span>
+            {#if forecast.baselineProbability !== undefined}
+              <span
+                class="font-mono text-[10.5px] text-[#5c6066] tabular-nums"
+                title="Forecast Baseline: frozen no-skill reference"
+              >
+                base {Math.round(forecast.baselineProbability * 100)}%
+              </span>
+            {/if}
           {/if}
         </div>
         <div class="text-left font-mono text-[11.5px] text-[#5c6066] sm:text-right">

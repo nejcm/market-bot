@@ -75,7 +75,7 @@ export function rederivePredictionShortfallReportAfterPruning(
   const predictionShortfall = rederivePredictionShortfallAfterPruning(
     report.predictionShortfall,
     report.extras,
-    report.predictions.length,
+    report.predictions.filter((prediction) => prediction.origin !== "grid").length,
   );
   const { predictionShortfall: _predictionShortfall, ...reportWithoutPredictionShortfall } = report;
   return {

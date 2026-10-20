@@ -1,5 +1,9 @@
 import { type EvidenceQuality } from "../domain/evidence";
-import { isEarningsEventDateStatus, type Prediction } from "../domain/prediction";
+import {
+  isEarningsEventDateStatus,
+  isPredictionOrigin,
+  type Prediction,
+} from "../domain/prediction";
 import {
   isReportIntegrity,
   type KeyFinding,
@@ -693,6 +697,25 @@ function validateEquityAnalysisCompleteness(
   }
 }
 
+function validatePredictionBaselines(predictions: readonly Prediction[]): void {
+  for (const prediction of predictions) {
+    if (prediction.origin !== undefined && !isPredictionOrigin(prediction.origin)) {
+      throw new Error(`Prediction ${prediction.id} has invalid origin`);
+    }
+    const { baselineProbability, baselineVersion, infoCutoff } = prediction;
+    if (
+      baselineProbability !== undefined &&
+      (!(baselineProbability >= 0 && baselineProbability <= 1) ||
+        baselineVersion === undefined ||
+        infoCutoff === undefined)
+    ) {
+      throw new Error(
+        `Prediction ${prediction.id} Forecast Baseline needs a 0–1 probability, version, and info cutoff`,
+      );
+    }
+  }
+}
+
 export function validatePredictions(
   candidates: readonly unknown[],
   knownSourceIds: ReadonlySet<string>,
@@ -759,6 +782,7 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   validateRenderedExtras(report.extras, knownSourceIds, sourceIdErrors);
   assertNoSourceIdErrors(sourceIdErrors);
   validateEarningsForecastCertainty(report);
+  validatePredictionBaselines(report.predictions);
   assertSafeReportLanguage(report);
 
   return report;

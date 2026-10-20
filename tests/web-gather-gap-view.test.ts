@@ -109,7 +109,12 @@ const priorAmdSourceGaps = [
 const priorAmdGapTexts = priorAmdSourceGaps.map((gap) => `${gap.source}: ${gap.message}`);
 const compoundHistoricalGap =
   "business-framework: Business Framework partial for AMD: analyst-consensus: missing; segment-mix: revenue by segment unavailable";
-const priorAmdReportGapTexts = [compoundHistoricalGap, ...priorAmdGapTexts];
+const priorAmdReportGapTexts = [
+  compoundHistoricalGap,
+  ...priorAmdGapTexts,
+  "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AMD]",
+  "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AMD]",
+];
 const historicalDataGapLimit = 8;
 
 const unsupportedAnalystRange = sourceGap({

@@ -9,7 +9,7 @@ import {
   type InstrumentIdentity,
   type ProviderInstrumentId,
 } from "./domain/instrument";
-import { type Prediction } from "./domain/prediction";
+import { isPredictionOrigin, type Prediction } from "./domain/prediction";
 import {
   isMarketRegimeLabel,
   isReportIntegrity,
@@ -141,6 +141,18 @@ function readPredictions(value: unknown): readonly Prediction[] {
         // Unknown versions degrade to absent, which resolves under policy v2.
         ...(item.scoringPolicyVersion === CURRENT_SCORING_POLICY_VERSION
           ? { scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION }
+          : {}),
+        ...(isPredictionOrigin(item.origin) ? { origin: item.origin } : {}),
+        ...(typeof item.baselineProbability === "number" &&
+        item.baselineProbability >= 0 &&
+        item.baselineProbability <= 1 &&
+        typeof item.baselineVersion === "string" &&
+        typeof item.infoCutoff === "string"
+          ? {
+              baselineProbability: item.baselineProbability,
+              baselineVersion: item.baselineVersion,
+              infoCutoff: item.infoCutoff,
+            }
           : {}),
       },
     ];

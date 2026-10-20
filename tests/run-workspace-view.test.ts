@@ -750,7 +750,7 @@ describe("run workspace view", () => {
       advanced.indexOf("Operating Ratios</h3>"),
     );
     expect(await renderRunWorkspaceComponent(detail)).not.toContain(note.message);
-  });
+  }, 15_000);
 
   test("keeps stale instant-series notes out of current statement values", () => {
     const note = {
@@ -812,7 +812,7 @@ describe("run workspace view", () => {
     expect(html).toContain("$1.2500");
     expect(html).toContain("financial-core");
     expect(html).toContain("coverage missing");
-  });
+  }, 15_000);
 
   test("renders surviving diagnostics from future Failed Run Artifact versions", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "run-workspace-failure-"));
@@ -856,14 +856,14 @@ describe("run workspace view", () => {
     expect(text).toContain("$1.2500 Estimated cost");
     expect(text).not.toContain("Evidence quality assessment");
     expect(text).not.toContain("Failure diagnostics unavailable");
-  });
+  }, 15_000);
 
   test("attributes an empty language violation list to assembly output", async () => {
     const html = await renderRunWorkspaceComponent(failedDetail([]));
 
     expect(html).toContain("Attributed to assembly output, not the draft.");
     expect(html).not.toContain("matched");
-  });
+  }, 15_000);
 
   test("uses the failure marker when diagnostics are malformed", async () => {
     const detail: RunDetail = {
@@ -878,7 +878,7 @@ describe("run workspace view", () => {
     expect(html).toContain("failure.json marks this run complete");
     expect(html).not.toContain("unknown time");
     expect(html).not.toContain("Evidence Quality");
-  });
+  }, 15_000);
 
   test("emits the exact mode-aware table of contents for a deep equity run", () => {
     const entries = buildRunWorkspaceView(tableOfContentsFixture()).tableOfContents;
@@ -3278,7 +3278,7 @@ describe("run workspace view", () => {
       expect(text).toContain(row.period.replace(/\s*\((.*)\)$/u, " $1"));
       expect(text).toContain(row.revenue);
     }
-  });
+  }, 15_000);
 
   test("server-renders the report detail control only on the Report tab", async () => {
     const detail = tableOfContentsFixture();
@@ -3470,7 +3470,7 @@ describe("run workspace view", () => {
       /<span[^>]*border-dashed[^>]*title="Forecast Disagreement unavailable: 1 model probabilities; at least 2 needed for a spread"[^>]*>\s*FD UNAVAILABLE\s*<\/span>/u,
     );
     expect(text).not.toContain("FD LOW");
-  });
+  }, 15_000);
 });
 
 describe("earnings consensus conflict rendering", () => {

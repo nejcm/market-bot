@@ -9,6 +9,7 @@ import {
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
 import { priorComparable } from "./financial-lens-canonical";
+import { FINANCIAL_LENS_ORDER, financialLensMetricSectionId } from "./financial-lens-contract";
 import {
   itemByCategory,
   peIsClean,
@@ -1879,18 +1880,6 @@ function filedInput(metric: MetricResult): boolean {
   );
 }
 
-const LENS_ORDER: readonly FinancialLensName[] = [
-  "Quality",
-  "Growth",
-  "Financial Strength",
-  "Value",
-  "Momentum",
-];
-
-export function financialLensMetricSectionId(name: FinancialLensName): string {
-  return `financial-lens-${name.toLowerCase().replaceAll(" ", "-")}`;
-}
-
 function valueOf(section: readonly MetricResult[] | undefined, id: string): number | undefined {
   const metric = section?.find((candidate) => candidate.id === id);
   return metric?.status === "value" && typeof metric.value === "number" ? metric.value : undefined;
@@ -2035,7 +2024,7 @@ export function financialLensMetrics(ctx: MetricContext): {
   readonly sourceGaps: readonly SourceGap[];
 } {
   const definitions = lensDefinitions(ctx);
-  const evaluated = LENS_ORDER.map((name) => {
+  const evaluated = FINANCIAL_LENS_ORDER.map((name) => {
     const result = evaluateMetricSection(
       financialLensMetricSectionId(name),
       `Financial Lens: ${name}`,
@@ -2062,8 +2051,4 @@ export function financialLensMetrics(ctx: MetricContext): {
     postures,
     sourceGaps: emitted.flatMap(([, { sourceGaps }]) => sourceGaps),
   };
-}
-
-export function financialLensNameFromSectionId(id: string): FinancialLensName | undefined {
-  return LENS_ORDER.find((name) => financialLensMetricSectionId(name) === id);
 }

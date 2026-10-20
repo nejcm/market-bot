@@ -5,12 +5,21 @@ import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import {
+  isBusinessFrameworkGapCode,
+  type BusinessFrameworkGapCode,
+} from "./business-framework-contract";
+import {
   businessFrameworkMetrics,
   businessFrameworkMetricSectionId,
 } from "./business-framework-metrics";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import type { MetricSection } from "./metric-engine";
 import { formatMetricValue, type LensValueUnit } from "./value-format";
+
+export {
+  isBusinessFrameworkGapCode,
+  type BusinessFrameworkGapCode,
+} from "./business-framework-contract";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
   "Business",
@@ -97,26 +106,6 @@ interface BusinessFrameworkResult {
 }
 
 const SECTION_ORDER = BUSINESS_FRAMEWORK_SECTION_NAMES;
-
-const BUSINESS_FRAMEWORK_GAP_CODES = [
-  "business-description",
-  "geographic-mix",
-  "segment-mix",
-  "customer-concentration",
-  "purchase-recurrence",
-  "management-track-record",
-  "capital-allocation",
-  "company-kpis",
-  "risk-factors",
-  "analyst-consensus",
-  "pricing-power",
-  "cyclicality",
-] as const;
-export type BusinessFrameworkGapCode = (typeof BUSINESS_FRAMEWORK_GAP_CODES)[number];
-
-export function isBusinessFrameworkGapCode(value: string): value is BusinessFrameworkGapCode {
-  return (BUSINESS_FRAMEWORK_GAP_CODES as readonly string[]).includes(value);
-}
 
 export interface BusinessFrameworkGap {
   readonly code: BusinessFrameworkGapCode;

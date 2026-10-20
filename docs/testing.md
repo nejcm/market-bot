@@ -71,6 +71,10 @@ the accepted output), `synthesis.typedFigures` (figures typed outside them, pred
 These are read from each sample's `synthesis.json` and `eval-sample.json` at compare time, so labels written
 by an older commit compare on the same figures: to A/B a prompt or contract change, run the same capture
 with `--input` from a worktree at the old commit and from the new one, then `--compare` from the new one.
+`--no-judge` (only with `--input`, refused with `--ablate` because the stage-deletion rule needs judged
+verdicts) runs generation only: the plan prints generation-only totals, samples still record figure metrics
+and deterministic defects, and `eval-sample.json` / `summary.json` carry `judgeMode: "skipped"` with no
+judged verdicts. Offline replays record `judgeMode: "skipped"` too.
 Report Rerun recomputes projections/renderers from stored derived evidence, not the original
 collector calculations. Missing required normalized inputs fail; explicit null retains absence.
 Older runs without a complete Final-Synthesis Input cannot use direct stage replay. Direct replay

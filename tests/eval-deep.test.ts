@@ -1189,6 +1189,27 @@ describe("frozen-input eval replay", () => {
     );
   });
 
+  test("--input refuses --no-judge with --ablate before reading the input", async () => {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "run",
+        "scripts/eval-deep.ts",
+        "--input",
+        "/nonexistent/final-synthesis-input.json",
+        "--label",
+        "x",
+        "--ablate",
+        "critique",
+        "--no-judge",
+      ],
+      { cwd: join(import.meta.dir, ".."), stdout: "pipe", stderr: "pipe" },
+    );
+    expect(await child.exited).not.toBe(0);
+    expect(await new Response(child.stderr).text()).toContain("[--ablate <arm> | --no-judge]");
+    expect(await new Response(child.stdout).text()).toBe("");
+  });
+
   test.each([
     {
       script: "eval-deep.ts",

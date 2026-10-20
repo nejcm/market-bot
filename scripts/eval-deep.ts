@@ -13,6 +13,7 @@ import {
 import { validateLiveStage } from "../src/replay/llm-cassette";
 import {
   estimateSynthesisFile,
+  formatSynthesisEstimate,
   replayPairedSample,
   replaySynthesisFile,
 } from "../src/replay/replay-synthesis";
@@ -25,7 +26,7 @@ import { join } from "node:path";
 
 const USAGE =
   "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
-  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--ablate <arm>] [--yes]\n" +
+  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--ablate <arm> | --no-judge] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
@@ -38,6 +39,7 @@ const { values, positionals } = parseArgs({
     compare: { type: "boolean", default: false },
     "live-stages": { type: "string" },
     ablate: { type: "string" },
+    "no-judge": { type: "boolean", default: false },
     yes: { type: "boolean", default: false },
   },
   allowPositionals: true,
@@ -47,8 +49,9 @@ const ablate = Object.keys(ABLATION_ARMS).find((arm) => arm === values.ablate) a
   | keyof typeof ABLATION_ARMS
   | undefined;
 if (values.input !== undefined) {
+  // The stage-deletion rule needs judged verdicts, so an ablation always judges.
   if (
-    (values.ablate !== undefined && ablate === undefined) ||
+    (values.ablate !== undefined && (ablate === undefined || values["no-judge"])) ||
     values.fixtures !== undefined ||
     values.compare ||
     values.label === undefined ||
@@ -68,9 +71,8 @@ if (values.input !== undefined) {
   ).filter((row): row is OmissionCase => row.check === "omission");
   const estimate = await estimateSynthesisFile(values.input, ablate, omissionCases);
   const samplesCount = Number(values.samples);
-  process.stdout.write(
-    `Final synthesis input${estimate.arm === undefined ? "" : ` arm ${estimate.arm.name} (removed: ${estimate.arm.removed.join(", ")}; regenerated live: ${estimate.arm.regenerated.join(", ") || "none"})`}: ${String(estimate.observedCalls)} recorded synthesis call(s). Generation expected ~${String(estimate.expectedPerRun * samplesCount)} tokens at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded synthesis calls/sample, 25% headroom) ~${String(estimate.perRun * samplesCount)}. k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample, ~${String(estimate.judgePerRun * samplesCount)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samplesCount)}, worst case ~${String(estimate.totalWorstPerRun * samplesCount)}. Not a provider-enforced cost cap.\n`,
-  );
+  const judge = !values["no-judge"];
+  process.stdout.write(formatSynthesisEstimate(estimate, samplesCount, judge));
   const control =
     estimate.arm !== undefined && "control" in estimate.arm ? estimate.arm.control : undefined;
   if (control !== undefined) {
@@ -94,7 +96,7 @@ if (values.input !== undefined) {
     input: values.input,
     root: dir,
     omissionCases,
-    judge: { provider, model: config.synthesisModel },
+    ...(judge ? { judge: { provider, model: config.synthesisModel } } : {}),
     provider,
     models: { quick: config.quickModel, synthesis: config.synthesisModel },
   };
@@ -102,7 +104,12 @@ if (values.input !== undefined) {
   for (let sample = 1; sample <= samplesCount; sample += 1) {
     if (ablate !== undefined && control !== undefined) {
       // oxlint-disable-next-line no-await-in-loop -- each pair writes isolated directories
-      const pair = await replayPairedSample({ ...shared, index: sample, ablation: ablate });
+      const pair = await replayPairedSample({
+        ...shared,
+        judge: { provider, model: config.synthesisModel },
+        index: sample,
+        ablation: ablate,
+      });
       samples.push(pair.control, pair.ablation);
     } else {
       samples.push(
@@ -114,6 +121,7 @@ if (values.input !== undefined) {
   await writeEvalJson(dir, "summary.json", {
     scope: "final-synthesis-only",
     arm: estimate.arm,
+    judgeMode: judge ? "k=3" : "skipped",
     samples,
   });
   process.stdout.write(`${join(dir, "summary.json")}\n`);

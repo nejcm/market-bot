@@ -2,12 +2,16 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
-import type { RunSearchResult, RunSummary } from "../app/types";
+import type { RunSearchResult, RunSummary, WatchlistRowState } from "../app/types";
 import { marketUpdateHorizonBucketOf, type AssetClass, type JobType } from "./domain/job-type";
 import { type PredictionKind } from "./domain/prediction";
 import { isMarketRegimeLabel } from "./domain/report";
 import { dataRootFromRunsDir } from "./data-paths";
-import { renderClaimForMeasurableAs } from "./forecast/observable";
+import {
+  instrumentsForExpression,
+  parseObservableExpression,
+  renderClaimForMeasurableAs,
+} from "./forecast/observable";
 import type { HistorySearchEntry, HistorySearchFilters, HistorySection } from "./history/artifacts";
 import {
   finalizeStatement,
@@ -967,4 +971,148 @@ export async function loadConditionalCalibrationCountsFromIndex(
     // Into buildCalibrationSummary; this query only supplies excluded voids.
     return { activatedCount: 0, voidedCount: voidedEvents.size };
   });
+}
+
+interface WatchlistPredictionQueryRow {
+  readonly id: string;
+  readonly measurable_as: string;
+  readonly subject: string;
+  readonly resolved: number | null;
+  readonly status: string | null;
+  readonly outcome: string | null;
+  readonly observed_at: string | null;
+  readonly generated_at: string | null;
+}
+
+function predictionSymbolsForRow(row: WatchlistPredictionQueryRow): readonly string[] | undefined {
+  try {
+    return instrumentsForExpression(parseObservableExpression(row.measurable_as)).map((symbol) =>
+      symbol.toUpperCase(),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function predictionMatchesInstrument(row: WatchlistPredictionQueryRow, symbol: string): boolean {
+  const parsedSymbols = predictionSymbolsForRow(row);
+  return parsedSymbols === undefined
+    ? row.subject.toUpperCase() === symbol
+    : parsedSymbols.includes(symbol);
+}
+
+// Open = unscored (no score row) or unresolved with a pending-family status.
+// Voided/abandoned are terminal; the status check covers scores stored otherwise.
+function isOpenWatchlistPrediction(row: WatchlistPredictionQueryRow): boolean {
+  if (row.resolved === null) {
+    return true;
+  }
+  return row.resolved === 0 && row.status !== "voided" && row.status !== "abandoned";
+}
+
+function instrumentWatchlistRow(
+  db: Database,
+  assetClass: string,
+  symbol: string,
+): WatchlistRowState {
+  const normalizedSymbol = symbol.toUpperCase();
+  const latest = db
+    .query(
+      `SELECT run_id AS runId, generated_at AS generatedAt, depth
+       FROM runs WHERE asset_class = ? AND symbol = ?
+       ORDER BY generated_at DESC, run_dir_name DESC LIMIT 1`,
+    )
+    .get(assetClass, normalizedSymbol) as {
+    readonly runId: string;
+    readonly generatedAt: string | null;
+    readonly depth: string | null;
+  } | null;
+  if (latest === null) {
+    return { state: "never-run" };
+  }
+
+  const predictions = db
+    .query(
+      `SELECT p.id, p.measurable_as, p.subject, s.resolved, s.status, s.outcome,
+              s.observed_at, r.generated_at
+       FROM predictions p
+       LEFT JOIN scores s ON s.run_id = p.run_id AND s.prediction_id = p.id
+       JOIN runs r ON r.run_id = p.run_id
+       WHERE p.run_id IN (
+         SELECT run_id FROM runs WHERE asset_class = ? AND symbol = ?
+       )`,
+    )
+    .all(assetClass, normalizedSymbol) as readonly WatchlistPredictionQueryRow[];
+
+  let openPredictionCount = 0;
+  let latestCalibration: { readonly outcome: "hit" | "miss"; readonly at: string } | undefined =
+    undefined;
+  for (const row of predictions) {
+    if (!predictionMatchesInstrument(row, normalizedSymbol)) {
+      continue;
+    }
+    if (isOpenWatchlistPrediction(row)) {
+      openPredictionCount += 1;
+      continue;
+    }
+    if (row.outcome !== "hit" && row.outcome !== "miss") {
+      continue;
+    }
+    const at = row.observed_at ?? row.generated_at;
+    if (at === null || (latestCalibration !== undefined && at <= latestCalibration.at)) {
+      continue;
+    }
+    latestCalibration = { outcome: row.outcome, at };
+  }
+
+  return {
+    state: "available",
+    latestRunId: latest.runId,
+    ...(latest.generatedAt !== null ? { latestRunAt: latest.generatedAt } : {}),
+    ...(latest.depth !== null ? { depth: latest.depth } : {}),
+    openPredictionCount,
+    ...(latestCalibration !== undefined ? { latestCalibration } : {}),
+  };
+}
+
+export async function readInstrumentWatchlistRows(
+  dataDir: string,
+  instruments: readonly { readonly assetClass: string; readonly symbol: string }[],
+): Promise<readonly WatchlistRowState[] | undefined> {
+  // Undefined overall means the index is unavailable; every item then declares index-unavailable.
+  return await withFreshIndex(dataDir, async (db) =>
+    instruments.map((instrument) =>
+      instrumentWatchlistRow(db, instrument.assetClass, instrument.symbol),
+    ),
+  );
+}
+
+export interface LatestSuccessfulInstrumentRun {
+  readonly runId: string;
+  readonly runDirName: string;
+  readonly generatedAt: string | null;
+}
+
+export async function readLatestSuccessfulInstrumentRuns(
+  dataDir: string,
+  instruments: readonly { readonly assetClass: string; readonly symbol: string }[],
+): Promise<readonly (LatestSuccessfulInstrumentRun | null)[] | undefined> {
+  // Failed runs carry no symbol in the index, so the status filter is defensive.
+  return await withFreshIndex(dataDir, async (db) =>
+    instruments.map(
+      (instrument) =>
+        db
+          .query(
+            `SELECT run_id AS runId, run_dir_name AS runDirName, generated_at AS generatedAt
+             FROM runs
+             WHERE asset_class = ? AND symbol = ? AND report_status != 'failed'
+             ORDER BY generated_at DESC, run_dir_name DESC
+             LIMIT 1`,
+          )
+          .get(
+            instrument.assetClass,
+            instrument.symbol.toUpperCase(),
+          ) as LatestSuccessfulInstrumentRun | null,
+    ),
+  );
 }

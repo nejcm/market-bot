@@ -1,4 +1,4 @@
-import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
+import type { ConsoleJob, Pin, ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
 import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import type { InstrumentRunHistoryEntry } from "./view-model-history";
@@ -18,7 +18,7 @@ export {
   textItems,
 } from "../report-artifact-view";
 
-export { formatDate, formatDateMinute, runLabel } from "./view-model-format";
+export { formatAge, formatDate, formatDateMinute, runLabel } from "./view-model-format";
 
 export {
   financialLensMetricTiles,
@@ -81,6 +81,7 @@ const SIDEBAR_VIEW_PATHS = {
   dashboard: "/",
   search: "/search",
   jobs: "/jobs",
+  watchlists: "/watchlists",
   calibration: "/calibration",
   "alpha-cohorts": "/alpha-cohorts",
   health: "/health",
@@ -173,6 +174,20 @@ export function isFailedRun(run: RunSummary): boolean {
   return run.availableFiles.includes(RUN_ARTIFACT_FILES.failure);
 }
 
+export function deepEquityJobForSymbol(
+  jobs: readonly ConsoleJob[],
+  symbol: string,
+): ConsoleJob | undefined {
+  const normalized = symbol.trim().toUpperCase();
+  return jobs.find(
+    (job) =>
+      (job.status === "queued" || job.status === "running") &&
+      job.argv[0] === "equity" &&
+      job.argv.includes("--deep") &&
+      job.argv[1]?.toUpperCase() === normalized,
+  );
+}
+
 export function runPath(runId: string): string {
   return `${RUN_PATH_PREFIX}${encodeURIComponent(runId)}`;
 }
@@ -234,6 +249,54 @@ function matchesRunFilter(run: RunSummary, typeFilter: string, queryText: string
     (typeFilter === "all" || (run.jobType ?? "run") === typeFilter) &&
     (queryText.trim() === "" || matchesQuery(run, queryText))
   );
+}
+
+// Stable partition: pinned items first, each side keeps its incoming order.
+export function pinnedFirst<T>(
+  items: readonly T[],
+  pinnedRunIds: ReadonlySet<string>,
+  runIdOf: (item: T) => string,
+): readonly T[] {
+  return [
+    ...items.filter((item) => pinnedRunIds.has(runIdOf(item))),
+    ...items.filter((item) => !pinnedRunIds.has(runIdOf(item))),
+  ];
+}
+
+// Null until pins load or while a pin request is in flight: the toggle cannot know the current state.
+export function pinToggleIntent(
+  pins: readonly Pin[] | null,
+  requestInFlight: boolean,
+  runId: string,
+): "pin" | "unpin" | null {
+  if (pins === null || requestInFlight) {
+    return null;
+  }
+  return pins.some((pin) => pin.runId === runId) ? "unpin" : "pin";
+}
+
+export interface PinnedSidebarEntry {
+  readonly runId: string;
+  readonly run?: RunSummary;
+}
+
+// Present pins follow the run list order and filter; missing ones always trail, unfiltered.
+export function pinnedSidebarEntries(
+  pins: readonly Pin[],
+  runs: readonly RunSummary[],
+  typeFilter: string,
+  queryText: string,
+): readonly PinnedSidebarEntry[] {
+  const runIds = new Set(runs.map((run) => run.runId));
+  const present = new Set(
+    pins.filter((pin) => pin.missing !== true && runIds.has(pin.runId)).map((pin) => pin.runId),
+  );
+  return [
+    ...runs
+      .filter((run) => present.has(run.runId) && matchesRunFilter(run, typeFilter, queryText))
+      .map((run) => ({ runId: run.runId, run })),
+    ...pins.filter((pin) => !present.has(pin.runId)).map((pin) => ({ runId: pin.runId })),
+  ];
 }
 
 // Keeps a group while any of its runs matches, so its head stays the newest run.
@@ -536,4 +599,16 @@ function confidenceLabel(value: number): string {
   }
 
   return "low";
+}
+
+type NoteIndicator = "error" | "unsaved" | "saved" | "empty";
+
+export function noteIndicator(notice: string, body: string, savedBody: string): NoteIndicator {
+  if (notice !== "") {
+    return "error";
+  }
+  if (body !== savedBody) {
+    return "unsaved";
+  }
+  return savedBody === "" ? "empty" : "saved";
 }

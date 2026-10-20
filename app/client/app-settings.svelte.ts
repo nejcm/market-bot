@@ -14,3 +14,8 @@ export function setShowSources(value: boolean): void {
   appSettings.showSources = value;
   saveAppSettings(appSettings);
 }
+
+export function setStaleAfterDays(value: number): void {
+  appSettings.staleAfterDays = value;
+  saveAppSettings(appSettings);
+}

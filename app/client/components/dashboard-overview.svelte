@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Pin from "@lucide/svelte/icons/pin";
   import {
     formatDateMinute,
     runCountsLabel,
@@ -9,6 +10,7 @@
   } from "../view-model";
   import type { RunSummary } from "../../types";
   import RunTrendChart from "./run-trend-chart.svelte";
+  import SymbolSearch from "./symbol-search.svelte";
 
   interface Props {
     readonly metrics: DashboardMetrics;
@@ -16,6 +18,7 @@
     readonly recentRuns: readonly RunSummary[];
     readonly compareCards: readonly RunCompareCard[];
     readonly loadingRuns: boolean;
+    readonly pinnedRunIds: ReadonlySet<string>;
     readonly onOpenRun: (runId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
@@ -26,6 +29,7 @@
     recentRuns,
     compareCards,
     loadingRuns,
+    pinnedRunIds,
     onOpenRun,
     onOpenInstrument,
   }: Props = $props();
@@ -61,6 +65,12 @@
   <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
     <h1 class="text-xl font-semibold tracking-tight">Dashboard</h1>
     <span class="font-mono text-[11px] text-muted-foreground">{subtitle}</span>
+  </div>
+
+  <div class="mt-4.5">
+    <div class="max-w-md">
+      <SymbolSearch {onOpenInstrument} />
+    </div>
   </div>
 
   <div class="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -108,7 +118,7 @@
         >
               <span class="min-w-0">
                 <span class="block truncate text-[12.5px] font-semibold text-foreground">
-                  {card.label}
+                  {#if pinnedRunIds.has(card.runId)}<Pin class="mr-1 inline size-3 fill-current align-[-1px] text-[#c9a24b]" aria-label="Pinned" />{/if}{card.label}
                 </span>
                 <span class="mt-0.5 block font-mono text-[10px] text-[#a8acb1]">
                   {card.generatedAt}
@@ -165,7 +175,7 @@
               type="button"
               onclick={() => onOpenRun(run.runId)}
             >
-              {runLabel(run)}
+              {#if pinnedRunIds.has(run.runId)}<Pin class="mr-1 inline size-3 fill-current align-[-1px] text-[#c9a24b]" aria-label="Pinned" />{/if}{runLabel(run)}
             </button>
             <span class="shrink-0 font-mono text-[10px] text-muted-foreground">
               {formatDateMinute(run.generatedAt)}

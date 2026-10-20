@@ -25,6 +25,9 @@ The CLI, Research Console, orchestration, and durable Run Artifacts share one pl
 - Files under `data/runs/<run-id>/` are canonical. `data/calibration/`, `data/history/`, `data/index.sqlite`,
   `data/cache/`, and shared news/peer state have separate ownership; indexes are rebuildable query layers.
   Rebuildability does not authorize deleting or pruning data.
+- Console user state — Watchlists, Run Notes, and Pins — lives in a separate SQLite file
+  `data/console/console.sqlite` (`bun:sqlite`), never `index.sqlite`. It is user-owned and
+  non-rebuildable; prune, rebuild, and index paths never touch `data/console/`.
 - Publish complete run directories by staging then atomic rename. Parallel runs serialize scoring,
   Calibration, index, and history mutations through `data/shared-state.lock`; news-seen and learned-peer
   merges use their own locks. Never expose a partially written run as a published Run Artifact.
@@ -60,3 +63,4 @@ The CLI, Research Console, orchestration, and durable Run Artifacts share one pl
 - Freshness checks remain proportional to run count; stale healing can require a full rebuild.
 - Deep equity has one normalized evidence authority and one production read path; failed runs remain diagnosable.
 - Persistence or index changes must preserve whole-run publication, lock ownership, and absent/malformed distinctions.
+- Console user state survives index/history rebuilds and run pruning; it is never derived from artifacts.

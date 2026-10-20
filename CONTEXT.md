@@ -26,6 +26,37 @@ their posture labels. Collection drops nothing; only placement changes.
 
 Local UI for browsing run history, Research Views, Sources, Source Gaps, evidence quality, analytics, and provider health.
 
+## Watchlist
+
+Named, manually orderable list of equities in the Console, persisted in the Console DB as
+`watchlists` / `watchlist_items` rows. Rows show only derived data read from the Run Artifact
+Index — latest run date/age, depth, open Observable Predictions, and latest Calibration hit/miss —
+never stored notes or tags. A symbol with no runs renders as "never run", and an unavailable
+index is declared per row instead of silently omitted.
+
+An open Observable Prediction is one counted from that instrument's own runs — runs whose
+`symbol` matches the row's instrument, further filtered to Predictions whose `measurableAs`
+resolves to that instrument — that has no score row, or whose score is unresolved with a
+pending-family status (`pending`, `pending-condition`, `active-pending`). Voided and abandoned
+scores are terminal scoring states and never count as open; a Prediction in a run that was never
+scored counts as open because no scoring verdict exists yet. Watchlists never enter research
+artifacts, prompts, exports, search, or history.
+
+## Run Note
+
+User-authored plain text attached to an Instrument or Run Artifact, stored only in the Console DB
+(`data/console/console.sqlite`) as a `notes(kind, key, body, updated_at)` row. Saving an empty body
+deletes the note; whitespace is preserved. Notes are limited to 10,000 characters and never enter
+Run Chat context, prompts, research artifacts, exports, or the history search index.
+
+## Pin
+
+Console user state: the user pins a Run Artifact so it sorts to the top of every Console run list
+(sidebar, dashboard, instrument run history, search), each side keeping its existing order. Stored
+only in the Console DB as a `pins(run_id, created_at)` row. A pinned run whose directory is gone
+stays listed in the sidebar's pinned group as missing and can be unpinned. Pins never enter
+research artifacts, prompts, exports, or the history search index.
+
 ## Run Chat
 
 Ephemeral, per-Run Artifact Q&A in the Console. It is not persisted; when the Codex provider is active it may use web context, which never becomes a Source or Evidence.

@@ -28,11 +28,19 @@ describe("app settings", () => {
       for (const showSources of [false, true]) {
         const store = memoryStore();
 
-        saveAppSettings({ reportDetail, showSources }, store);
+        saveAppSettings({ reportDetail, showSources, staleAfterDays: 30 }, store);
 
-        expect(loadAppSettings(store)).toEqual({ reportDetail, showSources });
+        expect(loadAppSettings(store)).toEqual({ reportDetail, showSources, staleAfterDays: 30 });
       }
     }
+  });
+
+  test("round-trips a custom staleness threshold", () => {
+    const store = memoryStore();
+
+    saveAppSettings({ reportDetail: "simple", showSources: false, staleAfterDays: 14 }, store);
+
+    expect(loadAppSettings(store).staleAfterDays).toBe(14);
   });
 
   test("keeps report detail from a legacy envelope without the sources flag", () => {
@@ -40,7 +48,11 @@ describe("app settings", () => {
       [STORAGE_KEY]: JSON.stringify({ v: 1, reportDetail: "advanced" }),
     });
 
-    expect(loadAppSettings(store)).toEqual({ reportDetail: "advanced", showSources: false });
+    expect(loadAppSettings(store)).toEqual({
+      reportDetail: "advanced",
+      showSources: false,
+      staleAfterDays: 30,
+    });
   });
 
   test("falls back to defaults for a non-boolean sources flag", () => {
@@ -48,13 +60,40 @@ describe("app settings", () => {
       [STORAGE_KEY]: JSON.stringify({ v: 1, reportDetail: "advanced", showSources: "yes" }),
     });
 
-    expect(loadAppSettings(store)).toEqual({ reportDetail: "simple", showSources: false });
+    expect(loadAppSettings(store)).toEqual({
+      reportDetail: "simple",
+      showSources: false,
+      staleAfterDays: 30,
+    });
+  });
+
+  test("falls back to defaults for a non-integer or zero staleness threshold", () => {
+    for (const staleAfterDays of [0, -1, 1.5, "soon"]) {
+      const store = memoryStore({
+        [STORAGE_KEY]: JSON.stringify({
+          v: 1,
+          reportDetail: "advanced",
+          showSources: true,
+          staleAfterDays,
+        }),
+      });
+
+      expect(loadAppSettings(store), String(staleAfterDays)).toEqual({
+        reportDetail: "simple",
+        showSources: false,
+        staleAfterDays: 30,
+      });
+    }
   });
 
   test("falls back to simple for corrupt JSON", () => {
     const store = memoryStore({ [STORAGE_KEY]: "{not json" });
 
-    expect(loadAppSettings(store)).toEqual({ reportDetail: "simple", showSources: false });
+    expect(loadAppSettings(store)).toEqual({
+      reportDetail: "simple",
+      showSources: false,
+      staleAfterDays: 30,
+    });
   });
 
   test("falls back to simple for an unknown report detail", () => {
@@ -62,7 +101,11 @@ describe("app settings", () => {
       [STORAGE_KEY]: JSON.stringify({ v: 1, reportDetail: "full", showSources: true }),
     });
 
-    expect(loadAppSettings(store)).toEqual({ reportDetail: "simple", showSources: false });
+    expect(loadAppSettings(store)).toEqual({
+      reportDetail: "simple",
+      showSources: false,
+      staleAfterDays: 30,
+    });
   });
 
   test("falls back to simple for a wrong envelope version", () => {
@@ -70,13 +113,21 @@ describe("app settings", () => {
       [STORAGE_KEY]: JSON.stringify({ v: 2, reportDetail: "advanced", showSources: true }),
     });
 
-    expect(loadAppSettings(store)).toEqual({ reportDetail: "simple", showSources: false });
+    expect(loadAppSettings(store)).toEqual({
+      reportDetail: "simple",
+      showSources: false,
+      staleAfterDays: 30,
+    });
   });
 
   test("uses defaults and saves silently without a store", () => {
-    expect(loadAppSettings(null)).toEqual({ reportDetail: "simple", showSources: false });
+    expect(loadAppSettings(null)).toEqual({
+      reportDetail: "simple",
+      showSources: false,
+      staleAfterDays: 30,
+    });
     expect(() =>
-      saveAppSettings({ reportDetail: "advanced", showSources: true }, null),
+      saveAppSettings({ reportDetail: "advanced", showSources: true, staleAfterDays: 30 }, null),
     ).not.toThrow();
   });
 
@@ -89,7 +140,7 @@ describe("app settings", () => {
     };
 
     expect(() =>
-      saveAppSettings({ reportDetail: "advanced", showSources: true }, store),
+      saveAppSettings({ reportDetail: "advanced", showSources: true, staleAfterDays: 30 }, store),
     ).not.toThrow();
   });
 });

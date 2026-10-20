@@ -1,14 +1,17 @@
 <script lang="ts">
+  import Pin from "@lucide/svelte/icons/pin";
   import type { RunSummary } from "../../types";
   import {
     formatDateMinute,
     instrumentPath,
     instrumentRunHistory,
     instrumentRunHistoryFor,
+    pinnedFirst,
   } from "../view-model";
 
   interface Props {
     readonly runs: readonly RunSummary[];
+    readonly pinnedRunIds: ReadonlySet<string>;
     readonly assetClass: string;
     readonly symbol: string;
     readonly currentRunId?: string | undefined;
@@ -16,12 +19,16 @@
     readonly onOpenInstrument?: ((assetClass: string, symbol: string) => void) | undefined;
   }
 
-  let { runs, assetClass, symbol, currentRunId, onOpenRun, onOpenInstrument }: Props = $props();
+  let { runs, pinnedRunIds, assetClass, symbol, currentRunId, onOpenRun, onOpenInstrument }: Props = $props();
 
   const instrumentAssetClass = $derived(assetClass.trim());
   const instrumentSymbol = $derived(symbol.trim().toUpperCase());
   const historyRuns = $derived(
-    instrumentRunHistoryFor(instrumentRunHistory(runs), instrumentAssetClass, instrumentSymbol),
+    pinnedFirst(
+      instrumentRunHistoryFor(instrumentRunHistory(runs), instrumentAssetClass, instrumentSymbol),
+      pinnedRunIds,
+      (run) => run.runId,
+    ),
   );
 </script>
 
@@ -45,7 +52,8 @@
         </a>
       {/if}
       <span class="font-mono text-[10.5px] text-muted-foreground">
-        {historyRuns.length} {historyRuns.length === 1 ? "run" : "runs"} · newest first
+        {historyRuns.length} {historyRuns.length === 1 ? "run" : "runs"}{#if historyRuns.length > 1}
+          · {historyRuns.some((run) => pinnedRunIds.has(run.runId)) ? "pinned, then " : ""}newest first{/if}
       </span>
     </div>
   </div>
@@ -85,6 +93,9 @@
                 : 'text-[#5c6066]'}"
               title={run.runId}
             >
+              {#if pinnedRunIds.has(run.runId)}
+                <Pin class="mr-1 inline size-3 fill-current text-[#c9a24b]" aria-label="Pinned" />
+              {/if}
               {formatDateMinute(run.generatedAt)}
             </span>
             <span class="flex items-center gap-1 sm:hidden">

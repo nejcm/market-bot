@@ -77,6 +77,69 @@ export interface RunFile {
   readonly content: string;
 }
 
+export type NoteKind = "run" | "instrument";
+
+export const RUN_NOTE_MAX_LENGTH = 10_000;
+
+export interface RunNote {
+  readonly kind: NoteKind;
+  readonly key: string;
+  readonly body: string;
+  readonly updatedAt: string;
+}
+
+export interface Pin {
+  readonly runId: string;
+  readonly createdAt: string;
+  /** Pinned run whose Run Artifact directory is gone. */
+  readonly missing?: boolean;
+}
+
+export type InstrumentStalenessInput =
+  | { readonly state: "never-run" }
+  | { readonly state: "index-unavailable" }
+  | {
+      readonly state: "available";
+      readonly latestRunAt?: string;
+      readonly earningsDates: readonly string[];
+    };
+
+export interface WatchlistSummary {
+  readonly id: number;
+  readonly name: string;
+  readonly createdAt: string;
+}
+
+export type WatchlistRowState =
+  | {
+      readonly state: "available";
+      readonly latestRunId: string;
+      readonly latestRunAt?: string;
+      readonly depth?: string;
+      readonly openPredictionCount: number;
+      readonly latestCalibration?: {
+        readonly outcome: "hit" | "miss";
+        readonly at: string;
+      };
+    }
+  | { readonly state: "never-run" }
+  | { readonly state: "index-unavailable" };
+
+export interface WatchlistItem {
+  readonly assetClass: string;
+  readonly symbol: string;
+  readonly position: number | null;
+  readonly row: WatchlistRowState;
+  readonly staleness: InstrumentStalenessInput;
+}
+
+export interface WatchlistDetail {
+  readonly id: number;
+  readonly name: string;
+  readonly createdAt: string;
+  readonly items: readonly WatchlistItem[];
+}
+
 export interface ProviderHealthDetail {
   readonly summary?: Record<string, unknown>;
   readonly markdown?: string;
@@ -139,7 +202,34 @@ export interface InstrumentTimelineDetail {
     readonly malformedRunCount: number;
     readonly malformedPredictionCount: number;
   };
+  /** Equity info card; absent for crypto and for reads without console options. */
+  readonly profile?: InstrumentProfileState;
+  /** Equity symbol with no runs that is not in the SEC ticker list. */
+  readonly notFound?: boolean;
 }
+
+export interface SymbolSearchResult {
+  readonly symbol: string;
+  readonly name?: string;
+}
+
+export interface InstrumentProfile {
+  readonly name: string;
+  readonly ticker: string;
+  readonly exchange?: string;
+  readonly industry?: string;
+  /** Finnhub values are millions; scaled to whole units here. */
+  readonly marketCap?: number;
+  readonly shareOutstanding?: number;
+  readonly ipo?: string;
+  readonly currency?: string;
+  readonly country?: string;
+  readonly fetchedAt: string;
+}
+
+export type InstrumentProfileState =
+  | { readonly status: "available"; readonly profile: InstrumentProfile }
+  | { readonly status: "gap"; readonly message: string };
 
 export interface RunSearchFilters {
   readonly query: string;

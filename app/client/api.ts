@@ -2,6 +2,7 @@ import type {
   CalibrationDetail,
   AlphaCohortDetail,
   ConsoleJob,
+  InstrumentProfileState,
   InstrumentTimelineDetail,
   ProviderHealthDetail,
   RunDetail,
@@ -9,6 +10,14 @@ import type {
   RunSearchFilters,
   RunSearchResult,
   RunSummary,
+  RunNote,
+  NoteKind,
+  Pin,
+  SymbolSearchResult,
+  WatchlistDetail,
+  WatchlistItem,
+  WatchlistRowState,
+  WatchlistSummary,
 } from "../types";
 import { isRecord } from "../../src/guards";
 
@@ -19,6 +28,35 @@ export interface CreateJobRequest {
   readonly subject?: string;
   readonly depth?: string;
   readonly horizonTradingDays?: number;
+}
+
+function readNoteResponse(payload: unknown): RunNote | null {
+  if (isRecord(payload)) {
+    const { note } = payload;
+    if (note === null) {
+      return null;
+    }
+    if (
+      isRecord(note) &&
+      (note.kind === "instrument" || note.kind === "run") &&
+      typeof note.key === "string" &&
+      typeof note.body === "string" &&
+      typeof note.updatedAt === "string"
+    ) {
+      return { kind: note.kind, key: note.key, body: note.body, updatedAt: note.updatedAt };
+    }
+  }
+  throw new Error("Note response is invalid");
+}
+
+export async function fetchNote(kind: NoteKind, key: string): Promise<RunNote | null> {
+  return readNoteResponse(
+    await fetchJson(`/api/notes?kind=${kind}&key=${encodeURIComponent(key)}`),
+  );
+}
+
+export async function saveNote(kind: NoteKind, key: string, body: string): Promise<RunNote | null> {
+  return readNoteResponse(await requestJson("PUT", "/api/notes", { kind, key, body }));
 }
 
 function isRunSummary(value: unknown): value is RunSummary {
@@ -65,8 +103,29 @@ function isInstrumentTimelineDetail(value: unknown): value is InstrumentTimeline
     Array.isArray(value.entries) &&
     Array.isArray(value.pricePoints) &&
     isRecord(value.counts) &&
-    isRecord(value.warnings)
+    isRecord(value.warnings) &&
+    (value.profile === undefined || isInstrumentProfileState(value.profile)) &&
+    (value.notFound === undefined || typeof value.notFound === "boolean")
   );
+}
+
+function isInstrumentProfileState(value: unknown): value is InstrumentProfileState {
+  if (!isRecord(value) || (value.status !== "available" && value.status !== "gap")) {
+    return false;
+  }
+  if (value.status === "gap") {
+    return typeof value.message === "string";
+  }
+  return (
+    isRecord(value.profile) &&
+    typeof value.profile.name === "string" &&
+    typeof value.profile.ticker === "string" &&
+    typeof value.profile.fetchedAt === "string"
+  );
+}
+
+function isSymbolSearchResult(value: unknown): value is SymbolSearchResult {
+  return isRecord(value) && typeof value.symbol === "string";
 }
 
 function isRunSearchResult(value: unknown): value is RunSearchResult {
@@ -96,22 +155,36 @@ function isConsoleJob(value: unknown): value is ConsoleJob {
 
 async function fetchJson(path: string): Promise<unknown> {
   const response = await fetch(path);
+  const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    throw new Error(`Request failed: ${String(response.status)}`);
+    const message =
+      isRecord(payload) && typeof payload.error === "string"
+        ? payload.error
+        : `Request failed: ${String(response.status)}`;
+    throw new Error(message);
   }
-  return (await response.json()) as unknown;
+  return payload;
 }
 
-async function postJson(path: string, body: unknown): Promise<unknown> {
+async function requestJson(method: string, path: string, body: unknown): Promise<unknown> {
   const response = await fetch(path, {
-    method: "POST",
+    method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+  const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    throw new Error(`Request failed: ${String(response.status)}`);
+    const message =
+      isRecord(payload) && typeof payload.error === "string"
+        ? payload.error
+        : `Request failed: ${String(response.status)}`;
+    throw new Error(message);
   }
-  return (await response.json()) as unknown;
+  return payload;
+}
+
+async function postJson(path: string, body: unknown): Promise<unknown> {
+  return requestJson("POST", path, body);
 }
 
 export async function fetchRuns(): Promise<readonly RunSummary[]> {
@@ -225,4 +298,198 @@ export async function createJob(request: CreateJobRequest): Promise<ConsoleJob> 
   }
 
   return payload;
+}
+
+export async function fetchSymbols(query: string): Promise<readonly SymbolSearchResult[]> {
+  const payload = await fetchJson(`/api/symbols?q=${encodeURIComponent(query.trim())}`);
+  if (!isRecord(payload) || !Array.isArray(payload.symbols)) {
+    throw new Error("Symbol search response is invalid");
+  }
+
+  return payload.symbols.filter(isSymbolSearchResult);
+}
+
+export async function refreshInstrumentProfile(symbol: string): Promise<InstrumentProfileState> {
+  const payload = await postJson(`/api/profiles/${encodeURIComponent(symbol)}/refresh`, {});
+  if (!isRecord(payload) || !isInstrumentProfileState(payload.profile)) {
+    throw new Error("Profile response is invalid");
+  }
+
+  return payload.profile;
+}
+
+function isWatchlistSummary(value: unknown): value is WatchlistSummary {
+  return (
+    isRecord(value) &&
+    typeof value.id === "number" &&
+    typeof value.name === "string" &&
+    typeof value.createdAt === "string"
+  );
+}
+
+function isWatchlistRowState(value: unknown): value is WatchlistRowState {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.state === "never-run" || value.state === "index-unavailable") {
+    return true;
+  }
+  if (
+    value.state !== "available" ||
+    typeof value.latestRunId !== "string" ||
+    typeof value.openPredictionCount !== "number" ||
+    (value.latestRunAt !== undefined && typeof value.latestRunAt !== "string") ||
+    (value.depth !== undefined && typeof value.depth !== "string") ||
+    (value.latestCalibration !== undefined &&
+      (!isRecord(value.latestCalibration) ||
+        (value.latestCalibration.outcome !== "hit" && value.latestCalibration.outcome !== "miss") ||
+        typeof value.latestCalibration.at !== "string"))
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isWatchlistItem(value: unknown): value is WatchlistItem {
+  return (
+    isRecord(value) &&
+    typeof value.assetClass === "string" &&
+    typeof value.symbol === "string" &&
+    (value.position === null || typeof value.position === "number") &&
+    isWatchlistRowState(value.row)
+  );
+}
+
+function isWatchlistDetail(value: unknown): value is WatchlistDetail {
+  return (
+    isRecord(value) &&
+    typeof value.id === "number" &&
+    typeof value.name === "string" &&
+    typeof value.createdAt === "string" &&
+    Array.isArray(value.items) &&
+    value.items.every(isWatchlistItem)
+  );
+}
+
+function isPin(value: unknown): value is Pin {
+  return isRecord(value) && typeof value.runId === "string" && typeof value.createdAt === "string";
+}
+
+export async function fetchPins(): Promise<readonly Pin[]> {
+  const payload = await fetchJson("/api/pins");
+  if (!isRecord(payload) || !Array.isArray(payload.pins)) {
+    throw new Error("Pin list response is invalid");
+  }
+
+  return payload.pins.filter(isPin);
+}
+
+export async function addPin(runId: string): Promise<Pin> {
+  const payload = await requestJson("PUT", "/api/pins", { runId });
+  if (!isPin(payload)) {
+    throw new Error("Pin response is invalid");
+  }
+
+  return payload;
+}
+
+export async function removePin(runId: string): Promise<boolean> {
+  const payload = await requestJson("DELETE", "/api/pins", { runId });
+  if (!isRecord(payload) || typeof payload.removed !== "boolean") {
+    throw new Error("Pin response is invalid");
+  }
+
+  return payload.removed;
+}
+
+export async function fetchWatchlists(): Promise<readonly WatchlistSummary[]> {
+  const payload = await fetchJson("/api/watchlists");
+  if (!isRecord(payload) || !Array.isArray(payload.watchlists)) {
+    throw new Error("Watchlist list response is invalid");
+  }
+
+  return payload.watchlists.filter(isWatchlistSummary);
+}
+
+export async function fetchWatchlistMembership(symbol: string): Promise<readonly number[]> {
+  const payload = await fetchJson(`/api/watchlists?symbol=${encodeURIComponent(symbol)}`);
+  if (
+    !isRecord(payload) ||
+    !Array.isArray(payload.memberIds) ||
+    !payload.memberIds.every((id) => typeof id === "number")
+  ) {
+    throw new Error("Watchlist membership response is invalid");
+  }
+
+  return payload.memberIds;
+}
+
+export async function createWatchlist(name: string): Promise<WatchlistSummary> {
+  const payload = await postJson("/api/watchlists", { name });
+  if (!isWatchlistSummary(payload)) {
+    throw new Error("Watchlist response is invalid");
+  }
+
+  return payload;
+}
+
+export async function renameWatchlist(id: number, name: string): Promise<WatchlistSummary> {
+  const payload = await requestJson("PUT", `/api/watchlists/${String(id)}`, { name });
+  if (!isWatchlistSummary(payload)) {
+    throw new Error("Watchlist response is invalid");
+  }
+
+  return payload;
+}
+
+export async function deleteWatchlist(id: number): Promise<boolean> {
+  const payload = await requestJson("DELETE", `/api/watchlists/${String(id)}`, {});
+  if (!isRecord(payload) || typeof payload.removed !== "boolean") {
+    throw new Error("Watchlist response is invalid");
+  }
+
+  return payload.removed;
+}
+
+export async function fetchWatchlistDetail(id: number): Promise<WatchlistDetail> {
+  const payload = await fetchJson(`/api/watchlists/${String(id)}`);
+  if (!isRecord(payload) || !isWatchlistDetail(payload.watchlist)) {
+    throw new Error("Watchlist detail response is invalid");
+  }
+
+  return payload.watchlist;
+}
+
+export async function addWatchlistItem(id: number, symbol: string): Promise<void> {
+  const payload = await requestJson("PUT", `/api/watchlists/${String(id)}/items`, {
+    assetClass: "equity",
+    symbol,
+  });
+  const item = isRecord(payload) ? payload.item : undefined;
+  if (!isRecord(item) || typeof item.assetClass !== "string" || typeof item.symbol !== "string") {
+    throw new Error("Watchlist item response is invalid");
+  }
+}
+
+export async function removeWatchlistItem(id: number, symbol: string): Promise<boolean> {
+  const payload = await requestJson(
+    "DELETE",
+    `/api/watchlists/${String(id)}/items/equity/${encodeURIComponent(symbol)}`,
+    {},
+  );
+  if (!isRecord(payload) || typeof payload.removed !== "boolean") {
+    throw new Error("Watchlist item response is invalid");
+  }
+
+  return payload.removed;
+}
+
+export async function reorderWatchlist(
+  id: number,
+  items: readonly { readonly assetClass: string; readonly symbol: string }[],
+): Promise<void> {
+  const payload = await requestJson("PUT", `/api/watchlists/${String(id)}/order`, { items });
+  if (!isRecord(payload) || payload.reordered !== true) {
+    throw new Error("Watchlist reorder response is invalid");
+  }
 }

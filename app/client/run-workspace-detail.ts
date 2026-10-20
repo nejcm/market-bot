@@ -5,7 +5,7 @@ import type {
   FinancialLensPosture,
 } from "../../src/sources/extended-evidence/financial-lens";
 import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
-import { financialLensMetricSectionId } from "../../src/sources/extended-evidence/financial-lens-sections";
+import { financialLensMetricSectionId } from "../../src/sources/extended-evidence/financial-lens-contract";
 import { readRecord } from "./view-model-format";
 import { projectEquityReader, type EquityReaderProjection } from "../../src/report/equity-reader";
 import {

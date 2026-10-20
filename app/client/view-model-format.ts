@@ -40,3 +40,16 @@ export function formatDateMinute(value: string | undefined): string {
         timeStyle: "short",
       });
 }
+
+export function formatAge(value: string | undefined, now: Date = new Date()): string {
+  if (value === undefined) {
+    return "unknown age";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "unknown age";
+  }
+  const days = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86_400_000));
+  return days === 0 ? "today" : `${String(days)}d`;
+}

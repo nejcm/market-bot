@@ -9,6 +9,21 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function jsonResponse(payload: unknown, status = 200): Response {
+  return Response.json(payload, { status, headers: { "content-type": "application/json" } });
+}
+
+// Provider-backed console features fetch on cache miss; tests inject a fake seam.
+function fakeConsoleProviders(dataDir: string) {
+  return {
+    secTickersCacheDir: join(dataDir, "cache"),
+    fetchFn: (async (_input: RequestInfo | URL) =>
+      jsonResponse({
+        "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." },
+      })) as typeof fetch,
+  };
+}
+
 describe("research console app static assets", () => {
   test("resolves built files under dist", () => {
     const distDir = mkdtempSync(join(tmpdir(), "research-console-dist-"));
@@ -260,7 +275,7 @@ describe("research console app API", () => {
 
     const response = await handleResearchConsoleRequest(
       new Request("http://127.0.0.1/api/instruments/equity/aapl/timeline"),
-      { dataDir },
+      { dataDir, consoleProviders: fakeConsoleProviders(dataDir) },
     );
 
     expect(response.status).toBe(200);

@@ -28,14 +28,16 @@
 // ReadWebSubjectProfileFacts) are the strict artifact ones, moved here unchanged.
 
 import type { SubjectKind } from "../domain/evidence";
+import type {
+  BusinessFrameworkArtifact,
+  BusinessFrameworkMetric,
+  BusinessFrameworkReconciliation,
+  BusinessFrameworkSection,
+} from "../sources/extended-evidence/business-framework";
 import {
   isBusinessFrameworkGapCode,
-  type BusinessFrameworkArtifact,
   type BusinessFrameworkGapCode,
-  type BusinessFrameworkMetric,
-  type BusinessFrameworkReconciliation,
-  type BusinessFrameworkSection,
-} from "../sources/extended-evidence/business-framework";
+} from "../sources/extended-evidence/business-framework-contract";
 import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import type { LensValueUnit } from "../sources/extended-evidence/value-format";
 // Import the public profile contract leaf directly, not the ./web-evidence barrel,

@@ -4,6 +4,7 @@ const VIEWS = [
   "instrument",
   "search",
   "jobs",
+  "watchlists",
   "calibration",
   "alpha-cohorts",
   "health",

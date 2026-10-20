@@ -1,13 +1,16 @@
 <script lang="ts">
   // Deep import: the package barrel pulls every icon into the SSR graph.
   import Menu from "@lucide/svelte/icons/menu";
+  import Pin from "@lucide/svelte/icons/pin";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { RunDetail, RunSummary } from "../../types";
+  import type { RunDetail, RunSummary, WatchlistSummary } from "../../types";
   import type { ReportDetail } from "../app-settings";
   import { formatDate, jsonBlock, runLabel } from "../view-model";
   import { buildRunWorkspaceView, type RunWorkspaceSectionKey } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import RunChat from "./run-chat.svelte";
+  import RunNote from "./run-note.svelte";
+  import WatchlistMembership from "./watchlist-membership.svelte";
   import ObservableForecasts from "./observable-forecasts.svelte";
   import WebSubjectProfile from "./web-subject-profile.svelte";
   import BusinessFramework from "./business-framework.svelte";
@@ -40,6 +43,8 @@
     readonly selectedFile: string;
     readonly fileContent: string;
     readonly highlightSourceId: string;
+    readonly pinned: boolean;
+    readonly pinnedRunIds: ReadonlySet<string>;
     readonly onTabChange: (tab: Tab) => void;
     readonly onReportDetailChange?: (value: ReportDetail) => void;
     readonly onShowSourcesChange?: (value: boolean) => void;
@@ -48,6 +53,12 @@
     readonly onOpenRun: (runId: string) => void;
     readonly onHighlightSource: (sourceId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
+    readonly pinToggleDisabled: boolean;
+    readonly onTogglePin: () => void;
+    readonly watchlists: readonly WatchlistSummary[];
+    readonly watchlistLoadError: string;
+    readonly onWatchlistChanged: (id: number) => void;
+    readonly onOpenWatchlists: () => void;
     readonly onOpenMenu?: () => void;
   }
 
@@ -61,6 +72,8 @@
     selectedFile,
     fileContent,
     highlightSourceId,
+    pinned,
+    pinnedRunIds,
     onTabChange,
     onReportDetailChange = () => {},
     onShowSourcesChange = () => {},
@@ -69,6 +82,12 @@
     onOpenRun,
     onHighlightSource,
     onOpenInstrument,
+    pinToggleDisabled,
+    onTogglePin,
+    watchlists,
+    watchlistLoadError,
+    onWatchlistChanged,
+    onOpenWatchlists,
     onOpenMenu = () => {},
   }: Props = $props();
 
@@ -97,6 +116,9 @@
   const showRunHeader = $derived(equityPresentation === undefined && !failed);
   const hasInstrument = $derived(
     (detail?.summary.assetClass ?? "").trim() !== "" && (detail?.summary.symbol ?? "").trim() !== "",
+  );
+  const watchlistSymbol = $derived(
+    !failed && detail?.summary.jobType === "equity" ? (detail.summary.symbol ?? "").trim().toUpperCase() : "",
   );
   const visibleTabs = $derived(TABS.filter((tab) => tab !== "runs" || hasInstrument));
   const reportSummary = $derived(
@@ -453,12 +475,12 @@
         <!-- Below the sidebar breakpoint the run nav is the only chrome on
              screen, so it carries the sidebar trigger. -->
         <button
-          class="shrink-0 rounded-md border border-input bg-secondary p-1.5 text-foreground shadow-xs transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           type="button"
           aria-label="Open navigation"
           onclick={onOpenMenu}
         >
-          <Menu class="size-4.5" />
+          <Menu class="size-4" />
         </button>
         <div class="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
           <button
@@ -470,11 +492,35 @@
           </button>
           / {detail.summary.runId}
         </div>
+        {#key detail.summary.runId}
+          <RunNote kind="run" noteKey={detail.summary.runId} size="header" />
+        {/key}
+        {#if watchlistSymbol !== ""}
+          <WatchlistMembership
+            symbol={watchlistSymbol}
+            {watchlists}
+            {watchlistLoadError}
+            onChanged={onWatchlistChanged}
+            {onOpenWatchlists}
+            size="header"
+          />
+        {/if}
+        <button
+          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          type="button"
+          disabled={pinToggleDisabled}
+          aria-label={pinned ? "Unpin run" : "Pin run"}
+          aria-pressed={pinned}
+          title={pinned ? "Unpin run" : "Pin run to the top of run lists"}
+          onclick={onTogglePin}
+        >
+          <Pin class="size-4 {pinned ? 'fill-current text-[#c9a24b]' : ''}" />
+        </button>
       </div>
       <!-- The pill row needs more width than a phone has next to the run path,
            so narrow viewports pick the tab from the platform's own menu. -->
       <select
-        class="shrink-0 rounded-full border border-border bg-secondary py-1.5 pl-3.5 pr-2 text-[12.5px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+        class="h-8.75 shrink-0 rounded-full border border-border bg-secondary pl-3.5 pr-2 text-[12.5px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
         aria-label="Run section"
         value={activeTab}
         onchange={(event) => onTabChange(event.currentTarget.value as Tab)}
@@ -484,7 +530,7 @@
         {/each}
       </select>
       <div
-        class="hidden items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-secondary p-0.75 scrollbar-none sm:flex [&::-webkit-scrollbar]:hidden"
+        class="hidden h-8.75 items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-secondary p-0.75 scrollbar-none sm:flex [&::-webkit-scrollbar]:hidden"
         role="tablist"
       >
         {#each visibleTabs as tab}
@@ -913,6 +959,7 @@
     {:else if activeTab === "runs" && hasInstrument}
       <InstrumentRunHistory
         {runs}
+        {pinnedRunIds}
         assetClass={detail.summary.assetClass ?? ""}
         symbol={detail.summary.symbol ?? ""}
         currentRunId={detail.summary.runId}

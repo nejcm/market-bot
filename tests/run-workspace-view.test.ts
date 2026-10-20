@@ -671,6 +671,34 @@ function htmlText(html: string): string {
 }
 
 describe("run workspace view", () => {
+  test("keeps the Run Note button in the header on report, chat, and failed runs", async () => {
+    for (const detail of [tableOfContentsFixture(), failedDetail()]) {
+      for (const tab of ["report", "chat"] as const) {
+        const html = await renderRunWorkspaceComponent(detail, "simple", tab);
+        expect(html).toContain('data-screen-label="Run Note"');
+        expect(html).toContain('aria-label="Run note"');
+        expect(html).toContain('title="Run note"');
+        expect(html).not.toMatch(/>\s*Note\s*</);
+      }
+    }
+  }, 20_000);
+
+  test("shows watchlist membership only on successful equity runs", async () => {
+    const equity = await renderRunWorkspaceComponent(tableOfContentsFixture(), "simple", "report");
+    expect(equity).toContain('aria-label="Watchlists for AAPL"');
+    expect(equity).toContain('title="Watchlists for AAPL"');
+    expect(equity).not.toMatch(/>\s*Watchlists\s*</);
+    const crypto = await renderRunWorkspaceComponent(
+      { summary: summary({ jobType: "crypto", assetClass: "crypto", symbol: "BTC" }) },
+      "simple",
+      "report",
+    );
+    expect(crypto).not.toContain("Watchlists for");
+    expect(await renderRunWorkspaceComponent(failedDetail(), "simple", "report")).not.toContain(
+      "Watchlists for",
+    );
+  }, 20_000);
+
   test("routes D&A omission notes only to Operating Ratios", async () => {
     const note = {
       code: "incomplete-composite-series" as const,
@@ -3294,6 +3322,7 @@ describe("run workspace view", () => {
     expect(text).toContain("brief");
     expect(text).toContain("deep");
     expect(html).toContain('aria-current="true"');
+    expect(html).toContain('aria-label="Pin run"');
 
     const headlessSummary: RunSummary = {
       runId: "run-headless",

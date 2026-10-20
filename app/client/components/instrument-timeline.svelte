@@ -1,21 +1,51 @@
 <script lang="ts">
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import type {
+    ConsoleJob,
     InstrumentTimelineDetail,
     InstrumentTimelineForecast,
     RunSummary,
+    WatchlistSummary,
   } from "../../types";
-  import { formatClose, formatDate, formatDateMinute } from "../view-model";
+  import { deepEquityJobForSymbol, formatClose, formatDate, formatDateMinute } from "../view-model";
   import InstrumentRunHistory from "./instrument-run-history.svelte";
+  import SymbolSearch from "./symbol-search.svelte";
+  import RunNote from "./run-note.svelte";
+  import WatchlistMembership from "./watchlist-membership.svelte";
 
   interface Props {
     readonly detail: InstrumentTimelineDetail | null;
     readonly loading: boolean;
     readonly runs: readonly RunSummary[];
+    readonly pinnedRunIds: ReadonlySet<string>;
+    readonly jobs: readonly ConsoleJob[];
+    readonly watchlists: readonly WatchlistSummary[];
+    readonly watchlistLoadError: string;
+    readonly onWatchlistChanged: (id: number) => void;
+    readonly onOpenWatchlists: () => void;
     readonly onOpenRun: (runId: string) => void;
     readonly onGoHome: () => void;
+    readonly onQueueDeepEquity: (symbol: string) => void;
+    readonly onRefreshProfile: (symbol: string) => void;
+    readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
 
-  let { detail, loading, runs, onOpenRun, onGoHome }: Props = $props();
+  let {
+    detail,
+    loading,
+    runs,
+    pinnedRunIds,
+    jobs,
+    onOpenRun,
+    onGoHome,
+    watchlists,
+    watchlistLoadError,
+    onWatchlistChanged,
+    onOpenWatchlists,
+    onQueueDeepEquity,
+    onRefreshProfile,
+    onOpenInstrument,
+  }: Props = $props();
 
   let WIDTH = $state(760);
   const HEIGHT = 220;
@@ -26,6 +56,52 @@
   const plotWidth = $derived(WIDTH - PADDING_LEFT - PADDING_RIGHT);
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const baselineY = HEIGHT - PADDING_BOTTOM;
+
+  const marketCapFormat = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+
+  function formatMarketCap(value: number, currency: string | undefined): string {
+    if (currency === undefined) {
+      return marketCapFormat.format(value);
+    }
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }).format(value);
+    } catch {
+      // Unknown currency codes render as a bare number.
+      return new Intl.NumberFormat("en-US", {
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }).format(value);
+    }
+  }
+
+  const runningJob = $derived(
+    detail !== null && detail.assetClass === "equity"
+      ? deepEquityJobForSymbol(jobs, detail.symbol)
+      : undefined,
+  );
+
+  function confirmRunDeepEquity(): void {
+    if (detail === null) {
+      return;
+    }
+    if (
+      globalThis.confirm(
+        `Queue a deep equity run for ${detail.symbol}? A deep run takes about 12 minutes and uses roughly 438k live model tokens.`,
+      )
+    ) {
+      onQueueDeepEquity(detail.symbol);
+    }
+  }
 
   function dateTickStep(length: number): number {
     return Math.max(1, Math.ceil(length / Math.max(2, Math.floor(plotWidth / 72))));
@@ -95,6 +171,30 @@
   >
     Select an instrument to inspect its timeline.
   </div>
+{:else if detail.notFound === true}
+  <div data-screen-label="Unknown instrument">
+    <div class="font-mono text-[11px] text-muted-foreground">
+      <button
+        class="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        type="button"
+        onclick={onGoHome}
+      >
+        instruments
+      </button>
+      / {detail.assetClass}:{detail.symbol}
+    </div>
+
+    <div
+      class="mt-4 rounded-lg border border-dashed border-input p-9 text-center text-sm text-muted-foreground"
+    >
+      {detail.symbol} is not an SEC-registered equity ticker, so it cannot be researched here.
+      Search covers SEC registrants, including foreign filers.
+    </div>
+
+    <div class="mx-auto mt-4 max-w-md">
+      <SymbolSearch {onOpenInstrument} />
+    </div>
+  </div>
 {:else}
   <div data-screen-label="Instrument timeline">
     <div class="font-mono text-[11px] text-muted-foreground">
@@ -110,8 +210,42 @@
 
     <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 class="text-[21px] font-semibold tracking-tight">{detail.symbol}</h1>
-        <div class="mt-1 font-mono text-xs text-[#5c6066]">{detail.assetClass}</div>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <h1 class="text-[21px] font-semibold tracking-tight">{detail.symbol}</h1>
+          {#if detail.assetClass === "equity"}
+            {#key detail.instrumentKey}
+              <RunNote kind="instrument" noteKey={detail.instrumentKey} />
+            {/key}
+            <WatchlistMembership
+              symbol={detail.symbol}
+              {watchlists}
+              {watchlistLoadError}
+              onChanged={onWatchlistChanged}
+              {onOpenWatchlists}
+            />
+            {#if runningJob !== undefined}
+              <span
+                class="flex h-8 shrink-0 items-center whitespace-nowrap rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary"
+              >
+                deep equity {runningJob.status}
+              </span>
+            {:else}
+              <button
+                class="flex h-8 shrink-0 items-center whitespace-nowrap rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                type="button"
+                onclick={confirmRunDeepEquity}
+              >
+                Run deep equity
+              </button>
+            {/if}
+          {/if}
+        </div>
+        <div class="mt-1 font-mono text-xs text-[#5c6066]">
+          {detail.assetClass}
+          {#if detail.profile?.status === "available"}
+            · {detail.profile.profile.name}
+          {/if}
+        </div>
       </div>
       <div class="grid grid-cols-2 gap-4 text-right sm:grid-cols-4">
         <div>
@@ -142,6 +276,97 @@
         </div>
       </div>
     </div>
+
+    {#if detail.assetClass === "equity" && detail.profile !== undefined}
+      <section class="mt-5 rounded-lg border border-border bg-card px-4.5 py-4" data-screen-label="Instrument profile">
+        {#if detail.profile.status === "gap"}
+          <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+            <div class="flex items-start gap-3">
+              <span
+                class="mt-px shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+              >
+                SOURCE GAP
+              </span>
+              <span class="text-[12.5px] leading-normal text-[#4a4334]">
+                {detail.profile.message}
+              </span>
+            </div>
+            <button
+              class="flex h-6 items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-2 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+              aria-label="Refresh profile for {detail.symbol}"
+              onclick={() => onRefreshProfile(detail.symbol)}
+            >
+              <RefreshCw class="size-3" />
+              refresh
+            </button>
+          </div>
+        {:else}
+          {@const profile = detail.profile.profile}
+          <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h2 class="text-sm font-semibold">{profile.name}</h2>
+            <button
+              class="flex h-6 items-center gap-1.5 rounded-md border border-[#cfe0e3] bg-accent px-2 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+              aria-label="Refresh profile for {detail.symbol}"
+              onclick={() => onRefreshProfile(detail.symbol)}
+            >
+              <RefreshCw class="size-3" />
+              refresh
+            </button>
+          </div>
+          <div class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-3">
+            <div>
+              <div class="text-[10.5px] uppercase tracking-wider text-muted-foreground">Ticker</div>
+              <div class="font-mono text-xs text-[#1f2225]">{profile.ticker}</div>
+            </div>
+            {#if profile.exchange !== undefined}
+              <div>
+                <div class="text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                  Exchange
+                </div>
+                <div class="font-mono text-xs text-[#1f2225]">{profile.exchange}</div>
+              </div>
+            {/if}
+            {#if profile.industry !== undefined}
+              <div>
+                <div class="text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                  Industry
+                </div>
+                <div class="text-xs text-[#1f2225]">{profile.industry}</div>
+              </div>
+            {/if}
+            {#if profile.marketCap !== undefined}
+              <div>
+                <div class="text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                  Market cap
+                </div>
+                <div class="font-mono text-xs text-[#1f2225]">
+                  {formatMarketCap(profile.marketCap, profile.currency)}
+                </div>
+              </div>
+            {/if}
+            {#if profile.country !== undefined}
+              <div>
+                <div class="text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                  Country
+                </div>
+                <div class="text-xs text-[#1f2225]">{profile.country}</div>
+              </div>
+            {/if}
+            {#if profile.ipo !== undefined}
+              <div>
+                <div class="text-[10.5px] uppercase tracking-wider text-muted-foreground">IPO</div>
+                <div class="font-mono text-xs text-[#1f2225]">{profile.ipo}</div>
+              </div>
+            {/if}
+          </div>
+          <div class="mt-2.5 font-mono text-[10.5px] text-muted-foreground">
+            provider profile as of {formatDate(profile.fetchedAt)}
+          </div>
+        {/if}
+      </section>
+    {/if}
 
     {#if detail.warnings.malformedRunCount > 0 || detail.warnings.malformedPredictionCount > 0}
       <div class="mt-4 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3 text-xs text-[#4a4334]">
@@ -209,6 +434,7 @@
 
     <InstrumentRunHistory
       {runs}
+      {pinnedRunIds}
       assetClass={detail.assetClass}
       symbol={detail.symbol}
       {onOpenRun}

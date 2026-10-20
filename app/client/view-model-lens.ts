@@ -7,7 +7,7 @@ import type {
   FinancialLensMetric,
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
-import { financialLensNameFromSectionId } from "../../src/sources/extended-evidence/financial-lens-sections";
+import { financialLensNameFromSectionId } from "../../src/sources/extended-evidence/financial-lens-contract";
 import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/market-data";
 import { readRecord } from "./view-model-format";

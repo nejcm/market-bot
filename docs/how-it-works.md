@@ -137,6 +137,12 @@ Use `bun run app:dev` for the API plus Vite dev server.
 The Jobs view queues allowlisted CLI verbs one at a time and shows basic status plus captured output.
 The Search view queries the Run Artifact Index when fresh (substring match on report text, same semantics as the disk fallback) and filters by symbol, asset class, job type, and date range. Run detail still loads `report.json`, `score.json`, and other payloads from disk.
 
+Run Notes are plain-text editors on equity instrument screens and run workspace headers. Save
+explicitly before navigating away; saving empty text deletes the note. Each note is limited to
+10,000 characters and stored only in `data/console/console.sqlite`, outside Run Chat context,
+prompts, exports, and history search. Note storage errors appear inside the editor while the rest
+of the page remains usable.
+
 ## Configuration
 
 Configuration is read in `src/config.ts` from environment variables. Live model calls require the key for the selected provider, unless using the `codex` subscription provider.

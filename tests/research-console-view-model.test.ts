@@ -31,6 +31,9 @@ import {
   matchesQuery,
   predictions,
   providerHealthIssueCounts,
+  pinnedFirst,
+  pinToggleIntent,
+  pinnedSidebarEntries,
   providerHealthRows,
   recentRunSummaries,
   reliabilityBins,
@@ -55,12 +58,28 @@ import {
   instrumentFromPathname,
   instrumentPath,
   isFailedRun,
+  deepEquityJobForSymbol,
+  noteIndicator,
 } from "../app/client/view-model";
+
+function pinTestRun(runId: string, jobType = "equity") {
+  return {
+    runId,
+    jobType,
+    findingCount: 0,
+    predictionCount: 0,
+    sourceCount: 0,
+    dataGapCount: 0,
+    hasScore: false,
+    availableFiles: [],
+  };
+}
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { financialLensGroupViews } from "../app/client/run-workspace-detail";
 import { parseCalibrationContext } from "../src/research/calibration-context";
 import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 import { resolvedPair } from "./support/research-context-helpers";
+import type { ConsoleJob } from "../app/types";
 
 function frameworkSection(name: string, metricSectionIds?: readonly string[]) {
   return {
@@ -516,6 +535,47 @@ describe("research console app view model", () => {
     expect(searchQueryFromSearchParams("?q=term+premium+%26+capex")).toBe("term premium & capex");
     expect(searchQueryFromSearchParams("?q=")).toBe("");
     expect(searchQueryFromSearchParams("")).toBeUndefined();
+  });
+
+  test("decides pin toggles only from loaded pins with no request in flight", () => {
+    const pins = [{ runId: "r1", createdAt: "2026-10-02T00:00:00.000Z" }];
+
+    expect(pinToggleIntent(pins, false, "r1")).toBe("unpin");
+    expect(pinToggleIntent(pins, false, "r2")).toBe("pin");
+    expect(pinToggleIntent(null, false, "r1")).toBeNull();
+    expect(pinToggleIntent(pins, true, "r2")).toBeNull();
+  });
+
+  test("orders pinned runs first while keeping each side's order", () => {
+    const runs = [pinTestRun("r1"), pinTestRun("r2", "daily"), pinTestRun("r3"), pinTestRun("r4")];
+    const pinned = new Set(["r3", "r1", "gone"]);
+
+    expect(pinnedFirst(runs, pinned, (item) => item.runId).map((item) => item.runId)).toEqual([
+      "r1",
+      "r3",
+      "r2",
+      "r4",
+    ]);
+    expect(pinnedFirst(runs, new Set(), (item) => item.runId)).toEqual(runs);
+
+    const pins = [
+      { runId: "gone", createdAt: "2026-10-03T00:00:00.000Z", missing: true },
+      { runId: "r3", createdAt: "2026-10-02T00:00:00.000Z" },
+      { runId: "r2", createdAt: "2026-10-01T00:00:00.000Z" },
+      { runId: "r1", createdAt: "2026-10-01T00:00:00.000Z", missing: true },
+    ];
+    expect(pinnedSidebarEntries(pins, runs, "all", "")).toEqual([
+      { runId: "r2", run: pinTestRun("r2", "daily") },
+      { runId: "r3", run: pinTestRun("r3") },
+      { runId: "gone" },
+      { runId: "r1" },
+    ]);
+    expect(pinnedSidebarEntries(pins, runs, "equity", "").map((entry) => entry.runId)).toEqual([
+      "r3",
+      "gone",
+      "r1",
+    ]);
+    expect(pinnedSidebarEntries([], runs, "all", "")).toEqual([]);
   });
 
   test("returns the five newest run summaries from the current order", () => {
@@ -3137,4 +3197,40 @@ test("lens section selection is per lens and respects empty and all-missing sect
     );
     expect(groups.find((group) => group.lens === "Momentum")?.tiles).toHaveLength(1);
   }
+});
+
+const consoleJob = (status: string, argv: readonly string[]): ConsoleJob => ({
+  id: crypto.randomUUID(),
+  status: status as ConsoleJob["status"],
+  argv,
+  label: "equity aapl deep",
+  createdAt: "2026-06-05T00:00:00.000Z",
+  stdout: "",
+  stderr: "",
+});
+
+describe("deep equity job lookup", () => {
+  test("finds an in-flight deep equity job for the symbol", () => {
+    const jobs = [
+      consoleJob("queued", ["equity", "aapl", "--deep"]),
+      consoleJob("running", ["equity", "MSFT", "--deep"]),
+      consoleJob("succeeded", ["equity", "aapl", "--deep"]),
+      consoleJob("queued", ["equity", "aapl"]),
+    ];
+
+    expect(deepEquityJobForSymbol(jobs, "AAPL")?.status).toBe("queued");
+    expect(deepEquityJobForSymbol(jobs, "msft")?.status).toBe("running");
+    expect(deepEquityJobForSymbol(jobs, "amzn")).toBeUndefined();
+    expect(deepEquityJobForSymbol([], "AAPL")).toBeUndefined();
+  });
+});
+
+describe("note indicator", () => {
+  test("ranks error over unsaved draft over saved note", () => {
+    expect(noteIndicator("", "", "")).toBe("empty");
+    expect(noteIndicator("", "kept", "kept")).toBe("saved");
+    expect(noteIndicator("", "draft", "kept")).toBe("unsaved");
+    expect(noteIndicator("", "", "kept")).toBe("unsaved");
+    expect(noteIndicator("boom", "draft", "kept")).toBe("error");
+  });
 });

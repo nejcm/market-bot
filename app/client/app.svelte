@@ -1,18 +1,30 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    addPin,
+    addWatchlistItem,
     fetchAlphaCohorts,
     createJob,
+    createWatchlist,
+    deleteWatchlist,
     fetchCalibration,
     fetchInstrumentTimeline,
     fetchJobs,
+    fetchPins,
     fetchProviderHealth,
     fetchRunDetail,
     fetchRunFile,
     fetchRunSearch,
     fetchRuns,
+    fetchWatchlistDetail,
+    fetchWatchlists,
+    refreshInstrumentProfile,
+    removePin,
+    removeWatchlistItem,
+    renameWatchlist,
+    reorderWatchlist,
   } from "./api";
-  import { appSettings, setReportDetail, setShowSources } from "./app-settings.svelte";
+  import { appSettings, setReportDetail, setShowSources, setStaleAfterDays } from "./app-settings.svelte";
   import DashboardOverview from "./components/dashboard-overview.svelte";
   import AlphaCohortsView from "./components/alpha-cohorts-view.svelte";
   import type { JobFormField, SearchFormField, Tab, View } from "./components/console-types";
@@ -23,15 +35,19 @@
   import RunSidebar from "./components/run-sidebar.svelte";
   import RunWorkspace from "./components/run-workspace.svelte";
   import SearchView from "./components/search-view.svelte";
+  import WatchlistsView from "./components/watchlists-view.svelte";
   import type {
     CalibrationDetail,
     AlphaCohortDetail,
     ConsoleJob,
     InstrumentTimelineDetail,
+    Pin,
     ProviderHealthDetail,
     RunDetail,
     RunSearchResult,
     RunSummary,
+    WatchlistDetail,
+    WatchlistSummary,
   } from "../types";
   import {
     dashboardMetrics,
@@ -42,6 +58,9 @@
     instrumentRunHistory,
     instrumentRunHistoryGroupKey,
     instrumentRunHistoryRows,
+    pinnedFirst,
+    pinnedSidebarEntries,
+    pinToggleIntent,
     recentRunSummaries,
     runCompareCards,
     runIdFromPathname,
@@ -80,6 +99,16 @@
   let calibration = $state<CalibrationDetail>({});
   let alphaCohorts = $state<AlphaCohortDetail>({});
   let jobs = $state<readonly ConsoleJob[]>([]);
+  let watchlists = $state<readonly WatchlistSummary[]>([]);
+  let selectedWatchlistId = $state<number | null>(null);
+  let watchlistDetail = $state<WatchlistDetail | null>(null);
+  let loadingWatchlist = $state(false);
+  let watchlistLoadError = $state("");
+  let pins = $state<readonly Pin[] | null>(null);
+  let pinRequestInFlight = $state(false);
+  let pinsLoadError = $state("");
+  const queueingDeepSymbols = new Set<string>();
+  let reorderingWatchlist = false;
   let searchResults = $state<readonly RunSearchResult[]>([]);
   let searchLoading = $state(false);
   let searchNotice = $state("");
@@ -105,7 +134,11 @@
   const JOBS_POLL_INTERVAL_MS = 2000;
   const DASHBOARD_RECENT_RUN_LIMIT = 6;
 
-  const runHistoryEntries = $derived(instrumentRunHistory(runs));
+  const pinnedRunIds = $derived(new Set((pins ?? []).map((pin) => pin.runId)));
+  const pinnedEntries = $derived(pinnedSidebarEntries(pins ?? [], runs, typeFilter, query.text));
+  const runHistoryEntries = $derived(
+    instrumentRunHistory(runs.filter((run) => !pinnedRunIds.has(run.runId))),
+  );
   const filteredRunHistory = $derived(
     filterInstrumentRunHistory(runHistoryEntries, typeFilter, query.text),
   );
@@ -115,10 +148,16 @@
   const runTypes = $derived(groupedRunsByType(runs).map((group) => group.type));
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
-  const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
-  const compareCards = $derived(runCompareCards(compareDetails));
+  const recentRuns = $derived(
+    pinnedFirst(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT), pinnedRunIds, (run) => run.runId),
+  );
+  const compareCards = $derived(
+    pinnedFirst(runCompareCards(compareDetails), pinnedRunIds, (card) => card.runId),
+  );
+  const pinnedSearchResults = $derived(
+    pinnedFirst(searchResults, pinnedRunIds, (result) => result.run.runId),
+  );
   const activeJobCount = $derived(jobs.filter((job) => job.status === "running" || job.status === "queued").length);
-
   function clearSelectedRun(): void {
     selectedRunId = "";
     detail = null;
@@ -301,7 +340,10 @@
       return;
     }
 
-    const list = visibleRunHistoryRows.map((row) => row.run);
+    const list = [
+      ...pinnedEntries.flatMap((entry) => (entry.run === undefined ? [] : [entry.run])),
+      ...visibleRunHistoryRows.map((row) => row.run),
+    ];
     if (list.length === 0) {
       return;
     }
@@ -433,6 +475,217 @@
     }
   }
 
+  async function queueDeepEquityRun(symbol: string): Promise<void> {
+    if (queueingDeepSymbols.has(symbol)) {
+      return;
+    }
+    queueingDeepSymbols.add(symbol);
+    error = "";
+    try {
+      await createJob({ jobType: "equity", assetClass: "equity", symbol, depth: "deep" });
+      await refreshJobs();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    } finally {
+      queueingDeepSymbols.delete(symbol);
+    }
+  }
+
+  async function refreshProfile(symbol: string): Promise<void> {
+    error = "";
+    try {
+      const profile = await refreshInstrumentProfile(symbol);
+      if (instrumentDetail !== null && selectedInstrument?.symbol === symbol) {
+        instrumentDetail = { ...instrumentDetail, profile };
+      }
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function loadWatchlists(): Promise<void> {
+    try {
+      const next = await fetchWatchlists();
+      watchlistLoadError = "";
+      watchlists = next;
+      const nextId =
+        selectedWatchlistId !== null && next.some((list) => list.id === selectedWatchlistId)
+          ? selectedWatchlistId
+          : (next[0]?.id ?? null);
+      if (nextId === null) {
+        selectedWatchlistId = null;
+        watchlistDetail = null;
+        return;
+      }
+      if (nextId !== selectedWatchlistId) {
+        selectedWatchlistId = nextId;
+        watchlistDetail = null;
+      }
+      await loadWatchlistDetail(nextId);
+    } catch (caughtError: unknown) {
+      watchlistLoadError = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      watchlists = [];
+      selectedWatchlistId = null;
+      watchlistDetail = null;
+    }
+  }
+
+  async function loadWatchlistDetail(id: number): Promise<void> {
+    loadingWatchlist = true;
+    try {
+      const next = await fetchWatchlistDetail(id);
+      if (selectedWatchlistId === id) {
+        watchlistDetail = next;
+      }
+    } catch (caughtError: unknown) {
+      if (selectedWatchlistId === id) {
+        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      }
+    } finally {
+      if (selectedWatchlistId === id) {
+        loadingWatchlist = false;
+      }
+    }
+  }
+
+  function selectWatchlist(id: number): void {
+    if (selectedWatchlistId === id && watchlistDetail?.id === id) {
+      return;
+    }
+    selectedWatchlistId = id;
+    watchlistDetail = null;
+    void loadWatchlistDetail(id);
+  }
+
+  async function createWatchlistHandler(name: string): Promise<void> {
+    error = "";
+    try {
+      const created = await createWatchlist(name);
+      await loadWatchlists();
+      selectWatchlist(created.id);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function renameWatchlistHandler(id: number, name: string): Promise<void> {
+    error = "";
+    try {
+      const renamed = await renameWatchlist(id, name);
+      watchlists = watchlists.map((list) => (list.id === id ? { ...list, name: renamed.name } : list));
+      if (watchlistDetail !== null && watchlistDetail.id === id) {
+        watchlistDetail = { ...watchlistDetail, name: renamed.name };
+      }
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function deleteWatchlistHandler(id: number): Promise<void> {
+    if (
+      !globalThis.confirm(
+        "Delete this watchlist? The list and its symbols are removed from the Console DB.",
+      )
+    ) {
+      return;
+    }
+    error = "";
+    try {
+      await deleteWatchlist(id);
+      await loadWatchlists();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function addWatchlistItemHandler(symbol: string): Promise<void> {
+    if (selectedWatchlistId === null) {
+      return;
+    }
+    error = "";
+    try {
+      await addWatchlistItem(selectedWatchlistId, symbol);
+      await loadWatchlistDetail(selectedWatchlistId);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function refreshPins(): Promise<void> {
+    pins = await fetchPins();
+    pinsLoadError = "";
+  }
+
+  async function togglePin(runId: string): Promise<void> {
+    const intent = pinToggleIntent(pins, pinRequestInFlight, runId);
+    if (intent === null) {
+      return;
+    }
+    error = "";
+    pinRequestInFlight = true;
+    try {
+      await (intent === "unpin" ? removePin(runId) : addPin(runId));
+      await refreshPins();
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    } finally {
+      pinRequestInFlight = false;
+    }
+  }
+
+  async function refreshAfterMembershipChange(id: number): Promise<void> {
+    if (!watchlists.some((list) => list.id === id)) {
+      await loadWatchlists();
+    } else if (id === selectedWatchlistId) {
+      await loadWatchlistDetail(id);
+    }
+  }
+
+  async function removeWatchlistItemHandler(symbol: string): Promise<void> {
+    if (selectedWatchlistId === null) {
+      return;
+    }
+    error = "";
+    try {
+      await removeWatchlistItem(selectedWatchlistId, symbol);
+      await loadWatchlistDetail(selectedWatchlistId);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
+  async function moveWatchlistItem(index: number, direction: -1 | 1): Promise<void> {
+    // Each move derives the full order from watchlistDetail, so overlapping moves would undo each other.
+    if (reorderingWatchlist || selectedWatchlistId === null || watchlistDetail === null) {
+      return;
+    }
+    const target = index + direction;
+    if (target < 0 || target >= watchlistDetail.items.length) {
+      return;
+    }
+    const items = [...watchlistDetail.items];
+    const moved = items[index];
+    const displaced = items[target];
+    if (moved === undefined || displaced === undefined) {
+      return;
+    }
+    items[index] = displaced;
+    items[target] = moved;
+    error = "";
+    reorderingWatchlist = true;
+    try {
+      await reorderWatchlist(
+        selectedWatchlistId,
+        items.map(({ assetClass, symbol }) => ({ assetClass, symbol })),
+      );
+      await loadWatchlistDetail(selectedWatchlistId);
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    } finally {
+      reorderingWatchlist = false;
+    }
+  }
+
   function updateSearchForm(field: SearchFormField, value: string): void {
     searchForm[field] = value;
   }
@@ -456,12 +709,22 @@
     globalThis.addEventListener("popstate", handlePopState);
     globalThis.addEventListener("keydown", handleRunKeyNav);
 
+    // Pins load apart from the bootstrap so a console-DB failure never blocks the rest.
+    void refreshPins().catch((caughtError: unknown) => {
+      pinsLoadError = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    });
     void (async () => {
       try {
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
         const initialInstrument = instrumentFromPathname(globalThis.location.pathname);
         const initialSidebarView = sidebarViewFromPathname(globalThis.location.pathname);
-        const [nextRuns, nextProviderHealth, nextCalibration, nextAlphaCohorts, nextJobs] = await Promise.all([
+        const [
+          nextRuns,
+          nextProviderHealth,
+          nextCalibration,
+          nextAlphaCohorts,
+          nextJobs,
+        ] = await Promise.all([
           fetchRuns(),
           fetchProviderHealth(),
           fetchCalibration(),
@@ -473,6 +736,8 @@
         calibration = nextCalibration;
         alphaCohorts = nextAlphaCohorts;
         jobs = nextJobs;
+        // Watchlists load separately so a console-DB failure never blocks the rest.
+        void loadWatchlists();
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
         } else if (initialInstrument !== undefined) {
@@ -502,6 +767,8 @@
   <RunSidebar
     bind:mobileOpen={menuOpen}
     rows={visibleRunHistoryRows}
+    pinned={pinnedEntries}
+    {pinsLoadError}
     {runTypes}
     {selectedRunId}
     {loadingRuns}
@@ -515,6 +782,7 @@
     onSelectRun={(runId) => void openRun(runId)}
     onToggleGroup={toggleRunHistoryGroup}
     onNavigate={navigate}
+    onUnpin={(runId) => void togglePin(runId)}
   />
 
   <main class="min-w-0 flex-1 {view === 'run' ? '' : 'pt-12 lg:pt-0'}">
@@ -536,6 +804,7 @@
           {trend}
           {recentRuns}
           {compareCards}
+          {pinnedRunIds}
           {loadingRuns}
           onOpenRun={(runId) => void openRun(runId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
@@ -551,6 +820,8 @@
           {selectedFile}
           {fileContent}
           {highlightSourceId}
+          {pinnedRunIds}
+          pinned={detail !== null && pinnedRunIds.has(detail.summary.runId)}
           onOpenMenu={() => (menuOpen = true)}
           onOpenRun={(runId) => void openRun(runId)}
           onTabChange={(tab) => (activeTab = tab)}
@@ -560,18 +831,34 @@
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+          pinToggleDisabled={pins === null || pinRequestInFlight}
+          onTogglePin={() => void togglePin(selectedRunId)}
+          {watchlists}
+          {watchlistLoadError}
+          onWatchlistChanged={(id) => void refreshAfterMembershipChange(id)}
+          onOpenWatchlists={() => navigate("watchlists")}
         />
       {:else if view === "instrument"}
         <InstrumentTimeline
           detail={instrumentDetail}
           loading={loadingInstrument}
           {runs}
+          {pinnedRunIds}
+          {jobs}
+          {watchlists}
+          {watchlistLoadError}
+          onWatchlistChanged={(id) => void refreshAfterMembershipChange(id)}
+          onOpenWatchlists={() => navigate("watchlists")}
           onOpenRun={(runId) => void openRun(runId)}
           onGoHome={() => navigate("dashboard")}
+          onQueueDeepEquity={(symbol) => void queueDeepEquityRun(symbol)}
+          onRefreshProfile={(symbol) => void refreshProfile(symbol)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
         />
       {:else if view === "search"}
         <SearchView
-          {searchResults}
+          searchResults={pinnedSearchResults}
+          {pinnedRunIds}
           {searchLoading}
           {searchNotice}
           {searchForm}
@@ -582,6 +869,26 @@
         />
       {:else if view === "jobs"}
         <JobsView {jobs} {jobForm} onJobFormChange={updateJobForm} onSubmitJob={() => void submitJob()} />
+      {:else if view === "watchlists"}
+        <WatchlistsView
+          lists={watchlists}
+          selectedId={selectedWatchlistId}
+          detail={watchlistDetail}
+          loading={loadingWatchlist}
+          loadError={watchlistLoadError}
+          {jobs}
+          staleAfterDays={appSettings.staleAfterDays}
+          onStaleAfterDaysChange={setStaleAfterDays}
+          onSelectList={selectWatchlist}
+          onCreate={(name) => void createWatchlistHandler(name)}
+          onRename={(id, name) => void renameWatchlistHandler(id, name)}
+          onDelete={(id) => void deleteWatchlistHandler(id)}
+          onAddItem={(symbol) => void addWatchlistItemHandler(symbol)}
+          onRemoveItem={(symbol) => void removeWatchlistItemHandler(symbol)}
+          onMoveItem={(index, direction) => void moveWatchlistItem(index, direction)}
+          onQueueDeepEquity={(symbol) => void queueDeepEquityRun(symbol)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+        />
       {:else if view === "calibration"}
         <CalibrationView {calibration} onNavigate={navigate} />
       {:else if view === "alpha-cohorts"}

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.2](https://github.com/nejcm/market-bot/compare/v1.5.1...v1.5.2) (2026-10-20)
+
+### Bug Fixes
+
+- AMD run-review follow-ups (#108) ([4d14b40](https://github.com/nejcm/market-bot/commit/4d14b40a69d3f73c70d738b75a00152160be2143))
+
 ## [1.5.1](https://github.com/nejcm/market-bot/compare/v1.5.0...v1.5.1) (2026-10-19)
 
 ### Bug Fixes

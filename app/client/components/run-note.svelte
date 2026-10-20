@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { Button } from "$lib/components/ui/button";
-  import { RUN_NOTE_MAX_LENGTH, type StarKind } from "../../types";
+  import { RUN_NOTE_MAX_LENGTH, type NoteKind } from "../../types";
   import { fetchNote, saveNote } from "../api";
 
-  let { kind, noteKey }: { readonly kind: StarKind; readonly noteKey: string } = $props();
+  let { kind, noteKey }: { readonly kind: NoteKind; readonly noteKey: string } = $props();
   let body = $state("");
   let savedBody = $state("");
   let loading = $state(true);

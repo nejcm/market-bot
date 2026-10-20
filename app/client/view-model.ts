@@ -1,7 +1,6 @@
-import type { ConsoleJob, ProviderHealthDetail, RunSearchResult, RunSummary, Star } from "../types";
+import type { ConsoleJob, ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
 import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
-import { runLabel } from "./view-model-format";
 import type { InstrumentRunHistoryEntry } from "./view-model-history";
 
 export {
@@ -169,40 +168,6 @@ export function jsonBlock(value: Record<string, unknown> | undefined): string {
 
 export function runCountsLabel(run: RunSummary): string {
   return `${String(run.findingCount)} fnd · ${String(run.predictionCount)} fct · ${String(run.dataGapCount)} gap`;
-}
-
-export interface StarredSidebarEntry {
-  readonly star: Star;
-  readonly label: string;
-  readonly missing: boolean;
-  readonly assetClass?: string;
-  readonly symbol?: string;
-}
-
-export function starredSidebarEntries(
-  stars: readonly Star[],
-  runs: readonly RunSummary[],
-): readonly StarredSidebarEntry[] {
-  const runById = new Map(runs.map((run) => [run.runId, run]));
-  return stars.map((star) => {
-    if (star.kind === "instrument") {
-      const separator = star.key.indexOf(":");
-      const assetClass = separator === -1 ? "" : star.key.slice(0, separator);
-      const symbol = separator === -1 ? "" : star.key.slice(separator + 1);
-      return {
-        star,
-        label: separator === -1 ? star.key : `${assetClass}:${symbol}`,
-        missing: false,
-        ...(assetClass !== "" && symbol !== "" ? { assetClass, symbol } : {}),
-      };
-    }
-    const run = runById.get(star.key);
-    return {
-      star,
-      label: run === undefined ? star.key : runLabel(run),
-      missing: star.missing === true || run === undefined,
-    };
-  });
 }
 
 export function isFailedRun(run: RunSummary): boolean {

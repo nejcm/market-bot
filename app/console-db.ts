@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { dataRootFromRunsDir } from "../src/data-paths";
-import type { RunNote, Star, StarKind } from "./types";
+import type { NoteKind, RunNote } from "./types";
 
 export function consoleDbPath(dataDir: string): string {
   return join(dataRootFromRunsDir(dataDir), "console", "console.sqlite");
@@ -13,14 +13,6 @@ export function openConsoleDb(dbPath: string): Database {
   const db = new Database(dbPath);
   try {
     db.exec("PRAGMA foreign_keys = ON");
-    db.exec(`
-    CREATE TABLE IF NOT EXISTS stars (
-      kind TEXT NOT NULL,
-      key TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      PRIMARY KEY (kind, key)
-    )
-  `);
     db.exec(`
     CREATE TABLE IF NOT EXISTS profiles (
       symbol TEXT PRIMARY KEY,
@@ -66,13 +58,13 @@ export function openConsoleDb(dbPath: string): Database {
   }
 }
 
-export function getNote(db: Database, kind: StarKind, key: string): RunNote | null {
+export function getNote(db: Database, kind: NoteKind, key: string): RunNote | null {
   return db
     .query("SELECT kind, key, body, updated_at AS updatedAt FROM notes WHERE kind = ? AND key = ?")
     .get(kind, key) as RunNote | null;
 }
 
-export function putNote(db: Database, kind: StarKind, key: string, body: string): RunNote | null {
+export function putNote(db: Database, kind: NoteKind, key: string, body: string): RunNote | null {
   if (body === "") {
     db.prepare("DELETE FROM notes WHERE kind = ? AND key = ?").run(kind, key);
     return null;
@@ -110,34 +102,6 @@ export function putRunEarningsDates(db: Database, runId: string, dates: readonly
     runId,
     JSON.stringify(dates),
   );
-}
-
-export function listStars(db: Database): readonly Star[] {
-  return db
-    .query(
-      "SELECT kind, key, created_at AS createdAt FROM stars ORDER BY created_at DESC, kind, key",
-    )
-    .all() as readonly Star[];
-}
-
-export function addStar(db: Database, kind: StarKind, key: string): Star {
-  const createdAt = new Date().toISOString();
-  db.prepare("INSERT OR IGNORE INTO stars (kind, key, created_at) VALUES (?, ?, ?)").run(
-    kind,
-    key,
-    createdAt,
-  );
-  const row = db
-    .query("SELECT kind, key, created_at AS createdAt FROM stars WHERE kind = ? AND key = ?")
-    .get(kind, key) as Star | null;
-  if (row === null) {
-    throw new Error("Star insert failed");
-  }
-  return row;
-}
-
-export function removeStar(db: Database, kind: StarKind, key: string): boolean {
-  return db.prepare("DELETE FROM stars WHERE kind = ? AND key = ?").run(kind, key).changes > 0;
 }
 
 export function getProfileRow(db: Database, symbol: string): ProfileRow | undefined {
@@ -262,6 +226,20 @@ export function removeWatchlistItem(
       )
       .run(id, assetClass, symbol).changes > 0
   );
+}
+
+export function listWatchlistIdsContaining(
+  db: Database,
+  assetClass: string,
+  symbol: string,
+): readonly number[] {
+  return (
+    db
+      .query(
+        "SELECT watchlist_id AS id FROM watchlist_items WHERE asset_class = ? AND symbol = ? ORDER BY watchlist_id",
+      )
+      .all(assetClass, symbol) as readonly { readonly id: number }[]
+  ).map((row) => row.id);
 }
 
 export function reorderWatchlistItems(

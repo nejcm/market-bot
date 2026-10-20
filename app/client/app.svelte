@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
-    addStar,
     addWatchlistItem,
     fetchAlphaCohorts,
     createJob,
@@ -15,11 +14,9 @@
     fetchRunFile,
     fetchRunSearch,
     fetchRuns,
-    fetchStars,
     fetchWatchlistDetail,
     fetchWatchlists,
     refreshInstrumentProfile,
-    removeStar,
     removeWatchlistItem,
     renameWatchlist,
     reorderWatchlist,
@@ -45,7 +42,6 @@
     RunDetail,
     RunSearchResult,
     RunSummary,
-    Star,
     WatchlistDetail,
     WatchlistSummary,
   } from "../types";
@@ -67,7 +63,6 @@
     searchQueryFromSearchParams,
     sidebarViewFromPathname,
     sidebarViewPath,
-    starredSidebarEntries,
     type SidebarView,
   } from "./view-model";
 
@@ -97,13 +92,11 @@
   let calibration = $state<CalibrationDetail>({});
   let alphaCohorts = $state<AlphaCohortDetail>({});
   let jobs = $state<readonly ConsoleJob[]>([]);
-  let stars = $state<readonly Star[]>([]);
   let watchlists = $state<readonly WatchlistSummary[]>([]);
   let selectedWatchlistId = $state<number | null>(null);
   let watchlistDetail = $state<WatchlistDetail | null>(null);
   let loadingWatchlist = $state(false);
   let watchlistLoadError = $state("");
-  let starsLoadError = $state("");
   const queueingDeepSymbols = new Set<string>();
   let reorderingWatchlist = false;
   let searchResults = $state<readonly RunSearchResult[]>([]);
@@ -144,22 +137,6 @@
   const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
   const compareCards = $derived(runCompareCards(compareDetails));
   const activeJobCount = $derived(jobs.filter((job) => job.status === "running" || job.status === "queued").length);
-  const starredRunIds = $derived(
-    new Set(stars.filter((star) => star.kind === "run").map((star) => star.key)),
-  );
-  const starredInstrumentKeys = $derived(
-    new Set(stars.filter((star) => star.kind === "instrument").map((star) => star.key)),
-  );
-  const starredEntries = $derived(starredSidebarEntries(stars, runs));
-  const selectedRunStarred = $derived(
-    detail === null ? false : starredRunIds.has(detail.summary.runId),
-  );
-  const selectedInstrumentStarred = $derived(
-    selectedInstrument === null
-      ? false
-      : starredInstrumentKeys.has(`${selectedInstrument.assetClass}:${selectedInstrument.symbol}`),
-  );
-
   function clearSelectedRun(): void {
     selectedRunId = "";
     detail = null;
@@ -456,47 +433,6 @@
     jobs = await fetchJobs();
   }
 
-  async function refreshStars(): Promise<void> {
-    stars = await fetchStars();
-    starsLoadError = "";
-  }
-
-  async function toggleRunStar(runId: string): Promise<void> {
-    error = "";
-    try {
-      await (starredRunIds.has(runId) ? removeStar("run", runId) : addStar("run", runId));
-      await refreshStars();
-    } catch (caughtError: unknown) {
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
-    }
-  }
-
-  async function toggleInstrumentStar(): Promise<void> {
-    if (selectedInstrument === null) {
-      return;
-    }
-    const key = `${selectedInstrument.assetClass}:${selectedInstrument.symbol}`;
-    error = "";
-    try {
-      await (starredInstrumentKeys.has(key)
-        ? removeStar("instrument", key)
-        : addStar("instrument", key));
-      await refreshStars();
-    } catch (caughtError: unknown) {
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
-    }
-  }
-
-  async function unstar(star: Star): Promise<void> {
-    error = "";
-    try {
-      await removeStar(star.kind, star.key);
-      await refreshStars();
-    } catch (caughtError: unknown) {
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
-    }
-  }
-
   async function submitJob(): Promise<void> {
     error = "";
 
@@ -651,15 +587,11 @@
     }
   }
 
-  async function addInstrumentToWatchlist(id: number, symbol: string): Promise<void> {
-    error = "";
-    try {
-      await addWatchlistItem(id, symbol);
-      if (id === selectedWatchlistId) {
-        await loadWatchlistDetail(id);
-      }
-    } catch (caughtError: unknown) {
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+  async function refreshAfterMembershipChange(id: number): Promise<void> {
+    if (!watchlists.some((list) => list.id === id)) {
+      await loadWatchlists();
+    } else if (id === selectedWatchlistId) {
+      await loadWatchlistDetail(id);
     }
   }
 
@@ -754,10 +686,7 @@
         calibration = nextCalibration;
         alphaCohorts = nextAlphaCohorts;
         jobs = nextJobs;
-        // Stars and watchlists load separately so a console-DB failure never blocks the rest.
-        void refreshStars().catch((caughtError: unknown) => {
-          starsLoadError = caughtError instanceof Error ? caughtError.message : String(caughtError);
-        });
+        // Watchlists load separately so a console-DB failure never blocks the rest.
         void loadWatchlists();
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
@@ -796,16 +725,11 @@
     queryText={query.text}
     {typeFilter}
     expandedGroups={expandedRunHistoryGroups}
-    stars={starredEntries}
-    {starsLoadError}
-    staleAfterDays={appSettings.staleAfterDays}
     onQueryChange={(value) => (query.text = value)}
     onTypeFilterChange={(value) => (typeFilter = value)}
     onSelectRun={(runId) => void openRun(runId)}
     onToggleGroup={toggleRunHistoryGroup}
     onNavigate={navigate}
-    onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
-    onRemoveStar={(star) => void unstar(star)}
   />
 
   <main class="min-w-0 flex-1 {view === 'run' ? '' : 'pt-12 lg:pt-0'}">
@@ -842,7 +766,6 @@
           {selectedFile}
           {fileContent}
           {highlightSourceId}
-          starred={selectedRunStarred}
           onOpenMenu={() => (menuOpen = true)}
           onOpenRun={(runId) => void openRun(runId)}
           onTabChange={(tab) => (activeTab = tab)}
@@ -852,7 +775,6 @@
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
-          onToggleStar={() => void toggleRunStar(selectedRunId)}
         />
       {:else if view === "instrument"}
         <InstrumentTimeline
@@ -860,12 +782,12 @@
           loading={loadingInstrument}
           {runs}
           {jobs}
-          starred={selectedInstrumentStarred}
           {watchlists}
-          onAddToWatchlist={(id, symbol) => void addInstrumentToWatchlist(id, symbol)}
+          {watchlistLoadError}
+          onWatchlistChanged={(id) => void refreshAfterMembershipChange(id)}
+          onOpenWatchlists={() => navigate("watchlists")}
           onOpenRun={(runId) => void openRun(runId)}
           onGoHome={() => navigate("dashboard")}
-          onToggleStar={() => void toggleInstrumentStar()}
           onQueueDeepEquity={(symbol) => void queueDeepEquityRun(symbol)}
           onRefreshProfile={(symbol) => void refreshProfile(symbol)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}

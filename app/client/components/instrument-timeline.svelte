@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Star from "@lucide/svelte/icons/star";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import type {
     ConsoleJob,
@@ -12,18 +11,19 @@
   import InstrumentRunHistory from "./instrument-run-history.svelte";
   import SymbolSearch from "./symbol-search.svelte";
   import RunNote from "./run-note.svelte";
+  import WatchlistMembership from "./watchlist-membership.svelte";
 
   interface Props {
     readonly detail: InstrumentTimelineDetail | null;
     readonly loading: boolean;
     readonly runs: readonly RunSummary[];
     readonly jobs: readonly ConsoleJob[];
-    readonly starred: boolean;
     readonly watchlists: readonly WatchlistSummary[];
-    readonly onAddToWatchlist: (id: number, symbol: string) => void;
+    readonly watchlistLoadError: string;
+    readonly onWatchlistChanged: (id: number) => void;
+    readonly onOpenWatchlists: () => void;
     readonly onOpenRun: (runId: string) => void;
     readonly onGoHome: () => void;
-    readonly onToggleStar: () => void;
     readonly onQueueDeepEquity: (symbol: string) => void;
     readonly onRefreshProfile: (symbol: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
@@ -34,12 +34,12 @@
     loading,
     runs,
     jobs,
-    starred,
     onOpenRun,
     onGoHome,
-    onToggleStar,
     watchlists,
-    onAddToWatchlist,
+    watchlistLoadError,
+    onWatchlistChanged,
+    onOpenWatchlists,
     onQueueDeepEquity,
     onRefreshProfile,
     onOpenInstrument,
@@ -210,33 +210,14 @@
       <div>
         <div class="flex items-center gap-2.5">
           <h1 class="text-[21px] font-semibold tracking-tight">{detail.symbol}</h1>
-          <button
-            class="shrink-0 rounded-md border border-input bg-secondary p-1.5 text-foreground shadow-xs transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            type="button"
-            aria-label={starred ? "Remove star from instrument" : "Star instrument"}
-            onclick={onToggleStar}
-          >
-            <Star class="size-4.5 {starred ? 'fill-current text-[#c9a24b]' : ''}" />
-          </button>
           {#if detail.assetClass === "equity"}
-            <select
-              class="rounded-md border border-input bg-secondary px-2 py-1.5 font-mono text-[10.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Add to watchlist"
-              value=""
-              disabled={watchlists.length === 0}
-              onchange={(event) => {
-                const id = Number(event.currentTarget.value);
-                event.currentTarget.value = "";
-                if (id > 0) {
-                  onAddToWatchlist(id, detail.symbol);
-                }
-              }}
-            >
-              <option value="">{watchlists.length === 0 ? "No watchlists" : "Add to watchlist…"}</option>
-              {#each watchlists as list}
-                <option value={String(list.id)}>{list.name}</option>
-              {/each}
-            </select>
+            <WatchlistMembership
+              symbol={detail.symbol}
+              {watchlists}
+              {watchlistLoadError}
+              onChanged={onWatchlistChanged}
+              {onOpenWatchlists}
+            />
             {#if runningJob !== undefined}
               <span
                 class="rounded-md border border-[#cfe0e3] bg-accent px-2.5 py-1.5 font-mono text-[10.5px] text-primary"

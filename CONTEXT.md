@@ -26,13 +26,6 @@ their posture labels. Collection drops nothing; only placement changes.
 
 Local UI for browsing run history, Research Views, Sources, Source Gaps, evidence quality, analytics, and provider health.
 
-## Star
-
-User bookmark on a Run Artifact or an Instrument, persisted in the Console DB
-(`data/console/console.sqlite`) as a `(kind, key)` row. A starred run whose directory is gone stays
-listed and is marked missing. Stars never enter research artifacts, prompts, exports, search, or
-history.
-
 ## Watchlist
 
 Named, manually orderable list of equities in the Console, persisted in the Console DB as

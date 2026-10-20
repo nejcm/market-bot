@@ -1,6 +1,6 @@
 import type { InstrumentStalenessInput } from "../types";
 
-// Staleness classification for watchlist and starred rows.
+// Staleness classification for watchlist rows.
 // All date math is UTC calendar days; earnings dates compare as YYYY-MM-DD.
 export type RunFreshness =
   | { readonly state: "fresh" }

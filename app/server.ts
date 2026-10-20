@@ -14,19 +14,17 @@ import {
 } from "./artifacts";
 import { handleRunChat, type ChatEndpointDeps } from "./chat";
 import {
-  addStar,
   addWatchlistItem,
   consoleDbPath,
   createWatchlist,
   deleteWatchlist,
   getNote,
   getWatchlist,
-  listStars,
   listWatchlistItems,
+  listWatchlistIdsContaining,
   listWatchlists,
   putProfileRow,
   putNote,
-  removeStar,
   removeWatchlistItem,
   renameWatchlist,
   reorderWatchlistItems,
@@ -34,12 +32,11 @@ import {
 } from "./console-db";
 import { defaultConsoleProviders, type ConsoleProviderDeps } from "./console-providers";
 import { fetchFinnhubProfile } from "./finnhub-profile";
-import { readInstrumentStalenessInputs } from "./freshness";
 import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 import { isSameOriginPost } from "./same-origin";
 import { loadSecTickers, searchSecTickers } from "./sec-tickers";
-import { RUN_NOTE_MAX_LENGTH, type Star, type StarKind, type WatchlistSummary } from "./types";
+import { RUN_NOTE_MAX_LENGTH, type NoteKind, type WatchlistSummary } from "./types";
 import { readWatchlistDetail } from "./watchlists";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
@@ -271,7 +268,7 @@ const CONSOLE_KEY_MAX_LENGTH = 200;
 
 function parseConsoleTarget(
   value: unknown,
-): { readonly kind: StarKind; readonly key: string } | undefined {
+): { readonly kind: NoteKind; readonly key: string } | undefined {
   if (!isRecord(value) || typeof value.kind !== "string" || typeof value.key !== "string") {
     return undefined;
   }
@@ -302,91 +299,6 @@ function parseConsoleTarget(
     }
   }
   return { kind, key };
-}
-
-async function readStarsWithStaleness(dbPath: string, dataDir: string): Promise<readonly Star[]> {
-  // Absent DB reads empty without creating the file or its directory.
-  if (!existsSync(dbPath)) {
-    return [];
-  }
-  const stars = withConsoleDb(dbPath, (db) =>
-    listStars(db).map((star) =>
-      star.kind === "run" && !existsSync(join(dataDir, star.key))
-        ? { ...star, missing: true }
-        : star,
-    ),
-  );
-  const instrumentStars = stars.filter((star) => star.kind === "instrument");
-  if (instrumentStars.length === 0) {
-    return stars;
-  }
-  const inputs = await readInstrumentStalenessInputs(
-    dataDir,
-    dbPath,
-    instrumentStars.map((star) => {
-      const separator = star.key.indexOf(":");
-      return { assetClass: star.key.slice(0, separator), symbol: star.key.slice(separator + 1) };
-    }),
-  );
-  const inputByKey = new Map(
-    instrumentStars.map((star, index) => [star.key, inputs?.[index] ?? undefined]),
-  );
-  return stars.map((star) =>
-    star.kind === "instrument"
-      ? {
-          ...star,
-          staleness: inputByKey.get(star.key) ?? ({ state: "index-unavailable" } as const),
-        }
-      : star,
-  );
-}
-
-async function handleStarRequest(
-  request: Request,
-  url: URL,
-  dbPath: string,
-  dataDir: string,
-): Promise<Response | undefined> {
-  if (url.pathname !== "/api/stars") {
-    return undefined;
-  }
-
-  if (request.method === "GET") {
-    try {
-      return jsonResponse({ stars: await readStarsWithStaleness(dbPath, dataDir) });
-    } catch (error: unknown) {
-      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
-    }
-  }
-
-  if (request.method !== "PUT" && request.method !== "DELETE") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
-  }
-
-  if (!isSameOriginPost(request, url)) {
-    return jsonResponse({ error: "Star request origin is not allowed" }, 403);
-  }
-
-  let parsed: { readonly kind: StarKind; readonly key: string } | undefined;
-  try {
-    parsed = parseConsoleTarget(await readRequestJson(request));
-  } catch (error: unknown) {
-    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-  if (parsed === undefined) {
-    return jsonResponse({ error: "Invalid star request" }, 400);
-  }
-
-  try {
-    if (request.method === "PUT") {
-      return jsonResponse(withConsoleDb(dbPath, (db) => addStar(db, parsed.kind, parsed.key)));
-    }
-    return jsonResponse(
-      withConsoleDb(dbPath, (db) => ({ removed: removeStar(db, parsed.kind, parsed.key) })),
-    );
-  } catch (error: unknown) {
-    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
-  }
 }
 
 async function handleNoteRequest(
@@ -468,12 +380,20 @@ function parseWatchlistInstrument(
   return { assetClass: "equity", symbol: value.symbol.trim().toUpperCase() };
 }
 
-function readWatchlists(dbPath: string): readonly WatchlistSummary[] {
+function readWatchlists(
+  dbPath: string,
+  member: { readonly assetClass: string; readonly symbol: string } | undefined,
+): { readonly watchlists: readonly WatchlistSummary[]; readonly memberIds?: readonly number[] } {
   // Absent DB reads empty without creating the file or its directory.
   if (!existsSync(dbPath)) {
-    return [];
+    return member === undefined ? { watchlists: [] } : { watchlists: [], memberIds: [] };
   }
-  return withConsoleDb(dbPath, (db) => listWatchlists(db));
+  return withConsoleDb(dbPath, (db) => ({
+    watchlists: listWatchlists(db),
+    ...(member === undefined
+      ? {}
+      : { memberIds: listWatchlistIdsContaining(db, member.assetClass, member.symbol) }),
+  }));
 }
 
 async function handleWatchlistRequest(
@@ -484,8 +404,14 @@ async function handleWatchlistRequest(
 ): Promise<Response | undefined> {
   if (url.pathname === "/api/watchlists") {
     if (request.method === "GET") {
+      const symbol = url.searchParams.get("symbol");
+      const member =
+        symbol === null ? undefined : parseWatchlistInstrument({ assetClass: "equity", symbol });
+      if (symbol !== null && member === undefined) {
+        return jsonResponse({ error: "Invalid watchlist request" }, 400);
+      }
       try {
-        return jsonResponse({ watchlists: readWatchlists(dbPath) });
+        return jsonResponse(readWatchlists(dbPath, member));
       } catch (error: unknown) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
       }
@@ -817,16 +743,6 @@ export async function handleResearchConsoleRequest(
   );
   if (noteResponse !== undefined) {
     return noteResponse;
-  }
-
-  const starResponse = await handleStarRequest(
-    request,
-    url,
-    options.consoleDbPath ?? consoleDbPath(dataDir),
-    dataDir,
-  );
-  if (starResponse !== undefined) {
-    return starResponse;
   }
 
   const watchlistResponse = await handleWatchlistRequest(

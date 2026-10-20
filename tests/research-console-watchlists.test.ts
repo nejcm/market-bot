@@ -9,6 +9,7 @@ import {
   deleteWatchlist,
   getRunEarningsDates,
   getWatchlist,
+  listWatchlistIdsContaining,
   listWatchlistItems,
   listWatchlists,
   openConsoleDb,
@@ -16,7 +17,10 @@ import {
   renameWatchlist,
   reorderWatchlistItems,
 } from "../app/console-db";
-import { addWatchlistItem as addWatchlistItemFromClient } from "../app/client/api";
+import {
+  addWatchlistItem as addWatchlistItemFromClient,
+  fetchWatchlistMembership,
+} from "../app/client/api";
 import { handleResearchConsoleRequest } from "../app/server";
 import { readInstrumentWatchlistRows, rebuildRunArtifactIndex } from "../src/run-artifact-index";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
@@ -111,6 +115,38 @@ function writeRun(
 }
 
 describe("console db watchlists", () => {
+  test("derives the console db path beside the data root", () => {
+    expect(consoleDbPath("data/runs")).toBe(join("data", "console", "console.sqlite"));
+    expect(consoleDbPath(join("mnt", "bot", "runs"))).toBe(
+      join("mnt", "bot", "console", "console.sqlite"),
+    );
+    const bare = join("tmp", "elsewhere");
+    expect(consoleDbPath(bare)).toBe(join(bare, "console", "console.sqlite"));
+  });
+
+  test("lists the watchlists containing an instrument", () => {
+    const dbPath = join(
+      mkdtempSync(join(tmpdir(), "research-console-watchlists-db-")),
+      "db.sqlite",
+    );
+    const db = openConsoleDb(dbPath);
+    try {
+      const tech = createWatchlist(db, "Tech");
+      const chips = createWatchlist(db, "Chips");
+      createWatchlist(db, "Empty");
+      addWatchlistItem(db, chips.id, "equity", "AMD");
+      addWatchlistItem(db, tech.id, "equity", "AMD");
+      addWatchlistItem(db, tech.id, "equity", "AAPL");
+
+      expect(listWatchlistIdsContaining(db, "equity", "AMD")).toEqual([tech.id, chips.id]);
+      expect(listWatchlistIdsContaining(db, "equity", "MSFT")).toEqual([]);
+      removeWatchlistItem(db, tech.id, "equity", "AMD");
+      expect(listWatchlistIdsContaining(db, "equity", "AMD")).toEqual([chips.id]);
+    } finally {
+      db.close();
+    }
+  });
+
   test("creates, lists, renames, and deletes watchlists", () => {
     const dbPath = join(
       mkdtempSync(join(tmpdir(), "research-console-watchlists-db-")),
@@ -380,6 +416,61 @@ describe("watchlists API", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ watchlists: [] });
     expect(existsSync(consoleDbPath(dataDir))).toBe(false);
+  });
+
+  test("reports membership for a symbol, empty on an absent db", async () => {
+    const { dataDir } = tempDataDir();
+    const absent = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/watchlists?symbol=AMD"),
+      { dataDir },
+    );
+    await expect(absent.json()).resolves.toEqual({ watchlists: [], memberIds: [] });
+    expect(existsSync(consoleDbPath(dataDir))).toBe(false);
+
+    await handleResearchConsoleRequest(jsonRequest("POST", "/api/watchlists", { name: "Tech" }), {
+      dataDir,
+    });
+    await handleResearchConsoleRequest(jsonRequest("POST", "/api/watchlists", { name: "Chips" }), {
+      dataDir,
+    });
+    await handleResearchConsoleRequest(
+      jsonRequest("PUT", "/api/watchlists/2/items", { assetClass: "equity", symbol: "AMD" }),
+      { dataDir },
+    );
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/watchlists?symbol=amd"),
+      { dataDir },
+    );
+    await expect(response.json()).resolves.toMatchObject({ memberIds: [2] });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string, init?: RequestInit) =>
+      handleResearchConsoleRequest(new Request(`http://127.0.0.1${input}`, init), {
+        dataDir,
+      })) as typeof fetch;
+    try {
+      await expect(fetchWatchlistMembership("AMD")).resolves.toEqual([2]);
+      await expect(fetchWatchlistMembership("bad symbol")).rejects.toThrow(
+        "Invalid watchlist request",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("membership GET returns 500 when the console db is corrupt", async () => {
+    const { dataDir } = tempDataDir();
+    const dbPath = consoleDbPath(dataDir);
+    mkdirSync(join(dbPath, ".."), { recursive: true });
+    writeFileSync(dbPath, "not a sqlite database", "utf8");
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/watchlists?symbol=AMD"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(500);
   });
 
   test("detail GET on an absent db returns 404 without creating the file", async () => {

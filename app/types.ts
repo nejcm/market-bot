@@ -77,12 +77,12 @@ export interface RunFile {
   readonly content: string;
 }
 
-export type StarKind = "run" | "instrument";
+export type NoteKind = "run" | "instrument";
 
 export const RUN_NOTE_MAX_LENGTH = 10_000;
 
 export interface RunNote {
-  readonly kind: StarKind;
+  readonly kind: NoteKind;
   readonly key: string;
   readonly body: string;
   readonly updatedAt: string;
@@ -96,16 +96,6 @@ export type InstrumentStalenessInput =
       readonly latestRunAt?: string;
       readonly earningsDates: readonly string[];
     };
-
-export interface Star {
-  readonly kind: StarKind;
-  readonly key: string;
-  readonly createdAt: string;
-  /** Run star whose Run Artifact directory is gone. */
-  readonly missing?: boolean;
-  /** Instrument stars only: inputs for client-side staleness classification. */
-  readonly staleness?: InstrumentStalenessInput;
-}
 
 export interface WatchlistSummary {
   readonly id: number;

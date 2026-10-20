@@ -1,7 +1,6 @@
 <script lang="ts">
   // Deep import: the package barrel pulls every icon into the SSR graph.
   import Menu from "@lucide/svelte/icons/menu";
-  import Star from "@lucide/svelte/icons/star";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail, RunSummary } from "../../types";
   import type { ReportDetail } from "../app-settings";
@@ -42,7 +41,6 @@
     readonly selectedFile: string;
     readonly fileContent: string;
     readonly highlightSourceId: string;
-    readonly starred: boolean;
     readonly onTabChange: (tab: Tab) => void;
     readonly onReportDetailChange?: (value: ReportDetail) => void;
     readonly onShowSourcesChange?: (value: boolean) => void;
@@ -51,7 +49,6 @@
     readonly onOpenRun: (runId: string) => void;
     readonly onHighlightSource: (sourceId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
-    readonly onToggleStar: () => void;
     readonly onOpenMenu?: () => void;
   }
 
@@ -65,7 +62,6 @@
     selectedFile,
     fileContent,
     highlightSourceId,
-    starred,
     onTabChange,
     onReportDetailChange = () => {},
     onShowSourcesChange = () => {},
@@ -74,7 +70,6 @@
     onOpenRun,
     onHighlightSource,
     onOpenInstrument,
-    onToggleStar,
     onOpenMenu = () => {},
   }: Props = $props();
 
@@ -476,14 +471,6 @@
           </button>
           / {detail.summary.runId}
         </div>
-        <button
-          class="shrink-0 rounded-md border border-input bg-secondary p-1.5 text-foreground shadow-xs transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          type="button"
-          aria-label={starred ? "Remove star from run" : "Star run"}
-          onclick={onToggleStar}
-        >
-          <Star class="size-4.5 {starred ? 'fill-current text-[#c9a24b]' : ''}" />
-        </button>
       </div>
       <!-- The pill row needs more width than a phone has next to the run path,
            so narrow viewports pick the tab from the platform's own menu. -->

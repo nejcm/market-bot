@@ -213,6 +213,9 @@
         <div class="flex flex-wrap items-center gap-2.5">
           <h1 class="text-[21px] font-semibold tracking-tight">{detail.symbol}</h1>
           {#if detail.assetClass === "equity"}
+            {#key detail.instrumentKey}
+              <RunNote kind="instrument" noteKey={detail.instrumentKey} />
+            {/key}
             <WatchlistMembership
               symbol={detail.symbol}
               {watchlists}
@@ -220,9 +223,6 @@
               onChanged={onWatchlistChanged}
               {onOpenWatchlists}
             />
-            {#key detail.instrumentKey}
-              <RunNote kind="instrument" noteKey={detail.instrumentKey} />
-            {/key}
             {#if runningJob !== undefined}
               <span
                 class="flex h-8 shrink-0 items-center whitespace-nowrap rounded-md border border-[#cfe0e3] bg-accent px-2.5 font-mono text-[10.5px] text-primary"

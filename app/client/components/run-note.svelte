@@ -80,7 +80,7 @@
   <Popover.Trigger
     class="relative flex shrink-0 items-center gap-1.5 border bg-secondary font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {size ===
     'header'
-      ? 'h-8.75 min-w-8.75 justify-center rounded-full border-border px-2.5 text-muted-foreground'
+      ? 'h-8.75 min-w-8.75 justify-center rounded-full border-border text-muted-foreground sm:px-2.5'
       : 'h-8 rounded-md border-input px-2.5'}"
     aria-label="{label}{STATE_LABELS[noteState]}"
     data-screen-label="Run Note"
@@ -93,7 +93,7 @@
   </Popover.Trigger>
   <Popover.Portal>
     <Popover.Content
-      align="end"
+      align="start"
       sideOffset={6}
       collisionPadding={16}
       onOpenAutoFocus={(event) => {

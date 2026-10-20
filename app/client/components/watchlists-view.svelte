@@ -236,6 +236,7 @@
             ? 'border-[#4a525a] bg-sidebar-accent text-[#e8eaec]'
             : 'border-border bg-transparent text-[#7f868e] hover:text-foreground'}"
           type="button"
+          aria-pressed={selectedId === list.id}
           onclick={() => onSelectList(list.id)}
         >
           {list.name}
@@ -333,7 +334,7 @@
         }}
       >
         <Input
-          class="h-8 w-40 bg-background font-mono text-xs uppercase md:text-xs"
+          class="h-8 w-40 bg-background font-mono text-xs uppercase placeholder:normal-case md:text-xs"
           value={addSymbol}
           placeholder="Symbol, e.g. AAPL"
           oninput={(event) => (addSymbol = event.currentTarget.value)}

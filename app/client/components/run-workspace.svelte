@@ -475,7 +475,7 @@
         <!-- Below the sidebar breakpoint the run nav is the only chrome on
              screen, so it carries the sidebar trigger. -->
         <button
-          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           type="button"
           aria-label="Open navigation"
           onclick={onOpenMenu}
@@ -506,7 +506,7 @@
           />
         {/if}
         <button
-          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           type="button"
           disabled={pinToggleDisabled}
           aria-label={pinned ? "Unpin run" : "Pin run"}

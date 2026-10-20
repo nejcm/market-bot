@@ -104,7 +104,7 @@
   <Popover.Trigger
     class="flex shrink-0 items-center gap-1.5 border bg-secondary font-mono text-[10.5px] transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {size ===
     'header'
-      ? 'h-8.75 min-w-8.75 justify-center rounded-full border-border px-2.5 text-muted-foreground'
+      ? 'h-8.75 min-w-8.75 justify-center rounded-full border-border text-muted-foreground sm:px-2.5'
       : 'h-8 rounded-md border-input px-2.5'}"
     aria-label="Watchlists for {symbol}"
   >
@@ -117,6 +117,7 @@
     <Popover.Content
       align="start"
       sideOffset={6}
+      collisionPadding={16}
       onOpenAutoFocus={(event) => event.preventDefault()}
       class="z-50 w-64 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md"
     >
@@ -133,6 +134,7 @@
             <li>
               <label class="flex items-center gap-2 rounded px-1.5 py-1 text-[12.5px] hover:bg-accent">
                 <input
+                  class="accent-primary"
                   type="checkbox"
                   checked={memberIds.includes(list.id)}
                   disabled={loading || pendingIds.includes(list.id)}

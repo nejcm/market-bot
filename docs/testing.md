@@ -53,8 +53,9 @@ bun run scripts/eval-deep.ts --input /absolute/run/replay/final-synthesis-input.
 ```
 
 The final command prints an offline planning estimate and spends nothing without the existing
-approval flag. It reserves bounded synthesis repair attempts with 25% headroom; estimates are not
-provider cost caps. Tests inject fake providers and never invoke a spending script or approval flag.
+approval flag. It prints an expected figure from the recorded calls' token estimates beside a
+worst-case bound that reserves every bounded synthesis repair attempt with 25% headroom; estimates
+are not provider cost caps. Tests inject fake providers and never invoke a spending script or approval flag.
 
 Direct scripts write only fresh `data/evals/<label>/` directories and reject live flags; they never
 refresh production Calibration/history/index/news-seen state. Their `eval-sample.json` declares
@@ -293,7 +294,9 @@ seven for final synthesis, configured rounds for Web Gather/evidence loops, conf
 count for Forecast Disagreement, one for other stages; observed calls provide a lower bound.
 Web Gather's configured rounds conservatively include its deep-equity parse retry. Per-call tokens
 are the largest of 50k, the largest recorded selected call, or measured maximum input plus largest
-recorded selected output, with another 25% headroom. This is a planning estimate, not a
+recorded selected output, with another 25% headroom. The plan also prints an expected figure:
+the sum over observed preflight calls of measured input plus recorded output (or the recorded
+token estimate when larger), without headroom. A whole-run plan prints no expected figure. This is a planning estimate, not a
 provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
 differ from preflight. A zero-call preflight is disclosed. Only recorded fixtures
 (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real upstream

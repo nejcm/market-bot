@@ -10,6 +10,8 @@ import { resolve } from "node:path";
 // Every known secret field is pinned by tests/reproducibility.test.ts.
 const SECRET_KEY =
   /(api[-_]?key|api[-_]?token|access[-_]?token|password|secret|credential|bearer|private[-_]?key|user[-_]?agent)/iu;
+// Output-only: research never reads them. Input roots (dataDir, cacheDir, news-seen, peers) feed prompts and stay hashed.
+const BEHAVIOR_NEUTRAL_KEYS = new Set(["captureReplay", "dbPath"]);
 const SAFE_UNTRACKED_PATH =
   /^(?:src|tests|scripts|app|prompts|docs|research)[/\\]|^(?:CONTEXT|README|package|tsconfig|oxfmt|oxlint)\b/iu;
 
@@ -17,23 +19,23 @@ function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function nonSecretValue(value: unknown): unknown {
+function hashedConfigValue(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map((item) => nonSecretValue(item));
+    return value.map((item) => hashedConfigValue(item));
   }
   if (value === null || typeof value !== "object") {
     return value;
   }
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([key]) => !SECRET_KEY.test(key))
+      .filter(([key]) => !SECRET_KEY.test(key) && !BEHAVIOR_NEUTRAL_KEYS.has(key))
       .toSorted(([left], [right]) => left.localeCompare(right))
-      .map(([key, nested]) => [key, nonSecretValue(nested)]),
+      .map(([key, nested]) => [key, hashedConfigValue(nested)]),
   );
 }
 
 export function effectiveConfigHash(config: unknown): string {
-  return sha256(JSON.stringify(nonSecretValue(config)));
+  return sha256(JSON.stringify(hashedConfigValue(config)));
 }
 
 // A caller invoked from inside a git hook inherits GIT_DIR/GIT_WORK_TREE from the

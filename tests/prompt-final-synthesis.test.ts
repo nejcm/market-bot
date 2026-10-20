@@ -103,7 +103,7 @@ describe("range volatility reference", () => {
     const instruction = reference(rangeReferenceCloses(21));
 
     expect(instruction).toMatch(
-      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /,
+      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /u,
     );
     expect(instruction).toContain("Daily returns are fat-tailed");
     expect(instruction).not.toContain("32%");
@@ -135,6 +135,22 @@ describe("range volatility reference", () => {
   test("omits the reference without enough closes or a verified snapshot", () => {
     expect(reference(rangeReferenceCloses(10))).not.toContain("Range reference");
     expect(kindMixSynthesisInstruction(command)).not.toContain("Range reference");
+  });
+
+  test("deep diversity guidance points at referenced horizons only when the reference renders", () => {
+    const deep: ResearchCommand = { ...command, depth: "deep" };
+    const horizonHint =
+      "The range reference already carries ±1σ bands at +1, +5, +10, +20 trading days, so a non-redundant further forecast may be the same kind at another referenced horizon";
+    const withCloses = (count: number) =>
+      kindMixSynthesisInstruction(deep, {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          recentCloses: rangeReferenceCloses(count),
+        }),
+      });
+
+    expect(withCloses(21)).toContain(horizonHint);
+    expect(withCloses(10)).not.toContain(horizonHint);
+    expect(reference(rangeReferenceCloses(21))).not.toContain(horizonHint);
   });
 });
 

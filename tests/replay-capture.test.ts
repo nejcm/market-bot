@@ -213,6 +213,12 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(estimate.observedCalls).toBe(1);
     expect(estimate.maxInputTokens).toBeGreaterThan(1000);
     expect(estimate.perRun).toBeGreaterThan(estimate.maxInputTokens);
+    expect(estimate.expectedPerRun).toBe(
+      Object.values(saved.responses.entries)
+        .flat()
+        .reduce((sum, response) => sum + response.tokenEstimate, 0),
+    );
+    expect(estimate.expectedPerRun).toBeLessThan(estimate.perRun);
     const fake = makeReplayProvider(saved.responses);
     const live = await replaySynthesisFile({
       input: file,
@@ -350,9 +356,10 @@ test("capture errors leave the research result usable and never publish a valid 
     },
   );
   expect(result.value).toBe("research survived");
-  expect(await readdir(artifacts.runDir)).toContain("capture-failure.json");
-  expect(await readdir(artifacts.runDir)).not.toContain("replay");
-  expect((await readdir(artifacts.runDir)).some((name) => name.startsWith(".replay-"))).toBe(false);
+  const runDirEntries = await readdir(artifacts.runDir);
+  expect(runDirEntries).toContain("capture-failure.json");
+  expect(runDirEntries).not.toContain("replay");
+  expect(runDirEntries.some((name) => name.startsWith(".replay-"))).toBe(false);
   expect(JSON.parse(await readFile(join(artifacts.runDir, "report.json"), "utf8"))).toEqual({
     preserved: true,
   });

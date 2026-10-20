@@ -54,7 +54,7 @@ if (values.input !== undefined) {
   }
   const estimate = await estimateSynthesisFile(values.input);
   process.stdout.write(
-    `Final synthesis input: ${String(estimate.observedCalls)} recorded call(s), planning ${String(estimate.boundedCalls)} bounded calls/sample, ~${String(estimate.perRun * Number(values.samples))} tokens total with 25% headroom. Not a provider-enforced cost cap.\n`,
+    `Final synthesis input: ${String(estimate.observedCalls)} recorded call(s). Expected ~${String(estimate.expectedPerRun * Number(values.samples))} tokens total at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded calls/sample, 25% headroom) ~${String(estimate.perRun * Number(values.samples))}. Not a provider-enforced cost cap.\n`,
   );
   if (!values.yes) {
     process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
@@ -141,18 +141,23 @@ for (const fixture of fixtures) {
   estimates.push(await liveTokenEstimate(fixture, liveStages));
 }
 let estimate = 0;
+let expected: number | undefined = 0;
 for (const [
   index,
-  { recorded, perRun, boundedCalls, observedCalls, maxInputTokens },
+  { recorded, perRun, boundedCalls, observedCalls, maxInputTokens, expectedPerRun },
 ] of estimates.entries()) {
   const fixture = fixtures[index]!;
   estimate += perRun * samples;
+  expected =
+    expected === undefined || expectedPerRun === undefined
+      ? undefined
+      : expected + expectedPerRun * samples;
   process.stdout.write(
     `${fixture}: ${String(samples)} live-LLM run(s)${liveStages !== undefined ? ` (live stage: ${liveStages})` : ""}, recorded cassette ${String(recorded)} tokens, planning ${String(perRun)}/run\n`,
   );
   if (boundedCalls !== undefined) {
     process.stdout.write(
-      `  Offline preflight: ${String(observedCalls)} selected call(s), ~${String(maxInputTokens)} maximum input tokens (characters/4); planning ${String(boundedCalls)} bounded call(s) with 25% headroom.\n`,
+      `  Offline preflight: ${String(observedCalls)} selected call(s), ~${String(maxInputTokens)} maximum input tokens (characters/4); expected ~${String(expectedPerRun)}/run summed over observed calls, worst case ${String(boundedCalls)} bounded call(s) with 25% headroom.\n`,
     );
     if (observedCalls === 0) {
       process.stdout.write("  Selected stage was not exercised in offline preflight.\n");
@@ -163,7 +168,7 @@ process.stdout.write(
   "Planning estimates are not provider-enforced cost caps; live response token estimates are reported separately from replayed tokens.\n",
 );
 process.stdout.write(
-  `Planned: ${String(fixtures.length * samples)} live-LLM run(s), ~${String(estimate)} tokens, into ${evalLabelDir(EVALS_ROOT, label)}\n`,
+  `Planned: ${String(fixtures.length * samples)} live-LLM run(s), ${expected === undefined ? "" : `expected ~${String(expected)} tokens, `}worst case ~${String(estimate)}, into ${evalLabelDir(EVALS_ROOT, label)}\n`,
 );
 if (!values.yes) {
   process.stdout.write("Nothing run. Re-run with --yes to spend.\n");

@@ -2,7 +2,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ModelProvider, ModelRequest, ModelResponse } from "../model/types";
 import { buildModelStageRequest } from "../research/model-stage-prompt";
-import { synthesizeReportUntilValid } from "../research/final-synthesis";
+import {
+  MAX_REPORT_VALIDATION_REPROMPTS,
+  synthesizeReportUntilValid,
+} from "../research/final-synthesis";
 import { finalizeSynthesis } from "../research/finalize-synthesis";
 import { renderMarkdownReport } from "../report/markdown";
 import {
@@ -193,6 +196,7 @@ export async function estimateSynthesisFile(input: string): Promise<{
   readonly boundedCalls: number;
   readonly maxInputTokens: number;
   readonly perRun: number;
+  readonly expectedPerRun: number;
 }> {
   const saved = readSynthesisReplayInput(JSON.parse(await readFile(input, "utf8")));
   const requests: ModelRequest[] = [];
@@ -206,11 +210,14 @@ export async function estimateSynthesisFile(input: string): Promise<{
       Math.ceil(request.messages.reduce((sum, row) => sum + row.content.length, 0) / 4),
     ),
   );
-  const boundedCalls = 1 + saved.input.maxPredictionReprompts + 4;
+  const boundedCalls = 1 + saved.input.maxPredictionReprompts + 2 + MAX_REPORT_VALIDATION_REPROMPTS;
   return {
     observedCalls: requests.length,
     boundedCalls,
     maxInputTokens,
     perRun: Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25),
+    expectedPerRun: Object.values(saved.responses.entries)
+      .flat()
+      .reduce((sum, response) => sum + response.tokenEstimate, 0),
   };
 }

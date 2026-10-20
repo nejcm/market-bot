@@ -58,6 +58,42 @@ describe("reproducibility fingerprints", () => {
     );
   });
 
+  test("ignores output-only keys but keeps input roots and promptDir", () => {
+    const base = {
+      captureReplay: false,
+      dataDir: "data/runs",
+      promptDir: "prompts",
+      sourceOptions: {
+        cacheDir: "data/cache",
+        newsSeenPath: "data/news-seen.json",
+        peerUniverseLearnedPath: "data/peer-universe-learned.json",
+      },
+      indexOptions: { dbPath: "data/index.sqlite", disabled: false },
+    };
+    const baseline = effectiveConfigHash(base);
+
+    expect(
+      effectiveConfigHash({
+        ...base,
+        captureReplay: true,
+        indexOptions: { dbPath: "/tmp/root/index.sqlite", disabled: false },
+      }),
+    ).toBe(baseline);
+    for (const changed of [
+      { ...base, promptDir: "/tmp/prompts" },
+      { ...base, dataDir: "/tmp/root/runs" },
+      { ...base, sourceOptions: { ...base.sourceOptions, cacheDir: "/tmp/root/cache" } },
+      { ...base, sourceOptions: { ...base.sourceOptions, newsSeenPath: "/tmp/root/news.json" } },
+      {
+        ...base,
+        sourceOptions: { ...base.sourceOptions, peerUniverseLearnedPath: "/tmp/root/peers.json" },
+      },
+      { ...base, indexOptions: { ...base.indexOptions, disabled: true } },
+    ]) {
+      expect(effectiveConfigHash(changed)).not.toBe(baseline);
+    }
+  });
+
   test("changes with dirty source state and excludes ignored secrets", async () => {
     const dir = await mkdtemp(join(tmpdir(), "market-bot-repro-"));
     try {

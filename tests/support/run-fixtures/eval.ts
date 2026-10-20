@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import type { AppConfig } from "../../../src/config";
 import type { PredictionKind } from "../../../src/domain/prediction";
 import type { SourceGap } from "../../../src/domain/sources";
 import { isRecord } from "../../../src/guards";
@@ -742,10 +743,31 @@ export function formatEvalCompare(base: EvalSummary, next: EvalSummary): string 
 }
 
 export async function unreplayableFixtureError(fixture: string): Promise<string | undefined> {
-  const { replayClassification } = (await loadFixture(fixture)).meta;
+  const { meta } = await loadFixture(fixture);
+  const { replayClassification } = meta;
   return replayClassification === "incomplete"
     ? `Fixture ${fixture} is not replayable: replayClassification "${replayClassification}"`
     : undefined;
+}
+
+function boundedStageCalls(stage: LiveStage, config: AppConfig): number {
+  switch (stage) {
+    case "final-synthesis": {
+      return MAX_FINAL_SYNTHESIS_CALLS;
+    }
+    case "web-gather": {
+      return config.webGatherOptions.maxRounds;
+    }
+    case "evidence-request": {
+      return config.evidenceRequestOptions.maxRounds;
+    }
+    case "forecast-disagreement": {
+      return config.forecastDisagreementOptions?.challengerModels.length ?? 0;
+    }
+    default: {
+      return 1;
+    }
+  }
 }
 
 export async function liveTokenEstimate(
@@ -757,6 +779,7 @@ export async function liveTokenEstimate(
   readonly boundedCalls?: number;
   readonly observedCalls?: number;
   readonly maxInputTokens?: number;
+  readonly expectedPerRun?: number;
 }> {
   if (liveStages !== undefined) {
     validateLiveStage(liveStages);
@@ -773,6 +796,7 @@ export async function liveTokenEstimate(
   const restoreEnv = disableIndexAccess();
   let maxInputTokens = 0;
   let observedCalls = 0;
+  let expectedPerRun = 0;
   try {
     const replay = makeReplayProvider(llmCassette);
     await runFixture(fixture, {
@@ -782,15 +806,18 @@ export async function liveTokenEstimate(
         llmCassette,
         {
           name: "offline-prompt-measurement",
-          generate: (request) => {
-            observedCalls += 1;
-            maxInputTokens = Math.max(
-              maxInputTokens,
-              Math.ceil(
-                request.messages.reduce((sum, message) => sum + message.content.length, 0) / 4,
-              ),
+          generate: async (request) => {
+            const inputTokens = Math.ceil(
+              request.messages.reduce((sum, message) => sum + message.content.length, 0) / 4,
             );
-            return replay.generate(request);
+            observedCalls += 1;
+            maxInputTokens = Math.max(maxInputTokens, inputTokens);
+            const response = await replay.generate(request);
+            expectedPerRun += Math.max(
+              response.tokenEstimate,
+              inputTokens + Math.ceil(response.content.length / 4),
+            );
+            return response;
           },
         },
         liveStages,
@@ -801,30 +828,18 @@ export async function liveTokenEstimate(
     await rm(root, { recursive: true, force: true });
   }
   const config = createFixtureConfig(meta, join(root, "runs"));
-  const boundedCalls =
-    liveStages === "final-synthesis"
-      ? MAX_FINAL_SYNTHESIS_CALLS
-      : liveStages === "web-gather"
-        ? config.webGatherOptions.maxRounds
-        : liveStages === "evidence-request"
-          ? config.evidenceRequestOptions.maxRounds
-          : liveStages === "forecast-disagreement"
-            ? (config.forecastDisagreementOptions?.challengerModels.length ?? 0)
-            : 1;
-  const perCall = Math.ceil(
-    1.25 *
-      Math.max(
-        LIVE_STAGE_CALL_TOKENS,
-        maxInputTokens +
-          Math.max(0, ...entries.map((entry) => Math.ceil(entry.content.length / 4))),
-        ...entries.map((entry) => entry.tokenEstimate),
-      ),
+  const boundedCalls = boundedStageCalls(liveStages, config);
+  const callTokens = Math.max(
+    LIVE_STAGE_CALL_TOKENS,
+    maxInputTokens + Math.max(0, ...entries.map((entry) => Math.ceil(entry.content.length / 4))),
+    ...entries.map((entry) => entry.tokenEstimate),
   );
   return {
     recorded,
-    perRun: Math.max(boundedCalls, observedCalls) * perCall,
+    perRun: Math.max(boundedCalls, observedCalls) * Math.ceil(1.25 * callTokens),
     boundedCalls: Math.max(boundedCalls, observedCalls),
     observedCalls,
     maxInputTokens,
+    expectedPerRun,
   };
 }

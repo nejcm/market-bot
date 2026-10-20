@@ -532,8 +532,9 @@ market-bot forecast-grid --watchlist <name> --yes  # spends one quick-model call
   (`data/console/console.sqlite`, opened read-only); an unknown, ambiguous, empty or crypto-only
   watchlist throws before any fetch, provider call or write.
 - Without `--yes` it prints symbols x Event Grid events x a token estimate
-  (prompt chars / 4 with a placeholder fact sheet plus a 200-token output
-  allowance; reasoning tokens excluded). It makes no fetch or provider call, takes no lock, and writes nothing.
+  (prompt chars / 4 with a placeholder fact sheet plus a per-call allowance for provider
+  overhead, completion and reasoning tokens, measured on a live codex run; re-measure when the
+  quick model or provider changes). It makes no fetch or provider call, takes no lock, and writes nothing.
 - The Research Console cannot queue it (`jobRequestArgv` rejects it), so only an
   explicit CLI `--yes` spends.
 

@@ -30,7 +30,8 @@ import type { FetchLike, RawSourceSnapshot } from "../sources/types";
 import { collectPriceHistory } from "../sources/yahoo-price-history";
 
 const STAGE = "forecast-grid";
-const OUTPUT_TOKEN_ALLOWANCE = 200;
+// Shortcut: measured on run 2026-10-20T17-15-13-848Z-144ec654 (codex gpt-6-luna, 36,287 tokens / 2 calls), re-measure when the quick model or provider changes.
+const PER_CALL_UNSEEN_TOKEN_ALLOWANCE = 17_400;
 const LATEST_RUN_FRESH_DAYS = 7;
 const LATEST_RUN_SUMMARY_CHARS = 600;
 const RETURN_SESSIONS = [1, 5, 20, 60] as const;
@@ -143,7 +144,7 @@ export function forecastGridRequest(
 
 function requestTokenEstimate(request: ModelRequest): number {
   const chars = request.messages.reduce((total, message) => total + message.content.length, 0);
-  return Math.ceil(chars / 4) + OUTPUT_TOKEN_ALLOWANCE;
+  return Math.ceil(chars / 4) + PER_CALL_UNSEEN_TOKEN_ALLOWANCE;
 }
 
 function placeholderFactSheet(symbol: string): ForecastGridFactSheet {
@@ -191,7 +192,7 @@ export async function renderForecastGridDryRun(
   const events = perSymbol.reduce((total, { ids }) => total + ids.length, 0);
   const tokens = perSymbol.reduce((total, entry) => total + entry.tokens, 0);
   return [
-    `Forecast Grid dry run for watchlist "${plan.watchlist}": ${String(plan.symbols.length)} symbol(s) x Event Grid = ${String(events)} event(s), ${String(plan.symbols.length)} ${quickModel} call(s), ~${String(tokens)} model tokens (input chars/4 plus ${String(OUTPUT_TOKEN_ALLOWANCE)} completion tokens per call; reasoning tokens excluded)`,
+    `Forecast Grid dry run for watchlist "${plan.watchlist}": ${String(plan.symbols.length)} symbol(s) x Event Grid = ${String(events)} event(s), ${String(plan.symbols.length)} ${quickModel} call(s), ~${String(tokens)} model tokens (estimate: prompt chars/4 plus a measured ${String(PER_CALL_UNSEEN_TOKEN_ALLOWANCE)}-token per-call allowance for provider overhead, completion and reasoning)`,
     ...perSymbol.map(
       ({ symbol, ids, tokens: symbolTokens }) =>
         `  ${symbol}: ${ids.join(", ")} (~${String(symbolTokens)} tokens)`,

@@ -113,8 +113,9 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   Forecast Baseline: `baselineProbability`, `baselineVersion` and `infoCutoff` (last split-adjusted close
   used). Estimators are frozen, pure and versioned (`ewma-0.94-w60-v1`): EWMA (λ 0.94) volatility over the
   last 60 split-adjusted daily log returns, zero drift, √h aggregation. Range is the lognormal
-  outside-band probability; direction and relative (A−B) are 0.5 under zero drift but still require their
-  close windows. Conditional, volatility, IV, macro and earnings claims carry no baseline and are not
+  outside-band probability; direction and plain outperform relative (A−B) are 0.5 by construction (any
+  zero-drift symmetric distribution) but still require their close windows and are stamped with
+  `baselineVersion`, so their Paired Skill is skill against a declared coin flip. Conditional, volatility, IV, macro and earnings claims carry no baseline and are not
   scored for skill. Fewer than 61 closes, a residual split (largest move above 8 robust σ and within
   0.03 of the log of a common split ratio; ordinary large moves stay volatility), zero movement, a
   missing series, or relative legs whose last closes are more than 4 days apart omit the baseline and

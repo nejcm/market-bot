@@ -144,8 +144,11 @@ describe("forecast-grid command", () => {
     expect(output).toContain("SPY: grid-range-1, grid-range-5, grid-range-20 (");
     expect(output).toContain("2 symbol(s) x Event Grid = 7 event(s)");
     expect(output).toMatch(
-      /~\d+ model tokens \(input chars\/4 plus 200 completion tokens per call; reasoning tokens excluded\)/u,
+      /~\d+ model tokens \(estimate: prompt chars\/4 plus a measured 17400-token per-call allowance for provider overhead, completion and reasoning\)/u,
     );
+    expect(
+      Number(/AAPL: .* \(~(?<tokens>\d+) tokens\)/u.exec(output)?.groups?.tokens),
+    ).toBeGreaterThan(17_400);
     expect(output).toContain("skipped: Forecast Grid skipped crypto item BTC-USD");
     expect(output).toContain("No provider call was made. Re-run with --yes to spend.");
     expect(await readdir(root)).toEqual(["console"]);

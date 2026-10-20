@@ -470,9 +470,10 @@ describe("deep-equity packet acquisition", () => {
           const body = JSON.parse(request.body ?? "{}") as { readonly urls?: readonly string[] };
           return body.urls?.[0];
         });
-      expect(fetchedUrls).toEqual([
-        "https://investor.example/aapl-capital-allocation",
+      // Contents requests run concurrently, so arrival order is not part of the contract.
+      expect(fetchedUrls.toSorted()).toEqual([
         "https://industry.example/apple-services-kpis",
+        "https://investor.example/aapl-capital-allocation",
       ]);
 
       expect(result.trace.webGatherLoop?.rejectedRequests).toEqual(

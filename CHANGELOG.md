@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.4](https://github.com/nejcm/market-bot/compare/v1.5.3...v1.5.4) (2026-10-20)
+
+### Bug Fixes
+
+- **forecast:** kind-aware base rate telemetry, citation classes, catalyst and split gaps (#110) ([1f19f10](https://github.com/nejcm/market-bot/commit/1f19f1039572858fa42eefbd78cb25f78c011f1a))
+
 ## [1.5.3](https://github.com/nejcm/market-bot/compare/v1.5.2...v1.5.3) (2026-10-20)
 
 ### Bug Fixes

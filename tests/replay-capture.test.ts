@@ -302,6 +302,34 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(
       JSON.parse(await readFile(join(live.dir, "eval-sample.json"), "utf8")).modelCalls,
     ).toEqual({ live: 1, replayed: 0 });
+    expect(saved.input.priorStages.map((row) => row.stage)).toContain("critique");
+    const ablatedEstimate = await estimateSynthesisFile(file, "critique");
+    expect(ablatedEstimate.maxInputTokens).toBeLessThan(estimate.maxInputTokens);
+    const ablated = await replaySynthesisFile({
+      input: file,
+      label: "no-critique",
+      root: dir,
+      provider: makeReplayProvider(saved.responses),
+      withoutStage: "critique",
+      omissionCases: [],
+    });
+    const ablatedSample = JSON.parse(await readFile(join(ablated.dir, "eval-sample.json"), "utf8"));
+    expect(ablatedSample.ablatedStage).toBe("critique");
+    expect(ablatedSample.defects.claims).toBeGreaterThan(0);
+    const noCritique = join(dir, "no-critique-final-synthesis-input.json");
+    await writeFile(
+      noCritique,
+      JSON.stringify({
+        ...saved,
+        input: {
+          ...saved.input,
+          priorStages: saved.input.priorStages.filter((row) => row.stage !== "critique"),
+        },
+      }),
+    );
+    await expect(estimateSynthesisFile(noCritique, "critique")).rejects.toThrow(
+      "no such prior stage",
+    );
     const frozen = structuredClone(saved);
     Object.assign(frozen.input.context, {
       domainPlaybooks: [

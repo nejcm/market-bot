@@ -21,6 +21,29 @@ import {
   type SynthesisReplayInput,
 } from "./synthesis-input";
 import { freshEvalDir, writeEvalJson } from "./eval-output";
+import { scoreReportDefects, type OmissionCase } from "./eval-cases";
+
+export const ABLATABLE_STAGES = [
+  "critique",
+  "specialist-analysis",
+  "market-behavior-analysis",
+] as const;
+type AblatableStage = (typeof ABLATABLE_STAGES)[number];
+
+async function loadAblatedInput(
+  input: string,
+  withoutStage: AblatableStage | undefined,
+): Promise<SynthesisReplayInput> {
+  const saved = await loadSynthesisReplayInput(input);
+  if (withoutStage === undefined) {
+    return saved;
+  }
+  const priorStages = saved.input.priorStages.filter((row) => row.stage !== withoutStage);
+  if (priorStages.length === saved.input.priorStages.length) {
+    throw new Error(`Cannot ablate ${withoutStage}: the saved input has no such prior stage`);
+  }
+  return { ...saved, input: { ...saved.input, priorStages } };
+}
 
 type SynthesisReplayResult = ReturnType<typeof finalizeSynthesis> & {
   readonly synthesis: Awaited<ReturnType<typeof synthesizeReportUntilValid>>;
@@ -105,12 +128,14 @@ export async function replaySynthesisFile(options: {
   readonly root?: string;
   readonly provider?: ModelProvider;
   readonly promptDir?: string;
+  readonly withoutStage?: AblatableStage | undefined;
+  readonly omissionCases?: readonly OmissionCase[];
 }): Promise<{
   readonly status: "completed" | "failed";
   readonly dir: string;
   readonly durationMs: number;
 }> {
-  const saved = await loadSynthesisReplayInput(options.input);
+  const saved = await loadAblatedInput(options.input, options.withoutStage);
   const dir = await freshEvalDir(options.label, options.root);
   const started = performance.now();
   const requests: ModelRequest[] = [];
@@ -120,6 +145,7 @@ export async function replaySynthesisFile(options: {
   let tokens = 0;
   const modelMisses: string[] = [];
   let facts: ReturnType<typeof synthesisReplayFacts> | undefined = undefined;
+  let defects: ReturnType<typeof scoreReportDefects> | undefined = undefined;
   try {
     const result = await executeSynthesisInput(saved, {
       ...options,
@@ -133,6 +159,16 @@ export async function replaySynthesisFile(options: {
     });
     ({ calls } = result);
     facts = synthesisReplayFacts(result.report);
+    const { rawSnapshots: _rawSnapshots, ...evidence } = saved.input.collectedSources;
+    defects = scoreReportDefects({
+      report: result.report,
+      knownSourceIds: saved.input.knownSourceIds,
+      historicalContext: saved.input.context.historicalContext,
+      evidence: [evidence, saved.input.sources],
+      omissionCases: (options.omissionCases ?? []).filter(
+        (row) => row.capture === saved.input.runId,
+      ),
+    });
     await writeEvalJson(dir, "report.json", result.report);
     await writeFile(join(dir, "report.md"), result.markdown);
     await writeEvalJson(dir, "synthesis.json", result.synthesis);
@@ -154,6 +190,8 @@ export async function replaySynthesisFile(options: {
     scope: "final-synthesis-only",
     partial: true,
     input: resolve(options.input),
+    ablatedStage: options.withoutStage,
+    defects,
     durationMs,
     error: failureMessage,
     modelCalls: {
@@ -191,14 +229,17 @@ export async function replaySynthesisFile(options: {
   return { status, dir, durationMs };
 }
 
-export async function estimateSynthesisFile(input: string): Promise<{
+export async function estimateSynthesisFile(
+  input: string,
+  withoutStage?: AblatableStage,
+): Promise<{
   readonly observedCalls: number;
   readonly boundedCalls: number;
   readonly maxInputTokens: number;
   readonly perRun: number;
   readonly expectedPerRun: number;
 }> {
-  const saved = await loadSynthesisReplayInput(input);
+  const saved = await loadAblatedInput(input, withoutStage);
   const requests: ModelRequest[] = [];
   await executeSynthesisInput(saved, {
     onRequest: (request) => {

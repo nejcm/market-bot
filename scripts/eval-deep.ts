@@ -11,7 +11,12 @@ import {
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
 import { validateLiveStage } from "../src/replay/llm-cassette";
-import { estimateSynthesisFile, replaySynthesisFile } from "../src/replay/replay-synthesis";
+import {
+  ABLATABLE_STAGES,
+  estimateSynthesisFile,
+  replaySynthesisFile,
+} from "../src/replay/replay-synthesis";
+import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
 import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
 import { createProvider } from "../src/model/factory";
 import { resolveConfig } from "../src/config";
@@ -19,7 +24,7 @@ import { join } from "node:path";
 
 const USAGE =
   "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
-  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--yes]\n" +
+  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--ablate <stage>] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
@@ -31,13 +36,16 @@ const { values, positionals } = parseArgs({
     label: { type: "string" },
     compare: { type: "boolean", default: false },
     "live-stages": { type: "string" },
+    ablate: { type: "string" },
     yes: { type: "boolean", default: false },
   },
   allowPositionals: true,
 });
 
+const ablate = ABLATABLE_STAGES.find((stage) => stage === values.ablate);
 if (values.input !== undefined) {
   if (
+    (values.ablate !== undefined && ablate === undefined) ||
     values.fixtures !== undefined ||
     values.compare ||
     values.label === undefined ||
@@ -52,9 +60,9 @@ if (values.input !== undefined) {
   if (existsSync(labelDir)) {
     throw new Error(`Eval label already exists: ${labelDir}`);
   }
-  const estimate = await estimateSynthesisFile(values.input);
+  const estimate = await estimateSynthesisFile(values.input, ablate);
   process.stdout.write(
-    `Final synthesis input: ${String(estimate.observedCalls)} recorded call(s). Expected ~${String(estimate.expectedPerRun * Number(values.samples))} tokens total at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded calls/sample, 25% headroom) ~${String(estimate.perRun * Number(values.samples))}. Not a provider-enforced cost cap.\n`,
+    `Final synthesis input${ablate === undefined ? "" : ` without ${ablate}`}: ${String(estimate.observedCalls)} recorded call(s). Expected ~${String(estimate.expectedPerRun * Number(values.samples))} tokens total at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded calls/sample, 25% headroom) ~${String(estimate.perRun * Number(values.samples))}. Not a provider-enforced cost cap.\n`,
   );
   if (!values.yes) {
     process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
@@ -63,6 +71,9 @@ if (values.input !== undefined) {
   const dir = await freshEvalDir(values.label);
   const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
   const provider = createProvider(config);
+  const omissionCases = parseEvalCases(
+    await Bun.file(join(import.meta.dir, "../tests/fixtures/eval-cases/cases.json")).json(),
+  ).filter((row): row is OmissionCase => row.check === "omission");
   const samples = [];
   for (let sample = 1; sample <= Number(values.samples); sample += 1) {
     samples.push(
@@ -71,6 +82,8 @@ if (values.input !== undefined) {
         input: values.input,
         label: String(sample),
         root: dir,
+        withoutStage: ablate,
+        omissionCases,
         provider: {
           ...provider,
           generate: (request) => provider.generate({ ...request, model: config.synthesisModel }),
@@ -78,9 +91,17 @@ if (values.input !== undefined) {
       }),
     );
   }
-  await writeEvalJson(dir, "summary.json", { scope: "final-synthesis-only", samples });
+  await writeEvalJson(dir, "summary.json", {
+    scope: "final-synthesis-only",
+    ablatedStage: ablate,
+    samples,
+  });
   process.stdout.write(`${join(dir, "summary.json")}\n`);
   process.exit(samples.every((sample) => sample.status === "completed") ? 0 : 1);
+}
+
+if (values.ablate !== undefined) {
+  throw new Error(USAGE);
 }
 
 if (values.compare) {

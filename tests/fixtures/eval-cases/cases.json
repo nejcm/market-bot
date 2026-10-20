@@ -1,0 +1,802 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "amd-1020a-instrument-evidence-carried-earnings-date",
+      "capture": "2026-10-20T07-09-03-517Z-6b4aa8ab",
+      "check": "stale-support",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+        "sha256": "bf645742494b5949ea4cc9eaa3b8598781aa05ff2718967d246f11afc02c1102",
+        "pointer": ["input", "priorStages", 1, "content", "$json", "findings", 6]
+      },
+      "claim": {
+        "text": "AMD announced fiscal Q3 2026 results for November 3 after market close in an issuer filing, while the supplied event-calendar record labels its date provider-estimated. Results could update evidence on post-June revenue, margins, cash generation, and Data Center performance. The two supplied date sources differ in confirmation status.",
+        "sourceIds": [
+          "web-amd-5df62913",
+          "extended-finnhub-events-amd",
+          "extended-sec-edgar-amd-fundamentals"
+        ]
+      },
+      "currentSourceIds": ["extended-finnhub-events-amd", "extended-sec-edgar-amd-fundamentals"],
+      "historicalSourceIds": [
+        "web-amd-5df62913",
+        "extended-finnhub-events-amd",
+        "extended-sec-edgar-amd-fundamentals"
+      ],
+      "evidence": [
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 0, "catalysts", 0],
+          "excerpt": "{\"text\":\"Issuer-confirmed event: AMD announced fiscal Q3 2026 results for November 3, 2026, after market close. Results can update evidence on revenue, margins, cash generation, and Data Center performance after June 27.\",\"sourceIds\":[\"web-amd-5df62913\",\"extended-sec-edgar-amd-fundamentals\"]}"
+        }
+      ],
+      "why": "Cites web-amd-5df62913 (AMD newsroom earnings-date page), which is not in this run's knownSourceIds; the id and the 'issuer-confirmed' framing exist only in the Historical Research Context report of run 1e2720bc."
+    },
+    {
+      "id": "amd-1020a-critique-carried-earnings-date",
+      "capture": "2026-10-20T07-09-03-517Z-6b4aa8ab",
+      "check": "stale-support",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+        "sha256": "bf645742494b5949ea4cc9eaa3b8598781aa05ff2718967d246f11afc02c1102",
+        "pointer": ["input", "priorStages", 3, "content", "$json", "findings", 7]
+      },
+      "claim": {
+        "text": "The November 3 earnings date has inconsistent status across supplied evidence: the current event record labels it provider-estimated, while a supplied issuer filing is described as announcing that date. The specialist analysis should preserve this distinction rather than characterize the event as simply confirmed or unconfirmed. Analyst estimates and options-implied move are unavailable, limiting event-expectation comparisons.",
+        "sourceIds": [
+          "extended-finnhub-events-amd",
+          "web-amd-5df62913",
+          "extended-sec-edgar-amd-fundamentals"
+        ]
+      },
+      "currentSourceIds": ["extended-finnhub-events-amd", "extended-sec-edgar-amd-fundamentals"],
+      "historicalSourceIds": [
+        "extended-finnhub-events-amd",
+        "web-amd-5df62913",
+        "extended-sec-edgar-amd-fundamentals"
+      ],
+      "evidence": [
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 0, "catalysts", 0],
+          "excerpt": "{\"text\":\"Issuer-confirmed event: AMD announced fiscal Q3 2026 results for November 3, 2026, after market close. Results can update evidence on revenue, margins, cash generation, and Data Center performance after June 27.\",\"sourceIds\":[\"web-amd-5df62913\",\"extended-sec-edgar-amd-fundamentals\"]}"
+        }
+      ],
+      "why": "Critique treats an issuer filing announcing November 3 as supplied evidence via web-amd-5df62913, absent from knownSourceIds; only the prior report (run 1e2720bc) carried it."
+    },
+    {
+      "id": "amd-1020b-specialist-carried-10q",
+      "capture": "2026-10-20T17-15-24-780Z-7912637b",
+      "check": "stale-support",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+        "sha256": "e482dc3ee5d01caadbc8d1d6306370e3beed337bde58e8c14bd86663146ab720",
+        "pointer": ["input", "priorStages", 0, "content", "$json", "findings", 1]
+      },
+      "claim": {
+        "text": "Data Center revenue was $6.718 billion, or 58.2% of quarterly revenue, and first-half segment revenue grew 81% year over year, mainly on EPYC and Instinct MI350 demand. Segment margins, accelerator shipment economics, and deployment utilization are not provided.",
+        "sourceIds": ["extended-sec-edgar-amd-10q"]
+      },
+      "currentSourceIds": [],
+      "historicalSourceIds": ["extended-sec-edgar-amd-10q"],
+      "evidence": [
+        {
+          "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 0, "keyFindings", 1],
+          "excerpt": "{\"text\":\"Data Center revenue was $6.718 billion, or 58.2% of revenue, in the quarter ended June 27, 2026. First-half Data Center revenue grew 81% year over year, mainly on EPYC processor and Instinct MI350 Series GPU demand. Segment margins, shipment economics, and deployment utilization are not quantified in the supplied evidence.\",\"sourceIds\":[\"extended-sec-edgar-amd-10q\"]}"
+        }
+      ],
+      "why": "Brief run cites extended-sec-edgar-amd-10q for Data Center figures; the 10-Q is not in knownSourceIds, the id appears only in prior reports in the Historical Research Context."
+    },
+    {
+      "id": "amd-1020b-specialist-carried-8k",
+      "capture": "2026-10-20T17-15-24-780Z-7912637b",
+      "check": "stale-support",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+        "sha256": "e482dc3ee5d01caadbc8d1d6306370e3beed337bde58e8c14bd86663146ab720",
+        "pointer": ["input", "priorStages", 0, "content", "$json", "findings", 7]
+      },
+      "claim": {
+        "text": "The September World Labs agreement leaves closing status, final share issuance, integration costs, and operating contribution unresolved in the supplied evidence.",
+        "sourceIds": ["extended-sec-edgar-amd-8k-0000002488-26-000182"]
+      },
+      "currentSourceIds": [],
+      "historicalSourceIds": ["extended-sec-edgar-amd-8k-0000002488-26-000182"],
+      "evidence": [
+        {
+          "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 0, "catalysts", 2],
+          "excerpt": "{\"text\":\"Further World Labs disclosures could clarify closing status, final share issuance, integration costs, and expected operating contribution.\",\"sourceIds\":[\"extended-sec-edgar-amd-8k-0000002488-26-000182\",\"web-amd-effcb195\"]}"
+        }
+      ],
+      "why": "Cites the World Labs 8-K (extended-sec-edgar-amd-8k-0000002488-26-000182), not collected in this run; present only in prior reports' citations."
+    },
+    {
+      "id": "amd-1020b-critique-carried-10q",
+      "capture": "2026-10-20T17-15-24-780Z-7912637b",
+      "check": "stale-support",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+        "sha256": "e482dc3ee5d01caadbc8d1d6306370e3beed337bde58e8c14bd86663146ab720",
+        "pointer": ["input", "priorStages", 1, "content", "$json", "findings", 1]
+      },
+      "claim": {
+        "text": "Data Center growth supports the thesis, but segment revenue alone does not establish profitability or deployment economics. The supplied evidence lacks segment margins, accelerator shipment economics, and utilization; alternative explanations for rapid growth cannot be assessed from these figures alone.",
+        "sourceIds": ["extended-sec-edgar-amd-10q"]
+      },
+      "currentSourceIds": [],
+      "historicalSourceIds": ["extended-sec-edgar-amd-10q"],
+      "evidence": [
+        {
+          "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 0, "keyFindings", 1],
+          "excerpt": "{\"text\":\"Data Center revenue was $6.718 billion, or 58.2% of revenue, in the quarter ended June 27, 2026. First-half Data Center revenue grew 81% year over year, mainly on EPYC processor and Instinct MI350 Series GPU demand. Segment margins, shipment economics, and deployment utilization are not quantified in the supplied evidence.\",\"sourceIds\":[\"extended-sec-edgar-amd-10q\"]}"
+        }
+      ],
+      "why": "Critique cites extended-sec-edgar-amd-10q, which this run did not collect (absent from knownSourceIds); carried from the prior report."
+    },
+    {
+      "id": "amd-1020b-rejected-synthesis-carried-10q",
+      "capture": "2026-10-20T17-15-24-780Z-7912637b",
+      "check": "stale-support",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+        "sha256": "e482dc3ee5d01caadbc8d1d6306370e3beed337bde58e8c14bd86663146ab720",
+        "pointer": [
+          "responses",
+          "entries",
+          "final-synthesis|gpt-6-luna",
+          0,
+          "content",
+          "$json",
+          "keyFindings",
+          1
+        ]
+      },
+      "claim": {
+        "text": "Issuer-reported Data Center revenue was $6.718 billion, or 58.2% of quarterly revenue, in the quarter ended June 27, 2026. First-half Data Center revenue grew 81% year over year, mainly on EPYC processor and Instinct MI350 Series GPU demand; segment margins and deployment utilization are not quantified.",
+        "sourceIds": ["extended-sec-edgar-amd-10q"]
+      },
+      "currentSourceIds": [],
+      "historicalSourceIds": ["extended-sec-edgar-amd-10q"],
+      "evidence": [
+        {
+          "file": "2026-10-20T17-15-24-780Z-7912637b/trace.json",
+          "pointer": ["stageRecords", 3, "repromptReason", "reportValidationErrors", 0],
+          "excerpt": "keyFindings[1] cites unknown source ID: extended-sec-edgar-amd-10q; bullCase[0] cites unknown source ID: extended-sec-edgar-amd-10q; risks[0] cites unknown source ID: extended-sec-edgar-amd-10q; catalysts[1] cites unknown source ID: extended-sec-edgar-amd-10q; scenarios[0] cites unknown source ID: extended-sec-edgar-amd-10q; scenarios[1] cites unknown source ID: extended-sec-edgar-amd-10q; Business Framework sections"
+        }
+      ],
+      "why": "First final-synthesis attempt cited extended-sec-edgar-amd-10q; the report validator rejected it as an unknown source ID and reprompted."
+    },
+    {
+      "id": "amd-1020b-report-history-only-catalyst",
+      "capture": "2026-10-20T17-15-24-780Z-7912637b",
+      "check": "stale-support",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T17-15-24-780Z-7912637b/report.json",
+        "sha256": "ae3dd9d25539f698aec3d001687b4909a65e5c039299a731a55726a009636157",
+        "pointer": ["catalysts", 2]
+      },
+      "claim": {
+        "text": "Further World Labs disclosures could clarify transaction completion, share issuance, integration costs, and operating contribution. [Observed fact]",
+        "sourceIds": ["history-report-2026-10-20T07-09-03-517Z-6b4aa8ab"]
+      },
+      "currentSourceIds": ["history-report-2026-10-20T07-09-03-517Z-6b4aa8ab"],
+      "historicalSourceIds": [],
+      "evidence": [
+        {
+          "file": "2026-10-20T17-15-24-780Z-7912637b/trace.json",
+          "pointer": ["reportIntegrityAudit", "pruned", 0],
+          "excerpt": "{\"location\":\"keyFindings[1]\",\"text\":\"Issuer filing evidence identifies Data Center revenue as a growth contributor, mainly from EPYC processors and Instinct MI350 Series GPUs; supplied evidence does not quantify segment margins, shipment economics, or utilization.\",\"sourceIds\":[\"history-report-2026-10-20T07-09-03-517Z-6b4aa8ab\"]}"
+        },
+        {
+          "file": "2026-10-20T17-15-24-780Z-7912637b/replay/final-synthesis-input.json",
+          "pointer": ["input", "knownSourceIds"],
+          "excerpt": "ec-edgar-amd-fundamentals\",\"extended-finnhub-events-amd\",\"extended-fred-macro\",\"price-history-AMD\",\"price-history-SPY\",\"history-report-2026-10-20T07-09-03-517Z-6b4aa8ab\",\"history-report-2026-10-18T08-13-28-001Z-1e2720bc\",\"history-report-2026-10-09T11-15-34-899Z-d8fef507\",\"history-report-2026-10-08T04-20-15-100Z-2e656117\"]"
+        }
+      ],
+      "why": "Published catalyst labelled [Observed fact] cites only history-report-2026-10-20T07-09-03-517Z-6b4aa8ab, a prior model report; the integrity audit pruned sibling items with the same history-only support."
+    },
+    {
+      "id": "amd-1020b-report-history-only-declared-missing",
+      "capture": "2026-10-20T17-15-24-780Z-7912637b",
+      "check": "stale-support",
+      "defect": false,
+      "target": {
+        "file": "2026-10-20T17-15-24-780Z-7912637b/report.json",
+        "sha256": "ae3dd9d25539f698aec3d001687b4909a65e5c039299a731a55726a009636157",
+        "pointer": ["catalysts", 1]
+      },
+      "claim": {
+        "text": "Further disclosures on Data Center margins, accelerator shipments, Helios deployments, and utilization would clarify whether segment demand translates into profitable deliveries. [Missing required source]",
+        "sourceIds": ["history-report-2026-10-20T07-09-03-517Z-6b4aa8ab"]
+      },
+      "currentSourceIds": ["history-report-2026-10-20T07-09-03-517Z-6b4aa8ab"],
+      "historicalSourceIds": [],
+      "evidence": [
+        {
+          "file": "2026-10-20T17-15-24-780Z-7912637b/report.json",
+          "pointer": ["catalysts", 1],
+          "excerpt": "{\"text\":\"Further disclosures on Data Center margins, accelerator shipments, Helios deployments, and utilization would clarify whether segment demand translates into profitable deliveries. [Missing required source]\",\"sourceIds\":[\"history-report-2026-10-20T07-09-03-517Z-6b4aa8ab\"]}"
+        }
+      ],
+      "why": "History-only citation, but the claim declares [Missing required source], so the weak support is disclosed rather than presented as current evidence."
+    },
+    {
+      "id": "amd-1018-report-issuer-confirmed-current",
+      "capture": "2026-10-18T08-13-28-001Z-1e2720bc",
+      "check": "stale-support",
+      "defect": false,
+      "target": {
+        "file": "2026-10-18T08-13-28-001Z-1e2720bc/report.json",
+        "sha256": "eabed45c18e0e761b0582a152aa82bc5624b067e498a9a567e3060b292b39e1d",
+        "pointer": ["catalysts", 0]
+      },
+      "claim": {
+        "text": "Issuer-confirmed event: AMD announced fiscal Q3 2026 results for November 3, 2026, after market close. Results can update evidence on revenue, margins, cash generation, and Data Center performance after June 27.",
+        "sourceIds": ["web-amd-5df62913", "extended-sec-edgar-amd-fundamentals"]
+      },
+      "currentSourceIds": ["web-amd-5df62913", "extended-sec-edgar-amd-fundamentals"],
+      "historicalSourceIds": ["extended-sec-edgar-amd-fundamentals"],
+      "evidence": [
+        {
+          "file": "2026-10-18T08-13-28-001Z-1e2720bc/report.json",
+          "pointer": ["sources", 58],
+          "excerpt": "{\"id\":\"web-amd-5df62913\",\"title\":\"AMD to Report Fiscal Third Quarter 2026 Financial Results - AMD Newsroom\",\"url\":\"https://newsroom.amd.com/news/earnings-date-3q-2026/\",\"fetchedAt\":\"2026-10-06T00:00:00.000Z\",\"kind\":\"web\",\"assetClass\":\"equity\",\"symbol\":\"AMD\",\"provider\":\"exa\",\"providerArticleId\":\"https://newsroom.amd.com/news/earnings-date-3q-2026/\",\"canonicalUrl\":\"https://newsroom.amd.com/news/earnings-date-3q-2026\",\""
+        }
+      ],
+      "why": "web-amd-5df62913 and the SEC fundamentals source are both in this run's knownSourceIds."
+    },
+    {
+      "id": "amd-1020a-report-provider-estimated-current",
+      "capture": "2026-10-20T07-09-03-517Z-6b4aa8ab",
+      "check": "stale-support",
+      "defect": false,
+      "target": {
+        "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/report.json",
+        "sha256": "fb7bbcfd771528097a1815d2a49a15e20ac99c3ad898b6e99f30787f0b34f5e4",
+        "pointer": ["catalysts", 0]
+      },
+      "claim": {
+        "text": "The supplied event calendar lists November 3, 2026, after market close, as provider-estimated. A subsequent report could update revenue, margins, cash generation, and Data Center performance after June 27.",
+        "sourceIds": ["extended-finnhub-events-amd", "extended-sec-edgar-amd-fundamentals"]
+      },
+      "currentSourceIds": ["extended-finnhub-events-amd", "extended-sec-edgar-amd-fundamentals"],
+      "historicalSourceIds": ["extended-finnhub-events-amd", "extended-sec-edgar-amd-fundamentals"],
+      "evidence": [
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/report.json",
+          "pointer": ["sources", 25],
+          "excerpt": "{\"id\":\"extended-finnhub-events-amd\",\"title\":\"AMD equity events\",\"fetchedAt\":\"2026-10-20T07:09:03.517Z\",\"kind\":\"extended-evidence\",\"assetClass\":\"equity\",\"symbol\":\"AMD\",\"provider\":\"finnhub\"}"
+        }
+      ],
+      "why": "Cites only current-run sources (Finnhub events, SEC fundamentals) and describes the date as provider-estimated, matching the current event record."
+    },
+    {
+      "id": "aapl-1016-brief-a-uncited-ubs-wait-times",
+      "capture": "2026-10-16T15-39-21-051Z-3c39ea2b",
+      "check": "omission",
+      "defect": true,
+      "target": {
+        "file": "2026-10-16T15-39-21-051Z-3c39ea2b/report.json",
+        "sha256": "1dda7d042b64df5f6bf69ba013c8f2691c5198c6bc95dad6ad59c6a38558cddf",
+        "pointer": []
+      },
+      "requiredSourceIds": ["news-equity-5"],
+      "citedSourceIds": [
+        "extended-finnhub-events-aapl",
+        "extended-sec-edgar-aapl-filings",
+        "extended-sec-edgar-aapl-fundamentals",
+        "market-yahoo-equity-^vix",
+        "market-yahoo-equity-^vix3m",
+        "market-yahoo-equity-aapl",
+        "market-yahoo-equity-dia",
+        "market-yahoo-equity-iwm",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-spy",
+        "news-equity-1",
+        "news-equity-10",
+        "news-equity-12",
+        "news-equity-9",
+        "verified-snapshot-AAPL"
+      ],
+      "evidence": [
+        {
+          "file": "2026-10-16T15-39-21-051Z-3c39ea2b/report.json",
+          "pointer": ["sources", 12],
+          "excerpt": "{\"id\":\"news-equity-5\",\"fetchedAt\":\"2026-10-16T13:25:42.000000Z\",\"kind\":\"news\",\"assetClass\":\"equity\",\"provider\":\"marketaux\",\"title\":\"UBS Notes Shorter iPhone Pro Wait Times, Maintains Neutral on Apple (AAPL)\",\"url\":\"https://www.gurufocus.com/news/9127570/ubs-notes-shorter-iphone-pro-wait-times-maintains-neutral-on-apple-aapl\",\"canonicalUrl\":\"https://gurufocus.com/news/9127570/ubs-notes-shorter-iphone-pro-wait-times-ma"
+        },
+        {
+          "file": "2026-10-16T18-47-34-489Z-4d2d421b/replay/final-synthesis-input.json",
+          "pointer": ["input", "priorStages", 1, "content", "$json", "findings", 1],
+          "excerpt": "{\"text\":\"The launch narrative has conflicting signals: coverage reports strong iPhone Duo preorders, while separate reports cite shortening iPhone 18 Pro delivery waits as a demand concern. Either could reflect supply or demand conditions; neither is confirmed by preorder counts, inventory, sell-through, or production data. The launch case is therefore not yet established. [news-equity-7, news-equity-9, news-equity-1"
+        }
+      ],
+      "why": "news-equity-5 (UBS: shorter iPhone Pro wait times) is in the report's sources but no claim cites it, while findings cite only sell-out/preorder coverage. Same-day runs' critiques flagged the equivalent UBS item as conflicting launch-demand evidence."
+    },
+    {
+      "id": "aapl-1016-deep-uncited-ubs-wait-times",
+      "capture": "2026-10-16T15-39-22-261Z-db41e526",
+      "check": "omission",
+      "defect": true,
+      "target": {
+        "file": "2026-10-16T15-39-22-261Z-db41e526/report.json",
+        "sha256": "31c55ac100209e6d4fc82a3149a4cb1414a781f390b7605179c73dbc53add856",
+        "pointer": []
+      },
+      "requiredSourceIds": ["news-equity-5"],
+      "citedSourceIds": [
+        "extended-finnhub-events-aapl",
+        "extended-sec-edgar-aapl-10k",
+        "extended-sec-edgar-aapl-10q",
+        "extended-sec-edgar-aapl-8k-0000320193-26-000018",
+        "extended-sec-edgar-aapl-filings",
+        "extended-sec-edgar-aapl-fundamentals",
+        "extended-sec-edgar-amzn-filings",
+        "extended-sec-edgar-amzn-fundamentals",
+        "extended-sec-edgar-dell-filings",
+        "extended-sec-edgar-dell-fundamentals",
+        "extended-sec-edgar-googl-filings",
+        "extended-sec-edgar-googl-fundamentals",
+        "extended-sec-edgar-meta-filings",
+        "extended-sec-edgar-meta-fundamentals",
+        "extended-sec-edgar-msft-filings",
+        "extended-sec-edgar-msft-fundamentals",
+        "history-report-2026-09-11T07-37-46-327Z-ebdb627a",
+        "market-yahoo-equity-^vix",
+        "market-yahoo-equity-^vix3m",
+        "market-yahoo-equity-aapl",
+        "market-yahoo-equity-amzn",
+        "market-yahoo-equity-dell",
+        "market-yahoo-equity-dia",
+        "market-yahoo-equity-googl",
+        "market-yahoo-equity-iwm",
+        "market-yahoo-equity-meta",
+        "market-yahoo-equity-msft",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-spy",
+        "news-equity-1",
+        "news-equity-10",
+        "news-equity-12",
+        "news-equity-9",
+        "price-history-AAPL",
+        "price-history-SPY",
+        "verified-snapshot-AAPL",
+        "web-aapl-405491e4",
+        "web-aapl-63b5cbc1",
+        "web-aapl-a0459922",
+        "web-aapl-fdd8d7e0"
+      ],
+      "evidence": [
+        {
+          "file": "2026-10-16T15-39-22-261Z-db41e526/report.json",
+          "pointer": ["sources", 12],
+          "excerpt": "{\"id\":\"news-equity-5\",\"fetchedAt\":\"2026-10-16T13:25:42.000000Z\",\"kind\":\"news\",\"assetClass\":\"equity\",\"provider\":\"marketaux\",\"title\":\"UBS Notes Shorter iPhone Pro Wait Times, Maintains Neutral on Apple (AAPL)\",\"url\":\"https://www.gurufocus.com/news/9127570/ubs-notes-shorter-iphone-pro-wait-times-maintains-neutral-on-apple-aapl\",\"canonicalUrl\":\"https://gurufocus.com/news/9127570/ubs-notes-shorter-iphone-pro-wait-times-ma"
+        },
+        {
+          "file": "2026-10-16T18-47-34-489Z-4d2d421b/replay/final-synthesis-input.json",
+          "pointer": ["input", "priorStages", 1, "content", "$json", "findings", 1],
+          "excerpt": "{\"text\":\"The launch narrative has conflicting signals: coverage reports strong iPhone Duo preorders, while separate reports cite shortening iPhone 18 Pro delivery waits as a demand concern. Either could reflect supply or demand conditions; neither is confirmed by preorder counts, inventory, sell-through, or production data. The launch case is therefore not yet established. [news-equity-7, news-equity-9, news-equity-1"
+        }
+      ],
+      "why": "Deep run: news-equity-5 (UBS shorter wait times) listed in sources, never cited; launch-demand claims cite only sell-out coverage."
+    },
+    {
+      "id": "aapl-1016-brief-c-cites-ubs-wait-times",
+      "capture": "2026-10-16T18-47-34-489Z-4d2d421b",
+      "check": "omission",
+      "defect": false,
+      "target": {
+        "file": "2026-10-16T18-47-34-489Z-4d2d421b/report.json",
+        "sha256": "1a59ddb6cd0fc345be0c98cc68c21bfc310c8d5422d41d45b675923d073a5f6b",
+        "pointer": []
+      },
+      "requiredSourceIds": ["news-equity-12", "news-equity-14"],
+      "citedSourceIds": [
+        "extended-finnhub-events-aapl",
+        "extended-sec-edgar-aapl-filings",
+        "extended-sec-edgar-aapl-fundamentals",
+        "market-yahoo-equity-^vix",
+        "market-yahoo-equity-^vix3m",
+        "market-yahoo-equity-aapl",
+        "market-yahoo-equity-dia",
+        "market-yahoo-equity-iwm",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-spy",
+        "news-equity-1",
+        "news-equity-11",
+        "news-equity-12",
+        "news-equity-7",
+        "news-equity-9",
+        "price-history-AAPL",
+        "price-history-SPY",
+        "verified-snapshot-AAPL"
+      ],
+      "evidence": [
+        {
+          "file": "2026-10-16T18-47-34-489Z-4d2d421b/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "newsSources", 11],
+          "excerpt": "{\"id\":\"news-equity-12\",\"fetchedAt\":\"2026-10-16T16:27:00.000Z\",\"kind\":\"news\",\"assetClass\":\"equity\",\"provider\":\"finnhub\",\"title\":\"Apple faces growing iPhone demand concerns as delivery wait times shrink, UBS warns\",\"url\":\"https://finnhub.io/api/news?id=5284d83acfab055117cb5c08fe542f94bcccc90459a7f3c8e7230d6b04d698bb\",\"canonicalUrl\":\"https://finnhub.io/api/news?id=5284d83acfab055117cb5c08fe542f94bcccc90459a7f3c8e7230d6b"
+        },
+        {
+          "file": "2026-10-16T18-47-34-489Z-4d2d421b/report.json",
+          "pointer": ["keyFindings", 3],
+          "excerpt": "{\"text\":\"Reports of strong iPhone Duo preorders and shorter iPhone 18 Pro delivery waits point in different directions. Neither is confirmed by preorder counts, inventory, realized sell-through, margins, or production-capacity evidence. [news-equity-7, news-equity-9, news-equity-12]\",\"sourceIds\":[\"news-equity-7\",\"news-equity-9\",\"news-equity-12\"]}"
+        }
+      ],
+      "why": "UBS wait-time coverage (news-equity-12) is cited alongside preorder coverage."
+    },
+    {
+      "id": "aapl-1016-brief-d-cites-ubs-wait-times",
+      "capture": "2026-10-16T19-18-25-720Z-431aafda",
+      "check": "omission",
+      "defect": false,
+      "target": {
+        "file": "2026-10-16T19-18-25-720Z-431aafda/report.json",
+        "sha256": "16c92d98ee1fc0f86d0ceb0ecdbfe2ec96c8f5009ddaabf9fb0aea81a25783b5",
+        "pointer": []
+      },
+      "requiredSourceIds": ["news-equity-12", "news-equity-14"],
+      "citedSourceIds": [
+        "extended-finnhub-events-aapl",
+        "extended-sec-edgar-aapl-filings",
+        "extended-sec-edgar-aapl-fundamentals",
+        "market-yahoo-equity-^vix",
+        "market-yahoo-equity-^vix3m",
+        "market-yahoo-equity-aapl",
+        "market-yahoo-equity-dia",
+        "market-yahoo-equity-iwm",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-spy",
+        "news-equity-1",
+        "news-equity-11",
+        "news-equity-12",
+        "news-equity-7",
+        "news-equity-9",
+        "verified-snapshot-AAPL"
+      ],
+      "evidence": [
+        {
+          "file": "2026-10-16T19-18-25-720Z-431aafda/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "newsSources", 11],
+          "excerpt": "{\"id\":\"news-equity-12\",\"fetchedAt\":\"2026-10-16T16:27:00.000Z\",\"kind\":\"news\",\"assetClass\":\"equity\",\"provider\":\"finnhub\",\"title\":\"Apple faces growing iPhone demand concerns as delivery wait times shrink, UBS warns\",\"url\":\"https://finnhub.io/api/news?id=5284d83acfab055117cb5c08fe542f94bcccc90459a7f3c8e7230d6b04d698bb\",\"canonicalUrl\":\"https://finnhub.io/api/news?id=5284d83acfab055117cb5c08fe542f94bcccc90459a7f3c8e7230d6b"
+        },
+        {
+          "file": "2026-10-16T19-18-25-720Z-431aafda/report.json",
+          "pointer": ["keyFindings", 3],
+          "excerpt": "{\"text\":\"Conflicting evidence: News reports describe strong iPhone Duo preorder interest, while UBS commentary treats shorter iPhone 18 Pro delivery waits as a possible demand concern. Neither signal is supported here by verified preorder counts, inventory, sell-through, margins, or production-capacity data. [news-equity-7, news-equity-9, news-equity-12]\",\"sourceIds\":[\"news-equity-7\",\"news-equity-9\",\"news-equity-12\"]"
+        }
+      ],
+      "why": "UBS wait-time coverage (news-equity-12) is cited as conflicting evidence."
+    },
+    {
+      "id": "aapl-1016-deep-critique-misread-range-miss",
+      "capture": "2026-10-16T15-39-22-261Z-db41e526",
+      "check": "contradiction",
+      "defect": true,
+      "target": {
+        "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
+        "sha256": "f7a27159671e84d0abcf3a5cfb7cfb3fbf738cff5dd82b35b4fa00662a30aa78",
+        "pointer": ["input", "priorStages", 3, "content", "$json", "findings", 9]
+      },
+      "claim": {
+        "text": "The prior five-session range claim resolved as a miss: AAPL closed at $336.13, inside the stated $309–$344 range. That error is a calibration warning against making a narrow short-horizon range claim from limited market context; the historical run does not establish how the current setup will resolve.",
+        "sourceIds": ["history-report-2026-09-11T07-37-46-327Z-ebdb627a"]
+      },
+      "question": "Does the claim contradict the quoted evidence, i.e. state or imply something the evidence shows to be false? Read forecast records carefully: probability is the stated chance of the claimed event, and a miss means the event did not occur.",
+      "evidence": [
+        {
+          "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 0, "predictions", 1],
+          "excerpt": "{\"id\":\"pred-2\",\"claim\":\"AAPL closes outside 309-344 over 5 trading days\",\"kind\":\"range\",\"subject\":\"AAPL\",\"measurableAs\":\"close(AAPL, +5) outside [309, 344]\",\"horizonTradingDays\":5,\"probability\":0.29,\"scoreStatus\":\"resolved\",\"scoreOutcome\":\"miss\",\"scoreEvidence\":{\"closeN\":336.1300048828125,\"lo\":309,\"hi\":344}}"
+        }
+      ],
+      "why": "Calls the prior range claim's miss an 'error' warning against narrow range claims, but the record is 'closes outside 309-344' at probability 0.29: the close (336.13) landed inside, the outcome the forecast favoured at 0.71."
+    },
+    {
+      "id": "amd-1020a-critique-misread-range-misses",
+      "capture": "2026-10-20T07-09-03-517Z-6b4aa8ab",
+      "check": "contradiction",
+      "defect": true,
+      "target": {
+        "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+        "sha256": "bf645742494b5949ea4cc9eaa3b8598781aa05ff2718967d246f11afc02c1102",
+        "pointer": ["input", "priorStages", 3, "content", "$json", "findings", 9]
+      },
+      "claim": {
+        "text": "The prior one-session range calls that resolved as misses understated how often closes could remain inside their specified ranges. The misses do not identify a single cause or determine the next outcome, but they argue against narrow, high-confidence short-horizon claims without stronger volatility evidence. Options data is unavailable, and the current evidence provides no basis for asserting that a particular directional outcome is more likely.",
+        "sourceIds": [
+          "history-report-2026-10-09T11-15-34-899Z-d8fef507",
+          "history-report-2026-10-08T04-20-15-100Z-2e656117"
+        ]
+      },
+      "question": "Does the claim contradict the quoted evidence, i.e. state or imply something the evidence shows to be false? Read forecast records carefully: probability is the stated chance of the claimed event, and a miss means the event did not occur.",
+      "evidence": [
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 2, "predictions", 2],
+          "excerpt": "{\"id\":\"pred-3\",\"claim\":\"AMD closes outside 580-665 over 1 trading days\",\"kind\":\"range\",\"subject\":\"AMD\",\"measurableAs\":\"close(AMD, +1) outside [580, 665]\",\"horizonTradingDays\":1,\"probability\":0.12,\"scoreStatus\":\"resolved\",\"scoreOutcome\":\"miss\",\"scoreEvidence\":{\"closeN\":594.239990234375,\"lo\":580,\"hi\":665}}"
+        },
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "context", "historicalContext", "runs", 3, "predictions", 1],
+          "excerpt": "{\"id\":\"pred-2\",\"claim\":\"AMD closes outside 600-700 over 1 trading days\",\"kind\":\"range\",\"subject\":\"AMD\",\"measurableAs\":\"close(AMD, +1) outside [600, 700]\",\"horizonTradingDays\":1,\"probability\":0.17,\"scoreStatus\":\"resolved\",\"scoreOutcome\":\"miss\",\"scoreEvidence\":{\"closeN\":608.0999755859375,\"lo\":600,\"hi\":700}}"
+        }
+      ],
+      "why": "Says the missed one-session range calls 'understated how often closes could remain inside'; the records give 'outside' probabilities 0.12 and 0.17, i.e. 0.88/0.83 on staying inside, which is what happened."
+    },
+    {
+      "id": "amd-1018-report-issuer-confirmed-date",
+      "capture": "2026-10-18T08-13-28-001Z-1e2720bc",
+      "check": "contradiction",
+      "defect": false,
+      "target": {
+        "file": "2026-10-18T08-13-28-001Z-1e2720bc/report.json",
+        "sha256": "eabed45c18e0e761b0582a152aa82bc5624b067e498a9a567e3060b292b39e1d",
+        "pointer": ["catalysts", 0]
+      },
+      "claim": {
+        "text": "Issuer-confirmed event: AMD announced fiscal Q3 2026 results for November 3, 2026, after market close. Results can update evidence on revenue, margins, cash generation, and Data Center performance after June 27.",
+        "sourceIds": ["web-amd-5df62913", "extended-sec-edgar-amd-fundamentals"]
+      },
+      "question": "Does the claim contradict the quoted evidence, i.e. state or imply something the evidence shows to be false? Read forecast records carefully: probability is the stated chance of the claimed event, and a miss means the event did not occur.",
+      "evidence": [
+        {
+          "file": "2026-10-18T08-13-28-001Z-1e2720bc/report.json",
+          "pointer": ["sources", 58, "summary"],
+          "excerpt": "Summary - AMD announces it will report fiscal Q3 2026 financial results on Tuesday, November 3, 2026, after market close. A conference call discussing the results will follow at 5:00 p.m. ET / 2:00 p.m. PT, with a live webcast available on AMD’s Investor Relations site (ir.amd.com). - AMD will participate in upcoming investor events: UBS Global Technology and AI Conference on Dec 1, 2026, and Barclays 24th Annual Glo"
+        }
+      ],
+      "why": "AMD newsroom page in the same run announces Q3 results for Tuesday, November 3, 2026 after market close."
+    },
+    {
+      "id": "aapl-1016-brief-c-conflicting-launch-signals",
+      "capture": "2026-10-16T18-47-34-489Z-4d2d421b",
+      "check": "contradiction",
+      "defect": false,
+      "target": {
+        "file": "2026-10-16T18-47-34-489Z-4d2d421b/report.json",
+        "sha256": "1a59ddb6cd0fc345be0c98cc68c21bfc310c8d5422d41d45b675923d073a5f6b",
+        "pointer": ["keyFindings", 3]
+      },
+      "claim": {
+        "text": "Reports of strong iPhone Duo preorders and shorter iPhone 18 Pro delivery waits point in different directions. Neither is confirmed by preorder counts, inventory, realized sell-through, margins, or production-capacity evidence. [news-equity-7, news-equity-9, news-equity-12]",
+        "sourceIds": ["news-equity-7", "news-equity-9", "news-equity-12"]
+      },
+      "question": "Does the claim contradict the quoted evidence, i.e. state or imply something the evidence shows to be false? Read forecast records carefully: probability is the stated chance of the claimed event, and a miss means the event did not occur.",
+      "evidence": [
+        {
+          "file": "2026-10-16T18-47-34-489Z-4d2d421b/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "newsSources", 11, "summary"],
+          "excerpt": "UBS has warned that shortening delivery times for Apple Inc (NASDAQ:AAPL, XETRA:APC)’s latest iPhones could signal weaker demand and put its revenue forecasts at risk, despite resilient sales across key markets. The bank found that average waiting times for the iPhone 18 Pro fell by about..."
+        },
+        {
+          "file": "2026-10-16T18-47-34-489Z-4d2d421b/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "newsSources", 6, "summary"],
+          "excerpt": "Apple's iPhone Duo foldable phone launches Friday at $1,999, likely appealing primarily to existing Apple customers rather than Android switchers. While sales could reach 5-10 million units annually, the real growth opportunity lies in Apple's expanding connected home ecosystem with new affordable devices like HomeView ($299) and HomePod mini 2 ($149), which could strengthen customer loyalty and ecosystem lock-in."
+        }
+      ],
+      "why": "States that preorder strength and shorter iPhone 18 Pro waits point in different directions, matching the UBS and preorder coverage."
+    },
+    {
+      "id": "amd-1020a-report-data-center-share",
+      "capture": "2026-10-20T07-09-03-517Z-6b4aa8ab",
+      "check": "extraction-error",
+      "defect": false,
+      "target": {
+        "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/report.json",
+        "sha256": "fb7bbcfd771528097a1815d2a49a15e20ac99c3ad898b6e99f30787f0b34f5e4",
+        "pointer": ["keyFindings", 1]
+      },
+      "claim": {
+        "text": "Data Center revenue was $6.718 billion, or 58.2% of revenue, in the quarter ended June 27, 2026. First-half Data Center revenue grew 81% year over year, mainly on EPYC processor and Instinct MI350 Series GPU demand. Segment margins, shipment economics, and deployment utilization are not quantified in the supplied evidence.",
+        "sourceIds": ["extended-sec-edgar-amd-10q"]
+      },
+      "facts": [
+        {
+          "sourceId": "extended-sec-edgar-amd-10q",
+          "value": 6718000000
+        },
+        {
+          "sourceId": "extended-sec-edgar-amd-10q",
+          "value": 11536000000
+        },
+        {
+          "sourceId": "extended-sec-edgar-amd-10q",
+          "value": 12493000000
+        },
+        {
+          "sourceId": "extended-sec-edgar-amd-10q",
+          "value": 6914000000
+        }
+      ],
+      "why": "$6.718B is the Q2 Data Center line; 58.2% = 6,718/11,536 Q2 total; 81% = 12,493/6,914 - 1 first-half growth.",
+      "evidence": [
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "extendedSources", 29, "snippet"],
+          "excerpt": " Three Months Ended Six Months Ended June 27, 2026 June 28, 2025 June 27, 2026 June 28, 2025 (In millions) Net revenue: Data Center $ 6,718 $ 3,240 $ 12,493 $ 6,914 Client and Gaming Client 3,062 2,499 5,947 4,793 Gaming 779 1,122 1,499 1,769 Total Client and Gaming 3,841 3,621 7,446 6,562 Embedded 977 824 1,850 1,647 Total net revenue $ 11,536 $ 7,685 $ 21,789 $ 15,123 Cost of sales and operating expenses: Data Cent"
+        }
+      ]
+    },
+    {
+      "id": "aapl-1016-brief-b-margins-fcf-proxy",
+      "capture": "2026-10-16T16-25-17-700Z-8ced5d4d",
+      "check": "extraction-error",
+      "defect": false,
+      "target": {
+        "file": "2026-10-16T16-25-17-700Z-8ced5d4d/report.json",
+        "sha256": "97f92a26c6b78fa2c35ee267a85337f1d6b87300d03350dec3a457fe98f4da65",
+        "pointer": ["keyFindings", 1]
+      },
+      "claim": {
+        "text": "For the same nine-month period, profitability and cash generation were strong: gross margin was 49.1% and operating margin was 33.6%. The free-cash-flow proxy was $110.2B; capital expenditure declined year over year, contributing to the increase in this proxy. [extended-sec-edgar-aapl-fundamentals]",
+        "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+      },
+      "facts": [
+        {
+          "sourceId": "extended-sec-edgar-aapl-fundamentals",
+          "value": 364357000000
+        },
+        {
+          "sourceId": "extended-sec-edgar-aapl-fundamentals",
+          "value": 178782000000
+        },
+        {
+          "sourceId": "extended-sec-edgar-aapl-fundamentals",
+          "value": 122432000000
+        },
+        {
+          "sourceId": "extended-sec-edgar-aapl-fundamentals",
+          "value": 116996000000
+        },
+        {
+          "sourceId": "extended-sec-edgar-aapl-fundamentals",
+          "value": 6799000000
+        }
+      ],
+      "why": "Gross margin 178,782/364,357 = 49.1%; operating margin 122,432/364,357 = 33.6%; FCF proxy 116,996 - 6,799 = $110.2B.",
+      "evidence": [
+        {
+          "file": "2026-10-16T16-25-17-700Z-8ced5d4d/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "extendedEvidence", "items", 0, "summary"],
+          "excerpt": "EC filings: 10-Q 2026-07-31, 8-K 2026-07-30, 10-Q 2026-05-01, 8-K 2026-04-30, 8-K 2026-04-20. SEC Fundamental Evidence: revenue 364357000000 (16.2% YoY), gross profit 178782000000 (21.7% YoY), operating income 122432000000 (21.7% YoY), net income attributable to parent 101464000000 (20.0% YoY), diluted EPS 6.88 (22.4% YoY), cash 39544000000 (9.0% YoY), operating cash flow 116996000000 (43.1% YoY), capex 6799000000 (-"
+        }
+      ]
+    },
+    {
+      "id": "aapl-1016-deep-market-behavior-opening-gap",
+      "capture": "2026-10-16T15-39-22-261Z-db41e526",
+      "check": "extraction-error",
+      "defect": false,
+      "target": {
+        "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
+        "sha256": "f7a27159671e84d0abcf3a5cfb7cfb3fbf738cff5dd82b35b4fa00662a30aa78",
+        "pointer": ["input", "priorStages", 2, "content", "$json", "findings", 2]
+      },
+      "claim": {
+        "text": "The October 16 quote opened at $346.09 versus a $342.00 previous close, a roughly 1.19% opening gap, then stood at $345.35 when captured. The live quote was below the open; the snapshot is intraday and does not establish the closing move.",
+        "sourceIds": ["market-yahoo-equity-aapl"]
+      },
+      "facts": [
+        {
+          "sourceId": "market-yahoo-equity-aapl",
+          "value": 346.085
+        },
+        {
+          "sourceId": "market-yahoo-equity-aapl",
+          "value": 342
+        },
+        {
+          "sourceId": "market-yahoo-equity-aapl",
+          "value": 345.345
+        }
+      ],
+      "why": "Open 346.085, previous close 342, quote 345.345; 1.19% = 346.085/342 - 1.",
+      "evidence": [
+        {
+          "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "marketSnapshots", 0, "open"],
+          "excerpt": "346.085"
+        },
+        {
+          "file": "2026-10-16T15-39-22-261Z-db41e526/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "marketSnapshots", 0, "previousClose"],
+          "excerpt": "342"
+        }
+      ]
+    },
+    {
+      "id": "amd-1018-market-behavior-session-ohlc",
+      "capture": "2026-10-18T08-13-28-001Z-1e2720bc",
+      "check": "extraction-error",
+      "defect": false,
+      "target": {
+        "file": "2026-10-18T08-13-28-001Z-1e2720bc/replay/final-synthesis-input.json",
+        "sha256": "c57270a81c836e03fad83918e665cb844f91d7f9496e8265ad24053ea172542b",
+        "pointer": ["input", "priorStages", 2, "content", "$json", "findings", 2]
+      },
+      "claim": {
+        "text": "The October 16 bar opened at $547.55, reached $550.96, and closed at $528.75, near its $526.83 low. The verified snapshot places the close below the 50-day average and above the 200-day average; RSI14 was 37.77 and the MACD histogram was negative. These are completed-session observations, not confirmation of a continuing trend or reversal.",
+        "sourceIds": ["verified-snapshot-AMD"]
+      },
+      "facts": [
+        {
+          "sourceId": "verified-snapshot-AMD",
+          "value": 547.5499877929688
+        },
+        {
+          "sourceId": "verified-snapshot-AMD",
+          "value": 550.9600219726562
+        },
+        {
+          "sourceId": "verified-snapshot-AMD",
+          "value": 526.8300170898438
+        },
+        {
+          "sourceId": "verified-snapshot-AMD",
+          "value": 528.75
+        }
+      ],
+      "why": "October 16 OHLC from the verified snapshot.",
+      "evidence": [
+        {
+          "file": "2026-10-18T08-13-28-001Z-1e2720bc/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv"],
+          "excerpt": "{\"date\":\"2026-10-16\",\"open\":547.5499877929688,\"high\":550.9600219726562,\"low\":526.8300170898438,\"close\":528.75,\"volume\":22481800}"
+        }
+      ]
+    },
+    {
+      "id": "amd-1020a-report-close-vs-october-6",
+      "capture": "2026-10-20T07-09-03-517Z-6b4aa8ab",
+      "check": "extraction-error",
+      "defect": false,
+      "target": {
+        "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/report.json",
+        "sha256": "fb7bbcfd771528097a1815d2a49a15e20ac99c3ad898b6e99f30787f0b34f5e4",
+        "pointer": ["keyFindings", 8]
+      },
+      "claim": {
+        "text": "AMD’s October 19 close was $538.05, up 1.76% from the prior close, while remaining below its October 6 close of $649.42. A single positive session does not establish a reversal.",
+        "sourceIds": ["market-yahoo-equity-amd", "verified-snapshot-AMD"]
+      },
+      "facts": [
+        {
+          "sourceId": "verified-snapshot-AMD",
+          "value": 538.0499877929688
+        },
+        {
+          "sourceId": "verified-snapshot-AMD",
+          "value": 528.75
+        },
+        {
+          "sourceId": "verified-snapshot-AMD",
+          "value": 649.4199829101562
+        }
+      ],
+      "why": "Close 538.05, prior close 528.75 (+1.76%), October 6 close 649.42 in recentCloses.",
+      "evidence": [
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "ohlcv"],
+          "excerpt": "{\"date\":\"2026-10-19\",\"open\":551.780029296875,\"high\":554.4099731445312,\"low\":535.6699829101562,\"close\":538.0499877929688,\"volume\":20153700}"
+        },
+        {
+          "file": "2026-10-20T07-09-03-517Z-6b4aa8ab/replay/final-synthesis-input.json",
+          "pointer": ["input", "collectedSources", "verifiedMarketSnapshot", "recentCloses", 20],
+          "excerpt": "{\"date\":\"2026-10-06\",\"close\":649.4199829101562}"
+        }
+      ]
+    }
+  ]
+}

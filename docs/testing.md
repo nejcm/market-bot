@@ -348,6 +348,46 @@ using injected fake live providers. Cassette tests cover every selectable identi
 and bespoke prompts without `priorStages`. Tests never spawn spending scripts or approve a real
 entry point.
 
+## Labeled eval cases and stage ablation
+
+`tests/fixtures/eval-cases/cases.json` holds frozen labeled cases cut from replay captures under
+`data/runs/<run>/replay/`. Each case names one claim by file, sha256 and JSON pointer (`$json` descends
+into a stage's JSON-string `content`) and cites the evidence that justifies its label. Labels are
+`stale-support`, `omission`, `contradiction`, `extraction-error`, or `clean` (a control, `defect: false`).
+No `extraction-error` positive could be justified from the captured runs; those cases are clean controls
+that pin the figure check. A case whose label cannot be traced to an artifact is left out.
+
+```sh
+bun run scripts/eval-cases.ts [--runs <dir>]   # offline: re-hash targets, re-check excerpts, run the deterministic checks
+```
+
+`tests/eval-cases.test.ts` runs the same checks without the captures. Stale support, omission and
+figure extraction are deterministic (`src/replay/eval-cases.ts`). Contradiction needs a judge
+(`src/replay/eval-judge.ts`): k=3 votes through any `ModelProvider` under stage `eval-judge`, strict
+majority or `undecided`, unparseable output counts as an invalid vote. Tests drive it from a cassette;
+nothing calls a live judge.
+
+`eval-deep.ts --input <file> --ablate <critique|specialist-analysis|market-behavior-analysis>` drops that
+stage's output from the saved `priorStages` and replays only final synthesis. Arms differ only in that
+input: same synthesis model, bounded attempts and sample count. Every `--input` sample, ablated or not,
+records `defects` in `eval-sample.json` from `scoreReportDefects`: stale-support claim locations,
+figures matching no number in the saved evidence, and the omission cases for that capture still unmet.
+Ablating a stage the input lacks throws (brief captures carry no `market-behavior-analysis`). The critique
+ran after the other two stages, so it can carry their content into those arms.
+
+### Stage deletion rule (pre-registered)
+
+A stage may be deleted only when its ablation arm is non-inferior to the baseline arm:
+
+- Metric: mean defects per report = stale-support locations + unmatched-figure locations + unmet omission
+  cases, from `eval-sample.json` `defects`, over completed samples. A failed sample counts as a loss.
+- Margin: ablation mean ≤ baseline mean + 0.5, and no labeled omission case met in ≥2/3 baseline samples
+  falls below 2/3 in the ablation arm.
+- Minimum: 3 samples per capture per arm, all 8 captured runs for `critique` and `specialist-analysis`
+  (≥24 samples per arm), all 3 deep captures for `market-behavior-analysis` (≥9).
+- Contradiction labels enter only through an approved k=3 judge batch; until then the rule is decided on
+  the deterministic metric and the result says so.
+
 ## Deep-equity presentation assertions
 
 Deep-equity report tests verify that the reader block precedes `## Appendix`, contains the compact

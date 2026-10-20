@@ -60,7 +60,7 @@ export function auditPostSynthesisReport(
   ];
 }
 
-function claimsForReport(report: ResearchReport): readonly AuditClaim[] {
+export function claimsForReport(report: ResearchReport): readonly AuditClaim[] {
   return [
     ...findingsForSection("keyFindings", report.keyFindings),
     ...findingsForSection("bullCase", report.bullCase),

@@ -1,6 +1,10 @@
 import { MIN_CALIBRATION_SAMPLE, UNKNOWN_REGIME_BUCKET } from "./calibration";
 import { NO_RESOLVED_METRIC_TEXT } from "./calibration-invariant";
-import { pairedSkillPolicyNote, pairedSkillStatusText } from "./calibration-read";
+import {
+  pairedSkillDecisionText,
+  pairedSkillPolicyNote,
+  pairedSkillStatusText,
+} from "./calibration-read";
 import type {
   CalibrationMetric,
   CalibrationSummary,
@@ -79,7 +83,24 @@ function pairedSkillRow(
     metric.ciLow === undefined || metric.ciHigh === undefined
       ? "—"
       : `[${signed(metric.ciLow)}, ${signed(metric.ciHigh)}]`;
-  return `| ${label} | ${String(metric.count)} | ${String(metric.blockCount)} | ${signed(metric.deltaBrier)} | ${interval} | ${pairedSkillStatusText(metric, policy)} | ${formatBrier(metric.skillVsHalf)} |`;
+  return `| ${label} | ${String(metric.count)} | ${String(metric.blockCount)} | ${signed(metric.deltaBrier)} | ${interval} | ${pairedSkillStatusText(metric, policy)} | ${pairedSkillDecisionText(metric.decisionRule)} | ${formatBrier(metric.skillVsHalf)} |`;
+}
+
+function pushPairedSkillTable(
+  lines: string[],
+  overall: PairedSkillMetric,
+  byKind: Record<string, PairedSkillMetric>,
+  policy: PairedSkillPolicy,
+): void {
+  lines.push(
+    "| Kind | Paired | Blocks | ΔBrier | Interval | Status | At next review | Skill vs 0.5 |",
+  );
+  lines.push("|---|---|---|---|---|---|---|---|");
+  lines.push(pairedSkillRow("all", overall, policy));
+  for (const [kind, metric] of Object.entries(byKind)) {
+    lines.push(pairedSkillRow(kind, metric, policy));
+  }
+  lines.push("");
 }
 
 function renderPairedSkillSection(lines: string[], paired: PairedSkillSummary | undefined): void {
@@ -94,18 +115,18 @@ function renderPairedSkillSection(lines: string[], paired: PairedSkillSummary | 
     "",
     `Excluded without a Forecast Baseline: ${String(paired.excludedWithoutBaselineCount)}`,
     "",
+    ...(paired.nextReviewDate === undefined
+      ? []
+      : [
+          `Next pre-registered review: ${paired.nextReviewDate}. Decisions are taken only on review dates; "At next review" is the rule today's status would trigger.`,
+          "",
+        ]),
   );
   if (paired.overall === undefined) {
     lines.push("_No resolved Forecast Event carries a Forecast Baseline yet._", "");
     return;
   }
-  lines.push("| Kind | Paired | Blocks | ΔBrier | Interval | Status | Skill vs 0.5 |");
-  lines.push("|---|---|---|---|---|---|---|");
-  lines.push(pairedSkillRow("all", paired.overall, policy));
-  for (const [kind, metric] of Object.entries(paired.byKind)) {
-    lines.push(pairedSkillRow(kind, metric, policy));
-  }
-  lines.push("");
+  pushPairedSkillTable(lines, paired.overall, paired.byKind, policy);
 }
 
 function renderAutopsyCauseTable(lines: string[], summary: CalibrationSummary): void {

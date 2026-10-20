@@ -499,7 +499,7 @@ async function resolveBodies(
     if (!loaded.has(sha256)) {
       throw new Error("Unresolved replay body reference");
     }
-    return loaded.get(sha256);
+    return structuredClone(loaded.get(sha256));
   });
 }
 

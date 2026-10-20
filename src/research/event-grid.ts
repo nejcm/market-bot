@@ -232,6 +232,11 @@ export function issueForecastBook(input: {
     );
   }
   const closes = closesBySymbol(input.collectedSources);
+  const splitDates = new Map(
+    (input.collectedSources.priceHistory ?? []).flatMap(({ symbol, splitDates: dates }) =>
+      dates === undefined ? [] : [[symbol.toUpperCase(), dates] as const],
+    ),
+  );
   const unavailable = new Map<
     string,
     { symbol: string; reason: ForecastBaselineUnavailableReason; ids: string[] }
@@ -240,7 +245,11 @@ export function issueForecastBook(input: {
     ...input.modelPredictions.map((prediction): Prediction => ({ ...prediction, origin: "model" })),
     ...gridPredictions,
   ].map((prediction): Prediction => {
-    const baseline = forecastBaseline(parseObservableExpression(prediction.measurableAs), closes);
+    const baseline = forecastBaseline(
+      parseObservableExpression(prediction.measurableAs),
+      closes,
+      splitDates,
+    );
     if (baseline.status === "unavailable") {
       const key = `${baseline.symbol}|${baseline.reason}`;
       const entry = unavailable.get(key) ?? { ...baseline, ids: [] };

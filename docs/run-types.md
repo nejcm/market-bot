@@ -531,10 +531,11 @@ market-bot forecast-grid --watchlist <name> --yes  # spends one quick-model call
 - The watchlist is read by exact name from the Research Console DB
   (`data/console/console.sqlite`, opened read-only); an unknown, ambiguous, empty or crypto-only
   watchlist throws before any fetch, provider call or write.
-- Without `--yes` it prints symbols x Event Grid events x a token estimate
-  (prompt chars / 4 with a placeholder fact sheet plus a per-call allowance for provider
-  overhead, completion and reasoning tokens, measured on a live codex run; re-measure when the
-  quick model or provider changes). It makes no fetch or provider call, takes no lock, and writes nothing.
+- Without `--yes` it prints symbols x Event Grid events x a token estimate and its basis:
+  the observed tokens per call (`extras.forecastGrid.tokenEstimate / callCount`) of the newest
+  Forecast Grid run under the data dir with the same provider and quick model, else prompt chars / 4
+  with a placeholder fact sheet plus a per-call allowance measured on one live codex run. It reads
+  past `report.json` files but makes no fetch or provider call, takes no lock, and writes nothing.
 - The Research Console cannot queue it (`jobRequestArgv` rejects it), so only an
   explicit CLI `--yes` spends.
 

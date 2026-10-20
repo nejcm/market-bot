@@ -109,7 +109,9 @@
           <span class="text-xs font-semibold">Paired skill vs Forecast Baseline</span>
           <span class="font-mono text-[10.5px] text-muted-foreground">
             ΔBrier = baseline − model · {paired.summary.excludedWithoutBaselineCount} excluded without
-            a baseline
+            a baseline{paired.summary.nextReviewDate === undefined
+              ? ""
+              : ` · next review ${paired.summary.nextReviewDate}`}
           </span>
         </div>
         {#if paired.rows.length === 0}
@@ -127,6 +129,7 @@
                   <th class="px-2 py-2 text-right font-normal">ΔBRIER</th>
                   <th class="px-2 py-2 text-right font-normal">95% INTERVAL</th>
                   <th class="px-2 py-2 font-normal">STATUS</th>
+                  <th class="px-2 py-2 font-normal">AT NEXT REVIEW</th>
                   <th class="px-4.5 py-2 text-right font-normal">SKILL VS 0.5</th>
                 </tr>
               </thead>
@@ -143,6 +146,7 @@
                         : `[${signed(row.ciLow)}, ${signed(row.ciHigh)}]`}
                     </td>
                     <td class="px-2 py-2">{row.statusText}</td>
+                    <td class="px-2 py-2">{row.decisionText}</td>
                     <td class="px-4.5 py-2 text-right">{row.skillVsHalf.toFixed(3)}</td>
                   </tr>
                 {/each}

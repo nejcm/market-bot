@@ -8,6 +8,7 @@ import {
 import type {
   CalibrationBin,
   CalibrationMetric,
+  PairedSkillDecisionRule,
   PairedSkillMetric,
   PairedSkillPolicy,
   PairedSkillStatus,
@@ -111,7 +112,27 @@ function isDelta(value: number): boolean {
   return value >= -1 && value <= 1;
 }
 
-function parsePairedSkillMetric(value: unknown): PairedSkillMetric | undefined {
+export function pairedSkillDecisionRule(
+  status: PairedSkillStatus,
+  meetsMinimumUsefulEffect: boolean,
+): PairedSkillDecisionRule {
+  if (status === "baseline-better") {
+    return "publish-baseline";
+  }
+  return status === "model-better" && meetsMinimumUsefulEffect ? "keep-model" : "keep-recording";
+}
+
+const DECISION_RULE_TEXT: Record<PairedSkillDecisionRule, string> = {
+  "keep-model": "keep model probabilities; consider a model/baseline mixture",
+  "keep-recording": "keep recording, no change",
+  "publish-baseline": "publish the Forecast Baseline as the stated probability",
+};
+
+export function pairedSkillDecisionText(rule: PairedSkillDecisionRule | undefined): string {
+  return rule === undefined ? "none (decided per kind)" : DECISION_RULE_TEXT[rule];
+}
+
+function parsePairedSkillMetric(value: unknown, perKind: boolean): PairedSkillMetric | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -148,7 +169,21 @@ function parsePairedSkillMetric(value: unknown): PairedSkillMetric | undefined {
     skillVsHalf,
     status,
     meetsMinimumUsefulEffect: value.meetsMinimumUsefulEffect === true,
+    ...(perKind
+      ? { decisionRule: pairedSkillDecisionRule(status, value.meetsMinimumUsefulEffect === true) }
+      : {}),
   };
+}
+
+function parsePairedSkillByKind(value: unknown): Record<string, PairedSkillMetric> {
+  return isRecord(value)
+    ? Object.fromEntries(
+        Object.entries(value).flatMap(([kind, raw]) => {
+          const metric = parsePairedSkillMetric(raw, true);
+          return metric === undefined ? [] : [[kind, metric] as const];
+        }),
+      )
+    : {};
 }
 
 export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | undefined {
@@ -180,15 +215,8 @@ export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | un
   ) {
     return undefined;
   }
-  const overall = parsePairedSkillMetric(value.overall);
-  const byKind = isRecord(value.byKind)
-    ? Object.fromEntries(
-        Object.entries(value.byKind).flatMap(([kind, raw]) => {
-          const metric = parsePairedSkillMetric(raw);
-          return metric === undefined ? [] : [[kind, metric] as const];
-        }),
-      )
-    : {};
+  const overall = parsePairedSkillMetric(value.overall, false);
+  const nextReviewDate = readString(value, "nextReviewDate");
   return {
     policy: {
       minimumUsefulEffect,
@@ -201,7 +229,10 @@ export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | un
     },
     excludedWithoutBaselineCount,
     ...(overall === undefined ? {} : { overall }),
-    byKind,
+    byKind: parsePairedSkillByKind(value.byKind),
+    ...(nextReviewDate !== undefined && /^\d{4}-\d{2}-\d{2}$/u.test(nextReviewDate)
+      ? { nextReviewDate }
+      : {}),
   };
 }
 

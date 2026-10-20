@@ -8,9 +8,11 @@ const BASELINE_DECIMAL_PLACES = 4;
 // A move far outside the MAD scale reads as an unadjusted split rather than volatility.
 const MAD_TO_SIGMA = 1.4826;
 const SPLIT_SIGNATURE_ROBUST_SIGMAS = 8;
-// Adjusted closes keep real large moves; only a residual jump at a common split ratio reads as a split.
-const SPLIT_RATIOS = [1.5, 2, 3, 4, 5, 10];
-const SPLIT_RATIO_TOLERANCE = 0.03;
+// Adjusted closes keep real large moves; only a residual jump near a common split ratio (either
+// Direction covers reverse splits) reads as a split, allowing a real ±10% move on the split day.
+const SPLIT_RATIOS = [5 / 4, 4 / 3, 3 / 2, 2, 3, 4, 5, 10];
+const SPLIT_DAY_TOLERANCE = Math.log(1.1) + 0.03;
+const PROVIDER_SPLIT_WINDOW_DAYS = 4;
 // Weekend plus one holiday; a wider gap between relative legs means one leg's closes are stale.
 const MAX_LEG_CUTOFF_GAP_DAYS = 4;
 
@@ -41,20 +43,41 @@ function median(values: readonly number[]): number {
   return sorted.length % 2 === 0 ? (sorted[middle - 1]! + sorted[middle]!) / 2 : sorted[middle]!;
 }
 
-export function hasSplitSignature(returns: readonly number[]): boolean {
+function outlierIndexes(returns: readonly number[]): readonly number[] {
   const center = median(returns);
   const robustSigma = MAD_TO_SIGMA * median(returns.map((value) => Math.abs(value - center)));
   // MAD is 0 when most days are flat; then jumps are the volatility, not a split signature.
-  const largestMove = Math.max(...returns.map((value) => Math.abs(value)));
-  return robustSigma > 0 && largestMove > SPLIT_SIGNATURE_ROBUST_SIGMAS * robustSigma;
+  return robustSigma > 0
+    ? returns.flatMap((value, index) =>
+        Math.abs(value) > SPLIT_SIGNATURE_ROBUST_SIGMAS * robustSigma ? [index] : [],
+      )
+    : [];
 }
 
-// Shortcut: misses 5:4/4:3 splits and a split with a ~6% same-day move, and flags a real ±log2 day; upgrade to corporate-action data when splits are fetched.
-function hasAdjustedSplitSignature(returns: readonly number[]): boolean {
-  const largestMove = Math.max(...returns.map((value) => Math.abs(value)));
-  return (
-    hasSplitSignature(returns) &&
-    SPLIT_RATIOS.some((ratio) => Math.abs(largestMove - Math.log(ratio)) < SPLIT_RATIO_TOLERANCE)
+export function hasSplitSignature(returns: readonly number[]): boolean {
+  return outlierIndexes(returns).length > 0;
+}
+
+// Shortcut: without provider split metadata a real 10-65% one-day move inside the ratio windows reads as a split; volume is not consulted.
+function hasAdjustedSplitSignature(
+  window: readonly BaselineClose[],
+  returns: readonly number[],
+  providerSplitDates: readonly string[] | undefined,
+): boolean {
+  // Closes are already adjusted for reported splits: a ratio jump far from one is a real move,
+  // One next to a reported split is a misdated adjustment.
+  const nearReportedSplit = (index: number) => {
+    const jumpDate = Date.parse(window[index + 1]!.date);
+    return (providerSplitDates ?? []).some(
+      (date) => Math.abs(Date.parse(date) - jumpDate) <= PROVIDER_SPLIT_WINDOW_DAYS * 86_400_000,
+    );
+  };
+  return outlierIndexes(returns).some(
+    (index) =>
+      SPLIT_RATIOS.some(
+        (ratio) => Math.abs(Math.abs(returns[index]!) - Math.log(ratio)) <= SPLIT_DAY_TOLERANCE,
+      ) &&
+      (providerSplitDates === undefined || nearReportedSplit(index)),
   );
 }
 
@@ -101,6 +124,7 @@ interface ReturnWindow {
 function returnWindow(
   symbol: string,
   closesBySymbol: ReadonlyMap<string, readonly BaselineClose[]>,
+  splitDatesBySymbol: ReadonlyMap<string, readonly string[]> | undefined,
 ): ReturnWindow | Extract<ForecastBaselineResult, { readonly status: "unavailable" }> {
   const series = closesBySymbol.get(symbol.toUpperCase());
   if (series === undefined || series.length === 0) {
@@ -114,7 +138,7 @@ function returnWindow(
     return { status: "unavailable", symbol, reason: "short-history" };
   }
   const returns = window.slice(1).map((bar, index) => Math.log(bar.close / window[index]!.close));
-  if (hasAdjustedSplitSignature(returns)) {
+  if (hasAdjustedSplitSignature(window, returns, splitDatesBySymbol?.get(symbol.toUpperCase()))) {
     return { status: "unavailable", symbol, reason: "split-signature" };
   }
   const sigma = ewmaDailySigma(returns);
@@ -134,13 +158,15 @@ function computed(probability: number, infoCutoff: string): ForecastBaselineResu
 }
 
 // Forecast Baseline: zero-drift lognormal with EWMA volatility on split-adjusted closes, √h aggregation.
+// A symbol missing from splitDatesBySymbol has unknown split metadata, not "no splits".
 export function forecastBaseline(
   expression: ObservableExpression,
   closesBySymbol: ReadonlyMap<string, readonly BaselineClose[]>,
+  splitDatesBySymbol?: ReadonlyMap<string, readonly string[]>,
 ): ForecastBaselineResult {
   switch (expression.kind) {
     case "range": {
-      const window = returnWindow(expression.subject, closesBySymbol);
+      const window = returnWindow(expression.subject, closesBySymbol, splitDatesBySymbol);
       if ("status" in window) {
         return window;
       }
@@ -156,16 +182,16 @@ export function forecastBaseline(
       );
     }
     case "direction": {
-      const window = returnWindow(expression.subject, closesBySymbol);
+      const window = returnWindow(expression.subject, closesBySymbol, splitDatesBySymbol);
       // Zero drift makes P(close(+h) > close(0)) exactly 1/2 for any sigma.
       return "status" in window ? window : computed(0.5, window.infoCutoff);
     }
     case "relative": {
-      const a = returnWindow(expression.subjectA, closesBySymbol);
+      const a = returnWindow(expression.subjectA, closesBySymbol, splitDatesBySymbol);
       if ("status" in a) {
         return a;
       }
-      const b = returnWindow(expression.subjectB, closesBySymbol);
+      const b = returnWindow(expression.subjectB, closesBySymbol, splitDatesBySymbol);
       if ("status" in b) {
         return b;
       }

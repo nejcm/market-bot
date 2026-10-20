@@ -9,6 +9,7 @@ import {
   parseCalibrationBin,
   parseMarketRegimeMetricMap,
   parseMetricMap,
+  pairedSkillDecisionText,
   pairedSkillPolicyNote,
   pairedSkillStatusText,
   parsePairedSkillSummary,
@@ -390,13 +391,16 @@ export function alphaStaleLeadRows(detail: AlphaCohortDetail): readonly AlphaSta
     }));
 }
 
+type PairedSkillRow = PairedSkillMetric & {
+  readonly key: string;
+  readonly statusText: string;
+  readonly decisionText: string;
+};
+
 interface PairedSkillView {
   readonly summary: PairedSkillSummary;
   readonly policyNote: string;
-  readonly rows: readonly (PairedSkillMetric & {
-    readonly key: string;
-    readonly statusText: string;
-  })[];
+  readonly rows: readonly PairedSkillRow[];
 }
 
 // Paired Skill is the calibration headline; absent for summaries written before it existed.
@@ -405,10 +409,11 @@ export function pairedSkillView(detail: CalibrationDetail): PairedSkillView | un
   if (summary === undefined) {
     return undefined;
   }
-  const row = (key: string, metric: PairedSkillMetric) => ({
+  const row = (key: string, metric: PairedSkillMetric): PairedSkillRow => ({
     key,
     ...metric,
     statusText: pairedSkillStatusText(metric, summary.policy),
+    decisionText: pairedSkillDecisionText(metric.decisionRule),
   });
   return {
     summary,

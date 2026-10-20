@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readWatchlistsNamed } from "../console-watchlists";
 import { createRunId, publishRunArtifacts, writeJson } from "../artifacts";
@@ -30,7 +30,8 @@ import type { FetchLike, RawSourceSnapshot } from "../sources/types";
 import { collectPriceHistory } from "../sources/yahoo-price-history";
 
 const STAGE = "forecast-grid";
-// Shortcut: measured on run 2026-10-20T17-15-13-848Z-144ec654 (codex gpt-6-luna, 36,287 tokens / 2 calls), re-measure when the quick model or provider changes.
+const MEASURED_ALLOWANCE_RUN = "2026-10-20T17-15-13-848Z-144ec654";
+// Fallback only: measured on MEASURED_ALLOWANCE_RUN (codex gpt-6-luna, 36,287 tokens / 2 calls); a matching past run replaces it.
 const PER_CALL_UNSEEN_TOKEN_ALLOWANCE = 17_400;
 const LATEST_RUN_FRESH_DAYS = 7;
 const LATEST_RUN_SUMMARY_CHARS = 600;
@@ -172,7 +173,47 @@ function placeholderFactSheet(symbol: string): ForecastGridFactSheet {
   };
 }
 
-// Reads only the prompt file and config: no fetch, no provider, no lock, no write.
+interface ObservedTokensPerCall {
+  readonly runId: string;
+  readonly tokensPerCall: number;
+}
+
+// Shortcut: scans run dirs newest-first reading report.json; switch to the Run Artifact Index if dry runs get slow.
+async function observedTokensPerCall(
+  dataDir: string,
+  provider: string,
+  model: string,
+): Promise<ObservedTokensPerCall | undefined> {
+  const names = await readdir(dataDir).catch(() => [] as string[]);
+  for (const name of names
+    .filter((entry) => !entry.startsWith("."))
+    .toSorted()
+    .toReversed()) {
+    // oxlint-disable-next-line no-await-in-loop -- Newest-first scan stops at the first match.
+    const read = await readJsonFile(join(dataDir, name, RUN_ARTIFACT_FILES.report));
+    const grid =
+      read.status === "ok" &&
+      isRecord(read.value) &&
+      read.value.jobType === "forecast-grid" &&
+      isRecord(read.value.extras)
+        ? read.value.extras.forecastGrid
+        : undefined;
+    if (
+      isRecord(grid) &&
+      grid.provider === provider &&
+      grid.model === model &&
+      typeof grid.callCount === "number" &&
+      grid.callCount > 0 &&
+      typeof grid.tokenEstimate === "number" &&
+      grid.tokenEstimate > 0
+    ) {
+      return { runId: name, tokensPerCall: Math.ceil(grid.tokenEstimate / grid.callCount) };
+    }
+  }
+  return undefined;
+}
+
+// Reads only the prompt file, config and past run reports: no fetch, no provider, no lock, no write.
 export async function renderForecastGridDryRun(
   plan: ForecastGridPlan,
   config: AppConfig,
@@ -182,17 +223,24 @@ export async function renderForecastGridDryRun(
     equityCommand(plan.symbols[0]!),
     config,
   );
+  const observed = await observedTokensPerCall(config.dataDir, config.provider, quickModel);
   const perSymbol = plan.symbols.map((symbol) => ({
     symbol,
     ids: plannedEventGridIds(symbol),
-    tokens: requestTokenEstimate(
-      forecastGridRequest(loaded, quickModel, quickModelParams, placeholderFactSheet(symbol)),
-    ),
+    tokens:
+      observed?.tokensPerCall ??
+      requestTokenEstimate(
+        forecastGridRequest(loaded, quickModel, quickModelParams, placeholderFactSheet(symbol)),
+      ),
   }));
   const events = perSymbol.reduce((total, { ids }) => total + ids.length, 0);
   const tokens = perSymbol.reduce((total, entry) => total + entry.tokens, 0);
+  const basis =
+    observed === undefined
+      ? `prompt chars/4 plus a ${String(PER_CALL_UNSEEN_TOKEN_ALLOWANCE)}-token per-call allowance measured on run ${MEASURED_ALLOWANCE_RUN}; no past Forecast Grid run for ${config.provider} ${quickModel}`
+      : `observed ${String(observed.tokensPerCall)} tokens/call on run ${observed.runId} (${config.provider} ${quickModel})`;
   return [
-    `Forecast Grid dry run for watchlist "${plan.watchlist}": ${String(plan.symbols.length)} symbol(s) x Event Grid = ${String(events)} event(s), ${String(plan.symbols.length)} ${quickModel} call(s), ~${String(tokens)} model tokens (estimate: prompt chars/4 plus a measured ${String(PER_CALL_UNSEEN_TOKEN_ALLOWANCE)}-token per-call allowance for provider overhead, completion and reasoning)`,
+    `Forecast Grid dry run for watchlist "${plan.watchlist}": ${String(plan.symbols.length)} symbol(s) x Event Grid = ${String(events)} event(s), ${String(plan.symbols.length)} ${quickModel} call(s), ~${String(tokens)} model tokens (estimate: ${basis})`,
     ...perSymbol.map(
       ({ symbol, ids, tokens: symbolTokens }) =>
         `  ${symbol}: ${ids.join(", ")} (~${String(symbolTokens)} tokens)`,
@@ -486,9 +534,11 @@ export async function runForecastGridJob(input: {
     extras: {
       forecastGrid: {
         watchlist: plan.watchlist,
+        provider: config.provider,
         model: quickModel,
         symbols: plan.symbols,
         tokenEstimate: results.reduce((total, result) => total + result.tokens, 0),
+        callCount: results.filter(({ tokens }) => tokens > 0).length,
         codeVersion: readCodeVersion(),
       },
     },

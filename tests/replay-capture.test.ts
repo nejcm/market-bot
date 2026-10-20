@@ -243,6 +243,37 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     await writeFile(lookalikeFile, JSON.stringify(external));
     const reloaded = await loadSynthesisReplayInput(lookalikeFile);
     expect(reloaded.input.collectedSources.rawSnapshots.slice(-2)).toEqual(lookalikeRows as never);
+
+    const shared = {
+      payload: Object.fromEntries(Array.from({ length: 4000 }, (_, i) => [`k${String(i)}`, i])),
+    };
+    const aliased = {
+      ...saved,
+      input: {
+        ...saved.input,
+        collectedSources: { ...saved.input.collectedSources, rawSnapshots: [shared, shared] },
+      },
+    } as unknown as typeof saved;
+    const aliasedBodies = new Map<string, string>();
+    const aliasedRef = externalizeSynthesisBodies(aliased, (text) => {
+      const sha256 = new Bun.CryptoHasher("sha256").update(text).digest("hex");
+      aliasedBodies.set(sha256, text);
+      return sha256;
+    });
+    const [refA, refB] = aliasedRef.input.collectedSources.rawSnapshots as unknown[];
+    expect(refA).toEqual({ payload: { $replayBody: expect.stringMatching(/^[a-f0-9]{64}$/u) } });
+    expect(refB).toEqual(refA);
+    await Promise.all(
+      [...aliasedBodies].map(([sha256, text]) =>
+        writeFile(join(lookalikes, "bodies", `${sha256}.json`), text),
+      ),
+    );
+    const aliasedFile = join(lookalikes, "aliased.json");
+    await writeFile(aliasedFile, JSON.stringify(aliasedRef));
+    const [first, second] = (await loadSynthesisReplayInput(aliasedFile)).input.collectedSources
+      .rawSnapshots as unknown as (typeof shared)[];
+    first!.payload.k0 = -1;
+    expect(second!.payload.k0).toBe(0);
     const reserved = {
       ...withLookalikes,
       input: {

@@ -89,6 +89,9 @@ export interface CalibrationMetric {
 
 export type PairedSkillStatus = "model-better" | "baseline-better" | "not-yet-decidable";
 
+/** The pre-registered review action a status maps to; it is only ever taken on a review date. */
+export type PairedSkillDecisionRule = "keep-model" | "keep-recording" | "publish-baseline";
+
 /** Paired Skill over Forecast Events carrying a Forecast Baseline; `deltaBrier` is baseline − model. */
 export interface PairedSkillMetric {
   readonly count: number;
@@ -104,6 +107,8 @@ export interface PairedSkillMetric {
   readonly skillVsHalf: number;
   readonly status: PairedSkillStatus;
   readonly meetsMinimumUsefulEffect: boolean;
+  /** Per kind only (ADR 0003 decides per kind); absent on the overall aggregate. */
+  readonly decisionRule?: PairedSkillDecisionRule;
 }
 
 export interface PairedSkillPolicy {
@@ -124,6 +129,8 @@ export interface PairedSkillSummary {
   /** Absent when no resolved Forecast Event carries a baseline. */
   readonly overall?: PairedSkillMetric;
   readonly byKind: Record<string, PairedSkillMetric>;
+  /** Next pre-registered review date (ADR 0003); absent in summaries written before it was recorded. */
+  readonly nextReviewDate?: string;
 }
 
 export interface ConditionalCalibrationSummary {

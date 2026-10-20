@@ -7,6 +7,7 @@ import {
   parseObservableExpression,
   type ObservationStrategy,
 } from "../forecast/observable";
+import { pairedSkillDecisionRule } from "./calibration-read";
 import { isExchangeTradingDay } from "./exchange-calendar";
 import { scoringPolicyFor } from "./policy";
 import type {
@@ -379,7 +380,7 @@ function bootstrapInterval(blocks: readonly PairedBlock[]): readonly [number, nu
   ];
 }
 
-function pairedSkillMetric(pairs: readonly ResolvedPair[]): PairedSkillMetric {
+function pairedSkillMetric(pairs: readonly ResolvedPair[], perKind: boolean): PairedSkillMetric {
   const blocks = pairedBlocks(pairs);
   const modelBrier = meanBrierLoss(pairs);
   const baselineBrier = pairs.reduce((total, pair) => total + baselineLoss(pair), 0) / pairs.length;
@@ -395,6 +396,8 @@ function pairedSkillMetric(pairs: readonly ResolvedPair[]): PairedSkillMetric {
   } else if (decidable && interval[1] < 0) {
     status = "baseline-better";
   }
+  const meetsMinimumUsefulEffect =
+    status === "model-better" && deltaBrier >= PAIRED_SKILL_POLICY.minimumUsefulEffect;
   return {
     count: pairs.length,
     subjectCount: new Set(pairs.map(clusterSubject)).size,
@@ -405,24 +408,52 @@ function pairedSkillMetric(pairs: readonly ResolvedPair[]): PairedSkillMetric {
     ...(interval === undefined ? {} : { ciLow: interval[0], ciHigh: interval[1] }),
     skillVsHalf: brierSkillScore(modelBrier),
     status,
-    meetsMinimumUsefulEffect:
-      status === "model-better" && deltaBrier >= PAIRED_SKILL_POLICY.minimumUsefulEffect,
+    meetsMinimumUsefulEffect,
+    ...(perKind ? { decisionRule: pairedSkillDecisionRule(status, meetsMinimumUsefulEffect) } : {}),
   };
 }
 
-// Deduped Forecast Events (a re-issued grid event counts once), sorted so input order never moves the interval.
-function buildPairedSkill(pairs: readonly ResolvedPair[]): PairedSkillSummary {
+const FIRST_PAIRED_SKILL_REVIEW = "2027-01-15";
+const REVIEW_MONTHS = ["01", "04", "07", "10"];
+
+// ADR 0003 cadence: 2027-01-15, then every 15 Jan/Apr/Jul/Oct; a review day is its own next review.
+export function nextPairedSkillReviewDate(now: Date): string {
+  const today = now.toISOString().slice(0, 10);
+  if (today <= FIRST_PAIRED_SKILL_REVIEW) {
+    return FIRST_PAIRED_SKILL_REVIEW;
+  }
+  const year = now.getUTCFullYear();
+  return (
+    REVIEW_MONTHS.map((month) => `${String(year)}-${month}-15`).find((date) => date >= today) ??
+    `${String(year + 1)}-01-15`
+  );
+}
+
+function pairedMetrics(pairs: readonly ResolvedPair[]): {
+  readonly overall?: PairedSkillMetric;
+  readonly byKind: Record<string, PairedSkillMetric>;
+} {
   const paired = pairs
     .filter(({ prediction }) => prediction.baselineProbability !== undefined)
     .toSorted(compareIssuance);
   const byKind = groupPairs(paired, ({ prediction }) => prediction.kind);
   return {
-    policy: PAIRED_SKILL_POLICY,
-    excludedWithoutBaselineCount: pairs.length - paired.length,
-    ...(paired.length === 0 ? {} : { overall: pairedSkillMetric(paired) }),
+    ...(paired.length === 0 ? {} : { overall: pairedSkillMetric(paired, false) }),
     byKind: Object.fromEntries(
-      [...byKind].map(([kind, kindPairs]) => [kind, pairedSkillMetric(kindPairs)]),
+      [...byKind].map(([kind, kindPairs]) => [kind, pairedSkillMetric(kindPairs, true)]),
     ),
+  };
+}
+
+// Deduped Forecast Events (a re-issued grid event counts once), sorted so input order never moves the interval.
+function buildPairedSkill(pairs: readonly ResolvedPair[], now: Date): PairedSkillSummary {
+  return {
+    policy: PAIRED_SKILL_POLICY,
+    excludedWithoutBaselineCount: pairs.filter(
+      ({ prediction }) => prediction.baselineProbability === undefined,
+    ).length,
+    ...pairedMetrics(pairs),
+    nextReviewDate: nextPairedSkillReviewDate(now),
   };
 }
 
@@ -465,6 +496,6 @@ export function buildCalibrationSummary(
       activatedCount: conditionalActivatedCount,
       voidedCount: conditionalPredictions.voidedCount,
     },
-    pairedSkill: buildPairedSkill(currentPairs),
+    pairedSkill: buildPairedSkill(currentPairs, now),
   };
 }

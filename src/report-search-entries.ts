@@ -89,21 +89,36 @@ export function predictionClaim(prediction: Prediction): string {
   return renderClaimForMeasurableAs(prediction.measurableAs, prediction.claim) ?? prediction.claim;
 }
 
-export function openQuestions(
+interface OpenQuestion {
+  readonly text: string;
+  readonly predictionId?: string;
+}
+
+function openQuestionRows(
   report: ResearchReport,
   scores: readonly PredictionScore[],
-): readonly string[] {
+): readonly OpenQuestion[] {
   const resolved = new Set(
     scores.filter((score) => score.resolved).map((score) => score.predictionId),
   );
   return [
-    ...predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).map(
-      (gap) => `Data gap: ${gap}`,
-    ),
+    ...predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).map((gap) => ({
+      text: `Data gap: ${gap}`,
+    })),
     ...report.predictions
       .filter((prediction) => !resolved.has(prediction.id))
-      .map((prediction) => `Unresolved prediction: ${predictionClaim(prediction)}`),
+      .map((prediction) => ({
+        text: `Unresolved prediction: ${predictionClaim(prediction)}`,
+        predictionId: prediction.id,
+      })),
   ];
+}
+
+export function openQuestions(
+  report: ResearchReport,
+  scores: readonly PredictionScore[],
+): readonly string[] {
+  return openQuestionRows(report, scores).map(({ text }) => text);
 }
 
 function metricsSearchText(metrics: Readonly<Record<string, number | string>> | undefined): string {
@@ -551,12 +566,14 @@ function sourceEnrichment(
 function enrichCandidate(
   candidate: ReportSearchCandidate,
   sourceById: Map<string, Source>,
+  subjectByPredictionId: ReadonlyMap<string, string>,
 ): CandidateEnrichment {
   if (candidate.section === "sources") {
     return sourceEnrichment(candidate, sourceById);
   }
   if (candidate.section === "predictions" && candidate.identityId !== undefined) {
-    return { predictionId: candidate.identityId };
+    const symbol = subjectByPredictionId.get(candidate.identityId);
+    return { predictionId: candidate.identityId, ...(symbol === undefined ? {} : { symbol }) };
   }
   if (
     (candidate.section === "researchLeads" || candidate.section === "rejectedCandidates") &&
@@ -580,6 +597,12 @@ export function buildReportSearchEntries(
   }
 
   const reportSymbol = report.symbol?.toUpperCase();
+  // Multi-subject runs (Forecast Grid, market overview) carry no report symbol; each prediction names its own.
+  const subjectByPredictionId = new Map(
+    reportSymbol === undefined
+      ? report.predictions.map(({ id, subject }) => [id, subject.split(":")[0]!.toUpperCase()])
+      : [],
+  );
   const sequenceBySection = new Map<ReportSearchSection, number>();
   const entries: ReportSearchEntry[] = [];
 
@@ -588,7 +611,7 @@ export function buildReportSearchEntries(
     const sequence = sequenceBySection.get(candidate.section) ?? 0;
     sequenceBySection.set(candidate.section, sequence + 1);
 
-    const enrichment = enrichCandidate(candidate, sourceById);
+    const enrichment = enrichCandidate(candidate, sourceById, subjectByPredictionId);
     const symbol = enrichment.symbol ?? reportSymbol;
 
     entries.push({
@@ -610,7 +633,13 @@ export function buildReportSearchEntries(
   }
 
   if (scope === "history") {
-    for (const [index, question] of openQuestions(report, scores).entries()) {
+    for (const [index, { text: question, predictionId }] of openQuestionRows(
+      report,
+      scores,
+    ).entries()) {
+      const symbol =
+        (predictionId === undefined ? undefined : subjectByPredictionId.get(predictionId)) ??
+        reportSymbol;
       entries.push({
         runId: report.runId,
         generatedAt: report.generatedAt,
@@ -622,7 +651,7 @@ export function buildReportSearchEntries(
         keySuffix: String(index),
         sequence: index,
         sourceIds: [],
-        ...(reportSymbol !== undefined ? { symbol: reportSymbol } : {}),
+        ...(symbol !== undefined ? { symbol } : {}),
       });
     }
   }

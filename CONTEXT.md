@@ -34,9 +34,11 @@ Index — latest run date/age, depth, open Observable Predictions, and latest Ca
 never stored notes or tags. A symbol with no runs renders as "never run", and an unavailable
 index is declared per row instead of silently omitted.
 
-An open Observable Prediction is one counted from that instrument's own runs — runs whose
-`symbol` matches the row's instrument, further filtered to Predictions whose `measurableAs`
-resolves to that instrument — that has no score row, or whose score is unresolved with a
+An instrument's runs are those whose `symbol` matches the row's instrument, plus symbol-less
+multi-subject runs (Forecast Grid, market overview) holding a Prediction whose primary subject
+(the `subject` before any `:`) is that instrument; both paths feed the latest run and the counts.
+An open Observable Prediction is one counted from those runs, filtered to Predictions whose
+`measurableAs` resolves to that instrument, that has no score row, or whose score is unresolved with a
 pending-family status (`pending`, `pending-condition`, `active-pending`). Voided and abandoned
 scores are terminal scoring states and never count as open; a Prediction in a run that was never
 scored counts as open because no scoring verdict exists yet. Watchlists never enter research

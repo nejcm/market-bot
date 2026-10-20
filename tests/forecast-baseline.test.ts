@@ -44,6 +44,17 @@ function closes(entries: Record<string, readonly BaselineClose[]>) {
 
 const range = (expression: string) => parseObservableExpression(expression);
 
+// Alternating closes with every close from day 40 on scaled by factor: one jump of log(factor).
+function jumped(factor: number): BaselineClose[] {
+  return alternatingCloses(61).map((bar, index) =>
+    index >= 40 ? { ...bar, close: bar.close * factor } : bar,
+  );
+}
+
+function splitDates(entries: Record<string, readonly string[]>) {
+  return new Map(Object.entries(entries));
+}
+
 describe("Forecast Baseline estimator", () => {
   test("pins the normal CDF and EWMA volatility on fixed inputs", () => {
     expect(standardNormalCdf(0)).toBeCloseTo(0.5, 7);
@@ -114,12 +125,58 @@ describe("Forecast Baseline estimator", () => {
   });
 
   test("a large real move on adjusted closes is volatility, not a split", () => {
-    const earningsDay = alternatingCloses(61).map((bar, index) =>
-      index >= 40 ? { ...bar, close: bar.close * 1.2 } : bar,
-    );
+    const earningsDay = jumped(1.2);
+    const expression = range("close(AAPL, +1) outside [99, 101]");
     expect(
-      forecastBaseline(range("close(AAPL, +1) outside [99, 101]"), closes({ AAPL: earningsDay })),
+      forecastBaseline(expression, closes({ AAPL: earningsDay }), splitDates({ AAPL: [] })),
     ).toMatchObject({ status: "computed" });
+    expect(
+      forecastBaseline(range("close(AAPL, +1) outside [99, 101]"), closes({ AAPL: jumped(1.05) })),
+    ).toMatchObject({
+      status: "computed",
+    });
+  });
+
+  test("flags unadjusted forward and reverse splits, alone or with a ±10% split-day move", () => {
+    const expression = range("close(AAPL, +1) outside [99, 101]");
+    for (const factor of [0.8, 0.75, 2 / 3, 0.5, 1 / 3, 5, 10, 0.5 * 1.1, 0.5 * 0.9, 5 * 1.1]) {
+      expect(forecastBaseline(expression, closes({ AAPL: jumped(factor) }))).toMatchObject({
+        reason: "split-signature",
+      });
+    }
+  });
+
+  test("provider split metadata separates a real halving from a misadjusted split", () => {
+    const expression = range("close(AAPL, +1) outside [99, 101]");
+    const halving = closes({ AAPL: jumped(0.5) });
+    expect(forecastBaseline(expression, halving, splitDates({ AAPL: [] }))).toMatchObject({
+      status: "computed",
+    });
+    expect(forecastBaseline(expression, halving, splitDates({ AAPL: [day(10)] }))).toMatchObject({
+      status: "computed",
+    });
+    expect(forecastBaseline(expression, halving, splitDates({ AAPL: [day(41)] }))).toMatchObject({
+      reason: "split-signature",
+    });
+    expect(forecastBaseline(expression, halving, splitDates({ SPY: [] }))).toMatchObject({
+      reason: "split-signature",
+    });
+  });
+
+  test("a larger genuine move does not mask a smaller residual split", () => {
+    const expression = range("close(AAPL, +1) outside [99, 101]");
+    const twoJumps = closes({
+      AAPL: jumped(0.75).map((bar, index) =>
+        index >= 10 ? { ...bar, close: bar.close * 2 } : bar,
+      ),
+    });
+    expect(forecastBaseline(expression, twoJumps, splitDates({ AAPL: [day(40)] }))).toMatchObject({
+      reason: "split-signature",
+    });
+    expect(forecastBaseline(expression, twoJumps)).toMatchObject({ reason: "split-signature" });
+    expect(forecastBaseline(expression, twoJumps, splitDates({ AAPL: [] }))).toMatchObject({
+      status: "computed",
+    });
   });
 
   test("a non-positive range bound has zero tail probability, not NaN", () => {

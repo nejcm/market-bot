@@ -3796,4 +3796,5 @@ test("workbench consumes the same split-adjusted history as Price Performance wi
   expect(
     chartRequests.every((url) => new URL(url).searchParams.get("events") === "div,splits"),
   ).toBe(true);
+  expect(result.priceHistory?.find(({ symbol }) => symbol === "AAPL")?.splitDates).toEqual([]);
 });

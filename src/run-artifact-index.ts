@@ -1033,19 +1033,24 @@ function isOpenWatchlistPrediction(row: WatchlistPredictionQueryRow): boolean {
   return row.resolved === 0 && row.status !== "voided" && row.status !== "abandoned";
 }
 
+// Symbol-less multi-subject runs (Forecast Grid, market overview) count when a prediction's primary subject matches.
+const INSTRUMENT_RUNS_WHERE = `asset_class = ? AND (symbol = ? OR (symbol IS NULL AND run_id IN (
+  SELECT run_id FROM predictions WHERE upper(subject) = ?3 OR upper(subject) LIKE ?4)))`;
+
 function instrumentWatchlistRow(
   db: Database,
   assetClass: string,
   symbol: string,
 ): WatchlistRowState {
   const normalizedSymbol = symbol.toUpperCase();
+  const runParams = [assetClass, normalizedSymbol, normalizedSymbol, `${normalizedSymbol}:%`];
   const latest = db
     .query(
       `SELECT run_id AS runId, generated_at AS generatedAt, depth
-       FROM runs WHERE asset_class = ? AND symbol = ?
+       FROM runs WHERE ${INSTRUMENT_RUNS_WHERE}
        ORDER BY generated_at DESC, run_dir_name DESC LIMIT 1`,
     )
-    .get(assetClass, normalizedSymbol) as {
+    .get(...runParams) as {
     readonly runId: string;
     readonly generatedAt: string | null;
     readonly depth: string | null;
@@ -1061,11 +1066,9 @@ function instrumentWatchlistRow(
        FROM predictions p
        LEFT JOIN scores s ON s.run_id = p.run_id AND s.prediction_id = p.id
        JOIN runs r ON r.run_id = p.run_id
-       WHERE p.run_id IN (
-         SELECT run_id FROM runs WHERE asset_class = ? AND symbol = ?
-       )`,
+       WHERE p.run_id IN (SELECT run_id FROM runs WHERE ${INSTRUMENT_RUNS_WHERE})`,
     )
-    .all(assetClass, normalizedSymbol) as readonly WatchlistPredictionQueryRow[];
+    .all(...runParams) as readonly WatchlistPredictionQueryRow[];
 
   let openPredictionCount = 0;
   let latestCalibration: { readonly outcome: "hit" | "miss"; readonly at: string } | undefined =

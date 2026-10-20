@@ -144,7 +144,7 @@ describe("forecast-grid command", () => {
     expect(output).toContain("SPY: grid-range-1, grid-range-5, grid-range-20 (");
     expect(output).toContain("2 symbol(s) x Event Grid = 7 event(s)");
     expect(output).toMatch(
-      /~\d+ model tokens \(estimate: prompt chars\/4 plus a measured 17400-token per-call allowance for provider overhead, completion and reasoning\)/u,
+      /~\d+ model tokens \(estimate: prompt chars\/4 plus a 17400-token per-call allowance measured on run 2026-10-20T17-15-13-848Z-144ec654; no past Forecast Grid run for \S+ \S+\)/u,
     );
     expect(
       Number(/AAPL: .* \(~(?<tokens>\d+) tokens\)/u.exec(output)?.groups?.tokens),
@@ -212,7 +212,16 @@ describe("forecast-grid command", () => {
       watchlist: "core",
       symbols: ["AAPL"],
       tokenEstimate: 321,
+      callCount: 1,
     });
+    const dryRun = await runCli(["forecast-grid", "--watchlist", "core"], {
+      createProvider: forbiddenProvider,
+      fetchImpl: forbiddenFetch,
+      now: () => NOW,
+    });
+    expect(dryRun).toContain(
+      `~321 model tokens (estimate: observed 321 tokens/call on run ${report.runId} (`,
+    );
     expect(await readFile(join(runDir, "report.md"), "utf8")).toContain("equity Forecast Grid");
     const loaded = await loadRunArtifact(runDir);
     expect(loaded.artifact?.report.runId).toBe(report.runId);

@@ -1,6 +1,10 @@
 import { MIN_CALIBRATION_SAMPLE } from "./calibration";
 import { NO_RESOLVED_METRIC_TEXT } from "./calibration-invariant";
-import { pairedSkillPolicyNote, pairedSkillStatusText } from "./calibration-read";
+import {
+  pairedSkillDecisionText,
+  pairedSkillPolicyNote,
+  pairedSkillStatusText,
+} from "./calibration-read";
 import type {
   CalibrationMetric,
   CalibrationSummary,
@@ -19,7 +23,7 @@ function pairedSkillLine(
     metric.ciLow === undefined || metric.ciHigh === undefined
       ? "no interval"
       : `[${fmtBrier(metric.ciLow)}, ${fmtBrier(metric.ciHigh)}]`;
-  return `    ${label}: ${fmtBrier(metric.deltaBrier)} ${interval}, n=${String(metric.count)}, ${String(metric.blockCount)} blocks, ${pairedSkillStatusText(metric, policy)}`;
+  return `    ${label}: ${fmtBrier(metric.deltaBrier)} ${interval}, n=${String(metric.count)}, ${String(metric.blockCount)} blocks, ${pairedSkillStatusText(metric, policy)}; at next review: ${pairedSkillDecisionText(metric.decisionRule)}`;
 }
 
 function fmtBrier(v: number): string {
@@ -68,6 +72,9 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
   }
   if (paired !== undefined) {
     lines.push(`    ${String(paired.excludedWithoutBaselineCount)} excluded without a baseline`);
+    if (paired.nextReviewDate !== undefined) {
+      lines.push(`    Next pre-registered review: ${paired.nextReviewDate}`);
+    }
   }
 
   if (summary.resolvedCount < MIN_CALIBRATION_SAMPLE) {

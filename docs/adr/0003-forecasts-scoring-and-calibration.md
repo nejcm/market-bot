@@ -88,8 +88,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
 - Calibration's headline is Paired Skill: ΔBrier = Brier(Forecast Baseline) − Brier(model) over resolved,
   deduped Forecast Events that carry a baseline, overall and per kind; the fixed-0.5 skill stays a
   secondary column. Events without a baseline are excluded and counted (`excludedWithoutBaselineCount`);
-  grid events count once through the Forecast Event dedupe. No backfill: older runs lack as-of-issue
-  split-adjusted closes, so their predictions stay excluded. Pre-registered policy
+  grid events count once through the Forecast Event dedupe. Pre-baseline predictions are excluded
+  from Paired Skill because their as-of-issue closes cannot be proven from the cache. Pre-registered policy
   (`PAIRED_SKILL_POLICY`; any change needs an amendment here): 95% percentile block bootstrap, 2000
   resamples, seed 20261020, over events sorted by issuance and blocks sorted by subject so input order
   never moves the interval; blocks cluster by the subject's first leg and chain events issued before the
@@ -102,13 +102,16 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   says to expect `not-yet-decidable` until then and to treat earlier statuses as provisional. The 0.01 bar
   is deliberately one-sided: the model must clear it to keep its probabilities, while the free baseline
   wins on any interval below 0. The index
-  stores the baseline stamp (schema 14); an older index falls back to disk until `index rebuild`.
+  stores the baseline stamp (schema 14; schema 15 also projects each prediction's primary subject as
+  the search symbol of symbol-less runs); an older index falls back to disk until `index rebuild`.
 - Paired Skill review cadence (pre-registered): quarterly on 2027-01-15, 2027-04-15, 2027-07-15 and
   2027-10-15, then every 15 Jan/Apr/Jul/Oct, per kind from the summary as written that day. `model-better`
   meeting the minimum useful effect: keep model probabilities and consider an out-of-sample model/baseline
   mixture. `not-yet-decidable`: keep recording, no change. `baseline-better`: publish the Forecast
   Baseline for that kind as the stated probability and say so in reports. A decision is never taken
-  between review dates or on a slice that was not pre-registered here.
+  between review dates or on a slice that was not pre-registered here. Calibration Markdown, JSON
+  (`nextReviewDate`, per-kind `decisionRule`; the overall aggregate carries none), stdout and the Research Console show the next review
+  date and which rule each kind's current status would trigger; that is a preview, not a decision.
 - Assembly stamps every Prediction with `origin` (`model` or `grid`) and, where an estimator exists, a
   Forecast Baseline: `baselineProbability`, `baselineVersion` and `infoCutoff` (last split-adjusted close
   used). Estimators are frozen, pure and versioned (`ewma-0.94-w60-v1`): EWMA (λ 0.94) volatility over the
@@ -116,13 +119,19 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   outside-band probability; direction and plain outperform relative (A−B) are 0.5 by construction (any
   zero-drift symmetric distribution) but still require their close windows and are stamped with
   `baselineVersion`, so their Paired Skill is skill against a declared coin flip. Conditional, volatility, IV, macro and earnings claims carry no baseline and are not
-  scored for skill. Fewer than 61 closes, a residual split (largest move above 8 robust σ and within
-  0.03 of the log of a common split ratio; ordinary large moves stay volatility), zero movement, a
+  scored for skill. Fewer than 61 closes, a residual split, zero movement, a
   missing series, or relative legs whose last closes are more than 4 days apart omit the baseline and
   declare a `forecast-baseline` data gap; it is never defaulted to 0.5. A non-positive range bound
   contributes zero tail probability. The primary symbol's window extends to the snapshot's newer
   unverified closes so the baseline and the grid bands share one spot. Changing the math requires a new `baselineVersion`. (Added 2026-10-20; Forecast
   Baseline is unrelated to the prior-run baseline of Forecast Persistence Telemetry.)
+- Residual split check: every move above 8 robust σ is examined, so a larger genuine move
+  cannot mask a smaller residual split. Any such move counts when it is within log(1.1) + 0.03 of the log of a forward or reverse split ratio (5:4, 4:3, 3:2, 2, 3, 4, 5, 10), so a split day that also
+  moved ±10% is still caught. When the price source returned its split list (`yahoo-price-history`,
+  `splitDates`), only a jump within 4 days of a reported split is flagged. A known list with no split
+  nearby means a genuine move, which stays volatility. Without split metadata (the verified chart), a genuine 10–65% one-day move inside those windows is treated as a split. That is a
+  documented shortcut; volume is not consulted. (Amended 2026-10-21; availability only, the math and
+  `ewma-0.94-w60-v1` are unchanged.)
 - Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
   (same bands the prompt lists) and relative vs SPY at h = 5. The primary synthesis prices them in the same
   response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the

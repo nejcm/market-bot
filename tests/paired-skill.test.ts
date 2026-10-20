@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { pairedSkillView } from "../app/client/view-model";
 import {
   buildCalibrationSummary,
+  nextPairedSkillReviewDate,
   PAIRED_SKILL_POLICY,
   type ResolvedPair,
 } from "../src/scoring/calibration";
@@ -327,13 +328,18 @@ describe("Paired Skill", () => {
     expect(markdown).toContain("## Paired skill vs Forecast Baseline");
     expect(markdown).toContain("Excluded without a Forecast Baseline: 0");
     expect(markdown).toContain(
-      "| all | 40 | 40 | +0.2100 | [+0.2100, +0.2100] | model-better (meets minimum useful effect) | 0.8400 |",
+      "| all | 40 | 40 | +0.2100 | [+0.2100, +0.2100] | model-better (meets minimum useful effect) | none (decided per kind) | 0.8400 |",
     );
     const stdout = renderCalibrationConsole(summary);
     expect(stdout).toContain(
       "all: 0.2100 [0.2100, 0.2100], n=40, 40 blocks, model-better (meets minimum useful effect)",
     );
     expect(stdout).toContain("direction: 0.2100");
+    expect(stdout).toContain("at next review: keep model probabilities");
+    expect(stdout).toContain(
+      `Next pre-registered review: ${summary.pairedSkill?.nextReviewDate ?? ""}`,
+    );
+    expect(markdown).toContain("Next pre-registered review: ");
     expect(stdout).toContain("about 784 independent blocks");
     expect(markdown).toContain("about 784 independent blocks");
     const view = pairedSkillView({
@@ -341,9 +347,9 @@ describe("Paired Skill", () => {
     });
     expect(view?.summary).toEqual(summary.pairedSkill);
     expect(view?.policyNote).toContain("about 784 independent blocks");
-    expect(view?.rows.map(({ key, status }) => [key, status])).toEqual([
-      ["all", "model-better"],
-      ["direction", "model-better"],
+    expect(view?.rows.map(({ key, status, decisionRule }) => [key, status, decisionRule])).toEqual([
+      ["all", "model-better", undefined],
+      ["direction", "model-better", "keep-model"],
     ]);
     expect(pairedSkillView({ summary: {} })).toBeUndefined();
     const { pairedSkill: _omitted, ...legacy } = summary;
@@ -351,5 +357,49 @@ describe("Paired Skill", () => {
     expect(renderCalibrationConsole(legacy)).toContain(
       "Paired skill: not recorded in this summary",
     );
+  });
+
+  test("next review date follows the pre-registered quarterly schedule", () => {
+    expect(nextPairedSkillReviewDate(new Date("2026-10-20T00:00:00Z"))).toBe("2027-01-15");
+    expect(nextPairedSkillReviewDate(new Date("2027-01-15T12:00:00Z"))).toBe("2027-01-15");
+    expect(nextPairedSkillReviewDate(new Date("2027-01-16T00:00:00Z"))).toBe("2027-04-15");
+    expect(nextPairedSkillReviewDate(new Date("2027-10-16T00:00:00Z"))).toBe("2028-01-15");
+  });
+
+  test("decision rule follows status and the minimum useful effect", () => {
+    const rule = (model: (hit: boolean) => number) =>
+      buildCalibrationSummary(events(40, model)).pairedSkill?.byKind.direction?.decisionRule;
+    expect(rule((hit) => (hit ? 0.8 : 0.2))).toBe("keep-model");
+    expect(rule((hit) => (hit ? 0.2 : 0.8))).toBe("publish-baseline");
+    expect(rule(() => 0.5)).toBe("keep-recording");
+  });
+
+  test("the overall aggregate carries no decision; kinds below the floor keep recording", () => {
+    const mixed = events(40, (hit) => (hit ? 0.3 : 0.7)).map(
+      (event, index): ResolvedPair =>
+        index % 2 === 0
+          ? event
+          : { ...event, prediction: { ...event.prediction, kind: "range" as const } },
+    );
+    const summary = buildCalibrationSummary(mixed, new Date("2026-10-20T00:00:00.000Z"));
+    const skill = summary.pairedSkill!;
+    expect(skill.overall?.status).toBe("baseline-better");
+    expect(skill.overall).not.toHaveProperty("decisionRule");
+    expect(
+      Object.values(skill.byKind).map(({ count, decisionRule }) => [count, decisionRule]),
+    ).toEqual([
+      [20, "keep-recording"],
+      [20, "keep-recording"],
+    ]);
+    const allRow = renderCalibrationMarkdown(summary)
+      .split("\n")
+      .find((line) => line.startsWith("| all |"));
+    expect(allRow).toContain("none (decided per kind)");
+    expect(renderCalibrationConsole(summary)).not.toContain("publish the Forecast Baseline");
+    const view = pairedSkillView({
+      summary: structuredClone(summary) as unknown as Record<string, unknown>,
+    });
+    expect(view?.rows[0]).toMatchObject({ key: "all", decisionText: "none (decided per kind)" });
+    expect(view?.rows[0]).not.toHaveProperty("decisionRule");
   });
 });

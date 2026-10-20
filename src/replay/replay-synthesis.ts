@@ -451,11 +451,33 @@ export async function replayPairedSample(options: {
   const judged: Partial<Record<"control" | "ablation", object>> = {};
   let judgeError: string | undefined = undefined;
   try {
-    for (const side of ["control", "ablation"] as const) {
-      // oxlint-disable-next-line no-await-in-loop -- votes stay in a stable order for cassette replay
-      const result = await judgeReport(judge.provider, judge.model, paired[side], meters[side]);
-      judged[side] = { ...result, canceled: paired.canceled.map((pair) => pair[side]) };
-    }
+    const controlResult = await judgeReport(
+      judge.provider,
+      judge.model,
+      paired.control,
+      meters.control,
+    );
+    const ablationResult = await judgeReport(
+      judge.provider,
+      judge.model,
+      paired.ablation,
+      meters.ablation,
+    );
+    const { sharedConveyance } = paired;
+    judged.control = {
+      ...controlResult,
+      canceled: paired.canceled.map((pair) => pair.control),
+      sharedConveyance,
+    };
+    judged.ablation = {
+      ...ablationResult,
+      unconveyed: [
+        ...ablationResult.unconveyed,
+        ...controlResult.unconveyed.filter((key) => sharedConveyance.includes(key)),
+      ],
+      canceled: paired.canceled.map((pair) => pair.ablation),
+      sharedConveyance,
+    };
   } catch (error) {
     judgeError = error instanceof Error ? error.message : String(error);
   }

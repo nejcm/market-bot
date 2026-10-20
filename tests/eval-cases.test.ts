@@ -438,6 +438,32 @@ describe("deterministic checks", () => {
     expect(paired.control.map((row) => row.key)).toEqual(["keyFindings[1]", "keyFindings[2]"]);
     expect(paired.ablation.map((row) => row.key)).toEqual(["keyFindings[1]"]);
     expect(cancelMatchedItems(control, otherEvidence).canceled).toEqual([]);
+    const omission = cases.find((row) => row.check === "omission");
+    if (omission?.check !== "omission") {
+      throw new Error("missing omission case");
+    }
+    const sameReport = secReport(["Same."]);
+    const conveyance = cancelMatchedItems(
+      reportJudgeItems(sameReport, [omission], evidence),
+      reportJudgeItems(sameReport, [omission], evidence),
+    );
+    expect(conveyance.sharedConveyance).toEqual([omission.id]);
+    expect(conveyance.control.map((row) => row.key)).toEqual([omission.id]);
+    expect(conveyance.ablation).toEqual([]);
+  });
+
+  test("the omission veto depends on a shared conveyance verdict, so it is kept", () => {
+    // Pair 1 shares one judged verdict; pairs 2-3 are control [yes, no] vs ablation [no, no].
+    const scores = { a: [1, 1, 1] };
+    const veto = (shared: boolean) =>
+      stageDeletionStatistics({
+        arm: "market-behavior-analysis",
+        control: scores,
+        ablation: scores,
+        conveyance: { ubs: { control: [shared, true, false], ablation: [shared, false, false] } },
+      }).vetoes;
+    expect(veto(true)).toEqual(["omission regression: ubs"]);
+    expect(veto(false)).toEqual([]);
   });
 
   test("a judgment stops once two valid votes agree", async () => {

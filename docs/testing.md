@@ -424,8 +424,9 @@ An ablation arm with a control runs pre-paired (`replayPairedSample`): sample i 
 `ablation-<i>` under one label, both generate before either is judged, and judge requests that are
 byte-identical in full (kind, question, claim and selected evidence) cancel as a multiset, so two identical
 units on one side cancel at most two on the other. Canceled locations are recorded per side in
-`judged.canceled` and are judged on neither. A conveyance item cancels only when its whole report-level
-claim matches. The plan without `--yes` prints the approval subset for an ablation arm: its estimate plus
+`judged.canceled` and are judged on neither. Conveyance never cancels, because the omission veto needs
+absolute shares: a request matching in full (the whole report-level claim) is judged once and its verdict
+is recorded on both sides (`judged.sharedConveyance`). The plan without `--yes` prints the approval subset for an ablation arm: its estimate plus
 its control's, as a range from early stop on every judgment to early stop on none; canceled requests lower
 both ends.
 Only equity inputs are accepted (Market Overview panels have their own specialist consumers); an arm whose root

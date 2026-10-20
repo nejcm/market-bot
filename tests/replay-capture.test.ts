@@ -33,6 +33,7 @@ import {
   estimateSynthesisFile,
 } from "../src/replay/replay-synthesis";
 import { rerunReport } from "../src/replay/rerun-report";
+import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
 import { resolveConfig } from "../src/config";
 import { assertNoSecretsInFiles } from "../scripts/fixture-secret-scan";
 import { runEvalSample } from "./support/run-fixtures/eval";
@@ -441,6 +442,10 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(brokenSample.tokens.judge).toBe(8);
     let pairedJudgeCalls = 0;
     const pairRoot = join(dir, "paired");
+    const omissionFixture = parseEvalCases(
+      await Bun.file(join(import.meta.dir, "fixtures/eval-cases/cases.json")).json(),
+    ).find((row): row is OmissionCase => row.check === "omission")!;
+    const sharedCase = { ...omissionFixture, capture: saved.input.runId };
     const pair = await replayPairedSample({
       input: file,
       index: 1,
@@ -455,7 +460,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
             : { content: JSON.stringify({ stage: requested }), tokenEstimate: 7 };
         },
       },
-      omissionCases: [],
+      omissionCases: [sharedCase],
       judge: {
         model: "stub-judge",
         provider: {
@@ -480,14 +485,17 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       "market-behavior-analysis-control",
       "market-behavior-analysis",
     ]);
-    // Both arms replay the same recorded synthesis, so every complete judge request cancels.
-    expect(pairedJudgeCalls).toBe(0);
+    // Both arms replay the same recorded synthesis: contradictions cancel, the conveyance request is judged once.
+    expect(pairedJudgeCalls).toBe(2);
     for (const sample of pairSamples) {
       expect(sample.status).toBe("completed");
       expect(sample.judged.canceled).toHaveLength(sample.defects.claims);
       expect(sample.judged.contradictions).toEqual([]);
-      expect(sample.modelCalls).toMatchObject({ judge: 0, analysis: 1 });
+      expect(sample.judged.sharedConveyance).toEqual([sharedCase.id]);
+      expect(sample.judged.unconveyed).toEqual([sharedCase.id]);
+      expect(sample.modelCalls).toMatchObject({ analysis: 1 });
     }
+    expect(pairSamples.map((sample) => sample.modelCalls.judge)).toEqual([2, 0]);
     await expect(
       replayPairedSample({
         input: file,

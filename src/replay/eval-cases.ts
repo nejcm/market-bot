@@ -663,7 +663,8 @@ type ReportJudgeItems = ReturnType<typeof reportJudgeItems>;
 
 const judgeRequestKey = (row: ReportJudgeItems[number]) => JSON.stringify([row.kind, row.item]);
 
-// Pre-paired samples skip byte-identical complete requests (kind, question, claim, evidence), matched as multisets.
+// Pre-paired samples skip byte-identical complete contradiction requests, matched as multisets.
+// A matched conveyance request stays on the control side only, judged once, its verdict shared (omission veto needs it).
 export function cancelMatchedItems(
   control: ReportJudgeItems,
   ablation: ReportJudgeItems,
@@ -671,15 +672,19 @@ export function cancelMatchedItems(
   readonly control: ReportJudgeItems;
   readonly ablation: ReportJudgeItems;
   readonly canceled: readonly { readonly control: string; readonly ablation: string }[];
+  readonly sharedConveyance: readonly string[];
 } {
   const open = new Map<string, string[]>();
   for (const row of control) {
     open.set(judgeRequestKey(row), [...(open.get(judgeRequestKey(row)) ?? []), row.key]);
   }
   const canceled: { control: string; ablation: string }[] = [];
+  const sharedConveyance: string[] = [];
   const ablationLeft = ablation.filter((row) => {
     const match = open.get(judgeRequestKey(row))?.shift();
-    if (match !== undefined) {
+    if (match !== undefined && row.kind === "conveyance") {
+      sharedConveyance.push(row.key);
+    } else if (match !== undefined) {
       canceled.push({ control: match, ablation: row.key });
     }
     return match === undefined;
@@ -689,6 +694,7 @@ export function cancelMatchedItems(
     control: control.filter((row) => !canceledControl.has(row.key)),
     ablation: ablationLeft,
     canceled,
+    sharedConveyance,
   };
 }
 

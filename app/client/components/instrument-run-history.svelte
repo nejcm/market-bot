@@ -52,7 +52,8 @@
         </a>
       {/if}
       <span class="font-mono text-[10.5px] text-muted-foreground">
-        {historyRuns.length} {historyRuns.length === 1 ? "run" : "runs"} · {pinnedRunIds.size > 0 ? "pinned, then " : ""}newest first
+        {historyRuns.length} {historyRuns.length === 1 ? "run" : "runs"}{#if historyRuns.length > 1}
+          · {historyRuns.some((run) => pinnedRunIds.has(run.runId)) ? "pinned, then " : ""}newest first{/if}
       </span>
     </div>
   </div>

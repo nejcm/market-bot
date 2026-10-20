@@ -60,6 +60,7 @@
     instrumentRunHistoryRows,
     pinnedFirst,
     pinnedSidebarEntries,
+    pinToggleIntent,
     recentRunSummaries,
     runCompareCards,
     runIdFromPathname,
@@ -103,7 +104,8 @@
   let watchlistDetail = $state<WatchlistDetail | null>(null);
   let loadingWatchlist = $state(false);
   let watchlistLoadError = $state("");
-  let pins = $state<readonly Pin[]>([]);
+  let pins = $state<readonly Pin[] | null>(null);
+  let pinRequestInFlight = $state(false);
   let pinsLoadError = $state("");
   const queueingDeepSymbols = new Set<string>();
   let reorderingWatchlist = false;
@@ -132,8 +134,8 @@
   const JOBS_POLL_INTERVAL_MS = 2000;
   const DASHBOARD_RECENT_RUN_LIMIT = 6;
 
-  const pinnedRunIds = $derived(new Set(pins.map((pin) => pin.runId)));
-  const pinnedEntries = $derived(pinnedSidebarEntries(pins, runs, typeFilter, query.text));
+  const pinnedRunIds = $derived(new Set((pins ?? []).map((pin) => pin.runId)));
+  const pinnedEntries = $derived(pinnedSidebarEntries(pins ?? [], runs, typeFilter, query.text));
   const runHistoryEntries = $derived(
     instrumentRunHistory(runs.filter((run) => !pinnedRunIds.has(run.runId))),
   );
@@ -615,12 +617,19 @@
   }
 
   async function togglePin(runId: string): Promise<void> {
+    const intent = pinToggleIntent(pins, pinRequestInFlight, runId);
+    if (intent === null) {
+      return;
+    }
     error = "";
+    pinRequestInFlight = true;
     try {
-      await (pinnedRunIds.has(runId) ? removePin(runId) : addPin(runId));
+      await (intent === "unpin" ? removePin(runId) : addPin(runId));
       await refreshPins();
     } catch (caughtError: unknown) {
       error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    } finally {
+      pinRequestInFlight = false;
     }
   }
 
@@ -822,6 +831,7 @@
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+          pinToggleDisabled={pins === null || pinRequestInFlight}
           onTogglePin={() => void togglePin(selectedRunId)}
         />
       {:else if view === "instrument"}

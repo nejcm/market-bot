@@ -32,6 +32,7 @@ import {
   predictions,
   providerHealthIssueCounts,
   pinnedFirst,
+  pinToggleIntent,
   pinnedSidebarEntries,
   providerHealthRows,
   recentRunSummaries,
@@ -533,6 +534,15 @@ describe("research console app view model", () => {
     expect(searchQueryFromSearchParams("?q=term+premium+%26+capex")).toBe("term premium & capex");
     expect(searchQueryFromSearchParams("?q=")).toBe("");
     expect(searchQueryFromSearchParams("")).toBeUndefined();
+  });
+
+  test("decides pin toggles only from loaded pins with no request in flight", () => {
+    const pins = [{ runId: "r1", createdAt: "2026-10-02T00:00:00.000Z" }];
+
+    expect(pinToggleIntent(pins, false, "r1")).toBe("unpin");
+    expect(pinToggleIntent(pins, false, "r2")).toBe("pin");
+    expect(pinToggleIntent(null, false, "r1")).toBeNull();
+    expect(pinToggleIntent(pins, true, "r2")).toBeNull();
   });
 
   test("orders pinned runs first while keeping each side's order", () => {

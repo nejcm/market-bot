@@ -348,7 +348,7 @@
       </form>
 
       <div class="mt-3.5 overflow-x-auto rounded-lg border border-border bg-card" aria-live="polite">
-        <div class="min-w-210">
+        <div class="min-w-240">
           <div
             class="grid grid-cols-[52px_150px_minmax(0,1fr)_92px_110px_130px_110px_40px] gap-3.5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
           >
@@ -424,7 +424,7 @@
                 <div>
                   {#if item.row.state === "available" && item.row.depth !== undefined}
                     <span
-                      class="rounded border border-sidebar-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[#9aa1a8]"
+                      class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
                     >
                       {item.row.depth}
                     </span>

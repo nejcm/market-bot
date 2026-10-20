@@ -52,6 +52,7 @@
     readonly onOpenRun: (runId: string) => void;
     readonly onHighlightSource: (sourceId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
+    readonly pinToggleDisabled: boolean;
     readonly onTogglePin: () => void;
     readonly onOpenMenu?: () => void;
   }
@@ -76,6 +77,7 @@
     onOpenRun,
     onHighlightSource,
     onOpenInstrument,
+    pinToggleDisabled,
     onTogglePin,
     onOpenMenu = () => {},
   }: Props = $props();
@@ -479,8 +481,9 @@
           / {detail.summary.runId}
         </div>
         <button
-          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex size-8.75 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           type="button"
+          disabled={pinToggleDisabled}
           aria-label={pinned ? "Unpin run" : "Pin run"}
           aria-pressed={pinned}
           title={pinned ? "Unpin run" : "Pin run to the top of run lists"}

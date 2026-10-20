@@ -263,6 +263,18 @@ export function pinnedFirst<T>(
   ];
 }
 
+// Null until pins load or while a pin request is in flight: the toggle cannot know the current state.
+export function pinToggleIntent(
+  pins: readonly Pin[] | null,
+  requestInFlight: boolean,
+  runId: string,
+): "pin" | "unpin" | null {
+  if (pins === null || requestInFlight) {
+    return null;
+  }
+  return pins.some((pin) => pin.runId === runId) ? "unpin" : "pin";
+}
+
 export interface PinnedSidebarEntry {
   readonly runId: string;
   readonly run?: RunSummary;

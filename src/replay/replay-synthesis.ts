@@ -3,6 +3,11 @@ import { join, resolve } from "node:path";
 import type { ModelProvider, ModelRequest, ModelResponse } from "../model/types";
 import { buildModelStageRequest } from "../research/model-stage-prompt";
 import {
+  plannedResearchStages,
+  runAnalysisPhase,
+  type AnalysisStage,
+} from "../research/analysis-phase";
+import {
   MAX_REPORT_VALIDATION_REPROMPTS,
   synthesizeReportUntilValid,
 } from "../research/final-synthesis";
@@ -25,17 +30,31 @@ import { judgeReport, reportJudgeItems, scoreReportDefects, type OmissionCase } 
 import { estimateJudgeTokens } from "./eval-judge";
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 
-// Joint ablations: each arm drops its root stage and every stage that consumed it (analysis-phase.ts).
+// Isolated arms skip one stage and regenerate its consumers live; joint arms drop the stage and every consumer (analysis-phase.ts).
 export const ABLATION_ARMS = {
-  critique: ["critique"],
-  "market-behavior-analysis+critique": ["market-behavior-analysis", "critique"],
-  "specialist-analysis+dependents": [
-    "specialist-analysis",
-    "instrument-evidence-analysis",
-    "market-behavior-analysis",
-    "critique",
-  ],
-} as const;
+  critique: { removed: ["critique"], regenerated: [] },
+  "specialist-analysis": {
+    removed: ["specialist-analysis"],
+    regenerated: ["instrument-evidence-analysis", "market-behavior-analysis", "critique"],
+  },
+  "market-behavior-analysis": { removed: ["market-behavior-analysis"], regenerated: ["critique"] },
+  "market-behavior-analysis+critique": {
+    removed: ["market-behavior-analysis", "critique"],
+    regenerated: [],
+  },
+  "specialist-analysis+dependents": {
+    removed: [
+      "specialist-analysis",
+      "instrument-evidence-analysis",
+      "market-behavior-analysis",
+      "critique",
+    ],
+    regenerated: [],
+  },
+} as const satisfies Record<
+  string,
+  { readonly removed: readonly AnalysisStage[]; readonly regenerated: readonly AnalysisStage[] }
+>;
 type AblationArm = keyof typeof ABLATION_ARMS;
 
 async function loadAblatedInput(
@@ -46,10 +65,18 @@ async function loadAblatedInput(
   if (arm === undefined) {
     return saved;
   }
-  const dropped: readonly string[] = ABLATION_ARMS[arm];
-  if (!saved.input.priorStages.some((row) => row.stage === dropped[0])) {
-    throw new Error(`Cannot ablate ${arm}: the saved input has no ${dropped[0]} stage`);
+  const { removed, regenerated } = ABLATION_ARMS[arm];
+  // Market Overview panels consume specialist output too; the arms only encode the equity graph.
+  if (saved.input.command.jobType !== "equity") {
+    throw new Error(`Cannot ablate ${arm}: only equity inputs are supported`);
   }
+  if (!saved.input.priorStages.some((row) => row.stage === removed[0])) {
+    throw new Error(`Cannot ablate ${arm}: the saved input has no ${removed[0]} stage`);
+  }
+  if (regenerated.length > 0) {
+    return saved;
+  }
+  const dropped: readonly string[] = removed;
   const priorStages = saved.input.priorStages.filter((row) => !dropped.includes(row.stage));
   return { ...saved, input: { ...saved.input, priorStages } };
 }
@@ -81,11 +108,65 @@ function scoringEvidence(saved: SynthesisReplayInput): unknown {
   ];
 }
 
+// Frozen upstream, live consumers; offline (no provider) a consumer's frozen output stands in for its regeneration.
+async function regenerateAnalysis(
+  saved: SynthesisReplayInput,
+  arm: (typeof ABLATION_ARMS)[AblationArm],
+  options: {
+    readonly context: SynthesisReplayInput["input"]["context"];
+    readonly promptDir: string;
+    readonly model: string;
+    readonly provider: ModelProvider | undefined;
+    readonly onAnalysisCall: AnalysisCall | undefined;
+  },
+): Promise<SynthesisReplayInput["input"]["priorStages"]> {
+  const { input } = saved;
+  const { regenerated } = arm;
+  const { analysisOutputs, critiqueOutput } = await runAnalysisPhase({
+    command: input.command,
+    collectedSources: input.collectedSources,
+    context: options.context,
+    quickModel: options.model,
+    skipStage: arm.removed[0] as Exclude<AnalysisStage, "critique">,
+    runStage: async (stage, model, stageInput) => {
+      const frozen = input.priorStages.find((row) => row.stage === stage);
+      if (!regenerated.includes(stage)) {
+        if (frozen === undefined) {
+          throw new Error(`Saved input has no frozen ${stage} stage`);
+        }
+        return frozen;
+      }
+      const { request } = await buildModelStageRequest(stage, model, options.promptDir, {
+        command: input.command,
+        collectedSources: stageInput.collectedSources,
+        context: stageInput.context,
+        config: input.settings,
+        priorStages: stageInput.priorStages ?? [],
+        predictionRepromptErrors: [],
+        reportValidationErrors: [],
+        allowedSourceIds: [],
+      });
+      const response =
+        options.provider === undefined
+          ? { content: frozen?.content ?? "{}", tokenEstimate: frozen?.tokenEstimate ?? 0 }
+          : await options.provider.generate(request);
+      options.onAnalysisCall?.({ request, response });
+      return { stage, content: response.content, tokenEstimate: response.tokenEstimate };
+    },
+  });
+  return [...analysisOutputs, critiqueOutput];
+}
+
 type SynthesisReplayResult = ReturnType<typeof finalizeSynthesis> & {
   readonly synthesis: Awaited<ReturnType<typeof synthesizeReportUntilValid>>;
   readonly calls: number;
   readonly markdown: string;
 };
+
+type AnalysisCall = (call: {
+  readonly request: ModelRequest;
+  readonly response: Pick<ModelResponse, "tokenEstimate">;
+}) => void;
 
 export async function executeSynthesisInput(
   saved: SynthesisReplayInput,
@@ -94,25 +175,44 @@ export async function executeSynthesisInput(
     readonly provider?: ModelProvider;
     readonly onRequest?: (request: ModelRequest) => void;
     readonly onResponse?: (response: ModelResponse) => void;
+    readonly ablation?: AblationArm | undefined;
+    readonly models?: { readonly quick: string; readonly synthesis: string };
+    readonly onAnalysisCall?: AnalysisCall;
   } = {},
 ): Promise<SynthesisReplayResult> {
   const { input } = saved;
+  const arm = options.ablation === undefined ? undefined : ABLATION_ARMS[options.ablation];
+  const isolated = arm !== undefined && arm.regenerated.length > 0;
   const promptDir = options.promptDir ?? resolve(import.meta.dir, "../../prompts");
   const registry = await loadPlaybookRegistry(promptDir);
   const audit = selectPlaybooks(
     playbookScopeWithSubjectKey(input.command, input.collectedSources.resolvedSubject?.subjectKey),
-    ["final-synthesis"],
+    isolated ? plannedResearchStages(input.command) : ["final-synthesis"],
     registry,
   );
   const context = {
     ...input.context,
     domainPlaybooks: await loadPlaybooksByStage(promptDir, registry, audit.selected),
   };
+  const models = options.models ?? {
+    quick: context.runParams.quickModel,
+    synthesis: context.runParams.synthesisModel,
+  };
   const provider = options.provider ?? makeReplayProvider(saved.responses);
+  const analysisStages = isolated
+    ? await regenerateAnalysis(saved, arm, {
+        context,
+        promptDir,
+        model: models.quick,
+        provider: options.provider,
+        onAnalysisCall: options.onAnalysisCall,
+      })
+    : input.priorStages;
   let calls = 0;
   const { allowedSubjects: _allowedSubjects, ...phaseInput } = input;
   const synthesis = await synthesizeReportUntilValid({
     ...phaseInput,
+    priorStages: analysisStages,
     context,
     knownSourceIds: new Set(input.knownSourceIds),
     ...(input.allowedSubjects === undefined
@@ -121,7 +221,7 @@ export async function executeSynthesisInput(
     runFinalSynthesis: async (priorStages, reprompt) => {
       const { request, steering } = await buildModelStageRequest(
         "final-synthesis",
-        context.runParams.synthesisModel,
+        models.synthesis,
         promptDir,
         {
           command: input.command,
@@ -158,6 +258,13 @@ export async function executeSynthesisInput(
   };
 }
 
+const inputTokens = (request: ModelRequest) =>
+  Math.ceil(request.messages.reduce((sum, row) => sum + row.content.length, 0) / 4);
+
+function armRecord(ablation: AblationArm | undefined) {
+  return ablation === undefined ? undefined : { name: ablation, ...ABLATION_ARMS[ablation] };
+}
+
 export async function replaySynthesisFile(options: {
   readonly input: string;
   readonly label: string;
@@ -165,6 +272,7 @@ export async function replaySynthesisFile(options: {
   readonly provider?: ModelProvider;
   readonly promptDir?: string;
   readonly ablation?: AblationArm | undefined;
+  readonly models?: { readonly quick: string; readonly synthesis: string };
   readonly omissionCases?: readonly OmissionCase[];
   readonly judge?: { readonly provider: ModelProvider; readonly model: string };
 }): Promise<{
@@ -181,6 +289,8 @@ export async function replaySynthesisFile(options: {
   let failureMessage: string | undefined = undefined;
   let calls = 0;
   let tokens = 0;
+  let analysisCalls = 0;
+  let analysisTokens = 0;
   const modelMisses: string[] = [];
   let facts: ReturnType<typeof synthesisReplayFacts> | undefined = undefined;
   let defects: ReturnType<typeof scoreReportDefects> | undefined = undefined;
@@ -195,14 +305,20 @@ export async function replaySynthesisFile(options: {
         calls += 1;
         tokens += response.tokenEstimate;
       },
+      onAnalysisCall: ({ request, response }) => {
+        requests.push(request);
+        analysisCalls += 1;
+        analysisTokens += response.tokenEstimate;
+      },
     });
     ({ calls } = result);
     facts = synthesisReplayFacts(result.report);
+    const evidence = scoringEvidence(saved);
     defects = scoreReportDefects({
       report: result.report,
       knownSourceIds: saved.input.knownSourceIds,
       historicalContext: saved.input.context.historicalContext,
-      evidence: scoringEvidence(saved),
+      evidence,
       omissionCases,
     });
     await writeEvalJson(dir, "report.json", result.report);
@@ -216,7 +332,7 @@ export async function replaySynthesisFile(options: {
       judged = await judgeReport(
         options.judge.provider,
         options.judge.model,
-        reportJudgeItems(result.report, omissionCases),
+        reportJudgeItems(result.report, omissionCases, evidence),
       );
     }
   } catch (error) {
@@ -227,26 +343,35 @@ export async function replaySynthesisFile(options: {
     }
   }
   const durationMs = performance.now() - started;
+  const live = options.provider !== undefined;
+  const generationCalls = live ? requests.length : analysisCalls + calls;
+  const generationTokens = analysisTokens + tokens;
   await writeEvalJson(dir, "requests.json", requests);
   await writeEvalJson(dir, "eval-sample.json", {
     status,
     scope: "final-synthesis-only",
     partial: true,
     input: resolve(options.input),
-    ablation: options.ablation,
+    arm: armRecord(options.ablation),
     defects,
     judged,
     durationMs,
     error: failureMessage,
     modelCalls: {
-      replayed: options.provider === undefined ? calls : 0,
-      live: options.provider === undefined ? 0 : requests.length,
+      replayed: live ? 0 : generationCalls,
+      live: (live ? generationCalls : 0) + (judged?.calls ?? 0),
+      analysis: analysisCalls,
+      synthesis: calls,
+      judge: judged?.calls ?? 0,
     },
-    completedCalls: calls,
+    completedCalls: analysisCalls + calls,
     attemptedCalls: requests.length,
     tokens: {
-      replayed: options.provider === undefined ? tokens : 0,
-      live: options.provider === undefined ? 0 : tokens,
+      replayed: live ? 0 : generationTokens,
+      live: (live ? generationTokens : 0) + (judged?.tokens ?? 0),
+      analysis: analysisTokens,
+      synthesis: tokens,
+      judge: judged?.tokens ?? 0,
     },
     modelReplayMisses: modelMisses,
     baseline: saved.baseline,
@@ -278,6 +403,7 @@ export async function estimateSynthesisFile(
   ablation?: AblationArm,
   omissionCases?: readonly OmissionCase[],
 ): Promise<{
+  readonly arm: ReturnType<typeof armRecord>;
   readonly observedCalls: number;
   readonly boundedCalls: number;
   readonly maxInputTokens: number;
@@ -285,30 +411,46 @@ export async function estimateSynthesisFile(
   readonly expectedPerRun: number;
   readonly judgeItems: number;
   readonly judgePerRun: number;
+  readonly totalExpectedPerRun: number;
+  readonly totalWorstPerRun: number;
 }> {
   const saved = await loadAblatedInput(input, ablation);
   const requests: ModelRequest[] = [];
+  let analysisExpected = 0;
+  let analysisWorst = 0;
   const { report } = await executeSynthesisInput(saved, {
+    ablation,
     onRequest: (request) => {
       requests.push(request);
     },
+    onAnalysisCall: ({ request, response }) => {
+      analysisExpected += response.tokenEstimate;
+      analysisWorst += Math.ceil((inputTokens(request) + 50_000) * 1.25);
+    },
   });
-  const maxInputTokens = Math.max(
-    ...requests.map((request) =>
-      Math.ceil(request.messages.reduce((sum, row) => sum + row.content.length, 0) / 4),
-    ),
-  );
+  const maxInputTokens = Math.max(...requests.map((request) => inputTokens(request)));
   const boundedCalls = 1 + saved.input.maxPredictionReprompts + 2 + MAX_REPORT_VALIDATION_REPROMPTS;
-  const judgeItems = reportJudgeItems(report, captureOmissionCases(saved, omissionCases));
+  const judgeItems = reportJudgeItems(
+    report,
+    captureOmissionCases(saved, omissionCases),
+    scoringEvidence(saved),
+  );
+  const judgePerRun = estimateJudgeTokens(judgeItems.map((row) => row.item));
+  const perRun = Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25) + analysisWorst;
+  const expectedPerRun =
+    Object.values(saved.responses.entries)
+      .flat()
+      .reduce((sum, response) => sum + response.tokenEstimate, 0) + analysisExpected;
   return {
+    arm: armRecord(ablation),
     judgeItems: judgeItems.length,
-    judgePerRun: estimateJudgeTokens(judgeItems.map((row) => row.item)),
+    judgePerRun,
     observedCalls: requests.length,
     boundedCalls,
     maxInputTokens,
-    perRun: Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25),
-    expectedPerRun: Object.values(saved.responses.entries)
-      .flat()
-      .reduce((sum, response) => sum + response.tokenEstimate, 0),
+    perRun,
+    expectedPerRun,
+    totalExpectedPerRun: expectedPerRun + judgePerRun,
+    totalWorstPerRun: perRun + judgePerRun,
   };
 }

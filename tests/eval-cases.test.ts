@@ -13,7 +13,7 @@ import {
   staleSupport,
   unsupportedFigures,
 } from "../src/replay/eval-cases";
-import { stageDeletionVerdict } from "../src/replay/eval-decision";
+import { stageDeletionStatistics } from "../src/replay/eval-decision";
 import {
   aggregateVotes,
   estimateJudgeTokens,
@@ -95,6 +95,9 @@ describe("judge vote aggregation", () => {
     expect(aggregateVotes(["yes", "no", "invalid"]).verdict).toBe("undecided");
     expect(aggregateVotes(["no", "invalid", "invalid"]).verdict).toBe("undecided");
     expect(aggregateVotes([])).toMatchObject({ verdict: "undecided", agreement: 0 });
+    expect(aggregateVotes(["insufficient-evidence", "insufficient-evidence", "no"]).verdict).toBe(
+      "insufficient-evidence",
+    );
   });
 
   test("unparseable responses become invalid votes", async () => {
@@ -104,7 +107,12 @@ describe("judge vote aggregation", () => {
       },
     });
     const result = await judgeItem(provider, "m", { question: "q", claim: "c", evidence: [] });
-    expect(result).toEqual({ verdict: "no", votes: ["no", "invalid", "no"], agreement: 2 / 3 });
+    expect(result).toEqual({
+      verdict: "no",
+      votes: ["no", "invalid", "no"],
+      agreement: 2 / 3,
+      tokens: 3,
+    });
   });
 });
 
@@ -153,10 +161,29 @@ describe("deterministic checks", () => {
       },
       { id: "sec-10q", snippet: "Data Center $ 12,493 $ 6,914 (In millions)" },
     ]);
-    expect(facts.get("sec-8k")).toEqual([[2.02]]);
+    expect(facts.get("sec-8k")).toEqual([[2.02, 2020, 2_020_000]]);
     expect(unsupportedFigures("Revenue grew 123%.", facts.get("sec-8k")!)).toEqual(["123%"]);
     expect(unsupportedFigures("Data Center grew 81%.", facts.get("sec-10q")!)).toEqual([]);
     expect(unsupportedFigures("Data Center grew 18%.", facts.get("sec-10q")!)).toEqual(["18%"]);
+  });
+
+  test("figure check never rescales by a billion and needs a second operand to derive", () => {
+    expect(unsupportedFigures("Revenue was $12.5 billion.", [[12.5]])).toEqual(["$12.5 billion"]);
+    expect(
+      unsupportedFigures(
+        "Revenue was $12.5 billion.",
+        sourceFacts({ id: "s", note: "12.5" }).get("s")!,
+      ),
+    ).toEqual(["$12.5 billion"]);
+    expect(
+      unsupportedFigures(
+        "Revenue was $12.5 billion.",
+        sourceFacts({ id: "s", note: "$12.5 billion" }).get("s")!,
+      ),
+    ).toEqual([]);
+    expect(unsupportedFigures("Revenue grew 100%.", [[40]])).toEqual(["100%"]);
+    expect(unsupportedFigures("Revenue grew 100%.", [[40, 80]])).toEqual([]);
+    expect(unsupportedFigures("Revenue changed by $0.", [[40]])).toEqual(["$0"]);
   });
 
   test("omission flips when any required source is cited", () => {
@@ -241,21 +268,28 @@ describe("deterministic checks", () => {
         { id: "news-2", title: "UBS: shorter waits", fetchedAt: "2026-10-16", kind: "news" },
       ],
     });
-    const items = reportJudgeItems(report, [omission]);
+    const evidence = [
+      { id: "news-1", title: "Preorders strong", summary: "Preorders beat the prior cycle." },
+      { id: "news-2", title: "UBS: shorter waits" },
+    ];
+    const items = reportJudgeItems(report, [omission], evidence);
     expect(items.map((row) => [row.kind, row.key])).toEqual([
       ["contradiction", "keyFindings[0]"],
       ["contradiction", "keyFindings[1]"],
       ["contradiction", "risks[0]"],
       ["conveyance", omission.id],
     ]);
-    expect(items[1]!.item.evidence).toEqual([{ sourceId: "news-2", text: "UBS: shorter waits" }]);
+    expect(items[1]!.item.evidence).toEqual([
+      { sourceId: "news-2", text: "id: news-2\ntitle: UBS: shorter waits" },
+    ]);
+    expect(reportJudgeItems(report, [], [])[0]!.item.evidence[0]!.text).toMatch(/no collected/u);
     expect(estimateJudgeTokens(items.map((row) => row.item))).toBeGreaterThan(4 * 3 * 120);
     const provider = makeReplayProvider({
       entries: {
         [`${JUDGE_STAGE}|stub-judge`]: [
           ["no", "no", "no"],
           ["yes", "yes", "no"],
-          ["yes", "no", "maybe"],
+          ["insufficient-evidence", "insufficient-evidence", "no"],
           ["yes", "maybe", "no"],
         ]
           .flat()
@@ -265,35 +299,71 @@ describe("deterministic checks", () => {
     expect(await judgeReport(provider, "stub-judge", items)).toEqual({
       contradictions: ["keyFindings[1]", "risks[0]"],
       unconveyed: [omission.id],
-      undecided: 2,
+      undecided: 1,
+      insufficientEvidence: 1,
+      calls: 12,
+      tokens: 12,
     });
   });
 
-  test("stage deletion verdict uses the paired cluster bootstrap and vetoes", () => {
+  test("judge evidence selects cited passages past the old 2,000-character cut", () => {
+    // Capture 6b4aa8ab: the 10-Q snippet puts 6,718 at char 2,201 and the demand passage past 3,300.
+    const filler =
+      "Risk factors describe competition and supply constraints in general terms. ".repeat(40);
+    const snippet = `${filler}Net revenue: Data Center $ 6,718 $ 3,240 $ 12,493 $ 6,914 (In millions). ${filler}Data Center net revenue of $12.5 billion for the six months ended June 27, 2026 increased by 81%, compared to net revenue of $6.9 billion for the prior year period. The increase in both periods was primarily driven by strong demand for our AMD EPYC processors and AMD Instinct MI350 Series GPUs.`;
+    const report = researchReport({
+      keyFindings: [
+        {
+          text: "First-half Data Center revenue grew 81% year over year on weak demand for EPYC processors.",
+          sourceIds: ["extended-sec-edgar-amd-10q"],
+        },
+      ],
+      bullCase: [],
+      bearCase: [],
+      risks: [],
+      catalysts: [],
+      scenarios: [],
+      predictions: [],
+    });
+    const [item] = reportJudgeItems(report, [], {
+      extendedSources: [{ id: "extended-sec-edgar-amd-10q", title: "AMD SEC 10-Q", snippet }],
+    });
+    const { text } = item!.item.evidence[0]!;
+    expect(snippet.indexOf("strong demand")).toBeGreaterThan(2259);
+    expect(text).toContain("increased by 81%");
+    expect(text).toContain("strong demand for our AMD EPYC processors");
+    expect(text.length).toBeLessThanOrEqual(4000);
+  });
+
+  test("stage deletion statistics carry the arm scope, a stratified bound and vetoes", () => {
     const baseline = { a: [2, 2, 3], b: [1, 1, 1], c: [4, 3, 4] };
-    expect(stageDeletionVerdict({ baseline, ablation: baseline })).toMatchObject({
-      pass: true,
-      meanDifference: 0,
-      upperBound: 0,
-      vetoes: [],
+    const scope = { arm: "critique", removedStages: ["critique"] };
+    const same = stageDeletionStatistics({ ...scope, baseline, ablation: baseline });
+    expect(same).toMatchObject({ ...scope, captures: 3, margin: 0.5, vetoes: [] });
+    expect(same.meanDifference).toBe(0);
+    expect(same.upperBound).toBeGreaterThan(0);
+    expect("pass" in same).toBe(false);
+    const constant = { a: [2, 2, 2], b: [1, 1, 1] };
+    const shifted = stageDeletionStatistics({
+      ...scope,
+      baseline: constant,
+      ablation: { a: [3, 3, 3], b: [2, 2, 2] },
     });
-    const worse = stageDeletionVerdict({
-      baseline,
-      ablation: { a: [3, 3, 4], b: [2, 2, 2], c: [5, 4, 5] },
-    });
-    expect(worse.pass).toBe(false);
-    expect(worse.upperBound).toBeCloseTo(1);
+    expect(shifted.meanDifference).toBe(1);
+    expect(shifted.upperBound).toBe(1);
     expect(
-      stageDeletionVerdict({ baseline, ablation: { ...baseline, b: [1, null, 1] } }).vetoes,
+      stageDeletionStatistics({ ...scope, baseline, ablation: { ...baseline, b: [1, null, 1] } })
+        .vetoes,
     ).toEqual(["failed or missing sample: b ablation"]);
     expect(
-      stageDeletionVerdict({
+      stageDeletionStatistics({
+        ...scope,
         baseline,
         ablation: baseline,
         conveyance: { ubs: { baseline: [true, true, false], ablation: [true, false, false] } },
       }).vetoes,
     ).toEqual(["omission regression: ubs"]);
-    expect(() => stageDeletionVerdict({ baseline, ablation: { a: [1] } })).toThrow();
+    expect(() => stageDeletionStatistics({ ...scope, baseline, ablation: { a: [1] } })).toThrow();
   });
 
   test("rejects malformed and duplicate cases", () => {

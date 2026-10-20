@@ -68,7 +68,7 @@ if (values.input !== undefined) {
   const estimate = await estimateSynthesisFile(values.input, ablate, omissionCases);
   const samplesCount = Number(values.samples);
   process.stdout.write(
-    `Final synthesis input${ablate === undefined ? "" : ` without ${ablate}`}: ${String(estimate.observedCalls)} recorded call(s). Expected ~${String(estimate.expectedPerRun * samplesCount)} tokens total at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded calls/sample, 25% headroom) ~${String(estimate.perRun * samplesCount)}. k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample, ~${String(estimate.judgePerRun * samplesCount)} tokens total. Not a provider-enforced cost cap.\n`,
+    `Final synthesis input${estimate.arm === undefined ? "" : ` arm ${estimate.arm.name} (removed: ${estimate.arm.removed.join(", ")}; regenerated live: ${estimate.arm.regenerated.join(", ") || "none"})`}: ${String(estimate.observedCalls)} recorded synthesis call(s). Generation expected ~${String(estimate.expectedPerRun * samplesCount)} tokens at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded synthesis calls/sample, 25% headroom) ~${String(estimate.perRun * samplesCount)}. k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample, ~${String(estimate.judgePerRun * samplesCount)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samplesCount)}, worst case ~${String(estimate.totalWorstPerRun * samplesCount)}. Not a provider-enforced cost cap.\n`,
   );
   if (!values.yes) {
     process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
@@ -88,16 +88,14 @@ if (values.input !== undefined) {
         ablation: ablate,
         omissionCases,
         judge: { provider, model: config.synthesisModel },
-        provider: {
-          ...provider,
-          generate: (request) => provider.generate({ ...request, model: config.synthesisModel }),
-        },
+        provider,
+        models: { quick: config.quickModel, synthesis: config.synthesisModel },
       }),
     );
   }
   await writeEvalJson(dir, "summary.json", {
     scope: "final-synthesis-only",
-    ablation: ablate,
+    arm: estimate.arm,
     samples,
   });
   process.stdout.write(`${join(dir, "summary.json")}\n`);

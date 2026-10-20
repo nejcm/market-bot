@@ -6,7 +6,11 @@ import { loadFixture, runFixture, createFixtureConfig } from "./support/run-fixt
 import { runDeepEquity } from "../src/deep-equity";
 import { parseArgs } from "../src/cli/args";
 import { makeReplayFetch, createRecordingFetch } from "../src/replay/data-cassette";
-import { makeReplayProvider, createRecordingProvider } from "../src/replay/llm-cassette";
+import {
+  makeReplayProvider,
+  createRecordingProvider,
+  requestStage,
+} from "../src/replay/llm-cassette";
 import {
   withReplaySession,
   replayValue,
@@ -275,7 +279,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(await readFile(join(stage.dir, "report.md"), "utf8")).toContain("Research-only");
     const metrics = JSON.parse(await readFile(join(stage.dir, "eval-sample.json"), "utf8"));
     expect(metrics.partial).toBe(true);
-    expect(metrics.modelCalls).toEqual({ live: 0, replayed: 1 });
+    expect(metrics.modelCalls).toMatchObject({ live: 0, replayed: 1, analysis: 0, judge: 0 });
     expect(metrics.comparison.predictionDelta).toBe(0);
     expect(metrics.comparison.addedClaims).toEqual([]);
     expect(metrics.tokens.live).toBe(0);
@@ -301,7 +305,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(live.status).toBe("completed");
     expect(
       JSON.parse(await readFile(join(live.dir, "eval-sample.json"), "utf8")).modelCalls,
-    ).toEqual({ live: 1, replayed: 0 });
+    ).toMatchObject({ live: 1, replayed: 0 });
     expect(saved.input.priorStages.map((row) => row.stage)).toContain("critique");
     const ablatedEstimate = await estimateSynthesisFile(file, "critique");
     expect(ablatedEstimate.maxInputTokens).toBeLessThan(estimate.maxInputTokens);
@@ -309,6 +313,47 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(ablatedEstimate.judgePerRun).toBeGreaterThan(ablatedEstimate.judgeItems * 3);
     const joint = await estimateSynthesisFile(file, "specialist-analysis+dependents");
     expect(joint.maxInputTokens).toBeLessThan(ablatedEstimate.maxInputTokens);
+    const isolatedEstimate = await estimateSynthesisFile(file, "specialist-analysis");
+    expect(isolatedEstimate.arm).toEqual({
+      name: "specialist-analysis",
+      removed: ["specialist-analysis"],
+      regenerated: ["instrument-evidence-analysis", "market-behavior-analysis", "critique"],
+    });
+    expect(isolatedEstimate.expectedPerRun).toBeGreaterThan(estimate.expectedPerRun);
+    expect(isolatedEstimate.totalWorstPerRun).toBe(
+      isolatedEstimate.perRun + isolatedEstimate.judgePerRun,
+    );
+    const stageCalls: string[] = [];
+    const synthesisReplay = makeReplayProvider(saved.responses);
+    const isolated = await replaySynthesisFile({
+      input: file,
+      label: "isolated-market-behavior",
+      root: dir,
+      ablation: "market-behavior-analysis",
+      provider: {
+        name: "split",
+        generate: async (request) => {
+          const requested = requestStage(request);
+          stageCalls.push(requested);
+          return requested === "final-synthesis"
+            ? synthesisReplay.generate(request)
+            : { content: JSON.stringify({ stage: requested }), tokenEstimate: 7 };
+        },
+      },
+    });
+    expect(isolated.status).toBe("completed");
+    expect(stageCalls[0]).toBe("critique");
+    expect(stageCalls.slice(1).every((row) => row === "final-synthesis")).toBe(true);
+    const isolatedSample = JSON.parse(
+      await readFile(join(isolated.dir, "eval-sample.json"), "utf8"),
+    );
+    expect(isolatedSample.arm).toEqual({
+      name: "market-behavior-analysis",
+      removed: ["market-behavior-analysis"],
+      regenerated: ["critique"],
+    });
+    expect(isolatedSample.modelCalls).toMatchObject({ analysis: 1, live: stageCalls.length });
+    expect(isolatedSample.tokens.analysis).toBe(7);
     const judgeRequests: string[] = [];
     const ablated = await replaySynthesisFile({
       input: file,
@@ -329,9 +374,19 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       },
     });
     const ablatedSample = JSON.parse(await readFile(join(ablated.dir, "eval-sample.json"), "utf8"));
-    expect(ablatedSample.ablation).toBe("critique");
+    expect(ablatedSample.arm).toEqual({ name: "critique", removed: ["critique"], regenerated: [] });
     expect(ablatedSample.defects.claims).toBeGreaterThan(0);
-    expect(ablatedSample.judged).toEqual({ contradictions: [], unconveyed: [], undecided: 0 });
+    const judgeCalls = ablatedSample.defects.claims * 3;
+    expect(ablatedSample.judged).toEqual({
+      contradictions: [],
+      unconveyed: [],
+      undecided: 0,
+      insufficientEvidence: 0,
+      calls: judgeCalls,
+      tokens: judgeCalls,
+    });
+    expect(ablatedSample.modelCalls).toMatchObject({ judge: judgeCalls, live: 1 + judgeCalls });
+    expect(ablatedSample.tokens.live).toBe(ablatedSample.tokens.synthesis + judgeCalls);
     expect(judgeRequests).toHaveLength(ablatedSample.defects.claims * 3);
     expect(new Set(judgeRequests)).toEqual(new Set(["eval-judge"]));
     const noCritique = join(dir, "no-critique-final-synthesis-input.json");
@@ -347,6 +402,17 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     );
     await expect(estimateSynthesisFile(noCritique, "critique")).rejects.toThrow(
       "has no critique stage",
+    );
+    const overview = join(dir, "overview-final-synthesis-input.json");
+    await writeFile(
+      overview,
+      JSON.stringify({
+        ...saved,
+        input: { ...saved.input, command: { ...saved.input.command, jobType: "crypto" } },
+      }),
+    );
+    await expect(estimateSynthesisFile(overview, "specialist-analysis+dependents")).rejects.toThrow(
+      "only equity inputs",
     );
     const frozen = structuredClone(saved);
     Object.assign(frozen.input.context, {

@@ -1,4 +1,4 @@
-type ArmDefects = Readonly<Record<string, readonly (number | null)[]>>;
+type ArmScores = Readonly<Record<string, readonly (number | null)[]>>;
 
 const MARGIN = 0.5;
 const RESAMPLES = 10_000;
@@ -20,17 +20,22 @@ const mean = (values: readonly number[]) =>
 const conveyedShare = (values: readonly boolean[]) =>
   values.filter(Boolean).length / Math.max(values.length, 1);
 
-// Pre-registered stage deletion rule (docs/testing.md): per-capture paired difference, cluster bootstrap, vetoes.
-export function stageDeletionVerdict(input: {
-  readonly baseline: ArmDefects;
-  readonly ablation: ArmDefects;
+// Statistics for the pre-registered stage deletion rule (docs/testing.md); deciding a deletion stays a human call.
+export function stageDeletionStatistics(input: {
+  readonly arm: string;
+  readonly removedStages: readonly string[];
+  readonly baseline: ArmScores;
+  readonly ablation: ArmScores;
   readonly conveyance?: Readonly<
     Record<string, { readonly baseline: readonly boolean[]; readonly ablation: readonly boolean[] }>
   >;
 }): {
-  readonly pass: boolean;
+  readonly arm: string;
+  readonly removedStages: readonly string[];
+  readonly captures: number;
   readonly meanDifference: number;
   readonly upperBound: number;
+  readonly margin: number;
   readonly vetoes: readonly string[];
 } {
   const captures = Object.keys(input.baseline).toSorted();
@@ -41,6 +46,12 @@ export function stageDeletionVerdict(input: {
   ) {
     throw new Error("Arms must cover the same captures with the same sample count per capture");
   }
+  const scope = {
+    arm: input.arm,
+    removedStages: input.removedStages,
+    captures: captures.length,
+    margin: MARGIN,
+  };
   const vetoes: string[] = [];
   for (const capture of captures) {
     for (const [arm, rows] of [
@@ -61,17 +72,23 @@ export function stageDeletionVerdict(input: {
     }
   }
   if (vetoes.length > 0) {
-    return { pass: false, meanDifference: Number.NaN, upperBound: Number.NaN, vetoes };
+    return { ...scope, meanDifference: Number.NaN, upperBound: Number.NaN, vetoes };
   }
-  const differences = captures.map(
-    (capture) =>
-      mean(input.ablation[capture] as readonly number[]) -
-      mean(input.baseline[capture] as readonly number[]),
-  );
+  const arms = captures.map((capture) => ({
+    baseline: input.baseline[capture] as readonly number[],
+    ablation: input.ablation[capture] as readonly number[],
+  }));
   const random = mulberry32(SEED);
+  const resample = (rows: readonly number[]) =>
+    mean(rows.map(() => rows[Math.floor(random() * rows.length)]!));
+  // Stratified: captures are the fixed corpus, only samples within each capture are resampled.
   const means = Array.from({ length: RESAMPLES }, () =>
-    mean(differences.map(() => differences[Math.floor(random() * differences.length)]!)),
+    mean(arms.map((rows) => resample(rows.ablation) - resample(rows.baseline))),
   ).toSorted((a, b) => a - b);
-  const upperBound = means[Math.ceil(0.95 * RESAMPLES) - 1]!;
-  return { pass: upperBound <= MARGIN, meanDifference: mean(differences), upperBound, vetoes };
+  return {
+    ...scope,
+    meanDifference: mean(arms.map((rows) => mean(rows.ablation) - mean(rows.baseline))),
+    upperBound: means[Math.ceil(0.95 * RESAMPLES) - 1]!,
+    vetoes,
+  };
 }

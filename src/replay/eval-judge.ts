@@ -2,9 +2,9 @@ import { isRecord } from "../guards";
 import type { ModelProvider } from "../model/types";
 
 export const JUDGE_STAGE = "eval-judge";
-const JUDGE_SAMPLES = 3;
+export const JUDGE_SAMPLES = 3;
 
-type JudgeVote = "yes" | "no" | "invalid";
+type JudgeVote = "yes" | "no" | "insufficient-evidence" | "invalid";
 
 export interface JudgeItem {
   readonly question: string;
@@ -13,32 +13,30 @@ export interface JudgeItem {
 }
 
 export interface JudgeResult {
-  readonly verdict: "yes" | "no" | "undecided";
+  readonly verdict: "yes" | "no" | "insufficient-evidence" | "undecided";
   readonly votes: readonly JudgeVote[];
   readonly agreement: number;
 }
 
 export function aggregateVotes(votes: readonly JudgeVote[]): JudgeResult {
-  const yes = votes.filter((vote) => vote === "yes").length;
-  const no = votes.filter((vote) => vote === "no").length;
-  const majority = votes.length / 2;
-  let verdict: JudgeResult["verdict"] = "undecided";
-  if (yes > majority) {
-    verdict = "yes";
-  } else if (no > majority) {
-    verdict = "no";
-  }
+  const counts = (["yes", "no", "insufficient-evidence"] as const).map(
+    (verdict) => [verdict, votes.filter((vote) => vote === verdict).length] as const,
+  );
+  const [top, topCount] = counts.toSorted((a, b) => b[1] - a[1])[0]!;
   return {
-    verdict,
+    verdict: topCount > votes.length / 2 ? top : "undecided",
     votes,
-    agreement: votes.length === 0 ? 0 : Math.max(yes, no) / votes.length,
+    agreement: votes.length === 0 ? 0 : topCount / votes.length,
   };
 }
 
 function parseVote(content: string): JudgeVote {
   try {
     const parsed: unknown = JSON.parse(content);
-    return isRecord(parsed) && (parsed.verdict === "yes" || parsed.verdict === "no")
+    return isRecord(parsed) &&
+      (parsed.verdict === "yes" ||
+        parsed.verdict === "no" ||
+        parsed.verdict === "insufficient-evidence")
       ? parsed.verdict
       : "invalid";
   } catch {
@@ -47,7 +45,7 @@ function parseVote(content: string): JudgeVote {
 }
 
 const JUDGE_SYSTEM =
-  'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no","reason":string}.';
+  'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no"|"insufficient-evidence","reason":string}. Use "insufficient-evidence" when the evidence shown cannot settle the question.';
 const JUDGE_OUTPUT_TOKENS = 120;
 
 function judgeUserMessage(item: JudgeItem): string {
@@ -59,8 +57,9 @@ export async function judgeItem(
   model: string,
   item: JudgeItem,
   samples: number = JUDGE_SAMPLES,
-): Promise<JudgeResult> {
+): Promise<JudgeResult & { readonly tokens: number }> {
   const votes: JudgeVote[] = [];
+  let tokens = 0;
   for (let sample = 0; sample < samples; sample += 1) {
     // oxlint-disable-next-line no-await-in-loop -- independent votes stay in recorded order for cassette replay
     const response = await provider.generate({
@@ -72,9 +71,10 @@ export async function judgeItem(
         { role: "user", content: judgeUserMessage(item) },
       ],
     });
+    tokens += response.tokenEstimate;
     votes.push(parseVote(response.content));
   }
-  return aggregateVotes(votes);
+  return { ...aggregateVotes(votes), tokens };
 }
 
 // Planning estimate only: characters/4 input plus a fixed output allowance per vote.

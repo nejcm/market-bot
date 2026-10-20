@@ -314,7 +314,7 @@ Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against th
 
 ## Labeled Eval Case
 
-Frozen claim from a replay capture (`tests/fixtures/eval-cases/cases.json`), pinned by file hash and JSON pointer, labeled `stale-support`, `omission` (citation coverage), `unsupported-inference`, `contradiction`, `extraction-error`, or `clean`, with the artifact evidence that justifies the label. Deterministic checks score stale support, citation coverage and figures; `contradiction` and `unsupported-inference` need a k=3 model judge. `eval-deep.ts --input --ablate <arm>` scores Frozen-Input Eval samples with the same checks plus a judged report pass to test deleting stages, under the rule pre-registered in docs/testing.md.
+Frozen claim from a replay capture (`tests/fixtures/eval-cases/cases.json`), pinned by file hash and JSON pointer, labeled `stale-support`, `omission` (citation coverage), `unsupported-inference`, `contradiction`, `extraction-error`, or `clean`, with the artifact evidence that justifies the label. Deterministic checks score stale support and citation coverage, with figures as a diagnostic; `contradiction` and `unsupported-inference` need a k=3 model judge. `eval-deep.ts --input --ablate <arm>` scores Frozen-Input Eval samples with the same checks plus a judged report pass; an isolated arm skips one analysis stage and regenerates its consumers live. The statistics inform a human stage-deletion decision under the rule pre-registered in docs/testing.md.
 
 ## Run Artifact Index
 

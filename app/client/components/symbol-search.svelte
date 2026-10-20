@@ -34,10 +34,10 @@
       clearTimeout(searchTimer);
       searchTimer = undefined;
     }
+    requestId += 1;
+    results = [];
     const trimmed = value.trim();
     if (trimmed === "") {
-      requestId += 1;
-      results = [];
       loading = false;
       notice = "";
       return;

@@ -352,7 +352,11 @@ async function handleStarRequest(
   }
 
   if (request.method === "GET") {
-    return jsonResponse({ stars: await readStarsWithStaleness(dbPath, dataDir) });
+    try {
+      return jsonResponse({ stars: await readStarsWithStaleness(dbPath, dataDir) });
+    } catch (error: unknown) {
+      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+    }
   }
 
   if (request.method !== "PUT" && request.method !== "DELETE") {

@@ -40,6 +40,7 @@
     readonly typeFilter: string;
     readonly expandedGroups: readonly string[];
     readonly stars: readonly StarredSidebarEntry[];
+    readonly starsLoadError: string;
     readonly staleAfterDays: number;
     readonly onQueryChange: (value: string) => void;
     readonly onTypeFilterChange: (value: string) => void;
@@ -74,6 +75,7 @@
     typeFilter,
     expandedGroups,
     stars,
+    starsLoadError,
     staleAfterDays,
     onQueryChange,
     onTypeFilterChange,
@@ -213,6 +215,11 @@
       {/each}
     </nav>
 
+    {#if starsLoadError !== ""}
+      <p class="px-4.5 pb-1.5 pt-2 font-mono text-[10px] text-[#8a6116]">
+        Stars unavailable: {starsLoadError}
+      </p>
+    {/if}
     {#if stars.length > 0}
       <div class="px-4.5 pb-1.5 pt-2">
         <span class="font-mono text-[10px] tracking-widest text-[#6e757d]">STARRED</span>
@@ -256,6 +263,8 @@
                     </span>
                   {:else if starFreshness(entry)?.state === "never-run"}
                     <span class="shrink-0 font-mono text-[9px] text-[#6e757d]">never run</span>
+                  {:else if entry.star.staleness.state === "index-unavailable"}
+                    <span class="shrink-0 font-mono text-[9px] text-[#6e757d]">index unavailable</span>
                   {/if}
                 {/if}
               </button>

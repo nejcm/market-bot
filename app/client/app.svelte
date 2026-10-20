@@ -103,6 +103,9 @@
   let watchlistDetail = $state<WatchlistDetail | null>(null);
   let loadingWatchlist = $state(false);
   let watchlistLoadError = $state("");
+  let starsLoadError = $state("");
+  const queueingDeepSymbols = new Set<string>();
+  let reorderingWatchlist = false;
   let searchResults = $state<readonly RunSearchResult[]>([]);
   let searchLoading = $state(false);
   let searchNotice = $state("");
@@ -455,6 +458,7 @@
 
   async function refreshStars(): Promise<void> {
     stars = await fetchStars();
+    starsLoadError = "";
   }
 
   async function toggleRunStar(runId: string): Promise<void> {
@@ -512,12 +516,18 @@
   }
 
   async function queueDeepEquityRun(symbol: string): Promise<void> {
+    if (queueingDeepSymbols.has(symbol)) {
+      return;
+    }
+    queueingDeepSymbols.add(symbol);
     error = "";
     try {
       await createJob({ jobType: "equity", assetClass: "equity", symbol, depth: "deep" });
       await refreshJobs();
     } catch (caughtError: unknown) {
       error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    } finally {
+      queueingDeepSymbols.delete(symbol);
     }
   }
 
@@ -641,6 +651,18 @@
     }
   }
 
+  async function addInstrumentToWatchlist(id: number, symbol: string): Promise<void> {
+    error = "";
+    try {
+      await addWatchlistItem(id, symbol);
+      if (id === selectedWatchlistId) {
+        await loadWatchlistDetail(id);
+      }
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
   async function removeWatchlistItemHandler(symbol: string): Promise<void> {
     if (selectedWatchlistId === null) {
       return;
@@ -655,7 +677,8 @@
   }
 
   async function moveWatchlistItem(index: number, direction: -1 | 1): Promise<void> {
-    if (selectedWatchlistId === null || watchlistDetail === null) {
+    // Each move derives the full order from watchlistDetail, so overlapping moves would undo each other.
+    if (reorderingWatchlist || selectedWatchlistId === null || watchlistDetail === null) {
       return;
     }
     const target = index + direction;
@@ -671,6 +694,7 @@
     items[index] = displaced;
     items[target] = moved;
     error = "";
+    reorderingWatchlist = true;
     try {
       await reorderWatchlist(
         selectedWatchlistId,
@@ -679,6 +703,8 @@
       await loadWatchlistDetail(selectedWatchlistId);
     } catch (caughtError: unknown) {
       error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    } finally {
+      reorderingWatchlist = false;
     }
   }
 
@@ -716,22 +742,22 @@
           nextCalibration,
           nextAlphaCohorts,
           nextJobs,
-          nextStars,
         ] = await Promise.all([
           fetchRuns(),
           fetchProviderHealth(),
           fetchCalibration(),
           fetchAlphaCohorts(),
           fetchJobs(),
-          fetchStars(),
         ]);
         runs = nextRuns;
         providerHealth = nextProviderHealth;
         calibration = nextCalibration;
         alphaCohorts = nextAlphaCohorts;
         jobs = nextJobs;
-        stars = nextStars;
-        // Watchlists load separately so a console-DB failure never blocks the rest.
+        // Stars and watchlists load separately so a console-DB failure never blocks the rest.
+        void refreshStars().catch((caughtError: unknown) => {
+          starsLoadError = caughtError instanceof Error ? caughtError.message : String(caughtError);
+        });
         void loadWatchlists();
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
@@ -771,6 +797,7 @@
     {typeFilter}
     expandedGroups={expandedRunHistoryGroups}
     stars={starredEntries}
+    {starsLoadError}
     staleAfterDays={appSettings.staleAfterDays}
     onQueryChange={(value) => (query.text = value)}
     onTypeFilterChange={(value) => (typeFilter = value)}
@@ -834,6 +861,8 @@
           {runs}
           {jobs}
           starred={selectedInstrumentStarred}
+          {watchlists}
+          onAddToWatchlist={(id, symbol) => void addInstrumentToWatchlist(id, symbol)}
           onOpenRun={(runId) => void openRun(runId)}
           onGoHome={() => navigate("dashboard")}
           onToggleStar={() => void toggleInstrumentStar()}

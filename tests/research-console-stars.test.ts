@@ -229,6 +229,19 @@ describe("research console app star API", () => {
     expect(typeof payload.error).toBe("string");
   });
 
+  test("returns 500 on GET when the console db is corrupt", async () => {
+    const dataDir = tempDataDir();
+    const dbPath = consoleDbPath(dataDir);
+    mkdirSync(join(dbPath, ".."), { recursive: true });
+    writeFileSync(dbPath, "not a sqlite database", "utf8");
+
+    const response = await handleResearchConsoleRequest(new Request("http://localhost/api/stars"), {
+      dataDir,
+    });
+
+    expect(response.status).toBe(500);
+  });
+
   test("rejects unsupported methods", async () => {
     const dataDir = tempDataDir();
 

@@ -22,12 +22,21 @@ interface SecTickersCacheFile {
   readonly payload: unknown;
 }
 
+function hasTickerRows(payload: unknown): boolean {
+  return (
+    isRecord(payload) &&
+    Object.values(payload).some(
+      (entry) => isRecord(entry) && readString(entry, "ticker") !== undefined,
+    )
+  );
+}
+
 function cacheIsCurrent(cache: unknown, now: Date): cache is SecTickersCacheFile {
   return (
     isRecord(cache) &&
     typeof cache.fetchedAt === "string" &&
     cache.fetchedAt.slice(0, 10) === now.toISOString().slice(0, 10) &&
-    isRecord(cache.payload)
+    hasTickerRows(cache.payload)
   );
 }
 
@@ -63,7 +72,7 @@ export async function loadSecTickers(options: {
       };
     }
     const payload = (await response.json()) as unknown;
-    if (!isRecord(payload)) {
+    if (!hasTickerRows(payload)) {
       return { ok: false, message: "SEC ticker list is unavailable (malformed provider response)" };
     }
     const fetchedAt = now.toISOString();

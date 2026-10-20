@@ -457,7 +457,8 @@ export async function addWatchlistItem(id: number, symbol: string): Promise<void
     assetClass: "equity",
     symbol,
   });
-  if (!isRecord(payload) || !isWatchlistItem(payload.item)) {
+  const item = isRecord(payload) ? payload.item : undefined;
+  if (!isRecord(item) || typeof item.assetClass !== "string" || typeof item.symbol !== "string") {
     throw new Error("Watchlist item response is invalid");
   }
 }

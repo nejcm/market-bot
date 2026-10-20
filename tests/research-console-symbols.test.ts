@@ -190,6 +190,25 @@ describe("sec ticker search", () => {
     expect(result.ok).toBe(false);
   });
 
+  test("rejects a ticker list without ticker rows, fetched or cached", async () => {
+    const cacheDir = join(tempDir(), "cache");
+    mkdirSync(cacheDir, { recursive: true });
+    const now = new Date("2026-06-05T12:00:00.000Z");
+    writeFileSync(
+      secTickersCachePath(cacheDir),
+      `${JSON.stringify({ fetchedAt: now.toISOString(), payload: { error: "temporarily unavailable" } })}\n`,
+      "utf8",
+    );
+
+    const result = await loadSecTickers({
+      cacheDir,
+      fetchFn: fetchServing(() => jsonResponse({ error: "temporarily unavailable" })),
+      now,
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
   test("refetches past an unreadable cache file", async () => {
     const cacheDir = join(tempDir(), "cache");
     mkdirSync(cacheDir, { recursive: true });

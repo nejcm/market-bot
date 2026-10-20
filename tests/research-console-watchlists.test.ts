@@ -16,6 +16,7 @@ import {
   renameWatchlist,
   reorderWatchlistItems,
 } from "../app/console-db";
+import { addWatchlistItem as addWatchlistItemFromClient } from "../app/client/api";
 import { handleResearchConsoleRequest } from "../app/server";
 import { readInstrumentWatchlistRows, rebuildRunArtifactIndex } from "../src/run-artifact-index";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
@@ -502,6 +503,23 @@ describe("watchlists API", () => {
       "index-unavailable",
       "index-unavailable",
     ]);
+  });
+
+  test("client accepts the server's add-item response", async () => {
+    const { dataDir } = tempDataDir();
+    await handleResearchConsoleRequest(jsonRequest("POST", "/api/watchlists", { name: "Tech" }), {
+      dataDir,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string, init?: RequestInit) =>
+      handleResearchConsoleRequest(new Request(`http://127.0.0.1${input}`, init), {
+        dataDir,
+      })) as typeof fetch;
+    try {
+      await addWatchlistItemFromClient(1, "aapl");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   test("reorders items through the API and rejects wrong sets", async () => {

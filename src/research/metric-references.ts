@@ -58,6 +58,7 @@ function marketSessionSection(collected: CollectedSources): MetricSection | unde
     unit: LensValueUnit,
     value: number,
     basis: string,
+    periodEnd = latestSessionDate,
   ): MetricResult => ({
     id,
     label,
@@ -66,7 +67,7 @@ function marketSessionSection(collected: CollectedSources): MetricSection | unde
     status: "value",
     value,
     ...(unit === "currency-per-share" && currency !== undefined ? { currency } : {}),
-    periodEnd: latestSessionDate,
+    periodEnd,
     inputs: [],
     sourceIds: [verifiedMarketSnapshotSourceId(symbol)],
   });
@@ -85,6 +86,7 @@ function marketSessionSection(collected: CollectedSources): MetricSection | unde
             priceUnit,
             prior.close,
             `${symbol} daily close for session ${prior.date}`,
+            prior.date,
           ),
           row(
             "sessionChangePercent",

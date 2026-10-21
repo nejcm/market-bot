@@ -255,6 +255,21 @@ export function unsupportedFigures(
     .map(({ raw }) => raw);
 }
 
+const NARRATIVE_NUMBER =
+  /(?<![\p{L}\p{N}_.])(\p{Sc})?\s?(?:\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(?:\s?(%|trillion|billion|million|thousand)|([x×TBM]))?(?![\p{L}\p{N}])/gu;
+
+// Every typed numeric claim, unitless included; dates, identifiers (RSI14, 10-K), years, and ordinals are not claims.
+function narrativeNumbers(text: string): number {
+  const stripped = text.replaceAll(METADATA_TEXT, (match) => (/\d/u.test(match) ? " " : match));
+  return [...stripped.matchAll(NARRATIVE_NUMBER)].filter(
+    ([raw, currency, decimals, word, suffix]) =>
+      currency !== undefined ||
+      decimals !== undefined ||
+      (word ?? suffix) !== undefined ||
+      !/^\s?(?:19|20)\d\d$/u.test(raw),
+  ).length;
+}
+
 // One accepted final-synthesis output: metric references the renderer resolves vs figures the model typed; predictions excluded.
 export function synthesisFigureCounts(content: string): {
   readonly metricReferences: number;
@@ -267,7 +282,7 @@ export function synthesisFigureCounts(content: string): {
     if (typeof node === "string") {
       const { prose, references } = splitMetricReferences(node);
       metricReferences += references;
-      typedFigures += figureTokens(prose).length;
+      typedFigures += narrativeNumbers(prose);
     } else if (Array.isArray(node)) {
       node.forEach((child) => walk(child));
     } else if (isRecord(node)) {

@@ -50,6 +50,9 @@ function isJudged(row: (typeof cases)[number]) {
   return row.check === "contradiction" || row.check === "unsupported-inference";
 }
 
+const typed = (text: string) =>
+  synthesisFigureCounts(JSON.stringify({ keyFindings: [{ text }] })).typedFigures;
+
 describe("labeled eval cases", () => {
   test("cover every label from 15-30 frozen capture references", () => {
     expect(cases.length).toBeGreaterThanOrEqual(15);
@@ -638,6 +641,9 @@ describe("deterministic checks", () => {
         }),
       ),
     ).toEqual({ metricReferences: 2, typedFigures: 2 });
+    expect(typed("RSI14 was 55.00 and close was 108.00.")).toBe(2);
+    expect(typed("On 2026-10-16, the 3rd session of Q3 2026 after the 10-K, FY2025.")).toBe(0);
+    expect(typed("Volume 20,153,700 vs 1.2M; 3 segments, -4% and 2x.")).toBe(5);
   });
 
   test("rejects malformed and duplicate cases", () => {

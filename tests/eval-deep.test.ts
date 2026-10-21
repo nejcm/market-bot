@@ -1095,8 +1095,16 @@ describe("frozen-input eval replay", () => {
         JSON.stringify({ scope: "final-synthesis-only", samples: dirs.map((dir) => ({ dir })) }),
       );
     };
+    const figureDefects = {
+      unmatchedFigures: [{ location: "keyFindings[0]", figures: ["$1", "2%"] }],
+    };
     await writeLabel("base", [
-      { status: "completed", durationMs: 10, tokens: { replayed: 0, live: 100 } },
+      {
+        status: "completed",
+        durationMs: 10,
+        tokens: { replayed: 0, live: 100 },
+        defects: figureDefects,
+      },
       { status: "failed", durationMs: 30, tokens: { replayed: 0, live: 300 } },
       undefined,
     ]);
@@ -1105,23 +1113,22 @@ describe("frozen-input eval replay", () => {
         status: "completed",
         durationMs: 20,
         tokens: { replayed: 0, live: 50 },
-        defects: { unmatchedFigures: [{ location: "keyFindings[0]", figures: ["$1", "2%"] }] },
+        defects: figureDefects,
       },
     ]);
-    await writeFile(
-      join(root, "next", "1", "synthesis.json"),
-      JSON.stringify({
-        stageOutputs: [
-          { stage: "final-synthesis", content: JSON.stringify({ keyFindings: [] }) },
-          {
-            stage: "final-synthesis",
-            content: JSON.stringify({
-              keyFindings: [{ text: "Close <<metric:market-session.close>>, up 2%." }],
-            }),
-          },
-        ],
-      }),
-    );
+    const synthesisOutputs = JSON.stringify({
+      stageOutputs: [
+        { stage: "final-synthesis", content: JSON.stringify({ keyFindings: [] }) },
+        {
+          stage: "final-synthesis",
+          content: JSON.stringify({
+            keyFindings: [{ text: "Close <<metric:market-session.close>>, up 2%." }],
+          }),
+        },
+      ],
+    });
+    await writeFile(join(root, "next", "1", "synthesis.json"), synthesisOutputs);
+    await writeFile(join(root, "base", "1", "synthesis.json"), synthesisOutputs);
     await writeFile(
       join(root, "base", "1", "report.json"),
       await readFile(join(fixtureSample.runDir!, "report.json")),
@@ -1159,7 +1166,7 @@ describe("frozen-input eval replay", () => {
       ["unmatchedFigures", 2],
     ] as const) {
       expect(compare).toContain(
-        `| final-synthesis-only | synthesis.${metric} | 0 [0–0] (n=2/3) | ${String(value)} [${String(value)}–${String(value)}] |`,
+        `| final-synthesis-only | synthesis.${metric} | ${String(value)} [${String(value)}–${String(value)}] (n=1/3) | ${String(value)} [${String(value)}–${String(value)}] |`,
       );
     }
     expect(compare).toMatch(

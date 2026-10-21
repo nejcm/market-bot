@@ -700,14 +700,22 @@ function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-// Absent in a sample that measured the group = 0; an unavailable group or a ratio with no
-// Denominator is skipped and n drops, so a failed run cannot read as an improvement.
+// Read only from an accepted report, so absence means unmeasured, never zero.
+const MEASURED_ONLY = new Set([
+  "citations.coverage",
+  "synthesis.metricReferences",
+  "synthesis.typedFigures",
+  "synthesis.unmatchedFigures",
+]);
+
+// Absent in a sample that measured the group = 0; an unavailable group or a measured-only metric
+// Is skipped and n drops, so a failed run cannot read as an improvement.
 function sampleValue(sample: EvalSampleMetrics, metric: string): number | undefined {
   const group = metric.split(".")[0] as MetricGroup;
   if (sample.unavailable.includes(group)) {
     return undefined;
   }
-  return sample.metrics[metric] ?? (metric === "citations.coverage" ? undefined : 0);
+  return sample.metrics[metric] ?? (MEASURED_ONLY.has(metric) ? undefined : 0);
 }
 
 function cell(samples: readonly EvalSampleMetrics[], metric: string): string {

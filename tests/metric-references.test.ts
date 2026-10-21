@@ -601,6 +601,51 @@ test("market-session references resolve verified snapshot values with its citati
   ).toThrow("unknown");
 });
 
+test("market-session previousClose|period dates the prior session (run 7912637b)", () => {
+  const snapshot = verifiedMarketSnapshot({
+    symbol: "AMD",
+    latestSessionDate: "2026-10-19",
+    ohlcv: {
+      date: "2026-10-19",
+      open: 551.78,
+      high: 554.41,
+      low: 535.67,
+      close: 538.05,
+      volume: 1,
+    },
+    recentCloses: [
+      { date: "2026-10-16", close: 528.75 },
+      { date: "2026-10-19", close: 538.05 },
+    ],
+  });
+  const report = assembleResearchReport({
+    ...input({
+      keyFindings: [
+        {
+          text: "Prior <<metric:market-session.previousClose|period>>, close <<metric:market-session.close|period>>.",
+          sourceIds: [],
+        },
+      ],
+    }),
+    sources: [...sources, verifiedSnapshotSource(snapshot)],
+    collectedSources: collectedSources({
+      verifiedMarketSnapshot: snapshot,
+      priceHistory: [
+        {
+          symbol: "AMD",
+          sourceId: "price-history-AMD",
+          currency: "USD",
+          priceMode: "split-adjusted-close",
+          bars: [],
+        },
+      ],
+    }),
+  });
+  expect(report.keyFindings[0]?.text).toBe(
+    "Prior $528.75 (as of 2026-10-16), close $538.05 (as of 2026-10-19).",
+  );
+});
+
 const session = (overrides: Parameters<typeof collectedSources>[0]) =>
   referenceMetricSections(collectedSources(overrides)).find(({ id }) => id === "market-session");
 

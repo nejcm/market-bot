@@ -66,8 +66,9 @@ validated report/Markdown, synthesis attempts, audit diagnostics, token groups a
 deltas against the captured baseline; failures exit nonzero. Direct-input eval summaries have
 phase-only scope: `--compare` shows status, durations, call/token counts and report-derived
 predictions, citations, data gaps and integrity, plus `synthesis.metricReferences` (Metric References in
-the accepted output), `synthesis.typedFigures` (figures typed outside them, predictions excluded) and
-`synthesis.unmatchedFigures` (the figure diagnostic below), and refuses to compare them with fixture labels.
+the accepted output), `synthesis.typedFigures` (numbers typed outside them, unitless included; dates, years, ordinals,
+identifiers and predictions excluded) and `synthesis.unmatchedFigures` (the figure diagnostic below); a
+sample without an accepted output leaves these unmeasured, not zero. It refuses to compare them with fixture labels.
 These are read from each sample's `synthesis.json` and `eval-sample.json` at compare time, so labels written
 by an older commit compare on the same figures: to A/B a prompt or contract change, run the same capture
 with `--input` from a worktree at the old commit and from the new one, then `--compare` from the new one.

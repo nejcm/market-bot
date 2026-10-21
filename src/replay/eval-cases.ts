@@ -3,6 +3,7 @@ import type { ResearchReport } from "../domain/report";
 import { claimsForReport, isHistoricalForecastOutcome } from "../research/post-synthesis-audit";
 import { judgeItem, type JudgeItem, type JudgeMeter, type JudgeResult } from "./eval-judge";
 import { modelAuthoredReportSegments } from "../report/schema";
+import { splitMetricReferences } from "../research/metric-references";
 import type { ModelProvider } from "../model/types";
 
 const EVAL_CHECKS = [
@@ -252,6 +253,44 @@ export function unsupportedFigures(
         !directlySupported(token, all) && !sortedGroups.some((group) => derivable(token, group)),
     )
     .map(({ raw }) => raw);
+}
+
+const NARRATIVE_NUMBER =
+  /(?<![\p{L}\p{N}_.])(\p{Sc})?\s?(?:\d{1,3}(?:,\d{3})+|\d+|(?=\.\d))(\.\d+)?(?:\s?(%|trillion|billion|million|thousand)|([x×TBM]))?(?![\p{L}\p{N}])/gu;
+
+// Every typed numeric claim, unitless included; dates, identifiers (RSI14, 10-K), years, and ordinals are not claims.
+function narrativeNumbers(text: string): number {
+  const stripped = text.replaceAll(METADATA_TEXT, (match) => (/\d/u.test(match) ? " " : match));
+  return [...stripped.matchAll(NARRATIVE_NUMBER)].filter(
+    ([raw, currency, decimals, word, suffix]) =>
+      currency !== undefined ||
+      decimals !== undefined ||
+      (word ?? suffix) !== undefined ||
+      !/^\s?(?:19|20)\d\d$/u.test(raw),
+  ).length;
+}
+
+// One accepted final-synthesis output: metric references the renderer resolves vs figures the model typed; predictions excluded.
+export function synthesisFigureCounts(content: string): {
+  readonly metricReferences: number;
+  readonly typedFigures: number;
+} {
+  const { predictions: _predictions, ...payload } = JSON.parse(content) as Record<string, unknown>;
+  let metricReferences = 0;
+  let typedFigures = 0;
+  const walk = (node: unknown): void => {
+    if (typeof node === "string") {
+      const { prose, references } = splitMetricReferences(node);
+      metricReferences += references;
+      typedFigures += narrativeNumbers(prose);
+    } else if (Array.isArray(node)) {
+      node.forEach((child) => walk(child));
+    } else if (isRecord(node)) {
+      Object.entries(node).forEach(([key, child]) => key !== "sourceIds" && walk(child));
+    }
+  };
+  walk(payload);
+  return { metricReferences, typedFigures };
 }
 
 const METADATA_KEY =

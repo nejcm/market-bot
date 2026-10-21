@@ -13,6 +13,7 @@ import {
   scoreReportDefects,
   sourceFacts,
   staleSupport,
+  synthesisFigureCounts,
   unsupportedFigures,
 } from "../src/replay/eval-cases";
 import { insufficientEvidenceCount, stageDeletionStatistics } from "../src/replay/eval-decision";
@@ -23,7 +24,17 @@ import {
   judgeItem,
 } from "../src/replay/eval-judge";
 import { makeReplayProvider } from "../src/replay/llm-cassette";
-import { prediction, researchReport } from "./support/fixtures";
+import {
+  collectedSources,
+  prediction,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
+import {
+  referenceMetricSections,
+  resolveMetricReferences,
+} from "../src/research/metric-references";
+import { metricReferenceEvidence } from "../src/research/prompts/metric-references";
 
 const cases = parseEvalCases(
   await Bun.file(join(import.meta.dir, "fixtures/eval-cases/cases.json")).json(),
@@ -46,6 +57,9 @@ function claim(text: string, sourceIds: readonly string[]) {
 function isJudged(row: (typeof cases)[number]) {
   return row.check === "contradiction" || row.check === "unsupported-inference";
 }
+
+const typed = (text: string) =>
+  synthesisFigureCounts(JSON.stringify({ keyFindings: [{ text }] })).typedFigures;
 
 describe("labeled eval cases", () => {
   test("cover every label from 15-30 frozen capture references", () => {
@@ -780,6 +794,58 @@ describe("deterministic checks", () => {
         ablation: baseline,
       }),
     ).toThrow(/control arm/u);
+  });
+
+  test("rendered metric references are verified figures; typed ones are still checked", () => {
+    const sections = referenceMetricSections(
+      collectedSources({ verifiedMarketSnapshot: verifiedMarketSnapshot() }),
+    );
+    const report = resolveMetricReferences(
+      researchReport({
+        keyFindings: [
+          {
+            text: "Close <<metric:market-session.close|period>>, change <<metric:market-session.sessionChangePercent>>, RSI14 <<metric:market-session.rsi14>>.",
+            sourceIds: [],
+          },
+          { text: "Close $118.00 <<metric:market-session.close>>.", sourceIds: [] },
+        ],
+      }),
+      sections,
+    );
+    expect(report.keyFindings[0]!.text).toBe(
+      "Close 108.00 (as of 2026-05-18), change 2.9%, RSI14 55.00.",
+    );
+    expect(
+      scoreReportDefects({
+        report,
+        knownSourceIds: ["verified-snapshot-AAPL"],
+        historicalContext: undefined,
+        evidence: metricReferenceEvidence(sections),
+        omissionCases: [],
+      }).unmatchedFigures,
+    ).toEqual([{ location: "keyFindings[1]", figures: ["$118.00"] }]);
+  });
+
+  test("synthesis figure counts split rendered references from typed figures", () => {
+    expect(
+      synthesisFigureCounts(
+        JSON.stringify({
+          keyFindings: [
+            {
+              text: "Revenue grew 44.1% <<metric:financial-lens-growth.revenueDeltaPercent|period>>; close <<metric:market-session.close>>.",
+              sourceIds: ["sec-10q-2026"],
+            },
+          ],
+          scenarios: [{ name: "Base", description: "Margin near 20%." }],
+          predictions: [{ measurableAs: "AAPL close outside [$100, $120] on 2026-06-01" }],
+        }),
+      ),
+    ).toEqual({ metricReferences: 2, typedFigures: 2 });
+    expect(typed("RSI14 was 55.00 and close was 108.00.")).toBe(2);
+    expect(typed("On 2026-10-16, the 3rd session of Q3 2026 after the 10-K, FY2025.")).toBe(0);
+    expect(typed("Volume 20,153,700 vs 1.2M; 3 segments, -4% and 2x.")).toBe(5);
+    expect(typed("EPS was -.50 and margin was .25%.")).toBe(2);
+    expect(typed("Yield .5, change -.75%, beta .9.")).toBe(3);
   });
 
   test("rejects malformed and duplicate cases", () => {

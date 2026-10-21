@@ -297,9 +297,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   loop, persist resolved prose. Model-quoted prose may resolve with metric provenance, never modify source
   text. Reject unknown/non-value/malformed/nonfinite/empty/uncited references; allow only cited
   findings/cases/risks/catalysts/scenarios/framework/Earnings Setup/Spotlights, never summary/gaps/Prediction
-  expressions.
-- Catalog includes Capital Return, five Operating Ratios, six issuer/SPY returns, framework/lenses, and
-  Workbench observations. Rows retain exact ID/label/status, available formatted value, unit/currency,
+  expressions. An optional `|period` format appends the metric's period label; an unknown format or
+  `|period` without `periodEnd` rejects for repair like an unknown id. References stay inline tokens, not a
+  parallel field, so the existing repair loop, citation merge and replays of tokenless outputs are unchanged.
+- Catalog includes Capital Return, five Operating Ratios, six issuer/SPY returns, framework/lenses,
+  Workbench observations, and a reference-only `market-session` section built from the Verified Market
+  Snapshot at prompt and assembly time (not persisted as a Metric Section). Rows retain exact ID/label/status, available formatted value, unit/currency,
   basis/period/citations; identical section metadata may inherit defaults, never another row. Exclude raw
   rows/duplicate IDs; reasons stay in artifacts/gaps. Compact JSON and frozen-duration eval preserve
   serialization. Omit exact symbol-scoped nested duplicate gaps only; all

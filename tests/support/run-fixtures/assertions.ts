@@ -20,7 +20,10 @@ import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
 import { renderMarkdownReport } from "../../../src/report/markdown";
-import { assertNoUnresolvedMetricReferences } from "../../../src/research/metric-references";
+import {
+  assertNoUnresolvedMetricReferences,
+  referenceMetricSections,
+} from "../../../src/research/metric-references";
 import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { loadRunArtifact } from "../../../src/run-artifacts";
@@ -99,8 +102,11 @@ export function assertMetricPromptCatalog(
       defaults?: Record<string, unknown>;
       metrics: Record<string, unknown>[];
     }[];
-    const sections = result.collectedSources.metricSections ?? [];
+    const sections = referenceMetricSections(result.collectedSources);
     expect(catalog.map(({ id }) => id)).toEqual(sections.map(({ id }) => id));
+    expect(catalog.some(({ id }) => id === "market-session")).toBe(
+      result.collectedSources.verifiedMarketSnapshot !== undefined,
+    );
     for (const [index, section] of sections.entries()) {
       const projected = catalog[index]!;
       expect(projected.metrics).toHaveLength(section.metrics.length);

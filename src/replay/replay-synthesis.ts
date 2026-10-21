@@ -344,6 +344,7 @@ export async function replaySynthesisFile(options: {
     arm: armRecord(options.ablation),
     defects,
     judged,
+    judgeMode: options.judge === undefined ? "skipped" : "k=3",
     durationMs,
     error: failureMessage,
     modelCalls: {
@@ -401,6 +402,7 @@ async function addPairedJudgement(
     ...record,
     status,
     judged,
+    judgeMode: "k=3",
     error: error ?? record.error,
     modelCalls: {
       ...record.modelCalls,
@@ -506,6 +508,23 @@ function measuredCallOverhead(
         response.tokenEstimate - inputTokens(request) - Math.ceil(response.content.length / 4),
     ),
   );
+}
+
+// The --input planning line; without the judge the totals are generation only.
+export function formatSynthesisEstimate(
+  estimate: Awaited<ReturnType<typeof estimateSynthesisFile>>,
+  samples: number,
+  judge: boolean,
+  overheadNote: string,
+): string {
+  const arm =
+    estimate.arm === undefined
+      ? ""
+      : ` arm ${estimate.arm.name} (removed: ${estimate.arm.removed.join(", ")}; regenerated live: ${estimate.arm.regenerated.join(", ") || "none"})`;
+  const judged = judge
+    ? `k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample (${overheadNote}), ~${String(estimate.judgePerRun * samples)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samples)}, worst case ~${String(estimate.totalWorstPerRun * samples)}.`
+    : `Report judge skipped (--no-judge): figure metrics only, no judged verdicts. Total expected ~${String(estimate.expectedPerRun * samples)}, worst case ~${String(estimate.perRun * samples)}.`;
+  return `Final synthesis input${arm}: ${String(estimate.observedCalls)} recorded synthesis call(s). Generation expected ~${String(estimate.expectedPerRun * samples)} tokens at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded synthesis calls/sample, 25% headroom) ~${String(estimate.perRun * samples)}. ${judged} Not a provider-enforced cost cap.\n`;
 }
 
 export async function estimateSynthesisFile(

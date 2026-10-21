@@ -1101,14 +1101,40 @@ describe("frozen-input eval replay", () => {
         JSON.stringify({ scope: "final-synthesis-only", samples: dirs.map((dir) => ({ dir })) }),
       );
     };
+    const figureDefects = {
+      unmatchedFigures: [{ location: "keyFindings[0]", figures: ["$1", "2%"] }],
+    };
     await writeLabel("base", [
-      { status: "completed", durationMs: 10, tokens: { replayed: 0, live: 100 } },
+      {
+        status: "completed",
+        durationMs: 10,
+        tokens: { replayed: 0, live: 100 },
+        defects: figureDefects,
+      },
       { status: "failed", durationMs: 30, tokens: { replayed: 0, live: 300 } },
       undefined,
     ]);
     await writeLabel("next", [
-      { status: "completed", durationMs: 20, tokens: { replayed: 0, live: 50 } },
+      {
+        status: "completed",
+        durationMs: 20,
+        tokens: { replayed: 0, live: 50 },
+        defects: figureDefects,
+      },
     ]);
+    const synthesisOutputs = JSON.stringify({
+      stageOutputs: [
+        { stage: "final-synthesis", content: JSON.stringify({ keyFindings: [] }) },
+        {
+          stage: "final-synthesis",
+          content: JSON.stringify({
+            keyFindings: [{ text: "Close <<metric:market-session.close>>, up 2%." }],
+          }),
+        },
+      ],
+    });
+    await writeFile(join(root, "next", "1", "synthesis.json"), synthesisOutputs);
+    await writeFile(join(root, "base", "1", "synthesis.json"), synthesisOutputs);
     await writeFile(
       join(root, "base", "1", "report.json"),
       await readFile(join(fixtureSample.runDir!, "report.json")),
@@ -1140,6 +1166,15 @@ describe("frozen-input eval replay", () => {
     expect(compare).toContain(
       "| final-synthesis-only | synthesis.calls | 1 [1–1] (n=2/3) | 1 [1–1] |",
     );
+    for (const [metric, value] of [
+      ["metricReferences", 1],
+      ["typedFigures", 1],
+      ["unmatchedFigures", 2],
+    ] as const) {
+      expect(compare).toContain(
+        `| final-synthesis-only | synthesis.${metric} | ${String(value)} [${String(value)}–${String(value)}] (n=1/3) | ${String(value)} [${String(value)}–${String(value)}] |`,
+      );
+    }
     expect(compare).toMatch(
       /\| final-synthesis-only \| predictions\.count \| \d+ \[\d+–\d+\] \(n=1\/3\) \| — \(n=0\/1\) \|/u,
     );
@@ -1165,6 +1200,27 @@ describe("frozen-input eval replay", () => {
     expect(() => formatEvalCompare(fixtures, base)).toThrow(
       "Cannot compare eval labels of different scopes: fixtures (fixtures) vs base (final-synthesis-only)",
     );
+  });
+
+  test("--input refuses --no-judge with --ablate before reading the input", async () => {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "run",
+        "scripts/eval-deep.ts",
+        "--input",
+        "/nonexistent/final-synthesis-input.json",
+        "--label",
+        "x",
+        "--ablate",
+        "critique",
+        "--no-judge",
+      ],
+      { cwd: join(import.meta.dir, ".."), stdout: "pipe", stderr: "pipe" },
+    );
+    expect(await child.exited).not.toBe(0);
+    expect(await new Response(child.stderr).text()).toContain("[--ablate <arm> | --no-judge]");
+    expect(await new Response(child.stdout).text()).toBe("");
   });
 
   test.each([

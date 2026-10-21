@@ -65,7 +65,17 @@ partial scope, duration, call counts and errors. Stage replay also stores curren
 validated report/Markdown, synthesis attempts, audit diagnostics, token groups and semantic fact
 deltas against the captured baseline; failures exit nonzero. Direct-input eval summaries have
 phase-only scope: `--compare` shows status, durations, call/token counts and report-derived
-predictions, citations, data gaps and integrity, and refuses to compare them with fixture labels.
+predictions, citations, data gaps and integrity, plus `synthesis.metricReferences` (Metric References in
+the accepted output), `synthesis.typedFigures` (numbers typed outside them, unitless included; dates, years, ordinals,
+identifiers and predictions excluded) and `synthesis.unmatchedFigures` (the figure diagnostic below); a
+sample without an accepted output leaves these unmeasured, not zero. It refuses to compare them with fixture labels.
+These are read from each sample's `synthesis.json` and `eval-sample.json` at compare time, so labels written
+by an older commit compare on the same figures: to A/B a prompt or contract change, run the same capture
+with `--input` from a worktree at the old commit and from the new one, then `--compare` from the new one.
+`--no-judge` (only with `--input`, refused with `--ablate` because the stage-deletion rule needs judged
+verdicts) runs generation only: the plan prints generation-only totals, samples still record figure metrics
+and deterministic defects, and `eval-sample.json` / `summary.json` carry `judgeMode: "skipped"` with no
+judged verdicts. Offline replays record `judgeMode: "skipped"` too.
 Report Rerun recomputes projections/renderers from stored derived evidence, not the original
 collector calculations. Missing required normalized inputs fail; explicit null retains absence.
 Older runs without a complete Final-Synthesis Input cannot use direct stage replay. Direct replay
@@ -388,7 +398,9 @@ Deterministic checks (`src/replay/eval-cases.ts`):
   Registered derivations need two distinct operands from one record of 200 numbers or fewer: percent as
   ratio, margin, share or percent change; multiple as ratio; currency as difference. On the 8 captured
   reports this flags no figure and catches 11 of 16 currency figures shifted by +7; the matcher is not
-  metric-, unit- or period-aware, so it does not certify extraction quality.
+  metric-, unit- or period-aware, so it does not certify extraction quality. A resolved Metric Reference is
+  verified by construction: resolution adds the metric's source ids to the claim and renders the catalog
+  row's own formatted value, which the projection carries under those ids.
 
 The judge (`src/replay/eval-judge.ts`) runs k=3 votes through any `ModelProvider` under stage
 `eval-judge`. A vote is `yes`, `no`, `unsupported` or `insufficient-evidence`; unparseable output is an invalid vote; a

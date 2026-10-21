@@ -44,7 +44,7 @@ export function metricReferenceEvidence(
       };
     }),
     metricReferenceInstruction:
-      "Each metric inherits its section defaults; missing-metric reasons are declared in sourceGaps. For narrative claims about catalog metrics, copy the exact <<metric:<section>.<id>>> reference instead of restating or calculating its number. Use only status=value references; retain the label, basis and period in prose and cite sourceIds. Assembly formats values and adds their citations. Unknown, unavailable, malformed or unciteable references reject the report for repair. References belong only in cited findings, cases, risks, catalysts, scenarios, Business Framework text, Earnings Setup bullets or Spotlight rationales, never summary, dataGaps or prediction DSL.",
+      "Each metric inherits its section defaults; missing-metric reasons are declared in sourceGaps. For narrative claims about catalog metrics, copy the exact <<metric:<section>.<id>>> reference instead of restating or calculating its number; append |period (<<metric:<section>.<id>|period>>) to render the value with its periodEnd period label. Use only status=value references; retain the label and basis in prose and cite sourceIds. Assembly formats values and adds their citations. Unknown, unavailable, malformed or unciteable references, and |period on a metric without periodEnd, reject the report for repair. References belong only in cited findings, cases, risks, catalysts, scenarios, Business Framework text, Earnings Setup bullets or Spotlight rationales, never summary, dataGaps or prediction DSL.",
   };
 }
 

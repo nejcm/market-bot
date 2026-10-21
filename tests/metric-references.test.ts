@@ -22,6 +22,8 @@ import {
   metricReferenceEvidence,
   withoutRestatedMetricValues,
 } from "../src/research/prompts/metric-references";
+import { referenceMetricSections } from "../src/research/metric-references";
+import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { formatMetricValue } from "../src/sources/extended-evidence/value-format";
 
@@ -359,6 +361,8 @@ test.each([
   { draft: "FY margin <<metric:operating-ratios.unknown>>.", error: "Metric reference" },
   { draft: "FY margin <<\nMETRIC:operating-ratios.unknown>>.", error: "Metric reference" },
   { draft: "A <<metric:operating-ratios.margin>> gap remains.", error: "trade-action language" },
+  { draft: "FY margin <<metric:operating-ratios.margin|period>>.", error: "unsupported format" },
+  { draft: "FY margin <<metric:operating-ratios.margin|percent>>.", error: "unsupported format" },
 ])("repairs rejected metric prose: $draft", async ({ draft, error }) => {
   const assembly = input({});
   let calls = 0;
@@ -516,6 +520,162 @@ test.each(["notes", "webSubjectProfile"])(
     expect(result.report.extras?.[key]).toEqual({ nested: ["Filed margin."] });
   },
 );
+
+test("|period renders the metric's period label and rejects metrics without one", () => {
+  const dated = {
+    ...section,
+    metrics: section.metrics.map((metric, index) =>
+      index === 0 ? { ...metric, periodEnd: "2026-03-31", periodMonths: 6 } : metric,
+    ),
+  };
+  const report = assembleResearchReport(
+    input(
+      {
+        keyFindings: [
+          {
+            text: "Margin <<metric:operating-ratios.margin|period>>; again << METRIC: operating-ratios.margin | PERIOD >>.",
+            sourceIds: [],
+          },
+        ],
+      },
+      [dated],
+    ),
+  );
+  expect(report.keyFindings[0]).toEqual({
+    text: "Margin 12.5% (as of 2026-03-31); again 12.5% (as of 2026-03-31).",
+    sourceIds: ["metric-source"],
+  });
+  for (const token of [
+    "<<metric:operating-ratios.cash|period>>",
+    "<<metric:operating-ratios.margin|abs>>",
+  ]) {
+    expect(() =>
+      assembleResearchReport(input({ keyFindings: [{ text: token, sourceIds: [] }] }, [dated])),
+    ).toThrow("unsupported format");
+  }
+  for (const token of [
+    "<<metric:operating-ratios.margin|>>",
+    "<<metric:operating-ratios.margin|period|period>>",
+  ]) {
+    expect(() =>
+      assembleResearchReport(input({ keyFindings: [{ text: token, sourceIds: [] }] }, [dated])),
+    ).toThrow("Malformed metric reference");
+  }
+});
+
+test("market-session references resolve verified snapshot values with its citation", () => {
+  const snapshot = verifiedMarketSnapshot();
+  const withSnapshot = (payload: ModelReportPayload) => ({
+    ...input(payload),
+    sources: [...sources, verifiedSnapshotSource(snapshot)],
+    collectedSources: collectedSources({
+      metricSections: [section],
+      verifiedMarketSnapshot: snapshot,
+    }),
+  });
+  const report = assembleResearchReport(
+    withSnapshot({
+      keyFindings: [
+        {
+          text: "Close <<metric:market-session.close>> vs <<metric:market-session.previousClose>> (<<metric:market-session.sessionChangePercent>>), RSI14 <<metric:market-session.rsi14|period>>.",
+          sourceIds: [],
+        },
+      ],
+    }),
+  );
+  expect(report.keyFindings[0]).toEqual({
+    text: "Close 108.00 vs 105.00 (2.9%), RSI14 55.00 (as of 2026-05-18).",
+    sourceIds: ["verified-snapshot-AAPL"],
+  });
+  expect(() =>
+    assembleResearchReport(
+      withSnapshot({
+        keyFindings: [{ text: "SMA200 <<metric:market-session.sma200>>.", sourceIds: [] }],
+      }),
+    ),
+  ).toThrow("unknown");
+  expect(() =>
+    assembleResearchReport(
+      input({ keyFindings: [{ text: "Close <<metric:market-session.close>>.", sourceIds: [] }] }),
+    ),
+  ).toThrow("unknown");
+});
+
+test("market-session previousClose|period dates the prior session (run 7912637b)", () => {
+  const snapshot = verifiedMarketSnapshot({
+    symbol: "AMD",
+    latestSessionDate: "2026-10-19",
+    ohlcv: {
+      date: "2026-10-19",
+      open: 551.78,
+      high: 554.41,
+      low: 535.67,
+      close: 538.05,
+      volume: 1,
+    },
+    recentCloses: [
+      { date: "2026-10-16", close: 528.75 },
+      { date: "2026-10-19", close: 538.05 },
+    ],
+  });
+  const report = assembleResearchReport({
+    ...input({
+      keyFindings: [
+        {
+          text: "Prior <<metric:market-session.previousClose|period>>, close <<metric:market-session.close|period>>.",
+          sourceIds: [],
+        },
+      ],
+    }),
+    sources: [...sources, verifiedSnapshotSource(snapshot)],
+    collectedSources: collectedSources({
+      verifiedMarketSnapshot: snapshot,
+      priceHistory: [
+        {
+          symbol: "AMD",
+          sourceId: "price-history-AMD",
+          currency: "USD",
+          priceMode: "split-adjusted-close",
+          bars: [],
+        },
+      ],
+    }),
+  });
+  expect(report.keyFindings[0]?.text).toBe(
+    "Prior $528.75 (as of 2026-10-16), close $538.05 (as of 2026-10-19).",
+  );
+});
+
+const session = (overrides: Parameters<typeof collectedSources>[0]) =>
+  referenceMetricSections(collectedSources(overrides)).find(({ id }) => id === "market-session");
+
+test("market-session catalog: currency from price history, single bar, unverified session, no snapshot", () => {
+  expect(session({})).toBeUndefined();
+  expect(referenceMetricSections(collectedSources({}))).toEqual([]);
+  const priced = session({
+    verifiedMarketSnapshot: verifiedMarketSnapshot({ latestSessionStatus: "unverified" }),
+    priceHistory: [
+      {
+        symbol: "AAPL",
+        sourceId: "price-history-AAPL",
+        currency: "EUR",
+        priceMode: "split-adjusted-close",
+        bars: [],
+      },
+    ],
+  })!;
+  const close = priced.metrics.find(({ id }) => id === "close")!;
+  expect(formatMetricValue(close.value, close.unit, close.currency)).toBe("€108.00");
+  expect(close.basis).toContain("latest session unverified");
+  expect(priced.metrics.map(({ id }) => id)).not.toContain("sma200");
+  const single = session({
+    verifiedMarketSnapshot: verifiedMarketSnapshot({
+      recentCloses: [{ date: "2026-05-18", close: 108 }],
+    }),
+  })!;
+  expect(single.metrics.map(({ id }) => id)).not.toContain("previousClose");
+  expect(single.metrics.map(({ id }) => id)).not.toContain("sessionChangePercent");
+});
 
 test("prompt evidence keeps nonmigrated summary prose while stripping migrated values", () => {
   const produced = addFinancialLensEvidence(

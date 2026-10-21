@@ -32,6 +32,7 @@ import {
   replaySynthesisFile,
   approvalSubsetEstimate,
   estimateSynthesisFile,
+  formatSynthesisEstimate,
 } from "../src/replay/replay-synthesis";
 import { rerunReport } from "../src/replay/rerun-report";
 import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
@@ -314,6 +315,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(await readFile(join(stage.dir, "report.md"), "utf8")).toContain("Research-only");
     const metrics = JSON.parse(await readFile(join(stage.dir, "eval-sample.json"), "utf8"));
     expect(metrics.partial).toBe(true);
+    expect(metrics.judgeMode).toBe("skipped");
     expect(metrics.modelCalls).toMatchObject({ live: 0, replayed: 1, analysis: 0, judge: 0 });
     expect(metrics.comparison.predictionDelta).toBe(0);
     expect(metrics.comparison.addedClaims).toEqual([]);
@@ -321,6 +323,14 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(metrics.tokens.replayed).toBeGreaterThan(0);
     expect(saved.promptProvenance).toHaveLength(1);
     const estimate = await estimateSynthesisFile(file);
+    const unjudged = formatSynthesisEstimate(estimate, 2, false, "overhead note");
+    expect(unjudged).toContain("Report judge skipped (--no-judge)");
+    expect(unjudged).toContain(`Total expected ~${String(estimate.expectedPerRun * 2)},`);
+    expect(unjudged).not.toContain("k=3");
+    expect(unjudged).not.toContain("overhead note");
+    const judgedPlan = formatSynthesisEstimate(estimate, 2, true, "overhead note");
+    expect(judgedPlan).toContain(`Total expected ~${String(estimate.totalExpectedPerRun * 2)},`);
+    expect(judgedPlan).toContain("item(s)/sample (overhead note)");
     expect(estimate.observedCalls).toBe(1);
     expect(estimate.maxInputTokens).toBeGreaterThan(1000);
     expect(estimate.perRun).toBeGreaterThan(estimate.maxInputTokens);

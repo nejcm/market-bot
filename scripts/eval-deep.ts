@@ -125,13 +125,13 @@ if (values.input !== undefined) {
     const basis =
       calibration === undefined
         ? `HEURISTIC FALLBACK, no judge telemetry for ${who}: early stop on every item / on none, ${overheadNote}; only always-identical code-assembled digest units deducted as canceled`
-        : `judge calibrated on ${String(calibration.samples)} sample(s) judged by ${who}: ${calibration.votesPerJudgedItem.toFixed(2)} votes/judged item, ~${String(Math.round(calibration.tokensPerCall))} tokens/call; cancellation measured on this capture and arm: ablation ${measuredShare(calibration.cancelShare.ablation)}, control ${measuredShare(calibration.cancelShare.control)}${calibration.cancelShare.ablation === undefined || calibration.cancelShare.control === undefined ? " (provable digest units deducted instead)" : ""}`;
+        : `judge calibrated on ${String(calibration.samples)} sample(s) judged by ${who}: ${calibration.votesPerJudgedItem.toFixed(2)} calls/judged item (votes plus rechecks), ~${String(Math.round(calibration.tokensPerCall))} tokens/call; cancellation measured on this capture and arm: ablation ${measuredShare(calibration.cancelShare.ablation)}, control ${measuredShare(calibration.cancelShare.control)}${calibration.cancelShare.ablation === undefined || calibration.cancelShare.control === undefined ? " (provable digest units deducted instead)" : ""}`;
     const skipped =
       telemetry.skipped === 0
         ? ""
         : `; ${String(telemetry.skipped)} telemetry record(s) skipped as unidentified or unusable`;
     process.stdout.write(
-      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${subset.earlyStop === subset.expected ? String(subset.expected) : `${String(subset.earlyStop)}-${String(subset.expected)}`} (${basis}), worst case ~${String(subset.worst)}${skipped}. Expected prices rechecks of clipped \`unsupported\` verdicts (up to ~${String((estimate.judgeRecheckWorstPerRun + paired.judgeRecheckWorstPerRun) * samplesCount)}) only through judge telemetry recorded with them, whose calls and tokens include them; the heuristic and older telemetry omit them.\n`,
+      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${subset.earlyStop === subset.expected ? String(subset.expected) : `${String(subset.earlyStop)}-${String(subset.expected)}`} (${basis}), worst case ~${String(subset.worst)}${skipped}. Expected prices rechecks of clipped \`unsupported\` and \`undecided\` verdicts (up to ~${String((estimate.judgeRecheckWorstPerRun + paired.judgeRecheckWorstPerRun) * samplesCount)}) only through judge telemetry recorded with them, whose calls and tokens include them; the heuristic and older telemetry omit them.\n`,
     );
   }
   if (!values.yes) {

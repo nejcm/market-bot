@@ -580,6 +580,18 @@ describe("deterministic checks", () => {
     expect(requests[2]).toContain("exclusive through 2028");
   });
 
+  test("an undecided split on a clipped excerpt is rechecked and the recheck verdict counts", async () => {
+    const items = clippedClaim(`${"filler ".repeat(700)}under an exclusive supply agreement`);
+    const judged = await judgeReport(
+      judgeVotes(["insufficient-evidence", "no", "unsupported", "no", "no"]),
+      "stub-judge",
+      items,
+    );
+    expect(judged.contradictions).toEqual([]);
+    expect(judged.undecided).toBe(0);
+    expect(judged.units[0]).toMatchObject({ verdict: "no", recheck: { verdict: "no" } });
+  });
+
   test("a clipped excerpt drawing no is not rechecked", async () => {
     const items = clippedClaim(`${"filler ".repeat(700)}under an exclusive supply agreement`);
     const meter = { calls: 0, tokens: 0 };
@@ -588,20 +600,26 @@ describe("deterministic checks", () => {
     expect(judged.units[0]).not.toHaveProperty("recheck");
   });
 
-  test("unsupported on evidence too large to recheck goes to the abstention guard, not the score", async () => {
-    const items = clippedClaim(`${"filler ".repeat(30_000)}under an exclusive supply agreement`);
-    expect(items[0]!.clipped).toBe(true);
-    expect(items[0]!.recheck).toBeUndefined();
-    const judged = await judgeReport(
-      judgeVotes(["unsupported", "unsupported"]),
-      "stub-judge",
-      items,
-    );
-    expect(judged.contradictions).toEqual([]);
-    expect(judged.insufficientEvidence).toBe(1);
-    expect(judged.units[0]).toMatchObject({ verdict: "unsupported-clipped", clipped: true });
-    expect(insufficientEvidenceCount(judged.units)).toEqual({ insufficientEvidence: 1, judged: 1 });
-  });
+  test.each([
+    [["unsupported", "unsupported"], "unsupported-clipped"],
+    [["insufficient-evidence", "no", "unsupported"], "undecided-clipped"],
+  ])(
+    "%j on evidence too large to recheck goes to the abstention guard as %s",
+    async (votes, verdict) => {
+      const items = clippedClaim(`${"filler ".repeat(30_000)}under an exclusive supply agreement`);
+      expect(items[0]!.clipped).toBe(true);
+      expect(items[0]!.recheck).toBeUndefined();
+      const judged = await judgeReport(judgeVotes(votes), "stub-judge", items);
+      expect(judged.contradictions).toEqual([]);
+      expect(judged.undecided).toBe(0);
+      expect(judged.insufficientEvidence).toBe(1);
+      expect(judged.units[0]).toMatchObject({ verdict, clipped: true });
+      expect(insufficientEvidenceCount(judged.units)).toEqual({
+        insufficientEvidence: 1,
+        judged: 1,
+      });
+    },
+  );
 
   test("summary prose is judged and checked like any model-authored claim", () => {
     const omission = cases.find((row) => row.check === "omission");

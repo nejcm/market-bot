@@ -54,14 +54,17 @@ interface JudgedCount {
   readonly judged: number;
 }
 
-// Guard counts (abstentions plus unsupported on clipped evidence) from contradiction units; the aggregate also counts conveyance.
+// Guard counts (abstentions plus unsupported or undecided on clipped evidence too large to recheck) from contradiction units; the aggregate also counts conveyance.
 export function insufficientEvidenceCount(
   units: readonly { readonly kind: string; readonly verdict: string }[],
 ): JudgedCount {
   const judged = units.filter((unit) => unit.kind === "contradiction");
   return {
     insufficientEvidence: judged.filter(
-      (unit) => unit.verdict === "insufficient-evidence" || unit.verdict === "unsupported-clipped",
+      (unit) =>
+        unit.verdict === "insufficient-evidence" ||
+        unit.verdict === "unsupported-clipped" ||
+        unit.verdict === "undecided-clipped",
     ).length,
     judged: judged.length,
   };

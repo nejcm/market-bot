@@ -467,10 +467,10 @@ omission case's conveyance question. The contradiction question answers `yes` fo
 `unsupported` for a present or past factual assertion the evidence neither states nor implies, hedged or
 not; only future outcomes, conditional scenarios and statements that the run's own data is missing (which no
 evidence can support) are judged solely on whether the evidence contradicts them. It reserves `insufficient-evidence` for empty or unreadable evidence. A unit whose cited evidence was
-cut to fit (`clipped` in `judged.units`) may have support outside the excerpt, so an `unsupported` verdict on it
-is asked once more on the whole cited evidence (`recheck` in the unit: verdict, votes, characters), and the recheck's
+cut to fit (`clipped` in `judged.units`) may have support outside the excerpt, so an `unsupported` or `undecided`
+verdict on it is asked once more on the whole cited evidence (`recheck` in the unit: verdict, votes, characters), and the recheck's
 verdict counts. Whole evidence over 200,000 characters per unit is not rechecked: its `unsupported` is recorded as
-`unsupported-clipped`, not scored and counted with `insufficient-evidence`. Claim evidence is the
+`unsupported-clipped` and its `undecided` as `undecided-clipped`, neither scored and counted with `insufficient-evidence`. Claim evidence is the
 final-synthesis evidence projection (`judgeEvidence`), never the full collected object: for each cited id,
 every record tagged with it, one line per record with its short fields (ids, periods, units) and one line
 per long-text sentence; whole when under 4,000 characters per source; otherwise every claim term and figure
@@ -499,10 +499,10 @@ before anything runs.
 
 - Inference target: the fixed capture corpus. The result says nothing about runs outside these captures.
 - Report score: stale-support locations + judged contradiction locations (`yes`, `unsupported` on
-  unclipped or whole-evidence-rechecked evidence, or `undecided`) from that
+  unclipped or whole-evidence-rechecked evidence, or `undecided` on the same terms) from that
   sample's `eval-sample.json`. Canceled units are not judged, so a score is relative to its paired sample,
   not an absolute measure of report quality. Unmatched figures are reported, not scored.
-- Insufficient-evidence guard: `insufficient-evidence` and `unsupported-clipped` verdicts are not scored. Their share of judged
+- Insufficient-evidence guard: `insufficient-evidence`, `unsupported-clipped` and `undecided-clipped` verdicts are not scored. Their share of judged
   contradiction units (`judged.units` of kind `contradiction`, via `insufficientEvidenceCount`; the
   aggregate `judged.insufficientEvidence` also counts conveyance) is reported per arm, pooled over all
   samples, and vetoes when the ablation share exceeds the control share by strictly more than 10
@@ -546,8 +546,14 @@ before anything runs.
   use the old wording and old units, so the amended instrument needs its own pilot before n is fixed.
   That pilot (mb-pilot3, 1e2720bc; 2 of 3 pairs judged) had 156 of 164 judged contradiction units clipped,
   so `unsupported` almost never scored. A fourth amendment rechecks `unsupported` on clipped excerpts against
-  the whole cited evidence and makes excerpts show every claim term and figure the source holds. Re-pilot
-  before fixing n.
+  the whole cited evidence and makes excerpts show every claim term and figure the source holds. Its pilot
+  (mb-pilot4, d674e264, 3 pairs, 15.3M live tokens) left 1 unit `unsupported-clipped` of 183 clipped; of 16
+  rechecks, 8 turned `no`, 1 `yes`, 5 stayed `unsupported`, 2 `insufficient-evidence`. Scores: control 2, 8, 4,
+  ablation 4, 3, 7; mean paired difference 0, upper bound 2.67, s_d² 19, n = 823 pairs for one capture.
+  11 of its 28 scored contradictions were `undecided` splits, 9 on clipped excerpts, 9 of the 11
+  `insufficient-evidence`/`no`/`unsupported`; a fifth amendment rechecks clipped `undecided` verdicts too
+  and guards them as `undecided-clipped` when the whole evidence is too large.
+  Re-pilot before fixing n.
 - Deleting a stage is a human decision taken against this rule, on that stage's isolated arm. Every live
   batch, pilot or confirmatory, needs approval after its printed estimate.
 

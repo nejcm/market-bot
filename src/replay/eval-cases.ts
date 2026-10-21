@@ -527,7 +527,7 @@ const CONTRADICTION_QUESTION =
 // Predictions resolve against prices and scenario names are labels; neither is a claim evidence can contradict.
 const UNJUDGED_UNIT = /^(?:predictions\[\d+\]|scenarios\[\d+\]\.name)$/u;
 const EVIDENCE_CHARS_PER_SOURCE = 4000;
-// An `unsupported` verdict on a clipped excerpt is rechecked once against the whole cited evidence up to this size.
+// An `unsupported` or `undecided` verdict on a clipped excerpt is rechecked once against the whole cited evidence up to this size.
 const RECHECK_CHARS_PER_UNIT = 200_000;
 const LONG_TEXT = 300;
 const MISSING_EVIDENCE = "(the final-synthesis evidence carries no record with this source id)";
@@ -631,7 +631,7 @@ function figureMatches(evidence: number, figure: string): boolean {
 
 function matchedTerms(line: string, terms: ReadonlySet<string>): ReadonlySet<string> {
   const found = claimTerms(line);
-  const numbers = [...found].map(Number).filter(Number.isFinite);
+  const numbers = [...found].map(Number).filter((value) => Number.isFinite(value));
   return new Set(
     [...terms].filter(
       (term) =>
@@ -739,7 +739,7 @@ export function reportJudgeItems(
   readonly item: JudgeItem;
   // Some cited evidence was cut to fit, so support may exist outside what the judge saw.
   readonly clipped?: boolean;
-  // The same question on the whole cited evidence, asked only when the clipped excerpt draws `unsupported`.
+  // The same question on the whole cited evidence, asked only when the clipped excerpt draws `unsupported` or `undecided`.
   readonly recheck?: JudgeItem;
 }[] {
   const resolved = resolveEvidenceLinks(evidence);
@@ -827,7 +827,7 @@ export function cancelMatchedItems(
 const evidenceChars = (item: JudgeItem) =>
   item.evidence.reduce((sum, row) => sum + row.text.length, 0);
 
-// Unsupported (unclipped or rechecked on whole evidence) and undecided count as contradictions; insufficient-evidence and unsupported-clipped are counted apart; conveyance needs yes.
+// Unsupported and undecided (unclipped or rechecked on whole evidence) count as contradictions; insufficient-evidence and the *-clipped verdicts are counted apart; conveyance needs yes.
 export async function judgeReport(
   provider: ModelProvider,
   model: string,
@@ -843,7 +843,7 @@ export async function judgeReport(
   readonly units: readonly {
     readonly location: string;
     readonly kind: "contradiction" | "conveyance";
-    readonly verdict: JudgeResult["verdict"] | "unsupported-clipped";
+    readonly verdict: JudgeResult["verdict"] | "unsupported-clipped" | "undecided-clipped";
     readonly votes: JudgeResult["votes"];
     readonly evidenceChars: number;
     readonly clipped: boolean;
@@ -863,15 +863,19 @@ export async function judgeReport(
     // oxlint-disable-next-line no-await-in-loop -- votes stay in a stable order for cassette replay
     const judged = await judgeItem(provider, model, item, meter);
     const rechecked =
-      judged.verdict === "unsupported" && clipped && recheck !== undefined
+      (judged.verdict === "unsupported" || judged.verdict === "undecided") &&
+      clipped &&
+      recheck !== undefined
         ? // oxlint-disable-next-line no-await-in-loop -- same cassette ordering
           await judgeItem(provider, model, recheck, meter)
         : undefined;
     const final = rechecked ?? judged;
     const verdict =
-      final.verdict === "unsupported" && clipped && rechecked === undefined
+      clipped && rechecked === undefined && final.verdict === "unsupported"
         ? ("unsupported-clipped" as const)
-        : final.verdict;
+        : clipped && rechecked === undefined && final.verdict === "undecided"
+          ? ("undecided-clipped" as const)
+          : final.verdict;
     units.push({
       location: key,
       kind,
@@ -891,7 +895,11 @@ export async function judgeReport(
     });
     undecided += verdict === "undecided" ? 1 : 0;
     insufficientEvidence +=
-      verdict === "insufficient-evidence" || verdict === "unsupported-clipped" ? 1 : 0;
+      verdict === "insufficient-evidence" ||
+      verdict === "unsupported-clipped" ||
+      verdict === "undecided-clipped"
+        ? 1
+        : 0;
     if (
       kind === "contradiction" &&
       (verdict === "yes" || verdict === "unsupported" || verdict === "undecided")

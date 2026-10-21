@@ -593,7 +593,7 @@ export async function estimateSynthesisFile(
     collectedCodeAssembledExtraKeys(saved.input.collectedSources),
   );
   const judgePerRun = judgeTokens(judgeItems);
-  // Worst case: every clipped item draws `unsupported` and is rechecked on its whole evidence.
+  // Worst case: every clipped item draws `unsupported` or `undecided` and is rechecked on its whole evidence.
   const judgeRecheckWorstPerRun = estimateJudgeTokens(
     judgeItems.flatMap((row) => (row.recheck === undefined ? [] : [row.recheck])),
     undefined,

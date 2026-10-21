@@ -61,6 +61,22 @@ function isJudged(row: (typeof cases)[number]) {
 const typed = (text: string) =>
   synthesisFigureCounts(JSON.stringify({ keyFindings: [{ text }] })).typedFigures;
 
+const clippedClaim = (notes: string) =>
+  reportJudgeItems(
+    researchReport({
+      keyFindings: [
+        { text: "Revenue grew under an exclusive supply agreement.", sourceIds: ["sec"] },
+      ],
+    }),
+    [],
+    // One unsplittable sentence longer than the per-source budget holds the claim's terms.
+    [{ id: "sec", revenue: 1, notes }],
+  ).filter((row) => row.key === "keyFindings[0]");
+const judgeVotes = (verdicts: readonly string[]) =>
+  makeReplayProvider({
+    entries: { [`${JUDGE_STAGE}|stub-judge`]: verdicts.map((verdict) => vote(verdict)) },
+  });
+
 describe("labeled eval cases", () => {
   test("cover every label from 15-30 frozen capture references", () => {
     expect(cases.length).toBeGreaterThanOrEqual(15);
@@ -439,25 +455,148 @@ describe("deterministic checks", () => {
     },
   );
 
-  test("unsupported on clipped evidence goes to the abstention guard, not the score", async () => {
-    // Pilot db41e526 ablation-1 keyFindings[8]: correct $42.8B net debt, clipped out of a 3,945-char excerpt.
+  test("a clipped excerpt shows every claim figure the source holds, at the claim's precision", async () => {
+    // Pilot db41e526 ablation-1 keyFindings[8]: the $42.8B net debt was cut from the old top-ranked excerpt.
     const { claim: netDebt, evidence } = await Bun.file(
       join(import.meta.dir, "fixtures/eval-cases/aapl-net-debt-clipped.json"),
     ).json();
-    const items = reportJudgeItems(researchReport({ keyFindings: [netDebt] }), [], evidence).filter(
+    const item = reportJudgeItems(researchReport({ keyFindings: [netDebt] }), [], evidence).find(
       (row) => row.key === "keyFindings[0]",
+    )!;
+    const shown = item.item.evidence.map((row) => row.text).join("\n");
+    expect(shown).toContain('"netDebt":42756000000');
+    expect(shown).toContain('"cash":39544000000');
+    // Lexical coverage is not completeness: the cut source stays clipped and carries its whole evidence.
+    expect(item.clipped).toBe(true);
+    expect(item.recheck!.evidence[0]!.text.length).toBeGreaterThan(shown.length);
+
+    const padding = { id: "sec", notes: "Filler sentence about other matters. ".repeat(150) };
+    const figures = reportJudgeItems(
+      researchReport({
+        keyFindings: [{ text: "Cash was $5.086 billion and margin 12.3%.", sourceIds: ["sec"] }],
+      }),
+      [],
+      [padding, { id: "sec", cash: 5_086_000_000, margin: 0.123 }],
+    ).find((row) => row.key === "keyFindings[0]")!;
+    expect(figures.clipped).toBe(true);
+    expect(figures.item.evidence[0]!.text).toContain('"cash":5086000000,"margin":0.123');
+  });
+
+  test.each([
+    ["$42.8B", 42_756_000_000, true],
+    ["$42.8B", 42_740_000_000, false],
+    ["12.3%", 0.123, true],
+    ["12.3%", 0.124, false],
+  ])(
+    "a clipped excerpt matches %s against %d at the claim's precision",
+    (figure, amount, shown) => {
+      const [row] = reportJudgeItems(
+        researchReport({ keyFindings: [{ text: `It was ${figure}.`, sourceIds: ["sec"] }] }),
+        [],
+        [
+          { id: "sec", notes: "Filler sentence about other matters. ".repeat(150) },
+          { id: "sec", amount },
+        ],
+      );
+      expect(row!.clipped).toBe(true);
+      expect(row!.item.evidence[0]!.text.includes(`"amount":${String(amount)}`)).toBe(shown);
+    },
+  );
+
+  test("a clipped source with no matching line shows its start, not a missing record", () => {
+    const [row] = reportJudgeItems(
+      researchReport({
+        keyFindings: [{ text: "The issuer has an exclusive agreement.", sourceIds: ["sec"] }],
+      }),
+      [],
+      [{ id: "sec", notes: "Sole-source contract runs to 2030. ".repeat(150) }],
     );
+    expect(row!.clipped).toBe(true);
+    expect(row!.item.evidence[0]!.text).toStartWith(
+      `[0] {"id":"sec"}\n[0].notes: Sole-source contract`,
+    );
+    expect(row!.item.evidence[0]!.text.length).toBeLessThanOrEqual(4000);
+  });
+
+  test.each([
+    ["the whole evidence supports it", ["no", "no"], "no", []],
+    [
+      "the whole evidence still lacks support",
+      ["unsupported", "unsupported"],
+      "unsupported",
+      ["keyFindings[0]"],
+    ],
+  ])(
+    "unsupported on a clipped excerpt is rechecked once on the whole evidence: %s",
+    async (_, recheckVotes, verdict, scored) => {
+      const items = clippedClaim(`${"filler ".repeat(700)}under an exclusive supply agreement`);
+      expect(items[0]!.clipped).toBe(true);
+      expect(items[0]!.item.evidence[0]!.text).not.toContain("exclusive");
+      expect(items[0]!.recheck!.evidence[0]!.text).toContain("exclusive supply agreement");
+      const meter = { calls: 0, tokens: 0 };
+      const judged = await judgeReport(
+        judgeVotes(["unsupported", "unsupported", ...recheckVotes]),
+        "stub-judge",
+        items,
+        meter,
+      );
+      expect(meter.calls).toBe(4);
+      expect(judged.contradictions).toEqual(scored);
+      expect(judged.insufficientEvidence).toBe(0);
+      expect(judged.units[0]).toMatchObject({
+        verdict,
+        votes: ["unsupported", "unsupported"],
+        clipped: true,
+        recheck: { verdict, votes: recheckVotes },
+      });
+    },
+  );
+
+  test("long text inside arrays survives into excerpts and the recheck request", async () => {
+    const support = `The supply agreement is exclusive through 2028 ${"and covers every region ".repeat(18)}.`;
+    const items = reportJudgeItems(
+      researchReport({
+        keyFindings: [
+          { text: "Revenue grew under an exclusive supply agreement.", sourceIds: ["sec"] },
+        ],
+      }),
+      [],
+      [{ id: "sec", revenue: 1, notes: [support], padding: `${"filler ".repeat(700)}.` }],
+    ).filter((row) => row.key === "keyFindings[0]");
+    expect(support.length).toBeGreaterThan(300);
     expect(items[0]!.clipped).toBe(true);
-    expect(JSON.stringify(evidence)).toContain("$42.8B");
-    expect(items[0]!.item.evidence[0]!.text).not.toContain("42.8");
-    const provider = makeReplayProvider({
-      entries: {
-        [`${JUDGE_STAGE}|stub-judge`]: ["unsupported", "unsupported"].map((verdict) =>
-          vote(verdict),
-        ),
+    expect(items[0]!.item.evidence[0]!.text).toContain("exclusive through 2028");
+    const requests: string[] = [];
+    const provider = judgeVotes(["unsupported", "unsupported", "no", "no"]);
+    const recording = {
+      ...provider,
+      generate: async (request: Parameters<typeof provider.generate>[0]) => {
+        requests.push(JSON.stringify(request));
+        return provider.generate(request);
       },
-    });
-    const judged = await judgeReport(provider, "stub-judge", items);
+    };
+    await judgeReport(recording, "stub-judge", items);
+    expect(requests).toHaveLength(4);
+    expect(requests[2]).toContain("exclusive through 2028");
+  });
+
+  test("a clipped excerpt drawing no is not rechecked", async () => {
+    const items = clippedClaim(`${"filler ".repeat(700)}under an exclusive supply agreement`);
+    const meter = { calls: 0, tokens: 0 };
+    const judged = await judgeReport(judgeVotes(["no", "no"]), "stub-judge", items, meter);
+    expect(meter.calls).toBe(2);
+    expect(judged.units[0]).not.toHaveProperty("recheck");
+  });
+
+  test("unsupported on evidence too large to recheck goes to the abstention guard, not the score", async () => {
+    const items = clippedClaim(`${"filler ".repeat(30_000)}under an exclusive supply agreement`);
+    expect(items[0]!.clipped).toBe(true);
+    expect(items[0]!.recheck).toBeUndefined();
+    const judged = await judgeReport(
+      judgeVotes(["unsupported", "unsupported"]),
+      "stub-judge",
+      items,
+    );
     expect(judged.contradictions).toEqual([]);
     expect(judged.insufficientEvidence).toBe(1);
     expect(judged.units[0]).toMatchObject({ verdict: "unsupported-clipped", clipped: true });

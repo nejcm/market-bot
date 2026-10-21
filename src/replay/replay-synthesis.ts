@@ -522,7 +522,7 @@ export function formatSynthesisEstimate(
       ? ""
       : ` arm ${estimate.arm.name} (removed: ${estimate.arm.removed.join(", ")}; regenerated live: ${estimate.arm.regenerated.join(", ") || "none"})`;
   const judged = judge
-    ? `k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample (${overheadNote}), ~${String(estimate.judgePerRun * samples)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samples)}, worst case ~${String(estimate.totalWorstPerRun * samples)}.`
+    ? `k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample (${overheadNote}), ~${String(estimate.judgePerRun * samples)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samples)}, worst case ~${String(estimate.totalWorstPerRun * samples)} (includes rechecking every recheckable clipped item, up to ~${String(estimate.judgeRecheckWorstPerRun * samples)}; expected prices rechecks only through judge telemetry recorded with them).`
     : `Report judge skipped (--no-judge): figure metrics only, no judged verdicts. Total expected ~${String(estimate.expectedPerRun * samples)}, worst case ~${String(estimate.perRun * samples)}.`;
   return `Final synthesis input${arm}: ${String(estimate.observedCalls)} recorded synthesis call(s). Generation expected ~${String(estimate.expectedPerRun * samples)} tokens at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded synthesis calls/sample, 25% headroom) ~${String(estimate.perRun * samples)}. ${judged} Not a provider-enforced cost cap.\n`;
 }
@@ -543,6 +543,7 @@ export async function estimateSynthesisFile(
   readonly judgeItems: number;
   readonly judgePerRun: number;
   readonly judgeEarlyStopPerRun: number;
+  readonly judgeRecheckWorstPerRun: number;
   readonly judgeAlwaysCanceled: {
     readonly items: number;
     readonly perRun: number;
@@ -592,6 +593,12 @@ export async function estimateSynthesisFile(
     collectedCodeAssembledExtraKeys(saved.input.collectedSources),
   );
   const judgePerRun = judgeTokens(judgeItems);
+  // Worst case: every clipped item draws `unsupported` and is rechecked on its whole evidence.
+  const judgeRecheckWorstPerRun = estimateJudgeTokens(
+    judgeItems.flatMap((row) => (row.recheck === undefined ? [] : [row.recheck])),
+    undefined,
+    callOverhead,
+  );
   // Lower bound: every judgment stops after its first votes agree.
   const judgeEarlyStopPerRun = judgeTokens(judgeItems, JUDGE_MAJORITY_VOTES);
   const perRun = Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25) + analysisWorst;
@@ -604,6 +611,7 @@ export async function estimateSynthesisFile(
     judgeItems: judgeItems.length,
     judgePerRun,
     judgeEarlyStopPerRun,
+    judgeRecheckWorstPerRun,
     judgeAlwaysCanceled: {
       items: alwaysCanceled.length,
       perRun: judgeTokens(alwaysCanceled),
@@ -623,7 +631,7 @@ export async function estimateSynthesisFile(
     expectedPerRun,
     totalExpectedPerRun: expectedPerRun + judgePerRun,
     totalEarlyStopPerRun: expectedPerRun + judgeEarlyStopPerRun,
-    totalWorstPerRun: perRun + judgePerRun,
+    totalWorstPerRun: perRun + judgePerRun + judgeRecheckWorstPerRun,
   };
 }
 

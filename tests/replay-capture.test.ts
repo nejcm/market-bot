@@ -364,8 +364,11 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       control: "specialist-analysis-control",
     });
     expect(isolatedEstimate.expectedPerRun).toBeGreaterThan(estimate.expectedPerRun);
+    expect(isolatedEstimate.judgeRecheckWorstPerRun).toBeGreaterThan(0);
     expect(isolatedEstimate.totalWorstPerRun).toBe(
-      isolatedEstimate.perRun + isolatedEstimate.judgePerRun,
+      isolatedEstimate.perRun +
+        isolatedEstimate.judgePerRun +
+        isolatedEstimate.judgeRecheckWorstPerRun,
     );
     const [recorded] = Object.values(saved.responses.entries).flat();
     expect(estimate.callOverhead).toBe(

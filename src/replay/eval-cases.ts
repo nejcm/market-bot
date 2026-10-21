@@ -527,6 +527,8 @@ const CONTRADICTION_QUESTION =
 // Predictions resolve against prices and scenario names are labels; neither is a claim evidence can contradict.
 const UNJUDGED_UNIT = /^(?:predictions\[\d+\]|scenarios\[\d+\]\.name)$/u;
 const EVIDENCE_CHARS_PER_SOURCE = 4000;
+// An `unsupported` verdict on a clipped excerpt is rechecked once against the whole cited evidence up to this size.
+const RECHECK_CHARS_PER_UNIT = 200_000;
 const LONG_TEXT = 300;
 const MISSING_EVIDENCE = "(the final-synthesis evidence carries no record with this source id)";
 const UNCITED = "final-synthesis-evidence";
@@ -570,6 +572,12 @@ const isScalar = (value: unknown) =>
   typeof value !== "object" &&
   !(typeof value === "string" && value.length > LONG_TEXT);
 
+const sentenceLines = (text: string, path: string, row: number | undefined): EvidenceLine[] =>
+  text
+    .split(/(?<=[.!?])\s+|\s(?=\[[A-Z][^\]]*\])/u)
+    .filter(Boolean)
+    .map((sentence) => ({ text: `${path}: ${sentence}`, ...(row === undefined ? {} : { row }) }));
+
 // One line per record with its short fields (keeping ids, period and unit together), one per sentence of long text.
 function evidenceLines(node: unknown, path: string, lines: EvidenceLine[]): void {
   if (Array.isArray(node)) {
@@ -577,6 +585,8 @@ function evidenceLines(node: unknown, path: string, lines: EvidenceLine[]): void
       const childPath = `${path}[${String(index)}]`;
       if (isScalar(child)) {
         lines.push({ text: `${childPath}: ${String(child)}` });
+      } else if (typeof child === "string") {
+        lines.push(...sentenceLines(child, childPath, undefined));
       } else {
         evidenceLines(child, childPath, lines);
       }
@@ -594,15 +604,7 @@ function evidenceLines(node: unknown, path: string, lines: EvidenceLine[]): void
   for (const [key, value] of Object.entries(node)) {
     const childPath = path === "" ? key : `${path}.${key}`;
     if (typeof value === "string" && value.length > LONG_TEXT) {
-      lines.push(
-        ...value
-          .split(/(?<=[.!?])\s+|\s(?=\[[A-Z][^\]]*\])/u)
-          .filter(Boolean)
-          .map((sentence) => ({
-            text: `${childPath}: ${sentence}`,
-            ...(row === undefined ? {} : { row }),
-          })),
-      );
+      lines.push(...sentenceLines(value, childPath, row));
     } else if (value !== null && typeof value === "object") {
       evidenceLines(value, childPath, lines);
     }
@@ -617,48 +619,88 @@ const claimTerms = (text: string) =>
       ?.map((term) => term.replaceAll(",", "").replace(/\.$/u, "")),
   );
 
-// Whole records when they fit; otherwise the lines sharing the most claim terms and figures, with their record rows, in order.
+// A raw evidence number matches a claim figure at the claim's own precision, unscaled, as a percent of a fraction,
+// Or in thousands to trillions ($42.8B for 42756000000).
+function figureMatches(evidence: number, figure: string): boolean {
+  const target = Number(figure);
+  const tolerance = 0.5 * 10 ** -(figure.split(".")[1]?.length ?? 0) + 1e-9;
+  return [1, 0.01, 1e3, 1e6, 1e9, 1e12].some(
+    (scale) => Math.abs(Math.abs(evidence) / scale - target) <= tolerance,
+  );
+}
+
+function matchedTerms(line: string, terms: ReadonlySet<string>): ReadonlySet<string> {
+  const found = claimTerms(line);
+  const numbers = [...found].map(Number).filter(Number.isFinite);
+  return new Set(
+    [...terms].filter(
+      (term) =>
+        found.has(term) ||
+        (Number.isFinite(Number(term)) && numbers.some((value) => figureMatches(value, term))),
+    ),
+  );
+}
+
+// Whole records when they fit. Otherwise every claim term or figure the source holds is shown at least once (rarest
+// First), then the lines sharing the most terms, each with its record row, in order. Lexical coverage is a retrieval
+// Aid, not proof of completeness: any cut source stays clipped.
 function relevantEvidence(
   records: readonly SourceRecord[],
   claim: string,
-): { readonly text: string; readonly clipped: boolean } {
+): { readonly text: string; readonly whole: string; readonly clipped: boolean } {
   const lines: EvidenceLine[] = [];
   records.forEach((record) => evidenceLines(record.node, record.path, lines));
-  if (lines.reduce((sum, line) => sum + line.text.length + 1, 0) <= EVIDENCE_CHARS_PER_SOURCE) {
-    return { text: lines.map((line) => line.text).join("\n"), clipped: false };
+  const whole = lines.map((line) => line.text).join("\n");
+  if (whole.length < EVIDENCE_CHARS_PER_SOURCE) {
+    return { text: whole, whole, clipped: false };
   }
   const terms = claimTerms(claim);
-  const ranked = lines
-    .map((line, index) => ({
-      index,
-      score: [...claimTerms(line.text)].filter((term) => terms.has(term)).length,
-    }))
+  const matched = lines.map((line) => matchedTerms(line.text, terms));
+  const ranked = matched
+    .map((found, index) => ({ index, score: found.size }))
     .filter((row) => row.score > 0)
     .toSorted((a, b) => b.score - a.score || a.index - b.index);
   const kept = new Set<number>();
   let used = 0;
-  for (const { index } of ranked) {
+  const keep = (index: number) => {
     const wanted = [lines[index]!.row, index].filter(
       (row): row is number => row !== undefined && !kept.has(row),
     );
     const cost = wanted.reduce((sum, row) => sum + lines[row]!.text.length + 1, 0);
-    if (used + cost <= EVIDENCE_CHARS_PER_SOURCE) {
-      wanted.forEach((row) => kept.add(row));
-      used += cost;
+    if (used + cost > EVIDENCE_CHARS_PER_SOURCE) {
+      return false;
+    }
+    wanted.forEach((row) => kept.add(row));
+    used += cost;
+    return true;
+  };
+  const held = [...terms]
+    .map((term) => ({ term, lines: ranked.filter(({ index }) => matched[index]!.has(term)) }))
+    .filter((row) => row.lines.length > 0)
+    .toSorted((a, b) => a.lines.length - b.lines.length);
+  for (const { term, lines: candidates } of held) {
+    if (![...kept].some((index) => matched[index]!.has(term))) {
+      candidates.some(({ index }) => keep(index));
     }
   }
+  ranked.forEach(({ index }) => keep(index));
   const text = [...kept]
     .toSorted((a, b) => a - b)
     .map((index) => lines[index]!.text)
     .join("\n");
-  return { text, clipped: true };
+  // Nothing matched (or no matching line fits): show the start rather than claiming the source is missing.
+  return { text: text || whole.slice(0, EVIDENCE_CHARS_PER_SOURCE), whole, clipped: true };
 }
 
 function unitEvidence(
   records: ReadonlyMap<string, readonly SourceRecord[]>,
   evidence: unknown,
   unit: ReturnType<typeof evalUnits>[number],
-): { readonly evidence: JudgeItem["evidence"]; readonly clipped: boolean } {
+): {
+  readonly evidence: JudgeItem["evidence"];
+  readonly clipped: boolean;
+  readonly complete?: JudgeItem["evidence"];
+} {
   const selected =
     unit.sourceIds.length === 0
       ? [{ sourceId: UNCITED, ...relevantEvidence([{ path: "", node: evidence }], unit.text) }]
@@ -666,12 +708,22 @@ function unitEvidence(
           sourceId,
           ...relevantEvidence(records.get(sourceId) ?? [], unit.text),
         }));
+  const clipped = selected.some((row) => row.clipped);
+  const completeChars = selected.reduce((sum, row) => sum + row.whole.length, 0);
   return {
     evidence: selected.map((row) => ({
       sourceId: row.sourceId,
       text: row.text || MISSING_EVIDENCE,
     })),
-    clipped: selected.some((row) => row.clipped),
+    clipped,
+    ...(clipped && completeChars <= RECHECK_CHARS_PER_UNIT
+      ? {
+          complete: selected.map((row) => ({
+            sourceId: row.sourceId,
+            text: row.whole || MISSING_EVIDENCE,
+          })),
+        }
+      : {}),
   };
 }
 
@@ -687,6 +739,8 @@ export function reportJudgeItems(
   readonly item: JudgeItem;
   // Some cited evidence was cut to fit, so support may exist outside what the judge saw.
   readonly clipped?: boolean;
+  // The same question on the whole cited evidence, asked only when the clipped excerpt draws `unsupported`.
+  readonly recheck?: JudgeItem;
 }[] {
   const resolved = resolveEvidenceLinks(evidence);
   const records = sourceRecords(resolved);
@@ -695,12 +749,17 @@ export function reportJudgeItems(
     ...units
       .filter((unit) => !UNJUDGED_UNIT.test(unit.location))
       .map((unit) => {
-        const { evidence: unitRows, clipped } = unitEvidence(records, resolved, unit);
+        const { evidence: unitRows, clipped, complete } = unitEvidence(records, resolved, unit);
         return {
           key: unit.location,
           kind: "contradiction" as const,
           item: { question: CONTRADICTION_QUESTION, claim: unit.text, evidence: unitRows },
           clipped,
+          ...(complete === undefined
+            ? {}
+            : {
+                recheck: { question: CONTRADICTION_QUESTION, claim: unit.text, evidence: complete },
+              }),
         };
       }),
     ...omissionCases.map((row) => ({
@@ -765,7 +824,10 @@ export function cancelMatchedItems(
   };
 }
 
-// Unsupported (on unclipped evidence) and undecided count as contradictions; insufficient-evidence and unsupported-clipped are counted apart; conveyance needs yes.
+const evidenceChars = (item: JudgeItem) =>
+  item.evidence.reduce((sum, row) => sum + row.text.length, 0);
+
+// Unsupported (unclipped or rechecked on whole evidence) and undecided count as contradictions; insufficient-evidence and unsupported-clipped are counted apart; conveyance needs yes.
 export async function judgeReport(
   provider: ModelProvider,
   model: string,
@@ -785,6 +847,11 @@ export async function judgeReport(
     readonly votes: JudgeResult["votes"];
     readonly evidenceChars: number;
     readonly clipped: boolean;
+    readonly recheck?: {
+      readonly verdict: JudgeResult["verdict"];
+      readonly votes: JudgeResult["votes"];
+      readonly evidenceChars: number;
+    };
   }[];
 }> {
   const contradictions: string[] = [];
@@ -792,20 +859,35 @@ export async function judgeReport(
   const units = [];
   let undecided = 0;
   let insufficientEvidence = 0;
-  for (const { key, kind, item, clipped = false } of items) {
+  for (const { key, kind, item, clipped = false, recheck } of items) {
     // oxlint-disable-next-line no-await-in-loop -- votes stay in a stable order for cassette replay
     const judged = await judgeItem(provider, model, item, meter);
+    const rechecked =
+      judged.verdict === "unsupported" && clipped && recheck !== undefined
+        ? // oxlint-disable-next-line no-await-in-loop -- same cassette ordering
+          await judgeItem(provider, model, recheck, meter)
+        : undefined;
+    const final = rechecked ?? judged;
     const verdict =
-      judged.verdict === "unsupported" && clipped
+      final.verdict === "unsupported" && clipped && rechecked === undefined
         ? ("unsupported-clipped" as const)
-        : judged.verdict;
+        : final.verdict;
     units.push({
       location: key,
       kind,
       verdict,
       votes: judged.votes,
-      evidenceChars: item.evidence.reduce((sum, row) => sum + row.text.length, 0),
+      evidenceChars: evidenceChars(item),
       clipped,
+      ...(rechecked === undefined || recheck === undefined
+        ? {}
+        : {
+            recheck: {
+              verdict: rechecked.verdict,
+              votes: rechecked.votes,
+              evidenceChars: evidenceChars(recheck),
+            },
+          }),
     });
     undecided += verdict === "undecided" ? 1 : 0;
     insufficientEvidence +=

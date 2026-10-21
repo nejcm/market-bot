@@ -131,7 +131,7 @@ if (values.input !== undefined) {
         ? ""
         : `; ${String(telemetry.skipped)} telemetry record(s) skipped as unidentified or unusable`;
     process.stdout.write(
-      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${subset.earlyStop === subset.expected ? String(subset.expected) : `${String(subset.earlyStop)}-${String(subset.expected)}`} (${basis}), worst case ~${String(subset.worst)}${skipped}.\n`,
+      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${subset.earlyStop === subset.expected ? String(subset.expected) : `${String(subset.earlyStop)}-${String(subset.expected)}`} (${basis}), worst case ~${String(subset.worst)}${skipped}. Expected prices rechecks of clipped \`unsupported\` verdicts (up to ~${String((estimate.judgeRecheckWorstPerRun + paired.judgeRecheckWorstPerRun) * samplesCount)}) only through judge telemetry recorded with them, whose calls and tokens include them; the heuristic and older telemetry omit them.\n`,
     );
   }
   if (!values.yes) {

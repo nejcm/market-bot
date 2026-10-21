@@ -451,7 +451,9 @@ share measured on the same capture and arm is applied; otherwise every item is j
 cancellation. Without matching telemetry the plan prints a labelled heuristic fallback: a range from early
 stop on every judgment to early stop on none, deducting only provable cancellation: units of a collected
 code-assembled digest (the Web Subject Profile) ignore the draft, so the ablation side's copies always
-cancel. The worst case is always the heuristic bound.
+cancel. The worst case is always the heuristic bound, plus a recheck of every recheckable clipped item on its
+whole evidence; expected figures price rechecks only through judge telemetry recorded with them (its calls and
+tokens include them), never the heuristic, and the plan prints their ceiling.
 Only equity inputs are accepted (Market Overview panels have their own specialist consumers); an arm whose root
 stage is absent throws. Offline (no provider, as in the dry-run estimate) a regenerated stage's frozen
 output stands in for it, so offline replays prove wiring, not the ablated quality. Arms differ only in that
@@ -465,14 +467,19 @@ omission case's conveyance question. The contradiction question answers `yes` fo
 `unsupported` for a present or past factual assertion the evidence neither states nor implies, hedged or
 not; only future outcomes, conditional scenarios and statements that the run's own data is missing (which no
 evidence can support) are judged solely on whether the evidence contradicts them. It reserves `insufficient-evidence` for empty or unreadable evidence. A unit whose cited evidence was
-clipped to fit (`clipped` in `judged.units`) may have support outside the excerpt, so its `unsupported`
-verdict is recorded as `unsupported-clipped`: not scored, counted with `insufficient-evidence`. Claim evidence is the
+cut to fit (`clipped` in `judged.units`) may have support outside the excerpt, so an `unsupported` verdict on it
+is asked once more on the whole cited evidence (`recheck` in the unit: verdict, votes, characters), and the recheck's
+verdict counts. Whole evidence over 200,000 characters per unit is not rechecked: its `unsupported` is recorded as
+`unsupported-clipped`, not scored and counted with `insufficient-evidence`. Claim evidence is the
 final-synthesis evidence projection (`judgeEvidence`), never the full collected object: for each cited id,
 every record tagged with it, one line per record with its short fields (ids, periods, units) and one line
-per long-text sentence; whole when it fits 4,000 characters per source, otherwise the sentences sharing the
-most claim terms and figures with their record lines. An uncited unit (the summary, open gaps) is judged
+per long-text sentence; whole when under 4,000 characters per source; otherwise every claim term and figure
+the source holds is shown at least once where the budget allows (rarest first), then the sentences sharing the most claim terms, each with
+its record line; with no line selected, the source's first 4,000 characters. Evidence numbers match a claim figure at the claim's own precision, unscaled, as a percent of a
+fraction or in thousands to trillions, so `42756000000` matches `$42.8B`. Term coverage only aids retrieval; it does
+not make a cut excerpt complete. An uncited unit (the summary, open gaps) is judged
 against the whole projection the same way. Each evidence line keeps its projection path, so primary records
-stay distinguishable from historical model prose cited under the same id. `contradictions` counts `yes`, `unsupported` (unclipped) and `undecided`;
+stay distinguishable from historical model prose cited under the same id. `contradictions` counts `yes`, `unsupported` (unclipped or confirmed by the recheck) and `undecided`;
 `insufficientEvidence` counts apart; `unconveyed` counts anything but `yes`. `judged.units` keeps every judged
 unit's location, kind, verdict, votes and evidence character count; `judged.judge` the provider and model,
 `judged.items` the judge items before cancellation. Judge calls and tokens are metered per vote
@@ -492,7 +499,7 @@ before anything runs.
 
 - Inference target: the fixed capture corpus. The result says nothing about runs outside these captures.
 - Report score: stale-support locations + judged contradiction locations (`yes`, `unsupported` on
-  unclipped evidence, or `undecided`) from that
+  unclipped or whole-evidence-rechecked evidence, or `undecided`) from that
   sample's `eval-sample.json`. Canceled units are not judged, so a score is relative to its paired sample,
   not an absolute measure of report quality. Unmatched figures are reported, not scored.
 - Insufficient-evidence guard: `insufficient-evidence` and `unsupported-clipped` verdicts are not scored. Their share of judged
@@ -537,6 +544,10 @@ before anything runs.
   $42.8B net debt whose metric fell outside its 3,945-character excerpt). The pilot had no
   `unsupported` vote. The judge question and judged units changed in these amendments; the figures above
   use the old wording and old units, so the amended instrument needs its own pilot before n is fixed.
+  That pilot (mb-pilot3, 1e2720bc; 2 of 3 pairs judged) had 156 of 164 judged contradiction units clipped,
+  so `unsupported` almost never scored. A fourth amendment rechecks `unsupported` on clipped excerpts against
+  the whole cited evidence and makes excerpts show every claim term and figure the source holds. Re-pilot
+  before fixing n.
 - Deleting a stage is a human decision taken against this rule, on that stage's isolated arm. Every live
   batch, pilot or confirmatory, needs approval after its printed estimate.
 

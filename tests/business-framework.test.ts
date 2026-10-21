@@ -306,6 +306,9 @@ describe("business framework evidence", () => {
     expect(risk(AS_OF)?.summary).toBe(
       "Risk criteria-supported (Current ratio 1.50x, Debt/market cap 10.0%)",
     );
+    expect(
+      metricOf(framework(evidence(), AS_OF), "business-framework-risk", "currentRatio"),
+    ).toMatchObject({ status: "value", value: 1.5, periodEnd: "2026-03-31" });
     const staleAsOf = "2026-12-01T00:00:00.000Z";
     expect(risk(staleAsOf)?.summary).toBe("Risk criteria-supported (Debt/market cap 10.0%)");
     expect(

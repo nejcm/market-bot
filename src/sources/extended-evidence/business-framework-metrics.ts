@@ -491,7 +491,12 @@ function currentRatio(ctx: MetricContext): MetricOutcome {
       inputs: [found],
     };
   }
-  return { status: "value", value: found.value, inputs: [found] };
+  return {
+    status: "value",
+    value: found.value,
+    ...(periodEnd !== undefined ? { periodEnd } : {}),
+    inputs: [found],
+  };
 }
 
 function valuationSupportability(ctx: MetricContext): string | number | undefined {

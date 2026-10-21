@@ -84,6 +84,8 @@ export interface MetricContext {
       readonly close: number;
       readonly completed: boolean;
     }[];
+    /** Provider-reported split dates; absent when the provider split metadata was unreadable. */
+    readonly splitDates?: readonly string[];
     readonly reason?: string;
   }[];
   readonly depositorySic?: string;

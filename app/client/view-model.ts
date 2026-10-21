@@ -46,6 +46,7 @@ export {
   calibrationSampleWarning,
   calibrationSlices,
   historicalContextAuditView,
+  pairedSkillView,
   reliabilityBins,
   runCompareCards,
   type CalibrationSliceGroup,

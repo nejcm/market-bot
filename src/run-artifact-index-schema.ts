@@ -1,6 +1,6 @@
 import { Database, type Statement } from "bun:sqlite";
 
-export const INDEX_SCHEMA_VERSION = 13;
+export const INDEX_SCHEMA_VERSION = 15;
 const BUSY_TIMEOUT_MS = 1000;
 
 export function openRunArtifactIndexDatabase(path: string, readonly: boolean): Database {
@@ -87,6 +87,10 @@ function schemaSql(): string {
       horizon_trading_days INTEGER NOT NULL,
       measurable_as TEXT NOT NULL,
       source_ids_json TEXT NOT NULL,
+      origin TEXT,
+      baseline_probability REAL,
+      baseline_version TEXT,
+      info_cutoff TEXT,
       PRIMARY KEY (run_id, id),
       FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
     );

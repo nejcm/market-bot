@@ -228,4 +228,31 @@ describe("reportSearchCandidates", () => {
     );
     expect(candidates).toEqual([]);
   });
+
+  test("symbol-less multi-subject runs project each prediction's primary subject", () => {
+    const grid = researchReport({
+      runId: "grid",
+      jobType: "forecast-grid",
+      predictions: [
+        { ...(report.predictions as Record<string, unknown>[])[0], id: "a", subject: "amd" },
+        { ...(report.predictions as Record<string, unknown>[])[0], id: "b", subject: "AMD:SPY" },
+      ] as never,
+    });
+    const symbols = buildReportSearchEntries(grid, [], "history")
+      .filter(({ section }) => section === "predictions")
+      .map(({ predictionId, symbol }) => [predictionId, symbol]);
+    expect(symbols).toEqual([
+      ["a", "AMD"],
+      ["b", "AMD"],
+    ]);
+    const single = buildReportSearchEntries({ ...grid, symbol: "NVDA" }, [], "history").filter(
+      ({ section }) => section === "predictions",
+    );
+    expect(single.map(({ symbol }) => symbol)).toEqual(["NVDA", "NVDA"]);
+    const questions = buildReportSearchEntries(grid, [], "history").filter(
+      ({ section, text }) =>
+        section === "openQuestions" && text.startsWith("Unresolved prediction"),
+    );
+    expect(questions.map(({ symbol }) => symbol)).toEqual(["AMD", "AMD"]);
+  });
 });

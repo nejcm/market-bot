@@ -115,7 +115,7 @@ function historyPoint(
 }
 
 // Reader/report compact ladder (T/B/M, 1 dp). Distinct from value-format.ts:scaleCurrency
-// (K tier, toFixed(0), currency prefix).
+// (K tier, 2 dp T, toFixed(0), currency prefix).
 export function compactNumber(value: number): string {
   const absolute = Math.abs(value);
   const units = [

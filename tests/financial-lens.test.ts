@@ -168,10 +168,34 @@ describe("addFinancialLensEvidence", () => {
       periodEnd: "2025-06-28",
       periodMonths: 12,
     });
-    expect(metricByKey(result, "Value", "evToAnnualizedRevenue")).toMatchObject({
-      periodEnd: "2025-06-28",
-      periodMonths: 12,
-    });
+    const evToRevenue = metricByKey(result, "Value", "evToAnnualizedRevenue");
+    expect(evToRevenue).toMatchObject({ periodEnd: "2025-06-28" });
+    expect(evToRevenue).not.toHaveProperty("periodMonths");
+  });
+
+  test("dates enterprise value by the valuation quote, with or without a verified snapshot", () => {
+    const quoteObservedAt = "2026-06-20T15:30:00.000Z";
+    const baseEvidence = evidence();
+    const quotedEvidence: ExtendedEvidence = {
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "valuation"
+          ? { ...item, metrics: { ...item.metrics, quoteObservedAt } }
+          : item,
+      ),
+    };
+    for (const snapshot of [verifiedSnapshot(), undefined]) {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        quotedEvidence,
+        snapshot,
+        "2026-06-22T00:00:00.000Z",
+      );
+      expect(metricByKey(result, "Value", "enterpriseValue")).toMatchObject({
+        periodEnd: quoteObservedAt,
+      });
+    }
   });
 
   test("does not recompute net debt when valuation marks it mixed-period", () => {
@@ -284,6 +308,18 @@ describe("addFinancialLensEvidence", () => {
     expect(formatLensValue(-0.000_01, "number")).toBe("0.00");
     expect(formatLensValue(-0.000_01, "ratio-percent")).toBe("0.0%");
     expect(formatLensValue(-0.000_01, "whole-percent")).toBe("0.0%");
+  });
+
+  test("currency tiers switch where the lower tier would round to 1000", () => {
+    expect(formatLensValue(5_065_342_765_312, "currency", "USD")).toBe("$5.07T");
+    expect(formatLensValue(-1_200_000_000_000, "currency", "USD")).toBe("$-1.20T");
+    expect(formatLensValue(999_900_000_000, "currency", "USD")).toBe("$999.9B");
+    expect(formatLensValue(999_960_000_000, "currency", "USD")).toBe("$1.00T");
+    expect(formatLensValue(1_000_000_000_000, "currency", "USD")).toBe("$1.00T");
+    expect(formatLensValue(999_960_000, "currency", "USD")).toBe("$1.0B");
+    expect(formatLensValue(999_960, "currency", "USD")).toBe("$1.0M");
+    expect(formatLensValue(999.6, "currency", "USD")).toBe("$1.0K");
+    expect(formatLensValue(999.4, "currency", "USD")).toBe("$999");
   });
 
   test("emits partial no-cap gap when derived inputs are missing", () => {

@@ -9,6 +9,7 @@ import {
   QUALITATIVE_GAPS,
 } from "../src/sources/extended-evidence/business-framework";
 import { classifyBusinessLifecyclePhase } from "../src/sources/extended-evidence/business-framework-metrics";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { renderMarkdownReport } from "../src/report/markdown";
@@ -78,6 +79,18 @@ function framework(
   );
 }
 
+function fyFact(val: number, fyear: number, start: string | undefined, end: string) {
+  return {
+    val,
+    ...(start === undefined ? {} : { start }),
+    end,
+    form: "10-K",
+    fy: fyear,
+    fp: "FY",
+    filed: `${String(fyear)}-11-01`,
+  };
+}
+
 function gapOf(result: ReturnType<typeof framework>, id: string) {
   return result.metricSectionGaps?.find(({ source }) => source === id);
 }
@@ -100,9 +113,15 @@ function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
         observedAt: "2026-06-20T00:00:00.000Z",
         metrics: {
           revenue: 100,
+          revenuePeriodEnd: "2026-03-31",
+          revenuePeriodMonths: 6,
           revenueDeltaPercent: 6,
           grossProfit: 45,
+          grossProfitPeriodEnd: "2026-03-31",
+          grossProfitPeriodMonths: 6,
           operatingIncome: 24,
+          operatingIncomePeriodEnd: "2026-03-31",
+          operatingIncomePeriodMonths: 6,
           operatingIncomeDeltaPercent: 8,
           netIncome: 18,
           netIncomeDeltaPercent: 5,
@@ -306,11 +325,134 @@ describe("business framework evidence", () => {
     expect(risk(AS_OF)?.summary).toBe(
       "Risk criteria-supported (Current ratio 1.50x, Debt/market cap 10.0%)",
     );
+    expect(
+      metricOf(framework(evidence(), AS_OF), "business-framework-risk", "currentRatio"),
+    ).toMatchObject({ status: "value", value: 1.5, periodEnd: "2026-03-31" });
     const staleAsOf = "2026-12-01T00:00:00.000Z";
     expect(risk(staleAsOf)?.summary).toBe("Risk criteria-supported (Debt/market cap 10.0%)");
     expect(
       metricOf(framework(evidence(), staleAsOf), "business-framework-risk", "currentRatio"),
     ).toMatchObject({ status: "missing", reason: "stale current ratio as of 2026-03-31" });
+  });
+
+  test("SEC-summary fallback reads the periods summarizeSecFundamentals writes", () => {
+    const summarize = (revenueStarts: readonly (string | undefined)[]) => {
+      const rows = (values: readonly number[], starts: readonly (string | undefined)[]) => [
+        fyFact(values[0] ?? 0, 2024, starts[0], "2024-09-30"),
+        fyFact(values[1] ?? 0, 2025, starts[1], "2025-09-30"),
+      ];
+      const concepts = {
+        Revenues: rows([80, 100], revenueStarts),
+        GrossProfit: rows([36, 45], ["2023-10-01", "2024-10-01"]),
+      };
+      const payload = {
+        facts: {
+          "us-gaap": Object.fromEntries(
+            Object.entries(concepts).map(([concept, units]) => [
+              concept,
+              { units: { USD: units } },
+            ]),
+          ),
+        },
+      };
+      const metrics = summarizeSecFundamentals(payload, AS_OF)?.metrics ?? {};
+      const base = evidence();
+      return framework(
+        evidence({
+          items: base.items.map((item) =>
+            item.category === "sec-edgar" ? { ...item, metrics } : item,
+          ),
+        }),
+        AS_OF,
+        null,
+      );
+    };
+
+    const dated = summarize(["2023-10-01", "2024-10-01"]);
+    expect(metricOf(dated, "business-framework-moat", "grossMargin")).toMatchObject({
+      status: "value",
+      value: 0.45,
+      periodEnd: "2025-09-30",
+      periodMonths: 12,
+    });
+    expect(metricOf(dated, "business-framework-growth", "revenueDeltaPercent")).toMatchObject({
+      status: "value",
+      periodEnd: "2025-09-30",
+      periodMonths: 12,
+    });
+    const undated = summarize([undefined, undefined]);
+    expect(metricOf(undated, "business-framework-moat", "grossMargin")).toMatchObject({
+      status: "missing",
+    });
+    expect(gapOf(undated, "business-framework-moat")).toBeDefined();
+  });
+
+  test("SEC-summary and evidence-backed values carry the period their own source publishes", () => {
+    const periods: Record<string, Record<string, string | number>> = {
+      "sec-edgar": { operatingIncomePeriodEnd: "2026-04-30", operatingIncomePeriodMonths: 6 },
+      valuation: { revenuePeriodEnd: "2026-02-28", revenuePeriodMonths: 3 },
+      "financial-lens": { debtToMarketCapPeriodEnd: "2025-12-31" },
+    };
+    const base = evidence();
+    const dated = (extra: Record<string, Record<string, string | number>>) =>
+      evidence({
+        items: base.items.map((item) => ({
+          ...item,
+          metrics: { ...item.metrics, ...periods[item.category], ...extra[item.category] },
+        })),
+      });
+    const period = (result: ReturnType<typeof framework>, sectionId: string, metricId: string) => {
+      const metric = metricOf(result, sectionId, metricId);
+      return [metric?.status, metric?.periodEnd, metric?.periodMonths];
+    };
+    const result = framework(dated({}), AS_OF, null);
+
+    expect(period(result, "business-framework-growth", "revenueDeltaPercent")).toEqual([
+      "value",
+      "2026-03-31",
+      6,
+    ]);
+    expect(period(result, "business-framework-moat", "grossMargin")).toEqual([
+      "value",
+      "2026-03-31",
+      6,
+    ]);
+    expect(period(result, "business-framework-risk", "debtToMarketCap")).toEqual([
+      "value",
+      "2025-12-31",
+      undefined,
+    ]);
+    expect(period(result, "business-framework-valuation", "evToAnnualizedRevenue")).toEqual([
+      "value",
+      "2026-02-28",
+      undefined,
+    ]);
+    expect(period(result, "business-framework-valuation", "trailingPE")).toEqual([
+      "value",
+      "2026-06-20T00:00:00.000Z",
+      undefined,
+    ]);
+    // A margin whose operands cannot be shown to share one span is withheld, not dated by either.
+    expect(period(result, "business-framework-moat", "operatingMargin")).toEqual([
+      "missing",
+      undefined,
+      undefined,
+    ]);
+    const undated = framework(
+      dated({ "sec-edgar": { revenuePeriodMonths: "", grossProfitPeriodMonths: "" } }),
+      AS_OF,
+      null,
+    );
+    expect(metricOf(undated, "business-framework-moat", "grossMargin")).toMatchObject({
+      status: "missing",
+      reason: "no same-period SEC gross profit and revenue",
+    });
+    expect(gapOf(undated, "business-framework-moat")).toBeDefined();
+    expect(period(undated, "business-framework-growth", "revenueDeltaPercent")).toEqual([
+      "value",
+      "2026-03-31",
+      undefined,
+    ]);
   });
 
   test("derives seven framework sections, each backed by a Metric Section but Management", () => {

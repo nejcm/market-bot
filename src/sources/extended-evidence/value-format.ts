@@ -40,18 +40,17 @@ export function formatPeRatio(pe: number, eps?: number): string {
   return `${pe.toFixed(2)}x`;
 }
 
+// Each threshold sits where the tier below would round up to "1000.0".
+const CURRENCY_TIERS = [
+  { min: 999_950_000_000, unit: 1_000_000_000_000, suffix: "T", digits: 2 },
+  { min: 999_950_000, unit: 1_000_000_000, suffix: "B", digits: 1 },
+  { min: 999_950, unit: 1_000_000, suffix: "M", digits: 1 },
+  { min: 999.5, unit: 1000, suffix: "K", digits: 1 },
+] as const;
+
 export function scaleCurrency(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (abs >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (abs >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`;
-  }
-  return value.toFixed(0);
+  const tier = CURRENCY_TIERS.find(({ min }) => Math.abs(value) >= min);
+  return tier ? `${(value / tier.unit).toFixed(tier.digits)}${tier.suffix}` : value.toFixed(0);
 }
 
 function formatCurrency(value: number, currency = "USD"): string {
@@ -115,8 +114,10 @@ export function metricPeriodLabel(
     readonly periodEnd?: string;
   }[] = [],
 ): string {
+  // Provider observations carry a full timestamp; a label names the date.
+  const end = /^\d{4}-\d{2}-\d{2}T/u.test(periodEnd) ? periodEnd.slice(0, 10) : periodEnd;
   if (sectionId === "price-performance") {
-    return `Session ending ${periodEnd}`;
+    return `Session ending ${end}`;
   }
   const flows = inputs.filter(
     (input) =>
@@ -124,7 +125,10 @@ export function metricPeriodLabel(
       (input.periodType === "annual" || input.periodType === "interim"),
   );
   if (flows.length === 0) {
-    return `As of ${periodEnd}`;
+    // Summary sidecars date a flow by end and length only; a known length still names the span.
+    return periodMonths === undefined
+      ? `As of ${end}`
+      : `${String(periodMonths)}-month period ending ${end}`;
   }
   const annual = flows.every((input) => {
     const days =
@@ -132,9 +136,9 @@ export function metricPeriodLabel(
     return input.periodType === "annual" && days >= 350 && days <= 380;
   });
   if (annual) {
-    return `FY ending ${periodEnd}`;
+    return `FY ending ${end}`;
   }
   return periodMonths === undefined
-    ? `Period ending ${periodEnd}`
-    : `${String(periodMonths)}-month period ending ${periodEnd}`;
+    ? `Period ending ${end}`
+    : `${String(periodMonths)}-month period ending ${end}`;
 }

@@ -4,7 +4,7 @@ import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary, WatchlistRowState } from "../app/types";
 import { marketUpdateHorizonBucketOf, type AssetClass, type JobType } from "./domain/job-type";
-import { type PredictionKind } from "./domain/prediction";
+import { isPredictionOrigin, type PredictionKind } from "./domain/prediction";
 import { isMarketRegimeLabel } from "./domain/report";
 import { dataRootFromRunsDir } from "./data-paths";
 import {
@@ -164,8 +164,8 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
   const insertPrediction = db.prepare(`
     INSERT INTO predictions (
       id, run_id, kind, subject, claim, probability, horizon_trading_days, measurable_as,
-      source_ids_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      source_ids_json, origin, baseline_probability, baseline_version, info_cutoff
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertScore = db.prepare(`
     INSERT INTO scores (
@@ -190,6 +190,10 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
         row.horizon_trading_days,
         row.measurable_as,
         row.source_ids_json,
+        row.origin,
+        row.baseline_probability,
+        row.baseline_version,
+        row.info_cutoff,
       );
     }
     for (const row of indexed.scores) {
@@ -858,6 +862,10 @@ interface ResolvedPairQueryRow {
   readonly horizon_trading_days: number;
   readonly measurable_as: string;
   readonly source_ids_json: string;
+  readonly origin: string | null;
+  readonly baseline_probability: number | null;
+  readonly baseline_version: string | null;
+  readonly info_cutoff: string | null;
   readonly prediction_id: string;
   readonly status: string | null;
   readonly outcome: string;
@@ -892,6 +900,7 @@ export async function loadResolvedPairsFromIndex(
         `SELECT
           p.id, p.run_id, p.kind, p.subject, p.claim, p.probability, p.horizon_trading_days,
           p.measurable_as, p.source_ids_json,
+          p.origin, p.baseline_probability, p.baseline_version, p.info_cutoff,
           s.prediction_id, s.status, s.outcome, s.observed_at, s.scoring_version,
           s.miss_autopsy_cause,
           r.job_type, r.asset_class, r.generated_at, r.market_regime_label,
@@ -919,6 +928,18 @@ export async function loadResolvedPairsFromIndex(
             horizonTradingDays: row.horizon_trading_days,
             probability: row.probability,
             sourceIds: parseStringArrayJson(row.source_ids_json),
+            // The query keeps v3 scores only, and a score's version is its prediction's policy version.
+            scoringPolicyVersion: 3,
+            ...(isPredictionOrigin(row.origin) ? { origin: row.origin } : {}),
+            ...(row.baseline_probability !== null &&
+            row.baseline_version !== null &&
+            row.info_cutoff !== null
+              ? {
+                  baselineProbability: row.baseline_probability,
+                  baselineVersion: row.baseline_version,
+                  infoCutoff: row.info_cutoff,
+                }
+              : {}),
           },
           score: {
             predictionId: row.prediction_id,
@@ -1012,19 +1033,24 @@ function isOpenWatchlistPrediction(row: WatchlistPredictionQueryRow): boolean {
   return row.resolved === 0 && row.status !== "voided" && row.status !== "abandoned";
 }
 
+// Symbol-less multi-subject runs (Forecast Grid, market overview) count when a prediction's primary subject matches.
+const INSTRUMENT_RUNS_WHERE = `asset_class = ? AND (symbol = ? OR (symbol IS NULL AND run_id IN (
+  SELECT run_id FROM predictions WHERE upper(subject) = ?3 OR upper(subject) LIKE ?4)))`;
+
 function instrumentWatchlistRow(
   db: Database,
   assetClass: string,
   symbol: string,
 ): WatchlistRowState {
   const normalizedSymbol = symbol.toUpperCase();
+  const runParams = [assetClass, normalizedSymbol, normalizedSymbol, `${normalizedSymbol}:%`];
   const latest = db
     .query(
       `SELECT run_id AS runId, generated_at AS generatedAt, depth
-       FROM runs WHERE asset_class = ? AND symbol = ?
+       FROM runs WHERE ${INSTRUMENT_RUNS_WHERE}
        ORDER BY generated_at DESC, run_dir_name DESC LIMIT 1`,
     )
-    .get(assetClass, normalizedSymbol) as {
+    .get(...runParams) as {
     readonly runId: string;
     readonly generatedAt: string | null;
     readonly depth: string | null;
@@ -1040,11 +1066,9 @@ function instrumentWatchlistRow(
        FROM predictions p
        LEFT JOIN scores s ON s.run_id = p.run_id AND s.prediction_id = p.id
        JOIN runs r ON r.run_id = p.run_id
-       WHERE p.run_id IN (
-         SELECT run_id FROM runs WHERE asset_class = ? AND symbol = ?
-       )`,
+       WHERE p.run_id IN (SELECT run_id FROM runs WHERE ${INSTRUMENT_RUNS_WHERE})`,
     )
-    .all(assetClass, normalizedSymbol) as readonly WatchlistPredictionQueryRow[];
+    .all(...runParams) as readonly WatchlistPredictionQueryRow[];
 
   let openPredictionCount = 0;
   let latestCalibration: { readonly outcome: "hit" | "miss"; readonly at: string } | undefined =

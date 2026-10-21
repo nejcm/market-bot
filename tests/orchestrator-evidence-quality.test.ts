@@ -367,6 +367,7 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
     expect(result.report.dataGaps).toEqual([
       "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
       "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
+      "forecast-baseline: Forecast Baseline omitted for pred-1, pred-2: no split-adjusted close history was collected for SPY",
     ]);
   });
 

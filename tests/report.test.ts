@@ -1967,6 +1967,8 @@ describe("report schema and rendering", () => {
       "Issuer transcript unavailable.",
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+      "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AAPL]",
+      "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AAPL]",
     ]);
   });
 
@@ -2030,6 +2032,8 @@ describe("report schema and rendering", () => {
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
       "massive-supplemental-market: supplemental market snapshot request failed with status 403",
+      "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AAPL]",
+      "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AAPL]",
     ]);
   });
 
@@ -2128,6 +2132,8 @@ describe("report schema and rendering", () => {
       "valuation: Non-current SEC balance-sheet inputs for AAPL: cash period end 2025-01-01 not within 180 days before analysis cutoff 2026-06-01 and 92 days of the newest balance-sheet period end; net debt/market cap withheld",
       "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+      "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AAPL]",
+      "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AAPL]",
     ]);
   });
 
@@ -2178,6 +2184,8 @@ describe("report schema and rendering", () => {
       "Consensus dividends are not available.",
       "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+      "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AAPL]",
+      "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AAPL]",
     ]);
   });
 
@@ -2221,6 +2229,8 @@ describe("report schema and rendering", () => {
       "Tradier options chain shows no listed weeklies.",
       "tradier-iv-term-structure: No Tradier IV values found for expiration 2026-01-16",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+      "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AAPL]",
+      "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AAPL]",
     ]);
   });
 
@@ -2264,6 +2274,8 @@ describe("report schema and rendering", () => {
       "Tradier options chain shows no listed weeklies.",
       "finnhub-eps-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+      "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AAPL]",
+      "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AAPL]",
     ]);
   });
 
@@ -2625,6 +2637,7 @@ describe("report schema and rendering", () => {
     expect(assembled.dataGaps).toEqual([
       "core-provider: core text",
       "duplicate-provider: same text",
+      "event-grid: Event Grid not issued: crypto runs collect no split-adjusted close history for the fixed grid [BTC]",
     ]);
   });
 

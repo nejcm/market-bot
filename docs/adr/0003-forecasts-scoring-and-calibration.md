@@ -82,11 +82,70 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   and explicitly name absence in persisted Markdown, stdout, and Console. Every read boundary normalizes old
   zero-count summaries by dropping those metrics and legacy `brierSkillScore`; Console also rewrites old
   Markdown headlines/skill legends. Missing/malformed counts are unknown, never normalized or collapsed to zero.
-- Run-analytics and Console skill retain the fixed always-0.5 reference for all kinds. A construction-specific
-  skill reference requires a per-Prediction stamp, index column and rebuild; these are not approved here.
-  The fixed 0.25 Actionable Negative Calibration gate remains unchanged.
-- Empirical baseline skill stays deferred until at least 100 resolved v3 forecasts overall and 30 in one
-  event-kind × horizon stratum; both thresholds trigger a separate design review, not an automatic metric.
+- Run-analytics keeps the fixed always-0.5 reference. The fixed 0.25 Actionable Negative Calibration gate
+  remains unchanged. (Amended 2026-10-20: the earlier deferral of empirical baseline skill is superseded by
+  the Paired Skill headline below.)
+- Calibration's headline is Paired Skill: ΔBrier = Brier(Forecast Baseline) − Brier(model) over resolved,
+  deduped Forecast Events that carry a baseline, overall and per kind; the fixed-0.5 skill stays a
+  secondary column. Events without a baseline are excluded and counted (`excludedWithoutBaselineCount`);
+  grid events count once through the Forecast Event dedupe. Pre-baseline predictions are excluded
+  from Paired Skill because their as-of-issue closes cannot be proven from the cache. Pre-registered policy
+  (`PAIRED_SKILL_POLICY`; any change needs an amendment here): 95% percentile block bootstrap, 2000
+  resamples, seed 20261020, over events sorted by issuance and blocks sorted by subject so input order
+  never moves the interval; blocks cluster by the subject's first leg and chain events issued before the
+  block's latest close due date (the Scoring Policy horizon end, not the score-pass clock), so overlapping
+  horizons never count as independent; floor 30 paired events and 5 blocks (the existing Actionable
+  Negative Calibration count floor, plus enough blocks for a resample to vary); minimum useful effect
+  ΔBrier ≥ 0.01. Status is `model-better` (interval above 0), `baseline-better` (below 0) or
+  `not-yet-decidable` (interval spans 0 or below the floor). The floor is a minimum, not power: 80% power
+  for ΔBrier 0.01 at SD 0.10 needs about 784 independent blocks (`poweredBlockCount`), so every surface
+  says to expect `not-yet-decidable` until then and to treat earlier statuses as provisional. The 0.01 bar
+  is deliberately one-sided: the model must clear it to keep its probabilities, while the free baseline
+  wins on any interval below 0. The index
+  stores the baseline stamp (schema 14; schema 15 also projects each prediction's primary subject as
+  the search symbol of symbol-less runs); an older index falls back to disk until `index rebuild`.
+- Paired Skill review cadence (pre-registered): quarterly on 2027-01-15, 2027-04-15, 2027-07-15 and
+  2027-10-15, then every 15 Jan/Apr/Jul/Oct, per kind from the summary as written that day. `model-better`
+  meeting the minimum useful effect: keep model probabilities and consider an out-of-sample model/baseline
+  mixture. `not-yet-decidable`: keep recording, no change. `baseline-better`: publish the Forecast
+  Baseline for that kind as the stated probability and say so in reports. A decision is never taken
+  between review dates or on a slice that was not pre-registered here. Calibration Markdown, JSON
+  (`nextReviewDate`, per-kind `decisionRule`; the overall aggregate carries none), stdout and the Research Console show the next review
+  date and which rule each kind's current status would trigger; that is a preview, not a decision.
+- Assembly stamps every Prediction with `origin` (`model` or `grid`) and, where an estimator exists, a
+  Forecast Baseline: `baselineProbability`, `baselineVersion` and `infoCutoff` (last split-adjusted close
+  used). Estimators are frozen, pure and versioned (`ewma-0.94-w60-v1`): EWMA (λ 0.94) volatility over the
+  last 60 split-adjusted daily log returns, zero drift, √h aggregation. Range is the lognormal
+  outside-band probability; direction and plain outperform relative (A−B) are 0.5 by construction (any
+  zero-drift symmetric distribution) but still require their close windows and are stamped with
+  `baselineVersion`, so their Paired Skill is skill against a declared coin flip. Conditional, volatility, IV, macro and earnings claims carry no baseline and are not
+  scored for skill. Fewer than 61 closes, a residual split, zero movement, a
+  missing series, or relative legs whose last closes are more than 4 days apart omit the baseline and
+  declare a `forecast-baseline` data gap; it is never defaulted to 0.5. A non-positive range bound
+  contributes zero tail probability. The primary symbol's window extends to the snapshot's newer
+  unverified closes so the baseline and the grid bands share one spot. Changing the math requires a new `baselineVersion`. (Added 2026-10-20; Forecast
+  Baseline is unrelated to the prior-run baseline of Forecast Persistence Telemetry.)
+- Residual split check: every move above 8 robust σ is examined, so a larger genuine move
+  cannot mask a smaller residual split. Any such move counts when it is within log(1.1) + 0.03 of the log of a forward or reverse split ratio (5:4, 4:3, 3:2, 2, 3, 4, 5, 10), so a split day that also
+  moved ±10% is still caught. When the price source returned its split list (`yahoo-price-history`,
+  `splitDates`), only a jump within 4 days of a reported split is flagged. A known list with no split
+  nearby means a genuine move, which stays volatility. Without split metadata (the verified chart), a genuine 10–65% one-day move inside those windows is treated as a split. That is a
+  documented shortcut; volume is not consulted. (Amended 2026-10-21; availability only, the math and
+  `ewma-0.94-w60-v1` are unchanged.)
+- Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
+  (same bands the prompt lists) and relative vs SPY at h = 5. The primary synthesis prices them in the same
+  response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the
+  baseline; the 0.32 range-reference default is declared not to apply to grid rows. A repair attempt
+  that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, uncollected close sources, a
+  model Prediction already using the event, crypto runs and SPY's own relative event each leave the event
+  unissued and declare an `event-grid` data gap. Grid Predictions are scored and calibrated like any other
+  but do not count toward the prediction target, shortfall, kind mix or citation telemetry.
+- The `forecast-grid` job issues the same Event Grid per watchlist equity, priced by one `quickModel` call
+  from a compact fact sheet (no synthesis, not shown the baseline). It publishes a run-artifact dir under
+  `data/runs/` so the existing score pass, Calibration, index and history read it unchanged; only parsed
+  probabilities persist. Spending needs an explicit CLI `--yes`; the Research Console cannot queue it. An
+  event it shares with an instrument run on the same session collapses through the Forecast Event dedupe.
+  (Added 2026-10-21.)
 - Actionable Negative Calibration independently assesses asset class, job type, default-horizon bucket,
   Market Regime, and Prediction kind. Require 30 resolved Forecast Events, 10 distinct Runs, and a
   Bonferroni-adjusted 98.75% one-sided bound `Brier - 2.2414 × standard error > 0.25`. Qualifying slices

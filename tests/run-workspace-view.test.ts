@@ -1484,7 +1484,7 @@ describe("run workspace view", () => {
         {
           key: "marketCap",
           label: "Market cap",
-          value: "$3000.0B",
+          value: "$3.00T",
           caption: "Yahoo quote · point in time · fetch time 2026-07-04T12:00:00.000Z",
           sourceIds: ["market-yahoo-equity-aapl"],
         },

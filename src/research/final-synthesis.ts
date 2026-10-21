@@ -1,3 +1,4 @@
+import { modelGridProbabilities } from "./event-grid";
 import type { ResearchCommand } from "../cli/args";
 import type { Prediction } from "../domain/prediction";
 import type { EquityAnalysisCompleteness, ResearchReport } from "../domain/report";
@@ -110,6 +111,8 @@ export interface SynthesizeReportUntilValidInput {
     priorStages: readonly StageOutput[],
     reprompt?: StageReprompt,
   ) => Promise<StageOutput>;
+  // Valid Event Grid probabilities from earlier attempts; a repair that omits one keeps the old value.
+  readonly eventGridCarry?: Map<string, number>;
 }
 
 export interface SynthesizeReportUntilValidResult {
@@ -172,6 +175,7 @@ export async function synthesizeReportUntilValid(
   let reportRepairReprompts = 0;
   const trackedInput: SynthesizeReportUntilValidInput = {
     ...input,
+    eventGridCarry: new Map(),
     runFinalSynthesis: async (priorStages, reprompt) => {
       attempt += 1;
       const output = await input.runFinalSynthesis(priorStages, reprompt);
@@ -530,6 +534,18 @@ async function runAndReadFinalSynthesis(
     input.knownSourceIds,
     input.allowedSubjects,
   );
+  const carry = input.eventGridCarry;
+  if (carry !== undefined) {
+    for (const [id, probability] of modelGridProbabilities(payload.eventGrid)) {
+      carry.set(id, probability);
+    }
+    if (carry.size > 0) {
+      payload = {
+        ...payload,
+        eventGrid: [...carry].map(([id, probability]) => ({ id, probability })),
+      };
+    }
+  }
   return { output, payload, predResult };
 }
 

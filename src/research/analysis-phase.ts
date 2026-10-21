@@ -5,7 +5,7 @@ import type { StageOutput } from "./final-synthesis";
 import type { PlaybookStage } from "./playbooks";
 import type { ResearchContext } from "./research-context-types";
 
-type AnalysisStage = Extract<
+export type AnalysisStage = Extract<
   StageOutput["stage"],
   | "specialist-analysis"
   | "regime-context-analysis"
@@ -40,6 +40,8 @@ export async function runAnalysisPhase(input: {
   readonly collectedSources: CollectedSources;
   readonly context: ResearchContext;
   readonly quickModel: string;
+  /** Eval-only stage ablation: downstream stages run on the surviving outputs. */
+  readonly skipStage?: Exclude<AnalysisStage, "critique">;
   readonly runStage: (
     stage: AnalysisStage,
     model: string,
@@ -49,24 +51,20 @@ export async function runAnalysisPhase(input: {
   readonly analysisOutputs: readonly StageOutput[];
   readonly critiqueOutput: StageOutput;
 }> {
-  const specialistOutput = await input.runStage("specialist-analysis", input.quickModel, {
-    collectedSources: input.collectedSources,
-    context: input.context,
-  });
+  const run = (stage: AnalysisStage, priorStages?: readonly StageOutput[]) =>
+    input.runStage(stage, input.quickModel, {
+      collectedSources: input.collectedSources,
+      context: input.context,
+      ...(priorStages === undefined ? {} : { priorStages }),
+    });
+  const specialistOutputs =
+    input.skipStage === "specialist-analysis" ? [] : [await run("specialist-analysis")];
   const panelOutputs = await Promise.all(
-    coveragePanelStages(input.command).map((stage) =>
-      input.runStage(stage, input.quickModel, {
-        collectedSources: input.collectedSources,
-        context: input.context,
-        priorStages: [specialistOutput],
-      }),
-    ),
+    coveragePanelStages(input.command)
+      .filter((stage) => stage !== input.skipStage)
+      .map((stage) => run(stage, specialistOutputs)),
   );
-  const analysisOutputs = [specialistOutput, ...panelOutputs];
-  const critiqueOutput = await input.runStage("critique", input.quickModel, {
-    collectedSources: input.collectedSources,
-    context: input.context,
-    priorStages: analysisOutputs,
-  });
+  const analysisOutputs = [...specialistOutputs, ...panelOutputs];
+  const critiqueOutput = await run("critique", analysisOutputs);
   return { analysisOutputs, critiqueOutput };
 }

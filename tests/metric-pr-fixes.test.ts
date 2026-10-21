@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { renderMetricSections } from "../src/report/markdown-metric-sections";
+import { metricPeriodLabel } from "../src/sources/extended-evidence/value-format";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import {
@@ -87,6 +88,11 @@ function instantReport() {
 test("markdown labels a balance-sheet instant as of its date", () => {
   expect(renderMetricSections(instantReport())).toContain("As of 2026-03-31");
   expect(renderMetricSections(instantReport())).not.toContain("FY ending");
+});
+
+test("period labels name the date of a provider observation timestamp", () => {
+  expect(metricPeriodLabel("2026-10-16T16:25:17.700Z")).toBe("As of 2026-10-16");
+  expect(metricPeriodLabel("2026-03-31")).toBe("As of 2026-03-31");
 });
 
 test("console labels a balance-sheet instant as of its date", () => {

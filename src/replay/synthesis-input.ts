@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { readRecordedBody } from "./body-file";
 import type { CodeVersion } from "../domain/run-trace";
 import { isRecord } from "../guards";
 import type { SynthesizeReportUntilValidInput } from "../research/final-synthesis";
@@ -438,6 +441,113 @@ export function readSynthesisReplayInput(value: unknown): SynthesisReplayInput {
     }
   }
   return value as unknown as SynthesisReplayInput;
+}
+
+const BODY_REF = "$replayBody";
+
+function bodyRef(value: unknown): string | undefined {
+  if (!isRecord(value) || !(BODY_REF in value)) {
+    return undefined;
+  }
+  const sha256 = value[BODY_REF];
+  if (
+    Object.keys(value).length !== 1 ||
+    typeof sha256 !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(sha256)
+  ) {
+    throw new Error("Invalid replay body reference");
+  }
+  return sha256;
+}
+
+async function resolveBodies(
+  dir: string,
+  text: string,
+  cache: Map<string, Promise<unknown>>,
+): Promise<unknown> {
+  const refs = new Set<string>();
+  const parsed: unknown = JSON.parse(text, (_key, value: unknown) => {
+    const sha256 = bodyRef(value);
+    if (sha256 !== undefined) {
+      refs.add(sha256);
+    }
+    return value;
+  });
+  if (refs.size === 0) {
+    return parsed;
+  }
+  const loaded = new Map(
+    await Promise.all(
+      [...refs].map(async (sha256) => {
+        if (!cache.has(sha256)) {
+          cache.set(
+            sha256,
+            readRecordedBody(dir, `bodies/${sha256}.json`, sha256).then((body) =>
+              resolveBodies(dir, body, cache),
+            ),
+          );
+        }
+        return [sha256, await cache.get(sha256)] as const;
+      }),
+    ),
+  );
+  return JSON.parse(text, (_key, value: unknown) => {
+    const sha256 = bodyRef(value);
+    if (sha256 === undefined) {
+      return value;
+    }
+    if (!loaded.has(sha256)) {
+      throw new Error("Unresolved replay body reference");
+    }
+    return structuredClone(loaded.get(sha256));
+  });
+}
+
+export async function loadSynthesisReplayInput(file: string): Promise<SynthesisReplayInput> {
+  return readSynthesisReplayInput(
+    await resolveBodies(dirname(file), await readFile(file, "utf8"), new Map()),
+  );
+}
+
+export function externalizeSynthesisBodies(
+  saved: SynthesisReplayInput,
+  store: (body: string) => string,
+): SynthesisReplayInput {
+  const externalize = (value: unknown): unknown => {
+    let mapped = value;
+    if (Array.isArray(value)) {
+      mapped = value.map((row) => externalize(row));
+    } else if (isRecord(value)) {
+      if (BODY_REF in value) {
+        throw new Error(`Replay input contains reserved key ${BODY_REF}`);
+      }
+      mapped = Object.fromEntries(
+        Object.entries(value).map(([key, row]) => [key, externalize(row)]),
+      );
+    } else if (typeof value !== "string") {
+      return value;
+    }
+    const body = JSON.stringify(mapped);
+    return body.length > 32_768 ? { [BODY_REF]: store(body) } : mapped;
+  };
+  const collected = saved.input.collectedSources;
+  return {
+    ...saved,
+    input: {
+      ...saved.input,
+      collectedSources: {
+        ...collected,
+        rawSnapshots: externalize(collected.rawSnapshots) as typeof collected.rawSnapshots,
+        ...(collected.secTargetPacket === undefined
+          ? {}
+          : {
+              secTargetPacket: externalize(
+                collected.secTargetPacket,
+              ) as typeof collected.secTargetPacket,
+            }),
+      },
+    },
+  };
 }
 
 export function makeSynthesisReplayInput(

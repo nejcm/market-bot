@@ -62,7 +62,10 @@ describe("runResearchJob report assembly and market context", () => {
     });
     expect(result.markdown).toContain("Research-only note");
     expect(result.markdown).not.toContain("Weekly Market Update");
-    expect(result.trace.sourceGaps).toEqual(["Macro breadth source unavailable"]);
+    expect(result.trace.sourceGaps).toEqual([
+      "Macro breadth source unavailable",
+      "forecast-baseline: Forecast Baseline omitted for pred-1, pred-2: no split-adjusted close history was collected for SPY",
+    ]);
     expect(result.trace.stages).toEqual([
       "source-collection",
       "spotlight-selection",

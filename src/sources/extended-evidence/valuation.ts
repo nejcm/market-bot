@@ -9,6 +9,7 @@ import {
 import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
+import { scaleCurrency } from "./value-format";
 import { depositoryIssuerSic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-edgar";
@@ -96,17 +97,7 @@ function valuationDateBasis(
 }
 
 function formatUsd(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) {
-    return `$${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (abs >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (abs >= 1000) {
-    return `$${(value / 1000).toFixed(1)}K`;
-  }
-  return `$${value.toFixed(0)}`;
+  return `$${scaleCurrency(value)}`;
 }
 
 function hasRequiredSecMetrics(

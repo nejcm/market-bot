@@ -9,6 +9,7 @@ import {
   type AssetClass,
   type Depth,
   type InstrumentJobType,
+  type JobType,
   type LegacyMarketUpdateJobType,
 } from "../domain/job-type";
 import type { HistorySection } from "../history/artifacts";
@@ -82,19 +83,18 @@ export interface HistorySearchCommand {
   readonly query: string;
   readonly symbol?: string;
   readonly assetClass?: AssetClass;
-  readonly sourceJobType?:
-    | "market-overview"
-    | "daily"
-    | "weekly"
-    | "equity"
-    | "crypto"
-    | "alpha-search"
-    | "research";
+  readonly sourceJobType?: JobType;
   readonly from?: string;
   readonly to?: string;
   readonly section?: HistorySection;
   readonly provider?: string;
   readonly limit?: number;
+}
+
+export interface ForecastGridCommand {
+  readonly jobType: "forecast-grid";
+  readonly watchlist: string;
+  readonly yes: boolean;
 }
 
 export interface HistoryThesisDeltaCommand {
@@ -110,6 +110,7 @@ export type ResearchCommand = MarketOverviewCommand | InstrumentCommand | Resear
 export type CliCommand =
   | ResearchCommand
   | AlphaSearchCommand
+  | ForecastGridCommand
   | ScoreCommand
   | ScoreRepairCommand
   | CalibrationCommand
@@ -159,7 +160,7 @@ export const SEARCH_JOB_TYPE_OPTIONS = [
 ] as const;
 
 export const USAGE =
-  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> | market-bot alpha-search --asset equity [--deep] | market-bot score [--force] | market-bot score repair --run <run-id> --prediction <id> [--apply] | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
+  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> | market-bot alpha-search --asset equity [--deep] | market-bot forecast-grid --watchlist <name> [--yes] | market-bot score [--force] | market-bot score repair --run <run-id> --prediction <id> [--apply] | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
 function readPositiveIntegerString(
   record: Record<string, unknown>,
@@ -223,6 +224,9 @@ export function commandLabel(command: CliCommand): string {
   if (command.jobType === "score-repair") {
     return `score repair ${command.runId} ${command.predictionId}${command.apply ? " apply" : ""}`;
   }
+  if (command.jobType === "forecast-grid") {
+    return `forecast-grid ${command.watchlist}${command.yes ? "" : " dry-run"}`;
+  }
   if (command.jobType === "history-search") {
     return `history search ${command.query}`;
   }
@@ -249,6 +253,11 @@ export function commandLabel(command: CliCommand): string {
 
 // Always-printed run banner, independent of the progress level.
 export function commandBanner(command: CliCommand): string {
+  if (command.jobType === "forecast-grid") {
+    return command.yes
+      ? `Running forecast-grid for watchlist "${command.watchlist}"`
+      : `Planning forecast-grid for watchlist "${command.watchlist}" (dry run, no spend)`;
+  }
   if (command.jobType === "history-search") {
     return `Running history search for "${command.query}"`;
   }

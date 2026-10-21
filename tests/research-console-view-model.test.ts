@@ -1914,6 +1914,12 @@ describe("report artifact parsers", () => {
         extras: { depthProfile: { targetPredictions: 3 } },
       }),
     ).toEqual({ count: 3, target: 3, targetMet: true });
+    expect(
+      predictionTargetHealth(undefined, {
+        predictions: [{}, { origin: "model" }, { origin: "grid" }],
+        extras: { depthProfile: { targetPredictions: 3 } },
+      }),
+    ).toEqual({ count: 2, target: 3, targetMet: false });
 
     expect(predictionTargetHealth()).toBeUndefined();
   });

@@ -55,8 +55,9 @@ re-derived properties and targeted assertions, not approving large output snapsh
   `<run>/replay/`, outside report fields/index projections.
 - Captures contain versioned metadata, allowlisted effective settings, ordered HTTP/model cassettes, consumed
   cache/cross-run state, and versioned Final-Synthesis Input with embedded responses. Retain HTTP status and
-  transport/model failures as failures. Large HTTP/state bodies are content-addressed; readers check hashes
-  and path containment. Redact credentials, configured SEC contact identities, and local paths before recording;
+  transport/model failures as failures. Large HTTP/state bodies, and Final-Synthesis Input `rawSnapshots` /
+  `secTargetPacket` subtrees over 32 KB (as `{"$replayBody": <sha256>}` → `bodies/<sha256>.json`, a key
+  capture refuses in payloads), are content-addressed; readers check hashes and path containment. Redact credentials, configured SEC contact identities, and local paths before recording;
   never store request auth headers.
 - Publish captures only by renaming validated, secret-scanned private partial directories. Handled failure
   removes only private capture staging, never research artifacts, never invalidates research, and never publishes
@@ -77,6 +78,11 @@ re-derived properties and targeted assertions, not approving large output snapsh
 - Deterministic report reruns project saved normalized evidence, validate/render into fresh
   `data/evals/<label>/` roots, and never change original Run Artifacts. Missing canonical files fail; recorded
   null stays absence. No live evaluation writes to `data/runs/`.
+- Deleting a pipeline stage is a human decision. It needs judged `eval-deep.ts --input --ablate` samples of
+  that stage's isolated arm, compared against its matched control (the same consumers regenerated live with
+  the stage kept; the recorded baseline for terminal critique) in pre-paired samples, whose paired score
+  differences meet the rule pre-registered in `docs/testing.md` (metric, margin and sample size fixed
+  before any arm runs). Identical judge requests cancel across a pair, so scores are relative, not absolute.
 
 ## Consequences
 

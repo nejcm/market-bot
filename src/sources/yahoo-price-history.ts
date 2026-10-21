@@ -11,6 +11,7 @@ import {
   classifyLatestSession,
   readYahooRegularSession,
   splitAdjustedObservationsFromYahooChart,
+  yahooChartSplitDates,
   yahooScoringWindowUrl,
   yahooResilientFetchWrapper,
 } from "./yahoo";
@@ -80,6 +81,7 @@ export async function collectPriceHistory(
               "complete",
         )
         .map(({ date, value }) => ({ date, close: value, completed: true }));
+      const splitDates = yahooChartSplitDates(fetched.payload);
       const chart =
         isRecord(fetched.payload) && isRecord(fetched.payload.chart)
           ? fetched.payload.chart
@@ -124,6 +126,7 @@ export async function collectPriceHistory(
           priceMode: "split-adjusted-close" as const,
           requestedFrom: from.toISOString().slice(0, 10),
           bars: mismatch ? [] : bars,
+          ...(mismatch || splitDates === undefined ? {} : { splitDates }),
           ...(reason === undefined ? {} : { reason }),
           ...(currency === undefined ? {} : { currency }),
         },

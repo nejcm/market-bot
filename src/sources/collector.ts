@@ -550,6 +550,7 @@ export async function collectSources(
     ...(verifiedSnapshotResult?.snapshot !== undefined
       ? { verifiedMarketSnapshot: verifiedSnapshotResult.snapshot }
       : {}),
+    ...(priceHistoryResult !== undefined ? { priceHistory: priceHistoryResult.priceHistory } : {}),
     ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
     ...(resolvedInstrumentIdentity !== undefined ? { resolvedInstrumentIdentity } : {}),
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),

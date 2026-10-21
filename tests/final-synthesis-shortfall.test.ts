@@ -85,3 +85,64 @@ test.each([
     );
   },
 );
+
+test("a prediction repair that omits eventGrid keeps the earlier valid grid probability", async () => {
+  const command: InstrumentCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "deep",
+  };
+  const runParams = resolveRunParams(command, config);
+  const responses = [
+    {
+      predictions: [...mockPredictions(1, "AAPL"), { id: "bad", measurableAs: "nonsense" }],
+      eventGrid: [{ id: "grid-relative-5", probability: 0.45 }],
+    },
+    { predictions: mockPredictions(1, "AAPL") },
+  ];
+  const result = await synthesizeReportUntilValid({
+    runId: "event-grid-carry-test",
+    generatedAt: "2026-05-19T00:00:00.000Z",
+    command,
+    collectedSources: collectedSources({ marketSnapshots: [marketSnapshot()] }),
+    context: {
+      runParams,
+      depthProfile: buildDepthProfileFromParams(command, runParams),
+      marketRegime: {
+        assetClass: "equity",
+        label: "mixed",
+        proxyCount: 1,
+        drivers: [],
+        sourceIds: [],
+      },
+      calibrationContext: undefined,
+      evidenceQualityAssessment: {
+        version: 1,
+        rubricVersion: 3,
+        label: "medium",
+        checks: [],
+        limitingReasons: [],
+        advisoryReasons: [],
+      },
+    },
+    sources: ["market-aapl", "price-history-AAPL", "price-history-SPY"].map((id) =>
+      newsSource({ id, kind: "market-data" }),
+    ),
+    knownSourceIds: new Set(["market-aapl", "price-history-AAPL", "price-history-SPY"]),
+    allowedSubjects: new Set(["AAPL"]),
+    priorStages: [],
+    maxPredictionReprompts: 1,
+    runFinalSynthesis: async () => ({
+      stage: "final-synthesis",
+      tokenEstimate: 0,
+      content: JSON.stringify({ ...researchReport(), ...responses.shift() }),
+    }),
+  });
+  expect(responses).toHaveLength(0);
+  expect(
+    result.report.predictions
+      .filter(({ origin }) => origin === "grid")
+      .map(({ id, probability }) => [id, probability]),
+  ).toEqual([["grid-relative-5", 0.45]]);
+});

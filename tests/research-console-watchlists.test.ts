@@ -24,6 +24,7 @@ import {
 import { handleResearchConsoleRequest } from "../app/server";
 import { readInstrumentWatchlistRows, rebuildRunArtifactIndex } from "../src/run-artifact-index";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
+import type { JobType } from "../src/domain/job-type";
 
 const tmpDirs: string[] = [];
 const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
@@ -66,7 +67,8 @@ function writeRun(
   runDirName: string,
   options: {
     readonly runId: string;
-    readonly symbol: string;
+    readonly symbol?: string;
+    readonly jobType?: JobType;
     readonly generatedAt: string;
     readonly depth?: string;
     readonly predictions?: readonly ReturnType<typeof prediction>[];
@@ -87,9 +89,9 @@ function writeRun(
     `${JSON.stringify(
       researchReport({
         runId: options.runId,
-        jobType: "equity",
+        jobType: options.jobType ?? "equity",
         assetClass: "equity",
-        symbol: options.symbol,
+        ...(options.symbol === undefined ? {} : { symbol: options.symbol }),
         generatedAt: options.generatedAt,
         predictions: options.predictions ?? [],
         ...(options.depth !== undefined || options.extras !== undefined
@@ -385,6 +387,42 @@ describe("watchlist index rows", () => {
       depth: "brief",
       openPredictionCount: 3,
       latestCalibration: { outcome: "miss", at: "2026-06-06T00:00:00.000Z" },
+    });
+    expect(rows?.[1]).toEqual({ state: "never-run" });
+  });
+
+  test("sees a symbol's predictions inside symbol-less multi-subject runs", async () => {
+    const { dataDir } = tempDataDir();
+    const dbPath = join(dataDir, "..", "index.sqlite");
+    writeRun(dataDir, "run-grid", {
+      runId: "run-grid",
+      jobType: "forecast-grid",
+      generatedAt: "2026-06-03T00:00:00.000Z",
+      predictions: [
+        prediction({
+          id: "grid-direction-5-AMD",
+          subject: "AMD",
+          measurableAs: "close(AMD, +5) > close(AMD, 0)",
+        }),
+        prediction({
+          id: "grid-relative-5-AMD",
+          subject: "AMD:SPY",
+          measurableAs: "close(AMD, +5)/close(AMD, 0) > close(SPY, +5)/close(SPY, 0)",
+        }),
+      ],
+      scores: [],
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const rows = await readInstrumentWatchlistRows(dataDir, [
+      { assetClass: "equity", symbol: "AMD" },
+      { assetClass: "equity", symbol: "AM" },
+    ]);
+
+    expect(rows?.[0]).toMatchObject({
+      state: "available",
+      latestRunId: "run-grid",
+      openPredictionCount: 2,
     });
     expect(rows?.[1]).toEqual({ state: "never-run" });
   });

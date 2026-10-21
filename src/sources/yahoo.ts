@@ -1197,6 +1197,13 @@ function splitEventsFromYahooChart(
   return parsed.toSorted((left, right) => left.date.localeCompare(right.date));
 }
 
+export function yahooChartSplitDates(payload: unknown): readonly string[] | undefined {
+  const chart = readYahooChartQuote(payload);
+  return chart === undefined
+    ? undefined
+    : splitEventsFromYahooChart(chart.result)?.map(({ date }) => date);
+}
+
 export function splitAdjustedObservationsFromYahooChart(
   symbol: string,
   payload: unknown,

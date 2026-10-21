@@ -183,9 +183,14 @@ export function renderPredictions(predictions: readonly Prediction[]): string {
   const rows = predictions
     .map((pred) => {
       const pct = `${String(Math.round(pred.probability * 100))}%`;
+      const baseline =
+        pred.baselineProbability === undefined
+          ? ""
+          : `; baseline ${String(Math.round(pred.baselineProbability * 100))}%`;
+      const origin = pred.origin === "grid" ? "Event Grid: " : "";
       const refs = pred.sourceIds.length > 0 ? ` ${sourceRefs(pred.sourceIds)}` : "";
       const claim = renderClaimForMeasurableAs(pred.measurableAs, pred.claim) ?? pred.claim;
-      return `- [${pct}] (${pred.horizonTradingDays}d) ${claim}${refs}`;
+      return `- [${pct}${baseline}] (${pred.horizonTradingDays}d) ${origin}${claim}${refs}`;
     })
     .join("\n");
 

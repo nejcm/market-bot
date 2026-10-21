@@ -9,7 +9,12 @@ import {
   parseCalibrationBin,
   parseMarketRegimeMetricMap,
   parseMetricMap,
+  pairedSkillDecisionText,
+  pairedSkillPolicyNote,
+  pairedSkillStatusText,
+  parsePairedSkillSummary,
 } from "../../src/scoring/calibration-read";
+import type { PairedSkillMetric, PairedSkillSummary } from "../../src/scoring/types";
 import { numberAt, readStringVerbatim } from "../../src/guards";
 import { formatDateMinute, readFiniteNumber, readRecord, runLabel } from "./view-model-format";
 
@@ -384,4 +389,38 @@ export function alphaStaleLeadRows(detail: AlphaCohortDetail): readonly AlphaSta
       unbriefedLeadCount: numberAt(bucket, ["unbriefedLeadCount"]),
       validation: metricText(bucket.validation),
     }));
+}
+
+type PairedSkillRow = PairedSkillMetric & {
+  readonly key: string;
+  readonly statusText: string;
+  readonly decisionText: string;
+};
+
+interface PairedSkillView {
+  readonly summary: PairedSkillSummary;
+  readonly policyNote: string;
+  readonly rows: readonly PairedSkillRow[];
+}
+
+// Paired Skill is the calibration headline; absent for summaries written before it existed.
+export function pairedSkillView(detail: CalibrationDetail): PairedSkillView | undefined {
+  const summary = parsePairedSkillSummary(detail.summary?.pairedSkill);
+  if (summary === undefined) {
+    return undefined;
+  }
+  const row = (key: string, metric: PairedSkillMetric): PairedSkillRow => ({
+    key,
+    ...metric,
+    statusText: pairedSkillStatusText(metric, summary.policy),
+    decisionText: pairedSkillDecisionText(metric.decisionRule),
+  });
+  return {
+    summary,
+    policyNote: pairedSkillPolicyNote(summary.policy),
+    rows: [
+      ...(summary.overall === undefined ? [] : [row("all", summary.overall)]),
+      ...Object.entries(summary.byKind).map(([key, metric]) => row(key, metric)),
+    ],
+  };
 }

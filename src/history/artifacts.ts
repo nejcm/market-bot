@@ -65,7 +65,7 @@ export interface HistorySearchEntry {
 }
 
 interface HistoryIndex {
-  readonly version: 1 | 2 | 3 | 4;
+  readonly version: 1 | 2 | 3 | 4 | 5;
   readonly generatedAt: string;
   readonly sourceRunCount: number;
   readonly malformedRunCount: number;
@@ -174,7 +174,7 @@ export interface ThesisDelta {
 
 const HISTORY_DIR = "history";
 const INDEX_FILE = "index.json";
-const HISTORY_INDEX_VERSION = 4;
+const HISTORY_INDEX_VERSION = 5;
 const MAX_SEARCH_RESULTS = 100;
 
 export function historyDir(dataDir: string): string {
@@ -402,6 +402,22 @@ export async function loadRunSidecars(runDir: string): Promise<HistoryRunSidecar
   };
 }
 
+// A Forecast Grid Job book spans a whole watchlist; each timeline keeps only its own subject's events.
+function timelineRun(run: LoadedHistoryRun, symbol: string): LoadedHistoryRun {
+  if (run.report.jobType !== "forecast-grid") {
+    return run;
+  }
+  const predictions = run.report.predictions.filter(
+    (prediction) => prediction.subject.split(":")[0]?.toUpperCase() === symbol,
+  );
+  const ids = new Set(predictions.map((prediction) => prediction.id));
+  return {
+    ...run,
+    report: { ...run.report, predictions },
+    scores: run.scores.filter((score) => ids.has(score.predictionId)),
+  };
+}
+
 export function buildInstrumentTimelines(
   runs: readonly LoadedHistoryRun[],
   generatedAt: string,
@@ -412,6 +428,7 @@ export function buildInstrumentTimelines(
     for (const { key, symbol } of reportInstrumentKeys(run.report)) {
       const current = timelines.get(key) ?? [];
       const identity = firstIdentity(run.report, symbol);
+      const view = timelineRun(run, symbol);
       const scope: ThesisScope =
         run.report.symbol !== undefined && run.report.symbol.toUpperCase() === symbol
           ? "instrument"
@@ -430,11 +447,11 @@ export function buildInstrumentTimelines(
         scope,
         confidence: researchReportEvidenceQuality(run.report),
         confidenceLegacy: run.report.evidenceQuality === undefined,
-        thesis: thesisState(run.report, run.scores),
+        thesis: thesisState(view.report, view.scores),
         sources: run.report.sources.filter(
           (source) => source.symbol === undefined || source.symbol.toUpperCase() === symbol,
         ),
-        scores: run.scores,
+        scores: view.scores,
         missAutopsies: run.missAutopsies,
         ...(identity !== undefined ? { identity } : {}),
         ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
@@ -562,7 +579,7 @@ async function readIndexForDrift(dataDir: string): Promise<HistoryIndex | undefi
   } catch {
     throw new Error("Malformed derived history index; run `history rebuild`");
   }
-  if (!isRecord(parsed) || ![1, 2, 3, 4].includes(parsed.version as number)) {
+  if (!isRecord(parsed) || ![1, 2, 3, 4, 5].includes(parsed.version as number)) {
     throw new Error("Unsupported derived history index schema; run `history rebuild`");
   }
   if (
@@ -574,14 +591,17 @@ async function readIndexForDrift(dataDir: string): Promise<HistoryIndex | undefi
     throw new TypeError("Malformed derived history index; run `history rebuild`");
   }
   if (
-    (parsed.version === 2 || parsed.version === 3 || parsed.version === 4) &&
+    (parsed.version === 2 ||
+      parsed.version === 3 ||
+      parsed.version === 4 ||
+      parsed.version === 5) &&
     (!Array.isArray(parsed.sourceRunIds) ||
       !parsed.sourceRunIds.every((runId) => typeof runId === "string"))
   ) {
     throw new Error("Malformed derived history index; run `history rebuild`");
   }
   if (
-    (parsed.version === 3 || parsed.version === 4) &&
+    (parsed.version === 3 || parsed.version === 4 || parsed.version === 5) &&
     (!Array.isArray(parsed.sourceSidecars) ||
       !parsed.sourceSidecars.every(
         (sidecar) =>
@@ -620,7 +640,8 @@ async function readIndex(dataDir: string): Promise<HistoryIndex | undefined> {
     (parsed.version === 1 ||
       parsed.version === 2 ||
       parsed.version === 3 ||
-      parsed.version === 4) &&
+      parsed.version === 4 ||
+      parsed.version === 5) &&
     Array.isArray(parsed.entries)
     ? (parsed as unknown as HistoryIndex)
     : undefined;

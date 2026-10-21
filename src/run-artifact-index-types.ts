@@ -43,6 +43,10 @@ export interface PredictionRow {
   readonly horizon_trading_days: number;
   readonly measurable_as: string;
   readonly source_ids_json: string;
+  readonly origin: string | null;
+  readonly baseline_probability: number | null;
+  readonly baseline_version: string | null;
+  readonly info_cutoff: string | null;
 }
 
 export interface ScoreRow {

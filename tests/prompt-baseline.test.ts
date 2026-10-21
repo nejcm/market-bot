@@ -49,7 +49,12 @@ describe("prompt baseline", () => {
           "capital-return",
           "operating-ratios",
           "price-performance",
+          "market-session",
         ]);
+        expect(evidence.metricReferences[3].metrics[0]).toMatchObject({
+          status: "value",
+          reference: "<<metric:market-session.close>>",
+        });
         expect(evidence.metricReferences[0].metrics[0]).toMatchObject({ status: "missing" });
         expect(evidence.metricReferences[0].metrics[0]).not.toHaveProperty("value");
         expect(evidence.metricReferences[2].metrics[0]).toMatchObject({

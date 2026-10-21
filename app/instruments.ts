@@ -99,6 +99,10 @@ function forecastsForEntry(
         claim: prediction.claim,
         subject: prediction.subject,
         probability: prediction.probability,
+        ...(prediction.baselineProbability !== undefined
+          ? { baselineProbability: prediction.baselineProbability }
+          : {}),
+        ...(prediction.origin !== undefined ? { origin: prediction.origin } : {}),
         horizonTradingDays: prediction.horizonTradingDays,
         outcome: scoreOutcome(score),
         ...(score?.observedAt !== undefined ? { observedAt: score.observedAt } : {}),

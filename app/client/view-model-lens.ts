@@ -1,6 +1,7 @@
 import {
   formatLensValue,
   formatMetricValue,
+  scaleCurrency,
 } from "../../src/sources/extended-evidence/value-format";
 import type {
   FinancialLensArtifact,
@@ -28,17 +29,7 @@ export interface FinancialLensStatTile extends ValuationMetricTile {
 }
 
 function formatUsdCompact(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) {
-    return `$${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (abs >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (abs >= 1000) {
-    return `$${(value / 1000).toFixed(1)}K`;
-  }
-  return `$${value.toFixed(0)}`;
+  return `$${scaleCurrency(value)}`;
 }
 
 function formatMultiple(value: number): string {

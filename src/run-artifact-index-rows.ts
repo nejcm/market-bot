@@ -173,6 +173,10 @@ function predictionRowsFor(
       horizon_trading_days: prediction.horizonTradingDays,
       measurable_as: prediction.measurableAs,
       source_ids_json: sourceIdsJson(prediction.sourceIds),
+      origin: prediction.origin ?? null,
+      baseline_probability: prediction.baselineProbability ?? null,
+      baseline_version: prediction.baselineVersion ?? null,
+      info_cutoff: prediction.infoCutoff ?? null,
     };
   });
 }

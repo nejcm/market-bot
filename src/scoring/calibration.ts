@@ -7,13 +7,18 @@ import {
   parseObservableExpression,
   type ObservationStrategy,
 } from "../forecast/observable";
+import { pairedSkillDecisionRule } from "./calibration-read";
 import { isExchangeTradingDay } from "./exchange-calendar";
+import { scoringPolicyFor } from "./policy";
 import type {
   CalibrationBin,
   ConditionalCalibrationSummary,
   CalibrationMetric,
   CalibrationSummary,
   MissAutopsyCause,
+  PairedSkillMetric,
+  PairedSkillPolicy,
+  PairedSkillSummary,
   PredictionScore,
 } from "./types";
 
@@ -127,20 +132,9 @@ function groupMetrics(
   pairs: readonly ResolvedPair[],
   keyFn: (pair: ResolvedPair) => string,
 ): Record<string, CalibrationMetric> {
-  const groups = new Map<string, ResolvedPair[]>();
-
-  for (const pair of pairs) {
-    const key = keyFn(pair);
-    groups.set(key, [...(groups.get(key) ?? []), pair]);
-  }
-
-  const result: Record<string, CalibrationMetric> = {};
-
-  for (const [key, groupPairs] of groups) {
-    result[key] = calibrationMetric(groupPairs);
-  }
-
-  return result;
+  return Object.fromEntries(
+    [...groupPairs(pairs, keyFn)].map(([key, group]) => [key, calibrationMetric(group)]),
+  );
 }
 
 function ascendingHorizon(
@@ -286,6 +280,183 @@ function earliestIssuancePerEvent(pairs: readonly ResolvedPair[]): readonly Reso
   return pairs.filter((pair) => kept.has(pair));
 }
 
+// Pre-registered in ADR 0003; changing any value needs an ADR amendment, not a tweak.
+export const PAIRED_SKILL_POLICY: PairedSkillPolicy = {
+  minimumUsefulEffect: 0.01,
+  minPairedCount: 30,
+  minBlockCount: 5,
+  confidenceLevel: 0.95,
+  bootstrapResamples: 2000,
+  seed: 20_261_020,
+  poweredBlockCount: 784,
+};
+
+function groupPairs(
+  pairs: readonly ResolvedPair[],
+  keyFn: (pair: ResolvedPair) => string,
+): Map<string, ResolvedPair[]> {
+  const groups = new Map<string, ResolvedPair[]>();
+  for (const pair of pairs) {
+    groups.set(keyFn(pair), [...(groups.get(keyFn(pair)) ?? []), pair]);
+  }
+  return groups;
+}
+
+interface PairedBlock {
+  readonly count: number;
+  readonly deltaSum: number;
+}
+
+// Mulberry32: a fixed seed makes every bootstrap interval reproducible from the same pairs.
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d_2b_79_f5) >>> 0;
+    let value = Math.imul(state ^ (state >>> 15), state | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+function baselineLoss({ prediction, score }: ResolvedPair): number {
+  const outcome = score.outcome === "hit" ? 1 : 0;
+  return ((prediction.baselineProbability ?? 0.5) - outcome) ** 2;
+}
+
+function clusterSubject({ prediction }: ResolvedPair): string {
+  return prediction.subject.split(":")[0]!.toUpperCase();
+}
+
+// Blocks chain a subject's events whose close windows overlap, so a resample never splits one price path.
+function pairedBlocks(pairs: readonly ResolvedPair[]): readonly PairedBlock[] {
+  const bySubject = groupPairs(pairs, clusterSubject);
+  const blocks: PairedBlock[] = [];
+  for (const subject of [...bySubject.keys()].toSorted()) {
+    let current: { count: number; deltaSum: number; end: number } | undefined = undefined;
+    for (const pair of bySubject.get(subject)!) {
+      const { prediction, generatedAt, assetClass } = pair;
+      const issued = Date.parse(generatedAt);
+      const end = scoringPolicyFor(prediction)
+        .closeDueDate(generatedAt, prediction.horizonTradingDays, assetClass)
+        .getTime();
+      const delta = baselineLoss(pair) - brierLoss(pair);
+      if (current !== undefined && issued <= current.end) {
+        current.count += 1;
+        current.deltaSum += delta;
+        current.end = Math.max(current.end, end);
+      } else {
+        if (current !== undefined) {
+          blocks.push({ count: current.count, deltaSum: current.deltaSum });
+        }
+        current = { count: 1, deltaSum: delta, end: Math.max(issued, end) };
+      }
+    }
+    if (current !== undefined) {
+      blocks.push({ count: current.count, deltaSum: current.deltaSum });
+    }
+  }
+  return blocks;
+}
+
+function bootstrapInterval(blocks: readonly PairedBlock[]): readonly [number, number] {
+  const { bootstrapResamples, confidenceLevel, seed } = PAIRED_SKILL_POLICY;
+  const random = seededRandom(seed);
+  const estimates: number[] = [];
+  for (let resample = 0; resample < bootstrapResamples; resample += 1) {
+    let count = 0;
+    let deltaSum = 0;
+    for (let draw = 0; draw < blocks.length; draw += 1) {
+      const block = blocks[Math.floor(random() * blocks.length)]!;
+      count += block.count;
+      deltaSum += block.deltaSum;
+    }
+    estimates.push(deltaSum / count);
+  }
+  const sorted = estimates.toSorted((a, b) => a - b);
+  const tail = (1 - confidenceLevel) / 2;
+  return [
+    sorted[Math.floor(tail * bootstrapResamples)]!,
+    sorted[Math.ceil((1 - tail) * bootstrapResamples) - 1]!,
+  ];
+}
+
+function pairedSkillMetric(pairs: readonly ResolvedPair[], perKind: boolean): PairedSkillMetric {
+  const blocks = pairedBlocks(pairs);
+  const modelBrier = meanBrierLoss(pairs);
+  const baselineBrier = pairs.reduce((total, pair) => total + baselineLoss(pair), 0) / pairs.length;
+  const deltaBrier = baselineBrier - modelBrier;
+  const interval = blocks.length >= 2 ? bootstrapInterval(blocks) : undefined;
+  const decidable =
+    interval !== undefined &&
+    pairs.length >= PAIRED_SKILL_POLICY.minPairedCount &&
+    blocks.length >= PAIRED_SKILL_POLICY.minBlockCount;
+  let status: PairedSkillMetric["status"] = "not-yet-decidable";
+  if (decidable && interval[0] > 0) {
+    status = "model-better";
+  } else if (decidable && interval[1] < 0) {
+    status = "baseline-better";
+  }
+  const meetsMinimumUsefulEffect =
+    status === "model-better" && deltaBrier >= PAIRED_SKILL_POLICY.minimumUsefulEffect;
+  return {
+    count: pairs.length,
+    subjectCount: new Set(pairs.map(clusterSubject)).size,
+    blockCount: blocks.length,
+    modelBrier,
+    baselineBrier,
+    deltaBrier,
+    ...(interval === undefined ? {} : { ciLow: interval[0], ciHigh: interval[1] }),
+    skillVsHalf: brierSkillScore(modelBrier),
+    status,
+    meetsMinimumUsefulEffect,
+    ...(perKind ? { decisionRule: pairedSkillDecisionRule(status, meetsMinimumUsefulEffect) } : {}),
+  };
+}
+
+const FIRST_PAIRED_SKILL_REVIEW = "2027-01-15";
+const REVIEW_MONTHS = ["01", "04", "07", "10"];
+
+// ADR 0003 cadence: 2027-01-15, then every 15 Jan/Apr/Jul/Oct; a review day is its own next review.
+export function nextPairedSkillReviewDate(now: Date): string {
+  const today = now.toISOString().slice(0, 10);
+  if (today <= FIRST_PAIRED_SKILL_REVIEW) {
+    return FIRST_PAIRED_SKILL_REVIEW;
+  }
+  const year = now.getUTCFullYear();
+  return (
+    REVIEW_MONTHS.map((month) => `${String(year)}-${month}-15`).find((date) => date >= today) ??
+    `${String(year + 1)}-01-15`
+  );
+}
+
+function pairedMetrics(pairs: readonly ResolvedPair[]): {
+  readonly overall?: PairedSkillMetric;
+  readonly byKind: Record<string, PairedSkillMetric>;
+} {
+  const paired = pairs
+    .filter(({ prediction }) => prediction.baselineProbability !== undefined)
+    .toSorted(compareIssuance);
+  const byKind = groupPairs(paired, ({ prediction }) => prediction.kind);
+  return {
+    ...(paired.length === 0 ? {} : { overall: pairedSkillMetric(paired, false) }),
+    byKind: Object.fromEntries(
+      [...byKind].map(([kind, kindPairs]) => [kind, pairedSkillMetric(kindPairs, true)]),
+    ),
+  };
+}
+
+// Deduped Forecast Events (a re-issued grid event counts once), sorted so input order never moves the interval.
+function buildPairedSkill(pairs: readonly ResolvedPair[], now: Date): PairedSkillSummary {
+  return {
+    policy: PAIRED_SKILL_POLICY,
+    excludedWithoutBaselineCount: pairs.filter(
+      ({ prediction }) => prediction.baselineProbability === undefined,
+    ).length,
+    ...pairedMetrics(pairs),
+    nextReviewDate: nextPairedSkillReviewDate(now),
+  };
+}
+
 export function buildCalibrationSummary(
   pairs: readonly ResolvedPair[],
   now: Date = new Date(),
@@ -325,5 +496,6 @@ export function buildCalibrationSummary(
       activatedCount: conditionalActivatedCount,
       voidedCount: conditionalPredictions.voidedCount,
     },
+    pairedSkill: buildPairedSkill(currentPairs, now),
   };
 }

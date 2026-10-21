@@ -20,6 +20,7 @@ const RESEARCH_JOB_TYPES: readonly ResearchJobType[] = [
   "crypto",
   "alpha-search",
   "research",
+  "forecast-grid",
 ];
 
 const OPERATIONAL_JOB_TYPES = [
@@ -31,7 +32,7 @@ const OPERATIONAL_JOB_TYPES = [
 ] as const;
 
 describe("RUN_TYPE_REGISTRY", () => {
-  test("has exactly the seven research job types as keys", () => {
+  test("has exactly the eight research job types as keys", () => {
     expect(Object.keys(RUN_TYPE_REGISTRY).toSorted()).toEqual(RESEARCH_JOB_TYPES.toSorted());
   });
 
@@ -80,13 +81,16 @@ describe("runTypeFixedAssetClass", () => {
 
 describe("runTypeSupportsDepth", () => {
   test("true for depth-configurable research job types", () => {
-    for (const jobType of RESEARCH_JOB_TYPES.filter((candidate) => candidate !== "research")) {
+    for (const jobType of RESEARCH_JOB_TYPES.filter(
+      (candidate) => candidate !== "research" && candidate !== "forecast-grid",
+    )) {
       expect(runTypeSupportsDepth(jobType)).toBe(true);
     }
   });
 
-  test("false for always-deep research and operational job types", () => {
+  test("false for always-deep research, forecast-grid and operational job types", () => {
     expect(runTypeSupportsDepth("research")).toBe(false);
+    expect(runTypeSupportsDepth("forecast-grid")).toBe(false);
     for (const jobType of OPERATIONAL_JOB_TYPES) {
       expect(runTypeSupportsDepth(jobType)).toBe(false);
     }
@@ -146,9 +150,11 @@ describe("isResearchJobType", () => {
 });
 
 describe("runTypeProducesSynthesisReport", () => {
-  test("true for every research job type except alpha-search", () => {
+  test("true for every research job type except alpha-search and forecast-grid", () => {
     for (const jobType of RESEARCH_JOB_TYPES) {
-      expect(runTypeProducesSynthesisReport(jobType)).toBe(jobType !== "alpha-search");
+      expect(runTypeProducesSynthesisReport(jobType)).toBe(
+        jobType !== "alpha-search" && jobType !== "forecast-grid",
+      );
     }
   });
 

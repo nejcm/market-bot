@@ -10,6 +10,7 @@ import {
   type Scenario,
 } from "../domain/report";
 import { type RelocatedGapClaim } from "../domain/run-trace";
+import { sourceGapScopedReportText } from "../domain/source-gaps";
 import { type Source, type SourceGap } from "../domain/sources";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { classifyGap } from "../report/gap-triage";
@@ -42,6 +43,7 @@ import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-sna
 import { projectExtendedEvidenceReportExtras } from "./extended-evidence-projections";
 import type { HistoricalResearchContext } from "./historical-context";
 import { deterministicSourceGapEntries } from "./deterministic-gaps";
+import { issueForecastBook } from "./event-grid";
 import type { DepthProfile, ResearchContext } from "./research-context-types";
 import { researchIdentityExtras } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
@@ -51,6 +53,7 @@ import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 import {
   assertNoUnresolvedMetricReferences,
   citeMetricReferences,
+  referenceMetricSections,
   resolveMetricReferences,
 } from "./metric-references";
 
@@ -71,6 +74,8 @@ export interface ModelReportPayload {
   readonly confidence?: unknown;
   readonly dataGaps?: unknown;
   readonly predictions?: unknown;
+  /** Model probabilities for code-issued Event Grid events, as `{ id, probability }` rows. */
+  readonly eventGrid?: unknown;
   readonly extras?: unknown;
 }
 
@@ -724,7 +729,7 @@ export function assembleResearchReportWithRelocations(
     context,
     sources,
   } = input;
-  const payload = citeMetricReferences(draftPayload, collectedSources.metricSections ?? []);
+  const payload = citeMetricReferences(draftPayload, referenceMetricSections(collectedSources));
   const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
   /*
    * `classifyGap` is a heuristic over a gap's source, provider and prose. A collector that already
@@ -775,6 +780,19 @@ export function assembleResearchReportWithRelocations(
     ),
     deterministicGapTexts,
   ).map((gap) => reportDataGapEntry(gap));
+  const forecastBook = issueForecastBook({
+    command,
+    collectedSources,
+    modelPredictions: researchGatedPredictions.predictions,
+    modelEventGrid: payload.eventGrid,
+    knownSourceIds: new Set(sources.map((source) => source.id)),
+  });
+  // Stamp the current scoring policy on every accepted Prediction. The stamp
+  // Is deterministic: model-provided policy metadata never survives assembly.
+  const stampedPredictions = forecastBook.predictions.map((candidate) => ({
+    ...candidate,
+    scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION,
+  }));
   const dataGapsRaw = orderedDataGapEntries(
     uniqueDataGapEntries([
       ...modelGapEntries,
@@ -788,14 +806,12 @@ export function assembleResearchReportWithRelocations(
             ),
           ]
         : []),
+      ...forecastBook.gaps.map((gap) => ({
+        text: sourceGapScopedReportText(gap),
+        ...(gap.evidenceQualityImpact !== undefined ? { impact: gap.evidenceQualityImpact } : {}),
+      })),
     ]),
   ).map((gap) => gap.text);
-  // Stamp the current scoring policy on every accepted Prediction. The stamp
-  // Is deterministic: model-provided policy metadata never survives assembly.
-  const stampedPredictions = researchGatedPredictions.predictions.map((candidate) => ({
-    ...candidate,
-    scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION,
-  }));
   const predictionShortfall = derivePredictionShortfall(
     researchGatedPredictions.predictions.length,
     depthProfile.targetPredictions,
@@ -906,7 +922,7 @@ export function assembleResearchReportWithRelocations(
         : {}),
     },
   });
-  const resolvedReport = resolveMetricReferences(report, collectedSources.metricSections ?? []);
+  const resolvedReport = resolveMetricReferences(report, referenceMetricSections(collectedSources));
   assertNoUnresolvedMetricReferences(resolvedReport, collectedSources);
   assertSafeReportLanguage(resolvedReport);
   return {

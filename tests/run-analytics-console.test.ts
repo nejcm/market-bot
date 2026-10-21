@@ -54,6 +54,7 @@ function baseAnalytics(): RunAnalytics {
     },
     predictions: {
       count: 5,
+      gridCount: 0,
       retryErrorCount: 0,
       validationErrorCount: 0,
       trimWarningCount: 0,

@@ -9,7 +9,7 @@ import type { UntaggedFinancialStatementsArtifact } from "./extended-evidence/un
 import type { SecTargetPacket } from "./sec-target-packet";
 import type { TradierPacket } from "./tradier-packet";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
-import type { MetricSection } from "./extended-evidence/metric-engine";
+import type { MetricContext, MetricSection } from "./extended-evidence/metric-engine";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
@@ -181,6 +181,8 @@ export interface CollectedSources {
   readonly newsAnalytics?: NewsCollectionAnalytics;
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  /** Split-adjusted closes for the equity symbol and SPY; the Forecast Baseline's only market input. */
+  readonly priceHistory?: MetricContext["priceHistory"];
   readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
   readonly resolvedSubject?: ResolvedResearchSubject;

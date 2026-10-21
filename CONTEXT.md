@@ -34,9 +34,11 @@ Index — latest run date/age, depth, open Observable Predictions, and latest Ca
 never stored notes or tags. A symbol with no runs renders as "never run", and an unavailable
 index is declared per row instead of silently omitted.
 
-An open Observable Prediction is one counted from that instrument's own runs — runs whose
-`symbol` matches the row's instrument, further filtered to Predictions whose `measurableAs`
-resolves to that instrument — that has no score row, or whose score is unresolved with a
+An instrument's runs are those whose `symbol` matches the row's instrument, plus symbol-less
+multi-subject runs (Forecast Grid, market overview) holding a Prediction whose primary subject
+(the `subject` before any `:`) is that instrument; both paths feed the latest run and the counts.
+An open Observable Prediction is one counted from those runs, filtered to Predictions whose
+`measurableAs` resolves to that instrument, that has no score row, or whose score is unresolved with a
 pending-family status (`pending`, `pending-condition`, `active-pending`). Voided and abandoned
 scores are terminal scoring states and never count as open; a Prediction in a run that was never
 scored counts as open because no scoring verdict exists yet. Watchlists never enter research
@@ -144,7 +146,23 @@ Observable forecast whose `probability` is the chance `measurableAs` is true; be
 Structured disclosure that a report emitted fewer observable Predictions than its soft target after
 earnings and research-subject gates. It records emitted, target, and missing counts; presentation
 derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
-The valid final-synthesis report's count stands; no follow-up pass requests more Predictions.
+The valid final-synthesis report's count stands; no follow-up pass requests more Predictions. Event Grid Predictions are excluded from both counts.
+
+## Event Grid
+
+Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response (or by a Forecast Grid Job) and stamped `origin: "grid"`. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+
+## Forecast Grid Job
+
+`forecast-grid --watchlist <name>`: issues the Event Grid with Forecast Baselines for every equity on a Research Console watchlist, priced by one quick-model call per symbol from a compact fact sheet (price history summary, regime and latest instrument-run summary when fresh). No report synthesis or Web Gather. Dry run by default; only `--yes` spends. Publishes one run dir (`jobType: "forecast-grid"`, no `symbol`) whose Predictions are scored and calibrated like any other; only parsed probabilities persist. An event it shares with an instrument run on the same session is one Forecast Event in Paired Skill.
+
+## Forecast Baseline
+
+Frozen, versioned no-skill probability stamped on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`) from split-adjusted closes: EWMA volatility, zero drift, √h. Range, direction and relative only; missing inputs omit it with a declared gap. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
+
+## Paired Skill
+
+Calibration headline: Brier of the Forecast Baseline minus Brier of the model probability over the same resolved Forecast Events (positive means the model beat the baseline), overall and per kind, with a subject-clustered block-bootstrap interval. Status is `model-better`, `baseline-better` or `not-yet-decidable` (interval spans 0 or below the 30-event / 5-block floor). Events without a baseline are excluded and counted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
 ## Scoring Policy
 
@@ -196,7 +214,7 @@ Aggregate measurement of stated probabilities against resolved outcomes, counted
 
 ## Reference Skill
 
-Descriptive Brier skill against the fixed always-0.5 reference for all kinds. Construction-specific skill is deferred until per-Prediction reference stamps and index support are approved; this does not change Actionable Negative Calibration's fixed 0.25 gate.
+Descriptive Brier skill against the fixed always-0.5 reference for all kinds; a secondary column beside Paired Skill. It does not change Actionable Negative Calibration's fixed 0.25 gate.
 
 ## Prediction Citation Classes
 
@@ -295,6 +313,10 @@ Fixture mode replaying Data Cassettes while calling the configured live model, k
 ## Frozen-Input Eval
 
 Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. `--live-stages <stage>` keeps one validated stage live, including its phase-bounded loops/repairs; all other model reasoning stays recorded. This is selected-stage evaluation within pipeline execution. `--input <file>` instead evaluates a Final-Synthesis Input directly, with no upstream execution. Selected-stage planning measures current prompt sizes in a strict offline preflight and adds bounded-attempt headroom; estimates are not provider-enforced cost caps. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps. HTTP and model replay misses make the sample incomplete and block subsequent model spending; recorded provider failures remain valid inputs. Samples also record replayed/live call counts, separate successful-response token estimates, evaluation scope and available response-consumption diagnostics. A selected stage with zero invocations is not exercised. Adaptive requests remain cassette-only.
+
+## Labeled Eval Case
+
+Frozen claim from a replay capture (`tests/fixtures/eval-cases/cases.json`), pinned by file hash and JSON pointer, labeled `stale-support`, `omission` (citation coverage), `unsupported-inference`, `contradiction`, `extraction-error`, or `clean`, with the artifact evidence that justifies the label. Deterministic checks score stale support and citation coverage, with figures as a diagnostic; `contradiction` and `unsupported-inference` need a k=3 model judge. `eval-deep.ts --input --ablate <arm>` scores Frozen-Input Eval samples with the same checks plus a judged report pass; an isolated arm skips one analysis stage and regenerates its consumers live, and is compared in pre-paired samples against a matched control that regenerates the same consumers with the stage kept (the recorded baseline for terminal critique); identical judge requests cancel across a pair, so its scores are relative. The statistics inform a human stage-deletion decision under the rule pre-registered in docs/testing.md.
 
 ## Run Artifact Index
 
@@ -539,7 +561,7 @@ Deterministic, ordered list of metrics evaluated once at collection from raw sta
 
 ## Metric Reference
 
-An exact `<<metric:<section>.<id>>>` token in cited model-authored narrative prose. Deterministic assembly merges the metric's source IDs into the claim, validates citations and research-only wording before substitution, then resolves the token with the Metric Section's unit/currency formatter. Unknown or unavailable metrics reject the draft for repair. Summary stays qualitative; data gaps and Prediction expressions cannot contain references. The prompt catalog exposes Capital Return, Operating Ratios, Price Performance and migrated section values without duplicating numeric Business Framework/Financial Lens summaries.
+An exact `<<metric:<section>.<id>>>` token in cited model-authored narrative prose, optionally `<<metric:<section>.<id>|period>>` to append the metric's period label ("44.1% (6-month period ending 2026-06-27)"). Deterministic assembly merges the metric's source IDs into the claim, validates citations and research-only wording before substitution, then resolves the token with the Metric Section's unit/currency formatter. Unknown or unavailable metrics, unknown formats, and `|period` on a metric without a period end reject the draft for repair. The referenceable catalog is the collected Metric Sections plus a reference-only `market-session` section derived from the Verified Market Snapshot (session close/open/high/low, prior close, session change and non-null indicators, citing the snapshot source); it never joins `report.extras.metricSections`. Free-typed numbers stay allowed for figures no metric holds. Summary stays qualitative; data gaps and Prediction expressions cannot contain references. The prompt catalog exposes Capital Return, Operating Ratios, Price Performance and migrated section values without duplicating numeric Business Framework/Financial Lens summaries.
 
 ## Price Performance
 

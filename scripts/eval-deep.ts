@@ -11,15 +11,32 @@ import {
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
 import { validateLiveStage } from "../src/replay/llm-cassette";
-import { estimateSynthesisFile, replaySynthesisFile } from "../src/replay/replay-synthesis";
+import {
+  approvalSubsetEstimate,
+  estimateSynthesisFile,
+  formatSynthesisEstimate,
+  replayPairedSample,
+  replaySynthesisFile,
+} from "../src/replay/replay-synthesis";
+import { ABLATION_ARMS } from "../src/replay/eval-decision";
+import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
 import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
 import { createProvider } from "../src/model/factory";
 import { resolveConfig } from "../src/config";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import {
+  calibrateJudge,
+  captureOf,
+  overheadDisclosure,
+  readJudgeTelemetry,
+} from "../src/replay/judge-telemetry";
+
+const measuredShare = (value: number | undefined) =>
+  value === undefined ? "none measured" : `${(value * 100).toFixed(1)}%`;
 
 const USAGE =
   "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
-  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--yes]\n" +
+  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--ablate <arm> | --no-judge] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
@@ -31,13 +48,20 @@ const { values, positionals } = parseArgs({
     label: { type: "string" },
     compare: { type: "boolean", default: false },
     "live-stages": { type: "string" },
+    ablate: { type: "string" },
+    "no-judge": { type: "boolean", default: false },
     yes: { type: "boolean", default: false },
   },
   allowPositionals: true,
 });
 
+const ablate = Object.keys(ABLATION_ARMS).find((arm) => arm === values.ablate) as
+  | keyof typeof ABLATION_ARMS
+  | undefined;
 if (values.input !== undefined) {
+  // The stage-deletion rule needs judged verdicts, so an ablation always judges.
   if (
+    (values.ablate !== undefined && (ablate === undefined || values["no-judge"])) ||
     values.fixtures !== undefined ||
     values.compare ||
     values.label === undefined ||
@@ -52,10 +76,64 @@ if (values.input !== undefined) {
   if (existsSync(labelDir)) {
     throw new Error(`Eval label already exists: ${labelDir}`);
   }
-  const estimate = await estimateSynthesisFile(values.input);
-  process.stdout.write(
-    `Final synthesis input: ${String(estimate.observedCalls)} recorded call(s). Expected ~${String(estimate.expectedPerRun * Number(values.samples))} tokens total at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded calls/sample, 25% headroom) ~${String(estimate.perRun * Number(values.samples))}. Not a provider-enforced cost cap.\n`,
+  const omissionCases = parseEvalCases(
+    await Bun.file(join(import.meta.dir, "../tests/fixtures/eval-cases/cases.json")).json(),
+  ).filter((row): row is OmissionCase => row.check === "omission");
+  const estimate = await estimateSynthesisFile(values.input, ablate, omissionCases);
+  const samplesCount = Number(values.samples);
+  let identity: { provider: string; model: string } | undefined = undefined;
+  try {
+    const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+    identity = { provider: config.provider, model: config.synthesisModel };
+  } catch {
+    identity = undefined;
+  }
+  const overheadNote = overheadDisclosure(
+    estimate.captureIdentity,
+    identity,
+    estimate.callOverhead,
   );
+  const judge = !values["no-judge"];
+  process.stdout.write(formatSynthesisEstimate(estimate, samplesCount, judge, overheadNote));
+  const control =
+    estimate.arm !== undefined && "control" in estimate.arm ? estimate.arm.control : undefined;
+  if (control !== undefined && judge) {
+    const paired = await estimateSynthesisFile(
+      values.input,
+      control === "baseline" ? undefined : (control as keyof typeof ABLATION_ARMS),
+      omissionCases,
+    );
+    const telemetryFile = join(
+      import.meta.dir,
+      "../tests/fixtures/eval-cases/judge-telemetry.json",
+    );
+    const telemetry = await readJudgeTelemetry(EVALS_ROOT, telemetryFile);
+    const capture = captureOf(resolve(values.input));
+    const calibration =
+      identity === undefined
+        ? undefined
+        : calibrateJudge(telemetry.samples, identity, {
+            capture,
+            ablation: estimate.arm!.name,
+            control,
+          });
+    const subset = approvalSubsetEstimate(estimate, paired, samplesCount, calibration);
+    const who =
+      identity === undefined
+        ? "an unresolved provider/model"
+        : `${identity.provider}/${identity.model}`;
+    const basis =
+      calibration === undefined
+        ? `HEURISTIC FALLBACK, no judge telemetry for ${who}: early stop on every item / on none, ${overheadNote}; only always-identical code-assembled digest units deducted as canceled`
+        : `judge calibrated on ${String(calibration.samples)} sample(s) judged by ${who}: ${calibration.votesPerJudgedItem.toFixed(2)} calls/judged item (votes plus rechecks), ~${String(Math.round(calibration.tokensPerCall))} tokens/call; cancellation measured on this capture and arm: ablation ${measuredShare(calibration.cancelShare.ablation)}, control ${measuredShare(calibration.cancelShare.control)}${calibration.cancelShare.ablation === undefined || calibration.cancelShare.control === undefined ? " (provable digest units deducted instead)" : ""}`;
+    const skipped =
+      telemetry.skipped === 0
+        ? ""
+        : `; ${String(telemetry.skipped)} telemetry record(s) skipped as unidentified or unusable`;
+    process.stdout.write(
+      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${subset.earlyStop === subset.expected ? String(subset.expected) : `${String(subset.earlyStop)}-${String(subset.expected)}`} (${basis}), worst case ~${String(subset.worst)}${skipped}. Expected prices rechecks of clipped \`unsupported\` and \`undecided\` verdicts (up to ~${String((estimate.judgeRecheckWorstPerRun + paired.judgeRecheckWorstPerRun) * samplesCount)}) only through judge telemetry recorded with them, whose calls and tokens include them; the heuristic and older telemetry omit them.\n`,
+    );
+  }
   if (!values.yes) {
     process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
     process.exit(0);
@@ -63,24 +141,44 @@ if (values.input !== undefined) {
   const dir = await freshEvalDir(values.label);
   const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
   const provider = createProvider(config);
+  const shared = {
+    input: values.input,
+    root: dir,
+    omissionCases,
+    ...(judge ? { judge: { provider, model: config.synthesisModel } } : {}),
+    provider,
+    models: { quick: config.quickModel, synthesis: config.synthesisModel },
+  };
   const samples = [];
-  for (let sample = 1; sample <= Number(values.samples); sample += 1) {
-    samples.push(
-      // oxlint-disable-next-line no-await-in-loop -- each sample writes an isolated directory
-      await replaySynthesisFile({
-        input: values.input,
-        label: String(sample),
-        root: dir,
-        provider: {
-          ...provider,
-          generate: (request) => provider.generate({ ...request, model: config.synthesisModel }),
-        },
-      }),
-    );
+  for (let sample = 1; sample <= samplesCount; sample += 1) {
+    if (ablate !== undefined && control !== undefined) {
+      // oxlint-disable-next-line no-await-in-loop -- each pair writes isolated directories
+      const pair = await replayPairedSample({
+        ...shared,
+        judge: { provider, model: config.synthesisModel },
+        index: sample,
+        ablation: ablate,
+      });
+      samples.push(pair.control, pair.ablation);
+    } else {
+      samples.push(
+        // oxlint-disable-next-line no-await-in-loop -- each sample writes an isolated directory
+        await replaySynthesisFile({ ...shared, label: String(sample), ablation: ablate }),
+      );
+    }
   }
-  await writeEvalJson(dir, "summary.json", { scope: "final-synthesis-only", samples });
+  await writeEvalJson(dir, "summary.json", {
+    scope: "final-synthesis-only",
+    arm: estimate.arm,
+    judgeMode: judge ? "k=3" : "skipped",
+    samples,
+  });
   process.stdout.write(`${join(dir, "summary.json")}\n`);
   process.exit(samples.every((sample) => sample.status === "completed") ? 0 : 1);
+}
+
+if (values.ablate !== undefined) {
+  throw new Error(USAGE);
 }
 
 if (values.compare) {

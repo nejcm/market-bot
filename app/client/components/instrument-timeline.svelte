@@ -468,12 +468,25 @@
                   <span>{forecast.jobType}</span>
                   <span>{forecast.scope}</span>
                   <span>{forecast.subject}</span>
+                  {#if forecast.origin === "grid"}
+                    <span title="Event Grid: fixed event issued by code, priced by the model">grid</span>
+                  {/if}
                   {#if forecast.missAutopsyCause !== undefined}
                     <span>cause {forecast.missAutopsyCause}</span>
                   {/if}
                 </div>
               </div>
-              <div class="font-mono text-xs font-medium">{pct(forecast.probability)}</div>
+              <div class="font-mono text-xs font-medium">
+                {pct(forecast.probability)}
+                {#if forecast.baselineProbability !== undefined}
+                  <div
+                    class="text-[10px] font-normal text-[#5c6066]"
+                    title="Forecast Baseline: frozen no-skill reference"
+                  >
+                    base {pct(forecast.baselineProbability)}
+                  </div>
+                {/if}
+              </div>
               <div class="font-mono text-[11.5px] text-[#5c6066]">
                 {forecast.horizonTradingDays} td
               </div>

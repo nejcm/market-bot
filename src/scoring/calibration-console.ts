@@ -1,8 +1,30 @@
 import { MIN_CALIBRATION_SAMPLE } from "./calibration";
 import { NO_RESOLVED_METRIC_TEXT } from "./calibration-invariant";
-import type { CalibrationMetric, CalibrationSummary } from "./types";
+import {
+  pairedSkillDecisionText,
+  pairedSkillPolicyNote,
+  pairedSkillStatusText,
+} from "./calibration-read";
+import type {
+  CalibrationMetric,
+  CalibrationSummary,
+  PairedSkillMetric,
+  PairedSkillPolicy,
+} from "./types";
 
 export { MIN_CALIBRATION_SAMPLE } from "./calibration";
+
+function pairedSkillLine(
+  label: string,
+  metric: PairedSkillMetric,
+  policy: PairedSkillPolicy,
+): string {
+  const interval =
+    metric.ciLow === undefined || metric.ciHigh === undefined
+      ? "no interval"
+      : `[${fmtBrier(metric.ciLow)}, ${fmtBrier(metric.ciHigh)}]`;
+  return `    ${label}: ${fmtBrier(metric.deltaBrier)} ${interval}, n=${String(metric.count)}, ${String(metric.blockCount)} blocks, ${pairedSkillStatusText(metric, policy)}; at next review: ${pairedSkillDecisionText(metric.decisionRule)}`;
+}
 
 function fmtBrier(v: number): string {
   return v.toFixed(4);
@@ -32,6 +54,28 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
     `  Brier score: ${summary.brierScore === undefined ? NO_RESOLVED_METRIC_TEXT : fmtBrier(summary.brierScore)}`,
     `  Conditional: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,
   ];
+
+  const paired = summary.pairedSkill;
+  if (paired === undefined) {
+    lines.push("  Paired skill: not recorded in this summary");
+  } else if (paired.overall === undefined) {
+    lines.push("  Paired skill: no resolved Forecast Event carries a Forecast Baseline yet");
+  } else {
+    lines.push(
+      `  Paired skill vs Forecast Baseline (ΔBrier, ${String(Math.round(paired.policy.confidenceLevel * 100))}% interval):`,
+    );
+    lines.push(pairedSkillLine("all", paired.overall, paired.policy));
+    for (const [kind, metric] of Object.entries(paired.byKind)) {
+      lines.push(pairedSkillLine(kind, metric, paired.policy));
+    }
+    lines.push(`    ${pairedSkillPolicyNote(paired.policy)}`);
+  }
+  if (paired !== undefined) {
+    lines.push(`    ${String(paired.excludedWithoutBaselineCount)} excluded without a baseline`);
+    if (paired.nextReviewDate !== undefined) {
+      lines.push(`    Next pre-registered review: ${paired.nextReviewDate}`);
+    }
+  }
 
   if (summary.resolvedCount < MIN_CALIBRATION_SAMPLE) {
     lines.push(

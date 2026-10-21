@@ -1635,7 +1635,9 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
           "enterpriseValue",
           "enterprise value",
           "currency",
-          periodEndInput(ctx.snapshot?.observedAt),
+          periodEndInput(
+            readStringMetric(valuation?.metrics, "quoteObservedAt") ?? ctx.snapshot?.observedAt,
+          ),
         ),
     },
     {

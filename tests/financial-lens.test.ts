@@ -173,6 +173,31 @@ describe("addFinancialLensEvidence", () => {
     expect(evToRevenue).not.toHaveProperty("periodMonths");
   });
 
+  test("dates enterprise value by the valuation quote, with or without a verified snapshot", () => {
+    const quoteObservedAt = "2026-06-20T15:30:00.000Z";
+    const baseEvidence = evidence();
+    const quotedEvidence: ExtendedEvidence = {
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "valuation"
+          ? { ...item, metrics: { ...item.metrics, quoteObservedAt } }
+          : item,
+      ),
+    };
+    for (const snapshot of [verifiedSnapshot(), undefined]) {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        quotedEvidence,
+        snapshot,
+        "2026-06-22T00:00:00.000Z",
+      );
+      expect(metricByKey(result, "Value", "enterpriseValue")).toMatchObject({
+        periodEnd: quoteObservedAt,
+      });
+    }
+  });
+
   test("does not recompute net debt when valuation marks it mixed-period", () => {
     const baseEvidence = evidence();
     const mixedPeriodEvidence: ExtendedEvidence = {

@@ -542,7 +542,7 @@ test("|period renders the metric's period label and rejects metrics without one"
     ),
   );
   expect(report.keyFindings[0]).toEqual({
-    text: "Margin 12.5% (as of 2026-03-31); again 12.5% (as of 2026-03-31).",
+    text: "Margin 12.5% (6-month period ending 2026-03-31); again 12.5% (6-month period ending 2026-03-31).",
     sourceIds: ["metric-source"],
   });
   for (const token of [

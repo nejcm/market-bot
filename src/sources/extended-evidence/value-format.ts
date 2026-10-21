@@ -115,8 +115,10 @@ export function metricPeriodLabel(
     readonly periodEnd?: string;
   }[] = [],
 ): string {
+  // Provider observations carry a full timestamp; a label names the date.
+  const end = /^\d{4}-\d{2}-\d{2}T/u.test(periodEnd) ? periodEnd.slice(0, 10) : periodEnd;
   if (sectionId === "price-performance") {
-    return `Session ending ${periodEnd}`;
+    return `Session ending ${end}`;
   }
   const flows = inputs.filter(
     (input) =>
@@ -124,7 +126,10 @@ export function metricPeriodLabel(
       (input.periodType === "annual" || input.periodType === "interim"),
   );
   if (flows.length === 0) {
-    return `As of ${periodEnd}`;
+    // Summary sidecars date a flow by end and length only; a known length still names the span.
+    return periodMonths === undefined
+      ? `As of ${end}`
+      : `${String(periodMonths)}-month period ending ${end}`;
   }
   const annual = flows.every((input) => {
     const days =
@@ -132,9 +137,9 @@ export function metricPeriodLabel(
     return input.periodType === "annual" && days >= 350 && days <= 380;
   });
   if (annual) {
-    return `FY ending ${periodEnd}`;
+    return `FY ending ${end}`;
   }
   return periodMonths === undefined
-    ? `Period ending ${periodEnd}`
-    : `${String(periodMonths)}-month period ending ${periodEnd}`;
+    ? `Period ending ${end}`
+    : `${String(periodMonths)}-month period ending ${end}`;
 }

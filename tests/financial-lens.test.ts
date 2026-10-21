@@ -168,10 +168,9 @@ describe("addFinancialLensEvidence", () => {
       periodEnd: "2025-06-28",
       periodMonths: 12,
     });
-    expect(metricByKey(result, "Value", "evToAnnualizedRevenue")).toMatchObject({
-      periodEnd: "2025-06-28",
-      periodMonths: 12,
-    });
+    const evToRevenue = metricByKey(result, "Value", "evToAnnualizedRevenue");
+    expect(evToRevenue).toMatchObject({ periodEnd: "2025-06-28" });
+    expect(evToRevenue).not.toHaveProperty("periodMonths");
   });
 
   test("does not recompute net debt when valuation marks it mixed-period", () => {

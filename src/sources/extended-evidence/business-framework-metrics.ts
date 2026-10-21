@@ -1,4 +1,4 @@
-import type { ExtendedEvidenceCategory } from "../../domain/evidence";
+import type { ExtendedEvidenceCategory, ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import type {
   BusinessFrameworkPosture,
@@ -160,6 +160,23 @@ function periodOf(fact: FinancialStatementFact): {
   return { periodEnd: fact.periodEnd, ...(months !== undefined ? { periodMonths: months } : {}) };
 }
 
+// Evidence items publish each value's period beside it as `${key}PeriodEnd` / `${key}PeriodMonths`.
+function keyPeriod(
+  item: ExtendedEvidenceItem | undefined,
+  key: string,
+): { readonly periodEnd?: string; readonly periodMonths?: number } {
+  const periodEnd = readStringMetric(item?.metrics, `${key}PeriodEnd`);
+  const periodMonths = readNumberMetric(item?.metrics, `${key}PeriodMonths`);
+  return {
+    ...(periodEnd !== undefined ? { periodEnd } : {}),
+    ...(periodMonths !== undefined ? { periodMonths } : {}),
+  };
+}
+
+function secPeriod(ctx: MetricContext, key: string) {
+  return keyPeriod(itemByCategory(ctx.evidence, "sec-edgar"), key);
+}
+
 function secInput(ctx: MetricContext, key: string, label: string, unit: LensValueUnit) {
   return ctx.statements === undefined
     ? evidenceInput(ctx, "sec-edgar", key, label, unit)
@@ -175,16 +192,12 @@ function secAmount(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
   if (found === undefined) {
     return noFact(ctx, key);
   }
-  const metrics = itemByCategory(ctx.evidence, "sec-edgar")?.metrics;
-  const periodEnd = readStringMetric(metrics, `${key}PeriodEnd`);
-  const periodMonths = readNumberMetric(metrics, `${key}PeriodMonths`);
   const currency = secSummaryCurrency(key);
   return {
     status: "value",
     value: found.value,
     ...(currency !== undefined ? { currency } : {}),
-    ...(periodEnd !== undefined ? { periodEnd } : {}),
-    ...(periodMonths !== undefined ? { periodMonths } : {}),
+    ...secPeriod(ctx, key),
     inputs: [found],
   };
 }
@@ -213,7 +226,7 @@ function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
     const found = secInput(ctx, `${key}DeltaPercent`, `${SERIES_LABELS[key]} YoY`, "whole-percent");
     return found === undefined
       ? noFact(ctx, key)
-      : { status: "value", value: found.value, inputs: [found] };
+      : { status: "value", value: found.value, ...secPeriod(ctx, key), inputs: [found] };
   }
   const latest = latestFact(ctx, key);
   const series =
@@ -263,13 +276,29 @@ function secMargin(
     return noFact(ctx, numerator === undefined ? numeratorKey : denominatorKey);
   }
   const inputs = [numerator, denominator];
+  // The sec-edgar flow anchor skips the start check when revenue is undated, so prove the span here.
+  const period = secPeriod(ctx, numeratorKey);
+  const denominatorPeriod = secPeriod(ctx, denominatorKey);
+  if (
+    period.periodEnd === undefined ||
+    period.periodMonths === undefined ||
+    period.periodEnd !== denominatorPeriod.periodEnd ||
+    period.periodMonths !== denominatorPeriod.periodMonths
+  ) {
+    return {
+      status: "missing",
+      reason: `no same-period SEC ${SERIES_LABELS[numeratorKey]} and ${SERIES_LABELS[denominatorKey]}`,
+      inputs,
+    };
+  }
   return denominator.value <= 0
     ? {
         status: "not-meaningful",
         reason: `${SERIES_LABELS[denominatorKey]} is not positive`,
+        ...period,
         inputs,
       }
-    : { status: "value", value: numerator.value / denominator.value, inputs };
+    : { status: "value", value: numerator.value / denominator.value, ...period, inputs };
 }
 
 // An unfiled numerator is a wildcard: the filed denominator still runs its own fact and sign gates first.
@@ -370,6 +399,8 @@ function evidenceValue(
   key: string,
   label: string,
   unit: LensValueUnit,
+  period: (item: ExtendedEvidenceItem | undefined) => ReturnType<typeof keyPeriod> = (item) =>
+    keyPeriod(item, key),
 ) {
   return (ctx: MetricContext): MetricOutcome => {
     const found = evidenceInput(ctx, category, key, label, unit);
@@ -383,8 +414,18 @@ function evidenceValue(
     }
     return found === undefined
       ? { status: "missing", reason: `no ${category} ${label}` }
-      : { status: "value", value: found.value, inputs: [found] };
+      : {
+          status: "value",
+          value: found.value,
+          ...period(itemByCategory(ctx.evidence, category)),
+          inputs: [found],
+        };
   };
+}
+
+// Provider quotes carry no reporting period; date them by observation, as the financial lens does.
+function observedPeriod(item: ExtendedEvidenceItem | undefined) {
+  return item === undefined ? {} : { periodEnd: item.observedAt };
 }
 
 function depositoryEnterpriseValue(ctx: MetricContext): string | undefined {
@@ -579,6 +620,7 @@ function sectionDefinitions(
           "dividendYield",
           "dividend yield",
           "whole-percent",
+          observedPeriod,
         ),
       },
       ...(ctx.statements === undefined ? [amount("shareRepurchases", "Share repurchases")] : []),
@@ -644,14 +686,26 @@ function sectionDefinitions(
         label: "Trailing PE",
         unit: "ratio",
         basis: "Yahoo Finance trailing price/earnings",
-        compute: evidenceValue("yahoo-fundamentals", "trailingPE", "trailing PE", "ratio"),
+        compute: evidenceValue(
+          "yahoo-fundamentals",
+          "trailingPE",
+          "trailing PE",
+          "ratio",
+          observedPeriod,
+        ),
       },
       {
         id: "forwardPE",
         label: "Forward PE",
         unit: "ratio",
         basis: "Yahoo Finance forward price/earnings",
-        compute: evidenceValue("yahoo-fundamentals", "forwardPE", "forward PE", "ratio"),
+        compute: evidenceValue(
+          "yahoo-fundamentals",
+          "forwardPE",
+          "forward PE",
+          "ratio",
+          observedPeriod,
+        ),
       },
       {
         id: "evToAnnualizedRevenue",
@@ -659,7 +713,17 @@ function sectionDefinitions(
         unit: "ratio",
         basis: "valuation evidence enterprise value / annualized revenue",
         applicable: depositoryEnterpriseValue,
-        compute: evidenceValue("valuation", "evToAnnualizedRevenue", "EV/revenue", "ratio"),
+        compute: evidenceValue(
+          "valuation",
+          "evToAnnualizedRevenue",
+          "EV/revenue",
+          "ratio",
+          (item) => {
+            // Annualized revenue: date by its end only, as the financial lens does.
+            const { periodEnd } = keyPeriod(item, "revenue");
+            return periodEnd === undefined ? {} : { periodEnd };
+          },
+        ),
       },
     ],
   };

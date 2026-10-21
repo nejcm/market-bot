@@ -1815,8 +1815,31 @@ export function assertBusinessFrameworkMetricInvariants(
   const lensStrength = sections.find(({ id }) => id === "financial-lens-financial-strength");
   const frameworkRisk = sections.find(({ id }) => id === "business-framework-risk");
   for (const id of ["currentRatio", "debtToMarketCap"]) {
-    if (lensStrength?.metrics.find((metric) => metric.id === id)?.cause === "not-filed") {
-      expect(frameworkRisk?.metrics.find((metric) => metric.id === id)?.cause).toBe("not-filed");
+    const lens = lensStrength?.metrics.find((metric) => metric.id === id);
+    const own = frameworkRisk?.metrics.find((metric) => metric.id === id);
+    if (lens?.cause === "not-filed") {
+      expect(own?.cause).toBe("not-filed");
+    }
+    if (lens?.status === "value" && own?.status === "value") {
+      expect(own.periodEnd, `business-framework-risk.${id} dates by the lens balance sheet`).toBe(
+        lens.periodEnd,
+      );
+    }
+  }
+  const metricIn = (sectionId: string, metricId: string) =>
+    sections.find(({ id }) => id === sectionId)?.metrics.find(({ id }) => id === metricId);
+  for (const [frameworkId, lensId] of [
+    ["evToAnnualizedRevenue", "evToAnnualizedRevenue"],
+    ["forwardPE", "forwardPe"],
+  ] as const) {
+    const own = metricIn("business-framework-valuation", frameworkId);
+    const lens = metricIn("financial-lens-value", lensId);
+    if (own?.status === "value" && lens?.status === "value") {
+      expect(
+        own.periodEnd,
+        `business-framework-valuation.${frameworkId} dates as the lens does`,
+      ).toBe(lens.periodEnd);
+      expect(own.periodMonths).toBe(lens.periodMonths);
     }
   }
   const phase = sections

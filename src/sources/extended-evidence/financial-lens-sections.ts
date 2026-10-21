@@ -1561,12 +1561,8 @@ function peDefinitionsFor(
 function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
   const valuation = valuationItem(ctx);
   const yahoo = yahooItem(ctx);
-  const revenuePeriodEnd = readStringMetric(valuation?.metrics, "revenuePeriodEnd");
-  const revenuePeriodMonths = readNumberMetric(valuation?.metrics, "revenuePeriodMonths");
-  const valuationPeriod: MetricPeriod = {
-    ...(revenuePeriodEnd !== undefined ? { periodEnd: revenuePeriodEnd } : {}),
-    ...(revenuePeriodMonths !== undefined ? { periodMonths: revenuePeriodMonths } : {}),
-  };
+  // Annualized multiples date by revenue end only; a duration would label them as measured over it.
+  const valuationPeriod = periodEndInput(readStringMetric(valuation?.metrics, "revenuePeriodEnd"));
   const yahooPeriod = periodEndInput(yahoo?.observedAt);
   const supportability = valuation?.metrics?.valuationSupportability;
   const caveat: readonly MetricDefinition[] =

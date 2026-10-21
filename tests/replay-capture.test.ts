@@ -315,6 +315,8 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(await readFile(join(stage.dir, "report.md"), "utf8")).toContain("Research-only");
     const metrics = JSON.parse(await readFile(join(stage.dir, "eval-sample.json"), "utf8"));
     expect(metrics.partial).toBe(true);
+    expect(metrics.codeVersion.commit).toMatch(/^[0-9a-f]{40}$/u);
+    expect(typeof metrics.sourceStateHash).toBe(metrics.codeVersion.dirty ? "string" : "undefined");
     expect(metrics.judgeMode).toBe("skipped");
     expect(metrics.modelCalls).toMatchObject({ live: 0, replayed: 1, analysis: 0, judge: 0 });
     expect(metrics.comparison.predictionDelta).toBe(0);
@@ -571,6 +573,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(pairedJudgeCalls).toBe(2);
     for (const sample of pairSamples) {
       expect(sample.status).toBe("completed");
+      expect(sample.codeVersion).toEqual(pairSamples[0].codeVersion);
       expect(sample.judged.canceled).toHaveLength(sample.judged.items - 1);
       expect(sample.judged.items).toBeLessThan(sample.defects.claims);
       expect(sample.judged.contradictions).toEqual([]);

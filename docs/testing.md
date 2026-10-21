@@ -493,7 +493,8 @@ dwarfs a ~3k judge prompt).
 ### Stage deletion rule (pre-registered)
 
 Experiment identity: one ablation arm and its matched control (the recorded baseline for `critique`), both
-from the same commit, over the same captures, with the same quick, synthesis and judge models. Each capture
+from the same commit (`codeVersion` in each `eval-sample.json`; `dirty: true` means uncommitted code, told
+apart by `sourceStateHash`), over the same captures, with the same quick, synthesis and judge models. Each capture
 runs one `eval-deep.ts --input --ablate <arm>` label, which pairs control and ablation samples by index
 before anything runs.
 

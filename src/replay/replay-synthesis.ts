@@ -1,7 +1,9 @@
 import { readFile, writeFile } from "node:fs/promises";
 import type { JudgeCalibration } from "./judge-telemetry";
 import { dirname, join, resolve } from "node:path";
+import { readCodeVersion } from "../code-version";
 import { isRecord } from "../guards";
+import { dirtySourceHash } from "../reproducibility";
 import type { ModelProvider, ModelRequest, ModelResponse } from "../model/types";
 import { buildModelStageRequest } from "../research/model-stage-prompt";
 import {
@@ -335,12 +337,15 @@ export async function replaySynthesisFile(options: {
   const live = options.provider !== undefined;
   const generationCalls = live ? requests.length : analysisCalls + calls;
   const generationTokens = analysisTokens + tokens;
+  const codeVersion = readCodeVersion();
   await writeEvalJson(dir, "requests.json", requests);
   await writeEvalJson(dir, "eval-sample.json", {
     status,
     scope: "final-synthesis-only",
     partial: true,
     input: resolve(options.input),
+    codeVersion,
+    ...(codeVersion.dirty ? { sourceStateHash: dirtySourceHash() } : {}),
     arm: armRecord(options.ablation),
     defects,
     judged,

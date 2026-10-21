@@ -871,11 +871,11 @@ export async function judgeReport(
         : undefined;
     const final = rechecked ?? judged;
     const verdict =
-      clipped && rechecked === undefined && final.verdict === "unsupported"
-        ? ("unsupported-clipped" as const)
-        : clipped && rechecked === undefined && final.verdict === "undecided"
-          ? ("undecided-clipped" as const)
-          : final.verdict;
+      clipped &&
+      rechecked === undefined &&
+      (final.verdict === "unsupported" || final.verdict === "undecided")
+        ? (`${final.verdict}-clipped` as const)
+        : final.verdict;
     units.push({
       location: key,
       kind,

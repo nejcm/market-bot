@@ -256,7 +256,7 @@ export function unsupportedFigures(
 }
 
 const NARRATIVE_NUMBER =
-  /(?<![\p{L}\p{N}_.])(\p{Sc})?\s?(?:\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(?:\s?(%|trillion|billion|million|thousand)|([x×TBM]))?(?![\p{L}\p{N}])/gu;
+  /(?<![\p{L}\p{N}_.])(\p{Sc})?\s?(?:\d{1,3}(?:,\d{3})+|\d+|(?=\.\d))(\.\d+)?(?:\s?(%|trillion|billion|million|thousand)|([x×TBM]))?(?![\p{L}\p{N}])/gu;
 
 // Every typed numeric claim, unitless included; dates, identifiers (RSI14, 10-K), years, and ordinals are not claims.
 function narrativeNumbers(text: string): number {

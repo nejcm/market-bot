@@ -644,6 +644,8 @@ describe("deterministic checks", () => {
     expect(typed("RSI14 was 55.00 and close was 108.00.")).toBe(2);
     expect(typed("On 2026-10-16, the 3rd session of Q3 2026 after the 10-K, FY2025.")).toBe(0);
     expect(typed("Volume 20,153,700 vs 1.2M; 3 segments, -4% and 2x.")).toBe(5);
+    expect(typed("EPS was -.50 and margin was .25%.")).toBe(2);
+    expect(typed("Yield .5, change -.75%, beta .9.")).toBe(3);
   });
 
   test("rejects malformed and duplicate cases", () => {

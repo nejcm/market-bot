@@ -310,6 +310,18 @@ describe("addFinancialLensEvidence", () => {
     expect(formatLensValue(-0.000_01, "whole-percent")).toBe("0.0%");
   });
 
+  test("currency tiers switch where the lower tier would round to 1000", () => {
+    expect(formatLensValue(5_065_342_765_312, "currency", "USD")).toBe("$5.07T");
+    expect(formatLensValue(-1_200_000_000_000, "currency", "USD")).toBe("$-1.20T");
+    expect(formatLensValue(999_900_000_000, "currency", "USD")).toBe("$999.9B");
+    expect(formatLensValue(999_960_000_000, "currency", "USD")).toBe("$1.00T");
+    expect(formatLensValue(1_000_000_000_000, "currency", "USD")).toBe("$1.00T");
+    expect(formatLensValue(999_960_000, "currency", "USD")).toBe("$1.0B");
+    expect(formatLensValue(999_960, "currency", "USD")).toBe("$1.0M");
+    expect(formatLensValue(999.6, "currency", "USD")).toBe("$1.0K");
+    expect(formatLensValue(999.4, "currency", "USD")).toBe("$999");
+  });
+
   test("emits partial no-cap gap when derived inputs are missing", () => {
     const result = addFinancialLensEvidence(
       command,

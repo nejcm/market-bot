@@ -1324,7 +1324,7 @@ describe("collectSources", () => {
       "not applicable (deposit-funded issuer; enterprise value is not defined)",
     );
     expect(markdown).not.toContain("2.48x");
-    expect(markdown).not.toContain("$1040.0B");
+    expect(markdown).not.toContain("$1.04T");
   });
 
   test("resolves model-proposed peers for an unmapped deep-equity ticker and writes the cache", async () => {

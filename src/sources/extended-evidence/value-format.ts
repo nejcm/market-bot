@@ -40,18 +40,17 @@ export function formatPeRatio(pe: number, eps?: number): string {
   return `${pe.toFixed(2)}x`;
 }
 
+// Each threshold sits where the tier below would round up to "1000.0".
+const CURRENCY_TIERS = [
+  { min: 999_950_000_000, unit: 1_000_000_000_000, suffix: "T", digits: 2 },
+  { min: 999_950_000, unit: 1_000_000_000, suffix: "B", digits: 1 },
+  { min: 999_950, unit: 1_000_000, suffix: "M", digits: 1 },
+  { min: 999.5, unit: 1000, suffix: "K", digits: 1 },
+] as const;
+
 export function scaleCurrency(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (abs >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (abs >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`;
-  }
-  return value.toFixed(0);
+  const tier = CURRENCY_TIERS.find(({ min }) => Math.abs(value) >= min);
+  return tier ? `${(value / tier.unit).toFixed(tier.digits)}${tier.suffix}` : value.toFixed(0);
 }
 
 function formatCurrency(value: number, currency = "USD"): string {

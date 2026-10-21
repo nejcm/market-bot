@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0](https://github.com/nejcm/market-bot/compare/v1.6.0...v1.7.0) (2026-10-21)
+
+### Features
+
+- forecast baseline, eval ablation and structured metric references (#112) ([2e01832](https://github.com/nejcm/market-bot/commit/2e0183200d5cfb24353409b6bbc8fa00947bbbbd))
+
 ## [1.6.0](https://github.com/nejcm/market-bot/compare/v1.5.4...v1.6.0) (2026-10-20)
 
 ### Features

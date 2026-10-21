@@ -555,6 +555,14 @@ before anything runs.
   `insufficient-evidence`/`no`/`unsupported`; a fifth amendment rechecks clipped `undecided` verdicts too
   and guards them as `undecided-clipped` when the whole evidence is too large.
   Re-pilot before fixing n.
+- Decision (2026-10-22, after mb-pilot4): no confirmatory batch; every stage is kept. At the pilot's s_d² 19 and
+  ~5.1M live tokens per pair (judge ~92%, mostly the ~22k-token codex overhead per call), one capture needs
+  n = 823 pairs at the 0.5 margin (~4.2B tokens), 206 at 1.0 (~1.05B), 52 at 2.0 (~265M). A deleted analysis
+  stage saves ~58k of ~414k estimated tokens per deep run (market-behavior-analysis in d674e264; the other arms'
+  stages are 56-62k), and 47 runs used it from August to October 2026, so even the loosest margin pays back
+  only after thousands of runs. The noise is generation spread, not the judge: contradictions per judged unit
+  vary as much as counts (39-46 judged units per sample). Revisit if run volume grows by orders of magnitude or
+  judge cost per unit falls; recompute n with the formula above and re-pilot the current instrument first.
 - Deleting a stage is a human decision taken against this rule, on that stage's isolated arm. Every live
   batch, pilot or confirmatory, needs approval after its printed estimate.
 

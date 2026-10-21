@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   evalCaseLabel,
   cancelMatchedItems,
+  digestJudgeItems,
   judgeReport,
   omits,
   parseEvalCases,
@@ -14,7 +15,7 @@ import {
   staleSupport,
   unsupportedFigures,
 } from "../src/replay/eval-cases";
-import { stageDeletionStatistics } from "../src/replay/eval-decision";
+import { insufficientEvidenceCount, stageDeletionStatistics } from "../src/replay/eval-decision";
 import {
   aggregateVotes,
   estimateJudgeTokens,
@@ -22,11 +23,13 @@ import {
   judgeItem,
 } from "../src/replay/eval-judge";
 import { makeReplayProvider } from "../src/replay/llm-cassette";
-import { researchReport } from "./support/fixtures";
+import { prediction, researchReport } from "./support/fixtures";
 
 const cases = parseEvalCases(
   await Bun.file(join(import.meta.dir, "fixtures/eval-cases/cases.json")).json(),
 );
+
+const noAbstention = { insufficientEvidence: 0, judged: 1 };
 
 function vote(verdict: string) {
   return { content: JSON.stringify({ verdict, reason: "stub" }), tokenEstimate: 1 };
@@ -251,7 +254,7 @@ describe("deterministic checks", () => {
     ]);
   });
 
-  test("report judge counts contradiction and undecided claims, and unconveyed omission cases", async () => {
+  test("report judge counts yes and undecided claims as contradictions, insufficient-evidence apart", async () => {
     const omission = cases.find((row) => row.check === "omission");
     if (omission?.check !== "omission") {
       throw new Error("missing omission case");
@@ -302,12 +305,149 @@ describe("deterministic checks", () => {
           .map((verdict) => vote(verdict)),
       },
     });
+    const chars = (index: number) =>
+      items[index]!.item.evidence.reduce((sum, row) => sum + row.text.length, 0);
     expect(await judgeReport(provider, "stub-judge", items)).toEqual({
-      contradictions: ["keyFindings[1]", "risks[0]"],
+      contradictions: ["keyFindings[1]"],
       unconveyed: [omission.id],
       undecided: 1,
       insufficientEvidence: 1,
+      judge: { provider: provider.name, model: "stub-judge" },
+      items: 4,
+      units: [
+        {
+          location: "keyFindings[0]",
+          kind: "contradiction",
+          verdict: "no",
+          votes: ["no", "no"],
+          evidenceChars: chars(0),
+          clipped: false,
+        },
+        {
+          location: "keyFindings[1]",
+          kind: "contradiction",
+          verdict: "yes",
+          votes: ["yes", "no", "yes"],
+          evidenceChars: chars(1),
+          clipped: false,
+        },
+        {
+          location: "risks[0]",
+          kind: "contradiction",
+          verdict: "insufficient-evidence",
+          votes: ["insufficient-evidence", "insufficient-evidence"],
+          evidenceChars: chars(2),
+          clipped: false,
+        },
+        {
+          location: omission.id,
+          kind: "conveyance",
+          verdict: "undecided",
+          votes: ["yes", "invalid", "no"],
+          evidenceChars: 0,
+          clipped: false,
+        },
+      ],
     });
+  });
+
+  test("predictions and scenario names stay out of the judge; scenario descriptions do not", () => {
+    const report = researchReport({
+      predictions: [prediction()],
+      scenarios: [{ name: "Base", description: "Demand holds.", sourceIds: ["sec"] }],
+    });
+    const items = reportJudgeItems(report, [], [{ id: "sec", note: "Demand held." }]);
+    const keys = items.map((row) => row.key);
+    expect(keys).toContain("scenarios[0].description");
+    expect(keys.some((key) => key.startsWith("predictions[") || key.endsWith(".name"))).toBe(false);
+    expect(
+      scoreReportDefects({
+        report,
+        knownSourceIds: ["sec"],
+        historicalContext: undefined,
+        evidence: [],
+        omissionCases: [],
+      }).claims,
+    ).toBe(keys.length + report.predictions.length + 1);
+    expect(items[0]!.item.question).toMatch(
+      /insufficient-evidence only when the evidence shown is empty or unreadable/u,
+    );
+  });
+
+  test.each([
+    "The issuer signed an exclusive supply agreement with its largest customer.",
+    "The issuer appears to have signed an exclusive supply agreement with its largest customer.",
+  ])("an invented past fact, hedged or not, scores as unsupported: %s", async (summary) => {
+    const report = researchReport({ summary });
+    const evidence = [{ id: "sec", title: "AMD 10-Q", revenue: 6_718_000_000 }];
+    const items = reportJudgeItems(report, [], evidence).filter((row) => row.key === "summary");
+    expect(items[0]!.clipped).toBe(false);
+    expect(items[0]!.item.question).toMatch(
+      /unsupported when a statement asserts a present or past fact that the evidence neither states nor implies, even when it is hedged/u,
+    );
+    expect(items[0]!.item.question).toMatch(
+      /Only statements about future outcomes, conditional scenarios, and statements that this run/u,
+    );
+    const provider = makeReplayProvider({
+      entries: {
+        [`${JUDGE_STAGE}|stub-judge`]: ["unsupported", "unsupported"].map((verdict) =>
+          vote(verdict),
+        ),
+      },
+    });
+    const judged = await judgeReport(provider, "stub-judge", items);
+    expect(judged.contradictions).toEqual(["summary"]);
+    expect(judged.units[0]!.verdict).toBe("unsupported");
+  });
+
+  test.each([
+    ["No 10-Q was collected for this run.", "no", []],
+    ["The issuer appears to have no debt.", "unsupported", ["summary"]],
+  ])(
+    "missing run data is judged only for contradiction; a hedged world claim needs support: %s",
+    async (summary, verdict, scored) => {
+      const items = reportJudgeItems(
+        researchReport({ summary }),
+        [],
+        [{ id: "sec", revenue: 1 }],
+      ).filter((row) => row.key === "summary");
+      const { question } = items[0]!.item;
+      expect(question).toMatch(
+        /statements that this run's own data is missing or unavailable \("no 10-Q was collected"\) are judged solely for contradiction/u,
+      );
+      expect(question).toMatch(
+        /A claim about the world, such as a company having no debt, is not a missing-data statement/u,
+      );
+      const provider = makeReplayProvider({
+        entries: { [`${JUDGE_STAGE}|stub-judge`]: [verdict, verdict].map((row) => vote(row)) },
+      });
+      expect((await judgeReport(provider, "stub-judge", items)).contradictions).toEqual(scored);
+    },
+  );
+
+  test("unsupported on clipped evidence goes to the abstention guard, not the score", async () => {
+    // Pilot db41e526 ablation-1 keyFindings[8]: correct $42.8B net debt, clipped out of a 3,945-char excerpt.
+    const { claim: netDebt, evidence } = await Bun.file(
+      join(import.meta.dir, "fixtures/eval-cases/aapl-net-debt-clipped.json"),
+    ).json();
+    const items = reportJudgeItems(researchReport({ keyFindings: [netDebt] }), [], evidence).filter(
+      (row) => row.key === "keyFindings[0]",
+    );
+    expect(items[0]!.clipped).toBe(true);
+    expect(JSON.stringify(evidence)).toContain("$42.8B");
+    expect(items[0]!.item.evidence[0]!.text).not.toContain("42.8");
+    const provider = makeReplayProvider({
+      entries: {
+        [`${JUDGE_STAGE}|stub-judge`]: ["unsupported", "unsupported"].map((verdict) =>
+          vote(verdict),
+        ),
+      },
+    });
+    const judged = await judgeReport(provider, "stub-judge", items);
+    expect(judged.contradictions).toEqual([]);
+    expect(judged.insufficientEvidence).toBe(1);
+    expect(judged.units[0]).toMatchObject({ verdict: "unsupported-clipped", clipped: true });
+    expect(insufficientEvidenceCount(judged.units)).toEqual({ insufficientEvidence: 1, judged: 1 });
   });
 
   test("summary prose is judged and checked like any model-authored claim", () => {
@@ -424,6 +564,32 @@ describe("deterministic checks", () => {
     ).toEqual([]);
   });
 
+  test("digest units are exactly the requests that cancel when only the draft differs", () => {
+    const evidence = [{ id: "sec", note: "Revenue rose." }];
+    const withDigest = (findings: readonly string[]) =>
+      researchReport({
+        ...secReport(findings),
+        extras: {
+          webSubjectProfile: {
+            subjectSummary: { answer: "Designs chips.", sourceIds: ["sec"] },
+            openGaps: ["No segment margins."],
+          },
+          businessFramework: { sections: [{ text: findings[0], sourceIds: ["sec"] }] },
+        },
+      });
+    const control = reportJudgeItems(withDigest(["Control draft."]), [], evidence);
+    const ablation = reportJudgeItems(withDigest(["Ablation draft."]), [], evidence);
+    const digest = digestJudgeItems(ablation, new Set(["webSubjectProfile"]));
+    expect(digest.map((row) => row.key)).toEqual([
+      "extras.webSubjectProfile.subjectSummary.answer",
+      "extras.webSubjectProfile.openGaps[0]",
+    ]);
+    expect(cancelMatchedItems(control, ablation).canceled.map((pair) => pair.ablation)).toEqual(
+      digest.map((row) => row.key),
+    );
+    expect(digestJudgeItems(ablation, new Set())).toEqual([]);
+  });
+
   test("paired cancellation matches complete requests as a multiset", () => {
     const evidence = [{ id: "sec", note: "Revenue rose." }];
     const control = reportJudgeItems(secReport(["Same.", "Same.", "Only control."]), [], evidence);
@@ -461,6 +627,7 @@ describe("deterministic checks", () => {
         control: scores,
         ablation: scores,
         conveyance: { ubs: { control: [shared, true, false], ablation: [shared, false, false] } },
+        insufficientEvidence: { control: noAbstention, ablation: noAbstention },
       }).vetoes;
     expect(veto(true)).toEqual(["omission regression: ubs"]);
     expect(veto(false)).toEqual([]);
@@ -532,10 +699,13 @@ describe("deterministic checks", () => {
 
   test("stage deletion statistics carry the arm scope, a stratified bound and vetoes", () => {
     const baseline = { a: [2, 2, 3], b: [1, 1, 1], c: [4, 3, 4] };
-    const scope = { arm: "market-behavior-analysis" } as const;
+    const scope = {
+      arm: "market-behavior-analysis",
+      insufficientEvidence: { control: noAbstention, ablation: noAbstention },
+    } as const;
     const same = stageDeletionStatistics({ ...scope, control: baseline, ablation: baseline });
     expect(same).toMatchObject({
-      ...scope,
+      arm: scope.arm,
       control: "market-behavior-analysis-control",
       removedStages: ["market-behavior-analysis"],
       captures: 3,
@@ -575,11 +745,36 @@ describe("deterministic checks", () => {
         conveyance: { ubs: { control: [true, true, false], ablation: [true, false, false] } },
       }).vetoes,
     ).toEqual(["omission regression: ubs"]);
+    const guarded = (ablationCount: number) =>
+      stageDeletionStatistics({
+        ...scope,
+        control: baseline,
+        ablation: baseline,
+        insufficientEvidence: {
+          control: { insufficientEvidence: 30, judged: 100 },
+          ablation: { insufficientEvidence: ablationCount, judged: 100 },
+        },
+      });
+    expect(guarded(40)).toMatchObject({
+      insufficientEvidenceShare: { control: 0.3, ablation: 0.4 },
+      vetoes: [],
+    });
+    expect(guarded(41).vetoes).toEqual([
+      "insufficient-evidence share: ablation 0.410 vs control 0.300",
+    ]);
+    expect(
+      insufficientEvidenceCount([
+        { kind: "contradiction", verdict: "insufficient-evidence" },
+        { kind: "contradiction", verdict: "unsupported" },
+        { kind: "conveyance", verdict: "insufficient-evidence" },
+      ]),
+    ).toEqual({ insufficientEvidence: 1, judged: 2 });
     expect(() =>
       stageDeletionStatistics({ ...scope, control: baseline, ablation: { a: [1] } }),
     ).toThrow();
     expect(() =>
       stageDeletionStatistics({
+        ...scope,
         arm: "market-behavior-analysis-control",
         control: baseline,
         ablation: baseline,

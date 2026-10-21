@@ -47,6 +47,37 @@ const MARGIN = 0.5;
 const RESAMPLES = 10_000;
 const SEED = 0x5e_ed;
 const CONVEYED_SHARE = 2 / 3;
+const INSUFFICIENT_EVIDENCE_GUARD_POINTS = 10;
+
+interface JudgedCount {
+  readonly insufficientEvidence: number;
+  readonly judged: number;
+}
+
+// Guard counts (abstentions plus unsupported on clipped evidence) from contradiction units; the aggregate also counts conveyance.
+export function insufficientEvidenceCount(
+  units: readonly { readonly kind: string; readonly verdict: string }[],
+): JudgedCount {
+  const judged = units.filter((unit) => unit.kind === "contradiction");
+  return {
+    insufficientEvidence: judged.filter(
+      (unit) => unit.verdict === "insufficient-evidence" || unit.verdict === "unsupported-clipped",
+    ).length,
+    judged: judged.length,
+  };
+}
+
+// Strictly more than the guard in percentage points, cross-multiplied so 30/100 vs 40/100 is not a veto.
+const exceedsGuard = (control: JudgedCount, ablation: JudgedCount) => {
+  const controlJudged = Math.max(control.judged, 1);
+  const ablationJudged = Math.max(ablation.judged, 1);
+  return (
+    100 *
+      (ablation.insufficientEvidence * controlJudged -
+        control.insufficientEvidence * ablationJudged) >
+    INSUFFICIENT_EVIDENCE_GUARD_POINTS * ablationJudged * controlJudged
+  );
+};
 
 function mulberry32(seed: number): () => number {
   let state = seed;
@@ -60,6 +91,7 @@ function mulberry32(seed: number): () => number {
 
 const mean = (values: readonly number[]) =>
   values.reduce((sum, value) => sum + value, 0) / values.length;
+const share = (count: JudgedCount) => count.insufficientEvidence / Math.max(count.judged, 1);
 const conveyedShare = (values: readonly boolean[]) =>
   values.filter(Boolean).length / Math.max(values.length, 1);
 
@@ -71,6 +103,8 @@ export function stageDeletionStatistics(input: {
   readonly conveyance?: Readonly<
     Record<string, { readonly control: readonly boolean[]; readonly ablation: readonly boolean[] }>
   >;
+  // Pooled per arm over every sample's judged contradiction units.
+  readonly insufficientEvidence: { readonly control: JudgedCount; readonly ablation: JudgedCount };
 }): {
   readonly arm: string;
   readonly control: string;
@@ -79,6 +113,7 @@ export function stageDeletionStatistics(input: {
   readonly meanDifference: number;
   readonly upperBound: number;
   readonly margin: number;
+  readonly insufficientEvidenceShare: { readonly control: number; readonly ablation: number };
   readonly vetoes: readonly string[];
 } {
   const definition: { readonly removed: readonly string[]; readonly control?: string } =
@@ -94,14 +129,24 @@ export function stageDeletionStatistics(input: {
   ) {
     throw new Error("Arms must cover the same captures with the same sample count per capture");
   }
+  const insufficientEvidenceShare = {
+    control: share(input.insufficientEvidence.control),
+    ablation: share(input.insufficientEvidence.ablation),
+  };
   const scope = {
     arm: input.arm,
     control: definition.control,
     removedStages: definition.removed,
     captures: captures.length,
     margin: MARGIN,
+    insufficientEvidenceShare,
   };
   const vetoes: string[] = [];
+  if (exceedsGuard(input.insufficientEvidence.control, input.insufficientEvidence.ablation)) {
+    vetoes.push(
+      `insufficient-evidence share: ablation ${insufficientEvidenceShare.ablation.toFixed(3)} vs control ${insufficientEvidenceShare.control.toFixed(3)}`,
+    );
+  }
   for (const capture of captures) {
     for (const [arm, rows] of [
       ["control", input.control[capture]!],

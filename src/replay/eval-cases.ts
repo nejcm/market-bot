@@ -384,7 +384,11 @@ export async function runEvalCase(
   } else if (judge !== undefined) {
     const result = await judge(judgeItemForCase(evalCase));
     detail = result;
-    flagged = result.verdict === "yes" || (result.verdict === "no" ? false : undefined);
+    // Same scored set as judgeReport: unsupported is a defect, so labeled cases measure the scored instrument.
+    flagged =
+      result.verdict === "yes" ||
+      result.verdict === "unsupported" ||
+      (result.verdict === "no" ? false : undefined);
   }
   return {
     id: evalCase.id,
@@ -478,8 +482,11 @@ export function scoreReportDefects(input: {
   };
 }
 
+// Amended after pilot mb-pilot2: "cannot settle" turned every hedge, forecast and absence statement into insufficient-evidence.
 const CONTRADICTION_QUESTION =
-  "Does the cited evidence directly contradict any statement in the claim? Missing support is not a contradiction; answer insufficient-evidence when the evidence shown cannot settle it.";
+  'Is any statement in the claim directly contradicted by the evidence shown? Answer yes for a direct contradiction. Otherwise answer unsupported when a statement asserts a present or past fact that the evidence neither states nor implies, even when it is hedged ("appears to", "reportedly", "likely has"). Only statements about future outcomes, conditional scenarios, and statements that this run\'s own data is missing or unavailable ("no 10-Q was collected") are judged solely for contradiction: answer no for them unless the evidence contradicts them. A claim about the world, such as a company having no debt, is not a missing-data statement. Answer no when every statement is supported or is such an uncontradicted statement. Answer insufficient-evidence only when the evidence shown is empty or unreadable.';
+// Predictions resolve against prices and scenario names are labels; neither is a claim evidence can contradict.
+const UNJUDGED_UNIT = /^(?:predictions\[\d+\]|scenarios\[\d+\]\.name)$/u;
 const EVIDENCE_CHARS_PER_SOURCE = 4000;
 const LONG_TEXT = 300;
 const MISSING_EVIDENCE = "(the final-synthesis evidence carries no record with this source id)";
@@ -572,11 +579,14 @@ const claimTerms = (text: string) =>
   );
 
 // Whole records when they fit; otherwise the lines sharing the most claim terms and figures, with their record rows, in order.
-function relevantEvidence(records: readonly SourceRecord[], claim: string): string {
+function relevantEvidence(
+  records: readonly SourceRecord[],
+  claim: string,
+): { readonly text: string; readonly clipped: boolean } {
   const lines: EvidenceLine[] = [];
   records.forEach((record) => evidenceLines(record.node, record.path, lines));
   if (lines.reduce((sum, line) => sum + line.text.length + 1, 0) <= EVIDENCE_CHARS_PER_SOURCE) {
-    return lines.map((line) => line.text).join("\n");
+    return { text: lines.map((line) => line.text).join("\n"), clipped: false };
   }
   const terms = claimTerms(claim);
   const ranked = lines
@@ -598,29 +608,32 @@ function relevantEvidence(records: readonly SourceRecord[], claim: string): stri
       used += cost;
     }
   }
-  return [...kept]
+  const text = [...kept]
     .toSorted((a, b) => a - b)
     .map((index) => lines[index]!.text)
     .join("\n");
+  return { text, clipped: true };
 }
 
 function unitEvidence(
   records: ReadonlyMap<string, readonly SourceRecord[]>,
   evidence: unknown,
   unit: ReturnType<typeof evalUnits>[number],
-): JudgeItem["evidence"] {
-  if (unit.sourceIds.length === 0) {
-    return [
-      {
-        sourceId: UNCITED,
-        text: relevantEvidence([{ path: "", node: evidence }], unit.text) || MISSING_EVIDENCE,
-      },
-    ];
-  }
-  return unit.sourceIds.map((sourceId) => ({
-    sourceId,
-    text: relevantEvidence(records.get(sourceId) ?? [], unit.text) || MISSING_EVIDENCE,
-  }));
+): { readonly evidence: JudgeItem["evidence"]; readonly clipped: boolean } {
+  const selected =
+    unit.sourceIds.length === 0
+      ? [{ sourceId: UNCITED, ...relevantEvidence([{ path: "", node: evidence }], unit.text) }]
+      : unit.sourceIds.map((sourceId) => ({
+          sourceId,
+          ...relevantEvidence(records.get(sourceId) ?? [], unit.text),
+        }));
+  return {
+    evidence: selected.map((row) => ({
+      sourceId: row.sourceId,
+      text: row.text || MISSING_EVIDENCE,
+    })),
+    clipped: selected.some((row) => row.clipped),
+  };
 }
 
 // Judge items for a generated report: one contradiction item per evaluation unit, one conveyance item per omission case.
@@ -633,20 +646,24 @@ export function reportJudgeItems(
   readonly key: string;
   readonly kind: "contradiction" | "conveyance";
   readonly item: JudgeItem;
+  // Some cited evidence was cut to fit, so support may exist outside what the judge saw.
+  readonly clipped?: boolean;
 }[] {
   const resolved = resolveEvidenceLinks(evidence);
   const records = sourceRecords(resolved);
   const units = evalUnits(report);
   return [
-    ...units.map((unit) => ({
-      key: unit.location,
-      kind: "contradiction" as const,
-      item: {
-        question: CONTRADICTION_QUESTION,
-        claim: unit.text,
-        evidence: unitEvidence(records, resolved, unit),
-      },
-    })),
+    ...units
+      .filter((unit) => !UNJUDGED_UNIT.test(unit.location))
+      .map((unit) => {
+        const { evidence: unitRows, clipped } = unitEvidence(records, resolved, unit);
+        return {
+          key: unit.location,
+          kind: "contradiction" as const,
+          item: { question: CONTRADICTION_QUESTION, claim: unit.text, evidence: unitRows },
+          clipped,
+        };
+      }),
     ...omissionCases.map((row) => ({
       key: row.id,
       kind: "conveyance" as const,
@@ -662,6 +679,17 @@ export function reportJudgeItems(
 type ReportJudgeItems = ReturnType<typeof reportJudgeItems>;
 
 const judgeRequestKey = (row: ReportJudgeItems[number]) => JSON.stringify([row.kind, row.item]);
+
+// Code-assembled digests ignore the draft, so their contradiction requests cancel in every pre-paired sample.
+export function digestJudgeItems(
+  items: ReportJudgeItems,
+  digestKeys: ReadonlySet<string>,
+): ReportJudgeItems {
+  return items.filter(
+    (row) =>
+      row.kind === "contradiction" && digestKeys.has(/^extras\.([^.[]+)/u.exec(row.key)?.[1] ?? ""),
+  );
+}
 
 // Pre-paired samples skip byte-identical complete contradiction requests, matched as multisets.
 // A matched conveyance request stays on the control side only, judged once, its verdict shared (omission veto needs it).
@@ -698,7 +726,7 @@ export function cancelMatchedItems(
   };
 }
 
-// Undecided and insufficient-evidence count against the report: as a contradiction, and as not conveyed.
+// Unsupported (on unclipped evidence) and undecided count as contradictions; insufficient-evidence and unsupported-clipped are counted apart; conveyance needs yes.
 export async function judgeReport(
   provider: ModelProvider,
   model: string,
@@ -709,21 +737,56 @@ export async function judgeReport(
   readonly unconveyed: readonly string[];
   readonly undecided: number;
   readonly insufficientEvidence: number;
+  readonly judge: { readonly provider: string; readonly model: string };
+  readonly items: number;
+  readonly units: readonly {
+    readonly location: string;
+    readonly kind: "contradiction" | "conveyance";
+    readonly verdict: JudgeResult["verdict"] | "unsupported-clipped";
+    readonly votes: JudgeResult["votes"];
+    readonly evidenceChars: number;
+    readonly clipped: boolean;
+  }[];
 }> {
   const contradictions: string[] = [];
   const unconveyed: string[] = [];
+  const units = [];
   let undecided = 0;
   let insufficientEvidence = 0;
-  for (const { key, kind, item } of items) {
+  for (const { key, kind, item, clipped = false } of items) {
     // oxlint-disable-next-line no-await-in-loop -- votes stay in a stable order for cassette replay
-    const { verdict } = await judgeItem(provider, model, item, meter);
+    const judged = await judgeItem(provider, model, item, meter);
+    const verdict =
+      judged.verdict === "unsupported" && clipped
+        ? ("unsupported-clipped" as const)
+        : judged.verdict;
+    units.push({
+      location: key,
+      kind,
+      verdict,
+      votes: judged.votes,
+      evidenceChars: item.evidence.reduce((sum, row) => sum + row.text.length, 0),
+      clipped,
+    });
     undecided += verdict === "undecided" ? 1 : 0;
-    insufficientEvidence += verdict === "insufficient-evidence" ? 1 : 0;
-    if (kind === "contradiction" && verdict !== "no") {
+    insufficientEvidence +=
+      verdict === "insufficient-evidence" || verdict === "unsupported-clipped" ? 1 : 0;
+    if (
+      kind === "contradiction" &&
+      (verdict === "yes" || verdict === "unsupported" || verdict === "undecided")
+    ) {
       contradictions.push(key);
     } else if (kind === "conveyance" && verdict !== "yes") {
       unconveyed.push(key);
     }
   }
-  return { contradictions, unconveyed, undecided, insufficientEvidence };
+  return {
+    contradictions,
+    unconveyed,
+    undecided,
+    insufficientEvidence,
+    judge: { provider: provider.name, model },
+    items: items.length,
+    units,
+  };
 }

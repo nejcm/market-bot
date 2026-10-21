@@ -1,0 +1,1726 @@
+{
+  "basis": "Reconstructed from pilot mb-pilot2-db41e526 ablation-1 keyFindings[8]: the final-synthesis evidence projection pruned to records tagged extended-sec-edgar-aapl-fundamentals (metric defaults merged, indices kept). The judge excerpt (3,945 chars) omits the $42.8B net-debt metric present in the full records.",
+  "claim": {
+    "text": "Observed fact: At June 27, 2026, Apple reported net debt and a current ratio near one. $42.8B 1.00x",
+    "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+  },
+  "evidence": {
+    "extendedEvidence": {
+      "items": [
+        {
+          "category": "sec-edgar",
+          "title": "AAPL SEC Fundamental Evidence",
+          "summary": "Recent SEC filings: 10-Q 2026-07-31, 8-K 2026-07-30, 10-Q 2026-05-01, 8-K 2026-04-30, 8-K 2026-04-20. SEC Fundamental Evidence: revenue 364357000000 (16.2% YoY), gross profit 178782000000 (21.7% YoY), operating income 122432000000 (21.7% YoY), net income attributable to parent 101464000000 (20.0% YoY), diluted EPS 6.88 (22.4% YoY), cash 39544000000 (9.0% YoY), operating cash flow 116996000000 (43.1% YoY), capex 6799000000 (-28.2% YoY), diluted shares 14750302000 (-2.0% YoY), current assets 149818000000 (22.3% YoY), current liabilities 149326000000 (5.8% YoY), stockholders' equity 107520000000 (63.3% YoY), total assets 383266000000 (15.6% YoY), dividends paid 11778000000 (1.9% YoY), share repurchases 62094000000 (-12.0% YoY), debt 82300000000 (-10.3% YoY).",
+          "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
+          "observedAt": "2026-10-16T15:39:22.261Z",
+          "metrics": {
+            "sic": "3571",
+            "sicDescription": "Electronic Computers",
+            "revenue": 364357000000,
+            "revenuePeriodEnd": "2026-06-27",
+            "revenuePeriodMonths": 9,
+            "revenuePrior": 313695000000,
+            "revenueDeltaPercent": 16.150082086102742,
+            "grossProfit": 178782000000,
+            "grossProfitPeriodEnd": "2026-06-27",
+            "grossProfitPeriodMonths": 9,
+            "grossProfitPrior": 146860000000,
+            "grossProfitDeltaPercent": 21.736347541876615,
+            "operatingIncome": 122432000000,
+            "operatingIncomePeriodEnd": "2026-06-27",
+            "operatingIncomePeriodMonths": 9,
+            "operatingIncomePrior": 100623000000,
+            "operatingIncomeDeltaPercent": 21.673971159675222,
+            "netIncome": 101464000000,
+            "netIncomePeriodEnd": "2026-06-27",
+            "netIncomePeriodMonths": 9,
+            "netIncomePrior": 84544000000,
+            "netIncomeDeltaPercent": 20.01324753974262,
+            "dilutedEps": 6.88,
+            "dilutedEpsPeriodEnd": "2026-06-27",
+            "dilutedEpsPeriodMonths": 9,
+            "dilutedEpsPrior": 5.62,
+            "dilutedEpsDeltaPercent": 22.41992882562277,
+            "operatingCashFlow": 116996000000,
+            "operatingCashFlowPeriodEnd": "2026-06-27",
+            "operatingCashFlowPeriodMonths": 9,
+            "operatingCashFlowPrior": 81754000000,
+            "operatingCashFlowDeltaPercent": 43.10737089316731,
+            "capex": 6799000000,
+            "capexPeriodEnd": "2026-06-27",
+            "capexPeriodMonths": 9,
+            "capexPrior": 9473000000,
+            "capexDeltaPercent": -28.227594215137756,
+            "dividendsPaid": 11778000000,
+            "dividendsPaidPeriodEnd": "2026-06-27",
+            "dividendsPaidPeriodMonths": 9,
+            "dividendsPaidPrior": 11559000000,
+            "dividendsPaidDeltaPercent": 1.8946275629379703,
+            "cash": 39544000000,
+            "cashPeriodEnd": "2026-06-27",
+            "cashPrior": 36269000000,
+            "cashDeltaPercent": 9.029749924177672,
+            "debt": 82300000000,
+            "debtPeriodEnd": "2026-06-27",
+            "debtPrior": 91800000000,
+            "debtDeltaPercent": -10.348583877995644,
+            "currentAssets": 149818000000,
+            "currentAssetsPeriodEnd": "2026-06-27",
+            "currentAssetsPrior": 122491000000,
+            "currentAssetsDeltaPercent": 22.309394159570907,
+            "currentLiabilities": 149326000000,
+            "currentLiabilitiesPeriodEnd": "2026-06-27",
+            "currentLiabilitiesPrior": 141120000000,
+            "currentLiabilitiesDeltaPercent": 5.8149092970521545,
+            "stockholdersEquity": 107520000000,
+            "stockholdersEquityPeriodEnd": "2026-06-27",
+            "stockholdersEquityPrior": 65830000000,
+            "stockholdersEquityDeltaPercent": 63.32978885006836,
+            "assets": 383266000000,
+            "assetsPeriodEnd": "2026-06-27",
+            "assetsPrior": 331495000000,
+            "assetsDeltaPercent": 15.617430127151238,
+            "financialLensSelectionVersion": 1
+          },
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [{ "provider": "sec-edgar", "idKind": "cik", "value": "0000320193" }],
+            "aliases": [{ "provider": "sec-edgar", "idKind": "ticker", "value": "AAPL" }]
+          }
+        },
+        {},
+        {},
+        {},
+        {
+          "category": "valuation",
+          "title": "AAPL Valuation Evidence",
+          "summary": "Valuation Evidence: market cap $5040.0B, enterprise value $5082.8B, 9-month revenue $364.4B, annualized revenue $485.8B, EV/annualized revenue 10.46x, market cap/annualized revenue 10.37x, debt/market cap 0.02x, net debt/market cap 0.01x; market cap as of 2026-10-16; cash/debt as of 2026-06-27; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: supported; median EV/annualized revenue 8.70x, IQR 7.02x-9.93x over 4 usable peers (4 core).",
+          "sourceIds": [
+            "market-yahoo-equity-aapl",
+            "extended-sec-edgar-aapl-filings",
+            "extended-sec-edgar-aapl-fundamentals",
+            "market-yahoo-equity-msft",
+            "extended-sec-edgar-msft-fundamentals",
+            "extended-sec-edgar-msft-filings",
+            "market-yahoo-equity-googl",
+            "extended-sec-edgar-googl-fundamentals",
+            "extended-sec-edgar-googl-filings",
+            "market-yahoo-equity-amzn",
+            "extended-sec-edgar-amzn-fundamentals",
+            "extended-sec-edgar-amzn-filings",
+            "market-yahoo-equity-meta",
+            "extended-sec-edgar-meta-fundamentals",
+            "extended-sec-edgar-meta-filings",
+            "market-yahoo-equity-dell",
+            "extended-sec-edgar-dell-fundamentals",
+            "extended-sec-edgar-dell-filings"
+          ],
+          "observedAt": "2026-10-16T15:39:22.261Z",
+          "metrics": {
+            "marketCap": 5040027205632,
+            "cash": 39544000000,
+            "debt": 82300000000,
+            "netDebt": 42756000000,
+            "enterpriseValue": 5082783205632,
+            "latestPeriodRevenue": 364357000000,
+            "annualizedRevenue": 485809333333.3333,
+            "quoteObservedAt": "2026-10-16T15:39:21.051Z",
+            "quoteTimeUtc": "2026-10-16T15:39:20.000Z",
+            "revenuePeriodMonths": 9,
+            "revenuePeriodEnd": "2026-06-27",
+            "cashPeriodEnd": "2026-06-27",
+            "debtPeriodEnd": "2026-06-27",
+            "sic": "3571",
+            "sicDescription": "Electronic Computers",
+            "evToAnnualizedRevenue": 10.462506289776236,
+            "marketCapToAnnualizedRevenue": 10.374496453269733,
+            "debtToMarketCap": 0.016329276934861286,
+            "netDebtToMarketCap": 0.008483287541031946,
+            "corePeerCount": 4,
+            "usablePeerCount": 4,
+            "peerMedianEvToAnnualizedRevenue": 8.702543136709888,
+            "peerP25EvToAnnualizedRevenue": 7.018476572996033,
+            "peerP75EvToAnnualizedRevenue": 9.934691469363912,
+            "valuationSupportability": "supported"
+          },
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [{ "provider": "sec-edgar", "idKind": "cik", "value": "0000320193" }],
+            "aliases": [{ "provider": "sec-edgar", "idKind": "ticker", "value": "AAPL" }]
+          }
+        },
+        {},
+        {
+          "category": "financial-lens",
+          "title": "AAPL Financial Lens Evidence",
+          "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin, Operating margin, Net margin, FCF proxy); Growth criteria-supported (Revenue YoY, Gross profit YoY, Operating income YoY, Net income (attrib.) YoY); Financial Strength criteria-mixed (Cash, Debt, Net debt, Debt/market cap); Value criteria-supported (EV date basis EV mixes market cap (quote 2026-10-16) with cash/debt (balance sheet 2026-06-27), Enterprise value, Annualized revenue, EV/revenue); Momentum criteria-supported (Latest close $342, SMA50 325.08, SMA200 292.11, RSI14 60.58).",
+          "sourceIds": [
+            "extended-sec-edgar-aapl-filings",
+            "extended-sec-edgar-aapl-fundamentals",
+            "market-yahoo-equity-aapl",
+            "market-yahoo-equity-msft",
+            "extended-sec-edgar-msft-fundamentals",
+            "extended-sec-edgar-msft-filings",
+            "market-yahoo-equity-googl",
+            "extended-sec-edgar-googl-fundamentals",
+            "extended-sec-edgar-googl-filings",
+            "market-yahoo-equity-amzn",
+            "extended-sec-edgar-amzn-fundamentals",
+            "extended-sec-edgar-amzn-filings",
+            "market-yahoo-equity-meta",
+            "extended-sec-edgar-meta-fundamentals",
+            "extended-sec-edgar-meta-filings",
+            "market-yahoo-equity-dell",
+            "extended-sec-edgar-dell-fundamentals",
+            "extended-sec-edgar-dell-filings",
+            "verified-snapshot-AAPL"
+          ],
+          "observedAt": "2026-10-16T15:39:22.261Z",
+          "metrics": {
+            "qualityPosture": "criteria-supported",
+            "growthPosture": "criteria-supported",
+            "financialStrengthPosture": "criteria-mixed",
+            "valuePosture": "criteria-supported",
+            "evDateBasis": "EV mixes market cap (quote 2026-10-16) with cash/debt (balance sheet 2026-06-27)",
+            "evDateBasisPeriodEnd": "2026-06-27",
+            "valuationSupportability": "supported",
+            "valuationSupportabilityPeriodEnd": "2026-06-27",
+            "momentumPosture": "criteria-supported",
+            "latestClose": 342,
+            "latestClosePeriodEnd": "2026-10-15",
+            "sma50": 325.0784002685547,
+            "sma50PeriodEnd": "2026-10-15",
+            "sma200": 292.1127996826172,
+            "sma200PeriodEnd": "2026-10-15",
+            "rsi14": 60.57988775853181,
+            "rsi14PeriodEnd": "2026-10-15",
+            "macdHistogram": 0.1440467518837969,
+            "macdHistogramPeriodEnd": "2026-10-15",
+            "interimCadence": "quarterly",
+            "latestReportedPeriodEnd": "2026-06-27",
+            "expectedDuePeriodEnd": "2026-06-27"
+          },
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [{ "provider": "sec-edgar", "idKind": "cik", "value": "0000320193" }],
+            "aliases": [{ "provider": "sec-edgar", "idKind": "ticker", "value": "AAPL" }]
+          }
+        },
+        {
+          "category": "business-framework",
+          "title": "AAPL Business Framework Evidence",
+          "summary": "Business Framework: Business criteria-supported (Revenue, Gross profit, Operating income); Phase classification (Phase operating-leverage, Revenue YoY, Dividend yield); Moat criteria-supported (Gross margin, Operating margin); Growth criteria-supported (Revenue YoY, Operating income YoY, Net income YoY); Management insufficient-data; Risk criteria-supported (Current ratio, Debt/market cap); Valuation criteria-supported (Trailing PE, Forward PE, EV/revenue).",
+          "sourceIds": [
+            "extended-sec-edgar-aapl-filings",
+            "extended-sec-edgar-aapl-fundamentals",
+            "market-yahoo-equity-aapl",
+            "market-yahoo-equity-msft",
+            "extended-sec-edgar-msft-fundamentals",
+            "extended-sec-edgar-msft-filings",
+            "market-yahoo-equity-googl",
+            "extended-sec-edgar-googl-fundamentals",
+            "extended-sec-edgar-googl-filings",
+            "market-yahoo-equity-amzn",
+            "extended-sec-edgar-amzn-fundamentals",
+            "extended-sec-edgar-amzn-filings",
+            "market-yahoo-equity-meta",
+            "extended-sec-edgar-meta-fundamentals",
+            "extended-sec-edgar-meta-filings",
+            "market-yahoo-equity-dell",
+            "extended-sec-edgar-dell-fundamentals",
+            "extended-sec-edgar-dell-filings",
+            "verified-snapshot-AAPL"
+          ],
+          "observedAt": "2026-10-16T15:39:22.261Z",
+          "metrics": {
+            "phase": "operating-leverage",
+            "businessPosture": "criteria-supported",
+            "phasePosture": "criteria-supported",
+            "moatPosture": "criteria-supported",
+            "growthPosture": "criteria-supported",
+            "managementPosture": "insufficient-data",
+            "riskPosture": "criteria-supported",
+            "valuationPosture": "criteria-supported"
+          },
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [{ "provider": "sec-edgar", "idKind": "cik", "value": "0000320193" }],
+            "aliases": [{ "provider": "sec-edgar", "idKind": "ticker", "value": "AAPL" }]
+          }
+        },
+        {},
+        {},
+        {},
+        {}
+      ]
+    },
+    "metricReferences": [
+      {
+        "metrics": [
+          {
+            "unit": "currency",
+            "basis": "latest reported period: a year-aligned annual or an interim filing",
+            "currency": "USD",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-business.revenue>>",
+            "label": "Revenue",
+            "status": "value",
+            "value": "$364.4B"
+          },
+          {
+            "unit": "currency",
+            "basis": "latest reported period: a year-aligned annual or an interim filing",
+            "currency": "USD",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-business.grossProfit>>",
+            "label": "Gross profit",
+            "status": "value",
+            "value": "$178.8B"
+          },
+          {
+            "unit": "currency",
+            "basis": "latest reported period: a year-aligned annual or an interim filing",
+            "currency": "USD",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-business.operatingIncome>>",
+            "label": "Operating income",
+            "status": "value",
+            "value": "$122.4B"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "reference": "<<metric:business-framework-phase.phase>>",
+            "label": "Phase",
+            "status": "value",
+            "unit": "text",
+            "basis": "lifecycle rule over revenue, income and their YoY changes, dividends paid and dividend yield",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+            "value": "operating-leverage"
+          },
+          {
+            "reference": "<<metric:business-framework-phase.revenueDeltaPercent>>",
+            "label": "Revenue YoY",
+            "status": "value",
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "16.2%"
+          },
+          {}
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio-percent",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-moat.grossMargin>>",
+            "label": "Gross margin",
+            "status": "value",
+            "basis": "gross profit / revenue for the latest gross profit period",
+            "value": "49.1%"
+          },
+          {
+            "unit": "ratio-percent",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-moat.operatingMargin>>",
+            "label": "Operating margin",
+            "status": "value",
+            "basis": "operating income / revenue for the latest operating income period",
+            "value": "33.6%"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-growth.revenueDeltaPercent>>",
+            "label": "Revenue YoY",
+            "status": "value",
+            "value": "16.2%"
+          },
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-growth.operatingIncomeDeltaPercent>>",
+            "label": "Operating income YoY",
+            "status": "value",
+            "value": "21.7%"
+          },
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:business-framework-growth.netIncomeDeltaPercent>>",
+            "label": "Net income YoY",
+            "status": "value",
+            "value": "20.0%"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "sourceIds": [
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-aapl",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings",
+              "verified-snapshot-AAPL"
+            ],
+            "reference": "<<metric:business-framework-risk.currentRatio>>",
+            "label": "Current ratio",
+            "status": "value",
+            "unit": "ratio",
+            "basis": "financial lens current assets / current liabilities at the latest balance sheet",
+            "value": "1.00x"
+          },
+          {
+            "sourceIds": [
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-aapl",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings",
+              "verified-snapshot-AAPL"
+            ],
+            "reference": "<<metric:business-framework-risk.debtToMarketCap>>",
+            "label": "Debt/market cap",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "financial lens debt / quote market cap",
+            "value": "1.6%"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {},
+          {},
+          {
+            "unit": "ratio",
+            "reference": "<<metric:business-framework-valuation.evToAnnualizedRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "valuation evidence enterprise value / annualized revenue",
+            "sourceIds": [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings"
+            ],
+            "value": "10.46x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:financial-lens-quality.grossMargin>>",
+            "label": "Gross margin",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "gross profit / revenue for the latest gross profit period",
+            "value": "49.1%"
+          },
+          {
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:financial-lens-quality.operatingMargin>>",
+            "label": "Operating margin",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "operating income / revenue for the latest operating income period",
+            "value": "33.6%"
+          },
+          {
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:financial-lens-quality.netMargin>>",
+            "label": "Net margin",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "net income / revenue for the latest net income period",
+            "value": "27.8%"
+          },
+          {
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:financial-lens-quality.freeCashFlowProxy>>",
+            "label": "FCF proxy",
+            "status": "value",
+            "unit": "currency",
+            "basis": "operating cash flow less capital expenditure for the latest operating cash flow period",
+            "currency": "USD",
+            "value": "$110.2B"
+          },
+          {
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:financial-lens-quality.cashConversion>>",
+            "label": "Cash conversion",
+            "status": "value",
+            "unit": "ratio",
+            "basis": "operating cash flow / income of the same operations scope for the same period",
+            "value": "1.15x"
+          },
+          {
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:financial-lens-quality.roe>>",
+            "label": "ROE",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "net income annualized by its own period, over stockholders' equity at that period end",
+            "value": "125.8%"
+          },
+          {
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:financial-lens-quality.roa>>",
+            "label": "ROA",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "net income annualized by its own period, over total assets at that period end",
+            "value": "35.3%"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "reference": "<<metric:financial-lens-growth.revenueDeltaPercent>>",
+            "label": "Revenue YoY",
+            "status": "value",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "16.2%"
+          },
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "reference": "<<metric:financial-lens-growth.grossProfitDeltaPercent>>",
+            "label": "Gross profit YoY",
+            "status": "value",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "21.7%"
+          },
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "reference": "<<metric:financial-lens-growth.operatingIncomeDeltaPercent>>",
+            "label": "Operating income YoY",
+            "status": "value",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "21.7%"
+          },
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "reference": "<<metric:financial-lens-growth.netIncomeDeltaPercent>>",
+            "label": "Net income (attrib.) YoY",
+            "status": "value",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "20.0%"
+          },
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "reference": "<<metric:financial-lens-growth.dilutedEpsDeltaPercent>>",
+            "label": "Diluted EPS YoY",
+            "status": "value",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "22.4%"
+          },
+          {},
+          {},
+          {
+            "unit": "whole-percent",
+            "basis": "latest reported period vs the same-length period one year earlier, same concept and unit",
+            "reference": "<<metric:financial-lens-growth.operatingCashFlowDeltaPercent>>",
+            "label": "Operating cash flow YoY",
+            "status": "value",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "43.1%"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "reference": "<<metric:financial-lens-financial-strength.cash>>",
+            "label": "Cash",
+            "status": "value",
+            "unit": "currency",
+            "basis": "latest reported balance-sheet instant",
+            "currency": "USD",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "$39.5B"
+          },
+          {
+            "reference": "<<metric:financial-lens-financial-strength.debt>>",
+            "label": "Debt",
+            "status": "value",
+            "unit": "currency",
+            "basis": "latest reported balance-sheet instant",
+            "currency": "USD",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "$82.3B"
+          },
+          {
+            "reference": "<<metric:financial-lens-financial-strength.netDebt>>",
+            "label": "Net debt",
+            "status": "value",
+            "unit": "currency",
+            "basis": "debt less cash at one balance-sheet instant",
+            "currency": "USD",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "$42.8B"
+          },
+          {
+            "reference": "<<metric:financial-lens-financial-strength.debtToMarketCap>>",
+            "label": "Debt/market cap",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "debt at the latest balance-sheet instant / quote market cap",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["market-yahoo-equity-aapl", "extended-sec-edgar-aapl-fundamentals"],
+            "value": "1.6%"
+          },
+          {
+            "reference": "<<metric:financial-lens-financial-strength.netDebtToMarketCap>>",
+            "label": "Net debt/market cap",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "net debt at the latest balance-sheet instant / quote market cap",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["market-yahoo-equity-aapl", "extended-sec-edgar-aapl-fundamentals"],
+            "value": "0.8%"
+          },
+          {
+            "reference": "<<metric:financial-lens-financial-strength.currentRatio>>",
+            "label": "Current ratio",
+            "status": "value",
+            "unit": "ratio",
+            "basis": "current assets / current liabilities at the latest balance-sheet instant",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "1.00x"
+          },
+          {
+            "reference": "<<metric:financial-lens-financial-strength.debtToEquity>>",
+            "label": "Debt/equity",
+            "status": "value",
+            "unit": "ratio",
+            "basis": "debt / stockholders' equity at the latest balance-sheet instant",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "0.77x"
+          },
+          {
+            "reference": "<<metric:financial-lens-financial-strength.payoutRatio>>",
+            "label": "Payout ratio",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "dividends paid / net income of the same period, or a Yahoo fallback",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "11.6%"
+          },
+          {}
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "reference": "<<metric:financial-lens-value.evDateBasis>>",
+            "label": "EV date basis",
+            "status": "value",
+            "unit": "text",
+            "basis": "market cap quote and balance sheet dates diverge",
+            "periodEnd": "2026-06-27",
+            "sourceIds": [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings"
+            ],
+            "value": "EV mixes market cap (quote 2026-10-16) with cash/debt (balance sheet 2026-06-27)"
+          },
+          {
+            "reference": "<<metric:financial-lens-value.enterpriseValue>>",
+            "label": "Enterprise value",
+            "status": "value",
+            "unit": "currency",
+            "basis": "valuation evidence enterprise value at the quote date",
+            "periodEnd": "2026-10-16T15:39:21.051Z",
+            "sourceIds": [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings"
+            ],
+            "value": "$5082.8B"
+          },
+          {
+            "reference": "<<metric:financial-lens-value.annualizedRevenue>>",
+            "label": "Annualized revenue",
+            "status": "value",
+            "unit": "currency",
+            "basis": "valuation evidence revenue annualized to a year",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings"
+            ],
+            "value": "$485.8B"
+          },
+          {
+            "reference": "<<metric:financial-lens-value.evToAnnualizedRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "unit": "ratio",
+            "basis": "valuation evidence enterprise value / annualized revenue",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings"
+            ],
+            "value": "10.46x"
+          },
+          {
+            "reference": "<<metric:financial-lens-value.marketCapToAnnualizedRevenue>>",
+            "label": "Market cap/revenue",
+            "status": "value",
+            "unit": "ratio",
+            "basis": "valuation evidence market cap / annualized revenue",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings"
+            ],
+            "value": "10.37x"
+          },
+          {
+            "reference": "<<metric:financial-lens-value.valuationSupportability>>",
+            "label": "Peer supportability",
+            "status": "value",
+            "unit": "text",
+            "basis": "valuation evidence peer supportability",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              "market-yahoo-equity-msft",
+              "extended-sec-edgar-msft-fundamentals",
+              "extended-sec-edgar-msft-filings",
+              "market-yahoo-equity-googl",
+              "extended-sec-edgar-googl-fundamentals",
+              "extended-sec-edgar-googl-filings",
+              "market-yahoo-equity-amzn",
+              "extended-sec-edgar-amzn-fundamentals",
+              "extended-sec-edgar-amzn-filings",
+              "market-yahoo-equity-meta",
+              "extended-sec-edgar-meta-fundamentals",
+              "extended-sec-edgar-meta-filings",
+              "market-yahoo-equity-dell",
+              "extended-sec-edgar-dell-fundamentals",
+              "extended-sec-edgar-dell-filings"
+            ],
+            "value": "supported"
+          },
+          {},
+          {},
+          {},
+          {
+            "reference": "<<metric:financial-lens-value.pcfRatio>>",
+            "label": "PCF",
+            "status": "value",
+            "unit": "ratio",
+            "basis": "quote market cap / operating cash flow annualized to a year",
+            "periodEnd": "2026-06-27",
+            "periodMonths": 9,
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+            "value": "32.31x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "reference": "<<metric:capital-return.buybacksLatestFy>>",
+            "label": "Share repurchases (latest FY)",
+            "status": "value",
+            "unit": "currency",
+            "basis": "cash paid for share repurchases in the latest year-aligned fiscal year",
+            "currency": "USD",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "$90.7B"
+          },
+          {
+            "reference": "<<metric:capital-return.dividendsLatestFy>>",
+            "label": "Dividends paid (latest FY)",
+            "status": "value",
+            "unit": "currency",
+            "basis": "cash dividends paid in the latest year-aligned fiscal year",
+            "currency": "USD",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "$15.4B"
+          },
+          {
+            "reference": "<<metric:capital-return.shareCountChange1y>>",
+            "label": "Diluted share count change (1y)",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "diluted weighted-average shares, latest fiscal year vs the fiscal year 1y earlier",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "-2.6%"
+          },
+          {
+            "reference": "<<metric:capital-return.shareCountChange3y>>",
+            "label": "Diluted share count change (3y)",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "diluted weighted-average shares, latest fiscal year vs the fiscal year 3y earlier",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "-8.1%"
+          },
+          {
+            "reference": "<<metric:capital-return.shareCountChange5y>>",
+            "label": "Diluted share count change (5y)",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "diluted weighted-average shares, latest fiscal year vs the fiscal year 5y earlier",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "-14.4%"
+          },
+          {
+            "reference": "<<metric:capital-return.shareCountTrend>>",
+            "label": "Diluted share count trend (3y)",
+            "status": "value",
+            "unit": "text",
+            "basis": "3y diluted share count change: declining at or below -3%, increasing at or above +3%, else stable",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "declining"
+          },
+          {
+            "reference": "<<metric:capital-return.buybackYield>>",
+            "label": "Buyback yield",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "latest FY share repurchases / current quote market cap",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+            "value": "1.8%"
+          },
+          {
+            "reference": "<<metric:capital-return.dividendYieldFiled>>",
+            "label": "Dividend yield (filed)",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "latest FY dividends paid / current quote market cap",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+            "value": "0.3%"
+          },
+          {
+            "reference": "<<metric:capital-return.shareholderYield>>",
+            "label": "Shareholder yield",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "latest FY dividends paid + same-year share repurchases / current quote market cap",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+            "value": "2.1%"
+          },
+          {
+            "reference": "<<metric:capital-return.fcfPayoutRatio>>",
+            "label": "Dividends / free cash flow",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "latest FY dividends paid / free cash flow = operating cash flow - capital expenditure, all from one year-aligned fiscal year",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "15.6%"
+          },
+          {
+            "reference": "<<metric:capital-return.totalPayoutToFcf>>",
+            "label": "Dividends + repurchases / free cash flow",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "latest FY dividends paid + share repurchases / free cash flow = operating cash flow - capital expenditure, all from one year-aligned fiscal year",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "107.5%"
+          },
+          {
+            "reference": "<<metric:capital-return.dpsLatestFy>>",
+            "label": "Dividends per share (latest FY)",
+            "status": "value",
+            "unit": "currency-per-share",
+            "basis": "dividends declared per share, else cash paid per share, in the latest year-aligned fiscal year",
+            "currency": "USD",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "$1.02"
+          },
+          {
+            "reference": "<<metric:capital-return.dpsCagr3y>>",
+            "label": "Dividends per share growth (3y CAGR)",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "compound annual change in dividends per share, latest fiscal year vs the fiscal year 3y earlier",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "4.3%"
+          },
+          {
+            "reference": "<<metric:capital-return.dpsCagr5y>>",
+            "label": "Dividends per share growth (5y CAGR)",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "compound annual change in dividends per share, latest fiscal year vs the fiscal year 5y earlier",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "5.1%"
+          },
+          {
+            "reference": "<<metric:capital-return.earliestDividendFyInHistory>>",
+            "label": "Earliest dividend year in filed history",
+            "status": "value",
+            "unit": "text",
+            "basis": "earliest year-aligned fiscal year with positive dividends per share among retained annual filings",
+            "periodEnd": "2016-09-24",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "FY2016"
+          },
+          {
+            "reference": "<<metric:capital-return.sbcLatestFy>>",
+            "label": "Stock-based compensation (latest FY)",
+            "status": "value",
+            "unit": "currency",
+            "basis": "stock-based compensation in the latest annual filing",
+            "currency": "USD",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "value": "$12.9B"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:operating-ratios.freeCashFlowMargin>>",
+            "label": "Free cash flow margin",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "(operating cash flow - absolute capital expenditure) / revenue, all from one year-aligned fiscal year; revenue at or below zero is not meaningful",
+            "value": "23.7%"
+          },
+          {
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:operating-ratios.interestCoverage>>",
+            "label": "Interest coverage (operating income / interest expense)",
+            "status": "missing",
+            "unit": "ratio",
+            "basis": "operating income / interest expense as filed (an expense is positive), all from one year-aligned fiscal year; interest expense at or below zero is not meaningful, an operating loss gives a negative ratio"
+          },
+          {
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:operating-ratios.ebitdaProxy>>",
+            "label": "Operating income + D&A (EBITDA proxy)",
+            "status": "value",
+            "unit": "currency",
+            "basis": "operating income + depreciation and amortization as filed (an add-back is positive), all from one year-aligned fiscal year; negative depreciation and amortization is not meaningful",
+            "currency": "USD",
+            "value": "$144.7B"
+          },
+          {
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:operating-ratios.effectiveTaxRate>>",
+            "label": "Effective tax rate",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "income tax expense (a benefit is negative) / pretax income from continuing operations, all from one year-aligned fiscal year; not clamped, pretax income at or below zero is not meaningful",
+            "value": "15.6%"
+          },
+          {
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:operating-ratios.roic>>",
+            "label": "ROIC (operating income after effective tax / period-end invested capital)",
+            "status": "value",
+            "unit": "ratio-percent",
+            "basis": "operating income x (1 - income tax expense / pretax income), all from one year-aligned fiscal year, / (stockholders' equity + debt - cash and cash equivalents) at that fiscal year end; an effective tax rate outside 0-100% or invested capital at or below zero is not meaningful",
+            "value": "87.4%"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2017-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2017-09-30-2019-10-31.priceToEarnings>>",
+            "label": "P/E",
+            "status": "missing",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2019-10-31 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2017-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2017-09-30-2019-10-31.priceToSales>>",
+            "label": "P/S",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2019-10-31 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2017-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2017-09-30-2019-10-31.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "missing",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2019-10-31 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2017-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2017-09-30-2019-10-31.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2019-10-31 (unavailable)"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2018-09-29",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2018-09-29-2020-10-30.priceToEarnings>>",
+            "label": "P/E",
+            "status": "missing",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2018-09-29",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2018-09-29-2020-10-30.priceToSales>>",
+            "label": "P/S",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2018-09-29",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2018-09-29-2020-10-30.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "missing",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2018-09-29",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2018-09-29-2020-10-30.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2019-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2019-09-28-2020-10-30.priceToEarnings>>",
+            "label": "P/E",
+            "status": "missing",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2019-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2019-09-28-2020-10-30.priceToSales>>",
+            "label": "P/S",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2019-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2019-09-28-2020-10-30.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "missing",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2019-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2019-09-28-2020-10-30.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2020-09-26",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2020-09-26-2020-10-30.priceToEarnings>>",
+            "label": "P/E",
+            "status": "missing",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2020-09-26",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2020-09-26-2020-10-30.priceToSales>>",
+            "label": "P/S",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2020-09-26",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2020-09-26-2020-10-30.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "missing",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2020-09-26",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals"],
+            "reference": "<<metric:valuation-workbench-annual-2020-09-26-2020-10-30.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "missing",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2020-10-30 (unavailable)"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2021-09-25",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2021-09-25-2021-10-29.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2021-10-29; close 2021-10-29 USD",
+            "value": "26.70x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2021-09-25",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2021-09-25-2021-10-29.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2021-10-29; close 2021-10-29 USD",
+            "value": "6.91x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2021-09-25",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2021-09-25-2021-10-29.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "missing",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2021-10-29; close 2021-10-29 USD"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2021-09-25",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2021-09-25-2021-10-29.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2021-10-29; close 2021-10-29 USD",
+            "value": "27.18x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2022-09-24",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2022-09-24-2022-10-28.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2022-10-28; close 2022-10-28 USD",
+            "value": "25.49x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2022-09-24",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2022-09-24-2022-10-28.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2022-10-28; close 2022-10-28 USD",
+            "value": "6.45x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2022-09-24",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2022-09-24-2022-10-28.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "missing",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2022-10-28; close 2022-10-28 USD"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2022-09-24",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2022-09-24-2022-10-28.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2022-10-28; close 2022-10-28 USD",
+            "value": "22.82x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2023-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2023-09-30-2023-11-03.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2023-11-03; close 2023-11-03 USD",
+            "value": "28.82x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2023-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2023-09-30-2023-11-03.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2023-11-03; close 2023-11-03 USD",
+            "value": "7.29x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2023-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2023-09-30-2023-11-03.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2023-11-03; close 2023-11-03 USD",
+            "value": "7.48x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2023-09-30",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2023-09-30-2023-11-03.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2023-11-03; close 2023-11-03 USD",
+            "value": "28.05x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2024-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2024-09-28-2024-11-01.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2024-11-01; close 2024-11-01 USD",
+            "value": "36.66x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2024-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2024-09-28-2024-11-01.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2024-11-01; close 2024-11-01 USD",
+            "value": "8.78x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2024-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2024-09-28-2024-11-01.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2024-11-01; close 2024-11-01 USD",
+            "value": "8.95x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2024-09-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2024-09-28-2024-11-01.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2024-11-01; close 2024-11-01 USD",
+            "value": "31.57x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-06-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-06-28-2025-08-01.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "TTM; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2025-08-01; close 2025-08-01 USD",
+            "value": "30.71x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-06-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-06-28-2025-08-01.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2025-08-01; close 2025-08-01 USD",
+            "value": "7.46x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-06-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-06-28-2025-08-01.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "TTM; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2025-08-01; close 2025-08-01 USD",
+            "value": "7.60x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-06-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-06-28-2025-08-01.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2025-08-01; close 2025-08-01 USD",
+            "value": "31.70x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2025-09-27-2025-10-31.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "ANNUAL; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2025-10-31; close 2025-10-31 USD",
+            "value": "36.24x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2025-09-27-2025-10-31.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2025-10-31; close 2025-10-31 USD",
+            "value": "9.75x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2025-09-27-2025-10-31.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "ANNUAL; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2025-10-31; close 2025-10-31 USD",
+            "value": "9.88x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-09-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-annual-2025-09-27-2025-10-31.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "ANNUAL; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2025-10-31; close 2025-10-31 USD",
+            "value": "41.07x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-12-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-12-27-2026-01-30.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "TTM; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2026-01-30; close 2026-01-30 USD",
+            "value": "32.85x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-12-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-12-27-2026-01-30.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2026-01-30; close 2026-01-30 USD",
+            "value": "8.88x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-12-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-12-27-2026-01-30.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "TTM; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2026-01-30; close 2026-01-30 USD",
+            "value": "8.98x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2025-12-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2025-12-27-2026-01-30.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2026-01-30; close 2026-01-30 USD",
+            "value": "31.37x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-03-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-03-28-2026-05-01.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "TTM; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2026-05-01; close 2026-05-01 USD",
+            "value": "33.92x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-03-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-03-28-2026-05-01.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2026-05-01; close 2026-05-01 USD",
+            "value": "9.21x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-03-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-03-28-2026-05-01.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "TTM; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2026-05-01; close 2026-05-01 USD",
+            "value": "9.29x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-03-28",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-03-28-2026-05-01.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2026-05-01; close 2026-05-01 USD",
+            "value": "32.18x"
+          }
+        ]
+      },
+      {
+        "metrics": [
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-06-27-2026-07-31.priceToEarnings>>",
+            "label": "P/E",
+            "status": "value",
+            "basis": "TTM; close / diluted EPS; first verified close within 7 calendar days on or after publicAt 2026-07-31; close 2026-07-31 USD",
+            "value": "35.43x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-06-27-2026-07-31.priceToSales>>",
+            "label": "P/S",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / revenue; first verified close within 7 calendar days on or after publicAt 2026-07-31; close 2026-07-31 USD",
+            "value": "9.78x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-06-27-2026-07-31.enterpriseValueToRevenue>>",
+            "label": "EV/revenue",
+            "status": "value",
+            "basis": "TTM; ((close × diluted shares) + debt - cash) / revenue; first verified close within 7 calendar days on or after publicAt 2026-07-31; close 2026-07-31 USD",
+            "value": "9.88x"
+          },
+          {
+            "unit": "ratio",
+            "periodEnd": "2026-06-27",
+            "sourceIds": ["extended-sec-edgar-aapl-fundamentals", "price-history-AAPL"],
+            "reference": "<<metric:valuation-workbench-ttm-2026-06-27-2026-07-31.priceToFreeCashFlow>>",
+            "label": "P/FCF proxy",
+            "status": "value",
+            "basis": "TTM; (close × diluted shares) / free cash flow; first verified close within 7 calendar days on or after publicAt 2026-07-31; close 2026-07-31 USD",
+            "value": "33.42x"
+          }
+        ]
+      },
+      {}
+    ],
+    "earningsBasis": {
+      "text": "Provider trailing EPS 8.72 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM 8.72 USD through 2026-06-27. The SEC value is an approximation that adds per-share periods without reweighting diluted shares. The provider value matches the SEC diluted EPS TTM value at two decimals.",
+      "sourceIds": ["market-yahoo-equity-aapl", "extended-sec-edgar-aapl-fundamentals"]
+    },
+    "historicalContext": {
+      "runs": [
+        {
+          "keyFindings": [
+            {
+              "text": "Observed fact: for the nine months ended 2026-06-27, revenue increased 16.2%, gross profit 21.7%, operating income 21.7%, net income 20.0%, diluted EPS 22.4%, and operating cash flow 43.1% year over year.",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-fundamentals",
+                "extended-sec-edgar-aapl-filings"
+              ]
+            },
+            {
+              "text": "Observed fact: nine-month gross margin was 49.1%, operating margin 33.6%, net margin 27.8%, and the free-cash-flow proxy was $110.2 billion.",
+              "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+            },
+            {},
+            {},
+            {}
+          ]
+        }
+      ]
+    }
+  }
+}

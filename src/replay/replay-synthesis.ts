@@ -1,5 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import type { JudgeCalibration } from "./judge-telemetry";
+import { dirname, join, resolve } from "node:path";
+import { isRecord } from "../guards";
 import type { ModelProvider, ModelRequest, ModelResponse } from "../model/types";
 import { buildModelStageRequest } from "../research/model-stage-prompt";
 import {
@@ -28,6 +30,7 @@ import {
 import { freshEvalDir, writeEvalJson } from "./eval-output";
 import {
   cancelMatchedItems,
+  digestJudgeItems,
   judgeReport,
   reportJudgeItems,
   scoreReportDefects,
@@ -36,6 +39,7 @@ import {
 import { estimateJudgeTokens, JUDGE_MAJORITY_VOTES, type JudgeMeter } from "./eval-judge";
 import { ABLATION_ARMS } from "./eval-decision";
 import { finalSynthesisEvidencePayload } from "../research/prompts/final-synthesis";
+import { collectedCodeAssembledExtraKeys } from "../research/extended-evidence-projections";
 
 type AblationArm = keyof typeof ABLATION_ARMS;
 
@@ -446,7 +450,9 @@ export async function replayPairedSample(options: {
       omissionCases,
       evidence,
     );
-  const paired = cancelMatchedItems(await items(control), await items(ablation));
+  const controlItems = await items(control);
+  const ablationItems = await items(ablation);
+  const paired = cancelMatchedItems(controlItems, ablationItems);
   const meters = { control: { calls: 0, tokens: 0 }, ablation: { calls: 0, tokens: 0 } };
   const judged: Partial<Record<"control" | "ablation", object>> = {};
   let judgeError: string | undefined = undefined;
@@ -466,11 +472,13 @@ export async function replayPairedSample(options: {
     const { sharedConveyance } = paired;
     judged.control = {
       ...controlResult,
+      items: controlItems.length,
       canceled: paired.canceled.map((pair) => pair.control),
       sharedConveyance,
     };
     judged.ablation = {
       ...ablationResult,
+      items: ablationItems.length,
       unconveyed: [
         ...ablationResult.unconveyed,
         ...controlResult.unconveyed.filter((key) => sharedConveyance.includes(key)),
@@ -487,6 +495,19 @@ export async function replayPairedSample(options: {
   };
 }
 
+// Tokens a provider bills per call beyond prompt and visible output (codex: CLI instructions and reasoning), measured on the recorded synthesis calls.
+function measuredCallOverhead(
+  calls: readonly { readonly request: ModelRequest; readonly response: ModelResponse }[],
+): number {
+  return Math.max(
+    0,
+    ...calls.map(
+      ({ request, response }) =>
+        response.tokenEstimate - inputTokens(request) - Math.ceil(response.content.length / 4),
+    ),
+  );
+}
+
 export async function estimateSynthesisFile(
   input: string,
   ablation?: AblationArm,
@@ -496,23 +517,34 @@ export async function estimateSynthesisFile(
   readonly observedCalls: number;
   readonly boundedCalls: number;
   readonly maxInputTokens: number;
+  readonly callOverhead: number;
+  readonly captureIdentity: { readonly provider: string; readonly model: string } | undefined;
   readonly perRun: number;
   readonly expectedPerRun: number;
   readonly judgeItems: number;
   readonly judgePerRun: number;
   readonly judgeEarlyStopPerRun: number;
+  readonly judgeAlwaysCanceled: {
+    readonly items: number;
+    readonly perRun: number;
+    readonly earlyStopPerRun: number;
+  };
   readonly totalExpectedPerRun: number;
   readonly totalEarlyStopPerRun: number;
   readonly totalWorstPerRun: number;
 }> {
   const saved = await loadAblatedInput(input, ablation);
   const requests: ModelRequest[] = [];
+  const calls: { request: ModelRequest; response: ModelResponse }[] = [];
   let analysisExpected = 0;
   let analysisWorst = 0;
   const { report } = await executeSynthesisInput(saved, {
     ablation,
     onRequest: (request) => {
       requests.push(request);
+    },
+    onResponse: (response) => {
+      calls.push({ request: requests.at(-1)!, response });
     },
     onAnalysisCall: ({ request, response }) => {
       analysisExpected += response.tokenEstimate;
@@ -521,17 +553,28 @@ export async function estimateSynthesisFile(
   });
   const maxInputTokens = Math.max(...requests.map((request) => inputTokens(request)));
   const boundedCalls = 1 + saved.input.maxPredictionReprompts + 2 + MAX_REPORT_VALIDATION_REPROMPTS;
+  const callOverhead = measuredCallOverhead(calls);
+  const settings: unknown = await readFile(join(dirname(input), "meta.json"), "utf8")
+    .then((text) => JSON.parse(text).settings)
+    .catch(() => undefined);
   const judgeItems = reportJudgeItems(
     report,
     captureOmissionCases(saved, omissionCases),
     judgeEvidence(saved),
   );
-  const judgePerRun = estimateJudgeTokens(judgeItems.map((row) => row.item));
-  // Lower bound: every judgment stops after its first votes agree.
-  const judgeEarlyStopPerRun = estimateJudgeTokens(
-    judgeItems.map((row) => row.item),
-    JUDGE_MAJORITY_VOTES,
+  const judgeTokens = (rows: typeof judgeItems, votes?: number) =>
+    estimateJudgeTokens(
+      rows.map((row) => row.item),
+      votes,
+      callOverhead,
+    );
+  const alwaysCanceled = digestJudgeItems(
+    judgeItems,
+    collectedCodeAssembledExtraKeys(saved.input.collectedSources),
   );
+  const judgePerRun = judgeTokens(judgeItems);
+  // Lower bound: every judgment stops after its first votes agree.
+  const judgeEarlyStopPerRun = judgeTokens(judgeItems, JUDGE_MAJORITY_VOTES);
   const perRun = Math.ceil(boundedCalls * (maxInputTokens + 50_000) * 1.25) + analysisWorst;
   const expectedPerRun =
     Object.values(saved.responses.entries)
@@ -542,13 +585,61 @@ export async function estimateSynthesisFile(
     judgeItems: judgeItems.length,
     judgePerRun,
     judgeEarlyStopPerRun,
+    judgeAlwaysCanceled: {
+      items: alwaysCanceled.length,
+      perRun: judgeTokens(alwaysCanceled),
+      earlyStopPerRun: judgeTokens(alwaysCanceled, JUDGE_MAJORITY_VOTES),
+    },
     observedCalls: requests.length,
     boundedCalls,
     maxInputTokens,
+    callOverhead,
+    captureIdentity:
+      isRecord(settings) &&
+      typeof settings.provider === "string" &&
+      typeof settings.synthesisModel === "string"
+        ? { provider: settings.provider, model: settings.synthesisModel }
+        : undefined,
     perRun,
     expectedPerRun,
     totalExpectedPerRun: expectedPerRun + judgePerRun,
     totalEarlyStopPerRun: expectedPerRun + judgeEarlyStopPerRun,
     totalWorstPerRun: perRun + judgePerRun,
+  };
+}
+
+type SynthesisEstimate = Awaited<ReturnType<typeof estimateSynthesisFile>>;
+
+// Both arms' per-sample estimates times samples. A judge calibration prices judged items by measured votes and tokens, deducting cancellation measured on the same capture and arm, else only the provable digest units; without one the heuristic range applies. Worst case stays the heuristic bound.
+export function approvalSubsetEstimate(
+  ablation: SynthesisEstimate,
+  control: SynthesisEstimate,
+  samples: number,
+  calibration?: JudgeCalibration,
+): { readonly earlyStop: number; readonly expected: number; readonly worst: number } {
+  const canceled = ablation.judgeAlwaysCanceled;
+  const worst = (ablation.totalWorstPerRun + control.totalWorstPerRun - canceled.perRun) * samples;
+  if (calibration !== undefined) {
+    const { cancelShare } = calibration;
+    const judged =
+      cancelShare.ablation === undefined || cancelShare.control === undefined
+        ? ablation.judgeItems + control.judgeItems - canceled.items
+        : ablation.judgeItems * (1 - cancelShare.ablation) +
+          control.judgeItems * (1 - cancelShare.control);
+    const calibrated = Math.ceil(
+      (ablation.expectedPerRun +
+        control.expectedPerRun +
+        judged * calibration.votesPerJudgedItem * calibration.tokensPerCall) *
+        samples,
+    );
+    return { earlyStop: calibrated, expected: calibrated, worst: Math.max(worst, calibrated) };
+  }
+  return {
+    earlyStop:
+      (ablation.totalEarlyStopPerRun + control.totalEarlyStopPerRun - canceled.earlyStopPerRun) *
+      samples,
+    expected:
+      (ablation.totalExpectedPerRun + control.totalExpectedPerRun - canceled.perRun) * samples,
+    worst,
   };
 }

@@ -20,6 +20,12 @@ import {
   runEvalSample,
   writeEvalSummary,
 } from "./support/run-fixtures/eval";
+import { approvalSubsetEstimate } from "../src/replay/replay-synthesis";
+import {
+  calibrateJudge,
+  overheadDisclosure,
+  readJudgeTelemetry,
+} from "../src/replay/judge-telemetry";
 
 const FIXTURE = "equity-web-fallback-deep";
 const roots: string[] = [];
@@ -1182,4 +1188,113 @@ describe("frozen-input eval replay", () => {
       expect(await new Response(child.stdout).text()).toBe("");
     },
   );
+});
+
+describe("approval subset calibrated on judge telemetry", () => {
+  const fixture = join(import.meta.dir, "fixtures/eval-cases/judge-telemetry.json");
+  const arms = {
+    ablation: "market-behavior-analysis",
+    control: "market-behavior-analysis-control",
+  };
+  const codex = { provider: "codex", model: "gpt-6-luna" };
+
+  test("lands within 25% of each mb-pilot2 capture's actual spend, worst case above it", async () => {
+    const { samples } = await readJudgeTelemetry(await tempRoot(), fixture);
+    expect(samples).toHaveLength(18);
+    // Per-arm dry-run estimates of each capture (scratch dry runs, no live calls).
+    const captures = {
+      "2026-10-16T15-39-22-261Z-db41e526": [99, 191_806, 8_011_095, 7_558_783],
+      "2026-10-18T08-13-28-001Z-1e2720bc": [108, 137_162, 8_530_615, 8_089_445],
+      "2026-10-20T07-09-03-517Z-6b4aa8ab": [105, 137_665, 8_495_443, 7_895_813],
+    } as const;
+    for (const [
+      capture,
+      [judgeItems, expectedPerRun, ablationWorst, controlWorst],
+    ] of Object.entries(captures)) {
+      const estimate = (totalWorstPerRun: number) =>
+        ({
+          judgeItems,
+          expectedPerRun,
+          totalWorstPerRun,
+          judgeAlwaysCanceled: { items: 0, perRun: 0, earlyStopPerRun: 0 },
+        }) as unknown as Parameters<typeof approvalSubsetEstimate>[0];
+      const calibration = calibrateJudge(samples, codex, { capture, ...arms });
+      expect(calibration?.cancelShare.ablation).toBeGreaterThan(0.5);
+      const subset = approvalSubsetEstimate(
+        estimate(ablationWorst),
+        estimate(controlWorst),
+        3,
+        calibration,
+      );
+      const actual = samples
+        .filter((row) => row.capture === capture)
+        .reduce((sum, row) => sum + (row as unknown as { liveTokens: number }).liveTokens, 0);
+      expect(Math.abs(subset.expected / actual - 1)).toBeLessThanOrEqual(0.25);
+      expect(subset.worst).toBeGreaterThanOrEqual(actual);
+    }
+  });
+
+  test("every --input plan discloses whether the capture's overhead fits the configured judge", () => {
+    const api = { provider: "openai", model: "gpt-6-luna" };
+    expect(overheadDisclosure(codex, codex, 20_000)).toBe(
+      "~20000 overhead tokens/call measured on the capture's own codex/gpt-6-luna calls",
+    );
+    expect(overheadDisclosure(api, codex, 300)).toMatch(
+      /^overhead unknown: the capture ran openai\/gpt-6-luna, not codex\/gpt-6-luna/u,
+    );
+    expect(overheadDisclosure(undefined, codex, 300)).toMatch(/an unrecorded provider/u);
+    expect(overheadDisclosure(codex, undefined, 300)).toMatch(/unresolved provider/u);
+  });
+
+  test("matches provider and model exactly, keeps cancellation per capture and arm, skips unusable records", async () => {
+    const root = await tempRoot();
+    const write = async (dir: string, sample: unknown) => {
+      await mkdir(join(root, dir), { recursive: true });
+      await writeFile(join(root, dir, "eval-sample.json"), JSON.stringify(sample));
+    };
+    const judged = {
+      status: "completed",
+      input: "/runs/cap-x/replay/final-synthesis-input.json",
+      arm: { name: arms.control },
+      judged: {
+        judge: { provider: "anthropic", model: "claude-x" },
+        items: 10,
+        units: Array.from({ length: 5 }, () => ({})),
+      },
+      modelCalls: { judge: 10 },
+      tokens: { judge: 1000 },
+    };
+    await write("b/control-1", judged);
+    await write("b/legacy-1", { ...judged, judged: { items: 10, units: [] } });
+    await write("b/nan-1", { ...judged, tokens: { judge: "many" } });
+    await writeFile(join(root, "b", "truncated.json"), "{");
+    await mkdir(join(root, "b", "broken-1"), { recursive: true });
+    await writeFile(join(root, "b", "broken-1", "eval-sample.json"), '{"status":');
+    const { samples, skipped } = await readJudgeTelemetry(root, fixture);
+    expect(samples).toHaveLength(19);
+    expect(skipped).toBe(3);
+    expect(
+      calibrateJudge(
+        samples,
+        { provider: "openai", model: "gpt-6-luna" },
+        { capture: "x", ...arms },
+      ),
+    ).toBeUndefined();
+    expect(
+      calibrateJudge(
+        samples,
+        { provider: "anthropic", model: "claude-x" },
+        { capture: "cap-x", ...arms },
+      ),
+    ).toEqual({
+      samples: 1,
+      tokensPerCall: 100,
+      votesPerJudgedItem: 2,
+      cancelShare: { control: 0.5 },
+    });
+    expect(calibrateJudge(samples, codex, { capture: "cap-x", ...arms })?.cancelShare).toEqual({});
+    expect(await readJudgeTelemetry(root, join(root, "missing.json"))).toMatchObject({
+      skipped: 3,
+    });
+  });
 });

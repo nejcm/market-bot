@@ -6,7 +6,7 @@ export const JUDGE_STAGE = "eval-judge";
 const JUDGE_SAMPLES = 3;
 export const JUDGE_MAJORITY_VOTES = Math.floor(JUDGE_SAMPLES / 2) + 1;
 
-type JudgeVote = "yes" | "no" | "insufficient-evidence" | "invalid";
+type JudgeVote = "yes" | "no" | "unsupported" | "insufficient-evidence" | "invalid";
 
 export interface JudgeItem {
   readonly question: string;
@@ -15,13 +15,13 @@ export interface JudgeItem {
 }
 
 export interface JudgeResult {
-  readonly verdict: "yes" | "no" | "insufficient-evidence" | "undecided";
+  readonly verdict: "yes" | "no" | "unsupported" | "insufficient-evidence" | "undecided";
   readonly votes: readonly JudgeVote[];
   readonly agreement: number;
 }
 
 export function aggregateVotes(votes: readonly JudgeVote[]): JudgeResult {
-  const counts = (["yes", "no", "insufficient-evidence"] as const).map(
+  const counts = (["yes", "no", "unsupported", "insufficient-evidence"] as const).map(
     (verdict) => [verdict, votes.filter((vote) => vote === verdict).length] as const,
   );
   const [top, topCount] = counts.toSorted((a, b) => b[1] - a[1])[0]!;
@@ -38,6 +38,7 @@ function parseVote(content: string): JudgeVote {
     return isRecord(parsed) &&
       (parsed.verdict === "yes" ||
         parsed.verdict === "no" ||
+        parsed.verdict === "unsupported" ||
         parsed.verdict === "insufficient-evidence")
       ? parsed.verdict
       : "invalid";
@@ -47,7 +48,7 @@ function parseVote(content: string): JudgeVote {
 }
 
 const JUDGE_SYSTEM = withUntrustedModelInputRule(
-  'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no"|"insufficient-evidence","reason":string}. Use "insufficient-evidence" when the evidence shown cannot settle the question.',
+  'You audit research claims against quoted evidence. Answer only the question asked, as JSON: {"verdict":"yes"|"no"|"unsupported"|"insufficient-evidence","reason":string}. Use "unsupported" and "insufficient-evidence" only as the question defines them; if it does not, use "insufficient-evidence" when the evidence shown cannot settle the question.',
 );
 const JUDGE_OUTPUT_TOKENS = 120;
 
@@ -93,17 +94,19 @@ export async function judgeItem(
   return aggregateVotes(votes);
 }
 
-// Planning estimate only: characters/4 input plus a fixed output allowance per vote.
+// Planning estimate only: characters/4 input, a fixed output allowance and the provider's measured per-call overhead, per vote.
 export function estimateJudgeTokens(
   items: readonly JudgeItem[],
   samples: number = JUDGE_SAMPLES,
+  callOverhead = 0,
 ): number {
   return items.reduce(
     (sum, item) =>
       sum +
       samples *
         (Math.ceil((JUDGE_SYSTEM.length + judgeUserMessage(item).length) / 4) +
-          JUDGE_OUTPUT_TOKENS),
+          JUDGE_OUTPUT_TOKENS +
+          callOverhead),
     0,
   );
 }

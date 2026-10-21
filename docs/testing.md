@@ -391,7 +391,7 @@ Deterministic checks (`src/replay/eval-cases.ts`):
   metric-, unit- or period-aware, so it does not certify extraction quality.
 
 The judge (`src/replay/eval-judge.ts`) runs k=3 votes through any `ModelProvider` under stage
-`eval-judge`. A vote is `yes`, `no` or `insufficient-evidence`; unparseable output is an invalid vote; a
+`eval-judge`. A vote is `yes`, `no`, `unsupported` or `insufficient-evidence`; unparseable output is an invalid vote; a
 verdict needs a strict majority, otherwise `undecided`. Voting stops once a majority is settled (two
 identical valid votes), since a third vote cannot change it. Its system prompt carries the untrusted-input rule
 (`withUntrustedModelInputRule`), since claims and evidence are model output and provider text. Tests drive
@@ -427,8 +427,19 @@ units on one side cancel at most two on the other. Canceled locations are record
 `judged.canceled` and are judged on neither. Conveyance never cancels, because the omission veto needs
 absolute shares: a request matching in full (the whole report-level claim) is judged once and its verdict
 is recorded on both sides (`judged.sharedConveyance`). The plan without `--yes` prints the approval subset for an ablation arm: its estimate plus
-its control's, as a range from early stop on every judgment to early stop on none; canceled requests lower
-both ends.
+its control's, times samples, and the basis it used. Judge telemetry is completed samples under `data/evals/`
+that record `judged.judge`, plus `tests/fixtures/eval-cases/judge-telemetry.json` (pilot `mb-pilot2`,
+which predates that field; the file records the basis of its provider). Samples without a recorded
+provider and model are skipped, as are records with missing or non-numeric counts; skips are counted in
+the plan. Every `--input` plan states whether the capture's recorded provider and synthesis model match the configured
+ones; when they differ, the measured per-call overhead is labelled unknown. When telemetry matches the
+configured provider and synthesis model exactly, the judge is priced
+from its tokens per call and votes per judged (surviving) item. Cancellation is priced separately: only a
+share measured on the same capture and arm is applied; otherwise every item is judged except provable
+cancellation. Without matching telemetry the plan prints a labelled heuristic fallback: a range from early
+stop on every judgment to early stop on none, deducting only provable cancellation: units of a collected
+code-assembled digest (the Web Subject Profile) ignore the draft, so the ablation side's copies always
+cancel. The worst case is always the heuristic bound.
 Only equity inputs are accepted (Market Overview panels have their own specialist consumers); an arm whose root
 stage is absent throws. Offline (no provider, as in the dry-run estimate) a regenerated stage's frozen
 output stands in for it, so offline replays prove wiring, not the ablated quality. Arms differ only in that
@@ -437,17 +448,28 @@ its exact removed and regenerated stage lists.
 
 Every `--input` sample records `defects` in `eval-sample.json` (stale-support locations, unmatched-figure
 locations, `uncitedRequiredSources`) and, in a `--yes` batch, `judged`: k=3 judge verdicts on every claim
-of the generated report and on each omission case's conveyance question. Claim evidence is the
+of the generated report except predictions (scored by resolution) and scenario names (labels), and on each
+omission case's conveyance question. The contradiction question answers `yes` for a direct contradiction and
+`unsupported` for a present or past factual assertion the evidence neither states nor implies, hedged or
+not; only future outcomes, conditional scenarios and statements that the run's own data is missing (which no
+evidence can support) are judged solely on whether the evidence contradicts them. It reserves `insufficient-evidence` for empty or unreadable evidence. A unit whose cited evidence was
+clipped to fit (`clipped` in `judged.units`) may have support outside the excerpt, so its `unsupported`
+verdict is recorded as `unsupported-clipped`: not scored, counted with `insufficient-evidence`. Claim evidence is the
 final-synthesis evidence projection (`judgeEvidence`), never the full collected object: for each cited id,
 every record tagged with it, one line per record with its short fields (ids, periods, units) and one line
 per long-text sentence; whole when it fits 4,000 characters per source, otherwise the sentences sharing the
 most claim terms and figures with their record lines. An uncited unit (the summary, open gaps) is judged
 against the whole projection the same way. Each evidence line keeps its projection path, so primary records
-stay distinguishable from historical model prose cited under the same id. `contradictions` counts `yes`, `insufficient-evidence`
-and `undecided`; `unconveyed` counts anything but `yes`. Judge calls and tokens are metered per vote
+stay distinguishable from historical model prose cited under the same id. `contradictions` counts `yes`, `unsupported` (unclipped) and `undecided`;
+`insufficientEvidence` counts apart; `unconveyed` counts anything but `yes`. `judged.units` keeps every judged
+unit's location, kind, verdict, votes and evidence character count; `judged.judge` the provider and model,
+`judged.items` the judge items before cancellation. Judge calls and tokens are metered per vote
 (`modelCalls.judge`, `tokens.judge`), kept when a sample fails mid-judge, and included in the live totals.
 The judge uses the configured
-synthesis model. The plan without `--yes` prints generation, judge and total token estimates.
+synthesis model. The plan without `--yes` prints generation, judge and total token estimates. Each heuristic judge vote is
+costed at characters/4 plus an output allowance plus the provider's per-call overhead, measured on the
+input's recorded synthesis calls as billed tokens minus prompt and visible output (about 20k on codex, which
+dwarfs a ~3k judge prompt).
 
 ### Stage deletion rule (pre-registered)
 
@@ -457,10 +479,16 @@ runs one `eval-deep.ts --input --ablate <arm>` label, which pairs control and ab
 before anything runs.
 
 - Inference target: the fixed capture corpus. The result says nothing about runs outside these captures.
-- Report score: stale-support locations + judged contradiction locations (`yes`, `insufficient-evidence` or
-  `undecided`) from that sample's `eval-sample.json`. Canceled units are not judged, so a score is relative
-  to its paired sample, not an absolute measure of report quality. Unmatched figures are reported, not
-  scored.
+- Report score: stale-support locations + judged contradiction locations (`yes`, `unsupported` on
+  unclipped evidence, or `undecided`) from that
+  sample's `eval-sample.json`. Canceled units are not judged, so a score is relative to its paired sample,
+  not an absolute measure of report quality. Unmatched figures are reported, not scored.
+- Insufficient-evidence guard: `insufficient-evidence` and `unsupported-clipped` verdicts are not scored. Their share of judged
+  contradiction units (`judged.units` of kind `contradiction`, via `insufficientEvidenceCount`; the
+  aggregate `judged.insufficientEvidence` also counts conveyance) is reported per arm, pooled over all
+  samples, and vetoes when the ablation share exceeds the control share by strictly more than 10
+  percentage points, compared on counts (`stageDeletionStatistics` requires `insufficientEvidence`), so an
+  arm cannot win by making the judge abstain.
 - Paired difference: ablation score minus control score of the same capture and sample index.
 - Difference per capture: mean paired difference. Captures weigh equally, whatever their claim count.
 - Statistic: one-sided 95% upper bound of the mean per-capture difference from a stratified bootstrap
@@ -478,6 +506,25 @@ before anything runs.
   within-capture variance of the pilot's paired differences and C is the arm's capture count; this matches
   the stratified bootstrap's standard error √(s_d²/(Cn)). n is recorded before the confirmatory
   batch runs; pilot samples are not reused.
+- Amendment (after pilot `mb-pilot2-{db41e526,1e2720bc,6b4aa8ab}`, before any confirmatory sample): the
+  score first counted `insufficient-evidence` as a contradiction. In that pilot it was 407 of 433 scored
+  verdicts (13 `yes`, 13 `undecided`), driven by unit kind rather than error: predictions 98% and scenario
+  names 98% of judged units, uncited data gaps 60%, hedged findings 42%, plain cited findings 28%; evidence
+  truncation was not a cause. The old judge question ("answer insufficient-evidence when the evidence shown
+  cannot settle it") made any hedge, forecast or absence statement abstain, so the score rewarded less
+  hedged reports. Old score: mean paired difference +2.78, upper bound 4.89, s_d² 20.6, n = 297 pairs per
+  capture. Amended score on the same verdicts (old wording): +0.44, upper bound 0.78, s_d² 0.56, n = 9;
+  insufficient-evidence share 43.7% control vs 48.4% ablation. Pilot samples predate `judged.units`, so
+  their guard counts come from the aggregate; if db41e526's conveyance verdicts were `insufficient-evidence`
+  the figures are +0.56, upper bound 0.89, s_d² 0.67, n = 10, share 43.2% vs 47.7%. A second review
+  amendment, still before any confirmatory sample, added `unsupported` (scored): under the first amendment
+  an invented present-tense fact citing an unrelated source answered `no` and scored zero. A third, also
+  before any confirmatory sample, required support for hedged present or past assertions about the world (missing-run-data statements stay
+  judged only for contradiction) and moved
+  `unsupported` on clipped evidence to the guard (pilot db41e526 ablation-1 `keyFindings[8]`: a correct
+  $42.8B net debt whose metric fell outside its 3,945-character excerpt). The pilot had no
+  `unsupported` vote. The judge question and judged units changed in these amendments; the figures above
+  use the old wording and old units, so the amended instrument needs its own pilot before n is fixed.
 - Deleting a stage is a human decision taken against this rule, on that stage's isolated arm. Every live
   batch, pilot or confirmatory, needs approval after its printed estimate.
 

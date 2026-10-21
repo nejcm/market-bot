@@ -12,6 +12,7 @@ import {
 } from "../tests/support/run-fixtures/eval";
 import { validateLiveStage } from "../src/replay/llm-cassette";
 import {
+  approvalSubsetEstimate,
   estimateSynthesisFile,
   replayPairedSample,
   replaySynthesisFile,
@@ -21,7 +22,16 @@ import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
 import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
 import { createProvider } from "../src/model/factory";
 import { resolveConfig } from "../src/config";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import {
+  calibrateJudge,
+  captureOf,
+  overheadDisclosure,
+  readJudgeTelemetry,
+} from "../src/replay/judge-telemetry";
+
+const measuredShare = (value: number | undefined) =>
+  value === undefined ? "none measured" : `${(value * 100).toFixed(1)}%`;
 
 const USAGE =
   "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
@@ -68,8 +78,20 @@ if (values.input !== undefined) {
   ).filter((row): row is OmissionCase => row.check === "omission");
   const estimate = await estimateSynthesisFile(values.input, ablate, omissionCases);
   const samplesCount = Number(values.samples);
+  let identity: { provider: string; model: string } | undefined = undefined;
+  try {
+    const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+    identity = { provider: config.provider, model: config.synthesisModel };
+  } catch {
+    identity = undefined;
+  }
+  const overheadNote = overheadDisclosure(
+    estimate.captureIdentity,
+    identity,
+    estimate.callOverhead,
+  );
   process.stdout.write(
-    `Final synthesis input${estimate.arm === undefined ? "" : ` arm ${estimate.arm.name} (removed: ${estimate.arm.removed.join(", ")}; regenerated live: ${estimate.arm.regenerated.join(", ") || "none"})`}: ${String(estimate.observedCalls)} recorded synthesis call(s). Generation expected ~${String(estimate.expectedPerRun * samplesCount)} tokens at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded synthesis calls/sample, 25% headroom) ~${String(estimate.perRun * samplesCount)}. k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample, ~${String(estimate.judgePerRun * samplesCount)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samplesCount)}, worst case ~${String(estimate.totalWorstPerRun * samplesCount)}. Not a provider-enforced cost cap.\n`,
+    `Final synthesis input${estimate.arm === undefined ? "" : ` arm ${estimate.arm.name} (removed: ${estimate.arm.removed.join(", ")}; regenerated live: ${estimate.arm.regenerated.join(", ") || "none"})`}: ${String(estimate.observedCalls)} recorded synthesis call(s). Generation expected ~${String(estimate.expectedPerRun * samplesCount)} tokens at the recorded call count and token use; worst case (all ${String(estimate.boundedCalls)} bounded synthesis calls/sample, 25% headroom) ~${String(estimate.perRun * samplesCount)}. k=3 report judge: ${String(estimate.judgeItems)} item(s)/sample (${overheadNote}), ~${String(estimate.judgePerRun * samplesCount)} tokens. Total expected ~${String(estimate.totalExpectedPerRun * samplesCount)}, worst case ~${String(estimate.totalWorstPerRun * samplesCount)}. Not a provider-enforced cost cap.\n`,
   );
   const control =
     estimate.arm !== undefined && "control" in estimate.arm ? estimate.arm.control : undefined;
@@ -79,8 +101,35 @@ if (values.input !== undefined) {
       control === "baseline" ? undefined : (control as keyof typeof ABLATION_ARMS),
       omissionCases,
     );
+    const telemetryFile = join(
+      import.meta.dir,
+      "../tests/fixtures/eval-cases/judge-telemetry.json",
+    );
+    const telemetry = await readJudgeTelemetry(EVALS_ROOT, telemetryFile);
+    const capture = captureOf(resolve(values.input));
+    const calibration =
+      identity === undefined
+        ? undefined
+        : calibrateJudge(telemetry.samples, identity, {
+            capture,
+            ablation: estimate.arm!.name,
+            control,
+          });
+    const subset = approvalSubsetEstimate(estimate, paired, samplesCount, calibration);
+    const who =
+      identity === undefined
+        ? "an unresolved provider/model"
+        : `${identity.provider}/${identity.model}`;
+    const basis =
+      calibration === undefined
+        ? `HEURISTIC FALLBACK, no judge telemetry for ${who}: early stop on every item / on none, ${overheadNote}; only always-identical code-assembled digest units deducted as canceled`
+        : `judge calibrated on ${String(calibration.samples)} sample(s) judged by ${who}: ${calibration.votesPerJudgedItem.toFixed(2)} votes/judged item, ~${String(Math.round(calibration.tokensPerCall))} tokens/call; cancellation measured on this capture and arm: ablation ${measuredShare(calibration.cancelShare.ablation)}, control ${measuredShare(calibration.cancelShare.control)}${calibration.cancelShare.ablation === undefined || calibration.cancelShare.control === undefined ? " (provable digest units deducted instead)" : ""}`;
+    const skipped =
+      telemetry.skipped === 0
+        ? ""
+        : `; ${String(telemetry.skipped)} telemetry record(s) skipped as unidentified or unusable`;
     process.stdout.write(
-      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${String((estimate.totalEarlyStopPerRun + paired.totalEarlyStopPerRun) * samplesCount)}-${String((estimate.totalExpectedPerRun + paired.totalExpectedPerRun) * samplesCount)} (judge early stop on every item / on none; canceled identical requests lower both), worst case ~${String((estimate.totalWorstPerRun + paired.totalWorstPerRun) * samplesCount)}.\n`,
+      `Approval subset (${String(estimate.arm!.name)} + control ${control}, ${String(samplesCount)} pre-paired sample(s) each, run together): expected ~${subset.earlyStop === subset.expected ? String(subset.expected) : `${String(subset.earlyStop)}-${String(subset.expected)}`} (${basis}), worst case ~${String(subset.worst)}${skipped}.\n`,
     );
   }
   if (!values.yes) {

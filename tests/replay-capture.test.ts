@@ -30,6 +30,7 @@ import {
   judgeEvidence,
   replayPairedSample,
   replaySynthesisFile,
+  approvalSubsetEstimate,
   estimateSynthesisFile,
 } from "../src/replay/replay-synthesis";
 import { rerunReport } from "../src/replay/rerun-report";
@@ -356,6 +357,28 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(isolatedEstimate.totalWorstPerRun).toBe(
       isolatedEstimate.perRun + isolatedEstimate.judgePerRun,
     );
+    const [recorded] = Object.values(saved.responses.entries).flat();
+    expect(estimate.callOverhead).toBe(
+      Math.max(
+        0,
+        recorded!.tokenEstimate - estimate.maxInputTokens - Math.ceil(recorded!.content.length / 4),
+      ),
+    );
+    const controlEstimate = await estimateSynthesisFile(file, "market-behavior-analysis-control");
+    const subsetArm = await estimateSynthesisFile(file, "market-behavior-analysis");
+    const subset = approvalSubsetEstimate(subsetArm, controlEstimate, 3);
+    const canceled = subsetArm.judgeAlwaysCanceled;
+    expect(subset).toEqual({
+      earlyStop:
+        (subsetArm.totalEarlyStopPerRun + controlEstimate.totalEarlyStopPerRun) * 3 -
+        canceled.earlyStopPerRun * 3,
+      expected:
+        (subsetArm.totalExpectedPerRun + controlEstimate.totalExpectedPerRun) * 3 -
+        canceled.perRun * 3,
+      worst:
+        (subsetArm.totalWorstPerRun + controlEstimate.totalWorstPerRun) * 3 - canceled.perRun * 3,
+    });
+    expect(canceled.perRun).toBeLessThan(subsetArm.judgePerRun);
     const runArm = async (
       ablation: "market-behavior-analysis" | "market-behavior-analysis-control",
     ) => {
@@ -432,12 +455,27 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     });
     expect(ablatedSample.defects.claims).toBeGreaterThan(0);
     // Unanimous "no" votes stop each judgment after two.
-    const judgeCalls = ablatedSample.defects.claims * 2;
-    expect(ablatedSample.judged).toEqual({
+    const ablatedReport = JSON.parse(await readFile(join(ablated.dir, "report.json"), "utf8"));
+    expect(ablatedReport.predictions.length).toBeGreaterThan(0);
+    const judgedUnits =
+      ablatedSample.defects.claims -
+      ablatedReport.predictions.length -
+      ablatedReport.scenarios.length;
+    const judgeCalls = judgedUnits * 2;
+    expect(ablatedSample.judged).toMatchObject({
       contradictions: [],
       unconveyed: [],
       undecided: 0,
       insufficientEvidence: 0,
+    });
+    expect(ablatedSample.judged.units).toHaveLength(judgedUnits);
+    expect(ablatedSample.judged.units[0]).toEqual({
+      location: "summary",
+      kind: "contradiction",
+      verdict: "no",
+      votes: ["no", "no"],
+      evidenceChars: expect.any(Number),
+      clipped: true,
     });
     expect(ablatedSample.modelCalls).toMatchObject({ judge: judgeCalls, live: 1 + judgeCalls });
     expect(ablatedSample.tokens.live).toBe(ablatedSample.tokens.synthesis + judgeCalls);
@@ -520,7 +558,8 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(pairedJudgeCalls).toBe(2);
     for (const sample of pairSamples) {
       expect(sample.status).toBe("completed");
-      expect(sample.judged.canceled).toHaveLength(sample.defects.claims);
+      expect(sample.judged.canceled).toHaveLength(sample.judged.items - 1);
+      expect(sample.judged.items).toBeLessThan(sample.defects.claims);
       expect(sample.judged.contradictions).toEqual([]);
       expect(sample.judged.sharedConveyance).toEqual([sharedCase.id]);
       expect(sample.judged.unconveyed).toEqual([sharedCase.id]);

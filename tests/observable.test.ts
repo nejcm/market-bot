@@ -329,6 +329,10 @@ describe("renderClaim", () => {
         expected: "BTC closes outside 90000-110000 over 7 trading days",
       },
       {
+        expression: { kind: "range", subject: "AMD", horizonTradingDays: 1, lo: 489, hi: 527 },
+        expected: "AMD closes outside 489-527 over 1 trading day",
+      },
+      {
         expression: { kind: "macro", seriesId: "DGS10", horizonTradingDays: 5 },
         expected: "DGS10 rises over 5 trading days",
       },

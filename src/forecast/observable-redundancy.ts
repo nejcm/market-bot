@@ -1,5 +1,5 @@
 import type { ObservableForecast, ObservableForecastIssue } from "./observable-types";
-import { issue } from "./observable-shapes";
+import { issue, tradingDays } from "./observable-shapes";
 
 // Minimum trading-day gap between two accepted same-subject `direction` forecasts.
 // Adjacent-horizon calls (closes higher 5d vs 6d) are correlated near-duplicates.
@@ -143,7 +143,7 @@ function directionRedundancyIssue(input: {
 
   return issue(
     "redundant-prediction",
-    `Prediction ${prediction.id}: redundant direction forecast for ${subject} at ${String(horizonTradingDays)} trading days (within ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days of accepted ${String(shortestColliding)}d)`,
+    `Prediction ${prediction.id}: redundant direction forecast for ${subject} at ${tradingDays(horizonTradingDays)} (within ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days of accepted ${String(shortestColliding)}d)`,
     prediction.id,
   );
 }
@@ -221,7 +221,7 @@ export function rejectRedundantForecasts(forecasts: readonly ObservableForecast[
           acceptedRelative?.expression.kind === "relative" &&
           relativeExpression !== undefined &&
           relativeBenchmarkKey(forecast) === BROAD_US_INDEX_CLASS
-            ? `Prediction ${prediction.id}: redundant relative forecast for ${relativeExpression.subjectA} against ${relativeExpression.subjectB} at ${String(horizonTradingDays)} trading days; accepted benchmark ${acceptedRelative.expression.subjectB} is equivalent in class ${BROAD_US_INDEX_CLASS}`
+            ? `Prediction ${prediction.id}: redundant relative forecast for ${relativeExpression.subjectA} against ${relativeExpression.subjectB} at ${tradingDays(horizonTradingDays)}; accepted benchmark ${acceptedRelative.expression.subjectB} is equivalent in class ${BROAD_US_INDEX_CLASS}`
             : undefined;
         issues.push(
           issue(
@@ -229,7 +229,7 @@ export function rejectRedundantForecasts(forecasts: readonly ObservableForecast[
             // Relative benchmark-class collisions always use the detailed message above;
             // Other forecast kinds use this generic same-kind/subject/horizon message.
             relativeMessage ??
-              `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${String(horizonTradingDays)} trading days`,
+              `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${tradingDays(horizonTradingDays)}`,
             prediction.id,
           ),
         );
@@ -250,7 +250,7 @@ export function rejectRedundantForecasts(forecasts: readonly ObservableForecast[
           issues.push(
             issue(
               "redundant-prediction",
-              `Prediction ${prediction.id}: redundant relative forecast for ${relativeExpression.subjectA} at ${String(horizonTradingDays)} trading days; benchmarks ${acceptedRelative.expression.subjectB} and ${relativeExpression.subjectB} use the same probability within tolerance (${String(acceptedRelative.prediction.probability)} and ${String(prediction.probability)}; epsilon ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)})`,
+              `Prediction ${prediction.id}: redundant relative forecast for ${relativeExpression.subjectA} at ${tradingDays(horizonTradingDays)}; benchmarks ${acceptedRelative.expression.subjectB} and ${relativeExpression.subjectB} use the same probability within tolerance (${String(acceptedRelative.prediction.probability)} and ${String(prediction.probability)}; epsilon ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)})`,
               prediction.id,
             ),
           );

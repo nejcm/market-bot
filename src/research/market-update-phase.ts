@@ -101,6 +101,7 @@ async function runSpotlightSelection(input: {
       stage: "spotlight-selection",
       content: response.content,
       tokenEstimate: response.tokenEstimate,
+      usage: response.usage ?? "unknown",
       durationMs: Math.max(performance.now() - startedAt, Number.EPSILON),
       ...(response.costEstimateUsd !== undefined
         ? { costEstimateUsd: response.costEstimateUsd }

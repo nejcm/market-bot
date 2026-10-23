@@ -1,6 +1,11 @@
 import type { AppConfig } from "../config";
 import { decodeServerSentEvents, mapSseEventsToText, type SseTextResult } from "./sse";
-import type { ModelRequest, ModelResponse, StreamingModelProvider } from "./types";
+import {
+  reportedUsage,
+  type ModelRequest,
+  type ModelResponse,
+  type StreamingModelProvider,
+} from "./types";
 import { estimateOpenAICost } from "./pricing";
 
 interface OpenAIChoice {
@@ -34,6 +39,12 @@ interface OpenAIUsage {
   };
   readonly input_tokens_details?: {
     readonly cached_tokens?: number;
+  };
+  readonly output_tokens_details?: {
+    readonly reasoning_tokens?: number;
+  };
+  readonly completion_tokens_details?: {
+    readonly reasoning_tokens?: number;
   };
 }
 
@@ -242,10 +253,17 @@ export function createOpenAIProvider(
                 payload.output?.filter((item) => item.type === "web_search_call").length,
               )
             : undefined;
+        const usage = reportedUsage({
+          inputTokens: payload.usage?.input_tokens,
+          cachedInputTokens: payload.usage?.input_tokens_details?.cached_tokens,
+          outputTokens: payload.usage?.output_tokens,
+          reasoningTokens: payload.usage?.output_tokens_details?.reasoning_tokens,
+        });
 
         return {
           content,
           tokenEstimate,
+          ...(usage !== undefined ? { usage } : {}),
           ...cost,
         };
       }
@@ -282,10 +300,17 @@ export function createOpenAIProvider(
               payload.usage?.prompt_tokens_details?.cached_tokens,
             )
           : undefined;
+      const usage = reportedUsage({
+        inputTokens: payload.usage?.prompt_tokens,
+        cachedInputTokens: payload.usage?.prompt_tokens_details?.cached_tokens,
+        outputTokens: payload.usage?.completion_tokens,
+        reasoningTokens: payload.usage?.completion_tokens_details?.reasoning_tokens,
+      });
 
       return {
         content,
         tokenEstimate,
+        ...(usage !== undefined ? { usage } : {}),
         ...cost,
       };
     },

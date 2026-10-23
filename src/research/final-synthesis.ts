@@ -6,6 +6,7 @@ import type { RelocatedGapClaim } from "../domain/run-trace";
 import type { Source, SourceGap } from "../domain/sources";
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
+import type { ModelUsage } from "../model/types";
 import { applyEarningsForecastPolicy } from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
 import { ReportLanguageViolationError } from "../report/schema";
@@ -34,6 +35,8 @@ export interface StageOutput {
   readonly stage: StageLabel;
   readonly content: string;
   readonly tokenEstimate: number;
+  // "unknown": the provider returned no usage; absent: recorded before usage was captured.
+  readonly usage?: ModelUsage | "unknown";
   readonly durationMs?: number;
   readonly costEstimateUsd?: number;
   readonly costPricing?: CostPricing;

@@ -73,6 +73,7 @@ describe("createOpenAIProvider", () => {
     expect(response).toEqual({
       content: '{"summary":"ok"}',
       tokenEstimate: 12,
+      usage: { inputTokens: 8, outputTokens: 4 },
       costEstimateUsd: 8e-5,
       costPricing: {
         source: "https://developers.openai.com/api/docs/pricing",
@@ -146,7 +147,13 @@ describe("createOpenAIProvider", () => {
             content: [{ type: "output_text", text: "Search-grounded answer" }],
           },
         ],
-        usage: { input_tokens: 10, output_tokens: 11, total_tokens: 21 },
+        usage: {
+          input_tokens: 10,
+          output_tokens: 11,
+          total_tokens: 21,
+          input_tokens_details: { cached_tokens: 6 },
+          output_tokens_details: { reasoning_tokens: 5 },
+        },
       });
     };
     const provider = createOpenAIProvider(
@@ -190,6 +197,7 @@ describe("createOpenAIProvider", () => {
     expect(response).toEqual({
       content: "Search-grounded answer",
       tokenEstimate: 21,
+      usage: { inputTokens: 10, cachedInputTokens: 6, outputTokens: 11, reasoningTokens: 5 },
     });
     expect(response.costEstimateUsd).toBeUndefined();
     expect(String(requests[0]?.url)).toBe("https://api.openai.com/v1/responses");

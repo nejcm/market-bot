@@ -1,6 +1,12 @@
 import type { AppConfig } from "../config";
 import { decodeServerSentEvents, mapSseEventsToText, type SseTextResult } from "./sse";
-import type { ModelMessage, ModelRequest, ModelResponse, StreamingModelProvider } from "./types";
+import {
+  reportedUsage,
+  type ModelMessage,
+  type ModelRequest,
+  type ModelResponse,
+  type StreamingModelProvider,
+} from "./types";
 import { estimateAnthropicCost } from "./pricing";
 
 const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
@@ -20,6 +26,8 @@ interface AnthropicContentBlock {
 interface AnthropicUsage {
   readonly input_tokens?: number;
   readonly output_tokens?: number;
+  readonly cache_read_input_tokens?: number;
+  readonly cache_creation_input_tokens?: number;
   readonly server_tool_use?: {
     readonly web_search_requests?: number;
   };
@@ -230,10 +238,23 @@ export function createAnthropicProvider(
         payload.usage?.output_tokens,
         payload.usage?.server_tool_use?.web_search_requests,
       );
+      const { input_tokens, cache_read_input_tokens, cache_creation_input_tokens } =
+        payload.usage ?? {};
+      // Anthropic's input_tokens excludes cache reads and writes; ModelUsage.inputTokens includes them.
+      const usage = reportedUsage({
+        inputTokens:
+          input_tokens === undefined
+            ? undefined
+            : input_tokens + (cache_read_input_tokens ?? 0) + (cache_creation_input_tokens ?? 0),
+        cachedInputTokens: cache_read_input_tokens,
+        outputTokens: payload.usage?.output_tokens,
+        reasoningTokens: undefined,
+      });
 
       return {
         content,
         tokenEstimate,
+        ...(usage !== undefined ? { usage } : {}),
         ...cost,
       };
     },

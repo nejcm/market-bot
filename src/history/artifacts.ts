@@ -14,7 +14,7 @@ import { type Source } from "../domain/sources";
 import { instrumentsForMeasurableAs } from "../forecast/observable";
 import { tradingDays } from "../forecast/observable-shapes";
 import { dataRootFromRunsDir } from "../data-paths";
-import type { ModelParams, ModelProvider } from "../model/types";
+import type { ModelParams, ModelProvider, ModelUsage } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { violatesResearchOnly } from "../domain/research-language";
 import {
@@ -169,6 +169,7 @@ export interface ThesisDelta {
     readonly model: string;
     readonly provider: string;
     readonly tokenEstimate: number;
+    readonly usage: ModelUsage | "unknown";
     readonly costEstimateUsd?: number;
   };
 }
@@ -849,6 +850,7 @@ async function generateNarrative(
     model,
     provider: provider.name,
     tokenEstimate: response.tokenEstimate,
+    usage: response.usage ?? "unknown",
     ...(response.costEstimateUsd !== undefined
       ? { costEstimateUsd: response.costEstimateUsd }
       : {}),

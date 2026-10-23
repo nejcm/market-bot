@@ -40,6 +40,7 @@ import {
 import type { CalibrationContext } from "./research-context-types";
 import type { ForecastPersistence } from "./forecast-persistence";
 import type { CostPricing } from "../model/pricing";
+import type { ModelUsage } from "../model/types";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
@@ -68,11 +69,14 @@ import {
   type SubsystemOutcome,
   type SubsystemOutcomeRollup,
 } from "./subsystem-outcomes";
+import { rollupStageUsage, type StageUsageRollup } from "./stage-usage";
+import type { ModelCallRecord } from "../model/call-ledger";
 
 interface RunAnalyticsStage {
   readonly stage: string;
   readonly content: string;
   readonly tokenEstimate: number;
+  readonly usage?: ModelUsage | "unknown";
   readonly durationMs?: number;
   readonly costEstimateUsd?: number;
   readonly costPricing?: CostPricing;
@@ -85,6 +89,7 @@ export interface BuildRunAnalyticsInput {
   readonly trace: RunTrace;
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly RunAnalyticsStage[];
+  readonly modelCalls: readonly ModelCallRecord[];
   readonly targetPredictions: number;
   readonly outcomes: readonly SubsystemOutcome[];
   readonly sourcePlanSummary?: EvidenceLaneSummaryV2;
@@ -272,12 +277,15 @@ export interface RunAnalytics {
     readonly stages: readonly {
       readonly stage: string;
       readonly tokenEstimate: number;
+      readonly usage?: ModelUsage | "unknown";
       readonly durationMs?: number;
       readonly costEstimateUsd?: number;
       readonly costPricing?: CostPricing;
       readonly attempt?: number;
       readonly repromptReason?: StageRepromptReason;
     }[];
+    readonly modelCalls: readonly ModelCallRecord[];
+    readonly usageByStage: readonly StageUsageRollup[];
     readonly tokenEstimate: number;
     readonly costEstimateUsd?: number;
     readonly costPricing?: readonly CostPricing[];
@@ -945,6 +953,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       stages: input.stageOutputs.map((output) => ({
         stage: output.stage,
         tokenEstimate: output.tokenEstimate,
+        ...(output.usage !== undefined ? { usage: output.usage } : {}),
         ...(output.durationMs !== undefined ? { durationMs: output.durationMs } : {}),
         ...(output.costEstimateUsd !== undefined
           ? { costEstimateUsd: output.costEstimateUsd }
@@ -953,6 +962,8 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
         ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
       })),
+      modelCalls: input.modelCalls,
+      usageByStage: rollupStageUsage(input.modelCalls),
       tokenEstimate: trace.tokenEstimate,
       ...(trace.costEstimateUsd !== undefined ? { costEstimateUsd: trace.costEstimateUsd } : {}),
       ...(trace.costPricing !== undefined ? { costPricing: trace.costPricing } : {}),

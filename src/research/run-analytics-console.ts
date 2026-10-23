@@ -116,6 +116,26 @@ function webFallbackLine(analytics: RunAnalytics): string | undefined {
   return `  Web fallback: ${fields.join(" · ")}`;
 }
 
+function usageCount(count: number | "unknown"): string {
+  return count === "unknown" ? "?" : String(count);
+}
+
+function modelUsageLines(analytics: RunAnalytics): readonly string[] {
+  const rollups = analytics.runShape.usageByStage as
+    | RunAnalytics["runShape"]["usageByStage"]
+    | undefined;
+  if (rollups === undefined || rollups.length === 0) {
+    return [];
+  }
+  return [
+    `  Model usage: ${String(analytics.runShape.tokenEstimate)} tok est (in/cached/out/reasoning; ? = not reported)`,
+    ...rollups.map(
+      (row) =>
+        `    ${row.stage} ×${String(row.calls)}: ${String(row.tokenEstimate)} est · ${usageCount(row.inputTokens)}/${usageCount(row.cachedInputTokens)}/${usageCount(row.outputTokens)}/${usageCount(row.reasoningTokens)}${row.unreportedCalls > 0 ? ` · ${String(row.unreportedCalls)} call(s) without usage` : ""}`,
+    ),
+  ];
+}
+
 export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   const { evidenceLanes, evidenceQuality, postSynthesisAudit, predictions } = analytics;
   const lines: string[] = [
@@ -153,6 +173,8 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   if (postSynthesisAudit !== undefined && postSynthesisAudit.warningCount > 0) {
     lines.push(auditLine(postSynthesisAudit));
   }
+
+  lines.push(...modelUsageLines(analytics));
 
   for (const warning of predictions.mixWarnings) {
     lines.push(`  ! ${warning}`);

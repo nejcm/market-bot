@@ -7,11 +7,13 @@ import {
   defaultAppServerSpawn,
   type AppServerSpawnImpl,
 } from "./codex-app-server";
-import type {
-  ModelRequest,
-  ModelResponse,
-  StreamingModelProvider,
-  WebSearchCapability,
+import {
+  reportedUsage,
+  type ModelRequest,
+  type ModelResponse,
+  type ModelUsage,
+  type StreamingModelProvider,
+  type WebSearchCapability,
 } from "./types";
 
 const MIN_CODEX_VERSION = [0, 125, 0] as const;
@@ -38,6 +40,7 @@ interface CodexEvent {
   readonly type?: string;
   readonly usage?: {
     readonly input_tokens?: number;
+    readonly cached_input_tokens?: number;
     readonly output_tokens?: number;
     readonly reasoning_output_tokens?: number;
   };
@@ -78,9 +81,14 @@ function stripFences(text: string): string {
     .trim();
 }
 
-function parseEventStream(jsonl: string): { content: string; tokenEstimate: number } {
+function parseEventStream(jsonl: string): {
+  content: string;
+  tokenEstimate: number;
+  usage: ModelUsage | undefined;
+} {
   let content = "";
   let tokenEstimate = 0;
+  let usage: ModelUsage | undefined = undefined;
 
   for (const line of jsonl.split("\n")) {
     const trimmed = line.trim();
@@ -104,12 +112,19 @@ function parseEventStream(jsonl: string): { content: string; tokenEstimate: numb
     }
 
     if (event.type === "turn.completed" && event.usage !== undefined) {
-      const { input_tokens = 0, output_tokens = 0, reasoning_output_tokens = 0 } = event.usage;
-      tokenEstimate = input_tokens + output_tokens + reasoning_output_tokens;
+      // Codex output_tokens already includes reasoning_output_tokens.
+      const { input_tokens = 0, output_tokens = 0 } = event.usage;
+      tokenEstimate = input_tokens + output_tokens;
+      usage = reportedUsage({
+        inputTokens: event.usage.input_tokens,
+        cachedInputTokens: event.usage.cached_input_tokens,
+        outputTokens: event.usage.output_tokens,
+        reasoningTokens: event.usage.reasoning_output_tokens,
+      });
     }
   }
 
-  return { content, tokenEstimate };
+  return { content, tokenEstimate, usage };
 }
 
 // Under --json the CLI reports failures as structured stdout events, and stderr can be empty.
@@ -434,7 +449,7 @@ export function createCodexProvider(
         throw new Error(codexFailureMessage(result.exitCode, stderr, result.stdout));
       }
 
-      const { content: raw, tokenEstimate } = parseEventStream(result.stdout);
+      const { content: raw, tokenEstimate, usage } = parseEventStream(result.stdout);
 
       if (raw === "") {
         throw new Error("Codex response did not include an agent_message");
@@ -450,6 +465,7 @@ export function createCodexProvider(
       return {
         content,
         tokenEstimate: estimate,
+        ...(usage !== undefined ? { usage } : {}),
       };
     },
   };

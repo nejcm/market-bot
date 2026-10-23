@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { runForecastDisagreement } from "../src/research/forecast-disagreement";
 import { prediction, researchReport } from "./support/fixtures";
 import type { ModelRequest } from "../src/model/types";
-import { LIVE_STAGES, makeReplayProvider } from "../src/replay/llm-cassette";
+import {
+  LIVE_STAGES,
+  createRecordingProvider,
+  makeReplayProvider,
+} from "../src/replay/llm-cassette";
 
 function request(stage: string, model: string): ModelRequest {
   return {
@@ -15,6 +19,34 @@ const first = { content: "first", tokenEstimate: 1 };
 const second = { content: "second", tokenEstimate: 2 };
 
 describe("strict LLM cassette replay", () => {
+  test("records usage and replays it verbatim; older recordings replay without usage", async () => {
+    const usage = { inputTokens: 90, cachedInputTokens: 60, outputTokens: 10 };
+    const recorder = createRecordingProvider({
+      name: "live",
+      generate: async () => ({ content: "ok", tokenEstimate: 100, usage }),
+    });
+    await recorder.provider.generate(request("web-gather", "m"));
+    const replay = makeReplayProvider({
+      entries: { ...recorder.cassette().entries, "critique|m": [first] },
+    });
+
+    const recorded = await replay.generate(request("web-gather", "m"));
+    const older = await replay.generate(request("critique", "m"));
+
+    expect(recorded.usage).toEqual(usage);
+    expect(older.usage).toBeUndefined();
+  });
+
+  test("rejects a recorded usage count that is not a number instead of summing it", async () => {
+    const replay = makeReplayProvider({
+      entries: { "web-gather|m": [{ ...first, usage: { inputTokens: "8" } as never }] },
+    });
+
+    await expect(replay.generate(request("web-gather", "m"))).rejects.toThrow(
+      "LLM cassette has invalid usage for web-gather|m call 1",
+    );
+  });
+
   test("orders repeated calls per exact model, including concurrent challengers and unique-model aliases", async () => {
     const replay = makeReplayProvider({
       entries: {

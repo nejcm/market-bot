@@ -20,7 +20,6 @@ import {
   persistRunArtifactWrites,
 } from "../run-artifact-writer";
 import type { ModelProvider } from "../model/types";
-import { sumKnownCosts, type CostPricing } from "../model/pricing";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
@@ -37,6 +36,7 @@ import {
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
 import { loadStagePrompt } from "./prompt-loader";
 import { buildRunAnalytics, type RunAnalytics } from "./run-analytics";
+import { isLedgered, ledgerTotals, withModelCallLedger } from "../model/call-ledger";
 import {
   createHistoricalContextReader,
   type HistoricalResearchContext,
@@ -222,9 +222,14 @@ async function runModelStage(
     reportValidationErrors: reprompt.reportValidationErrors ?? [],
     allowedSourceIds: reprompt.allowedSourceIds ?? [],
   });
+  const round = (stage === "web-gather" ? context.webGather : context.evidenceRequest)?.round;
+  const step =
+    (stage === "web-gather" || stage === "evidence-request") && round !== undefined
+      ? `round-${String(round)}`
+      : undefined;
   progress(`stage ${stage} → ${model}`);
   const startedAt = performance.now();
-  const response = await job.provider.generate(request);
+  const response = await job.provider.generate(step === undefined ? request : { ...request, step });
   const endedAt = performance.now();
   progress(
     `stage ${stage} done in ${((endedAt - startedAt) / 1000).toFixed(1)}s (~${String(response.tokenEstimate)} tok)`,
@@ -234,6 +239,7 @@ async function runModelStage(
     stage,
     content: response.content,
     tokenEstimate: response.tokenEstimate,
+    usage: response.usage ?? "unknown",
     durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
     ...(response.costEstimateUsd !== undefined
       ? { costEstimateUsd: response.costEstimateUsd }
@@ -283,6 +289,7 @@ async function runFinancialTableMappingStage(
   });
   const startedAt = performance.now();
   const response = await job.provider.generate({
+    step: packet.source.accessionNumber,
     model: runParams.quickModel,
     ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
     responseFormat: "json",
@@ -296,6 +303,7 @@ async function runFinancialTableMappingStage(
     stage: "financial-table-mapping",
     content: response.content,
     tokenEstimate: response.tokenEstimate,
+    usage: response.usage ?? "unknown",
     durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
     ...(response.costEstimateUsd !== undefined
       ? { costEstimateUsd: response.costEstimateUsd }
@@ -325,16 +333,6 @@ async function runPlaybookSelection(
     audit.selected,
   );
   return { audit, context: { ...context, domainPlaybooks } };
-}
-
-function stageCostPricing(stageOutputs: readonly StageOutput[]): readonly CostPricing[] {
-  return [
-    ...new Map(
-      stageOutputs
-        .flatMap((output) => (output.costPricing === undefined ? [] : [output.costPricing]))
-        .map((pricing) => [`${pricing.source}\n${pricing.asOf}`, pricing]),
-    ).values(),
-  ];
 }
 
 async function runForecastDisagreementPhase(input: {
@@ -462,7 +460,10 @@ function equityCompletenessSources(
 
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const command = normalizeResearchCommandDepth(input.command);
-  const jobInput: RunResearchJobInput = command === input.command ? input : { ...input, command };
+  const provider = isLedgered(input.provider)
+    ? input.provider
+    : withModelCallLedger(input.provider);
+  const jobInput: RunResearchJobInput = { ...input, command, provider };
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
   const completedAt = (): string => (input.endClock?.() ?? new Date()).toISOString();
@@ -606,7 +607,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const marketUpdate = await runMarketUpdatePhase({
     command,
     config: input.config,
-    provider: input.provider,
+    provider,
     collectedSources,
     context,
     historicalContext,
@@ -767,6 +768,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
             totalCalls: error.totalCalls,
             reportRepairReprompts: error.reportRepairReprompts,
             stageOutputs,
+            modelCalls: provider.modelCalls(),
             payload: error.payload,
             collectedSources,
             historicalContext,
@@ -850,8 +852,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...synthesis.stageOutputs,
     ...forecastDisagreementStageOutputs,
   ];
-  const costEstimateUsd = sumKnownCosts(stageOutputs.map((output) => output.costEstimateUsd));
-  const costPricing = stageCostPricing(stageOutputs);
+  // Ledger totals include calls with no stage output, such as peer-universe proposals.
+  const { tokenEstimate, costEstimateUsd, costPricing } = ledgerTotals(provider.modelCalls());
 
   const trace = buildRunTrace({
     jobInput,
@@ -864,6 +866,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     evidenceQualityAssessment,
     report,
     stageOutputs,
+    tokenEstimate,
     ...(costEstimateUsd !== undefined ? { costEstimateUsd } : {}),
     costPricing,
     collectedSources,
@@ -915,6 +918,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     trace,
     collectedSources,
     stageOutputs,
+    modelCalls: provider.modelCalls(),
     targetPredictions: context.depthProfile.targetPredictions,
     outcomes,
     sourcePlanSummary: sourcePlanning.evidenceLanes.summary,

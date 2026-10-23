@@ -301,6 +301,7 @@ export async function runForecastDisagreement(input: {
             stage: "forecast-disagreement",
             content: response.content,
             tokenEstimate: response.tokenEstimate,
+            usage: response.usage ?? "unknown",
             durationMs,
             ...(response.costEstimateUsd !== undefined
               ? { costEstimateUsd: response.costEstimateUsd }
@@ -322,6 +323,7 @@ export async function runForecastDisagreement(input: {
             stage: "forecast-disagreement",
             content: JSON.stringify({ model, error: message }),
             tokenEstimate: 0,
+            usage: "unknown",
             durationMs: durationMs ?? Math.max(performance.now() - startedAt, Number.EPSILON),
           } satisfies StageOutput,
         };

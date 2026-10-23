@@ -1,4 +1,6 @@
 import { writeFile } from "node:fs/promises";
+import { ledgerTotals, type ModelCallRecord } from "./model/call-ledger";
+import { rollupStageUsage } from "./research/stage-usage";
 import { join } from "node:path";
 import type { AppConfig } from "./config";
 import { isInstrumentCommand, type ResearchCommand } from "./cli/args";
@@ -39,7 +41,6 @@ import { compactOversizedRawSnapshots } from "./sources/raw-snapshots";
 import { isRecord } from "./guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
 import type { DeepEquityEvidenceBundleV1 } from "./deep-equity/types";
-import { sumKnownCosts } from "./model/pricing";
 import { modelPayloadLanguageViolations } from "./research/model-payload-language";
 import type { ModelReportPayload } from "./research/report-assembly";
 import type { WebGatherSkipCode } from "./web-evidence/web-gather-types";
@@ -80,6 +81,7 @@ interface FailedRunManifestInput {
   readonly totalCalls: number;
   readonly reportRepairReprompts: number;
   readonly stageOutputs: readonly StageOutput[];
+  readonly modelCalls: readonly ModelCallRecord[];
   readonly payload: ModelReportPayload;
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;
@@ -236,7 +238,7 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
   readonly writes: readonly RunArtifactWrite[];
   readonly failure: RunArtifactWrite;
 } {
-  const costEstimateUsd = sumKnownCosts(input.stageOutputs.map((output) => output.costEstimateUsd));
+  const { tokenEstimate, costEstimateUsd } = ledgerTotals(input.modelCalls);
   const outcomes = buildSubsystemOutcomes({
     sourcePlan: input.sourcePlan,
     evidenceLanes: input.evidenceLanes,
@@ -360,11 +362,10 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
         languageViolations: modelPayloadLanguageViolations(input.payload),
         evidenceQuality: input.evidenceQuality,
         cost: {
-          tokenEstimate: input.stageOutputs.reduce(
-            (total, output) => total + output.tokenEstimate,
-            0,
-          ),
+          tokenEstimate,
           ...(costEstimateUsd !== undefined ? { costEstimateUsd } : {}),
+          modelCalls: input.modelCalls,
+          usageByStage: rollupStageUsage(input.modelCalls),
         },
         sourceGapsAsOf: "pre-synthesis",
         codeVersion: input.codeVersion,

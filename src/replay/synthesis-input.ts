@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { readRecordedBody } from "./body-file";
 import type { CodeVersion } from "../domain/run-trace";
 import { isRecord } from "../guards";
+import { isModelUsage } from "../model/types";
 import type { SynthesizeReportUntilValidInput } from "../research/final-synthesis";
 import type { StageSettings } from "../research/prompts/stage-envelope";
 import type { LlmCassette } from "./llm-cassette";
@@ -392,7 +393,8 @@ export function readSynthesisReplayInput(value: unknown): SynthesisReplayInput {
         isRecord(row) &&
         typeof row.stage === "string" &&
         typeof row.content === "string" &&
-        finite(row.tokenEstimate),
+        finite(row.tokenEstimate) &&
+        (row.usage === undefined || row.usage === "unknown" || isModelUsage(row.usage)),
     ) ||
     !Number.isInteger(input.maxPredictionReprompts) ||
     !finite(input.maxPredictionReprompts) ||
@@ -434,6 +436,7 @@ export function readSynthesisReplayInput(value: unknown): SynthesisReplayInput {
           isRecord(row) &&
           typeof row.content === "string" &&
           finite(row.tokenEstimate) &&
+          (row.usage === undefined || isModelUsage(row.usage)) &&
           (row.error === undefined || typeof row.error === "string"),
       )
     ) {

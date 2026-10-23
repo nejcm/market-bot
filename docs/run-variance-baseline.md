@@ -159,6 +159,8 @@ config hash unobtainable. Only output-only keys (`captureReplay`, index
 | `operatingKpis.status`                                    | not-assessed                        | not-assessed                        | not-assessed                        | stable at `not-assessed`     |
 | Estimated tokens (`trace.json:tokenEstimate`)             | 394,112                             | 327,881                             | 323,311                             | 323,311–394,112              |
 
+The estimated-tokens row is a legacy estimate that double-counts Codex reasoning; correction size unknown.
+
 The `nearBaseRateCount` / `informativeCount` band was measured under the old all-kind 0.5 rule; re-record it before comparing with the exact-reference rule amended on 2026-10-20.
 
 All `predictions.*` rows predate the Event Grid and its 2026-10-23 fold of restated grid events ([ADR 0003](./adr/0003-forecasts-scoring-and-calibration.md)); a folded run reports fewer model predictions by construction, so re-record before comparing them.

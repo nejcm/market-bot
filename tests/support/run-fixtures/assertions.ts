@@ -3,6 +3,7 @@ import {
   readYahooRegularSession,
   splitAdjustedObservationsFromYahooChart,
 } from "../../../src/sources/yahoo";
+import { ledgerTotals } from "../../../src/model/call-ledger";
 import type {
   ValuationFundamentalInput,
   ValuationMetricKey,
@@ -383,6 +384,24 @@ export async function assertInvariants(
   expect(result.stageOutputs.every((output) => (output.durationMs ?? 0) > 0)).toBe(true);
   expect(result.trace.stageRecords?.every((record) => (record.durationMs ?? 0) > 0)).toBe(true);
   expect(result.analytics.runShape.stages.every((stage) => (stage.durationMs ?? 0) > 0)).toBe(true);
+  // Every model call records usage; a cassette without it replays as explicit "unknown", never 0.
+  expect(result.stageOutputs.every((output) => output.usage !== undefined)).toBe(true);
+  // The provider-seam ledger sees every stage output's call plus collection calls with no output.
+  const { modelCalls } = result.analytics.runShape;
+  for (const stage of new Set(result.stageOutputs.map((output) => output.stage))) {
+    expect(modelCalls.filter((call) => call.stage === stage).length).toBeGreaterThanOrEqual(
+      result.stageOutputs.filter((output) => output.stage === stage).length,
+    );
+  }
+  expect(
+    modelCalls
+      .filter((call) => call.stage === "web-gather" || call.stage === "evidence-request")
+      .every((call) => /^round-\d+$/u.test(call.step ?? "")),
+  ).toBe(true);
+  expect(result.analytics.runShape.usageByStage.reduce((total, row) => total + row.calls, 0)).toBe(
+    modelCalls.length,
+  );
+  expect(result.trace.tokenEstimate).toBe(ledgerTotals(modelCalls).tokenEstimate);
   if (meta.argv.includes("--deep")) {
     expect(result.stageOutputs.map((output) => output.stage)).toEqual(
       expect.arrayContaining(["instrument-evidence-analysis", "market-behavior-analysis"]),

@@ -51,7 +51,7 @@ ADRs document current decisions and should be followed by default, but they can 
 
 ## Blast radius
 
-Live runs cost real money and time — a deep equity run is ~12 minutes and ~438k live model tokens.
+Live runs cost real money and time — a deep equity run is ~12 minutes and ~438k live model tokens (a legacy estimate that double-counts Codex reasoning; correction size unknown).
 
 - **Never run the CLI to "check something."** Read an existing artifact under `data/runs/` (newest first) or replay a fixture. Fixture replays are free.
 - **Live-LLM fixture runs only via `scripts/eval-deep.ts --yes`** (or `scripts/replay-fixture-run.ts --live --yes`), and only with my explicit approval per batch — run without `--yes` first; it prints the run count and token estimate and spends nothing. Both write only under `data/evals/<label>/`, never `data/runs/`. Never run the fixture _recorder_ — it hits every provider and can capture secrets into cassettes.

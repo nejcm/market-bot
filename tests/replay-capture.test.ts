@@ -425,6 +425,10 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       const sample = JSON.parse(await readFile(join(result.dir, "eval-sample.json"), "utf8"));
       expect(sample.modelCalls).toMatchObject({ analysis: 1, live: stageCalls.length });
       expect(sample.tokens.analysis).toBe(7);
+      const synthesis = JSON.parse(await readFile(join(result.dir, "synthesis.json"), "utf8"));
+      expect(synthesis.regeneratedAnalysis).toEqual([
+        { stage: "critique", tokenEstimate: 7, usage: "unknown" },
+      ]);
       return { sample, critiquePrompt: critiquePrompts[0]! };
     };
     const isolated = await runArm("market-behavior-analysis");
@@ -524,6 +528,29 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(brokenSample.error).toBe("judge outage");
     expect(brokenSample.modelCalls).toMatchObject({ judge: 5, live: 1 + 5 });
     expect(brokenSample.tokens.judge).toBe(8);
+    const keptSynthesis = JSON.parse(
+      await readFile(join(brokenJudge.dir, "synthesis.json"), "utf8"),
+    );
+    expect(keptSynthesis.stageOutputs.at(-1).content).toEqual(expect.any(String));
+    const rejected = await replaySynthesisFile({
+      input: file,
+      label: "rejected-synthesis",
+      root: dir,
+      provider: {
+        name: "stub",
+        generate: async () => ({
+          content: "not json",
+          tokenEstimate: 3,
+          usage: { inputTokens: 4 },
+        }),
+      },
+    });
+    expect(rejected.status).toBe("failed");
+    const partial = JSON.parse(await readFile(join(rejected.dir, "synthesis.json"), "utf8"));
+    expect(partial.stageOutputs.length).toBeGreaterThan(1);
+    expect(
+      new Set(partial.stageOutputs.map((row: { usage: unknown }) => JSON.stringify(row.usage))),
+    ).toEqual(new Set([JSON.stringify({ inputTokens: 4 })]));
     let pairedJudgeCalls = 0;
     const pairRoot = join(dir, "paired");
     const omissionFixture = parseEvalCases(
@@ -655,8 +682,27 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     await expect(
       rerunReport({ run: produced.artifacts.runDir, label: "../escape", root: dir }),
     ).rejects.toThrow("Unsafe eval label");
+    const stringUsage = { inputTokens: "8" };
     for (const value of [
       { ...saved, version: 2 },
+      {
+        ...saved,
+        input: {
+          ...saved.input,
+          priorStages: saved.input.priorStages.map((row) => ({ ...row, usage: stringUsage })),
+        },
+      },
+      {
+        ...saved,
+        responses: {
+          entries: Object.fromEntries(
+            Object.entries(saved.responses.entries).map(([key, rows]) => [
+              key,
+              rows.map((row) => ({ ...row, usage: stringUsage })),
+            ]),
+          ),
+        },
+      },
       { ...saved, input: { ...saved.input, knownSourceIds: ["missing"] } },
       {
         ...saved,

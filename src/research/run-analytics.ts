@@ -183,8 +183,8 @@ export interface RunAnalytics {
     readonly nearBaseRateCount: number;
     /** Count of emitted predictions outside the near-base-rate band (more informative). */
     readonly informativeCount: number;
-    /** True when informativeCount meets the SIGNAL_INFORMATIVE_FLOOR relative to emitted count. */
-    readonly signalTargetMet: boolean;
+    /** True when informativeCount meets the SIGNAL_INFORMATIVE_FLOOR relative to emitted count; null (not applicable) at 0 model predictions. */
+    readonly signalTargetMet: boolean | null;
     /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate, same horizon, single kind on one subject). */
     readonly mixWarnings: readonly string[];
   };
@@ -763,8 +763,9 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   ).length;
   const informativeCount = emittedPredictions.length - nearBaseRateCount;
   const signalTargetMet =
-    emittedPredictions.length === 0 ||
-    informativeCount / emittedPredictions.length >= SIGNAL_INFORMATIVE_FLOOR;
+    emittedPredictions.length === 0
+      ? null
+      : informativeCount / emittedPredictions.length >= SIGNAL_INFORMATIVE_FLOOR;
   const mixWarnings: string[] = [];
   if (emittedPredictions.length > 0 && emittedPredictions.every((p) => p.kind === "direction")) {
     mixWarnings.push(

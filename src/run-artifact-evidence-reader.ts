@@ -266,7 +266,7 @@ const PEER_IMPLIED_RANGE_SUPPRESSED_REASONS: ReadonlySet<PeerImpliedRangeSuppres
   new Set([
     "peer supportability is not supported",
     "fewer than 3 usable peers",
-    "annualized revenue is not positive",
+    "TTM revenue is not positive",
     "net debt is unavailable",
     "net debt uses mixed reporting periods",
     "shares outstanding is not positive",
@@ -304,8 +304,8 @@ export function readPeerImpliedRange(value: unknown): PeerImpliedRange | undefin
   const range = value.impliedPriceRange;
   if (
     range.label !== "peer-implied price reference range" ||
-    range.basis !== "peer EV/annualized revenue percentiles applied to target annualized revenue" ||
-    range.formula !== "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding" ||
+    range.basis !== "peer EV/TTM revenue percentiles applied to target TTM revenue" ||
+    range.formula !== "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding" ||
     !hasPeerImpliedRangeInputsShape(range.inputs)
   ) {
     return undefined;

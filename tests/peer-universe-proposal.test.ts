@@ -183,7 +183,7 @@ describe("createPeerUniverseProposer", () => {
 
     expect(prompt).toContain("two-digit group 36 (target SIC 3661)");
     expect(prompt).toContain("market capitalization between $90.3M and $2.3B (target $451.5M)");
-    expect(prompt).toContain("annualized revenue between $30M and $750M (target $150M)");
+    expect(prompt).toContain("TTM revenue between $30M and $750M (target $150M)");
     expect(prompt).toContain(
       `Propose ${String(MAX_PEERS)} distinct US-listed common-stock candidates`,
     );

@@ -106,6 +106,32 @@ function secFactUnits(
   };
 }
 
+function shiftDays(date: string, days: number): string {
+  return new Date(Date.parse(date) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+// A quarter that opens the fiscal year, its prior-year quarter and the fiscal year, so TTM = 4 × revenue.
+function ttmRevenueFacts(revenue: number, end: string): Record<string, number | string>[] {
+  const start = shiftDays(end, -89);
+  return [
+    secFact(revenue, { start, end }),
+    secFact(revenue, {
+      fy: 2025,
+      filed: shiftDays(end, -363),
+      start: shiftDays(start, -365),
+      end: shiftDays(end, -365),
+    }),
+    secFact(4 * revenue, {
+      form: "10-K",
+      fp: "FY",
+      fy: 2025,
+      filed: shiftDays(start, 30),
+      start: shiftDays(start, -365),
+      end: shiftDays(start, -1),
+    }),
+  ];
+}
+
 function secInstantFact(val: number, end: string, fp: string, form = "10-Q") {
   return {
     val,
@@ -192,7 +218,7 @@ function secPayload(
   return {
     facts: {
       "us-gaap": {
-        Revenues: { units: { USD: [secFact(revenue, { end })] } },
+        Revenues: { units: { USD: ttmRevenueFacts(revenue, end) } },
         GrossProfit: secFactUnits(40, 35),
         OperatingIncomeLoss: secFactUnits(25, 20),
         NetIncomeLoss: secFactUnits(20, 18),
@@ -636,8 +662,8 @@ describe("collectValuationComps", () => {
     expect(result.artifact.impliedPriceRange).toEqual({
       status: "derived",
       label: "peer-implied price reference range",
-      basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
-      formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+      basis: "peer EV/TTM revenue percentiles applied to target TTM revenue",
+      formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding",
       low: 54,
       mid: 69,
       high: 84,
@@ -685,6 +711,41 @@ describe("collectValuationComps", () => {
     expect(result.sources.map((source) => source.id)).toContain("market-yahoo-equity-amd");
     expect(result.sources.map((source) => source.id)).toContain(
       "extended-sec-edgar-amd-fundamentals",
+    );
+  });
+
+  test("excludes a peer whose revenue has no reconciled TTM instead of annualizing it", async () => {
+    const quarterOnly = secPayloadWithGaap({
+      Revenues: { units: { USD: [secFact(100)] } },
+    });
+    const result = await collectValuationComps(
+      collectContext(requestExecutor({ secOverrides: { AMD: { payload: quarterOnly } } })),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({ latestPeriodRevenue: 100, revenuePeriodMonths: 3, usable: false });
+    expect(amd?.annualizedRevenue).toBeUndefined();
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "AMD",
+        reason:
+          "no reconciled SEC TTM revenue (latest 3-month period through 2026-06-29 lacks matching fiscal-year and prior-year facts)",
+        cause: "provider-data-missing",
+      }),
+    ]);
+    expect(result.gaps.map((gap) => gap.message)).toContain(
+      "Peer AMD excluded from valuation comps: no reconciled SEC TTM revenue (latest 3-month period through 2026-06-29 lacks matching fiscal-year and prior-year facts)",
     );
   });
 
@@ -1853,7 +1914,7 @@ describe("collectValuationComps", () => {
     ]);
   });
 
-  test("annualized revenue gate is inclusive at 0.2x and 5x and excludes outside it", async () => {
+  test("TTM revenue gate is inclusive at 0.2x and 5x and excludes outside it", async () => {
     const boundary = await collectValuationComps(
       collectContext(
         requestExecutor({ secOverrides: { AMD: { revenue: 20 }, AVGO: { revenue: 500 } } }),
@@ -1891,11 +1952,11 @@ describe("collectValuationComps", () => {
     expect(outside.artifact.excludedPeers).toEqual([
       expect.objectContaining({
         symbol: "AMD",
-        reason: "annualized revenue outside 0.2x-5x of target",
+        reason: "TTM revenue outside 0.2x-5x of target",
       }),
       expect.objectContaining({
         symbol: "AVGO",
-        reason: "annualized revenue outside 0.2x-5x of target",
+        reason: "TTM revenue outside 0.2x-5x of target",
       }),
     ]);
     expect(outside.artifact.summary.gateProfile).toBe("curated-no-sic");
@@ -1942,7 +2003,7 @@ describe("collectValuationComps", () => {
       }),
     ]);
     expect(result.artifact.excludedPeers.map((peer) => peer.reason).join(" ")).not.toContain(
-      "annualized revenue",
+      "TTM revenue",
     );
     expect(
       result.gaps.filter((gap) => gap.source === "valuation-peers").map((gap) => gap.cause),
@@ -2039,7 +2100,7 @@ describe("collectValuationComps", () => {
       }),
     ]);
     expect(result.artifact.excludedPeers.map((peer) => peer.reason).join(" ")).not.toContain(
-      "annualized revenue",
+      "TTM revenue",
     );
     expect(
       result.gaps.filter((gap) => gap.source === "valuation-peers").map((gap) => gap.cause),
@@ -2330,12 +2391,16 @@ describe("collectValuationComps", () => {
     const result = await collectValuationComps(
       collectContext(
         requestExecutor({
-          secOverrides: {
-            AMD: { end: "2026-07-16" },
-            AVGO: { end: "2026-07-16" },
-            ANET: { end: "2026-07-16" },
-            VRT: { end: "2026-07-16" },
-          },
+          secOverrides: Object.fromEntries(
+            ["AMD", "AVGO", "ANET", "VRT"].map((symbol) => [
+              symbol,
+              {
+                payload: secPayloadWithGaap({
+                  Revenues: { units: { USD: [secFact(100, { end: "2026-07-16" })] } },
+                }),
+              },
+            ]),
+          ),
         }),
       ),
       command,
@@ -2556,7 +2621,7 @@ describe("collectValuationComps", () => {
 
     expect(result.artifact.summary).toMatchObject({ corePeerCount: 2, usablePeerCount: 3 });
     expect(valuationItem?.summary).toMatch(
-      /median EV\/annualized revenue [\d.]+x, IQR [\d.]+x-[\d.]+x over 3 usable peers \(2 core\)\./u,
+      /median EV\/TTM revenue [\d.]+x, IQR [\d.]+x-[\d.]+x over 3 usable peers \(2 core\)\./u,
     );
     expect(valuationItem?.metrics).toMatchObject({ corePeerCount: 2, usablePeerCount: 3 });
   });
@@ -3221,7 +3286,7 @@ describe("derivePeerImpliedRange", () => {
       },
       {
         input: impliedRangeInput({ annualizedRevenue: 0 }),
-        reason: "annualized revenue is not positive",
+        reason: "TTM revenue is not positive",
       },
       { input: withoutNetDebt, reason: "net debt is unavailable" },
       {

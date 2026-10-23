@@ -2987,7 +2987,30 @@ describe("canonical debt basis selection", () => {
     });
     const companyFacts = payload({
       "us-gaap": {
-        Revenues: { USD: [annual(100, 2025), q2Revenue] },
+        Revenues: {
+          USD: [
+            annual(30_000_000_000, 2025),
+            fact({
+              value: 14_000_000_000,
+              form: "10-Q",
+              fiscalYear: 2025,
+              fiscalPeriod: "Q2",
+              filedAt: "2025-08-06",
+              periodStart: "2025-01-01",
+              periodEnd: "2025-06-28",
+            }),
+            fact({
+              value: 15_000_000_000,
+              form: "10-Q",
+              fiscalYear: 2026,
+              fiscalPeriod: "Q2",
+              filedAt: "2026-08-06",
+              periodStart: "2026-01-01",
+              periodEnd: "2026-06-27",
+            }),
+            q2Revenue,
+          ],
+        },
         CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
         LongTermDebt: { USD: [staleDirect] },
         LongTermDebtCurrent: { USD: [currentDebt] },

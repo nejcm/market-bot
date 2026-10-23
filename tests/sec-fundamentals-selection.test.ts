@@ -288,6 +288,56 @@ describe("continuing-operations cash-flow aliases", () => {
   });
 });
 
+describe("trailing-twelve-month revenue", () => {
+  const revenueConcept = "RevenueFromContractWithCustomerExcludingAssessedTax";
+
+  test("legacy and canonical reconcile FY + latest YTD − restated prior YTD", () => {
+    const summary = summarizeSecFundamentals(payload(clfdConcepts()), AS_OF)!;
+
+    expect(summary.metrics.revenueTtm).toBe(150_134_000 + 112_596_000 - 109_074_000);
+    expect(canonicalSecItem(clfdConcepts()).metrics?.revenueTtm).toBe(summary.metrics.revenueTtm);
+  });
+
+  test("a latest 12-month fact is its own TTM", () => {
+    const concepts = { [revenueConcept]: [fy25k(150_134_000)] };
+
+    expect(summarizeSecFundamentals(payload(concepts), AS_OF)!.metrics.revenueTtm).toBe(
+      150_134_000,
+    );
+    expect(canonicalSecItem(concepts).metrics?.revenueTtm).toBe(150_134_000);
+  });
+
+  test("emits no TTM when the fiscal year that opens the YTD is missing", () => {
+    const concepts = {
+      ...clfdConcepts(),
+      [revenueConcept]: clfdConcepts()[revenueConcept]!.filter((fact) => fact.form !== "10-K"),
+    };
+
+    expect(summarizeSecFundamentals(payload(concepts), AS_OF)!.metrics).not.toHaveProperty(
+      "revenueTtm",
+    );
+    expect(canonicalSecItem(concepts).metrics).not.toHaveProperty("revenueTtm");
+  });
+
+  test.each(["2026-09-01", "2026-08-05"])(
+    "never reconciles a superseded YTD when its amendment filed %s does not reconcile",
+    (amendmentFiledAt) => {
+      const concepts = {
+        [revenueConcept]: [
+          row(1000, "2025-01-01", "2025-12-31", "10-K", 2025, "FY", "2026-02-15", "fy25"),
+          row(100, "2025-01-01", "2025-06-30", "10-Q", 2025, "Q2", "2025-08-05", "h1-25"),
+          row(200, "2026-01-01", "2026-06-30", "10-Q", 2026, "Q2", "2026-08-05", "h1-26"),
+          row(600, "2026-01-12", "2026-06-30", "10-Q/A", 2026, "Q2", amendmentFiledAt, "h1-26a"),
+        ],
+      };
+      const legacy = summarizeSecFundamentals(payload(concepts), AS_OF)!;
+
+      expect(legacy.metrics).not.toHaveProperty("revenueTtm");
+      expect(canonicalSecItem(concepts).metrics).not.toHaveProperty("revenueTtm");
+    },
+  );
+});
+
 describe("legacy YoY comparatives", () => {
   test("uses the restated comparative so summary prose agrees with canonical metrics", () => {
     const summary = summarizeSecFundamentals(payload(clfdConcepts()), AS_OF)!;

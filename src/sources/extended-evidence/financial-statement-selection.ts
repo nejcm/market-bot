@@ -117,6 +117,18 @@ export function compareFinancialStatementFacts(
   );
 }
 
+// Revisions of one period: latest filing, then amendment, then accession; never duration first.
+export function compareFinancialStatementRevisions(
+  left: FinancialStatementSelectionFact,
+  right: FinancialStatementSelectionFact,
+): number {
+  return (
+    right.filedAt.localeCompare(left.filedAt) ||
+    Number(right.amendment) - Number(left.amendment) ||
+    (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
+  );
+}
+
 // The original filing's value when a later filing (or same-day amendment) replaced it; same-day original filings tie.
 export function restatedFromOriginalFiling(
   selectedValue: number,
@@ -681,11 +693,20 @@ export function deriveFinancialStatementTtm(
   }
   const fiscalYear = latestFinancialStatementFact(annual)!;
   const latestInterimEnd = latestFinancialStatementFact(interim)?.periodEnd;
+  const latestEndFacts = interim.filter((fact) => fact.periodEnd === latestInterimEnd);
+  // Only each span's latest revision may reconcile; a superseded original never stands in.
+  const latestEndRevisions = [
+    ...new Set(latestEndFacts.map((fact) => financialStatementPeriodMonths(fact))),
+  ].map(
+    (months) =>
+      latestEndFacts
+        .filter((fact) => financialStatementPeriodMonths(fact) === months)
+        .toSorted(compareFinancialStatementRevisions)[0]!,
+  );
   const latestYearToDate = latestFinancialStatementFact(
-    interim.filter(
+    latestEndRevisions.filter(
       (fact) =>
         fact.periodStart !== undefined &&
-        fact.periodEnd === latestInterimEnd &&
         fact.periodEnd > fiscalYear.periodEnd &&
         Math.abs(daysBetween(fiscalYear.periodEnd, fact.periodStart) ?? Infinity) <=
           FY_BOUNDARY_TOLERANCE_DAYS,

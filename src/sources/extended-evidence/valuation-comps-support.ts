@@ -31,7 +31,7 @@ export function enrichValuationItem(
   const peerReadThrough =
     summary.peerMedianEvToAnnualizedRevenue === undefined
       ? ` Peer comps supportability: ${summary.valuationSupportability}; ${usablePeersLabel(summary.usablePeerCount)}.${applicabilityCaveat}`
-      : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x over ${usablePeersLabel(summary.usablePeerCount)} (${String(summary.corePeerCount)} core).${applicabilityCaveat}`;
+      : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/TTM revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x over ${usablePeersLabel(summary.usablePeerCount)} (${String(summary.corePeerCount)} core).${applicabilityCaveat}`;
   const range = artifact.impliedPriceRange;
   let rangeNote = "";
   if (range?.status === "derived") {

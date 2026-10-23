@@ -17,7 +17,7 @@ export const MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS = 92;
 export const MIXED_PERIOD_METRIC = "mixed-period" as const;
 
 // Deterministic peer-comparability size gate: a peer qualifies for the primary
-// Aggregate only when its market cap and annualized revenue are inclusively
+// Aggregate only when its market cap and TTM revenue are inclusively
 // Within 0.2x-5x of the target's.
 export const SIZE_GATE_MIN_RATIO = 0.2;
 export const SIZE_GATE_MAX_RATIO = 5;
@@ -74,7 +74,7 @@ export type PeerImpliedRangePosition = "below-range" | "within-range" | "above-r
 export type PeerImpliedRangeSuppressedReason =
   | "peer supportability is not supported"
   | "fewer than 3 usable peers"
-  | "annualized revenue is not positive"
+  | "TTM revenue is not positive"
   | "net debt is unavailable"
   | "net debt uses mixed reporting periods"
   | "shares outstanding is not positive"
@@ -89,7 +89,7 @@ export const SUPPRESSION_CAUSE = {
   "peer supportability is not supported": "suppressed-by-design",
   // Guard order makes this unreachable from collectValuationComps, but the exported derivation can emit it.
   "fewer than 3 usable peers": "provider-data-missing",
-  "annualized revenue is not positive": "provider-data-missing",
+  "TTM revenue is not positive": "provider-data-missing",
   "net debt is unavailable": "provider-data-missing",
   "net debt uses mixed reporting periods": "validation-failed",
   "shares outstanding is not positive": "provider-data-missing",
@@ -146,8 +146,8 @@ export interface PeerImpliedRangeDerivedInputs extends PeerImpliedRangeInputs {
 
 interface PeerImpliedRangeBase<TInputs extends PeerImpliedRangeInputs> {
   readonly label: "peer-implied price reference range";
-  readonly basis: "peer EV/annualized revenue percentiles applied to target annualized revenue";
-  readonly formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding";
+  readonly basis: "peer EV/TTM revenue percentiles applied to target TTM revenue";
+  readonly formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding";
   readonly inputs: TInputs;
 }
 

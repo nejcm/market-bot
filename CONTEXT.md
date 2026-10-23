@@ -535,7 +535,7 @@ Bounded text from up to two recent SEC current reports — 8-K for domestic file
 
 ## Valuation Evidence
 
-Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, supportability, and the peer-implied price reference range (low/mid/high and spot position, or its suppression reason) so final synthesis reads the same range the report renders. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
+Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, supportability, and the peer-implied price reference range (low/mid/high and spot position, or its suppression reason) so final synthesis reads the same range the report renders. Target and peers share one revenue basis, SEC TTM (fiscal year + latest YTD − prior-year YTD, or the latest 12-month fact); a partial period is never annualized, so a peer without reconciled TTM is rejected with that reason and a target without it withholds its revenue multiples behind a Source Gap. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Valuation Workbench
 

@@ -711,7 +711,7 @@ function sectionDefinitions(
         id: "evToAnnualizedRevenue",
         label: "EV/revenue",
         unit: "ratio",
-        basis: "valuation evidence enterprise value / annualized revenue",
+        basis: "valuation evidence enterprise value / TTM revenue",
         applicable: depositoryEnterpriseValue,
         compute: evidenceValue(
           "valuation",
@@ -719,7 +719,7 @@ function sectionDefinitions(
           "EV/revenue",
           "ratio",
           (item) => {
-            // Annualized revenue: date by its end only, as the financial lens does.
+            // TTM revenue: date by its end only, as the financial lens does.
             const { periodEnd } = keyPeriod(item, "revenue");
             return periodEnd === undefined ? {} : { periodEnd };
           },

@@ -2181,7 +2181,7 @@ describe("run workspace view", () => {
 
     expect(view).toMatchObject({
       methodDisclosure: expect.stringContaining(
-        "annualized revenue $391.0B, net debt $40.0B, shares 15.0B",
+        "TTM revenue $391.0B, net debt $40.0B, shares 15.0B",
       ),
     });
   });

@@ -170,6 +170,7 @@ function closesBySymbol(
 }
 
 // Stamps origin and Forecast Baseline and appends priced Event Grid events; every omission is a gap.
+// A model prediction restating a grid event is folded into that event (ADR 0003, amended 2026-10-23).
 export function issueForecastBook(input: {
   readonly command: ResearchCommand;
   readonly collectedSources: GridSources;
@@ -180,27 +181,29 @@ export function issueForecastBook(input: {
 }): { readonly predictions: readonly Prediction[]; readonly gaps: readonly SourceGap[] } {
   const grid = eventGrid(input.command, input.collectedSources);
   const gaps: SourceGap[] = [...grid.gaps];
-  const modelIds = new Set(input.modelPredictions.map((prediction) => prediction.id));
-  const modelKeys = new Map(
-    input.modelPredictions.map((prediction) => [claimKey(prediction.measurableAs), prediction.id]),
-  );
   const pModel = modelGridProbabilities(input.modelEventGrid);
+  const restated = new Map<string, Prediction>();
+  const modelPredictions = input.modelPredictions.filter((prediction) => {
+    const event = grid.events.find(
+      (candidate) =>
+        (candidate.id === prediction.id ||
+          claimKey(candidate.measurableAs) === claimKey(prediction.measurableAs)) &&
+        candidate.sourceIds.some((id) => input.knownSourceIds.has(id)),
+    );
+    if (event === undefined) {
+      return true;
+    }
+    if (!restated.has(event.id)) {
+      restated.set(event.id, prediction);
+    }
+    return false;
+  });
   const unpriced: string[] = [];
   const gridPredictions: Prediction[] = [];
   for (const event of grid.events) {
-    const duplicateOf = modelIds.has(event.id)
-      ? event.id
-      : modelKeys.get(claimKey(event.measurableAs));
     const sourceIds = event.sourceIds.filter((id) => input.knownSourceIds.has(id));
-    const probability = pModel.get(event.id);
-    if (duplicateOf !== undefined) {
-      gaps.push(
-        gridGap(
-          primarySymbol(event),
-          `Event Grid event ${event.id} not issued separately: final-synthesis prediction ${duplicateOf} already uses its id or event`,
-        ),
-      );
-    } else if (sourceIds.length === 0) {
+    const probability = pModel.get(event.id) ?? restated.get(event.id)?.probability;
+    if (sourceIds.length === 0) {
       gaps.push(
         gridGap(
           primarySymbol(event),
@@ -242,7 +245,7 @@ export function issueForecastBook(input: {
     { symbol: string; reason: ForecastBaselineUnavailableReason; ids: string[] }
   >();
   const predictions = [
-    ...input.modelPredictions.map((prediction): Prediction => ({ ...prediction, origin: "model" })),
+    ...modelPredictions.map((prediction): Prediction => ({ ...prediction, origin: "model" })),
     ...gridPredictions,
   ].map((prediction): Prediction => {
     const baseline = forecastBaseline(

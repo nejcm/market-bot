@@ -103,10 +103,10 @@ describe("range volatility reference", () => {
     const instruction = reference(rangeReferenceCloses(21));
 
     expect(instruction).toMatch(
-      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /u,
+      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+10: /u,
     );
     expect(instruction).toMatch(
-      /±1σ close bands \+1: \[[\d.]+, [\d.]+\]; \+5: \[[\d.]+, [\d.]+\]; \+10: \[[\d.]+, [\d.]+\]; \+20: \[[\d.]+, [\d.]+\]\. A close outside one of these ±1σ bands has a base rate of about 0\.32 \(Gaussian one-sigma\) at each listed horizon\. A range forecast on one of these bands uses 0\.32 unless a catalyst inside its window/u,
+      /±1σ close bands \+10: \[[\d.]+, [\d.]+\]\. A close outside one of these ±1σ bands has a base rate of about 0\.32 \(Gaussian one-sigma\) at each listed horizon\. A range forecast on one of these bands uses 0\.32 unless a catalyst inside its window/u,
     );
     expect(instruction).toContain("cited in that prediction's sourceIds");
     expect(instruction).toContain(
@@ -117,6 +117,23 @@ describe("range volatility reference", () => {
     );
     expect(instruction).toContain("does not carry over to a band of another width");
     expect(instruction).not.toMatch(/2σ|two-sigma|\b(?:5|4\.6|95)%/u);
+    expect(instruction).toContain(
+      "A prediction identical to a grid event (same id or same measurableAs) is folded into that grid event and does not count toward the prediction target",
+    );
+    expect(instruction).toContain(
+      "The relative grid event is AAPL vs SPY at +5, so a relative prediction needs another benchmark or another horizon.",
+    );
+  });
+
+  test("lists every ±1σ band as an anchor when no grid range event is issued", () => {
+    const crypto = kindMixSynthesisInstruction(
+      { jobType: "crypto", assetClass: "crypto", symbol: "AAPL", depth: "brief" },
+      {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(21) }),
+      },
+    );
+    expect(crypto).toMatch(/±1σ close bands \+1: \[.*; \+5: \[.*; \+10: \[.*; \+20: \[/u);
+    expect(crypto).not.toContain("folded into that grid event");
   });
 
   test.each([
@@ -150,7 +167,7 @@ describe("range volatility reference", () => {
   test("deep diversity guidance points at referenced horizons only when the reference renders", () => {
     const deep: ResearchCommand = { ...command, depth: "deep" };
     const horizonHint =
-      "The range reference already carries ±1σ bands at +1, +5, +10, +20 trading days, so a non-redundant further forecast may be the same kind at another referenced horizon";
+      "The range reference already carries ±1σ bands at +10 trading days, so a non-redundant further forecast may be the same kind at another referenced horizon";
     const withCloses = (count: number) =>
       kindMixSynthesisInstruction(deep, {
         verifiedMarketSnapshot: verifiedMarketSnapshot({

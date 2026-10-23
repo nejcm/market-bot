@@ -13,7 +13,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveMarketSnapshotPriceAsOf } from "../../../src/domain/market-data";
 import { readEarningsForecastTelemetry } from "../../../src/forecast/earnings-eligibility";
-import { parseObservableExpression } from "../../../src/forecast/observable";
+import { claimKey, parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord, readNumber, readString } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
@@ -177,6 +177,19 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
   expect(gridPredictions.every(({ id }) => grid.events.some((event) => event.id === id))).toBe(
     true,
   );
+  const knownSourceIds = new Set(report.sources.map((source) => source.id));
+  const foldableKeys = new Set(
+    grid.events
+      .filter((event) => event.sourceIds.some((id) => knownSourceIds.has(id)))
+      .map((event) => claimKey(event.measurableAs)),
+  );
+  expect(
+    report.predictions.filter(
+      ({ origin, measurableAs }) => origin === "model" && foldableKeys.has(claimKey(measurableAs)),
+    ),
+    "model prediction restates a grid event",
+  ).toEqual([]);
+  expect(report.dataGaps.filter((gap) => gap.includes("not issued separately"))).toEqual([]);
   for (const prediction of report.predictions) {
     const expression = parseObservableExpression(prediction.measurableAs);
     if (prediction.baselineProbability !== undefined) {

@@ -288,23 +288,105 @@ describe("Event Grid", () => {
     ).not.toThrow();
   });
 
-  test("declares unpriced, invalid and duplicate grid events instead of dropping or defaulting them", () => {
+  test("declares unpriced and invalid grid events instead of dropping or defaulting them", () => {
     const sources = gridSources();
     const book = issueForecastBook({
       command: EQUITY,
       collectedSources: sources,
-      modelPredictions: [prediction({ id: "grid-range-1" })],
+      modelPredictions: [],
       modelEventGrid: [
+        { id: "grid-range-1", probability: 0.3 },
         { id: "grid-range-5", probability: 1.4 },
         { id: "grid-range-20", probability: "0.3" },
       ],
       knownSourceIds: KNOWN,
     });
-    expect(book.predictions.filter(({ origin }) => origin === "grid")).toEqual([]);
+    expect(book.predictions.map(({ id }) => id)).toEqual(["grid-range-1"]);
     expect(book.gaps.map(({ source, message }) => `${source}: ${message}`)).toEqual([
-      "event-grid: Event Grid event grid-range-1 not issued separately: final-synthesis prediction grid-range-1 already uses its id or event",
       "event-grid: Event Grid events not issued because the final synthesis returned no valid eventGrid probability for them: grid-range-5, grid-range-20, grid-relative-5",
     ]);
+  });
+
+  test("folds a model prediction restating a grid event into the grid", () => {
+    const sources = gridSources();
+    const [range1, range5, range20, relative5] = eventGrid(EQUITY, sources).events;
+    const book = issueForecastBook({
+      command: EQUITY,
+      collectedSources: sources,
+      modelPredictions: [
+        prediction({
+          id: "pred-1",
+          kind: "range",
+          measurableAs: range20!.measurableAs,
+          probability: 0.38,
+        }),
+        prediction({
+          id: "pred-2",
+          kind: "relative",
+          measurableAs: relative5!.measurableAs,
+          probability: 0.42,
+        }),
+        prediction({
+          id: "pred-3",
+          kind: "relative",
+          measurableAs: relative5!.measurableAs,
+          probability: 0.9,
+        }),
+        prediction({ id: range1!.id, probability: 0.2, sourceIds: ["other"] }),
+        prediction({ id: "pred-4", measurableAs: "close(AAPL, +10) > close(AAPL, 0)" }),
+      ],
+      modelEventGrid: [
+        { id: "grid-range-5", probability: 0.33 },
+        { id: "grid-range-20", probability: 0.39 },
+        { id: "grid-relative-5", probability: 7 },
+      ],
+      knownSourceIds: KNOWN,
+    });
+    expect(
+      book.predictions.map(({ id, origin, probability }) => [id, origin, probability]),
+    ).toEqual([
+      ["pred-4", "model", 0.65],
+      ["grid-range-1", "grid", 0.2],
+      ["grid-range-5", "grid", 0.33],
+      ["grid-range-20", "grid", 0.39],
+      ["grid-relative-5", "grid", 0.42],
+    ]);
+    expect(book.predictions.find(({ id }) => id === range1!.id)?.sourceIds).toEqual(
+      range1!.sourceIds,
+    );
+    expect(book.predictions.find(({ id }) => id === range5!.id)?.measurableAs).toBe(
+      range5!.measurableAs,
+    );
+    expect(book.gaps).toEqual([]);
+  });
+
+  test("folds nothing when no grid is issued", () => {
+    const book = issueForecastBook({
+      command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      collectedSources: gridSources(),
+      modelPredictions: [prediction({ id: "grid-range-1" })],
+      modelEventGrid: [{ id: "grid-range-1", probability: 0.3 }],
+      knownSourceIds: KNOWN,
+    });
+    expect(book.predictions.map(({ id, origin }) => [id, origin])).toEqual([
+      ["grid-range-1", "model"],
+    ]);
+  });
+
+  test("keeps a restatement as a model prediction when its grid event has no collected source", () => {
+    const sources = gridSources();
+    const relative5 = eventGrid(EQUITY, sources).events.find(({ kind }) => kind === "relative")!;
+    const book = issueForecastBook({
+      command: EQUITY,
+      collectedSources: sources,
+      modelPredictions: [prediction({ kind: "relative", measurableAs: relative5.measurableAs })],
+      modelEventGrid: [],
+      knownSourceIds: new Set(["verified-snapshot-AAPL"]),
+    });
+    expect(book.predictions.map(({ id, origin }) => [id, origin])).toEqual([["pred-1", "model"]]);
+    expect(book.gaps.map(({ message }) => message)).toContain(
+      "Event Grid event grid-relative-5 not issued: none of its close sources were collected",
+    );
   });
 
   test("extends the baseline window to the snapshot's newer close so both share one spot", () => {

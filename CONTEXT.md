@@ -146,11 +146,11 @@ Observable forecast whose `probability` is the chance `measurableAs` is true; be
 Structured disclosure that a report emitted fewer observable Predictions than its soft target after
 earnings and research-subject gates. It records emitted, target, and missing counts; presentation
 derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
-The valid final-synthesis report's count stands; no follow-up pass requests more Predictions. Event Grid Predictions are excluded from both counts.
+The valid final-synthesis report's count stands; no follow-up pass requests more Predictions. Event Grid Predictions, including model Predictions folded into a grid event they restate, are excluded from both counts.
 
 ## Event Grid
 
-Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response (or by a Forecast Grid Job) and stamped `origin: "grid"`. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response (or by a Forecast Grid Job) and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into that event and issued as grid, not counted as a model forecast. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
 ## Forecast Grid Job
 

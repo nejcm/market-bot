@@ -1,4 +1,5 @@
 import { evaluateMetricSection, type MetricSection } from "./metric-engine";
+import { sourceGap } from "../../domain/source-gaps";
 import type { ExtendedEvidence } from "../../domain/evidence";
 import type { OhlcvBar } from "../../domain/market-data";
 import type { Source, SourceGap } from "../../domain/sources";
@@ -210,6 +211,51 @@ function peerComparison(
   return { status: "available", valuationComps };
 }
 
+const OUTSIDE_PRICE_HISTORY_GAP_SOURCE = "valuation-workbench-outside-price-history-window";
+
+function outsidePriceHistoryOnly(section: MetricSection): boolean {
+  const unresolved = section.metrics.filter(({ status }) => status !== "value");
+  return (
+    unresolved.length > 0 &&
+    unresolved.every(
+      ({ status, cause }) => status === "missing" && cause === "outside-price-history-window",
+    )
+  );
+}
+
+// One Source Gap for every period that only predates the price-history window, not one per year.
+function collapseOutsidePriceHistoryGaps(
+  symbol: string,
+  results: readonly {
+    readonly section: MetricSection;
+    readonly sourceGaps: readonly SourceGap[];
+  }[],
+): readonly SourceGap[] {
+  const outside = results.filter(({ section }) => outsidePriceHistoryOnly(section));
+  const periods = outside.map(({ section }) => section.title.replace(/^Valuation Workbench /u, ""));
+  const labels = unique(
+    outside.flatMap(({ section }) =>
+      section.metrics.filter(({ status }) => status !== "value").map(({ label }) => label),
+    ),
+  );
+  const merged = sourceGap({
+    source: OUTSIDE_PRICE_HISTORY_GAP_SOURCE,
+    message: `Valuation Workbench metrics for ${symbol.toUpperCase()} not computed for ${String(periods.length)} period${periods.length === 1 ? "" : "s"} before the price-history window (${periods.join("; ")}): ${labels.join(", ")} missing (price-history-unavailable)`,
+    symbol: symbol.toUpperCase(),
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "suppressed-by-design",
+    evidenceQualityImpact: "no-cap",
+    triage: "diagnostic",
+  });
+  return results.flatMap((result) => {
+    if (!outside.includes(result)) {
+      return result.sourceGaps;
+    }
+    return result === outside[0] ? [merged] : [];
+  });
+}
+
 function buildValuationWorkbenchResult(
   input: BuildValuationWorkbenchInput,
   fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>> = {},
@@ -265,7 +311,7 @@ function buildValuationWorkbenchResult(
   ]);
   return {
     metricSections: sectionResults.map(({ section }) => section),
-    sourceGaps: sectionResults.flatMap(({ sourceGaps }) => sourceGaps),
+    sourceGaps: collapseOutsidePriceHistoryGaps(input.symbol, sectionResults),
     artifact: {
       version: 1,
       generatedAt: input.generatedAt,

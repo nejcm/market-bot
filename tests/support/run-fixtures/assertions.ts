@@ -2377,6 +2377,18 @@ export function assertEstimatedEarningsSuppressionPath(
   expect(result.collectedSources.institutionalOwnershipSignal?.status).toBe("forbidden");
 }
 
+function outsideOnly(section: {
+  readonly metrics: readonly { readonly status: string; readonly cause?: string }[];
+}): boolean {
+  const unresolved = section.metrics.filter(({ status }) => status !== "value");
+  return (
+    unresolved.length > 0 &&
+    unresolved.every(
+      ({ status, cause }) => status === "missing" && cause === "outside-price-history-window",
+    )
+  );
+}
+
 function assertValuationWorkbenchInvariants(
   run: RunFixtureResult,
   meta: FixtureMeta,
@@ -2412,12 +2424,23 @@ function assertValuationWorkbenchInvariants(
   const gaps = run.collectedSources.sourceGaps.filter(({ source }) =>
     source.startsWith("valuation-workbench-"),
   );
+  const outsideSections = sections.filter((section) => outsideOnly(section));
   expect(gaps).toHaveLength(
-    sections.filter(({ metrics }) => metrics.some(({ status }) => status !== "value")).length,
+    sections.filter(
+      (section) =>
+        !outsideOnly(section) && section.metrics.some(({ status }) => status !== "value"),
+    ).length + (outsideSections.length > 0 ? 1 : 0),
   );
   for (const section of sections) {
     const unresolved = section.metrics.filter(({ status }) => status !== "value");
-    const gap = gaps.find(({ source }) => source === section.id);
+    const gap = gaps.find(
+      ({ source }) =>
+        source ===
+        (outsideOnly(section) ? "valuation-workbench-outside-price-history-window" : section.id),
+    );
+    if (outsideOnly(section)) {
+      expect(gap?.message).toContain(section.title.replace(/^Valuation Workbench /u, ""));
+    }
     expect(gap !== undefined).toBe(unresolved.length > 0);
     if (gap !== undefined) {
       expect(gap.triage).toBe(

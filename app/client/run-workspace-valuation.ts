@@ -8,9 +8,10 @@ import type { RunDetail } from "../types";
 import type { MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import type { EquityReaderValuationContext } from "../../src/report/equity-reader";
 import type {
-  PeerImpliedRange,
+  StoredPeerImpliedRange,
   ValuationCompsRow,
 } from "../../src/sources/extended-evidence/valuation-comps";
+import { storedPeerRangeBasis } from "../../src/sources/extended-evidence/valuation-comps-contract";
 import type { ValuationWorkbenchArtifact } from "../../src/sources/extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
@@ -27,6 +28,7 @@ export type RunWorkspacePeerImpliedRangeView =
   | {
       readonly status: "derived";
       readonly label: string;
+      readonly revenueBasisLabel: string;
       readonly sourceIds: readonly string[];
       readonly position: "below-range" | "within-range" | "above-range";
       readonly positionLabel: string;
@@ -41,6 +43,7 @@ export type RunWorkspacePeerImpliedRangeView =
   | {
       readonly status: "suppressed";
       readonly label: string;
+      readonly revenueBasisLabel: string;
       readonly sourceIds: readonly string[];
       readonly suppressionReason: string;
       readonly message: string;
@@ -124,12 +127,12 @@ const PEER_IMPLIED_RANGE_POSITION_LABELS = {
   "below-range": "Below range",
   "within-range": "Within range",
   "above-range": "Above range",
-} satisfies Record<Extract<PeerImpliedRange, { status: "derived" }>["position"], string>;
+} satisfies Record<Extract<StoredPeerImpliedRange, { status: "derived" }>["position"], string>;
 
 export const PEER_REFERENCE_RANGE_LABEL = "Peer-implied price reference range";
 
 function rangeGeometry(
-  range: Extract<PeerImpliedRange, { status: "derived" }>,
+  range: Extract<StoredPeerImpliedRange, { status: "derived" }>,
 ): RunWorkspacePeerImpliedRangeGeometry {
   const span = range.high - range.low;
   if (span <= 0) {
@@ -195,10 +198,16 @@ export function peerImpliedRangeFromProjection(
   }
   const { range, sourceIds } = valuation;
   const { label } = range;
+  // The workbench fallback skips readPeerImpliedRange, so the basis is rechecked here.
+  const revenueBasisLabel = storedPeerRangeBasis(range)?.revenueLabel;
+  if (revenueBasisLabel === undefined) {
+    return undefined;
+  }
   if (valuation.status === "suppressed") {
     return {
       status: "suppressed",
       label,
+      revenueBasisLabel,
       sourceIds,
       suppressionReason: valuation.range.suppressedReason,
       message: `Reference range suppressed: ${valuation.range.suppressedReason}.`,
@@ -210,6 +219,7 @@ export function peerImpliedRangeFromProjection(
   return {
     status: "derived",
     label,
+    revenueBasisLabel,
     sourceIds,
     position: valuation.range.position,
     positionLabel: PEER_IMPLIED_RANGE_POSITION_LABELS[valuation.range.position],
@@ -217,7 +227,7 @@ export function peerImpliedRangeFromProjection(
     midLabel: `Mid ${formatReferencePrice(valuation.range.mid)}`,
     highLabel: `High ${formatReferencePrice(valuation.range.high)}`,
     currentLabel: `Current price ${formatReferencePrice(inputs.currentPrice)}`,
-    methodDisclosure: `Method: ${valuation.range.basis}; ${valuation.range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; TTM revenue ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo price ${priceDate}.`,
+    methodDisclosure: `Method: ${valuation.range.basis}; ${valuation.range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; ${revenueBasisLabel} ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo price ${priceDate}.`,
     boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     geometry: rangeGeometry(valuation.range),
   };

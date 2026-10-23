@@ -144,25 +144,67 @@ export interface PeerImpliedRangeDerivedInputs extends PeerImpliedRangeInputs {
   readonly quoteCurrency: "USD";
 }
 
-interface PeerImpliedRangeBase<TInputs extends PeerImpliedRangeInputs> {
-  readonly label: "peer-implied price reference range";
-  readonly basis: "peer EV/TTM revenue percentiles applied to target TTM revenue";
-  readonly formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding";
-  readonly inputs: TInputs;
+const TTM_PEER_RANGE_BASIS = {
+  revenueLabel: "TTM revenue",
+  basis: "peer EV/TTM revenue percentiles applied to target TTM revenue",
+  formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding",
+  revenueNotPositive: "TTM revenue is not positive",
+} as const;
+
+const LEGACY_ANNUALIZED_PEER_RANGE_BASIS = {
+  revenueLabel: "annualized revenue",
+  basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+  formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+  revenueNotPositive: "annualized revenue is not positive",
+} as const;
+
+const PEER_RANGE_REVENUE_BASES = [TTM_PEER_RANGE_BASIS, LEGACY_ANNUALIZED_PEER_RANGE_BASIS];
+
+// Matches a stored range to exactly one known (basis, formula, revenue reason) set.
+export function storedPeerRangeBasis(range: {
+  readonly basis?: unknown;
+  readonly formula?: unknown;
+  readonly suppressedReason?: unknown;
+}): (typeof PEER_RANGE_REVENUE_BASES)[number] | undefined {
+  const match = PEER_RANGE_REVENUE_BASES.find(
+    (candidate) => range.basis === candidate.basis && range.formula === candidate.formula,
+  );
+  const foreignReason = PEER_RANGE_REVENUE_BASES.some(
+    (candidate) => candidate !== match && range.suppressedReason === candidate.revenueNotPositive,
+  );
+  return foreignReason ? undefined : match;
 }
 
-export type PeerImpliedRange =
-  | (PeerImpliedRangeBase<PeerImpliedRangeDerivedInputs> & {
+type PeerImpliedRangeOf<TBasis extends { readonly basis: string }, TReason extends string> =
+  | (TBasis & {
+      readonly label: "peer-implied price reference range";
+      readonly inputs: PeerImpliedRangeDerivedInputs;
       readonly status: "derived";
       readonly low: number;
       readonly mid: number;
       readonly high: number;
       readonly position: PeerImpliedRangePosition;
     })
-  | (PeerImpliedRangeBase<PeerImpliedRangeInputs> & {
+  | (TBasis & {
+      readonly label: "peer-implied price reference range";
+      readonly inputs: PeerImpliedRangeInputs;
       readonly status: "suppressed";
-      readonly suppressedReason: PeerImpliedRangeSuppressedReason;
+      readonly suppressedReason: TReason;
     });
+
+export type PeerImpliedRange = PeerImpliedRangeOf<
+  Pick<typeof TTM_PEER_RANGE_BASIS, "basis" | "formula">,
+  PeerImpliedRangeSuppressedReason
+>;
+
+// Runs saved before the TTM switch; readers accept this basis, the producer never writes it.
+export type StoredPeerImpliedRange =
+  | PeerImpliedRange
+  | PeerImpliedRangeOf<
+      Pick<typeof LEGACY_ANNUALIZED_PEER_RANGE_BASIS, "basis" | "formula">,
+      | Exclude<PeerImpliedRangeSuppressedReason, typeof TTM_PEER_RANGE_BASIS.revenueNotPositive>
+      | typeof LEGACY_ANNUALIZED_PEER_RANGE_BASIS.revenueNotPositive
+    >;
 
 export interface ValuationPeerExclusion {
   readonly reason: string;

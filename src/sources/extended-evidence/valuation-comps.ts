@@ -49,6 +49,7 @@ export {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
   type PeerImpliedRange,
   type PeerImpliedRangeSuppressedReason,
+  type StoredPeerImpliedRange,
   type ValuationCompsArtifact,
   type ValuationCompsOptions,
   type ValuationCompsRow,

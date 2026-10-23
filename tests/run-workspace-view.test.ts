@@ -31,6 +31,7 @@ import {
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
+import { readPeerImpliedRange } from "../src/run-artifact-evidence-reader";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { renderFinancialTrends, renderMarkdownReport } from "../src/report/markdown";
 import { projectEquityReader } from "../src/report/equity-reader";
@@ -230,6 +231,15 @@ function peerImpliedRange(currentPrice = 79) {
     quoteCurrency: "USD",
     quoteObservedAt: "2026-07-04T12:00:00.000Z",
   });
+}
+
+function stored(range: object) {
+  return readPeerImpliedRange({ impliedPriceRange: range });
+}
+
+function storedDetail(range: object): RunDetail {
+  const read = stored(range);
+  return { summary: summary(), ...(read === undefined ? {} : { peerImpliedRange: read }) };
 }
 
 function renderedStrings(value: unknown): readonly string[] {
@@ -2186,6 +2196,130 @@ describe("run workspace view", () => {
     });
   });
 
+  test("labels a stored peer range by its revenue basis and hides an unknown basis", async () => {
+    const legacyBasis = {
+      basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+      formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+    };
+    const legacy = storedDetail({ ...peerImpliedRange(), ...legacyBasis });
+    const ttm = storedDetail(peerImpliedRange());
+
+    expect(peerImpliedRangeView(legacy)).toMatchObject({
+      status: "derived",
+      revenueBasisLabel: "annualized revenue",
+      methodDisclosure: expect.stringContaining(
+        `Method: ${legacyBasis.basis}; ${legacyBasis.formula}. Inputs: P25 1.00x, median 2.00x, P75 3.00x; annualized revenue $400,`,
+      ),
+    });
+    expect(peerImpliedRangeView(legacy)).not.toMatchObject({
+      methodDisclosure: expect.stringContaining("TTM"),
+    });
+    expect(peerImpliedRangeView(ttm)).toMatchObject({
+      status: "derived",
+      revenueBasisLabel: "TTM revenue",
+      methodDisclosure: expect.stringContaining("; TTM revenue $400,"),
+    });
+    const html = await renderRunWorkspaceComponent(legacy, "advanced");
+    expect(html.replaceAll(/<[^>]+>/gu, " ").replaceAll(/\s+/gu, " ")).toContain(
+      "Revenue basis: annualized revenue",
+    );
+
+    const legacyRevenueSuppressed = {
+      ...derivePeerImpliedRange({ supportability: "supported", usablePeerCount: 3 }),
+      ...legacyBasis,
+      suppressedReason: "annualized revenue is not positive",
+    };
+    expect(peerImpliedRangeView(storedDetail(legacyRevenueSuppressed))).toMatchObject({
+      status: "suppressed",
+      revenueBasisLabel: "annualized revenue",
+      message: "Reference range suppressed: annualized revenue is not positive.",
+    });
+    expect(
+      stored({ ...legacyRevenueSuppressed, suppressedReason: "TTM revenue is not positive" }),
+    ).toBeUndefined();
+    expect(
+      stored({
+        ...peerImpliedRange(),
+        status: "suppressed",
+        suppressedReason: "annualized revenue is not positive",
+      }),
+    ).toBeUndefined();
+
+    const unknown = { ...peerImpliedRange(), basis: "peer EV/forward revenue percentiles" };
+    expect(stored(unknown)).toBeUndefined();
+    expect(
+      stored({ ...peerImpliedRange(), ...legacyBasis, formula: peerImpliedRange().formula }),
+    ).toBeUndefined();
+    expect(
+      peerImpliedRangeView({ summary: summary(), peerImpliedRange: unknown as never }),
+    ).toBeUndefined();
+  }, 15_000);
+
+  test("rechecks the basis set on the valuation workbench fallback", () => {
+    const withWorkbenchRange = (range: object): RunDetail => {
+      const base = reverseDcfWorkbench();
+      if (base.peerComparison.status !== "available") {
+        throw new Error("fixture peer comparison must be available");
+      }
+      const valuationComps = { ...base.peerComparison.valuationComps, impliedPriceRange: range };
+      return {
+        summary: summary(),
+        valuationWorkbench: {
+          ...base,
+          peerComparison: { ...base.peerComparison, valuationComps },
+        } as RunDetail["valuationWorkbench"] & object,
+      };
+    };
+    const legacyBasis = {
+      basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+      formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+    };
+    const legacy = { ...peerImpliedRange(), ...legacyBasis };
+
+    expect(peerImpliedRangeView(withWorkbenchRange(legacy))).toMatchObject({
+      revenueBasisLabel: "annualized revenue",
+    });
+    const rejected = [
+      { ...legacy, formula: peerImpliedRange().formula },
+      { ...peerImpliedRange(), basis: "constructor" },
+      {
+        ...derivePeerImpliedRange({ supportability: "supported", usablePeerCount: 3 }),
+        ...legacyBasis,
+        suppressedReason: "TTM revenue is not positive",
+      },
+    ];
+    for (const range of rejected) {
+      expect(stored(range)).toBeUndefined();
+      expect(peerImpliedRangeView(withWorkbenchRange(range))).toBeUndefined();
+    }
+  });
+
+  test("labels valuation tiles with the run's recognized revenue basis", async () => {
+    const valuationItem = {
+      category: "valuation" as const,
+      title: "AAPL Valuation Evidence",
+      summary: "Valuation Evidence.",
+      sourceIds: ["sec-fixture"],
+      observedAt: "2026-07-04T12:00:00.000Z",
+      metrics: { annualizedRevenue: 400, evToAnnualizedRevenue: 5.4 },
+    };
+    const legacy = storedDetail({
+      ...peerImpliedRange(),
+      basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+      formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+    });
+    const html = await renderRunWorkspaceComponent(
+      {
+        ...legacy,
+        report: { extendedEvidence: { items: [valuationItem], gaps: [] } },
+      },
+      "advanced",
+    );
+    const text = html.replaceAll(/<[^>]+>/gu, " ").replaceAll(/\s+/gu, " ");
+    expect(text).toContain("EV / annualized revenue");
+    expect(text).not.toContain("EV / TTM revenue");
+  }, 15_000);
+
   test("renders peer suppression and omits an absent range block", async () => {
     const suppressed = derivePeerImpliedRange({
       supportability: "screening-only",
@@ -2196,6 +2330,7 @@ describe("run workspace view", () => {
     expect(buildRunWorkspaceView(detail).peerImpliedRange).toEqual({
       status: "suppressed",
       label: "peer-implied price reference range",
+      revenueBasisLabel: "TTM revenue",
       sourceIds: [],
       suppressionReason: "peer supportability is not supported",
       message: "Reference range suppressed: peer supportability is not supported.",

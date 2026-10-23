@@ -20,6 +20,9 @@
       <div class="mt-1.5 text-sm text-muted-foreground">
         {peerImpliedRange.message}
       </div>
+      <div class="mt-0.5 font-mono text-[9px] text-[#8a8f96]">
+        Revenue basis: {peerImpliedRange.revenueBasisLabel}
+      </div>
     </div>
   {:else}
     <div class="rounded-lg border border-border bg-card px-4 py-3.5">
@@ -30,6 +33,9 @@
         <div class="font-mono text-[10px] text-primary">
           {peerImpliedRange.positionLabel}
         </div>
+      </div>
+      <div class="mt-0.5 font-mono text-[9px] text-[#8a8f96]">
+        Revenue basis: {peerImpliedRange.revenueBasisLabel}
       </div>
       <div class="mt-2.5">
         <RangeBar

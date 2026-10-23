@@ -18,6 +18,7 @@ import { isRecord, readNumber, readString } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
+import { readGapTriage } from "../../../src/report/gap-triage";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
 import { renderMarkdownReport } from "../../../src/report/markdown";
 import {
@@ -74,6 +75,13 @@ function asWritten(value: unknown): unknown {
   return JSON.parse(written) as unknown;
 }
 
+// Assembly adds these after synthesis, so the synthesis prompt never sees them.
+const FORECAST_BOOK_GAP_SOURCES = new Set([
+  "event-grid",
+  "forecast-baseline",
+  "earnings-forecasts",
+]);
+
 export function assertMetricPromptCatalog(
   result: RunFixtureResult,
   meta: FixtureMeta,
@@ -124,7 +132,12 @@ export function assertMetricPromptCatalog(
       }
     }
     expect(prompt.evidence.sourceGaps).toEqual(
-      deterministicSourceGaps(command, result.collectedSources),
+      deterministicSourceGaps(command, {
+        ...result.collectedSources,
+        sourceGaps: result.collectedSources.sourceGaps.filter(
+          ({ source }) => !FORECAST_BOOK_GAP_SOURCES.has(source),
+        ),
+      }),
     );
     expect(user).toBe(JSON.stringify(prompt));
   }
@@ -190,6 +203,27 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
     "model prediction restates a grid event",
   ).toEqual([]);
   expect(report.dataGaps.filter((gap) => gap.includes("not issued separately"))).toEqual([]);
+  for (const gap of report.dataGaps) {
+    const source = gap.split(": ", 1)[0]!;
+    if (FORECAST_BOOK_GAP_SOURCES.has(source)) {
+      expect(readGapTriage(gap, result.collectedSources.sourceGaps), gap).toBe("diagnostic");
+      expect(result.analytics.sourceFunnel.sourceGaps.bySource[source], gap).toBeGreaterThan(0);
+    }
+  }
+  const earningsGateSuppressed =
+    readEarningsForecastTelemetry(report)?.suppressionReason === "event-date-not-confirmed";
+  expect(
+    result.collectedSources.sourceGaps.some(
+      ({ source, capability, triage }) =>
+        source === "earnings-forecasts" &&
+        capability === "forecast-book" &&
+        triage === "diagnostic",
+    ),
+    "earnings-forecasts gap declared exactly when the gate suppresses",
+  ).toBe(earningsGateSuppressed);
+  expect(report.dataGaps.some((gap) => gap.startsWith("earnings-forecasts: "))).toBe(
+    earningsGateSuppressed,
+  );
   for (const prediction of report.predictions) {
     const expression = parseObservableExpression(prediction.measurableAs);
     if (prediction.baselineProbability !== undefined) {

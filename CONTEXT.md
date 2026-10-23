@@ -471,7 +471,8 @@ in the Default View.
 ## Diagnostic Gap
 
 A Diagnostic Gap is an instrumentation or entitlement artifact, such as an absent optional
-provider, an entitlement 403, or an unconfigured operating-KPI registry, and appears only in the
+provider, an entitlement 403, an unconfigured operating-KPI registry, or a forecast-book note
+(`event-grid`, `forecast-baseline`, `earnings-forecasts` suppression), and appears only in the
 Appendix.
 Prediction shortfalls affect the delivered research scope and appear last among Material Gaps in
 the Default View. Non-equity Console views keep the structured disclosure in a dedicated Shortfall

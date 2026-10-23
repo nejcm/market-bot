@@ -107,13 +107,12 @@ export function compareFinancialStatementFacts(
     leftDurationBucket !== undefined && leftDurationBucket === rightDurationBucket
       ? 0
       : durationOrder;
+  // A same-end, same-bucket fact is one period: its latest revision wins even when an amendment shifts the start.
   return (
     right.periodEnd.localeCompare(left.periodEnd) ||
     bucketDurationOrder ||
-    right.filedAt.localeCompare(left.filedAt) ||
-    durationOrder ||
-    Number(right.amendment) - Number(left.amendment) ||
-    (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
+    compareFinancialStatementRevisions(left, right) ||
+    durationOrder
   );
 }
 

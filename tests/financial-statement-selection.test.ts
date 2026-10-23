@@ -640,6 +640,18 @@ describe("financial statement selection", () => {
     expect(latestFinancialStatementFact([fuller, shorter])).toBe(fuller);
   });
 
+  test("a same-day amendment supersedes the fuller original it corrects", () => {
+    const original = fact({ value: 1000, periodStart: "2024-01-01", accessionNumber: "original" });
+    const amendment = fact({
+      value: 600,
+      periodStart: "2024-01-12",
+      amendment: true,
+      accessionNumber: "amendment",
+    });
+
+    expect(latestFinancialStatementFact([original, amendment])).toBe(amendment);
+  });
+
   test("prefers the fuller bucket-equivalent period regardless of input order", () => {
     const fuller = fact({
       value: 1000,

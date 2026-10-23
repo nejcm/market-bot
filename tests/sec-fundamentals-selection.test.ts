@@ -332,10 +332,27 @@ describe("trailing-twelve-month revenue", () => {
       };
       const legacy = summarizeSecFundamentals(payload(concepts), AS_OF)!;
 
+      expect(legacy.metrics.revenue).toBe(600);
       expect(legacy.metrics).not.toHaveProperty("revenueTtm");
       expect(canonicalSecItem(concepts).metrics).not.toHaveProperty("revenueTtm");
     },
   );
+
+  test("a same-day 10-K/A that corrects the start supersedes the annual shortcut", () => {
+    const concepts = {
+      [revenueConcept]: [
+        row(1000, "2025-01-01", "2025-12-31", "10-K", 2025, "FY", "2026-02-15", "fy25"),
+        row(600, "2025-01-12", "2025-12-31", "10-K/A", 2025, "FY", "2026-02-15", "fy25a"),
+      ],
+    };
+    const legacy = summarizeSecFundamentals(payload(concepts), AS_OF)!;
+    const canonical = canonicalSecItem(concepts).metrics;
+
+    expect(legacy.metrics.revenue).toBe(600);
+    expect(legacy.metrics.revenueTtm).toBe(600);
+    expect(canonical?.revenue).toBe(600);
+    expect(canonical?.revenueTtm).toBe(600);
+  });
 });
 
 describe("legacy YoY comparatives", () => {

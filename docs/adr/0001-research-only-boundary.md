@@ -50,11 +50,9 @@ Ephemeral Run Chat has a deliberately different boundary.
 - `report.dataGaps` remains an existing unscanned mixed-authorship surface, not an added exemption.
   Relocation of uncited findings/Business Framework text into it can bypass the screen; closing that gap is
   separate work, not a change authorized by consolidation.
-- Metric references use `<<metric:<section>.<id>>>` or `<<metric:<section>.<id>|period>>`; brace-delimited forms are malformed. Merge citations,
-  validate authored prose with tokens intact, substitute only deterministic formatted metric values, then
-  screen resolved prose again inside the bounded report repair loop: substitution can construct blocked
-  phrases such as a percentage followed by “gap”. No surrounding prose becomes exempt. Summary, data gaps,
-  and Prediction expressions cannot contain references ([ADR 0004](./0004-evidence-and-model-stage-pipeline.md)).
+- Metric references ([ADR 0004](./0004-evidence-and-model-stage-pipeline.md)) are screened with tokens intact,
+  then resolved prose is screened again inside the bounded report repair loop: substitution can construct
+  blocked phrases such as a percentage followed by “gap”. No surrounding prose becomes exempt.
 - Exemption from the research-language screen never exempts source text from prompt-injection sanitization.
   Source wording copied or synthesized into an authored field is scanned there. Source-text research-language
   audits are warning-only and remain separate from report enforcement.

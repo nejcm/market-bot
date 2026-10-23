@@ -110,7 +110,17 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   closes/source IDs.
 - Financial Lens metrics retain per-metric citations: SEC for filing-intrinsic facts, Yahoo for
   price-relative/non-US fallback. Parent `NetIncomeLoss` remains net income; consolidated `ProfitLoss` is
-  separate, same-period disclosure only. ROE/ROA keep parent income and existing balance scopes.
+  otherwise separate, same-period disclosure. ROE/ROA keep parent income and existing balance scopes.
+- The one sanctioned tag splice: a period without `NetIncomeLoss` takes a derived `ProfitLoss` net income
+  only when no noncontrolling-interest income fact observable at the analysis cutoff is tagged for it, or
+  all are zero and a zero `NetIncomeLossAttributableToNoncontrollingInterest` shares a filing with a
+  `ProfitLoss` of the current value (partial-scope or comprehensive zeros alone, or any nonzero NCI,
+  block); and the newest same filing/form/span/unit `NetIncomeLoss`/`ProfitLoss` pair agrees. An
+  unexplained difference withholds without implying NCI. Untagged `GrossProfit` derives as revenue −
+  `CostOfRevenue`/`CostOfGoodsAndServicesSold` only when current revisions share a defined accession, form,
+  span, and unit. Both carry derived lineage, and metric basis, lens captions, and history cards disclose
+  the formula (tagged cost of revenue may exclude amortization or D&A). Each withheld period is a declared
+  gap.
 - Keep operations scope (continuing/total), attribution (parent/NCI), and SEC/provider earnings basis
   independent; equal values do not establish equal scope. Continuing income/EPS are separate series (parent
   preferred on equal period), never replacements for total income/EPS or total-income ROE/ROA/margin/payout.

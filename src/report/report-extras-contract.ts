@@ -166,6 +166,7 @@ interface MetricResultValue {
     readonly periodType?: string;
     readonly periodStart?: string;
     readonly periodEnd?: string;
+    readonly derivation?: string;
   }[];
   readonly id?: string;
   readonly label?: string;
@@ -376,7 +377,9 @@ function readMetricResult(value: unknown): MetricResultValue | undefined {
   const inputs = Array.isArray(value.inputs)
     ? value.inputs
         .filter(isRecord)
-        .map((input) => optionalStrings(input, ["periodType", "periodStart", "periodEnd"]))
+        .map((input) =>
+          optionalStrings(input, ["periodType", "periodStart", "periodEnd", "derivation"]),
+        )
     : [];
   const sourceIds = stringList(value);
   return {

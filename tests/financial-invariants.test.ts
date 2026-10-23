@@ -34,6 +34,18 @@ function fixtureResult(results: readonly RunFixtureResult[], index: number): Run
   return result;
 }
 
+function companyfactsAnnualDuration(value: number, year: number): Record<string, unknown> {
+  return {
+    val: value,
+    form: "10-K",
+    fp: "FY",
+    filed: `${String(year + 1)}-02-15`,
+    start: `${String(year)}-01-01`,
+    end: `${String(year)}-12-31`,
+    accn: `${String(year + 1)}0215-10-K`,
+  };
+}
+
 function companyfactsInstant(
   value: number,
   periodEnd: string,
@@ -265,6 +277,59 @@ describe("composite statement fact integrity", () => {
             ...debtSeries,
             [debt.periodType]: debtSeries[debt.periodType].map((fact) =>
               fact === debt ? mutated : fact,
+            ),
+          },
+        },
+      },
+    };
+
+    expect(() => assertCompositeFactIntegrity(injected)).toThrow(/\[A8\]/u);
+  });
+
+  test("A8 accepts a ProfitLoss net income fallback beside parent facts and rejects other derivations", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetIncomeLoss: { units: { USD: [companyfactsAnnualDuration(10, 2024)] } },
+            ProfitLoss: {
+              units: {
+                USD: [companyfactsAnnualDuration(10, 2024), companyfactsAnnualDuration(12, 2025)],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "TEST",
+        generatedAt: "2026-08-28T00:00:00.000Z",
+        analysisAsOf: "2026-08-28T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-test-fundamentals",
+      },
+    );
+    const { netIncome } = artifact.statements.incomeStatement;
+    expect(() => assertCompositeFactIntegrity(artifact)).not.toThrow();
+    const injected = {
+      ...artifact,
+      statements: {
+        ...artifact.statements,
+        incomeStatement: {
+          ...artifact.statements.incomeStatement,
+          netIncome: {
+            ...netIncome,
+            annual: netIncome.annual.map((fact) =>
+              fact.composite === undefined
+                ? fact
+                : {
+                    ...fact,
+                    composite: {
+                      ...fact.composite,
+                      components: fact.composite.components.map((component) => ({
+                        ...component,
+                        concept: "OperatingIncomeLoss",
+                      })),
+                    },
+                  },
             ),
           },
         },

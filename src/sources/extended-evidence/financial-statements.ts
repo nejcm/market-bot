@@ -100,6 +100,7 @@ interface SelectedSeries {
   readonly series: FinancialStatementSeries;
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
+  readonly withheld?: readonly WithheldDerivation[];
 }
 
 interface SubmissionFiling {
@@ -133,6 +134,19 @@ const TEMPORARY_EQUITY_CONCEPT_PRIORITY = [
   "TemporaryEquityCarryingAmount",
   "RedeemableNoncontrollingInterestEquityCarryingAmount",
 ] as const;
+const GROSS_PROFIT_COST_CONCEPTS = ["CostOfRevenue", "CostOfGoodsAndServicesSold"];
+const CONSOLIDATED_NET_INCOME_CONCEPT = "ProfitLoss";
+const TOTAL_NONCONTROLLING_INCOME_CONCEPTS = new Set([
+  "NetIncomeLossAttributableToNoncontrollingInterest",
+]);
+const NONCONTROLLING_INCOME_CONCEPTS = [
+  ...TOTAL_NONCONTROLLING_INCOME_CONCEPTS,
+  "NetIncomeLossAttributableToNonredeemableNoncontrollingInterest",
+  "NetIncomeLossAttributableToRedeemableNoncontrollingInterest",
+  "IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity",
+  "MinorityInterestInNetIncomeLossLimitedPartnerships",
+  "ComprehensiveIncomeNetOfTaxAttributableToNoncontrollingInterest",
+];
 type EquityStackComponentKey =
   | "minorityInterest"
   | "stockholdersEquityIncludingNoncontrollingInterest"
@@ -574,6 +588,258 @@ function factsForDebt(
     ],
     notes: [...notes.values()],
   };
+}
+
+interface WithheldDerivation {
+  readonly periodKey: string;
+  readonly periodStart?: string;
+  readonly periodEnd: string;
+  readonly reason: string;
+}
+
+interface DerivedSeriesFacts {
+  readonly facts: readonly ParsedFact[];
+  readonly withheld: readonly WithheldDerivation[];
+}
+
+const NO_DERIVED_FACTS: DerivedSeriesFacts = { facts: [], withheld: [] };
+
+function filingContextKey(fact: ParsedFact): string | undefined {
+  return fact.periodStart === undefined || fact.accessionNumber === null
+    ? undefined
+    : `${fact.accessionNumber}|${fact.form}|${fact.periodStart}|${fact.periodEnd}|${fact.unit}`;
+}
+
+function periodGroups(
+  facts: readonly ParsedFact[],
+  definition: FinancialStatementSeriesDefinition,
+): Map<string, readonly ParsedFact[]> {
+  const groups = new Map<string, ParsedFact[]>();
+  for (const fact of facts) {
+    const key = `${periodType(fact, definition)}|${periodKey(fact)}`;
+    groups.set(key, [...(groups.get(key) ?? []), fact]);
+  }
+  return new Map(
+    [...groups].map(([key, group]) => [key, group.toSorted(compareFinancialStatementFacts)]),
+  );
+}
+
+function withheldPeriod(fact: ParsedFact, reason: string): WithheldDerivation {
+  return {
+    periodKey: periodKey(fact),
+    ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
+    periodEnd: fact.periodEnd,
+    reason,
+  };
+}
+
+// Pairs only each period's current revenue and cost revisions, so a restatement never meets a stale cost.
+function derivedGrossProfitFacts(
+  payload: unknown,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): DerivedSeriesFacts {
+  const root = taxonomyRoot(payload, "us-gaap");
+  const revenueDefinition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (candidate) => candidate.key === "revenue",
+  );
+  if (root === undefined || revenueDefinition === undefined) {
+    return NO_DERIVED_FACTS;
+  }
+  const revenue = factsForDefinition(payload, "us-gaap", revenueDefinition, eligible).filter(
+    (fact) => eligible(fact) && fact.periodStart !== undefined,
+  );
+  const cost = factsForLatestPeriodConcept(
+    "us-gaap",
+    root,
+    GROSS_PROFIT_COST_CONCEPTS,
+    eligible,
+  ).filter((fact) => eligible(fact) && fact.periodStart !== undefined);
+  const costConcept = cost[0]?.concept;
+  if (revenue.length === 0 || costConcept === undefined) {
+    return NO_DERIVED_FACTS;
+  }
+  const costGroups = periodGroups(cost, definition);
+  const subtracted = new Set([costConcept]);
+  const facts: ParsedFact[] = [];
+  const withheld: WithheldDerivation[] = [];
+  for (const [key, [current]] of periodGroups(revenue, definition)) {
+    const [currentCost] = costGroups.get(key) ?? [];
+    if (current === undefined) {
+      continue;
+    }
+    const context = filingContextKey(current);
+    if (currentCost === undefined) {
+      withheld.push(withheldPeriod(current, `no ${costConcept} fact is tagged for the period`));
+    } else if (context === undefined || context !== filingContextKey(currentCost)) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          `the current revenue and ${costConcept} revisions do not share one filing, form, span, and unit`,
+        ),
+      );
+    } else {
+      facts.push(
+        withCompositeFirstPublicAt(
+          compositeFromContributors(
+            [current, { ...currentCost, value: -currentCost.value }],
+            subtracted,
+          ),
+          definition,
+          [...revenue, ...cost],
+          subtracted,
+        ),
+      );
+    }
+  }
+  return { facts, withheld };
+}
+
+function consolidatedNetIncomeFallbackFacts(
+  payload: unknown,
+  definition: FinancialStatementSeriesDefinition,
+  parent: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+  observable: (fact: ParsedFact) => boolean,
+): DerivedSeriesFacts {
+  const root = taxonomyRoot(payload, "us-gaap");
+  if (root === undefined) {
+    return NO_DERIVED_FACTS;
+  }
+  const eligibleParent = parent.filter((fact) => eligible(fact));
+  const covered = new Set(eligibleParent.map((fact) => periodKey(fact)));
+  const noncontrolling = NONCONTROLLING_INCOME_CONCEPTS.flatMap((concept) =>
+    unitFacts("us-gaap", root, concept),
+  ).filter((fact) => observable(fact));
+  const withNoncontrollingInterest = new Set(noncontrolling.map((fact) => periodKey(fact)));
+  const withNonzeroNoncontrolling = new Set(
+    noncontrolling.filter((fact) => fact.value !== 0).map((fact) => periodKey(fact)),
+  );
+  const withPartialNoncontrolling = new Set(
+    noncontrolling
+      .filter((fact) => !TOTAL_NONCONTROLLING_INCOME_CONCEPTS.has(fact.concept))
+      .map((fact) => periodKey(fact)),
+  );
+  const totalZeroNoncontrollingContexts = new Set(
+    noncontrolling.flatMap((fact) =>
+      fact.value === 0 && TOTAL_NONCONTROLLING_INCOME_CONCEPTS.has(fact.concept)
+        ? (filingContextKey(fact) ?? [])
+        : [],
+    ),
+  );
+  const consolidated = unitFacts("us-gaap", root, CONSOLIDATED_NET_INCOME_CONCEPT).filter(
+    (fact) => eligible(fact) && fact.periodStart !== undefined,
+  );
+  const consolidatedByContext = new Map(
+    consolidated.flatMap((fact) => {
+      const key = filingContextKey(fact);
+      return key === undefined ? [] : [[key, fact] as const];
+    }),
+  );
+  const [newestPair] = eligibleParent
+    .flatMap((fact) => {
+      const key = filingContextKey(fact);
+      const peer = key === undefined ? undefined : consolidatedByContext.get(key);
+      return peer === undefined || withNonzeroNoncontrolling.has(periodKey(fact))
+        ? []
+        : [{ fact, peer }];
+    })
+    .toSorted((left, right) => compareFinancialStatementFacts(left.fact, right.fact));
+  const divergent =
+    newestPair !== undefined && newestPair.peer.value !== newestPair.fact.value
+      ? newestPair.fact
+      : undefined;
+  const facts: ParsedFact[] = [];
+  const withheld: WithheldDerivation[] = [];
+  for (const group of periodGroups(
+    consolidated.filter((fact) => !covered.has(periodKey(fact))),
+    definition,
+  ).values()) {
+    const [current] = group;
+    if (current === undefined) {
+      continue;
+    }
+    if (divergent !== undefined) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          `${CONSOLIDATED_NET_INCOME_CONCEPT} differs from NetIncomeLoss in the same filing for the period ending ${divergent.periodEnd}`,
+        ),
+      );
+    } else if (withNonzeroNoncontrolling.has(periodKey(current))) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          "a nonzero noncontrolling-interest income fact is tagged for the period",
+        ),
+      );
+    } else if (
+      withNoncontrollingInterest.has(periodKey(current)) &&
+      !group.some(
+        (fact) =>
+          fact.value === current.value &&
+          totalZeroNoncontrollingContexts.has(filingContextKey(fact) ?? ""),
+      )
+    ) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          withPartialNoncontrolling.has(periodKey(current))
+            ? "a noncontrolling-interest income fact other than total net income attribution is tagged for the period"
+            : `a zero noncontrolling-interest income fact is tagged without a same-filing ${CONSOLIDATED_NET_INCOME_CONCEPT} of the current value`,
+        ),
+      );
+    } else {
+      facts.push(
+        ...group.map((fact) =>
+          withCompositeFirstPublicAt(
+            compositeFromContributors([fact]),
+            definition,
+            group,
+            new Set(),
+          ),
+        ),
+      );
+    }
+  }
+  return { facts, withheld };
+}
+
+function derivedSeriesFacts(
+  payload: unknown,
+  definition: FinancialStatementSeriesDefinition,
+  reported: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+  observable: (fact: ParsedFact) => boolean,
+): DerivedSeriesFacts | undefined {
+  if (definition.key === "grossProfit" && reported.length === 0) {
+    return derivedGrossProfitFacts(payload, definition, eligible);
+  }
+  if (definition.key === "netIncome") {
+    return consolidatedNetIncomeFallbackFacts(payload, definition, reported, eligible, observable);
+  }
+  return undefined;
+}
+
+// One note per series and reason, limited to periods its input series retains after the cap.
+function withheldDerivationNotes(
+  selected: readonly SelectedSeries[],
+  income: FinancialStatementsArtifact["statements"]["incomeStatement"],
+): readonly FinancialStatementNote[] {
+  return selected.flatMap(({ series, withheld = [] }) => {
+    const input = series.key === "netIncome" ? income.consolidatedNetIncome : income.revenue;
+    const retained = new Set(financialStatementFacts(input).map((fact) => fact.periodKey));
+    const byReason = new Map<string, string[]>();
+    for (const period of withheld.filter((item) => retained.has(item.periodKey))) {
+      const span = `${period.periodStart ?? "instant"} to ${period.periodEnd}`;
+      byReason.set(period.reason, [...(byReason.get(period.reason) ?? []), span]);
+    }
+    return [...byReason].map(([reason, spans]) => ({
+      code: "withheld-derivation" as const,
+      seriesKey: series.key,
+      message: `SEC ${series.label.toLowerCase()} is not derived for ${[...new Set(spans)].toSorted().join(", ")}: ${reason}`,
+    }));
+  });
 }
 
 function allFactsForDefinition(
@@ -1306,10 +1572,17 @@ function selectSeries(
     definition.key === "depreciationAndAmortization" && taxonomy === "us-gaap"
       ? factsForDepreciationAndAmortization(payload, definition, eligible)
       : undefined;
-  const basis =
+  const reported =
     debt?.facts ??
     depreciationAndAmortization?.facts ??
     factsForDefinition(payload, taxonomy, definition, eligible);
+  const derived =
+    taxonomy === "us-gaap"
+      ? derivedSeriesFacts(payload, definition, reported, eligible, (fact) =>
+          isObservable(fact, input.analysisAsOf),
+        )
+      : undefined;
+  const basis = [...reported, ...(derived?.facts ?? [])];
   const declarationSpans =
     definition.key === "dividendsPerShare"
       ? basis.filter((fact) => !isStatementPeriod(fact, definition))
@@ -1326,6 +1599,7 @@ function selectSeries(
   if (debt === undefined) {
     return {
       ...selected,
+      ...(derived === undefined ? {} : { withheld: derived.withheld }),
       omissionNotes: [
         ...selected.omissionNotes,
         ...(depreciationAndAmortization?.notes ?? []),
@@ -1878,6 +2152,7 @@ export function deriveFinancialStatements(
     omissionNotes: [
       ...selected.flatMap((item) => item.omissionNotes),
       ...capNotes,
+      ...withheldDerivationNotes(selected, statements.incomeStatement),
       ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
       ...shareBasisNotes,
     ],
@@ -1920,6 +2195,7 @@ export function financialStatementsHistoryGaps(
     .filter(
       (note) =>
         note.code === "stale-concept-history" ||
+        note.code === "withheld-derivation" ||
         note.code === "mixed-share-basis" ||
         note.code === "declaration-span" ||
         (note.code === "incomplete-composite-series" &&

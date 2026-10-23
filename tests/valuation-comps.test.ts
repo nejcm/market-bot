@@ -671,7 +671,17 @@ describe("collectValuationComps", () => {
       corePeerCount: 2,
       peerMedianEvToAnnualizedRevenue: 1.75,
       valuationSupportability: "supported",
+      peerImpliedRangeStatus: "derived",
+      peerImpliedRangeLow: 54,
+      peerImpliedRangeMid: 69,
+      peerImpliedRangeHigh: 84,
+      peerImpliedRangePosition: "above-range",
     });
+    expect(
+      result.extendedEvidence.items.find((item) => item.category === "valuation")?.summary,
+    ).toContain(
+      "Peer-implied price reference range: $54.00–$84.00 (mid $69.00) vs $100.00 spot, spot above range. Peer-derived reference range for context only; not a target price.",
+    );
     expect(result.sources.map((source) => source.id)).toContain("market-yahoo-equity-amd");
     expect(result.sources.map((source) => source.id)).toContain(
       "extended-sec-edgar-amd-fundamentals",
@@ -2214,6 +2224,17 @@ describe("collectValuationComps", () => {
     expect(
       result.gaps.find((gap) => gap.message.startsWith("Peer-implied price reference range")),
     ).toHaveProperty("cause", "provider-data-missing");
+    const valuationItem = result.extendedEvidence.items.find(
+      (item) => item.category === "valuation",
+    );
+    expect(valuationItem?.summary).toContain(
+      "No peer-implied price reference range derived: peer supportability is not supported.",
+    );
+    expect(valuationItem?.metrics).toMatchObject({
+      peerImpliedRangeStatus: "suppressed",
+      peerImpliedRangeSuppressedReason: "peer supportability is not supported",
+    });
+    expect(valuationItem?.metrics).not.toHaveProperty("peerImpliedRangeLow");
   });
 
   test.each([

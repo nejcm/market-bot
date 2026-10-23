@@ -32,13 +32,20 @@ export function enrichValuationItem(
     summary.peerMedianEvToAnnualizedRevenue === undefined
       ? ` Peer comps supportability: ${summary.valuationSupportability}; ${usablePeersLabel(summary.usablePeerCount)}.${applicabilityCaveat}`
       : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x over ${usablePeersLabel(summary.usablePeerCount)} (${String(summary.corePeerCount)} core).${applicabilityCaveat}`;
+  const range = artifact.impliedPriceRange;
+  let rangeNote = "";
+  if (range?.status === "derived") {
+    rangeNote = ` Peer-implied price reference range: $${range.low.toFixed(2)}–$${range.high.toFixed(2)} (mid $${range.mid.toFixed(2)}) vs $${range.inputs.currentPrice.toFixed(2)} spot, spot ${range.position.replace("-", " ")}. Peer-derived reference range for context only; not a target price.`;
+  } else if (range?.status === "suppressed") {
+    rangeNote = ` No peer-implied price reference range derived: ${range.suppressedReason}.`;
+  }
   const provenanceNote =
     artifact.provenance === "model-proposed-validated"
       ? " Peer set provenance: model-proposed (LLM-proposed, code-validated against SEC directory + US-listing; cached)."
       : "";
   return {
     ...item,
-    summary: `${item.summary}${peerReadThrough}${provenanceNote}`,
+    summary: `${item.summary}${peerReadThrough}${rangeNote}${provenanceNote}`,
     sourceIds: unique([...item.sourceIds, ...artifact.sourceIds]),
     metrics: {
       ...item.metrics,
@@ -54,6 +61,18 @@ export function enrichValuationItem(
         ? { peerP75EvToAnnualizedRevenue: summary.peerP75EvToAnnualizedRevenue }
         : {}),
       valuationSupportability: summary.valuationSupportability,
+      ...(range === undefined ? {} : { peerImpliedRangeStatus: range.status }),
+      ...(range?.status === "derived"
+        ? {
+            peerImpliedRangeLow: range.low,
+            peerImpliedRangeMid: range.mid,
+            peerImpliedRangeHigh: range.high,
+            peerImpliedRangePosition: range.position,
+          }
+        : {}),
+      ...(range?.status === "suppressed"
+        ? { peerImpliedRangeSuppressedReason: range.suppressedReason }
+        : {}),
       ...(summary.valuationSupportability === "not-meaningful"
         ? { valuationCaveat: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT }
         : {}),

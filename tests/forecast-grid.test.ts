@@ -7,12 +7,15 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { addWatchlistItem, consoleDbPath, createWatchlist, withConsoleDb } from "../app/console-db";
 import { runCli } from "../src/app";
 import { parseArgs } from "../src/cli/args";
+import type { SourceGap } from "../src/domain/sources";
+import { buildProviderHealthSummary } from "../src/health/provider-health";
 import { CONSOLE_JOB_TYPES, jobRequestArgv } from "../src/cli/job-registry";
 import type { ResearchReport } from "../src/domain/report";
 import type { ModelRequest } from "../src/model/types";
 import { makeReplayFetch, type DataCassette } from "../src/replay/data-cassette";
 import { makeReplayProvider } from "../src/replay/llm-cassette";
 import { rebuildRunArtifactIndex } from "../src/run-artifact-index";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { buildInstrumentTimelines } from "../src/history/artifacts";
 import { buildCalibrationSummary, type ResolvedPair } from "../src/scoring/calibration";
@@ -229,6 +232,32 @@ describe("forecast-grid command", () => {
     expect(runDirs.filter((name) => name.startsWith("."))).toEqual([]);
   });
 
+  test("internal grid-job gaps stay in Source Gap telemetry but out of provider health", async () => {
+    seedWatchlist("core", [
+      ["equity", "AAPL"],
+      ["crypto", "BTC-USD"],
+    ]);
+    const { runDir } = await spend(allPriced);
+    const gaps = JSON.parse(
+      await readFile(join(runDir, RUN_ARTIFACT_FILES.sourceGaps), "utf8"),
+    ) as SourceGap[];
+    expect(
+      gaps
+        .filter(({ source }) => source === "forecast-grid")
+        .map(({ capability, triage }) => ({ capability, triage })),
+    ).toEqual([
+      { capability: "forecast-book", triage: "diagnostic" },
+      { capability: "forecast-book", triage: "diagnostic" },
+    ]);
+    const health = await buildProviderHealthSummary(dataDir, NOW);
+    expect(health.routes.map(({ route }) => route)).not.toContain("forecast-grid");
+    const markdown = await readFile(join(runDir, "report.md"), "utf8");
+    expect(markdown).toContain(
+      "- **Diagnostic:** forecast-grid: Forecast Grid skipped crypto item",
+    );
+    expect(markdown).toContain("- **Diagnostic:** forecast-grid: Forecast Grid fact sheet has no");
+  });
+
   test("a fresh instrument run feeds the fact sheet its summary", async () => {
     seedWatchlist("core", [["equity", "AAPL"]]);
     const instrumentDir = join(dataDir, "2026-06-14T20-00-00-000Z-aaaaaaaa");
@@ -275,12 +304,17 @@ describe("forecast-grid command", () => {
     );
   });
 
-  test("a non-JSON model response is a declared malformed-response gap", async () => {
+  test("a non-JSON model response is a declared malformed-response gap that reaches provider health", async () => {
     seedWatchlist("core", [["equity", "AAPL"]]);
-    const { report } = await spend("probably 0.6");
+    const { report, runDir } = await spend("probably 0.6");
     expect(report.predictions).toEqual([]);
     expect(report.dataGaps.join("\n")).toContain(
       "Forecast Grid model response for AAPL was not a JSON object with an eventGrid array",
+    );
+    const health = await buildProviderHealthSummary(dataDir, NOW);
+    expect(health.routes.find(({ route }) => route === "forecast-grid")?.total).toBe(1);
+    expect(await readFile(join(runDir, "report.md"), "utf8")).toContain(
+      "- **Material:** forecast-grid: Forecast Grid model response for AAPL",
     );
   });
 

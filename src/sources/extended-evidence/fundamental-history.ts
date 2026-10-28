@@ -12,7 +12,11 @@ import {
 } from "./sec-edgar";
 import {
   conceptScope,
+  CAPEX_SCOPE_CAVEAT,
+  DISCONTINUED_OPERATIONS_CONCEPTS,
   hasNegativeCapex,
+  netMarginNumerator,
+  NONCONTROLLING_INCOME_CONCEPTS,
   isRevenueConceptInRecencyBucket,
   NEGATIVE_CAPEX_REASON,
   scopedLabel,
@@ -126,7 +130,14 @@ interface RawSeriesDefinition {
     | "capex";
   readonly label: string;
   readonly unit: "currency" | "per-share";
+  readonly secKey?: string;
 }
+
+export const CONTINUING_INCOME_HISTORY = {
+  key: "netIncome",
+  label: "Income from continuing operations",
+  unit: "currency",
+} as const;
 
 const RAW_SERIES: readonly RawSeriesDefinition[] = [
   { key: "revenue", label: "Revenue", unit: "currency" },
@@ -140,7 +151,7 @@ const RAW_SERIES: readonly RawSeriesDefinition[] = [
 
 const MAX_ANNUAL_POINTS = 10;
 const MAX_CAGR_YEARS = 5;
-export const DAYS_PER_YEAR = 365.2425;
+const DAYS_PER_YEAR = 365.2425;
 export const MIN_CAGR_ANNUAL_POINTS = 3;
 const ALIGNMENT_MIN_DAYS = 350;
 const ALIGNMENT_MAX_DAYS = 380;
@@ -421,6 +432,20 @@ function ttmPoint(
   };
 }
 
+const FISCAL_YEAR_END_TOLERANCE_DAYS = 7;
+
+// 52/53-week fiscal years drift up to a week; a larger offset means the fiscal year end moved.
+function fiscalYearsBetween(start: string, end: string): number | undefined {
+  const days = daysBetween(start, end);
+  if (days === undefined) {
+    return undefined;
+  }
+  const years = Math.round(days / DAYS_PER_YEAR);
+  return Math.abs(days - years * DAYS_PER_YEAR) <= FISCAL_YEAR_END_TOLERANCE_DAYS
+    ? years
+    : undefined;
+}
+
 export function fundamentalHistoryCagr(
   annual: readonly FundamentalHistoryPoint[],
   notes: string[],
@@ -430,10 +455,17 @@ export function fundamentalHistoryCagr(
     notes.push("cagr:insufficient-points: no annual points");
     return undefined;
   }
+  const maxSpanDays = MAX_CAGR_YEARS * DAYS_PER_YEAR + FISCAL_YEAR_END_TOLERANCE_DAYS;
   const window = annual.filter((point) => {
     const days = daysBetween(point.periodEnd, latest.periodEnd);
-    return days !== undefined && days >= 0 && days / DAYS_PER_YEAR <= MAX_CAGR_YEARS;
+    return days !== undefined && days >= 0 && days <= maxSpanDays;
   });
+  if (window.some((point) => fiscalYearsBetween(point.periodEnd, latest.periodEnd) === undefined)) {
+    notes.push(
+      "cagr:fiscal-year-transition: annual period ends in the window are not fiscal-year aligned",
+    );
+    return undefined;
+  }
   if (window.length < MIN_CAGR_ANNUAL_POINTS) {
     notes.push(
       `cagr:insufficient-points: ${String(window.length)} annual point(s) in the <=5 FY window`,
@@ -441,9 +473,15 @@ export function fundamentalHistoryCagr(
     return undefined;
   }
   const first = window[0]!;
-  const years = (daysBetween(first.periodEnd, latest.periodEnd) ?? 0) / DAYS_PER_YEAR;
+  const years = fiscalYearsBetween(first.periodEnd, latest.periodEnd) ?? 0;
   if (years <= 0) {
     notes.push("cagr:invalid-span: annual endpoint dates do not define a positive span");
+    return undefined;
+  }
+  if (first.periodMonths !== 12 || latest.periodMonths !== 12) {
+    notes.push(
+      "cagr:incomplete-fiscal-year: an annual endpoint does not span a complete fiscal year",
+    );
     return undefined;
   }
   if (first.value <= 0 || latest.value <= 0) {
@@ -467,7 +505,8 @@ function rawSeries(
   definition: RawSeriesDefinition,
   analysisAsOf?: string,
 ): FundamentalHistorySeries {
-  const selected = selectFacts(payload, metricDefinition(definition.key), analysisAsOf);
+  const { secKey, ...series } = definition;
+  const selected = selectFacts(payload, metricDefinition(secKey ?? series.key), analysisAsOf);
   const notes: string[] = [];
   if (selected === undefined) {
     notes.push("annual:missing-concept: no SEC facts found for the ordered concept list");
@@ -475,7 +514,7 @@ function rawSeries(
     ttmPoint(annual, [], "", notes);
     const growth = fundamentalHistoryCagr(annual, notes);
     return {
-      ...definition,
+      ...series,
       annual,
       ...(growth !== undefined ? { cagr: growth } : {}),
       notes,
@@ -535,7 +574,7 @@ function rawSeries(
   }
   const growth = fundamentalHistoryCagr(annual, notes);
   return {
-    ...definition,
+    ...series,
     concept: selected.concept,
     annual,
     ...(ttm !== undefined ? { ttm } : {}),
@@ -648,7 +687,7 @@ function pairSeries(
       "margin-change:insufficient-points: at least two matched annual points are required",
     );
   } else {
-    const years = (daysBetween(first.periodEnd, latest.periodEnd) ?? 0) / DAYS_PER_YEAR;
+    const years = fiscalYearsBetween(first.periodEnd, latest.periodEnd) ?? 0;
     if (years <= 0) {
       notes.push("margin-change:invalid-span: annual endpoint dates do not define a positive span");
     } else {
@@ -721,7 +760,33 @@ export function deriveFundamentalHistory(
     symbol: input.symbol.toUpperCase(),
     sourceId: input.sourceId,
     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
-    series: buildFundamentalHistorySeries(raw, scopes),
+    series: buildFundamentalHistorySeries(raw, scopes, {
+      continuing: rawSeries(
+        payload,
+        { ...CONTINUING_INCOME_HISTORY, secKey: "continuingIncome" },
+        input.analysisAsOf,
+      ),
+      consolidatedContinuing: rawSeries(
+        payload,
+        { ...CONTINUING_INCOME_HISTORY, secKey: "consolidatedContinuingIncome" },
+        input.analysisAsOf,
+      ),
+      consolidated: rawSeries(
+        payload,
+        { ...CONTINUING_INCOME_HISTORY, secKey: "consolidatedNetIncome" },
+        input.analysisAsOf,
+      ),
+      reportsDiscontinued: reportedPeriods(
+        payload,
+        DISCONTINUED_OPERATIONS_CONCEPTS,
+        input.analysisAsOf,
+      ),
+      reportsNoncontrolling: reportedPeriods(
+        payload,
+        NONCONTROLLING_INCOME_CONCEPTS,
+        input.analysisAsOf,
+      ),
+    }),
   };
 }
 
@@ -742,22 +807,128 @@ export type FundamentalHistoryRawSeries = Readonly<
   Record<RawSeriesDefinition["key"], FundamentalHistorySeries>
 >;
 
+function reportedPeriods(
+  payload: unknown,
+  concepts: readonly string[],
+  analysisAsOf: string | undefined,
+): (point: FundamentalHistoryPoint) => boolean {
+  const gaap = isRecord(payload) && isRecord(payload.facts) ? payload.facts["us-gaap"] : undefined;
+  const ends = concepts.flatMap((concept) => {
+    const units = isRecord(gaap) && isRecord(gaap[concept]) ? gaap[concept].units : undefined;
+    return readArray(units, "USD").flatMap((row) => {
+      const value = readSecFactValue(row);
+      return value !== undefined && value.val !== 0 && isFactObservableAsOf(value, analysisAsOf)
+        ? [value.end ?? ""]
+        : [];
+    });
+  });
+  const within = endsWithin(ends);
+  // A TTM window starts the day after its prior-YTD component ends.
+  return (point) =>
+    within(point) ||
+    (point.form === "TTM" &&
+      ends.includes(
+        new Date(Date.parse(point.periodStart) - 86_400_000).toISOString().slice(0, 10),
+      ));
+}
+
+export function endsWithin(ends: readonly string[]): (point: FundamentalHistoryPoint) => boolean {
+  return (point) => ends.some((end) => end > point.periodStart && end <= point.periodEnd);
+}
+
+function samePeriod(left: FundamentalHistoryPoint, right: FundamentalHistoryPoint): boolean {
+  return left.periodStart === right.periodStart && left.periodEnd === right.periodEnd;
+}
+
+export interface NetMarginIncomeHistory {
+  readonly continuing: FundamentalHistorySeries;
+  readonly consolidatedContinuing: FundamentalHistorySeries;
+  readonly consolidated: FundamentalHistorySeries;
+  readonly reportsDiscontinued: (point: FundamentalHistoryPoint) => boolean;
+  readonly reportsNoncontrolling: (point: FundamentalHistoryPoint) => boolean;
+}
+
+function netMarginIncome(
+  total: FundamentalHistorySeries,
+  inputs: NetMarginIncomeHistory,
+): { readonly series: FundamentalHistorySeries; readonly continuing: boolean } {
+  const continuingPoints = new Set<FundamentalHistoryPoint>();
+  const pick = (
+    point: FundamentalHistoryPoint,
+    find: (series: FundamentalHistorySeries) => FundamentalHistoryPoint | undefined,
+  ) => {
+    const consolidatedContinuing = find(inputs.consolidatedContinuing);
+    const continuing = find(inputs.continuing);
+    const consolidated = find(inputs.consolidated);
+    const picked = netMarginNumerator({
+      consolidatedContinuing,
+      continuing,
+      consolidated,
+      total: point,
+      discontinued: inputs.reportsDiscontinued(point),
+      noncontrolling:
+        inputs.reportsNoncontrolling(point) ||
+        (consolidated !== undefined && consolidated.value !== point.value),
+    });
+    if (picked !== undefined && (picked === consolidatedContinuing || picked === continuing)) {
+      continuingPoints.add(picked);
+    }
+    return picked;
+  };
+  const annual = total.annual.flatMap((point) => {
+    const picked = pick(point, (series) =>
+      series.annual.find((candidate) => samePeriod(candidate, point)),
+    );
+    return picked === undefined ? [] : [picked];
+  });
+  const ttm =
+    total.ttm === undefined
+      ? undefined
+      : pick(total.ttm, (series) =>
+          series.ttm !== undefined && samePeriod(series.ttm, total.ttm!) ? series.ttm : undefined,
+        );
+  const series =
+    annual.length === total.annual.length &&
+    annual.every((point, index) => point === total.annual[index]) &&
+    ttm === total.ttm
+      ? total
+      : { ...withoutTtm(total), annual, ...(ttm === undefined ? {} : { ttm }) };
+  return { series, continuing: continuingPoints.size > 0 };
+}
+
+function withoutTtm({ ttm: _ttm, ...series }: FundamentalHistorySeries): FundamentalHistorySeries {
+  return series;
+}
+
+function withCashFlowScope(
+  series: FundamentalHistorySeries,
+  scope: string | undefined,
+): FundamentalHistorySeries {
+  return scope === undefined ? series : { ...series, label: scopedLabel(series.label, scope) };
+}
+
 export function buildFundamentalHistorySeries(
   raw: FundamentalHistoryRawSeries,
   scopes: FundamentalHistoryEarningsScopes,
+  netMarginInputs: NetMarginIncomeHistory,
 ): FundamentalHistoryArtifact["series"] {
   const cashFlowScope = conceptScope(raw.operatingCashFlow.concept);
-  const scopedOperatingCashFlow = {
-    ...raw.operatingCashFlow,
-    label: scopedLabel(raw.operatingCashFlow.label, cashFlowScope),
-  };
-  const freeCashFlowProxy = pairSeries(
+  const scopedOperatingCashFlow = withCashFlowScope(raw.operatingCashFlow, cashFlowScope);
+  const netMarginNumerators = netMarginIncome(raw.netIncome, netMarginInputs);
+  const freeCashFlowPairs = pairSeries(
     "freeCashFlowProxy",
     scopedLabel("Free cash flow proxy", cashFlowScope),
     scopedOperatingCashFlow,
     raw.capex,
     (operatingCashFlow, capex) => operatingCashFlow - capex,
   );
+  const freeCashFlowProxy =
+    cashFlowScope === undefined
+      ? freeCashFlowPairs
+      : {
+          ...freeCashFlowPairs,
+          notes: [...freeCashFlowPairs.notes, `scope:capex-unscoped: ${CAPEX_SCOPE_CAVEAT}`],
+        };
   const grossMargin = pairSeries(
     "grossMargin",
     "Gross margin",
@@ -774,8 +945,8 @@ export function buildFundamentalHistorySeries(
   );
   const netMargin = pairSeries(
     "netMargin",
-    "Net margin",
-    raw.netIncome,
+    netMarginNumerators.continuing ? "Net margin (continuing operations)" : "Net margin",
+    netMarginNumerators.series,
     raw.revenue,
     (netIncome, revenue) => (revenue === 0 ? undefined : netIncome / revenue),
   );

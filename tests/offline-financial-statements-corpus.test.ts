@@ -12,7 +12,7 @@ describe("offline financial-statement corpus", () => {
       aapl: { matched: 71, allowances: 4 },
       msft: { matched: 75, allowances: 4 },
       mara: { matched: 66, allowances: 13 },
-      nbis: { matched: 38, allowances: 35 },
+      nbis: { matched: 38, allowances: 36 },
       "fpi-quarterly": { matched: 24, allowances: 52 },
       "fpi-ifrs-semiannual": { matched: 34, allowances: 41 },
     } as const;
@@ -90,6 +90,24 @@ describe("offline financial-statement corpus", () => {
     );
   });
 
+  test("withholds NBIS FY2022 and FY2023 net margin when NCI is reported and continuing income is parent-only", async () => {
+    const { execution } = await loadOfflineCorpusCase("nbis");
+    const periods = (execution.projection.canonical.fundamentalHistory.netMargin?.annual ?? []).map(
+      (point) => point.periodEnd,
+    );
+    expect(periods).not.toContain("2022-12-31");
+    expect(periods).not.toContain("2023-12-31");
+    for (const year of ["2022", "2023"]) {
+      expect(execution.artifact.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "withheld-derivation",
+          seriesKey: "consolidatedContinuingIncome",
+          periodKey: `duration:12|${year}-12-31`,
+        }),
+      );
+    }
+  });
+
   test("keeps MARA allowances fixture-specific and source-reproduced", async () => {
     const maraCase = await loadOfflineCorpusCase("mara");
     const exactPeriodPaths = maraCase.allowances
@@ -139,7 +157,8 @@ describe("offline financial-statement corpus", () => {
       ),
     ).toMatchObject({
       canonical: {
-        value: Number("-1.445805446630059"),
+        // ProfitLoss -1,311.892M over revenue 907.093M; NetIncomeLoss is -1,311.480M.
+        value: Number("-1.446259644821424"),
         periodEnd: "2025-12-31",
         periodMonths: 12,
       },

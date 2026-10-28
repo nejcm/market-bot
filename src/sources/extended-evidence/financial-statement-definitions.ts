@@ -24,6 +24,11 @@ export const DEPRECIATION_AND_AMORTIZATION_COMPONENTS: readonly (readonly string
   ["AmortizationOfIntangibleAssets"],
 ];
 
+// The one cash-flow D&A line tagged consistently; AdjustmentForAmortization also carries contract-cost amortization (DDOG).
+export const CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES = [
+  "OtherDepreciationAndAmortization",
+] as const;
+
 export const DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE = 0.01;
 export const MIN_ANNUAL_DURATION_MONTHS = 10;
 export const MAX_ANNUAL_DURATION_MONTHS = 14;
@@ -180,6 +185,50 @@ const CONTINUING_OPERATIONS_SCOPE = "continuing operations";
 
 export const TOTAL_OPERATIONS_SCOPE = "total operations";
 
+// A nonzero value marks a period whose total-operations flows include discontinued operations.
+export const DISCONTINUED_OPERATIONS_CONCEPTS = [
+  "CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations",
+  "IncomeLossFromDiscontinuedOperationsNetOfTax",
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity",
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxIncludingPortionAttributableToNoncontrollingInterest",
+] as const;
+
+export const TOTAL_NONCONTROLLING_INCOME_CONCEPTS: ReadonlySet<string> = new Set([
+  "NetIncomeLossAttributableToNoncontrollingInterest",
+]);
+export const NONCONTROLLING_INCOME_CONCEPTS = [
+  ...TOTAL_NONCONTROLLING_INCOME_CONCEPTS,
+  "NetIncomeLossAttributableToNonredeemableNoncontrollingInterest",
+  "NetIncomeLossAttributableToRedeemableNoncontrollingInterest",
+  "IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity",
+  "MinorityInterestInNetIncomeLossLimitedPartnerships",
+  "ComprehensiveIncomeNetOfTaxAttributableToNoncontrollingInterest",
+];
+
+// Revenue is continuing and consolidated (ASC 205-20, ASC 810); parent-attributed income partners it only without NCI.
+export function netMarginNumerator<T>(period: {
+  readonly consolidatedContinuing: T | undefined;
+  readonly continuing: T | undefined;
+  readonly consolidated: T | undefined;
+  readonly total: T;
+  readonly discontinued: boolean;
+  readonly noncontrolling: boolean;
+}): T | undefined {
+  if (period.consolidatedContinuing !== undefined) {
+    return period.consolidatedContinuing;
+  }
+  if (period.continuing !== undefined) {
+    return period.noncontrolling ? undefined : period.continuing;
+  }
+  if (period.discontinued) {
+    return undefined;
+  }
+  return period.consolidated ?? (period.noncontrolling ? undefined : period.total);
+}
+
+export const CAPEX_SCOPE_CAVEAT =
+  "capital expenditure carries no operations-scope tag and is used as reported";
+
 // SEC payments-for-PP&E concepts are positive outflows; a negative filing is withheld, not sign-flipped.
 export const NEGATIVE_CAPEX_REASON =
   "capital expenditure filed as a negative amount; outflow sign is ambiguous";
@@ -190,6 +239,8 @@ export function hasNegativeCapex(values: readonly (number | string)[]): boolean 
 }
 
 const CONCEPT_SCOPES: Readonly<Record<string, string>> = {
+  "NetCashProvidedByUsedInOperatingActivities-CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations":
+    CONTINUING_OPERATIONS_SCOPE,
   IncomeLossFromContinuingOperations: "continuing operations, attributable to parent",
   IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest:
     "continuing operations, including NCI",
@@ -275,8 +326,22 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       statement: "incomeStatement",
       kind: "duration",
       unitKind: "monetary",
-      deriveTtm: false,
+      deriveTtm: true,
       concepts: { "us-gaap": ["ProfitLoss"], "ifrs-full": [] },
+    },
+    {
+      key: "consolidatedContinuingIncome",
+      label: "Income from continuing operations including noncontrolling interest",
+      statement: "incomeStatement",
+      kind: "duration",
+      unitKind: "monetary",
+      deriveTtm: true,
+      concepts: {
+        "us-gaap": [
+          "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+        ],
+        "ifrs-full": ["ProfitLossFromContinuingOperations"],
+      },
     },
     {
       key: "continuingIncome",

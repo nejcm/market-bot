@@ -15,6 +15,7 @@ import type {
 } from "../../src/report/equity-reader-statements";
 import { compactNumber } from "../../src/report/equity-reader-trends";
 import {
+  CAPEX_SCOPE_CAVEAT,
   conceptScope,
   scopedLabel,
 } from "../../src/sources/extended-evidence/financial-statement-definitions";
@@ -226,6 +227,9 @@ export function fundamentalHistoryView(
           ]),
       ...(series.notes.some((note) => note.startsWith("share-basis:mixed:"))
         ? ["Earlier EPS points are on an earlier or unconfirmed share basis and are not adjusted."]
+        : []),
+      ...(series.notes.some((note) => note.startsWith("scope:capex-unscoped:"))
+        ? [`FCF scope: ${CAPEX_SCOPE_CAVEAT}.`]
         : []),
       ...series.notes.flatMap((note) =>
         note.startsWith("derived: ") ? [`Derived input: ${note.slice("derived: ".length)}.`] : [],

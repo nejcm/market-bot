@@ -1,5 +1,5 @@
+import { yearsBetween } from "./fiscal-years";
 import {
-  DAYS_PER_YEAR,
   type FundamentalHistoryCagr,
   type FundamentalHistoryMarginChange,
   type FundamentalHistorySeries,
@@ -38,8 +38,6 @@ interface HistoryPropertyAllowance {
 
 export type HistoryPropertyVerification = "verified" | "not-rederivable" | "failed";
 
-const DAY_MS = 86_400_000;
-
 function historySummarySpanMatches(
   annual: FundamentalHistorySeries["annual"],
   summary: FundamentalHistoryCagr | FundamentalHistoryMarginChange,
@@ -49,7 +47,7 @@ function historySummarySpanMatches(
   if (first === undefined || last === undefined || first === last) {
     return false;
   }
-  const years = (Date.parse(last.periodEnd) - Date.parse(first.periodEnd)) / DAY_MS / DAYS_PER_YEAR;
+  const years = yearsBetween(first.periodEnd, last.periodEnd);
   return years > 0 && summary.years > 0 && Math.abs(summary.years - years) < 1e-12;
 }
 
@@ -70,7 +68,7 @@ function historyCagrMatches(series: ProjectedHistorySeries): boolean {
   ) {
     return false;
   }
-  const years = (Date.parse(last.periodEnd) - Date.parse(first.periodEnd)) / DAY_MS / DAYS_PER_YEAR;
+  const years = yearsBetween(first.periodEnd, last.periodEnd);
   const expected = ((last.value / first.value) ** (1 / years) - 1) * 100;
   return (
     Math.sign(summary.percent) === Math.sign(expected) &&

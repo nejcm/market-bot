@@ -490,6 +490,98 @@ describe("fundamental history", () => {
     },
   );
 
+  test("CAGR counts whole 52/53-week fiscal years: AMD FY2020-FY2025 revenue", () => {
+    const years: readonly (readonly [string, string, number])[] = [
+      ["2018-12-30", "2019-12-28", 6_731_000_000],
+      ["2019-12-29", "2020-12-26", 9_763_000_000],
+      ["2020-12-27", "2021-12-25", 16_434_000_000],
+      ["2021-12-26", "2022-12-31", 23_601_000_000],
+      ["2023-01-01", "2023-12-30", 22_680_000_000],
+      ["2023-12-31", "2024-12-28", 25_785_000_000],
+      ["2024-12-29", "2025-12-27", 34_639_000_000],
+    ];
+    const facts = payload({
+      Revenues: {
+        facts: years.map(([start, end, value]) =>
+          fact(value, {
+            fy: Number(end.slice(0, 4)),
+            filed: `${String(Number(end.slice(0, 4)) + 1)}-02-01`,
+            start,
+            end,
+          }),
+        ),
+      },
+    });
+    const canonical = deriveFundamentalHistoryFromFinancialStatements(
+      deriveFinancialStatements(facts, {
+        symbol: "TEST",
+        generatedAt: "2026-03-01T00:00:00.000Z",
+        analysisAsOf: "2026-03-01T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-test-fundamentals",
+      }),
+    );
+    for (const history of [derive(facts, "2026-03-01T00:00:00.000Z"), canonical]) {
+      const { cagr } = history.series.revenue;
+      expect(cagr).toMatchObject({ years: 5, periodStart: "2020-12-26", periodEnd: "2025-12-27" });
+      // (34,639 / 9,763)^(1/5) - 1
+      expect(cagr?.percent).toBeCloseTo(28.824, 3);
+    }
+  });
+
+  test("refuses CAGR when an endpoint is not a complete fiscal year", () => {
+    const history = derive(
+      payload({
+        Revenues: {
+          facts: [
+            ...annualFacts([100, 120]),
+            fact(150, { fy: 2024, filed: "2024-11-01", start: "2023-12-01", end: "2024-09-30" }),
+          ],
+        },
+      }),
+    );
+
+    expect(history.series.revenue.cagr).toBeUndefined();
+    expect(noteStartsWith(history.series.revenue.notes, "cagr:incomplete-fiscal-year:")).toBe(true);
+  });
+
+  test("refuses CAGR across a fiscal-year-end transition with an omitted stub", () => {
+    const years: readonly (readonly [string, string, number])[] = [
+      ["2018-01-01", "2018-12-31", 100],
+      ["2019-01-01", "2019-12-31", 110],
+      ["2020-01-01", "2020-12-31", 120],
+      ["2021-01-01", "2021-12-31", 130],
+      ["2022-01-01", "2022-12-31", 140],
+      ["2023-01-01", "2023-06-30", 70],
+      ["2023-07-01", "2024-06-30", 160],
+    ];
+    const facts = payload({
+      Revenues: {
+        facts: years.map(([start, end, value]) =>
+          fact(value, {
+            fy: Number(end.slice(0, 4)),
+            filed: `${end.slice(0, 4)}-09-01`,
+            start,
+            end,
+          }),
+        ),
+      },
+    });
+    const canonical = deriveFundamentalHistoryFromFinancialStatements(
+      deriveFinancialStatements(facts, {
+        symbol: "TEST",
+        generatedAt: "2025-03-01T00:00:00.000Z",
+        analysisAsOf: "2025-03-01T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-test-fundamentals",
+      }),
+    );
+    for (const history of [derive(facts, "2025-03-01T00:00:00.000Z"), canonical]) {
+      expect(history.series.revenue.cagr).toBeUndefined();
+      expect(noteStartsWith(history.series.revenue.notes, "cagr:fiscal-year-transition:")).toBe(
+        true,
+      );
+    }
+  });
+
   test("refuses CAGR when either endpoint is non-positive", () => {
     const history = derive(payload({ Revenues: { facts: annualFacts([100, 120, -5]) } }));
 

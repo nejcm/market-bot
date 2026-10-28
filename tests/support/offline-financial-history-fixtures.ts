@@ -14,9 +14,6 @@ import {
   type SyntheticAliasVariant,
 } from "./synthetic-alias-companyfacts";
 
-const DAY_MS = 86_400_000;
-const DAYS_PER_YEAR = 365.2425;
-
 export function cloneCompanyFactsWithMutableUsGaap(companyFacts: unknown): {
   readonly payload: unknown;
   readonly usGaap: Record<string, unknown>;
@@ -77,8 +74,4 @@ export function syntheticAliasExecution(
   return mutateOfflineCorpusCase(maraCase, {
     input: { symbol: "ALIAS", ...buildSyntheticAliasPayloads(variant) },
   }).execution;
-}
-
-export function yearsBetween(periodStart: string, periodEnd: string): number {
-  return (Date.parse(periodEnd) - Date.parse(periodStart)) / DAY_MS / DAYS_PER_YEAR;
 }

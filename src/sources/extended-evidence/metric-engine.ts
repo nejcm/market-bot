@@ -121,7 +121,7 @@ export type MetricOutcome = (
       readonly periodEnd?: string;
       readonly inputs?: readonly MetricInput[];
     }
-) & { readonly basis?: string };
+) & { readonly basis?: string; readonly label?: string };
 
 export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeriesKey): boolean {
   return ctx.statements?.unfiledSeries?.includes(key) === true;

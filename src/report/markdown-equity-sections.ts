@@ -7,7 +7,10 @@ import {
 } from "../domain/market-data";
 import { type EquityAnalysisDimensionStatus, type ResearchReport } from "../domain/report";
 import { isRecord, readNumber, stringArrayValue } from "../guards";
-import { scopedLabel } from "../sources/extended-evidence/financial-statement-definitions";
+import {
+  CAPEX_SCOPE_CAVEAT,
+  scopedLabel,
+} from "../sources/extended-evidence/financial-statement-definitions";
 import type { CollectedSources } from "../sources/types";
 import {
   projectEquityReader,
@@ -147,7 +150,7 @@ export function renderProjectedFinancialTrends(
   return [
     "## Financial Trends",
     "",
-    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported ${scopedLabel("operating-cash-flow", trends.freeCashFlowScope)} less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported ${scopedLabel("operating-cash-flow", trends.freeCashFlowScope)} less capex proxy${trends.freeCashFlowScope === undefined ? "" : `; ${CAPEX_SCOPE_CAVEAT}`}.${refs === "" ? "" : ` ${refs}`}`,
     "",
     `Period | Revenue | ${scopedLabel("Net income", trends.netIncomeScope)} | Operating margin | FCF`,
     "--- | ---: | ---: | ---: | ---:",

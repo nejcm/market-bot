@@ -11,12 +11,14 @@ import {
   type OfflineCorpusMutation,
 } from "./support/offline-financial-statements-corpus";
 import { verifyLensAllowanceProperties } from "./support/offline-financial-lens-properties";
+import { verifyHistoryAnnualRosters } from "./support/offline-financial-history-roster";
 import {
   classifierPattern,
   countNetworkAttemptsDuring,
   runOfflineCorpusFixture,
   type OfflineCorpusFixtureName,
 } from "./support/offline-corpus-test-helpers";
+import { cloneCompanyFactsWithMutableUsGaap } from "./support/offline-financial-history-fixtures";
 
 const FINANCIAL_STRENGTH_PATH = "financialLens.Financial Strength";
 
@@ -201,6 +203,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       "cash",
       "cashConversion",
       "consolidatedNetIncome",
+      "continuingIncomeDeltaPercent",
       "currentRatio",
       "debt",
       "debtToEquity",
@@ -303,7 +306,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 70 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 71 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -331,7 +334,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(70);
+    expect(lensAllowances).toHaveLength(71);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(
@@ -406,5 +409,85 @@ test("offline lens allowances reject a forged currency even after its hash is re
   });
   expect(() => auditOfflineCorpusCase(mutated)).toThrow(
     /not reproduced by financial-lens properties/u,
+  );
+});
+
+test("offline lens net-margin oracle rejects parent continuing income when ProfitLoss differs from NetIncomeLoss", async () => {
+  const maraCase = await loadOfflineCorpusCase("mara");
+  const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(
+    maraCase.execution.input.companyFacts,
+  );
+  usGaap.IncomeLossFromContinuingOperations = structuredClone(usGaap.NetIncomeLoss);
+  const { execution } = mutateOfflineCorpusCase(maraCase, { input: { companyFacts: payload } });
+  const path = "financialLens.Quality.metrics.netMargin";
+  const allowance = maraCase.allowances.find((item) => item.path === path)!;
+  const { canonical } = maraCase.execution.differences.find((item) => item.path === path)!;
+  if (!isRecord(canonical) || typeof canonical.value !== "number") {
+    throw new Error("MARA golden is missing canonical net margin");
+  }
+  // MARA FY2025: ProfitLoss -1,311.892M, NetIncomeLoss -1,311.480M; parent-only continuing income with NCI evidence is withheld.
+  const parentRatio = (canonical.value * 1_311_480_000) / 1_311_892_000;
+  const verdict = (value: number) =>
+    verifyLensAllowanceProperties(execution, allowance, {
+      path,
+      canonical: { ...canonical, value },
+      legacy: null,
+    });
+
+  expect(execution.projection.canonical.financialLens.Quality?.metrics.netMargin).toBeUndefined();
+  expect(
+    verifyLensAllowanceProperties(maraCase.execution, allowance, { path, canonical, legacy: null }),
+  ).toBeTrue();
+  expect(verdict(parentRatio)).toBeFalse();
+  expect(verdict(canonical.value)).toBeFalse();
+});
+
+function halveUnits(rows: Record<string, { val: number }[]>) {
+  return Object.fromEntries(
+    Object.entries(rows).map(([unit, list]) => [
+      unit,
+      list.map((fact) => ({ ...fact, val: fact.val / 2 })),
+    ]),
+  );
+}
+
+test("offline lens net-margin oracle rejects IFRS parent continuing income when NCI income is reported", async () => {
+  const ifrsCase = await loadOfflineCorpusCase("fpi-ifrs-semiannual");
+  const path = "financialLens.Quality.metrics.netMargin";
+  const allowance = ifrsCase.allowances.find((item) => item.path === path)!;
+  const { canonical } = ifrsCase.execution.differences.find((item) => item.path === path)!;
+  if (!isRecord(canonical) || typeof canonical.value !== "number") {
+    throw new Error("IFRS golden is missing canonical net margin");
+  }
+  const payload = structuredClone(ifrsCase.execution.input.companyFacts) as {
+    facts: { "ifrs-full": Record<string, { units: Record<string, { val: number }[]> }> };
+  };
+  const ifrs = payload.facts["ifrs-full"];
+  ifrs.ProfitLossFromContinuingOperationsAttributableToOwnersOfParent = {
+    units: halveUnits(ifrs.ProfitLoss!.units),
+  };
+  ifrs.ProfitLossAttributableToNoncontrollingInterests = {
+    units: halveUnits(ifrs.ProfitLoss!.units),
+  };
+  const { execution } = mutateOfflineCorpusCase(ifrsCase, { input: { companyFacts: payload } });
+
+  expect(execution.projection.canonical.financialLens.Quality?.metrics.netMargin).toBeUndefined();
+  expect(
+    verifyLensAllowanceProperties(execution, allowance, {
+      path,
+      canonical: { ...canonical, value: canonical.value / 2 },
+      legacy: null,
+    }),
+  ).toBeFalse();
+  const parentAnnual = (
+    ifrsCase.execution.projection.canonical.fundamentalHistory.netMargin?.annual ?? []
+  ).map((point) => ({ ...point, value: point.value / 2 }));
+  const forged = mutateOfflineCorpusCase(ifrsCase, {
+    input: { companyFacts: payload },
+    mutations: [["fundamentalHistory.netMargin.annual", "set", parentAnnual]],
+  });
+  expect(parentAnnual.length).toBeGreaterThan(0);
+  expect(verifyHistoryAnnualRosters(forged.execution).get("canonical.netMargin")?.kind).toBe(
+    "failed",
   );
 });

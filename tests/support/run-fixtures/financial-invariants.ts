@@ -33,7 +33,6 @@ import {
   latestFinancialStatementFact,
 } from "../../../src/sources/extended-evidence/financial-statement-selection";
 import {
-  DAYS_PER_YEAR,
   MIN_CAGR_ANNUAL_POINTS,
   type FundamentalHistoryArtifact,
   type FundamentalHistorySeries,
@@ -48,6 +47,7 @@ import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
   MIXED_PERIOD_METRIC,
 } from "../../../src/sources/extended-evidence/valuation-comps";
+import { yearsBetween } from "../fiscal-years";
 import type { FixtureMeta, RunFixtureResult } from ".";
 
 const DAY_MS = 86_400_000;
@@ -412,6 +412,7 @@ export function assertCompositeFactIntegrity(
       series.key === "depreciationAndAmortization" ||
         series.key === "netIncome" ||
         series.key === "debt" ||
+        series.key === "operatingCashFlow" ||
         methods.size <= 1,
       "A8",
       `${series.key} mixes composite and direct bases`,
@@ -438,6 +439,15 @@ export function assertCompositeFactIntegrity(
             fact.composite.components[0]?.concept === "ProfitLoss",
           "A8",
           `${series.key} ${fact.periodKey} derives net income from anything but a ProfitLoss fallback`,
+          fact.periodEnd,
+        );
+      }
+      if (series.key === "operatingCashFlow") {
+        check(
+          fact.composite.components.map(({ concept }) => concept).join(",") ===
+            "NetCashProvidedByUsedInOperatingActivities,CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations",
+          "A8",
+          `${series.key} ${fact.periodKey} derives OCF from anything but total minus discontinued`,
           fact.periodEnd,
         );
       }
@@ -566,10 +576,6 @@ export function collectFinancialStatementInvariants(
       latestFailingPeriodEnd: failingPeriods.at(-1) ?? null,
     };
   });
-}
-
-function yearsBetween(start: string, end: string): number {
-  return (Date.parse(end) - Date.parse(start)) / DAY_MS / DAYS_PER_YEAR;
 }
 
 function assertSummarySpan(

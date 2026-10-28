@@ -1,3 +1,4 @@
+import { CAPEX_SCOPE_CAVEAT } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
 import {
@@ -202,7 +203,7 @@ describe("continuing-operations cash-flow aliases", () => {
     }
     expect(item.metrics?.operatingCashFlowScope).toBe("continuing operations");
     expect(labels).toContain("Operating cash flow YoY (continuing operations)");
-    expect(labels).toContain("FCF proxy");
+    expect(labels).toContain("FCF proxy (continuing operations)");
     expect(
       summaryLens(item, "Quality", AS_OF, statementsFor(clfdConcepts())).metrics.find(
         ({ key }) => key === "freeCashFlowProxy",
@@ -210,7 +211,7 @@ describe("continuing-operations cash-flow aliases", () => {
     ).toBe(7_345_000 - 2_917_000);
   });
 
-  test("the total tag wins an equal period even when only the continuing tag has a prior", () => {
+  test("the continuing tag wins an equal period, so OCF stays on the scope of revenue", () => {
     const concepts = {
       ...clfdConcepts(),
       [TOTAL_OCF]: [q3Current(50)],
@@ -219,19 +220,15 @@ describe("continuing-operations cash-flow aliases", () => {
     const summary = summarizeSecFundamentals(payload(concepts), AS_OF)!;
     const ocf = statementsFor(concepts).statements.cashFlowStatement.operatingCashFlow;
 
-    expect(summary.metrics.operatingCashFlow).toBe(50);
-    expect(summary.metrics.operatingCashFlowPrior).toBeUndefined();
-    expect(summary.gaps.map((gap) => gap.message)).toContainEqual(
-      expect.stringMatching(
-        /^Missing comparable SEC company facts for YoY deltas: .*operatingCashFlow/u,
-      ),
-    );
+    expect(summary.metrics.operatingCashFlow).toBe(30);
+    expect(summary.metrics.operatingCashFlowPrior).toBe(20);
+    expect(summary.metrics.operatingCashFlowScope).toBe("continuing operations");
     expect(new Set(financialStatementFacts(ocf).map((fact) => fact.concept))).toEqual(
-      new Set([TOTAL_OCF]),
+      new Set([CONTINUING_OCF]),
     );
   });
 
-  test("the total tag wins an equal period even when the continuing tag was filed later", () => {
+  test("the continuing tag wins an equal period when it was filed later", () => {
     const concepts = {
       ...clfdConcepts(),
       [TOTAL_OCF]: [
@@ -244,11 +241,12 @@ describe("continuing-operations cash-flow aliases", () => {
     const artifact = statementsFor(concepts);
     const history = deriveFundamentalHistoryFromFinancialStatements(artifact);
 
-    expect(summary.metrics.operatingCashFlow).toBe(9_000_000);
-    expect(summary.metrics.operatingCashFlowScope).toBeUndefined();
-    expect(summary.summary).toContain("operating cash flow 9000000");
-    expect(history.series.operatingCashFlow.concept).toBe(TOTAL_OCF);
-    expect(history.series.operatingCashFlow.label).toBe("Operating cash flow");
+    expect(summary.metrics.operatingCashFlow).toBe(7_345_000);
+    expect(summary.metrics.operatingCashFlowScope).toBe("continuing operations");
+    expect(history.series.operatingCashFlow.concept).toBe(CONTINUING_OCF);
+    expect(history.series.operatingCashFlow.label).toBe(
+      "Operating cash flow (continuing operations)",
+    );
   });
 
   test("falls back to the total tag when continuing facts post-date the cutoff", () => {
@@ -415,10 +413,8 @@ describe("legacy YoY comparatives", () => {
     expect(legacy.summary).toContain("revenue 100 (11.1% YoY)");
     expect(legacy.summary).toContain("operating cash flow (continuing operations) 50 (150.0% YoY)");
     expect(item.metrics?.revenuePrior).toBeUndefined();
-    expect(item.metrics?.operatingCashFlowScope).toBeUndefined();
     expect(item.summary).toContain("revenue 100,");
-    expect(item.summary).toContain("operating cash flow 50,");
-    expect(item.summary).not.toContain("continuing operations");
+    expect(item.summary).toContain("operating cash flow (continuing operations) 50 (150.0% YoY)");
   });
 
   test("duration rows without a start never pair as instants", () => {
@@ -432,6 +428,7 @@ describe("legacy YoY comparatives", () => {
         row(20, undefined, "2025-06-30", "10-Q", 2025, "Q3", "2025-08-07", "q3-25"),
         row(40, undefined, "2026-06-30", "10-Q", 2026, "Q3", "2026-08-06", CURRENT_ACCN),
       ],
+      [CONTINUING_OCF]: [],
     };
     const item = canonicalSecItem(concepts);
 
@@ -558,7 +555,10 @@ describe("continuing-operations scope in reader views", () => {
 
     expect(trends.freeCashFlowScope).toBe("continuing operations");
     expect(renderProjectedFinancialTrends(researchReport(), trends)).toContain(
-      "reported operating-cash-flow (continuing operations) less capex proxy",
+      `reported operating-cash-flow (continuing operations) less capex proxy; ${CAPEX_SCOPE_CAVEAT}.`,
+    );
+    expect(cards.cards.find((card) => card.key === "freeCashFlowProxy")?.disclosure).toContain(
+      `FCF scope: ${CAPEX_SCOPE_CAVEAT}.`,
     );
     expect(financialTrendFromProjection(trends)?.freeCashFlowLabel).toBe(
       "FCF proxy (continuing operations)",
@@ -608,7 +608,7 @@ describe("continuing-operations scope in reader views", () => {
     });
     expect(readValuationWorkbenchArtifact(workbench)).toBeDefined();
     expect(renderValuationWorkbenchMarkdown(workbench, researchReport())).toContain(
-      `- P/FCF uses free cash flow proxy (continuing operations) for annual 2025-09-30, ttm ${ttm.periodEnd}.`,
+      `- P/FCF uses free cash flow proxy (continuing operations) for annual 2025-09-30, ttm ${ttm.periodEnd}; ${CAPEX_SCOPE_CAVEAT}.`,
     );
     expect(
       valuationWorkbenchView(detail({ valuationWorkbench: workbench }))?.scopeDisclosure,

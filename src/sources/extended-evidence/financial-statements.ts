@@ -16,7 +16,11 @@ import {
 } from "./sec-edgar";
 import {
   CAP_FOLLOWER_SERIES,
+  CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
+  DISCONTINUED_OPERATIONS_CONCEPTS,
+  NONCONTROLLING_INCOME_CONCEPTS,
+  TOTAL_NONCONTROLLING_INCOME_CONCEPTS,
   DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   MIN_ANNUAL_DURATION_MONTHS,
@@ -49,6 +53,7 @@ import {
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
   withheldDebt,
+  compareFinancialStatementRevisions,
 } from "./financial-statement-selection";
 import {
   calendarYearFromPeriodEnd,
@@ -143,17 +148,6 @@ const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
 const GROSS_PROFIT_COST_CONCEPTS = ["CostOfRevenue", "CostOfGoodsAndServicesSold"];
 const CONSOLIDATED_NET_INCOME_CONCEPT = "ProfitLoss";
-const TOTAL_NONCONTROLLING_INCOME_CONCEPTS = new Set([
-  "NetIncomeLossAttributableToNoncontrollingInterest",
-]);
-const NONCONTROLLING_INCOME_CONCEPTS = [
-  ...TOTAL_NONCONTROLLING_INCOME_CONCEPTS,
-  "NetIncomeLossAttributableToNonredeemableNoncontrollingInterest",
-  "NetIncomeLossAttributableToRedeemableNoncontrollingInterest",
-  "IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity",
-  "MinorityInterestInNetIncomeLossLimitedPartnerships",
-  "ComprehensiveIncomeNetOfTaxAttributableToNoncontrollingInterest",
-];
 type EquityStackComponentKey =
   | "minorityInterest"
   | "stockholdersEquityIncludingNoncontrollingInterest"
@@ -405,6 +399,10 @@ function withCompositeFirstPublicAt(
   };
 }
 
+function componentTolerance(value: number): number {
+  return Math.abs(value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE;
+}
+
 function factsForDepreciationAndAmortization(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -415,18 +413,47 @@ function factsForDepreciationAndAmortization(
     return { facts: [], notes: [] };
   }
   const totals = definition.concepts["us-gaap"];
-  const concepts = [...totals, ...DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flat()];
+  const concepts = [
+    ...totals,
+    ...DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flat(),
+    ...CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
+  ];
   const periods = new Map<string, ParsedFact[]>();
   for (const fact of concepts.flatMap((concept) => unitFacts("us-gaap", root, concept))) {
     const key = `${fact.periodStart ?? "instant"}|${fact.periodEnd}|${fact.unit}|${periodType(fact, definition)}`;
     periods.set(key, [...(periods.get(key) ?? []), fact]);
   }
   const notes: FinancialStatementNote[] = [];
-  const resolvedFacts = [...periods.values()].flatMap((facts) => {
+  const resolvedFacts = [...periods.values()].flatMap((periodFacts) => {
+    // A zero combined caption is a reclassified line (PYPL 2018); a zero component is a real zero (HRMN, LTRX).
+    const facts = periodFacts.filter((fact) => fact.value !== 0 || !totals.includes(fact.concept));
     const candidates = facts.filter((fact) => eligible(fact));
-    const totalConcept = totals.find((concept) =>
-      candidates.some((fact) => fact.concept === concept),
-    );
+    const latest = (concept: string) =>
+      candidates
+        .filter((fact) => fact.concept === concept && fact.periodStart !== undefined)
+        .toSorted(compareFinancialStatementFacts)[0];
+    const totalFacts = totals.flatMap((concept) => {
+      const fact = latest(concept);
+      return fact === undefined ? [] : [fact];
+    });
+    const cashFlowLines = CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES.flatMap((concept) => {
+      const fact = latest(concept);
+      return fact === undefined ? [] : [fact];
+    });
+    const cashFlowSum = cashFlowLines.reduce((sum, fact) => sum + fact.value, 0);
+    const contradicted = (value: number, period: ParsedFact): boolean => {
+      if (cashFlowLines.length === 0 || cashFlowSum - value <= componentTolerance(cashFlowSum)) {
+        return false;
+      }
+      notes.push({
+        code: "incomplete-composite-series",
+        seriesKey: definition.key,
+        periodKey: periodKey(period),
+        message: `SEC depreciation and amortization for ${period.periodStart ?? "instant"} to ${period.periodEnd} omitted: the selected value (${String(value)}) is below the filed cash-flow D&A lines (${String(cashFlowSum)})`,
+      });
+      return true;
+    };
+    const totalConcept = totalFacts[0]?.concept;
     const [total] = candidates
       .filter((fact) => fact.concept === totalConcept)
       .toSorted(compareFinancialStatementFacts);
@@ -445,7 +472,9 @@ function factsForDepreciationAndAmortization(
           Math.abs(fact.value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
       )
     ) {
-      return facts.filter((fact) => fact.concept === totalConcept);
+      return contradicted(total.value, total)
+        ? []
+        : facts.filter((fact) => fact.concept === totalConcept);
     }
     if (contributors.length !== DEPRECIATION_AND_AMORTIZATION_COMPONENTS.length) {
       if (total !== undefined) {
@@ -456,6 +485,14 @@ function factsForDepreciationAndAmortization(
           message: `SEC depreciation and amortization for ${total.periodStart ?? "instant"} to ${total.periodEnd} omitted: the combined fact is more than ${String(DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE * 100)}% below a same-period component and the matching component set is incomplete`,
         });
       }
+      return [];
+    }
+    if (
+      contradicted(
+        contributors.reduce((sum, fact) => sum + fact.value, 0),
+        contributors[0]!,
+      )
+    ) {
       return [];
     }
     return [
@@ -839,6 +876,102 @@ function consolidatedNetIncomeFallbackFacts(
   return { facts, withheld };
 }
 
+const TOTAL_OPERATING_CASH_FLOW_CONCEPT = "NetCashProvidedByUsedInOperatingActivities";
+const CONTINUING_OPERATING_CASH_FLOW_CONCEPT =
+  "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";
+const DISCONTINUED_OPERATING_CASH_FLOW_CONCEPT =
+  "CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations";
+
+// ASC 205-20: continuing OCF where tagged; a total amount stands in only for a period with no discontinued operations.
+function scopeAlignedOperatingCashFlow(
+  payload: unknown,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): DerivedSeriesFacts {
+  const root = taxonomyRoot(payload, "us-gaap");
+  if (root === undefined) {
+    return NO_DERIVED_FACTS;
+  }
+  const lastFiled = (facts: readonly ParsedFact[]) => {
+    const filed = new Map<string, ParsedFact>();
+    for (const fact of facts) {
+      const key = periodKey(fact);
+      const current = filed.get(key);
+      if (current === undefined || compareFinancialStatementRevisions(fact, current) < 0) {
+        filed.set(key, fact);
+      }
+    }
+    return filed;
+  };
+  const continuing = unitFacts("us-gaap", root, CONTINUING_OPERATING_CASH_FLOW_CONCEPT).filter(
+    eligible,
+  );
+  const total = unitFacts("us-gaap", root, TOTAL_OPERATING_CASH_FLOW_CONCEPT).filter(eligible);
+  const continuingFiled = lastFiled(continuing);
+  const totalFiled = lastFiled(total);
+  const discontinued = new Set(
+    DISCONTINUED_OPERATIONS_CONCEPTS.flatMap((concept) => unitFacts("us-gaap", root, concept))
+      .filter((fact) => eligible(fact) && fact.value !== 0)
+      .map((fact) => periodKey(fact)),
+  );
+  // An equal total amount keeps its earlier public date when no discontinued operations are reported.
+  const useContinuing = (key: string) => {
+    const [current, totalCurrent] = [continuingFiled.get(key), totalFiled.get(key)];
+    return (
+      current !== undefined &&
+      (totalCurrent === undefined ||
+        (current.filedAt >= totalCurrent.filedAt &&
+          (current.value !== totalCurrent.value || discontinued.has(key))))
+    );
+  };
+  const facts = continuing.filter((fact) => useContinuing(periodKey(fact)));
+  const discontinuedCash = unitFacts(
+    "us-gaap",
+    root,
+    DISCONTINUED_OPERATING_CASH_FLOW_CONCEPT,
+  ).filter(eligible);
+  const subtracted = new Set([DISCONTINUED_OPERATING_CASH_FLOW_CONCEPT]);
+  const withheld: WithheldDerivation[] = [];
+  for (const fact of total) {
+    const key = periodKey(fact);
+    if (useContinuing(key)) {
+      continue;
+    }
+    // ASC 230-10-45-24: total minus discontinued OCF, both from the newest filing for the period (a recast supersedes).
+    const component = discontinuedCash.find(
+      (candidate) =>
+        fact === totalFiled.get(key) &&
+        filingContextKey(candidate) !== undefined &&
+        filingContextKey(candidate) === filingContextKey(fact),
+    );
+    if (discontinued.has(key) && component !== undefined) {
+      facts.push(
+        withCompositeFirstPublicAt(
+          compositeFromContributors([fact, { ...component, value: -component.value }], subtracted),
+          definition,
+          [...total, ...discontinuedCash],
+          subtracted,
+        ),
+      );
+      continue;
+    }
+    if (discontinued.has(key)) {
+      if (!withheld.some((period) => period.periodKey === key)) {
+        withheld.push(
+          withheldPeriod(
+            fact,
+            "discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged",
+          ),
+        );
+      }
+      continue;
+    }
+    facts.push(fact);
+  }
+  const derived = new Set(facts.map((fact) => periodKey(fact)));
+  return { facts, withheld: withheld.filter((period) => !derived.has(period.periodKey)) };
+}
+
 function derivedSeriesFacts(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -873,6 +1006,119 @@ function withheldDerivationNotes(
       seriesKey: series.key,
       message: `SEC ${series.label.toLowerCase()} is not derived for ${[...new Set(spans)].toSorted().join(", ")}: ${reason}`,
     }));
+  });
+}
+
+// Revenue is a continuing line; total net income for a period with discontinued operations has no margin partner.
+function untaggedContinuingIncomeNotes(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy | undefined,
+  analysisAsOf: string,
+  income: FinancialStatementsArtifact["statements"]["incomeStatement"],
+): readonly FinancialStatementNote[] {
+  const root = taxonomy === "us-gaap" ? taxonomyRoot(payload, taxonomy) : undefined;
+  if (root === undefined) {
+    return [];
+  }
+  const discontinued = new Set(
+    DISCONTINUED_OPERATIONS_CONCEPTS.flatMap((concept) => unitFacts("us-gaap", root, concept))
+      .filter((fact) => fact.value !== 0 && isObservable(fact, analysisAsOf))
+      .map((fact) => periodKey(fact)),
+  );
+  const continuing = new Set(
+    financialStatementFacts(income.continuingIncome).map((f) => f.periodKey),
+  );
+  return financialStatementFacts(income.netIncome)
+    .filter((fact) => discontinued.has(fact.periodKey) && !continuing.has(fact.periodKey))
+    .map((fact) => ({
+      code: "withheld-derivation" as const,
+      seriesKey: "continuingIncome" as const,
+      periodKey: fact.periodKey,
+      message: `SEC net margin is withheld for ${fact.periodStart ?? "instant"} to ${fact.periodEnd}: discontinued operations are reported and no continuing-operations income is tagged`,
+    }));
+}
+
+function periodKeys(series: FinancialStatementSeries): ReadonlySet<string> {
+  return new Set(financialStatementFacts(series).map((fact) => fact.periodKey));
+}
+
+// Net margin needs income including NCI; parent-attributed income stands in only for a period with no NCI income.
+function untaggedConsolidatedIncomeNotes(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy | undefined,
+  analysisAsOf: string,
+  income: FinancialStatementsArtifact["statements"]["incomeStatement"],
+): readonly FinancialStatementNote[] {
+  const root = taxonomy === undefined ? undefined : taxonomyRoot(payload, taxonomy);
+  if (taxonomy === undefined || root === undefined) {
+    return [];
+  }
+  const observable = (concept: string) =>
+    unitFacts(taxonomy, root, concept).filter((fact) => isObservable(fact, analysisAsOf));
+  const ifrsParent = new Map(
+    observable("ProfitLossAttributableToOwnersOfParent").map((fact) => [
+      periodKey(fact),
+      fact.value,
+    ]),
+  );
+  // IFRS netIncome is ProfitLoss, so a parent share that differs from it marks NCI.
+  const ifrsDivergent =
+    taxonomy === "ifrs-full"
+      ? observable("ProfitLoss")
+          .filter((fact) => {
+            const parent = ifrsParent.get(periodKey(fact));
+            return parent !== undefined && parent !== fact.value;
+          })
+          .map((fact) => periodKey(fact))
+      : [];
+  const noncontrolling = new Set([
+    ...(taxonomy === "ifrs-full"
+      ? ["ProfitLossAttributableToNoncontrollingInterests"]
+      : NONCONTROLLING_INCOME_CONCEPTS
+    )
+      .flatMap(observable)
+      .filter((fact) => fact.value !== 0)
+      .map((fact) => periodKey(fact)),
+    ...ifrsDivergent,
+  ]);
+  const consolidatedValues = new Map(
+    financialStatementFacts(income.consolidatedNetIncome).map((fact) => [
+      fact.periodKey,
+      fact.value,
+    ]),
+  );
+  const consolidated = periodKeys(income.consolidatedNetIncome);
+  const consolidatedContinuing = periodKeys(income.consolidatedContinuingIncome);
+  const continuing = periodKeys(income.continuingIncome);
+  return financialStatementFacts(income.netIncome).flatMap((fact): FinancialStatementNote[] => {
+    const span = `${fact.periodStart ?? "instant"} to ${fact.periodEnd}`;
+    const consolidatedValue = consolidatedValues.get(fact.periodKey);
+    if (
+      !noncontrolling.has(fact.periodKey) &&
+      (consolidatedValue === undefined || consolidatedValue === fact.value)
+    ) {
+      return [];
+    }
+    if (continuing.has(fact.periodKey) && !consolidatedContinuing.has(fact.periodKey)) {
+      return [
+        {
+          code: "withheld-derivation" as const,
+          seriesKey: "consolidatedContinuingIncome" as const,
+          periodKey: fact.periodKey,
+          message: `SEC continuing net margin is withheld for ${span}: noncontrolling interest income is reported and continuing income is tagged only as attributable to parent`,
+        },
+      ];
+    }
+    return taxonomy === "ifrs-full" || consolidated.has(fact.periodKey)
+      ? []
+      : [
+          {
+            code: "withheld-derivation" as const,
+            seriesKey: "consolidatedNetIncome" as const,
+            periodKey: fact.periodKey,
+            message: `SEC net margin is withheld for ${span}: noncontrolling interest income is reported and no consolidated net income including NCI is tagged`,
+          },
+        ];
   });
 }
 
@@ -1640,16 +1886,23 @@ function selectSeries(
     definition.key === "depreciationAndAmortization" && taxonomy === "us-gaap"
       ? factsForDepreciationAndAmortization(payload, definition, eligible)
       : undefined;
+  const operatingCashFlow =
+    definition.key === "operatingCashFlow" && taxonomy === "us-gaap"
+      ? scopeAlignedOperatingCashFlow(payload, definition, eligible)
+      : undefined;
   const reported =
     debt?.facts ??
     depreciationAndAmortization?.facts ??
+    operatingCashFlow?.facts ??
     factsForDefinition(payload, taxonomy, definition, eligible);
   const derived =
-    taxonomy === "us-gaap"
-      ? derivedSeriesFacts(payload, definition, reported, eligible, (fact) =>
-          isObservable(fact, input.analysisAsOf),
-        )
-      : undefined;
+    operatingCashFlow !== undefined
+      ? { facts: [], withheld: operatingCashFlow.withheld }
+      : taxonomy === "us-gaap"
+        ? derivedSeriesFacts(payload, definition, reported, eligible, (fact) =>
+            isObservable(fact, input.analysisAsOf),
+          )
+        : undefined;
   const basis = [...reported, ...(derived?.facts ?? [])];
   const declarationSpans =
     definition.key === "dividendsPerShare"
@@ -1671,7 +1924,9 @@ function selectSeries(
       omissionNotes: [
         ...selected.omissionNotes,
         ...(depreciationAndAmortization?.notes ?? []),
-        ...staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible),
+        ...(operatingCashFlow === undefined
+          ? staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible)
+          : []),
         ...declarationSpanNotes(
           declarationSpans.filter((fact) => eligible(fact)),
           definition,
@@ -2100,6 +2355,7 @@ function seriesRecord(
       operatingIncome: get("operatingIncome"),
       netIncome: get("netIncome"),
       consolidatedNetIncome: get("consolidatedNetIncome"),
+      consolidatedContinuingIncome: get("consolidatedContinuingIncome"),
       continuingIncome: get("continuingIncome"),
       interestExpense: get("interestExpense"),
       incomeTaxExpense: get("incomeTaxExpense"),
@@ -2224,6 +2480,18 @@ export function deriveFinancialStatements(
       ...selected.flatMap((item) => item.omissionNotes),
       ...capNotes,
       ...withheldDerivationNotes(selected, statements.incomeStatement),
+      ...untaggedContinuingIncomeNotes(
+        payload,
+        taxonomy,
+        input.analysisAsOf,
+        statements.incomeStatement,
+      ),
+      ...untaggedConsolidatedIncomeNotes(
+        payload,
+        taxonomy,
+        input.analysisAsOf,
+        statements.incomeStatement,
+      ),
       ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
       ...shareBasisNotes,
     ],

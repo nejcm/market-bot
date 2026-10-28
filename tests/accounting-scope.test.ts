@@ -24,7 +24,10 @@ import {
 } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { conceptScope } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
-import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import {
+  deriveFinancialStatements,
+  financialStatementsHistoryGaps,
+} from "../src/sources/extended-evidence/financial-statements";
 import {
   readFinancialStatementsArtifact,
   type FinancialStatementsArtifact,
@@ -37,6 +40,7 @@ import type { ResearchCommand } from "../src/cli/args";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
+import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 import { assertFinancialLensPeriodHygiene } from "./support/run-fixtures/financial-invariants";
 
@@ -104,6 +108,19 @@ function statements(concepts: Concepts, units?: Readonly<Record<string, string>>
 
 function secItem(artifact: FinancialStatementsArtifact) {
   return withCanonicalFinancialLensInputs(undefined, artifact).items[0]!;
+}
+
+function legacyMetric(concepts: Concepts, key: string) {
+  const summary = summarizeSecFundamentals(payload(concepts), AS_OF)!;
+  const item = {
+    category: "sec-edgar" as const,
+    title: "SEC Fundamental Evidence",
+    summary: summary.summary,
+    sourceIds: ["sec-clfd"],
+    observedAt: AS_OF,
+    metrics: summary.metrics,
+  };
+  return summaryLens(item, "Quality", AS_OF).metrics.find((metric) => metric.key === key);
 }
 
 function lensMetric(artifact: FinancialStatementsArtifact, key: string) {
@@ -638,3 +655,470 @@ async function renderRunWorkspace(detail: RunDetail): Promise<string> {
   }
   return body;
 }
+
+const gpnH1 = (val: number): Row => ({
+  val,
+  start: "2026-01-01",
+  end: "2026-06-30",
+  form: "10-Q",
+  fy: 2026,
+  fp: "Q2",
+  filed: "2026-08-05",
+  accn: "0001123360-26-000084",
+});
+
+// AMD FY2025 10-K (0000002488-26-000018) and Q1/Q2 2026 10-Qs (-26-000076, -26-000123), USD millions.
+function amd(): Concepts {
+  const m = 1_000_000;
+  const at =
+    (start: string, end: string, fp: string, filed: string, accn: string) => (val: number) => ({
+      val: val * m,
+      start,
+      end,
+      form: fp === "FY" ? "10-K" : "10-Q",
+      fy: 2026,
+      fp,
+      filed,
+      accn,
+    });
+  const fy2025 = at("2024-12-29", "2025-12-27", "FY", "2026-02-04", "0000002488-26-000018");
+  const q1 = at("2025-12-28", "2026-03-28", "Q1", "2026-05-06", "0000002488-26-000076");
+  const h1Prior = at("2024-12-29", "2025-06-28", "Q2", "2026-08-05", "0000002488-26-000123");
+  const h1 = at("2025-12-28", "2026-06-27", "Q2", "2026-08-05", "0000002488-26-000123");
+  return {
+    RevenueFromContractWithCustomerExcludingAssessedTax: [
+      fy2025(34_639),
+      q1(10_253),
+      h1Prior(15_123),
+      h1(21_789),
+    ],
+    NetIncomeLoss: [fy2025(4335), q1(1383), h1Prior(1581), h1(3680)],
+    [CONTINUING_PARENT]: [fy2025(4269), q1(1372), h1Prior(1477), h1(3677)],
+    IncomeLossFromDiscontinuedOperationsNetOfTax: [fy2025(66), q1(11), h1Prior(104), h1(3)],
+    [TOTAL_OCF]: [fy2025(7709), q1(2955), h1Prior(2950), h1(5321)],
+    [CONTINUING_OCF]: [fy2025(6493), h1Prior(2401), h1(5321)],
+    CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: [
+      fy2025(1216),
+      h1Prior(549),
+      h1(0),
+    ],
+    PaymentsToAcquirePropertyPlantAndEquipment: [fy2025(974), q1(389), h1Prior(494), h1(1197)],
+  };
+}
+
+describe("continuing-operations basis for cash flow and margins", () => {
+  test("pairs continuing OCF with capex and revenue for AMD", () => {
+    const artifact = statements(amd());
+    const ocf = artifact.statements.cashFlowStatement.operatingCashFlow;
+    const history = deriveFundamentalHistoryFromFinancialStatements(artifact);
+    const fy2025 = (key: "freeCashFlowProxy" | "netMargin") =>
+      history.series[key].annual.find((point) => point.periodEnd === "2025-12-27")?.value;
+
+    expect(ocf.annual.find((fact) => fact.periodEnd === "2025-12-27")?.value).toBe(6_493_000_000);
+    expect(ocf.ttm?.value).toBe(9_413_000_000);
+    expect(fy2025("freeCashFlowProxy")).toBe(5_519_000_000);
+    expect(fy2025("netMargin")).toBeCloseTo(4269 / 34_639, 12);
+    expect(history.series.freeCashFlowProxy.label).toBe(
+      "Free cash flow proxy (continuing operations)",
+    );
+    expect(history.series.freeCashFlowProxy.notes).toContain(
+      "scope:capex-unscoped: capital expenditure carries no operations-scope tag and is used as reported",
+    );
+    // AMD reports no NCI, so parent continuing income is its consolidated amount.
+    expect(lensMetric(artifact, "netMargin")).toMatchObject({
+      label: "Net margin (continuing operations)",
+      value: 3677 / 21_789,
+    });
+    expect(lensMetric(artifact, "freeCashFlowProxy")).toMatchObject({
+      label: "FCF proxy (continuing operations)",
+      value: 4_124_000_000,
+    });
+    const { periods } = valuationPeriodInputs(artifact);
+    const annual = periods.find(
+      (period) => period.basis === "annual" && period.periodEnd === "2025-12-27",
+    );
+    expect(annual?.freeCashFlow).toMatchObject({
+      value: 5_519_000_000,
+      derivation: expect.stringContaining("capital expenditure carries no operations-scope tag"),
+    });
+    expect(annual?.capitalExpenditure?.label).toBe("Capital expenditure");
+    expect(
+      operatingRatiosSection({ symbol: "AMD", statements: artifact }).section.metrics.find(
+        ({ id }) => id === "freeCashFlowMargin",
+      ),
+    ).toMatchObject({
+      label: "Free cash flow margin (continuing operations)",
+      value: 5519 / 34_639,
+      basis: expect.stringContaining("capital expenditure carries no operations-scope tag"),
+    });
+  });
+
+  test("withholds a total-only OCF period that reports discontinued operations, with a gap", () => {
+    const artifact = statements(amd());
+    const ocf = artifact.statements.cashFlowStatement.operatingCashFlow;
+
+    expect(financialStatementFacts(ocf).some((fact) => fact.periodEnd === "2026-03-28")).toBe(
+      false,
+    );
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
+      "SEC operating cash flow is not derived for 2025-12-28 to 2026-03-28: discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged",
+    );
+  });
+
+  test("withholds the legacy FCF proxy when OCF is total and discontinued operations are reported", () => {
+    const legacyFcf = (concepts: Concepts) => {
+      const summary = summarizeSecFundamentals(payload(concepts), AS_OF)!;
+      const item = {
+        category: "sec-edgar" as const,
+        title: "AMD SEC Fundamental Evidence",
+        summary: summary.summary,
+        sourceIds: ["sec-amd"],
+        observedAt: AS_OF,
+        metrics: summary.metrics,
+      };
+      return {
+        scope: summary.metrics.operatingCashFlowScope,
+        fcf: summaryLens(item, "Quality", AS_OF).metrics.find(
+          ({ key }) => key === "freeCashFlowProxy",
+        ),
+      };
+    };
+    const { [CONTINUING_OCF]: _continuing, ...totalOnly } = amd();
+    const {
+      IncomeLossFromDiscontinuedOperationsNetOfTax: _income,
+      CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: _cash,
+      ...noDiscontinued
+    } = totalOnly;
+
+    expect(legacyFcf(totalOnly)).toEqual({ scope: "total operations", fcf: undefined });
+    expect(legacyFcf(noDiscontinued)).toMatchObject({
+      scope: undefined,
+      fcf: { label: "FCF proxy", value: (5321 - 1197) * 1_000_000 },
+    });
+  });
+
+  test("keeps total OCF unscoped when no discontinued operations are reported", () => {
+    const {
+      [CONTINUING_OCF]: _continuing,
+      [CONTINUING_PARENT]: _income,
+      IncomeLossFromDiscontinuedOperationsNetOfTax: _discontinued,
+      CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: _discontinuedCash,
+      ...concepts
+    } = amd();
+    const artifact = statements(concepts);
+
+    expect(artifact.statements.cashFlowStatement.operatingCashFlow.ttm?.value).toBe(10_080_000_000);
+    expect(lensMetric(artifact, "freeCashFlowProxy")?.label).toBe("FCF proxy");
+    expect(lensMetric(artifact, "netMargin")?.label).toBe("Net margin");
+    expect(
+      summarizeSecFundamentals(payload(concepts), AS_OF)!.metrics.operatingCashFlowScope,
+    ).toBeUndefined();
+  });
+
+  test("withholds a total-income margin for a period with discontinued operations, with a gap", () => {
+    const concepts = {
+      ...amd(),
+      [CONTINUING_PARENT]: amd()[CONTINUING_PARENT]!.filter((fact) => fact.end !== "2026-06-27"),
+    };
+    const artifact = statements(concepts);
+    const history = deriveFundamentalHistoryFromFinancialStatements(artifact);
+    const summary = summarizeSecFundamentals(payload(concepts), AS_OF)!;
+    const legacyItem = {
+      category: "sec-edgar" as const,
+      title: "AMD SEC Fundamental Evidence",
+      summary: summary.summary,
+      sourceIds: ["sec-amd"],
+      observedAt: AS_OF,
+      metrics: summary.metrics,
+    };
+    expect(lensMetric(artifact, "netMargin")).toBeUndefined();
+    expect(
+      summaryLens(legacyItem, "Quality", AS_OF).metrics.find(({ key }) => key === "netMargin"),
+    ).toBeUndefined();
+    expect(history.series.netMargin.ttm?.periodEnd).not.toBe("2026-06-27");
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
+      "SEC net margin is withheld for 2025-12-28 to 2026-06-27: discontinued operations are reported and no continuing-operations income is tagged",
+    );
+  });
+
+  test("withholds a TTM margin when its prior-YTD component reports discontinued operations untagged", () => {
+    const concepts = {
+      ...amd(),
+      [CONTINUING_PARENT]: amd()[CONTINUING_PARENT]!.filter((fact) => fact.end !== "2025-06-28"),
+    };
+    const artifact = statements(concepts);
+    const legacy = deriveFundamentalHistory(payload(concepts), {
+      symbol: "AMD",
+      generatedAt: AS_OF,
+      analysisAsOf: AS_OF,
+      sourceId: "sec-amd",
+    });
+
+    expect(artifact.statements.incomeStatement.netIncome.ttm?.periodEnd).toBe("2026-06-27");
+    expect(
+      deriveFundamentalHistoryFromFinancialStatements(artifact).series.netMargin.ttm,
+    ).toBeUndefined();
+    expect(legacy.series.netMargin.ttm).toBeUndefined();
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
+      "SEC net margin is withheld for 2024-12-29 to 2025-06-28: discontinued operations are reported and no continuing-operations income is tagged",
+    );
+  });
+
+  // GPN H1 2026 10-Q (0001123360-26-000084): continuing income -98.717M to parent, -61.938M including NCI.
+  const gpn = (): Concepts => ({
+    RevenueFromContractWithCustomerExcludingAssessedTax: [gpnH1(6_290_473_000)],
+    NetIncomeLoss: [gpnH1(-1_786_907_000)],
+    ProfitLoss: [gpnH1(-1_750_128_000)],
+    NetIncomeLossAttributableToNoncontrollingInterest: [gpnH1(36_779_000)],
+    [CONTINUING_PARENT]: [gpnH1(-98_717_000)],
+    [CONTINUING_NCI]: [gpnH1(-61_938_000)],
+    IncomeLossFromDiscontinuedOperationsNetOfTax: [gpnH1(-1_688_190_000)],
+  });
+
+  test("puts continuing income including NCI over consolidated revenue for GPN", () => {
+    expect(lensMetric(statements(gpn()), "netMargin")).toMatchObject({
+      label: "Net margin (continuing operations)",
+      value: -61_938_000 / 6_290_473_000,
+    });
+    expect(legacyMetric(gpn(), "netMargin")?.value).toBeCloseTo(-0.009_846, 6);
+  });
+
+  test("withholds a parent-only continuing margin when NCI income is reported, with a gap", () => {
+    const { [CONTINUING_NCI]: _consolidated, ...concepts } = gpn();
+    const artifact = statements(concepts);
+
+    expect(lensMetric(artifact, "netMargin")).toBeUndefined();
+    expect(legacyMetric(concepts, "netMargin")).toBeUndefined();
+    expect(
+      deriveFundamentalHistoryFromFinancialStatements(artifact).series.netMargin.annual,
+    ).toEqual([]);
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
+      "SEC continuing net margin is withheld for 2026-01-01 to 2026-06-30: noncontrolling interest income is reported and continuing income is tagged only as attributable to parent",
+    );
+  });
+
+  test("treats ProfitLoss unequal to NetIncomeLoss as NCI evidence without NCI concepts", () => {
+    const {
+      [CONTINUING_NCI]: _consolidated,
+      NetIncomeLossAttributableToNoncontrollingInterest: _nci,
+      ...concepts
+    } = gpn();
+    const artifact = statements(concepts);
+
+    expect(lensMetric(artifact, "netMargin")).toBeUndefined();
+    expect(legacyMetric(concepts, "netMargin")).toBeUndefined();
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
+      "SEC continuing net margin is withheld for 2026-01-01 to 2026-06-30: noncontrolling interest income is reported and continuing income is tagged only as attributable to parent",
+    );
+  });
+
+  test("puts consolidated net income over revenue and withholds parent-only income beside NCI", () => {
+    const {
+      [CONTINUING_NCI]: _nci,
+      [CONTINUING_PARENT]: _parent,
+      IncomeLossFromDiscontinuedOperationsNetOfTax: _discontinued,
+      ...consolidated
+    } = gpn();
+    const { ProfitLoss: _profitLoss, ...parentOnly } = consolidated;
+
+    expect(lensMetric(statements(consolidated), "netMargin")).toMatchObject({
+      label: "Net margin",
+      value: -1_750_128_000 / 6_290_473_000,
+    });
+    expect(legacyMetric(consolidated, "netMargin")?.value).toBeCloseTo(
+      -1_750_128_000 / 6_290_473_000,
+      12,
+    );
+    expect(lensMetric(statements(parentOnly), "netMargin")).toBeUndefined();
+    expect(legacyMetric(parentOnly, "netMargin")).toBeUndefined();
+    expect(
+      financialStatementsHistoryGaps(statements(parentOnly)).map((gap) => gap.message),
+    ).toContain(
+      "SEC net margin is withheld for 2026-01-01 to 2026-06-30: noncontrolling interest income is reported and no consolidated net income including NCI is tagged",
+    );
+  });
+});
+
+test("withholds IFRS parent continuing income when NCI income is reported", () => {
+  const ifrs = (val: number) => ({ ...fy25(val), form: "20-F" });
+  const artifact = deriveFinancialStatements(
+    {
+      facts: {
+        "ifrs-full": Object.fromEntries(
+          Object.entries({
+            Revenue: 100_000_000,
+            ProfitLoss: 55_000_000,
+            ProfitLossAttributableToOwnersOfParent: 27_500_000,
+            ProfitLossAttributableToNoncontrollingInterests: 27_500_000,
+            ProfitLossFromContinuingOperationsAttributableToOwnersOfParent: 27_500_000,
+          }).map(([concept, val]) => [concept, { units: { USD: [ifrs(val)] } }]),
+        ),
+      },
+    },
+    { symbol: "IFRS", generatedAt: AS_OF, analysisAsOf: AS_OF, sourceId: "sec-ifrs" },
+  );
+
+  expect(lensMetric(artifact, "netMargin")?.value).toBeUndefined();
+  expect(deriveFundamentalHistoryFromFinancialStatements(artifact).series.netMargin.annual).toEqual(
+    [],
+  );
+  expect(artifact.omissionNotes).toContainEqual(
+    expect.objectContaining({
+      code: "withheld-derivation",
+      seriesKey: "consolidatedContinuingIncome",
+    }),
+  );
+});
+
+const filings = (concepts: Concepts, form: (fp: string) => string): Concepts =>
+  Object.fromEntries(
+    Object.entries(concepts).map(([concept, rows]) => [
+      concept,
+      rows.map((value) => ({ ...value, form: form(String(value.fp)) })),
+    ]),
+  );
+const scoped = (taxonomy: "us-gaap" | "ifrs-full", concepts: Concepts) =>
+  deriveFinancialStatements(
+    {
+      facts: {
+        [taxonomy]: Object.fromEntries(
+          Object.entries(concepts).map(([concept, rows]) => [
+            concept,
+            { units: { [/PerShare/u.test(concept) ? "USD/shares" : "USD"]: rows } },
+          ]),
+        ),
+      },
+    },
+    { symbol: "TEST", generatedAt: AS_OF, analysisAsOf: AS_OF, sourceId: "sec-test" },
+  );
+const flows = (value: number): readonly Row[] => [fy25(value), ytdPrior(value), ytd(value)];
+
+describe("diluted shares fallback uses parent-attributable income", () => {
+  test("IFRS consolidated ProfitLoss 100 vs parent 50 and EPS 5 withholds shares, not 20", () => {
+    const { ttm, periods } = valuationPeriodInputs(
+      scoped(
+        "ifrs-full",
+        filings(
+          {
+            Revenue: flows(1000),
+            ProfitLoss: flows(100),
+            ProfitLossAttributableToOwnersOfParent: flows(50),
+            DilutedEarningsLossPerShare: flows(5),
+          },
+          (fp) => (fp === "FY" ? "20-F" : "6-K"),
+        ),
+      ),
+    );
+
+    expect(ttm?.netIncome?.value).toBe(100);
+    expect(ttm?.dilutedShares).toBeUndefined();
+    expect(periods[0]?.netIncome?.value).toBe(100);
+    expect(periods[0]?.dilutedShares).toBeUndefined();
+  });
+
+  test("us-gaap parent NetIncomeLoss 50 and EPS 5 derives 10 shares", () => {
+    const { ttm, periods } = valuationPeriodInputs(
+      scoped("us-gaap", {
+        Revenues: flows(1000),
+        NetIncomeLoss: flows(50),
+        ProfitLoss: flows(100),
+        EarningsPerShareDiluted: flows(5),
+      }),
+    );
+
+    expect(ttm?.dilutedShares?.value).toBe(10);
+    expect(periods[0]?.dilutedShares?.value).toBe(10);
+  });
+});
+
+const hlitFy = (val: number): Row => ({
+  val,
+  start: "2025-01-01",
+  end: "2025-12-31",
+  form: "10-K",
+  fy: 2025,
+  fp: "FY",
+  filed: "2026-02-24",
+  accn: "0001193125-26-067506",
+});
+const hlitH1 = (val: number): Row => ({
+  val,
+  start: "2026-01-01",
+  end: "2026-07-03",
+  form: "10-Q",
+  fy: 2026,
+  fp: "Q2",
+  filed: "2026-08-17",
+  accn: "0001193125-26-353891",
+});
+const apld = (val: number, accn: string, filed: string, fy: number): Row => ({
+  val,
+  start: "2022-06-01",
+  end: "2023-05-31",
+  form: "10-K",
+  fy,
+  fp: "FY",
+  filed,
+  accn,
+});
+
+// HLIT FY2025 10-K (0001193125-26-067506) and Q2 2026 10-Q (0001193125-26-353891).
+describe("continuing OCF from a filed total and its discontinued component", () => {
+  const DISCONTINUED_OCF = "CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations";
+  const hlit = (): Concepts => ({
+    RevenueFromContractWithCustomerExcludingAssessedTax: [hlitFy(360_523_000), hlitH1(255_157_000)],
+    [TOTAL_OCF]: [hlitFy(107_966_000), hlitH1(-26_260_000)],
+    [DISCONTINUED_OCF]: [hlitFy(2_532_000)],
+    IncomeLossFromDiscontinuedOperationsNetOfTax: [hlitFy(-44_526_000), hlitH1(-21_714_000)],
+  });
+
+  test("nets FY2025 total 107,966K minus discontinued 2,532K to continuing 105,434K", () => {
+    const ocf = statements(hlit()).statements.cashFlowStatement.operatingCashFlow;
+
+    expect(ocf.annual).toHaveLength(1);
+    expect(ocf.annual[0]).toMatchObject({ periodEnd: "2025-12-31", value: 105_434_000 });
+    expect(conceptScope(ocf.annual[0]!.concept)).toBe("continuing operations");
+  });
+
+  test("withholds the H1 2026 total, which has no filed discontinued component", () => {
+    const artifact = statements(hlit());
+
+    expect(artifact.statements.cashFlowStatement.operatingCashFlow.interim).toEqual([]);
+    expect(artifact.omissionNotes.map((note) => note.message).join("\n")).toContain(
+      "SEC operating cash flow is not derived for 2026-01-01 to 2026-07-03",
+    );
+  });
+
+  test("a same-day 10-K/A total without the component withholds rather than netting the original", () => {
+    const amended = (val: number): Row => ({
+      ...hlitFy(val),
+      form: "10-K/A",
+      accn: "0001193125-26-067507",
+    });
+    const artifact = statements({
+      RevenueFromContractWithCustomerExcludingAssessedTax: [hlitFy(360_523_000)],
+      [TOTAL_OCF]: [hlitFy(100), amended(120)],
+      [DISCONTINUED_OCF]: [hlitFy(10)],
+      IncomeLossFromDiscontinuedOperationsNetOfTax: [hlitFy(-44_526_000)],
+    });
+
+    expect(artifact.statements.cashFlowStatement.operatingCashFlow.annual).toEqual([]);
+  });
+
+  // APLD FY2023: the 2023 10-K tagged zero discontinued OCF; the 2025 10-K recast Cloud Services as discontinued.
+  test("APLD FY2023 keeps the gap when only a superseded filing tags the discontinued component", () => {
+    const apldFy23 = (val: number) => apld(val, "0001144879-23-000176", "2023-08-02", 2023);
+    const apldFy25 = (val: number) => apld(val, "0001144879-25-000021", "2025-07-30", 2025);
+    const artifact = statements({
+      Revenues: [apldFy23(55_388_000), apldFy25(55_388_000)],
+      [TOTAL_OCF]: [apldFy23(58_735_000), apldFy25(58_735_000)],
+      [DISCONTINUED_OCF]: [apldFy23(0)],
+      IncomeLossFromDiscontinuedOperationsNetOfTax: [apldFy23(0), apldFy25(-1_118_000)],
+    });
+
+    expect(artifact.statements.cashFlowStatement.operatingCashFlow.annual).toEqual([]);
+    expect(artifact.omissionNotes.map((note) => note.message).join("\n")).toContain(
+      "SEC operating cash flow is not derived for 2022-06-01 to 2023-05-31",
+    );
+  });
+});

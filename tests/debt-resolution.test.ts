@@ -990,6 +990,65 @@ describe("ambiguous LongTermDebt", () => {
     );
   });
 
+  test("NOW: short-term borrowings beside LongTermDebt do not prove its scope, so 2026-06-30 stays withheld", () => {
+    const june = (value: number) => filed(value, "2026-06-30", "2026-07-23", "now-2026-q2");
+    expectGap(
+      { LongTermDebt: [june(5_435_000_000)], ShortTermBorrowings: [june(2_082_000_000)] },
+      "LongTermDebt is tagged beside nonzero current debt (ShortTermBorrowings)",
+      "2026-06-30",
+    );
+  });
+
+  test("UBER: the 2026-06-30 10-Q LongTermDebt already includes 1,997M short-term borrowings, so sparse tags stay withheld", () => {
+    const june = (value: number) =>
+      filed(value, "2026-06-30", "2026-08-05", "0001543151-26-000032", "10-Q");
+    expectGap(
+      { LongTermDebt: [june(12_723_000_000)], ShortTermBorrowings: [june(1_997_000_000)] },
+      "LongTermDebt is tagged beside nonzero current debt (ShortTermBorrowings)",
+      "2026-06-30",
+    );
+  });
+
+  // AMAT FY2019 10-K (0000006951-19-000046): ShortTermBorrowings 600M is the same notes as LongTermDebtCurrent.
+  test("AMAT: FY2019 short-term borrowings overlap LongTermDebt 5,313M, so neither tag set yields 5,913M", () => {
+    const fy2019 = (value: number) =>
+      filed(value, "2019-10-27", "2019-12-13", "0000006951-19-000046", "10-K");
+    const longTermDebt = [fy2019(5_313_000_000)];
+    const shortTermBorrowings = [fy2019(600_000_000)];
+
+    expectGap(
+      {
+        LongTermDebt: longTermDebt,
+        LongTermDebtCurrent: [fy2019(600_000_000)],
+        LongTermDebtNoncurrent: [fy2019(4_713_000_000)],
+        ShortTermBorrowings: shortTermBorrowings,
+      },
+      "ShortTermBorrowings tagged beside LongTermDebtCurrent",
+      "2019-10-27",
+    );
+    expectGap(
+      { LongTermDebt: longTermDebt, ShortTermBorrowings: shortTermBorrowings },
+      "LongTermDebt is tagged beside nonzero current debt (ShortTermBorrowings)",
+      "2019-10-27",
+    );
+  });
+
+  test("ADBE: DebtCurrent can hold LongTermDebt's own maturities, so 2026-08-28 stays withheld", () => {
+    const august = (value: number) => filed(value, "2026-08-28", "2026-09-22", "adbe-2026-q3");
+    expectGap(
+      { LongTermDebt: [august(4_766_000_000)], DebtCurrent: [august(1_597_000_000)] },
+      "LongTermDebt is tagged beside nonzero current debt (DebtCurrent)",
+      "2026-08-28",
+    );
+  });
+
+  test("commercial paper alone may be classified long-term, so it does not prove LongTermDebt's scope", () => {
+    expectGap(
+      { LongTermDebt: [at(500)], CommercialPaper: [at(100)] },
+      "LongTermDebt is tagged beside nonzero current debt (CommercialPaper)",
+    );
+  });
+
   test("AMD: the FY2021 10-K (0000002488-22-000016) reports 313M combined debt, not the 1M LongTermDebt", () => {
     const fy2021 = (value: number) =>
       filed(value, "2021-12-25", "2022-02-03", "0000002488-22-000016", "10-K");

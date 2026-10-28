@@ -80,6 +80,7 @@ export type FinancialTableSemanticField =
   | Exclude<
       FinancialStatementSeriesKey,
       | "consolidatedNetIncome"
+      | "consolidatedContinuingIncome"
       | "continuingIncome"
       | "continuingDilutedEps"
       | "dividendsPerShare"

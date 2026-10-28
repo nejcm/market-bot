@@ -329,10 +329,77 @@
       "interim": [],
       "ttm": null
     },
-    "continuingIncome": {
+    "consolidatedContinuingIncome": {
       "selectedConcept": null,
       "selectedFact": null,
       "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "continuingIncome": {
+      "selectedConcept": "IncomeLossFromContinuingOperations",
+      "selectedFact": {
+        "concept": "IncomeLossFromContinuingOperations",
+        "periodKey": "duration:12|2025-12-31",
+        "periodStart": "2025-01-01",
+        "periodEnd": "2025-12-31",
+        "form": "20-F",
+        "filingDate": "2026-04-30",
+        "accession": "0001104659-26-052948",
+        "value": 9800000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "IncomeLossFromContinuingOperations",
+          "periodKey": "duration:12|2022-12-31",
+          "periodStart": "2022-01-01",
+          "periodEnd": "2022-12-31",
+          "form": "20-F",
+          "filingDate": "2025-04-30",
+          "accession": "0001558370-25-005991",
+          "value": -180000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "IncomeLossFromContinuingOperations",
+          "periodKey": "duration:12|2023-12-31",
+          "periodStart": "2023-01-01",
+          "periodEnd": "2023-12-31",
+          "form": "20-F",
+          "filingDate": "2026-04-30",
+          "accession": "0001104659-26-052948",
+          "value": -299000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "IncomeLossFromContinuingOperations",
+          "periodKey": "duration:12|2024-12-31",
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-12-31",
+          "form": "20-F",
+          "filingDate": "2026-04-30",
+          "accession": "0001104659-26-052948",
+          "value": -352000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "IncomeLossFromContinuingOperations",
+          "periodKey": "duration:12|2025-12-31",
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-12-31",
+          "form": "20-F",
+          "filingDate": "2026-04-30",
+          "accession": "0001104659-26-052948",
+          "value": 9800000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
       "interim": [],
       "ttm": null
     },
@@ -836,20 +903,80 @@
       "ttm": null
     },
     "operatingCashFlow": {
-      "selectedConcept": "NetCashProvidedByUsedInOperatingActivities",
+      "selectedConcept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
       "selectedFact": {
-        "concept": "NetCashProvidedByUsedInOperatingActivities",
+        "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
         "periodKey": "duration:12|2025-12-31",
         "periodStart": "2025-01-01",
         "periodEnd": "2025-12-31",
         "form": "20-F",
         "filingDate": "2026-04-30",
         "accession": "0001104659-26-052948",
-        "value": 384800000,
+        "value": 401900000,
         "currency": "USD",
         "unit": "USD"
       },
       "annual": [
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          "periodKey": "duration:12|2012-12-31",
+          "periodStart": "2012-01-01",
+          "periodEnd": "2012-12-31",
+          "form": "20-F",
+          "filingDate": "2013-04-09",
+          "accession": "0001047469-13-004131",
+          "value": 379600000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          "periodKey": "duration:12|2013-12-31",
+          "periodStart": "2013-01-01",
+          "periodEnd": "2013-12-31",
+          "form": "20-F",
+          "filingDate": "2014-04-04",
+          "accession": "0001047469-14-003438",
+          "value": 449300000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          "periodKey": "duration:12|2014-12-31",
+          "periodStart": "2014-01-01",
+          "periodEnd": "2014-12-31",
+          "form": "20-F",
+          "filingDate": "2015-04-30",
+          "accession": "0001047469-15-004230",
+          "value": 276300000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          "periodKey": "duration:12|2015-12-31",
+          "periodStart": "2015-01-01",
+          "periodEnd": "2015-12-31",
+          "form": "20-F",
+          "filingDate": "2016-03-22",
+          "accession": "0001047469-16-011404",
+          "value": 268600000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          "periodKey": "duration:12|2016-12-31",
+          "periodStart": "2016-01-01",
+          "periodEnd": "2016-12-31",
+          "form": "20-F",
+          "filingDate": "2017-03-22",
+          "accession": "0001513845-17-000004",
+          "value": 419600000,
+          "currency": "USD",
+          "unit": "USD"
+        },
         {
           "concept": "NetCashProvidedByUsedInOperatingActivities",
           "periodKey": "duration:12|2021-12-31",
@@ -863,50 +990,50 @@
           "unit": "USD"
         },
         {
-          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
           "periodKey": "duration:12|2022-12-31",
           "periodStart": "2022-01-01",
           "periodEnd": "2022-12-31",
           "form": "20-F",
           "filingDate": "2025-04-30",
           "accession": "0001558370-25-005991",
-          "value": 697000000,
+          "value": -139700000,
           "currency": "USD",
           "unit": "USD"
         },
         {
-          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
           "periodKey": "duration:12|2023-12-31",
           "periodStart": "2023-01-01",
           "periodEnd": "2023-12-31",
           "form": "20-F",
           "filingDate": "2026-04-30",
           "accession": "0001104659-26-052948",
-          "value": 829800000,
+          "value": -222000000,
           "currency": "USD",
           "unit": "USD"
         },
         {
-          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
           "periodKey": "duration:12|2024-12-31",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
           "form": "20-F",
           "filingDate": "2026-04-30",
           "accession": "0001104659-26-052948",
-          "value": 245600000,
+          "value": -269900000,
           "currency": "USD",
           "unit": "USD"
         },
         {
-          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
           "periodKey": "duration:12|2025-12-31",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",
           "form": "20-F",
           "filingDate": "2026-04-30",
           "accession": "0001104659-26-052948",
-          "value": 384800000,
+          "value": 401900000,
           "currency": "USD",
           "unit": "USD"
         }
@@ -1274,8 +1401,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": -42.34275826992457,
-          "years": 4.000082137210209,
+          "percent": -42.343410214120865,
+          "years": 4,
           "periodStart": "2021-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -1478,8 +1605,63 @@
         "marginChange": null
       },
       "operatingCashFlow": {
-        "concept": "NetCashProvidedByUsedInOperatingActivities",
+        "concept": "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
         "annual": [
+          {
+            "value": 379600000,
+            "form": "20-F",
+            "fy": 2012,
+            "fp": "FY",
+            "periodStart": "2012-01-01",
+            "periodEnd": "2012-12-31",
+            "periodMonths": 12,
+            "filedAt": "2013-04-09",
+            "currency": "USD"
+          },
+          {
+            "value": 449300000,
+            "form": "20-F",
+            "fy": 2013,
+            "fp": "FY",
+            "periodStart": "2013-01-01",
+            "periodEnd": "2013-12-31",
+            "periodMonths": 12,
+            "filedAt": "2014-04-04",
+            "currency": "USD"
+          },
+          {
+            "value": 276300000,
+            "form": "20-F",
+            "fy": 2014,
+            "fp": "FY",
+            "periodStart": "2014-01-01",
+            "periodEnd": "2014-12-31",
+            "periodMonths": 12,
+            "filedAt": "2015-04-30",
+            "currency": "USD"
+          },
+          {
+            "value": 268600000,
+            "form": "20-F",
+            "fy": 2015,
+            "fp": "FY",
+            "periodStart": "2015-01-01",
+            "periodEnd": "2015-12-31",
+            "periodMonths": 12,
+            "filedAt": "2016-03-22",
+            "currency": "USD"
+          },
+          {
+            "value": 419600000,
+            "form": "20-F",
+            "fy": 2016,
+            "fp": "FY",
+            "periodStart": "2016-01-01",
+            "periodEnd": "2016-12-31",
+            "periodMonths": 12,
+            "filedAt": "2017-03-22",
+            "currency": "USD"
+          },
           {
             "value": 125100000,
             "form": "20-F",
@@ -1492,7 +1674,7 @@
             "currency": "USD"
           },
           {
-            "value": 697000000,
+            "value": -139700000,
             "form": "20-F",
             "fy": 2022,
             "fp": "FY",
@@ -1503,7 +1685,7 @@
             "currency": "USD"
           },
           {
-            "value": 829800000,
+            "value": -222000000,
             "form": "20-F",
             "fy": 2023,
             "fp": "FY",
@@ -1514,7 +1696,7 @@
             "currency": "USD"
           },
           {
-            "value": 245600000,
+            "value": -269900000,
             "form": "20-F",
             "fy": 2024,
             "fp": "FY",
@@ -1525,7 +1707,7 @@
             "currency": "USD"
           },
           {
-            "value": 384800000,
+            "value": 401900000,
             "form": "20-F",
             "fy": 2025,
             "fp": "FY",
@@ -1538,8 +1720,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 32.431693705624866,
-          "years": 4.000082137210209,
+          "percent": 33.87983675225477,
+          "years": 4,
           "periodStart": "2021-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -1606,8 +1788,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 61.30255546833212,
-          "years": 4.000082137210209,
+          "percent": 61.30413909444812,
+          "years": 4,
           "periodStart": "2021-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -1628,7 +1810,7 @@
             "currency": "USD"
           },
           {
-            "value": 682400000,
+            "value": -154300000,
             "form": "20-F",
             "fy": 2022,
             "fp": "FY",
@@ -1639,7 +1821,7 @@
             "currency": "USD"
           },
           {
-            "value": 746900000,
+            "value": -304900000,
             "form": "20-F",
             "fy": 2023,
             "fp": "FY",
@@ -1650,7 +1832,7 @@
             "currency": "USD"
           },
           {
-            "value": -561900000,
+            "value": -1077400000,
             "form": "20-F",
             "fy": 2024,
             "fp": "FY",
@@ -1661,7 +1843,7 @@
             "currency": "USD"
           },
           {
-            "value": -3681200000,
+            "value": -3664100000,
             "form": "20-F",
             "fy": 2025,
             "fp": "FY",
@@ -1746,7 +1928,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": -111.73124301339392,
-          "years": 4.000082137210209,
+          "years": 4,
           "periodStart": "2021-12-31",
           "periodEnd": "2025-12-31"
         }
@@ -1766,29 +1948,7 @@
             "currency": "USD"
           },
           {
-            "value": 55.22962962962963,
-            "form": "20-F",
-            "fy": 2022,
-            "fp": "FY",
-            "periodStart": "2022-01-01",
-            "periodEnd": "2022-12-31",
-            "periodMonths": 12,
-            "filedAt": "2025-04-30",
-            "currency": "USD"
-          },
-          {
-            "value": 24.622448979591837,
-            "form": "20-F",
-            "fy": 2023,
-            "fp": "FY",
-            "periodStart": "2023-01-01",
-            "periodEnd": "2023-12-31",
-            "periodMonths": 12,
-            "filedAt": "2026-04-30",
-            "currency": "USD"
-          },
-          {
-            "value": -7.00983606557377,
+            "value": -3.8469945355191255,
             "form": "20-F",
             "fy": 2024,
             "fp": "FY",
@@ -1799,7 +1959,7 @@
             "currency": "USD"
           },
           {
-            "value": 0.15571913929784825,
+            "value": 0.01849754624386561,
             "form": "20-F",
             "fy": 2025,
             "fp": "FY",
@@ -1813,8 +1973,8 @@
         "ttm": null,
         "cagr": null,
         "marginChange": {
-          "percentagePoints": 19.685217504938134,
-          "years": 4.000082137210209,
+          "percentagePoints": 5.963058199539871,
+          "years": 4,
           "periodStart": "2021-12-31",
           "periodEnd": "2025-12-31"
         }
@@ -1835,8 +1995,8 @@
           },
           "netMargin": {
             "key": "netMargin",
-            "label": "Net margin",
-            "value": 0.15571913929784825,
+            "label": "Net margin (continuing operations)",
+            "value": 0.01849754624386561,
             "unit": "ratio-percent",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
             "periodEnd": "2025-12-31",
@@ -1844,8 +2004,8 @@
           },
           "freeCashFlowProxy": {
             "key": "freeCashFlowProxy",
-            "label": "FCF proxy",
-            "value": -3681200000,
+            "label": "FCF proxy (continuing operations)",
+            "value": -3664100000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
             "currency": "USD",
@@ -1855,7 +2015,7 @@
           "cashConversion": {
             "key": "cashConversion",
             "label": "Cash conversion",
-            "value": 4.664242424242424,
+            "value": 41.01020408163265,
             "unit": "ratio",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
             "periodEnd": "2025-12-31",
@@ -1904,7 +2064,7 @@
           },
           "netIncomeDeltaPercent": {
             "key": "netIncomeDeltaPercent",
-            "label": "Net loss (attrib.) YoY change",
+            "label": "Net loss (attrib.) YoY change (total operations)",
             "value": 112.86248830682881,
             "unit": "whole-percent",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
@@ -1920,10 +2080,19 @@
             "periodEnd": "2025-12-31",
             "periodMonths": 12
           },
+          "continuingIncomeDeltaPercent": {
+            "key": "continuingIncomeDeltaPercent",
+            "label": "Loss YoY change (continuing operations, attributable to parent)",
+            "value": 102.7840909090909,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-nbis"],
+            "periodEnd": "2025-12-31",
+            "periodMonths": 12
+          },
           "operatingCashFlowDeltaPercent": {
             "key": "operatingCashFlowDeltaPercent",
-            "label": "Operating cash flow YoY",
-            "value": 56.67752442996743,
+            "label": "Operating cash flow YoY (continuing operations)",
+            "value": 248.9070025935532,
             "unit": "whole-percent",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
             "periodEnd": "2025-12-31",

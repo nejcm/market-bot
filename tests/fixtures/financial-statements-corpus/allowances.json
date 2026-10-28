@@ -50,7 +50,7 @@
   {
     "fixture": "mara",
     "path": "financialLens.Quality.metrics.netMargin",
-    "canonicalSha256": "2ee45aab0cbf0803b88c73545fd046543aa371b048a4525a86a1fc2ad8120268",
+    "canonicalSha256": "3137852c718ea907ab3055b7d5c826b89f609e25c62bde815ea085cf983fe438",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "canonical-exact-period-correction",
     "justification": "MARA canonical net margin uses exact-period compatible 2025 NetIncomeLoss and revenue facts; the legacy selector omits rather than mixing periods."
@@ -90,7 +90,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.capex.cagr",
-    "canonicalSha256": "03df35fc7d851a4d13511726a774a7bb7c9a6d9f0c6bb525f30c6655470a7ccb",
+    "canonicalSha256": "f1a493fb55a4ecb647047ea71c8a96431f40deec9b598da16369601d4226c6b0",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical capex.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -114,7 +114,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.freeCashFlowProxy.annual",
-    "canonicalSha256": "f2f2da63ccccfb93a244f18f9815e3baa2e89c1cd286b73089ee887a931e5f2d",
+    "canonicalSha256": "77b576611fd5ec9a967c43496d2fdd5feb79c7efda1e61dfaeaa0cd901971430",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "history-property-not-rederivable",
     "justification": "nbis canonical freeCashFlowProxy.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -138,7 +138,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.netMargin.annual",
-    "canonicalSha256": "fd6109cd39094be1372f92f472796b89c16da5d3d09251076e1dc1d777f67e02",
+    "canonicalSha256": "022470ffb96b4c0538bd56edb48606a18d2a993f597bc1743ff5c5a40b632a63",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical netMargin.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -146,7 +146,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.netMargin.marginChange",
-    "canonicalSha256": "ab77725823854c4c4d75f99b6b172e4657d767feff4a4d63e788dcf1b0af3804",
+    "canonicalSha256": "006ae588d1bdb9742a4b4ee7e9ec507bdc5ed18ecdac10f554024e3604aa0b07",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical netMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -154,7 +154,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingCashFlow.concept",
-    "canonicalSha256": "d68049b5ed10f5982286acc8440e547636ffda65d20d864740a1e9951a8255e6",
+    "canonicalSha256": "e36e6dbf09fbe2667e26bf3650218d7ecfa38fbc7c12244e614e1195b03ce024",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "history-property-not-rederivable",
     "justification": "nbis canonical operatingCashFlow.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
@@ -162,7 +162,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingCashFlow.annual",
-    "canonicalSha256": "4a96d6836a708833769945e42b0f66498c7fd974ddd28b5b02c77759203630e5",
+    "canonicalSha256": "97cb98ee5145b4302457287328650072717779e9dfdf82ebc9a2b51af5570492",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical operatingCashFlow.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -170,7 +170,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingCashFlow.cagr",
-    "canonicalSha256": "3f1c4bd972b41864ccafe11c77b4410ba84e1c66d263cc036aaa1b7c179bef17",
+    "canonicalSha256": "966d5110a6c7c40fc2e07190ed2a33952349ab893a8c4f5835c6a313b3066691",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical operatingCashFlow.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -202,7 +202,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingMargin.marginChange",
-    "canonicalSha256": "a560f7c5f6265ba683ffaf49b9a3aedbb7cbde752c819f19087038d64096fccd",
+    "canonicalSha256": "5e63a3940452350014f49a26dae2aa00777780efe60fe27454b5a6632fadd9af",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical operatingMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -226,7 +226,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.revenue.cagr",
-    "canonicalSha256": "cb949cf0b1290d4ebf3eb4ee486a08e21dae2aa5f73af6029ac12105570a4d44",
+    "canonicalSha256": "6e225de5681e24bbed8926313550da52efde4f30d7c079ae30e285d4ac60924c",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical revenue.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -258,7 +258,7 @@
   {
     "fixture": "nbis",
     "path": "financialLens.Growth.metrics.netIncomeDeltaPercent",
-    "canonicalSha256": "90182686699bce0ddcb1a72e6b8c37da8d26c7cbb77eef64981127a84ea8895e",
+    "canonicalSha256": "2ca0521c6470ab701a8d2c734abfdaf19089ba7e2455581eca06591294e79446",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Growth.metrics.netIncomeDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -266,7 +266,7 @@
   {
     "fixture": "nbis",
     "path": "financialLens.Growth.metrics.operatingCashFlowDeltaPercent",
-    "canonicalSha256": "f6ff011bfbdf4a18d8e8177e7b7327fe27890527ed50819e2966ec5eb44d84a8",
+    "canonicalSha256": "21193327b2284c02a48e62e4139520dc99f0d10569c703e225cbb6a37c681708",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Growth.metrics.operatingCashFlowDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -306,7 +306,7 @@
   {
     "fixture": "nbis",
     "path": "financialLens.Quality.metrics.cashConversion",
-    "canonicalSha256": "77871d74cf3eb2685a49745a097cbdffb00bb73a3c3cc5ee47b1ce7d0152c758",
+    "canonicalSha256": "46e9b545447009d520a61f5cd4b98523ee6dbf9e0580a17df39142e3ce1b07ca",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Quality.metrics.cashConversion comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -314,7 +314,7 @@
   {
     "fixture": "nbis",
     "path": "financialLens.Quality.metrics.freeCashFlowProxy",
-    "canonicalSha256": "67e9a4ff829b916a8101bee560c1641c96c3a2c574c0bcb07ff2a8946d477c6d",
+    "canonicalSha256": "69ae50784af6f288674a5f64dd9ebe32137988ed0426f156ccdb63735c5d27f6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Quality.metrics.freeCashFlowProxy comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -322,7 +322,7 @@
   {
     "fixture": "nbis",
     "path": "financialLens.Quality.metrics.netMargin",
-    "canonicalSha256": "721f0f7a71fd50ecb0318c3c5420782596df59afc94c5544c57d26b1e83117a6",
+    "canonicalSha256": "8c16b5c227b584c8e8ebc6ff1fe2850fff4a2300bad6f9c67a89bd4e79827b45",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Quality.metrics.netMargin comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -378,7 +378,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.dilutedEps.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical dilutedEps.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -402,7 +402,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.grossMargin.marginChange",
-    "canonicalSha256": "56e5932059163a7596984a36bf001dcb3e2278800b14f05ff8bb4327572160a1",
+    "canonicalSha256": "073479f9beec4966c098119e06ee6f89d999fb9957be3c4f6b68b84893bdd843",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical grossMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -434,7 +434,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.grossProfit.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical grossProfit.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -466,7 +466,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.netIncome.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "4e25c06155ad6289c80c746fb0f8aa552c17aff3a08174e0067e0e5f1585b784",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical netIncome.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -490,7 +490,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.netMargin.marginChange",
-    "canonicalSha256": "56e5932059163a7596984a36bf001dcb3e2278800b14f05ff8bb4327572160a1",
+    "canonicalSha256": "073479f9beec4966c098119e06ee6f89d999fb9957be3c4f6b68b84893bdd843",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical netMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -522,7 +522,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.operatingCashFlow.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical operatingCashFlow.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -554,7 +554,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.operatingIncome.cagr",
-    "canonicalSha256": "578fc890078867d06067a4b8b9e98d2146ba04db73da3f54f5ef431717cfdcc3",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical operatingIncome.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -578,7 +578,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.operatingMargin.marginChange",
-    "canonicalSha256": "56e5932059163a7596984a36bf001dcb3e2278800b14f05ff8bb4327572160a1",
+    "canonicalSha256": "073479f9beec4966c098119e06ee6f89d999fb9957be3c4f6b68b84893bdd843",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical operatingMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -610,7 +610,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "fundamentalHistory.revenue.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical revenue.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -786,7 +786,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.dilutedEps.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical dilutedEps.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -802,7 +802,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.grossMargin.marginChange",
-    "canonicalSha256": "56e5932059163a7596984a36bf001dcb3e2278800b14f05ff8bb4327572160a1",
+    "canonicalSha256": "073479f9beec4966c098119e06ee6f89d999fb9957be3c4f6b68b84893bdd843",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical grossMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -826,7 +826,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.grossProfit.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical grossProfit.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -850,7 +850,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.netIncome.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "4e25c06155ad6289c80c746fb0f8aa552c17aff3a08174e0067e0e5f1585b784",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical netIncome.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -866,7 +866,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.netMargin.marginChange",
-    "canonicalSha256": "56e5932059163a7596984a36bf001dcb3e2278800b14f05ff8bb4327572160a1",
+    "canonicalSha256": "073479f9beec4966c098119e06ee6f89d999fb9957be3c4f6b68b84893bdd843",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical netMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -890,7 +890,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.operatingCashFlow.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical operatingCashFlow.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -914,7 +914,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.operatingIncome.cagr",
-    "canonicalSha256": "578fc890078867d06067a4b8b9e98d2146ba04db73da3f54f5ef431717cfdcc3",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical operatingIncome.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -930,7 +930,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.operatingMargin.marginChange",
-    "canonicalSha256": "56e5932059163a7596984a36bf001dcb3e2278800b14f05ff8bb4327572160a1",
+    "canonicalSha256": "073479f9beec4966c098119e06ee6f89d999fb9957be3c4f6b68b84893bdd843",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical operatingMargin.marginChange comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -954,7 +954,7 @@
   {
     "fixture": "fpi-ifrs-semiannual",
     "path": "fundamentalHistory.revenue.cagr",
-    "canonicalSha256": "92dabb616f5232cbe74f825f298a39d96f4a7fa0268f7b58e81849ba978f492c",
+    "canonicalSha256": "5542270029437d80b9795b3bebe760a831964b1ef1c07267c8fd7427875855b6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical revenue.cagr comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -1190,5 +1190,13 @@
     "legacySha256": "ccc3425735a567c9d4ee041101f6fc5b222070976982f2d124e5114d55549262",
     "kind": "filed-currency",
     "justification": "mara statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "nbis",
+    "path": "financialLens.Growth.metrics.continuingIncomeDeltaPercent",
+    "canonicalSha256": "ee53ef4e7bab083fc57988942ea69680e2e28d0482e4afcc07633796f37c6c9c",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "legacy-form-unsupported",
+    "justification": "nbis canonical Growth.metrics.continuingIncomeDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   }
 ]

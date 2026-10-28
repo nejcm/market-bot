@@ -6,6 +6,7 @@ import type {
   PeerImpliedRange,
   ValuationCompsRow,
 } from "../sources/extended-evidence/valuation-comps";
+import { CAPEX_SCOPE_CAVEAT } from "../sources/extended-evidence/financial-statement-definitions";
 import { compsCashLabel } from "../sources/extended-evidence/valuation-comps-contract";
 import type { MarketSnapshotPriceAsOf } from "../domain/market-data";
 import type { ResearchReport } from "../domain/report";
@@ -225,12 +226,23 @@ function inputScopeDisclosure(
     : `${prefix} (${first.scope}) for ${scoped.map(({ period }) => period).join(", ")}`;
 }
 
+function freeCashFlowScopeDisclosure(
+  observations: readonly HistoricalValuationObservation[],
+): string | undefined {
+  const disclosure = inputScopeDisclosure(
+    observations,
+    "freeCashFlow",
+    "P/FCF uses free cash flow proxy",
+  );
+  return disclosure === undefined ? undefined : `${disclosure}; ${CAPEX_SCOPE_CAVEAT}`;
+}
+
 export function valuationScopeDisclosure(
   observations: readonly HistoricalValuationObservation[],
 ): string | undefined {
   const parts = [
     inputScopeDisclosure(observations, "dilutedEps", "P/E uses diluted EPS"),
-    inputScopeDisclosure(observations, "freeCashFlow", "P/FCF uses free cash flow proxy"),
+    freeCashFlowScopeDisclosure(observations),
   ].filter((part) => part !== undefined);
   return parts.length === 0 ? undefined : parts.join("; ");
 }

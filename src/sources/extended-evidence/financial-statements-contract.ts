@@ -100,6 +100,7 @@ export type FinancialStatementSeriesKey =
   | "operatingIncome"
   | "netIncome"
   | "consolidatedNetIncome"
+  | "consolidatedContinuingIncome"
   | "continuingIncome"
   | "interestExpense"
   | "incomeTaxExpense"
@@ -288,6 +289,7 @@ export interface FinancialStatementsArtifact {
         | "operatingIncome"
         | "netIncome"
         | "consolidatedNetIncome"
+        | "consolidatedContinuingIncome"
         | "continuingIncome"
         | "interestExpense"
         | "incomeTaxExpense"
@@ -341,6 +343,7 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "operatingIncome",
   "netIncome",
   "consolidatedNetIncome",
+  "consolidatedContinuingIncome",
   "continuingIncome",
   "interestExpense",
   "incomeTaxExpense",
@@ -371,6 +374,10 @@ const LATER_SERIES: Readonly<
 > = {
   consolidatedNetIncome: {
     label: "Net income including noncontrolling interest",
+    statement: "incomeStatement",
+  },
+  consolidatedContinuingIncome: {
+    label: "Income from continuing operations including noncontrolling interest",
     statement: "incomeStatement",
   },
   continuingIncome: { label: "Income from continuing operations", statement: "incomeStatement" },

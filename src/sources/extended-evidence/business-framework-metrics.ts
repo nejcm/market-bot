@@ -32,6 +32,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  type MetricResult,
   type MetricSection,
   seriesNotFiled,
 } from "./metric-engine";
@@ -540,6 +541,27 @@ function currentRatio(ctx: MetricContext): MetricOutcome {
   };
 }
 
+// Pass-through lens values cite the lens metric's own inputs, never the lens bundle.
+function citedByLens(
+  lensMetrics: readonly MetricResult[],
+  id: string,
+  compute: (ctx: MetricContext) => MetricOutcome,
+): (ctx: MetricContext) => MetricOutcome {
+  return (ctx) => {
+    const outcome = compute(ctx);
+    const lens = lensMetrics.find(
+      (metric) => metric.id === id && metric.status === "value" && metric.sourceIds.length > 0,
+    );
+    if (lens === undefined && outcome.status === "value") {
+      return {
+        status: "missing",
+        reason: `no cited financial-lens ${outcome.inputs[0]?.label ?? id}`,
+      };
+    }
+    return { ...outcome, inputs: lens?.inputs ?? [] };
+  };
+}
+
 function valuationSupportability(ctx: MetricContext): string | number | undefined {
   return itemByCategory(ctx.evidence, "valuation")?.metrics?.valuationSupportability;
 }
@@ -588,6 +610,7 @@ function amount(id: FrameworkSeries, label: string): MetricDefinition {
 
 function sectionDefinitions(
   ctx: MetricContext,
+  lensMetrics: readonly MetricResult[],
 ): Readonly<Partial<Record<BusinessFrameworkSectionName, readonly MetricDefinition[]>>> {
   return {
     Business: [
@@ -664,18 +687,17 @@ function sectionDefinitions(
         label: "Current ratio",
         unit: "ratio",
         basis: "financial lens current assets / current liabilities at the latest balance sheet",
-        compute: currentRatio,
+        compute: citedByLens(lensMetrics, "currentRatio", currentRatio),
       },
       {
         id: "debtToMarketCap",
         label: "Debt/market cap",
         unit: "ratio-percent",
         basis: "financial lens debt / quote market cap",
-        compute: evidenceValue(
-          "financial-lens",
+        compute: citedByLens(
+          lensMetrics,
           "debtToMarketCap",
-          "debt/market cap",
-          "ratio-percent",
+          evidenceValue("financial-lens", "debtToMarketCap", "debt/market cap", "ratio-percent"),
         ),
       },
     ],
@@ -713,16 +735,14 @@ function sectionDefinitions(
         unit: "ratio",
         basis: "valuation evidence enterprise value / TTM revenue",
         applicable: depositoryEnterpriseValue,
-        compute: evidenceValue(
-          "valuation",
+        compute: citedByLens(
+          lensMetrics,
           "evToAnnualizedRevenue",
-          "EV/revenue",
-          "ratio",
-          (item) => {
+          evidenceValue("valuation", "evToAnnualizedRevenue", "EV/revenue", "ratio", (item) => {
             // TTM revenue: date by its end only, as the financial lens does.
             const { periodEnd } = keyPeriod(item, "revenue");
             return periodEnd === undefined ? {} : { periodEnd };
-          },
+          }),
         ),
       },
     ],
@@ -807,13 +827,16 @@ export function businessFrameworkMetricSectionId(name: BusinessFrameworkSectionN
 }
 
 // Framework metrics as one Metric Section per framework section; postures read their values.
-export function businessFrameworkMetrics(ctx: MetricContext): {
+export function businessFrameworkMetrics(
+  ctx: MetricContext,
+  lensMetrics: readonly MetricResult[] = [],
+): {
   readonly sections: Readonly<Partial<Record<BusinessFrameworkSectionName, MetricSection>>>;
   readonly postures: Readonly<Record<BusinessFrameworkSectionName, BusinessFrameworkPosture>>;
   readonly phase: BusinessLifecyclePhase;
   readonly sourceGaps: readonly SourceGap[];
 } {
-  const evaluated = Object.entries(sectionDefinitions(ctx)).map(
+  const evaluated = Object.entries(sectionDefinitions(ctx, lensMetrics)).map(
     ([name, definitions]) =>
       [
         name,

@@ -384,6 +384,7 @@ export async function collectEquityEnrichment(
     input.verifiedMarketSnapshot,
     input.fetchedAt,
     financialStatements,
+    financialLensResult.metricSections,
   );
   const statementSections = [
     capitalReturnSection({

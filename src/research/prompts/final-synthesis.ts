@@ -29,27 +29,20 @@ import { buildFreshWebSteering } from "./steering";
 import {
   rangeVolatilityReference,
   rangeReferenceBand,
-  rangeReferenceSessions,
+  rangeReferenceOutsideProbability,
   RANGE_REFERENCE_HORIZONS,
   RANGE_REFERENCE_OUTSIDE_PROBABILITY,
 } from "../range-volatility-reference";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
-import { rangeOutsideProbability } from "../../forecast/baseline";
 import { eventGrid, issuableGridEvents, type EventGridEvent } from "../event-grid";
 import { buildSourceList } from "../report-assembly";
 
 const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
 const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
-const RANGE_NEAR_BASE_RATE_LOWER_BOUND = (
-  RANGE_REFERENCE_OUTSIDE_PROBABILITY - NEAR_BASE_RATE_BAND
-).toFixed(2);
-const RANGE_NEAR_BASE_RATE_UPPER_BOUND = (
-  RANGE_REFERENCE_OUTSIDE_PROBABILITY + NEAR_BASE_RATE_BAND
-).toFixed(2);
 const MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE = 10;
 const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
-const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive near-base-rate band (${RANGE_NEAR_BASE_RATE_LOWER_BOUND}-${RANGE_NEAR_BASE_RATE_UPPER_BOUND} only for forecasts on a listed ±1σ range-reference band, ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} otherwise); choose claims the evidence can move clearly from their applicable base rates rather than shading a probability to just outside the band to clear it`;
+const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive near-base-rate band (within ${NEAR_BASE_RATE_BAND.toFixed(2)} of the stated base rate only for forecasts on a listed ±1σ range-reference band, ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} otherwise); choose claims the evidence can move clearly from their applicable base rates rather than shading a probability to just outside the band to clear it`;
 
 function finalReportShape(
   command: ResearchCommand,
@@ -207,6 +200,8 @@ function rangeAnchorHorizons(
   return RANGE_REFERENCE_HORIZONS.filter((horizon) => !gridHorizons.has(horizon));
 }
 
+const sessions = (count: number) => `${String(count)} session${count === 1 ? "" : "s"}`;
+
 function buildRangeVolatilityReference(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -224,10 +219,15 @@ function buildRangeVolatilityReference(
   const bands = rangeAnchorHorizons(command, collectedSources)
     .map((horizon) => {
       const [lo, hi] = rangeReferenceBand(reference, horizon)!;
-      return `+${String(horizon)}: [${lo.toFixed(2)}, ${hi.toFixed(2)}]`;
+      const scored = rangeReferenceOutsideProbability(snapshot, reference, horizon);
+      const baseRate =
+        scored === undefined
+          ? `base rate about ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} (Gaussian one-sigma)`
+          : `base rate about ${scored.probability.toFixed(2)} (Gaussian, assuming complete US exchange sessions it scores the close ${sessions(scored.sessions)} after that close)`;
+      return `+${String(horizon)}: [${lo.toFixed(2)}, ${hi.toFixed(2)}], ${baseRate}`;
     })
     .join("; ");
-  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returnCount)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. A close outside one of these ±1σ bands has a base rate of about ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} (Gaussian one-sigma) at each listed horizon. A range forecast on one of these bands uses ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} unless a catalyst inside its window, such as a confirmed earnings date or a provider-estimated earnings date explicitly labeled as estimated, is cited in that prediction's sourceIds; move off ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
+  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returnCount)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands with the base rate of a close outside each: ${bands}. A range forecast on one of these bands uses that band's base rate unless a catalyst inside its window, such as a confirmed earnings date or a provider-estimated earnings date explicitly labeled as estimated, is cited in that prediction's sourceIds; move off that base rate only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
 }
 
 function relativeGridNote(events: readonly EventGridEvent[]): string {
@@ -238,8 +238,6 @@ function relativeGridNote(events: readonly EventGridEvent[]): string {
   const [symbol, benchmark] = relative.subject.split(":");
   return ` The relative grid event is ${symbol!} vs ${benchmark!} at +${String(relative.horizonTradingDays)}, so a relative prediction needs another benchmark or another horizon.`;
 }
-
-const sessions = (count: number) => `${String(count)} session${count === 1 ? "" : "s"}`;
 
 // The grid is priced in the same response, so it costs no extra model call (ADR 0003).
 function buildEventGridInstruction(
@@ -256,15 +254,11 @@ function buildEventGridInstruction(
     if (snapshot === undefined || reference === undefined || "gap" in reference) {
       return `${event.id}: ${event.measurableAs}`;
     }
-    const [lo, hi] = rangeReferenceBand(reference, event.horizonTradingDays)!;
-    const elapsed = rangeReferenceSessions(snapshot, event.horizonTradingDays);
-    const probability =
-      elapsed === undefined
-        ? Number.NaN
-        : rangeOutsideProbability({ ...reference, lo, hi, horizon: elapsed });
-    const baseRate = Number.isFinite(probability)
-      ? `, and assuming complete US exchange sessions it scores the close ${sessions(elapsed!)} after that close, so a close outside it has a Gaussian base rate of about ${probability.toFixed(2)}`
-      : "";
+    const scored = rangeReferenceOutsideProbability(snapshot, reference, event.horizonTradingDays);
+    const baseRate =
+      scored === undefined
+        ? ""
+        : `, and assuming complete US exchange sessions it scores the close ${sessions(scored.sessions)} after that close, so a close outside it has a Gaussian base rate of about ${scored.probability.toFixed(2)}`;
     return `${event.id}: ${event.measurableAs}, the ±1σ band over ${sessions(event.horizonTradingDays)} around the ${snapshot.recentCloses.at(-1)!.date} reference close ${reference.spot.toFixed(2)}${baseRate}`;
   };
   const rows = events

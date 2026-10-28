@@ -31,6 +31,8 @@ interface OfficialIssuerIdentity {
   readonly symbol: string;
   readonly names: readonly string[];
   readonly hosts: ReadonlySet<string>;
+  readonly ciks: ReadonlySet<number>;
+  readonly filedDomains?: ReadonlySet<string>;
 }
 
 interface ConfirmationCandidate {
@@ -50,6 +52,21 @@ const EARNINGS_SUBJECT_PATTERN =
 const MAX_EVIDENCE_SPAN_CHARS = 600;
 // Hand-verified fallback for issuers whose SEC submissions omit website fields (ADR 0004).
 const ISSUER_IR_HOSTS_BY_CIK: ReadonlyMap<number, string> = new Map([[2488, "ir.amd.com"]]);
+const SEC_FILING_TEXT_ADAPTERS = ["sec-earnings-release-exhibit", "sec-filing-text"] as const;
+// ASCII-only token bounded by whitespace or ASCII punctuation, so no Unicode char ends a host early.
+const FILED_WWW_HOST_PATTERN =
+  /(?<=^|[\s!-,/:-@[-`{-~])[Ww]{3}\.([A-Za-z0-9.-]+)(?=$|[\s!-,/:-@[-`{-~])/gu;
+const SEC_ARCHIVE_CIK_PATH = /^\/Archives\/edgar\/data\/([0-9]+)\//u;
+// Other subdomains (community.*, forums) can carry third-party text.
+const ISSUER_SITE_SUBDOMAINS: ReadonlySet<string> = new Set([
+  "ir",
+  "investor",
+  "investors",
+  "media",
+  "news",
+  "newsroom",
+  "press",
+]);
 const OFFICIAL_EXCHANGE_DISCLOSURE_PATHS = [
   { host: "asx.com.au", path: /^\/asxpdf\//u },
   { host: "londonstockexchange.com", path: /^\/news-article\//u },
@@ -105,6 +122,13 @@ function normalizedHost(value: string): string | undefined {
 
 function hostMatches(candidate: string, official: string): boolean {
   return candidate === official || candidate.endsWith(`.${official}`);
+}
+
+function onFiledIssuerSite(host: string, domain: string): boolean {
+  return (
+    host === domain ||
+    (host.endsWith(`.${domain}`) && ISSUER_SITE_SUBDOMAINS.has(host.slice(0, -domain.length - 1)))
+  );
 }
 
 function normalizedName(value: string): string {
@@ -171,7 +195,64 @@ function submissionsIdentity(
       }
     }
   }
-  return { symbol: target, names: [...names], hosts };
+  return { symbol: target, names: [...names], hosts, ciks };
+}
+
+function issuerFilingText(
+  source: Source,
+  identity: OfficialIssuerIdentity,
+  snapshots: readonly RawSourceSnapshot[],
+): string | undefined {
+  const url = source.url === undefined ? undefined : parsedUrl(source.url);
+  const cik = url === undefined ? undefined : SEC_ARCHIVE_CIK_PATH.exec(url.pathname)?.[1];
+  if (
+    url?.protocol !== "https:" ||
+    url.hostname !== "www.sec.gov" ||
+    cik === undefined ||
+    !identity.ciks.has(Number(cik)) ||
+    source.provider !== "sec-edgar" ||
+    !sourceHasTickerAlias(source, identity.symbol)
+  ) {
+    return undefined;
+  }
+  // Raw ids are fetch-time stamps, so a shared id cannot say which filing the text is.
+  const snapshot = snapshots.find((candidate) => candidate.id === source.rawRef);
+  return snapshot !== undefined &&
+    snapshots.findLast((candidate) => candidate.id === source.rawRef) === snapshot &&
+    typeof snapshot.payload === "string" &&
+    snapshot.cacheStatus !== "stale-fallback" &&
+    snapshot.payloadCompacted !== true &&
+    SEC_FILING_TEXT_ADAPTERS.some((adapter) => snapshot.adapter.startsWith(adapter))
+    ? snapshot.payload
+    : undefined;
+}
+
+// Only `<ticker|full name>.<letters>` counts; anything else is ambiguous without a suffix list.
+function filedIssuerDomains(
+  identity: OfficialIssuerIdentity,
+  sources: readonly Source[],
+  snapshots: readonly RawSourceSnapshot[],
+): ReadonlySet<string> {
+  const labels = new Set(identity.names.map((name) => normalizedName(name).replaceAll(" ", "")));
+  if (identity.symbol.length >= 3) {
+    labels.add(identity.symbol.toLowerCase());
+  }
+  const domains = new Set<string>();
+  for (const source of sources) {
+    const text = issuerFilingText(source, identity, snapshots) ?? "";
+    for (const [, host = ""] of text.matchAll(FILED_WWW_HOST_PATTERN)) {
+      const [label, tld, ...rest] = host.toLowerCase().replace(/\.+$/u, "").split(".");
+      if (
+        rest.length === 0 &&
+        label !== undefined &&
+        labels.has(label) &&
+        /^(?:com|net|org|[a-z]{2})$/u.test(tld ?? "")
+      ) {
+        domains.add(`${label}.${tld}`);
+      }
+    }
+  }
+  return domains;
 }
 
 function dateLabels(date: string): readonly string[] {
@@ -322,7 +403,8 @@ function confirmationCandidate(input: {
   if (
     host !== undefined &&
     parsedUrl(source.url)?.protocol === "https:" &&
-    [...identity.hosts].some((officialHost) => hostMatches(host, officialHost))
+    ([...identity.hosts].some((officialHost) => hostMatches(host, officialHost)) ||
+      [...(identity.filedDomains ?? [])].some((domain) => onFiledIssuerSite(host, domain)))
   ) {
     return {
       source,
@@ -366,11 +448,15 @@ export function confirmEarningsDateFromOfficialSources(input: {
   ) {
     return setup;
   }
-  const identity = submissionsIdentity(
+  const submitted = submissionsIdentity(
     input.rawSnapshots,
     setup.event.symbol,
     input.instrumentIdentity,
   );
+  const identity = {
+    ...submitted,
+    filedDomains: filedIssuerDomains(submitted, input.sources, input.rawSnapshots),
+  };
   const [candidate] = input.sources
     .flatMap((source) => {
       const match = confirmationCandidate({

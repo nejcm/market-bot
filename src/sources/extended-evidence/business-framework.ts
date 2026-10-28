@@ -270,6 +270,7 @@ export function addBusinessFrameworkEvidence(
   verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined,
   generatedAt: string,
   statements?: FinancialStatementsArtifact,
+  lensSections: readonly MetricSection[] = [],
 ): BusinessFrameworkResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
@@ -288,12 +289,15 @@ export function addBusinessFrameworkEvidence(
     verifiedMarketSnapshot === undefined
       ? []
       : [verifiedSnapshotSourceId(verifiedMarketSnapshot.symbol)];
-  const metrics = businessFrameworkMetrics({
-    symbol: command.symbol,
-    ...(statements !== undefined ? { statements } : {}),
-    ...(extendedEvidence !== undefined ? { evidence: extendedEvidence } : {}),
-    asOf: generatedAt,
-  });
+  const metrics = businessFrameworkMetrics(
+    {
+      symbol: command.symbol,
+      ...(statements !== undefined ? { statements } : {}),
+      ...(extendedEvidence !== undefined ? { evidence: extendedEvidence } : {}),
+      asOf: generatedAt,
+    },
+    lensSections.flatMap((section) => section.metrics),
+  );
   const sectionSourceIds: Readonly<Record<BusinessFrameworkSectionName, readonly string[]>> = {
     Business: secSourceIds,
     Phase: [...new Set([...secSourceIds, ...yahooSourceIds])],

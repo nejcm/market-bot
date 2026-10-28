@@ -786,6 +786,7 @@ export function assembleResearchReportWithRelocations(
     modelPredictions: researchGatedPredictions.predictions,
     modelEventGrid: payload.eventGrid,
     knownSourceIds: new Set(sources.map((source) => source.id)),
+    generatedAt,
   });
   const forecastGaps = [
     ...(collectedSources.earningsSetup !== undefined &&

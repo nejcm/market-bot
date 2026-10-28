@@ -504,10 +504,10 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
       request.url,
       request.adapter,
       options.fetchedAt,
-      options.sourceTimeoutMs,
+      request.timeoutMs ?? options.sourceTimeoutMs,
       request.fetch?.(options.fetchImpl) ?? options.fetchImpl,
       request.maxResponseBytes ?? DEFAULT_MAX_SOURCE_RESPONSE_BYTES,
-      options.retryDelaysMs,
+      request.retryDelaysMs ?? options.retryDelaysMs,
       request.init,
     );
   };
@@ -517,10 +517,10 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
       request.url,
       request.adapter,
       options.fetchedAt,
-      options.sourceTimeoutMs,
+      request.timeoutMs ?? options.sourceTimeoutMs,
       request.fetch?.(options.fetchImpl) ?? options.fetchImpl,
       request.maxResponseBytes ?? DEFAULT_MAX_SOURCE_RESPONSE_BYTES,
-      options.retryDelaysMs,
+      request.retryDelaysMs ?? options.retryDelaysMs,
       request.init,
     );
   };

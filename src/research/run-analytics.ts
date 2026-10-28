@@ -22,6 +22,7 @@ import { parseObservableExpression } from "../forecast/observable";
 import {
   rangeVolatilityReference,
   rangeReferenceBand,
+  rangeReferenceOutsideProbability,
   RANGE_REFERENCE_OUTSIDE_PROBABILITY,
 } from "./range-volatility-reference";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
@@ -333,7 +334,8 @@ function predictionReferenceProbability(
     }
     const band = rangeReferenceBand(reference, expression.horizonTradingDays);
     return band !== undefined && expression.lo === band[0] && expression.hi === band[1]
-      ? RANGE_REFERENCE_OUTSIDE_PROBABILITY
+      ? (rangeReferenceOutsideProbability(snapshot, reference, expression.horizonTradingDays)
+          ?.probability ?? RANGE_REFERENCE_OUTSIDE_PROBABILITY)
       : 0.5;
   } catch {
     return 0.5;

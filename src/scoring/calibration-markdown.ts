@@ -115,6 +115,12 @@ function renderPairedSkillSection(lines: string[], paired: PairedSkillSummary | 
     "",
     `Excluded without a Forecast Baseline: ${String(paired.excludedWithoutBaselineCount)}`,
     "",
+    ...(paired.excludedLegacyRangeBaselineCount === undefined
+      ? []
+      : [
+          `Range events excluded on the superseded ewma-0.94-w60-v1 baseline: ${String(paired.excludedLegacyRangeBaselineCount)}`,
+          "",
+        ]),
     ...(paired.nextReviewDate === undefined
       ? []
       : [

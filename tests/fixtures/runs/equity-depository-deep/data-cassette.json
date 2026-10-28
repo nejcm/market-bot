@@ -150,6 +150,13 @@
         "content-type": "application/json"
       },
       "body": "{\"error\":\"Fixture provider unavailable\"}"
+    },
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/QQQ?events=div%2Csplits&interval=1d&period1=1627776000&period2=1786838400": {
+      "status": 503,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Fixture provider unavailable\"}"
     }
   }
 }

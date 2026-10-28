@@ -1105,3 +1105,136 @@ describe("checked-in issuer IR host fallback", () => {
     expect(result?.event.eventDateStatus).toBe("provider-estimated");
   });
 });
+
+const exhibitRawId = "raw-sec-earnings-release-exhibit-amd";
+
+function amdExhibit(text: string, id = exhibitRawId): RawSourceSnapshot {
+  return {
+    id,
+    adapter: "sec-earnings-release-exhibit",
+    fetchedAt: "2026-10-10T12:00:00.000Z",
+    payload: `<p>Media: www.we-worldwide.com. Filings at www.sec.gov. ${text}</p>`,
+  };
+}
+
+function amdEightK(overrides: Partial<Source> = {}): Source {
+  return {
+    id: "extended-sec-edgar-amd-8k",
+    title: "AMD 8-K",
+    url: "https://www.sec.gov/Archives/edgar/data/2488/000000248826000121/q22026991.htm",
+    fetchedAt: "2026-10-10T12:00:00.000Z",
+    kind: "extended-evidence",
+    assetClass: "equity",
+    symbol: "AMD",
+    provider: "sec-edgar",
+    rawRef: exhibitRawId,
+    identity: { aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AMD" }] },
+    ...overrides,
+  };
+}
+
+const newsroomUrl = "https://newsroom.amd.com/news/earnings-date-3q-2026/";
+const amdFiling = amdExhibit("Learn more at&#8239;www.amd.com.");
+
+function confirmWithFiling(
+  url: string,
+  input: {
+    readonly exhibits?: readonly RawSourceSnapshot[];
+    readonly filingSource?: Source;
+    readonly submissions?: readonly RawSourceSnapshot[];
+  } = {},
+): EarningsSetupCollected | undefined {
+  return confirmEarningsDateFromOfficialSources({
+    setup: amdSetup,
+    sources: [amdSource(url), input.filingSource ?? amdEightK()],
+    rawSnapshots: [
+      ...(input.submissions ?? [amdSubmissions()]),
+      ...(input.exhibits ?? [amdFiling]),
+    ],
+    analysisAsOf: "2026-10-10T12:00:00.000Z",
+  });
+}
+
+function statusWithFiling(url: string, input: Parameters<typeof confirmWithFiling>[1] = {}) {
+  return confirmWithFiling(url, input)?.event.eventDateStatus;
+}
+
+describe("issuer domain from the issuer's own SEC filing text", () => {
+  test("confirms from an issuer newsroom subdomain of the filed domain", () => {
+    expect(confirmWithFiling(newsroomUrl)?.event.dateConfirmation).toMatchObject({
+      sourceId: "web-amd-earnings",
+      sourceType: "issuer-press-release",
+      sourceUrl: newsroomUrl,
+      issuerIdentity: { symbol: "AMD", matchedBy: "official-host" },
+    });
+    expect(statusWithFiling("https://www.amd.com/en/newsroom/q3")).toBe("issuer-confirmed");
+  });
+
+  test("rejects other subdomains, lookalikes, and plain HTTP", () => {
+    for (const url of [
+      "https://community.amd.com/t5/q3-earnings",
+      "https://x.newsroom.amd.com/q3",
+      "https://newsroom.amd.com.evil.example/q3",
+      "https://evilamd.com/q3",
+      "http://newsroom.amd.com/q3",
+    ]) {
+      expect(statusWithFiling(url)).toBe("provider-estimated");
+    }
+  });
+
+  test("ignores filed domains that do not name the issuer exactly", () => {
+    for (const [domain, url] of [
+      ["www.micro.example", "https://news.micro.example/results"],
+      ["www.amd.com.evil.net", "https://news.amd.com.evil.net/results"],
+      ["www.a-m-d.example", "https://news.a-m-d.example/results"],
+      ["www.amd.xn--p1ai", "https://amd.xn/results"],
+      ["www.amd.xn--p1ai", "https://amd.xn--p1ai/results"],
+      ["www.amd.co.uk", "https://news.amd.co.uk/results"],
+      ["www.we-worldwide.com", "https://news.we-worldwide.com/amd-q3"],
+      ["www.sec.gov", "https://www.sec.gov/amd-q3"],
+      ["www.amd.com\u3002evil.net", newsroomUrl],
+      ["www.amd.com\u00E9", newsroomUrl],
+      ["www.amd.com.x\u3002y", newsroomUrl],
+      ["\u00E9www.amd.com", newsroomUrl],
+      ["www.amd.example", "https://news.amd.example/results"],
+    ] as const) {
+      expect(statusWithFiling(url, { exhibits: [amdExhibit(`See ${domain} for more.`)] })).toBe(
+        "provider-estimated",
+      );
+    }
+  });
+
+  test("ignores filing text not bound to the issuer's CIK", () => {
+    const unbound: Parameters<typeof confirmWithFiling>[1][] = [
+      { filingSource: (({ rawRef: _rawRef, ...rest }) => rest)(amdEightK()) },
+      { filingSource: amdEightK({ rawRef: "raw-other" }) },
+      {
+        filingSource: amdEightK({
+          url: "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000001/ex99.htm",
+        }),
+      },
+      {
+        filingSource: amdEightK({ url: "https://www.sec.gov.evil.example/edgar/data/2488/x.htm" }),
+      },
+      { filingSource: amdEightK({ provider: "exa" }) },
+      { filingSource: amdEightK({ symbol: "NVDA" }) },
+      { submissions: [] },
+      { submissions: [amdSubmissions({ cik: "0000000001" })] },
+      { exhibits: [amdFiling, amdExhibit("Unrelated filing.")] },
+      { exhibits: [{ ...amdFiling, cacheStatus: "stale-fallback" }] },
+      { exhibits: [{ ...amdFiling, payloadCompacted: true }] },
+    ];
+    for (const input of unbound) {
+      expect(statusWithFiling(newsroomUrl, input)).toBe("provider-estimated");
+    }
+  });
+
+  test("stays provider-estimated when no filing names an issuer domain", () => {
+    expect(statusWithFiling(newsroomUrl, { exhibits: [amdExhibit("")] })).toBe(
+      "provider-estimated",
+    );
+    expect(confirm(amdSubmissions(), amdSource(newsroomUrl))?.event.eventDateStatus).toBe(
+      "provider-estimated",
+    );
+  });
+});

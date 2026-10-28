@@ -43,6 +43,7 @@ function closes(entries: Record<string, readonly BaselineClose[]>) {
 }
 
 const range = (expression: string) => parseObservableExpression(expression);
+const exactHorizon = (_subject: string, _infoCutoff: string, horizon: number) => horizon;
 
 // Alternating closes with every close from day 40 on scaled by factor: one jump of log(factor).
 function jumped(factor: number): BaselineClose[] {
@@ -81,12 +82,16 @@ describe("Forecast Baseline estimator", () => {
 
   test("computes range, direction and relative baselines from split-adjusted closes", () => {
     const history = closes({ AAPL: alternatingCloses(61), SPY: alternatingCloses(61, 500) });
-    expect(forecastBaseline(range("close(AAPL, +5) outside [97.79, 102.26]"), history)).toEqual({
+    expect(
+      forecastBaseline(range("close(AAPL, +5) outside [97.79, 102.26]"), history, exactHorizon),
+    ).toEqual({
       status: "computed",
       probability: 0.3176,
       infoCutoff: day(60),
     });
-    expect(forecastBaseline(range("close(AAPL, +5) > close(AAPL, 0)"), history)).toEqual({
+    expect(
+      forecastBaseline(range("close(AAPL, +5) > close(AAPL, 0)"), history, exactHorizon),
+    ).toEqual({
       status: "computed",
       probability: 0.5,
       infoCutoff: day(60),
@@ -95,6 +100,7 @@ describe("Forecast Baseline estimator", () => {
       forecastBaseline(
         range("close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)"),
         history,
+        exactHorizon,
       ),
     ).toEqual({ status: "computed", probability: 0.5, infoCutoff: day(60) });
   });
@@ -105,21 +111,24 @@ describe("Forecast Baseline estimator", () => {
     );
     const flat = Array.from({ length: 61 }, (_, index) => ({ date: day(index), close: 100 }));
     const expression = range("close(AAPL, +1) outside [99, 101]");
-    expect(forecastBaseline(expression, closes({ AAPL: alternatingCloses(60) }))).toEqual({
+    expect(
+      forecastBaseline(expression, closes({ AAPL: alternatingCloses(60) }), exactHorizon),
+    ).toEqual({
       status: "unavailable",
       symbol: "AAPL",
       reason: "short-history",
     });
-    expect(forecastBaseline(expression, closes({ AAPL: split }))).toMatchObject({
+    expect(forecastBaseline(expression, closes({ AAPL: split }), exactHorizon)).toMatchObject({
       reason: "split-signature",
     });
-    expect(forecastBaseline(expression, closes({ AAPL: flat }))).toMatchObject({
+    expect(forecastBaseline(expression, closes({ AAPL: flat }), exactHorizon)).toMatchObject({
       reason: "zero-volatility",
     });
     expect(
       forecastBaseline(
         range("close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)"),
         closes({ AAPL: alternatingCloses(61) }),
+        exactHorizon,
       ),
     ).toEqual({ status: "unavailable", symbol: "SPY", reason: "missing-closes" });
   });
@@ -128,10 +137,19 @@ describe("Forecast Baseline estimator", () => {
     const earningsDay = jumped(1.2);
     const expression = range("close(AAPL, +1) outside [99, 101]");
     expect(
-      forecastBaseline(expression, closes({ AAPL: earningsDay }), splitDates({ AAPL: [] })),
+      forecastBaseline(
+        expression,
+        closes({ AAPL: earningsDay }),
+        exactHorizon,
+        splitDates({ AAPL: [] }),
+      ),
     ).toMatchObject({ status: "computed" });
     expect(
-      forecastBaseline(range("close(AAPL, +1) outside [99, 101]"), closes({ AAPL: jumped(1.05) })),
+      forecastBaseline(
+        range("close(AAPL, +1) outside [99, 101]"),
+        closes({ AAPL: jumped(1.05) }),
+        exactHorizon,
+      ),
     ).toMatchObject({
       status: "computed",
     });
@@ -140,7 +158,9 @@ describe("Forecast Baseline estimator", () => {
   test("flags unadjusted forward and reverse splits, alone or with a ±10% split-day move", () => {
     const expression = range("close(AAPL, +1) outside [99, 101]");
     for (const factor of [0.8, 0.75, 2 / 3, 0.5, 1 / 3, 5, 10, 0.5 * 1.1, 0.5 * 0.9, 5 * 1.1]) {
-      expect(forecastBaseline(expression, closes({ AAPL: jumped(factor) }))).toMatchObject({
+      expect(
+        forecastBaseline(expression, closes({ AAPL: jumped(factor) }), exactHorizon),
+      ).toMatchObject({
         reason: "split-signature",
       });
     }
@@ -149,16 +169,24 @@ describe("Forecast Baseline estimator", () => {
   test("provider split metadata separates a real halving from a misadjusted split", () => {
     const expression = range("close(AAPL, +1) outside [99, 101]");
     const halving = closes({ AAPL: jumped(0.5) });
-    expect(forecastBaseline(expression, halving, splitDates({ AAPL: [] }))).toMatchObject({
+    expect(
+      forecastBaseline(expression, halving, exactHorizon, splitDates({ AAPL: [] })),
+    ).toMatchObject({
       status: "computed",
     });
-    expect(forecastBaseline(expression, halving, splitDates({ AAPL: [day(10)] }))).toMatchObject({
+    expect(
+      forecastBaseline(expression, halving, exactHorizon, splitDates({ AAPL: [day(10)] })),
+    ).toMatchObject({
       status: "computed",
     });
-    expect(forecastBaseline(expression, halving, splitDates({ AAPL: [day(41)] }))).toMatchObject({
+    expect(
+      forecastBaseline(expression, halving, exactHorizon, splitDates({ AAPL: [day(41)] })),
+    ).toMatchObject({
       reason: "split-signature",
     });
-    expect(forecastBaseline(expression, halving, splitDates({ SPY: [] }))).toMatchObject({
+    expect(
+      forecastBaseline(expression, halving, exactHorizon, splitDates({ SPY: [] })),
+    ).toMatchObject({
       reason: "split-signature",
     });
   });
@@ -170,18 +198,28 @@ describe("Forecast Baseline estimator", () => {
         index >= 10 ? { ...bar, close: bar.close * 2 } : bar,
       ),
     });
-    expect(forecastBaseline(expression, twoJumps, splitDates({ AAPL: [day(40)] }))).toMatchObject({
+    expect(
+      forecastBaseline(expression, twoJumps, exactHorizon, splitDates({ AAPL: [day(40)] })),
+    ).toMatchObject({
       reason: "split-signature",
     });
-    expect(forecastBaseline(expression, twoJumps)).toMatchObject({ reason: "split-signature" });
-    expect(forecastBaseline(expression, twoJumps, splitDates({ AAPL: [] }))).toMatchObject({
+    expect(forecastBaseline(expression, twoJumps, exactHorizon)).toMatchObject({
+      reason: "split-signature",
+    });
+    expect(
+      forecastBaseline(expression, twoJumps, exactHorizon, splitDates({ AAPL: [] })),
+    ).toMatchObject({
       status: "computed",
     });
   });
 
   test("a non-positive range bound has zero tail probability, not NaN", () => {
     const history = closes({ AAPL: alternatingCloses(61) });
-    const result = forecastBaseline(range("close(AAPL, +5) outside [-1, 102.26]"), history);
+    const result = forecastBaseline(
+      range("close(AAPL, +5) outside [-1, 102.26]"),
+      history,
+      exactHorizon,
+    );
     expect(result).toMatchObject({ status: "computed" });
     expect(result.status === "computed" && Number.isFinite(result.probability)).toBe(true);
   });
@@ -190,7 +228,11 @@ describe("Forecast Baseline estimator", () => {
     const series = alternatingCloses(61);
     const shuffled = [series.at(-1)!, ...series.slice(0, -1)];
     expect(
-      forecastBaseline(range("close(AAPL, +1) outside [99, 101]"), closes({ AAPL: shuffled })),
+      forecastBaseline(
+        range("close(AAPL, +1) outside [99, 101]"),
+        closes({ AAPL: shuffled }),
+        exactHorizon,
+      ),
     ).toMatchObject({ infoCutoff: day(60) });
   });
 
@@ -203,8 +245,19 @@ describe("Forecast Baseline estimator", () => {
       forecastBaseline(
         range("close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)"),
         closes({ AAPL: alternatingCloses(61), SPY: staleSpy }),
+        exactHorizon,
       ),
     ).toEqual({ status: "unavailable", symbol: "SPY", reason: "stale-closes" });
+  });
+
+  test("declares a range baseline whose scored sessions are unknown", () => {
+    expect(
+      forecastBaseline(
+        range("close(AAPL, +5) outside [97.79, 102.26]"),
+        closes({ AAPL: alternatingCloses(61) }),
+        () => undefined,
+      ),
+    ).toEqual({ status: "unavailable", symbol: "AAPL", reason: "unscored-sessions" });
   });
 
   test("conditional and volatility events have no baseline", () => {
@@ -213,9 +266,10 @@ describe("Forecast Baseline estimator", () => {
       forecastBaseline(
         range("if (close(AAPL, +1) > close(AAPL, 0)) then (close(AAPL, +5) > close(AAPL, 0))"),
         history,
+        exactHorizon,
       ),
     ).toEqual({ status: "unsupported" });
-    expect(forecastBaseline(range("iv(AAPL, +5) > 0.35"), history)).toEqual({
+    expect(forecastBaseline(range("iv(AAPL, +5) > 0.35"), history, exactHorizon)).toEqual({
       status: "unsupported",
     });
   });
@@ -249,6 +303,7 @@ function gridSources(overrides: { readonly spy?: boolean } = {}) {
   });
 }
 
+const AFTER_CLOSE = `${day(60)}T21:00:00.000Z`;
 const KNOWN = new Set(["verified-snapshot-AAPL", "price-history-AAPL", "price-history-SPY"]);
 
 describe("Event Grid", () => {
@@ -269,6 +324,7 @@ describe("Event Grid", () => {
       ],
       modelEventGrid: grid.events.map(({ id }) => ({ id, probability: 0.4 })),
       knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
     });
     expect(book.gaps).toEqual([]);
     expect(book.predictions.map(({ id, origin }) => [id, origin])).toEqual([
@@ -300,6 +356,7 @@ describe("Event Grid", () => {
         { id: "grid-range-20", probability: "0.3" },
       ],
       knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
     });
     expect(book.predictions.map(({ id }) => id)).toEqual(["grid-range-1"]);
     expect(book.gaps.map(({ source, message }) => `${source}: ${message}`)).toEqual([
@@ -341,6 +398,7 @@ describe("Event Grid", () => {
         { id: "grid-relative-5", probability: 7 },
       ],
       knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
     });
     expect(
       book.predictions.map(({ id, origin, probability }) => [id, origin, probability]),
@@ -367,6 +425,7 @@ describe("Event Grid", () => {
       modelPredictions: [prediction({ id: "grid-range-1" })],
       modelEventGrid: [{ id: "grid-range-1", probability: 0.3 }],
       knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
     });
     expect(book.predictions.map(({ id, origin }) => [id, origin])).toEqual([
       ["grid-range-1", "model"],
@@ -382,6 +441,7 @@ describe("Event Grid", () => {
       modelPredictions: [prediction({ kind: "relative", measurableAs: relative5.measurableAs })],
       modelEventGrid: [],
       knownSourceIds: new Set(["verified-snapshot-AAPL"]),
+      generatedAt: AFTER_CLOSE,
     });
     expect(book.predictions.map(({ id, origin }) => [id, origin])).toEqual([["pred-1", "model"]]);
     expect(book.gaps.map(({ message }) => message)).toContain(
@@ -402,8 +462,114 @@ describe("Event Grid", () => {
       modelPredictions: [],
       modelEventGrid: [{ id: "grid-range-1", probability: 0.3 }],
       knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
     });
     expect(book.predictions.find(({ id }) => id === "grid-range-1")?.infoCutoff).toBe(day(61));
+  });
+
+  test.each([
+    ["after the close", AFTER_CLOSE, 0.3176],
+    ["intraday the next session", `${day(61)}T15:00:00.000Z`, 0.3616],
+    ["on the weekend", `${day(65)}T12:00:00.000Z`, 0.4797],
+  ])("scales the range baseline over the sessions scored for a run %s", (_, generatedAt, p) => {
+    const book = issueForecastBook({
+      command: EQUITY,
+      collectedSources: gridSources(),
+      modelPredictions: [
+        prediction({
+          id: "r5",
+          kind: "range",
+          measurableAs: "close(AAPL, +5) outside [97.79, 102.26]",
+        }),
+      ],
+      modelEventGrid: [],
+      knownSourceIds: KNOWN,
+      generatedAt,
+    });
+    expect(book.predictions.find(({ id }) => id === "r5")).toMatchObject({
+      baselineProbability: p,
+      infoCutoff: day(60),
+    });
+  });
+
+  test("counts calendar days for crypto, which scores the UTC day after the run date", () => {
+    const bars = alternatingCloses(61).map((bar) => ({ ...bar, completed: true }));
+    const book = issueForecastBook({
+      command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      collectedSources: collectedSources({
+        priceHistory: [
+          { symbol: "BTC", sourceId: "price-history-BTC", priceMode: "split-adjusted-close", bars },
+        ],
+      }),
+      modelPredictions: [
+        prediction({
+          id: "r5",
+          kind: "range",
+          measurableAs: "close(BTC, +5) outside [97.79, 102.26]",
+        }),
+      ],
+      modelEventGrid: [],
+      knownSourceIds: new Set(["price-history-BTC"]),
+      generatedAt: `${day(62)}T09:00:00.000Z`,
+    });
+    expect(book.predictions[0]).toMatchObject({ baselineProbability: 0.3983 });
+  });
+
+  test("declares the range baseline when the scored sessions are unknown", () => {
+    const sources = gridSources();
+    const book = issueForecastBook({
+      command: EQUITY,
+      collectedSources: {
+        ...sources,
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          latestSessionStatus: "unverified",
+          recentCloses: alternatingCloses(30).map(({ date, close }) => ({ date, close })),
+        }),
+        priceHistory: [
+          ...sources.priceHistory!,
+          {
+            symbol: "RY.TO",
+            sourceId: "price-history-RY.TO",
+            priceMode: "split-adjusted-close",
+            bars: alternatingCloses(61).map((bar) => ({ ...bar, completed: true })),
+          },
+        ],
+      },
+      modelPredictions: [
+        prediction({
+          id: "r1",
+          kind: "range",
+          measurableAs: "close(AAPL, +5) outside [97.79, 102.26]",
+        }),
+        prediction({
+          id: "r2",
+          kind: "range",
+          measurableAs: "close(RY.TO, +5) outside [97.79, 102.26]",
+        }),
+        prediction({ id: "d1", measurableAs: "close(AAPL, +5) > close(AAPL, 0)" }),
+      ],
+      modelEventGrid: [],
+      knownSourceIds: new Set([...KNOWN, "price-history-RY.TO"]),
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(book.predictions.find(({ id }) => id === "r1")).not.toHaveProperty(
+      "baselineProbability",
+    );
+    expect(book.predictions.find(({ id }) => id === "r2")).not.toHaveProperty(
+      "baselineProbability",
+    );
+    expect(book.predictions.find(({ id }) => id === "d1")).toMatchObject({
+      baselineProbability: 0.5,
+    });
+    const gaps = book.gaps.map(({ source, message }) => `${source}: ${message}`);
+    for (const [id, symbol] of [
+      ["r1", "AAPL"],
+      ["r2", "RY.TO"],
+    ]) {
+      expect(gaps).toContain(
+        `forecast-baseline: Forecast Baseline omitted for ${id!}: the sessions scoring spans after its latest close are unknown (non-US listing or unverified latest session) for ${symbol!}`,
+      );
+    }
   });
 
   test("omits the baseline with a declared gap when the benchmark is missing", () => {
@@ -413,6 +579,7 @@ describe("Event Grid", () => {
       modelPredictions: [],
       modelEventGrid: [{ id: "grid-relative-5", probability: 0.5 }],
       knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
     });
     const relative = book.predictions.find(({ id }) => id === "grid-relative-5");
     expect(relative).toBeDefined();

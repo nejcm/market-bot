@@ -66,6 +66,8 @@ const FIXTURE_NAMES = [
 const CHART_KEY_FRAGMENT = "/v8/finance/chart/";
 const SEED = 17;
 const BENCHMARK_SEED = 18;
+const QQQ_SEED = 19;
+const BENCHMARK_SYMBOLS = ["SPY", "QQQ"] as const;
 const DAILY_SIGMA = 0.0155;
 const TERMINAL_CLOSE = 216.6;
 const BAR_COUNT = 90;
@@ -245,12 +247,18 @@ function assertAcceptance(series: PriceSeries, statistics: AcceptanceStatistics)
 function chartEntry(
   cassette: DataCassette,
   fixtureName: string,
-  symbol: "issuer" | "SPY",
+  symbol: "issuer" | (typeof BENCHMARK_SYMBOLS)[number],
 ): readonly [string, CassetteEntry] {
-  const matches = Object.entries(cassette.entries).filter(
-    ([key]) =>
-      key.includes(CHART_KEY_FRAGMENT) && key.includes("/chart/SPY?") === (symbol === "SPY"),
-  );
+  const chartSymbol = (key: string) => key.split(CHART_KEY_FRAGMENT)[1]?.split("?")[0];
+  const matches = Object.entries(cassette.entries).filter(([key]) => {
+    const keySymbol = chartSymbol(key);
+    if (!key.includes(CHART_KEY_FRAGMENT) || keySymbol === undefined) {
+      return false;
+    }
+    return symbol === "issuer"
+      ? !BENCHMARK_SYMBOLS.some((benchmark) => benchmark === keySymbol)
+      : keySymbol === symbol;
+  });
   invariant(matches.length === 1, `${fixtureName} must contain exactly one ${symbol} chart entry`);
   const [match] = matches;
   invariant(match !== undefined, `${fixtureName} Yahoo chart entry is missing`);
@@ -296,13 +304,21 @@ function formatPercent(value: number): string {
 
 const series = generatePriceSeries(SEED);
 const benchmarkSeries = generatePriceSeries(BENCHMARK_SEED);
+const qqqSeries = generatePriceSeries(QQQ_SEED);
 const statistics = acceptanceStatistics(series.close);
 assertAcceptance(series, statistics);
 assertAcceptance(benchmarkSeries, acceptanceStatistics(benchmarkSeries.close));
-invariant(
-  series.close.some((value, index) => value !== benchmarkSeries.close[index]),
-  "Benchmark price history must differ from the issuer history",
-);
+assertAcceptance(qqqSeries, acceptanceStatistics(qqqSeries.close));
+for (const [left, right] of [
+  [series, benchmarkSeries],
+  [series, qqqSeries],
+  [benchmarkSeries, qqqSeries],
+] as const) {
+  invariant(
+    left.close.some((value, index) => value !== right.close[index]),
+    "Issuer, SPY and QQQ price histories must all differ",
+  );
+}
 
 const fixtures = await Promise.all(
   FIXTURE_NAMES.map(async (fixtureName) => {
@@ -327,6 +343,7 @@ await Promise.all(
     for (const [symbol, prices] of [
       ["issuer", series],
       ["SPY", benchmarkSeries],
+      ["QQQ", qqqSeries],
     ] as const) {
       const [, existingEntry] = chartEntry(cassette, fixtureName, symbol);
       const encodedExistingBody = JSON.stringify(existingEntry.body);
@@ -347,6 +364,7 @@ process.stdout.write(
   `${[
     `seed: ${String(SEED)}`,
     `benchmark seed: ${String(BENCHMARK_SEED)}`,
+    `QQQ seed: ${String(QQQ_SEED)}`,
     `annualized sigma: ${formatPercent(statistics.annualizedSigma)}`,
     `max single-session move: ${formatPercent(statistics.maxSingleSessionMove)}`,
     `5-session sigma: ${formatPercent(statistics.fiveSessionSigma)}`,

@@ -1,7 +1,8 @@
 import type { VerifiedMarketSnapshot } from "../domain/market-data";
+import type { AssetClass } from "../domain/job-type";
 import type { SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
-import { hasSplitSignature } from "../forecast/baseline";
+import { hasSplitSignature, rangeOutsideProbability } from "../forecast/baseline";
 import { isExchangeTradingDay } from "../scoring/exchange-calendar";
 import { isUsListing } from "../sources/instrument-capability";
 
@@ -58,26 +59,59 @@ export function rangeReferenceBand(
 
 const ymd = (time: number) => new Date(time).toISOString().slice(0, 10);
 
-// The resolver counts +horizon from the first US session on or after the run date (resolver.ts).
-export function rangeReferenceSessions(
-  snapshot: VerifiedMarketSnapshot,
+// The resolver counts +horizon from the first US session on or after the run date (resolver.ts);
+// Crypto scores the UTC calendar day +horizon after the run date (scoring policy v3).
+export function scoredSessions(
+  instrument: { readonly symbol: string; readonly assetClass: AssetClass },
+  referenceDate: string,
+  runDate: string,
   horizon: number,
 ): number | undefined {
-  const referenceDate = snapshot.recentCloses.at(-1)?.date;
-  // An unverified latest session moves the scoring origin before the reference close.
-  if (
-    referenceDate === undefined ||
-    snapshot.latestSessionStatus === "unverified" ||
-    !isUsListing(snapshot.symbol)
-  ) {
+  if (instrument.assetClass === "crypto") {
+    return horizon + Math.max(0, (Date.parse(runDate) - Date.parse(referenceDate)) / 86_400_000);
+  }
+  if (!isUsListing(instrument.symbol)) {
     return undefined;
   }
   let lag = 0;
-  for (let day = Date.parse(`${referenceDate}T00:00:00Z`); ymd(day) < snapshot.analysisDate; ) {
+  for (let day = Date.parse(`${referenceDate}T00:00:00Z`); ymd(day) < runDate; ) {
     do {
       day += 86_400_000;
     } while (!isExchangeTradingDay(new Date(day)));
     lag += 1;
   }
   return horizon + lag;
+}
+
+export function rangeReferenceSessions(
+  snapshot: VerifiedMarketSnapshot,
+  horizon: number,
+): number | undefined {
+  const referenceDate = snapshot.recentCloses.at(-1)?.date;
+  // An unverified latest session moves the scoring origin before the reference close.
+  return referenceDate === undefined || snapshot.latestSessionStatus === "unverified"
+    ? undefined
+    : scoredSessions(snapshot, referenceDate, snapshot.analysisDate, horizon);
+}
+
+// Gaussian outside-band rate over the sessions scoring spans; undefined when that count is unknown.
+export function rangeReferenceOutsideProbability(
+  snapshot: VerifiedMarketSnapshot,
+  reference: { readonly sigma: number; readonly spot: number },
+  horizon: number,
+): { readonly probability: number; readonly sessions: number } | undefined {
+  const band = rangeReferenceBand(reference, horizon);
+  const sessions = rangeReferenceSessions(snapshot, horizon);
+  if (band === undefined || sessions === undefined) {
+    return undefined;
+  }
+  const probability = rangeOutsideProbability({
+    ...reference,
+    lo: band[0],
+    hi: band[1],
+    horizon: sessions,
+  });
+  return Number.isFinite(probability)
+    ? { probability: Number(probability.toFixed(2)), sessions }
+    : undefined;
 }

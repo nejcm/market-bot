@@ -107,17 +107,17 @@ describe("range volatility reference", () => {
     const instruction = reference(rangeReferenceCloses(21));
 
     expect(instruction).toMatch(
-      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+10: /u,
+      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands with the base rate of a close outside each: \+10: /u,
     );
     expect(instruction).toMatch(
-      /±1σ close bands \+10: \[[\d.]+, [\d.]+\]\. A close outside one of these ±1σ bands has a base rate of about 0\.32 \(Gaussian one-sigma\) at each listed horizon\. A range forecast on one of these bands uses 0\.32 unless a catalyst inside its window/u,
+      /±1σ close bands with the base rate of a close outside each: \+10: \[[\d.]+, [\d.]+\], base rate about 0\.32 \(Gaussian, assuming complete US exchange sessions it scores the close 10 sessions after that close\)\. A range forecast on one of these bands uses that band's base rate unless a catalyst inside its window/u,
     );
     expect(instruction).toContain("cited in that prediction's sourceIds");
     expect(instruction).toContain(
       "provider-estimated earnings date explicitly labeled as estimated",
     );
     expect(instruction).toContain(
-      "near-base-rate band (0.22-0.42 only for forecasts on a listed ±1σ range-reference band, 0.40-0.60 otherwise)",
+      "near-base-rate band (within 0.10 of the stated base rate only for forecasts on a listed ±1σ range-reference band, 0.40-0.60 otherwise)",
     );
     expect(instruction).toContain("does not carry over to a band of another width");
     expect(instruction).not.toMatch(/2σ|two-sigma|\b(?:5|4\.6|95)%/u);
@@ -160,6 +160,9 @@ describe("range volatility reference", () => {
     expect(premarket).toContain(
       "it scores the close 21 sessions after that close, so a close outside it has a Gaussian base rate of about 0.33",
     );
+    expect(premarket).toContain(
+      "+10: [93.78, 106.64], base rate about 0.34 (Gaussian, assuming complete US exchange sessions it scores the close 11 sessions after that close)",
+    );
   });
 
   test("states the band without a base rate when the latest session is unverified", () => {
@@ -174,6 +177,9 @@ describe("range volatility reference", () => {
     );
     expect(unverified).not.toContain("Gaussian base rate");
     expect(unverified).not.toContain("Each range grid base rate");
+    expect(unverified).toMatch(
+      /\+10: \[[\d.]+, [\d.]+\], base rate about 0\.32 \(Gaussian one-sigma\)\./u,
+    );
   });
 
   test.each([
@@ -256,7 +262,7 @@ describe("range volatility reference", () => {
         verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(21) }),
       },
     );
-    expect(crypto).toMatch(/±1σ close bands \+1: \[.*; \+5: \[.*; \+10: \[.*; \+20: \[/u);
+    expect(crypto).toMatch(/close outside each: \+1: \[.*; \+5: \[.*; \+10: \[.*; \+20: \[/u);
     expect(crypto).not.toContain("folded into that grid event");
   });
 

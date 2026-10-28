@@ -72,6 +72,11 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
   }
   if (paired !== undefined) {
     lines.push(`    ${String(paired.excludedWithoutBaselineCount)} excluded without a baseline`);
+    if (paired.excludedLegacyRangeBaselineCount !== undefined) {
+      lines.push(
+        `    ${String(paired.excludedLegacyRangeBaselineCount)} range excluded on the superseded ewma-0.94-w60-v1 baseline`,
+      );
+    }
     if (paired.nextReviewDate !== undefined) {
       lines.push(`    Next pre-registered review: ${paired.nextReviewDate}`);
     }

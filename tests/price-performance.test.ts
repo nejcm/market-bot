@@ -1,7 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { pricePerformanceSection } from "../src/sources/extended-evidence/price-performance";
 import type { MetricContext } from "../src/sources/extended-evidence/metric-engine";
 import { collectPriceHistory } from "../src/sources/yahoo-price-history";
+import { forecastBaseline } from "../src/forecast/baseline";
+import { parseObservableExpression } from "../src/forecast/observable";
 import {
   createCollectContext,
   resetSourceResilienceForTests,
@@ -88,18 +90,23 @@ function chart(
   };
 }
 
-async function collect(payloadFor: (symbol: string) => unknown, at = AS_OF) {
+async function collect(
+  payloadFor: (symbol: string, init?: RequestInit) => unknown,
+  at = AS_OF,
+  retryDelaysMs: readonly number[] = [],
+) {
   resetSourceResilienceForTests();
   setSourceHostMinDelayMsForTests(0);
   const { context } = createCollectContext(
     command,
     { equityMoverLimit: 1, cryptoMoverLimit: 1, newsLimit: 1, sourceTimeoutMs: 1000 },
     new Date(at),
-    async (input) => {
+    async (input, init) => {
       const symbol = decodeURIComponent(new URL(String(input)).pathname.split("/").at(-1)!);
-      return Response.json(payloadFor(symbol));
+      const payload = await payloadFor(symbol, init);
+      return payload instanceof Response ? payload : Response.json(payload);
     },
-    [],
+    retryDelaysMs,
   );
   return collectPriceHistory(context, "TEST");
 }
@@ -165,18 +172,15 @@ describe("Price Performance Metric Section", () => {
     const collected = await collect((symbol) =>
       chart(symbol, DATES, symbol === "SPY" ? [100, 120, 150, 180] : [50, 75, 100, 120]),
     );
-    expect(collected.rawSnapshots.map(({ adapter }) => adapter)).toEqual([
-      "yahoo-price-history",
-      "yahoo-price-history",
-    ]);
-    expect(collected.sources.map(({ id }) => id)).toEqual([
-      "price-history-TEST",
-      "price-history-SPY",
-    ]);
-    expect(collected.priceHistory.map(({ requestedFrom }) => requestedFrom)).toEqual([
-      "2021-07-10",
-      "2021-07-10",
-    ]);
+    expect(collected.rawSnapshots.map(({ adapter }) => adapter)).toEqual(
+      Array.from({ length: 3 }, () => "yahoo-price-history"),
+    );
+    expect(collected.sources.map(({ id }) => id)).toEqual(
+      ["TEST", "SPY", "QQQ"].map((symbol) => `price-history-${symbol}`),
+    );
+    expect(collected.priceHistory.map(({ requestedFrom }) => requestedFrom)).toEqual(
+      Array.from({ length: 3 }, () => "2021-07-10"),
+    );
     for (const source of collected.sources) {
       expect(new URL(source.url!).searchParams.get("period1")).toBe(
         String(Date.parse("2021-07-10") / 1000),
@@ -292,6 +296,139 @@ describe("Price Performance Metric Section", () => {
     const { section } = evaluate(collected.priceHistory);
     expect(section.metrics[0]).toMatchObject({ status: "value", value: expect.closeTo(0.2, 12) });
     expect(section.metrics[1]).toMatchObject({ status: "missing" });
+  });
+
+  test("collects a Forecast Baseline leg for the QQQ benchmark and declares its failed fetch", async () => {
+    const dates = Array.from({ length: 100 }, (_, i) =>
+      new Date(Date.parse(AS_OF) - (99 - i) * 86_400_000).toISOString().slice(0, 10),
+    );
+    const collect100 = (failing?: string) =>
+      collect((symbol) => {
+        if (symbol === failing) {
+          throw new Error(`synthetic ${symbol} failure`);
+        }
+        return chart(
+          symbol,
+          dates,
+          dates.map((_, i) => 100 + (i % 2)),
+        );
+      });
+    const relative = parseObservableExpression(
+      "close(TEST, +10)/close(TEST, 0) > close(QQQ, +10)/close(QQQ, 0)",
+    );
+    const baseline = (result: Awaited<ReturnType<typeof collect>>) =>
+      forecastBaseline(
+        relative,
+        new Map(result.priceHistory.map(({ symbol, bars }) => [symbol, bars])),
+        (_subject, _infoCutoff, horizon) => horizon,
+      );
+    const collected = await collect100();
+    expect(collected.priceHistory.map(({ symbol }) => symbol)).toEqual(["TEST", "SPY", "QQQ"]);
+    expect(collected.sourceGaps).toEqual([]);
+    expect(baseline(collected)).toMatchObject({ status: "computed", probability: 0.5 });
+    const failed = await collect100("QQQ");
+    expect(failed.sourceGaps).toMatchObject([
+      { source: "yahoo-price-history", symbol: "QQQ", evidenceQualityImpact: "no-cap" },
+    ]);
+    expect(failed.priceHistory.find(({ symbol }) => symbol === "QQQ")?.bars).toEqual([]);
+    expect(baseline(failed)).toEqual({
+      status: "unavailable",
+      symbol: "QQQ",
+      reason: "missing-closes",
+    });
+  });
+
+  test("collects QQQ after issuer and SPY retries so its failures cannot block their recovery", async () => {
+    const dates = Array.from({ length: 100 }, (_, i) =>
+      new Date(Date.parse(AS_OF) - (99 - i) * 86_400_000).toISOString().slice(0, 10),
+    );
+    const failuresFor = async (
+      failure: (symbol: string, attempt: number) => number | undefined,
+    ) => {
+      const attempts = new Map<string, number>();
+      const requested: string[] = [];
+      const result = await collect(
+        (symbol) => {
+          const attempt = (attempts.get(symbol) ?? 0) + 1;
+          attempts.set(symbol, attempt);
+          requested.push(symbol);
+          const status = failure(symbol, attempt);
+          return status === undefined
+            ? chart(
+                symbol,
+                dates,
+                dates.map((_, i) => 100 + (i % 2)),
+              )
+            : new Response("{}", { status });
+        },
+        AS_OF,
+        [0],
+      );
+      return { result, requested };
+    };
+    const transient = await failuresFor((_symbol, attempt) => (attempt === 1 ? 503 : undefined));
+    const rateLimited = await failuresFor((symbol, attempt) => {
+      if (symbol === "QQQ") {
+        return 429;
+      }
+      return symbol === "TEST" && attempt === 1 ? 503 : undefined;
+    });
+    for (const { result, requested } of [transient, rateLimited]) {
+      expect(requested.indexOf("QQQ")).toBeGreaterThan(requested.lastIndexOf("SPY"));
+      expect(requested.indexOf("QQQ")).toBeGreaterThan(requested.lastIndexOf("TEST"));
+      expect(result.verifiedSnapshot.snapshot?.symbol).toBe("TEST");
+      expect(result.priceHistory.find(({ symbol }) => symbol === "SPY")?.bars).toHaveLength(100);
+    }
+    for (const { result, requested } of [transient, rateLimited]) {
+      expect(requested.filter((symbol) => symbol === "QQQ")).toHaveLength(1);
+      expect(result.sourceGaps).toMatchObject([
+        { source: "yahoo-price-history", symbol: "QQQ", evidenceQualityImpact: "no-cap" },
+      ]);
+    }
+  });
+
+  test("bounds a hanging QQQ request with one short attempt and keeps issuer and SPY", async () => {
+    const dates = Array.from({ length: 100 }, (_, i) =>
+      new Date(Date.parse(AS_OF) - (99 - i) * 86_400_000).toISOString().slice(0, 10),
+    );
+    const requestedTimeoutMs = new Map<AbortSignal, number>();
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeoutSpy = spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+      const signal = timeout(Math.min(ms, 50));
+      requestedTimeoutMs.set(signal, ms);
+      return signal;
+    });
+    const qqqTimeouts: (number | undefined)[] = [];
+    const started = performance.now();
+    try {
+      const collected = await collect(
+        (symbol, init) => {
+          if (symbol !== "QQQ") {
+            return chart(
+              symbol,
+              dates,
+              dates.map(() => 100),
+            );
+          }
+          qqqTimeouts.push(requestedTimeoutMs.get(init!.signal!));
+          return new Promise((_, reject) => {
+            init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason));
+          });
+        },
+        AS_OF,
+        [0, 0, 0],
+      );
+      expect(performance.now() - started).toBeLessThan(1000);
+      expect(qqqTimeouts).toEqual([3000]);
+      expect(collected.verifiedSnapshot.snapshot?.symbol).toBe("TEST");
+      expect(collected.priceHistory.find(({ symbol }) => symbol === "SPY")?.bars).toHaveLength(100);
+      expect(collected.priceHistory.find(({ symbol }) => symbol === "QQQ")?.bars).toEqual([]);
+      expect(collected.sourceGaps).toMatchObject([
+        { source: "yahoo-price-history", symbol: "QQQ", evidenceQualityImpact: "no-cap" },
+      ]);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
   });
 
   test("uses issuer sessions and common benchmark endpoints, with nearest anniversary within inclusive ±7 days and no older fallback", () => {

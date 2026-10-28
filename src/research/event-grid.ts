@@ -13,7 +13,11 @@ import { claimKey, parseObservableExpression, renderClaim } from "../forecast/ob
 import type { CollectedSources } from "../sources/types";
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 import { isRecord } from "../guards";
-import { rangeReferenceBand, rangeVolatilityReference } from "./range-volatility-reference";
+import {
+  rangeReferenceBand,
+  rangeVolatilityReference,
+  scoredSessions,
+} from "./range-volatility-reference";
 
 const GRID_RANGE_HORIZONS = [1, 5, 20] as const;
 const GRID_RELATIVE_HORIZON = 5;
@@ -152,6 +156,8 @@ const UNAVAILABLE_REASON_TEXT: Record<ForecastBaselineUnavailableReason, string>
   "split-signature": "a split-like jump in the split-adjusted closes makes volatility unreliable",
   "zero-volatility": "the split-adjusted closes show no price movement",
   "stale-closes": "its latest close is more than a few days older than the other leg's",
+  "unscored-sessions":
+    "the sessions scoring spans after its latest close are unknown (non-US listing or unverified latest session)",
 };
 
 function closesBySymbol(
@@ -185,6 +191,7 @@ export function issueForecastBook(input: {
   readonly modelPredictions: readonly Prediction[];
   readonly modelEventGrid: unknown;
   readonly knownSourceIds: ReadonlySet<string>;
+  readonly generatedAt: string;
   readonly pricedBy?: string;
 }): { readonly predictions: readonly Prediction[]; readonly gaps: readonly SourceGap[] } {
   const grid = eventGrid(input.command, input.collectedSources);
@@ -248,6 +255,20 @@ export function issueForecastBook(input: {
       dates === undefined ? [] : [[symbol.toUpperCase(), dates] as const],
     ),
   );
+  const runDate = input.generatedAt.slice(0, 10);
+  const snapshot = input.collectedSources.verifiedMarketSnapshot;
+  // The resolver quarantines an unverified session, moving the primary's scoring origin before infoCutoff.
+  const unverifiedSymbol =
+    snapshot?.latestSessionStatus === "unverified" ? snapshot.symbol.toUpperCase() : undefined;
+  const sessionsAfter = (symbol: string, infoCutoff: string, horizon: number) =>
+    symbol.toUpperCase() === unverifiedSymbol
+      ? undefined
+      : scoredSessions(
+          { symbol, assetClass: input.command.assetClass },
+          infoCutoff,
+          runDate,
+          horizon,
+        );
   const unavailable = new Map<
     string,
     { symbol: string; reason: ForecastBaselineUnavailableReason; ids: string[] }
@@ -259,6 +280,7 @@ export function issueForecastBook(input: {
     const baseline = forecastBaseline(
       parseObservableExpression(prediction.measurableAs),
       closes,
+      sessionsAfter,
       splitDates,
     );
     if (baseline.status === "unavailable") {

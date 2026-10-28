@@ -28,9 +28,10 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   anchored legacy `predictionShortfall: emitted N of T` text; conflicting/unparseable gaps stay verbatim.
 - Treat the inclusive ±0.10 Near-Base-Rate band as claim-selection guidance: select claims the evidence
   can move off the base rate; do not shade a probability to clear the band.
-  Center it at 0.32 only for range Predictions whose subject, listed reference horizon (+1/+5/+10/+20),
-  and bounds match the ±1σ band reconstructed from the run's saved closes at printed two-decimal precision;
-  use 0.5 otherwise, including unavailable references. Kept Predictions retain evidence-supported probabilities.
+  Center it on the band's stated base rate only for range Predictions whose subject, listed reference horizon (+1/+5/+10/+20),
+  and bounds match the ±1σ band reconstructed from the run's saved closes at printed two-decimal precision:
+  the two-decimal Gaussian outside probability for the sessions scoring spans after the reference close,
+  or 0.32 when that count is unknown (non-US listing, unverified latest session); use 0.5 otherwise, including unavailable references. Kept Predictions retain evidence-supported probabilities.
   In-band Predictions remain valid telemetry; never pad the target with coin flips. Gaussian outside-±1σ
   probability is about 0.32; five-year AAPL/AMD/MSFT/SPY frequency was 0.285–0.334. This
   construction-specific Gaussian reference is not the Forecast Baseline.
@@ -82,7 +83,10 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   remains unchanged.
 - Calibration's headline is Paired Skill: ΔBrier = Brier(Forecast Baseline) − Brier(model) over resolved,
   deduped Forecast Events that carry a baseline, overall and per kind; the fixed-0.5 skill stays a
-  secondary column. Events without a baseline are excluded and counted (`excludedWithoutBaselineCount`);
+  secondary column. Events without a baseline are excluded and counted (`excludedWithoutBaselineCount`).
+  Range events stamped `ewma-0.94-w60-v1` are excluded and counted too (`excludedLegacyRangeBaselineCount`),
+  because v1 scaled σ by the nominal horizon instead of the sessions scored; v1 direction and relative
+  baselines are 0.5 for any horizon and stay in. Stamps are never rewritten;
   grid events count once through the Forecast Event dedupe. Pre-baseline predictions are excluded
   from Paired Skill because their as-of-issue closes cannot be proven from the cache. Pre-registered policy
   (`PAIRED_SKILL_POLICY`; any change needs an amendment here): 95% percentile block bootstrap, 2000
@@ -109,13 +113,17 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   date and which rule each kind's current status would trigger; that is a preview, not a decision.
 - Assembly stamps every Prediction with `origin` (`model` or `grid`) and, where an estimator exists, a
   Forecast Baseline: `baselineProbability`, `baselineVersion` and `infoCutoff` (last split-adjusted close
-  used). Estimators are frozen, pure and versioned (`ewma-0.94-w60-v1`): EWMA (λ 0.94) volatility over the
-  last 60 split-adjusted daily log returns, zero drift, √h aggregation. Range is the lognormal
+  used). Estimators are frozen, pure and versioned (`ewma-0.94-w60-v2`): EWMA (λ 0.94) volatility over the
+  last 60 split-adjusted daily log returns, zero drift, √h aggregation where h is the sessions scoring spans
+  after `infoCutoff`: the nominal horizon plus the US exchange sessions up to the first session on or after
+  the run date (UTC calendar days for crypto), so a premarket, intraday or weekend run scores h + 1 or more.
+  `ewma-0.94-w60-v1` stamps used the nominal horizon and are kept as written. Range is the lognormal
   outside-band probability; direction and plain outperform relative (A−B) are 0.5 by construction (any
   zero-drift symmetric distribution) but still require their close windows and are stamped with
   `baselineVersion`, so their Paired Skill is skill against a declared coin flip. Conditional, volatility, IV, macro and earnings claims carry no baseline and are not
   scored for skill. Fewer than 61 closes, a residual split, zero movement, a
-  missing series, or relative legs whose last closes are more than 4 days apart omit the baseline and
+  missing series, relative legs whose last closes are more than 4 days apart, or a range whose scored
+  sessions are unknown (non-US listing, or the primary's unverified latest session) omit the baseline and
   declare a `forecast-baseline` data gap; it is never defaulted to 0.5. A non-positive range bound
   contributes zero tail probability. The primary symbol's window extends to the snapshot's newer
   unverified closes so the baseline and the grid bands share one spot. Changing the math requires a new `baselineVersion`. Forecast
@@ -127,7 +135,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   nearby means a genuine move, which stays volatility. Without split metadata (the verified chart), a genuine 10–65% one-day move inside those windows is treated as a split. That is a
   documented shortcut; volume is not consulted.
 - Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
-  (the prompt lists only the other ±1σ bands as prediction anchors) and relative vs SPY at h = 5. The primary synthesis prices them in the same
+  (the prompt lists only the other ±1σ bands as prediction anchors, each with the same session-true base
+  rate, or 0.32 when the session count is unknown) and relative vs SPY at h = 5. The primary synthesis prices them in the same
   response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the
   Forecast Baseline. Each range grid row is named as its ±1σ band around the dated reference close with
   the Gaussian outside probability for the sessions scoring actually spans (the resolver counts +h from

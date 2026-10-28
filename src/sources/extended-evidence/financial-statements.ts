@@ -49,6 +49,7 @@ import {
   incompleteFinancialStatementNotes,
   latestFinancialStatementFact,
   recognizedDebtConcepts,
+  debtIdentityConcepts,
   resolveDebtAtInstant,
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
@@ -453,6 +454,24 @@ function factsForDepreciationAndAmortization(
       });
       return true;
     };
+    // DDOG/CRM/EBAY tag PP&E-only DDA beside a higher DA total; the reverse split (AAPL, AMGN) is not proof.
+    const belowOtherTotal = (period: ParsedFact): boolean => {
+      const higher = totalFacts.find(
+        (fact) =>
+          fact.concept !== period.concept &&
+          fact.value - period.value > componentTolerance(fact.value),
+      );
+      if (higher === undefined) {
+        return false;
+      }
+      notes.push({
+        code: "incomplete-composite-series",
+        seriesKey: definition.key,
+        periodKey: periodKey(period),
+        message: `SEC depreciation and amortization for ${period.periodStart ?? "instant"} to ${period.periodEnd} omitted: ${period.concept} (${String(period.value)}) is below the same-period ${higher.concept} (${String(higher.value)})`,
+      });
+      return true;
+    };
     const totalConcept = totalFacts[0]?.concept;
     const [total] = candidates
       .filter((fact) => fact.concept === totalConcept)
@@ -472,7 +491,7 @@ function factsForDepreciationAndAmortization(
           Math.abs(fact.value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
       )
     ) {
-      return contradicted(total.value, total)
+      return contradicted(total.value, total) || belowOtherTotal(total)
         ? []
         : facts.filter((fact) => fact.concept === totalConcept);
     }
@@ -570,6 +589,17 @@ function factsForDebt(
         : [],
     ]),
   );
+  const liabilities = debtIdentityConcepts(taxonomy).flatMap((concept) =>
+    unitFacts(taxonomy, root, concept)
+      .filter((fact) => fact.periodStart === undefined && eligible(fact))
+      .map(({ periodEnd, filedAt, value, amendment }) => ({
+        concept,
+        amendment,
+        periodEnd,
+        filedAt,
+        value,
+      })),
+  );
   const resolved = [...instants.values()].map((tagged) => {
     const facts = [...tagged.values()];
     const instant = {
@@ -598,6 +628,7 @@ function factsForDebt(
             .at(0)?.value,
         ]),
       ),
+      liabilities,
     );
     const subtracted = new Set(
       resolution.contributors.flatMap((contributor) =>

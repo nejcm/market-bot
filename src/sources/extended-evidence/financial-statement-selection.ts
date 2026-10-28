@@ -218,6 +218,13 @@ export interface DebtResolution<T> {
   readonly lineScope?: true;
 }
 
+export function debtIdentityConcepts(taxonomy: FinancialStatementTaxonomy): readonly string[] {
+  const identity = DEBT_CONCEPTS[taxonomy].ambiguousLongTermDebt?.noncurrentIdentity;
+  return identity === undefined
+    ? []
+    : [identity.noncurrentTotal, identity.total, identity.currentTotal, ...identity.others];
+}
+
 export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): ReadonlySet<string> {
   const concepts = DEBT_CONCEPTS[taxonomy];
   return new Set([
@@ -285,6 +292,7 @@ function leaseAdjustment(
   concepts: DebtTaxonomyConcepts,
   used: readonly string[],
   isTagged: (concept: string) => boolean,
+  legsTieToTotal = false,
 ): LeaseAdjustment {
   const leases = concepts.financeLeases;
   const inclusive = used.filter((concept) => concepts.leaseInclusive?.[concept] !== undefined);
@@ -306,8 +314,9 @@ function leaseAdjustment(
       pending.push(concept);
     }
   }
-  if (pending.length === 2 && isTagged(leases.total)) {
-    deductions.push({ aggregates: pending, leases: [leases.total] });
+  // One lease total spans both legs only when they tie to a lease-inclusive total (VSAT); else its split is unknown.
+  if (pending.length === 2 && isTagged(leases.total) && legsTieToTotal) {
+    deductions.push({ aggregates: [...pending], leases: [leases.total] });
     pending.length = 0;
   }
   return {
@@ -496,8 +505,19 @@ function longTermDebtUse(
   const currentLines = current?.concepts ?? [];
   const currentSum = sum(currentLines);
   if (noncurrentLines.length === 0) {
-    return currentSum === 0 && !currentElsewhere
-      ? "total"
+    if (currentSum === 0 && !currentElsewhere) {
+      return "total";
+    }
+    const identity = ambiguous.noncurrentIdentity;
+    const total = value(identity.total);
+    const currentTotal = value(identity.currentTotal);
+    const noncurrentTotal =
+      value(identity.noncurrentTotal) ??
+      (total === undefined || currentTotal === undefined ? undefined : total - currentTotal);
+    return longTermDebt !== 0 &&
+      currentSum !== 0 &&
+      noncurrentTotal === longTermDebt + sum(identity.others)
+      ? "line"
       : {
           reason: `${ambiguous.concept} is tagged beside nonzero current debt (${currentLines.join(", ")}) without a noncurrent line or total that establishes whether it includes current maturities`,
         };
@@ -544,6 +564,7 @@ export function resolveDebtAtInstant<T>(
     readonly total?: number;
     readonly unamortized?: number;
   } = {},
+  liabilities: readonly DebtHistoryFact[] = [],
 ): DebtResolution<T> {
   const concepts = DEBT_CONCEPTS[taxonomy];
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
@@ -600,7 +621,7 @@ export function resolveDebtAtInstant<T>(
       filedAtOf(fact) === longTermDebtFiledAt ? [[concept, valueOf(fact)] as const] : [],
     ),
   );
-  for (const fact of history) {
+  for (const fact of [...history, ...liabilities]) {
     if (
       fact.periodEnd === instant.periodEnd &&
       fact.filedAt === longTermDebtFiledAt &&
@@ -622,7 +643,7 @@ export function resolveDebtAtInstant<T>(
           .flatMap((side) => side.concepts)
           .filter((concept) => valueAt(concept) !== longTermDebtFiling.get(concept))
       : [];
-  const total = first(
+  const filedTotal = first(
     ambiguous !== undefined &&
       longTermDebt === "total" &&
       restatedScope.length === 0 &&
@@ -633,15 +654,35 @@ export function resolveDebtAtInstant<T>(
           (concept) => concept !== ambiguous?.concept || longTermDebt === "total",
         ),
   );
+  const legs = filedTotal === undefined ? undefined : concepts.totalLegs?.[filedTotal];
+  const legLines =
+    legs !== undefined &&
+    legs.every((leg) => tagged.has(leg)) &&
+    principal.unamortized !== undefined &&
+    principal.unamortized !== 0 &&
+    (valueAt(filedTotal ?? "") ?? 0) - legs.reduce((acc, leg) => acc + (valueAt(leg) ?? 0), 0) ===
+      principal.unamortized
+      ? legs
+      : undefined;
+  const total = legLines === undefined ? filedTotal : undefined;
   const used =
     total === undefined
-      ? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas].filter(
+      ? (legLines ?? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas]).filter(
           (concept) => longTermDebt !== "line-without-current" || concept !== ambiguous?.current,
         )
       : [total];
-  const { subtracted, unadjusted, deductions } = leaseAdjustment(concepts, used, (concept) =>
-    tagged.has(concept),
+  const { subtracted, unadjusted, deductions } = leaseAdjustment(
+    concepts,
+    used,
+    (concept) => tagged.has(concept),
+    legLines !== undefined,
   );
+  const unsplitLease =
+    unadjusted.length === 2 &&
+    concepts.financeLeases !== undefined &&
+    (valueAt(concepts.financeLeases.total) ?? 0) !== 0
+      ? `${concepts.financeLeases.total} is tagged only as a total, so its split across ${unadjusted.join(", ")} is unknown`
+      : undefined;
   const sum = (names: readonly string[]) =>
     names.reduce((acc, name) => acc + valueOf(tagged.get(name) as T), 0);
   const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
@@ -660,7 +701,7 @@ export function resolveDebtAtInstant<T>(
     }
     return (
       incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history) ??
-      restatedDebtComponentReason(instant, used, tagged, history, valueOf)
+      restatedDebtComponentReason(instant, [...used, ...subtracted], tagged, history, valueOf)
     );
   })();
   const omittedShortTerm =
@@ -716,20 +757,38 @@ export function resolveDebtAtInstant<T>(
     (sides[0]?.concepts ?? []).length === 0 &&
     (principal.total === undefined ||
       principal.total - (principal.unamortized ?? 0) !== sum(used) - sum(subtracted));
+  // An instrument larger than the only line that could hold it sits beside it (AAOI convertibles).
+  const besideInstruments = [concepts.current, concepts.noncurrent].flatMap((side, index) => {
+    const holder = total ?? sides[index]?.generic;
+    const held = holder === undefined ? undefined : valueAt(holder);
+    return held === undefined
+      ? []
+      : side.instruments
+          .flatMap((aliases) => first(aliases) ?? [])
+          .filter((concept) => !used.includes(concept) && (valueAt(concept) ?? 0) > held)
+          .map(
+            (concept) =>
+              `${concept} (${String(valueAt(concept))}) exceeds ${holder ?? ""} (${String(held)})`,
+          );
+  });
   const incompleteReason =
-    strayConstituents.length > 0
-      ? `${strayConstituents.join(", ")} tagged without a noncurrent debt line or total that holds it`
-      : total === ambiguous?.concept && restatedScope.length > 0
-        ? `a later filing restated ${restatedScope.join(", ")} without restating ${ambiguous?.concept ?? ""}`
-        : unprovenCurrent
-          ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
-          : untaggedCurrent
-            ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
-            : omittedShortTerm.length > 0
-              ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
-              : excess === undefined
-                ? componentReason
-                : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
+    unsplitLease !== undefined
+      ? unsplitLease
+      : besideInstruments.length > 0
+        ? `${besideInstruments.join(", ")}, so it cannot be inside the selected debt`
+        : strayConstituents.length > 0
+          ? `${strayConstituents.join(", ")} tagged without a noncurrent debt line or total that holds it`
+          : total === ambiguous?.concept && restatedScope.length > 0
+            ? `a later filing restated ${restatedScope.join(", ")} without restating ${ambiguous?.concept ?? ""}`
+            : unprovenCurrent
+              ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
+              : untaggedCurrent
+                ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
+                : omittedShortTerm.length > 0
+                  ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
+                  : excess === undefined
+                    ? componentReason
+                    : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =
     total === ambiguous?.concept &&
     longTermDebt === "total" &&

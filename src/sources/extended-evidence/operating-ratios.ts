@@ -7,6 +7,7 @@ import {
   statementInput,
 } from "./capital-return";
 import { NEGATIVE_CAPEX_REASON } from "./financial-statement-definitions";
+import { shortTermInvestmentsAt } from "./financial-lens-sections";
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import {
   financialStatementFactForPeriod,
@@ -146,12 +147,24 @@ const roicGate: Gate = (ctx, facts, keys) => {
     };
   }
   const [equity, debt, cash] = instants as readonly FinancialStatementFact[];
-  return equity!.value + debt!.value - cash!.value <= 0
+  if (unfiled.length > 0) {
+    return undefined;
+  }
+  const shortTermInvestments = shortTermInvestmentsAt(ctx, cash!);
+  if (shortTermInvestments.value === undefined) {
+    return {
+      status: "missing",
+      reason: shortTermInvestments.reason ?? "short-term investments unresolved",
+      periodEnd: anchor.periodEnd,
+      inputs,
+    };
+  }
+  return equity!.value + debt!.value - cash!.value - shortTermInvestments.value <= 0
     ? {
         status: "not-meaningful",
         reason: `invested capital is zero or negative at the fiscal year end ${anchor.periodEnd}`,
         periodEnd: anchor.periodEnd,
-        inputs,
+        inputs: [...inputs, ...shortTermInvestments.inputs],
       }
     : undefined;
 };
@@ -163,15 +176,17 @@ function roic(ctx: MetricContext): MetricOutcome {
       (key) => instantAt(ctx, key, operatingIncome!.periodEnd)!,
     );
     const [equity, debt, cash] = instants;
+    const shortTermInvestments = shortTermInvestmentsAt(ctx, cash!);
     return {
       status: "value",
       value:
         (operatingIncome!.value * (1 - effectiveTaxRateOf(facts, ROIC_FLOWS)!)) /
-        (equity!.value + debt!.value - cash!.value),
+        (equity!.value + debt!.value - cash!.value - shortTermInvestments.value!),
       periodEnd: operatingIncome!.periodEnd,
       inputs: [
         ...inputsOf(facts, ROIC_FLOWS),
         ...instants.map((fact, index) => statementInput(fact, INVESTED_CAPITAL[index]!)),
+        ...shortTermInvestments.inputs,
       ],
     };
   })(ctx);
@@ -280,7 +295,7 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
     label: "ROIC (operating income after effective tax / period-end invested capital)",
     unit: "ratio-percent",
     ...withPretaxScope(
-      `operating income x (1 - income tax expense / pretax income), ${FISCAL_YEAR}, / (stockholders' equity + debt - cash and cash equivalents) at that fiscal year end; an effective tax rate outside 0-100% or invested capital at or below zero is not meaningful`,
+      `operating income x (1 - income tax expense / pretax income), ${FISCAL_YEAR}, / (stockholders' equity + debt - cash and cash equivalents - short-term investments) at that fiscal year end, long-term investments excluded; an effective tax rate outside 0-100% or invested capital at or below zero is not meaningful`,
       roic,
     ),
     applicable: depository("debt and cash are operating balances, not invested capital"),

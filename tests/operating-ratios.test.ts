@@ -102,6 +102,11 @@ function context(
   };
 }
 
+function withoutBridge(ctx: MetricContext): MetricContext {
+  const { enterpriseValueBridge: _bridge, ...statements } = ctx.statements!;
+  return { ...ctx, statements };
+}
+
 const evaluated: ReturnType<typeof operatingRatiosSection>[] = [];
 
 function evaluate(ctx: MetricContext) {
@@ -425,7 +430,7 @@ describe("operatingRatiosSection", () => {
     ).toThrow(/D&A.*component/u);
   });
 
-  test("AdjustmentForAmortization is not verified D&A, and a zero component is kept", () => {
+  test("AdjustmentForAmortization only withholds D&A, and a zero component is kept", () => {
     const filed = (year: number, value: number) => ({
       units: {
         USD: [fact(value, year, { start: `${String(year)}-01-01`, end: `${String(year)}-12-31` })],
@@ -446,14 +451,15 @@ describe("operatingRatiosSection", () => {
           `${String(year + 1)}-07-23T00:00:00.000Z`,
         ),
       ).ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual;
-    // DDOG FY2022: the 28M AdjustmentForAmortization is deferred contract-cost amortization.
+    // DDOG FY2022: 28M AdjustmentForAmortization is contract-cost amortization, so it is never
+    // Published as D&A; it still withholds the 27M component sum, which is below the filed 34.629M.
     expect(
       run(2022, {
         Depreciation: filed(2022, 21_000_000),
         AmortizationOfIntangibleAssets: filed(2022, 6_000_000),
         AdjustmentForAmortization: filed(2022, 28_000_000),
       }),
-    ).toMatchObject([{ value: 27_000_000 }]);
+    ).toEqual([]);
     // HRMN FY2023: zero intangible amortization, D&A 12.255M.
     expect(
       run(2023, {
@@ -498,7 +504,7 @@ describe("operatingRatiosSection", () => {
     expect(invariantRun(dropped, result.section.metrics, raw)).toThrow(/has filed components/u);
   });
 
-  test("an alias split without a cash-flow D&A line keeps alias priority; a zero alias is ignored", () => {
+  test("a DDA below DA withholds; a zero alias is ignored", () => {
     const filed = (value: number) => ({
       units: { USD: [fact(value, 2025, { start: "2025-01-01", end: "2025-12-31" })] },
     });
@@ -516,14 +522,14 @@ describe("operatingRatiosSection", () => {
           AS_OF,
         ),
       );
-    // DDOG FY2025: the filed cash-flow total is the 55.756M alias; nothing in companyfacts says so, so priority wins.
+    // DDOG FY2025: the filed cash-flow total is the 55.756M alias, so the 49.2M DDA is withheld.
     const ddog = run(49_200_000, 55_756_000);
     // PYPL FY2018: DepreciationAndAmortization was zeroed by the opex reclassification.
     const pypl = run(776_000_000, 0);
 
     expect(
       ddog.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
-    ).toMatchObject([{ value: 49_200_000, concept: "DepreciationDepletionAndAmortization" }]);
+    ).toEqual([]);
     expect(
       pypl.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
     ).toMatchObject([{ value: 776_000_000, concept: "DepreciationDepletionAndAmortization" }]);
@@ -573,6 +579,161 @@ describe("operatingRatiosSection", () => {
         message: expect.stringMatching(/\(400000000\).*\(438000000\)/u),
       }),
     );
+  });
+
+  test.each([
+    ["DDOG FY2021", "2021-01-01", "2021-12-31", "0001561550-22-000009", 18_500_000, 22_938_000],
+    ["DDOG FY2023", "2023-01-01", "2023-12-31", "0001561550-24-000009", 35_600_000, 44_465_000],
+    ["DDOG FY2024", "2024-01-01", "2024-12-31", "0001561550-25-000025", 48_500_000, 54_933_000],
+    [
+      "CRM FY2026",
+      "2025-02-01",
+      "2026-01-31",
+      "0001108524-26-000060",
+      1_200_000_000,
+      3_631_000_000,
+    ],
+    ["EBAY FY2021", "2021-01-01", "2021-12-31", "0001065088-22-000006", 485_000_000, 502_000_000],
+  ] as const)(
+    "%s DepreciationDepletionAndAmortization below DepreciationAndAmortization withholds",
+    (_, start, end, accn, dda, da) => {
+      const year = Number(end.slice(0, 4));
+      const filed = (value: number) => ({
+        units: {
+          USD: [fact(value, year, { start, end, accn, filed: `${String(year + 1)}-02-25` })],
+        },
+      });
+      const result = evaluate(
+        context(
+          usGaap({
+            Revenues: filed(1_000_000_000),
+            OperatingIncomeLoss: filed(100_000_000),
+            DepreciationDepletionAndAmortization: filed(dda),
+            DepreciationAndAmortization: filed(da),
+          }),
+          {},
+          "us-gaap",
+          `${String(year + 1)}-07-23T00:00:00.000Z`,
+        ),
+      );
+
+      expect(
+        result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+      ).toEqual([]);
+      expect(result.ctx.statements!.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "incomplete-composite-series",
+          periodKey: `duration:12|${end}`,
+          message: expect.stringContaining(
+            `DepreciationDepletionAndAmortization (${String(dda)}) is below the same-period DepreciationAndAmortization (${String(da)})`,
+          ),
+        }),
+      );
+    },
+  );
+
+  test.each([
+    // AAPL FY2016 (0000320193-18-000145): DDA 10,505M is the cash-flow line; the lower DA is not proof.
+    ["DDA above DA", 10_505_000_000, 8_300_000_000, 10_505_000_000],
+    // SPIRE FY2023: 18.228M vs 18.229M rounding.
+    ["within tolerance", 18_228_000, 18_229_000, 18_228_000],
+    ["agreeing tags", 50_000_000, 50_000_000, 50_000_000],
+    ["DDA only", 50_000_000, undefined, 50_000_000],
+    ["zero DA", 50_000_000, 0, 50_000_000],
+  ] as const)("D&A split guard keeps DDA with %s", (_, dda, da, expected) => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: "2025-01-01", end: "2025-12-31" })] },
+    });
+    const result = evaluate(
+      context(
+        usGaap({
+          Revenues: filed(1_000_000_000),
+          OperatingIncomeLoss: filed(100_000_000),
+          DepreciationDepletionAndAmortization: filed(dda),
+          DepreciationAndAmortization: da === undefined ? undefined : filed(da),
+        }),
+        {},
+        "us-gaap",
+        AS_OF,
+      ),
+    );
+
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ value: expected, concept: "DepreciationDepletionAndAmortization" }]);
+  });
+
+  test("AMD FY2023-25 component D&A below cash-flow D&A plus intangible add-back withholds", () => {
+    // AMD 10-K 0000002488-26-000018: Depreciation + AmortizationOfIntangibleAssets vs filed cash-flow lines.
+    const years = [
+      { start: "2023-01-01", end: "2023-12-30", dep: 441, amort: 2800, other: 642, add: 2811 },
+      { start: "2023-12-31", end: "2024-12-28", dep: 454, amort: 2400, other: 671, add: 2393 },
+      { start: "2024-12-29", end: "2025-12-27", dep: 521, amort: 2300, other: 750, add: 2254 },
+    ];
+    const filed = (pick: (year: (typeof years)[number]) => number) => ({
+      units: {
+        USD: years.map((year) =>
+          fact(pick(year) * 1_000_000, Number(year.end.slice(0, 4)), {
+            start: year.start,
+            end: year.end,
+            accn: "0000002488-26-000018",
+            fy: 2025,
+            filed: "2026-02-04",
+          }),
+        ),
+      },
+    });
+    const concepts = (adjustment: (year: (typeof years)[number]) => number) =>
+      usGaap({
+        Revenues: filed(() => 25_000),
+        OperatingIncomeLoss: filed(() => 1000),
+        DepreciationDepletionAndAmortization: undefined,
+        DepreciationAndAmortization: undefined,
+        Depreciation: filed((year) => year.dep),
+        AmortizationOfIntangibleAssets: filed((year) => year.amort),
+        OtherDepreciationAndAmortization: filed((year) => year.other),
+        AdjustmentForAmortization: filed(adjustment),
+      });
+    const withheld = evaluate(
+      context(
+        concepts((year) => year.add),
+        {},
+        "us-gaap",
+        AS_OF,
+      ),
+    );
+    const zero = evaluate(
+      context(
+        concepts(() => 0),
+        {},
+        "us-gaap",
+        AS_OF,
+      ),
+    );
+
+    expect(
+      withheld.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toEqual([]);
+    for (const [end, published, cashFlow] of [
+      ["2023-12-30", 3_241_000_000, 3_453_000_000],
+      ["2024-12-28", 2_854_000_000, 3_064_000_000],
+      ["2025-12-27", 2_821_000_000, 3_004_000_000],
+    ] as const) {
+      expect(withheld.ctx.statements!.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "incomplete-composite-series",
+          periodKey: `duration:12|${end}`,
+          message: expect.stringContaining(
+            `(${String(published)}) is below the filed cash-flow D&A lines (${String(cashFlow)})`,
+          ),
+        }),
+      );
+    }
+    expect(
+      zero.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual.map(
+        (row) => row.value,
+      ),
+    ).toEqual([3_241_000_000, 2_854_000_000, 2_821_000_000]);
   });
 
   test("AMD FY2025 with its cash-flow D&A tags stripped publishes the component sum (accepted residual risk)", () => {
@@ -1024,6 +1185,46 @@ describe("operatingRatiosSection", () => {
       );
       expect(invariantRun(happy, forged), metric.id).toThrow("not-meaningful hits a bound");
     }
+  });
+
+  test("ROIC invested capital subtracts short-term investments, and withholds when they are unresolved", () => {
+    // MSFT FY2026 10-K ($M): ROIC was 0.2710 when invested capital kept the $55,908M short-term investments.
+    const msft = usGaap({
+      OperatingIncomeLoss: flow(() => 155_237),
+      IncomeTaxExpenseBenefit: flow(() => 32_185),
+      IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest:
+        flow(() => 165_934),
+      StockholdersEquity: instant(() => 442_387),
+      LongTermDebt: instant(() => 40_294),
+      CashAndCashEquivalentsAtCarryingValue: instant(() => 20_935),
+      ShortTermInvestments: instant(() => 55_908),
+    });
+    const result = evaluate(context(msft));
+    const roic = result.metric("roic");
+
+    expect(roic.status).toBe("value");
+    expect(roic.value).toBeCloseTo(
+      (155_237 * (1 - 32_185 / 165_934)) / (442_387 + 40_294 - 20_935 - 55_908),
+      12,
+    );
+    expect(roic.value).toBeCloseTo(0.3083, 4);
+    expect(roic.inputs.at(-1)).toMatchObject({ value: 55_908, key: "ShortTermInvestments" });
+    expect(invariantRun(result.ctx, result.section.metrics)).not.toThrow();
+
+    const unclassified = evaluate(
+      context({ ...msft, CashCashEquivalentsAndShortTermInvestments: instant(() => 90_000) }),
+    );
+    expect(unclassified.metric("roic")).toMatchObject({ status: "missing" });
+    expect(unclassified.metric("roic").reason).toContain("does not equal ShortTermInvestments");
+
+    const noBridge = evaluate(withoutBridge(context(msft)));
+    expect(noBridge.metric("roic")).toMatchObject({ status: "missing" });
+    expect(noBridge.metric("roic").reason).toContain("EV bridge");
+    expect(noBridge.metric("roic").cause).toBeUndefined();
+    const unfiledFlow = evaluate(
+      withoutBridge(context({ ...msft, IncomeTaxExpenseBenefit: undefined })),
+    );
+    expect(unfiledFlow.metric("roic")).toMatchObject({ status: "missing", cause: "not-filed" });
   });
 
   test("R3: a depository issuer has no FCF margin, interest coverage or ROIC", () => {

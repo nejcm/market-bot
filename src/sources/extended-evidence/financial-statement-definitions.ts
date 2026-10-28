@@ -24,9 +24,10 @@ export const DEPRECIATION_AND_AMORTIZATION_COMPONENTS: readonly (readonly string
   ["AmortizationOfIntangibleAssets"],
 ];
 
-// The one cash-flow D&A line tagged consistently; AdjustmentForAmortization also carries contract-cost amortization (DDOG).
+// Guard-only: AdjustmentForAmortization can be contract-cost amortization (DDOG), so it withholds but never publishes.
 export const CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES = [
   "OtherDepreciationAndAmortization",
+  "AdjustmentForAmortization",
 ] as const;
 
 export const DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE = 0.01;
@@ -46,6 +47,8 @@ export interface DebtTaxonomyConcepts {
   readonly leaseInclusive?: Readonly<Record<string, "current" | "noncurrent" | "total">>;
   readonly unrecognizedBorrowing?: RegExp;
   readonly umbrellas?: Readonly<Record<string, readonly string[]>>;
+  // A total's balance-sheet legs; a total that differs from them is another basis, e.g. principal (VSAT).
+  readonly totalLegs?: Readonly<Record<string, readonly [string, string]>>;
   // Note-level details a used noncurrent line or total holds; never summed.
   readonly constituents?: readonly string[];
   readonly ambiguousLongTermDebt?: {
@@ -55,6 +58,13 @@ export interface DebtTaxonomyConcepts {
     readonly currentTotal: string;
     readonly shortTerm: readonly string[];
     readonly commercialPaper: string;
+    // Same-filing noncurrent liabilities that, beside LongTermDebt, foot to the balance sheet (ADBE, NOW).
+    readonly noncurrentIdentity: {
+      readonly noncurrentTotal: string;
+      readonly total: string;
+      readonly currentTotal: string;
+      readonly others: readonly string[];
+    };
   };
 }
 
@@ -105,6 +115,12 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
     },
     // An umbrella spans both sides: used only when no leg and no generic side line is tagged.
     umbrellas: { LineOfCredit: ["LongTermLineOfCredit", "LinesOfCreditCurrent"] },
+    totalLegs: {
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [
+        "LongTermDebtAndCapitalLeaseObligationsCurrent",
+        "LongTermDebtAndCapitalLeaseObligations",
+      ],
+    },
     constituents: ["OtherLongTermDebt"],
     // Filers tag LongTermDebt as either all long-term debt or only its noncurrent balance-sheet line.
     ambiguousLongTermDebt: {
@@ -114,6 +130,23 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
       currentTotal: "DebtCurrent",
       shortTerm: ["ShortTermBorrowings", "ShortTermDebt", "CommercialPaper"],
       commercialPaper: "CommercialPaper",
+      noncurrentIdentity: {
+        noncurrentTotal: "LiabilitiesNoncurrent",
+        total: "Liabilities",
+        currentTotal: "LiabilitiesCurrent",
+        others: [
+          "AccruedIncomeTaxesNoncurrent",
+          "ContractWithCustomerLiabilityNoncurrent",
+          "DeferredRevenueNoncurrent",
+          "DeferredIncomeTaxLiabilitiesNet",
+          "DeferredTaxLiabilitiesNoncurrent",
+          "OperatingLeaseLiabilityNoncurrent",
+          "FinanceLeaseLiabilityNoncurrent",
+          "OtherLiabilitiesNoncurrent",
+          "OtherSundryLiabilitiesNoncurrent",
+          "PensionAndOtherPostretirementDefinedBenefitPlansLiabilitiesNoncurrent",
+        ],
+      },
     },
     // Cash-flow and residual-liability concepts also end in "Debt" but are never a borrowing balance.
     unrecognizedBorrowing:

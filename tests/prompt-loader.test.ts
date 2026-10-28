@@ -306,6 +306,10 @@ describe("checked-in final-synthesis prompt", () => {
     );
     expect(instruction).toContain("(evidence.earningsBasis)");
     expect(instruction).toContain(
+      "a ratio such as a segment margin is quantified when sources state its inputs for the same period",
+    );
+    expect(instruction).toContain("state the ratio only beside both cited inputs");
+    expect(instruction).toContain(
       "Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.",
     );
   });

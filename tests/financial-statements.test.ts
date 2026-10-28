@@ -2788,6 +2788,135 @@ describe("first-public dating of selected facts", () => {
     ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
   });
 
+  describe("across a revenue tag switch (HLIT companyfacts, CIK 851310)", () => {
+    const hlitRevenue = (
+      periodStart: string,
+      periodEnd: string,
+      tags: Readonly<Record<string, readonly (readonly [number, string, string])[]>>,
+    ) =>
+      derive(
+        payload({
+          "us-gaap": Object.fromEntries(
+            Object.entries(tags).map(([concept, filings]) => [
+              concept,
+              {
+                USD: [
+                  ...filings.map(([value, filedAt, accessionNumber]) =>
+                    fact({
+                      value,
+                      form: "10-K",
+                      fiscalPeriod: "FY",
+                      filedAt,
+                      periodStart,
+                      periodEnd,
+                      accessionNumber,
+                    }),
+                  ),
+                  // HLIT's FY2025 10-K files only the ASC 606 tag, which makes it the selected concept.
+                  ...(concept === "RevenueFromContractWithCustomerExcludingAssessedTax"
+                    ? [
+                        fact({
+                          value: 400_000_000,
+                          form: "10-K",
+                          fiscalPeriod: "FY",
+                          filedAt: "2026-02-24",
+                          periodStart: "2025-01-01",
+                          periodEnd: "2025-12-31",
+                        }),
+                      ]
+                    : []),
+                ],
+              },
+            ]),
+          ),
+        }),
+      )
+        .statements.incomeStatement.revenue.annual.filter((row) => row.periodEnd === periodEnd)
+        .map(({ concept, value, filedAt, firstPublicAt }) => ({
+          concept,
+          value,
+          filedAt,
+          firstPublicAt,
+        }));
+
+    test("dates an unchanged FY2016 value to the original SalesRevenueNet 10-K", () => {
+      expect(
+        hlitRevenue("2016-01-01", "2016-12-31", {
+          SalesRevenueNet: [
+            [405_911_000, "2017-03-03", "0000851310-17-000011"],
+            [405_911_000, "2018-03-05", "0000851310-18-000017"],
+          ],
+          RevenueFromContractWithCustomerExcludingAssessedTax: [
+            [405_911_000, "2019-03-01", "0000851310-19-000008"],
+          ],
+        }),
+      ).toEqual([
+        {
+          concept: "RevenueFromContractWithCustomerExcludingAssessedTax",
+          value: 405_911_000,
+          filedAt: "2019-03-01",
+          firstPublicAt: "2017-03-03",
+        },
+      ]);
+    });
+
+    test("an alias that never filed the same figure does not date it", () => {
+      expect(
+        hlitRevenue("2020-01-01", "2020-12-31", {
+          Revenues: [[39_789_000_000, "2021-03-02", "a-2021"]],
+          RevenueFromContractWithCustomerExcludingAssessedTax: [
+            [38_016_000_000, "2022-02-28", "a-2022"],
+          ],
+        }),
+      ).toEqual([
+        {
+          concept: "RevenueFromContractWithCustomerExcludingAssessedTax",
+          value: 38_016_000_000,
+          filedAt: "2022-02-28",
+          firstPublicAt: "2022-02-28",
+        },
+      ]);
+    });
+
+    test("applies A -> B -> A across an alias tag's own history", () => {
+      expect(
+        hlitRevenue("2016-01-01", "2016-12-31", {
+          SalesRevenueNet: [
+            [100, "2017-03-03", "a-2017"],
+            [105, "2018-03-05", "a-2018"],
+          ],
+          RevenueFromContractWithCustomerExcludingAssessedTax: [[100, "2019-03-01", "a-2019"]],
+        }),
+      ).toEqual([
+        {
+          concept: "RevenueFromContractWithCustomerExcludingAssessedTax",
+          value: 100,
+          filedAt: "2019-03-01",
+          firstPublicAt: "2019-03-01",
+        },
+      ]);
+    });
+
+    test("keeps a recast FY2023 value dated to the recasting 10-K", () => {
+      expect(
+        hlitRevenue("2023-01-01", "2023-12-31", {
+          Revenues: [[607_907_000, "2024-02-16", "0000851310-24-000024"]],
+          RevenueFromContractWithCustomerExcludingAssessedTax: [
+            [607_907_000, "2025-02-14", "0000851310-25-000021"],
+            [388_482_000, "2026-02-24", "0001193125-26-067506"],
+          ],
+        }),
+      ).toEqual([
+        {
+          concept: "RevenueFromContractWithCustomerExcludingAssessedTax",
+          value: 388_482_000,
+          filedAt: "2026-02-24",
+          firstPublicAt: "2026-02-24",
+        },
+      ]);
+    });
+  });
+
   test("a same-day amendment supersedes the original filing's value", () => {
     expect(
       fy2023Revenue([

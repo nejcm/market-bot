@@ -1410,13 +1410,25 @@ function firstPublicDate(
   return dates.find((date) => date > supersededAt) ?? filedAt;
 }
 
-function withFirstPublicAt(winner: ParsedFact, candidates: readonly ParsedFact[]): DatedFact {
+function withFirstPublicAt(
+  winner: ParsedFact,
+  candidates: readonly ParsedFact[],
+  aliasFacts: readonly ParsedFact[] = [],
+): DatedFact {
   const peers = candidates.filter((fact) => periodKey(fact) === periodKey(winner));
   const restatedFrom =
     winner.composite === undefined ? restatedFromOriginalFiling(winner.value, peers) : undefined;
+  // An alias tag that filed the same figure dates it with its full history (A -> B -> A holds);
+  // An alias that never matched may be another scope, so it is ignored.
+  const aliasPeers = aliasFacts.filter((fact) => periodKey(fact) === periodKey(winner));
+  const matchingAliases = new Set(
+    aliasPeers.filter((fact) => fact.value === winner.value).map((fact) => fact.concept),
+  );
+  const datingPeers = [...peers, ...aliasPeers.filter((fact) => matchingAliases.has(fact.concept))];
   return {
     ...winner,
-    firstPublicAt: winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [peers]),
+    firstPublicAt:
+      winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [datingPeers]),
     ...(restatedFrom === undefined ? {} : { restatedFrom }),
   };
 }
@@ -1650,6 +1662,7 @@ function selectEquityStack(
 function selectRestatements(
   facts: readonly ParsedFact[],
   seriesKey: FinancialStatementSeriesKey,
+  aliasFacts: readonly ParsedFact[],
 ): { readonly facts: readonly DatedFact[]; readonly notes: readonly FinancialStatementNote[] } {
   const groups = new Map<string, ParsedFact[]>();
   for (const fact of facts) {
@@ -1668,7 +1681,7 @@ function selectRestatements(
         message: `${String(ordered.length - 1)} duplicate/restated fact(s) superseded by ${winner.accessionNumber ?? "unknown accession"} filed ${winner.filedAt}`,
       });
     }
-    return withFirstPublicAt(winner, matches);
+    return withFirstPublicAt(winner, matches, aliasFacts);
   });
   return { facts: selected, notes };
 }
@@ -1689,6 +1702,7 @@ function materializeBasis(
   sourceId: string,
   analysisAsOf: string,
   unit: string,
+  aliasFacts: readonly ParsedFact[],
 ): SelectedSeries {
   const observable = raw.filter((fact) => isObservable(fact, analysisAsOf));
   const compatible = observable.filter((fact) => fact.unit === unit);
@@ -1730,10 +1744,12 @@ function materializeBasis(
   const annualSelection = selectRestatements(
     compatible.filter((fact) => periodType(fact, definition) === "annual"),
     definition.key,
+    aliasFacts,
   );
   const interimSelection = selectRestatements(
     compatible.filter((fact) => periodType(fact, definition) === "interim"),
     definition.key,
+    aliasFacts,
   );
   validationNotes.push(...annualSelection.notes, ...interimSelection.notes);
 
@@ -1870,6 +1886,22 @@ function staleConceptHistoryNotes(
   });
 }
 
+function aliasConceptFacts(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  definition: FinancialStatementSeriesDefinition,
+  selected: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+): readonly ParsedFact[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  const selectedConcepts = new Set(selected.map((fact) => fact.concept));
+  return root === undefined
+    ? []
+    : definition.concepts[taxonomy]
+        .filter((concept) => !selectedConcepts.has(concept))
+        .flatMap((concept) => unitFacts(taxonomy, root, concept).filter(eligible));
+}
+
 function selectSeries(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -1916,6 +1948,11 @@ function selectSeries(
     input.sourceId,
     input.analysisAsOf,
     unit,
+    debt === undefined &&
+      depreciationAndAmortization === undefined &&
+      operatingCashFlow === undefined
+      ? aliasConceptFacts(payload, taxonomy, definition, facts, eligible)
+      : [],
   );
   if (debt === undefined) {
     return {

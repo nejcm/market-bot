@@ -84,6 +84,7 @@ const ACTIVE_HTML_RE =
 const COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/gu;
 const TAG_RE = /<[^>]+>/gu;
 const CODE_FENCE_RE = /```[\s\S]*?(?:```|$)/gu;
+const STRUCTURED_FENCE_RE = /^```[\w+.-]*\s*[{[]/u;
 const ENTITY_RE = /&(?:#(\d+)|#x([\da-f]+)|amp|lt|gt|quot|apos|nbsp|mdash|ndash);/giu;
 const UNKNOWN_ENTITY_RE = /&[a-z][a-z\d]+;/giu;
 const FORMAT_RE = /\p{Cf}+/gu;
@@ -167,6 +168,20 @@ export function sanitizeModelInputText(
     );
   }
   text = removeControlAndFormatCharacters(text);
+  const filterChrome =
+    options.profile === "open-web" ||
+    options.profile === "news" ||
+    options.profile === "legacy-history";
+  if (filterChrome) {
+    // Counted on pre-markup text so a <script> or comment cannot hide a fence's text or shift pairing.
+    for (const [fence] of text.matchAll(CODE_FENCE_RE)) {
+      if (isInstructionFence(fence)) {
+        removedInstructionSpanCount += 1;
+      } else {
+        removedMarkupChromeCount += 1;
+      }
+    }
+  }
 
   if (options.profile !== "sec-filing") {
     ({ text, count: removedMarkupChromeCount } = replaceCounted(
@@ -191,22 +206,10 @@ export function sanitizeModelInputText(
     ));
   }
 
-  if (
-    options.profile === "open-web" ||
-    options.profile === "news" ||
-    options.profile === "legacy-history"
-  ) {
-    ({ text, count: removedInstructionSpanCount } = replaceCounted(
-      text,
-      CODE_FENCE_RE,
-      removedInstructionSpanCount,
-    ));
+  if (filterChrome) {
+    text = text.replace(CODE_FENCE_RE, " ");
   }
 
-  const filterChrome =
-    options.profile === "open-web" ||
-    options.profile === "news" ||
-    options.profile === "legacy-history";
   const retainedLines: string[] = [];
   for (const line of text.split(/\r?\n+/u)) {
     const normalizedLine = line.replaceAll(WHITESPACE_RE, " ").trim();
@@ -315,6 +318,10 @@ function replaceCounted(
 function isInstruction(text: string): boolean {
   const comparison = text.normalize("NFKC");
   return INSTRUCTION_PATTERNS.some((pattern) => pattern.test(comparison));
+}
+
+function isInstructionFence(fence: string): boolean {
+  return !STRUCTURED_FENCE_RE.test(fence) || isInstruction(fence.replaceAll(WHITESPACE_RE, " "));
 }
 
 function isChrome(text: string): boolean {

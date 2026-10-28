@@ -47,9 +47,10 @@ function gridGap(symbol: string, message: string): SourceGap {
     source: "event-grid",
     symbol,
     message,
-    capability: "market-data",
+    capability: "forecast-book",
     cause: "suppressed-by-design",
     evidenceQualityImpact: "no-cap",
+    triage: "diagnostic",
   });
 }
 
@@ -273,9 +274,10 @@ export function issueForecastBook(input: {
         source: "forecast-baseline",
         symbol,
         message: `Forecast Baseline omitted for ${ids.join(", ")}: ${UNAVAILABLE_REASON_TEXT[reason]} for ${symbol}`,
-        capability: "market-data",
+        capability: "forecast-book",
         cause: reason === "missing-closes" ? "provider-data-missing" : "validation-failed",
         evidenceQualityImpact: "no-cap",
+        triage: "diagnostic",
       }),
     );
   }

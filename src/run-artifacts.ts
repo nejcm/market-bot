@@ -35,7 +35,7 @@ import {
   readCapitalOwnershipArtifact,
   type CapitalOwnershipArtifact,
 } from "./sources/extended-evidence/capital-ownership";
-import type { PeerImpliedRange } from "./sources/extended-evidence/valuation-comps";
+import type { StoredPeerImpliedRange } from "./sources/extended-evidence/valuation-comps";
 import {
   readValuationWorkbenchArtifact,
   type ValuationWorkbenchArtifact,
@@ -114,7 +114,7 @@ export interface RunArtifact {
   readonly financialStatements?: ReadArtifact<FinancialStatementsArtifact>;
   readonly subsequentFinancing?: ReadArtifact<SubsequentFinancingBridgeArtifact>;
   readonly capitalOwnership?: ReadArtifact<CapitalOwnershipArtifact>;
-  readonly peerImpliedRange?: PeerImpliedRange;
+  readonly peerImpliedRange?: StoredPeerImpliedRange;
   readonly valuationWorkbench?: ReadArtifact<ValuationWorkbenchArtifact>;
   readonly reverseDcf?: ReadArtifact<ReverseDcfArtifact>;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;

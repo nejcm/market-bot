@@ -12,9 +12,10 @@ import {
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
 import { FUNDAMENTAL_HISTORY_POINT_FORMS } from "./sources/extended-evidence/financial-statements-contract";
 import type {
-  PeerImpliedRange,
   PeerImpliedRangeSuppressedReason,
+  StoredPeerImpliedRange,
 } from "./sources/extended-evidence/valuation-comps";
+import { storedPeerRangeBasis } from "./sources/extended-evidence/valuation-comps-contract";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistorySeriesKey,
@@ -266,7 +267,6 @@ const PEER_IMPLIED_RANGE_SUPPRESSED_REASONS: ReadonlySet<PeerImpliedRangeSuppres
   new Set([
     "peer supportability is not supported",
     "fewer than 3 usable peers",
-    "TTM revenue is not positive",
     "net debt is unavailable",
     "net debt uses mixed reporting periods",
     "shares outstanding is not positive",
@@ -297,15 +297,15 @@ function hasPeerImpliedRangeInputsShape(value: unknown): boolean {
 
 // Reads only the optional range block from valuation-comps.json. The console
 // Does not consume the broader comps artifact.
-export function readPeerImpliedRange(value: unknown): PeerImpliedRange | undefined {
+export function readPeerImpliedRange(value: unknown): StoredPeerImpliedRange | undefined {
   if (!isRecord(value) || !isRecord(value.impliedPriceRange)) {
     return undefined;
   }
   const range = value.impliedPriceRange;
+  const basis = storedPeerRangeBasis(range);
   if (
+    basis === undefined ||
     range.label !== "peer-implied price reference range" ||
-    range.basis !== "peer EV/TTM revenue percentiles applied to target TTM revenue" ||
-    range.formula !== "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding" ||
     !hasPeerImpliedRangeInputsShape(range.inputs)
   ) {
     return undefined;
@@ -313,11 +313,12 @@ export function readPeerImpliedRange(value: unknown): PeerImpliedRange | undefin
   if (
     range.status === "suppressed" &&
     typeof range.suppressedReason === "string" &&
-    PEER_IMPLIED_RANGE_SUPPRESSED_REASONS.has(
-      range.suppressedReason as PeerImpliedRangeSuppressedReason,
-    )
+    (range.suppressedReason === basis.revenueNotPositive ||
+      PEER_IMPLIED_RANGE_SUPPRESSED_REASONS.has(
+        range.suppressedReason as PeerImpliedRangeSuppressedReason,
+      ))
   ) {
-    return range as unknown as PeerImpliedRange;
+    return range as unknown as StoredPeerImpliedRange;
   }
   const { inputs } = range;
   if (
@@ -339,7 +340,7 @@ export function readPeerImpliedRange(value: unknown): PeerImpliedRange | undefin
       range.position === "within-range" ||
       range.position === "above-range")
   ) {
-    return range as unknown as PeerImpliedRange;
+    return range as unknown as StoredPeerImpliedRange;
   }
   return undefined;
 }

@@ -13,6 +13,10 @@ const SYMBOL = String.raw`([\w\^]+(?:\.[\w]+)*(?::[.\w]+)*)`;
 const N = String.raw`(\d+)`;
 const NUM = String.raw`(-?\d+(?:\.\d+)?)`;
 
+export function tradingDays(count: number): string {
+  return `${String(count)} trading day${count === 1 ? "" : "s"}`;
+}
+
 const DIRECTION_RE = new RegExp(
   String.raw`^close\(${SYMBOL},\s*\+${N}\)\s*>\s*close\(\1,\s*0\)$`,
   "u",
@@ -93,7 +97,7 @@ export const directionShape: PredictionShape<"direction"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.subject} closes above its origin close over ${String(expression.horizonTradingDays)} trading days`;
+    return `${expression.subject} closes above its origin close over ${tradingDays(expression.horizonTradingDays)}`;
   },
 
   subject(expression) {
@@ -144,7 +148,7 @@ export const relativeShape: PredictionShape<"relative"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.subjectA} outperforms ${expression.subjectB} over ${String(expression.horizonTradingDays)} trading days`;
+    return `${expression.subjectA} outperforms ${expression.subjectB} over ${tradingDays(expression.horizonTradingDays)}`;
   },
 
   subject(expression) {
@@ -210,7 +214,7 @@ export const volatilityShape: PredictionShape<"volatility"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.subject} trades above ${String(expression.threshold)} within ${String(expression.horizonTradingDays)} trading days`;
+    return `${expression.subject} trades above ${String(expression.threshold)} within ${tradingDays(expression.horizonTradingDays)}`;
   },
 
   subject(expression) {
@@ -273,7 +277,7 @@ export const rangeShape: PredictionShape<"range"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.subject} closes outside ${String(expression.lo)}-${String(expression.hi)} over ${String(expression.horizonTradingDays)} trading days`;
+    return `${expression.subject} closes outside ${String(expression.lo)}-${String(expression.hi)} over ${tradingDays(expression.horizonTradingDays)}`;
   },
 
   subject(expression) {
@@ -322,7 +326,7 @@ export const macroShape: PredictionShape<"macro"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.seriesId} rises over ${String(expression.horizonTradingDays)} trading days`;
+    return `${expression.seriesId} rises over ${tradingDays(expression.horizonTradingDays)}`;
   },
 
   subject(expression) {
@@ -390,7 +394,7 @@ export const ivShape: PredictionShape<"iv"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.subject} implied volatility is above ${String(expression.threshold)} in ${String(expression.horizonTradingDays)} trading days`;
+    return `${expression.subject} implied volatility is above ${String(expression.threshold)} in ${tradingDays(expression.horizonTradingDays)}`;
   },
 
   subject(expression) {
@@ -453,7 +457,7 @@ export const earningsDirectionShape: PredictionShape<"earnings-direction"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.subject} closes higher than its pre-earnings close ${String(expression.horizonTradingDays)} trading days after the ${expression.eventDate} earnings event`;
+    return `${expression.subject} closes higher than its pre-earnings close ${tradingDays(expression.horizonTradingDays)} after the ${expression.eventDate} earnings event`;
   },
 
   subject(expression) {
@@ -507,7 +511,7 @@ export const earningsMoveShape: PredictionShape<"earnings-move"> = {
 
   renderClaim(expression) {
     const pct = (expression.threshold * 100).toFixed(1);
-    return `${expression.subject} moves more than ${pct}% from its pre-earnings close ${String(expression.horizonTradingDays)} trading days after the ${expression.eventDate} earnings event`;
+    return `${expression.subject} moves more than ${pct}% from its pre-earnings close ${tradingDays(expression.horizonTradingDays)} after the ${expression.eventDate} earnings event`;
   },
 
   subject(expression) {

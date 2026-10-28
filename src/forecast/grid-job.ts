@@ -72,6 +72,14 @@ function gridJobGap(symbol: string, message: string, cause: SourceGapCause): Sou
   return sourceGap({ source: STAGE, symbol, message, cause, evidenceQualityImpact: "no-cap" });
 }
 
+function forecastBookGap(symbol: string, message: string, cause: SourceGapCause): SourceGap {
+  return {
+    ...gridJobGap(symbol, message, cause),
+    capability: "forecast-book",
+    triage: "diagnostic",
+  };
+}
+
 function equityCommand(symbol: string): InstrumentCommand {
   return { jobType: "equity", assetClass: "equity", symbol, depth: "brief" };
 }
@@ -96,7 +104,7 @@ export function planForecastGrid(dataDir: string, watchlist: string): ForecastGr
   const gaps = stored.items
     .filter(({ assetClass }) => assetClass !== "equity")
     .map(({ assetClass, symbol }) =>
-      gridJobGap(
+      forecastBookGap(
         symbol,
         `Forecast Grid skipped ${assetClass} item ${symbol}: the Event Grid covers equities only`,
         "unsupported-coverage",
@@ -303,7 +311,7 @@ async function latestRunContext(
   if (!fresh || report === undefined) {
     return {
       context: {},
-      gap: gridJobGap(
+      gap: forecastBookGap(
         symbol,
         `Forecast Grid fact sheet has no latest-run summary or regime for ${symbol}: no readable instrument run in the last ${String(LATEST_RUN_FRESH_DAYS)} days`,
         "provider-data-missing",
@@ -550,7 +558,7 @@ export async function runForecastGridJob(input: {
       await writeJson(join(staged, RUN_ARTIFACT_FILES.report), report);
       await writeFile(
         join(staged, RUN_ARTIFACT_FILES.reportMarkdown),
-        renderMarkdownReport(report),
+        renderMarkdownReport(report, undefined, { sourceGaps: gaps }),
         "utf8",
       );
       await writeJson(join(staged, RUN_ARTIFACT_FILES.sourceGaps), gaps);

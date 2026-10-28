@@ -6,9 +6,15 @@ controlled-warm band (Band 2). Deltas that fall inside the ranges below are
 single-run noise unless corroborated by independent evidence. Treat the ranges
 as stale once any path in the command below changes after the baseline commit.
 
-**Status: current** as of 2026-10-20. Re-recorded after the 2026-08-31 `87aa497`
-band went stale (100+ watched files changed, `prompts/` included). The old band
-and the 2026-08-11 `0110528` AAPL bands are retired; do not compare against them.
+**Status: stale** as of 2026-10-23 (`d86e489e`). The check command below lists
+46 changed watched files: SEC/extended-evidence collectors (22), forecast and
+Event Grid, scoring and calibration, Web Gather and profile reuse,
+final-synthesis and forecast-grid prompts, report assembly, run analytics, and
+Source Gaps. Re-record the band before using it to judge live-run deltas.
+
+Recorded 2026-10-20 after the 2026-08-31 `87aa497` band went stale (100+
+watched files changed, `prompts/` included). The old band and the 2026-08-11
+`0110528` AAPL bands are retired; do not compare against them.
 
 Cold-start Band 1 was not recorded. Three runs were authorized, not six.
 

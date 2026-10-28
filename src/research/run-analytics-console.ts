@@ -18,11 +18,18 @@ function predictionLine(predictions: RunAnalytics["predictions"]): string {
       )} short)`;
   const signal = `${String(predictions.informativeCount)} informative, ${String(
     predictions.nearBaseRateCount,
-  )} near base rate${predictions.signalTargetMet ? "" : " (below signal floor)"}`;
+  )} near base rate${signalFloorSuffix(predictions.signalTargetMet)}`;
   const citations = Object.entries(predictions.citedSourceClasses)
     .map(([kind, count]) => `${kind}:${String(count)}`)
     .join(", ");
   return `  Predictions: ${target} · ${signal}${citations === "" ? "" : ` · citations [${citations}]`}`;
+}
+
+function signalFloorSuffix(signalTargetMet: boolean | null): string {
+  if (signalTargetMet === null) {
+    return " (signal floor n/a)";
+  }
+  return signalTargetMet ? "" : " (below signal floor)";
 }
 
 function earningsForecastLine(earnings: NonNullable<RunAnalytics["earningsForecasts"]>): string {

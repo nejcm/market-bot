@@ -387,8 +387,26 @@ describe("addValuationEvidence", () => {
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
-    expect(valuation?.summary).toContain("net debt/market cap 0.00x");
-    expect(valuation?.summary).not.toContain("-0.00x");
+    expect(valuation?.summary).toContain("net debt/market cap 0.0%");
+    expect(valuation?.summary).not.toContain("-0.0%");
+  });
+
+  test("renders sub-1% debt ratios as percent instead of rounding them to 0.00x", () => {
+    const result = addValuationEvidence(
+      command,
+      [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+      secEvidence({
+        revenue: 400,
+        cash: 6.1,
+        cashPeriodEnd: "2026-03-31",
+        debt: 3.9,
+        debtPeriodEnd: "2026-03-31",
+      }),
+      "2026-07-01T00:00:00.000Z",
+    );
+
+    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
+    expect(valuation?.summary).toContain(", debt/market cap 0.4%, net debt/market cap -0.2%;");
   });
 
   test("reads the SEC TTM revenue instead of annualizing the latest partial period", () => {

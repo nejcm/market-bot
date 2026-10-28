@@ -8,7 +8,7 @@ import {
 } from "../../domain/market-data";
 import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
-import { clampRoundedZero } from "./percent-format";
+import { clampRoundedZero, formatRatioPercent } from "./percent-format";
 import { scaleCurrency } from "./value-format";
 import { depositoryIssuerSic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
@@ -58,6 +58,10 @@ function ratio(numerator: number, denominator: number): number | undefined {
 
 function fixed(value: number | undefined): string {
   return value === undefined ? "n/a" : `${clampRoundedZero(value, 2).toFixed(2)}x`;
+}
+
+function percent(value: number | undefined): string {
+  return value === undefined ? "n/a" : formatRatioPercent(value);
 }
 
 function nonCurrentBalanceSheetGap(
@@ -205,7 +209,7 @@ export function addValuationEvidence(
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, net debt/market cap ${percent(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {

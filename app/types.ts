@@ -6,7 +6,7 @@ import type { FinancialLensArtifact } from "../src/sources/extended-evidence/fin
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-evidence/subsequent-financing";
 import type { FundamentalHistoryArtifact } from "../src/sources/extended-evidence/fundamental-history";
-import type { PeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
+import type { StoredPeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "../src/sources/extended-evidence/reverse-dcf";
 import type { ReadArtifact } from "../src/sources/extended-evidence/utils";
@@ -64,7 +64,7 @@ export interface RunDetail {
   readonly financialLenses?: FinancialLensArtifact;
   readonly financialStatements?: ReadArtifact<FinancialStatementsArtifact>;
   readonly subsequentFinancing?: ReadArtifact<SubsequentFinancingBridgeArtifact>;
-  readonly peerImpliedRange?: PeerImpliedRange;
+  readonly peerImpliedRange?: StoredPeerImpliedRange;
   readonly valuationWorkbench?: ReadArtifact<ValuationWorkbenchArtifact>;
   readonly reverseDcf?: ReadArtifact<ReverseDcfArtifact>;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;

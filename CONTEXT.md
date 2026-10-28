@@ -471,8 +471,10 @@ in the Default View.
 ## Diagnostic Gap
 
 A Diagnostic Gap is an instrumentation or entitlement artifact, such as an absent optional
-provider, an entitlement 403, or an unconfigured operating-KPI registry, and appears only in the
-Appendix.
+provider, an entitlement 403, an unconfigured operating-KPI registry, or a forecast-book note
+(`event-grid`, `forecast-baseline`, `earnings-forecasts` suppression, and the Forecast Grid Job's
+watchlist-skip and fact-sheet `forecast-grid` notes), and appears only in the Appendix; Markdown
+without an Appendix (non-equity runs, Forecast Grid) labels it Diagnostic in its Data Gaps list.
 Prediction shortfalls affect the delivered research scope and appear last among Material Gaps in
 the Default View. Non-equity Console views keep the structured disclosure in a dedicated Shortfall
 block.
@@ -539,7 +541,7 @@ Deterministic Extended Evidence combining market cap, fundamentals, and, for `eq
 
 ## Valuation Workbench
 
-Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. It reports P/E, P/S, EV/revenue, and P/FCF proxy as engine MetricResults with input lineage and a declared filing-date close/FX basis, and carries the existing peer table/reference range with dates, currencies, supportability, and sources. Missing canonical TTM is suppressed; retained quarter-only periods are never combined into an unreconciled trailing value. Each observation is a Metric Section (`valuation-workbench-<basis>-<periodEnd>-<publicAt>`) with one Source Gap for unresolved metrics; absent statements or periods produce a missing workbench section. Unavailable closes before the requested history start carry structural cause `outside-price-history-window` only when usable history was returned; the status and `price-history-unavailable` reason remain unchanged. Missing bars inside the requested window, provider failures, and independent unresolved inputs remain material. The dedicated historical table renders these sections. P/FCF reads raw statement and price inputs without depending on another enricher.
+Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. It reports P/E, P/S, EV/revenue, and P/FCF proxy as engine MetricResults with input lineage and a declared filing-date close/FX basis, and carries the existing peer table/reference range with dates, currencies, supportability, and sources. Missing canonical TTM is suppressed; retained quarter-only periods are never combined into an unreconciled trailing value. Each observation is a Metric Section (`valuation-workbench-<basis>-<periodEnd>-<publicAt>`) with one Source Gap for unresolved metrics; absent statements or periods produce a missing workbench section. Unavailable closes before the requested history start carry structural cause `outside-price-history-window` only when usable history was returned; the status and `price-history-unavailable` reason remain unchanged. Observations whose only unresolved metrics carry that cause share one diagnostic Source Gap (`valuation-workbench-outside-price-history-window`) naming every affected period instead of one gap each; their Metric Sections stay per period. Missing bars inside the requested window, provider failures, and independent unresolved inputs remain material. The dedicated historical table renders these sections. P/FCF reads raw statement and price inputs without depending on another enricher.
 
 ## Reverse DCF Input Sensitivity
 

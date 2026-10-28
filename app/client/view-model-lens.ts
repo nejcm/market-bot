@@ -36,21 +36,25 @@ function formatMultiple(value: number): string {
   return `${value.toFixed(1)}x`;
 }
 
-const VALUATION_METRIC_LABELS: Readonly<Record<string, string>> = {
-  marketCap: "Market cap",
-  enterpriseValue: "Enterprise value",
-  annualizedRevenue: "TTM revenue",
-  evToAnnualizedRevenue: "EV / TTM revenue",
-  corePeerCount: "Core peers",
-  usablePeerCount: "Peers (median basis)",
-  peerMedianEvToAnnualizedRevenue: "Peer median EV / TTM revenue",
-  peerP25EvToAnnualizedRevenue: "Peer P25 EV / TTM revenue",
-  peerP75EvToAnnualizedRevenue: "Peer P75 EV / TTM revenue",
-  valuationSupportability: "Supportability",
-};
+function valuationMetricLabels(revenue: string): Readonly<Record<string, string>> {
+  return {
+    marketCap: "Market cap",
+    enterpriseValue: "Enterprise value",
+    annualizedRevenue: revenue.charAt(0).toUpperCase() + revenue.slice(1),
+    evToAnnualizedRevenue: `EV / ${revenue}`,
+    corePeerCount: "Core peers",
+    usablePeerCount: "Peers (median basis)",
+    peerMedianEvToAnnualizedRevenue: `Peer median EV / ${revenue}`,
+    peerP25EvToAnnualizedRevenue: `Peer P25 EV / ${revenue}`,
+    peerP75EvToAnnualizedRevenue: `Peer P75 EV / ${revenue}`,
+    valuationSupportability: "Supportability",
+  };
+}
 
+// Without the run's recognized peer-range basis the revenue label stays neutral, never assumed TTM.
 export function valuationMetricTiles(
   metrics: Readonly<Record<string, number | string>> | undefined,
+  revenueBasisLabel = "revenue",
 ): readonly ValuationMetricTile[] {
   if (metrics === undefined) {
     return [];
@@ -69,13 +73,14 @@ export function valuationMetricTiles(
     "valuationSupportability",
   ] as const;
 
+  const labels = valuationMetricLabels(revenueBasisLabel);
   const { usablePeerCount } = metrics;
   const hasUsablePeerCount =
     typeof usablePeerCount === "number" && Number.isFinite(usablePeerCount);
 
   return keys.flatMap((key) => {
     const raw = metrics[key];
-    const label = VALUATION_METRIC_LABELS[key] ?? key;
+    const label = labels[key] ?? key;
     if (typeof raw === "number" && Number.isFinite(raw)) {
       if (
         key === "evToAnnualizedRevenue" ||

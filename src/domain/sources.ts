@@ -106,7 +106,9 @@ export type SourceGapCapability =
   | "market-context"
   | "evidence-request"
   | "web-gather"
-  | "cache";
+  | "cache"
+  // Assembly-time Forecast Book notes; never an external provider route.
+  | "forecast-book";
 
 export type SourceGapCause =
   | "missing-credential"

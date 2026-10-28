@@ -6,7 +6,7 @@ import type { SourceGap } from "../domain/sources";
 import type { FinancialStatementsArtifact } from "../sources/extended-evidence/financial-statements-contract";
 import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fundamental-history";
 import { depositoryIssuerSic } from "../sources/extended-evidence/industry-classification";
-import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
+import type { StoredPeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
 import { isWebSubjectProfileWithheldAnswer } from "../web-evidence/contract";
 import { earningsBasis, type EquityReaderEarningsBasis } from "./equity-reader-earnings-basis";
@@ -48,14 +48,14 @@ export type EquityReaderValuationContext =
   | {
       readonly kind: "peer-range";
       readonly status: "derived";
-      readonly range: Extract<PeerImpliedRange, { status: "derived" }>;
+      readonly range: Extract<StoredPeerImpliedRange, { status: "derived" }>;
       readonly priceAsOf?: MarketSnapshotPriceAsOf;
       readonly sourceIds: readonly string[];
     }
   | {
       readonly kind: "peer-range";
       readonly status: "suppressed";
-      readonly range: Extract<PeerImpliedRange, { status: "suppressed" }>;
+      readonly range: Extract<StoredPeerImpliedRange, { status: "suppressed" }>;
       readonly sourceIds: readonly string[];
       readonly fallbackMetrics: readonly EquityReaderMarketMultiple[];
       readonly fallbackSourceIds: readonly string[];
@@ -172,7 +172,7 @@ export interface EquityReaderProjectionInput {
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
-  readonly peerImpliedRange?: PeerImpliedRange;
+  readonly peerImpliedRange?: StoredPeerImpliedRange;
   readonly sourceGaps?: readonly SourceGap[];
 }
 
@@ -196,7 +196,7 @@ function valuationSourceIds(workbench: ValuationWorkbenchArtifact | undefined): 
 
 function valuationPriceAsOf(
   workbench: ValuationWorkbenchArtifact | undefined,
-  range: Extract<PeerImpliedRange, { status: "derived" }>,
+  range: Extract<StoredPeerImpliedRange, { status: "derived" }>,
 ): MarketSnapshotPriceAsOf | undefined {
   if (workbench?.peerComparison.status === "available") {
     const { priceAsOf, quoteObservedAt } = workbench.peerComparison.valuationComps.target;
@@ -216,7 +216,7 @@ function valuationPriceAsOf(
 function valuationContext(
   marketSnapshot: MarketSnapshot | undefined,
   workbench: ValuationWorkbenchArtifact | undefined,
-  projectedRange: PeerImpliedRange | undefined,
+  projectedRange: StoredPeerImpliedRange | undefined,
 ): EquityReaderValuationContext {
   const workbenchRange =
     workbench?.peerComparison.status === "available"

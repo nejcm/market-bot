@@ -10,7 +10,7 @@ import {
   type Scenario,
 } from "../domain/report";
 import { type RelocatedGapClaim } from "../domain/run-trace";
-import { sourceGapScopedReportText } from "../domain/source-gaps";
+import { dedupeSourceGaps, sourceGap, sourceGapScopedReportText } from "../domain/source-gaps";
 import { type Source, type SourceGap } from "../domain/sources";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { classifyGap } from "../report/gap-triage";
@@ -787,6 +787,25 @@ export function assembleResearchReportWithRelocations(
     modelEventGrid: payload.eventGrid,
     knownSourceIds: new Set(sources.map((source) => source.id)),
   });
+  const forecastGaps = [
+    ...(collectedSources.earningsSetup !== undefined &&
+    !hasConfirmedEarningsDate(collectedSources.earningsSetup)
+      ? [
+          sourceGap({
+            source: "earnings-forecasts",
+            ...(reportSymbol !== undefined ? { symbol: reportSymbol } : {}),
+            message:
+              "Earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
+            provider: "market-bot",
+            capability: "forecast-book",
+            cause: "suppressed-by-design",
+            evidenceQualityImpact: "no-cap",
+            triage: "diagnostic",
+          }),
+        ]
+      : []),
+    ...forecastBook.gaps,
+  ];
   // Stamp the current scoring policy on every accepted Prediction. The stamp
   // Is deterministic: model-provided policy metadata never survives assembly.
   const stampedPredictions = forecastBook.predictions.map((candidate) => ({
@@ -798,15 +817,7 @@ export function assembleResearchReportWithRelocations(
       ...modelGapEntries,
       ...deterministicGapEntries,
       ...researchGatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
-      ...(collectedSources.earningsSetup !== undefined &&
-      !hasConfirmedEarningsDate(collectedSources.earningsSetup)
-        ? [
-            reportDataGapEntry(
-              "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
-            ),
-          ]
-        : []),
-      ...forecastBook.gaps.map((gap) => ({
+      ...forecastGaps.map((gap) => ({
         text: sourceGapScopedReportText(gap),
         ...(gap.evidenceQualityImpact !== undefined ? { impact: gap.evidenceQualityImpact } : {}),
       })),
@@ -928,6 +939,6 @@ export function assembleResearchReportWithRelocations(
   return {
     report: resolvedReport,
     relocatedGapClaims,
-    sourceGaps,
+    sourceGaps: dedupeSourceGaps([...sourceGaps, ...forecastGaps]),
   };
 }

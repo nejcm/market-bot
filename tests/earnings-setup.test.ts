@@ -180,7 +180,7 @@ describe("renderClaim — earnings", () => {
       horizonTradingDays: 1,
     };
     expect(renderClaim(expression)).toBe(
-      "AAPL closes higher than its pre-earnings close 1 trading days after the 2026-07-24 earnings event",
+      "AAPL closes higher than its pre-earnings close 1 trading day after the 2026-07-24 earnings event",
     );
   });
 
@@ -193,7 +193,7 @@ describe("renderClaim — earnings", () => {
       threshold: 0.045,
     };
     expect(renderClaim(expression)).toBe(
-      "AAPL moves more than 4.5% from its pre-earnings close 1 trading days after the 2026-07-24 earnings event",
+      "AAPL moves more than 4.5% from its pre-earnings close 1 trading day after the 2026-07-24 earnings event",
     );
   });
 });

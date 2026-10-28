@@ -18,6 +18,7 @@ import { isRecord, readNumber, readString } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
+import { readGapTriage } from "../../../src/report/gap-triage";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
 import { renderMarkdownReport } from "../../../src/report/markdown";
 import {
@@ -74,6 +75,13 @@ function asWritten(value: unknown): unknown {
   return JSON.parse(written) as unknown;
 }
 
+// Assembly adds these after synthesis, so the synthesis prompt never sees them.
+const FORECAST_BOOK_GAP_SOURCES = new Set([
+  "event-grid",
+  "forecast-baseline",
+  "earnings-forecasts",
+]);
+
 export function assertMetricPromptCatalog(
   result: RunFixtureResult,
   meta: FixtureMeta,
@@ -124,7 +132,12 @@ export function assertMetricPromptCatalog(
       }
     }
     expect(prompt.evidence.sourceGaps).toEqual(
-      deterministicSourceGaps(command, result.collectedSources),
+      deterministicSourceGaps(command, {
+        ...result.collectedSources,
+        sourceGaps: result.collectedSources.sourceGaps.filter(
+          ({ source }) => !FORECAST_BOOK_GAP_SOURCES.has(source),
+        ),
+      }),
     );
     expect(user).toBe(JSON.stringify(prompt));
   }
@@ -190,6 +203,27 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
     "model prediction restates a grid event",
   ).toEqual([]);
   expect(report.dataGaps.filter((gap) => gap.includes("not issued separately"))).toEqual([]);
+  for (const gap of report.dataGaps) {
+    const source = gap.split(": ", 1)[0]!;
+    if (FORECAST_BOOK_GAP_SOURCES.has(source)) {
+      expect(readGapTriage(gap, result.collectedSources.sourceGaps), gap).toBe("diagnostic");
+      expect(result.analytics.sourceFunnel.sourceGaps.bySource[source], gap).toBeGreaterThan(0);
+    }
+  }
+  const earningsGateSuppressed =
+    readEarningsForecastTelemetry(report)?.suppressionReason === "event-date-not-confirmed";
+  expect(
+    result.collectedSources.sourceGaps.some(
+      ({ source, capability, triage }) =>
+        source === "earnings-forecasts" &&
+        capability === "forecast-book" &&
+        triage === "diagnostic",
+    ),
+    "earnings-forecasts gap declared exactly when the gate suppresses",
+  ).toBe(earningsGateSuppressed);
+  expect(report.dataGaps.some((gap) => gap.startsWith("earnings-forecasts: "))).toBe(
+    earningsGateSuppressed,
+  );
   for (const prediction of report.predictions) {
     const expression = parseObservableExpression(prediction.measurableAs);
     if (prediction.baselineProbability !== undefined) {
@@ -2343,6 +2377,18 @@ export function assertEstimatedEarningsSuppressionPath(
   expect(result.collectedSources.institutionalOwnershipSignal?.status).toBe("forbidden");
 }
 
+function outsideOnly(section: {
+  readonly metrics: readonly { readonly status: string; readonly cause?: string }[];
+}): boolean {
+  const unresolved = section.metrics.filter(({ status }) => status !== "value");
+  return (
+    unresolved.length > 0 &&
+    unresolved.every(
+      ({ status, cause }) => status === "missing" && cause === "outside-price-history-window",
+    )
+  );
+}
+
 function assertValuationWorkbenchInvariants(
   run: RunFixtureResult,
   meta: FixtureMeta,
@@ -2378,12 +2424,23 @@ function assertValuationWorkbenchInvariants(
   const gaps = run.collectedSources.sourceGaps.filter(({ source }) =>
     source.startsWith("valuation-workbench-"),
   );
+  const outsideSections = sections.filter((section) => outsideOnly(section));
   expect(gaps).toHaveLength(
-    sections.filter(({ metrics }) => metrics.some(({ status }) => status !== "value")).length,
+    sections.filter(
+      (section) =>
+        !outsideOnly(section) && section.metrics.some(({ status }) => status !== "value"),
+    ).length + (outsideSections.length > 0 ? 1 : 0),
   );
   for (const section of sections) {
     const unresolved = section.metrics.filter(({ status }) => status !== "value");
-    const gap = gaps.find(({ source }) => source === section.id);
+    const gap = gaps.find(
+      ({ source }) =>
+        source ===
+        (outsideOnly(section) ? "valuation-workbench-outside-price-history-window" : section.id),
+    );
+    if (outsideOnly(section)) {
+      expect(gap?.message).toContain(section.title.replace(/^Valuation Workbench /u, ""));
+    }
     expect(gap !== undefined).toBe(unresolved.length > 0);
     if (gap !== undefined) {
       expect(gap.triage).toBe(

@@ -377,9 +377,11 @@ async function loadRunHealth(runDir: string): Promise<RunHealth> {
   const deepEquityBundle = deepEquity
     ? await loadDeepEquityEvidenceBundle(runDir, reportSourceIds)
     : undefined;
-  const sourceGaps = deepEquity
-    ? deepEquitySourceGaps(deepEquityBundle)
-    : parseSourceGaps(await readJson(join(runDir, SOURCE_GAPS_FILE)));
+  const sourceGaps = (
+    deepEquity
+      ? deepEquitySourceGaps(deepEquityBundle)
+      : parseSourceGaps(await readJson(join(runDir, SOURCE_GAPS_FILE)))
+  ).filter((gap) => gap.capability !== "forecast-book");
   const generatedAt = stringValue(report.generatedAt);
   const symbol = stringValue(report.symbol);
   const depth = depthFrom(report, analytics);

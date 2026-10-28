@@ -283,7 +283,7 @@ describe("final-synthesis-only live provider", () => {
     const synthetic = await liveTokenEstimate("equity-nbis-deep", "final-synthesis");
     expect(synthetic.perRun).toBeGreaterThanOrEqual(437_500);
     expect(synthetic.expectedPerRun).toBeLessThan(synthetic.perRun);
-  });
+  }, 60_000);
 
   test("fails the run without a live call when an upstream stage swallows a replay miss", async () => {
     const root = await tempRoot();

@@ -11,14 +11,7 @@ import {
   DA_CASH_FLOW_FACT_PREFIX,
   EXTENSION_CAPEX_CHECKED_KEY,
   EXTENSION_CAPEX_FACT_PREFIX,
-  FACE_LABEL_PREFIX,
-  FACE_LINE_PREFIX,
 } from "../sec-segment-facts";
-import {
-  grossPrincipalDebtGap,
-  leaseInclusiveDebtGap,
-  withheldDebtGap,
-} from "./sec-fundamentals-format";
 import {
   CAP_FOLLOWER_SERIES,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
@@ -32,10 +25,7 @@ import {
   MAX_ANNUAL_DURATION_MONTHS,
   isDebtPresenceConcept,
   isRevenueConceptInRecencyBucket,
-  US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
-  US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
   type FinancialStatementSeriesDefinition,
-  DEBT_CONCEPTS,
 } from "./financial-statement-definitions";
 import {
   capFinancialStatementPeriods,
@@ -48,29 +38,21 @@ import {
   financialStatementPeriodMonths,
   isYearAligned,
   financialStatementFacts,
-  debtCandidateConcepts,
-  incompleteDebtNote,
-  unadjustedLeaseInclusiveDebt,
-  unsupersededDebtResolutions,
   incompleteFinancialStatementNotes,
   latestFinancialStatementFact,
-  recognizedDebtConcepts,
-  type DebtResolution,
-  debtIdentityConcepts,
-  resolveDebtAtInstant,
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
-  withheldDebt,
   compareFinancialStatementRevisions,
 } from "./financial-statement-selection";
 import {
-  calendarYearFromPeriodEnd,
-  grossPrincipalDebtFallbackApplies,
-  statementFiscalPeriodKey,
-} from "./financial-statement-period-identity";
+  type DebtFactReader,
+  debtAliasesTagged,
+  factsForDebt,
+  withGrossPrincipalDebt,
+} from "./sec-debt";
+import { calendarYearFromPeriodEnd } from "./financial-statement-period-identity";
 import {
   COMPOSITE_STATEMENT_FACT_FORMULA,
-  GROSS_PRINCIPAL_DEBT_CONCEPT,
   SEC_COMPANYFACTS_UNIT_SCALE,
   canonicalizeSecForm,
   isAnnualReportForm,
@@ -100,7 +82,7 @@ interface ParsedCompositeComponent {
   readonly sourceIds?: readonly string[];
 }
 
-interface ParsedFact {
+export interface ParsedFact {
   readonly value: number;
   readonly form: SupportedSecForm;
   readonly canonicalForm: CanonicalSecForm;
@@ -124,7 +106,7 @@ interface ParsedFact {
   };
 }
 
-interface SelectedSeries {
+export interface SelectedSeries {
   readonly series: FinancialStatementSeries;
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
@@ -582,7 +564,7 @@ function factsForDepreciationAndAmortization(
       const filed = lines.map((fact) => `${fact.concept} ${String(fact.value)}`).join(", ");
       const reason =
         lines.length === 0
-          ? "no cash-flow D&A line is filed"
+          ? "no filed fact proves the filed components are total D&A"
           : `the filed cash-flow line (${filed}) is not proven to be total D&A`;
       notes.push({
         code: "incomplete-composite-series",
@@ -655,304 +637,6 @@ function factsForDepreciationAndAmortization(
     ];
   });
   return { facts: resolvedFacts, notes };
-}
-
-function debtRestatements(
-  fact: ParsedFact | undefined,
-  basis: "total" | "components",
-  candidates: readonly ParsedFact[],
-): readonly ParsedFact[] {
-  if (fact === undefined || basis === "components") {
-    return fact === undefined ? [] : [fact];
-  }
-  const key = statementFiscalPeriodKey(fact);
-  return candidates.filter(
-    (candidate) =>
-      candidate.concept === fact.concept && statementFiscalPeriodKey(candidate) === key,
-  );
-}
-
-function factsForDebt(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  definition: FinancialStatementSeriesDefinition,
-  eligible: (fact: ParsedFact) => boolean,
-  filings: readonly ExtendedEvidenceItem[],
-): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
-  const root = taxonomyRoot(payload, taxonomy);
-  if (root === undefined) {
-    return { facts: [], notes: [] };
-  }
-  const recognized = recognizedDebtConcepts(taxonomy);
-  const candidates = debtCandidateConcepts(taxonomy, root)
-    .flatMap((concept) => unitFacts(taxonomy, root, concept))
-    .filter(
-      (fact) => eligible(fact) && (fact.periodStart === undefined || recognized.has(fact.concept)),
-    );
-  const instants = new Map<string, Map<string, ParsedFact>>();
-  for (const fact of candidates.toSorted(compareFinancialStatementFacts)) {
-    const key = statementFiscalPeriodKey(fact);
-    const tagged = instants.get(key) ?? new Map<string, ParsedFact>();
-    if (!tagged.has(fact.concept)) {
-      tagged.set(fact.concept, fact);
-    }
-    instants.set(key, tagged);
-  }
-  const history = candidates.map(({ concept, periodEnd, filedAt, value, amendment }) => ({
-    concept,
-    amendment,
-    periodEnd,
-    filedAt,
-    value,
-  }));
-  const principalFacts = Object.fromEntries(
-    (
-      [
-        ["dueWithinYear", US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT],
-        ["total", GROSS_PRINCIPAL_DEBT_CONCEPT],
-        ["unamortized", "DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet"],
-      ] as const
-    ).map(([key, concept]) => [
-      key,
-      taxonomy === "us-gaap"
-        ? unitFacts(taxonomy, root, concept).filter(
-            (fact) => fact.periodStart === undefined && eligible(fact),
-          )
-        : [],
-    ]),
-  );
-  const liabilities = debtIdentityConcepts(taxonomy).flatMap((concept) =>
-    unitFacts(taxonomy, root, concept)
-      .filter((fact) => fact.periodStart === undefined && eligible(fact))
-      .map(({ periodEnd, filedAt, value, amendment }) => ({
-        concept,
-        amendment,
-        periodEnd,
-        filedAt,
-        value,
-      })),
-  );
-  const resolved = [...instants.values()].map((tagged) => {
-    const facts = [...tagged.values()];
-    const instant = {
-      periodEnd: facts[0]?.periodEnd ?? "",
-      filedAt:
-        facts
-          .map((fact) => fact.filedAt)
-          .toSorted()
-          .at(-1) ?? "",
-    };
-    const resolveAt = (lines: ReadonlyMap<string, ParsedFact>) =>
-      resolveDebtAtInstant(
-        taxonomy,
-        instant,
-        lines,
-        history,
-        (fact) => fact.value,
-        (fact) => fact.filedAt,
-        Object.fromEntries(
-          Object.entries(principalFacts).map(([key, values]) => [
-            key,
-            values
-              .filter(
-                (fact) => fact.periodEnd === instant.periodEnd && fact.filedAt <= instant.filedAt,
-              )
-              .toSorted(compareFinancialStatementFacts)
-              .at(0)?.value,
-          ]),
-        ),
-        liabilities,
-      );
-    const resolution = withFaceStatementDebt(
-      resolveAt(tagged),
-      tagged,
-      resolveAt,
-      faceDebtLines(filings, instant.periodEnd, recognized, taxonomy),
-    );
-    const subtracted = new Set(
-      resolution.contributors.flatMap((contributor) =>
-        contributor.subtract === true ? [contributor.concept] : [],
-      ),
-    );
-    const contributors = resolution.contributors.map(({ fact, subtract }) =>
-      subtract === true ? { ...fact, value: -fact.value } : fact,
-    );
-    const [anchor] = contributors;
-    const incomplete = resolution.incompleteReason !== undefined || anchor === undefined;
-    const resolveFact = (): ParsedFact | undefined => {
-      if (incomplete) {
-        return undefined;
-      }
-      return resolution.basis === "total"
-        ? anchor
-        : withCompositeFirstPublicAt(
-            compositeFromContributors(contributors, subtracted),
-            definition,
-            candidates,
-            subtracted,
-          );
-    };
-    const fact = resolveFact();
-    return {
-      ...instant,
-      fact,
-      restatements: debtRestatements(fact, resolution.basis, candidates),
-      incomplete,
-      incompleteReason: resolution.incompleteReason,
-      basis: resolution.basis,
-      lineScope: resolution.lineScope === true,
-      proofSourceIds: resolution.proofSourceIds,
-    };
-  });
-  const current = unsupersededDebtResolutions(resolved);
-  const [latest] = current
-    .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))
-    .toSorted((left, right) => compareFinancialStatementFacts(left.fact, right.fact));
-  const notes = new Map(
-    current.flatMap(({ periodEnd, filedAt, incompleteReason }) =>
-      incompleteReason === undefined
-        ? []
-        : [[periodEnd, incompleteDebtNote(periodEnd, incompleteReason, filedAt)] as const],
-    ),
-  );
-  const ineligible = (latest?.fact.concept.split(/[+-]/u) ?? []).flatMap((concept) =>
-    unitFacts(taxonomy, root, concept).filter((fact) => !eligible(fact)),
-  );
-  const kept = new Set(current.flatMap((entry) => (entry.incomplete ? [] : entry.restatements)));
-  const lineScoped = new Set(
-    current.flatMap((entry) => (!entry.incomplete && entry.lineScope ? entry.restatements : [])),
-  );
-  const proofs = new Map(
-    current.flatMap((entry) =>
-      entry.incomplete || entry.proofSourceIds === undefined
-        ? []
-        : entry.restatements.map((fact) => [fact, entry.proofSourceIds] as const),
-    ),
-  );
-  return {
-    facts: [
-      ...candidates.filter((fact) => kept.has(fact)),
-      ...[...kept].filter((fact) => fact.composite !== undefined),
-      ...ineligible,
-    ].map((fact) => ({
-      ...fact,
-      ...(lineScoped.has(fact) ? { lineScope: true as const } : {}),
-      ...(proofs.has(fact) ? { proofSourceIds: proofs.get(fact) ?? [] } : {}),
-    })),
-    notes: [...notes.values()],
-  };
-}
-
-const FACE_DEBT_WORDS = /debt|loan|mortgage|notes|borrowing/iu;
-const sumOf = (values: readonly number[]) => values.reduce((acc, value) => acc + value, 0);
-const FACE_NON_DEBT_WORDS =
-  /lease|receivable|warrant|tax|interest|derivative|accrued|accounts payable|accountspayable/iu;
-
-interface FaceDebtLines {
-  readonly accessionNumber: string;
-  readonly sourceIds: readonly string[];
-  readonly standard: ReadonlyMap<string, number>;
-  readonly extensions: readonly { readonly concept: string; readonly value: number }[];
-}
-
-function faceDebtLines(
-  filings: readonly ExtendedEvidenceItem[],
-  periodEnd: string,
-  recognized: ReadonlySet<string>,
-  taxonomy: FinancialStatementTaxonomy,
-): readonly FaceDebtLines[] {
-  const pattern = DEBT_CONCEPTS[taxonomy].unrecognizedBorrowing;
-  const classify = (text: string) => {
-    const debt = FACE_DEBT_WORDS.test(text);
-    return debt === FACE_NON_DEBT_WORDS.test(text) ? undefined : debt;
-  };
-  return filings.flatMap(({ metrics, sourceIds }) => {
-    if (taxonomy !== "us-gaap" || metrics?.reportDate !== periodEnd) {
-      return [];
-    }
-    const standard = new Map<string, number>();
-    const extensions: { concept: string; value: number }[] = [];
-    for (const [key, value] of Object.entries(metrics)) {
-      const qualified = key.startsWith(FACE_LINE_PREFIX) ? key.split("|")[2] : undefined;
-      const [prefix, concept] = qualified?.split(":") ?? [];
-      if (prefix === undefined || concept === undefined || typeof value !== "number") {
-        continue;
-      }
-      const label = String(metrics[`${FACE_LABEL_PREFIX}${qualified ?? ""}`] ?? "");
-      if (prefix === "us-gaap") {
-        if (recognized.has(concept) || pattern?.test(concept) === true) {
-          standard.set(concept, value);
-        }
-        continue;
-      }
-      // Name and filer label must each classify the line and agree, or footing proves nothing about it.
-      const debt = classify(concept);
-      if (debt === undefined || debt !== classify(label)) {
-        return [];
-      }
-      if (debt) {
-        extensions.push({ concept, value });
-      }
-    }
-    return standard.size === 0 || typeof metrics.accessionNumber !== "string"
-      ? []
-      : [{ accessionNumber: metrics.accessionNumber, sourceIds, standard, extensions }];
-  });
-}
-
-// A face statement that foots to its subtotals lists every debt line, so it settles omission and placement gaps.
-function withFaceStatementDebt(
-  resolution: DebtResolution<ParsedFact>,
-  tagged: ReadonlyMap<string, ParsedFact>,
-  resolveAt: (lines: ReadonlyMap<string, ParsedFact>) => DebtResolution<ParsedFact>,
-  faces: readonly FaceDebtLines[],
-): DebtResolution<ParsedFact> {
-  if (resolution.incompleteReason === undefined) {
-    return resolution;
-  }
-  const recognized = recognizedDebtConcepts("us-gaap");
-  for (const face of faces) {
-    const proven = resolveAt(
-      new Map(
-        [...tagged].filter(([concept]) => recognized.has(concept) || !face.standard.has(concept)),
-      ),
-    );
-    const gross = proven.contributors.filter(({ subtract }) => subtract !== true);
-    const [anchor] = gross;
-    if (
-      anchor === undefined ||
-      proven.leaseInclusive !== undefined ||
-      (proven.incompleteReason !== undefined && !proven.incompleteReason.startsWith("omits ")) ||
-      proven.contributors.some(({ fact }) => fact.accessionNumber !== face.accessionNumber)
-    ) {
-      continue;
-    }
-    const grossSum = sumOf(gross.map(({ fact }) => fact.value));
-    const standardSum = sumOf([...face.standard.values()]);
-    const extensionSum = sumOf(face.extensions.map(({ value }) => value));
-    // Tagged lines either equal the standard face lines (extensions sit beside) or all face debt lines (inside).
-    const beside = grossSum === standardSum;
-    if (!beside && grossSum !== standardSum + extensionSum) {
-      continue;
-    }
-    const { composite: _composite, ...base } = anchor.fact;
-    const { incompleteReason: _reason, ...complete } = proven;
-    const cited = { ...complete, proofSourceIds: face.sourceIds };
-    return !beside || face.extensions.length === 0
-      ? cited
-      : {
-          ...cited,
-          basis: "components",
-          contributors: [
-            ...proven.contributors,
-            ...face.extensions.map(({ concept, value }) => ({
-              concept,
-              fact: { ...base, concept, value, sourceIds: face.sourceIds },
-            })),
-          ],
-        };
-  }
-  return resolution;
 }
 
 interface WithheldDerivation {
@@ -2098,83 +1782,6 @@ function materializeBasis(
   };
 }
 
-// One gross fact appended after the net history; priors never cross basis (financial-lens-canonical).
-function withGrossPrincipalDebt(
-  payload: unknown,
-  selected: SelectedSeries,
-  definition: FinancialStatementSeriesDefinition,
-  reportingCurrency: string,
-  input: FinancialStatementsDeriveInput,
-  eligible: (fact: ParsedFact) => boolean,
-): SelectedSeries {
-  const root = taxonomyRoot(payload, "us-gaap");
-  const net = latestFinancialStatementFact(financialStatementFacts(selected.series));
-  const gross = (
-    root === undefined ? [] : unitFacts("us-gaap", root, GROSS_PRINCIPAL_DEBT_CONCEPT)
-  ).filter((fact) => fact.periodStart === undefined && eligible(fact));
-  const [latestGross] = gross.toSorted(compareFinancialStatementFacts);
-  const [grossAtNet] = gross
-    .filter((fact) => fact.periodEnd === net?.periodEnd)
-    .toSorted(compareFinancialStatementFacts);
-  const unrecognized = DEBT_CONCEPTS["us-gaap"].unrecognizedBorrowing;
-  // A borrowing line above gross principal at the same instant contradicts it as the total.
-  const exceedsGross =
-    latestGross !== undefined &&
-    root !== undefined &&
-    unrecognized !== undefined &&
-    Object.keys(root)
-      .filter((concept) => unrecognized.test(concept))
-      .some((concept) =>
-        unitFacts("us-gaap", root, concept).some(
-          (fact) =>
-            fact.periodStart === undefined &&
-            fact.periodEnd === latestGross.periodEnd &&
-            eligible(fact) &&
-            fact.value > latestGross.value,
-        ),
-      );
-  if (
-    net === undefined ||
-    latestGross === undefined ||
-    exceedsGross ||
-    !grossPrincipalDebtFallbackApplies(
-      net,
-      latestGross.periodEnd,
-      grossAtNet?.value,
-      US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS.flatMap((concept) =>
-        (root === undefined ? [] : unitFacts("us-gaap", root, concept))
-          .filter(
-            (fact) =>
-              fact.periodStart === undefined &&
-              fact.periodEnd === latestGross.periodEnd &&
-              eligible(fact),
-          )
-          .map((fact) => fact.value),
-      ),
-    )
-  ) {
-    return selected;
-  }
-  const fact: FinancialStatementFact = {
-    ...toSelectedFact(
-      withFirstPublicAt(latestGross, gross),
-      definition,
-      reportingCurrency,
-      input.sourceId,
-    ),
-    basis: "gross-principal",
-    calibrationPeriodEnd: net.periodEnd,
-  };
-  const { series } = selected;
-  return {
-    ...selected,
-    series:
-      fact.periodType === "annual"
-        ? { ...series, annual: [...series.annual, fact] }
-        : { ...series, interim: [...series.interim, fact] },
-  };
-}
-
 function staleConceptHistoryNotes(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -2235,9 +1842,27 @@ function selectSeries(
   const unit = expectedUnit(definition, reportingCurrency);
   const eligible = (fact: ParsedFact) =>
     isObservable(fact, input.analysisAsOf) && fact.unit === unit;
+  const debtReader: DebtFactReader = {
+    root: (candidate) => taxonomyRoot(payload, candidate),
+    unitFacts,
+    composite: (contributors, subtracted, candidates) =>
+      withCompositeFirstPublicAt(
+        compositeFromContributors(contributors, subtracted),
+        definition,
+        candidates,
+        subtracted,
+      ),
+    selectedFact: (fact, history) =>
+      toSelectedFact(
+        withFirstPublicAt(fact, history),
+        definition,
+        reportingCurrency,
+        input.sourceId,
+      ),
+  };
   const debt =
     definition.key === "debt"
-      ? factsForDebt(payload, taxonomy, definition, eligible, input.secFilings ?? [])
+      ? factsForDebt(debtReader, taxonomy, eligible, input.secFilings ?? [])
       : undefined;
   const depreciationAndAmortization =
     definition.key === "depreciationAndAmortization" && taxonomy === "us-gaap"
@@ -2297,9 +1922,7 @@ function selectSeries(
     };
   }
   const withGross =
-    taxonomy === "us-gaap"
-      ? withGrossPrincipalDebt(payload, selected, definition, reportingCurrency, input, eligible)
-      : selected;
+    taxonomy === "us-gaap" ? withGrossPrincipalDebt(debtReader, selected, eligible) : selected;
   return { ...withGross, omissionNotes: [...withGross.omissionNotes, ...debt.notes] };
 }
 
@@ -2435,22 +2058,6 @@ function reportingPeriodDays(cadence: InterimCadence): number {
   return QUARTERLY_REPORTING_PERIOD_DAYS;
 }
 
-function debtAliasesTagged(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy | undefined,
-): boolean {
-  const taxonomies = taxonomy === undefined ? TAXONOMIES : [taxonomy];
-  return taxonomies.some((candidate) => {
-    const root = taxonomyRoot(payload, candidate);
-    return (
-      root !== undefined &&
-      [...recognizedDebtConcepts(candidate)].some(
-        (concept) => unitFacts(candidate, root, concept).length > 0,
-      )
-    );
-  });
-}
-
 function instantSeriesOmissionNotes(
   series: readonly FinancialStatementSeries[],
   cadence: InterimCadence,
@@ -2464,7 +2071,13 @@ function instantSeriesOmissionNotes(
     .at(-1);
   const notes: FinancialStatementNote[] = [];
   const debt = series.find((item) => item.key === "debt");
-  if (debt !== undefined && !debtAliasesTagged(payload, taxonomy)) {
+  if (
+    debt !== undefined &&
+    !debtAliasesTagged(
+      { root: (candidate) => taxonomyRoot(payload, candidate), unitFacts },
+      taxonomy === undefined ? TAXONOMIES : [taxonomy],
+    )
+  ) {
     notes.push({
       code: "untagged-balance-sheet-series",
       seriesKey: "debt",
@@ -2954,32 +2567,6 @@ export function deriveFinancialStatements(
       input,
     ),
   };
-}
-
-// Same text as the SEC summary gap, which is derived from it, so dedupeSourceGaps collapses the pair.
-export function financialStatementsDebtBasisGaps(
-  artifact: FinancialStatementsArtifact,
-): readonly SourceGap[] {
-  const withheld = withheldDebt(artifact);
-  if (withheld !== undefined) {
-    return [{ ...withheldDebtGap(withheld.periodEnd, withheld.reason), symbol: artifact.symbol }];
-  }
-  const latest = latestFinancialStatementFact(
-    financialStatementFacts(artifact.statements.balanceSheet.debt),
-  );
-  if (latest?.calibrationPeriodEnd !== undefined) {
-    return [
-      {
-        ...grossPrincipalDebtGap(latest.periodEnd, latest.calibrationPeriodEnd),
-        symbol: artifact.symbol,
-      },
-    ];
-  }
-  const leaseInclusive =
-    latest === undefined ? [] : unadjustedLeaseInclusiveDebt(latest.taxonomy, latest.concept);
-  return latest === undefined || leaseInclusive.length === 0
-    ? []
-    : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];
 }
 
 function noteShape(key: string): "instant" | "duration" {

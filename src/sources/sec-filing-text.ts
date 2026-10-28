@@ -123,6 +123,7 @@ const SEC_SECTION_BUDGETS = {
   mdna: 3000,
   segments: 1000,
   notes: 500,
+  keyDisclosures: 1000,
 } as const;
 
 // Drop-cap typography splits the heading keyword too ("ITE M 2.", "PA RT I").
@@ -212,6 +213,63 @@ function boundedSection(
   return substantiveAlphaCount(anchored) >= SEC_SECTION_MIN_SELECTED_ALPHA_CHARS
     ? `${lead}${anchored}`
     : text.slice(start, Math.min(end, start + maxChars));
+}
+
+const KEY_DISCLOSURE_SENTENCES = [
+  /^(?=.*\bremaining performance obligations?\b)(?=.*\d\s?%)(?=.*\brecogni[sz])/iu,
+  /^(?!.*\breceivables?\b).*\bcustomers?\b.{0,120}\baccounted for\b.{0,80}\d\s?%.{0,120}\b(?:revenues?|sales)\b/iu,
+];
+const KEY_DISCLOSURE_SENTENCE_MAX_CHARS = 400;
+const TABLE_TAIL = /^.*[\d)]\s+(?=\p{Lu}\p{Ll})/u;
+const HEADING_RUN = /^(?:(?:\S*\p{Lu}\S*|and|of|about|&)\s+)+(?=\p{Lu})/u;
+
+// Normalized text has no line breaks, so a table row or heading can lead the sentence.
+function trimLeadingFurniture(sentence: string): string {
+  const afterTable = sentence
+    .replace(TABLE_TAIL, "")
+    .replace(/^(?:Table of Contents|\p{Lu}[\p{L} ]{0,40}:)\s+/u, "");
+  const heading = HEADING_RUN.exec(afterTable)?.[0] ?? "";
+  return (heading.match(/\p{Lu}/gu)?.length ?? 0) >= 3
+    ? afterTable.slice(heading.length)
+    : afterTable;
+}
+
+function compact(value: string): string {
+  return value.replaceAll(/\s+/gu, "");
+}
+
+function latestYear(sentence: string): number {
+  return Math.max(
+    0,
+    ...[...sentence.matchAll(/\b(?:19|20)\d{2}\b/gu)].map((year) => Number(year[0])),
+  );
+}
+
+// RPO conversion and customer concentration sit in notes or risk factors no section budget reaches.
+function keyDisclosures(text: string): string {
+  const sentences = text
+    .split(/(?<=[.!?])\s+(?=[A-Z“"\d])/u)
+    .map(trimLeadingFurniture)
+    .filter(
+      (sentence) =>
+        sentence.length <= KEY_DISCLOSURE_SENTENCE_MAX_CHARS && !POINTER_SENTENCE.test(sentence),
+    );
+  let picked = "";
+  for (const pattern of KEY_DISCLOSURE_SENTENCES) {
+    const matches = sentences
+      .filter((sentence) => pattern.test(sentence))
+      .toSorted((a, b) => latestYear(b) - latestYear(a));
+    for (const sentence of matches) {
+      const next = picked === "" ? sentence : `${picked} ${sentence}`;
+      if (
+        !compact(picked).includes(compact(sentence)) &&
+        next.length <= SEC_SECTION_BUDGETS.keyDisclosures
+      ) {
+        picked = next;
+      }
+    }
+  }
+  return picked;
 }
 
 export function substantiveAlphaCount(value: string): number {
@@ -381,6 +439,10 @@ export function secFilingSectionPacket(
       continue;
     }
     parts.push(`[${section.label}] ${selected}`);
+  }
+  const disclosures = keyDisclosures(normalized);
+  if (parts.length > 0 && disclosures !== "") {
+    parts.push(`[Key Disclosures] ${disclosures}`);
   }
   return {
     packet: parts.length === 0 ? undefined : parts.join("\n\n"),

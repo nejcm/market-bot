@@ -845,7 +845,7 @@ describe("operatingRatiosSection", () => {
         seriesKey: "depreciationAndAmortization",
         periodKey: "duration:12|2025-12-31",
         message: expect.stringContaining(
-          "no AmortizationOfIntangibleAssets component; no cash-flow D&A line is filed",
+          "no AmortizationOfIntangibleAssets component; no filed fact proves the filed components are total D&A",
         ),
       }),
     );
@@ -1133,7 +1133,7 @@ describe("operatingRatiosSection", () => {
           seriesKey: "depreciationAndAmortization",
           periodKey: "duration:12|2025-12-31",
           message: expect.stringContaining(
-            `no ${missing} component; no cash-flow D&A line is filed`,
+            `no ${missing} component; no filed fact proves the filed components are total D&A`,
           ),
         }),
       );

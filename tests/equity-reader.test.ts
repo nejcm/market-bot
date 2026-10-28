@@ -11,6 +11,7 @@ import {
   WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
 } from "../src/web-evidence/contract";
 import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
+import { operatingRatioNotes } from "../src/report/equity-reader-statements";
 import { researchReport } from "./support/fixtures";
 import type {
   FinancialStatementFact,
@@ -949,4 +950,27 @@ describe("equity reader company description", () => {
       sourceIds: [],
     });
   });
+});
+
+const note = (periodKey: string) => ({
+  code: "unreconciled-component" as const,
+  seriesKey: "depreciationAndAmortization" as const,
+  periodKey,
+  message: periodKey,
+});
+const notes = (omissionNotes: readonly ReturnType<typeof note>[]) =>
+  operatingRatioNotes({ omissionNotes } as unknown as FinancialStatementsArtifact);
+
+test("unreconciled D&A component notes collapse to one line listing their periods", () => {
+  // CEVA FY2022-23: same mismatch in each year.
+  expect(
+    notes([note("duration:12|2022-12-31"), note("duration:12|2023-12-31")])?.map(
+      ({ message }) => message,
+    ),
+  ).toEqual([
+    "SEC depreciation and amortization for periods ending 2022-12-31, 2023-12-31 uses AmortizationOfIntangibleAssets; the same-filing cash-flow AdjustmentForAmortization is higher in each and is not proven to be intangible amortization",
+  ]);
+  expect(notes([note("duration:12|2023-12-31")])?.map(({ message }) => message)).toEqual([
+    "duration:12|2023-12-31",
+  ]);
 });

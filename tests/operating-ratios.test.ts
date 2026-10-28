@@ -456,7 +456,7 @@ describe("operatingRatiosSection", () => {
     ).toThrow(/D&A.*component/u);
   });
 
-  test("AdjustmentForAmortization only withholds D&A, and a zero component is kept", () => {
+  test("AdjustmentForAmortization withholds, replaces a rounded note value, and a zero component is kept", () => {
     const filed = (year: number, value: number) => ({
       units: {
         USD: [fact(value, year, { start: `${String(year)}-01-01`, end: `${String(year)}-12-31` })],
@@ -486,6 +486,14 @@ describe("operatingRatiosSection", () => {
         AdjustmentForAmortization: filed(2022, 28_000_000),
       }),
     ).toEqual([]);
+    // MRK FY2025: rounded 2.8B note amortization yields to the 2,793M cash-flow line.
+    expect(
+      run(2025, {
+        Depreciation: filed(2025, 3_045_000_000),
+        AmortizationOfIntangibleAssets: filed(2025, 2_800_000_000),
+        AdjustmentForAmortization: filed(2025, 2_793_000_000),
+      }),
+    ).toMatchObject([{ value: 5_838_000_000, periodEnd: "2025-12-31" }]);
     // HRMN FY2023: zero intangible amortization, D&A 12.255M.
     expect(
       run(2023, {

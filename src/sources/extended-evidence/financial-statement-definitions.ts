@@ -24,7 +24,7 @@ export const DEPRECIATION_AND_AMORTIZATION_COMPONENTS: readonly (readonly string
   ["AmortizationOfIntangibleAssets"],
 ];
 
-// Guard-only: AdjustmentForAmortization can be contract-cost amortization (DDOG), so it withholds but never publishes.
+// AdjustmentForAmortization can be contract-cost amortization (DDOG): it publishes only within tolerance of same-filing intangible amortization.
 export const CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES = [
   "OtherDepreciationAndAmortization",
   "AdjustmentForAmortization",

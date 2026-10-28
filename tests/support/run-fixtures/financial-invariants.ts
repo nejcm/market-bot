@@ -455,7 +455,12 @@ export function assertCompositeFactIntegrity(
         check(
           fact.composite.components.length === DEPRECIATION_AND_AMORTIZATION_COMPONENTS.length &&
             DEPRECIATION_AND_AMORTIZATION_COMPONENTS.every((aliases) =>
-              fact.composite!.components.some(({ concept }) => aliases.includes(concept)),
+              fact.composite!.components.some(
+                ({ concept }) =>
+                  aliases.includes(concept) ||
+                  (aliases.includes("AmortizationOfIntangibleAssets") &&
+                    concept === "AdjustmentForAmortization"),
+              ),
             ),
           "A8",
           `${series.key} ${fact.periodKey} requires complete depreciation and intangible amortization components`,

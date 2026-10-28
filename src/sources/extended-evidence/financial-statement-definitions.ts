@@ -47,6 +47,8 @@ export interface DebtTaxonomyConcepts {
   readonly leaseInclusive?: Readonly<Record<string, "current" | "noncurrent" | "total">>;
   readonly unrecognizedBorrowing?: RegExp;
   readonly umbrellas?: Readonly<Record<string, readonly string[]>>;
+  // Checked against tagged legs, never used alone: one convertible tag is not total borrowings.
+  readonly legsOnlyUmbrellas?: readonly string[];
   // A total's balance-sheet legs; a total that differs from them is another basis, e.g. principal (VSAT).
   readonly totalLegs?: Readonly<Record<string, readonly [string, string]>>;
   // Note-level details a used noncurrent line or total holds; never summed.
@@ -56,6 +58,8 @@ export interface DebtTaxonomyConcepts {
     readonly combinedTotal: string;
     readonly current: string;
     readonly currentTotal: string;
+    // Pre-ASC 842 lease line a DebtCurrent above maturities may hold; no finance-lease leg deducts it (LRCX FY2018).
+    readonly capitalLeaseCurrent: string;
     readonly shortTerm: readonly string[];
     readonly commercialPaper: string;
     // Same-filing noncurrent liabilities that, beside LongTermDebt, foot to the balance sheet (ADBE, NOW).
@@ -64,6 +68,7 @@ export interface DebtTaxonomyConcepts {
       readonly total: string;
       readonly currentTotal: string;
       readonly others: readonly string[];
+      readonly currentOthers: readonly string[];
     };
   };
 }
@@ -79,8 +84,8 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
     ],
     current: {
       generic: [
-        "LongTermDebtCurrent",
         "DebtCurrent",
+        "LongTermDebtCurrent",
         "LongTermDebtAndCapitalLeaseObligationsCurrent",
       ],
       instruments: [
@@ -114,7 +119,14 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
       DebtAndCapitalLeaseObligations: "total",
     },
     // An umbrella spans both sides: used only when no leg and no generic side line is tagged.
-    umbrellas: { LineOfCredit: ["LongTermLineOfCredit", "LinesOfCreditCurrent"] },
+    umbrellas: {
+      LineOfCredit: ["LongTermLineOfCredit", "LinesOfCreditCurrent"],
+      ConvertibleNotesPayable: [
+        "ConvertibleLongTermNotesPayable",
+        "ConvertibleNotesPayableCurrent",
+      ],
+    },
+    legsOnlyUmbrellas: ["ConvertibleNotesPayable"],
     totalLegs: {
       LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [
         "LongTermDebtAndCapitalLeaseObligationsCurrent",
@@ -128,6 +140,7 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
       combinedTotal: "DebtLongtermAndShorttermCombinedAmount",
       current: "LongTermDebtCurrent",
       currentTotal: "DebtCurrent",
+      capitalLeaseCurrent: "CapitalLeaseObligationsCurrent",
       shortTerm: ["ShortTermBorrowings", "ShortTermDebt", "CommercialPaper"],
       commercialPaper: "CommercialPaper",
       noncurrentIdentity: {
@@ -145,6 +158,15 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
           "OtherLiabilitiesNoncurrent",
           "OtherSundryLiabilitiesNoncurrent",
           "PensionAndOtherPostretirementDefinedBenefitPlansLiabilitiesNoncurrent",
+        ],
+        // Face-statement lines only: footnote details of accrued liabilities would double count.
+        currentOthers: [
+          "AccountsPayableCurrent",
+          "AccruedLiabilitiesCurrent",
+          "DerivativeLiabilitiesCurrent",
+          "OperatingLeaseLiabilityCurrent",
+          "FinanceLeaseLiabilityCurrent",
+          "OtherLiabilitiesCurrent",
         ],
       },
     },
@@ -594,7 +616,7 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "per-share",
       deriveTtm: true,
       concepts: {
-        "us-gaap": ["EarningsPerShareDiluted"],
+        "us-gaap": ["EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted"],
         "ifrs-full": ["DilutedEarningsLossPerShare"],
       },
     },

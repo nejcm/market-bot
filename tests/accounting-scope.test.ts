@@ -1122,3 +1122,52 @@ describe("continuing OCF from a filed total and its discontinued component", () 
     );
   });
 });
+
+// HLIT 10-Ks 0000851310-18-000017 (2018-03-05), -20-000006 (2020-03-02), -22-000012 (2022-02-28).
+describe("first-public dating across equivalent HLIT concepts", () => {
+  const fy = (start: string, end: string, accn: string, filed: string) => (val: number) =>
+    ({ val, start, end, form: "10-K", fy: 2020, fp: "FY", filed, accn }) satisfies Row;
+  const fy17In18 = fy("2017-01-01", "2017-12-31", "0000851310-18-000017", "2018-03-05");
+  const fy17In20 = fy("2017-01-01", "2017-12-31", "0000851310-20-000006", "2020-03-02");
+  const fy19In20 = fy("2019-01-01", "2019-12-31", "0000851310-20-000006", "2020-03-02");
+  const fy19In22 = fy("2019-01-01", "2019-12-31", "0000851310-22-000012", "2022-02-28");
+  const ocf = (continuing: number) =>
+    statements({
+      RevenueFromContractWithCustomerExcludingAssessedTax: [fy17In20(403_558_000)],
+      [CONTINUING_OCF]: [fy17In18(continuing)],
+      [TOTAL_OCF]: [fy17In20(3_064_000)],
+    }).statements.cashFlowStatement.operatingCashFlow.annual[0];
+
+  test("FY2017 total OCF 3,064K is public from the 2018 continuing-operations tag", () => {
+    expect(ocf(3_064_000)).toMatchObject({ value: 3_064_000, firstPublicAt: "2018-03-05" });
+  });
+
+  test("a different continuing figure does not date the total", () => {
+    expect(ocf(3_000_000)).toMatchObject({ value: 3_064_000, firstPublicAt: "2020-03-02" });
+  });
+
+  test("a nonzero discontinued-operations fact blocks the earlier continuing date", () => {
+    const { annual } = statements({
+      RevenueFromContractWithCustomerExcludingAssessedTax: [fy17In20(403_558_000)],
+      [CONTINUING_OCF]: [fy17In18(3_064_000)],
+      [TOTAL_OCF]: [fy17In20(3_064_000)],
+      IncomeLossFromDiscontinuedOperationsNetOfTax: [fy17In20(-1_000_000)],
+    }).statements.cashFlowStatement.operatingCashFlow;
+
+    expect(annual.some((fact) => fact.firstPublicAt === "2018-03-05")).toBe(false);
+  });
+
+  test("FY2019 diluted EPS -0.07 is public from the basic-and-diluted tag", () => {
+    const eps = statements({
+      RevenueFromContractWithCustomerExcludingAssessedTax: [fy19In22(402_874_000)],
+      EarningsPerShareBasicAndDiluted: [fy19In20(-0.07)],
+      EarningsPerShareDiluted: [fy19In22(-0.07)],
+    }).statements.perShare.dilutedEps.annual[0];
+
+    expect(eps).toMatchObject({
+      concept: "EarningsPerShareDiluted",
+      value: -0.07,
+      firstPublicAt: "2020-03-02",
+    });
+  });
+});

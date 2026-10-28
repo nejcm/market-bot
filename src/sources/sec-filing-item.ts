@@ -11,6 +11,8 @@ import {
 import type { FetchTextResult } from "./types";
 import { secFilingKey, type SecFiling } from "./sec-filing-selection";
 import {
+  secBalanceSheetFaceMetrics,
+  secDepreciationSiblingMetrics,
   secExtensionCapexFactMetrics,
   secGeographyFactMetrics,
   secSegmentFactMetrics,
@@ -279,6 +281,8 @@ export function buildSecFilingSourceItem(
             ...secSegmentFactMetrics(filingText.payload, filing.reportDate),
             ...secGeographyFactMetrics(filingText.payload, filing.reportDate),
             ...secExtensionCapexFactMetrics(filingText.payload, filing.reportDate),
+            ...secDepreciationSiblingMetrics(filingText.payload, filing.reportDate),
+            ...secBalanceSheetFaceMetrics(filingText.payload, filing.reportDate),
           }
         : {}),
     },

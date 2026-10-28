@@ -359,7 +359,10 @@ describe("debt resolution at the cash instant", () => {
         FinanceLeaseLiabilityCurrent: [at(1)],
         FinanceLeaseLiabilityNoncurrent: [at(2)],
       }).canonical,
-    ).toMatchObject({ value: 100, concept: "LongTermDebtCurrent+LongTermDebtNoncurrent" });
+    ).toMatchObject({
+      value: 104,
+      concept: "DebtCurrent+LongTermDebtNoncurrent-FinanceLeaseLiabilityCurrent",
+    });
     expect(
       resolve({
         ShortTermBorrowings: [at(7)],
@@ -955,6 +958,10 @@ describe("ambiguous LongTermDebt", () => {
     ...instant(value, periodEnd, filedAt, form, form === "10-K" ? "FY" : "Q3"),
     accn,
   });
+  const resolveAt = (gaap: Parameters<typeof resolve>[0], periodEnd: string) =>
+    financialStatementFacts(resolve(gaap).artifact.statements.balanceSheet.debt).find(
+      (fact) => fact.periodEnd === periodEnd,
+    );
   const expectGap = (
     gaap: Parameters<typeof resolve>[0],
     reason: string,
@@ -1342,26 +1349,66 @@ describe("ambiguous LongTermDebt", () => {
 
   test("equal amounts never show a current instrument sits inside current maturities", () => {
     const reason = "tagged beside LongTermDebtCurrent with no DebtCurrent or total";
-    expectGap(
-      {
+    // DebtCurrent is the balance-sheet line holding both.
+    expect(
+      resolve({
         LongTermDebtCurrent: [at(20)],
         NotesPayableCurrent: [at(20)],
         LongTermDebtNoncurrent: [at(80)],
         DebtCurrent: [at(40)],
-      },
-      reason,
-    );
+      }).canonical,
+    ).toMatchObject({ value: 120, concept: "DebtCurrent+LongTermDebtNoncurrent" });
     // MARA Q2 2026 10-Q (thousands): notes 335,397 + lines of credit 150,000 = 485,397 current maturities.
+    const mara = {
+      LongTermDebt: [at(2_417_749)],
+      LongTermDebtCurrent: [at(485_397)],
+      NotesPayableCurrent: [at(335_397)],
+      LinesOfCreditCurrent: [at(150_000)],
+      LongTermDebtNoncurrent: [at(1_932_352)],
+    };
+    expectGap(mara, reason);
+    const faceLines = {
+      AccountsPayableCurrent: [at(10_489)],
+      AccruedLiabilitiesCurrent: [at(74_167)],
+      DerivativeLiabilitiesCurrent: [at(1090)],
+      OperatingLeaseLiabilityCurrent: [at(3338)],
+      FinanceLeaseLiabilityCurrent: [at(178)],
+      OtherLiabilitiesCurrent: [at(17_166)],
+    };
+    expectGap({ ...mara, ...faceLines, LiabilitiesCurrent: [at(591_825 + 485_397)] }, reason);
     expectGap(
       {
-        LongTermDebt: [at(2_417_749)],
-        LongTermDebtCurrent: [at(485_397)],
-        NotesPayableCurrent: [at(335_397)],
-        LinesOfCreditCurrent: [at(150_000)],
-        LongTermDebtNoncurrent: [at(1_932_352)],
+        ...mara,
+        ...faceLines,
+        LongTermDebtCurrent: [at(485_000)],
+        LiabilitiesCurrent: [at(591_825)],
       },
-      reason,
+      "tagged beside LongTermDebtCurrent",
     );
+  });
+
+  test("MARA 10-Q 0001507605-26-000022: face-statement current lines prove notes and credit line are the maturities", () => {
+    const q = (value: number) => ({ ...at(value), accn: "0001507605-26-000022" });
+    expect(
+      resolve({
+        LongTermDebt: [q(2_417_749)],
+        LongTermDebtCurrent: [q(485_397)],
+        NotesPayableCurrent: [q(335_397)],
+        LinesOfCreditCurrent: [q(150_000)],
+        LongTermDebtNoncurrent: [q(1_932_352)],
+        AccountsPayableCurrent: [q(10_489)],
+        AccruedLiabilitiesCurrent: [q(74_167)],
+        DerivativeLiabilitiesCurrent: [q(1090)],
+        OperatingLeaseLiabilityCurrent: [q(3338)],
+        FinanceLeaseLiabilityCurrent: [q(178)],
+        OtherLiabilitiesCurrent: [q(17_166)],
+        LiabilitiesCurrent: [q(591_825)],
+      }).canonical,
+    ).toMatchObject({
+      value: 2_417_749,
+      periodEnd: "2026-06-30",
+      accessionNumber: "0001507605-26-000022",
+    });
   });
 
   test("commercial paper adds beside current maturities", () => {
@@ -1457,16 +1504,112 @@ describe("ambiguous LongTermDebt", () => {
     );
   });
 
-  test("a combined total gaps when DebtCurrent shows short-term borrowings beside the maturities", () => {
-    const { canonical, legacy } = resolve({
-      DebtLongtermAndShorttermCombinedAmount: [at(100)],
-      LongTermDebtCurrent: [at(20)],
-      DebtCurrent: [at(40)],
-      LongTermDebtNoncurrent: [at(80)],
-      ShortTermBorrowings: [at(20)],
+  test("classified lines outrank a combined total that leaves out short-term debt in DebtCurrent", () => {
+    const on = (value: number) =>
+      filed(value, "2019-09-29", "2019-11-06", "0001728949-19-000072", "10-K");
+    // QCOM FY2019 10-K (0001728949-19-000072): short-term debt 2,496M + long-term 13,437M; combined 15,434M omits 499M paper.
+    const canonical = resolveAt(
+      {
+        DebtLongtermAndShorttermCombinedAmount: [on(15_434)],
+        LongTermDebtCurrent: [on(1997)],
+        DebtCurrent: [on(2496)],
+        LongTermDebtNoncurrent: [on(13_437)],
+        CommercialPaper: [on(499)],
+      },
+      "2019-09-29",
+    );
+    expect(canonical).toMatchObject({
+      value: 15_933,
+      concept: "DebtCurrent+LongTermDebtNoncurrent",
     });
-    expect(canonical?.periodEnd).not.toBe("2026-06-30");
-    expect(legacy?.metrics?.debt).toBeUndefined();
+  });
+
+  test("a principal combined total yields to same-filing classified lines", () => {
+    // AVGO FY2024 10-K: 1,245M maturities + 66,295M noncurrent incl. 13M finance leases; combined 69,847M is principal.
+    const on = (value: number) =>
+      filed(value, "2024-11-03", "2024-12-20", "0001730168-24-000139", "10-K");
+    expect(
+      resolveAt(
+        {
+          DebtLongtermAndShorttermCombinedAmount: [on(69_847)],
+          LongTermDebtCurrent: [on(1245)],
+          LongTermDebtAndCapitalLeaseObligations: [on(66_295)],
+          FinanceLeaseLiabilityCurrent: [on(26)],
+          FinanceLeaseLiabilityNoncurrent: [on(13)],
+        },
+        "2024-11-03",
+      ),
+    ).toMatchObject({ value: 67_527, accessionNumber: "0001730168-24-000139" });
+  });
+
+  test("DebtCurrent outranks narrower current maturities", () => {
+    // INTC FY2018 10-K: short-term debt 1,261M + long-term debt 25,098M; maturities 761M.
+    const intc = (value: number) =>
+      filed(value, "2018-12-29", "2019-02-01", "0000050863-19-000007", "10-K");
+    expect(
+      resolveAt(
+        {
+          LongTermDebt: [intc(25_859)],
+          LongTermDebtCurrent: [intc(761)],
+          DebtCurrent: [intc(1261)],
+          LongTermDebtNoncurrent: [intc(25_098)],
+        },
+        "2018-12-29",
+      ),
+    ).toMatchObject({
+      value: 26_359,
+      concept: "DebtCurrent+LongTermDebtNoncurrent",
+      accessionNumber: "0000050863-19-000007",
+    });
+    // ADBE Q1 FY2026 10-Q: current debt 849M carrying vs 850M maturities; LongTermDebt is the noncurrent line.
+    const adbe = (value: number) =>
+      filed(value, "2026-02-27", "2026-03-13", "0000796343-26-000056");
+    expect(
+      resolveAt(
+        {
+          LongTermDebt: [adbe(5379)],
+          LiabilitiesNoncurrent: [adbe(5379)],
+          LongTermDebtCurrent: [adbe(850)],
+          DebtCurrent: [adbe(849)],
+        },
+        "2026-02-27",
+      ),
+    ).toMatchObject({ value: 6228, accessionNumber: "0000796343-26-000056" });
+  });
+
+  test("LongTermDebt up to maturities plus noncurrent does not refuse a smaller DebtCurrent line", () => {
+    const on = (value: number) =>
+      filed(value, "2019-12-28", "2020-01-24", "0000050863-20-000011", "10-K");
+    // INTC FY2019 10-K (0000050863-20-000011): 3,693M + 25,308M; LongTermDebt 29,003M uses 3,695M maturities.
+    expect(
+      resolveAt(
+        {
+          LongTermDebt: [on(29_003)],
+          LongTermDebtCurrent: [on(3695)],
+          DebtCurrent: [on(3693)],
+          LongTermDebtNoncurrent: [on(25_308)],
+        },
+        "2019-12-28",
+      ),
+    ).toMatchObject({ value: 29_001, concept: "DebtCurrent+LongTermDebtNoncurrent" });
+  });
+
+  test("DebtCurrent holding pre-ASC 842 capital leases keeps the borrowing-only maturities", () => {
+    const on = (value: number) =>
+      filed(value, "2018-06-24", "2018-08-16", "0000707549-18-000115", "10-K");
+    // LRCX FY2018 10-K (0000707549-18-000115): 610,030K current = 608,532K maturities + 1,498K capital leases.
+    expect(
+      resolveAt(
+        {
+          LongTermDebt: [on(2_368_748)],
+          LongTermDebtCurrent: [on(608_532)],
+          DebtCurrent: [on(610_030)],
+          LongTermDebtNoncurrent: [on(1_760_216)],
+          CapitalLeaseObligationsCurrent: [on(1498)],
+        },
+        "2018-06-24",
+      ),
+    ).toMatchObject({ value: 2_368_748 });
   });
 
   test("AMD: OtherLongTermDebt inside a reconciled noncurrent line is not a stray borrowing", () => {
@@ -1696,11 +1839,37 @@ describe("debt totals and instruments checked against their lines", () => {
       );
     });
 
+    test("the noncurrent liabilities identity proves the convertibles sit beside: 161.179M", () => {
+      const proven = {
+        ...aaoi,
+        Liabilities: [fy(317_920_000)],
+        LiabilitiesCurrent: [fy(170_069_000)],
+        OperatingLeaseLiabilityNoncurrent: [fy(9_041_000)],
+        ConvertibleNotesPayable: [fy(134_497_000)],
+      };
+      expect(resolve(proven).canonical).toMatchObject({
+        value: 161_179_000,
+        concept: "LongTermDebt+ConvertibleLongTermNotesPayable",
+        accessionNumber: "0001437749-26-005875",
+      });
+      expect(resolve(proven).legacy?.metrics.debt).toBe(161_179_000);
+      expect(
+        resolve({ ...proven, OperatingLeaseLiabilityNoncurrent: [fy(9_040_000)] }).canonical,
+      ).toBeUndefined();
+    });
+
     test("an instrument no larger than the total may sit inside it", () => {
       expect(
         resolve({ ...aaoi, ConvertibleLongTermNotesPayable: [fy(4_000_000)] }).canonical?.value,
       ).toBe(26_682_000);
     });
+  });
+
+  test("PL 10-Q 0001193125-25-314295: a lone ConvertibleNotesPayable is withheld, not total debt", () => {
+    const oct = (value: number) => filed(value, "2025-10-31", "2025-12-10", "0001193125-25-314295");
+    const gaap = { ConvertibleNotesPayable: [oct(446_201_000)] };
+    expect(resolve(gaap).canonical).toBeUndefined();
+    expect(noteFor(gaap, "2025-10-31")).toContain("tagged without its current or noncurrent legs");
   });
 
   test("HIVE: a 40-F line renamed in the 10-K withholds legacy debt too (0001062993-26-002973)", () => {

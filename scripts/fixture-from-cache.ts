@@ -3,6 +3,7 @@ import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { canonicalRequestUrl } from "../src/sources/cache";
 import type { FetchLike } from "../src/sources/types";
+import type { ModelUsage } from "../src/model/types";
 import { runFixture, type FixtureMeta } from "../tests/support/run-fixtures";
 import { createRecordingFetch } from "../src/replay/data-cassette";
 import {
@@ -33,6 +34,7 @@ interface StageRecord {
   readonly stage: string;
   readonly content: string;
   readonly tokenEstimate: number;
+  readonly usage?: ModelUsage | "unknown";
 }
 interface RunTrace {
   readonly symbol: string;
@@ -150,6 +152,7 @@ for (const stage of [...(await stageEntries(runId)), profileStage]) {
   (entries[`${stage.stage}|${model}`] ??= []).push({
     content: stage.content,
     tokenEstimate: stage.tokenEstimate,
+    ...(stage.usage !== undefined && stage.usage !== "unknown" ? { usage: stage.usage } : {}),
   });
 }
 const llmCassette: LlmCassette = { entries };

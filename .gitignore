@@ -14,7 +14,6 @@ app/dist/
 
 /research/
 reports/
-TODO.md
 
 # Plan documents are working artifacts, never committed. See AGENTS.md non-negotiable 5.
-plans/
+.plans/

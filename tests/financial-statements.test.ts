@@ -62,6 +62,10 @@ function fact(input: FactInput): Record<string, unknown> {
   };
 }
 
+function withoutAccession(row: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(row).filter(([field]) => field !== "accn"));
+}
+
 function payload(
   taxonomies: Readonly<
     Record<
@@ -1052,6 +1056,417 @@ describe("canonical financial statements", () => {
       expect(series.annual).toEqual([expect.objectContaining({ currency: "EUR" })]);
     }
     expect(incomeStatement.pretaxIncome.annual[0]?.value).toBe(160);
+  });
+
+  describe("derived gross profit", () => {
+    const deriveAt = (concepts: Readonly<Record<string, readonly Record<string, unknown>[]>>) =>
+      derive(
+        payload({
+          "us-gaap": Object.fromEntries(
+            Object.entries(concepts).map(([concept, rows]) => [concept, { USD: rows }]),
+          ),
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+    test("derives revenue minus cost of revenue per shared filing, marked derived", () => {
+      const artifact = deriveAt({
+        Revenues: [annual(100, 2024), annual(120, 2025)],
+        CostOfRevenue: [annual(40, 2024), annual(50, 2025)],
+      });
+      const { grossProfit } = artifact.statements.incomeStatement;
+
+      expect(grossProfit.annual.map((item) => item.value)).toEqual([60, 70]);
+      expect(grossProfit.annual[1]).toMatchObject({
+        concept: "Revenues-CostOfRevenue",
+        extractionMethod: "derived-sec-companyfacts",
+        sourceIds: ["extended-sec-edgar-test-fundamentals"],
+        composite: {
+          formula: "sum",
+          components: [
+            {
+              concept: "Revenues",
+              value: 120,
+              sourceIds: ["extended-sec-edgar-test-fundamentals"],
+            },
+            {
+              concept: "CostOfRevenue",
+              value: -50,
+              sourceIds: ["extended-sec-edgar-test-fundamentals"],
+            },
+          ],
+        },
+      });
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("withholds a pair whose facts carry no accession number", () => {
+      const artifact = deriveAt({
+        Revenues: [withoutAccession(annual(100, 2025))],
+        CostOfRevenue: [
+          withoutAccession(
+            fact({
+              value: 40,
+              form: "10-K/A",
+              fiscalYear: 2025,
+              fiscalPeriod: "FY",
+              filedAt: "2026-03-01",
+              periodStart: "2025-01-01",
+              periodEnd: "2025-12-31",
+            }),
+          ),
+        ],
+      });
+
+      expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toContain(
+        "SEC gross profit is not derived for 2025-01-01 to 2025-12-31: the current revenue and CostOfRevenue revisions do not share one filing, form, span, and unit",
+      );
+    });
+
+    test("discloses the derivation on the gross margin history card", () => {
+      const history = deriveFundamentalHistoryFromFinancialStatements(
+        deriveAt({
+          Revenues: [annual(100, 2024), annual(120, 2025)],
+          CostOfRevenue: [annual(40, 2024), annual(50, 2025)],
+        }),
+      );
+      const note =
+        "derived: gross profit derived as Revenues − CostOfRevenue; tagged cost of revenue may exclude amortization or D&A";
+
+      expect(history.series.grossProfit.notes).toContain(note);
+      expect(history.series.grossMargin.notes).toContain(note);
+      expect(history.series.revenue.notes).not.toContain(note);
+      expect(
+        fundamentalHistoryView({
+          summary: {} as RunSummary,
+          fundamentalHistory: history,
+        })?.cards.find((card) => card.key === "grossMargin")?.disclosure,
+      ).toBe(
+        "Derived input: gross profit derived as Revenues − CostOfRevenue; tagged cost of revenue may exclude amortization or D&A.",
+      );
+    });
+
+    test("keeps tagged gross profit and never derives alongside it", () => {
+      const { grossProfit } = deriveAt({
+        Revenues: [annual(100, 2025)],
+        CostOfRevenue: [annual(40, 2025)],
+        GrossProfit: [annual(61, 2025)],
+      }).statements.incomeStatement;
+
+      expect(grossProfit.annual.map(({ value, concept }) => ({ value, concept }))).toEqual([
+        { value: 61, concept: "GrossProfit" },
+      ]);
+    });
+
+    test("withholds a period whose cost fact spans a different duration and declares it", () => {
+      const artifact = deriveAt({
+        Revenues: [annual(100, 2024), annual(120, 2025)],
+        CostOfRevenue: [
+          annual(40, 2024),
+          fact({
+            value: 50,
+            form: "10-K",
+            fiscalPeriod: "FY",
+            filedAt: "2026-02-15",
+            periodStart: "2025-04-01",
+            periodEnd: "2025-12-31",
+          }),
+        ],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.grossProfit.annual.map((item) => item.value),
+      ).toEqual([60]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC gross profit is not derived for 2025-01-01 to 2025-12-31: no CostOfRevenue fact is tagged for the period",
+      ]);
+    });
+
+    test("withholds a period whose current revenue revision has no cost in the same filing", () => {
+      const artifact = deriveAt({
+        Revenues: [
+          annual(100, 2025),
+          { ...annual(120, 2025), form: "10-K/A", filed: "2026-04-01", accn: "20260401-10-K-A" },
+        ],
+        CostOfRevenue: [annual(40, 2025)],
+      });
+
+      expect(artifact.statements.incomeStatement.revenue.annual.map((item) => item.value)).toEqual([
+        120,
+      ]);
+      expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC gross profit is not derived for 2025-01-01 to 2025-12-31: the current revenue and CostOfRevenue revisions do not share one filing, form, span, and unit",
+      ]);
+    });
+
+    test("declares an unmatched quarter even when a same-end year-to-date pair derives", () => {
+      const quarter = (value: number) =>
+        fact({
+          value,
+          form: "10-Q",
+          fiscalPeriod: "Q2",
+          filedAt: "2026-08-10",
+          periodStart: "2026-04-01",
+          periodEnd: "2026-06-30",
+        });
+      const halfYear = (value: number) =>
+        fact({
+          value,
+          form: "10-Q",
+          fiscalPeriod: "Q2",
+          filedAt: "2026-08-10",
+          periodStart: "2026-01-01",
+          periodEnd: "2026-06-30",
+        });
+      const artifact = deriveAt({
+        Revenues: [annual(100, 2025), quarter(30), halfYear(55)],
+        CostOfRevenue: [annual(40, 2025), halfYear(20)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.grossProfit.interim.map((item) => item.value),
+      ).toEqual([35]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC gross profit is not derived for 2026-04-01 to 2026-06-30: no CostOfRevenue fact is tagged for the period",
+      ]);
+    });
+
+    test("withholds a pair from different filings", () => {
+      const { grossProfit } = deriveAt({
+        Revenues: [annual(120, 2025)],
+        CostOfRevenue: [{ ...annual(50, 2025), accn: "0000000000-26-000009" }],
+      }).statements.incomeStatement;
+
+      expect(grossProfit.annual).toEqual([]);
+    });
+
+    test("leaves gross profit missing without a derivation gap when cost of revenue is untagged", () => {
+      const artifact = deriveAt({ Revenues: [annual(120, 2025)] });
+
+      expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+  });
+
+  describe("consolidated net income fallback", () => {
+    const deriveAt = (concepts: Readonly<Record<string, readonly Record<string, unknown>[]>>) =>
+      derive(
+        payload({
+          "us-gaap": Object.fromEntries(
+            Object.entries(concepts).map(([concept, rows]) => [concept, { USD: rows }]),
+          ),
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+    test("fills parent-uncovered periods from ProfitLoss when no NCI is tagged, marked derived", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [annual(10, 2023), annual(12, 2024), annual(15, 2025)],
+      });
+      const { netIncome } = artifact.statements.incomeStatement;
+
+      expect(netIncome.annual.map(({ value, concept }) => ({ value, concept }))).toEqual([
+        { value: 10, concept: "NetIncomeLoss" },
+        { value: 12, concept: "ProfitLoss" },
+        { value: 15, concept: "ProfitLoss" },
+      ]);
+      expect(netIncome.annual[0]?.extractionMethod).toBe("sec-companyfacts");
+      expect(netIncome.annual[2]).toMatchObject({
+        extractionMethod: "derived-sec-companyfacts",
+        composite: {
+          formula: "sum",
+          components: [
+            {
+              concept: "ProfitLoss",
+              value: 15,
+              sourceIds: ["extended-sec-edgar-test-fundamentals"],
+            },
+          ],
+        },
+      });
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("withholds a period with a tagged noncontrolling interest and declares it", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [annual(10, 2023), annual(12, 2024), annual(15, 2025)],
+        NetIncomeLossAttributableToNoncontrollingInterest: [annual(1, 2025)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([10, 12]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC net income is not derived for 2025-01-01 to 2025-12-31: a nonzero noncontrolling-interest income fact is tagged for the period",
+      ]);
+    });
+
+    test("a zero noncontrolling-interest fact in the current ProfitLoss filing allows the fallback", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [annual(10, 2023), annual(15, 2025)],
+        NetIncomeLossAttributableToNoncontrollingInterest: [annual(0, 2025)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([10, 15]);
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    for (const concept of [
+      "IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity",
+      "NetIncomeLossAttributableToRedeemableNoncontrollingInterest",
+      "NetIncomeLossAttributableToNonredeemableNoncontrollingInterest",
+    ]) {
+      test(`a zero ${concept} fact withholds the fallback`, () => {
+        const artifact = deriveAt({
+          NetIncomeLoss: [annual(10, 2023)],
+          ProfitLoss: [annual(10, 2023), annual(15, 2025)],
+          [concept]: [annual(0, 2025)],
+        });
+
+        expect(
+          artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+        ).toEqual([10]);
+        expect(historyGapMessages(artifact)).toEqual([
+          "SEC net income is not derived for 2025-01-01 to 2025-12-31: a noncontrolling-interest income fact other than total net income attribution is tagged for the period",
+        ]);
+      });
+    }
+
+    test("a same-filing total zero NCI admits partial-scope zeros, as AVGO files them", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [annual(10, 2023), annual(15, 2025)],
+        NetIncomeLossAttributableToNoncontrollingInterest: [annual(0, 2025)],
+        ComprehensiveIncomeNetOfTaxAttributableToNoncontrollingInterest: [annual(0, 2025)],
+        IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity: [annual(0, 2025)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([10, 15]);
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("a zero comprehensive-income NCI fact never accepts the fallback", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [annual(10, 2023), annual(15, 2025)],
+        ComprehensiveIncomeNetOfTaxAttributableToNoncontrollingInterest: [annual(0, 2025)],
+        OtherComprehensiveIncomeLossNetOfTaxAttributableToNoncontrollingInterest: [
+          annual(-3, 2025),
+        ],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([10]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC net income is not derived for 2025-01-01 to 2025-12-31: a noncontrolling-interest income fact other than total net income attribution is tagged for the period",
+      ]);
+    });
+
+    test("a zero noncontrolling-interest fact beside a superseded ProfitLoss value withholds", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [
+          annual(10, 2023),
+          annual(15, 2025),
+          fact({
+            value: 16,
+            form: "10-K/A",
+            fiscalYear: 2025,
+            fiscalPeriod: "FY",
+            filedAt: "2026-05-01",
+            periodStart: "2025-01-01",
+            periodEnd: "2025-12-31",
+          }),
+        ],
+        NetIncomeLossAttributableToNoncontrollingInterest: [annual(0, 2025)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([10]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC net income is not derived for 2025-01-01 to 2025-12-31: a zero noncontrolling-interest income fact is tagged without a same-filing ProfitLoss of the current value",
+      ]);
+    });
+
+    test("tests only the newest same-filing pair, skipping a difference explained by tagged NCI", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(8, 2022), annual(10, 2023)],
+        ProfitLoss: [annual(9, 2022), annual(10, 2023), annual(15, 2025)],
+        NetIncomeLossAttributableToNoncontrollingInterest: [annual(1, 2022)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([8, 10, 15]);
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("withholds every period when ProfitLoss differs from parent income on a shared period", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [annual(11, 2023), annual(15, 2025)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([10]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC net income is not derived for 2025-01-01 to 2025-12-31: ProfitLoss differs from NetIncomeLoss in the same filing for the period ending 2023-12-31",
+      ]);
+    });
+
+    test("ignores a noncontrolling-interest fact filed after the analysis cutoff", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [annual(10, 2023)],
+        ProfitLoss: [annual(10, 2023), annual(15, 2025)],
+        NetIncomeLossAttributableToNoncontrollingInterest: [
+          { ...annual(1, 2025), filed: "2026-10-01" },
+        ],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([10, 15]);
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("compares parent and consolidated income only within one filing context", () => {
+      const artifact = deriveAt({
+        NetIncomeLoss: [
+          annual(10, 2023),
+          { ...annual(12, 2023), form: "10-K/A", filed: "2024-05-01", accn: "20240501-10-K-A" },
+        ],
+        ProfitLoss: [annual(10, 2023), annual(15, 2024)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map((item) => item.value),
+      ).toEqual([12, 15]);
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("keeps parent net income unchanged when ProfitLoss is untagged", () => {
+      const artifact = deriveAt({ NetIncomeLoss: [annual(10, 2023)] });
+
+      expect(
+        artifact.statements.incomeStatement.netIncome.annual.map(({ value, extractionMethod }) => ({
+          value,
+          extractionMethod,
+        })),
+      ).toEqual([{ value: 10, extractionMethod: "sec-companyfacts" }]);
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
   });
 
   describe("stale concept history", () => {

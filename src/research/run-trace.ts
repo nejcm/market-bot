@@ -46,6 +46,7 @@ export function buildRunTrace(input: {
   readonly evidenceQualityAssessment: NonNullable<RunTrace["evidenceQualityAssessment"]>;
   readonly report: ResearchReport;
   readonly stageOutputs: readonly StageOutput[];
+  readonly tokenEstimate: number;
   readonly costEstimateUsd?: number;
   readonly costPricing: readonly CostPricing[];
   readonly collectedSources: CollectedSources;
@@ -101,7 +102,7 @@ export function buildRunTrace(input: {
       ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
       ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
     })),
-    tokenEstimate: input.stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
+    tokenEstimate: input.tokenEstimate,
     ...(input.costEstimateUsd !== undefined ? { costEstimateUsd: input.costEstimateUsd } : {}),
     ...(input.costPricing.length > 0 ? { costPricing: input.costPricing } : {}),
     modelInputSanitization: input.collectedSources.modelInputSanitization ?? { entries: [] },

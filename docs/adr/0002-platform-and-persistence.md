@@ -41,12 +41,13 @@ The CLI, Research Console, orchestration, and durable Run Artifacts share one pl
   normalized components, and raw evidence; no validated report, report Markdown, trace, or analytics is emitted.
   Failed deep equity retains component evidence rather than constructing a completed bundle.
 - Root `outcomes.json` is the canonical successful/failed final-synthesis Subsystem Outcome ledger. Successful
-  analytics contain its text-free rollup; alpha-search emits no ledger. Optional stage `durationMs` measures
-  monotonic attempt time, can overlap, and is not additive run wall time.
+  analytics contain its text-free rollup; alpha-search emits no ledger. Optional stage `durationMs` records
+  positive monotonic time for successful or represented-failed attempts, can overlap, and is not additive run
+  wall time.
 - `src/run-artifacts.ts` is the shared full-fidelity, tolerant reader for reports, scores, market snapshots,
   and Verified Market Snapshots. Distinguish absent from malformed data; keep single-consumer sidecars with
   their owner. Deep-equity readers project the bundle only, with no production legacy-sidecar fallback.
-  The completed migration tool is retired; legacy sidecars may remain for audit but have no production authority.
+  Legacy sidecars may remain for audit but have no production authority.
 - Use the Run Artifact Index only after schema/freshness checks; otherwise warn and read disk. Research,
   alpha-search, and score mutations write through existing index rows; index failures are non-fatal.
 - Preserve outcome-ledger state as `ok`, `absent`, or `malformed`, plus valid child rows. Enable SQLite foreign

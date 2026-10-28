@@ -408,7 +408,9 @@ export function assertCompositeFactIntegrity(
     const facts = financialStatementFacts(series);
     const methods = new Set(facts.map((fact) => fact.extractionMethod));
     check(
-      series.key === "depreciationAndAmortization" || methods.size <= 1,
+      series.key === "depreciationAndAmortization" ||
+        series.key === "netIncome" ||
+        methods.size <= 1,
       "A8",
       `${series.key} mixes composite and direct bases`,
     );
@@ -428,6 +430,15 @@ export function assertCompositeFactIntegrity(
         `${series.key} ${fact.periodKey} carries composite contributors on a direct fact`,
         fact.periodEnd,
       );
+      if (series.key === "netIncome") {
+        check(
+          fact.composite.components.length === 1 &&
+            fact.composite.components[0]?.concept === "ProfitLoss",
+          "A8",
+          `${series.key} ${fact.periodKey} derives net income from anything but a ProfitLoss fallback`,
+          fact.periodEnd,
+        );
+      }
       if (series.key === "depreciationAndAmortization") {
         check(
           fact.composite.components.length === DEPRECIATION_AND_AMORTIZATION_COMPONENTS.length &&

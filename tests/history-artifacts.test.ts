@@ -370,6 +370,7 @@ describe("history artifacts", () => {
     expect(delta.sections.summary?.added).toEqual(["New thesis"]);
     expect(delta.sections.summary?.removed).toEqual(["Old thesis"]);
     expect(delta.narrative?.model).toBe("test-model");
+    expect(delta.narrative?.usage).toBe("unknown");
     expect(capturedParams).toEqual({ temperature: 0.2, reasoningEffort: "medium" });
     const persisted = await readFile(
       join(rootDir, "history", "deltas", "equity-AAPL-run-old-to-run-new.json"),

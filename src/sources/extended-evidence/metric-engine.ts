@@ -3,10 +3,11 @@ import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market
 import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/sources";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
-import type {
-  FinancialStatementFact,
-  FinancialStatementSeriesKey,
-  FinancialStatementsArtifact,
+import {
+  derivedFactDisclosure,
+  type FinancialStatementFact,
+  type FinancialStatementSeriesKey,
+  type FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import type { LensValueUnit } from "./value-format";
@@ -39,6 +40,7 @@ export interface MetricInput {
   readonly unit: string;
   readonly currency?: string;
   readonly sourceIds: readonly string[];
+  readonly derivation?: string;
 }
 
 export interface MetricResult {
@@ -130,6 +132,7 @@ export function statementInput(
   series: FinancialStatementSeriesKey,
   label: string,
 ): MetricInput {
+  const derivation = derivedFactDisclosure(series, fact);
   return {
     label,
     value: fact.value,
@@ -142,6 +145,7 @@ export function statementInput(
     unit: fact.unit,
     ...(fact.currency !== null ? { currency: fact.currency } : {}),
     sourceIds: fact.sourceIds,
+    ...(derivation !== undefined ? { derivation } : {}),
   };
 }
 
@@ -172,12 +176,17 @@ function evaluateMetric(definition: MetricDefinition, ctx: MetricContext): Metri
   }
   const outcome = definition.compute(ctx);
   const inputs = outcome.inputs ?? [];
+  const derivations = [
+    ...new Set(
+      inputs.flatMap((input) => (input.derivation === undefined ? [] : [input.derivation])),
+    ),
+  ];
   return {
     id,
     label,
     unit,
-    basis,
     ...outcome,
+    basis: [outcome.basis ?? basis, ...derivations].join("; "),
     inputs,
     sourceIds: [...new Set(inputs.flatMap((input) => input.sourceIds))],
   };

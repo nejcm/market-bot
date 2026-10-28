@@ -31,13 +31,9 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   Center it at 0.32 only for range Predictions whose subject, listed reference horizon (+1/+5/+10/+20),
   and bounds match the ±1σ band reconstructed from the run's saved closes at printed two-decimal precision;
   use 0.5 otherwise, including unavailable references. Kept Predictions retain evidence-supported probabilities.
-  In-band Predictions remain valid telemetry; never pad the target with coin flips.
-  (Amended 2026-10-17: previously prompted
-  probabilities outside the band, which flipped direction across frozen-input samples.)
-  (Amended 2026-10-20: replaces the old
-  all-kind 0.40–0.60 band with this exact-match rule. Gaussian outside-±1σ probability is about 0.32;
-  five-year AAPL/AMD/MSFT/SPY frequency was 0.285–0.334. This construction-specific Gaussian reference
-  is not the deferred empirical baseline.)
+  In-band Predictions remain valid telemetry; never pad the target with coin flips. Gaussian outside-±1σ
+  probability is about 0.32; five-year AAPL/AMD/MSFT/SPY frequency was 0.285–0.334. This
+  construction-specific Gaussian reference is not the Forecast Baseline.
 - Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical IDs; only primary
   probabilities are scored. Run-specific subject gates bind all predictions; thematic research scores only
   its resolved listed proxy and emits none without one.
@@ -83,8 +79,7 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   zero-count summaries by dropping those metrics and legacy `brierSkillScore`; Console also rewrites old
   Markdown headlines/skill legends. Missing/malformed counts are unknown, never normalized or collapsed to zero.
 - Run-analytics keeps the fixed always-0.5 reference. The fixed 0.25 Actionable Negative Calibration gate
-  remains unchanged. (Amended 2026-10-20: the earlier deferral of empirical baseline skill is superseded by
-  the Paired Skill headline below.)
+  remains unchanged.
 - Calibration's headline is Paired Skill: ΔBrier = Brier(Forecast Baseline) − Brier(model) over resolved,
   deduped Forecast Events that carry a baseline, overall and per kind; the fixed-0.5 skill stays a
   secondary column. Events without a baseline are excluded and counted (`excludedWithoutBaselineCount`);
@@ -123,15 +118,14 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   missing series, or relative legs whose last closes are more than 4 days apart omit the baseline and
   declare a `forecast-baseline` data gap; it is never defaulted to 0.5. A non-positive range bound
   contributes zero tail probability. The primary symbol's window extends to the snapshot's newer
-  unverified closes so the baseline and the grid bands share one spot. Changing the math requires a new `baselineVersion`. (Added 2026-10-20; Forecast
-  Baseline is unrelated to the prior-run baseline of Forecast Persistence Telemetry.)
+  unverified closes so the baseline and the grid bands share one spot. Changing the math requires a new `baselineVersion`. Forecast
+  Baseline is unrelated to the prior-run baseline of Forecast Persistence Telemetry.
 - Residual split check: every move above 8 robust σ is examined, so a larger genuine move
   cannot mask a smaller residual split. Any such move counts when it is within log(1.1) + 0.03 of the log of a forward or reverse split ratio (5:4, 4:3, 3:2, 2, 3, 4, 5, 10), so a split day that also
   moved ±10% is still caught. When the price source returned its split list (`yahoo-price-history`,
   `splitDates`), only a jump within 4 days of a reported split is flagged. A known list with no split
   nearby means a genuine move, which stays volatility. Without split metadata (the verified chart), a genuine 10–65% one-day move inside those windows is treated as a split. That is a
-  documented shortcut; volume is not consulted. (Amended 2026-10-21; availability only, the math and
-  `ewma-0.94-w60-v1` are unchanged.)
+  documented shortcut; volume is not consulted.
 - Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
   (the prompt lists only the other ±1σ bands as prediction anchors) and relative vs SPY at h = 5. The primary synthesis prices them in the same
   response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the
@@ -142,19 +136,16 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   grid: the event is issued as `origin: "grid"` under its grid id with the model's `eventGrid` probability
   when valid, else the duplicate's, and the grid's own sourceIds; the copy leaves the model list and no gap
   is declared. Grid Predictions are scored and calibrated like any other but do not count toward the
-  prediction target, shortfall, kind mix or citation telemetry. (Amended 2026-10-23: previously a restating
-  model Prediction kept `origin: "model"`, counted toward the target and left the grid event unissued with a
-  "not issued separately" gap; 88% of model Predictions in grid-era evals were such restatements.
+  prediction target, shortfall, kind mix or citation telemetry.
   For a `claimKey` match, Forecast Event identity and dedupe are unchanged because the key is
   origin-insensitive; an id-only match with a different expression is scored as the grid event's
   expression instead. Either way a folded event is scored at the `eventGrid` probability when valid, so
-  Brier and Calibration inputs can differ from the duplicate's probability.)
+  Brier and Calibration inputs can differ from the duplicate's probability.
 - The `forecast-grid` job issues the same Event Grid per watchlist equity, priced by one `quickModel` call
   from a compact fact sheet (no synthesis, not shown the baseline). It publishes a run-artifact dir under
   `data/runs/` so the existing score pass, Calibration, index and history read it unchanged; only parsed
   probabilities persist. Spending needs an explicit CLI `--yes`; the Research Console cannot queue it. An
   event it shares with an instrument run on the same session collapses through the Forecast Event dedupe.
-  (Added 2026-10-21.)
 - Actionable Negative Calibration independently assesses asset class, job type, default-horizon bucket,
   Market Regime, and Prediction kind. Require 30 resolved Forecast Events, 10 distinct Runs, and a
   Bonferroni-adjusted 98.75% one-sided bound `Brier - 2.2414 × standard error > 0.25`. Qualifying slices

@@ -8,6 +8,7 @@ import {
   type FundamentalHistorySeries,
 } from "./fundamental-history";
 import {
+  derivedFactDisclosure,
   isAnnualReportForm,
   type FinancialStatementFact,
   type FinancialStatementSeries,
@@ -136,6 +137,12 @@ function rawSeries(
   }
   if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
+  }
+  const derivation = [...series.annual, ...Object.values(series.ttm?.components ?? {})]
+    .map((fact) => derivedFactDisclosure(definition.canonicalKey, fact))
+    .find((disclosure) => disclosure !== undefined);
+  if (derivation !== undefined) {
+    notes.push(`derived: ${derivation}`);
   }
   const earlierShareBasis = earlierShareBasisPeriods(
     artifact.omissionNotes,

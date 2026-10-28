@@ -645,6 +645,8 @@ describe("frozen-input eval replay", () => {
     expect(metrics.metrics["sourceGaps.fetch-failed"]).toBeGreaterThan(0);
     expect(metrics.metrics["status.completed"]).toBe(1);
     expect(metrics.metrics["tokens.total"]).toBeGreaterThan(0);
+    // The fixture cassette predates usage capture, so no per-stage usage metric is fabricated.
+    expect(Object.keys(metrics.metrics).filter((key) => key.endsWith("Tokens"))).toEqual([]);
     expect(metrics.metrics["predictions.count"]).toBeGreaterThanOrEqual(0);
     expect(metrics.metrics["citations.coverage"]).toBeGreaterThan(0);
 
@@ -908,7 +910,7 @@ describe("frozen-input eval replay", () => {
             return replay.generate(request);
           }
           finalCalls += 1;
-          return { content: raw, tokenEstimate: 1 };
+          return { content: raw, tokenEstimate: 1, usage: { inputTokens: 5 } };
         },
       },
     });
@@ -937,6 +939,20 @@ describe("frozen-input eval replay", () => {
     const { metrics } = await extractSampleMetrics(FIXTURE, "1", sample.sampleDir);
     expect(metrics["repairs.reportValidation"]).toBe(3);
     expect(metrics["repairs.predictionErrors"]).toBeUndefined();
+    expect(metrics["tokens.final-synthesis.inputTokens"]).toBe(20);
+    // A failed run's ledger rollup in failure.json wins over a StageOutputs re-rollup.
+    await writeFile(
+      join(sample.runDir!, "failure.json"),
+      JSON.stringify({
+        ...failure,
+        cost: {
+          ...failure.cost,
+          usageByStage: [{ stage: "final-synthesis", calls: 5, inputTokens: "unknown" }],
+        },
+      }),
+    );
+    const fromFailure = await extractSampleMetrics(FIXTURE, "1", sample.sampleDir);
+    expect(fromFailure.metrics["tokens.final-synthesis.inputTokens"]).toBeUndefined();
     const summary = await writeEvalSummary(root, "invalid-json");
     expect(formatEvalCompare(summary, await readEvalSummary(root, "invalid-json"))).toContain(
       `| ${FIXTURE} | status.failed-final-synthesis | 1 [1–1] | 1 [1–1] |`,
@@ -1065,6 +1081,66 @@ describe("frozen-input eval replay", () => {
     expect(compare).toContain(`| ${FIXTURE} | status.threw | 0.50 [0–1] | 0 [0–0] |`);
   });
 
+  test("compares usage counts as measured-only, labeling unknown samples instead of averaging 0", () => {
+    const summary = (label: string, metrics: Record<string, number>[]) => ({
+      label,
+      samples: metrics.map((sampleMetrics, index) => ({
+        fixture: FIXTURE,
+        sample: String(index + 1),
+        status: "completed" as const,
+        cassetteMissKeys: [],
+        modelReplayMissKeys: [],
+        metrics: sampleMetrics,
+        unavailable: [],
+      })),
+    });
+    const compare = formatEvalCompare(
+      summary("base", [{ "tokens.web-gather": 100 }, { "tokens.web-gather": 120 }]),
+      summary("next", [
+        { "tokens.web-gather": 100, "tokens.web-gather.inputTokens": 90 },
+        { "tokens.web-gather": 120 },
+      ]),
+    );
+    expect(compare).toContain(
+      `| ${FIXTURE} | tokens.web-gather.inputTokens | — (n=0/2) | 90 [90–90] (n=1/2) |`,
+    );
+    expect(compare).toContain(`| ${FIXTURE} | tokens.web-gather | 110 [100–120] | 110 [100–120] |`);
+  });
+
+  test("a synthesis-only sample whose second call threw reports its usage as unknown", async () => {
+    const root = await tempRoot();
+    await mkdir(join(root, "partial", "1"), { recursive: true });
+    await writeFile(
+      join(root, "partial", "1", "eval-sample.json"),
+      JSON.stringify({
+        status: "failed",
+        durationMs: 1,
+        modelCalls: { replayed: 0, live: 1 },
+        modelReplayMisses: [],
+        metrics: { calls: 1 },
+        tokens: { replayed: 0, live: 25 },
+        attemptedCalls: 2,
+        completedCalls: 1,
+      }),
+    );
+    await writeFile(
+      join(root, "partial", "1", "synthesis.json"),
+      JSON.stringify({
+        stageOutputs: [{ stage: "final-synthesis", tokenEstimate: 25, usage: { inputTokens: 20 } }],
+        regeneratedAnalysis: [],
+      }),
+    );
+    await writeFile(
+      join(root, "partial", "summary.json"),
+      JSON.stringify({ scope: "final-synthesis-only", samples: [{ dir: "/moved/partial/1" }] }),
+    );
+
+    const summary = await readEvalSummary(root, "partial");
+    const [sample] = summary.samples;
+    expect(sample?.metrics["tokens.final-synthesis.inputTokens"]).toBeUndefined();
+    expect(sample?.unavailable).not.toContain("tokens");
+  });
+
   test("compares final-synthesis-only labels and rejects comparing across scopes", async () => {
     const root = await tempRoot();
     const fixtureSample = await runEvalSample({
@@ -1133,7 +1209,17 @@ describe("frozen-input eval replay", () => {
         },
       ],
     });
-    await writeFile(join(root, "next", "1", "synthesis.json"), synthesisOutputs);
+    const usage = { inputTokens: 40, outputTokens: 5 };
+    await writeFile(
+      join(root, "next", "1", "synthesis.json"),
+      JSON.stringify({
+        ...(JSON.parse(synthesisOutputs) as { stageOutputs: Record<string, unknown>[] }),
+        stageOutputs: (
+          JSON.parse(synthesisOutputs) as { stageOutputs: Record<string, unknown>[] }
+        ).stageOutputs.map((row) => ({ ...row, tokenEstimate: 45, usage })),
+        regeneratedAnalysis: [{ stage: "critique", tokenEstimate: 45, usage }],
+      }),
+    );
     await writeFile(join(root, "base", "1", "synthesis.json"), synthesisOutputs);
     await writeFile(
       join(root, "base", "1", "report.json"),
@@ -1165,6 +1251,13 @@ describe("frozen-input eval replay", () => {
     );
     expect(compare).toContain(
       "| final-synthesis-only | synthesis.calls | 1 [1–1] (n=2/3) | 1 [1–1] |",
+    );
+    // Every recorded attempt and regenerated analysis call counts; samples without usage stay unknown.
+    expect(compare).toContain(
+      "| final-synthesis-only | tokens.final-synthesis.inputTokens | — (n=0/3) | 80 [80–80] |",
+    );
+    expect(compare).toContain(
+      "| final-synthesis-only | tokens.critique.outputTokens | — (n=0/3) | 5 [5–5] |",
     );
     for (const [metric, value] of [
       ["metricReferences", 1],

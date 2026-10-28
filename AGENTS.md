@@ -19,7 +19,7 @@ The `run-review` skill is heavy on purpose — invoke it only when I name it. If
 2. **Predictions must be observable.** Resolvable from public price data ([ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md)).
 3. **No secrets in code, tests, or fixtures.** Env vars only.
 4. **Bun + oxc only.** No Node, Prettier, ESLint, or Biome ([ADR 0002](./docs/adr/0002-platform-and-persistence.md)).
-5. **No unsolicited planning docs, and never commit one.** `plans/` is gitignored in
+5. **No unsolicited planning docs, and never commit one.** `.plans/` is gitignored in
    full — write there only when I ask for a document, and never `git add -f` it,
    move it under `docs/`, or reproduce it in a commit message or PR body. A
    requested plan or run review is a working artifact for me, not a repo record.
@@ -51,7 +51,7 @@ ADRs document current decisions and should be followed by default, but they can 
 
 ## Blast radius
 
-Live runs cost real money and time — a deep equity run is ~12 minutes and ~438k live model tokens.
+Live runs cost real money and time — a deep equity run is ~12 minutes and ~438k live model tokens (a legacy estimate that double-counts Codex reasoning; correction size unknown).
 
 - **Never run the CLI to "check something."** Read an existing artifact under `data/runs/` (newest first) or replay a fixture. Fixture replays are free.
 - **Live-LLM fixture runs only via `scripts/eval-deep.ts --yes`** (or `scripts/replay-fixture-run.ts --live --yes`), and only with my explicit approval per batch — run without `--yes` first; it prints the run count and token estimate and spends nothing. Both write only under `data/evals/<label>/`, never `data/runs/`. Never run the fixture _recorder_ — it hits every provider and can capture secrets into cassettes.
@@ -90,7 +90,7 @@ To find a cached payload, filter by adapter: `jq -r 'select(.adapter=="sec-compa
 
 Every run records `codeVersion` (package version, git branch/commit, dirty flag) in `trace.json`, `analytics.json`, and `failure.json` — check it before comparing runs across commits.
 
-Outside `data/`, `.reviews/` (run-review output), `TODO.md`, and `plans/` are gitignored working files, none a repo record.
+Outside `data/`, `.reviews/` (run-review output), and `.plans/` are gitignored working files, none a repo record. `plans/issues.md` (tracked) is the issue backlog.
 
 `prompts/` holds the model stage prompts and Domain Playbooks — a stage's behavior is usually changed there, not in `src/`.
 
@@ -164,3 +164,72 @@ Requirements:
 - No `Co-authored-by` trailers on commits.
 - Update `docs/configuration.md` when introducing env vars.
 - No backwards compatibility needed for now.
+
+## Product goals
+
+A long-term fundamental research view of a business, where every number can be traced and checked and every unknown is declared. It should be as deep as a paid deep-dive app, without the verdict.
+
+When goals conflict, resolve in this order:
+
+1. **Correct.** A wrong number is worse than a missing one.
+2. **Sourced.** Every figure carries its source ID, period, as-of or filing date, unit, and currency.
+3. **Complete or declared.** What a run did not see becomes a Source Gap.
+4. **Fresh.** Use the newest filed period, state its as-of date, and gap anything stale.
+5. **Forecasts.** Observable Predictions are the accountability layer on top of the evidence. Never bend the evidence to make a forecast work.
+6. **Presentation.**
+
+Horizon for equity instrument and thematic research: long-term first. That means multi-year history, business quality, moat, capital allocation, and balance-sheet resilience. Quarterly data and near-term catalysts are welcome as supporting detail, not as the frame. Market-overview, crypto, and alpha-search runs are short-horizon by design (`--horizon` in trading days), and this does not change them.
+
+### Reference apps
+
+Comparable products set the bar for coverage; [docs/reference-apps.md](./docs/reference-apps.md) maps their surfaces to ours. Their verdicts are out of bounds.
+
+Never ship these, whatever a reference app does: a composite score, a grade or snowflake, a rank or grade of an instrument's quality or attractiveness, a Pass/Watch/Buy decision, a fair value or DCF target, or "under/overvalued" ([ADR 0001](./docs/adr/0001-research-only-boundary.md)). Ordering by an observed quantity, such as movers by move size or peers by fit, is fine. Show the component checks and postures, never one number that sums them up. A feature idea taken from a competitor gets reframed as evidence plus context before it is built.
+
+## Financial data best practices
+
+These rules apply when adding or fixing a metric, parser, or projection. They describe the target. Where current code falls short, the metric's `label` or `basis` says so, and if `plans/issues.md` exists its "Known gaps vs AGENTS.md data rules" section lists the gap. Close a gap deliberately, as its own change with its own tests, never as a side effect of an unrelated fix.
+
+- **Use standard definitions.** Follow the textbook formula. Where the code deviates, its `label` or `basis` string says how (`freeCashFlowProxy`, `ebitdaProxy`, "period-end invested capital", "latest FY"). A new deviation needs the same.
+  - FCF = operating cash flow − capex. FCF margin = FCF / revenue.
+  - EV = market cap + debt + preferred + noncontrolling interest − cash. Net debt = debt − cash. Not applicable for depository issuers.
+  - ROIC = NOPAT / invested capital, where NOPAT = operating income × (1 − effective tax rate) and invested capital = equity + debt − cash.
+  - Interest coverage = operating income / interest expense. Current ratio = current assets / current liabilities.
+  - Payout ratio = dividends / net income. Shareholder yield = (dividends + buybacks) / market cap, with gross or net-of-issuance stated.
+  - Multi-year growth is a CAGR over complete fiscal years, never the mean of YoY changes.
+- **Separate flows from stocks.** Income and cash-flow items are period flows. Balance-sheet items are point-in-time, so every return ratio states its balance basis (period-end, beginning, or average).
+- **Never mix periods.** Annual, quarterly, YTD, and TTM are distinct. TTM is the sum of four quarters or FY + YTD − prior YTD (reconciled), never one quarter × 4 unless labeled annualized. Compare quarters YoY, not QoQ, because of seasonality. Fiscal years are not calendar years.
+- **Point-in-time.** Information becomes public on the filing or release date, not the period end. Forecast Baselines and Predictions never use data published after their `infoCutoff`, because that is look-ahead bias. Valuation joins pair fundamentals with the first verified close on or after the date they became public, never an earlier one. Restated values replace prior ones, but the period identity is kept.
+- **Per-share and splits.** EPS uses diluted weighted shares, and an approximation carries its disclosure note (`ttm:eps-approximation`). Prices and per-share series are split-adjusted. Share-count trend and SBC are dilution evidence, so read buybacks against them.
+- **Accounting basis.** GAAP/IFRS as filed is the default. Non-GAAP figures and company-defined KPIs are labeled as such. Respect Accounting Scope (continuing vs total operations, parent vs NCI, SEC vs provider basis) and never divide across scopes.
+- **Currency.** Keep Quote Currency and Reporting Currency apart, and convert at a declared date's FX rate. A currency mismatch suppresses the metric with a gap, never a silent division.
+- **Not meaningful beats nonsense.** P/E on negative EPS, margins on near-zero revenue, and EV for banks are `not meaningful` with a reason, never a huge or negative number. Banks, insurers, REITs, and pre-revenue biotech need sector-appropriate metrics, or the metric is declared not applicable.
+- **Moat is evidence with a neutral posture, not a rating.** Use the standard sources: intangibles, switching costs, network effects, cost advantage, efficient scale. Back them with numbers, such as ROIC sustained above cost of capital over years and stable gross margins. Missing evidence is a gap, not "no moat".
+- **Valuation is context.** Use multiples vs the company's own history and vs a justified Peer Universe, plus what the price implies (reverse DCF). Never what it is "worth".
+- **Forecast quality.** Use proper scoring (Brier), and judge skill by Paired Skill vs the Forecast Baseline, reliability and resolution, not by hit rate. Near-Base-Rate Predictions are not skill. Below the Paired Skill sample floor, make no skill claim and do not justify a prompt change with skill numbers. Check live deltas against [docs/run-variance-baseline.md](./docs/run-variance-baseline.md) if its bands still apply.
+
+## Fixes and improvements workflow
+
+Every value, metric, data, or behavior issue, whether found in a run review, a test, or by eye, goes through these steps in order. Typo and docs-only fixes can skip it. Do not skip a step because the fix looks obvious. "Obvious" fixes are how `684e454`-style one-path changes land.
+
+1. **Validate.** Confirm the issue is real before touching code. Reproduce it from saved artifacts or a replay (see Blast radius), never a live run. Read `codeVersion` first, because the run may predate a fix that already landed. A reported issue that does not reproduce is closed with that evidence, not "fixed" anyway.
+2. **Research how it should work.** Before deciding what is wrong, establish what right looks like and cite it:
+   - **Definition:** the standard formula and basis, from a standard reference (CFA Institute curriculum, SEC/FASB rules, Damodaran) or the issuer's own definition for a company KPI.
+   - **Source of truth:** which provider and field should feed it, and which filing form, XBRL concept, or endpoint. Prefer primary sources (SEC filing, issuer IR) over aggregators. Check whether `src/sources/` already pulls it before adding a provider.
+   - **Expected value:** the correct figure for the reproducing case, checked by hand against the primary source online when feasible.
+   - **Prior art:** how reference apps or the market-data convention present it, when that informs the definition, not the verdict.
+3. **Debug to the root cause.** Trace the real path: raw payload → normalized → Metric Section → projection → Markdown renderer and Console. Find the first stage where the value diverges from the expected one. Fix there, once, in shared code. Patching the symptom at a downstream stage is not a fix. If the provider itself returns wrong or ambiguous data, declare a gap or disclosure. Do not add a heuristic that guesses.
+4. **Scope the change.** List every surface it reaches (Hit every surface), what happens when the input is absent (Absence is a finding), and any ADR it touches. If the fix changes a documented decision, say so before building it.
+5. **Fix and test.** Write a test that fails before the fix and passes after. A value fix pins the corrected number with the issuer, period, and filing it was checked against. Cover the off-path and the edge cases the research turned up: negative, zero, missing, mixed currency, depository issuers. Prefer a fixture assertion when the behavior should hold across runs.
+6. **Verify on real data.** Re-run the narrowest replay from the Fast iteration table against the reproducing run, and confirm the value now matches the researched expectation. Run `bun run sweep:sec` for SEC parser changes. Then `bun run check`.
+7. **Review.** Re-read the diff against steps 2–4:
+   - Does the definition match the cited source?
+   - Is every surface updated?
+   - Is research-only wording intact?
+   - Did anything else change that you did not intend?
+
+   For non-trivial changes, get an independent review (the `code-review` skill or a second agent) and validate its findings against the code before acting on them.
+
+8. **Record.** The PR or commit body states, in your own words, the issue, the evidence that it was real (artifact paths, numbers, the filing), the reference that defines correct behavior, the root cause, and how it was verified. Never paste `.reviews/` or `.plans/` content (Non-negotiable 5). Follow-ups you found but did not fix go to `plans/issues.md`, not into the same change.
+
+Improvements and new features follow the same steps, with step 1 replaced by **Justify**: name the Product goals priority it serves and the user-visible gap it closes, and check that it does not cross the never-ship list above.

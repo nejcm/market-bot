@@ -382,6 +382,7 @@ export function failedRunOutcomesArtifact(
     totalCalls: 1,
     reportRepairReprompts: 0,
     stageOutputs: [],
+    modelCalls: [],
     payload: {},
     collectedSources: collectedSources(),
     historicalContext: {

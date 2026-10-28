@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
+import { financialLensSectionTiles } from "../app/client/view-model-lens";
 import { renderMetricSections } from "../src/report/markdown-metric-sections";
 import { metricPeriodLabel } from "../src/sources/extended-evidence/value-format";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -121,4 +122,56 @@ test("canonical SEC evidence reaches model payloads without selected metric flat
       /Selected|payoutRatioNonPositive/u.test(key),
     ),
   ).toBe(false);
+});
+
+test("derived gross profit discloses its formula in metric basis, markdown, and console", () => {
+  const filed = { filed: "2026-02-15", form: "10-K", fy: 2025, fp: "FY", accn: "0001-26-000001" };
+  const span = { start: "2025-01-01", end: "2025-12-31" };
+  const derived = deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: { units: { USD: [{ val: 100, ...span, ...filed }] } },
+          CostOfRevenue: { units: { USD: [{ val: 40, ...span, ...filed }] } },
+        },
+      },
+    },
+    { symbol: "AAPL", generatedAt: AS_OF, analysisAsOf: AS_OF, sourceId: "sec-aapl" },
+  );
+  const grossProfit = derived.statements.incomeStatement.grossProfit.annual[0]!;
+  const revenue = derived.statements.incomeStatement.revenue.annual[0]!;
+  const { section } = evaluateMetricSection(
+    "financial-lens-quality",
+    "Quality",
+    [
+      {
+        id: "grossMargin",
+        label: "Gross margin",
+        unit: "ratio-percent",
+        basis: "FY gross profit / revenue",
+        compute: () => ({
+          status: "value",
+          value: grossProfit.value / revenue.value,
+          periodEnd: grossProfit.periodEnd,
+          inputs: [
+            statementInput(grossProfit, "grossProfit", "gross profit"),
+            statementInput(revenue, "revenue", "revenue"),
+          ],
+        }),
+      },
+    ],
+    { symbol: "AAPL" },
+  );
+  const disclosure =
+    "gross profit derived as Revenues − CostOfRevenue; tagged cost of revenue may exclude amortization or D&A";
+  const report = researchReport({ extras: { metricSections: [section] } });
+
+  expect(section.metrics[0]?.basis).toBe(`FY gross profit / revenue; ${disclosure}`);
+  expect(renderMetricSections(report)).toContain(disclosure);
+  expect(
+    metricSectionsView(report as unknown as Record<string, unknown>)?.[0]?.metrics[0],
+  ).toMatchObject({ basis: expect.stringContaining(disclosure) });
+  expect(
+    financialLensSectionTiles(report as unknown as Record<string, unknown>)[0]?.caption,
+  ).toContain(disclosure);
 });

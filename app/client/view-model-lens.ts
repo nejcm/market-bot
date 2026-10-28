@@ -383,7 +383,7 @@ export function financialLensSectionTiles(
       if (metric.id === undefined || metric.label === undefined || value === undefined) {
         return [];
       }
-      const caption = financialLensMetricCaption(
+      const sourceCaption = financialLensMetricCaption(
         {
           key: metric.id,
           sourceIds: metric.sourceIds,
@@ -392,6 +392,11 @@ export function financialLensSectionTiles(
         },
         marketSnapshots,
       );
+      const derivations = [...new Set(metric.inputs.flatMap((input) => input.derivation ?? []))];
+      const caption =
+        derivations.length === 0
+          ? sourceCaption
+          : [sourceCaption, ...derivations].filter((part) => part !== undefined).join(" · ");
       return [
         {
           key: metric.id,

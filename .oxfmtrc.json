@@ -4,7 +4,7 @@
     "node_modules/**",
     "coverage/**",
     "research/**",
-    "plans/**",
+    ".plans/**",
     "tests/fixtures/untagged-financial-corpus/raw/**"
   ]
 }

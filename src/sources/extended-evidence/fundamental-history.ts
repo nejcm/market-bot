@@ -551,7 +551,7 @@ function pairSeries(
   right: FundamentalHistorySeries,
   operation: (leftValue: number, rightValue: number) => number | undefined,
 ): FundamentalHistorySeries {
-  const notes: string[] = [];
+  const notes = [...left.notes, ...right.notes].filter((note) => note.startsWith("derived:"));
   const rightByEnd = new Map(right.annual.map((point) => [point.periodEnd, point]));
   const annual = left.annual.flatMap((leftPoint) => {
     const rightPoint = rightByEnd.get(leftPoint.periodEnd);

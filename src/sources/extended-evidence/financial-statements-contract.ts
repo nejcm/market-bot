@@ -163,6 +163,22 @@ export interface FinancialStatementFact {
   };
 }
 
+export function derivedFactDisclosure(
+  key: FinancialStatementSeriesKey,
+  fact: Pick<FinancialStatementFact, "composite" | "concept">,
+): string | undefined {
+  if (fact.composite === undefined) {
+    return undefined;
+  }
+  if (key === "grossProfit") {
+    return `gross profit derived as ${fact.concept.replace("-", " − ")}; tagged cost of revenue may exclude amortization or D&A`;
+  }
+  if (key === "netIncome") {
+    return `net income uses consolidated ${fact.concept} where NetIncomeLoss is untagged and tagged noncontrolling-interest income is zero or absent`;
+  }
+  return undefined;
+}
+
 export interface FinancialStatementTtm {
   readonly value: number;
   readonly periodStart: string;
@@ -214,6 +230,7 @@ export interface FinancialStatementNote {
     | "incomplete-composite-series"
     | "stale-instant-series"
     | "stale-concept-history"
+    | "withheld-derivation"
     | "mixed-share-basis"
     | "earlier-share-basis"
     | "declaration-span";

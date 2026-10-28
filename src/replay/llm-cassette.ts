@@ -1,10 +1,17 @@
 import { isRecord } from "../guards";
 import type { StageLabel } from "../research/prompt-loader";
-import type { ModelProvider, ModelRequest } from "../model/types";
+import {
+  isModelUsage,
+  type ModelProvider,
+  type ModelRequest,
+  type ModelUsage,
+} from "../model/types";
 
 export interface LlmCassetteEntry {
   readonly content: string;
   readonly tokenEstimate: number;
+  // Replay returns the recorded usage verbatim; cassettes captured before usage existed omit it.
+  readonly usage?: ModelUsage;
   readonly costEstimateUsd?: number;
   readonly error?: string;
   readonly errorName?: string;
@@ -167,6 +174,12 @@ export function makeReplayProvider(
         return fail(exactKey, `LLM cassette miss for ${key} call ${String(index + 1)}`);
       }
       indexes.set(key, index + 1);
+      if (entry.usage !== undefined && !isModelUsage(entry.usage)) {
+        return fail(
+          exactKey,
+          `LLM cassette has invalid usage for ${key} call ${String(index + 1)}`,
+        );
+      }
       if (entry.error !== undefined) {
         const error = new Error(entry.error);
         error.name = entry.errorName ?? "Error";

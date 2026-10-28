@@ -30,6 +30,7 @@ afterEach(cleanupDataDirs);
 describe("runResearchJob pipeline stages", () => {
   test("uses resolved run models and model params for provider calls and trace", async () => {
     const requests: { readonly model: string; readonly params: unknown }[] = [];
+    const prompts: string[] = [];
     const runConfig: RunConfig = {
       "market-overview-equity": {
         quickModel: "combo-quick",
@@ -46,8 +47,13 @@ describe("runResearchJob pipeline stages", () => {
       name: "mock",
       generate: async (request) => {
         requests.push({ model: request.model, params: request.params });
+        prompts.push(request.messages.at(-1)?.content ?? "");
+        const synthesis = request.model === "combo-synthesis";
 
         return {
+          ...(synthesis
+            ? {}
+            : { usage: { inputTokens: 90, cachedInputTokens: 40, outputTokens: 10 } }),
           content: JSON.stringify({
             summary: "Equity market breadth is constructive but source coverage is limited.",
             keyFindings: [{ text: "AAPL is a liquid positive mover.", sourceIds: ["market-aapl"] }],
@@ -107,6 +113,27 @@ describe("runResearchJob pipeline stages", () => {
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
       { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "high" } },
     ]);
+    // Provider usage is recorded per call; a provider that returns none is "unknown", never 0.
+    expect(result.stageOutputs.map((output) => output.usage)).toEqual([
+      { inputTokens: 90, cachedInputTokens: 40, outputTokens: 10 },
+      { inputTokens: 90, cachedInputTokens: 40, outputTokens: 10 },
+      { inputTokens: 90, cachedInputTokens: 40, outputTokens: 10 },
+      "unknown",
+    ]);
+    expect(result.analytics.runShape.usageByStage.at(-1)).toMatchObject({
+      stage: "final-synthesis",
+      unreportedCalls: 1,
+      inputTokens: "unknown",
+    });
+    expect(
+      result.analytics.runShape.modelCalls.map(({ stage, call, model, status }) => [
+        stage,
+        call,
+        model,
+        status,
+      ]),
+    ).toEqual(result.stageOutputs.map((output) => [output.stage, 1, expect.any(String), "ok"]));
+    expect(prompts.some((prompt) => prompt.includes('"usage"'))).toBe(false);
     expect(result.trace.quickModel).toBe("combo-quick");
     expect(result.trace.synthesisModel).toBe("combo-synthesis");
     expect(result.trace.startedAt).toBe("2026-05-19T00:00:00.000Z");

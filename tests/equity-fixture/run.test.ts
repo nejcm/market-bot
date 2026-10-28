@@ -229,6 +229,29 @@ describe("static equity run fixtures", () => {
             modelRequests.push(request);
             const response = await replayProvider.generate(request);
             const prompt = JSON.parse(request.messages[1]?.content ?? "{}");
+            if (name === "equity-earnings-release-deep" && prompt.stage === "final-synthesis") {
+              const segments = (
+                prompt.evidence.metricReferences as readonly {
+                  id: string;
+                  metrics: readonly { reference: string; status: string }[];
+                }[]
+              ).find(({ id }) => id === "segment-results");
+              expect(segments?.metrics).toContainEqual(
+                expect.objectContaining({
+                  reference:
+                    "<<metric:segment-results.aapl_AmericasSegmentMember-2026-03-29-2026-06-27-margin>>",
+                  status: "value",
+                  value: "47.4%",
+                }),
+              );
+              for (const item of prompt.evidence.extendedEvidence.items as readonly {
+                metrics?: Record<string, unknown>;
+              }[]) {
+                expect(
+                  Object.keys(item.metrics ?? {}).some((key) => key.startsWith("segment|")),
+                ).toBe(false);
+              }
+            }
             if (name === "equity-aapl-deep" && prompt.stage === "final-synthesis") {
               const catalog = prompt.evidence.metricReferences as readonly {
                 id: string;

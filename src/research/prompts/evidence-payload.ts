@@ -409,7 +409,7 @@ export function compactHistoricalContext(
     ...(runs.length > 0
       ? {
           priorRunDataGapsUse:
-            "runs[].dataGaps are prior-run observations, not current Source Gaps; re-check each against current supplied sources before repeating it.",
+            "runs[].dataGaps are prior-run observations, not current Source Gaps. Before repeating one, check whether supplied sources carry its figure, or the inputs to compute it (both ratio inputs for the same period, or the same ratio across the cited periods for a trend); anything computable from cited inputs is not absent. Then drop it, or keep only the named items still missing in the same words; do not generalize a satisfied item into a broader one.",
         }
       : {}),
     gaps: context.gaps,

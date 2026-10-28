@@ -90,7 +90,7 @@ describe("compactHistoricalContext", () => {
     ).toBe(true);
     for (const view of ["all", "web-gather"] as const) {
       expect(compactHistoricalContext(context, view).priorRunDataGapsUse).toContain(
-        "prior-run observations",
+        "computable from cited inputs",
       );
     }
     expect(

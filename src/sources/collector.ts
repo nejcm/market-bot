@@ -516,6 +516,7 @@ export async function collectSources(
       ...deepExtendedResult.rawSnapshots,
       ...(priceHistoryResult?.rawSnapshots ?? []),
       ...(enrichmentResult.valuationCompsResult?.rawSnapshots ?? []),
+      ...(enrichmentResult.periodicFilings?.rawSnapshots ?? []),
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
       ...representativeVerifiedSnapshotResults.flatMap((entry) =>
@@ -531,6 +532,7 @@ export async function collectSources(
       ...(enrichmentResult.valuationCompsResult?.sources ?? []),
       ...enrichmentResult.valuationWorkbenchSources,
       ...enrichmentResult.earningsExtraSources,
+      ...(enrichmentResult.periodicFilings?.sources ?? []),
     ],
     ...(enrichmentResult.businessFrameworkResult.extendedEvidence !== undefined
       ? { extendedEvidence: enrichmentResult.businessFrameworkResult.extendedEvidence }
@@ -621,6 +623,7 @@ export async function collectSources(
       ...enrichmentResult.businessFrameworkResult.sourceGaps,
       ...enrichmentResult.packetFailureGaps,
       ...enrichmentResult.financialStatementGaps,
+      ...(enrichmentResult.periodicFilings?.gaps ?? []),
       ...enrichmentResult.metricSectionGaps,
       ...(pricePerformance?.sourceGaps ?? []),
       ...marketContextResult.sourceGaps,

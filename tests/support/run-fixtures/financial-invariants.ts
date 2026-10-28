@@ -48,7 +48,7 @@ import {
   MIXED_PERIOD_METRIC,
 } from "../../../src/sources/extended-evidence/valuation-comps";
 import { yearsBetween } from "../fiscal-years";
-import type { FixtureMeta, RunFixtureResult } from ".";
+import { isDeepFixture, type FixtureMeta, type RunFixtureResult } from ".";
 
 const DAY_MS = 86_400_000;
 const DURATION_MONTHS = new Set([3, 6, 9, 12]);
@@ -744,6 +744,10 @@ export function assertSourceIdClosure(
     }
     for (const [key, item] of Object.entries(candidate)) {
       const itemPath = `${path}.${key}`;
+      // Prior runs' citations resolve against their own runs, as the bundle reader allows.
+      if (key === "historicalContext") {
+        continue;
+      }
       if (key === "sourceIds") {
         invariant(Array.isArray(item), "C12", `${itemPath} is not an array`);
         for (const sourceId of item) {
@@ -1105,10 +1109,7 @@ export async function assertFinancialRunInvariants(
     assertFinancialStatementInvariants(statements);
   }
   if (history !== undefined) {
-    assertFundamentalHistoryInvariants(
-      history,
-      statements !== undefined && meta.argv.includes("--deep"),
-    );
+    assertFundamentalHistoryInvariants(history, statements !== undefined && isDeepFixture(meta));
   }
   if (statements !== undefined && lenses !== undefined) {
     assertFinancialLensPeriodHygiene(statements, lenses);
@@ -1127,7 +1128,9 @@ export async function assertFinancialRunInvariants(
     assertSourceIdClosure(result.deepEquityEvidenceBundle, knownSourceIds, "evidence-bundle");
   }
   for (const [file, artifact] of Object.entries(normalized)) {
-    assertSourceIdClosure(artifact, knownSourceIds, `normalized/${file}`);
+    if (file !== "historical-context.json") {
+      assertSourceIdClosure(artifact, knownSourceIds, `normalized/${file}`);
+    }
   }
   assertNumericAndCurrencyHygiene(result.report, "report");
   assertNumericAndCurrencyHygiene(result.analytics, "analytics");

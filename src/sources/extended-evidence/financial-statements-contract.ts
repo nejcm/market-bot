@@ -248,6 +248,7 @@ export interface FinancialStatementNote {
     | "unreconciled-ttm"
     | "untagged-balance-sheet-series"
     | "incomplete-composite-series"
+    | "unchecked-extension-capex"
     | "stale-instant-series"
     | "stale-concept-history"
     | "withheld-derivation"

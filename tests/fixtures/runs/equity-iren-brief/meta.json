@@ -1,0 +1,89 @@
+{
+  "replayClassification": "clean",
+  "now": "2026-10-27T08:35:23.838Z",
+  "argv": [],
+  "command": {
+    "jobType": "equity",
+    "assetClass": "equity",
+    "symbol": "IREN",
+    "depth": "brief"
+  },
+  "captureVersion": 1,
+  "settings": {
+    "provider": "codex",
+    "quickModel": "gpt-6-luna",
+    "synthesisModel": "gpt-6-luna",
+    "quickReasoningEffort": "high",
+    "synthesisReasoningEffort": "high",
+    "modelTimeoutMs": 300000,
+    "sourceOptions": {
+      "equityMoverLimit": 5,
+      "cryptoMoverLimit": 5,
+      "newsLimit": 15,
+      "sourceTimeoutMs": 15000,
+      "secUserAgent": "redacted-secret",
+      "cacheDisabled": false,
+      "cacheFallbackDays": 7,
+      "newsSeenRetentionDays": 30,
+      "peerUniverseTtlDays": 90
+    },
+    "configuredProviders": [
+      "marketauxApiToken",
+      "finnhubApiToken",
+      "fredApiKey",
+      "massiveApiKey",
+      "exaApiKey",
+      "firecrawlApiKey"
+    ],
+    "evidenceRequestOptions": {
+      "maxRounds": 2,
+      "maxToolCalls": 2,
+      "sourceBudget": 8
+    },
+    "webGatherOptions": {
+      "maxRounds": 2,
+      "maxToolCalls": 4,
+      "sourceBudget": 8,
+      "themeOverrides": {
+        "maxRounds": 2,
+        "maxToolCalls": 6,
+        "sourceBudget": 12
+      }
+    },
+    "webGatherDisabled": false,
+    "webProfileReuseDaysBySubjectKind": {
+      "company": 30,
+      "crypto-asset": 7,
+      "theme": 7
+    },
+    "alphaSearchOptions": {
+      "apeWisdomFilter": "all-stocks",
+      "apeWisdomBriefPageLimit": 5,
+      "apeWisdomDeepPageLimit": 10,
+      "validationCandidateLimit": 25,
+      "leadLimit": 15,
+      "topCandidateLimit": 15,
+      "secDiscoveryLimit": 25,
+      "secFormTypes": ["S-1", "F-1", "8-K", "6-K"],
+      "minPrice": 0.5,
+      "minVolume": 100000,
+      "minMarketCap": 50000000,
+      "maxMarketCap": 10000000000
+    },
+    "marketSpotlightOptions": {
+      "briefLimit": 2,
+      "deepLimit": 4,
+      "candidateLimit": 40
+    },
+    "forecastDisagreementOptions": {
+      "challengerModels": ["gpt-6-luna"]
+    },
+    "historyOptions": {
+      "tickerRecentLimit": 3,
+      "marketRecentLimit": 5,
+      "recentDays": 90,
+      "anchorMonths": [3, 6, 12],
+      "missCorrectionLimit": 2
+    }
+  }
+}

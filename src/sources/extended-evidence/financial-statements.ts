@@ -5,8 +5,14 @@ import {
   trimToMezzaninePeriods,
 } from "./enterprise-value-bridge";
 import { sourceGap } from "../../domain/source-gaps";
+import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
+import { EXTENSION_CAPEX_CHECKED_KEY, EXTENSION_CAPEX_FACT_PREFIX } from "../sec-segment-facts";
 import type { CollectContext } from "../types";
+import {
+  collectSecPeriodicFilingItems,
+  type EvidenceRequestToolOutput,
+} from "../evidence-request-tools";
 import {
   fetchSecCompanyFactsForSymbol,
   grossPrincipalDebtGap,
@@ -136,6 +142,7 @@ export interface FinancialStatementsDeriveInput {
   readonly sourceUrl?: string;
   readonly submissionsPayload?: unknown;
   readonly submissionsSourceId?: string;
+  readonly secFilings?: readonly ExtendedEvidenceItem[];
 }
 
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
@@ -2481,6 +2488,92 @@ function seriesRecord(
   };
 }
 
+// IREN FY2026: hardware carried in PP&E is paid on an extension line beside the standard capex line.
+function withheldExtensionCapex(
+  selected: SelectedSeries,
+  filings: readonly ExtendedEvidenceItem[],
+): SelectedSeries {
+  const { ttm, ...series } = selected.series;
+  const facts = [...series.annual, ...series.interim];
+  if (series.key !== "capitalExpenditure" || facts.length === 0) {
+    return selected;
+  }
+  const periodic = filings.filter(
+    ({ metrics }) => metrics?.[EXTENSION_CAPEX_CHECKED_KEY] === "true",
+  );
+  if (periodic.length === 0) {
+    return {
+      ...selected,
+      omissionNotes: [
+        ...selected.omissionNotes,
+        {
+          code: "unchecked-extension-capex",
+          seriesKey: "capitalExpenditure",
+          message:
+            "SEC capital expenditure is the standard PP&E payments tag only; no 10-K or 10-Q primary document was checked, so issuer-extension investing lines were not checked",
+        },
+      ],
+    };
+  }
+  const checkedThrough = periodic
+    .map(({ metrics }) => metrics?.reportDate)
+    .filter((date): date is string => typeof date === "string")
+    .toSorted()
+    .at(-1);
+  const unchecked = [...facts, ...(ttm === undefined ? [] : [ttm])].filter(
+    ({ periodEnd }) => checkedThrough === undefined || periodEnd > checkedThrough,
+  );
+  const uncheckedNotes =
+    unchecked.length === 0
+      ? []
+      : [
+          {
+            code: "unchecked-extension-capex" as const,
+            seriesKey: "capitalExpenditure" as const,
+            message: `SEC capital expenditure ending after ${checkedThrough ?? "the parsed filings"} is the standard PP&E payments tag only; no 10-K or 10-Q primary document covering it was parsed, so issuer-extension investing lines were not checked`,
+          },
+        ];
+  const lines = periodic.flatMap(({ metrics, sourceIds }) =>
+    Object.entries(metrics ?? {}).flatMap(([key, value]) => {
+      const [concept, start, end, unit] = key.slice(EXTENSION_CAPEX_FACT_PREFIX.length).split("|");
+      const matched = facts.find((fact) => fact.periodStart === start && fact.periodEnd === end);
+      return key.startsWith(EXTENSION_CAPEX_FACT_PREFIX) &&
+        typeof value === "number" &&
+        matched !== undefined
+        ? [{ concept, start: start!, end: end!, unit, value, matched, metrics, sourceIds }]
+        : [];
+    }),
+  );
+  if (lines.length === 0) {
+    return { ...selected, omissionNotes: [...selected.omissionNotes, ...uncheckedNotes] };
+  }
+  const overlaps = (fact: { readonly periodStart?: string; readonly periodEnd: string }) =>
+    lines.some(
+      ({ start, end }) => (fact.periodStart ?? fact.periodEnd) < end && fact.periodEnd > start,
+    );
+  const annual = series.annual.filter((fact) => !overlaps(fact));
+  const interim = series.interim.filter((fact) => !overlaps(fact));
+  const kept = new Set([...annual, ...interim]);
+  const ttmKept =
+    ttm !== undefined &&
+    !overlaps(ttm) &&
+    Object.values(ttm.components).every((fact) => kept.has(fact));
+  return {
+    ...selected,
+    series: { ...series, annual, interim, ...(ttmKept ? { ttm } : {}) },
+    omissionNotes: [
+      ...selected.omissionNotes,
+      ...uncheckedNotes,
+      ...lines.map(({ concept, start, end, unit, value, matched, metrics, sourceIds }) => ({
+        code: "incomplete-composite-series" as const,
+        seriesKey: "capitalExpenditure" as const,
+        periodKey: matched.periodKey,
+        message: `SEC capital expenditure for ${start} to ${end} omitted: ${String(metrics?.form)} ${String(metrics?.accessionNumber)} (${sourceIds.join(", ")}) also tags issuer-extension PP&E-like investing payment ${String(concept)} ${String(value)} ${String(unit)} beside the standard PP&E line (${String(matched.value)} ${matched.unit}), so neither is proven to be total capex`,
+      })),
+    ],
+  };
+}
+
 export function deriveFinancialStatements(
   payload: unknown,
   input: FinancialStatementsDeriveInput,
@@ -2501,7 +2594,10 @@ export function deriveFinancialStatements(
             }) satisfies SelectedSeries,
         )
       : FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map((definition) =>
-          selectSeries(payload, taxonomy, reportingCurrency, definition, input),
+          withheldExtensionCapex(
+            selectSeries(payload, taxonomy, reportingCurrency, definition, input),
+            input.secFilings ?? [],
+          ),
         );
   const equityStackSelection =
     taxonomy === undefined || reportingCurrency === undefined
@@ -2722,7 +2818,8 @@ export function financialStatementsHistoryGaps(
         note.code === "mixed-share-basis" ||
         note.code === "declaration-span" ||
         (note.code === "incomplete-composite-series" &&
-          note.seriesKey === "depreciationAndAmortization"),
+          (note.seriesKey === "depreciationAndAmortization" ||
+            note.seriesKey === "capitalExpenditure")),
     )
     .map((note) =>
       sourceGap({
@@ -2740,6 +2837,7 @@ export function financialStatementsHistoryGaps(
 export interface CollectedFinancialStatements {
   readonly statements: FinancialStatementsArtifact | undefined;
   readonly companyFacts: SecCompanyFactsResult;
+  readonly periodicFilings?: EvidenceRequestToolOutput;
 }
 
 export async function collectFinancialStatements(
@@ -2750,6 +2848,10 @@ export async function collectFinancialStatements(
   if (facts.factsPayload === undefined || facts.sourceId === undefined) {
     return { statements: undefined, companyFacts: facts };
   }
+  const periodicFilings =
+    context.secUserAgent === undefined
+      ? undefined
+      : await collectSecPeriodicFilingItems(context, facts);
   const statements = deriveFinancialStatements(facts.factsPayload, {
     symbol,
     generatedAt: context.fetchedAt,
@@ -2762,6 +2864,11 @@ export async function collectFinancialStatements(
     ...(facts.submissionsSourceId !== undefined
       ? { submissionsSourceId: facts.submissionsSourceId }
       : {}),
+    ...(periodicFilings !== undefined ? { secFilings: periodicFilings.items } : {}),
   });
-  return { statements, companyFacts: facts };
+  return {
+    statements,
+    companyFacts: facts,
+    ...(periodicFilings !== undefined ? { periodicFilings } : {}),
+  };
 }

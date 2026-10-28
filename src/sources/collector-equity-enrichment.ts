@@ -79,6 +79,7 @@ import { evidenceSource } from "./extended-evidence/common";
 import type { ModelProvider } from "../model/types";
 import type { PeerUniverseFallbackContext } from "../research/peer-universe";
 import { type SecTargetPacket } from "./sec-target-packet";
+import type { EvidenceRequestToolOutput } from "./evidence-request-output";
 import { deriveTradierImpliedMove, type TradierPacket } from "./tradier-packet";
 import { sourceGap } from "../domain/source-gaps";
 import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "./sec-packet-dependencies";
@@ -179,6 +180,7 @@ interface EquityEnrichmentResult {
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly financialStatements: FinancialStatementsArtifact | undefined;
   readonly financialStatementGaps: readonly SourceGap[];
+  readonly periodicFilings: EvidenceRequestToolOutput | undefined;
   readonly reportingFreshness: EquityReportingFreshness | undefined;
   readonly subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined;
   readonly capitalOwnership: CapitalOwnershipArtifact | undefined;
@@ -230,6 +232,7 @@ export async function collectEquityEnrichment(
   const secFacts = input.secTargetPacket?.companyFacts;
   let financialStatements: FinancialStatementsArtifact | undefined = undefined;
   let fallbackCompanyFacts: SecCompanyFactsResult | undefined = undefined;
+  let periodicFilings: EvidenceRequestToolOutput | undefined = undefined;
   if (collectStructuredSec && secFacts !== undefined) {
     financialStatements = deriveFinancialStatements(secFacts.payload, {
       symbol: input.command.symbol,
@@ -243,11 +246,15 @@ export async function collectEquityEnrichment(
             submissionsSourceId: input.secTargetPacket.submissions.sourceId,
           }
         : {}),
+      ...(input.secTargetPacket?.filingEvidence !== undefined
+        ? { secFilings: input.secTargetPacket.filingEvidence.items }
+        : {}),
     });
   } else if (collectStructuredSec) {
     const collected = await collectFinancialStatements(input.identityContext, input.command.symbol);
     financialStatements = collected.statements;
     fallbackCompanyFacts = collected.companyFacts;
+    ({ periodicFilings } = collected);
   }
   let legacyFundamentalHistory: FundamentalHistoryArtifact | undefined = undefined;
   if (collectStructuredSec && financialStatements === undefined && secFacts !== undefined) {
@@ -453,6 +460,7 @@ export async function collectEquityEnrichment(
     reverseDcf,
     fundamentalHistory,
     financialStatements,
+    periodicFilings,
     financialStatementGaps:
       financialStatements === undefined
         ? []
@@ -555,6 +563,7 @@ function noEquityEnrichment(
     fundamentalHistory: undefined,
     financialStatements: undefined,
     financialStatementGaps: [],
+    periodicFilings: undefined,
     reportingFreshness: undefined,
     subsequentFinancing: undefined,
     capitalOwnership: undefined,

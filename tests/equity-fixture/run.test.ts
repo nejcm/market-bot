@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parseArgs } from "../../src/cli/args";
 import type { ModelRequest } from "../../src/model/types";
 import {
   assertComprehensiveAnalysisPath,
@@ -9,6 +8,7 @@ import {
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
+  assertIrenExtensionCapexWithheld,
   assertMarketRegimeRendered,
   assertMetricPromptCatalog,
   assertNbisUnsupportedInputs,
@@ -18,6 +18,8 @@ import {
 } from "../support/run-fixtures/assertions";
 import {
   EQUITY_RUN_FIXTURES,
+  fixtureCommand,
+  isDeepFixture,
   loadFixture,
   runFixture,
   type RunFixtureResult,
@@ -47,6 +49,8 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-analysis-estimated-suppressed": ["complete", "limited"],
   "equity-web-fallback-deep": ["complete", "substantial"],
   "equity-depository-deep": ["partial", "limited"],
+  "equity-iren-deep": ["complete", "substantial"],
+  "equity-iren-brief": ["complete", "limited"],
 } as const;
 
 // Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
@@ -94,6 +98,18 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-5", 0.3333],
     ["grid-range-20", 0.3012],
     ["grid-relative-5", null],
+  ],
+  "equity-iren-deep": [
+    ["grid-range-1", 0.5327],
+    ["grid-range-5", 0.42],
+    ["grid-range-20", 0.3887],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-iren-brief": [
+    ["grid-range-1", 0.5327],
+    ["grid-range-5", 0.42],
+    ["grid-range-20", 0.3887],
+    ["grid-relative-5", 0.5],
   ],
 };
 
@@ -426,6 +442,30 @@ describe("static equity run fixtures", () => {
         }
         expect(result.markdown).toContain("Web Subject Profile is excluded at brief depth");
       }
+      if (name === "equity-iren-deep" || name === "equity-iren-brief") {
+        assertIrenExtensionCapexWithheld(result);
+      }
+      if (name === "equity-iren-brief") {
+        const filing = result.report.sources.find(({ id }) => id === "extended-sec-edgar-iren-10k");
+        expect(filing).toEqual(expect.not.objectContaining({ snippet: expect.anything() }));
+        expect(filing?.url).toBe(
+          "https://www.sec.gov/Archives/edgar/data/1878848/000187884826000052/iren-20260630.htm",
+        );
+        const persistedRaw = (await Bun.file(
+          join(result.artifacts.runDir, RUN_ARTIFACT_FILES.rawSnapshots),
+        ).json()) as readonly { id: string; adapter: string; payloadSha256?: string }[];
+        expect(persistedRaw.filter(({ id }) => id === filing?.rawRef)).toEqual([
+          expect.objectContaining({
+            adapter: "sec-filing-text",
+            payloadSha256: "cc858d776e95fdfd6b4c405c2194aa35df01918c52609b5fb0f5675db1a80565",
+          }),
+        ]);
+        expect(
+          result.collectedSources.sourceGaps.filter(({ message }) =>
+            message.includes("section packet"),
+          ),
+        ).toEqual([]);
+      }
       if (name === "equity-depository-deep") {
         assertDepositoryEnterpriseValueAbsent(result);
         assertCurrencyConvertedValuation(result);
@@ -487,7 +527,7 @@ describe("static equity run fixtures", () => {
           result.collectedSources.sourceGaps.filter(({ source }) => source === "exa-search"),
         ).toEqual([]);
       }
-      if (fixture.meta.argv.includes("--deep")) {
+      if (isDeepFixture(fixture.meta)) {
         expect(result.deepEquityEvidenceBundle).toMatchObject({
           schemaVersion: 1,
           run: { symbol: expect.any(String), analysisAsOf: fixture.meta.now },
@@ -515,7 +555,7 @@ describe("static equity run fixtures", () => {
               deriveFundamentalHistoryFromFinancialStatements(financialStatements),
             );
           }
-          const command = parseArgs(fixture.meta.argv);
+          const command = fixtureCommand(fixture.meta);
           if (command.jobType !== "equity") {
             throw new Error(`${name} financial statements require an equity command`);
           }

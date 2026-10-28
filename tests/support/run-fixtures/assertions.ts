@@ -68,10 +68,10 @@ import {
 import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
 import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrument-identity";
 import { isNewsRelevantByTitleOrSymbol } from "../../../src/sources/news-relevance";
-import { isResearchCommand, parseArgs } from "../../../src/cli/args";
+import { isResearchCommand } from "../../../src/cli/args";
 import { FORECAST_BASELINE_VERSION } from "../../../src/forecast/baseline";
 import { eventGrid } from "../../../src/research/event-grid";
-import type { FixtureMeta, RunFixtureResult } from ".";
+import { fixtureCommand, isDeepFixture, type FixtureMeta, type RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
 
 function asWritten(value: unknown): unknown {
@@ -91,7 +91,7 @@ export function assertMetricPromptCatalog(
   meta: FixtureMeta,
   requests: readonly ModelRequest[],
 ): void {
-  const command = parseArgs(meta.argv);
+  const command = fixtureCommand(meta);
   if (command.jobType !== "equity") {
     throw new Error("Metric catalog invariant requires an equity fixture");
   }
@@ -177,7 +177,7 @@ export function assertProviderGapRestatementsDropped(result: RunFixtureResult): 
 
 function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMeta): void {
   const { report } = result;
-  const command = meta.command ?? parseArgs(meta.argv);
+  const command = fixtureCommand(meta);
   if (!isResearchCommand(command)) {
     throw new Error("Fixture command must be a research run");
   }
@@ -262,7 +262,7 @@ export async function assertInvariants(
   const loaded = await loadRunArtifact(runDir);
   expect(loaded.status.report).toBe("ok");
   // The reader rejects a bundle whose source ids do not resolve against the report.
-  expect(loaded.status.evidenceBundle).toBe(meta.argv.includes("--deep") ? "ok" : undefined);
+  expect(loaded.status.evidenceBundle).toBe(isDeepFixture(meta) ? "ok" : undefined);
   const persisted = async (file: string): Promise<unknown> =>
     JSON.parse(await readFile(join(runDir, file), "utf8")) as unknown;
   const persistedReport = await persisted(RUN_ARTIFACT_FILES.report);
@@ -274,7 +274,7 @@ export async function assertInvariants(
     result.markdown,
   );
   expect(await persisted(RUN_ARTIFACT_FILES.analytics)).toEqual(asWritten(result.analytics));
-  const command = parseArgs(meta.argv);
+  const command = fixtureCommand(meta);
   if (command.jobType === "equity" && result.collectedSources.newsAnalytics !== undefined) {
     const name = deriveCanonicalInstrumentIdentity(
       result.collectedSources.marketSnapshots,
@@ -422,7 +422,7 @@ export async function assertInvariants(
     modelCalls.length,
   );
   expect(result.trace.tokenEstimate).toBe(ledgerTotals(modelCalls).tokenEstimate);
-  if (meta.argv.includes("--deep")) {
+  if (isDeepFixture(meta)) {
     expect(result.stageOutputs.map((output) => output.stage)).toEqual(
       expect.arrayContaining(["instrument-evidence-analysis", "market-behavior-analysis"]),
     );
@@ -1285,6 +1285,8 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     priceToBook: 1.805_705_2,
     pcfRatio: 2.166_909_186_485_437,
   },
+  "equity-iren-deep": {},
+  "equity-iren-brief": {},
 };
 
 export function assertFinancialLensMetricInvariants(
@@ -2268,6 +2270,64 @@ export async function assertNbisUnsupportedInputs(): Promise<void> {
 const EV_REVENUE_COLUMN = 6;
 const NUMERIC_CELL = /\d/u;
 
+// IREN 10-K 0001878848-26-000052 tags iren:PaymentsRelatedToComputerHardware beside the PP&E line.
+export function assertIrenExtensionCapexWithheld(result: RunFixtureResult): void {
+  const { financialStatements, fundamentalHistory, sourceGaps } = result.collectedSources;
+  const capex = financialStatements?.statements.cashFlowStatement.capitalExpenditure;
+  expect(capex?.annual.map(({ periodEnd, value }) => [periodEnd, value])).toEqual([
+    ["2023-06-30", 116_064_000],
+  ]);
+  expect(capex?.interim).toEqual([]);
+  expect(
+    fundamentalHistory?.series.freeCashFlowProxy.annual.map(({ periodEnd }) => periodEnd),
+  ).toEqual(["2023-06-30"]);
+  expect(
+    financialStatements?.omissionNotes?.some(({ code }) => code === "unchecked-extension-capex"),
+  ).toBe(false);
+  for (const [start, end, hardware] of [
+    ["2023-07-01", "2024-06-30", 338_054_000],
+    ["2024-07-01", "2025-06-30", 799_171_000],
+    ["2025-07-01", "2026-06-30", 1_335_081_000],
+  ] as const) {
+    expect(sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "sec-edgar",
+        triage: "material",
+        message: expect.stringMatching(
+          new RegExp(
+            `^SEC capital expenditure for ${start} to ${end} omitted: 10-K 0001878848-26-000052 .*iren:PaymentsRelatedToComputerHardware ${String(hardware)} `,
+            "u",
+          ),
+        ),
+      }),
+    );
+    const omission = sourceGaps.find(
+      ({ source, message }) =>
+        source === "sec-edgar" &&
+        message.startsWith(`SEC capital expenditure for ${start} to ${end} omitted:`),
+    );
+    expect(result.report.dataGaps).toContain(`sec-edgar: ${omission?.message}`);
+    expect(result.markdown).toContain(
+      `- **Material:** sec-edgar: SEC capital expenditure for ${start} to ${end} omitted:`,
+    );
+    const workbench = result.collectedSources.valuationWorkbench?.historicalMultiples.observations
+      .filter(({ periodEnd }) => periodEnd === end)
+      .map(({ metrics }) => metrics.priceToFreeCashFlow);
+    expect(workbench).toEqual([
+      expect.objectContaining({ status: "missing", reason: "free-cash-flow-unavailable" }),
+    ]);
+  }
+  const fcfMetrics = (
+    (result.report.extras?.metricSections as MetricSectionsExtra | undefined) ?? []
+  )
+    .flatMap(({ metrics }) => metrics)
+    .filter(({ id }) => id === "freeCashFlowProxy" || id === "freeCashFlowMargin");
+  expect(fcfMetrics.map(({ id, status, periodEnd }) => [id, status, periodEnd])).toEqual([
+    ["freeCashFlowProxy", "missing", "2026-06-30"],
+    ["freeCashFlowMargin", "missing", "2026-06-30"],
+  ]);
+}
+
 export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult): void {
   const sic = depositoryIssuerSic(result.report.extendedEvidence);
   expect(sic, "fixture issuer must classify as a depository institution").toMatch(/^60\d{2}$/u);
@@ -3083,6 +3143,32 @@ const MISSING_WORKBENCH_SHARES = {
   reason: "diluted-shares-unavailable",
 } as const;
 const MISSING_WORKBENCH_FX = { status: "missing", reason: "fx-rate-unavailable" } as const;
+const IREN_WORKBENCH_VALUES: WorkbenchValues = {
+  "annual|2023-06-30|2025-08-28": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    16.713_687_295_404_736,
+    MISSING_WORKBENCH_CASH,
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+  ],
+  "annual|2024-06-30|2025-08-28": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    12.264_022_436_984_416,
+    10.067_715_970_896_122,
+    MISSING_WORKBENCH_FCF,
+  ],
+  "annual|2025-06-30|2025-08-28": [
+    59.076_925_424_429_085,
+    10.266_155_452_798_57,
+    MIXED_WORKBENCH_BALANCE_SHEET,
+    MISSING_WORKBENCH_FCF,
+  ],
+  "annual|2026-06-30|2026-08-27": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    18.122_127_052_430_16,
+    20.522_885_460_762_748,
+    MISSING_WORKBENCH_FCF,
+  ],
+};
 const AAPL_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2023-09-30|2023-11-01": [
     MISSING_WORKBENCH_PRICE,
@@ -3286,6 +3372,8 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-analysis-comprehensive": AAPL_WORKBENCH_VALUES,
   "equity-analysis-estimated-suppressed": AAPL_WORKBENCH_VALUES,
   "equity-web-fallback-deep": AAPL_WORKBENCH_VALUES,
+  "equity-iren-deep": IREN_WORKBENCH_VALUES,
+  "equity-iren-brief": IREN_WORKBENCH_VALUES,
   "equity-depository-deep": {
     "annual|2016-10-31|2018-11-27": [
       MISSING_WORKBENCH_PRICE,

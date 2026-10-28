@@ -155,6 +155,8 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-analysis-estimated-suppressed/`
 - `tests/fixtures/runs/equity-web-fallback-deep/`
 - `tests/fixtures/runs/equity-depository-deep/`
+- `tests/fixtures/runs/equity-iren-deep/` (captured live replay: issuer-extension capex withheld)
+- `tests/fixtures/runs/equity-iren-brief/` (captured live replay: brief-run extension-capex check)
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
 rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source

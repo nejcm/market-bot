@@ -38,5 +38,8 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 - Recapture the nbis, depository and earnings-release fixtures with an authorized live capture; their QQQ history entries are synthetic 503s (10cd0d2c, docs/testing.md).
 - Paired Skill excludes v1 range baselines (bc9fc853), so the range cohort restarts until v2 range Predictions resolve; check the cohort size before the 2027-01-15 review.
 - Relative benchmarks beyond SPY/QQQ still get a declared forecast-baseline gap; a QQQ 429 can still open the shared Yahoo circuit for later Yahoo calls.
-- Web Gather: when the earnings date is provider-estimated, query for the issuer's announcement of the upcoming results date (run 21814c9f gathered only past-quarter releases).
-- Final synthesis invented `financial-lens-growth.capexDeltaPercent` twice in run 21814c9f (one rejected attempt, ~73k tokens); capex growth exists in raw SEC metrics but not the Financial Lens Growth catalog.
+- SEC filing packet summary is prefix-only (src/sources/sec-filing-item.ts), so MD&A segment tables never reach synthesis. Run a008bf63 calls Data Center margins unquantified, but its 10-Q source has segment operating income: Q2 31.3%, H1 29.6%. Use bounded MD&A/segment excerpts.
+- Final synthesis peer-median comparisons can omit peer sources (run a008bf63 bearCase[1]; keyFindings[5] cites them correctly).
+- Summary-path Growth rows drop prior-period dates; withheld capex keeps only the dated current input. Carry prior dates through if prior inputs should be shown.
+- Earnings-date confirmation runs only after Web Gather (orchestrator.ts), so the announcement search (627ae2e9) runs even when a collected 8-K would already confirm the date. Confirm before the web phase to save the search. Model compliance with the new instruction is unmeasured.
+- Literal `<<`/`>>` in model prose now forces a synthesis repair (00fddf6d); add a prompt line so the model avoids them.

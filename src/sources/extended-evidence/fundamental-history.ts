@@ -12,7 +12,9 @@ import {
 } from "./sec-edgar";
 import {
   conceptScope,
+  hasNegativeCapex,
   isRevenueConceptInRecencyBucket,
+  NEGATIVE_CAPEX_REASON,
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
@@ -313,11 +315,16 @@ function nextDay(value: string): string {
   return new Date(parsed + 86_400_000).toISOString().slice(0, 10);
 }
 
+export function negativeCapexTtmNote(periodEnd: string): string {
+  return `ttm:negative-capex: ${periodEnd} omitted; ${NEGATIVE_CAPEX_REASON}`;
+}
+
 function ttmPoint(
   annual: readonly FundamentalHistoryPoint[],
   observableFacts: readonly SecFactValue[],
   currency: string,
   notes: string[],
+  outflow = false,
 ): FundamentalHistoryPoint | undefined {
   const fullFy = annual.at(-1);
   if (fullFy === undefined) {
@@ -395,9 +402,14 @@ function ttmPoint(
     notes.push("ttm:currency-mismatch: FY and YTD facts do not use the same unit");
     return undefined;
   }
+  const value = fullFy.value + latestYtd.val - priorYtd.val;
+  if (outflow && hasNegativeCapex([value, fullFy.value, latestYtd.val, priorYtd.val])) {
+    notes.push(negativeCapexTtmNote(latestYtd.end));
+    return undefined;
+  }
 
   return {
-    value: fullFy.value + latestYtd.val - priorYtd.val,
+    value,
     form: "TTM",
     fy: latestYtd.fy,
     fp: "TTM",
@@ -511,7 +523,13 @@ function rawSeries(
   const annual = chronological
     .slice(-MAX_ANNUAL_POINTS)
     .map((fact) => annualPoint(fact, selected.currency, annualCandidates));
-  const ttm = ttmPoint(annual, observableFacts, selected.currency, notes);
+  const ttm = ttmPoint(
+    annual,
+    observableFacts,
+    selected.currency,
+    notes,
+    definition.key === "capex",
+  );
   if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
   }
@@ -565,6 +583,10 @@ function pairSeries(
       notes.push(`annual:currency-mismatch: ${leftPoint.periodEnd} omitted`);
       return [];
     }
+    if (key === "freeCashFlowProxy" && rightPoint.value < 0) {
+      notes.push(`annual:negative-capex: ${leftPoint.periodEnd} omitted; ${NEGATIVE_CAPEX_REASON}`);
+      return [];
+    }
     const value = operation(leftPoint.value, rightPoint.value);
     if (value === undefined) {
       notes.push(`annual:invalid-denominator: ${leftPoint.periodEnd} omitted`);
@@ -582,7 +604,12 @@ function pairSeries(
   }
 
   let ttm: FundamentalHistoryPoint | undefined = undefined;
-  if (left.ttm === undefined || right.ttm === undefined) {
+  const negativeCapexTtm = right.notes.find(
+    (note) => key === "freeCashFlowProxy" && note.startsWith("ttm:negative-capex:"),
+  );
+  if (negativeCapexTtm !== undefined) {
+    notes.push(negativeCapexTtm);
+  } else if (left.ttm === undefined || right.ttm === undefined) {
     notes.push("ttm:missing-component: both component TTM points are required");
   } else if (
     left.ttm.periodEnd !== right.ttm.periodEnd ||

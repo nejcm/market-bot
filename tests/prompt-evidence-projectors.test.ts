@@ -265,6 +265,54 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     ).toBeUndefined();
   });
 
+  test("web-gather evidence carries the earnings date status that steers the announcement search", () => {
+    const tickerCommand: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AMD",
+      depth: "deep",
+    };
+    const estimated: EarningsSetupCollected = {
+      event: {
+        symbol: "AMD",
+        date: "2026-11-03",
+        timing: "amc",
+        eventDateStatus: "provider-estimated",
+        dateStatus: "provider-estimated",
+        sourceIds: ["extended-finnhub-events-amd"],
+        fetchedAt: "2026-10-24T04:25:38.870Z",
+      },
+      gaps: [],
+    };
+    const confirmed: EarningsSetupCollected = {
+      ...estimated,
+      event: {
+        symbol: "AMD",
+        date: "2026-11-03",
+        timing: "amc",
+        eventDateStatus: "issuer-confirmed",
+        sourceIds: ["extended-finnhub-events-amd", "web-amd-newsroom"],
+        fetchedAt: "2026-10-24T04:25:38.870Z",
+        confirmedBy: { sourceId: "web-amd-newsroom", sourceType: "issuer-press-release" },
+      },
+    };
+    const eventFor = (setup?: EarningsSetupCollected) =>
+      (
+        evidenceFor(
+          tickerCommand,
+          setup === undefined ? {} : { earningsSetup: setup },
+          "web-gather",
+        ).earningsSetup as EarningsSetupCollected | undefined
+      )?.event;
+
+    expect(eventFor(estimated)).toMatchObject({
+      date: "2026-11-03",
+      eventDateStatus: "provider-estimated",
+    });
+    expect(eventFor(confirmed)?.eventDateStatus).toBe("issuer-confirmed");
+    expect(eventFor()).toBeUndefined();
+  });
+
   test("resolved-identity projector contributes both of its keys only when present", () => {
     const command: ResearchCommand = {
       jobType: "equity",

@@ -15,6 +15,7 @@ import {
 } from "../app/client/run-workspace-financials";
 import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import type { MetricContext } from "../src/sources/extended-evidence/metric-engine";
+import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { collectedSources, researchReport } from "./support/fixtures";
 import { assertOperatingRatioInvariants } from "./support/run-fixtures/assertions";
@@ -1158,5 +1159,31 @@ describe("operatingRatiosSection", () => {
     ]);
 
     expect(texts.filter((text) => violatesResearchOnly(text) !== null)).toEqual([]);
+  });
+});
+
+describe("operatingRatiosSection — capex sign", () => {
+  test.each([
+    [100, { status: "value", value: 0.2 }],
+    [0, { status: "value", value: 0.3 }],
+    [
+      -100,
+      {
+        status: "not-meaningful",
+        reason: `${NEGATIVE_CAPEX_REASON} for the fiscal year ending 2025-12-31`,
+      },
+    ],
+  ])("FCF margin with capex %d", (capex, expected) => {
+    const result = evaluate(
+      context(usGaap({ PaymentsToAcquirePropertyPlantAndEquipment: flow(() => capex) })),
+    );
+    const metric = result.metric("freeCashFlowMargin");
+    expect(metric).toMatchObject(expected);
+    expect(metric.inputs.map(({ series }) => series)).toEqual([
+      "operatingCashFlow",
+      "capitalExpenditure",
+      "revenue",
+    ]);
+    expect(invariantRun(result.ctx, result.section.metrics)).not.toThrow();
   });
 });

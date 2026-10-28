@@ -10,6 +10,7 @@ import {
   WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
   WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
 } from "../src/web-evidence/contract";
+import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { researchReport } from "./support/fixtures";
 import type {
   FinancialStatementFact,
@@ -336,6 +337,32 @@ describe("equity reader projection", () => {
     expect(projection.defaultView.materialGaps).toEqual([
       "fundamental-history-revenue: SEC revenue history is unavailable for 1 rendered period(s); affected revenue and derived operating-margin values are shown as unavailable",
     ]);
+  });
+
+  test("declares a dated gap for free-cash-flow points withheld over negative capex", () => {
+    const history = annualAndTtmHistory();
+    const freeCashFlowProxy = {
+      ...history.series.freeCashFlowProxy,
+      annual: history.series.freeCashFlowProxy.annual.filter(
+        (point) => point.periodEnd !== "2022-12-31",
+      ),
+      notes: [
+        `annual:negative-capex: 2022-12-31 omitted; ${NEGATIVE_CAPEX_REASON}`,
+        `annual:negative-capex: 2018-12-31 omitted; ${NEGATIVE_CAPEX_REASON}`,
+      ],
+    };
+    const projection = projectEquityReader({
+      report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+      fundamentalHistory: { ...history, series: { ...history.series, freeCashFlowProxy } },
+    });
+
+    expect(
+      projection.defaultView.financialTrends?.rows.find((row) => row.period.includes("2022-12-31"))
+        ?.freeCashFlow,
+    ).toBe("— (free-cash-flow-unavailable)");
+    expect(projection.defaultView.materialGaps).toContain(
+      `fundamental-history-free-cash-flow: free cash flow proxy withheld for FY ending 2022-12-31 (latest filed 2023-02-01); ${NEGATIVE_CAPEX_REASON} [sec-history]`,
+    );
   });
 
   test("labels a restated annual trend value with the original filing's value", () => {

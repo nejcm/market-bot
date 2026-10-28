@@ -800,6 +800,12 @@ function canonicalAnnualFact(value: number, year: number) {
   };
 }
 
+const NEGATIVE = "capital expenditure filed as a negative amount";
+
+function halfYearFact(val: number, fy: number, start: string, end: string) {
+  return { val, form: "10-Q", fp: "Q2", fy, filed: "2026-08-05", start, end };
+}
+
 function canonicalInstantFact(
   value: number,
   end: string,
@@ -1058,6 +1064,187 @@ describe("financial lens artifact compatibility", () => {
       result.metricSectionGaps?.find(({ source }) => source === "financial-lens-financial-strength")
         ?.message,
     ).toContain("no same-period current liabilities");
+  });
+
+  // AMD 10-Q 0000002488-26-000123: capex $1,197M (H1 2026) vs $494M (H1 2025).
+  test.each([
+    {
+      prior: 494_000_000,
+      current: 1_197_000_000,
+      expected: { status: "value", value: 142.307_692_307_692_32 },
+    },
+    { prior: 0, current: 1_197_000_000, expected: { status: "not-meaningful" }, gap: "is zero" },
+    {
+      prior: undefined,
+      current: 1_197_000_000,
+      expected: { status: "missing" },
+      gap: "no prior-year capital expenditure fact",
+    },
+    // Richardson 10-K 0000355948-13-000003 filed capex as -$79k / -$441k.
+    { prior: -79_000, current: -441_000, expected: { status: "not-meaningful" }, gap: NEGATIVE },
+    { prior: -79_000, current: 441_000, expected: { status: "not-meaningful" }, gap: NEGATIVE },
+    { prior: 79_000, current: -441_000, expected: { status: "not-meaningful" }, gap: NEGATIVE },
+  ])(
+    "capex growth is YoY of the outflow amount ($prior -> $current)",
+    ({ prior, current, expected, gap }) => {
+      const artifact = deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              PaymentsToAcquirePropertyPlantAndEquipment: {
+                units: {
+                  USD: [
+                    ...(prior === undefined
+                      ? []
+                      : [halfYearFact(prior, 2025, "2024-12-29", "2025-06-28")]),
+                    halfYearFact(current, 2026, "2025-12-28", "2026-06-27"),
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          symbol: "AMD",
+          generatedAt: "2026-10-23T00:00:00.000Z",
+          analysisAsOf: "2026-10-23T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-amd-fundamentals",
+        },
+      );
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-amd", marketCap: 1000 })],
+        withCanonicalFinancialLensInputs(undefined, artifact),
+        verifiedSnapshot(),
+        "2026-10-23T00:00:00.000Z",
+        undefined,
+        undefined,
+        artifact,
+      );
+      const metric = result.metricSections
+        ?.find(({ id }) => id === "financial-lens-growth")
+        ?.metrics.find(({ id }) => id === "capexDeltaPercent");
+      expect(metric).toMatchObject({
+        ...expected,
+        label: "Capex YoY (outflow amount)",
+        periodEnd: "2026-06-27",
+        periodMonths: 6,
+      });
+      expect(metric?.inputs.at(-1)?.sourceIds).toEqual(["extended-sec-edgar-amd-fundamentals"]);
+      const growthGap =
+        result.metricSectionGaps?.find(({ source }) => source === "financial-lens-growth")
+          ?.message ?? "";
+      if (gap === undefined) {
+        expect(growthGap).not.toContain("Capex");
+      } else {
+        expect(growthGap).toContain(gap);
+      }
+    },
+  );
+
+  test.each([
+    [-441_000, -79_000],
+    [441_000, -79_000],
+    [-441_000, 79_000],
+  ])(
+    "SEC-summary capex growth is withheld when capex %d or prior %d is negative",
+    (capex, capexPrior) => {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          ...evidence(),
+          items: evidence().items.map((item) =>
+            item.category === "sec-edgar"
+              ? {
+                  ...item,
+                  metrics: {
+                    ...item.metrics,
+                    capex,
+                    capexPrior,
+                    capexDeltaPercent: ((capex - capexPrior) / Math.abs(capexPrior)) * 100,
+                  },
+                }
+              : item,
+          ),
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
+      expect(
+        result.metricSections
+          ?.find(({ id }) => id === "financial-lens-growth")
+          ?.metrics.find(({ id }) => id === "capexDeltaPercent"),
+      ).toMatchObject({ status: "not-meaningful" });
+      expect(
+        result.metricSectionGaps?.find(({ source }) => source === "financial-lens-growth")?.message,
+      ).toContain(NEGATIVE);
+    },
+  );
+
+  test("keeps the Growth section and gap when negative capex is the only SEC-summary input", () => {
+    const base = evidence();
+    const result = addFinancialLensEvidence(
+      command,
+      [],
+      {
+        ...base,
+        items: [
+          {
+            ...base.items[0]!,
+            metrics: {
+              capex: -441_000,
+              capexPrior: -79_000,
+              capexDeltaPercent: -458.227_848_101_265_86,
+              capexPeriodEnd: "2013-08-31",
+              capexPeriodMonths: 12,
+            },
+          },
+        ],
+      },
+      undefined,
+      "2013-10-11T00:00:00.000Z",
+    );
+    const metric = result.metricSections
+      ?.find(({ id }) => id === "financial-lens-growth")
+      ?.metrics.find(({ id }) => id === "capexDeltaPercent");
+    expect(metric).toMatchObject({ status: "not-meaningful", periodEnd: "2013-08-31" });
+    expect(metric?.inputs).toMatchObject([{ value: -441_000, periodEnd: "2013-08-31" }]);
+    expect(
+      result.metricSectionGaps?.find(({ source }) => source === "financial-lens-growth")?.message,
+    ).toContain(NEGATIVE);
+  });
+
+  test("SEC-summary capex growth passes through for positive outflows", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        ...evidence(),
+        items: evidence().items.map((item) =>
+          item.category === "sec-edgar"
+            ? {
+                ...item,
+                metrics: {
+                  ...item.metrics,
+                  capex: 1197,
+                  capexPrior: 494,
+                  capexDeltaPercent: 142.307_692_307_692_32,
+                  capexPeriodEnd: "2026-06-27",
+                  capexPeriodMonths: 6,
+                },
+              }
+            : item,
+        ),
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+    expect(metricByKey(result, "Growth", "capexDeltaPercent")).toMatchObject({
+      value: 142.307_692_307_692_32,
+      periodEnd: "2026-06-27",
+      periodMonths: 6,
+    });
   });
 
   test("uses end-aligned canonical balance facts for ROE and ROA", () => {
@@ -2036,5 +2223,116 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
     expect(payoutGap(result)).toBe("stale payout ratio as of 2025-06-28");
+  });
+});
+
+function fcfMetric(result: ReturnType<typeof addFinancialLensEvidence>) {
+  return result.metricSections
+    ?.find(({ id }) => id === "financial-lens-quality")
+    ?.metrics.find(({ id }) => id === "freeCashFlowProxy");
+}
+
+function qualityGap(result: ReturnType<typeof addFinancialLensEvidence>) {
+  return (
+    result.metricSectionGaps?.find(({ source }) => source === "financial-lens-quality")?.message ??
+    ""
+  );
+}
+
+describe("addFinancialLensEvidence — FCF proxy capex sign", () => {
+  // AMD 10-Q 0000002488-26-000123 (H1 2026): OCF $5,321M less capex $1,197M = $4,124M.
+  // Richardson 10-Q 0000355948-13-000003 (Q1 to 2013-08-31): OCF -$1,185k, capex filed -$441k.
+  test.each([
+    {
+      ocf: 5_321_000_000,
+      capex: 1_197_000_000,
+      expected: { status: "value", value: 4_124_000_000 },
+    },
+    { ocf: -1_185_000, capex: 441_000, expected: { status: "value", value: -1_626_000 } },
+    { ocf: -1_185_000, capex: 0, expected: { status: "value", value: -1_185_000 } },
+    { ocf: -1_185_000, capex: -441_000, expected: { status: "not-meaningful" }, gap: NEGATIVE },
+  ])("canonical FCF proxy for OCF $ocf and capex $capex", ({ ocf, capex, expected, gap }) => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetCashProvidedByUsedInOperatingActivities: {
+              units: { USD: [halfYearFact(ocf, 2026, "2025-12-28", "2026-06-27")] },
+            },
+            PaymentsToAcquirePropertyPlantAndEquipment: {
+              units: { USD: [halfYearFact(capex, 2026, "2025-12-28", "2026-06-27")] },
+            },
+          },
+        },
+      },
+      {
+        symbol: "AMD",
+        generatedAt: "2026-10-23T00:00:00.000Z",
+        analysisAsOf: "2026-10-23T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-amd-fundamentals",
+      },
+    );
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-amd", marketCap: 1000 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-10-23T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    );
+    const metric = fcfMetric(result);
+    expect(metric).toMatchObject({ ...expected, periodEnd: "2026-06-27", periodMonths: 6 });
+    expect(metric?.inputs.map(({ series, value }) => [series, value])).toEqual([
+      ["operatingCashFlow", ocf],
+      ["capitalExpenditure", capex],
+    ]);
+    if (gap === undefined) {
+      expect(qualityGap(result)).not.toContain(NEGATIVE);
+    } else {
+      expect(qualityGap(result)).toContain(gap);
+    }
+  });
+
+  test.each([
+    { capex: 441, expected: { status: "value", value: -1626 } },
+    { capex: 0, expected: { status: "value", value: -1185 } },
+    { capex: -441, expected: { status: "not-meaningful" }, gap: NEGATIVE },
+  ])("SEC-summary FCF proxy for capex $capex", ({ capex, expected, gap }) => {
+    const base = evidence();
+    const result = addFinancialLensEvidence(
+      command,
+      [],
+      {
+        ...base,
+        items: [
+          {
+            ...base.items[0]!,
+            metrics: {
+              operatingCashFlow: -1185,
+              operatingCashFlowPeriodEnd: "2013-08-31",
+              operatingCashFlowPeriodMonths: 3,
+              capex,
+              capexPeriodEnd: "2013-08-31",
+              capexPeriodMonths: 3,
+            },
+          },
+        ],
+      },
+      undefined,
+      "2013-10-11T00:00:00.000Z",
+    );
+    const metric = fcfMetric(result);
+    expect(metric).toMatchObject({ ...expected, periodEnd: "2013-08-31" });
+    if (gap === undefined) {
+      expect(qualityGap(result)).not.toContain(NEGATIVE);
+    } else {
+      expect(metric?.inputs.map(({ key, value }) => [key, value])).toEqual([
+        ["operatingCashFlow", -1185],
+        ["capex", -441],
+      ]);
+      expect(qualityGap(result)).toContain(gap);
+    }
   });
 });

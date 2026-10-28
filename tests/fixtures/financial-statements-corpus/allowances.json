@@ -281,6 +281,14 @@
   },
   {
     "fixture": "nbis",
+    "path": "financialLens.Growth.metrics.capexDeltaPercent",
+    "canonicalSha256": "0b1f87bdb7baa7906af0c5231405bc102482890c7a140fc9df201cc3dcf44d93",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "legacy-form-unsupported",
+    "justification": "nbis canonical Growth.metrics.capexDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+  },
+  {
+    "fixture": "nbis",
     "path": "financialLens.Growth.metrics.operatingIncomeDeltaPercent",
     "canonicalSha256": "b2ca4e198f914992eca9ab230abfd80616176101291731a34eb8db3c338048f9",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",

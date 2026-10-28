@@ -310,7 +310,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - Metric references use `<<metric:<section>.<id>>>`: add own-source citations before relocation/validation,
   screen authored tokens, substitute deterministic formatted unit/currency values, rescreen inside repair
   loop, persist resolved prose. Model-quoted prose may resolve with metric provenance, never modify source
-  text. Reject unknown/non-value/malformed (including brace-delimited)/nonfinite/empty/uncited references; allow only cited
+  text. Reject unknown/non-value/malformed (including brace-delimited, and any other `<<`/`>>` residue such as an unprefixed, nested or unclosed token, never auto-prefixed)/nonfinite/empty/uncited references; any placeholder surviving assembly outside quoted `sources`/`extendedEvidence` and collected extras fails the report; allow only cited
   findings/cases/risks/catalysts/scenarios/framework/Earnings Setup/Spotlights, never summary/gaps/Prediction
   expressions. An optional `|period` format appends the metric's period label; an unknown format or
   `|period` without `periodEnd` rejects for repair like an unknown id. References stay inline tokens, not a

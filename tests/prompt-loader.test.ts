@@ -269,6 +269,20 @@ describe("loadStagePrompt — real prompt files", () => {
     );
   });
 
+  test("real web-gather prompt requests the issuer announcement of a provider-estimated earnings date", async () => {
+    const result = await loadStagePrompt("web-gather", tickerCommand);
+
+    expect(result.instruction).toContain(
+      "When `evidence.command.jobType` is `equity` and `evidence.earningsSetup.event.eventDateStatus` is `provider-estimated`, spend one `news` or `current-subject` web search on the issuer's own announcement of that results date",
+    );
+    expect(result.instruction).toContain(
+      'the ticker, the company name, `evidence.earningsSetup.event.date` written as a calendar date, and "earnings" or "financial results"',
+    );
+    expect(result.instruction).toContain(
+      "prefer the issuer's newsroom or investor-relations pages",
+    );
+  });
+
   test("real company profile prompt anchors KPIs on the latest filing", async () => {
     const result = await loadStagePrompt("web-subject-profile", dailyEquityCommand);
     expect(result.instruction).toContain(

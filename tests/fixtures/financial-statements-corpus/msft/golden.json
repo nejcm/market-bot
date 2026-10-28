@@ -5430,6 +5430,15 @@
             "sourceIds": ["offline-sec-companyfacts-msft"],
             "periodEnd": "2026-06-30",
             "periodMonths": 12
+          },
+          "capexDeltaPercent": {
+            "key": "capexDeltaPercent",
+            "label": "Capex YoY (outflow amount)",
+            "value": 79.62231413920776,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
           }
         }
       },
@@ -6968,6 +6977,15 @@
             "key": "operatingCashFlowDeltaPercent",
             "label": "Operating cash flow YoY",
             "value": 34.35099366930568,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "capexDeltaPercent": {
+            "key": "capexDeltaPercent",
+            "label": "Capex YoY (outflow amount)",
+            "value": 79.62231413920776,
             "unit": "whole-percent",
             "sourceIds": ["offline-sec-companyfacts-msft"],
             "periodEnd": "2026-06-30",

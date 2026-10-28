@@ -14,8 +14,8 @@
   "stage:web-subject-profile:crypto-asset": "87f48c5f2e6393db430c79bf48ba88269897aef30a8e23fd483115eb33dbbed4",
   "stage:web-subject-profile:theme": "39bf4a87c9b1f0d84db60f4fdede528207dbdf449cba7bdfbac17703cf0c3dc4",
   "stage:final-synthesis:primary": "5ecaa145ad60f82f6cce823f120ac1fc441df406e3e8047701258eecb15568d2",
-  "stage:specialist-analysis:metric-references": "0ad21a325d08f267e695f872db0787a6e32a6b978c9bfbeb71e4dd3e10473058",
-  "stage:final-synthesis:metric-references": "83b4f580dc9075042797d27165172a5865367e6224027830dd0a3b429dd46d0d",
+  "stage:specialist-analysis:metric-references": "eb4ddf8820a325c9d955c309dd2817b85ac9a27893132f15a2af3197dc0181c4",
+  "stage:final-synthesis:metric-references": "a2b062b7351a6eaa11c4f680c313fa9efe7e4b5d2bcaf8f07051512f6bdfd1c6",
   "stage:web-gather:metric-references": "11d8b3224a6dc05439636c6a6f95eee797ab0cd33eb386a0bdc4345bcc52b565",
   "stage:web-subject-profile:metric-references": "b620cbb8d37467035281bdf22756ca42c4956c20de3d55d99408f03bf2f6d4e1",
   "stage:final-synthesis:repair": "518364f084fc899e03265f81d22ac9180162e5360eb33f4a5c52a086dfecd1cf",
@@ -53,6 +53,6 @@
   "file:prompts/regime-context-analysis/base.md": "ceabef0544ec34f269c21dc54fe5b59069371ae3888225c10a82393167d56e56",
   "file:prompts/specialist-analysis/base.md": "48aca2b192db08615ba499398a0d27c87d2234aaa85613fd0214f0efbb0c0399",
   "file:prompts/spotlight-selection/base.md": "534db80c3ea34c167034debe0f59f5178dca15d2078ff0efef13b342f389a306",
-  "file:prompts/web-gather/base.md": "7e57c858d717c322780a51314feecd36280904457fc2ae116085fce9d8b7e25b",
+  "file:prompts/web-gather/base.md": "69d7c7310cdd5b6e5033a37a76c5f094be3217c1aff5438e6481e013dea84a8e",
   "file:prompts/web-subject-profile/base.md": "802cbee7b6c4616212c67633df55f4de2bc6b014cc873a8819bd1f811467be24"
 }

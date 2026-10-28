@@ -5,6 +5,7 @@ import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contr
 import {
   conceptScope,
   isContinuingScope,
+  NEGATIVE_CAPEX_REASON,
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
@@ -352,7 +353,7 @@ function evidenceOutcome(
       };
 }
 
-function summaryPeriod(ctx: MetricContext, fallback: LensSeries): MetricPeriod {
+function summaryPeriod(ctx: MetricContext, fallback: string): MetricPeriod {
   const item = secItem(ctx);
   const periodEnd = readStringMetric(item?.metrics, `${fallback}PeriodEnd`);
   const periodMonths = readNumberMetric(item?.metrics, `${fallback}PeriodMonths`);
@@ -531,6 +532,23 @@ function freeCashFlowDefinition(): MetricDefinition {
         if (!summaryPeriodsMatch(ctx, "operatingCashFlow", "capex")) {
           return { status: "missing", reason: "no same-period SEC FCF proxy" };
         }
+        if (capex !== undefined && capex < 0) {
+          const period = summaryPeriod(ctx, "operatingCashFlow");
+          return {
+            status: "not-meaningful",
+            reason: NEGATIVE_CAPEX_REASON,
+            ...period,
+            inputs: [
+              ...chosenInput(
+                secItem(ctx),
+                "operatingCashFlow",
+                SERIES_LABELS.operatingCashFlow,
+                period,
+              ),
+              ...chosenInput(secItem(ctx), "capex", SERIES_LABELS.capitalExpenditure, period),
+            ],
+          };
+        }
         return summaryValue(
           ctx,
           "freeCashFlowProxy",
@@ -552,12 +570,24 @@ function freeCashFlowDefinition(): MetricDefinition {
           factInput(anchor, "operatingCashFlow"),
         ]);
       }
+      const inputs = [
+        factInput(anchor, "operatingCashFlow"),
+        factInput(capex, "capitalExpenditure"),
+      ];
+      if (capex.value < 0) {
+        return {
+          status: "not-meaningful",
+          reason: NEGATIVE_CAPEX_REASON,
+          ...periodOf(anchor),
+          inputs,
+        };
+      }
       return {
         status: "value",
         value: anchor.value - capex.value,
         ...periodOf(anchor),
         ...(anchor.currency !== null ? { currency: anchor.currency } : {}),
-        inputs: [factInput(anchor, "operatingCashFlow"), factInput(capex, "capitalExpenditure")],
+        inputs,
       };
     },
   };
@@ -883,24 +913,52 @@ function comparablePrior(
   );
 }
 
-function yearOverYearDefinition(key: LensSeries, label: string): MetricDefinition {
+function yearOverYearDefinition(
+  key: LensSeries,
+  label: string,
+  metricKey: string = key,
+  outflow = false,
+): MetricDefinition {
+  const negativeOutflow = {
+    status: "not-meaningful",
+    reason: `${SERIES_LABELS[key]} filed as a negative amount; outflow sign is ambiguous`,
+  } as const;
   return {
-    id: `${key}DeltaPercent`,
+    id: `${metricKey}DeltaPercent`,
     label,
     unit: "whole-percent",
     basis: YOY_BASIS,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const item = secItem(ctx);
-        const value = readNumberMetric(item?.metrics, `${key}DeltaPercent`);
-        const period = summaryPeriod(ctx, key);
+        const value = readNumberMetric(item?.metrics, `${metricKey}DeltaPercent`);
+        const period = summaryPeriod(ctx, metricKey);
+        if (
+          outflow &&
+          [metricKey, `${metricKey}Prior`].some(
+            (input) => (readNumberMetric(item?.metrics, input) ?? 0) < 0,
+          )
+        ) {
+          return {
+            ...negativeOutflow,
+            ...period,
+            inputs: chosenInput(item, metricKey, SERIES_LABELS[key], period),
+          };
+        }
         return value === undefined
           ? { status: "missing", reason: `no SEC ${SERIES_LABELS[key]} YoY` }
           : {
               status: "value",
               value,
               inputs: [
-                evidenceInput(item, `${key}DeltaPercent`, label, "whole-percent", value, period),
+                evidenceInput(
+                  item,
+                  `${metricKey}DeltaPercent`,
+                  label,
+                  "whole-percent",
+                  value,
+                  period,
+                ),
               ],
               ...period,
             };
@@ -919,6 +977,9 @@ function yearOverYearDefinition(key: LensSeries, label: string): MetricDefinitio
         };
       }
       const inputs = [factInput(prior, key), factInput(anchor, key)];
+      if (outflow && (prior.value < 0 || anchor.value < 0)) {
+        return { ...negativeOutflow, ...periodOf(anchor), inputs };
+      }
       if (prior.value === 0) {
         return {
           status: "not-meaningful",
@@ -2019,18 +2080,22 @@ function lensDefinitions(
       returnOnDefinition("roa", "totalAssets", returnOnLabel(ctx, "roa", "totalAssets")),
       ...consolidatedIncomeDefinitions(ctx),
     ],
-    Growth: (
-      [
-        "revenue",
-        "grossProfit",
-        "operatingIncome",
-        "netIncome",
-        "dilutedEps",
-        "continuingIncome",
-        "continuingDilutedEps",
-        "operatingCashFlow",
-      ] as const
-    ).map((key) => yearOverYearDefinition(key, yoyLabel(ctx, key))),
+    Growth: [
+      ...(
+        [
+          "revenue",
+          "grossProfit",
+          "operatingIncome",
+          "netIncome",
+          "dilutedEps",
+          "continuingIncome",
+          "continuingDilutedEps",
+          "operatingCashFlow",
+        ] as const
+      ).map((key) => yearOverYearDefinition(key, yoyLabel(ctx, key))),
+      // SEC payments-for-PP&E concepts are positive outflows; a negative filing is withheld, not sign-flipped.
+      yearOverYearDefinition("capitalExpenditure", "Capex YoY (outflow amount)", "capex", true),
+    ],
     "Financial Strength": [
       instantDefinition("cash", "cash", "Cash"),
       instantDefinition("debt", "debt", debtLabel(ctx)),

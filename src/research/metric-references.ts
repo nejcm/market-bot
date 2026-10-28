@@ -12,7 +12,8 @@ import type { CollectedSources } from "../sources/types";
 import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
 
 const REFERENCE = /<<\s*metric\s*:\s*([^<>{}]+)>>/giu;
-const REFERENCE_START = /(?:<<|\{\{)\s*metric\s*:/iu;
+// Any << or >> left in authored prose is placeholder residue (unprefixed, nested, unclosed).
+const REFERENCE_START = /(?:<<|\{\{)\s*metric\s*:|<<|>>/iu;
 const CLAIM_FIELDS = new Set(["text", "name", "description", "rationale"]);
 const SESSION_SECTION = "market-session";
 const PRICE_INDICATORS = new Set([
@@ -204,8 +205,13 @@ function transformClaims(
       metric.sourceIds.forEach((id) => sourceIds.add(id));
       return resolve ? formatted : token;
     });
-    if (REFERENCE_START.test(text.replaceAll(REFERENCE, ""))) {
-      throw new Error(`Malformed metric reference in ${key}`);
+    const rest = text.replaceAll(REFERENCE, " ");
+    const at = rest.search(REFERENCE_START);
+    if (at >= 0) {
+      const leftover = /^\S*?>>|^\S*/u.exec(rest.slice(at))?.[0];
+      throw new Error(
+        `Malformed metric reference ${leftover} in ${key}; write it as <<metric:section.metric>> or <<metric:section.metric|period>> from the catalog, or remove it`,
+      );
     }
     return [key, text];
   });

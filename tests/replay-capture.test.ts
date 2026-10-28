@@ -107,6 +107,25 @@ test("report rerun treats canonical null as absence and a missing normalized dep
   }
 });
 
+test("report rerun rejects a saved report with leaked placeholder text", async () => {
+  const dir = await createRoot();
+  const produced = await runFixture("equity-aapl-brief");
+  try {
+    const path = join(produced.artifacts.runDir, "report.json");
+    const report = JSON.parse(await readFile(path, "utf8"));
+    report.keyFindings[0].text = "Margin <<operating-ratios.margin|period>>.";
+    await writeFile(path, JSON.stringify(report));
+    const leaked = await rerunReport({ run: produced.artifacts.runDir, label: "leak", root: dir });
+    expect(leaked.status).toBe("failed");
+    expect(await readFile(join(leaked.dir, "eval-sample.json"), "utf8")).toContain(
+      "Unresolved metric reference",
+    );
+    expect(await Bun.file(join(leaked.dir, "report.json")).exists()).toBe(false);
+  } finally {
+    await produced.cleanup();
+  }
+});
+
 test("production deep capture round-trips HTTP failures, state, synthesis repairs, projections and markdown offline", async () => {
   const dir = await createRoot();
   const fixture = await loadFixture("equity-depository-deep");

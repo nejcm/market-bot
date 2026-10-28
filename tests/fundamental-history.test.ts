@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -40,8 +41,8 @@ function annualFacts(
   });
 }
 
-function latestYtd(overrides: FactOverrides = {}): Record<string, unknown> {
-  return fact(130, {
+function latestYtd(overrides: FactOverrides = {}, value = 130): Record<string, unknown> {
+  return fact(value, {
     form: "10-Q",
     fp: "Q3",
     fy: 2025,
@@ -52,8 +53,8 @@ function latestYtd(overrides: FactOverrides = {}): Record<string, unknown> {
   });
 }
 
-function priorYtd(overrides: FactOverrides = {}): Record<string, unknown> {
-  return fact(105, {
+function priorYtd(overrides: FactOverrides = {}, value = 105): Record<string, unknown> {
+  return fact(value, {
     form: "10-Q",
     fp: "Q3",
     fy: 2024,
@@ -436,6 +437,58 @@ describe("fundamental history", () => {
       true,
     );
   });
+
+  test("withholds free-cash-flow proxy points where capex is filed negative", () => {
+    const history = derive(
+      payload({
+        NetCashProvidedByUsedInOperatingActivities: { facts: annualFacts([50, 60, 70]) },
+        PaymentsToAcquirePropertyPlantAndEquipment: { facts: annualFacts([10, -12, 0]) },
+      }),
+    );
+
+    expect(
+      history.series.freeCashFlowProxy.annual.map((point) => [point.periodEnd, point.value]),
+    ).toEqual([
+      ["2022-09-30", 40],
+      ["2024-09-30", 70],
+    ]);
+    expect(history.series.freeCashFlowProxy.notes).toContain(
+      `annual:negative-capex: 2023-09-30 omitted; ${NEGATIVE_CAPEX_REASON}`,
+    );
+  });
+
+  test.each([
+    { latest: 5, prior: 4, expected: 79 },
+    { latest: -5, prior: 4, expected: undefined },
+    { latest: 5, prior: -4, expected: undefined },
+    { latest: 5, prior: 30, expected: undefined },
+  ])(
+    "TTM free-cash-flow proxy with capex YTD $latest / prior $prior on both paths",
+    ({ latest, prior, expected }) => {
+      const facts = payload({
+        NetCashProvidedByUsedInOperatingActivities: {
+          facts: [...annualFacts([50, 60, 70]), latestYtd(), priorYtd()],
+        },
+        PaymentsToAcquirePropertyPlantAndEquipment: {
+          facts: [...annualFacts([10, 12, 15]), latestYtd({}, latest), priorYtd({}, prior)],
+        },
+      });
+      const canonical = deriveFundamentalHistoryFromFinancialStatements(
+        deriveFinancialStatements(facts, {
+          symbol: "TEST",
+          generatedAt: "2025-08-01T00:00:00.000Z",
+          analysisAsOf: "2025-08-01T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-test-fundamentals",
+        }),
+      );
+      for (const history of [derive(facts), canonical]) {
+        expect(history.series.freeCashFlowProxy.ttm?.value).toBe(expected);
+        const note = `ttm:negative-capex: 2025-06-30 omitted; ${NEGATIVE_CAPEX_REASON}`;
+        expect(history.series.capex.notes.includes(note)).toBe(expected === undefined);
+        expect(history.series.freeCashFlowProxy.notes.includes(note)).toBe(expected === undefined);
+      }
+    },
+  );
 
   test("refuses CAGR when either endpoint is non-positive", () => {
     const history = derive(payload({ Revenues: { facts: annualFacts([100, 120, -5]) } }));

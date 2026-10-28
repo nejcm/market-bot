@@ -9,7 +9,11 @@ import {
   type InstrumentIdentity,
   type ProviderInstrumentId,
 } from "./domain/instrument";
-import { isPredictionOrigin, type Prediction } from "./domain/prediction";
+import {
+  isEarningsEventDateStatus,
+  isPredictionOrigin,
+  type Prediction,
+} from "./domain/prediction";
 import {
   isMarketRegimeLabel,
   isReportIntegrity,
@@ -138,6 +142,9 @@ function readPredictions(value: unknown): readonly Prediction[] {
         horizonTradingDays: item.horizonTradingDays,
         probability: item.probability,
         sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+        ...(isEarningsEventDateStatus(item.eventDateStatus)
+          ? { eventDateStatus: item.eventDateStatus }
+          : {}),
         // Unknown versions degrade to absent, which resolves under policy v2.
         ...(item.scoringPolicyVersion === CURRENT_SCORING_POLICY_VERSION
           ? { scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION }

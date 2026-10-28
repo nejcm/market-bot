@@ -6,6 +6,7 @@ import {
   SERIES_LABELS,
   statementInput,
 } from "./capital-return";
+import { NEGATIVE_CAPEX_REASON } from "./financial-statement-definitions";
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import {
   financialStatementFactForPeriod,
@@ -203,13 +204,15 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
     id: "freeCashFlowMargin",
     label: "Free cash flow margin",
     unit: "ratio-percent",
-    basis: `(operating cash flow - absolute capital expenditure) / revenue, ${FISCAL_YEAR}; revenue at or below zero is not meaningful`,
+    basis: `(operating cash flow - capital expenditure) / revenue, ${FISCAL_YEAR}; revenue at or below zero or negative-filed capex is not meaningful`,
     applicable: depository("operating cash flow is not a free cash flow basis"),
     compute: ratioOf(
       ([operatingCashFlow, capitalExpenditure]) =>
-        operatingCashFlow!.value - Math.abs(capitalExpenditure!.value),
+        operatingCashFlow!.value - capitalExpenditure!.value,
       ["operatingCashFlow", "capitalExpenditure", "revenue"],
-      boundGate("revenue", "revenue is zero or negative"),
+      (ctx, facts, keys) =>
+        boundGate("capitalExpenditure", NEGATIVE_CAPEX_REASON, false)(ctx, facts, keys) ??
+        boundGate("revenue", "revenue is zero or negative")(ctx, facts, keys),
     ),
   },
   {

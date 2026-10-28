@@ -1939,6 +1939,15 @@
             "sourceIds": ["offline-sec-companyfacts-nbis"],
             "periodEnd": "2025-12-31",
             "periodMonths": 12
+          },
+          "capexDeltaPercent": {
+            "key": "capexDeltaPercent",
+            "label": "Capex YoY (outflow amount)",
+            "value": 403.52941176470586,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-nbis"],
+            "periodEnd": "2025-12-31",
+            "periodMonths": 12
           }
         }
       },

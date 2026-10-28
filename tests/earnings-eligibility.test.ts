@@ -7,6 +7,7 @@ import {
 } from "../src/forecast/earnings-eligibility";
 import type { EarningsSetupCollected } from "../src/sources/types";
 import { validateResearchReport } from "../src/report/schema";
+import { readReport } from "../src/run-artifact-report-reader";
 import { prediction, researchReport } from "./support/fixtures";
 
 function earningsPrediction(kind: "earnings-direction" | "earnings-move"): Prediction {
@@ -128,6 +129,52 @@ describe("earnings forecast eligibility telemetry", () => {
 
     expect(() => validateResearchReport(report)).toThrow(
       "Unconfirmed earnings dates cannot anchor earnings predictions",
+    );
+  });
+});
+
+describe("earnings eventDateStatus artifact round-trip", () => {
+  function persistedReport(
+    policy: "legacy-ungated" | "confirmed-only",
+    status?: "provider-estimated" | "issuer-confirmed",
+  ) {
+    const result = applyEarningsForecastPolicy({
+      predictions: [earningsPrediction("earnings-direction")],
+      setup: status === undefined ? undefined : setup(status),
+      policy,
+    });
+    const written = researchReport({
+      predictions: result.predictions,
+      extras: { earningsForecasts: result.telemetry },
+    });
+    return JSON.parse(JSON.stringify(written)) as Record<string, unknown>;
+  }
+
+  test.each(["issuer-confirmed", "provider-estimated"] as const)(
+    "reads back %s and the report still validates",
+    (status) => {
+      const report = readReport(persistedReport("legacy-ungated", status));
+
+      expect(report?.predictions[0]?.eventDateStatus).toBe(status);
+      expect(() => validateResearchReport(report!)).not.toThrow();
+    },
+  );
+
+  test("keeps an absent eventDateStatus absent", () => {
+    const report = readReport(persistedReport("legacy-ungated"));
+
+    expect(report?.predictions[0]).not.toHaveProperty("eventDateStatus");
+  });
+
+  test("drops an invalid eventDateStatus, so telemetry validation rejects the report", () => {
+    const raw = persistedReport("confirmed-only", "issuer-confirmed");
+    const [first] = raw.predictions as Record<string, unknown>[];
+    first!.eventDateStatus = "rumoured";
+    const report = readReport(raw);
+
+    expect(report?.predictions[0]).not.toHaveProperty("eventDateStatus");
+    expect(() => validateResearchReport(report!)).toThrow(
+      "Prediction earnings-direction eventDateStatus conflicts with telemetry",
     );
   });
 });

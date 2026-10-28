@@ -9,10 +9,10 @@ import {
 describe("offline financial-statement corpus", () => {
   test("locks every issuer projection and classifies every consumer difference offline", async () => {
     const expectedClassifications = {
-      aapl: { matched: 70, allowances: 4 },
-      msft: { matched: 74, allowances: 4 },
-      mara: { matched: 65, allowances: 13 },
-      nbis: { matched: 38, allowances: 35 },
+      aapl: { matched: 71, allowances: 4 },
+      msft: { matched: 75, allowances: 4 },
+      mara: { matched: 66, allowances: 13 },
+      nbis: { matched: 38, allowances: 36 },
       "fpi-quarterly": { matched: 24, allowances: 52 },
       "fpi-ifrs-semiannual": { matched: 33, allowances: 43 },
     } as const;

@@ -13,9 +13,7 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## Possible wrong or false values
 
-- Model-authored data gaps contradict evidence in the same report: HLIT deep dataGaps[21] says RPO conversion timing is unquantified beside `report.md:61` (73% within 12 months); AMD run 6349c37b says Data Center margins are unquantified although the segment table reaches synthesis.
-- Brief runs read no 10-K/10-Q text, so they declare customer concentration and RPO unavailable even when filed (HLIT brief 43cf5df7), and carry no segment rows.
-- Profile `howItMakesMoney` "Y% of revenue" bullets are not checked against code-computed shares; only geography shares contradicting filed rows are withheld.
+- Prior-run `dataGaps` reach every stage through `historicalContext` (`src/research/historical-context.ts:450`) now labeled prior-run observations to re-check (`priorRunDataGapsUse`) but not code-checked, so a gap later disproved can still be echoed (AMD 6349c37b "Data Center margins … not quantified"); label effect unevaluated. The check-sources prompt rule covers new declarations only; the HLIT RPO and final-synthesis cases are unevaluated (2-sample specialist eval only).
 - Net debt is published for depository issuers; only EV is declared not applicable (`valuation.ts:196-229`), against the AGENTS.md rule.
 - Summary net debt can display the unguarded valuation value (`evidenceDisplayNetDebt`) while `summaryNetDebtCriterion` scores the period-divergence-guarded one, so a shown figure can carry an undefined criterion.
 - NVDA's 42,783M current marketable equity (2026-07-26 10-Q) counts as short-term investments in EV, though Note 5 puts 36.9B under short-term lock-up.

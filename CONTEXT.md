@@ -559,7 +559,7 @@ Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, 
 
 Deterministic framework for Business, Phase, Moat, Growth, Management, Risk, and Valuation, persisted in `normalized/business-framework.json`. Its numbers are Metric Sections (`business-framework-<section>`, none for Management) referenced by each section's `metricSectionIds`; the framework keeps phase, posture, model text and qualitative gaps. It has neutral section postures and lifecycle labels; on deep web-enabled equity runs, Evidence Reconciliation may clear qualitative gaps but never numeric postures or phase.
 
-Brief runs retain the eleven profile-mapped qualitative gaps as `suppressed-by-design`, with text declaring that Web Subject Profile is excluded at brief depth. Analyst consensus remains an independent `provider-data-missing` gap.
+Brief runs retain the eleven profile-mapped qualitative gaps as `suppressed-by-design`, with text declaring the topic not assessed at brief depth because filing prose and Web Subject Profile are excluded. Analyst consensus remains an independent `provider-data-missing` gap.
 
 ## Metric Section
 

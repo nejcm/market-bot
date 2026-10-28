@@ -162,13 +162,22 @@ export const QUALITATIVE_GAPS = [
   },
 ] as const satisfies readonly BusinessFrameworkGap[];
 
+const BRIEF_EXCLUSION =
+  "is not assessed at brief depth; filing prose and Web Subject Profile are excluded";
+
 function qualitativeGaps(
   depth: ResearchCommand["depth"],
   ...codes: readonly BusinessFrameworkGapCode[]
 ): readonly BusinessFrameworkGap[] {
   return QUALITATIVE_GAPS.filter((gap) => codes.includes(gap.code)).map((gap) =>
     depth === "brief" && gap.code !== "analyst-consensus"
-      ? { ...gap, text: `${gap.text}; Web Subject Profile is excluded at brief depth` }
+      ? {
+          ...gap,
+          text: gap.text.replace(
+            "is not available from current normalized sources",
+            BRIEF_EXCLUSION,
+          ),
+        }
       : gap,
   );
 }

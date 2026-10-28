@@ -163,7 +163,9 @@ The Web Gather prompt receives a stage-scoped Source Gap projection that omits o
 `finnhub-analyst-range`, `finnhub-eps-estimate`, `finnhub-revenue-estimate`,
 `finnhub-ebitda-estimate`, the Business Framework `analyst-consensus` gap, and the deterministic `price-performance` gap. The same
 policy filters historical `runs[].dataGaps` in the Web Gather prompt clone, after
-prompt-bound history sanitization; other stages keep the complete historical list.
+prompt-bound history sanitization; other stages keep the complete historical list. Every
+stage's `historicalContext` carries `priorRunDataGapsUse`, labeling `runs[].dataGaps` as
+prior-run observations to re-check against current sources before repeating.
 Persisted history is not rewritten: this run's `dataGaps`, bundle `governance.sourceGaps`,
 source IDs, top-level Historical Context Gaps, and audit counts stay intact, and each prior
 run's artifact is untouched — this report never carried prior-run `dataGaps`. A run whose

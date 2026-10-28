@@ -309,7 +309,37 @@ describe("createCodexProvider — generate", () => {
 
     expect(result.content).toBe("hello world");
     expect(result.tokenEstimate).toBe(40);
+    expect(result.usage).toEqual({ inputTokens: 20, outputTokens: 20, reasoningTokens: 0 });
     expect(result.costEstimateUsd).toBeUndefined();
+  });
+
+  test("totals input + output without re-adding reasoning already inside output", async () => {
+    const stream =
+      `${JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "hi" } })}\n` +
+      `${JSON.stringify({ type: "turn.completed", usage: { input_tokens: 900, output_tokens: 300, reasoning_output_tokens: 250 } })}\n`;
+    const result = await createCodexProvider(
+      baseConfig,
+      makeSpawn({ exec: { exitCode: 0, stdout: stream } }),
+    ).generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hello" }] });
+
+    expect(result.tokenEstimate).toBe(1200);
+    expect(result.usage).toEqual({ inputTokens: 900, outputTokens: 300, reasoningTokens: 250 });
+  });
+
+  test("records cached input tokens and omits fields Codex does not report", async () => {
+    const stream =
+      `${JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "hi" } })}\n` +
+      `${JSON.stringify({ type: "turn.completed", usage: { input_tokens: 900, cached_input_tokens: 700, output_tokens: 50 } })}\n`;
+    const provider = createCodexProvider(
+      baseConfig,
+      makeSpawn({ exec: { exitCode: 0, stdout: stream } }),
+    );
+    const result = await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hello" }],
+    });
+
+    expect(result.usage).toEqual({ inputTokens: 900, cachedInputTokens: 700, outputTokens: 50 });
   });
 
   test("strips JSON fences when responseFormat is json", async () => {
@@ -443,6 +473,7 @@ describe("createCodexProvider — generate", () => {
     });
 
     expect(result.tokenEstimate).toBeGreaterThan(0);
+    expect(result.usage).toBeUndefined();
   });
 
   test("passes prompt via stdin (args do not contain prompt text)", async () => {

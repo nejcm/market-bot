@@ -227,6 +227,9 @@ export function fundamentalHistoryView(
       ...(series.notes.some((note) => note.startsWith("share-basis:mixed:"))
         ? ["Earlier EPS points are on an earlier or unconfirmed share basis and are not adjusted."]
         : []),
+      ...series.notes.flatMap((note) =>
+        note.startsWith("derived: ") ? [`Derived input: ${note.slice("derived: ".length)}.`] : [],
+      ),
     ];
     return [
       {

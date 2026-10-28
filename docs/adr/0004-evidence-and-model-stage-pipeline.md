@@ -110,7 +110,17 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   closes/source IDs.
 - Financial Lens metrics retain per-metric citations: SEC for filing-intrinsic facts, Yahoo for
   price-relative/non-US fallback. Parent `NetIncomeLoss` remains net income; consolidated `ProfitLoss` is
-  separate, same-period disclosure only. ROE/ROA keep parent income and existing balance scopes.
+  otherwise separate, same-period disclosure. ROE/ROA keep parent income and existing balance scopes.
+- The one sanctioned tag splice: a period without `NetIncomeLoss` takes a derived `ProfitLoss` net income
+  only when no noncontrolling-interest income fact observable at the analysis cutoff is tagged for it, or
+  all are zero and a zero `NetIncomeLossAttributableToNoncontrollingInterest` shares a filing with a
+  `ProfitLoss` of the current value (partial-scope or comprehensive zeros alone, or any nonzero NCI,
+  block); and the newest same filing/form/span/unit `NetIncomeLoss`/`ProfitLoss` pair agrees. An
+  unexplained difference withholds without implying NCI. Untagged `GrossProfit` derives as revenue −
+  `CostOfRevenue`/`CostOfGoodsAndServicesSold` only when current revisions share a defined accession, form,
+  span, and unit. Both carry derived lineage, and metric basis, lens captions, and history cards disclose
+  the formula (tagged cost of revenue may exclude amortization or D&A). Each withheld period is a declared
+  gap.
 - Keep operations scope (continuing/total), attribution (parent/NCI), and SEC/provider earnings basis
   independent; equal values do not establish equal scope. Continuing income/EPS are separate series (parent
   preferred on equal period), never replacements for total income/EPS or total-income ROE/ROA/margin/payout.
@@ -130,7 +140,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   is annual-only.
 - A canonical versioned financial-statements artifact accepts standard us-gaap/ifrs-full 10-K/Q/20-F/6-K and
   amendments. It drives history, lenses, valuation, APIs, and completeness through tested seams; legacy
-  derivations run only when genuinely unavailable. Runtime shadow parity/duplicate passes are retired; offline
+  derivations run only when genuinely unavailable. Offline
   canonical/legacy corpus differences need matches or exact fixture-specific allowances. Historical non-deep
   artifacts without sidecars/completeness stay readable.
 - Canonical facts apply cutoff before selection, one taxonomy/currency, no extension primary totals; matching
@@ -138,8 +148,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   form/accession/filing/period/fiscal/taxonomy/unit/scale/extraction/citation provenance; absent accessions
   stay null with notes. Shared roster caps ten annual/twelve interim exact periods, detects cadence, and
   derives TTM only with exact FY/current/prior-YTD components retained. Disclose duplicates, mixed
-  periods/currencies, incomplete statements, cutoff, caps, and unreconciled TTM. Untagged 6-K remains evidence
-  plus structured-financial gap, not model-extracted canonical facts.
+  periods/currencies, incomplete statements, cutoff, caps, and unreconciled TTM.
 - Debt is lease-exclusive borrowing, resolved per instant by the shared legacy/canonical rule: standard total
   first, otherwise disjoint component sum with every contributor and derived lineage.
   Aliases/totals/constituents are alternatives, never double-counted; generic current/noncurrent long-term
@@ -155,7 +164,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   earlier complete same-instant data. Keep one basis per series/priors; absence is not zero, tagged zeros
   count, and standard-tag completeness is not proof about omitted dimensional/extension facts.
 - Never publish incomplete debt. Newer incomplete instants emit `incomplete-composite-series`, date/name older
-  amounts in SEC/lens prose, declare peer basis, and remove alpha debt features with gap. Direct facts remain
+  amounts in SEC/lens prose, declare peer basis, and remove alpha debt features with gap. Never substitute older debt for newer incomplete instants: withhold
+  target EV/net debt, declare peers, and drop Workbench debt when incomplete instant is at/before cash. Direct facts remain
   `sec-companyfacts` without composite metadata; artifact extraction method stays companyfacts.
 - Gross-principal fallback permits only a strictly newer instant fact calibrated to net debt at net's selected
   period within ±5% inclusive (zero matches zero); otherwise retain net. Mark `gross-principal` (absent means
@@ -242,9 +252,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - Preserve quote/cash/debt dates; date market cap by quote timestamp else explicitly fetch time, retaining
   acquisition provenance. Quote-to-balance gaps >92 days flag but do not suppress EV. Cash-to-debt gaps >92
   days withhold EV/net debt across target, peers, lenses, Workbench and emit target gap even in brief.
-  Disclose borrowing-based, finance-lease-exclusive EV. Never substitute older debt for newer incomplete
-  instants: withhold target EV/net debt, declare peers, and drop Workbench debt when incomplete instant is
-  at/before cash.
+  Disclose borrowing-based, finance-lease-exclusive EV.
 - Financial Strength uses balance-sheet inputs within 180 days of cutoff and 92 days of newest current
   balance-sheet period; canonical ratios check paired period, fallback checks every input. Stale net
   debt/current ratio is unknown, not failed; framework Risk uses same current-ratio gate. Withhold stale
@@ -264,14 +272,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - Brief reasoning is specialist → critique → final synthesis; deep adds two concurrent Coverage Panel roles
   before critique, persisted deterministically: regime/mover-theme for overviews,
   instrument-evidence/market-behavior otherwise. Legacy specialist/Coverage Panel is the sole deep-equity
-  production path. Simplified reasoning, variant selector, cutover gate, paired harness/scripts, model packet,
-  and completed bundle migrator remain removed; collection/bundle authority is retained.
+  production path.
 - Deterministically include every eligible Domain Playbook per planned stage plus mandatory
   disciplines/subjects, deduped without caps or selector calls. Checked-in base prompts remain reviewable.
   Stages receive normalized evidence/prior output, never authority to widen tools, sources, subjects, or
   persistence. All requests with evidence/history/prior output append shared untrusted-nested-data rule; prior
-  output stays nested and unrewritten. Record positive monotonic generation duration for
-  successful/represented-failed attempts; concurrent durations are not additive wall time.
+  output stays nested and unrewritten.
 - Final synthesis proposes; deterministic assembly/validation owns shape, Predictions, Evidence Quality, and
   research language. Relocate uncited gap-shaped findings/framework text after deterministic citation fallback
   into data gaps, recording original path/text. Relocation's broad predicate differs from precision-oriented
@@ -280,7 +286,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   call/repair counts.
 - Malformed synthesis/repair JSON enters the same bounded validation repair loop with parser
   diagnostic/full-object instruction; never trim or auto-repair reply text. Provider failures are outside it.
-  Stop once valid; no count-completion pass ([ADR 0003](./0003-forecasts-scoring-and-calibration.md)).
+  Stop once valid.
 - Warning-only audit records unsupported numeric/technical claims, posture omissions, and cited gap-shaped
   claims; no gate reads it, and it cannot prune, fail, or lower Evidence Quality. Separately, Report Integrity
   Audit after valid synthesis/before disagreement prunes findings/scenarios/Predictions without structurally
@@ -297,7 +303,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - Metric references use `<<metric:<section>.<id>>>`: add own-source citations before relocation/validation,
   screen authored tokens, substitute deterministic formatted unit/currency values, rescreen inside repair
   loop, persist resolved prose. Model-quoted prose may resolve with metric provenance, never modify source
-  text. Reject unknown/non-value/malformed/nonfinite/empty/uncited references; allow only cited
+  text. Reject unknown/non-value/malformed (including brace-delimited)/nonfinite/empty/uncited references; allow only cited
   findings/cases/risks/catalysts/scenarios/framework/Earnings Setup/Spotlights, never summary/gaps/Prediction
   expressions. An optional `|period` format appends the metric's period label; an unknown format or
   `|period` without `periodEnd` rejects for repair like an unknown id. References stay inline tokens, not a
@@ -314,13 +320,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   payout marker; derived values enter catalog, pre-statements fallback reads raw keys. Raw facts/quotes/DSL
   authority and research boundary stay unchanged. Price Performance gaps reach synthesis/history; Web Gather
   excludes unclosable gaps using one predicate across gap lists. Deliberately refresh prompt hashes;
-  stage/model cassettes do not prove prompt behavior, so targeted replay asserts resolved metric/citations.
-  Full-stage frozen-input evaluation across all equity fixtures precedes any separately approved live batch;
-  planning never authorizes spend.
+  targeted replay asserts resolved metric/citations ([ADR 0005](./0005-testing-and-replay.md)).
 - Market-overview is canonical equity/crypto whole-market workflow: horizon defaults 15, legacy daily/weekly
   aliases map 5/15, new artifacts use canonical job type and old remain readable. Group
-  Calibration/history/deltas/correction/provider health by horizon bucket. Spotlights use collected movers,
-  catalyst calendars use existing evidence. Disclose daily Yahoo/24-hour CoinGecko mover mismatch with longer
+  Calibration/history/deltas/correction/provider health by horizon bucket. Catalyst calendars use existing evidence. Disclose daily Yahoo/24-hour CoinGecko mover mismatch with longer
   horizons.
 - Alpha-search is deterministic equity-only discovery, not synthesis/scored forecasting: ApeWisdom aggregate
   momentum and SEC current filings originate candidates; official universe/Yahoo validate stock

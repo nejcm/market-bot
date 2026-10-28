@@ -73,6 +73,8 @@ function baseAnalytics(): RunAnalytics {
     runShape: {
       traceStages: [],
       stages: [],
+      modelCalls: [],
+      usageByStage: [],
       tokenEstimate: 0,
       costEstimateUsd: 0,
     },
@@ -345,5 +347,47 @@ describe("run analytics console", () => {
       "Web fallback: attempted=exa · unavailableReason=no-firecrawl-key · failedExaRequests=1",
     );
     expect(renderRunAnalyticsConsole(analytics)).not.toContain("Web fallback:");
+  });
+
+  test("renders per-stage model usage with unreported fields as ?", () => {
+    const analytics = baseAnalytics();
+    const output = renderRunAnalyticsConsole({
+      ...analytics,
+      runShape: {
+        ...analytics.runShape,
+        tokenEstimate: 150,
+        usageByStage: [
+          {
+            stage: "web-gather",
+            calls: 1,
+            failedCalls: 0,
+            unreportedCalls: 0,
+            tokenEstimate: 100,
+            inputTokens: 90,
+            cachedInputTokens: 60,
+            outputTokens: 10,
+            reasoningTokens: "unknown",
+          },
+          {
+            stage: "critique",
+            calls: 2,
+            failedCalls: 0,
+            unreportedCalls: 2,
+            tokenEstimate: 50,
+            inputTokens: "unknown",
+            cachedInputTokens: "unknown",
+            outputTokens: "unknown",
+            reasoningTokens: "unknown",
+          },
+        ],
+      },
+    });
+
+    expect(output).toContain(
+      "  Model usage: 150 tok est (in/cached/out/reasoning; ? = not reported)",
+    );
+    expect(output).toContain("    web-gather ×1: 100 est · 90/60/10/?");
+    expect(output).toContain("    critique ×2: 50 est · ?/?/?/? · 2 call(s) without usage");
+    expect(renderRunAnalyticsConsole(analytics)).not.toContain("Model usage:");
   });
 });

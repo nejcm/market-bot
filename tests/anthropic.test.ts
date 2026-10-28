@@ -87,6 +87,7 @@ describe("createAnthropicProvider", () => {
     expect(response).toEqual({
       content: '{"summary":"ok"}',
       tokenEstimate: 7,
+      usage: { inputTokens: 3, outputTokens: 4 },
       costEstimateUsd: 1.15e-4,
       costPricing: {
         source: "https://claude.com/pricing#api",
@@ -182,6 +183,27 @@ describe("createAnthropicProvider", () => {
 
     expect(response.tokenEstimate).toBe(2);
     expect(response.costEstimateUsd).toBeUndefined();
+    expect(response.usage).toBeUndefined();
+  });
+
+  test("counts cache reads and writes as input tokens", async () => {
+    const provider = createAnthropicProvider(baseConfig, async () =>
+      Response.json({
+        content: [{ type: "text", text: "ok" }],
+        usage: {
+          input_tokens: 3,
+          output_tokens: 4,
+          cache_read_input_tokens: 10,
+          cache_creation_input_tokens: 2,
+        },
+      }),
+    );
+    const response = await provider.generate({
+      model: "claude-sonnet-4-6",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(response.usage).toEqual({ inputTokens: 15, cachedInputTokens: 10, outputTokens: 4 });
   });
 
   test("leaves cost unknown for an unpriced model", async () => {

@@ -6,10 +6,11 @@ import type { AppConfig } from "../../../src/config";
 import type { PredictionKind } from "../../../src/domain/prediction";
 import type { SourceGap } from "../../../src/domain/sources";
 import { isRecord } from "../../../src/guards";
-import type { ModelProvider } from "../../../src/model/types";
+import { USAGE_FIELDS, type ModelProvider } from "../../../src/model/types";
 import { knownSourceIds } from "../../../src/report/markdown-primitives";
 import { readGapTriage } from "../../../src/report/gap-triage";
 import type { RunAnalytics } from "../../../src/research/run-analytics";
+import { rollupStageUsage, type StageUsageRollup } from "../../../src/research/stage-usage";
 import {
   MAX_REPORT_VALIDATION_REPROMPTS,
   type StageOutput,
@@ -397,6 +398,18 @@ function stageMetrics(stages: readonly StageOutput[], metrics: Record<string, nu
   }
 }
 
+function usageMetrics(rollups: readonly StageUsageRollup[], metrics: Record<string, number>): void {
+  for (const row of rollups) {
+    for (const field of USAGE_FIELDS) {
+      const count = row[field];
+      // An unreported count stays out of the summary so a mean never averages in a fake 0.
+      if (count !== "unknown") {
+        addCount(metrics, `tokens.${row.stage}.${field}`, count);
+      }
+    }
+  }
+}
+
 function reportMetrics(artifact: RunArtifact, metrics: Record<string, number>): void {
   const { report, sourceGaps } = artifact;
   sourceGapMetrics(sourceGaps, metrics);
@@ -489,8 +502,19 @@ export async function extractSampleMetrics(
   if (record.runDirName !== undefined) {
     const runDir = join(sampleDir, "runs", record.runDirName);
     const stages = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.stages));
+    const analytics = await readAnalytics(runDir);
     if (stages.status === "ok" && Array.isArray(stages.value)) {
       stageMetrics(stages.value as StageOutput[], metrics);
+      // The provider-seam ledger also sees calls with no stage output; a failed run keeps it in failure.json.
+      const failure = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.failure));
+      const ledger =
+        (analytics.status === "ok"
+          ? (analytics.value as Partial<RunAnalytics>).runShape?.usageByStage
+          : undefined) ??
+        (failure.status === "ok" && isRecord(failure.value) && isRecord(failure.value.cost)
+          ? (failure.value.cost.usageByStage as readonly StageUsageRollup[] | undefined)
+          : undefined);
+      usageMetrics(ledger ?? rollupStageUsage(stages.value as StageOutput[]), metrics);
       available.add("tokens").add("repairs");
     }
     const { artifact } = await loadRunArtifact(runDir);
@@ -504,7 +528,6 @@ export async function extractSampleMetrics(
         available.add("sourceGaps");
       }
     }
-    const analytics = await readAnalytics(runDir);
     const trace = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.trace));
     if (analytics.status === "ok" && trace.status === "ok") {
       analyticsMetrics(analytics.value as Partial<RunAnalytics>, metrics);
@@ -623,6 +646,33 @@ async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetr
           (row: unknown) => isRecord(row) && row.stage === "final-synthesis",
         )
       : undefined;
+  const available = new Set<MetricGroup>([
+    "durationMs",
+    "modelReplayMisses",
+    "modelCalls",
+    "modelTokens",
+    "synthesis",
+  ]);
+  if (synthesis.status === "ok" && isRecord(synthesis.value)) {
+    const { stageOutputs, regeneratedAnalysis } = synthesis.value;
+    const { attemptedCalls, completedCalls } = file.value as Record<string, unknown>;
+    // Only synthesis requests are logged before their response, so an unanswered request is a synthesis call.
+    const unanswered =
+      typeof attemptedCalls === "number" && typeof completedCalls === "number"
+        ? Math.max(0, attemptedCalls - completedCalls)
+        : 0;
+    const calls = [
+      ...(Array.isArray(regeneratedAnalysis) ? regeneratedAnalysis : []),
+      ...(Array.isArray(stageOutputs) ? stageOutputs : []),
+      ...Array.from({ length: unanswered }, () => ({
+        stage: "final-synthesis",
+        status: "error" as const,
+        usage: "unknown" as const,
+      })),
+    ] as StageOutput[];
+    usageMetrics(rollupStageUsage(calls), metrics);
+    available.add("tokens");
+  }
   if (isRecord(accepted) && typeof accepted.content === "string") {
     const counts = synthesisFigureCounts(accepted.content);
     metrics["synthesis.metricReferences"] = counts.metricReferences;
@@ -636,13 +686,6 @@ async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetr
       0,
     );
   }
-  const available = new Set<MetricGroup>([
-    "durationMs",
-    "modelReplayMisses",
-    "modelCalls",
-    "modelTokens",
-    "synthesis",
-  ]);
   const { artifact } = await loadRunArtifact(sampleDir);
   if (artifact !== undefined) {
     reportMetrics(artifact, metrics);
@@ -715,7 +758,12 @@ function sampleValue(sample: EvalSampleMetrics, metric: string): number | undefi
   if (sample.unavailable.includes(group)) {
     return undefined;
   }
-  return sample.metrics[metric] ?? (MEASURED_ONLY.has(metric) ? undefined : 0);
+  return sample.metrics[metric] ?? (isMeasuredOnly(metric) ? undefined : 0);
+}
+
+function isMeasuredOnly(metric: string): boolean {
+  const usageField = metric.startsWith("tokens.") ? metric.split(".").at(-1) : undefined;
+  return MEASURED_ONLY.has(metric) || USAGE_FIELDS.some((field) => field === usageField);
 }
 
 function cell(samples: readonly EvalSampleMetrics[], metric: string): string {

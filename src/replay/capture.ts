@@ -9,6 +9,7 @@ import { dirtySourceHash } from "../reproducibility";
 import { assertNoSecretsInText } from "./secret-scan";
 import { createRecordingFetch, type DataCassetteEntry } from "./data-cassette";
 import { createRecordingProvider, requestStage } from "./llm-cassette";
+import { withModelCallLedger } from "../model/call-ledger";
 import { captureSettings, CAPTURE_PROVIDERS } from "./settings";
 import { withReplaySession, isOfflineReplay, type ReplaySession } from "./session";
 import {
@@ -40,7 +41,11 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
     ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
   };
   if (input.config.captureReplay !== true) {
-    return run({ provider: input.provider, fetchImpl: input.fetchImpl ?? fetch, codeState });
+    return run({
+      provider: withModelCallLedger(input.provider),
+      fetchImpl: input.fetchImpl ?? fetch,
+      codeState,
+    });
   }
   const secrets = [
     input.config.apiKey,
@@ -86,7 +91,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
   });
   const llm = createRecordingProvider(input.provider, redact);
   const promptProvenance: { readonly model: string; readonly requestSha256: string }[] = [];
-  const provider: ModelProvider = {
+  const provider = withModelCallLedger({
     ...llm.provider,
     generate: (request) => {
       const stage = requestStage(request);
@@ -110,7 +115,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
       }
       return llm.provider.generate(request);
     },
-  };
+  });
   const publish = async (runDir: string): Promise<void> => {
     const staged = join(runDir, `.replay-${crypto.randomUUID()}.partial`);
     try {

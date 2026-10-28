@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { readCodeVersion } from "../code-version";
 import { isRecord } from "../guards";
 import { dirtySourceHash } from "../reproducibility";
-import type { ModelProvider, ModelRequest, ModelResponse } from "../model/types";
+import type { ModelProvider, ModelRequest, ModelResponse, ModelUsage } from "../model/types";
 import { buildModelStageRequest } from "../research/model-stage-prompt";
 import {
   plannedResearchStages,
@@ -133,10 +133,19 @@ async function regenerateAnalysis(
       });
       const response =
         options.provider === undefined
-          ? { content: frozen?.content ?? "{}", tokenEstimate: frozen?.tokenEstimate ?? 0 }
+          ? {
+              content: frozen?.content ?? "{}",
+              tokenEstimate: frozen?.tokenEstimate ?? 0,
+              usage: frozen?.usage ?? "unknown",
+            }
           : await options.provider.generate(request);
-      options.onAnalysisCall?.({ request, response });
-      return { stage, content: response.content, tokenEstimate: response.tokenEstimate };
+      options.onAnalysisCall?.({ stage, request, response });
+      return {
+        stage,
+        content: response.content,
+        tokenEstimate: response.tokenEstimate,
+        usage: response.usage ?? "unknown",
+      };
     },
   });
   return [...analysisOutputs, critiqueOutput];
@@ -149,8 +158,11 @@ type SynthesisReplayResult = ReturnType<typeof finalizeSynthesis> & {
 };
 
 type AnalysisCall = (call: {
+  readonly stage: AnalysisStage;
   readonly request: ModelRequest;
-  readonly response: Pick<ModelResponse, "tokenEstimate">;
+  readonly response: Pick<ModelResponse, "tokenEstimate"> & {
+    readonly usage?: ModelUsage | "unknown";
+  };
 }) => void;
 
 export async function executeSynthesisInput(
@@ -226,6 +238,7 @@ export async function executeSynthesisInput(
       return {
         stage: "final-synthesis",
         ...response,
+        usage: response.usage ?? "unknown",
         ...(steering === undefined ? {} : { steering }),
       };
     },
@@ -280,6 +293,17 @@ export async function replaySynthesisFile(options: {
   let tokens = 0;
   let analysisCalls = 0;
   let analysisTokens = 0;
+  const regeneratedAnalysis: {
+    stage: string;
+    tokenEstimate: number;
+    usage: ModelUsage | "unknown";
+  }[] = [];
+  const synthesisAttempts: {
+    stage: "final-synthesis";
+    tokenEstimate: number;
+    usage: ModelUsage | "unknown";
+  }[] = [];
+  let synthesisWritten = false;
   const modelMisses: string[] = [];
   let facts: ReturnType<typeof synthesisReplayFacts> | undefined = undefined;
   let defects: ReturnType<typeof scoreReportDefects> | undefined = undefined;
@@ -294,11 +318,21 @@ export async function replaySynthesisFile(options: {
       onResponse: (response) => {
         calls += 1;
         tokens += response.tokenEstimate;
+        synthesisAttempts.push({
+          stage: "final-synthesis",
+          tokenEstimate: response.tokenEstimate,
+          usage: response.usage ?? "unknown",
+        });
       },
-      onAnalysisCall: ({ request, response }) => {
+      onAnalysisCall: ({ stage, request, response }) => {
         requests.push(request);
         analysisCalls += 1;
         analysisTokens += response.tokenEstimate;
+        regeneratedAnalysis.push({
+          stage,
+          tokenEstimate: response.tokenEstimate,
+          usage: response.usage ?? "unknown",
+        });
       },
     });
     ({ calls } = result);
@@ -313,7 +347,8 @@ export async function replaySynthesisFile(options: {
     });
     await writeEvalJson(dir, "report.json", result.report);
     await writeFile(join(dir, "report.md"), result.markdown);
-    await writeEvalJson(dir, "synthesis.json", result.synthesis);
+    await writeEvalJson(dir, "synthesis.json", { ...result.synthesis, regeneratedAnalysis });
+    synthesisWritten = true;
     await writeEvalJson(dir, "validation.json", {
       warnings: result.postSynthesisWarnings,
       integrity: result.integrityAudit,
@@ -331,6 +366,13 @@ export async function replaySynthesisFile(options: {
     failureMessage = error instanceof Error ? error.message : String(error);
     if (error instanceof ModelReplayError) {
       modelMisses.push(error.key);
+    }
+    // Completed calls of a failed sample keep their usage; the rows carry no report content.
+    if (!synthesisWritten) {
+      await writeEvalJson(dir, "synthesis.json", {
+        stageOutputs: synthesisAttempts,
+        regeneratedAnalysis,
+      });
     }
   }
   const durationMs = performance.now() - started;

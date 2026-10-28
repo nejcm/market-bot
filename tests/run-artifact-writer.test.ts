@@ -213,6 +213,27 @@ function failedManifest(overrides: Partial<Parameters<typeof buildFailedRunManif
     predictionErrors: [],
     totalCalls: 4,
     reportRepairReprompts: 3,
+    modelCalls: [
+      {
+        stage: "peer-universe-proposal",
+        call: 1,
+        model: "q",
+        status: "ok",
+        tokenEstimate: 30,
+        costEstimateUsd: 0.25,
+        usage: { inputTokens: 20, outputTokens: 10 },
+      },
+      {
+        stage: "final-synthesis",
+        call: 1,
+        model: "s",
+        status: "ok",
+        tokenEstimate: 100,
+        costEstimateUsd: 0.5,
+        usage: "unknown",
+      },
+      { stage: "final-synthesis", call: 2, model: "s", status: "error", usage: "unknown" },
+    ],
     stageOutputs: [
       {
         stage: "final-synthesis",
@@ -808,9 +829,22 @@ describe("failed run manifest", () => {
       schemaVersion: 1,
       phase: "final-synthesis",
       languageViolations: [{ field: "summary", match: "buy shares" }],
-      cost: { tokenEstimate: 100, costEstimateUsd: 0.01 },
+      // Ledger totals count the peer proposal, which has no stage output; the failed call's cost is unknown.
+      cost: {
+        tokenEstimate: 130,
+        modelCalls: [
+          { stage: "peer-universe-proposal" },
+          { stage: "final-synthesis", call: 1 },
+          { stage: "final-synthesis", call: 2, status: "error", usage: "unknown" },
+        ],
+        usageByStage: [
+          { stage: "peer-universe-proposal", calls: 1, inputTokens: 20 },
+          { stage: "final-synthesis", calls: 2, failedCalls: 1, inputTokens: "unknown" },
+        ],
+      },
       sourceGapsAsOf: "pre-synthesis",
     });
+    expect(manifest.failure.value).not.toHaveProperty("cost.costEstimateUsd");
   });
 
   test("includes persisted pre-synthesis audit artifacts when present", () => {

@@ -2119,7 +2119,7 @@
           "unit": "USD"
         },
         {
-          "concept": "LongTermDebt",
+          "concept": "LongTermDebtNoncurrent",
           "periodKey": "instant|2022-12-31",
           "periodEnd": "2022-12-31",
           "form": "10-K/A",
@@ -2141,7 +2141,7 @@
           "unit": "USD"
         },
         {
-          "concept": "LongTermDebt",
+          "concept": "LongTermDebtCurrent+LongTermDebtNoncurrent",
           "periodKey": "instant|2024-12-31",
           "periodEnd": "2024-12-31",
           "form": "10-K",

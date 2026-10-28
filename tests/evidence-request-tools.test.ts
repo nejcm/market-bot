@@ -250,6 +250,55 @@ describe("SEC latest filing evidence tool", () => {
     );
   });
 
+  function tenQOnlyCtx(filingText: string): CollectContext {
+    return baseCtx({
+      request: requestExecutor({
+        json: async ({ adapter }) =>
+          adapter === "sec-tickers"
+            ? jsonResult(adapter, secTickersPayload())
+            : jsonResult(adapter, secSubmissionsPayload(["10-Q"])),
+        text: async ({ adapter }) => textResult(adapter, filingText),
+      }),
+    });
+  }
+
+  const LONG_RISK_FACTORS = `ITEM 1A. RISK FACTORS ${repeatToMinAlpha(
+    "The markets in which our products are sold are highly competitive and rapidly evolving.",
+    1400,
+  )}`;
+
+  test("keeps the MD&A segment table past the risk factors in the evidence summary", async () => {
+    const segmentRow =
+      "Operating income (loss): Data Center $ 2,103 $ (155) $ 3,702 $ 777 Client and Gaming 582 767 1,157 1,263";
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      tenQOnlyCtx(
+        `${LONG_RISK_FACTORS} ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS Results of Continuing Operations The following table provides a summary of net revenue and operating income (loss) by segment: Net revenue: Data Center $ 6,718 $ 3,240 $ 12,493 $ 6,914 ${segmentRow} ${repeatToMinAlpha(
+          "Data Center operating income increased primarily from higher revenue in both periods.",
+        )}`,
+      ),
+    );
+    const item = result.items[0]!;
+
+    expect(item.summary).toContain("10-Q filed 2026-05-01 for period 2026-03-31");
+    expect(item.summary).toContain(`[MD&A] Results of Continuing Operations`);
+    expect(item.summary).toContain(segmentRow);
+    expect(item.sourceIds).toEqual([result.sources[0]!.id]);
+  });
+
+  test("declares the MD&A omission when the filing has none", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      tenQOnlyCtx(LONG_RISK_FACTORS),
+    );
+
+    expect(result.items[0]?.summary).toContain("[Risk Factors] ITEM 1A. RISK FACTORS");
+    expect(result.items[0]?.summary).not.toContain("[MD&A]");
+    expect(result.gaps).toContainEqual(
+      sectionOmissionGap("10-Q", "AAPL", ["MD&A", "Segments", "Notes"]),
+    );
+  });
+
   test("encodes the SEC primary document URL segment", async () => {
     let filingTextUrl = "";
     const ctx = baseCtx({
@@ -517,7 +566,8 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.items[0]?.summary).toContain("Management Discussion");
     expect(result.items[0]?.summary).not.toContain("cover page boilerplate");
     expect(result.items[0]?.summary).not.toContain("hidden-fact");
-    expect(result.items[0]?.summary.length).toBeLessThan(1400);
+    expect(result.items[0]?.summary).toEndWith(`Filing excerpt: ${result.sources[0]!.snippet!}`);
+    expect(result.sources[0]!.snippet!.length).toBeLessThanOrEqual("[MD&A] ".length + 3000);
   });
 
   test("fetches both latest 10-K and latest 10-Q as distinct citeable sources", async () => {

@@ -35,11 +35,13 @@ re-derived properties and targeted assertions, not approving large output snapsh
 - Annual-revenue depth floor is three points for CAGR, not a second per-fixture golden or proof against
   deeper history loss. Cap-shape/history-span/sign relations supply that coverage. Corpus coverage remains
   narrow; synthetic templates are regression evidence, not broad empirical validation.
-- Re-derive every composite fact from stored contributors: one basis per series, arithmetic sum within identity
+- Re-derive every composite fact from stored contributors: one basis per series (D&A, NCI-safe net income, and debt of one economic scope, excepted), arithmetic sum within identity
   tolerance, shared period end, and source-ID closure. Contributor mutation without corresponding value must fail.
-  D&A alone may mix direct/composite periods: combined selection uses the 1% component tolerance under
+  D&A may mix direct/composite periods: combined selection uses the 1% component tolerance under
   [ADR 0004](./0004-evidence-and-model-stage-pipeline.md), verified against raw selected components at cutoff.
   This never relaxes arithmetic tolerance; D&A composites require each of both component groups exactly once.
+  Debt may mix recognized totals and composites of one economic scope; its composites keep the arithmetic,
+  period, and source checks.
 - Investigate invariant failures; fix the defect or narrow by a uniformly applicable domain structure.
   Never add fixture exceptions, skip lists, or allowance ledgers to live invariants. Offline corpus comparison
   allowances are a separate contract, not live-invariant exceptions.

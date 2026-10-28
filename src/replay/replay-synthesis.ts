@@ -229,6 +229,9 @@ export async function executeSynthesisInput(
           predictionRepromptErrors: reprompt?.predictionErrors ?? [],
           reportValidationErrors: reprompt?.reportValidationErrors ?? [],
           allowedSourceIds: reprompt?.allowedSourceIds ?? [],
+          ...(reprompt?.sourceIdRepair === undefined
+            ? {}
+            : { sourceIdRepair: reprompt.sourceIdRepair }),
         },
       );
       options.onRequest?.(request);

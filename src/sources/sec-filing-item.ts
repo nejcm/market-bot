@@ -16,11 +16,8 @@ import {
   sectionMissDescription,
   SEC_SECTION_MIN_ALPHA_CHARS,
   substantiveAlphaCount,
-  truncateText,
   type SectionMiss,
 } from "./sec-filing-text";
-
-const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
 
 export function secPacketGap(symbol: string, form: SecFiling["form"]): SourceGap {
   return sourceGap({
@@ -238,7 +235,6 @@ export function buildSecFilingSourceItem(
     ticker: match.ticker,
     ...(sanitizedName?.text !== undefined ? { name: sanitizedName.text } : {}),
   });
-  const summaryExcerpt = truncateText(sanitizedPacket.text, SEC_FILING_SUMMARY_EXCERPT_CHARS);
   const title = `${command.symbol} SEC ${filing.form}`;
   const summary =
     filing.form === "8-K" || filing.form === "6-K"
@@ -261,7 +257,7 @@ export function buildSecFilingSourceItem(
   const item: ExtendedEvidenceItem = {
     category: "sec-edgar",
     title,
-    summary: `${source.summary} Filing excerpt: ${summaryExcerpt}`,
+    summary: `${source.summary} Filing excerpt: ${sanitizedPacket.text}`,
     sourceIds: [source.id],
     observedAt: source.fetchedAt,
     metrics: {

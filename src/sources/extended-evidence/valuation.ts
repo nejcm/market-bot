@@ -130,10 +130,13 @@ export function addValuationEvidence(
   const revenue = readNumberMetric(secItem?.metrics, "revenue");
   const cash = readNumberMetric(secItem?.metrics, "cash");
   const debt = readNumberMetric(secItem?.metrics, "debt");
+  const withheldDebtPeriodEnd = readStringMetric(secItem?.metrics, "debtIncompletePeriodEnd");
   const missing = [
     ...(marketCap === undefined ? ["marketCap"] : []),
     ...REQUIRED_SEC_METRICS.filter(
-      (metric) => readNumberMetric(secItem?.metrics, metric) === undefined,
+      (metric) =>
+        readNumberMetric(secItem?.metrics, metric) === undefined &&
+        !(metric === "debt" && withheldDebtPeriodEnd !== undefined),
     ),
   ];
 
@@ -143,7 +146,7 @@ export function addValuationEvidence(
     marketCap === undefined ||
     revenue === undefined ||
     cash === undefined ||
-    debt === undefined
+    (debt === undefined && withheldDebtPeriodEnd === undefined)
   ) {
     const gaps = [valuationGap(command, missing.length > 0 ? missing : ["SEC fundamentals"])];
     const mergedEvidence: ExtendedEvidence = {
@@ -177,7 +180,8 @@ export function addValuationEvidence(
   // Reference range and the DCF grid. See industry-classification.ts for why EV has no defensible
   // Definition for a deposit-funded issuer.
   const depositorySic = depositoryIssuerSic(extendedEvidence);
-  const enterpriseValue = depositorySic === undefined ? marketCap + debt - cash : undefined;
+  const enterpriseValue =
+    depositorySic === undefined && debt !== undefined ? marketCap + debt - cash : undefined;
   const evToAnnualizedRevenue =
     enterpriseValue === undefined || annualizedRevenue === undefined
       ? undefined
@@ -186,11 +190,12 @@ export function addValuationEvidence(
     annualizedRevenue === undefined ? undefined : ratio(marketCap, annualizedRevenue);
   const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
   const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
-  const debtToMarketCap = debtCurrent ? ratio(debt, marketCap) : undefined;
-  const netDebt = debt - cash;
-  const netDebtToMarketCap = debtCurrent && cashCurrent ? ratio(netDebt, marketCap) : undefined;
+  const debtToMarketCap = debtCurrent && debt !== undefined ? ratio(debt, marketCap) : undefined;
+  const netDebt = debt === undefined ? undefined : debt - cash;
+  const netDebtToMarketCap =
+    debtCurrent && cashCurrent && netDebt !== undefined ? ratio(netDebt, marketCap) : undefined;
   const staleBalances = [
-    ...(debtCurrent ? [] : [["debt", debtPeriodEnd] as const]),
+    ...(debtCurrent || debt === undefined ? [] : [["debt", debtPeriodEnd] as const]),
     ...(cashCurrent ? [] : [["cash", cashPeriodEnd] as const]),
   ];
   const latestRevenuePeriod = `latest ${revenuePeriodMonths === undefined ? "" : `${String(revenuePeriodMonths)}-month `}revenue ${formatUsd(revenue)}${revenuePeriodEnd === undefined ? "" : ` through ${revenuePeriodEnd}`}`;
@@ -199,13 +204,17 @@ export function addValuationEvidence(
       ? `${latestRevenuePeriod} does not reconcile to TTM revenue, revenue multiples withheld`
       : `TTM revenue ${formatUsd(annualizedRevenue)}${revenuePeriodEnd === undefined ? "" : ` through ${revenuePeriodEnd}`}`;
   const enterpriseValueText =
-    enterpriseValue === undefined
-      ? `enterprise value not applicable (depository issuer, SIC ${depositorySic ?? "unknown"}: deposits and borrowings fund operations rather than sitting on top of them)`
-      : `enterprise value ${formatUsd(enterpriseValue)}`;
+    debt === undefined
+      ? `enterprise value withheld (debt incomplete as of ${withheldDebtPeriodEnd ?? "an undated period"})`
+      : enterpriseValue === undefined
+        ? `enterprise value not applicable (depository issuer, SIC ${depositorySic ?? "unknown"}: deposits and borrowings fund operations rather than sitting on top of them)`
+        : `enterprise value ${formatUsd(enterpriseValue)}`;
   const evToRevenueText =
-    enterpriseValue === undefined
-      ? "EV/TTM revenue not applicable"
-      : `EV/TTM revenue ${fixed(evToAnnualizedRevenue)}`;
+    debt === undefined
+      ? "EV/TTM revenue withheld"
+      : enterpriseValue === undefined
+        ? "EV/TTM revenue not applicable"
+        : `EV/TTM revenue ${fixed(evToAnnualizedRevenue)}`;
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
@@ -215,8 +224,8 @@ export function addValuationEvidence(
     metrics: {
       marketCap,
       cash,
-      debt,
-      netDebt,
+      ...(debt === undefined ? {} : { debt }),
+      ...(netDebt === undefined ? {} : { netDebt }),
       ...(enterpriseValue === undefined ? {} : { enterpriseValue }),
       latestPeriodRevenue: revenue,
       ...(annualizedRevenue !== undefined ? { annualizedRevenue } : {}),

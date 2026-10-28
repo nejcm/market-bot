@@ -1117,32 +1117,20 @@ describe("collectValuationComps", () => {
     );
 
     const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
-    expect(amd).toMatchObject({
-      symbol: "AMD",
-      cash: 10,
-      debt: 64_503_000_000,
-      cashPeriodEnd: "2026-06-30",
-      debtPeriodEnd: "2025-12-31",
-      usable: false,
-    });
-    expect(amd?.enterpriseValue).toBe(MIXED_PERIOD_METRIC);
+    expect(amd).toMatchObject({ symbol: "AMD", cash: 10, usable: false });
+    expect(amd?.debt).toBeUndefined();
+    expect(amd?.enterpriseValue).toBeUndefined();
     expect(amd?.evToAnnualizedRevenue).toBeUndefined();
     expect(amd?.sourceIds.length).toBeGreaterThan(0);
     expect(result.artifact.excludedPeers).toContainEqual(
       expect.objectContaining({
         symbol: "AMD",
-        reason: expect.stringMatching(
-          /cash period end 2026-06-30 and debt period end 2025-12-31 diverge by \d+ days; enterprise value flagged as mixed-period/u,
-        ),
+        reason: expect.stringContaining("incomplete SEC debt basis: debt composite for 2026-06-30"),
       }),
     );
     expect(result.gaps).toContainEqual(
       expect.objectContaining({
-        source: "valuation-peers",
-        symbol: "AMD",
-        message: expect.stringMatching(
-          /Peer AMD excluded from valuation comps: cash period end 2026-06-30 and debt period end 2025-12-31 diverge by \d+ days; enterprise value flagged as mixed-period/u,
-        ),
+        message: expect.stringContaining("SEC debt withheld: the newest debt instant 2026-06-30"),
       }),
     );
   });
@@ -1160,15 +1148,14 @@ describe("collectValuationComps", () => {
       symbol: "AMD",
       cash: 10,
       cashPeriodEnd: "2026-06-29",
-      debt: 5,
-      debtPeriodEnd: "2026-01-29",
       usable: false,
     });
+    expect(amd?.debt).toBeUndefined();
     expect(amd?.evToAnnualizedRevenue).toBeUndefined();
     expect(result.artifact.excludedPeers).toContainEqual(
       expect.objectContaining({
         symbol: "AMD",
-        reason: expect.stringContaining("enterprise value flagged as mixed-period"),
+        reason: expect.stringContaining("incomplete SEC debt basis"),
       }),
     );
   });

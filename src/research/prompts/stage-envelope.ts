@@ -3,6 +3,7 @@ import type { CollectedSources } from "../../sources/types";
 import type { LoadedPrompt, StageLabel } from "../prompt-loader";
 import type { LoadedPlaybook } from "../playbooks";
 import type { DepthProfile, ResearchContext } from "../research-context-types";
+import type { SourceIdRepair } from "./source-id-guidance";
 
 // Everything buildStagePrompt needs: the evidence payload plus the per-stage steering inputs.
 export interface StageInput {
@@ -15,6 +16,7 @@ export interface StageInput {
   readonly predictionRepromptErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
+  readonly sourceIdRepair?: SourceIdRepair;
 }
 
 export interface StageSettings {
@@ -55,6 +57,7 @@ export interface StagePromptParts {
   readonly postSynthesisAuditGuidance?: Record<string, string> | undefined;
   readonly reportValidationErrors: readonly string[];
   readonly reportLanguageRepair?: string | undefined;
+  readonly sourceIdRepair?: SourceIdRepair | undefined;
   readonly requiredShape: Record<string, unknown>;
 }
 
@@ -87,6 +90,7 @@ export function assembleStagePrompt(parts: StagePromptParts): string {
     ...(parts.reportLanguageRepair !== undefined
       ? { reportLanguageRepair: parts.reportLanguageRepair }
       : {}),
+    ...(parts.sourceIdRepair !== undefined ? { sourceIdRepair: parts.sourceIdRepair } : {}),
     requiredShape: parts.requiredShape,
   });
 }

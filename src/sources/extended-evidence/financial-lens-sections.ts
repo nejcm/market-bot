@@ -27,6 +27,7 @@ import {
   financialStatementSeriesByKey,
   isYearAligned,
   latestFinancialStatementFact,
+  withheldDebt,
 } from "./financial-statement-selection";
 import type {
   FinancialStatementFact,
@@ -212,30 +213,46 @@ function missingPartner(
 }
 
 function incompleteDebtPeriod(ctx: MetricContext): string | undefined {
-  const debtEnd = latestFact(ctx, "debt")?.periodEnd;
-  if (ctx.statements === undefined) {
-    return readStringMetric(secItem(ctx)?.metrics, "debtIncompletePeriodEnd");
-  }
-  return ctx.statements.omissionNotes
-    .filter((note) => note.code === "incomplete-composite-series" && note.seriesKey === "debt")
-    .map((note) => note.periodKey?.replace(/^instant\|/u, ""))
-    .filter((end): end is string => end !== undefined && debtEnd !== undefined && end > debtEnd)
-    .toSorted()
-    .at(-1);
+  return ctx.statements === undefined
+    ? readStringMetric(secItem(ctx)?.metrics, "debtIncompletePeriodEnd")
+    : withheldDebt(ctx.statements)?.periodEnd;
 }
 
 function debtLabel(ctx: MetricContext): string {
-  const fact = latestFact(ctx, "debt");
   const basis =
     ctx.statements === undefined
       ? readStringMetric(secItem(ctx)?.metrics, "debtBasis")
-      : fact?.basis;
-  const label = basis === "gross-principal" ? "Debt (gross principal)" : "Debt";
-  const incomplete = incompleteDebtPeriod(ctx);
-  const periodEnd = fact?.periodEnd ?? readStringMetric(secItem(ctx)?.metrics, "debtPeriodEnd");
-  return incomplete === undefined
-    ? label
-    : `${label} as of ${periodEnd ?? "an undated period"}; incomplete as of ${incomplete}`;
+      : latestFact(ctx, "debt")?.basis;
+  return basis === "gross-principal" ? "Debt (gross principal)" : "Debt";
+}
+
+function withCompleteDebt(definition: MetricDefinition): MetricDefinition {
+  return {
+    ...definition,
+    compute: (ctx) => {
+      const incomplete = incompleteDebtPeriod(ctx);
+      return incomplete === undefined
+        ? definition.compute(ctx)
+        : { status: "missing", reason: `incomplete debt as of ${incomplete}` };
+    },
+  };
+}
+
+function withFreshDebt(definition: MetricDefinition): MetricDefinition {
+  return {
+    ...definition,
+    compute: (ctx) => {
+      const outcome = definition.compute(ctx);
+      return outcome.status !== "value" ||
+        ctx.asOf === undefined ||
+        (outcome.periodEnd !== undefined && isFreshPeriodEnd(outcome.periodEnd, ctx.asOf))
+        ? outcome
+        : {
+            status: "missing",
+            reason: `stale debt as of ${outcome.periodEnd ?? "an undated period"}`,
+          };
+    },
+  };
 }
 
 function annualize(value: number, periodMonths: number | undefined): number {
@@ -1078,15 +1095,6 @@ function netDebtDefinition(): MetricDefinition {
         return missingPartner(ctx, "cash", anchor, [factInput(anchor, "debt")]);
       }
       const inputs = [factInput(anchor, "debt"), factInput(cash, "cash")];
-      const incomplete = incompleteDebtPeriod(ctx);
-      if (incomplete !== undefined) {
-        return {
-          status: "missing",
-          reason: `incomplete debt as of ${incomplete}`,
-          ...periodOf(anchor),
-          inputs,
-        };
-      }
       if (!isCurrentPeriod(ctx, anchor.periodEnd)) {
         return {
           status: "missing",
@@ -1311,15 +1319,6 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
         factInput(anchor, "debt"),
         ...(cash === undefined ? [] : [factInput(cash, "cash")]),
       ];
-      const incomplete = incompleteDebtPeriod(ctx);
-      if (id === "netDebtToMarketCap" && incomplete !== undefined) {
-        return {
-          status: "missing",
-          reason: `incomplete debt as of ${incomplete}`,
-          ...periodOf(anchor),
-          inputs,
-        };
-      }
       if (numerator === undefined) {
         return missingPartner(ctx, "cash", anchor, inputs);
       }
@@ -2098,12 +2097,12 @@ function lensDefinitions(
     ],
     "Financial Strength": [
       instantDefinition("cash", "cash", "Cash"),
-      instantDefinition("debt", "debt", debtLabel(ctx)),
-      netDebtDefinition(),
-      marketLeverageDefinition("debtToMarketCap"),
-      marketLeverageDefinition("netDebtToMarketCap"),
+      withCompleteDebt(withFreshDebt(instantDefinition("debt", "debt", debtLabel(ctx)))),
+      withCompleteDebt(netDebtDefinition()),
+      withCompleteDebt(marketLeverageDefinition("debtToMarketCap")),
+      withCompleteDebt(marketLeverageDefinition("netDebtToMarketCap")),
       currentRatioDefinition(),
-      debtToEquityDefinition(),
+      withCompleteDebt(debtToEquityDefinition()),
       payoutRatioDefinition(),
       dividendYieldDefinition(),
       ...financingCurrentnessDefinitions(ctx),

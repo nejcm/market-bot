@@ -312,22 +312,26 @@ export function guardIncompleteDebtValuationItem(
   sec: Readonly<Record<string, number | string>> | undefined,
 ): { readonly item: ExtendedEvidenceItem; readonly gaps: readonly SourceGap[] } {
   const incompletePeriodEnd = readStringMetric(sec, "debtIncompletePeriodEnd");
-  if (incompletePeriodEnd === undefined || item.metrics?.netDebt === MIXED_PERIOD_METRIC) {
+  if (incompletePeriodEnd === undefined) {
     return { item, gaps: [] };
   }
-  const message = `Incomplete SEC debt for ${symbol}: debt at ${incompletePeriodEnd} is incomplete (${readStringMetric(sec, "debtIncompleteReason") ?? "unknown reason"}); enterprise value and net debt withheld rather than using older debt`;
+  if (item.metrics?.netDebt === MIXED_PERIOD_METRIC) {
+    const { debtToMarketCap: _withheld, ...metrics } = item.metrics;
+    return { item: { ...item, metrics }, gaps: [] };
+  }
+  const message = `Incomplete SEC debt for ${symbol}: debt at ${incompletePeriodEnd} is incomplete (${readStringMetric(sec, "debtIncompleteReason") ?? "unknown reason"}); enterprise value, net debt and debt/market cap withheld rather than using older debt`;
   const metrics = Object.fromEntries(
     Object.entries(item.metrics ?? {}).filter(
-      ([key]) => key !== "evToAnnualizedRevenue" && key !== "netDebtToMarketCap",
+      ([key]) => !["evToAnnualizedRevenue", "debtToMarketCap", "netDebtToMarketCap"].includes(key),
     ),
   );
   return {
     item: {
       ...item,
-      summary: `Valuation Evidence: ${message}. Raw market cap, cash, debt, and revenue metrics are retained.`,
+      summary: `Valuation Evidence: ${message}. Raw market cap, cash, ${metrics.debt === undefined ? "" : "debt, "}and revenue metrics are retained.`,
       metrics: {
         ...metrics,
-        netDebt: MIXED_PERIOD_METRIC,
+        ...(metrics.netDebt === undefined ? {} : { netDebt: MIXED_PERIOD_METRIC }),
         ...(metrics.enterpriseValue === undefined ? {} : { enterpriseValue: MIXED_PERIOD_METRIC }),
       },
     },

@@ -849,6 +849,21 @@ describe("StageInput assembly", () => {
     expect(withErrors.reportValidationErrors).toEqual(["missing keyFindings"]);
   });
 
+  test("routes sourceIdRepair into the final-synthesis prompt only when provided", () => {
+    const without = JSON.parse(buildStagePrompt("final-synthesis", baseStageInput())) as {
+      readonly sourceIdRepair?: unknown;
+    };
+    expect(without.sourceIdRepair).toBeUndefined();
+    const repair = {
+      instruction: "fixed",
+      hints: [{ citedId: "x-aapl", candidates: ["market-aapl"] }],
+    };
+    const withRepair = JSON.parse(
+      buildStagePrompt("final-synthesis", baseStageInput({ sourceIdRepair: repair })),
+    ) as { readonly sourceIdRepair?: unknown };
+    expect(withRepair.sourceIdRepair).toEqual(repair);
+  });
+
   test("passes priorStages through to the prompt payload", () => {
     const prompt = JSON.parse(
       buildStagePrompt(

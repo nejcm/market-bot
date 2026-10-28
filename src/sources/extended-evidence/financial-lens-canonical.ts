@@ -29,6 +29,7 @@ import {
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
   unadjustedLeaseInclusiveDebt,
+  withheldDebt,
 } from "./financial-statement-selection";
 
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION = 1;
@@ -239,27 +240,21 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       income.consolidatedNetIncome,
     );
   }
-  const { debtPeriodEnd } = metrics;
-  const [incompleteDebt] = artifact.omissionNotes
-    .filter(
-      (note) =>
-        note.code === "incomplete-composite-series" &&
-        note.seriesKey === "debt" &&
-        typeof debtPeriodEnd === "string" &&
-        (note.periodKey?.replace(/^instant\|/u, "") ?? "") > debtPeriodEnd,
-    )
-    .toSorted((left, right) => (right.periodKey ?? "").localeCompare(left.periodKey ?? ""));
-  const incompletePeriodEnd = incompleteDebt?.periodKey?.replace(/^instant\|/u, "");
-  if (incompleteDebt !== undefined && incompletePeriodEnd !== undefined) {
-    metrics.debtIncompletePeriodEnd = incompletePeriodEnd;
-    metrics.debtIncompleteReason =
-      /is incomplete: (?<reason>.*)\.$/u.exec(incompleteDebt.message)?.groups?.reason ??
-      incompleteDebt.message;
+  const withheld = withheldDebt(artifact);
+  if (withheld !== undefined) {
+    for (const key of Object.keys(metrics).filter((candidate) =>
+      /^debt(?:[A-Z]|$)/u.test(candidate),
+    )) {
+      delete metrics[key];
+    }
+    metrics.debtIncompletePeriodEnd = withheld.periodEnd;
+    metrics.debtIncompleteReason = withheld.reason;
   }
   const latestDebt = latestFinancialStatementFact(
     financialStatementFacts(artifact.statements.balanceSheet.debt),
   );
   if (
+    withheld === undefined &&
     latestDebt !== undefined &&
     latestDebt.basis === undefined &&
     unadjustedLeaseInclusiveDebt(latestDebt.taxonomy, latestDebt.concept).length > 0

@@ -309,9 +309,10 @@ test("newer incomplete debt withholds net debt and preserves its warning from st
       reason: expect.stringContaining("incomplete"),
     });
   }
-  expect(rows?.find((row) => row.id === "debt")?.label).toBe(
-    "Debt as of 2025-12-31; incomplete as of 2026-03-31",
-  );
+  expect(rows?.find((row) => row.id === "debt")).toMatchObject({
+    status: "missing",
+    reason: "incomplete debt as of 2026-03-31",
+  });
 });
 
 test("statements preserve the gross-principal debt basis in the artifact", () => {

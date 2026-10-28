@@ -10,8 +10,10 @@ import type { ModelUsage } from "../model/types";
 import { applyEarningsForecastPolicy } from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
 import { ReportLanguageViolationError } from "../report/schema";
+import { SourceIdValidationError } from "../report/source-id-validation-error";
 import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
 import type { ResearchContext } from "./research-context-types";
+import { buildSourceIdRepair, type SourceIdRepair } from "./prompts/source-id-guidance";
 import {
   assembleResearchReportWithRelocations,
   parseModelPayload,
@@ -23,13 +25,18 @@ export interface StageReprompt {
   readonly predictionErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
+  readonly unknownSourceIds?: readonly string[];
+  readonly sourceIdRepair?: SourceIdRepair;
   /** Predictions from the attempt being repaired that already validated. A repair reprompt
    *  regenerates the whole report from a stateless call, so without this the model never sees the
    *  predictions it is supposed to keep and silently returns fewer than it started with. */
   readonly retainedPredictions?: readonly Prediction[];
 }
 
-export type StageRepromptReason = Omit<StageReprompt, "allowedSourceIds" | "retainedPredictions">;
+export type StageRepromptReason = Omit<
+  StageReprompt,
+  "allowedSourceIds" | "sourceIdRepair" | "retainedPredictions"
+>;
 
 export interface StageOutput {
   readonly stage: StageLabel;
@@ -250,6 +257,7 @@ async function validateBaseReport(
   readonly reportValidationErrors: readonly string[];
 }> {
   let reportValidationErrors: readonly string[] = [];
+  let unknownSourceIds: readonly string[] = [];
   try {
     return {
       progress,
@@ -258,6 +266,7 @@ async function validateBaseReport(
     };
   } catch (error: unknown) {
     reportValidationErrors = [errorMessage(error)];
+    unknownSourceIds = unknownSourceIdsOf(error);
     const unrepairable = unrepairableLanguageRejection(
       error,
       input,
@@ -275,6 +284,7 @@ async function validateBaseReport(
   const validationState = await repromptFinalSynthesis(input, progress.retainedPredictions, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
+    unknownSourceIds,
   });
   let validationProgress: SynthesisProgress = {
     state: validationState,
@@ -295,6 +305,7 @@ async function validateBaseReport(
     const state = await repromptFinalSynthesis(input, validationProgress.retainedPredictions, {
       predictionErrors: postReportPredictionErrors,
       reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
+      unknownSourceIds,
     });
     validationProgress = {
       state,
@@ -444,6 +455,7 @@ async function buildReportWithRepair(
     const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
       ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
       reportValidationErrors: accumulatedErrors,
+      unknownSourceIds: unknownSourceIdsOf(error),
     });
     const nextProgress: SynthesisProgress = {
       state,
@@ -502,18 +514,24 @@ async function runPredictionReprompts(
 async function repromptFinalSynthesis(
   input: SynthesizeReportUntilValidInput,
   retained: readonly Prediction[],
-  reprompt: Omit<StageReprompt, "allowedSourceIds" | "retainedPredictions">,
+  reprompt: Omit<StageReprompt, "allowedSourceIds" | "sourceIdRepair" | "retainedPredictions">,
 ): Promise<FinalSynthesisState> {
   return runAndReadFinalSynthesis(input, { ...reprompt, retainedPredictions: retained });
+}
+
+function unknownSourceIdsOf(error: unknown): readonly string[] {
+  return error instanceof SourceIdValidationError ? error.unknownSourceIds : [];
 }
 
 async function runAndReadFinalSynthesis(
   input: SynthesizeReportUntilValidInput,
   reprompt?: StageReprompt,
 ): Promise<FinalSynthesisState> {
+  const sourceIdRepair = buildSourceIdRepair(reprompt?.unknownSourceIds ?? [], input.sources);
   const output = await input.runFinalSynthesis(input.priorStages, {
     ...reprompt,
     allowedSourceIds: [...input.knownSourceIds].toSorted(),
+    ...(sourceIdRepair === undefined ? {} : { sourceIdRepair }),
   });
   let payload: ModelReportPayload = {};
   try {

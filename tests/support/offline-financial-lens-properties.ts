@@ -60,6 +60,27 @@ function sourceContainsFact(input: OfflineFinancialStatementInput, fact: Financi
   if (!isRecord(taxonomy)) {
     return false;
   }
+  if (fact.composite !== undefined) {
+    const { components } = fact.composite;
+    return (
+      components.reduce((sum, component) => sum + component.value, 0) === fact.value &&
+      components.every((component) => {
+        const values = taxonomy[component.concept];
+        const units = isRecord(values) && isRecord(values.units) ? values.units[fact.unit] : [];
+        return (
+          Array.isArray(units) &&
+          units.some(
+            (value) =>
+              isRecord(value) &&
+              value.val === Math.abs(component.value) &&
+              value.filed === component.filedAt &&
+              value.end === component.periodEnd &&
+              (value.accn ?? null) === component.accessionNumber,
+          )
+        );
+      })
+    );
+  }
   const concept = taxonomy[fact.concept];
   if (!isRecord(concept)) {
     return false;

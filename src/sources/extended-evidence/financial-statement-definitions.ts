@@ -41,16 +41,23 @@ export interface DebtTaxonomyConcepts {
   readonly leaseInclusive?: Readonly<Record<string, "current" | "noncurrent" | "total">>;
   readonly unrecognizedBorrowing?: RegExp;
   readonly umbrellas?: Readonly<Record<string, readonly string[]>>;
+  readonly ambiguousLongTermDebt?: {
+    readonly concept: string;
+    readonly current: string;
+    readonly currentTotal: string;
+    readonly shortTerm: readonly string[];
+    readonly commercialPaper: string;
+  };
 }
 
 // Inner arrays are alternatives for one line item; separate entries are disjoint and add.
 export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxonomyConcepts>> = {
   "us-gaap": {
     totals: [
-      "LongTermDebt",
       "DebtLongtermAndShorttermCombinedAmount",
       "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
       "DebtAndCapitalLeaseObligations",
+      "LongTermDebt",
     ],
     current: {
       generic: [
@@ -68,7 +75,7 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
       ],
     },
     noncurrent: {
-      generic: ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+      generic: ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations", "LongTermDebt"],
       instruments: [
         ["LongTermNotesPayable"],
         ["LongTermLoansPayable"],
@@ -90,8 +97,17 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
     },
     // An umbrella spans both sides: used only when no leg and no generic side line is tagged.
     umbrellas: { LineOfCredit: ["LongTermLineOfCredit", "LinesOfCreditCurrent"] },
+    // Filers tag LongTermDebt as either all long-term debt or only its noncurrent balance-sheet line.
+    ambiguousLongTermDebt: {
+      concept: "LongTermDebt",
+      current: "LongTermDebtCurrent",
+      currentTotal: "DebtCurrent",
+      shortTerm: ["ShortTermBorrowings", "ShortTermDebt", "CommercialPaper"],
+      commercialPaper: "CommercialPaper",
+    },
+    // Cash-flow and residual-liability concepts also end in "Debt" but are never a borrowing balance.
     unrecognizedBorrowing:
-      /(?:Debt|Borrowings|Notes|NotesPayable|LoansPayable|LinesOfCredit|LineOfCredit|CommercialPaper|Debt\w*LeaseObligations)(?:Current|Noncurrent)?$/u,
+      /^(?!ProceedsFrom|RepaymentsOf|PaymentsOf|PaymentsFor|LiabilitiesOtherThan).*(?:Debt|Borrowings|Notes|NotesPayable|LoansPayable|LinesOfCredit|LineOfCredit|CommercialPaper|Debt\w*LeaseObligations)(?:Current|Noncurrent)?$/u,
   },
   "ifrs-full": {
     totals: ["Borrowings"],
@@ -99,6 +115,15 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
     noncurrent: { generic: ["NoncurrentBorrowings"], instruments: [] },
   },
 };
+
+export const US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT =
+  "LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths";
+
+export const US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS: readonly string[] = [
+  ...DEBT_CONCEPTS["us-gaap"].current.generic,
+  ...DEBT_CONCEPTS["us-gaap"].current.instruments.flat(),
+  US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
+];
 
 // Ratio inputs follow the core statements: they never displace a capped period or sway taxonomy and currency.
 export const CAP_FOLLOWER_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([

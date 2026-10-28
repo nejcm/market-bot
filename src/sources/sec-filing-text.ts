@@ -107,7 +107,7 @@ export function sixKResultsCoverRank(normalizedCover: string): number | undefine
   return SIX_K_INTERIM_FINANCIALS_PATTERN.test(normalizedCover) ? 1 : undefined;
 }
 
-export function truncateText(value: string, maxChars: number): string {
+function truncateText(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
     return value;
   }
@@ -115,8 +115,8 @@ export function truncateText(value: string, maxChars: number): string {
   return `${trimmed}...`;
 }
 
-// Per-section char budgets for the bounded SEC section packet. The sum bounds
-// The total text projected to the model for profile extraction.
+// Per-section char budgets for the bounded SEC section packet. The sum bounds the filing
+// Text every stage sees: the profile via the Source snippet, the others via the evidence summary.
 const SEC_SECTION_BUDGETS = {
   business: 2000,
   riskFactors: 1500,

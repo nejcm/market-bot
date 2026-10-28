@@ -6,6 +6,7 @@ import {
   fetchSecCompanyFactsForSymbol,
   grossPrincipalDebtGap,
   leaseInclusiveDebtGap,
+  withheldDebtGap,
   type SecCompanyFactsResult,
 } from "./sec-edgar";
 import {
@@ -17,6 +18,8 @@ import {
   MAX_ANNUAL_DURATION_MONTHS,
   isDebtPresenceConcept,
   isRevenueConceptInRecencyBucket,
+  US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
+  US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
   type FinancialStatementSeriesDefinition,
 } from "./financial-statement-definitions";
 import {
@@ -40,6 +43,7 @@ import {
   resolveDebtAtInstant,
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
+  withheldDebt,
 } from "./financial-statement-selection";
 import {
   calendarYearFromPeriodEnd,
@@ -510,6 +514,22 @@ function factsForDebt(
     filedAt,
     value,
   }));
+  const principalFacts = Object.fromEntries(
+    (
+      [
+        ["dueWithinYear", US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT],
+        ["total", GROSS_PRINCIPAL_DEBT_CONCEPT],
+        ["unamortized", "DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet"],
+      ] as const
+    ).map(([key, concept]) => [
+      key,
+      taxonomy === "us-gaap"
+        ? unitFacts(taxonomy, root, concept).filter(
+            (fact) => fact.periodStart === undefined && eligible(fact),
+          )
+        : [],
+    ]),
+  );
   const resolved = [...instants.values()].map((tagged) => {
     const facts = [...tagged.values()];
     const instant = {
@@ -526,6 +546,18 @@ function factsForDebt(
       tagged,
       history,
       (fact) => fact.value,
+      (fact) => fact.filedAt,
+      Object.fromEntries(
+        Object.entries(principalFacts).map(([key, values]) => [
+          key,
+          values
+            .filter(
+              (fact) => fact.periodEnd === instant.periodEnd && fact.filedAt <= instant.filedAt,
+            )
+            .toSorted(compareFinancialStatementFacts)
+            .at(0)?.value,
+        ]),
+      ),
     );
     const subtracted = new Set(
       resolution.contributors.flatMap((contributor) =>
@@ -564,10 +596,9 @@ function factsForDebt(
   const [latest] = current
     .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))
     .toSorted((left, right) => compareFinancialStatementFacts(left.fact, right.fact));
-  const latestComplete = latest?.periodEnd ?? "";
   const notes = new Map(
     current.flatMap(({ periodEnd, filedAt, incompleteReason }) =>
-      incompleteReason === undefined || periodEnd <= latestComplete
+      incompleteReason === undefined
         ? []
         : [[periodEnd, incompleteDebtNote(periodEnd, incompleteReason, filedAt)] as const],
     ),
@@ -575,11 +606,7 @@ function factsForDebt(
   const ineligible = (latest?.fact.concept.split(/[+-]/u) ?? []).flatMap((concept) =>
     unitFacts(taxonomy, root, concept).filter((fact) => !eligible(fact)),
   );
-  const kept = new Set(
-    current.flatMap((entry) =>
-      entry.incomplete || entry.basis !== latest?.basis ? [] : entry.restatements,
-    ),
-  );
+  const kept = new Set(current.flatMap((entry) => (entry.incomplete ? [] : entry.restatements)));
   return {
     facts: [
       ...candidates.filter((fact) => kept.has(fact)),
@@ -1498,7 +1525,21 @@ function withGrossPrincipalDebt(
   if (
     net === undefined ||
     latestGross === undefined ||
-    !grossPrincipalDebtFallbackApplies(net, latestGross.periodEnd, grossAtNet?.value)
+    !grossPrincipalDebtFallbackApplies(
+      net,
+      latestGross.periodEnd,
+      grossAtNet?.value,
+      US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS.flatMap((concept) =>
+        (root === undefined ? [] : unitFacts("us-gaap", root, concept))
+          .filter(
+            (fact) =>
+              fact.periodStart === undefined &&
+              fact.periodEnd === latestGross.periodEnd &&
+              eligible(fact),
+          )
+          .map((fact) => fact.value),
+      ),
+    )
   ) {
     return selected;
   }
@@ -2170,6 +2211,10 @@ export function deriveFinancialStatements(
 export function financialStatementsDebtBasisGaps(
   artifact: FinancialStatementsArtifact,
 ): readonly SourceGap[] {
+  const withheld = withheldDebt(artifact);
+  if (withheld !== undefined) {
+    return [{ ...withheldDebtGap(withheld.periodEnd, withheld.reason), symbol: artifact.symbol }];
+  }
   const latest = latestFinancialStatementFact(
     financialStatementFacts(artifact.statements.balanceSheet.debt),
   );

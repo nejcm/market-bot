@@ -411,6 +411,7 @@ export function assertCompositeFactIntegrity(
     check(
       series.key === "depreciationAndAmortization" ||
         series.key === "netIncome" ||
+        series.key === "debt" ||
         methods.size <= 1,
       "A8",
       `${series.key} mixes composite and direct bases`,

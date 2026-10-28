@@ -8,6 +8,7 @@ import {
   financialStatementFacts,
   financialStatementSeriesByKey,
   latestFinancialStatementFact,
+  withheldDebt,
 } from "../sources/extended-evidence/financial-statement-selection";
 
 export interface LabeledPeriod {
@@ -130,7 +131,10 @@ export function financialPosition(
   }
   const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
   const cash = latestPositionValue(artifact, "cash", cutoff);
-  const debt = latestPositionValue(artifact, "debt", cutoff);
+  const debt =
+    withheldDebt(artifact) === undefined
+      ? latestPositionValue(artifact, "debt", cutoff)
+      : undefined;
   const dilutedShares = latestPositionValue(artifact, "dilutedShares", cutoff);
   if (cash === undefined && debt === undefined && dilutedShares === undefined) {
     return undefined;

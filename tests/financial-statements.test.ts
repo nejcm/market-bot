@@ -2690,7 +2690,7 @@ describe("canonical financial statements", () => {
       expect(debt).not.toHaveProperty("composite");
     });
 
-    test("keeps LongTermDebt when a later-filed combined total reports the same period", () => {
+    test("prefers a later-filed combined total over LongTermDebt for the same period", () => {
       const { debt } = selectBoth({
         LongTermDebt: { USD: [fy2026(120_000_000_000)] },
         DebtLongtermAndShorttermCombinedAmount: {
@@ -2698,7 +2698,10 @@ describe("canonical financial statements", () => {
         },
       });
 
-      expect(debt).toMatchObject({ value: 120_000_000_000, concept: "LongTermDebt" });
+      expect(debt).toMatchObject({
+        value: 129_541_000_000,
+        concept: "DebtLongtermAndShorttermCombinedAmount",
+      });
     });
 
     test("accepts a one-sided notes-payable set once the prior total is over a year old", () => {
@@ -3044,12 +3047,12 @@ describe("canonical debt basis selection", () => {
 
   test("breaks equal periodEnd ties in favor of the direct alias", () => {
     const direct = amdInstant({
-      value: 4_000_000_000,
+      value: 3_226_000_000,
       form: "10-Q",
       fiscalPeriod: "Q2",
-      filedAt: "2026-07-23",
+      filedAt: "2026-08-06",
       periodEnd: "2026-06-27",
-      accessionNumber: "0000000000-26-000000",
+      accessionNumber: "0000000000-26-000001",
     });
     const artifact = derive(
       payload({
@@ -3068,7 +3071,7 @@ describe("canonical debt basis selection", () => {
     ]);
 
     expect(debt).toMatchObject({
-      value: 4_000_000_000,
+      value: 3_226_000_000,
       extractionMethod: "sec-companyfacts",
       concept: "LongTermDebt",
     });
@@ -3724,8 +3727,8 @@ describe("canonical debt basis selection", () => {
       extractionMethod: "sec-companyfacts",
       concept: "LongTermDebt",
     });
-    expect(summary?.metrics.debt).toBe(64_503_000_000);
-    expect(summary?.metrics.debtPeriodEnd).toBe("2025-12-31");
+    expect(summary?.metrics.debt).toBeUndefined();
+    expect(summary?.metrics.debtIncompletePeriodEnd).toBe("2026-06-30");
   });
 
   test("still refuses a debt series when nothing is tagged and accepts a lone generic line", () => {
@@ -3783,7 +3786,7 @@ describe("canonical debt basis selection", () => {
               form: "10-Q",
               fiscalYear: 2026,
               fiscalPeriod: "Q2",
-              filedAt: "2026-07-23",
+              filedAt: "2026-08-06",
               periodEnd: "2026-06-30",
             }),
           ],
@@ -3803,7 +3806,7 @@ describe("canonical debt basis selection", () => {
         LongTermDebtNoncurrent: {
           USD: [
             fact({
-              value: 70,
+              value: 80,
               form: "10-Q",
               fiscalYear: 2026,
               fiscalPeriod: "Q2",
@@ -4144,7 +4147,7 @@ describe("canonical debt basis selection", () => {
     expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
   });
 
-  test("canonical and legacy writers fall back to the prior quarter when a current-debt alias omits fiscal period", () => {
+  test("history keeps the prior quarter and legacy withholds it when a current-debt alias omits fiscal period", () => {
     const malformedCurrent = fact({
       value: 40,
       form: "10-Q",
@@ -4195,7 +4198,7 @@ describe("canonical debt basis selection", () => {
     expect(artifact.omissionNotes).toContainEqual(
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
-    expect(legacy?.metrics.debt).toBe(20);
+    expect(legacy?.metrics.debt).toBeUndefined();
     expect(legacy?.debtComposite).toMatchObject({
       selectedConcepts: ["LongTermDebtNoncurrent"],
       periodEnd: "2026-06-30",
@@ -4215,6 +4218,7 @@ function grossFallbackApplies(net: number, gross: number): boolean {
     { periodEnd: "2026-03-31", value: net },
     "2026-06-30",
     gross,
+    [],
   );
 }
 
@@ -4645,7 +4649,20 @@ describe("gross-principal debt fallback", () => {
       grossFallbackApplies(100, -100),
     ]).toEqual([false, false, false]);
     expect(
-      grossPrincipalDebtFallbackApplies({ periodEnd: "2026-06-30", value: 100 }, "2026-06-30", 100),
+      grossPrincipalDebtFallbackApplies(
+        { periodEnd: "2026-06-30", value: 100 },
+        "2026-06-30",
+        100,
+        [],
+      ),
+    ).toBe(false);
+    expect(
+      grossPrincipalDebtFallbackApplies(
+        { periodEnd: "2026-03-31", value: 100 },
+        "2026-06-30",
+        100,
+        [0, 3655],
+      ),
     ).toBe(false);
   });
 });

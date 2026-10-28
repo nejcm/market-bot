@@ -12,7 +12,7 @@ describe("offline financial-statement corpus", () => {
       aapl: { matched: 71, allowances: 4 },
       msft: { matched: 75, allowances: 4 },
       mara: { matched: 66, allowances: 13 },
-      nbis: { matched: 38, allowances: 36 },
+      nbis: { matched: 38, allowances: 35 },
       "fpi-quarterly": { matched: 24, allowances: 52 },
       "fpi-ifrs-semiannual": { matched: 33, allowances: 43 },
     } as const;
@@ -76,6 +76,18 @@ describe("offline financial-statement corpus", () => {
       );
       expect(source).not.toContain("process.env");
     }
+  });
+
+  test("keeps the dated reason NBIS FY2023 debt is withheld", async () => {
+    const { execution } = await loadOfflineCorpusCase("nbis");
+    expect(execution.artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        seriesKey: "debt",
+        periodKey: "instant|2023-12-31",
+        message: expect.stringContaining("establishes whether it includes current maturities"),
+      }),
+    );
   });
 
   test("keeps MARA allowances fixture-specific and source-reproduced", async () => {

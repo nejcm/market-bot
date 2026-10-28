@@ -796,15 +796,15 @@
       "ttm": null
     },
     "debt": {
-      "selectedConcept": "LongTermDebt",
+      "selectedConcept": "LongTermDebtCurrent+LongTermDebtNoncurrent",
       "selectedFact": {
-        "concept": "LongTermDebt",
+        "concept": "LongTermDebtCurrent+LongTermDebtNoncurrent",
         "periodKey": "instant|2025-12-31",
         "periodEnd": "2025-12-31",
         "form": "20-F",
         "filingDate": "2026-04-30",
         "accession": "0001104659-26-052948",
-        "value": 4103200000,
+        "value": 4127700000,
         "currency": "USD",
         "unit": "USD"
       },
@@ -821,24 +821,13 @@
           "unit": "USD"
         },
         {
-          "concept": "LongTermDebt",
-          "periodKey": "instant|2023-12-31",
-          "periodEnd": "2023-12-31",
-          "form": "20-F",
-          "filingDate": "2024-04-26",
-          "accession": "0001558370-24-005891",
-          "value": 1577500000,
-          "currency": "USD",
-          "unit": "USD"
-        },
-        {
-          "concept": "LongTermDebt",
+          "concept": "LongTermDebtCurrent+LongTermDebtNoncurrent",
           "periodKey": "instant|2025-12-31",
           "periodEnd": "2025-12-31",
           "form": "20-F",
           "filingDate": "2026-04-30",
           "accession": "0001104659-26-052948",
-          "value": 4103200000,
+          "value": 4127700000,
           "currency": "USD",
           "unit": "USD"
         }
@@ -1958,15 +1947,6 @@
             "key": "cash",
             "label": "Cash",
             "value": 3678100000,
-            "unit": "currency",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "currency": "USD",
-            "periodEnd": "2025-12-31"
-          },
-          "debt": {
-            "key": "debt",
-            "label": "Debt",
-            "value": 4103200000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
             "currency": "USD",

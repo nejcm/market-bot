@@ -137,7 +137,7 @@ describe("alpha-search debt", () => {
       expect.objectContaining({
         symbol: "VRTX",
         message: expect.stringContaining(
-          "Incomplete SEC debt for alpha-search candidate VRTX: debt at 2025-12-31 is incomplete (no borrowing line item is tagged)",
+          "SEC debt withheld: the newest debt instant 2025-12-31 is incomplete (no borrowing line item is tagged)",
         ),
       }),
     );
@@ -146,6 +146,6 @@ describe("alpha-search debt", () => {
   test("keeps debt resolved at the newest instant", async () => {
     const { debt, gaps } = await debtOf({ LongTermDebt: [at(100, "2025-12-31", "2026-02-13")] });
     expect(debt).toBe(100);
-    expect(gaps.some((gap) => gap.message.includes("Incomplete SEC debt"))).toBe(false);
+    expect(gaps.some((gap) => gap.message.includes("SEC debt withheld"))).toBe(false);
   });
 });

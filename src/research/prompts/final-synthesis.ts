@@ -498,6 +498,7 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     predictionRepromptErrors = [],
     reportValidationErrors = [],
     allowedSourceIds = [],
+    sourceIdRepair,
   } = input;
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
@@ -534,6 +535,7 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     postSynthesisAuditGuidance: postSynthesisAuditGuidance(),
     reportValidationErrors,
     reportLanguageRepair: buildReportLanguageRepairInstruction(reportValidationErrors),
+    sourceIdRepair,
     requiredShape,
   });
 }

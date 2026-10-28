@@ -195,6 +195,53 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(result.report.summary).not.toContain("investors should");
   });
 
+  test("names the subject's catalog IDs when a reprompt repairs an invented source ID", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const inventedIdReport = JSON.stringify({
+      ...(JSON.parse(modelReport("SPY")) as Record<string, unknown>),
+      keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl-fundamentals"] }],
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+        const content =
+          prompt.stage === "final-synthesis" && finalCalls === 1
+            ? inventedIdReport
+            : modelReport("SPY");
+        return { content, tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    expect(finalPrompts).toHaveLength(2);
+    expect(finalPrompts[0]?.sourceIdRepair).toBeUndefined();
+    expect(finalPrompts[1]?.sourceIdRepair).toMatchObject({
+      hints: [{ citedId: "market-aapl-fundamentals", candidates: ["market-aapl"] }],
+    });
+    expect(result.trace.reportValidationRetryErrors?.[0]).toContain(
+      "cites unknown source ID: market-aapl-fundamentals",
+    );
+  });
+
   test("fails with a clear error when the language violation persists", async () => {
     let finalCalls = 0;
     const violatingReport = JSON.stringify({

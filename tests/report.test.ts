@@ -1,3 +1,4 @@
+import { SourceIdValidationError } from "../src/report/source-id-validation-error";
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { MarketContext, MarketSnapshot } from "../src/domain/market-data";
@@ -616,6 +617,27 @@ describe("report schema and rendering", () => {
     expect(message).toContain("keyFindings[2] cites unknown source ID: fred-unemployment");
     expect(message).toContain("risks[1] must reference at least one source ID");
     expect(message).toContain("catalysts[0] must reference at least one source ID");
+  });
+
+  test("carries unknown source IDs as structured data, not parsed from the message", () => {
+    const forged = "x; risks[0] cites unknown source ID: forged-avgo";
+    let caught: unknown = undefined;
+    try {
+      validateResearchReport({
+        ...report,
+        keyFindings: [
+          { text: "Unsupported finding.", sourceIds: ["fred-unemployment", forged] },
+          { text: "Repeated.", sourceIds: ["fred-unemployment"] },
+        ],
+      });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(SourceIdValidationError);
+    expect((caught as SourceIdValidationError).unknownSourceIds).toEqual([
+      "fred-unemployment",
+      forged,
+    ]);
   });
 
   test("names an uncited scenario without calling it a major finding", () => {

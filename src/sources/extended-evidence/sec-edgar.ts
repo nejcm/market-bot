@@ -14,6 +14,8 @@ import { evidenceSource, type CollectedItem, type ProviderResult } from "./commo
 import {
   conceptScope,
   DEBT_CONCEPTS,
+  US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
+  US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
@@ -724,6 +726,7 @@ interface SecDebtSelection {
   readonly composite?: SecDebtComposite;
   readonly grossPrincipal?: { readonly periodEnd: string; readonly netPeriodEnd: string };
   readonly leaseInclusive?: { readonly periodEnd: string; readonly concepts: readonly string[] };
+  readonly incomplete?: { readonly periodEnd: string; readonly reason: string };
 }
 
 function selectDebtMetric(
@@ -746,6 +749,16 @@ function selectDebtMetric(
       { periodEnd: netLatest.end, value: netLatest.val },
       latestGross.end,
       latestFact(gross.filter((value) => value.end === netLatest.end))?.val,
+      US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS.flatMap((concept) =>
+        factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys)
+          .filter(
+            (value) =>
+              value.start === undefined &&
+              value.end === latestGross.end &&
+              isFactObservableAsOf(value, analysisAsOf),
+          )
+          .map((value) => value.val),
+      ),
     )
   ) {
     return net;
@@ -785,6 +798,20 @@ function selectNetDebtMetric(
       instants.set(debtPeriodIdentity(value), tagged);
     }
   }
+  const principalFacts = Object.fromEntries(
+    (
+      [
+        ["dueWithinYear", US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT],
+        ["total", GROSS_PRINCIPAL_DEBT_CONCEPT],
+        ["unamortized", "DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet"],
+      ] as const
+    ).map(([key, concept]) => [
+      key,
+      factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys).filter(
+        (value) => value.start === undefined && isFactObservableAsOf(value, analysisAsOf),
+      ),
+    ]),
+  );
   const resolved = unsupersededDebtResolutions(
     [...instants.values()].map((tagged) => {
       const [anchor] = [...tagged.values()].toSorted(compareFactRecency);
@@ -795,6 +822,18 @@ function selectNetDebtMetric(
         tagged,
         history,
         (fact) => fact.val,
+        (fact) => fact.filed ?? "",
+        Object.fromEntries(
+          Object.entries(principalFacts).map(([key, values]) => [
+            key,
+            latestFact(
+              values.filter(
+                (value) =>
+                  value.end === instant.periodEnd && (value.filed ?? "") <= instant.filedAt,
+              ),
+            )?.val,
+          ]),
+        ),
       );
       const fact =
         resolution.incompleteReason === undefined ? resolvedDebtFact(resolution) : undefined;
@@ -809,7 +848,7 @@ function selectNetDebtMetric(
   const complete = resolved.flatMap((entry) =>
     entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }],
   );
-  const [latest] = complete;
+  const latest = newest?.incomplete === true ? undefined : complete[0];
   const prior =
     latest === undefined
       ? undefined
@@ -833,7 +872,7 @@ function selectNetDebtMetric(
             : {}),
         }
       : undefined;
-  if (latest === undefined && composite === undefined) {
+  if (latest === undefined && composite === undefined && newest?.incomplete !== true) {
     return undefined;
   }
   return {
@@ -849,6 +888,9 @@ function selectNetDebtMetric(
         }
       : {}),
     ...(composite !== undefined ? { composite } : {}),
+    ...(newest?.resolution.incompleteReason !== undefined
+      ? { incomplete: { periodEnd: newest.periodEnd, reason: newest.resolution.incompleteReason } }
+      : {}),
     ...(latest?.fact.end !== undefined && leaseInclusive !== undefined
       ? { leaseInclusive: { periodEnd: latest.fact.end, concepts: leaseInclusive } }
       : {}),
@@ -861,6 +903,17 @@ export function leaseInclusiveDebtGap(periodEnd: string, concepts: readonly stri
   return sourceGap({
     source: "sec-edgar",
     message: `SEC debt as of ${periodEnd} may include finance leases: ${concepts.join(", ")} is tagged without a matching finance-lease amount to remove`,
+    provider: "sec-edgar",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+export function withheldDebtGap(periodEnd: string, reason: string): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `SEC debt withheld: the newest debt instant ${periodEnd} is incomplete (${reason}), and no older amount stands in as current debt`,
     provider: "sec-edgar",
     capability: "extended-evidence",
     cause: "provider-data-missing",
@@ -922,12 +975,6 @@ export function formatSecFundamentalsSummary(
     const scope = metrics?.[`${key}Scope`];
     const basisLabel =
       metrics?.[`${key}Basis`] === "gross-principal" ? `${label} (gross principal)` : label;
-    const incompleteDebtPeriodEnd = metrics?.debtIncompletePeriodEnd;
-    if (key === "debt" && typeof incompleteDebtPeriodEnd === "string") {
-      return [
-        `${basisLabel} ${String(latest)} as of ${String(metrics?.debtPeriodEnd ?? "an undated period")}; incomplete as of ${incompleteDebtPeriodEnd}`,
-      ];
-    }
     return [
       formatMetric(
         scopedLabel(basisLabel, typeof scope === "string" ? scope : undefined),
@@ -980,7 +1027,10 @@ export function summarizeSecFundamentals(
 
   for (const { definition, selection } of metricSelections) {
     if (selection === undefined) {
-      if (!definition.optional) {
+      if (
+        !definition.optional &&
+        !(definition === DEBT_METRIC && debtSelection?.incomplete !== undefined)
+      ) {
         missingFacts.push(definition.key);
       }
       continue;
@@ -1045,14 +1095,10 @@ export function summarizeSecFundamentals(
   if (debtSelection?.grossPrincipal === undefined && debtSelection?.leaseInclusive !== undefined) {
     metrics.debtLeaseScope = DEBT_MAY_INCLUDE_FINANCE_LEASES;
   }
-  const incompleteDebt = debtSelection?.composite;
-  if (
-    debtSelection?.selection !== undefined &&
-    incompleteDebt?.incompleteReason !== undefined &&
-    incompleteDebt.periodEnd !== undefined
-  ) {
+  const incompleteDebt = debtSelection?.incomplete;
+  if (incompleteDebt !== undefined) {
     metrics.debtIncompletePeriodEnd = incompleteDebt.periodEnd;
-    metrics.debtIncompleteReason = incompleteDebt.incompleteReason;
+    metrics.debtIncompleteReason = incompleteDebt.reason;
   }
 
   const summary = formatSecFundamentalsSummary(() => metrics);
@@ -1088,6 +1134,9 @@ export function summarizeSecFundamentals(
 
   const gaps: SourceGap[] = [
     ...grossPrincipalGap,
+    ...(incompleteDebt === undefined
+      ? []
+      : [withheldDebtGap(incompleteDebt.periodEnd, incompleteDebt.reason)]),
     ...(debtSelection?.grossPrincipal === undefined && debtSelection?.leaseInclusive !== undefined
       ? [
           leaseInclusiveDebtGap(

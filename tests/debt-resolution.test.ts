@@ -7,11 +7,9 @@ import {
   financialStatementFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
-import {
-  formatSecFundamentalsSummary,
-  summarizeSecFundamentals,
-} from "../src/sources/extended-evidence/sec-edgar";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { summaryLens } from "./support/financial-lens";
+import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { balanceSheetPeriodDivergence } from "../src/sources/extended-evidence/valuation-comps-support";
@@ -178,7 +176,8 @@ describe("debt resolution at the cash instant", () => {
     });
 
     expect(canonical?.periodEnd).toBe("2026-03-31");
-    expect(legacy?.metrics.debt).toBe(50);
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(legacy?.metrics.debtIncompletePeriodEnd).toBe("2026-06-30");
   });
 
   test("a LineOfCredit umbrella beside a generic side line is refused, never added", () => {
@@ -276,7 +275,7 @@ describe("debt resolution at the cash instant", () => {
         message: expect.stringContaining("OtherLongTermDebtNoncurrent"),
       }),
     );
-    expect(legacy?.metrics.debt).toBe(2_675_244);
+    expect(legacy?.metrics.debt).toBeUndefined();
     expect(legacy?.debtComposite).toMatchObject({
       periodEnd: "2026-07-31",
       incompleteReason: expect.stringContaining("OtherLongTermDebtNoncurrent"),
@@ -348,7 +347,7 @@ describe("debt resolution at the cash instant", () => {
         LongTermDebt: [at(100)],
         LongTermDebtCurrent: [at(10)],
         LongTermDebtNoncurrent: [at(90)],
-        LinesOfCreditCurrent: [at(5)],
+        LinesOfCreditCurrent: [at(0)],
       }).canonical,
     ).toMatchObject({ value: 100, concept: "LongTermDebt" });
     expect(
@@ -611,13 +610,41 @@ describe("older complete debt never stands in for a newer incomplete instant", (
     LongTermNotesPayable: [q3(70)],
   };
 
+  test.each(["legacy", "canonical"] as const)(
+    "%s path publishes no older debt and a dated Source Gap",
+    (path) => {
+      const { artifact, legacy } = resolve(gaap);
+      const item =
+        path === "legacy"
+          ? { metrics: legacy?.metrics, summary: legacy?.summary }
+          : withCanonicalFinancialLensInputs(secEvidenceFrom(legacy?.metrics), artifact).items[0];
+      expect(item?.metrics?.debt).toBeUndefined();
+      expect(item?.metrics?.debtPeriodEnd).toBeUndefined();
+      expect(item?.metrics?.debtIncompletePeriodEnd).toBe("2025-12-31");
+      expect(item?.summary).not.toMatch(/debt/u);
+      const gaps =
+        path === "legacy" ? (legacy?.gaps ?? []) : financialStatementsDebtBasisGaps(artifact);
+      expect(gaps).toContainEqual(
+        expect.objectContaining({
+          message: expect.stringMatching(
+            /^SEC debt withheld: the newest debt instant 2025-12-31 is incomplete \(omits LongTermNotesPayable/u,
+          ),
+        }),
+      );
+      const position = financialPosition(artifact, ANALYSIS_AS_OF);
+      expect(position?.debt).toBeUndefined();
+      expect(position?.cash?.value).toBe(20);
+      expect(position?.notes?.map((note) => note.periodKey)).toContain("instant|2025-12-31");
+      expect(
+        balanceSheetHistory(artifact, ANALYSIS_AS_OF)?.rows.find((row) =>
+          row.period.includes("2025-09-30"),
+        )?.debt?.value,
+      ).toBe(100);
+    },
+  );
+
   test("target valuation withholds EV and declares a Source Gap", () => {
     const { legacy } = resolve(gaap);
-    expect(legacy?.metrics).toMatchObject({
-      debt: 100,
-      debtPeriodEnd: "2025-09-30",
-      debtIncompletePeriodEnd: "2025-12-31",
-    });
     const result = addValuationEvidence(
       { jobType: "equity", assetClass: "equity", symbol: "TEST", depth: "deep" },
       [marketSnapshot({ symbol: "TEST", marketCap: 100 })],
@@ -635,20 +662,55 @@ describe("older complete debt never stands in for a newer incomplete instant", (
         ],
         gaps: [],
       },
-      "2026-08-15T00:00:00.000Z",
+      "2026-02-20T00:00:00.000Z",
     );
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
 
-    expect(valuation?.metrics).toMatchObject({
-      enterpriseValue: "mixed-period",
-      netDebt: "mixed-period",
-    });
+    expect(valuation?.metrics?.marketCap).toBe(100);
+    expect(valuation?.metrics?.debt).toBeUndefined();
+    expect(valuation?.metrics?.netDebt).toBeUndefined();
+    expect(valuation?.metrics?.enterpriseValue).toBeUndefined();
     expect(valuation?.metrics?.evToAnnualizedRevenue).toBeUndefined();
+    expect(valuation?.metrics?.debtToMarketCap).toBeUndefined();
     expect(result.sourceGaps).toContainEqual(
       expect.objectContaining({
         message: expect.stringContaining("Incomplete SEC debt for TEST: debt at 2025-12-31"),
       }),
     );
+  });
+
+  test.each(["legacy", "canonical"] as const)(
+    "%s lens ratios never use the older debt as current",
+    (path) => {
+      const { artifact, legacy } = resolve({
+        ...gaap,
+        StockholdersEquity: [q3(500), fy(500)],
+        CashAndCashEquivalentsAtCarryingValue: [q3(10), fy(20)],
+      });
+      const lens = summaryLens(
+        secEvidenceFrom(legacy?.metrics).items[0],
+        "Financial Strength",
+        "2026-02-20T00:00:00.000Z",
+        path === "canonical" ? artifact : undefined,
+      );
+      const published = lens.metrics.filter((metric) =>
+        ["netDebt", "debtToEquity", "netDebtToMarketCap", "debtToMarketCap"].includes(metric.key),
+      );
+      expect(published.map((metric) => metric.key)).toEqual([]);
+      expect(lens.metrics.find((metric) => metric.key === "debt")).toBeUndefined();
+    },
+  );
+
+  test("an incomplete total-basis instant withholds the older legacy debt", () => {
+    const { legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [fy(20)],
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [q3(100), fy(110)],
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [fy(10)],
+      LongTermDebtAndCapitalLeaseObligations: [fy(100)],
+      LinesOfCreditCurrent: [fy(5)],
+    });
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(legacy?.metrics.debtIncompletePeriodEnd).toBe("2025-12-31");
   });
 
   test("the canonical replacement keeps the incomplete-debt metadata for valuation", () => {
@@ -678,7 +740,7 @@ describe("older complete debt never stands in for a newer incomplete instant", (
     );
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
 
-    expect(valuation?.metrics?.enterpriseValue).toBe("mixed-period");
+    expect(valuation?.metrics?.enterpriseValue).toBeUndefined();
     expect(result.sourceGaps).toContainEqual(
       expect.objectContaining({
         message: expect.stringContaining(
@@ -836,7 +898,7 @@ describe("valuation workbench balance-sheet period gate", () => {
   });
 });
 
-describe("SEC fundamentals prose dates older debt behind a newer incomplete instant", () => {
+describe("SEC fundamentals prose withholds older debt behind a newer incomplete instant", () => {
   const fy = (value: number) => instant(value, "2025-12-31", "2026-02-13", "10-K", "FY");
 
   test("VRTX shape: finance leases only at the newest instant, a borrowing tag last in 2014", () => {
@@ -848,28 +910,18 @@ describe("SEC fundamentals prose dates older debt behind a newer incomplete inst
     });
 
     expect(legacy?.metrics).toMatchObject({ debtIncompletePeriodEnd: "2025-12-31" });
-    expect(legacy?.summary).toContain(
-      "debt 33500000 as of 2014-06-30; incomplete as of 2025-12-31",
+    expect(legacy?.summary).not.toContain("33500000");
+    expect(legacy?.gaps).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("SEC debt withheld: the newest debt instant 2025-12-31"),
+      }),
     );
     const lensDebt = summaryLens(
       secEvidenceFrom(legacy?.metrics).items[0],
       "Financial Strength",
       ANALYSIS_AS_OF,
     ).metrics.find((metric) => metric.key === "debt");
-    expect(lensDebt?.label).toBe("Debt as of 2014-06-30; incomplete as of 2025-12-31");
-  });
-
-  test("dated debt keeps its gross-principal basis behind a newer incomplete instant", () => {
-    const metrics = {
-      debt: 200,
-      debtPeriodEnd: "2026-03-31",
-      debtBasis: "gross-principal",
-      debtIncompletePeriodEnd: "2026-06-30",
-    };
-
-    expect(formatSecFundamentalsSummary(() => metrics)).toContain(
-      "debt (gross principal) 200 as of 2026-03-31; incomplete as of 2026-06-30",
-    );
+    expect(lensDebt).toBeUndefined();
   });
 
   test("a resolvable newest instant still renders its debt", () => {
@@ -884,8 +936,385 @@ describe("SEC fundamentals prose dates older debt behind a newer incomplete inst
       summaryLens(
         secEvidenceFrom(legacy?.metrics).items[0],
         "Financial Strength",
-        ANALYSIS_AS_OF,
+        "2026-02-20T00:00:00.000Z",
       ).metrics.find((metric) => metric.key === "debt")?.label,
     ).toBe("Debt");
+  });
+});
+
+describe("ambiguous LongTermDebt", () => {
+  const at = (value: number) => instant(value, "2026-06-30", "2026-08-06");
+  const prior = (value: number) => instant(value, "2026-03-31", "2026-05-06", "10-Q", "Q1");
+  const filed = (
+    value: number,
+    periodEnd: string,
+    filedAt: string,
+    accn: string,
+    form = "10-Q",
+  ) => ({
+    ...instant(value, periodEnd, filedAt, form, form === "10-K" ? "FY" : "Q3"),
+    accn,
+  });
+  const expectGap = (
+    gaap: Parameters<typeof resolve>[0],
+    reason: string,
+    periodEnd = "2026-06-30",
+  ) => {
+    const { artifact, canonical } = resolve(gaap);
+    expect(canonical?.periodEnd).not.toBe(periodEnd);
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        periodKey: `instant|${periodEnd}`,
+        message: expect.stringContaining(reason),
+      }),
+    );
+  };
+
+  test("QCOM: the 2026-06-28 10-Q (0000804328-26-000086) cannot show whether LongTermDebt includes maturities", () => {
+    const fy2024 = (value: number) =>
+      filed(value, "2024-09-29", "2024-11-06", "0000804328-24-000075", "10-K");
+    const june = (value: number) =>
+      filed(value, "2026-06-28", "2026-07-29", "0000804328-26-000086");
+    expectGap(
+      {
+        CashAndCashEquivalentsAtCarryingValue: [june(4_533_000_000)],
+        LongTermDebt: [fy2024(13_270_000_000), june(12_781_000_000)],
+        LongTermDebtCurrent: [fy2024(1_364_000_000), june(1_991_000_000)],
+        LongTermDebtNoncurrent: [fy2024(13_270_000_000)],
+        DebtCurrent: [june(2_489_000_000)],
+        CommercialPaper: [june(498_000_000)],
+      },
+      "without a noncurrent line or total that establishes whether it includes current maturities",
+      "2026-06-28",
+    );
+  });
+
+  test("AMD: the FY2021 10-K (0000002488-22-000016) reports 313M combined debt, not the 1M LongTermDebt", () => {
+    const fy2021 = (value: number) =>
+      filed(value, "2021-12-25", "2022-02-03", "0000002488-22-000016", "10-K");
+    const { artifact } = resolve({
+      LongTermDebt: [fy2021(1_000_000)],
+      LongTermDebtNoncurrent: [fy2021(1_000_000)],
+      ShortTermBorrowings: [fy2021(312_000_000)],
+      DebtLongtermAndShorttermCombinedAmount: [fy2021(313_000_000)],
+    });
+
+    expect(financialStatementFacts(artifact.statements.balanceSheet.debt)).toContainEqual(
+      expect.objectContaining({
+        value: 313_000_000,
+        periodEnd: "2021-12-25",
+        concept: "DebtLongtermAndShorttermCombinedAmount",
+      }),
+    );
+  });
+
+  test("PYPL: noncurrent debt beside untagged principal due within a year stays out of history and EV", () => {
+    const fy = (value: number) =>
+      filed(value, "2025-12-31", "2026-02-04", "0001633917-26-000010", "10-K");
+    const { artifact, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [fy(7_000_000_000)],
+      LongTermDebtNoncurrent: [fy(9_987_000_000)],
+      LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: [fy(1_397_000_000)],
+    });
+    expect(financialStatementFacts(artifact.statements.balanceSheet.debt)).toEqual([]);
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        periodKey: "instant|2025-12-31",
+        message: expect.stringContaining("no current debt line is tagged"),
+      }),
+    );
+    const history = balanceSheetHistory(artifact, ANALYSIS_AS_OF)?.rows ?? [];
+    expect(history.filter((row) => row.debt !== undefined)).toEqual([]);
+    expect(
+      valuationPeriodInputs(artifact).periods.filter((period) => period.debt !== undefined),
+    ).toEqual([]);
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(legacy?.metrics.debtIncompletePeriodEnd).toBe("2025-12-31");
+  });
+
+  test("PYPL: gross principal never fills an instant with untagged principal due within a year", () => {
+    const fy2020 = (value: number) =>
+      filed(value, "2020-12-31", "2021-02-04", "0001633917-21-000010", "10-K");
+    const fy2025 = (value: number) =>
+      filed(value, "2025-12-31", "2026-02-04", "0001633917-26-000010", "10-K");
+    const { artifact, canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [fy2020(4_000_000_000), fy2025(7_000_000_000)],
+      LongTermDebtCurrent: [fy2020(0)],
+      LongTermDebtNoncurrent: [fy2020(9_000_000_000), fy2025(9_987_000_000)],
+      LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: [fy2025(1_397_000_000)],
+      DebtInstrumentCarryingAmount: [fy2020(9_000_000_000), fy2025(11_459_000_000)],
+    });
+    expect(canonical?.periodEnd).not.toBe("2025-12-31");
+    expect(
+      balanceSheetHistory(artifact, ANALYSIS_AS_OF)?.rows.filter(
+        (row) => row.period.includes("2025-12-31") && row.debt !== undefined,
+      ),
+    ).toEqual([]);
+    expect(
+      valuationPeriodInputs(artifact).periods.filter(
+        (period) => period.debt?.periodEnd === "2025-12-31",
+      ),
+    ).toEqual([]);
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(legacy?.metrics.debtBasis).toBeUndefined();
+  });
+
+  test("META: a noncurrent line that nets to its whole principal stays complete", () => {
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(40_000_000_000)],
+      LongTermDebtNoncurrent: [at(83_664_000_000)],
+      LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: [at(1_000_000_000)],
+      DebtInstrumentCarryingAmount: [at(84_000_000_000)],
+      DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [at(336_000_000)],
+    });
+    expect(canonical).toMatchObject({ value: 83_664_000_000, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(83_664_000_000);
+  });
+
+  test("an older withheld instant keeps its dated omission note behind a newer complete one", () => {
+    const { artifact, canonical } = resolve({
+      LongTermDebt: [prior(100)],
+      LongTermDebtCurrent: [prior(10)],
+      DebtLongtermAndShorttermCombinedAmount: [at(120)],
+    });
+    expect(canonical).toMatchObject({ value: 120, periodEnd: "2026-06-30" });
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        periodKey: "instant|2026-03-31",
+      }),
+    );
+  });
+
+  test("scope evidence comes from LongTermDebt's own filing, not an earlier one for the same period", () => {
+    const original = (value: number) => filed(value, "2026-06-30", "2026-08-06", "original");
+    const later = (value: number) => filed(value, "2026-06-30", "2026-09-01", "later");
+    expectGap(
+      {
+        LongTermDebt: [original(100), later(100)],
+        LongTermDebtNoncurrent: [original(100)],
+        LongTermDebtCurrent: [later(20)],
+      },
+      "without a noncurrent line or total",
+    );
+  });
+
+  test("LongTermDebt's own filing reconciles it even when a later filing re-reports the lines", () => {
+    const original = (value: number) => filed(value, "2026-06-30", "2026-08-06", "original");
+    const later = (value: number) => filed(value, "2026-06-30", "2026-09-01", "later");
+    expect(
+      resolve({
+        LongTermDebt: [original(100)],
+        LongTermLineOfCredit: [original(90), later(90)],
+        LinesOfCreditCurrent: [original(10), later(10)],
+      }).canonical,
+    ).toMatchObject({ value: 100, concept: "LongTermDebt" });
+  });
+
+  test("a LongTermDebt total whose lines a later filing restated is withheld", () => {
+    const original = (value: number) => filed(value, "2026-06-30", "2026-08-06", "original");
+    const later = (value: number) => filed(value, "2026-06-30", "2026-09-01", "later");
+    expectGap(
+      {
+        LongTermDebt: [original(100)],
+        LongTermDebtCurrent: [original(20), later(5)],
+        LongTermDebtNoncurrent: [original(80)],
+      },
+      "a later filing restated LongTermDebtCurrent without restating LongTermDebt",
+    );
+    expect(
+      resolve({
+        LongTermDebt: [original(100)],
+        LongTermDebtCurrent: [original(20), later(5)],
+        LongTermDebtNoncurrent: [original(80), later(105)],
+        DebtLongtermAndShorttermCombinedAmount: [later(110)],
+      }).canonical,
+    ).toMatchObject({ value: 110, concept: "DebtLongtermAndShorttermCombinedAmount" });
+  });
+
+  test("zero short-term borrowings and zero maturities resolve to zero without DebtCurrent", () => {
+    expect(
+      resolve({
+        LongTermDebt: [at(0)],
+        LongTermDebtCurrent: [at(0)],
+        LongTermDebtNoncurrent: [at(0)],
+        ShortTermBorrowings: [at(0)],
+      }).canonical,
+    ).toMatchObject({ value: 0 });
+  });
+
+  test("a lone LongTermDebt with no current debt tagged stays the total", () => {
+    expect(resolve({ LongTermDebt: [at(100)] }).canonical).toMatchObject({
+      value: 100,
+      concept: "LongTermDebt",
+    });
+  });
+
+  test("LongTermDebt equal to its noncurrent line is summed with the current lines once", () => {
+    expect(
+      resolve({
+        LongTermDebt: [at(90)],
+        LongTermDebtCurrent: [at(10)],
+        LongTermDebtNoncurrent: [at(90)],
+      }).canonical,
+    ).toMatchObject({ value: 100, concept: "LongTermDebtCurrent+LongTermDebtNoncurrent" });
+  });
+
+  test("short-term borrowings beside current maturities count only when DebtCurrent reconciles them", () => {
+    const lines = {
+      LongTermDebt: [at(100)],
+      LongTermDebtCurrent: [at(20)],
+      LongTermDebtNoncurrent: [at(80)],
+      ShortTermBorrowings: [at(20)],
+    };
+    expect(resolve({ ...lines, DebtCurrent: [at(40)] }).canonical).toMatchObject({ value: 120 });
+    const reason =
+      "ShortTermBorrowings tagged beside LongTermDebtCurrent with no DebtCurrent or total";
+    expectGap(lines, reason);
+    // AMAT FY2026 Q3 10-Q (0001628280-26-058235): ShortTermBorrowings 1,299M already holds the 1,199M maturities.
+    expectGap(
+      {
+        LongTermDebtCurrent: [at(1199)],
+        ShortTermBorrowings: [at(1299)],
+        LongTermDebtNoncurrent: [at(5245)],
+      },
+      reason,
+    );
+  });
+
+  test("equal amounts never show a current instrument sits inside current maturities", () => {
+    const reason = "tagged beside LongTermDebtCurrent with no DebtCurrent or total";
+    expectGap(
+      {
+        LongTermDebtCurrent: [at(20)],
+        NotesPayableCurrent: [at(20)],
+        LongTermDebtNoncurrent: [at(80)],
+        DebtCurrent: [at(40)],
+      },
+      reason,
+    );
+    // MARA Q2 2026 10-Q (thousands): notes 335,397 + lines of credit 150,000 = 485,397 current maturities.
+    expectGap(
+      {
+        LongTermDebt: [at(2_417_749)],
+        LongTermDebtCurrent: [at(485_397)],
+        NotesPayableCurrent: [at(335_397)],
+        LinesOfCreditCurrent: [at(150_000)],
+        LongTermDebtNoncurrent: [at(1_932_352)],
+      },
+      reason,
+    );
+  });
+
+  test("commercial paper adds beside current maturities", () => {
+    // Apple FY2026 Q3 10-Q (0000320193-26-000020): LongTermDebt 82,300M at principal; carrying lines sum to 84,344M.
+    expect(
+      resolve({
+        LongTermDebt: [at(82_300)],
+        LongTermDebtCurrent: [at(11_007)],
+        LongTermDebtNoncurrent: [at(71_340)],
+        CommercialPaper: [at(1997)],
+      }).canonical,
+    ).toMatchObject({
+      value: 84_344,
+      concept: "LongTermDebtCurrent+CommercialPaper+LongTermDebtNoncurrent",
+    });
+  });
+
+  test("AMZN: the gross-principal fallback never stands in for gapped debt beside current maturities", () => {
+    // Q2 2026 10-Q (0001018724-26-000026): DebtInstrumentCarryingAmount 128,894M omits 3,330M maturities and 325M STB.
+    const march = (value: number) => instant(value, "2026-03-31", "2026-05-01");
+    const june = (value: number) => instant(value, "2026-06-30", "2026-07-31");
+    const { canonical } = resolve({
+      LongTermDebt: [march(120_000), june(132_995)],
+      LongTermDebtCurrent: [march(0), june(3330)],
+      LongTermDebtNoncurrent: [march(120_000), june(128_894)],
+      ShortTermBorrowings: [june(325)],
+      DebtInstrumentCarryingAmount: [march(120_000), june(128_894)],
+    });
+    expect(canonical).toMatchObject({ periodEnd: "2026-03-31", value: 120_000 });
+  });
+
+  test("a selected total gaps beside current lines of credit it does not reconcile", () => {
+    // GPN Q2 2026 10-Q (0001123360-26-000084): 1,136.764M settlement lines of credit sit outside the 22,418.326M total.
+    expectGap(
+      {
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [at(22_418.326)],
+        LongTermDebt: [at(22_515.505)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [at(925.032)],
+        LinesOfCreditCurrent: [at(1136.764)],
+        LongTermDebtAndCapitalLeaseObligations: [at(21_493.294)],
+      },
+      "LinesOfCreditCurrent tagged beside LongTermDebtAndCapitalLeaseObligationsCurrent",
+    );
+  });
+
+  test("a LongTermDebt total that reconciles to its lines outranks a principal combined total", () => {
+    // AVGO FY2026 Q3 10-Q (0001730168-26-000080): 59,419M carrying vs 61,079M principal.
+    expect(
+      resolve({
+        DebtLongtermAndShorttermCombinedAmount: [at(61_079)],
+        LongTermDebt: [at(59_419)],
+        LongTermDebtCurrent: [at(2252)],
+        DebtCurrent: [at(2252)],
+        LongTermDebtNoncurrent: [at(57_167)],
+        LongTermDebtAndCapitalLeaseObligations: [at(57_167)],
+      }).canonical,
+    ).toMatchObject({ value: 59_419, concept: "LongTermDebt" });
+  });
+
+  test("instant-dated flow concepts and an all-zero umbrella do not refuse the component sum", () => {
+    expect(
+      resolve({
+        LongTermDebtCurrent: [at(10)],
+        LongTermDebtNoncurrent: [at(90)],
+        ProceedsFromIssuanceOfLongTermDebt: [at(40)],
+        LineOfCredit: [at(0)],
+      }).canonical,
+    ).toMatchObject({ value: 100 });
+  });
+
+  test.each([
+    [
+      "LongTermDebt beside current debt with no noncurrent line or total",
+      { LongTermDebt: [at(100)], LongTermDebtCurrent: [at(10)] },
+      "without a noncurrent line or total",
+    ],
+    [
+      "LongTermDebt that reconciles to none of the tagged lines",
+      { LongTermDebt: [at(200)], LongTermDebtCurrent: [at(10)], LongTermDebtNoncurrent: [at(90)] },
+      "LongTermDebt (200) reconciles to none of the tagged lines",
+    ],
+    [
+      "LongTermDebt below its noncurrent line",
+      { LongTermDebt: [at(100)], LongTermDebtNoncurrent: [at(150)] },
+      "LongTermDebt (100) reconciles to none of the tagged lines",
+    ],
+    [
+      "LongTermDebt equal to the noncurrent line after recent short-term borrowings",
+      {
+        LongTermDebt: [at(100)],
+        LongTermDebtNoncurrent: [at(100)],
+        ShortTermBorrowings: [prior(30)],
+      },
+      "omits ShortTermBorrowings",
+    ],
+    [
+      "LongTermDebt beside zero maturities after recent commercial paper",
+      {
+        LongTermDebt: [prior(100), at(100)],
+        LongTermDebtCurrent: [at(0)],
+        CommercialPaper: [prior(30)],
+      },
+      "LongTermDebt excludes CommercialPaper",
+    ],
+    [
+      "a lone LongTermDebt after recent short-term borrowings",
+      { LongTermDebt: [prior(100), at(100)], ShortTermBorrowings: [prior(30)] },
+      "LongTermDebt excludes ShortTermBorrowings",
+    ],
+  ] as const)("declares a gap for %s", (_label, gaap, reason) => {
+    expectGap(gaap, reason);
   });
 });

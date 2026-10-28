@@ -1084,10 +1084,10 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     operatingCashFlowDeltaPercent: 43.107_370_893_167_31,
     capexDeltaPercent: -28.227_594_215_137_756,
     cash: 39_544_000_000,
-    debt: 82_300_000_000,
-    netDebt: 42_756_000_000,
+    debt: 84_344_000_000,
+    netDebt: 44_800_000_000,
     currentRatio: 1.003_294_804_655_585_8,
-    debtToEquity: 0.765_438_988_095_238_1,
+    debtToEquity: 0.784_449_404_761_904_7,
     payoutRatio: 0.116_080_580_304_344_4,
   },
   "equity-nbis-deep": {
@@ -1106,14 +1106,13 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     operatingCashFlowDeltaPercent: 56.677_524_429_967_43,
     capexDeltaPercent: 403.529_411_764_705_86,
     cash: 3_678_100_000,
-    debt: 4_103_200_000,
     payoutRatio: 0,
     valuationCaveat:
       "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
     evDateBasis: "EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31)",
-    enterpriseValue: 57_628_361_440,
+    enterpriseValue: 57_652_861_440,
     annualizedRevenue: 529_800_000,
-    evToAnnualizedRevenue: 108.773_804_152_510_38,
+    evToAnnualizedRevenue: 108.820_048_018_120_05,
     marketCapToAnnualizedRevenue: 107.971_425_896_564_74,
     valuationSupportability: "not-meaningful",
     peRatio: 87.325_584,
@@ -2868,8 +2867,8 @@ type WorkbenchValues = Readonly<
   >
 >;
 const MISSING_WORKBENCH_PRICE = { status: "missing", reason: "price-history-unavailable" } as const;
-const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
 const MISSING_WORKBENCH_DEBT = { status: "missing", reason: "debt-unavailable" } as const;
+const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
 const NEGATIVE_WORKBENCH_DENOMINATOR = {
   status: "not-meaningful",
   reason: "negative-denominator",
@@ -2918,37 +2917,37 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2017-09-30|2019-10-31": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2018-09-29|2020-10-30": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2019-09-28|2020-10-30": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2020-09-26|2020-10-30": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2021-09-25|2021-10-29": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2022-09-24|2022-10-28": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2023-09-30|2023-11-03": [
@@ -2964,19 +2963,20 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MISSING_WORKBENCH_PRICE,
     ],
     "ttm|2025-06-28|2025-08-01": [
-      30.710_167_660_517_836, 7.461_377_657_598_557_5, 7.597_274_873_872_647, 31.698_675_926_725_97,
+      30.710_167_660_517_836, 7.461_377_657_598_557_5, 7.621_497_571_945_452_5,
+      31.698_675_926_725_97,
     ],
     "annual|2025-09-27|2025-10-31": [
-      36.242_626_691_312, 9.748_198_064_270_506, 9.879_743_307_577_783, 41.074_648_968_024_52,
+      36.242_626_691_312, 9.748_198_064_270_506, 9.898_916_175_770_623, 41.074_648_968_024_52,
     ],
     "ttm|2025-12-27|2026-01-30": [
-      32.845_571_010_927_61, 8.880_399_105_071_705, 8.979_529_763_425_258, 31.368_207_461_272_917,
+      32.845_571_010_927_61, 8.880_399_105_071_705, 8.984_141_612_825_075, 31.368_207_461_272_917,
     ],
     "ttm|2026-03-28|2026-05-01": [
-      33.915_256_010_706_73, 9.208_630_356_750_982, 9.290_873_479_898_584, 32.182_656_769_259_89,
+      33.915_256_010_706_73, 9.208_630_356_750_982, 9.295_328_094_223_349, 32.182_656_769_259_89,
     ],
     "ttm|2026-06-27|2026-07-31": [
-      35.425_459_135_563_01, 9.784_017_596_279_83, 9.875_606_913_858_44, 33.416_038_910_092_25,
+      35.425_459_135_563_01, 9.784_017_596_279_83, 9.879_985_447_049_82, 33.416_038_910_092_25,
     ],
   },
   "equity-nbis-deep": {
@@ -2989,7 +2989,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2017-12-31|2018-03-27": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2018-12-31|2019-04-19": [
@@ -3007,34 +3007,37 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2020-12-31|2021-04-01": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MIXED_WORKBENCH_BALANCE_SHEET,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2021-12-31|2022-04-20": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      MIXED_WORKBENCH_BALANCE_SHEET,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2022-12-31|2025-04-30": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_DEBT,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2023-12-31|2026-04-30": [
-      212.661_531_888_521_64, 5230.731_450_141_013, 5380.404_919_528_768, 68.631_902_813_471_58,
+      212.661_531_888_521_64,
+      5230.731_450_141_013,
+      MISSING_WORKBENCH_DEBT,
+      68.631_902_813_471_58,
     ],
     "annual|2024-12-31|2026-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,
       424.517_499_337_662_85,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       NEGATIVE_WORKBENCH_DENOMINATOR,
     ],
     "annual|2025-12-31|2026-04-30": [
       418.878_774_931_936_56,
       64.622_117_548_843_16,
-      65.424_495_804_788_8,
+      65.470_739_670_398_46,
       NEGATIVE_WORKBENCH_DENOMINATOR,
     ],
   },

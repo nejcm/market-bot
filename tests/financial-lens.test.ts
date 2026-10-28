@@ -1834,10 +1834,8 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     expect(strength?.posture).toBe("criteria-not-supported");
     expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
     expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
-    expect(metricByKey(result, "Financial Strength", "debt")).toMatchObject({
-      value: 20,
-      periodEnd: "2025-06-30",
-    });
+    expect(metricByKey(result, "Financial Strength", "debt")).toBeUndefined();
+    expect(strengthReason(result, "debt")).toBe("stale debt as of 2025-06-30");
     expect(strengthReason(result, "netDebt")).toBe("stale net debt as of 2025-06-30");
     expect(strengthReason(result, "debtToEquity")).toBe("stale debt/equity as of 2025-06-30");
     expect(

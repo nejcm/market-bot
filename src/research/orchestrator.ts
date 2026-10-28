@@ -221,6 +221,7 @@ async function runModelStage(
     predictionRepromptErrors: reprompt.predictionErrors ?? [],
     reportValidationErrors: reprompt.reportValidationErrors ?? [],
     allowedSourceIds: reprompt.allowedSourceIds ?? [],
+    ...(reprompt.sourceIdRepair === undefined ? {} : { sourceIdRepair: reprompt.sourceIdRepair }),
   });
   const round = (stage === "web-gather" ? context.webGather : context.evidenceRequest)?.round;
   const step =

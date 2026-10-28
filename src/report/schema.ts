@@ -26,6 +26,7 @@ import {
   metricSectionsSourceRows,
   webSubjectProfileSourceRows,
 } from "./report-extras-contract";
+import { SourceIdValidationError } from "./source-id-validation-error";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -59,27 +60,34 @@ function collectSourceIdErrors(
   sourceIds: readonly string[],
   knownSourceIds: ReadonlySet<string>,
   requireAny: boolean,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   if (requireAny && sourceIds.length === 0) {
-    errors.push(`${path} must reference at least one source ID`);
+    errors.messages.push(`${path} must reference at least one source ID`);
   }
 
   for (const sourceId of sourceIds) {
     if (!knownSourceIds.has(sourceId)) {
-      errors.push(`${path} cites unknown source ID: ${sourceId}`);
+      errors.messages.push(`${path} cites unknown source ID: ${sourceId}`);
+      errors.unknownSourceIds.push(sourceId);
     }
   }
 }
 
-function assertNoSourceIdErrors(errors: readonly string[]): void {
-  if (errors.length === 0) {
+interface SourceIdErrors {
+  readonly messages: string[];
+  readonly unknownSourceIds: string[];
+}
+
+function assertNoSourceIdErrors({ messages, unknownSourceIds }: SourceIdErrors): void {
+  if (messages.length === 0) {
     return;
   }
-  const visibleErrors = errors.slice(0, MAX_SOURCE_ID_VALIDATION_ERRORS);
-  const hiddenCount = errors.length - visibleErrors.length;
-  throw new Error(
+  const visibleErrors = messages.slice(0, MAX_SOURCE_ID_VALIDATION_ERRORS);
+  const hiddenCount = messages.length - visibleErrors.length;
+  throw new SourceIdValidationError(
     [...visibleErrors, ...(hiddenCount > 0 ? [`(+${hiddenCount} more)`] : [])].join("; "),
+    [...new Set(unknownSourceIds)].slice(0, MAX_SOURCE_ID_VALIDATION_ERRORS),
   );
 }
 
@@ -94,7 +102,7 @@ function validateKnownSourceIds(
   sourceIds: readonly string[],
   knownSourceIds: ReadonlySet<string>,
   requireAny: boolean,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   collectSourceIdErrors(path, sourceIds, knownSourceIds, requireAny, errors);
 }
@@ -103,7 +111,7 @@ function validateFindings(
   section: string,
   findings: readonly KeyFinding[],
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   for (const [index, finding] of findings.entries()) {
     collectSourceIdErrors(`${section}[${index}]`, finding.sourceIds, knownSourceIds, true, errors);
@@ -113,7 +121,7 @@ function validateFindings(
 function validateScenarios(
   scenarios: readonly Scenario[],
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   for (const [index, scenario] of scenarios.entries()) {
     collectSourceIdErrors(`scenarios[${index}]`, scenario.sourceIds, knownSourceIds, true, errors);
@@ -365,7 +373,7 @@ function webSubjectProfileSegments(extra: unknown): readonly ModelAuthoredSegmen
 function validateEarningsSetupExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   if (extra === undefined || !isRecord(extra)) {
     return;
@@ -518,7 +526,7 @@ function validateEarningsForecastCertainty(report: ResearchReport): void {
 function validateBusinessFrameworkExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   for (const row of businessFrameworkSourceRows(extra)) {
     validateKnownSourceIds(
@@ -534,7 +542,7 @@ function validateBusinessFrameworkExtra(
 function validateMetricSectionsExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   for (const row of metricSectionsSourceRows(extra)) {
     validateKnownSourceIds(
@@ -558,7 +566,7 @@ function validateMetricSectionsExtra(
         ) ||
         metric.status !== "missing")
     ) {
-      errors.push(
+      errors.messages.push(
         `Metric Sections ${String(metric.id)} has cause ${JSON.stringify(metric.cause)} on a ${String(metric.status)} metric`,
       );
     }
@@ -568,7 +576,7 @@ function validateMetricSectionsExtra(
 function validateWebSubjectProfileExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   for (const row of webSubjectProfileSourceRows(extra)) {
     if (row.sourceIds !== undefined) {
@@ -586,7 +594,7 @@ function validateWebSubjectProfileExtra(
 function validateHistoricalContextExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   if (!isRecord(extra)) {
     return;
@@ -618,7 +626,7 @@ function validateHistoricalContextExtra(
 function validateSpotlightsExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   if (!isRecord(extra) || !Array.isArray(extra.items)) {
     return;
@@ -641,7 +649,7 @@ function validateSpotlightsExtra(
 function validateCatalystCalendarExtra(
   extra: unknown,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   if (!isRecord(extra) || !Array.isArray(extra.items)) {
     return;
@@ -693,7 +701,7 @@ function validateProxyResolutionExtra(extra: unknown): void {
 function validateRenderedExtras(
   extras: ResearchReport["extras"],
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   if (extras === undefined) {
     return;
@@ -712,7 +720,7 @@ function validateRenderedExtras(
 function validateEquityAnalysisCompleteness(
   report: ResearchReport,
   knownSourceIds: ReadonlySet<string>,
-  errors: string[],
+  errors: SourceIdErrors,
 ): void {
   const completeness = report.equityAnalysisCompleteness;
   if (completeness === undefined) {
@@ -806,7 +814,7 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   }
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));
-  const sourceIdErrors: string[] = [];
+  const sourceIdErrors: SourceIdErrors = { messages: [], unknownSourceIds: [] };
 
   assertSourceKinds(report.sources);
   validateFindings("keyFindings", report.keyFindings, knownSourceIds, sourceIdErrors);

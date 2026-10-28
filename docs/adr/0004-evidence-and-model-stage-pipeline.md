@@ -151,8 +151,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   periods/currencies, incomplete statements, cutoff, caps, and unreconciled TTM.
 - Debt is lease-exclusive borrowing, resolved per instant by the shared legacy/canonical rule: standard total
   first, otherwise disjoint component sum with every contributor and derived lineage.
-  Aliases/totals/constituents are alternatives, never double-counted; generic current/noncurrent long-term
-  debt subsumes side instruments, including short-term/commercial-paper and convertible aliases.
+  Aliases/totals/constituents are alternatives, never double-counted; generic noncurrent long-term debt and
+  `DebtCurrent` subsume side instruments and convertible aliases. Issuers tag current instruments (short-term
+  borrowings, lines of credit, notes, current convertibles) inside (AMAT) or beside (GPN) a nonzero
+  current-maturities line, and equal amounts prove neither. An instrument added beside maturities needs the same
+  instant's `DebtCurrent` to sum both; one left out needs the selected total to equal the lines plus it;
+  otherwise the instant is a gap. Commercial paper is never a long-term maturity and adds beside it (Apple), but
+  a selected total must still sum it.
 - `LineOfCredit` covers both legs: use tagged legs instead only if their sum equals the tagged umbrella,
   otherwise refuse; with no legs but a generic side, refuse overlap. Continuity coverage requires both legs or
   tagged legs summing to the umbrella. Exclude operating/finance leases; subtract matching same-instant tagged
@@ -161,14 +166,28 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   nonzero borrowing concept within 400 days or an earlier same-instant filing; generic sides cover prior
   constituent details. Restated components need one filing date (same-day accessions count together) and
   unchanged original total (reclassification), otherwise no composite. Later incomplete filings supersede
-  earlier complete same-instant data. Keep one basis per series/priors; absence is not zero, tagged zeros
+  earlier complete same-instant data. A debt series may mix recognized totals and
+  composites resolved under these rules; YoY priors keep one basis. `LongTermDebt` scope is read only
+  from lines its own filing tags at that instant: it is the total alone (no nonzero current debt in any filing,
+  no short-term borrowing reported nonzero within 400 days) or when it equals nonzero current plus noncurrent
+  lines, which outranks other totals (a combined total can be principal, AVGO) unless a later filing restated
+  them; with explicit lines it may sit between the noncurrent line and their sum (principal vs carrying). Below the
+  noncurrent line, above the sum, beside current debt with no noncurrent line, or a total whose lines a later
+  filing restated, it is a gap, never inferred from other filings or equal amounts. Absence is not zero, tagged zeros
   count, and standard-tag completeness is not proof about omitted dimensional/extension facts.
-- Never publish incomplete debt. Newer incomplete instants emit `incomplete-composite-series`, date/name older
-  amounts in SEC/lens prose, declare peer basis, and remove alpha debt features with gap. Never substitute older debt for newer incomplete instants: withhold
-  target EV/net debt, declare peers, and drop Workbench debt when incomplete instant is at/before cash. Direct facts remain
+  Without a total, a positive `LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths` beside no current
+  debt line is incomplete unless principal minus unamortized costs equals the composite exactly (PYPL vs META).
+- Never publish an incomplete debt instant, and never let an older amount stand in for one. Every incomplete instant
+  emits a dated `incomplete-composite-series` note. When the newest debt instant is incomplete, both paths drop the
+  latest-debt metrics: SEC prose, the lens debt row, the financial-position projection, peers, alpha debt features,
+  target EV, net debt, debt/equity, debt/market cap and net debt/market cap. One dated `SEC debt withheld` Source Gap
+  names the period end and reason. Complete older instants stay only as dated balance-sheet history; the lens debt row
+  is also capped at 180 days. The Workbench drops debt when an incomplete instant falls at or before cash. Older
+  instants are checked by the same rules, which prove only what the tagged facts show (see above). Direct facts remain
   `sec-companyfacts` without composite metadata; artifact extraction method stays companyfacts.
 - Gross-principal fallback permits only a strictly newer instant fact calibrated to net debt at net's selected
-  period within ±5% inclusive (zero matches zero); otherwise retain net. Mark `gross-principal` (absent means
+  period within ±5% inclusive (zero matches zero) and no nonzero current debt or principal due within a year at the gross instant (the
+  calibration cannot show the gross fact includes it); otherwise retain net. Mark `gross-principal` (absent means
   net), append only latest gross fact with `calibrationPeriodEnd`, never cross bases in priors (legacy
   year-aligned gross, no canonical prior), and disclose basis on all consumers with a deduplicated no-cap
   concept/last-net-period gap, including canonical-only fallback.
@@ -290,7 +309,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   into data gaps, recording original path/text. Relocation's broad predicate differs from precision-oriented
   warning predicate. Aggregate citation errors across findings/scenarios/completeness/rendered extras; expose
   first twelve plus remaining count. Repair carries latest twelve distinct accumulated errors and accurate
-  call/repair counts.
+  call/repair counts. Unknown IDs travel as validator data (never re-parsed from messages) into a structured
+  `sourceIdRepair`: fixed instruction plus `hints[{citedId, candidates}]`, citedId marked untrusted; candidates
+  are catalog IDs whose full (hyphen-aware, longest-match) Source symbol the cited ID names. Off-shape IDs get
+  no hint; hints, candidates and size are capped. The model picks; citations are never rewritten.
 - Malformed synthesis/repair JSON enters the same bounded validation repair loop with parser
   diagnostic/full-object instruction; never trim or auto-repair reply text. Provider failures are outside it.
   Stop once valid.

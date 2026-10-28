@@ -11,6 +11,7 @@ import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
 import type { SecFilingForm } from "../sources/evidence-request-tools";
 import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements-contract";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import { isWebSubjectProfileWithheldAnswer, substantiveProfileSourceIds } from "./contract";
 import {
   buildWebSubjectProfileReuseEvidence,
@@ -84,6 +85,7 @@ export async function findReusableWebSubjectProfile(input: {
   readonly reuseDaysBySubjectKind: Readonly<Record<SubjectKind, number>>;
   readonly currentSecFilingDate?: string;
   readonly currentSources?: readonly Source[];
+  readonly metricSections?: readonly MetricSection[];
 }): Promise<WebSubjectProfileReuse | undefined> {
   const subject = webSubjectProfileSubjectForCommand(input.command);
   if (
@@ -107,6 +109,7 @@ export async function findReusableWebSubjectProfile(input: {
   for (const artifact of candidates) {
     const { artifact: profile, withheldGaps } = screenReusedWebSubjectProfile(
       artifact.webSubjectProfile,
+      input.metricSections,
     );
     if (
       !isReusableProfile(profile, {

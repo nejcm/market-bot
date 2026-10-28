@@ -9,9 +9,12 @@ import {
 } from "../src/web-evidence/web-subject-profile";
 import {
   isWebSubjectProfileWithheldAnswer,
+  type WebSubjectProfileAnswer,
   WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
   WEB_SUBJECT_PROFILE_WITHHELD_MARKER,
   WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
+  WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
+  WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER,
 } from "../src/web-evidence/contract";
 import {
   assertSafeReportLanguage,
@@ -2078,5 +2081,169 @@ describe("Web Subject Profile inline source-id markers", () => {
     );
     const row = markdown.split("\n").find((line) => line.includes("What It Does"));
     expect(row?.split(webSource.id)).toHaveLength(2);
+  });
+});
+
+const geographyOf = (profile: { questions: object }) =>
+  (profile.questions as Record<string, WebSubjectProfileAnswer>).geography!;
+
+describe("geography share screen", () => {
+  // HLIT FY2025 and H1 2026 geographic-revenue shares (10-K, 10-Q filed 2026-08-17).
+  const geography = {
+    id: "geographic-revenue",
+    title: "Geographic revenue",
+    metrics: [
+      ["Americas", [0.889_180_440_637_629_2, 0.889_777_666_299_572_4, 0.904_014_063_191_226_8]],
+      ["EMEA", [0.073_993_658_806_146_8, 0.083_797_061_631_237_05, 0.094_013_419_393_492_23]],
+      [
+        "Asia Pacific",
+        [0.012_188_875_177_536_147, 0.016_806_139_968_878_545, 0.036_228_674_894_280_78],
+      ],
+      ["United States", [0.768_464_147_918_440_8, 0.825_291_879_117_563]],
+    ].flatMap(([name, values]) =>
+      (values as number[]).map((value, index) => ({
+        id: `${String(name)}-${String(index)}-share`,
+        label: `${String(name)} share of revenue`,
+        unit: "ratio-percent" as const,
+        basis: "share",
+        status: "value" as const,
+        value,
+        inputs: [],
+        sourceIds: [webSource.id],
+      })),
+    ),
+  };
+  const produce = (
+    geographyAnswer: string,
+    metricSections?: (typeof geography)[],
+    edit: (payload: Record<string, unknown>) => void = () => undefined,
+  ) => {
+    const payload = JSON.parse(profilePayload()) as Record<string, unknown> & {
+      questions: Record<string, { answer: string }>;
+    };
+    payload.questions.geography = { ...payload.questions.geography, answer: geographyAnswer };
+    edit(payload);
+    return buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
+      modelContent: JSON.stringify(payload),
+      webSources: [webSource],
+      extendedEvidence: undefined,
+      ...(metricSections !== undefined ? { metricSections } : {}),
+    });
+  };
+  const build = (geographyAnswer: string, metricSections?: (typeof geography)[]) =>
+    produce(geographyAnswer, metricSections).artifact.questions as Record<
+      string,
+      WebSubjectProfileAnswer
+    >;
+  const invented = "[Americas]: 87% of revenue.\n[EMEA]: 10% of revenue.\n[APAC]: 3% of revenue.";
+
+  test("withholds shares that contradict every period's section share (run 21a7c785)", () => {
+    expect(build(invented, [geography]).geography!.answer).toBe(
+      WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
+    );
+  });
+
+  test("keeps filing-stated shares within half a point of a section share", () => {
+    const quoted = "[Americas]: 89% of revenue.\n[EMEA]: 9% of revenue.\n[APAC]: 2% of revenue.";
+    expect(build(quoted, [geography]).geography!.answer).toBe(quoted);
+  });
+
+  test("leaves shares unchanged without a section or a mapped region name", () => {
+    expect(build(invented).geography!.answer).toBe(invented);
+    const unmapped = "[Rest of world]: 3% of revenue.";
+    expect(build(unmapped, [geography]).geography!.answer).toBe(unmapped);
+  });
+
+  test("rejects a raw metric reference instead of publishing it", () => {
+    expect(
+      build("[Americas]: <<metric:geographic-revenue.a-share>>.", [geography]).geography,
+    ).toEqual({ answer: "", sourceIds: [] });
+  });
+
+  test.each([
+    "- [US]: 99% of revenue.",
+    "[U.S.]: 99% of revenue.",
+    "[Americas]: 87% of revenue for the six months ended July 3, 2026.",
+    "[Americas]: 87% of net revenue in fiscal 2025. [extended-sec-edgar-hlit-10k]",
+    "[Europe, Middle East and Africa]: 20% of revenue.",
+    "[Asia-Pacific]: 9% of revenue.",
+    "[Americas]: -87% of revenue.",
+    "[Americas]: +87% of revenue.",
+    "[Americas]: −89% of revenue.",
+  ])("withholds an aliased or signed contradicting share: %s", (answer) => {
+    expect(build(answer, [geography]).geography!.answer).toBe(
+      WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
+    );
+  });
+
+  test("keeps matching shares, non-equivalent labels, and growth claims", () => {
+    for (const answer of [
+      "[APAC]: 1.2% of revenue.",
+      "[United States]: +82.5%.",
+      "[North America]: 80% of revenue.",
+      "[Europe]: 20% of revenue.",
+      "Americas: 12% revenue growth YoY.",
+      "Americas: 12% CAGR.",
+      "Americas: 12% of total revenue growth.",
+      "[Americas]: 40% increase in revenue.",
+    ]) {
+      expect(build(answer, [geography]).geography!.answer).toBe(answer);
+    }
+  });
+
+  test("names the contradiction, not research-only wording, in the answer and the gap", () => {
+    const result = produce(invented, [geography]);
+    expect(geographyOf(result.artifact).answer).not.toContain(WEB_SUBJECT_PROFILE_WITHHELD_MARKER);
+    const messages = result.sourceGaps.map(({ message }) => message);
+    expect(
+      messages.some((message) => message.includes(WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER)),
+    ).toBe(true);
+    expect(messages.some((message) => message.includes(WEB_SUBJECT_PROFILE_WITHHELD_MARKER))).toBe(
+      false,
+    );
+  });
+
+  test("withholds a contradicting Fact Ledger share and keeps its siblings", () => {
+    const result = produce("Devices and services.", [geography], (payload) => {
+      payload.factLedger = [
+        { claim: "[Americas]: 87% of revenue.", sourceIds: [webSource.id] },
+        { claim: "Apple sells iPhone, Mac, and services.", sourceIds: [webSource.id] },
+      ];
+    });
+    expect(result.artifact.factLedger.map(({ claim }) => claim)).toEqual([
+      "Apple sells iPhone, Mac, and services.",
+      expect.stringContaining(WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER),
+    ]);
+  });
+
+  test("screens a reused profile against the current run's section", () => {
+    const reused = produce(invented).artifact;
+    expect(geographyOf(reused).answer).toBe(invented);
+    const screened = screenReusedWebSubjectProfile(reused, [geography]);
+    expect(geographyOf(screened.artifact).answer).toBe(
+      WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
+    );
+    expect(screened.withheldGaps.map(({ message }) => message).join("\n")).toContain(
+      WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER,
+    );
+    const again = screenReusedWebSubjectProfile(screened.artifact);
+    expect(geographyOf(again.artifact).answer).toBe(
+      WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
+    );
+    expect(again.withheldGaps.map(({ message }) => message).join("\n")).not.toContain(
+      WEB_SUBJECT_PROFILE_WITHHELD_MARKER,
+    );
+    expect(geographyOf(screenReusedWebSubjectProfile(reused).artifact).answer).toBe(invented);
+  });
+
+  test("drops a raw metric reference from openGaps", () => {
+    const result = produce("Devices and services.", [geography], (payload) => {
+      payload.openGaps = ["Mix <<metric:geographic-revenue.a-share>> unclear.", "Kept gap."];
+    });
+    expect(result.artifact.openGaps).toEqual(["Kept gap."]);
   });
 });

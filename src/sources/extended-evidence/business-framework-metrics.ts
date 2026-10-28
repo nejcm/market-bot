@@ -63,6 +63,7 @@ const SERIES_LABELS: Readonly<Record<FrameworkSeries, string>> = {
 };
 
 const LATEST_PERIOD_BASIS = "latest reported period: a year-aligned annual or an interim filing";
+const YOY_CHANGE = { over: "YoY" };
 const YOY_BASIS =
   "latest reported period vs the same-length period one year earlier, same concept and unit";
 
@@ -602,6 +603,7 @@ const REVENUE_YOY: MetricDefinition = {
   label: "Revenue YoY",
   unit: "whole-percent",
   basis: YOY_BASIS,
+  change: YOY_CHANGE,
   compute: (ctx) => yearOverYear(ctx, "revenue"),
 };
 
@@ -672,6 +674,7 @@ function sectionDefinitions(
         label: "Operating income YoY",
         unit: "whole-percent",
         basis: YOY_BASIS,
+        change: YOY_CHANGE,
         compute: (context) => yearOverYear(context, "operatingIncome"),
       },
       {
@@ -679,6 +682,7 @@ function sectionDefinitions(
         label: netIncomeYoyLabel(ctx),
         unit: "whole-percent",
         basis: YOY_BASIS,
+        change: YOY_CHANGE,
         compute: (context) => yearOverYear(context, "netIncome"),
       },
     ],

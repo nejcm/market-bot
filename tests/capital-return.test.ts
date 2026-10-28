@@ -6,6 +6,7 @@ import { renderMarkdownReport } from "../src/report/markdown";
 import { validateResearchReport } from "../src/report/schema";
 import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
 import { deriveCapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
+import { resolveMetricReferences } from "../src/research/metric-references";
 import { capitalReturnSection } from "../src/sources/extended-evidence/capital-return";
 import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -187,6 +188,14 @@ describe("capitalReturnSection", () => {
       (dps(2025) / dps(2020)) ** (1 / 5) - 1,
       12,
     );
+    expect(
+      resolveMetricReferences(
+        researchReport({
+          keyFindings: [{ text: "DPS grew <<metric:capital-return.dpsCagr3y>>.", sourceIds: [] }],
+        }),
+        [{ id: "capital-return", title: "Capital return", metrics: [result.metric("dpsCagr3y")] }],
+      ).keyFindings[0]!.text,
+    ).toMatch(/^DPS grew \+\d+\.\d% CAGR over 3y\.$/u);
     expect(result.metric("earliestDividendFyInHistory")).toMatchObject({
       status: "value",
       value: "FY2019",

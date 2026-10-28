@@ -105,6 +105,7 @@ const SERIES_LABELS: Readonly<Record<LensSeries, string>> = {
 };
 
 const LATEST_PERIOD_BASIS = "latest reported period: a year-aligned annual or an interim filing";
+const YOY_CHANGE = { over: "YoY" };
 const YOY_BASIS =
   "latest reported period vs the same-length period one year earlier, same concept and unit";
 
@@ -1099,6 +1100,7 @@ function yearOverYearDefinition(
     label,
     unit: "whole-percent",
     basis: YOY_BASIS,
+    change: YOY_CHANGE,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const item = secItem(ctx);

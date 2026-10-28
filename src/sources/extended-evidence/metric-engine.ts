@@ -49,6 +49,7 @@ export interface MetricResult {
   readonly label: string;
   readonly unit: LensValueUnit;
   readonly basis: string;
+  readonly change?: MetricChange;
   readonly status: MetricStatus;
   readonly value?: number | string;
   readonly currency?: string;
@@ -58,6 +59,11 @@ export interface MetricResult {
   readonly cause?: MetricMissingCause;
   readonly inputs: readonly MetricInput[];
   readonly sourceIds: readonly string[];
+}
+
+// A change metric's suffix names what it changes over, so a reference never reads as a level.
+interface MetricChange {
+  readonly over: string;
 }
 
 export interface MetricSection {
@@ -157,18 +163,18 @@ export interface MetricDefinition {
   readonly label: string;
   readonly unit: LensValueUnit;
   readonly basis: string;
+  readonly change?: MetricChange;
   readonly applicable?: (ctx: MetricContext) => string | undefined;
   readonly compute: (ctx: MetricContext) => MetricOutcome;
 }
 
 function evaluateMetric(definition: MetricDefinition, ctx: MetricContext): MetricResult {
-  const { id, label, unit, basis } = definition;
+  const { id, label, unit, basis, change } = definition;
+  const identity = { id, label, unit, ...(change !== undefined ? { change } : {}) };
   const inapplicable = definition.applicable?.(ctx);
   if (inapplicable !== undefined) {
     return {
-      id,
-      label,
-      unit,
+      ...identity,
       basis,
       status: "not-applicable",
       reason: inapplicable,
@@ -184,9 +190,7 @@ function evaluateMetric(definition: MetricDefinition, ctx: MetricContext): Metri
     ),
   ];
   return {
-    id,
-    label,
-    unit,
+    ...identity,
     ...outcome,
     basis: [outcome.basis ?? basis, ...derivations].join("; "),
     inputs,

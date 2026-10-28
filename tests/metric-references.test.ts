@@ -445,7 +445,7 @@ test("collected profile digest preserves literal metric tokens on the first synt
     generatedAt: assembly.generatedAt,
     runId: assembly.runId,
     modelContent: JSON.stringify({
-      subjectSummary: { answer: `The source quotes ${token}.`, sourceIds: [profileSource.id] },
+      subjectSummary: { answer: "Devices and services.", sourceIds: [profileSource.id] },
       questions: Object.fromEntries(
         [
           "whatItDoes",
@@ -473,7 +473,14 @@ test("collected profile digest preserves literal metric tokens on the first synt
   const result = await synthesizeReportUntilValid({
     ...assembly,
     sources: [...sources, profileSource],
-    collectedSources: { ...assembly.collectedSources, webSubjectProfile: produced.artifact! },
+    collectedSources: {
+      ...assembly.collectedSources,
+      // Parse rejects tokens in model output; a reused digest can still carry one.
+      webSubjectProfile: {
+        ...produced.artifact!,
+        subjectSummary: { answer: `The source quotes ${token}.`, sourceIds: [profileSource.id] },
+      },
+    },
     knownSourceIds: new Set([...sources, profileSource].map(({ id }) => id)),
     priorStages: [],
     maxPredictionReprompts: 0,
@@ -597,6 +604,57 @@ test("|period renders the metric's period label and rejects metrics without one"
   }
 });
 
+test("change metrics render signed with what they change over (HLIT 10-Q, H1 2026 run b8d04fa2)", () => {
+  const { section: growth } = evaluateMetricSection(
+    "financial-lens-growth",
+    "Growth",
+    [
+      [48.523_248_504_039_67, "revenueDeltaPercent"],
+      [-43.4, "netIncomeDeltaPercent"],
+    ].map(
+      ([value, id]): MetricDefinition => ({
+        id: String(id),
+        label: "YoY",
+        unit: "whole-percent",
+        basis: "YoY",
+        change: { over: "YoY" },
+        compute: () => ({
+          status: "value",
+          value: Number(value),
+          periodEnd: "2026-07-03",
+          periodMonths: 6,
+          inputs: [
+            {
+              label: "revenue",
+              value: 1,
+              artifact: "statements",
+              unit: "USD",
+              sourceIds: ["metric-source"],
+            },
+          ],
+        }),
+      }),
+    ),
+    { symbol: "HLIT" },
+  );
+  const report = assembleResearchReport(
+    input(
+      {
+        keyFindings: [
+          {
+            text: "Revenue was <<metric:financial-lens-growth.revenueDeltaPercent|period>>; net income <<metric:financial-lens-growth.netIncomeDeltaPercent>>.",
+            sourceIds: [],
+          },
+        ],
+      },
+      [growth],
+    ),
+  );
+  expect(report.keyFindings[0]!.text).toBe(
+    "Revenue was +48.5% YoY (6-month period ending 2026-07-03); net income -43.4% YoY.",
+  );
+});
+
 test("market-session references resolve verified snapshot values with its citation", () => {
   const snapshot = verifiedMarketSnapshot();
   const withSnapshot = (payload: ModelReportPayload) => ({
@@ -618,7 +676,7 @@ test("market-session references resolve verified snapshot values with its citati
     }),
   );
   expect(report.keyFindings[0]).toEqual({
-    text: "Close 108.00 vs 105.00 (2.9%), RSI14 55.00 (as of 2026-05-18).",
+    text: "Close 108.00 vs 105.00 (+2.9% vs prior close), RSI14 55.00 (as of 2026-05-18).",
     sourceIds: ["verified-snapshot-AAPL"],
   });
   expect(() =>

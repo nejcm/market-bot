@@ -472,28 +472,28 @@ function factsForDepreciationAndAmortization(
       });
       return true;
     };
-    // AMD FY2020-22: a filed cash-flow D&A line proves D&A exists, so a partial component set is a gap, not "not filed".
+    // AMD FY2020-22, HLIT FY2025: a filed component or cash-flow line proves D&A exists, so a partial set is a gap, not "not filed".
     const incompleteComponentsNote = (
       present: readonly ParsedFact[],
       lines: readonly ParsedFact[],
     ): void => {
       const period = present[0] ?? lines[0];
-      if (
-        period === undefined ||
-        lines.length === 0 ||
-        periodType(period, definition) !== "annual"
-      ) {
+      if (period === undefined || periodType(period, definition) !== "annual") {
         return;
       }
       const missing = DEPRECIATION_AND_AMORTIZATION_COMPONENTS.filter(
         (aliases) => !present.some((fact) => aliases.includes(fact.concept)),
       ).map((aliases) => aliases[0]);
       const filed = lines.map((fact) => `${fact.concept} ${String(fact.value)}`).join(", ");
+      const reason =
+        lines.length === 0
+          ? "no cash-flow D&A line is filed"
+          : `the filed cash-flow line (${filed}) is not proven to be total D&A`;
       notes.push({
         code: "incomplete-composite-series",
         seriesKey: definition.key,
         periodKey: periodKey(period),
-        message: `SEC depreciation and amortization for ${period.periodStart ?? "instant"} to ${period.periodEnd} omitted: no combined fact and no ${missing.join(", ")} component; the filed cash-flow line (${filed}) is not proven to be total D&A`,
+        message: `SEC depreciation and amortization for ${period.periodStart ?? "instant"} to ${period.periodEnd} omitted: no combined fact and no ${missing.join(", ")} component; ${reason}`,
       });
     };
     const totalConcept = totalFacts[0]?.concept;
@@ -1253,9 +1253,10 @@ function unfiledSeries(
           !(
             definition.key === "depreciationAndAmortization" &&
             taxonomy === "us-gaap" &&
-            DEPRECIATION_AND_AMORTIZATION_COMPONENTS.every((aliases) =>
-              aliases.some((concept) => filed(taxonomy, concept)),
-            )
+            [
+              ...DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flat(),
+              ...CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
+            ].some((concept) => filed(taxonomy, concept))
           ),
     ),
   ).map((definition) => definition.key);

@@ -136,6 +136,7 @@ const METRICS: readonly MetricDefinition[] = [1, 3, 5].flatMap((years) =>
       label: `${benchmark ? BENCHMARK : "Issuer"} ${String(years)}-year price return`,
       unit: "ratio-percent",
       basis: `cumulative price return, not total return; ${benchmark ? "common" : "issuer"} completed sessions; anniversaries within ±7 days`,
+      change: { over: `over ${String(years)}y` },
       compute: (ctx) => priceReturn(ctx, years, benchmark),
     }),
   ),

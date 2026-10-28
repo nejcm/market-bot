@@ -60,11 +60,13 @@ function marketSessionSection(collected: CollectedSources): MetricSection | unde
     value: number,
     basis: string,
     periodEnd = latestSessionDate,
+    change?: MetricResult["change"],
   ): MetricResult => ({
     id,
     label,
     unit,
     basis,
+    ...(change !== undefined ? { change } : {}),
     status: "value",
     value,
     ...(unit === "currency-per-share" && currency !== undefined ? { currency } : {}),
@@ -95,6 +97,8 @@ function marketSessionSection(collected: CollectedSources): MetricSection | unde
             "whole-percent",
             (ohlcv.close / prior.close - 1) * 100,
             `${session} close vs ${prior.date} close`,
+            latestSessionDate,
+            { over: "vs prior close" },
           ),
         ]),
     ...Object.entries(snapshot.indicators).flatMap(([key, value]) =>
@@ -131,6 +135,13 @@ function withFormat(
   }
   const label = metricPeriodLabel(metric.periodEnd, metric.periodMonths, sectionId, metric.inputs);
   return `${value} (${label.replace(/^[A-Z](?=[a-z])/u, (letter) => letter.toLowerCase())})`;
+}
+
+function withChange(value: string | undefined, metric: MetricResult): string | undefined {
+  if (value === undefined || metric.change === undefined) {
+    return value;
+  }
+  return `${/^[-+]/u.test(value) ? "" : "+"}${value} ${metric.change.over}`;
 }
 
 // Prose with every well-formed reference removed, and how many there were.
@@ -185,7 +196,7 @@ function transformClaims(
         ?.metrics.find(({ id }) => id === reference.slice(dot + 1));
       const rendered =
         metric?.status === "value"
-          ? formatMetricValue(metric.value, metric.unit, metric.currency)
+          ? withChange(formatMetricValue(metric.value, metric.unit, metric.currency), metric)
           : undefined;
       if (rendered === undefined || metric === undefined || metric.sourceIds.length === 0) {
         throw new Error(

@@ -5,6 +5,7 @@
     "coverage/**",
     "research/**",
     ".plans/**",
-    "tests/fixtures/untagged-financial-corpus/raw/**"
+    "tests/fixtures/untagged-financial-corpus/raw/**",
+    "tests/fixtures/sec-reference-set/**"
   ]
 }

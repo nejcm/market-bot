@@ -225,6 +225,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   without positive target cap/SIC. Writes compare-and-set against observed generation.
   Deferred/unclaimed/unavailable/insufficient refresh emits diagnostic gap; directory/model inability leaves
   unresolved universe `provider-data-missing`, never unsupported coverage.
+- Target and peer revenue is SEC TTM (FY + latest YTD − prior YTD, or a 12-month fact); never annualize a
+  partial period. A peer without TTM is excluded with its reason; a target without it withholds revenue multiples.
 - Peer median/IQR needs three fresh supported peers, inclusive 0.2x–5x target cap/revenue, and same two-digit
   SIC under full profile. Curated ticker mappings skip all three SIC checks (`curated-no-sic`); other tiers
   enforce full. Revenue-exempt profile takes precedence when target EV/revenue >50x or revenue <2% of cap:

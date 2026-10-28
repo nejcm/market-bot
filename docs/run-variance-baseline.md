@@ -155,6 +155,8 @@ config hash unobtainable. Only output-only keys (`captureReplay`, index
 
 The `nearBaseRateCount` / `informativeCount` band was measured under the old all-kind 0.5 rule; re-record it before comparing with the exact-reference rule amended on 2026-10-20.
 
+All `predictions.*` rows predate the Event Grid and its 2026-10-23 fold of restated grid events ([ADR 0003](./adr/0003-forecasts-scoring-and-calibration.md)); a folded run reports fewer model predictions by construction, so re-record before comparing them.
+
 The seed itself read ratio 0.8 (5 accepted, 4 used), 3 predictions, 24 Source
 Gaps with the same by-cause mix, and 358,919 estimated tokens.
 

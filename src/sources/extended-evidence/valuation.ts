@@ -153,10 +153,6 @@ export function addValuationEvidence(
     return { extendedEvidence: mergedEvidence, sourceGaps: gaps };
   }
 
-  // Annualize the latest reported revenue by its actual period length, not a blanket
-  // X4: SEC fundamentals report the latest filed fact regardless of duration, so the
-  // Value can be a full-year 10-K, a year-to-date 10-Q, or a single quarter. Without
-  // A known period we treat it as already annual rather than risk ~4x inflation.
   const revenuePeriodMonths = readNumberMetric(secItem.metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(secItem.metrics, "revenuePeriodEnd");
   const cashPeriodEnd = readStringMetric(secItem.metrics, "cashPeriodEnd");
@@ -170,9 +166,8 @@ export function addValuationEvidence(
   const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
   const sic = readStringMetric(secItem.metrics, "sic");
   const sicDescription = readStringMetric(secItem.metrics, "sicDescription");
-  const annualizationFactor =
-    revenuePeriodMonths !== undefined && revenuePeriodMonths > 0 ? 12 / revenuePeriodMonths : 1;
-  const annualizedRevenue = revenue * annualizationFactor;
+  // Peers carry the same TTM basis; a partial period is never annualized into a multiple.
+  const annualizedRevenue = readNumberMetric(secItem.metrics, "revenueTtm");
   // This item is the source the peer comps and the reverse DCF read enterprise value from, so
   // Withholding it here is what stops an EV escaping into the prose, the peer table, the peer
   // Reference range and the DCF grid. See industry-classification.ts for why EV has no defensible
@@ -180,8 +175,11 @@ export function addValuationEvidence(
   const depositorySic = depositoryIssuerSic(extendedEvidence);
   const enterpriseValue = depositorySic === undefined ? marketCap + debt - cash : undefined;
   const evToAnnualizedRevenue =
-    enterpriseValue === undefined ? undefined : ratio(enterpriseValue, annualizedRevenue);
-  const marketCapToAnnualizedRevenue = ratio(marketCap, annualizedRevenue);
+    enterpriseValue === undefined || annualizedRevenue === undefined
+      ? undefined
+      : ratio(enterpriseValue, annualizedRevenue);
+  const marketCapToAnnualizedRevenue =
+    annualizedRevenue === undefined ? undefined : ratio(marketCap, annualizedRevenue);
   const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
   const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
   const debtToMarketCap = debtCurrent ? ratio(debt, marketCap) : undefined;
@@ -191,22 +189,23 @@ export function addValuationEvidence(
     ...(debtCurrent ? [] : [["debt", debtPeriodEnd] as const]),
     ...(cashCurrent ? [] : [["cash", cashPeriodEnd] as const]),
   ];
-  const revenuePeriodLabel =
-    revenuePeriodMonths !== undefined
-      ? `${revenuePeriodMonths}-month revenue ${formatUsd(revenue)}, `
-      : "";
+  const latestRevenuePeriod = `latest ${revenuePeriodMonths === undefined ? "" : `${String(revenuePeriodMonths)}-month `}revenue ${formatUsd(revenue)}${revenuePeriodEnd === undefined ? "" : ` through ${revenuePeriodEnd}`}`;
+  const revenueText =
+    annualizedRevenue === undefined
+      ? `${latestRevenuePeriod} does not reconcile to TTM revenue, revenue multiples withheld`
+      : `TTM revenue ${formatUsd(annualizedRevenue)}${revenuePeriodEnd === undefined ? "" : ` through ${revenuePeriodEnd}`}`;
   const enterpriseValueText =
     enterpriseValue === undefined
       ? `enterprise value not applicable (depository issuer, SIC ${depositorySic ?? "unknown"}: deposits and borrowings fund operations rather than sitting on top of them)`
       : `enterprise value ${formatUsd(enterpriseValue)}`;
   const evToRevenueText =
     enterpriseValue === undefined
-      ? "EV/annualized revenue not applicable"
-      : `EV/annualized revenue ${fixed(evToAnnualizedRevenue)}`;
+      ? "EV/TTM revenue not applicable"
+      : `EV/TTM revenue ${fixed(evToAnnualizedRevenue)}`;
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -216,7 +215,7 @@ export function addValuationEvidence(
       netDebt,
       ...(enterpriseValue === undefined ? {} : { enterpriseValue }),
       latestPeriodRevenue: revenue,
-      annualizedRevenue,
+      ...(annualizedRevenue !== undefined ? { annualizedRevenue } : {}),
       quoteObservedAt,
       ...(snapshot.quoteTimeUtc !== undefined ? { quoteTimeUtc: snapshot.quoteTimeUtc } : {}),
       ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
@@ -253,6 +252,19 @@ export function addValuationEvidence(
         ]),
     ...(divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)]),
     ...incompleteDebt.gaps,
+    ...(annualizedRevenue === undefined
+      ? [
+          sourceGap({
+            source: "valuation",
+            message: `TTM revenue unavailable for ${command.symbol}: ${latestRevenuePeriod} has no reconciling fiscal-year and prior-year SEC facts; revenue multiples withheld`,
+            symbol: command.symbol.toUpperCase(),
+            provider: "market-bot",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ]
+      : []),
   ];
 
   return {

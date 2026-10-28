@@ -107,11 +107,22 @@ export function compareFinancialStatementFacts(
     leftDurationBucket !== undefined && leftDurationBucket === rightDurationBucket
       ? 0
       : durationOrder;
+  // A same-end, same-bucket fact is one period: its latest revision wins even when an amendment shifts the start.
   return (
     right.periodEnd.localeCompare(left.periodEnd) ||
     bucketDurationOrder ||
+    compareFinancialStatementRevisions(left, right) ||
+    durationOrder
+  );
+}
+
+// Revisions of one period: latest filing, then amendment, then accession; never duration first.
+export function compareFinancialStatementRevisions(
+  left: FinancialStatementSelectionFact,
+  right: FinancialStatementSelectionFact,
+): number {
+  return (
     right.filedAt.localeCompare(left.filedAt) ||
-    durationOrder ||
     Number(right.amendment) - Number(left.amendment) ||
     (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
   );
@@ -681,11 +692,20 @@ export function deriveFinancialStatementTtm(
   }
   const fiscalYear = latestFinancialStatementFact(annual)!;
   const latestInterimEnd = latestFinancialStatementFact(interim)?.periodEnd;
+  const latestEndFacts = interim.filter((fact) => fact.periodEnd === latestInterimEnd);
+  // Only each span's latest revision may reconcile; a superseded original never stands in.
+  const latestEndRevisions = [
+    ...new Set(latestEndFacts.map((fact) => financialStatementPeriodMonths(fact))),
+  ].map(
+    (months) =>
+      latestEndFacts
+        .filter((fact) => financialStatementPeriodMonths(fact) === months)
+        .toSorted(compareFinancialStatementRevisions)[0]!,
+  );
   const latestYearToDate = latestFinancialStatementFact(
-    interim.filter(
+    latestEndRevisions.filter(
       (fact) =>
         fact.periodStart !== undefined &&
-        fact.periodEnd === latestInterimEnd &&
         fact.periodEnd > fiscalYear.periodEnd &&
         Math.abs(daysBetween(fiscalYear.periodEnd, fact.periodStart) ?? Infinity) <=
           FY_BOUNDARY_TOLERANCE_DAYS,

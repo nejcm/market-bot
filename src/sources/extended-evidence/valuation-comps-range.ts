@@ -156,8 +156,8 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
   };
   const base = {
     label: "peer-implied price reference range" as const,
-    basis: "peer EV/annualized revenue percentiles applied to target annualized revenue" as const,
-    formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding" as const,
+    basis: "peer EV/TTM revenue percentiles applied to target TTM revenue" as const,
+    formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding" as const,
     inputs,
   };
   const suppressed = (suppressedReason: PeerImpliedRangeSuppressedReason): PeerImpliedRange => ({
@@ -173,7 +173,7 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
     return suppressed("fewer than 3 usable peers");
   }
   if (annualizedRevenue === undefined || annualizedRevenue <= 0) {
-    return suppressed("annualized revenue is not positive");
+    return suppressed("TTM revenue is not positive");
   }
   if (netDebt === undefined) {
     return suppressed("net debt is unavailable");

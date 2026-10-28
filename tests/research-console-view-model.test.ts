@@ -1942,13 +1942,12 @@ describe("report artifact parsers", () => {
     ).toEqual([
       { label: "Market cap", value: "$2.5B" },
       { label: "Enterprise value", value: "$2.7B" },
-      { label: "Annualized revenue", value: "$500.0M" },
-      { label: "EV / annualized revenue", value: "5.4x" },
-      { label: "Revenue period (months)", value: "12" },
+      { label: "TTM revenue", value: "$500.0M" },
+      { label: "EV / TTM revenue", value: "5.4x" },
       { label: "Peers (median basis)", value: "3 usable (2 core)" },
-      { label: "Peer median EV / annualized revenue", value: "4.2x" },
-      { label: "Peer P25 EV / annualized revenue", value: "3.1x" },
-      { label: "Peer P75 EV / annualized revenue", value: "5.6x" },
+      { label: "Peer median EV / TTM revenue", value: "4.2x" },
+      { label: "Peer P25 EV / TTM revenue", value: "3.1x" },
+      { label: "Peer P75 EV / TTM revenue", value: "5.6x" },
       { label: "Supportability", value: "supported" },
     ]);
   });
@@ -1958,7 +1957,7 @@ describe("report artifact parsers", () => {
       valuationMetricTiles({ corePeerCount: 2, peerMedianEvToAnnualizedRevenue: 4.2 }),
     ).toEqual([
       { label: "Core peers", value: "2" },
-      { label: "Peer median EV / annualized revenue", value: "4.2x" },
+      { label: "Peer median EV / TTM revenue", value: "4.2x" },
     ]);
   });
 

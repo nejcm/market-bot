@@ -13,7 +13,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveMarketSnapshotPriceAsOf } from "../../../src/domain/market-data";
 import { readEarningsForecastTelemetry } from "../../../src/forecast/earnings-eligibility";
-import { parseObservableExpression } from "../../../src/forecast/observable";
+import { claimKey, parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord, readNumber, readString } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
@@ -177,6 +177,19 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
   expect(gridPredictions.every(({ id }) => grid.events.some((event) => event.id === id))).toBe(
     true,
   );
+  const knownSourceIds = new Set(report.sources.map((source) => source.id));
+  const foldableKeys = new Set(
+    grid.events
+      .filter((event) => event.sourceIds.some((id) => knownSourceIds.has(id)))
+      .map((event) => claimKey(event.measurableAs)),
+  );
+  expect(
+    report.predictions.filter(
+      ({ origin, measurableAs }) => origin === "model" && foldableKeys.has(claimKey(measurableAs)),
+    ),
+    "model prediction restates a grid event",
+  ).toEqual([]);
+  expect(report.dataGaps.filter((gap) => gap.includes("not issued separately"))).toEqual([]);
   for (const prediction of report.predictions) {
     const expression = parseObservableExpression(prediction.measurableAs);
     if (prediction.baselineProbability !== undefined) {
@@ -948,9 +961,9 @@ const AAPL_LENS_VALUES = {
   debtToMarketCap: 0.033_333_333_333_333_33,
   netDebtToMarketCap: 0.013_333_333_333_333_334,
   enterpriseValue: 3_040_000_000_000,
-  annualizedRevenue: 420_000_000_000,
-  evToAnnualizedRevenue: 7.238_095_238_095_238,
-  marketCapToAnnualizedRevenue: 7.142_857_142_857_143,
+  annualizedRevenue: 426_000_000_000,
+  evToAnnualizedRevenue: 7.136_150_234_741_784,
+  marketCapToAnnualizedRevenue: 7.042_253_521_126_761,
   valuationSupportability: "supported",
   peRatio: 31,
   forwardPe: 28,
@@ -1033,9 +1046,9 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     netDebtToMarketCap: 0.156,
     debtToEquity: 4.166_666_666_666_667,
     enterpriseValue: 23_120_000_000,
-    annualizedRevenue: 1_680_000_000,
-    evToAnnualizedRevenue: 13.761_904_761_904_763,
-    marketCapToAnnualizedRevenue: 11.904_761_904_761_905,
+    annualizedRevenue: 1_620_000_000,
+    evToAnnualizedRevenue: 14.271_604_938_271_604,
+    marketCapToAnnualizedRevenue: 12.345_679_012_345_679,
     valuationSupportability: "screening-only",
     peRatio: 31,
     forwardPe: 28,

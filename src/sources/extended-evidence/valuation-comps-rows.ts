@@ -224,16 +224,16 @@ function comparabilityFailure(
     return undefined;
   }
   if (row.annualizedRevenue === undefined) {
-    return missing("missing annualized revenue");
+    return missing("missing TTM revenue");
   }
   if (target.annualizedRevenue === undefined) {
-    return missing("target annualized revenue unavailable");
+    return missing("target TTM revenue unavailable");
   }
   if (target.annualizedRevenue <= 0) {
-    return missing("target annualized revenue not positive");
+    return missing("target TTM revenue not positive");
   }
   if (!withinSizeGate(row.annualizedRevenue, target.annualizedRevenue)) {
-    return gated(`annualized revenue outside ${SIZE_GATE_LABEL} of target`);
+    return gated(`TTM revenue outside ${SIZE_GATE_LABEL} of target`);
   }
   return undefined;
 }
@@ -254,13 +254,7 @@ export function peerRow(
   const revenue = readNumberMetric(metrics, "revenue");
   const revenuePeriodMonths = readNumberMetric(metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(metrics, "revenuePeriodEnd");
-  const annualizedRevenue =
-    revenue !== undefined
-      ? revenue *
-        (revenuePeriodMonths !== undefined && revenuePeriodMonths > 0
-          ? 12 / revenuePeriodMonths
-          : 1)
-      : undefined;
+  const annualizedRevenue = readNumberMetric(metrics, "revenueTtm");
   const computedEnterpriseValue =
     marketCap !== undefined && cash !== undefined && debt !== undefined
       ? marketCap + debt - cash
@@ -438,6 +432,11 @@ function exclusionReason(
   }
   if (row.revenuePeriodEnd === undefined) {
     return missing("missing SEC revenue period end");
+  }
+  if (row.annualizedRevenue === undefined) {
+    return missing(
+      `no reconciled SEC TTM revenue (latest ${row.revenuePeriodMonths === undefined ? "" : `${String(row.revenuePeriodMonths)}-month `}period through ${row.revenuePeriodEnd} lacks matching fiscal-year and prior-year facts)`,
+    );
   }
   if (row.evToAnnualizedRevenue === undefined) {
     return missing("missing EV/revenue multiple");

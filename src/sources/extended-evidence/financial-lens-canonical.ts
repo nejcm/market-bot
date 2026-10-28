@@ -219,6 +219,15 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
     }
   }
   const income = artifact.statements.incomeStatement;
+  const revenueTtm =
+    metrics.revenuePeriodMonths === 12
+      ? metrics.revenue
+      : income.revenue.ttm?.periodEnd === metrics.revenuePeriodEnd
+        ? income.revenue.ttm?.value
+        : undefined;
+  if (revenueTtm !== undefined) {
+    metrics.revenueTtm = revenueTtm;
+  }
   const [netIncomeFact, consolidatedNetIncomeFact] =
     latestCommonFinancialStatementFacts([income.netIncome, income.consolidatedNetIncome]) ?? [];
   // Consolidated income is read against net income, so only net income's own period qualifies.

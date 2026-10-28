@@ -19,6 +19,7 @@ import {
 } from "./financial-statement-definitions";
 import {
   compareFinancialStatementFacts,
+  compareFinancialStatementRevisions,
   compositeStatementIdentity,
   debtCandidateConcepts,
   isYearAligned,
@@ -607,6 +608,66 @@ function selectMetric(
   )[0];
 }
 
+const FY_BOUNDARY_TOLERANCE_DAYS = 10;
+
+function withinFiscalYearBoundary(left: string, right: string): boolean {
+  return Math.abs(Date.parse(left) - Date.parse(right)) <= FY_BOUNDARY_TOLERANCE_DAYS * DAY_MS;
+}
+
+// FY + latest-YTD − prior-YTD from one concept, the reconciliation the financial statements use.
+function trailingTwelveMonths(
+  latest: SecFactValue,
+  values: readonly SecFactValue[],
+): number | undefined {
+  if (periodMonths(latest) === 12) {
+    return latest.val;
+  }
+  const sameEnd = values.filter((value) => value.end === latest.end);
+  // Only each span's latest revision may reconcile; a superseded original never stands in.
+  const revisions = [...new Set(sameEnd.map((value) => periodMonths(value)))].map(
+    (months) =>
+      sameEnd
+        .filter((value) => periodMonths(value) === months)
+        .toSorted((a, b) =>
+          compareFinancialStatementRevisions(selectionFact(a), selectionFact(b)),
+        )[0]!,
+  );
+  for (const ytd of revisions) {
+    const months = periodMonths(ytd);
+    const { start, end } = ytd;
+    if (months === undefined || months >= 12 || start === undefined || end === undefined) {
+      continue;
+    }
+    const fiscalYear = latestFact(
+      values.filter(
+        (value) =>
+          periodMonths(value) === 12 &&
+          value.end !== undefined &&
+          value.end < start &&
+          withinFiscalYearBoundary(value.end, start),
+      ),
+    );
+    const prior = latestFact(
+      values.filter(
+        (value) =>
+          periodMonths(value) === months &&
+          value.start !== undefined &&
+          value.end !== undefined &&
+          isYearAligned(value.start, start) &&
+          isYearAligned(value.end, end),
+      ),
+    );
+    if (
+      fiscalYear?.start !== undefined &&
+      prior?.start !== undefined &&
+      withinFiscalYearBoundary(fiscalYear.start, prior.start)
+    ) {
+      return fiscalYear.val + ytd.val - prior.val;
+    }
+  }
+  return undefined;
+}
+
 function sameFiscalPeriod(a: SecFactValue, b: SecFactValue): boolean {
   return (
     a.canonicalForm === b.canonicalForm &&
@@ -955,6 +1016,19 @@ export function summarizeSecFundamentals(
     if (scope !== undefined) {
       metrics[`${definition.key}Scope`] = scope;
     }
+  }
+
+  const revenueTtm =
+    revenueDefinition === undefined || revenueSelection?.concept === undefined
+      ? undefined
+      : trailingTwelveMonths(
+          revenueSelection.latest,
+          factValuesForConcept(gaap, revenueSelection.concept, revenueDefinition.unitKeys).filter(
+            (value) => isFactObservableAsOf(value, analysisAsOf),
+          ),
+        );
+  if (revenueTtm !== undefined) {
+    metrics.revenueTtm = revenueTtm;
   }
 
   for (const [continuingKey, totalKey] of [

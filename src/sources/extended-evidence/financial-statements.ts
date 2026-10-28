@@ -1,4 +1,9 @@
 import { isRecord, readNumber, readString } from "../../guards";
+import {
+  ENTERPRISE_VALUE_BRIDGE_CONCEPTS,
+  TEMPORARY_EQUITY_CONCEPT_PRIORITY,
+  trimToMezzaninePeriods,
+} from "./enterprise-value-bridge";
 import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/sources";
 import type { CollectContext } from "../types";
@@ -59,6 +64,8 @@ import {
   readSecFactPeriodMetadata,
   type CanonicalSecForm,
   type FinancialStatementFact,
+  ENTERPRISE_VALUE_BRIDGE_FACT_KEYS,
+  type FinancialStatementEnterpriseValueBridge,
   type FinancialStatementEquityStack,
   type FinancialStatementNote,
   type FinancialStatementSeries,
@@ -94,6 +101,7 @@ interface ParsedFact {
   readonly concept: string;
   readonly unit: string;
   readonly firstPublicAt?: string;
+  readonly lineScope?: true;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly ParsedCompositeComponent[];
@@ -133,11 +141,6 @@ const ANNUAL_REPORTING_PERIOD_DAYS = 400;
 const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
   "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest";
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
-const TEMPORARY_EQUITY_CONCEPT_PRIORITY = [
-  "TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterests",
-  "TemporaryEquityCarryingAmount",
-  "RedeemableNoncontrollingInterestEquityCarryingAmount",
-] as const;
 const GROSS_PROFIT_COST_CONCEPTS = ["CostOfRevenue", "CostOfGoodsAndServicesSold"];
 const CONSOLIDATED_NET_INCOME_CONCEPT = "ProfitLoss";
 const TOTAL_NONCONTROLLING_INCOME_CONCEPTS = new Set([
@@ -590,6 +593,7 @@ function factsForDebt(
       incomplete,
       incompleteReason: resolution.incompleteReason,
       basis: resolution.basis,
+      lineScope: resolution.lineScope === true,
     };
   });
   const current = unsupersededDebtResolutions(resolved);
@@ -607,12 +611,15 @@ function factsForDebt(
     unitFacts(taxonomy, root, concept).filter((fact) => !eligible(fact)),
   );
   const kept = new Set(current.flatMap((entry) => (entry.incomplete ? [] : entry.restatements)));
+  const lineScoped = new Set(
+    current.flatMap((entry) => (!entry.incomplete && entry.lineScope ? entry.restatements : [])),
+  );
   return {
     facts: [
       ...candidates.filter((fact) => kept.has(fact)),
       ...[...kept].filter((fact) => fact.composite !== undefined),
       ...ineligible,
-    ],
+    ].map((fact) => (lineScoped.has(fact) ? { ...fact, lineScope: true as const } : fact)),
     notes: [...notes.values()],
   };
 }
@@ -1207,6 +1214,7 @@ function toSelectedFact(
     unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
     extractionMethod: composite === undefined ? "sec-companyfacts" : "derived-sec-companyfacts",
     sourceIds,
+    ...(fact.lineScope === true ? { lineScope: true as const } : {}),
     ...(composite !== undefined ? { composite } : {}),
   };
 }
@@ -1236,11 +1244,11 @@ function equityStackConcepts(
   ];
 }
 
-function selectEquityStackComponent(
+function selectInstantComponent(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   reportingCurrency: string,
-  component: EquityStackComponentKey,
+  concepts: (root: Record<string, unknown>) => readonly string[],
   preferredAccessions: ReadonlyMap<string, string>,
   input: FinancialStatementsDeriveInput,
 ): readonly FinancialStatementFact[] {
@@ -1248,9 +1256,7 @@ function selectEquityStackComponent(
   if (root === undefined) {
     return [];
   }
-  const priority = new Map(
-    equityStackConcepts(root, component).map((concept, index) => [concept, index]),
-  );
+  const priority = new Map(concepts(root).map((concept, index) => [concept, index]));
   const candidates = [...priority.keys()].flatMap((concept) =>
     unitFacts(taxonomy, root, concept).filter(
       (fact) =>
@@ -1287,6 +1293,27 @@ function selectEquityStackComponent(
     .map((fact) => toSelectedFact(fact, instantDefinition, reportingCurrency, input.sourceId));
 }
 
+function selectEnterpriseValueBridge(
+  payload: unknown,
+  reportingCurrency: string,
+  input: FinancialStatementsDeriveInput,
+): FinancialStatementEnterpriseValueBridge {
+  const select = (key: keyof FinancialStatementEnterpriseValueBridge) =>
+    selectInstantComponent(
+      payload,
+      "us-gaap",
+      reportingCurrency,
+      () => ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key],
+      new Map(),
+      input,
+    );
+  return trimToMezzaninePeriods(
+    Object.fromEntries(
+      ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [key, select(key)]),
+    ) as unknown as FinancialStatementEnterpriseValueBridge,
+  );
+}
+
 function selectEquityStack(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -1315,27 +1342,27 @@ function selectEquityStack(
     totalAssets,
     totalLiabilities,
     stockholdersEquity,
-    minorityInterest: selectEquityStackComponent(
+    minorityInterest: selectInstantComponent(
       payload,
       taxonomy,
       reportingCurrency,
-      "minorityInterest",
+      (root) => equityStackConcepts(root, "minorityInterest"),
       preferredAccessions,
       input,
     ),
-    stockholdersEquityIncludingNoncontrollingInterest: selectEquityStackComponent(
+    stockholdersEquityIncludingNoncontrollingInterest: selectInstantComponent(
       payload,
       taxonomy,
       reportingCurrency,
-      "stockholdersEquityIncludingNoncontrollingInterest",
+      (root) => equityStackConcepts(root, "stockholdersEquityIncludingNoncontrollingInterest"),
       preferredAccessions,
       input,
     ),
-    temporaryEquity: selectEquityStackComponent(
+    temporaryEquity: selectInstantComponent(
       payload,
       taxonomy,
       reportingCurrency,
-      "temporaryEquity",
+      (root) => equityStackConcepts(root, "temporaryEquity"),
       preferredAccessions,
       input,
     ),
@@ -2175,6 +2202,9 @@ export function deriveFinancialStatements(
     extractionMethod: "sec-companyfacts",
     ...(equityStackSelection.equityStack !== undefined
       ? { equityStack: equityStackSelection.equityStack }
+      : {}),
+    ...(taxonomy === "us-gaap" && reportingCurrency !== undefined
+      ? { enterpriseValueBridge: selectEnterpriseValueBridge(payload, reportingCurrency, input) }
       : {}),
     ...(taxonomy !== undefined
       ? {

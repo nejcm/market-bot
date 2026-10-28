@@ -1,3 +1,9 @@
+import {
+  bridgeIncompleteReasons,
+  ENTERPRISE_VALUE_BRIDGE_KEYS,
+  enterpriseValueFromMetrics,
+  netDebtFromMetrics,
+} from "./enterprise-value-bridge";
 import { type ExtendedEvidenceItem } from "../../domain/evidence";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../domain/market-data";
 import type { PeerUniverse, PeerUniversePeer } from "../../research/peer-universe";
@@ -29,6 +35,23 @@ function readDebtBasis(metrics: ExtendedEvidenceItem["metrics"]): DebtBasis | un
   return readStringMetric(metrics, "debtBasis") === "gross-principal"
     ? "gross-principal"
     : undefined;
+}
+
+function bridgeRowFields(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): Partial<Record<(typeof ENTERPRISE_VALUE_BRIDGE_KEYS)[number], number>> &
+  Pick<ValuationCompsRow, "shortTermInvestmentsIncludeEquity"> {
+  return {
+    ...Object.fromEntries(
+      ENTERPRISE_VALUE_BRIDGE_KEYS.flatMap((key) => {
+        const value = readNumberMetric(metrics, key);
+        return value === undefined ? [] : [[key, value]];
+      }),
+    ),
+    ...(readStringMetric(metrics, "shortTermInvestmentsConcept")?.includes("EquitySecurities")
+      ? { shortTermInvestmentsIncludeEquity: true as const }
+      : {}),
+  };
 }
 
 export function targetRow(
@@ -78,6 +101,7 @@ export function targetRow(
     ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
     ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
     ...(debtBasis !== undefined ? { debtBasis } : {}),
+    ...bridgeRowFields(item.metrics),
     ...(guardedNetDebt !== undefined ? { netDebt: guardedNetDebt } : {}),
     ...(guardedEnterpriseValue !== undefined ? { enterpriseValue: guardedEnterpriseValue } : {}),
     ...(revenue !== undefined ? { latestPeriodRevenue: revenue } : {}),
@@ -256,10 +280,8 @@ export function peerRow(
   const revenuePeriodEnd = readStringMetric(metrics, "revenuePeriodEnd");
   const annualizedRevenue = readNumberMetric(metrics, "revenueTtm");
   const computedEnterpriseValue =
-    marketCap !== undefined && cash !== undefined && debt !== undefined
-      ? marketCap + debt - cash
-      : undefined;
-  const computedNetDebt = cash !== undefined && debt !== undefined ? debt - cash : undefined;
+    marketCap === undefined ? undefined : enterpriseValueFromMetrics(marketCap, metrics);
+  const computedNetDebt = netDebtFromMetrics(metrics);
   const computedEvToAnnualizedRevenue =
     computedEnterpriseValue !== undefined &&
     annualizedRevenue !== undefined &&
@@ -343,6 +365,7 @@ export function peerRow(
     ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
     ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
     ...(debtBasis !== undefined ? { debtBasis } : {}),
+    ...bridgeRowFields(metrics),
     ...(netDebt !== undefined ? { netDebt } : {}),
     ...(enterpriseValue !== undefined ? { enterpriseValue } : {}),
     ...(revenue !== undefined ? { latestPeriodRevenue: revenue } : {}),
@@ -381,7 +404,14 @@ export function excludedPeer(
     sec === undefined || row.debtPeriodEnd === undefined
       ? undefined
       : latestFilingWithoutDebtFacts(sec, row.debtPeriodEnd, generatedAt);
-  const exclusion = exclusionReason(row, provenance, generatedAt, target, sec?.debtComposite);
+  const exclusion = exclusionReason(
+    row,
+    provenance,
+    generatedAt,
+    target,
+    sec?.debtComposite,
+    sec?.metrics,
+  );
   const vintage = exclusion.reason === peerVintageExclusionReason(row, generatedAt);
   return [
     {
@@ -406,6 +436,7 @@ function exclusionReason(
   generatedAt: string,
   target: ValuationCompsRow,
   debtComposite?: SecDebtComposite,
+  secMetrics?: Readonly<Record<string, number | string>>,
 ): ValuationPeerExclusion {
   if (row.quoteObservedAt === undefined) {
     return missing("missing quote");
@@ -437,6 +468,10 @@ function exclusionReason(
     return missing(
       `no reconciled SEC TTM revenue (latest ${row.revenuePeriodMonths === undefined ? "" : `${String(row.revenuePeriodMonths)}-month `}period through ${row.revenuePeriodEnd} lacks matching fiscal-year and prior-year facts)`,
     );
+  }
+  const bridgeReasons = secMetrics === undefined ? [] : bridgeIncompleteReasons(secMetrics);
+  if (row.evToAnnualizedRevenue === undefined && bridgeReasons.length > 0) {
+    return missing(`SEC EV bridge incomplete (${bridgeReasons.join("; ")})`);
   }
   if (row.evToAnnualizedRevenue === undefined) {
     return missing("missing EV/revenue multiple");

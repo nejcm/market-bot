@@ -150,6 +150,8 @@ export interface FinancialStatementFact {
   readonly sourceIds: readonly string[];
   readonly basis?: DebtBasis;
   readonly calibrationPeriodEnd?: string;
+  // Debt only: classified carrying lines, or a LongTermDebt total reconciled to them.
+  readonly lineScope?: true;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -214,6 +216,23 @@ export interface FinancialStatementEquityStack {
   readonly temporaryEquity: readonly FinancialStatementFact[];
 }
 
+export interface FinancialStatementEnterpriseValueBridge {
+  readonly shortTermInvestments: readonly FinancialStatementFact[];
+  readonly cashAndShortTermInvestments: readonly FinancialStatementFact[];
+  readonly currentEquitySecurities: readonly FinancialStatementFact[];
+  readonly noncontrollingInterest: readonly FinancialStatementFact[];
+  readonly preferredStock: readonly FinancialStatementFact[];
+  readonly temporaryEquity: readonly FinancialStatementFact[];
+  readonly assets: readonly FinancialStatementFact[];
+  readonly liabilities: readonly FinancialStatementFact[];
+  readonly stockholdersEquity: readonly FinancialStatementFact[];
+  readonly stockholdersEquityIncludingNoncontrollingInterest: readonly FinancialStatementFact[];
+  readonly assetsCurrent: readonly FinancialStatementFact[];
+  readonly receivablesCurrent: readonly FinancialStatementFact[];
+  readonly inventory: readonly FinancialStatementFact[];
+  readonly otherAssetsCurrent: readonly FinancialStatementFact[];
+}
+
 export interface FinancialStatementNote {
   readonly code:
     | "cutoff-exclusion"
@@ -259,6 +278,8 @@ export interface FinancialStatementsArtifact {
   readonly interimCadence: InterimCadence;
   readonly extractionMethod: "sec-companyfacts";
   readonly equityStack?: FinancialStatementEquityStack;
+  // Instant facts per balance-sheet date for the EV bridge; us-gaap only.
+  readonly enterpriseValueBridge?: FinancialStatementEnterpriseValueBridge;
   readonly statements: {
     readonly incomeStatement: Readonly<
       Record<
@@ -442,6 +463,7 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     ((value.basis === undefined && value.calibrationPeriodEnd === undefined) ||
       (value.basis === "gross-principal" &&
         stringField(value, "calibrationPeriodEnd") !== undefined)) &&
+    (value.lineScope === undefined || value.lineScope === true) &&
     stringArrayField(value, "sourceIds") !== undefined
   );
 }
@@ -571,9 +593,13 @@ function readFinancialStatementSeries(
   };
 }
 
-function readFinancialStatementEquityStack(value: unknown):
+function readFinancialStatementFactGroup<Key extends string>(
+  value: unknown,
+  keys: readonly Key[],
+  path: string,
+):
   | {
-      readonly equityStack: FinancialStatementEquityStack;
+      readonly group: Readonly<Record<Key, readonly FinancialStatementFact[]>>;
       readonly drops: readonly ArtifactObservationDrop[];
       readonly backfills: readonly ArtifactObservationDrop[];
     }
@@ -581,32 +607,60 @@ function readFinancialStatementEquityStack(value: unknown):
   if (!isRecord(value)) {
     return undefined;
   }
-  const keys = [
-    "totalAssets",
-    "totalLiabilities",
-    "stockholdersEquity",
-    "minorityInterest",
-    "stockholdersEquityIncludingNoncontrollingInterest",
-    "temporaryEquity",
-  ] as const;
-  const facts: Partial<Record<(typeof keys)[number], readonly FinancialStatementFact[]>> = {};
+  const facts: Partial<Record<Key, readonly FinancialStatementFact[]>> = {};
   const drops: ArtifactObservationDrop[] = [];
   const backfills: ArtifactObservationDrop[] = [];
   for (const key of keys) {
     if (!Array.isArray(value[key])) {
       return undefined;
     }
-    const read = readFinancialStatementFacts(value[key], `financialStatements.equityStack.${key}`);
+    const read = readFinancialStatementFacts(value[key], `${path}.${key}`);
     facts[key] = read.observations;
     drops.push(...read.drops);
     backfills.push(...read.backfills);
   }
   return {
-    equityStack: { ...value, ...facts } as unknown as FinancialStatementEquityStack,
+    group: { ...value, ...facts } as unknown as Readonly<
+      Record<Key, readonly FinancialStatementFact[]>
+    >,
     drops,
     backfills,
   };
 }
+
+const EQUITY_STACK_KEYS = [
+  "totalAssets",
+  "totalLiabilities",
+  "stockholdersEquity",
+  "minorityInterest",
+  "stockholdersEquityIncludingNoncontrollingInterest",
+  "temporaryEquity",
+] as const satisfies readonly (keyof FinancialStatementEquityStack)[];
+
+const LATER_BRIDGE_KEYS = [
+  "currentEquitySecurities",
+  "assetsCurrent",
+  "receivablesCurrent",
+  "inventory",
+  "otherAssetsCurrent",
+] as const;
+
+export const ENTERPRISE_VALUE_BRIDGE_FACT_KEYS = [
+  "shortTermInvestments",
+  "cashAndShortTermInvestments",
+  "currentEquitySecurities",
+  "noncontrollingInterest",
+  "preferredStock",
+  "temporaryEquity",
+  "assets",
+  "liabilities",
+  "stockholdersEquity",
+  "stockholdersEquityIncludingNoncontrollingInterest",
+  "assetsCurrent",
+  "receivablesCurrent",
+  "inventory",
+  "otherAssetsCurrent",
+] as const satisfies readonly (keyof FinancialStatementEnterpriseValueBridge)[];
 
 function financialStatementSeriesRecord(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value)) {
@@ -661,8 +715,31 @@ export function readFinancialStatementsArtifact(
   const equityStack =
     value.equityStack === undefined
       ? undefined
-      : readFinancialStatementEquityStack(value.equityStack);
-  if (previous === undefined || (value.equityStack !== undefined && equityStack === undefined)) {
+      : readFinancialStatementFactGroup(
+          value.equityStack,
+          EQUITY_STACK_KEYS,
+          "financialStatements.equityStack",
+        );
+  // A bridge written before the current-asset keys is omitted; saved EV keeps its own basis, only fresh computation withholds.
+  const bridge = value.enterpriseValueBridge;
+  const staleBridgeKeys = isRecord(bridge)
+    ? LATER_BRIDGE_KEYS.filter((key) => !Array.isArray(bridge[key]))
+    : [];
+  const enterpriseValueBridge =
+    value.enterpriseValueBridge === undefined || staleBridgeKeys.length > 0
+      ? undefined
+      : readFinancialStatementFactGroup(
+          value.enterpriseValueBridge,
+          ENTERPRISE_VALUE_BRIDGE_FACT_KEYS,
+          "financialStatements.enterpriseValueBridge",
+        );
+  if (
+    previous === undefined ||
+    (value.equityStack !== undefined && equityStack === undefined) ||
+    (value.enterpriseValueBridge !== undefined &&
+      staleBridgeKeys.length === 0 &&
+      enterpriseValueBridge === undefined)
+  ) {
     return undefined;
   }
 
@@ -686,8 +763,22 @@ export function readFinancialStatementsArtifact(
     perShare,
   };
   const series: Partial<Record<FinancialStatementSeriesKey, FinancialStatementSeries>> = {};
-  const drops: ArtifactObservationDrop[] = [...(equityStack?.drops ?? [])];
-  const backfills: ArtifactObservationDrop[] = [...(equityStack?.backfills ?? [])];
+  const drops: ArtifactObservationDrop[] = [
+    ...(equityStack?.drops ?? []),
+    ...(enterpriseValueBridge?.drops ?? []),
+    ...(staleBridgeKeys.length === 0
+      ? []
+      : [
+          {
+            reason: `financialStatements.enterpriseValueBridge predates ${staleBridgeKeys.join(", ")}; bridge detail omitted, saved valuation keeps the basis it was published with`,
+            count: 1,
+          },
+        ]),
+  ];
+  const backfills: ArtifactObservationDrop[] = [
+    ...(equityStack?.backfills ?? []),
+    ...(enterpriseValueBridge?.backfills ?? []),
+  ];
   for (const key of FINANCIAL_STATEMENT_SERIES_KEYS) {
     const later = LATER_SERIES[key];
     if (allSeries[key] === undefined && later !== undefined) {
@@ -713,7 +804,8 @@ export function readFinancialStatementsArtifact(
   const read = withArtifactReadDiagnostics(
     {
       ...value,
-      ...(equityStack === undefined ? {} : { equityStack: equityStack.equityStack }),
+      ...(equityStack === undefined ? {} : { equityStack: equityStack.group }),
+      enterpriseValueBridge: enterpriseValueBridge?.group,
       statements: {
         ...value.statements,
         incomeStatement: statement(income),

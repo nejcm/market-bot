@@ -6,6 +6,7 @@ import type {
   PeerImpliedRange,
   ValuationCompsRow,
 } from "../sources/extended-evidence/valuation-comps";
+import { compsCashLabel } from "../sources/extended-evidence/valuation-comps-contract";
 import type { MarketSnapshotPriceAsOf } from "../domain/market-data";
 import type { ResearchReport } from "../domain/report";
 import { formatMetricValue } from "../sources/extended-evidence/value-format";
@@ -126,7 +127,7 @@ function peerRow(row: ValuationCompsRow, targetSymbol: string, report: ResearchR
   const dates = [
     ...(priceDate === undefined ? [] : [priceDate]),
     ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
-    ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
+    ...[compsCashLabel(row)].filter((label) => label !== undefined),
     ...(row.debtPeriodEnd === undefined
       ? []
       : [

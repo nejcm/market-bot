@@ -36,7 +36,7 @@ const METRICS = [
   [
     "enterpriseValueToRevenue",
     "EV/revenue",
-    "((close × diluted shares) + debt - cash) / revenue",
+    "((close × diluted shares) + debt + preferred stock + noncontrolling interest + temporary equity - cash - short-term investments) / revenue",
     "revenue",
   ],
   [
@@ -91,7 +91,9 @@ export function valuationMetricSection(input: {
             ? [period.operatingCashFlow, period.capitalExpenditure]
             : [period[denominatorKey]]),
           ...(needsShares ? [period.dilutedShares] : []),
-          ...(id === "enterpriseValueToRevenue" ? [period.cash, period.debt] : []),
+          ...(id === "enterpriseValueToRevenue"
+            ? [period.cash, period.debt, period.enterpriseValueBridge]
+            : []),
         ];
         const lineage: readonly MetricInput[] = [
           ...fundamentals.flatMap((value) => value?.lineage ?? []),
@@ -141,6 +143,9 @@ export function valuationMetricSection(input: {
           }
           if (period.debt === undefined) {
             return missing("debt-unavailable", ["debt"]);
+          }
+          if (period.enterpriseValueBridgeIncomplete) {
+            return missing("ev-bridge-incomplete");
           }
           const mixed = balanceSheetPeriodDivergence({
             cashPeriodEnd: period.cash.periodEnd,
@@ -220,7 +225,11 @@ export function valuationMetricSection(input: {
         if (id === "priceToEarnings") {
           numerator = close;
         } else if (id === "enterpriseValueToRevenue") {
-          numerator = marketCap + (period.debt?.value ?? 0) - (period.cash?.value ?? 0);
+          numerator =
+            marketCap +
+            (period.debt?.value ?? 0) -
+            (period.cash?.value ?? 0) +
+            (period.enterpriseValueBridge?.value ?? 0);
         }
         const value = numerator / denominator.value;
         return Number.isFinite(value)

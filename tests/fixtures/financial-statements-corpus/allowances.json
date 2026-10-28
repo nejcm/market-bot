@@ -961,14 +961,6 @@
   },
   {
     "fixture": "fpi-ifrs-semiannual",
-    "path": "financialLens.Financial Strength.posture",
-    "canonicalSha256": "b767047370f53b0f551c98d7a8bc5379a3bbbb32cb221626f451106917c07fef",
-    "legacySha256": "664fbc7d28652a5d615db5026767ec834049a0c53941f40f311039fda6416bda",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical Financial Strength.posture comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "fpi-ifrs-semiannual",
     "path": "financialLens.Financial Strength.metrics.cash",
     "canonicalSha256": "c398db14dceb576be1adb01d63967c396a95f1ba5369220d9ca9c8f9ec43fcc6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
@@ -990,14 +982,6 @@
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical Financial Strength.metrics.debtToEquity comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "fpi-ifrs-semiannual",
-    "path": "financialLens.Financial Strength.metrics.netDebt",
-    "canonicalSha256": "ef5b4d42159e7333d2db5d812500bf58a226767641fe5f304921a3e436eed17b",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical Financial Strength.metrics.netDebt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   },
   {
     "fixture": "fpi-ifrs-semiannual",

@@ -23,7 +23,7 @@ import type {
   PeerUniverseFallbackContext,
 } from "../src/research/peer-universe";
 import { isRecord } from "../src/guards";
-import { collectedSources, marketSnapshot } from "./support/fixtures";
+import { UNTAGGED_EV_BRIDGE, collectedSources, marketSnapshot } from "./support/fixtures";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
 import { buildSubsystemOutcomes } from "../src/research/subsystem-outcomes";
 
@@ -41,6 +41,7 @@ function impliedRangeInput(
     peerP75EvToAnnualizedRevenue: 3,
     annualizedRevenue: 400,
     netDebt: 10,
+    nonCommonClaims: 0,
     sharesOutstanding: 10,
     currentPrice: 79,
     quoteCurrency: "USD",
@@ -296,6 +297,7 @@ function valuationEvidence(): ExtendedEvidence {
         sourceIds: ["extended-sec-edgar-nvda-fundamentals"],
         observedAt: generatedAt,
         metrics: {
+          ...UNTAGGED_EV_BRIDGE,
           revenue: 100,
           revenuePeriodMonths: 3,
           revenuePeriodEnd: "2026-06-29",
@@ -312,6 +314,7 @@ function valuationEvidence(): ExtendedEvidence {
         sourceIds: ["market-yahoo-equity-nvda", "extended-sec-edgar-nvda-fundamentals"],
         observedAt: generatedAt,
         metrics: {
+          ...UNTAGGED_EV_BRIDGE,
           marketCap: 1000,
           cash: 10,
           debt: 20,
@@ -663,7 +666,8 @@ describe("collectValuationComps", () => {
       status: "derived",
       label: "peer-implied price reference range",
       basis: "peer EV/TTM revenue percentiles applied to target TTM revenue",
-      formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding",
+      formula:
+        "impliedPrice(m) = (m × TTM revenue − netDebt − nonCommonClaims) / sharesOutstanding",
       low: 54,
       mid: 69,
       high: 84,
@@ -674,6 +678,7 @@ describe("collectValuationComps", () => {
         peerP75EvToAnnualizedRevenue: 2.125,
         annualizedRevenue: 400,
         netDebt: 10,
+        nonCommonClaims: 0,
         sharesOutstanding: 10,
         currentPrice: 100,
         quoteCurrency: "USD",
@@ -891,6 +896,16 @@ describe("collectValuationComps", () => {
         message:
           "Peer AMD excluded from valuation comps: cash period end 2026-06-29 and debt period end 2026-03-01 diverge by 120 days; enterprise value flagged as mixed-period",
       }),
+    );
+  });
+
+  test("excludes a peer whose EV bridge is incomplete", async () => {
+    const payload = secPayload() as { facts: { "us-gaap": Record<string, unknown> } };
+    payload.facts["us-gaap"].MinorityInterest = {
+      units: { USD: [secInstantFact(5, "2026-03-29", "Q1")] },
+    };
+    expect(await amdExclusionReason(payload)).toBe(
+      "SEC EV bridge incomplete (noncontrolling interest (MinorityInterest) reported nonzero at 2026-03-29 but not tagged at 2026-06-29)",
     );
   });
 

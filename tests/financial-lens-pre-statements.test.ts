@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { parseArgs, type InstrumentCommand } from "../src/cli/args";
 import type { ExtendedEvidence } from "../src/domain/evidence";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
-import { marketSnapshot, verifiedMarketSnapshot } from "./support/fixtures";
+import { UNTAGGED_EV_BRIDGE, marketSnapshot, verifiedMarketSnapshot } from "./support/fixtures";
 
 const command: InstrumentCommand = (() => {
   const parsed = parseArgs(["equity", "AAPL", "--deep"]);
@@ -25,6 +25,7 @@ function evidence(overrides: Record<string, number | string> = {}): ExtendedEvid
         sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
         observedAt: "2026-06-20T00:00:00.000Z",
         metrics: {
+          ...UNTAGGED_EV_BRIDGE,
           financialLensSelectionVersion: 1,
           revenue: 100,
           revenuePeriodEnd: "2026-03-31",

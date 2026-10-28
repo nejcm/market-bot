@@ -43,6 +43,13 @@ import {
   type MetricResult,
   type MetricSection,
 } from "./metric-engine";
+import {
+  ENTERPRISE_VALUE_BASIS,
+  NET_DEBT_BASIS,
+  netDebtFromMetrics,
+  bridgeContributors,
+  resolveEnterpriseValueBridge,
+} from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps-contract";
@@ -428,13 +435,36 @@ function summaryCurrentness(
 
 function evidenceGuardedNetDebt(ctx: MetricContext): number | undefined {
   const item = secItem(ctx);
-  const debt = readNumberMetric(item?.metrics, "debt");
-  const cash = readNumberMetric(item?.metrics, "cash");
-  return debt === undefined ||
-    cash === undefined ||
-    balanceSheetPeriodDivergence(item?.metrics) !== undefined
+  return balanceSheetPeriodDivergence(item?.metrics) !== undefined
     ? undefined
-    : debt - cash;
+    : netDebtFromMetrics(item?.metrics);
+}
+
+function shortTermInvestmentsAt(
+  ctx: MetricContext,
+  cash: FinancialStatementFact,
+): { readonly value?: number; readonly inputs: readonly MetricInput[]; readonly reason?: string } {
+  const part = resolveEnterpriseValueBridge(
+    ctx.statements?.enterpriseValueBridge,
+    cash,
+  ).shortTermInvestments;
+  if (part.status === "incomplete") {
+    return { inputs: [], reason: part.reason };
+  }
+  if (part.status === "untagged") {
+    return { value: 0, inputs: [] };
+  }
+  return {
+    value: part.value,
+    inputs: bridgeContributors(part).map(({ fact, value, label }) => {
+      const { series: _series, ...input } = statementInput(
+        fact,
+        "cash",
+        `short-term investments (${label})`,
+      );
+      return { ...input, value, key: fact.concept };
+    }),
+  };
 }
 
 function evidenceDisplayNetDebt(ctx: MetricContext): number | undefined {
@@ -1045,7 +1075,7 @@ function netDebtDefinition(): MetricDefinition {
     id: "netDebt",
     label: "Net debt",
     unit: "currency",
-    basis: "debt less cash at one balance-sheet instant",
+    basis: `${NET_DEBT_BASIS} at one balance-sheet instant; long-term investments excluded`,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const period = summaryPeriod(ctx, "debt");
@@ -1073,6 +1103,7 @@ function netDebtDefinition(): MetricDefinition {
             : [
                 ...chosenInput(item, "debt", "debt", period),
                 ...chosenInput(item, "cash", "cash", period),
+                ...chosenInput(item, "shortTermInvestments", "short-term investments", period),
               ];
         if (!currentness.current) {
           return {
@@ -1082,8 +1113,9 @@ function netDebtDefinition(): MetricDefinition {
             inputs,
           };
         }
+        const withheld = readStringMetric(item?.metrics, "shortTermInvestmentsIncompleteReason");
         return value === undefined
-          ? { status: "missing", reason: "no SEC net debt", ...period, inputs }
+          ? { status: "missing", reason: withheld ?? "no SEC net debt", ...period, inputs }
           : { status: "value", value, inputs, ...period };
       }
       const anchor = latestFact(ctx, "debt");
@@ -1094,7 +1126,12 @@ function netDebtDefinition(): MetricDefinition {
       if (cash === undefined) {
         return missingPartner(ctx, "cash", anchor, [factInput(anchor, "debt")]);
       }
-      const inputs = [factInput(anchor, "debt"), factInput(cash, "cash")];
+      const shortTermInvestments = shortTermInvestmentsAt(ctx, cash);
+      const inputs = [
+        factInput(anchor, "debt"),
+        factInput(cash, "cash"),
+        ...shortTermInvestments.inputs,
+      ];
       if (!isCurrentPeriod(ctx, anchor.periodEnd)) {
         return {
           status: "missing",
@@ -1103,9 +1140,17 @@ function netDebtDefinition(): MetricDefinition {
           inputs,
         };
       }
+      if (shortTermInvestments.value === undefined) {
+        return {
+          status: "missing",
+          reason: shortTermInvestments.reason ?? "short-term investments unavailable",
+          ...periodOf(anchor),
+          inputs,
+        };
+      }
       return {
         status: "value",
-        value: anchor.value - cash.value,
+        value: anchor.value - cash.value - shortTermInvestments.value,
         ...periodOf(anchor),
         ...(anchor.currency !== null ? { currency: anchor.currency } : {}),
         inputs,
@@ -1312,13 +1357,27 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
         return noFact(ctx, "debt");
       }
       const cash = id === "netDebtToMarketCap" ? samePeriodFact(ctx, anchor, "cash") : undefined;
-      const netDebt = cash === undefined ? undefined : anchor.value - cash.value;
+      const shortTermInvestments =
+        cash === undefined ? undefined : shortTermInvestmentsAt(ctx, cash);
+      const netDebt =
+        cash === undefined || shortTermInvestments?.value === undefined
+          ? undefined
+          : anchor.value - cash.value - shortTermInvestments.value;
       const numerator = id === "debtToMarketCap" ? anchor.value : netDebt;
       const inputs = [
         ...(marketCap === undefined ? [] : [marketCap]),
         factInput(anchor, "debt"),
         ...(cash === undefined ? [] : [factInput(cash, "cash")]),
+        ...(shortTermInvestments?.inputs ?? []),
       ];
+      if (numerator === undefined && shortTermInvestments?.reason !== undefined) {
+        return {
+          status: "missing",
+          reason: shortTermInvestments.reason,
+          ...periodOf(anchor),
+          inputs,
+        };
+      }
       if (numerator === undefined) {
         return missingPartner(ctx, "cash", anchor, inputs);
       }
@@ -1715,7 +1774,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       id: "enterpriseValue",
       label: "Enterprise value",
       unit: "currency",
-      basis: "valuation evidence enterprise value at the quote date",
+      basis: `valuation evidence enterprise value at the quote date: ${ENTERPRISE_VALUE_BASIS}`,
       compute: () =>
         valuationOutcome(
           ctx,
@@ -1747,7 +1806,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       id: "evToAnnualizedRevenue",
       label: "EV/revenue",
       unit: "ratio",
-      basis: "valuation evidence enterprise value / TTM revenue",
+      basis: `valuation evidence enterprise value / TTM revenue; ${ENTERPRISE_VALUE_BASIS}`,
       compute: () =>
         valuationOutcome(
           ctx,

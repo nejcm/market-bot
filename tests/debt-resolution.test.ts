@@ -1275,6 +1275,106 @@ describe("ambiguous LongTermDebt", () => {
     ).toMatchObject({ value: 100 });
   });
 
+  test("AMD: a combined total equal to the classified lines holds a duplicate short-term tag", () => {
+    // AMD FY2025 10-K (0000002488-26-000018): current portion 874M + long-term 2,348M; ShortTermBorrowings repeats the 874M.
+    const fy = (value: number) => filed(value, "2025-12-27", "2026-02-04", "amd-fy2025", "10-K");
+    const { canonical, legacy } = resolve({
+      DebtLongtermAndShorttermCombinedAmount: [fy(3222)],
+      LongTermDebtCurrent: [fy(874)],
+      LongTermDebtNoncurrent: [fy(2348)],
+      ShortTermBorrowings: [fy(874)],
+    });
+    expect(canonical).toMatchObject({ periodEnd: "2025-12-27", value: 3222 });
+    expect(legacy?.metrics?.debt).toBe(3222);
+  });
+
+  test("a combined total gaps when short-term borrowings exceed the current line", () => {
+    expectGap(
+      {
+        DebtLongtermAndShorttermCombinedAmount: [at(100)],
+        LongTermDebtCurrent: [at(10)],
+        LongTermDebtNoncurrent: [at(90)],
+        ShortTermBorrowings: [at(30)],
+      },
+      "ShortTermBorrowings",
+    );
+  });
+
+  test("a combined total gaps when DebtCurrent shows short-term borrowings beside the maturities", () => {
+    const { canonical, legacy } = resolve({
+      DebtLongtermAndShorttermCombinedAmount: [at(100)],
+      LongTermDebtCurrent: [at(20)],
+      DebtCurrent: [at(40)],
+      LongTermDebtNoncurrent: [at(80)],
+      ShortTermBorrowings: [at(20)],
+    });
+    expect(canonical?.periodEnd).not.toBe("2026-06-30");
+    expect(legacy?.metrics?.debt).toBeUndefined();
+  });
+
+  test("AMD: OtherLongTermDebt inside a reconciled noncurrent line is not a stray borrowing", () => {
+    // AMD FY2016 10-K: short-term debt 0, long-term debt, net 1,435M.
+    const fy = (value: number) => filed(value, "2016-12-31", "2017-02-21", "amd-fy2016", "10-K");
+    const { canonical, legacy } = resolve({
+      LongTermDebt: [fy(1435)],
+      LongTermDebtNoncurrent: [fy(1435)],
+      LinesOfCreditCurrent: [fy(0)],
+      OtherLongTermDebt: [fy(1)],
+    });
+    expect(canonical).toMatchObject({ periodEnd: "2016-12-31", value: 1435 });
+    expect(legacy?.metrics?.debt).toBe(1435);
+  });
+
+  test("a lone OtherLongTermDebt with no line or total that holds it gaps", () => {
+    expectGap(
+      { LongTermDebtCurrent: [at(10)], OtherLongTermDebt: [at(5)] },
+      "OtherLongTermDebt tagged without a noncurrent debt line or total that holds it",
+    );
+  });
+
+  test.each(["legacy", "canonical"] as const)(
+    "NVDA: %s debt YoY spans a component prior and a reconciled LongTermDebt total",
+    (path) => {
+      // NVDA 10-Q 2026-07-26 (0001045810-26-000075) vs 10-Q 2025-07-27: 33,366M vs 8,466M.
+      const q = (value: number, end: string, filedAt: string) =>
+        filed(value, end, filedAt, `nvda-${end}`);
+      const yearAgo = (value: number) => q(value, "2025-07-27", "2025-08-27");
+      const latest = (value: number) => q(value, "2026-07-26", "2026-08-26");
+      const { artifact, legacy } = resolve({
+        CashAndCashEquivalentsAtCarryingValue: [yearAgo(11_639), latest(22_443)],
+        LongTermDebtNoncurrent: [yearAgo(8466), latest(32_366)],
+        LongTermDebt: [latest(33_366)],
+        DebtCurrent: [latest(1000)],
+        LongTermDebtCurrent: [latest(1000)],
+      });
+      const metrics =
+        path === "legacy"
+          ? legacy?.metrics
+          : withCanonicalFinancialLensInputs(secEvidenceFrom(legacy?.metrics), artifact).items[0]
+              ?.metrics;
+      expect(metrics?.debt).toBe(33_366);
+      expect(metrics?.debtPrior).toBe(8466);
+    },
+  );
+
+  test.each(["legacy", "canonical"] as const)(
+    "%s debt YoY stays suppressed between a principal combined total and a component prior",
+    (path) => {
+      const yearAgo = (value: number) => instant(value, "2025-06-30", "2025-08-06");
+      const { artifact, legacy } = resolve({
+        LongTermDebtNoncurrent: [yearAgo(80)],
+        DebtLongtermAndShorttermCombinedAmount: [at(100)],
+      });
+      const metrics =
+        path === "legacy"
+          ? legacy?.metrics
+          : withCanonicalFinancialLensInputs(secEvidenceFrom(legacy?.metrics), artifact).items[0]
+              ?.metrics;
+      expect(metrics?.debt).toBeDefined();
+      expect(metrics?.debtPrior).toBeUndefined();
+    },
+  );
+
   test.each([
     [
       "LongTermDebt beside current debt with no noncurrent line or total",

@@ -11,6 +11,7 @@ import {
   assertBalanceSheetFactIdentity,
   assertCompositeFactIntegrity,
   assertEarningsReleaseEvidence,
+  assertFinancialStatementInvariants,
   assertFundamentalHistoryInvariants,
   assertRetainedDurationFactsIdentical,
   assertSourceIdClosure,
@@ -165,6 +166,26 @@ describe("live financial invariant negative controls", () => {
     expect(nbis.asserted).toBe(nbis.completePeriods);
     expect(nbis.skipped).toBe(0);
     expect(nbis.failing).toBe(0);
+  });
+
+  test("A9 fires when an EV bridge fact leaves the reporting currency", () => {
+    const artifact = results
+      .map((result) => result.deepEquityEvidenceBundle?.derived.financialStatements)
+      .find(
+        (candidate) => (candidate?.enterpriseValueBridge?.shortTermInvestments.length ?? 0) > 0,
+      );
+    const bridge = artifact?.enterpriseValueBridge;
+    const [first] = bridge?.shortTermInvestments ?? [];
+    if (artifact === undefined || bridge === undefined || first === undefined) {
+      throw new Error("No fixture carries short-term investments");
+    }
+    expect(() => assertFinancialStatementInvariants(artifact)).not.toThrow();
+    const injected = {
+      ...artifact,
+      enterpriseValueBridge: { ...bridge, shortTermInvestments: [{ ...first, currency: "EUR" }] },
+    };
+
+    expect(() => assertFinancialStatementInvariants(injected)).toThrow(/\[A9\]/u);
   });
 
   test("C12 fires when a sourceIds entry is rewritten", () => {

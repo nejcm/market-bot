@@ -53,6 +53,11 @@ export interface ValuationCompsRow {
   readonly cashPeriodEnd?: string;
   readonly debtPeriodEnd?: string;
   readonly debtBasis?: DebtBasis;
+  readonly shortTermInvestments?: number;
+  readonly shortTermInvestmentsIncludeEquity?: true;
+  readonly noncontrollingInterest?: number;
+  readonly preferredStock?: number;
+  readonly temporaryEquity?: number;
   readonly netDebt?: number | typeof MIXED_PERIOD_METRIC;
   readonly enterpriseValue?: number | typeof MIXED_PERIOD_METRIC;
   readonly latestPeriodRevenue?: number;
@@ -77,6 +82,7 @@ export type PeerImpliedRangeSuppressedReason =
   | "TTM revenue is not positive"
   | "net debt is unavailable"
   | "net debt uses mixed reporting periods"
+  | "noncontrolling interest, preferred stock or temporary equity is unavailable"
   | "shares outstanding is not positive"
   | "quote currency is not USD"
   | "peer percentile inputs are unavailable"
@@ -92,6 +98,8 @@ export const SUPPRESSION_CAUSE = {
   "TTM revenue is not positive": "provider-data-missing",
   "net debt is unavailable": "provider-data-missing",
   "net debt uses mixed reporting periods": "validation-failed",
+  "noncontrolling interest, preferred stock or temporary equity is unavailable":
+    "provider-data-missing",
   "shares outstanding is not positive": "provider-data-missing",
   "quote currency is not USD": "unsupported-coverage",
   "peer percentile inputs are unavailable": "provider-data-missing",
@@ -127,6 +135,8 @@ export interface PeerImpliedRangeInputs {
   readonly peerP75EvToAnnualizedRevenue: number | null;
   readonly annualizedRevenue: number | null;
   readonly netDebt: number | typeof MIXED_PERIOD_METRIC | null;
+  // Noncontrolling interest + preferred stock; absent on ranges saved before the EV bridge.
+  readonly nonCommonClaims?: number | null;
   readonly sharesOutstanding: number | null;
   readonly currentPrice: number | null;
   readonly quoteCurrency: string | null;
@@ -139,6 +149,7 @@ export interface PeerImpliedRangeDerivedInputs extends PeerImpliedRangeInputs {
   readonly peerP75EvToAnnualizedRevenue: number;
   readonly annualizedRevenue: number;
   readonly netDebt: number;
+  readonly nonCommonClaims: number;
   readonly sharesOutstanding: number;
   readonly currentPrice: number;
   readonly quoteCurrency: "USD";
@@ -147,8 +158,13 @@ export interface PeerImpliedRangeDerivedInputs extends PeerImpliedRangeInputs {
 const TTM_PEER_RANGE_BASIS = {
   revenueLabel: "TTM revenue",
   basis: "peer EV/TTM revenue percentiles applied to target TTM revenue",
-  formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding",
+  formula: "impliedPrice(m) = (m × TTM revenue − netDebt − nonCommonClaims) / sharesOutstanding",
   revenueNotPositive: "TTM revenue is not positive",
+} as const;
+
+const LEGACY_NET_DEBT_ONLY_PEER_RANGE_BASIS = {
+  ...TTM_PEER_RANGE_BASIS,
+  formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding",
 } as const;
 
 const LEGACY_ANNUALIZED_PEER_RANGE_BASIS = {
@@ -158,7 +174,11 @@ const LEGACY_ANNUALIZED_PEER_RANGE_BASIS = {
   revenueNotPositive: "annualized revenue is not positive",
 } as const;
 
-const PEER_RANGE_REVENUE_BASES = [TTM_PEER_RANGE_BASIS, LEGACY_ANNUALIZED_PEER_RANGE_BASIS];
+const PEER_RANGE_REVENUE_BASES = [
+  TTM_PEER_RANGE_BASIS,
+  LEGACY_NET_DEBT_ONLY_PEER_RANGE_BASIS,
+  LEGACY_ANNUALIZED_PEER_RANGE_BASIS,
+];
 
 // Matches a stored range to exactly one known (basis, formula, revenue reason) set.
 export function storedPeerRangeBasis(range: {
@@ -200,6 +220,10 @@ export type PeerImpliedRange = PeerImpliedRangeOf<
 // Runs saved before the TTM switch; readers accept this basis, the producer never writes it.
 export type StoredPeerImpliedRange =
   | PeerImpliedRange
+  | PeerImpliedRangeOf<
+      Pick<typeof LEGACY_NET_DEBT_ONLY_PEER_RANGE_BASIS, "basis" | "formula">,
+      PeerImpliedRangeSuppressedReason
+    >
   | PeerImpliedRangeOf<
       Pick<typeof LEGACY_ANNUALIZED_PEER_RANGE_BASIS, "basis" | "formula">,
       | Exclude<PeerImpliedRangeSuppressedReason, typeof TTM_PEER_RANGE_BASIS.revenueNotPositive>
@@ -266,4 +290,10 @@ export interface PeerPacket {
   readonly provenance: PeerUniverse["provenance"];
   readonly quote: MarketSnapshot | undefined;
   readonly sec: Awaited<ReturnType<typeof fetchSecCompanyFactsForSymbol>>;
+}
+
+export function compsCashLabel(row: ValuationCompsRow): string | undefined {
+  return row.cashPeriodEnd === undefined
+    ? undefined
+    : `cash ${row.cashPeriodEnd}${row.shortTermInvestmentsIncludeEquity === true ? " (short-term investments include current equity securities that may be sale-restricted)" : ""}`;
 }

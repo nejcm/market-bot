@@ -53,6 +53,35 @@ export function prediction(overrides: Partial<Prediction> = {}): Prediction {
   };
 }
 
+// SEC metrics for an issuer with no short-term investments, NCI, or preferred tagged at the cash instant.
+export const UNTAGGED_EV_BRIDGE = {
+  shortTermInvestments: 0,
+  shortTermInvestmentsConcept: "none tagged",
+  noncontrollingInterest: 0,
+  noncontrollingInterestConcept: "none tagged",
+  preferredStock: 0,
+  preferredStockConcept: "none tagged",
+  temporaryEquity: 0,
+  temporaryEquityConcept: "none tagged",
+} as const;
+
+export const EMPTY_EV_BRIDGE_FACTS = {
+  shortTermInvestments: [],
+  cashAndShortTermInvestments: [],
+  noncontrollingInterest: [],
+  preferredStock: [],
+  temporaryEquity: [],
+  assets: [],
+  liabilities: [],
+  stockholdersEquity: [],
+  stockholdersEquityIncludingNoncontrollingInterest: [],
+  currentEquitySecurities: [],
+  assetsCurrent: [],
+  receivablesCurrent: [],
+  inventory: [],
+  otherAssetsCurrent: [],
+} as const;
+
 export function marketSnapshot(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot {
   return {
     sourceId: "market-aapl",

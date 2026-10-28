@@ -11,7 +11,10 @@ import type {
   StoredPeerImpliedRange,
   ValuationCompsRow,
 } from "../../src/sources/extended-evidence/valuation-comps";
-import { storedPeerRangeBasis } from "../../src/sources/extended-evidence/valuation-comps-contract";
+import {
+  compsCashLabel,
+  storedPeerRangeBasis,
+} from "../../src/sources/extended-evidence/valuation-comps-contract";
 import type { ValuationWorkbenchArtifact } from "../../src/sources/extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
@@ -172,7 +175,7 @@ function valuationRowInputDates(row: ValuationCompsRow): string {
     [
       ...(priceAsOf === undefined ? [] : [priceAsOfLabel(priceAsOf)]),
       ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
-      ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
+      ...[compsCashLabel(row)].filter((label) => label !== undefined),
       ...(row.debtPeriodEnd === undefined
         ? []
         : [
@@ -227,7 +230,7 @@ export function peerImpliedRangeFromProjection(
     midLabel: `Mid ${formatReferencePrice(valuation.range.mid)}`,
     highLabel: `High ${formatReferencePrice(valuation.range.high)}`,
     currentLabel: `Current price ${formatReferencePrice(inputs.currentPrice)}`,
-    methodDisclosure: `Method: ${valuation.range.basis}; ${valuation.range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; ${revenueBasisLabel} ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo price ${priceDate}.`,
+    methodDisclosure: `Method: ${valuation.range.basis}; ${valuation.range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; ${revenueBasisLabel} ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}${typeof inputs.nonCommonClaims === "number" ? `, noncontrolling interest + preferred stock + temporary equity ${formatLensValue(inputs.nonCommonClaims, "currency", "USD")}` : ""}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo price ${priceDate}.`,
     boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     geometry: rangeGeometry(valuation.range),
   };

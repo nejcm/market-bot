@@ -192,7 +192,7 @@ These rules apply when adding or fixing a metric, parser, or projection. They de
 
 - **Use standard definitions.** Follow the textbook formula. Where the code deviates, its `label` or `basis` string says how (`freeCashFlowProxy`, `ebitdaProxy`, "period-end invested capital", "latest FY"). A new deviation needs the same.
   - FCF = operating cash flow − capex. FCF margin = FCF / revenue.
-  - EV = market cap + debt + preferred + noncontrolling interest − cash. Net debt = debt − cash. Not applicable for depository issuers.
+  - EV = market cap + debt + preferred + noncontrolling interest + redeemable (temporary) equity − cash − short-term investments. Net debt = debt − cash − short-term investments. Long-term securities stay out. Not applicable for depository issuers.
   - ROIC = NOPAT / invested capital, where NOPAT = operating income × (1 − effective tax rate) and invested capital = equity + debt − cash.
   - Interest coverage = operating income / interest expense. Current ratio = current assets / current liabilities.
   - Payout ratio = dividends / net income. Shareholder yield = (dividends + buybacks) / market cap, with gross or net-of-issuance stated.

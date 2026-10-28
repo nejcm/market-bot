@@ -106,6 +106,9 @@ function observation(
     ...(periodInputs.freeCashFlow !== undefined ? { freeCashFlow: periodInputs.freeCashFlow } : {}),
     ...(periodInputs.cash !== undefined ? { cash: periodInputs.cash } : {}),
     ...(periodInputs.debt !== undefined ? { debt: periodInputs.debt } : {}),
+    ...(periodInputs.enterpriseValueBridge !== undefined
+      ? { enterpriseValueBridge: periodInputs.enterpriseValueBridge }
+      : {}),
   };
   const sourceIds = unique([
     ...Object.values(inputs).flatMap((value) => value.sourceIds),

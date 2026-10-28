@@ -41,8 +41,11 @@ export interface DebtTaxonomyConcepts {
   readonly leaseInclusive?: Readonly<Record<string, "current" | "noncurrent" | "total">>;
   readonly unrecognizedBorrowing?: RegExp;
   readonly umbrellas?: Readonly<Record<string, readonly string[]>>;
+  // Note-level details a used noncurrent line or total holds; never summed.
+  readonly constituents?: readonly string[];
   readonly ambiguousLongTermDebt?: {
     readonly concept: string;
+    readonly combinedTotal: string;
     readonly current: string;
     readonly currentTotal: string;
     readonly shortTerm: readonly string[];
@@ -97,9 +100,11 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
     },
     // An umbrella spans both sides: used only when no leg and no generic side line is tagged.
     umbrellas: { LineOfCredit: ["LongTermLineOfCredit", "LinesOfCreditCurrent"] },
+    constituents: ["OtherLongTermDebt"],
     // Filers tag LongTermDebt as either all long-term debt or only its noncurrent balance-sheet line.
     ambiguousLongTermDebt: {
       concept: "LongTermDebt",
+      combinedTotal: "DebtLongtermAndShorttermCombinedAmount",
       current: "LongTermDebtCurrent",
       currentTotal: "DebtCurrent",
       shortTerm: ["ShortTermBorrowings", "ShortTermDebt", "CommercialPaper"],

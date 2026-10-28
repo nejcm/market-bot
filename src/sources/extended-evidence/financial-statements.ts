@@ -472,6 +472,30 @@ function factsForDepreciationAndAmortization(
       });
       return true;
     };
+    // AMD FY2020-22: a filed cash-flow D&A line proves D&A exists, so a partial component set is a gap, not "not filed".
+    const incompleteComponentsNote = (
+      present: readonly ParsedFact[],
+      lines: readonly ParsedFact[],
+    ): void => {
+      const period = present[0] ?? lines[0];
+      if (
+        period === undefined ||
+        lines.length === 0 ||
+        periodType(period, definition) !== "annual"
+      ) {
+        return;
+      }
+      const missing = DEPRECIATION_AND_AMORTIZATION_COMPONENTS.filter(
+        (aliases) => !present.some((fact) => aliases.includes(fact.concept)),
+      ).map((aliases) => aliases[0]);
+      const filed = lines.map((fact) => `${fact.concept} ${String(fact.value)}`).join(", ");
+      notes.push({
+        code: "incomplete-composite-series",
+        seriesKey: definition.key,
+        periodKey: periodKey(period),
+        message: `SEC depreciation and amortization for ${period.periodStart ?? "instant"} to ${period.periodEnd} omitted: no combined fact and no ${missing.join(", ")} component; the filed cash-flow line (${filed}) is not proven to be total D&A`,
+      });
+    };
     const totalConcept = totalFacts[0]?.concept;
     const [total] = candidates
       .filter((fact) => fact.concept === totalConcept)
@@ -503,6 +527,8 @@ function factsForDepreciationAndAmortization(
           periodKey: periodKey(total),
           message: `SEC depreciation and amortization for ${total.periodStart ?? "instant"} to ${total.periodEnd} omitted: the combined fact is more than ${String(DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE * 100)}% below a same-period component and the matching component set is incomplete`,
         });
+      } else {
+        incompleteComponentsNote(contributors, cashFlowLines);
       }
       return [];
     }
@@ -2544,7 +2570,7 @@ export function deriveFinancialStatements(
       ...shareBasisTtm.flatMap((item) => (item.note === undefined ? [] : [item.note])),
       ...incompleteFinancialStatementNotes(series),
     ],
-    omissionNotes: [
+    omissionNotes: withinRetainedWindow(series, [
       ...selected.flatMap((item) => item.omissionNotes),
       ...capNotes,
       ...withheldDerivationNotes(selected, statements.incomeStatement),
@@ -2562,7 +2588,7 @@ export function deriveFinancialStatements(
       ),
       ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
       ...shareBasisNotes,
-    ],
+    ]),
     structuredFinancialGaps: structuredFinancialGaps(
       taxonomy,
       reportingCurrency,
@@ -2597,6 +2623,91 @@ export function financialStatementsDebtBasisGaps(
   return latest === undefined || leaseInclusive.length === 0
     ? []
     : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];
+}
+
+function noteShape(key: string): "instant" | "duration" {
+  return key.startsWith("instant|") ? "instant" : "duration";
+}
+
+function noteCadences(key: string): readonly ("annual" | "interim")[] {
+  if (key.startsWith("duration:12|")) {
+    return ["annual"];
+  }
+  return /^duration:(3|6|9)\|/u.test(key) ? ["interim"] : ["annual", "interim"];
+}
+
+// Dividends per share has its own cap, so each note is judged against its series' cap scope.
+function capScope(key: FinancialStatementSeriesKey | undefined): "dividends" | "core" {
+  return key === "dividendsPerShare" ? "dividends" : "core";
+}
+
+// Outside the window: on no retained period, and older than what every cadence it may belong to shows, with at least one cadence capped.
+export function withinRetainedWindow(
+  series: readonly FinancialStatementSeries[],
+  notes: readonly FinancialStatementNote[],
+): readonly FinancialStatementNote[] {
+  const capNotes = notes.filter(
+    (note) =>
+      note.code === "history-cap" &&
+      (note.seriesKey === undefined || note.seriesKey === "dividendsPerShare"),
+  );
+  const window = (scope: "dividends" | "core") => {
+    const scoped = series.filter((item) => capScope(item.key) === scope);
+    const scopedCaps = capNotes.filter((note) => capScope(note.seriesKey) === scope);
+    return {
+      retained: new Set(
+        scoped.flatMap((item) => financialStatementFacts(item).map((fact) => fact.periodKey)),
+      ),
+      emptySeries: new Set(
+        scoped.filter((item) => financialStatementFacts(item).length === 0).map((item) => item.key),
+      ),
+      cadence: (period: "annual" | "interim", shape: string) => {
+        const ends = scoped
+          .flatMap((item) => item[period])
+          .filter((fact) => noteShape(fact.periodKey) === shape)
+          .map((fact) => fact.periodEnd)
+          .toSorted();
+        if (ends.length === 0) {
+          return undefined;
+        }
+        const [dropped] = scopedCaps
+          .flatMap((note) =>
+            note.periodKey?.startsWith(`${period}|`)
+              ? [note.periodKey.slice(period.length + 1)]
+              : [],
+          )
+          .filter((key) => noteShape(key) === shape)
+          .map((key) => key.split("|").at(-1)!)
+          .toSorted()
+          .toReversed();
+        return {
+          capped: dropped !== undefined,
+          shows: (end: string) => (dropped === undefined ? end >= ends[0]! : end > dropped),
+        };
+      },
+    };
+  };
+  const windows = { dividends: window("dividends"), core: window("core") };
+  return notes.filter((note) => {
+    const key = note.periodKey;
+    const scoped = windows[capScope(note.seriesKey)];
+    if (
+      note.code === "history-cap" ||
+      key === undefined ||
+      scoped.retained.has(key) ||
+      (note.seriesKey !== undefined && scoped.emptySeries.has(note.seriesKey))
+    ) {
+      return true;
+    }
+    const end = key.split("|").at(-1)!;
+    const cadences = noteCadences(key).flatMap((period) => {
+      const cadence = scoped.cadence(period, noteShape(key));
+      return cadence === undefined ? [] : [cadence];
+    });
+    return (
+      !cadences.some((cadence) => cadence.capped) || cadences.some((cadence) => cadence.shows(end))
+    );
+  });
 }
 
 export function financialStatementsHistoryGaps(

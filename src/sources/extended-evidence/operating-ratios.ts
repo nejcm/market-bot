@@ -8,6 +8,7 @@ import {
 } from "./capital-return";
 import { NEGATIVE_CAPEX_REASON } from "./financial-statement-definitions";
 import { shortTermInvestmentsAt } from "./financial-lens-sections";
+import type { SecIssuerRegistration } from "./industry-classification";
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import {
   financialStatementFactForPeriod,
@@ -18,6 +19,7 @@ import {
   evaluateMetricSection,
   type MetricContext,
   type MetricDefinition,
+  type MetricInput,
   type MetricOutcome,
   seriesNotFiled,
 } from "./metric-engine";
@@ -104,6 +106,77 @@ function effectiveTaxRateOf(
   return tax === undefined || pretax === undefined ? undefined : tax.value / pretax.value;
 }
 
+const US_STATES = new Set(
+  "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(
+    " ",
+  ),
+);
+
+type StatutoryRate =
+  | { readonly rate: number; readonly basis: string; readonly input: MetricInput }
+  | { readonly reason: string };
+
+const REIT_SIC = "6798";
+const NON_CORPORATE_NAME = /\b(?:L\.?P\.?|L\.?L\.?C\.?|TRUST|PARTNERS)$/iu;
+
+function corporateIssuerReason(issuer: SecIssuerRegistration | undefined): string | undefined {
+  const state = issuer?.stateOfIncorporation;
+  if (state === undefined) {
+    return "state of incorporation was not collected";
+  }
+  if (!US_STATES.has(state)) {
+    return `the issuer is not incorporated in a US state (${state})`;
+  }
+  if (issuer?.sic === undefined) {
+    return "SIC was not collected, so corporate tax treatment is unverified";
+  }
+  if (issuer.sic === REIT_SIC) {
+    return "the issuer files under SIC 6798 (REIT), so corporate tax treatment is unverified";
+  }
+  const name = issuer.entityName?.replace(/\s*\/[A-Z]{2}\/?\s*$/u, "").replace(/[\s,.]+$/u, "");
+  if (name === undefined) {
+    return "the issuer name was not collected, so corporate tax treatment is unverified";
+  }
+  return NON_CORPORATE_NAME.test(name)
+    ? `the issuer name (${issuer.entityName}) indicates a partnership, LLC or trust`
+    : undefined;
+}
+
+// A 52/53-week year is deemed to begin on the nearest month's first day (Treas. Reg. 1.441-2(e)).
+function usStatutoryRateFor(start: string, end: string): number | undefined {
+  if (start >= "2017-12-25") {
+    return 0.21;
+  }
+  return end <= "2018-01-07" && start >= "1993-01-01" ? 0.35 : undefined;
+}
+
+// Damodaran: NOPAT uses the marginal rate when the effective rate is distorted; TCJA set 21% for tax years beginning after 2017.
+function usStatutoryRateOf(ctx: MetricContext, anchor: FinancialStatementFact): StatutoryRate {
+  const prefix = "effective tax rate is outside 0-100% and";
+  const ineligible = corporateIssuerReason(ctx.secIssuer);
+  if (ineligible !== undefined) {
+    return { reason: `${prefix} ${ineligible}` };
+  }
+  const rate = usStatutoryRateFor(anchor.periodStart ?? "", anchor.periodEnd);
+  if (rate === undefined) {
+    return { reason: `${prefix} the fiscal year has no single US federal statutory rate` };
+  }
+  const state = ctx.secIssuer!.stateOfIncorporation!;
+  return {
+    rate,
+    basis: `NOPAT at the ${String(rate * 100)}% US federal statutory rate (issuer incorporated in ${state}) because the effective tax rate is outside 0-100%`,
+    input: {
+      label: "state of incorporation",
+      value: state,
+      artifact: "evidence",
+      category: "sec-edgar",
+      key: "stateOfIncorporation",
+      unit: "text",
+      sourceIds: ctx.secIssuer!.sourceIds,
+    },
+  };
+}
+
 const roicGate: Gate = (ctx, facts, keys) => {
   const [anchor] = facts;
   if (anchor === undefined) {
@@ -118,8 +191,12 @@ const roicGate: Gate = (ctx, facts, keys) => {
     return pretaxGate;
   }
   const taxRate = effectiveTaxRateOf(facts, keys);
-  if (taxRate !== undefined && (taxRate < 0 || taxRate > 1)) {
-    return notMeaningful("effective tax rate is outside 0-100%", facts, keys);
+  const statutory =
+    taxRate !== undefined && (taxRate < 0 || taxRate > 1)
+      ? usStatutoryRateOf(ctx, anchor)
+      : undefined;
+  if (statutory !== undefined && "reason" in statutory) {
+    return notMeaningful(statutory.reason, facts, keys);
   }
   const filed = INVESTED_CAPITAL.filter((key) => !seriesNotFiled(ctx, key));
   const instants = filed.map((key) => instantAt(ctx, key, anchor.periodEnd));
@@ -177,22 +254,31 @@ function roic(ctx: MetricContext): MetricOutcome {
     );
     const [equity, debt, cash] = instants;
     const shortTermInvestments = shortTermInvestmentsAt(ctx, cash!);
+    const effective = effectiveTaxRateOf(facts, ROIC_FLOWS)!;
+    const statutory =
+      effective < 0 || effective > 1 ? usStatutoryRateOf(ctx, operatingIncome!) : undefined;
+    const taxRate = statutory !== undefined && "rate" in statutory ? statutory.rate : effective;
     return {
       status: "value",
+      ...(statutory !== undefined && "basis" in statutory
+        ? { basis: `${ROIC_BASIS}; ${statutory.basis}` }
+        : {}),
       value:
-        (operatingIncome!.value * (1 - effectiveTaxRateOf(facts, ROIC_FLOWS)!)) /
+        (operatingIncome!.value * (1 - taxRate)) /
         (equity!.value + debt!.value - cash!.value - shortTermInvestments.value!),
       periodEnd: operatingIncome!.periodEnd,
       inputs: [
         ...inputsOf(facts, ROIC_FLOWS),
         ...instants.map((fact, index) => statementInput(fact, INVESTED_CAPITAL[index]!)),
         ...shortTermInvestments.inputs,
+        ...(statutory !== undefined && "input" in statutory ? [statutory.input] : []),
       ],
     };
   })(ctx);
 }
 
 const FISCAL_YEAR = "all from one year-aligned fiscal year";
+const ROIC_BASIS = `operating income x (1 - income tax expense / pretax income), ${FISCAL_YEAR}, / (stockholders' equity + debt - cash and cash equivalents - short-term investments) at that fiscal year end, long-term investments excluded; an effective tax rate outside 0-100% uses the US federal statutory rate (21% for fiscal years beginning 2018 or later, 35% for those ending by 2017) when the issuer is incorporated in a US state or DC, its SIC is collected and not 6798 (REIT), and its name has no LP, LLC, trust or partners suffix, otherwise not meaningful; pretax income or invested capital at or below zero is not meaningful`;
 const EBITDA_PROXY_BASIS = `operating income + depreciation and amortization as filed (an add-back is positive), ${FISCAL_YEAR}; negative depreciation and amortization is not meaningful`;
 
 // A scoped pretax label marks the fallback concept, which excludes equity-method income.
@@ -209,7 +295,7 @@ function withPretaxScope(
       );
       return pretax === undefined
         ? outcome
-        : { ...outcome, basis: `${basis}; pretax income is ${pretax.label}` };
+        : { ...outcome, basis: `${outcome.basis ?? basis}; pretax income is ${pretax.label}` };
     },
   };
 }
@@ -292,12 +378,9 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
   },
   {
     id: "roic",
-    label: "ROIC (operating income after effective tax / period-end invested capital)",
+    label: "ROIC (operating income after tax / period-end invested capital)",
     unit: "ratio-percent",
-    ...withPretaxScope(
-      `operating income x (1 - income tax expense / pretax income), ${FISCAL_YEAR}, / (stockholders' equity + debt - cash and cash equivalents - short-term investments) at that fiscal year end, long-term investments excluded; an effective tax rate outside 0-100% or invested capital at or below zero is not meaningful`,
-      roic,
-    ),
+    ...withPretaxScope(ROIC_BASIS, roic),
     applicable: depository("debt and cash are operating balances, not invested capital"),
   },
 ];

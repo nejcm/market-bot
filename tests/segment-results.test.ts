@@ -255,6 +255,58 @@ describe("SEC segment facts", () => {
     ).toBe(true);
   });
 
+  // AMD 10-K FY2025 (0000002488-26-000018) tags amd:DatacenterMember; 10-Q Q2 2026 tags amd:DataCenterMember.
+  test("a renamed member QName keeps separate rows and declares the gap", () => {
+    const annual = secSegmentFactMetrics(
+      [
+        UNITS,
+        context("c-1", "amd:DatacenterMember", "2024-12-29", "2025-12-27"),
+        fact(REVENUE, "c-1", "16,635"),
+        fact(OI, "c-1", "3,603"),
+      ].join(""),
+      "2025-12-27",
+    );
+    const tenK: ExtendedEvidenceItem = {
+      ...filingItem(annual),
+      metrics: { ...annual, form: "10-K", filingDate: "2026-02-04", reportDate: "2025-12-27" },
+    };
+    const tenQ = filingItem(secSegmentFactMetrics(AMD_10Q, "2026-06-27"));
+    const result = segmentResultsSection("amd", [tenK, tenQ]);
+    expect(
+      result?.section?.metrics.map(({ label }) => label).filter((l) => l.endsWith(" revenue")),
+    ).toEqual([
+      "Data Center segment revenue",
+      "Data Center segment revenue",
+      "Datacenter segment revenue",
+    ]);
+    expect(result?.sourceGaps).toMatchObject([
+      {
+        message:
+          "Segment members amd:DataCenterMember (10-Q filed 2026-08-05) and amd:DatacenterMember (10-K filed 2026-02-04) share a label; segment continuity across these QNames is unverified, so rows remain separate",
+        cause: "suppressed-by-design",
+        triage: "diagnostic",
+      },
+    ]);
+    expect(segmentResultsSection("amd", [tenQ])?.sourceGaps).toEqual([]);
+    const conflicting = secSegmentFactMetrics(
+      [
+        UNITS,
+        context("c-9", "amd:DataCenterSegmentMember", "2026-03-29", "2026-06-27"),
+        fact(REVENUE, "c-9", "1"),
+      ].join(""),
+      "2026-06-27",
+    );
+    const third = { ...tenQ, metrics: { ...tenQ.metrics, ...conflicting } };
+    expect(
+      segmentResultsSection("amd", [tenK, third])
+        ?.sourceGaps.filter(({ cause }) => cause === "suppressed-by-design")
+        .map(({ message }) => message.split(" share")[0]),
+    ).toEqual([
+      "Segment members amd:DataCenterMember (10-Q filed 2026-08-05) and amd:DatacenterMember (10-K filed 2026-02-04)",
+      "Segment members amd:DataCenterSegmentMember (10-Q filed 2026-08-05) and amd:DatacenterMember (10-K filed 2026-02-04)",
+    ]);
+  });
+
   test("a 20-F declares the gap without ASC 280 wording", () => {
     const result = segmentResultsSection("nbis", [
       { ...filingItem({}), metrics: { form: "20-F", filingDate: "2026-04-30" } },
@@ -279,6 +331,30 @@ describe("SEC segment facts", () => {
       100_000_000, 200_000_000,
     ]);
     expect(metrics[0]?.basis).toContain("for member amd:DataCenterMember");
+    expect(
+      segmentResultsSection("amd", [
+        filingItem(secSegmentFactMetrics(html, "2026-06-27")),
+      ])?.sourceGaps.filter(({ cause }) => cause === "suppressed-by-design"),
+    ).toEqual([]);
+  });
+
+  test("non-Latin labels group by their letters", () => {
+    const html = [
+      UNITS,
+      context("c-1", "x:北Member", "2026-03-29", "2026-06-27"),
+      context("c-2", "x:南Member", "2025-03-30", "2025-06-28"),
+      context("c-3", "x:北SegmentMember", "2025-03-30", "2025-06-28"),
+      fact(REVENUE, "c-1", "100"),
+      fact(REVENUE, "c-2", "200"),
+      fact(REVENUE, "c-3", "300"),
+    ].join("");
+    expect(
+      segmentResultsSection("amd", [filingItem(secSegmentFactMetrics(html, "2026-06-27"))])
+        ?.sourceGaps.filter(({ cause }) => cause === "suppressed-by-design")
+        .map(({ message }) => message.split(" share")[0]),
+    ).toEqual([
+      "Segment members x:北Member (10-Q filed 2026-08-05) and x:北SegmentMember (10-Q filed 2026-08-05)",
+    ]);
   });
 
   test("accepts any ixt namespace version prefix", () => {

@@ -107,6 +107,7 @@ export interface SecFundamentalsSummary {
 export interface SecSicClassification {
   readonly sic: string;
   readonly sicDescription?: string;
+  readonly stateOfIncorporation?: string;
 }
 
 export interface SecCompanyFactsResult {
@@ -441,9 +442,13 @@ function extractSecSic(payload: unknown): SecSicClassification | undefined {
     return undefined;
   }
   const sicDescription = readString(payload, "sicDescription")?.trim();
+  const stateOfIncorporation = readString(payload, "stateOfIncorporation")?.trim();
   return {
     sic: sic.padStart(4, "0"),
     ...(sicDescription !== undefined && sicDescription !== "" ? { sicDescription } : {}),
+    ...(stateOfIncorporation !== undefined && stateOfIncorporation !== ""
+      ? { stateOfIncorporation }
+      : {}),
   };
 }
 
@@ -1654,6 +1659,11 @@ export function secProviderResultFromCompanyFacts(
                     sic: factsResult.sicClassification.sic,
                     ...(factsResult.sicClassification.sicDescription !== undefined
                       ? { sicDescription: factsResult.sicClassification.sicDescription }
+                      : {}),
+                    ...(factsResult.sicClassification.stateOfIncorporation !== undefined
+                      ? {
+                          stateOfIncorporation: factsResult.sicClassification.stateOfIncorporation,
+                        }
                       : {}),
                   }
                 : {}),

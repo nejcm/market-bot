@@ -3,6 +3,7 @@ import {
   deriveFinancialStatements,
   financialStatementsDebtBasisGaps,
   financialStatementsHistoryGaps,
+  withinRetainedWindow,
 } from "../src/sources/extended-evidence/financial-statements";
 import { grossPrincipalDebtFallbackApplies } from "../src/sources/extended-evidence/financial-statement-period-identity";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
@@ -22,6 +23,9 @@ import {
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import {
   canonicalizeSecForm,
+  type FinancialStatementFact,
+  type FinancialStatementNote,
+  type FinancialStatementSeriesKey,
   type FinancialStatementSeries,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
@@ -97,6 +101,33 @@ function derive(
     sourceId: "extended-sec-edgar-test-fundamentals",
     ...overrides,
   });
+}
+
+function windowFact(key: string, end: string): FinancialStatementFact {
+  return {
+    periodKey: `${key}|${end}`,
+    periodStart: "2000-01-01",
+    periodEnd: end,
+  } as FinancialStatementFact;
+}
+
+function windowSeries(
+  key: string,
+  facts: readonly FinancialStatementFact[],
+): FinancialStatementSeries {
+  return { key, annual: facts, interim: [] } as unknown as FinancialStatementSeries;
+}
+
+function windowCap(end: string): FinancialStatementNote {
+  return { code: "history-cap", periodKey: `annual|duration:12|${end}`, message: "cap" };
+}
+
+function windowNote(
+  code: FinancialStatementNote["code"],
+  seriesKey: FinancialStatementSeriesKey,
+  periodKey: string,
+): FinancialStatementNote {
+  return { code, seriesKey, periodKey, message: code };
 }
 
 function historyGapMessages(artifact: ReturnType<typeof derive>): readonly string[] {
@@ -1466,6 +1497,110 @@ describe("canonical financial statements", () => {
         })),
       ).toEqual([{ value: 10, extractionMethod: "sec-companyfacts" }]);
       expect(historyGapMessages(artifact)).toEqual([]);
+    });
+  });
+
+  describe("retained window", () => {
+    test("judges dividends per share against its own cap, not the core cap", () => {
+      const series = [
+        windowSeries("revenue", [windowFact("duration:12", "2020-12-31")]),
+        windowSeries("dividendsPerShare", [windowFact("duration:12", "2012-12-31")]),
+      ];
+      const marker = windowNote(
+        "earlier-share-basis",
+        "dividendsPerShare",
+        "duration:12|2012-12-31",
+      );
+      const older = windowNote("declaration-span", "dividendsPerShare", "duration:12|2013-06-30");
+      expect(withinRetainedWindow(series, [windowCap("2019-12-31"), marker, older])).toEqual([
+        windowCap("2019-12-31"),
+        marker,
+        older,
+      ]);
+    });
+
+    test("drops an odd-span dividend note older than its capped annual window when interim is uncapped", () => {
+      const dividends = {
+        ...windowSeries("dividendsPerShare", [windowFact("duration:12", "2016-12-31")]),
+        interim: [windowFact("duration:3", "2023-03-31")],
+      } as FinancialStatementSeries;
+      const dividendCap = { ...windowCap("2015-12-31"), seriesKey: "dividendsPerShare" as const };
+      const stale = windowNote("declaration-span", "dividendsPerShare", "duration:0|2012-06-28");
+      const recent = windowNote("declaration-span", "dividendsPerShare", "duration:0|2023-06-28");
+      expect(withinRetainedWindow([dividends], [dividendCap, stale, recent])).toEqual([
+        dividendCap,
+        recent,
+      ]);
+    });
+
+    test("keeps a note on a retained period that shares its end with a dropped one", () => {
+      const series = [
+        windowSeries("revenue", [
+          windowFact("duration:10", "2015-12-31"),
+          windowFact("duration:12", "2016-12-31"),
+        ]),
+        windowSeries("depreciationAndAmortization", [windowFact("duration:12", "2016-12-31")]),
+      ];
+      const sameEnd = windowNote(
+        "incomplete-composite-series",
+        "depreciationAndAmortization",
+        "duration:10|2015-12-31",
+      );
+      const dropped = windowNote(
+        "incomplete-composite-series",
+        "depreciationAndAmortization",
+        "duration:12|2015-12-31",
+      );
+      expect(withinRetainedWindow(series, [windowCap("2015-12-31"), sameEnd, dropped])).toEqual([
+        windowCap("2015-12-31"),
+        sameEnd,
+      ]);
+    });
+
+    test("keeps every note of a series with no retained period", () => {
+      const series = [
+        windowSeries("revenue", [windowFact("duration:12", "2020-12-31")]),
+        windowSeries("depreciationAndAmortization", []),
+      ];
+      const only = windowNote(
+        "incomplete-composite-series",
+        "depreciationAndAmortization",
+        "duration:12|2007-12-31",
+      );
+      expect(withinRetainedWindow(series, [windowCap("2015-12-31"), only])).toContainEqual(only);
+    });
+
+    // GILD shape: D&A notes back to 2007 while the 10-period cap keeps 2016 onward.
+    const dna = (years: readonly number[]) => ({
+      Depreciation: { USD: years.map((year) => annual(5, year)) },
+      OtherDepreciationAndAmortization: { USD: years.map((year) => annual(7, year)) },
+    });
+
+    test("drops period notes older than every retained period and keeps in-window ones", () => {
+      const years = Array.from({ length: 21 }, (_, index) => 2005 + index);
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: years.map((year) => annual(100, year)) },
+            ...dna([2007, 2020]),
+            DepreciationDepletionAndAmortization: { USD: [annual(12, 2024)] },
+          },
+        }),
+      );
+
+      expect(artifact.statements.incomeStatement.revenue.annual[0]?.periodEnd).toBe("2016-12-31");
+      expect(
+        artifact.omissionNotes
+          .filter((note) => note.seriesKey === "depreciationAndAmortization")
+          .map((note) => note.periodKey),
+      ).toEqual(["duration:12|2020-12-31"]);
+      expect(historyGapMessages(artifact).filter((message) => message.includes("2007"))).toEqual(
+        [],
+      );
+      expect(
+        historyGapMessages(artifact).filter((message) => message.includes("2020-12-31")),
+      ).toHaveLength(1);
+      expect(artifact.omissionNotes.filter((note) => note.code === "history-cap")).not.toEqual([]);
     });
   });
 

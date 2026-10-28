@@ -11,6 +11,7 @@ import {
 } from "./financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import type { LensValueUnit } from "./value-format";
+import type { SecIssuerRegistration } from "./industry-classification";
 
 type MetricStatus = "value" | "missing" | "not-meaningful" | "not-applicable";
 // Structural absence is diagnostic; provider failures leave the cause unset.
@@ -91,6 +92,7 @@ export interface MetricContext {
     readonly reason?: string;
   }[];
   readonly depositorySic?: string;
+  readonly secIssuer?: SecIssuerRegistration;
   readonly evidence?: ExtendedEvidence;
   readonly asOf?: string;
   readonly snapshot?: MarketSnapshot;

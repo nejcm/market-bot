@@ -783,7 +783,10 @@ function assertDepreciationAndAmortizationSelection(run: MetricInvariantRun): vo
       (row) => `${String(row.start)}|${String(row.end)}`,
     ),
   );
-  for (const row of annualRows("AmortizationOfIntangibleAssets")) {
+  for (const row of [
+    ...annualRows("AmortizationOfIntangibleAssets"),
+    ...CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES.flatMap(annualRows),
+  ]) {
     const end = String(row.end);
     if (!retainedEnds.has(end) || !depreciationPeriods.has(`${String(row.start)}|${end}`)) {
       continue;
@@ -1910,7 +1913,7 @@ export function assertOperatingRatioInvariants(
     // Short-term investment rows carry no series; ROIC subtracts them as the EV bridge resolved them.
     const seriesInputs = metric.inputs.filter(({ series }) => series !== undefined);
     const shortTermInvestments = metric.inputs
-      .filter(({ series }) => series === undefined)
+      .filter(({ series, artifact }) => series === undefined && artifact !== "evidence")
       .reduce((sum, { value }) => sum + Number(value), 0);
     const resolved = seriesInputs.map((input) =>
       resolveInput(run, input, `${label} ${input.label}`),
@@ -1997,15 +2000,47 @@ export function assertOperatingRatioInvariants(
       seriesInputs.map(({ series }) => series),
       `${label} joins every input`,
     ).toEqual([...(required ?? [])]);
-    expect(operatingRatioBound(id, valueOf), `${label} value passes its bounds`).toBeUndefined();
     const at = (key: string): number => valueOf(key) ?? Number.NaN;
+    const statutoryPercent = /NOPAT at the (\d+)% US federal statutory rate/u.exec(
+      metric.basis,
+    )?.[1];
+    const effectiveRate = at("incomeTaxExpense") / at("pretaxIncome");
+    const incorporation = metric.inputs.filter(({ artifact }) => artifact === "evidence");
+    expect(
+      incorporation.map(({ key }) => key),
+      `${label} cites incorporation only for the statutory fallback`,
+    ).toEqual(statutoryPercent === undefined ? [] : ["stateOfIncorporation"]);
+    for (const input of incorporation) {
+      expect(
+        resolveInput(run, input, `${label} ${input.label}`)?.value,
+        `${label} incorporation matches the sec-edgar item`,
+      ).toBe(input.value);
+      expect(metric.basis, `${label} basis names the incorporation`).toContain(
+        `(issuer incorporated in ${String(input.value)})`,
+      );
+    }
+    if (statutoryPercent !== undefined) {
+      expect(id, `${label} statutory fallback is ROIC only`).toBe("roic");
+      expect(
+        effectiveRate < 0 || effectiveRate > 1,
+        `${label} statutory fallback only replaces an out-of-range effective rate`,
+      ).toBe(true);
+    }
+    expect(
+      operatingRatioBound(id, (key) =>
+        statutoryPercent !== undefined && key === "incomeTaxExpense" ? undefined : valueOf(key),
+      ),
+      `${label} value passes its bounds`,
+    ).toBeUndefined();
+    const roicTaxRate =
+      statutoryPercent === undefined ? effectiveRate : Number(statutoryPercent) / 100;
     const expected = {
       freeCashFlowMargin: (at("operatingCashFlow") - at("capitalExpenditure")) / at("revenue"),
       interestCoverage: at("operatingIncome") / at("interestExpense"),
       ebitdaProxy: at("operatingIncome") + at("depreciationAndAmortization"),
       effectiveTaxRate: at("incomeTaxExpense") / at("pretaxIncome"),
       roic:
-        (at("operatingIncome") * (1 - at("incomeTaxExpense") / at("pretaxIncome"))) /
+        (at("operatingIncome") * (1 - roicTaxRate)) /
         (at("stockholdersEquity") + at("debt") - at("cash") - at("shortTermInvestments")),
     }[id];
     expectClose(metric.value, expected ?? Number.NaN, label);

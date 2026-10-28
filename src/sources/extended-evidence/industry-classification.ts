@@ -71,3 +71,43 @@ export function depositoryIssuerSic(extendedEvidence: unknown): string | undefin
   }
   return undefined;
 }
+
+export interface SecIssuerRegistration {
+  readonly sic?: string;
+  readonly stateOfIncorporation?: string;
+  readonly entityName?: string;
+  readonly sourceIds: readonly string[];
+}
+
+function text(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+// The issuer's own sec-edgar item, scoped like depositoryIssuerSic.
+export function secIssuerRegistration(
+  extendedEvidence: unknown,
+): SecIssuerRegistration | undefined {
+  const items =
+    isRecord(extendedEvidence) && Array.isArray(extendedEvidence.items)
+      ? extendedEvidence.items
+      : [];
+  const item = items.find(
+    (candidate): candidate is Record<string, unknown> =>
+      isRecord(candidate) && candidate.category === "sec-edgar",
+  );
+  if (item === undefined) {
+    return undefined;
+  }
+  const metrics = isRecord(item.metrics) ? item.metrics : {};
+  const sic = text(metrics[SEC_SIC_METRIC_KEY]);
+  const stateOfIncorporation = text(metrics["stateOfIncorporation" satisfies SecMetricKey]);
+  const entityName = isRecord(item.identity) ? text(item.identity.displayName) : undefined;
+  return {
+    ...(sic !== undefined ? { sic } : {}),
+    ...(stateOfIncorporation !== undefined ? { stateOfIncorporation } : {}),
+    ...(entityName !== undefined ? { entityName } : {}),
+    sourceIds: Array.isArray(item.sourceIds)
+      ? item.sourceIds.filter((id): id is string => typeof id === "string")
+      : [],
+  };
+}

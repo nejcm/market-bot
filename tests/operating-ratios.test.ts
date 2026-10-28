@@ -25,6 +25,11 @@ import { metricSectionsView } from "../app/client/view-model-metric-sections";
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 const AS_OF = "2026-07-23T00:00:00.000Z";
 const YEARS = [2023, 2024, 2025];
+const FILINGS_ID = "extended-sec-edgar-test-filings";
+
+function issuer(stateOfIncorporation: string, sic = "3674", entityName = "TEST CORP") {
+  return { secIssuer: { stateOfIncorporation, sic, entityName, sourceIds: [FILINGS_ID] } };
+}
 
 type Fact = Record<string, unknown>;
 type Concepts = Record<string, Fact | undefined>;
@@ -151,7 +156,7 @@ function invariantRun(ctx: MetricContext, metrics: readonly unknown[], rawPayloa
   const report = researchReport({
     jobType: "equity",
     symbol: "TEST",
-    sources: [evidenceSource(SOURCE_ID)],
+    sources: [evidenceSource(SOURCE_ID), evidenceSource(FILINGS_ID)],
     dataGaps: sourceGaps.map((gap) => sourceGapReportText(gap)),
     extras: { metricSections: [{ ...section, metrics }] },
   });
@@ -179,6 +184,27 @@ function invariantRun(ctx: MetricContext, metrics: readonly unknown[], rawPayloa
                 ],
               }),
           sourceGaps,
+          ...(ctx.secIssuer === undefined
+            ? {}
+            : {
+                extendedEvidence: {
+                  instrument: { symbol: "TEST", assetClass: "equity" },
+                  items: [
+                    {
+                      category: "sec-edgar",
+                      title: "TEST SEC Fundamental Evidence",
+                      summary: "TEST",
+                      sourceIds: [...ctx.secIssuer.sourceIds],
+                      observedAt: AS_OF,
+                      metrics:
+                        ctx.secIssuer.stateOfIncorporation === undefined
+                          ? {}
+                          : { stateOfIncorporation: ctx.secIssuer.stateOfIncorporation },
+                    },
+                  ],
+                  gaps: [],
+                },
+              }),
         }),
         markdown: renderMarkdownReport(report),
       },
@@ -736,6 +762,59 @@ describe("operatingRatiosSection", () => {
     ).toEqual([3_241_000_000, 2_854_000_000, 2_821_000_000]);
   });
 
+  test("AMD FY2020-22 depreciation without an amortization component withholds with a gap", () => {
+    // AMD 10-K 0000002488-23-000047: Depreciation and OtherDepreciationAndAmortization only, no DA total.
+    const years = [
+      { start: "2019-12-29", end: "2020-12-26", dep: 217, other: 312 },
+      { start: "2020-12-27", end: "2021-12-25", dep: 296, other: 407 },
+      { start: "2021-12-26", end: "2022-12-31", dep: 439, other: 4174 },
+    ];
+    const filed = (pick: (year: (typeof years)[number]) => number) => ({
+      units: {
+        USD: years.map((year) =>
+          fact(pick(year) * 1_000_000, Number(year.end.slice(0, 4)), {
+            start: year.start,
+            end: year.end,
+            accn: "0000002488-23-000047",
+            fy: 2022,
+            filed: "2023-02-27",
+          }),
+        ),
+      },
+    });
+    const result = evaluate(
+      context(
+        usGaap({
+          Revenues: filed(() => 20_000),
+          OperatingIncomeLoss: filed(() => 1000),
+          DepreciationDepletionAndAmortization: undefined,
+          DepreciationAndAmortization: undefined,
+          Depreciation: filed((year) => year.dep),
+          OtherDepreciationAndAmortization: filed((year) => year.other),
+        }),
+        {},
+        "us-gaap",
+        AS_OF,
+      ),
+    );
+
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toEqual([]);
+    for (const year of years) {
+      expect(result.ctx.statements!.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "incomplete-composite-series",
+          seriesKey: "depreciationAndAmortization",
+          periodKey: `duration:12|${year.end}`,
+          message: expect.stringContaining(
+            `no AmortizationOfIntangibleAssets component; the filed cash-flow line (OtherDepreciationAndAmortization ${String(year.other * 1_000_000)})`,
+          ),
+        }),
+      );
+    }
+  });
+
   test("AMD FY2025 with its cash-flow D&A tags stripped publishes the component sum (accepted residual risk)", () => {
     const filed = (value: number) => ({
       units: { USD: [fact(value, 2025, { start: "2024-12-29", end: "2025-12-27" })] },
@@ -1068,6 +1147,158 @@ describe("operatingRatiosSection", () => {
     expect(result.metric("interestCoverage")).toMatchObject({ value: 8 });
   });
 
+  test("AMD FY2025 negative effective rate falls back to the 21% US statutory rate", () => {
+    const year = (value: number) => ({
+      units: {
+        USD: [
+          fact(value, 2025, {
+            start: "2024-12-29",
+            end: "2025-12-27",
+            accn: "0000002488-26-000018",
+          }),
+        ],
+      },
+    });
+    const at = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: undefined, end: "2025-12-27" })] },
+    });
+    const amd = usGaap({
+      OperatingIncomeLoss: year(3694e6),
+      IncomeTaxExpenseBenefit: year(-103e6),
+      IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest:
+        year(4140e6),
+      StockholdersEquity: at(62_999e6),
+      LongTermDebt: at(3222e6),
+      CashAndCashEquivalentsAtCarryingValue: at(5539e6),
+      ShortTermInvestments: at(5013e6),
+    });
+    const result = evaluate(context(amd, issuer("DE")));
+    expect(result.metric("effectiveTaxRate").value).toBeCloseTo(-103 / 4140, 12);
+    expect(result.metric("roic").status).toBe("value");
+    expect(result.metric("roic").value).toBeCloseTo((3694 * 0.79) / 55_669, 12);
+    expect(result.metric("roic").basis).toContain(
+      "NOPAT at the 21% US federal statutory rate (issuer incorporated in DE) because the effective tax rate is outside 0-100%",
+    );
+    expect(result.metric("roic").inputs.at(-1)).toMatchObject({
+      label: "state of incorporation",
+      value: "DE",
+      key: "stateOfIncorporation",
+      sourceIds: [FILINGS_ID],
+    });
+    expect(result.metric("roic").sourceIds).toContain(FILINGS_ID);
+    expect(invariantRun(result.ctx, result.section.metrics)).not.toThrow();
+    expect(evaluate(context(amd)).metric("roic")).toMatchObject({ status: "not-meaningful" });
+  });
+
+  test.each([
+    ["positive rate ignores the statutory rate", 32, 160, "DE", "value", (200 * 0.8) / 1000],
+    ["rate over 100% at 21%", 200, 160, "NY", "value", (200 * 0.79) / 1000],
+    ["non-US incorporation", -16, 160, "L2", "not-meaningful", undefined],
+    ["Puerto Rico is foreign for US federal tax", -16, 160, "PR", "not-meaningful", undefined],
+    ["pretax loss", 10, -40, "DE", "not-meaningful", undefined],
+  ] as const)("ROIC tax fallback: %s", (_name, tax, pretax, state, status, value) => {
+    const result = evaluate(
+      context(
+        usGaap({
+          IncomeTaxExpenseBenefit: flow(() => tax),
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest:
+            flow(() => pretax),
+        }),
+        issuer(state),
+      ),
+    );
+    expect(result.metric("roic").status).toBe(status);
+    if (value !== undefined) {
+      expect(result.metric("roic").value).toBeCloseTo(value, 12);
+    }
+    expect(result.metric("roic").basis.includes("NOPAT at the")).toBe(
+      status === "value" && tax / pretax > 1,
+    );
+    expect(invariantRun(result.ctx, result.section.metrics)).not.toThrow();
+  });
+
+  test.each([
+    ["2017-01-01", "2017-12-31", 0.35],
+    ["2017-01-01", "2017-12-30", 0.35],
+    ["2017-12-31", "2018-12-29", 0.21],
+    ["2017-07-02", "2018-06-30", undefined],
+  ] as const)("ROIC statutory rate for a fiscal year %s to %s", (start, end, rate) => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2017, { start, end })] },
+    });
+    const at = (value: number) => ({
+      units: { USD: [fact(value, 2017, { start: undefined, end })] },
+    });
+    const result = evaluate(
+      context(
+        usGaap({
+          OperatingIncomeLoss: filed(200),
+          IncomeTaxExpenseBenefit: filed(-16),
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest:
+            filed(160),
+          StockholdersEquity: at(700),
+          LongTermDebt: at(400),
+          CashAndCashEquivalentsAtCarryingValue: at(100),
+        }),
+        issuer("DE"),
+        "us-gaap",
+        "2019-01-15T00:00:00.000Z",
+      ),
+    );
+    expect(result.metric("roic")).toMatchObject(
+      rate === undefined
+        ? {
+            status: "not-meaningful",
+            reason: `effective tax rate is outside 0-100% and the fiscal year has no single US federal statutory rate for the fiscal year ending ${end}`,
+          }
+        : { status: "value" },
+    );
+    if (rate !== undefined) {
+      expect(result.metric("roic").value).toBeCloseTo((200 * (1 - rate)) / 1000, 12);
+    }
+  });
+
+  test.each([
+    [
+      "REIT SIC 6798",
+      issuer("DE", "6798", "WELLTOWER INC."),
+      "the issuer files under SIC 6798 (REIT)",
+    ],
+    [
+      "partnership name",
+      issuer("DE", "4922", "ENTERPRISE PRODUCTS PARTNERS L.P."),
+      "indicates a partnership",
+    ],
+    [
+      "LLC with EDGAR state tag",
+      issuer("DE", "4911", "EXAMPLE ENERGY LLC /DE/"),
+      "indicates a partnership",
+    ],
+    ["dotted LLC", issuer("DE", "4911", "FOO L.L.C."), "indicates a partnership"],
+    ["undotted-end LLC", issuer("DE", "4911", "FOO L.L.C"), "indicates a partnership"],
+    [
+      "dotted LLC with state tag",
+      issuer("DE", "4911", "FOO L.L.C. /DE/"),
+      "indicates a partnership",
+    ],
+    ["dotted LP", issuer("DE", "4922", "FOO L.P."), "indicates a partnership"],
+    [
+      "missing SIC",
+      { secIssuer: { stateOfIncorporation: "DE", sourceIds: [FILINGS_ID] } },
+      "SIC was not collected",
+    ],
+  ] as const)(
+    "ROIC statutory fallback withholds an uncertain tax regime: %s",
+    (_name, overrides, reason) => {
+      const result = evaluate(
+        context(usGaap({ IncomeTaxExpenseBenefit: flow(() => -16) }), overrides),
+      );
+      expect(result.metric("roic").status).toBe("not-meaningful");
+      expect(result.metric("roic").reason).toContain(reason);
+      expect(invariantRun(result.ctx, result.section.metrics)).not.toThrow();
+    },
+  );
+
   test("a 13-month fact never anchors and an older same-period fact is never used", () => {
     const longYear = evaluate(
       context(
@@ -1165,7 +1396,8 @@ describe("operatingRatiosSection", () => {
     expect(unclamped.metric("interestCoverage")).toMatchObject({ status: "value", value: -2 });
     expect(unclamped.metric("roic")).toMatchObject({
       status: "not-meaningful",
-      reason: "effective tax rate is outside 0-100% for the fiscal year ending 2025-12-31",
+      reason:
+        "effective tax rate is outside 0-100% and state of incorporation was not collected for the fiscal year ending 2025-12-31",
     });
     expect(benefit.metric("effectiveTaxRate")).toMatchObject({ status: "value", value: -0.1 });
     expect(benefit.metric("roic")).toMatchObject({ status: "not-meaningful" });

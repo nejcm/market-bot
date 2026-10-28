@@ -221,7 +221,7 @@ describe("operatingRatiosSection", () => {
         context(
           usGaap({
             DepreciationDepletionAndAmortization: flow((year) => (year === 2024 ? 50 : undefined)),
-            DepreciationAndAmortization: flow((year) => (year === 2024 ? 51 : undefined)),
+            DepreciationAndAmortization: flow((year) => (year === 2024 ? 50 : undefined)),
             [depreciation]: flow(() => 40),
             AmortizationOfIntangibleAssets: flow(() => 15),
           }),
@@ -423,6 +423,200 @@ describe("operatingRatiosSection", () => {
     expect(
       invariantRun(stale.ctx, stale.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
     ).toThrow(/D&A.*component/u);
+  });
+
+  test("AdjustmentForAmortization is not verified D&A, and a zero component is kept", () => {
+    const filed = (year: number, value: number) => ({
+      units: {
+        USD: [fact(value, year, { start: `${String(year)}-01-01`, end: `${String(year)}-12-31` })],
+      },
+    });
+    const run = (year: number, concepts: Record<string, unknown>) =>
+      evaluate(
+        context(
+          usGaap({
+            Revenues: filed(year, 600_000_000),
+            OperatingIncomeLoss: filed(year, 10_000_000),
+            DepreciationDepletionAndAmortization: undefined,
+            DepreciationAndAmortization: undefined,
+            ...concepts,
+          }),
+          {},
+          "us-gaap",
+          `${String(year + 1)}-07-23T00:00:00.000Z`,
+        ),
+      ).ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual;
+    // DDOG FY2022: the 28M AdjustmentForAmortization is deferred contract-cost amortization.
+    expect(
+      run(2022, {
+        Depreciation: filed(2022, 21_000_000),
+        AmortizationOfIntangibleAssets: filed(2022, 6_000_000),
+        AdjustmentForAmortization: filed(2022, 28_000_000),
+      }),
+    ).toMatchObject([{ value: 27_000_000 }]);
+    // HRMN FY2023: zero intangible amortization, D&A 12.255M.
+    expect(
+      run(2023, {
+        Depreciation: filed(2023, 12_255_000),
+        AmortizationOfIntangibleAssets: filed(2023, 0),
+      }),
+    ).toMatchObject([{ value: 12_255_000, periodEnd: "2023-12-31" }]);
+  });
+
+  test("the D&A retention check fails a dropped LTRX FY2019 or an empty series", () => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2019, { start: "2018-07-01", end: "2019-06-30" })] },
+    });
+    // LTRX FY2019: depreciation 464k, zero intangible amortization.
+    const concepts = usGaap({
+      Revenues: filed(46_000_000),
+      OperatingIncomeLoss: filed(1_000_000),
+      DepreciationDepletionAndAmortization: undefined,
+      DepreciationAndAmortization: undefined,
+      Depreciation: filed(464_000),
+      AmortizationOfIntangibleAssets: filed(0),
+    });
+    const result = evaluate(context(concepts, {}, "us-gaap", "2020-07-23T00:00:00.000Z"));
+    const statements = result.ctx.statements!;
+    const series = statements.statements.cashFlowStatement.depreciationAndAmortization;
+    expect(series.annual).toMatchObject([{ value: 464_000, periodEnd: "2019-06-30" }]);
+    const raw = { cik: 1, facts: { "us-gaap": concepts } };
+    expect(invariantRun(result.ctx, result.section.metrics, raw)).not.toThrow();
+    const dropped = {
+      ...result.ctx,
+      statements: {
+        ...statements,
+        statements: {
+          ...statements.statements,
+          cashFlowStatement: {
+            ...statements.statements.cashFlowStatement,
+            depreciationAndAmortization: { ...series, annual: [], interim: [] },
+          },
+        },
+      },
+    };
+    expect(invariantRun(dropped, result.section.metrics, raw)).toThrow(/has filed components/u);
+  });
+
+  test("an alias split without a cash-flow D&A line keeps alias priority; a zero alias is ignored", () => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: "2025-01-01", end: "2025-12-31" })] },
+    });
+    const run = (total: number, alias: number) =>
+      evaluate(
+        context(
+          usGaap({
+            Revenues: filed(3_400_000_000),
+            OperatingIncomeLoss: filed(-100_000_000),
+            DepreciationDepletionAndAmortization: filed(total),
+            DepreciationAndAmortization: filed(alias),
+          }),
+          {},
+          "us-gaap",
+          AS_OF,
+        ),
+      );
+    // DDOG FY2025: the filed cash-flow total is the 55.756M alias; nothing in companyfacts says so, so priority wins.
+    const ddog = run(49_200_000, 55_756_000);
+    // PYPL FY2018: DepreciationAndAmortization was zeroed by the opex reclassification.
+    const pypl = run(776_000_000, 0);
+
+    expect(
+      ddog.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ value: 49_200_000, concept: "DepreciationDepletionAndAmortization" }]);
+    expect(
+      pypl.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ value: 776_000_000, concept: "DepreciationDepletionAndAmortization" }]);
+  });
+
+  test("a combined D&A below the filed cash-flow D&A lines withholds", () => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: "2025-01-01", end: "2025-12-31" })] },
+    });
+    const result = evaluate(
+      context(
+        usGaap({
+          Revenues: filed(3_400_000_000),
+          OperatingIncomeLoss: filed(100_000_000),
+          DepreciationDepletionAndAmortization: filed(441_000_000),
+          OtherDepreciationAndAmortization: filed(438_000_000),
+          DepreciationAndAmortization: filed(400_000_000),
+        }),
+        {},
+        "us-gaap",
+        AS_OF,
+      ),
+    );
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ value: 441_000_000 }]);
+    const below = evaluate(
+      context(
+        usGaap({
+          Revenues: filed(3_400_000_000),
+          OperatingIncomeLoss: filed(100_000_000),
+          DepreciationDepletionAndAmortization: filed(400_000_000),
+          OtherDepreciationAndAmortization: filed(438_000_000),
+        }),
+        {},
+        "us-gaap",
+        AS_OF,
+      ),
+    );
+    expect(
+      below.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toEqual([]);
+    expect(below.ctx.statements!.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        periodKey: "duration:12|2025-12-31",
+        message: expect.stringMatching(/\(400000000\).*\(438000000\)/u),
+      }),
+    );
+  });
+
+  test("AMD FY2025 with its cash-flow D&A tags stripped publishes the component sum (accepted residual risk)", () => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: "2024-12-29", end: "2025-12-27" })] },
+    });
+    const result = evaluate(
+      context(
+        usGaap({
+          Revenues: filed(34_639_000_000),
+          OperatingIncomeLoss: filed(3_694_000_000),
+          DepreciationDepletionAndAmortization: undefined,
+          DepreciationAndAmortization: undefined,
+          Depreciation: filed(521_000_000),
+          AmortizationOfIntangibleAssets: filed(2_300_000_000),
+        }),
+        {},
+        "us-gaap",
+        AS_OF,
+      ),
+    );
+
+    expect(result.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 6_515_000_000 });
+  });
+
+  test("component D&A stays when the cash-flow decomposition agrees", () => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: "2025-01-01", end: "2025-12-31" })] },
+    });
+    // Rackspace FY2025: depreciation 151.4M + amortization 146.9M equals OtherDepreciationAndAmortization 298.3M.
+    const concepts = usGaap({
+      Revenues: filed(2_700_000_000),
+      OperatingIncomeLoss: filed(-100_000_000),
+      DepreciationDepletionAndAmortization: undefined,
+      DepreciationAndAmortization: undefined,
+      Depreciation: filed(151_400_000),
+      AmortizationOfIntangibleAssets: filed(146_900_000),
+      OtherDepreciationAndAmortization: filed(298_300_000),
+    });
+    const result = evaluate(context(concepts, {}, "us-gaap", "2026-07-23T00:00:00.000Z"));
+
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ value: 298_300_000 }]);
   });
 
   test("D&A dominance uses the latest eligible filing for totals and components", () => {

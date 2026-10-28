@@ -22,6 +22,8 @@ import { evidenceSource, type CollectedItem, type ProviderResult } from "./commo
 import {
   conceptScope,
   DEBT_CONCEPTS,
+  DISCONTINUED_OPERATIONS_CONCEPTS,
+  NONCONTROLLING_INCOME_CONCEPTS,
   US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
   US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
   scopedLabel,
@@ -186,6 +188,15 @@ export const SEC_METRIC_DEFINITIONS = [
     optional: true,
   },
   {
+    key: "consolidatedContinuingIncome",
+    label: "income including NCI",
+    concepts: [
+      "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+    unitKeys: ["USD"],
+    optional: true,
+  },
+  {
     key: "continuingDilutedEps",
     label: "diluted EPS",
     concepts: ["IncomeLossFromContinuingOperationsPerDilutedShare"],
@@ -204,9 +215,10 @@ export const SEC_METRIC_DEFINITIONS = [
   {
     key: "operatingCashFlow",
     label: "operating cash flow",
+    // Continuing first: revenue is a continuing line once the issuer splits out discontinued operations.
     concepts: [
-      "NetCashProvidedByUsedInOperatingActivities",
       "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+      "NetCashProvidedByUsedInOperatingActivities",
     ],
     unitKeys: ["USD"],
   },
@@ -295,6 +307,7 @@ const FLOW_METRIC_KEYS = new Set([
   "consolidatedNetIncome",
   "dilutedEps",
   "continuingIncome",
+  "consolidatedContinuingIncome",
   "continuingDilutedEps",
   "operatingCashFlow",
   "capex",
@@ -981,6 +994,12 @@ export function formatSecFundamentalsSummary(
     if (key === "consolidatedNetIncome" && metricsFor("netIncome")?.netIncome === latest) {
       return [];
     }
+    if (
+      key === "consolidatedContinuingIncome" &&
+      metricsFor("continuingIncome")?.continuingIncome === latest
+    ) {
+      return [];
+    }
     const prior = metrics?.[`${key}Prior`];
     const delta = metrics?.[`${key}DeltaPercent`];
     const scope = metrics?.[`${key}Scope`];
@@ -1041,6 +1060,38 @@ function legacyEnterpriseValueBridgeFacts(
         select(concepts),
       ]),
     ) as unknown as EnterpriseValueBridgeFacts,
+  );
+}
+
+function reportsNoncontrollingIncome(
+  gaap: Record<string, unknown>,
+  period: SecFactValue,
+  analysisAsOf?: string,
+): boolean {
+  return NONCONTROLLING_INCOME_CONCEPTS.some((concept) =>
+    factValuesForConcept(gaap, concept, ["USD"]).some(
+      (value) =>
+        value.val !== 0 &&
+        value.start === period.start &&
+        value.end === period.end &&
+        isFactObservableAsOf(value, analysisAsOf),
+    ),
+  );
+}
+
+function reportsDiscontinuedOperations(
+  gaap: Record<string, unknown>,
+  period: SecFactValue,
+  analysisAsOf?: string,
+): boolean {
+  return DISCONTINUED_OPERATIONS_CONCEPTS.some((concept) =>
+    factValuesForConcept(gaap, concept, ["USD"]).some(
+      (value) =>
+        value.val !== 0 &&
+        value.start === period.start &&
+        value.end === period.end &&
+        isFactObservableAsOf(value, analysisAsOf),
+    ),
   );
 }
 
@@ -1138,6 +1189,23 @@ export function summarizeSecFundamentals(
     metrics.revenueTtm = revenueTtm;
   }
 
+  const cashFlow = metricSelections.find(({ definition }) => definition.key === "operatingCashFlow")
+    ?.selection?.latest;
+  if (
+    cashFlow !== undefined &&
+    metrics.operatingCashFlowScope === undefined &&
+    reportsDiscontinuedOperations(gaap, cashFlow, analysisAsOf)
+  ) {
+    metrics.operatingCashFlowScope = TOTAL_OPERATIONS_SCOPE;
+  }
+  const income = metricSelections.find(({ definition }) => definition.key === "netIncome")
+    ?.selection?.latest;
+  if (income?.end !== undefined && reportsDiscontinuedOperations(gaap, income, analysisAsOf)) {
+    metrics.netIncomeDiscontinuedPeriodEnd = income.end;
+  }
+  if (income?.end !== undefined && reportsNoncontrollingIncome(gaap, income, analysisAsOf)) {
+    metrics.netIncomeNoncontrollingPeriodEnd = income.end;
+  }
   for (const [continuingKey, totalKey] of [
     ["continuingIncome", "netIncome"],
     ["continuingDilutedEps", "dilutedEps"],

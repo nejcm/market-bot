@@ -12,6 +12,7 @@ import type {
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import {
+  CAPEX_SCOPE_CAVEAT,
   conceptScope,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   hasNegativeCapex,
@@ -105,7 +106,12 @@ function ttmInput(
 ): ValuationFundamentalInput {
   return {
     value: ttm.value,
-    ...withScope(label, ttm.components.fiscalYear.concept, totalOperations),
+    ...withScope(
+      label,
+      Object.values(ttm.components).find((fact) => conceptScope(fact.concept) !== undefined)
+        ?.concept ?? ttm.components.fiscalYear.concept,
+      totalOperations,
+    ),
     periodEnd: ttm.periodEnd,
     publicAt: latest(Object.values(ttm.components).map((fact) => fact.firstPublicAt)),
     currency: ttm.currency,
@@ -145,15 +151,24 @@ function fcfInput(
     unit: operatingCashFlow.unit,
     sourceIds: unique([...operatingCashFlow.sourceIds, ...capitalExpenditure.sourceIds]),
     lineage: [...(operatingCashFlow.lineage ?? []), ...(capitalExpenditure.lineage ?? [])],
-    derivation: "operating cash flow - capital expenditure",
+    derivation:
+      operatingCashFlow.scope === undefined
+        ? "operating cash flow - capital expenditure"
+        : `operating cash flow (${operatingCashFlow.scope}) - capital expenditure; ${CAPEX_SCOPE_CAVEAT}`,
   };
 }
+
+// Diluted EPS is parent-attributable; IFRS ProfitLoss includes NCI (IAS 33.10).
+const isParentIncome = (fact: FinancialStatementFact) =>
+  fact.taxonomy === "us-gaap" && fact.concept === "NetIncomeLoss";
 
 function deriveShares(
   netIncome: ValuationFundamentalInput | undefined,
   dilutedEps: ValuationFundamentalInput | undefined,
+  parentIncome: boolean,
 ): ValuationFundamentalInput | undefined {
   if (
+    !parentIncome ||
     netIncome === undefined ||
     dilutedEps === undefined ||
     dilutedEps.value === 0 ||
@@ -328,7 +343,13 @@ function annualInputs(
       (fact) => fact.periodEnd <= periodEnd && fact.firstPublicAt <= publicAt,
     ),
   );
-  const dilutedShares = directShares ?? deriveShares(netIncome, dilutedEps);
+  const dilutedShares =
+    directShares ??
+    deriveShares(
+      netIncome,
+      dilutedEps,
+      netIncomeFact !== undefined && isParentIncome(netIncomeFact),
+    );
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   return {
     basis: "annual",
@@ -415,7 +436,12 @@ function periodInputsFromTtm(
     compatibleCapitalExpenditure === undefined
       ? undefined
       : ttmInput("Capital expenditure", compatibleCapitalExpenditure);
-  const dilutedShares = deriveShares(netIncome, dilutedEps);
+  const dilutedShares = deriveShares(
+    netIncome,
+    dilutedEps,
+    compatibleNetIncome !== undefined &&
+      Object.values(compatibleNetIncome.components).every((fact) => isParentIncome(fact)),
+  );
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   const publicAt = latest(
     [revenue, netIncome, dilutedEps, dilutedShares, freeCashFlow].flatMap((input) =>

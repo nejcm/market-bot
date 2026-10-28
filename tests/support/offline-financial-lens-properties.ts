@@ -13,6 +13,7 @@ import type {
   FinancialStatementFact,
   FinancialStatementSeriesKey,
 } from "../../src/sources/extended-evidence/financial-statements-contract";
+import { NET_MARGIN_CONCEPTS } from "./offline-financial-history-roster";
 import type {
   OfflineCorpusAllowance,
   OfflineCorpusDifference,
@@ -26,6 +27,7 @@ type LensMetricKey =
   | "cash"
   | "cashConversion"
   | "consolidatedNetIncome"
+  | "continuingIncomeDeltaPercent"
   | "currentRatio"
   | "debt"
   | "debtToEquity"
@@ -121,6 +123,7 @@ const EXACT_PERIOD_DELTAS: Readonly<Record<string, FinancialStatementSeriesKey>>
   grossProfitDeltaPercent: "grossProfit",
   operatingIncomeDeltaPercent: "operatingIncome",
   netIncomeDeltaPercent: "netIncome",
+  continuingIncomeDeltaPercent: "continuingIncome",
   dilutedEpsDeltaPercent: "dilutedEps",
   operatingCashFlowDeltaPercent: "operatingCashFlow",
   capexDeltaPercent: "capitalExpenditure",
@@ -155,6 +158,7 @@ const LENS_METRIC_RELATIONS: Readonly<Record<LensMetricKey, LensMetricRelation>>
   cash: "direct-leaf",
   cashConversion: "exact-period",
   consolidatedNetIncome: "net-income-period",
+  continuingIncomeDeltaPercent: "exact-period",
   currentRatio: "exact-period",
   debt: "direct-leaf",
   debtToEquity: "instant-pair",
@@ -249,11 +253,32 @@ function verifyExactPeriodMetric(
   if (definition === undefined) {
     return false;
   }
-  const [leftKey, rightKey, operation] = definition;
-  const facts = latestCommonFinancialStatementFacts([
-    financialStatementSeriesByKey(execution.artifact, leftKey),
+  const [defaultLeftKey, defaultRightKey, operation] = definition;
+  const leftSeries = financialStatementSeriesByKey(execution.artifact, defaultLeftKey);
+  const latestLeft =
+    leftSeries === undefined
+      ? undefined
+      : latestFinancialStatementFact(financialStatementFacts(leftSeries));
+  // Cash conversion pairs continuing OCF with continuing income.
+  const rightKey =
+    metricKey === "cashConversion" && latestLeft?.concept.endsWith("ContinuingOperations")
+      ? "continuingIncome"
+      : defaultRightKey;
+  const defaultFacts = latestCommonFinancialStatementFacts([
+    leftSeries,
     financialStatementSeriesByKey(execution.artifact, rightKey),
   ]);
+  const anchor = defaultFacts?.[0];
+  const numerator =
+    metricKey === "netMargin" && anchor !== undefined
+      ? netMarginNumerator(execution, anchor)
+      : undefined;
+  const facts =
+    metricKey !== "netMargin"
+      ? defaultFacts
+      : numerator === undefined || defaultFacts === undefined
+        ? undefined
+        : [numerator, defaultFacts[1]];
   if (facts === undefined || facts[0] === undefined || facts[1] === undefined) {
     return false;
   }
@@ -267,8 +292,62 @@ function verifyExactPeriodMetric(
       Math.max(1, Math.abs(value), Math.abs(expectedValue)) * 1e-12 &&
     periodEnd === facts[0].periodEnd &&
     (periodMonths === undefined || periodMonths === financialStatementPeriodMonths(facts[0])) &&
-    facts.every((fact) => sourceContainsFact(execution.input, fact))
+    facts.every((fact) => fact !== undefined && sourceContainsFact(execution.input, fact))
   );
+}
+
+function rawPeriodValues(
+  input: OfflineFinancialStatementInput,
+  taxonomy: string,
+  concepts: readonly string[],
+  anchor: FinancialStatementFact,
+): readonly number[] {
+  const facts = isRecord(input.companyFacts) ? input.companyFacts.facts : undefined;
+  const cutoff = input.analysisAsOf.slice(0, 10);
+  return concepts.flatMap((concept) => {
+    const entry =
+      isRecord(facts) && isRecord(facts[taxonomy]) ? facts[taxonomy][concept] : undefined;
+    const units = isRecord(entry) && isRecord(entry.units) ? Object.values(entry.units) : [];
+    return units.flatMap((values) =>
+      (Array.isArray(values) ? values : []).flatMap((value) =>
+        isRecord(value) &&
+        typeof value.val === "number" &&
+        value.end === anchor.periodEnd &&
+        value.start === anchor.periodStart &&
+        typeof value.filed === "string" &&
+        value.filed <= cutoff
+          ? [value.val]
+          : [],
+      ),
+    );
+  });
+}
+
+// NCI and discontinued-operations evidence comes from raw facts, not production's notes: parent income partners revenue only without NCI.
+function netMarginNumerator(
+  execution: OfflineCorpusExecution,
+  anchor: FinancialStatementFact,
+): FinancialStatementFact | undefined {
+  const at = (key: FinancialStatementSeriesKey) => {
+    const series = financialStatementSeriesByKey(execution.artifact, key);
+    return series === undefined
+      ? undefined
+      : financialStatementFacts(series).find((fact) => fact.periodKey === anchor.periodKey);
+  };
+  const raw = (concepts: readonly string[]) =>
+    rawPeriodValues(execution.input, anchor.taxonomy, concepts, anchor);
+  const consolidated = at("consolidatedNetIncome");
+  const noncontrolling =
+    raw(NET_MARGIN_CONCEPTS.noncontrolling).length > 0 ||
+    (consolidated !== undefined && consolidated.value !== anchor.value) ||
+    raw(NET_MARGIN_CONCEPTS.parent).some((value) => value !== (consolidated ?? anchor).value);
+  const discontinued = raw(NET_MARGIN_CONCEPTS.discontinued).some((value) => value !== 0);
+  const consolidatedContinuing = at("consolidatedContinuingIncome");
+  const continuing = at("continuingIncome");
+  if (consolidatedContinuing !== undefined || continuing !== undefined) {
+    return consolidatedContinuing ?? (noncontrolling ? undefined : continuing);
+  }
+  return discontinued ? undefined : (consolidated ?? (noncontrolling ? undefined : anchor));
 }
 
 function verifyInstantPairMetric(

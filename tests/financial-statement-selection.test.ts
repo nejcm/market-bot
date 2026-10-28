@@ -169,6 +169,15 @@ describe("financial statement selection", () => {
         optional: true,
       },
       {
+        key: "consolidatedContinuingIncome",
+        label: "income including NCI",
+        concepts: [
+          "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+        ],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+      {
         key: "continuingDilutedEps",
         label: "diluted EPS",
         concepts: ["IncomeLossFromContinuingOperationsPerDilutedShare"],
@@ -188,8 +197,8 @@ describe("financial statement selection", () => {
         key: "operatingCashFlow",
         label: "operating cash flow",
         concepts: [
-          "NetCashProvidedByUsedInOperatingActivities",
           "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          "NetCashProvidedByUsedInOperatingActivities",
         ],
         unitKeys: ["USD"],
       },
@@ -316,8 +325,22 @@ describe("financial statement selection", () => {
         statement: "incomeStatement",
         kind: "duration",
         unitKind: "monetary",
-        deriveTtm: false,
+        deriveTtm: true,
         concepts: { "us-gaap": ["ProfitLoss"], "ifrs-full": [] },
+      },
+      {
+        key: "consolidatedContinuingIncome",
+        label: "Income from continuing operations including noncontrolling interest",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": [
+            "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+          ],
+          "ifrs-full": ["ProfitLossFromContinuingOperations"],
+        },
       },
       {
         key: "continuingIncome",

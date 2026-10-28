@@ -509,6 +509,13 @@
       "interim": [],
       "ttm": null
     },
+    "consolidatedContinuingIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "continuingIncome": {
       "selectedConcept": null,
       "selectedFact": null,
@@ -1096,8 +1103,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 2.8299394757567597,
-          "years": 2.001410022108599,
+          "percent": 2.831962602281779,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1152,8 +1159,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 5.7146859886039625,
-          "years": 2.001410022108599,
+          "percent": 5.718827974184881,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1208,8 +1215,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 6.31731493089509,
-          "years": 2.001410022108599,
+          "percent": 6.321906614238992,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1264,8 +1271,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 5.513876043341925,
-          "years": 2.001410022108599,
+          "percent": 5.517868716898855,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1320,8 +1327,8 @@
           "currency": "USD/shares"
         },
         "cagr": {
-          "percent": 6.855893348617692,
-          "years": 2.001410022108599,
+          "percent": 6.860888973326706,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1376,8 +1383,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 6.595558047958883,
-          "years": 2.001410022108599,
+          "percent": 6.600358177805221,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1432,8 +1439,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 8.705064254373163,
-          "years": 2.001410022108599,
+          "percent": 8.711461300921798,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1488,8 +1495,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 6.358582129313106,
-          "years": 2.001410022108599,
+          "percent": 6.363204695662095,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1546,7 +1553,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 2.5271572704122724,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         }
@@ -1602,7 +1609,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 2.072655771524351,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         }
@@ -1658,7 +1665,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 1.3402959094865108,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         }
@@ -1877,8 +1884,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 2.8299394757567597,
-          "years": 2.001410022108599,
+          "percent": 2.831962602281779,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1933,8 +1940,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 5.7146859886039625,
-          "years": 2.001410022108599,
+          "percent": 5.718827974184881,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -1989,8 +1996,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 6.31731493089509,
-          "years": 2.001410022108599,
+          "percent": 6.321906614238992,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -2045,8 +2052,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 5.513876043341925,
-          "years": 2.001410022108599,
+          "percent": 5.517868716898855,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -2101,8 +2108,8 @@
           "currency": "USD/shares"
         },
         "cagr": {
-          "percent": 6.855893348617692,
-          "years": 2.001410022108599,
+          "percent": 6.860888973326706,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -2157,8 +2164,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 6.595558047958883,
-          "years": 2.001410022108599,
+          "percent": 6.600358177805221,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -2213,8 +2220,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 8.705064254373163,
-          "years": 2.001410022108599,
+          "percent": 8.711461300921798,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -2269,8 +2276,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 6.358582129313106,
-          "years": 2.001410022108599,
+          "percent": 6.363204695662095,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         },
@@ -2327,7 +2334,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 2.5271572704122724,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         }
@@ -2383,7 +2390,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 2.072655771524351,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         }
@@ -2439,7 +2446,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 1.3402959094865108,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-09-30",
           "periodEnd": "2025-09-30"
         }

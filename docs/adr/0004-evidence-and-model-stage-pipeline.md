@@ -123,7 +123,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   gap.
 - Keep operations scope (continuing/total), attribution (parent/NCI), and SEC/provider earnings basis
   independent; equal values do not establish equal scope. Continuing income/EPS are separate series (parent
-  preferred on equal period), never replacements for total income/EPS or total-income ROE/ROA/margin/payout.
+  preferred on equal period), never replacements for total income/EPS or total-income ROE/ROA/payout. Net
+  margin is the exception: revenue is a continuing, consolidated line (ASC 205-20, ASC 810), so it divides
+  consolidated income including NCI (`ProfitLoss`, or continuing income including NCI where tagged for the
+  period) by revenue. Parent-attributed income stands in only for a period with no NCI income. A period with
+  discontinued operations and no continuing income, or with NCI income and no income including NCI, is
+  withheld with a gap; a TTM is withheld when any FY, YTD, or prior-YTD component is.
   Older continuing data is history, not a current split. Current counterparts require total-operation labels
   through summaries, Growth, framework, trends, and Workbench P/E; label growth scope.
 - Cash conversion pairs OCF/income by operations scope, period, currency, and unit. Missing compatible
@@ -133,8 +138,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   substitution or invented explanation.
 - Fundamental History selects revenue concepts by configured order within 100 days of newest eligible period;
   other series prefer newest period then order. Scope-bearing order outranks depth/prior availability, remains
-  test-pinned, and whole-concept selection never splices tags. Narrower current concepts carry
-  continuing-operation labels through every OCF/FCF consumer. Apply cutoff; keep up to ten 10–14-month 10-K
+  test-pinned, and whole-concept selection never splices tags, except operating cash flow: each period takes
+  the continuing amount where it is tagged, differs from total, and is as current; else total when the period
+  reports no discontinued operations; else total minus the discontinued component filed with the newest total (a recast supersedes it, APLD FY2023):
+  `CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations` (HLIT FY2025: 107,966K − 2,532K); else it is withheld with a gap. Capex has no scope tag; FCF bases say it
+  is used as reported. Narrower current concepts carry continuing-operation labels through every OCF/FCF consumer. Apply cutoff; keep up to ten 10–14-month 10-K
   periods and latest-filed restatements. Derive TTM as FY + aligned current YTD − prior YTD; mismatches are
   omitted/audited. EPS TTM is approximate; FCF/margins/CAGR/margin change need matched periods/units and CAGR
   is annual-only.
@@ -178,7 +186,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   no short-term borrowing reported nonzero within 400 days) or when it equals nonzero current plus noncurrent
   lines, which outranks other totals (a combined total can be principal, AVGO) unless a later filing restated
   them; with explicit lines it may sit between the noncurrent line and their sum (principal vs carrying). Below the
-  noncurrent line, above the sum, beside current debt with no noncurrent line, or a total whose lines a later
+  noncurrent line, above the sum, beside current debt with no noncurrent line (even short-term borrowings: UBER's
+  LongTermDebt can already include them, NOW 2026-06-30 stays withheld), or a total whose lines a later
   filing restated, it is a gap, never inferred from other filings or equal amounts. Absence is not zero, tagged zeros
   count, and standard-tag completeness is not proof about omitted dimensional/extension facts.
   Without a total, a positive `LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths` beside no current

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { yearsBetween } from "./support/fiscal-years";
 import { isRecord } from "../src/guards";
 import {
   OFFLINE_FINANCIAL_STATEMENT_FIXTURES,
@@ -25,7 +26,6 @@ import {
   cloneCompanyFactsWithMutableUsGaap,
   eligibleMaraRevenueFacts,
   syntheticAliasExecution,
-  yearsBetween,
 } from "./support/offline-financial-history-fixtures";
 
 const ASC_606_REVENUE_CONCEPT = "RevenueFromContractWithCustomerExcludingAssessedTax";
@@ -379,6 +379,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
     expect(capDisplaced.toSorted()).toEqual([
       'mara:canonical.dilutedEps:{"kind":"verified-cap-displaced","droppedPeriodEnds":["2014-12-31","2015-12-31"],"newerUnionPeriods":10}',
       'mara:canonical.revenue:{"kind":"verified-cap-displaced","droppedPeriodEnds":["2013-12-31","2014-12-31","2015-12-31"],"newerUnionPeriods":10}',
+      'nbis:canonical.operatingCashFlow:{"kind":"verified-cap-displaced","droppedPeriodEnds":["2011-12-31"],"newerUnionPeriods":10}',
     ]);
     expect(excluded.toSorted()).toEqual([
       "fpi-ifrs-semiannual:canonical.capex:unanchored-empty",
@@ -591,7 +592,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
   test("catches consistently truncated NBIS net-margin history after hashes are regenerated", async () => {
     const nbisCase = await loadOfflineCorpusCase("nbis");
     const { netMargin } = nbisCase.execution.projection.canonical.fundamentalHistory;
-    const annual = netMargin?.annual.slice(-3);
+    const annual = netMargin?.annual.slice(-2);
     const first = annual?.at(0);
     const last = annual?.at(-1);
     if (
@@ -619,17 +620,43 @@ describe("offline financial-statement corpus — history rosters and alias fault
       ],
     });
 
-    expect(netMargin.annual).toHaveLength(5);
-    expect(annual).toHaveLength(3);
-    expect(marginChange.percentagePoints).toBeCloseTo(-2446.67, 2);
-    expect(marginChange.years).toBeCloseTo(2.001, 3);
+    expect(netMargin.annual).toHaveLength(3);
+    expect(annual).toHaveLength(2);
+    expect(marginChange.percentagePoints).toBeCloseTo(386.55, 2);
+    expect(marginChange.years).toBeCloseTo(1, 2);
     expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
     const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.netMargin");
     expect(verdict?.kind).toBe("failed");
     if (verdict?.kind !== "failed") {
       throw new Error("Truncated NBIS net-margin roster was not rejected");
     }
-    expect(verdict.reason).toContain('missingPeriodEnds=["2021-12-31","2022-12-31"]');
+    expect(verdict.reason).toContain('missingPeriodEnds=["2021-12-31"]');
+  });
+
+  test("rejects a changed NBIS net-margin value or filing date in the annual roster", async () => {
+    const nbisCase = await loadOfflineCorpusCase("nbis");
+    const annual = nbisCase.execution.projection.canonical.fundamentalHistory.netMargin?.annual;
+    const last = annual?.at(-1);
+    if (annual === undefined || last === undefined) {
+      throw new Error("NBIS golden is missing net-margin history");
+    }
+    for (const changed of [
+      { ...last, value: last.value * 1.01 },
+      { ...last, filedAt: "2026-05-01" },
+    ]) {
+      const mutated = mutateOfflineCorpusCase(nbisCase, {
+        mutations: [
+          ["fundamentalHistory.netMargin.annual", "set", [...annual.slice(0, -1), changed]],
+        ],
+        allowanceUpdates: [{ path: "fundamentalHistory.netMargin.annual" }],
+      });
+      const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.netMargin");
+
+      expect(verdict).toMatchObject({
+        kind: "failed",
+        reason: expect.stringContaining('missingPeriodEnds=["2025-12-31"]'),
+      });
+    }
   });
 
   test("catches consistently truncated NBIS revenue history after hashes are regenerated", async () => {
@@ -666,7 +693,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
 
     expect(revenue.annual).toHaveLength(5);
     expect(annual).toHaveLength(3);
-    expect(cagr.percent).toBeCloseTo(634.23, 2);
+    expect(cagr.percent).toBeCloseTo(635.26, 2);
     expect(cagr.years).toBeCloseTo(2, 2);
     expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
     const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.revenue");
@@ -741,9 +768,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
 
     const injectedMarginChange = {
       percentagePoints: (last.value - first.value) * 100,
-      years:
-        (Date.parse(last.periodEnd) - Date.parse(first.periodEnd)) /
-        (365.2425 * 24 * 60 * 60 * 1000),
+      years: yearsBetween(first.periodEnd, last.periodEnd),
       periodStart: first.periodEnd,
       periodEnd: last.periodEnd,
     };

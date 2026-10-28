@@ -206,14 +206,27 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
     unit: "ratio-percent",
     basis: `(operating cash flow - capital expenditure) / revenue, ${FISCAL_YEAR}; revenue at or below zero or negative-filed capex is not meaningful`,
     applicable: depository("operating cash flow is not a free cash flow basis"),
-    compute: ratioOf(
-      ([operatingCashFlow, capitalExpenditure]) =>
-        operatingCashFlow!.value - capitalExpenditure!.value,
-      ["operatingCashFlow", "capitalExpenditure", "revenue"],
-      (ctx, facts, keys) =>
-        boundGate("capitalExpenditure", NEGATIVE_CAPEX_REASON, false)(ctx, facts, keys) ??
-        boundGate("revenue", "revenue is zero or negative")(ctx, facts, keys),
-    ),
+    compute: (ctx) => {
+      const outcome = ratioOf(
+        ([operatingCashFlow, capitalExpenditure]) =>
+          operatingCashFlow!.value - capitalExpenditure!.value,
+        ["operatingCashFlow", "capitalExpenditure", "revenue"],
+        (context, facts, keys) =>
+          boundGate("capitalExpenditure", NEGATIVE_CAPEX_REASON, false)(context, facts, keys) ??
+          boundGate("revenue", "revenue is zero or negative")(context, facts, keys),
+      )(ctx);
+      const operatingCashFlow = outcome.inputs?.find(
+        (input) => input.series === "operatingCashFlow",
+      );
+      return operatingCashFlow === undefined ||
+        operatingCashFlow.label === SERIES_LABELS.operatingCashFlow
+        ? outcome
+        : {
+            ...outcome,
+            label: `Free cash flow margin${operatingCashFlow.label.slice(SERIES_LABELS.operatingCashFlow.length)}`,
+            basis: `(${operatingCashFlow.label} - capital expenditure) / revenue, ${FISCAL_YEAR}; capital expenditure carries no operations-scope tag and is used as reported; revenue at or below zero or negative-filed capex is not meaningful`,
+          };
+    },
   },
   {
     id: "interestCoverage",

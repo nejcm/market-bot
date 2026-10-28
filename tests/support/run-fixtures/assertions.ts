@@ -42,6 +42,7 @@ import {
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import {
   conceptScope,
+  CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
@@ -757,6 +758,45 @@ function assertDepreciationAndAmortizationSelection(run: MetricInvariantRun): vo
   const totals = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
     ({ key }) => key === "depreciationAndAmortization",
   )!.concepts["us-gaap"];
+  const unit = statements.reportingCurrency;
+  const retainedEnds = new Set(
+    Object.values(statements.statements)
+      .flatMap((group) => Object.values(group))
+      .filter((other) => other !== series)
+      .flatMap((other) => other.annual.map(({ periodEnd }) => periodEnd)),
+  );
+  const annualRows = (concept: string) => {
+    const units = isRecord(root[concept]) ? root[concept].units : undefined;
+    const rows = isRecord(units) && unit !== undefined ? units[unit] : undefined;
+    return (Array.isArray(rows) ? rows : []).filter(
+      (row): row is Record<string, unknown> =>
+        isRecord(row) &&
+        readString(row, "form") === "10-K" &&
+        (readString(row, "filed") ?? "") <= cutoff &&
+        typeof row.start === "string" &&
+        typeof row.end === "string" &&
+        Date.parse(row.end) - Date.parse(row.start) > 300 * 86_400_000,
+    );
+  };
+  const depreciationPeriods = new Set(
+    [...annualRows("Depreciation"), ...annualRows("DepreciationNonproduction")].map(
+      (row) => `${String(row.start)}|${String(row.end)}`,
+    ),
+  );
+  for (const row of annualRows("AmortizationOfIntangibleAssets")) {
+    const end = String(row.end);
+    if (!retainedEnds.has(end) || !depreciationPeriods.has(`${String(row.start)}|${end}`)) {
+      continue;
+    }
+    expect(
+      series.annual.some((fact) => fact.periodEnd === end) ||
+        statements.omissionNotes.some(
+          (note) =>
+            note.seriesKey === "depreciationAndAmortization" && note.periodKey?.endsWith(end),
+        ),
+      `D&A FY ending ${end} has filed components, so it is published or carries a gap`,
+    ).toBe(true);
+  }
   for (const fact of financialStatementFacts(series).filter(
     (item) => item.taxonomy === "us-gaap",
   )) {
@@ -810,6 +850,17 @@ function assertDepreciationAndAmortizationSelection(run: MetricInvariantRun): vo
       const component = selectRawFact(aliases);
       return component === undefined ? [] : [component];
     });
+    const cashFlowLines = CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES.flatMap((concept) => {
+      const line = selectRawFact([concept]);
+      return line === undefined ? [] : [line.value];
+    });
+    const cashFlowSum = cashFlowLines.reduce((sum, value) => sum + value, 0);
+    expect(
+      cashFlowLines.length === 0 ||
+        cashFlowSum - fact.value <=
+          Math.abs(cashFlowSum) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
+      `D&A ${fact.periodKey} must not fall below the filed cash-flow D&A lines`,
+    ).toBe(true);
     if (fact.composite !== undefined) {
       const total = selectRawFact(totals);
       if (total !== undefined) {
@@ -1116,9 +1167,11 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
   },
   "equity-nbis-deep": {
     operatingMargin: -1.154_586_636_466_591,
-    netMargin: 0.155_719_139_297_848_25,
-    freeCashFlowProxy: -3_681_200_000,
-    cashConversion: 4.664_242_424_242_424,
+    // FY2025 20-F (0001104659-26-052948): continuing income 9.8M / revenue 529.8M; total 82.5M adds 72.7M discontinued.
+    netMargin: 0.018_497_546_243_865_61,
+    // Continuing OCF 401.9M less capex 4,066.0M; the 384.8M total OCF nets 17.1M discontinued outflow.
+    freeCashFlowProxy: -3_664_100_000,
+    cashConversion: 41.010_204_081_632_65,
     roe: 0.017_958_206_356_116_675,
     roa: 0.006_636_847_778_868_277,
     revenueDeltaPercent: 479.016_393_442_622_9,
@@ -1127,7 +1180,7 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     dilutedEpsDeltaPercent: 114.473_684_210_526_33,
     continuingIncomeDeltaPercent: 102.784_090_909_090_9,
     continuingDilutedEpsDeltaPercent: 103.2,
-    operatingCashFlowDeltaPercent: 56.677_524_429_967_43,
+    operatingCashFlowDeltaPercent: 248.907_002_593_553_2,
     capexDeltaPercent: 403.529_411_764_705_86,
     cash: 3_678_100_000,
     payoutRatio: 0,
@@ -1143,7 +1196,7 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     forwardPe: "-139.64x (negative earnings)",
     epsForward: -1.613_41,
     priceToBook: 7.968_733_3,
-    pcfRatio: 148.657_124_324_324_31,
+    pcfRatio: 142.332_076_237_870_13,
   },
   "equity-fpi-quarterly": {
     grossMargin: 0.85,
@@ -1387,8 +1440,24 @@ export function assertFinancialLensMetricInvariants(
         case "grossMargin":
         case "operatingMargin":
         case "netMargin": {
-          const [numerator] = LENS_METRIC_SERIES[metricId] ?? [];
-          expectClose(metric.value, valueOf(String(numerator)) / valueOf("revenue"), label);
+          const [defaultNumerator] = LENS_METRIC_SERIES[metricId] ?? [];
+          const numerator =
+            metricId === "netMargin" ? String(metric.inputs[0]?.series) : String(defaultNumerator);
+          if (metricId === "netMargin") {
+            expect(
+              [
+                "netIncome",
+                "consolidatedNetIncome",
+                "continuingIncome",
+                "consolidatedContinuingIncome",
+              ],
+              `${label} uses an income numerator`,
+            ).toContain(numerator);
+            expect(metric.label.includes("continuing operations"), `${label} names its scope`).toBe(
+              numerator.endsWith("ContinuingIncome") || numerator === "continuingIncome",
+            );
+          }
+          expectClose(metric.value, valueOf(numerator) / valueOf("revenue"), label);
           break;
         }
         case "freeCashFlowProxy": {
@@ -2270,7 +2339,7 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
 const CONVERTED_ROW = /converted at USD\/CAD /gu;
 const PINNED_CONVERSIONS = [
   { periodEnd: "2025-10-31", rate: 1.4, close: 70.55, pe: 98.77, ps: 123_264_963_232 },
-  { periodEnd: "2026-01-31", rate: 1.3694, close: 75.38, pe: 103.22, ps: 138_816_182_634 },
+  { periodEnd: "2026-01-31", rate: 1.3694, close: 75.38, pe: 103.22 },
 ] as const;
 const RATE_TOLERANCE = 0.05;
 const CLOSE_TOLERANCE = 2;
@@ -2327,16 +2396,20 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
     // P/S. An unconverted close would suppress both, and a wrong rate would miss both numbers.
     const convertedClose = (price?.close ?? 0) * fx.rate;
     const dilutedShares = observation.inputs.dilutedShares?.value;
-    expect(dilutedShares, `${label} diluted shares`).toBeGreaterThan(0);
     expect(observation.metrics.priceToEarnings, `${label} P/E`).toMatchObject({
       status: "value",
       value: convertedClose / (observation.inputs.dilutedEps?.value ?? Number.NaN),
     });
-    expect(observation.metrics.priceToSales, `${label} P/S`).toMatchObject({
-      status: "value",
-      value:
-        (convertedClose * (dilutedShares ?? 0)) / (observation.inputs.revenue?.value ?? Number.NaN),
-    });
+    // IFRS TTM has no filed share count, and consolidated ProfitLoss cannot derive one.
+    expect(observation.metrics.priceToSales, `${label} P/S`).toMatchObject(
+      dilutedShares === undefined
+        ? { status: "missing", reason: "diluted-shares-unavailable" }
+        : {
+            status: "value",
+            value:
+              (convertedClose * dilutedShares) / (observation.inputs.revenue?.value ?? Number.NaN),
+          },
+    );
   }
 
   const fy2024 = observations.find(
@@ -2374,6 +2447,9 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
       CLOSE_TOLERANCE,
       `pinned ${pinned.periodEnd} converted close`,
     );
+    if (!("ps" in pinned)) {
+      continue;
+    }
     expectNear(
       priceToSales?.status === "value"
         ? Number(priceToSales.value) * (match?.observation.inputs.revenue?.value ?? Number.NaN)
@@ -2705,7 +2781,11 @@ function assertValuationWorkbenchInvariants(
       return annual.value + interim[1]!.value - interim[0]!.value;
     };
     const inputSeries = [...new Set(lineage.map(({ series }) => series!))];
-    if (input.derivation === "operating cash flow - capital expenditure") {
+    if (input.derivation?.startsWith("operating cash flow") === true) {
+      expect(
+        input.derivation.includes("capital expenditure carries no operations-scope tag"),
+        "scoped FCF states that capex is unscoped",
+      ).toBe(input.scope !== undefined);
       expect(valueOf("capitalExpenditure"), "FCF capex is a filed outflow").toBeGreaterThanOrEqual(
         0,
       );
@@ -2948,6 +3028,10 @@ const DEPOSITORY_WORKBENCH_FCF = {
   status: "not-applicable",
   reason: "depository issuer; capex-based free cash flow is not defined (SIC 6022)",
 } as const;
+const MISSING_WORKBENCH_SHARES = {
+  status: "missing",
+  reason: "diluted-shares-unavailable",
+} as const;
 const MISSING_WORKBENCH_FX = { status: "missing", reason: "fx-rate-unavailable" } as const;
 const AAPL_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2023-09-30|2023-11-01": [
@@ -3083,11 +3167,12 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MISSING_WORKBENCH_DEBT,
       MISSING_WORKBENCH_PRICE,
     ],
+    // FY2023 20-F (0001104659-26-052948): continuing OCF -222.0M; the 829.8M total includes divested Yandex.
     "annual|2023-12-31|2026-04-30": [
       212.661_531_888_521_64,
       5230.731_450_141_013,
       MISSING_WORKBENCH_DEBT,
-      68.631_902_813_471_58,
+      NEGATIVE_WORKBENCH_DENOMINATOR,
     ],
     "annual|2024-12-31|2026-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,
@@ -3131,21 +3216,21 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-fpi-ifrs-semiannual": {
     "annual|2023-12-31|2024-03-15": [
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
       IFRS_WORKBENCH_EV,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
     ],
     "annual|2024-12-31|2025-03-15": [
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
       IFRS_WORKBENCH_EV,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
     ],
     "annual|2025-12-31|2026-03-15": [
       14.314_666_666_666_666,
-      7.873_066_666_666_668,
+      MISSING_WORKBENCH_SHARES,
       IFRS_WORKBENCH_EV,
-      MISSING_WORKBENCH_FCF,
+      MISSING_WORKBENCH_SHARES,
     ],
   },
   "equity-analysis-comprehensive": AAPL_WORKBENCH_VALUES,
@@ -3208,13 +3293,13 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
     "ttm|2025-04-30|2025-05-27": [
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
     "ttm|2025-07-31|2025-08-26": [
       MISSING_WORKBENCH_FX,
-      MISSING_WORKBENCH_FX,
+      MISSING_WORKBENCH_SHARES,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
@@ -3226,7 +3311,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
     "ttm|2026-01-31|2026-02-24": [
       15.315_112_823_716_342,
-      3.651_616_010_368_668,
+      MISSING_WORKBENCH_SHARES,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],

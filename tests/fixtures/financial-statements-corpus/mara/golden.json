@@ -1103,6 +1103,57 @@
           "unit": "USD"
         }
       ],
+      "ttm": {
+        "value": -2040846000,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "ProfitLoss",
+            "periodKey": "duration:12|2025-12-31",
+            "periodStart": "2025-01-01",
+            "periodEnd": "2025-12-31",
+            "form": "10-K",
+            "filingDate": "2026-03-02",
+            "accession": "0001507605-26-000007",
+            "value": -1311892000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "latestYearToDate": {
+            "concept": "ProfitLoss",
+            "periodKey": "duration:3|2026-03-31",
+            "periodStart": "2026-01-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-11",
+            "accession": "0001507605-26-000016",
+            "value": -1262397000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "priorYearToDate": {
+            "concept": "ProfitLoss",
+            "periodKey": "duration:3|2025-03-31",
+            "periodStart": "2025-01-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-11",
+            "accession": "0001507605-26-000016",
+            "value": -533443000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
+    },
+    "consolidatedContinuingIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
       "ttm": null
     },
     "continuingIncome": {
@@ -3639,8 +3690,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 54.50713688714504,
-          "years": 4.000082137210209,
+          "percent": 54.5085172386141,
+          "years": 4,
           "periodStart": "2021-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -4282,8 +4333,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 87.13938040860786,
-          "years": 4.999418194761015,
+          "percent": 87.12573441265033,
+          "years": 5,
           "periodStart": "2020-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -4447,7 +4498,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": -101.9577565720704,
-          "years": 0.9993360575508052,
+          "years": 1,
           "periodStart": "2021-12-31",
           "periodEnd": "2022-12-31"
         }
@@ -4547,7 +4598,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": -92.41996096814611,
-          "years": 8.999500331971225,
+          "years": 9,
           "periodStart": "2016-12-31",
           "periodEnd": "2025-12-31"
         }
@@ -4611,7 +4662,7 @@
             "currency": "USD"
           },
           {
-            "value": 0.8246056388239703,
+            "value": 0.8242323782942146,
             "form": "10-K",
             "fy": 2024,
             "fp": "FY",
@@ -4622,7 +4673,7 @@
             "currency": "USD"
           },
           {
-            "value": -1.445805446630059,
+            "value": -1.446259644821424,
             "form": "10-K",
             "fy": 2025,
             "fp": "FY",
@@ -4636,8 +4687,8 @@
         "ttm": null,
         "cagr": null,
         "marginChange": {
-          "percentagePoints": -66.32340411783105,
-          "years": 8.999500331971225,
+          "percentagePoints": -66.36882393696754,
+          "years": 9,
           "periodStart": "2016-12-31",
           "periodEnd": "2025-12-31"
         }
@@ -4668,7 +4719,7 @@
           "netMargin": {
             "key": "netMargin",
             "label": "Net margin",
-            "value": -1.445805446630059,
+            "value": -1.446259644821424,
             "unit": "ratio-percent",
             "sourceIds": ["offline-sec-companyfacts-mara"],
             "periodEnd": "2025-12-31",
@@ -4968,8 +5019,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 54.50713688714504,
-          "years": 4.000082137210209,
+          "percent": 54.5085172386141,
+          "years": 4,
           "periodStart": "2021-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -5633,8 +5684,8 @@
           "currency": "USD"
         },
         "cagr": {
-          "percent": 87.13938040860786,
-          "years": 4.999418194761015,
+          "percent": 87.12573441265033,
+          "years": 5,
           "periodStart": "2020-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -5798,7 +5849,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": -101.9577565720704,
-          "years": 0.9993360575508052,
+          "years": 1,
           "periodStart": "2021-12-31",
           "periodEnd": "2022-12-31"
         }
@@ -5898,7 +5949,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": -92.41996096814611,
-          "years": 8.999500331971225,
+          "years": 9,
           "periodStart": "2016-12-31",
           "periodEnd": "2025-12-31"
         }
@@ -5962,7 +6013,7 @@
             "currency": "USD"
           },
           {
-            "value": 0.8246056388239703,
+            "value": 0.8242323782942146,
             "form": "10-K",
             "fy": 2025,
             "fp": "FY",
@@ -5973,7 +6024,7 @@
             "currency": "USD"
           },
           {
-            "value": -1.445805446630059,
+            "value": -1.446259644821424,
             "form": "10-K",
             "fy": 2025,
             "fp": "FY",
@@ -5987,8 +6038,8 @@
         "ttm": null,
         "cagr": null,
         "marginChange": {
-          "percentagePoints": -66.32340411783105,
-          "years": 8.999500331971225,
+          "percentagePoints": -66.36882393696754,
+          "years": 9,
           "periodStart": "2016-12-31",
           "periodEnd": "2025-12-31"
         }

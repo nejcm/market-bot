@@ -68,8 +68,8 @@ function rosterMismatchReason(
   expected: readonly FundamentalHistoryPoint[],
   emitted: readonly FundamentalHistoryPoint[],
 ): string | undefined {
-  const expectedTuples = expected.map((point) => rosterTuple(point));
-  const emittedTuples = emitted.map((point) => rosterTuple(point));
+  const expectedTuples = expected.map(rosterTuple);
+  const emittedTuples = emitted.map(rosterTuple);
   if (JSON.stringify(expectedTuples) === JSON.stringify(emittedTuples)) {
     return undefined;
   }
@@ -181,15 +181,20 @@ function verifyCanonicalRaw(
       reason: `canonical.${definition.key} selected a concept without taxonomy/currency`,
     };
   }
-  const expectedConcept = expectedSelectedConcept(execution, definition, "canonical");
+  const unit = expectedCanonicalUnit(canonicalDefinition, reportingCurrency);
+  const scoped =
+    definition.key === "operatingCashFlow" && taxonomy === "us-gaap"
+      ? scopedOperatingCashFlow(execution, unit)
+      : undefined;
+  const expectedConcept =
+    scoped?.concept ?? expectedSelectedConcept(execution, definition, "canonical");
   if (series.concept !== expectedConcept) {
     return {
       kind: "failed",
       reason: `canonical.${definition.key} emitted concept ${series.concept} but selection policy yields ${String(expectedConcept)}`,
     };
   }
-  const unit = expectedCanonicalUnit(canonicalDefinition, reportingCurrency);
-  const eligible = canonicalEligiblePoints(execution, series.concept, unit);
+  const eligible = scoped?.points ?? canonicalEligiblePoints(execution, series.concept, unit);
   if (eligible.length === 0 && series.annual.length === 0) {
     return { kind: "vacuous-empty" };
   }
@@ -230,6 +235,39 @@ function verifyCanonicalRaw(
   };
 }
 
+const TOTAL_OCF = "NetCashProvidedByUsedInOperatingActivities";
+const CONTINUING_OCF = "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";
+
+// Per period: continuing OCF when tagged, else total OCF unless discontinued operations are reported.
+function scopedOperatingCashFlow(
+  execution: OfflineCorpusExecution,
+  unit: string,
+): { readonly concept: string | undefined; readonly points: readonly EligibleCanonicalPoint[] } {
+  const continuing = new Map(
+    canonicalEligiblePoints(execution, CONTINUING_OCF, unit).map((point) => [
+      point.periodKey,
+      point,
+    ]),
+  );
+  const discontinued = new Set(
+    NET_MARGIN_CONCEPTS.discontinued.flatMap((concept) =>
+      canonicalEligiblePoints(execution, concept, unit)
+        .filter((point) => point.point.value !== 0)
+        .map((point) => point.periodKey),
+    ),
+  );
+  const total = canonicalEligiblePoints(execution, TOTAL_OCF, unit).filter(
+    (point) => !continuing.has(point.periodKey) && !discontinued.has(point.periodKey),
+  );
+  const points = [...continuing.values(), ...total].toSorted(
+    (left, right) =>
+      left.point.periodEnd.localeCompare(right.point.periodEnd) ||
+      left.point.periodStart.localeCompare(right.point.periodStart),
+  );
+  const concept = continuing.size > 0 ? CONTINUING_OCF : points.length > 0 ? TOTAL_OCF : undefined;
+  return { concept, points };
+}
+
 function ratioValue(numerator: number, denominator: number): number | undefined {
   return denominator === 0 ? undefined : numerator / denominator;
 }
@@ -262,16 +300,103 @@ function derivedExpected(
   });
 }
 
-function verifyDerived(
+export const NET_MARGIN_CONCEPTS = {
+  consolidatedContinuing: [
+    "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+    "ProfitLossFromContinuingOperations",
+  ],
+  continuing: [
+    "IncomeLossFromContinuingOperations",
+    "ProfitLossFromContinuingOperationsAttributableToOwnersOfParent",
+  ],
+  discontinued: [
+    "CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations",
+    "IncomeLossFromDiscontinuedOperationsNetOfTax",
+    "IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity",
+    "IncomeLossFromDiscontinuedOperationsNetOfTaxIncludingPortionAttributableToNoncontrollingInterest",
+    "ProfitLossFromDiscontinuedOperations",
+  ],
+  noncontrolling: [
+    "NetIncomeLossAttributableToNoncontrollingInterest",
+    "NetIncomeLossAttributableToNonredeemableNoncontrollingInterest",
+    "NetIncomeLossAttributableToRedeemableNoncontrollingInterest",
+    "IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity",
+    "MinorityInterestInNetIncomeLossLimitedPartnerships",
+    "ComprehensiveIncomeNetOfTaxAttributableToNoncontrollingInterest",
+    "ProfitLossAttributableToNoncontrollingInterests",
+  ],
+  consolidated: ["ProfitLoss"],
+  parent: ["NetIncomeLoss", "ProfitLossAttributableToOwnersOfParent"],
+} as const;
+
+// Independent of production: consolidated income over revenue, parent income only without NCI evidence.
+function netMarginExpected(
+  execution: OfflineCorpusExecution,
   side: HistorySide,
   consumers: OfflineCorpusExecution["projection"][HistorySide],
+): readonly FundamentalHistoryPoint[] {
+  const revenue = consumers.fundamentalHistory.revenue?.annual ?? [];
+  const factAt = (
+    concepts: readonly string[],
+    revenuePoint: FundamentalHistoryPoint,
+  ): FundamentalHistoryPoint | undefined =>
+    concepts
+      .flatMap((concept) =>
+        side === "canonical"
+          ? canonicalEligiblePoints(execution, concept, revenuePoint.currency).map(
+              (point) => point.point,
+            )
+          : legacyEligiblePoints(execution, concept, revenuePoint.currency),
+      )
+      .find(
+        (point) =>
+          point.periodEnd === revenuePoint.periodEnd &&
+          point.periodStart === revenuePoint.periodStart,
+      );
+  return revenue.flatMap((revenuePoint) => {
+    const at = (key: keyof typeof NET_MARGIN_CONCEPTS) =>
+      factAt(NET_MARGIN_CONCEPTS[key], revenuePoint);
+    const consolidated = at("consolidated");
+    const parent = at("parent");
+    const noncontrolling =
+      at("noncontrolling") !== undefined ||
+      (consolidated !== undefined && parent !== undefined && consolidated.value !== parent.value);
+    const consolidatedContinuing = at("consolidatedContinuing");
+    const continuing = at("continuing");
+    const numerator =
+      consolidatedContinuing !== undefined || continuing !== undefined
+        ? (consolidatedContinuing ?? (noncontrolling ? undefined : continuing))
+        : (at("discontinued")?.value ?? 0) === 0
+          ? (consolidated ?? (noncontrolling ? undefined : parent))
+          : undefined;
+    const value =
+      numerator === undefined ? undefined : ratioValue(numerator.value, revenuePoint.value);
+    return value === undefined
+      ? []
+      : [
+          {
+            ...numerator!,
+            value,
+            filedAt: [numerator!.filedAt, revenuePoint.filedAt].toSorted().at(-1)!,
+          },
+        ];
+  });
+}
+
+function verifyDerived(
+  execution: OfflineCorpusExecution,
+  side: HistorySide,
   definition: DerivedDefinition,
 ): RosterVerdict {
+  const consumers = execution.projection[side];
   const series = consumers.fundamentalHistory[definition.key];
   if (series === undefined) {
     return { kind: "failed", reason: `${side}.${definition.key} is missing` };
   }
-  const expected = derivedExpected(consumers, definition);
+  const expected =
+    definition.key === "netMargin"
+      ? netMarginExpected(execution, side, consumers)
+      : derivedExpected(consumers, definition);
   if (expected.length === 0 && series.annual.length === 0) {
     return { kind: "vacuous-empty" };
   }
@@ -300,12 +425,11 @@ export function verifyHistoryAnnualRosters(
   const verdicts = new Map<string, RosterVerdict>();
   const union = canonicalUnion(execution);
   for (const side of ["canonical", "legacy"] as const) {
-    const consumers = execution.projection[side];
     for (const definition of RAW_HISTORY_DEFINITIONS) {
       verdicts.set(`${side}.${definition.key}`, verifyRaw(execution, side, definition, union));
     }
     for (const definition of DERIVED_DEFINITIONS) {
-      verdicts.set(`${side}.${definition.key}`, verifyDerived(side, consumers, definition));
+      verdicts.set(`${side}.${definition.key}`, verifyDerived(execution, side, definition));
     }
   }
   return verdicts;

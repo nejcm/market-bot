@@ -113,7 +113,8 @@ function eligibleAnnualFacts(
 }
 
 export function statementInput(fact: FinancialStatementFact, key: JoinSeries): MetricInput {
-  const scope = key === "pretaxIncome" ? conceptScope(fact.concept) : undefined;
+  const scope =
+    key === "pretaxIncome" || key === "operatingCashFlow" ? conceptScope(fact.concept) : undefined;
   return metricStatementInput(fact, key, scopedLabel(SERIES_LABELS[key], scope));
 }
 

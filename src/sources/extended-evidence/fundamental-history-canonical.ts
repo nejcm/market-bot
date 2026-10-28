@@ -1,5 +1,7 @@
 import {
   buildFundamentalHistorySeries,
+  CONTINUING_INCOME_HISTORY,
+  endsWithin,
   fundamentalHistoryCagr,
   negativeCapexTtmNote,
   totalOperationsScopes,
@@ -16,7 +18,11 @@ import {
   type FinancialStatementSeriesKey,
   type FinancialStatementsArtifact,
 } from "./financial-statements-contract";
-import { hasNegativeCapex } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  hasNegativeCapex,
+  isContinuingScope,
+} from "./financial-statement-definitions";
 import {
   financialStatementFacts,
   financialStatementPeriodMonths,
@@ -179,7 +185,9 @@ function rawSeries(
     );
   }
   const growth = mixedBasis ? undefined : cagr;
-  const concept = financialStatementFacts(series)[0]?.concept;
+  const facts = financialStatementFacts(series);
+  const concept = (facts.find((fact) => isContinuingScope(conceptScope(fact.concept))) ?? facts[0])
+    ?.concept;
   return {
     key: definition.key,
     label: definition.label,
@@ -190,6 +198,43 @@ function rawSeries(
     ...(growth !== undefined ? { cagr: growth } : {}),
     notes,
   };
+}
+
+// A TTM point is flagged when any of its FY, YTD, or prior-YTD components is.
+function notedPeriods(
+  artifact: FinancialStatementsArtifact,
+  seriesKeys: readonly FinancialStatementSeriesKey[],
+): (point: FundamentalHistoryPoint) => boolean {
+  const noted = new Set(
+    artifact.omissionNotes.flatMap((note) =>
+      note.seriesKey !== undefined &&
+      seriesKeys.includes(note.seriesKey) &&
+      note.periodKey !== undefined
+        ? [note.periodKey]
+        : [],
+    ),
+  );
+  const within = endsWithin([...noted].map((key) => key.split("|").at(-1)!));
+  const components = Object.values(
+    artifact.statements.incomeStatement.netIncome.ttm?.components ?? {},
+  ).map((fact) => fact.periodKey);
+  return (point) =>
+    point.form === "TTM" ? components.some((key) => noted.has(key)) : within(point);
+}
+
+function noncontrollingPeriods(
+  artifact: FinancialStatementsArtifact,
+): (point: FundamentalHistoryPoint) => boolean {
+  const noted = notedPeriods(artifact, ["consolidatedNetIncome", "consolidatedContinuingIncome"]);
+  const { netIncome, consolidatedNetIncome } = artifact.statements.incomeStatement;
+  const consolidated = new Map(
+    financialStatementFacts(consolidatedNetIncome).map((fact) => [fact.periodKey, fact.value]),
+  );
+  const ttmDiverges = Object.values(netIncome.ttm?.components ?? {}).some((fact) => {
+    const value = consolidated.get(fact.periodKey);
+    return value !== undefined && value !== fact.value;
+  });
+  return (point) => noted(point) || (point.form === "TTM" && ttmDiverges);
 }
 
 export function deriveFundamentalHistoryFromFinancialStatements(
@@ -212,6 +257,22 @@ export function deriveFundamentalHistoryFromFinancialStatements(
             financialStatementFacts(financialStatementSeriesByKey(artifact, key)!),
           )?.periodEnd,
       ),
+      {
+        continuing: rawSeries(artifact, {
+          ...CONTINUING_INCOME_HISTORY,
+          canonicalKey: "continuingIncome",
+        }),
+        consolidatedContinuing: rawSeries(artifact, {
+          ...CONTINUING_INCOME_HISTORY,
+          canonicalKey: "consolidatedContinuingIncome",
+        }),
+        consolidated: rawSeries(artifact, {
+          ...CONTINUING_INCOME_HISTORY,
+          canonicalKey: "consolidatedNetIncome",
+        }),
+        reportsDiscontinued: notedPeriods(artifact, ["continuingIncome"]),
+        reportsNoncontrolling: noncontrollingPeriods(artifact),
+      },
     ),
   };
 }

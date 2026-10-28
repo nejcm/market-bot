@@ -6,6 +6,7 @@ import {
   conceptScope,
   isContinuingScope,
   NEGATIVE_CAPEX_REASON,
+  netMarginNumerator,
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
@@ -67,6 +68,7 @@ type LensSeries = Extract<
   | "operatingIncome"
   | "netIncome"
   | "consolidatedNetIncome"
+  | "consolidatedContinuingIncome"
   | "continuingIncome"
   | "continuingDilutedEps"
   | "dilutedEps"
@@ -87,6 +89,7 @@ const SERIES_LABELS: Readonly<Record<LensSeries, string>> = {
   operatingIncome: "operating income",
   netIncome: "net income",
   consolidatedNetIncome: "consolidated net income",
+  consolidatedContinuingIncome: "continuing operations income including NCI",
   continuingIncome: "continuing operations income",
   continuingDilutedEps: "continuing operations diluted EPS",
   dilutedEps: "diluted EPS",
@@ -495,20 +498,116 @@ function summaryValue(
       };
 }
 
+type NetMarginIncome =
+  | { readonly key: LensSeries; readonly fact?: FinancialStatementFact }
+  | { readonly reason: string; readonly periodEnd?: string };
+
+const UNTAGGED_CONTINUING_REASON =
+  "discontinued operations are reported and no continuing-operations income is tagged";
+const UNTAGGED_CONSOLIDATED_REASON =
+  "noncontrolling interest income is reported and no income including NCI is tagged";
+const CONTINUING_INCOME_KEYS = new Set<LensSeries>([
+  "continuingIncome",
+  "consolidatedContinuingIncome",
+]);
+
+function legacyNetMarginIncome(ctx: MetricContext): NetMarginIncome {
+  const metrics = secItem(ctx)?.metrics;
+  const end = readStringMetric(metrics, "netIncomePeriodEnd");
+  const at = (key: LensSeries) =>
+    readNumberMetric(metrics, key) !== undefined &&
+    readStringMetric(metrics, `${key}PeriodEnd`) === end
+      ? key
+      : undefined;
+  const consolidated = at("consolidatedNetIncome");
+  const discontinued =
+    end !== undefined && readStringMetric(metrics, "netIncomeDiscontinuedPeriodEnd") === end;
+  const key = netMarginNumerator<LensSeries>({
+    consolidatedContinuing: at("consolidatedContinuingIncome"),
+    continuing: at("continuingIncome"),
+    consolidated,
+    total: "netIncome",
+    discontinued,
+    noncontrolling:
+      (end !== undefined &&
+        readStringMetric(metrics, "netIncomeNoncontrollingPeriodEnd") === end) ||
+      (consolidated !== undefined &&
+        readNumberMetric(metrics, consolidated) !== readNumberMetric(metrics, "netIncome")),
+  });
+  return key !== undefined
+    ? { key }
+    : {
+        reason: `${discontinued ? UNTAGGED_CONTINUING_REASON : UNTAGGED_CONSOLIDATED_REASON} for the period ending ${end}`,
+        ...(end === undefined ? {} : { periodEnd: end }),
+      };
+}
+
+function netMarginIncome(ctx: MetricContext, anchor: FinancialStatementFact): NetMarginIncome {
+  const flagged = (key: LensSeries) =>
+    ctx.statements?.omissionNotes.some(
+      (note) => note.seriesKey === key && note.periodKey === anchor.periodKey,
+    ) === true;
+  const tagged = (key: LensSeries) => {
+    const fact = samePeriodFact(ctx, anchor, key);
+    return fact === undefined ? undefined : { key, fact };
+  };
+  const discontinued = flagged("continuingIncome");
+  const picked = netMarginNumerator({
+    consolidatedContinuing: tagged("consolidatedContinuingIncome"),
+    continuing: tagged("continuingIncome"),
+    consolidated: tagged("consolidatedNetIncome"),
+    total: { key: "netIncome" as LensSeries, fact: anchor },
+    discontinued,
+    noncontrolling: flagged("consolidatedNetIncome") || flagged("consolidatedContinuingIncome"),
+  });
+  return (
+    picked ?? {
+      reason: `${discontinued ? UNTAGGED_CONTINUING_REASON : UNTAGGED_CONSOLIDATED_REASON} for the period ending ${anchor.periodEnd}`,
+    }
+  );
+}
+
+function netMarginLabel(ctx: MetricContext): string {
+  const anchor = ctx.statements === undefined ? undefined : latestFact(ctx, "netIncome");
+  const income =
+    ctx.statements === undefined
+      ? legacyNetMarginIncome(ctx)
+      : anchor === undefined
+        ? undefined
+        : netMarginIncome(ctx, anchor);
+  return income !== undefined && "key" in income && CONTINUING_INCOME_KEYS.has(income.key)
+    ? "Net margin (continuing operations)"
+    : "Net margin";
+}
+
+function operatingCashFlowScope(ctx: MetricContext): string | undefined {
+  return ctx.statements === undefined
+    ? readStringMetric(secItem(ctx)?.metrics, "operatingCashFlowScope")
+    : conceptScope(latestFact(ctx, "operatingCashFlow")?.concept);
+}
+
 function marginDefinition(
   id: string,
   numerator: LensSeries,
   denominator: LensSeries,
   label: string,
+  consolidatedIncome = false,
 ): MetricDefinition {
   return {
     id,
     label,
     unit: "ratio-percent",
-    basis: `${SERIES_LABELS[numerator]} / ${SERIES_LABELS[denominator]} for the latest ${SERIES_LABELS[numerator]} period`,
+    basis: consolidatedIncome
+      ? `consolidated income including NCI / ${SERIES_LABELS[denominator]} for the latest ${SERIES_LABELS[numerator]} period; continuing-operations income replaces total income when tagged, keeping revenue's continuing scope; parent-attributed income stands in only for a period with no noncontrolling interest income; a period with discontinued operations and no continuing income, or with NCI income and no income including NCI, is withheld`
+      : `${SERIES_LABELS[numerator]} / ${SERIES_LABELS[denominator]} for the latest ${SERIES_LABELS[numerator]} period`,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
-        const numeratorValue = readNumberMetric(secItem(ctx)?.metrics, numerator);
+        const income = consolidatedIncome ? legacyNetMarginIncome(ctx) : { key: numerator };
+        if ("reason" in income) {
+          return { status: "missing", ...income };
+        }
+        const numeratorKey = income.key;
+        const numeratorValue = readNumberMetric(secItem(ctx)?.metrics, numeratorKey);
         const denominatorValue = readNumberMetric(secItem(ctx)?.metrics, denominator);
         const numeratorEnd = readStringMetric(secItem(ctx)?.metrics, `${numerator}PeriodEnd`);
         const denominatorEnd = readStringMetric(secItem(ctx)?.metrics, `${denominator}PeriodEnd`);
@@ -534,13 +633,26 @@ function marginDefinition(
       if (anchor === undefined) {
         return noFact(ctx, numerator);
       }
+      const income = consolidatedIncome
+        ? netMarginIncome(ctx, anchor)
+        : { key: numerator, fact: anchor };
+      if ("reason" in income) {
+        return {
+          status: "missing",
+          reason: income.reason,
+          ...periodOf(anchor),
+          inputs: [factInput(anchor, numerator)],
+        };
+      }
+      const numeratorFact = income.fact ?? anchor;
+      const numeratorInput = factInput(numeratorFact, income.key);
       const partner = samePeriodFact(ctx, anchor, denominator);
       const denominatorLabel = SERIES_LABELS[denominator];
       if (partner === undefined) {
-        return missingPartner(ctx, denominator, anchor, [factInput(anchor, numerator)]);
+        return missingPartner(ctx, denominator, anchor, [numeratorInput]);
       }
-      const inputs = [factInput(anchor, numerator), factInput(partner, denominator)];
-      if (!financialStatementFactsAreCompatible([anchor, partner])) {
+      const inputs = [numeratorInput, factInput(partner, denominator)];
+      if (!financialStatementFactsAreCompatible([numeratorFact, partner])) {
         return {
           status: "missing",
           reason: `${denominatorLabel} currency or unit differs for the period ending ${anchor.periodEnd}`,
@@ -558,7 +670,7 @@ function marginDefinition(
       }
       return {
         status: "value",
-        value: anchor.value / partner.value,
+        value: numeratorFact.value / partner.value,
         ...periodOf(anchor),
         inputs,
       };
@@ -566,18 +678,30 @@ function marginDefinition(
   };
 }
 
-function freeCashFlowDefinition(): MetricDefinition {
+function freeCashFlowDefinition(context: MetricContext): MetricDefinition {
   return {
     id: "freeCashFlowProxy",
-    label: "FCF proxy",
+    label: scopedLabel("FCF proxy", operatingCashFlowScope(context)),
     unit: "currency",
-    basis: "operating cash flow less capital expenditure for the latest operating cash flow period",
+    basis:
+      "operating cash flow less capital expenditure for the latest operating cash flow period; capital expenditure carries no operations-scope tag and is used as reported",
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");
         const capex = readNumberMetric(secItem(ctx)?.metrics, "capex");
         if (!summaryPeriodsMatch(ctx, "operatingCashFlow", "capex")) {
           return { status: "missing", reason: "no same-period SEC FCF proxy" };
+        }
+        if (
+          readStringMetric(secItem(ctx)?.metrics, "operatingCashFlowScope") ===
+          TOTAL_OPERATIONS_SCOPE
+        ) {
+          return {
+            status: "missing",
+            reason:
+              "operating cash flow includes discontinued operations and capital expenditure is not tagged on the same scope",
+            ...summaryPeriod(ctx, "operatingCashFlow"),
+          };
         }
         if (capex !== undefined && capex < 0) {
           const period = summaryPeriod(ctx, "operatingCashFlow");
@@ -602,7 +726,7 @@ function freeCashFlowDefinition(): MetricDefinition {
           operatingCashFlow === undefined || capex === undefined
             ? undefined
             : operatingCashFlow - capex,
-          "FCF proxy",
+          scopedLabel("FCF proxy", operatingCashFlowScope(context)),
           "currency",
           "operatingCashFlow",
         );
@@ -2127,8 +2251,8 @@ function lensDefinitions(
     Quality: [
       marginDefinition("grossMargin", "grossProfit", "revenue", "Gross margin"),
       marginDefinition("operatingMargin", "operatingIncome", "revenue", "Operating margin"),
-      marginDefinition("netMargin", "netIncome", "revenue", "Net margin"),
-      freeCashFlowDefinition(),
+      marginDefinition("netMargin", "netIncome", "revenue", netMarginLabel(ctx), true),
+      freeCashFlowDefinition(ctx),
       cashConversionDefinition(),
       returnOnDefinition(
         "roe",

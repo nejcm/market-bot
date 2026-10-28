@@ -525,7 +525,7 @@ Sourced issuer operating and financial facts used as Extended Evidence.
 
 ## Accounting Scope
 
-The basis an earnings or cash-flow figure is measured on, along three independent axes: continuing versus total operations (total includes discontinued operations), parent-attributable versus including noncontrolling interests (NCI), and SEC filing versus provider earnings basis. Figures are compared, divided, or called conflicting only within one scope; equal values never imply equal scope. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
+The basis an earnings or cash-flow figure is measured on, along three independent axes: continuing versus total operations (total includes discontinued operations), parent-attributable versus including noncontrolling interests (NCI), and SEC filing versus provider earnings basis. Figures are compared, divided, or called conflicting only within one scope; equal values never imply equal scope. Revenue is a continuing line once an issuer splits out discontinued operations (ASC 205-20), so operating cash flow and net margin use continuing amounts where tagged, and a total-operations period that reports discontinued operations is withheld with a Source Gap. Revenue is also consolidated, so net margin divides income including NCI; parent-attributed income stands in only without NCI income, and is otherwise withheld with a Source Gap. Capex carries no scope tag and is used as reported, which FCF bases state. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Earnings Basis Disclosure
 

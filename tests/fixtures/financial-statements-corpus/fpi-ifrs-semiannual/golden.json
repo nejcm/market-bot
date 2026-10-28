@@ -285,6 +285,13 @@
       "interim": [],
       "ttm": null
     },
+    "consolidatedContinuingIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "continuingIncome": {
       "selectedConcept": null,
       "selectedFact": null,
@@ -809,8 +816,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 22.456995602726117,
-          "years": 2.001410022108599,
+          "percent": 22.474487139158896,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -855,8 +862,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 22.456995602726117,
-          "years": 2.001410022108599,
+          "percent": 22.474487139158896,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -901,8 +908,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 22.456995602726092,
-          "years": 2.001410022108599,
+          "percent": 22.474487139158896,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -947,8 +954,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 22.456995602726117,
-          "years": 2.001410022108599,
+          "percent": 22.474487139158917,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -993,8 +1000,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 22.456995602726117,
-          "years": 2.001410022108599,
+          "percent": 22.474487139158896,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -1039,8 +1046,8 @@
         ],
         "ttm": null,
         "cagr": {
-          "percent": 22.456995602726117,
-          "years": 2.001410022108599,
+          "percent": 22.474487139158896,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         },
@@ -1101,7 +1108,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 0,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         }
@@ -1147,7 +1154,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 0,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         }
@@ -1193,7 +1200,7 @@
         "cagr": null,
         "marginChange": {
           "percentagePoints": 0,
-          "years": 2.001410022108599,
+          "years": 2,
           "periodStart": "2023-12-31",
           "periodEnd": "2025-12-31"
         }

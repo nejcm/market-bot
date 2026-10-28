@@ -346,7 +346,7 @@ function equityContext(): ResearchContext {
       assetClass: "equity",
       label: "risk-on",
       proxyCount: 2,
-      drivers: ["breadth"],
+      drivers: [{ text: "breadth", sourceIds: ["market-spy"] }],
       sourceIds: ["market-spy"],
     },
     calibrationContext: {

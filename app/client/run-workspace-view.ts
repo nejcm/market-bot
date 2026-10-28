@@ -294,7 +294,9 @@ function marketRegimeView(
   return {
     label: regime.label,
     drivers: Array.isArray(regime.drivers)
-      ? regime.drivers.filter((driver): driver is string => typeof driver === "string")
+      ? regime.drivers.flatMap((driver) =>
+          isRecord(driver) && typeof driver.text === "string" ? [driver.text] : [],
+        )
       : [],
     sourceIds: Array.isArray(regime.sourceIds)
       ? regime.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
@@ -402,6 +404,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   );
   const earningsConsensus = earningsConsensusFromProjection(
     readerProjection.defaultView.earningsConsensus,
+    readerProjection.defaultView.earningsSetupCollected,
   );
   const analystEstimateDistributions = analystEstimateDistributionsFromProjection(
     readerProjection.appendix.analystEstimateDistributions,

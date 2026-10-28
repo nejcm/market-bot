@@ -23,7 +23,7 @@ import { type Source } from "../domain/sources";
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { ForecastPersistenceBaseline } from "./forecast-persistence";
 import type { PredictionScore } from "../scoring/types";
-import { isRecord, readNumber, readString, stringArrayValue } from "../guards";
+import { isRecord, readNumber, readString } from "../guards";
 import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 import {
   commandResearchSubjectIdentity,
@@ -417,7 +417,11 @@ function keyExtras(report: ResearchReport): Record<string, unknown> | undefined 
     result.marketRegime = {
       label: readString(marketRegime, "label"),
       proxyCount: readNumber(marketRegime, "proxyCount"),
-      drivers: stringArrayValue(marketRegime.drivers),
+      drivers: Array.isArray(marketRegime.drivers)
+        ? marketRegime.drivers.flatMap((driver) =>
+            isRecord(driver) && typeof driver.text === "string" ? [driver.text] : [],
+          )
+        : [],
     };
   }
   return Object.keys(result).length === 0 ? undefined : result;

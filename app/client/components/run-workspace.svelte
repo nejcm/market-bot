@@ -715,6 +715,10 @@
                   </div>
                 {/each}
               </div>
+            {:else if equityPresentation?.defaultView.earningsConsensus.setupCollected === false}
+              <div class="mt-3 text-sm text-muted-foreground">
+                Earnings setup was not collected for this run; upcoming earnings were not checked.
+              </div>
             {:else}
               <div class="mt-3 text-sm text-muted-foreground">
                 No confirmed upcoming earnings or consensus data is available.

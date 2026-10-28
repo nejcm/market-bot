@@ -633,8 +633,26 @@ function factsForDepreciationAndAmortization(
       Math.abs(amortizationGap) <= componentTolerance(sameFilingAmortization?.value ?? 0)
         ? sameFilingAmortization
         : undefined;
+    const [faceDepreciation, faceAdjustment] = cashFlowLines;
+    // AMD FY2023-25: the face D&A line plus a same-filing intangible add-back is total D&A; a higher add-back may be contract costs (DDOG).
+    const facePair =
+      cashFlowLines.length === 2 &&
+      faceDepreciation!.accessionNumber === faceAdjustment!.accessionNumber &&
+      depreciation.value + amortization.value - cashFlowSum <= componentTolerance(cashFlowSum) &&
+      faceAdjustment!.value - amortization.value <= componentTolerance(amortization.value) &&
+      !cashFlowLines.some((line) =>
+        candidates.some(
+          (fact) =>
+            fact.concept === line.concept &&
+            fact.accessionNumber === line.accessionNumber &&
+            fact.value !== line.value,
+        ),
+      )
+        ? cashFlowLines
+        : undefined;
     const selected =
-      faceAmortization === undefined ? contributors : [depreciation, faceAmortization];
+      facePair ??
+      (faceAmortization === undefined ? contributors : [depreciation, faceAmortization]);
     if (
       contradicted(
         selected.reduce((sum, fact) => sum + fact.value, 0),

@@ -222,7 +222,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   calibration, net is retained.
 - US-GAAP D&A prefers combined per period unless below either same-period/duration/unit component by over 1%
   of that component's absolute value. Missing/rejected combined falls back only to complete same-date/currency
-  depreciation (or nonproduction) plus intangible amortization, both known at cutoff; never infer zero.
+  depreciation (or nonproduction) plus intangible amortization, both known at cutoff; never infer zero. When one
+  filing tags both cash-flow lines (`OtherDepreciationAndAmortization` + `AdjustmentForAmortization`, no conflicting
+  same-filing duplicate), the add-back is within 1% of or below intangible amortization, and their sum is not more
+  than 1% below the components, that sum replaces the components (AMD FY2023–25).
   Equality/within tolerance keeps combined. Rejected/incomplete fallback emits period-specific omission/gap
   and Markdown/Console note; retain lineage and name EBITDA proxy basis. A selected combined fact more than 1%
   below the other same-period combined alias (DDA under DA) is withheld, never replaced by the higher alias; the

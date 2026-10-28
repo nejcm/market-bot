@@ -1,6 +1,6 @@
 import type { AssetClass } from "../domain/job-type";
 import type { MarketContext, MarketSnapshot } from "../domain/market-data";
-import type { MarketRegimeLabel, MarketRegimeSummary } from "../domain/report";
+import type { MarketRegimeDriver, MarketRegimeLabel, MarketRegimeSummary } from "../domain/report";
 import { isEquityBreadthProxySymbol, isEquityVolatilitySymbol } from "../domain/regime-symbols";
 import { isFredBaseMetricKey } from "../sources/fred";
 
@@ -14,7 +14,11 @@ type RegimeVote = "risk-on" | "risk-off" | "neutral";
 
 interface RegimeSignal {
   readonly vote: RegimeVote | undefined;
-  readonly driver?: string;
+  readonly driver?: MarketRegimeDriver;
+}
+
+function sourceIdsOf(snapshots: readonly MarketSnapshot[]): readonly string[] {
+  return snapshots.map((snapshot) => snapshot.sourceId);
 }
 
 function isEquityRegimeSnapshot(snapshot: MarketSnapshot): boolean {
@@ -51,13 +55,14 @@ function buildBreadthDriver(
   return `${prefix} ${direction}: ${directionalCount}/${total}`;
 }
 
-function breadthSignal(
-  assetClass: AssetClass,
-  positive: number,
-  negative: number,
-  total: number,
-): RegimeSignal {
-  const driver = buildBreadthDriver(assetClass, positive, negative, total);
+function breadthSignal(assetClass: AssetClass, breadth: readonly MarketSnapshot[]): RegimeSignal {
+  const positive = breadth.filter((snapshot) => snapshot.changePercent24h > 0).length;
+  const negative = breadth.filter((snapshot) => snapshot.changePercent24h < 0).length;
+  const total = breadth.length;
+  const driver = {
+    text: buildBreadthDriver(assetClass, positive, negative, total),
+    sourceIds: sourceIdsOf(breadth),
+  };
   if (total === 0) {
     return { vote: undefined, driver };
   }
@@ -73,18 +78,17 @@ function breadthSignal(
 // Trend driver: each proxy's price vs its own 50-day average.
 // Net above is risk-on, net below is risk-off; proxies without an average are excluded.
 function trendSignal(breadth: readonly MarketSnapshot[]): RegimeSignal {
-  const directions = breadth.flatMap((snapshot) => {
-    const average = snapshot.fiftyDayAverage;
-    if (average === undefined) {
-      return [];
-    }
+  const averaged = breadth.filter((snapshot) => snapshot.fiftyDayAverage !== undefined);
+  const sourceIds = sourceIdsOf(averaged);
+  const directions = averaged.map((snapshot) => {
+    const average = snapshot.fiftyDayAverage ?? snapshot.price;
     if (snapshot.price > average) {
-      return ["above" as const];
+      return "above" as const;
     }
     if (snapshot.price < average) {
-      return ["below" as const];
+      return "below" as const;
     }
-    return ["flat" as const];
+    return "flat" as const;
   });
   if (directions.length === 0) {
     return { vote: undefined };
@@ -95,16 +99,19 @@ function trendSignal(breadth: readonly MarketSnapshot[]): RegimeSignal {
   if (above > below) {
     return {
       vote: "risk-on",
-      driver: `trend positive: ${above}/${total} proxies above 50-day average`,
+      driver: { text: `trend positive: ${above}/${total} proxies above 50-day average`, sourceIds },
     };
   }
   if (below > above) {
     return {
       vote: "risk-off",
-      driver: `trend negative: ${below}/${total} proxies below 50-day average`,
+      driver: { text: `trend negative: ${below}/${total} proxies below 50-day average`, sourceIds },
     };
   }
-  return { vote: "neutral", driver: `trend mixed: ${above}/${total} proxies above 50-day average` };
+  return {
+    vote: "neutral",
+    driver: { text: `trend mixed: ${above}/${total} proxies above 50-day average`, sourceIds },
+  };
 }
 
 // Term structure: front-month VIX above 3-month VIX (backwardation) is a risk-off stress signal.
@@ -116,17 +123,21 @@ function termStructureSignal(
   if (vix === undefined || vix3m === undefined) {
     return { vote: undefined };
   }
+  const sourceIds = [vix.sourceId, vix3m.sourceId];
   const front = vix.price.toFixed(2);
   const back = vix3m.price.toFixed(2);
   if (vix.price > vix3m.price) {
     return {
       vote: "risk-off",
-      driver: `VIX term structure backwardation: VIX ${front} vs VIX3M ${back}`,
+      driver: {
+        text: `VIX term structure backwardation: VIX ${front} vs VIX3M ${back}`,
+        sourceIds,
+      },
     };
   }
   return {
     vote: "neutral",
-    driver: `VIX term structure contango: VIX ${front} vs VIX3M ${back}`,
+    driver: { text: `VIX term structure contango: VIX ${front} vs VIX3M ${back}`, sourceIds },
   };
 }
 
@@ -158,12 +169,10 @@ export function summarizeMarketRegime(
       ? snapshots.filter((snapshot) => isEquityRegimeSnapshot(snapshot))
       : snapshots.filter((snapshot) => isCryptoRegimeSnapshot(snapshot));
   const breadth = selected.filter((snapshot) => !isEquityVolatilitySymbol(snapshot.symbol));
-  const positive = breadth.filter((snapshot) => snapshot.changePercent24h > 0).length;
-  const negative = breadth.filter((snapshot) => snapshot.changePercent24h < 0).length;
   const vix = selected.find((snapshot) => snapshot.symbol === VIX_SYMBOL);
   const vix3m = selected.find((snapshot) => snapshot.symbol === VIX_TERM_SYMBOL);
 
-  const signals: RegimeSignal[] = [breadthSignal(assetClass, positive, negative, breadth.length)];
+  const signals: RegimeSignal[] = [breadthSignal(assetClass, breadth)];
   if (assetClass === "equity") {
     signals.push(trendSignal(breadth), termStructureSignal(vix, vix3m));
   }
@@ -177,16 +186,14 @@ export function summarizeMarketRegime(
     assetClass,
     label,
     proxyCount: selected.length,
-    drivers: isVixElevated ? [...drivers, `VIX elevated at ${vix.price}`] : drivers,
+    drivers: isVixElevated
+      ? [...drivers, { text: `VIX elevated at ${vix.price}`, sourceIds: [vix.sourceId] }]
+      : drivers,
     sourceIds: selected.map((snapshot) => snapshot.sourceId),
   };
 }
 
-function marketContextDriver(context: MarketContext): string | undefined {
-  const metrics = context.items.find((item) => item.category === "fred-macro")?.metrics;
-  if (metrics === undefined) {
-    return undefined;
-  }
+function fredMetricText(metrics: Readonly<Record<string, unknown>>): string | undefined {
   const dgs10 = metrics.DGS10;
   if (typeof dgs10 === "number") {
     return `FRED macro context: DGS10 ${String(dgs10)}`;
@@ -195,6 +202,12 @@ function marketContextDriver(context: MarketContext): string | undefined {
     ([key, value]) => typeof value === "number" && isFredBaseMetricKey(key),
   );
   return metric === undefined ? undefined : `FRED macro context: ${metric[0]} ${String(metric[1])}`;
+}
+
+function marketContextDriver(context: MarketContext): MarketRegimeDriver | undefined {
+  const fred = context.items.find((item) => item.category === "fred-macro");
+  const text = fred?.metrics === undefined ? undefined : fredMetricText(fred.metrics);
+  return text === undefined || fred === undefined ? undefined : { text, sourceIds: fred.sourceIds };
 }
 
 export function addMarketContextToRegime(

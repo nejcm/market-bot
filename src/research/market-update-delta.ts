@@ -170,7 +170,9 @@ function regimeFromExtras(extras: Record<string, unknown> | undefined): {
   }
   const { label } = regime;
   const drivers = Array.isArray(regime.drivers)
-    ? regime.drivers.filter((driver): driver is string => typeof driver === "string")
+    ? regime.drivers.flatMap((driver) =>
+        isRecord(driver) && typeof driver.text === "string" ? [driver.text] : [],
+      )
     : [];
   return {
     label: isMarketRegimeLabel(label) ? label : undefined,
@@ -348,7 +350,10 @@ export async function buildMarketUpdateDelta(
     baselineGeneratedAt: baseline.report.generatedAt,
     ...(priorRegime.label !== undefined ? { priorRegime: priorRegime.label } : {}),
     regimeChanged,
-    flippedDrivers: flippedDrivers(priorRegime.drivers, currentRegime.drivers),
+    flippedDrivers: flippedDrivers(
+      priorRegime.drivers,
+      currentRegime.drivers.map((driver) => driver.text),
+    ),
     moversEntered: entered,
     moversExited: exited,
     resolvedSince: resolved,

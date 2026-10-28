@@ -603,6 +603,29 @@ describe("key disclosures", () => {
     return secFilingSectionPacket(`${body} ${MDNA}`, "10-Q").packet?.split("[Key Disclosures] ")[1];
   }
 
+  test("skips a reworded repeat of an already-selected fact and keeps distinct ones", () => {
+    const largest =
+      "Sales to our 10 largest customers in 2025, 2024 and 2023 accounted for approximately 84%, 91% and 90% of our net revenue, respectively.";
+    const one =
+      "During the fiscal year ended December 31, 2025, one customer accounted for 54% of our net revenue.";
+    const threshold =
+      "During the years ended December 31, 2025 and 2023 , one customer accounted for more than 10 % of the Company’s total net revenue.";
+
+    expect(
+      disclosuresOf(
+        `${largest} ${one} Sales to our top 10 customers in the fiscal years ended December 31, 2025, 2024 and 2023 accounted for approximately 84%, 91% and 90% of our net revenue, respectively. ${threshold} One customer accounted for 54 % of the Company’s total net revenues during the years ended December 31, 2025 .`,
+      ),
+    ).toBe(`${largest} ${one} ${threshold}`);
+  });
+
+  test("keeps a distinct customer whose facts are a subset of an earlier pick", () => {
+    const both =
+      "Two customers accounted for 10% and 15% of net revenue in 2025 and 2024, respectively.";
+    const second = "In 2025, a second customer accounted for 10% of net revenue.";
+
+    expect(disclosuresOf(`${both} ${second}`)).toBe(`${both} ${second}`);
+  });
+
   test("accepts RPO sentences that lead with the percentage", () => {
     const sentence =
       "As of June 30, 2026, the Company expected to recognize 64 % of its remaining performance obligations as revenue over the next 12 months with the remainder recognized thereafter.";

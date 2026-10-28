@@ -245,6 +245,12 @@ function latestYear(sentence: string): number {
   );
 }
 
+// A reworded repeat of one fact states the same percentages and years.
+function disclosureFacts(sentence: string): string {
+  const facts = sentence.matchAll(/\b(?:19|20)\d{2}\b|\d+(?:\.\d+)?(?=\s?%)/gu);
+  return [...new Set([...facts].map((match) => match[0]))].toSorted().join(" ");
+}
+
 // RPO conversion and customer concentration sit in notes or risk factors no section budget reaches.
 function keyDisclosures(text: string): string {
   const sentences = text
@@ -255,17 +261,21 @@ function keyDisclosures(text: string): string {
         sentence.length <= KEY_DISCLOSURE_SENTENCE_MAX_CHARS && !POINTER_SENTENCE.test(sentence),
     );
   let picked = "";
+  const pickedFacts = new Set<string>();
   for (const pattern of KEY_DISCLOSURE_SENTENCES) {
     const matches = sentences
       .filter((sentence) => pattern.test(sentence))
       .toSorted((a, b) => latestYear(b) - latestYear(a));
     for (const sentence of matches) {
       const next = picked === "" ? sentence : `${picked} ${sentence}`;
+      const facts = disclosureFacts(sentence);
       if (
         !compact(picked).includes(compact(sentence)) &&
+        !(facts !== "" && pickedFacts.has(facts)) &&
         next.length <= SEC_SECTION_BUDGETS.keyDisclosures
       ) {
         picked = next;
+        pickedFacts.add(facts);
       }
     }
   }

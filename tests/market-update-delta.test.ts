@@ -27,7 +27,13 @@ function snap(symbol: string, changePercent24h: number): MarketSnapshot {
 }
 
 function regime(label: MarketRegimeLabel, drivers: readonly string[]): MarketRegimeSummary {
-  return { assetClass: "equity", label, proxyCount: drivers.length, drivers, sourceIds: [] };
+  return {
+    assetClass: "equity",
+    label,
+    proxyCount: drivers.length,
+    drivers: drivers.map((text) => ({ text, sourceIds: [] })),
+    sourceIds: [],
+  };
 }
 
 interface RunSpec {

@@ -459,7 +459,9 @@ export function assertCompositeFactIntegrity(
                 ({ concept }) =>
                   aliases.includes(concept) ||
                   (aliases.includes("AmortizationOfIntangibleAssets") &&
-                    concept === "AdjustmentForAmortization"),
+                    concept === "AdjustmentForAmortization") ||
+                  (aliases.includes("Depreciation") &&
+                    concept === "OtherDepreciationAndAmortization"),
               ),
             ),
           "A8",

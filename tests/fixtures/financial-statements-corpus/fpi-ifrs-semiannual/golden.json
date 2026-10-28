@@ -1319,7 +1319,7 @@
         }
       },
       "Financial Strength": {
-        "posture": "criteria-not-supported",
+        "posture": "insufficient-data",
         "metrics": {
           "cash": {
             "key": "cash",
@@ -1334,15 +1334,6 @@
             "key": "debt",
             "label": "Debt",
             "value": 3750000000,
-            "unit": "currency",
-            "sourceIds": ["offline-sec-companyfacts-fpi-ifrs-semiannual"],
-            "currency": "USD",
-            "periodEnd": "2025-12-31"
-          },
-          "netDebt": {
-            "key": "netDebt",
-            "label": "Net debt",
-            "value": 3000000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-fpi-ifrs-semiannual"],
             "currency": "USD",

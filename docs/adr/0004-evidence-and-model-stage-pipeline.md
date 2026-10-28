@@ -167,7 +167,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   constituent details. Restated components need one filing date (same-day accessions count together) and
   unchanged original total (reclassification), otherwise no composite. Later incomplete filings supersede
   earlier complete same-instant data. A debt series may mix recognized totals and
-  composites resolved under these rules; YoY priors keep one basis. `LongTermDebt` scope is read only
+  composites resolved under these rules; YoY priors keep one basis, except that classified carrying lines and a
+  `LongTermDebt` total equal to its own filing's nonzero lines compare across bases (NVDA 2025-07-27 8,466M
+  noncurrent vs 2026-07-26 33,366M total); a lone or unreconciled total does not. `OtherLongTermDebt` is a
+  constituent detail inside a tagged noncurrent line or total (AMD FY2016), and a gap when tagged nonzero with
+  neither. A `DebtLongtermAndShorttermCombinedAmount` equal to current maturities plus noncurrent debt holds a
+  short-term tag no larger than those maturities when any tagged `DebtCurrent` equals the maturities (AMD FY2025:
+  874M tagged both ways, 3,222M combined); a larger tag or a `DebtCurrent` above the maturities still gaps. `LongTermDebt` scope is read only
   from lines its own filing tags at that instant: it is the total alone (no nonzero current debt in any filing,
   no short-term borrowing reported nonzero within 400 days) or when it equals nonzero current plus noncurrent
   lines, which outranks other totals (a combined total can be principal, AVGO) unless a later filing restated
@@ -262,16 +268,47 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   enforce SIC/cap, omit revenue band, label revenue not meaningful and peers size/sector-only. Missing inputs
   exclude with retained reasons; business-model metadata never overrides gates. Persist profile; disclose
   coarse economic comparability.
-- Peer-implied range applies peer EV/revenue P25/median/P75 to target revenue, subtracts net debt, divides by
-  Yahoo shares from the same quote as cap/price. Gates in order: supported comps, three peers, positive
-  revenue, defined non-mixed-period net debt, positive shares, USD quote, three positive prices, defined
-  current price. First failure persists reason/gap; retain formula/basis/inputs. Endpoints are within-range;
-  only strict inequality is outside. This is context, never a composite score
-  ([ADR 0001](./0001-research-only-boundary.md)).
+- Peer-implied range applies peer EV/revenue P25/median/P75 to target revenue, subtracts net debt and the
+  target's noncontrolling interest, preferred stock and temporary equity, divides by Yahoo shares from the
+  same quote as cap/price. Gates in order: supported comps, three peers, positive revenue, defined
+  non-mixed-period net debt, known noncontrolling interest, preferred stock and temporary equity, positive
+  shares, USD quote, three positive prices, defined current price. First failure persists reason/gap; retain
+  formula/basis/inputs. Endpoints are within-range; only strict inequality is outside. This is context,
+  never a composite score ([ADR 0001](./0001-research-only-boundary.md)).
 - Preserve quote/cash/debt dates; date market cap by quote timestamp else explicitly fetch time, retaining
   acquisition provenance. Quote-to-balance gaps >92 days flag but do not suppress EV. Cash-to-debt gaps >92
   days withhold EV/net debt across target, peers, lenses, Workbench and emit target gap even in brief.
   Disclose borrowing-based, finance-lease-exclusive EV.
+- EV = market cap + debt + preferred stock (carrying amount) + noncontrolling interest + temporary equity
+  (redeemable noncontrolling interest and redeemable preferred, carrying amount) − cash − short-term
+  investments; net debt = debt − cash − short-term investments; long-term investments stay out (CFA
+  Institute market-based valuation; Damodaran's cash and marketable securities). One shared EV Bridge
+  resolver serves the legacy summary, the canonical artifact, peers, lenses, reverse DCF and the Workbench
+  (point-in-time at `publicAt`). Each component is read at the cash instant from priority alternatives,
+  never summed (`ShortTermInvestments` > `MarketableSecuritiesCurrent` >
+  `AvailableForSaleSecuritiesDebtSecuritiesCurrent` > `DebtSecuritiesCurrent`, else
+  `CashCashEquivalentsAndShortTermInvestments` − cash; current equity securities add to a debt-only pick:
+  `EquitySecuritiesFvNiCurrent` unless current assets already sum without it, and the generic
+  `EquitySecuritiesFvNi` only when it closes the current-asset identity with receivables, inventory and other
+  current assets all tagged (NVDA FY2027 Q2: 42,783M; usually it is a noncurrent holding, META, MRK); explicit
+  current equity beside any other pick is incomplete. Added equity keeps its own lineage row and is disclosed as
+  possibly sale-restricted, not cash on hand (NVDA Note 5); `MinorityInterest`; `PreferredStockValue` >
+  `PreferredStockValueOutstanding`; the equity-stack temporary-equity carrying concepts, then
+  `TemporaryEquityCarryingAmountAttributableToParent`). Tagged zeros count; a nonzero fact within 400 days
+  but absent at the instant is incomplete (the composite-debt continuity rule), as is a combined line that
+  differs from cash + the picked short-term line (an unclassified holding: Check Point FY2025 combines
+  deposits and long-term securities), or nonzero temporary equity that does not equal assets − liabilities −
+  equity (including NCI) within 0.1% of assets, or cannot be checked for lack of those lines; that identity
+  is what keeps temporary equity from double counting `MinorityInterest`. Untagged `MinorityInterest` is
+  derived as equity including NCI − parent equity only when positive and assets − liabilities − equity
+  including NCI − temporary equity reconciles (UBER 2026-06-30: 903M); otherwise it is incomplete. Otherwise
+  untagged counts as zero. Incomplete short-term investments withhold EV, net debt and their multiples;
+  incomplete noncontrolling interest, preferred stock or temporary equity withholds EV only; both emit one
+  no-cap `SEC EV bridge incomplete` gap, and peers exclude with that reason. Non-us-gaap issuers have no
+  bridge yet, so EV and net debt are withheld rather than published without investments. An artifact whose
+  bridge predates a resolver input still reads without the bridge, with a read-diagnostic drop: a fresh EV
+  computation with the current resolver withholds EV, while the saved report and its re-projection keep the
+  EV it published under its own saved basis and concepts.
 - Financial Strength uses balance-sheet inputs within 180 days of cutoff and 92 days of newest current
   balance-sheet period; canonical ratios check paired period, fallback checks every input. Stale net
   debt/current ratio is unknown, not failed; framework Risk uses same current-ratio gate. Withhold stale

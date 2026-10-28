@@ -232,7 +232,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     }
 
     expect(postures.toSorted()).toEqual([
-      "fpi-ifrs-semiannual:Financial Strength:criteria-not-supported",
+      "fpi-ifrs-semiannual:Financial Strength:insufficient-data",
       "fpi-ifrs-semiannual:Growth:criteria-supported",
       "fpi-ifrs-semiannual:Quality:criteria-supported",
       "fpi-quarterly:Financial Strength:criteria-not-supported",
@@ -303,7 +303,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 72 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 70 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -331,7 +331,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(72);
+    expect(lensAllowances).toHaveLength(70);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(

@@ -502,7 +502,31 @@ function resolveInput(
     extendedEvidence,
   } = run.collectedSources;
   let resolved: ResolvedInput | undefined = undefined;
-  if (input.artifact === "statements") {
+  if (input.artifact === "statements" && input.series === undefined) {
+    const fact = Object.values(financialStatements?.enterpriseValueBridge ?? {})
+      .flat()
+      .find(
+        (candidate) =>
+          candidate.concept === input.key &&
+          candidate.periodKey === input.periodKey &&
+          candidate.periodType === input.periodType,
+      );
+    const cashSeries = financialStatementSeriesByKey(financialStatements!, "cash");
+    const cash =
+      fact?.concept === "CashCashEquivalentsAndShortTermInvestments"
+        ? [...(cashSeries?.annual ?? []), ...(cashSeries?.interim ?? [])].find(
+            (candidate) => candidate.periodEnd === fact.periodEnd,
+          )?.value
+        : 0;
+    resolved = fact &&
+      cash !== undefined && {
+        value: fact.value - cash,
+        periodEnd: fact.periodEnd,
+        periodKey: fact.periodKey,
+        periodType: fact.periodType,
+        ...(fact.currency !== null ? { currency: fact.currency } : {}),
+      };
+  } else if (input.artifact === "statements") {
     const series =
       financialStatements === undefined
         ? undefined
@@ -1085,7 +1109,7 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     capexDeltaPercent: -28.227_594_215_137_756,
     cash: 39_544_000_000,
     debt: 84_344_000_000,
-    netDebt: 44_800_000_000,
+    netDebt: 21_945_000_000,
     currentRatio: 1.003_294_804_655_585_8,
     debtToEquity: 0.784_449_404_761_904_7,
     payoutRatio: 0.116_080_580_304_344_4,
@@ -1165,17 +1189,13 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     operatingCashFlowDeltaPercent: 25,
     cash: 750_000_000,
     debt: 3_750_000_000,
-    netDebt: 3_000_000_000,
     debtToMarketCap: 0.1875,
-    netDebtToMarketCap: 0.15,
     debtToEquity: 4.166_666_666_666_667,
     evDateBasis:
       "EV mixes market cap (fetch time 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
-    enterpriseValue: 23_000_000_000,
     annualizedRevenue: 1_500_000_000,
-    evToAnnualizedRevenue: 15.333_333_333_333_334,
     marketCapToAnnualizedRevenue: 13.333_333_333_333_334,
-    valuationSupportability: "screening-only",
+    valuationSupportability: "not-supportable",
     peRatio: 31,
     forwardPe: 28,
     priceToBook: 45,
@@ -1386,7 +1406,13 @@ export function assertFinancialLensMetricInvariants(
         case "netDebt":
         case "netDebtToMarketCap": {
           const onMarketCap = metricId === "netDebtToMarketCap" ? valueOf("marketCap") : undefined;
-          const netDebt = valueOf("debt") - valueOf("cash");
+          const shortTermInvestments = metric.inputs.findIndex(
+            (input) => input.artifact === "statements" && input.series === undefined,
+          );
+          const netDebt =
+            valueOf("debt") -
+            valueOf("cash") -
+            (shortTermInvestments === -1 ? 0 : Number(resolved[shortTermInvestments]?.value));
           expectClose(
             metric.value,
             onMarketCap === undefined ? netDebt : netDebt / onMarketCap,
@@ -2619,6 +2645,27 @@ function assertValuationWorkbenchInvariants(
     ).toBeDefined();
     return fact!;
   };
+  const bridgeFact = (input: MetricInput): FinancialStatementFact => {
+    const fact = Object.values(statements?.enterpriseValueBridge ?? {})
+      .flat()
+      .find(
+        (candidate) =>
+          candidate.concept === input.key &&
+          candidate.periodEnd === input.periodEnd &&
+          JSON.stringify(candidate.sourceIds) === JSON.stringify(input.sourceIds),
+      );
+    expect(fact, `${fixtureName}.${input.key} resolves to a filed EV bridge fact`).toBeDefined();
+    return fact!;
+  };
+  const statementFact = (input: MetricInput): FinancialStatementFact =>
+    input.series === undefined ? bridgeFact(input) : filedFact(input);
+  const bridgeValue = (input: ValuationFundamentalInput, cash: number | undefined): number =>
+    (input.lineage ?? []).reduce((sum, row) => {
+      const fact = bridgeFact(row);
+      const derived = fact.concept === "CashCashEquivalentsAndShortTermInvestments";
+      expect(row.value).toBe(derived ? fact.value - cash! : fact.value);
+      return sum + (row.label.startsWith("shortTermInvestments") ? -1 : 1) * Number(row.value);
+    }, 0);
   const fundamentalValue = (input: ValuationFundamentalInput): number => {
     const lineage = input.lineage ?? [];
     expect(lineage.length, "a filed fundamental retains its raw inputs").toBeGreaterThan(0);
@@ -2704,6 +2751,14 @@ function assertValuationWorkbenchInvariants(
           },
     );
     for (const [key, fundamental] of Object.entries(inputs)) {
+      if (key === "enterpriseValueBridge") {
+        expect(fundamental.periodEnd, `${label} EV bridge sits at the cash instant`).toBe(
+          inputs.cash!.periodEnd,
+        );
+        expectClose(fundamental.value, bridgeValue(fundamental, inputs.cash?.value), label);
+        expect(fundamental.publicAt <= publicAt).toBe(true);
+        continue;
+      }
       expectClose(
         fundamental.value,
         fundamentalValue(fundamental),
@@ -2746,7 +2801,9 @@ function assertValuationWorkbenchInvariants(
           : [
               key === "priceToFreeCashFlow" ? inputs.freeCashFlow : inputs.revenue,
               inputs.dilutedShares,
-              ...(key === "enterpriseValueToRevenue" ? [inputs.cash, inputs.debt] : []),
+              ...(key === "enterpriseValueToRevenue"
+                ? [inputs.cash, inputs.debt, inputs.enterpriseValueBridge]
+                : []),
             ];
       if (metric.status === "not-applicable") {
         expect(metric.inputs).toEqual([]);
@@ -2787,7 +2844,7 @@ function assertValuationWorkbenchInvariants(
       );
       for (const row of metric.inputs) {
         if (row.artifact === "statements") {
-          filedFact(row);
+          statementFact(row);
         } else if (row.artifact === "priceHistory") {
           expect(row).toMatchObject({
             value: price!.close,
@@ -2824,7 +2881,11 @@ function assertValuationWorkbenchInvariants(
       if (key === "priceToEarnings") {
         numerator = close;
       } else if (key === "enterpriseValueToRevenue") {
-        numerator = cap + inputs.debt!.value - inputs.cash!.value;
+        numerator =
+          cap +
+          inputs.debt!.value -
+          inputs.cash!.value +
+          (inputs.enterpriseValueBridge?.value ?? 0);
       }
       let denominator = Number.NaN;
       if (key === "priceToEarnings") {
@@ -2867,6 +2928,7 @@ type WorkbenchValues = Readonly<
   >
 >;
 const MISSING_WORKBENCH_PRICE = { status: "missing", reason: "price-history-unavailable" } as const;
+const IFRS_WORKBENCH_EV = { status: "missing", reason: "ev-bridge-incomplete" } as const;
 const MISSING_WORKBENCH_DEBT = { status: "missing", reason: "debt-unavailable" } as const;
 const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
 const NEGATIVE_WORKBENCH_DENOMINATOR = {
@@ -2963,20 +3025,19 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MISSING_WORKBENCH_PRICE,
     ],
     "ttm|2025-06-28|2025-08-01": [
-      30.710_167_660_517_836, 7.461_377_657_598_557_5, 7.621_497_571_945_452_5,
-      31.698_675_926_725_97,
+      30.710_167_660_517_836, 7.461_377_657_598_557_5, 7.574_748_107_277_358, 31.698_675_926_725_97,
     ],
     "annual|2025-09-27|2025-10-31": [
-      36.242_626_691_312, 9.748_198_064_270_506, 9.898_916_175_770_623, 41.074_648_968_024_52,
+      36.242_626_691_312, 9.748_198_064_270_506, 9.853_830_259_502_64, 41.074_648_968_024_52,
     ],
     "ttm|2025-12-27|2026-01-30": [
-      32.845_571_010_927_61, 8.880_399_105_071_705, 8.984_141_612_825_075, 31.368_207_461_272_917,
+      32.845_571_010_927_61, 8.880_399_105_071_705, 8.934_579_727_040_086, 31.368_207_461_272_917,
     ],
     "ttm|2026-03-28|2026-05-01": [
-      33.915_256_010_706_73, 9.208_630_356_750_982, 9.295_328_094_223_349, 32.182_656_769_259_89,
+      33.915_256_010_706_73, 9.208_630_356_750_982, 9.244_524_225_730_83, 32.182_656_769_259_89,
     ],
     "ttm|2026-06-27|2026-07-31": [
-      35.425_459_135_563_01, 9.784_017_596_279_83, 9.879_985_447_049_82, 33.416_038_910_092_25,
+      35.425_459_135_563_01, 9.784_017_596_279_83, 9.831_026_848_180_443, 33.416_038_910_092_25,
     ],
   },
   "equity-nbis-deep": {
@@ -3071,19 +3132,19 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2023-12-31|2024-03-15": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      IFRS_WORKBENCH_EV,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2024-12-31|2025-03-15": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      IFRS_WORKBENCH_EV,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2025-12-31|2026-03-15": [
       14.314_666_666_666_666,
       7.873_066_666_666_668,
-      9.873_066_666_666_668,
+      IFRS_WORKBENCH_EV,
       MISSING_WORKBENCH_FCF,
     ],
   },

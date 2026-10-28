@@ -14,6 +14,14 @@ import { depositoryIssuerSic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-edgar";
 import {
+  bridgeIncompleteReasons,
+  copyBridgeMetrics,
+  CURRENT_EQUITY_DISCLOSURE,
+  ENTERPRISE_VALUE_BASIS,
+  enterpriseValueFromMetrics,
+  netDebtFromMetrics,
+} from "./enterprise-value-bridge";
+import {
   balanceSheetPeriodDivergence,
   guardIncompleteDebtValuationItem,
   guardMixedPeriodValuationItem,
@@ -169,6 +177,12 @@ export function addValuationEvidence(
     readStringMetric(secItem.metrics, "debtLeaseScope") === DEBT_MAY_INCLUDE_FINANCE_LEASES
       ? "enterprise value uses an SEC debt aggregate that may include finance leases"
       : "enterprise value is borrowing-based and excludes finance leases";
+  const currentEquityText = readStringMetric(
+    secItem.metrics,
+    "shortTermInvestmentsConcept",
+  )?.includes("EquitySecurities")
+    ? `; short-term investments include ${CURRENT_EQUITY_DISCLOSURE}`
+    : "";
   const quoteObservedAt = snapshot.observedAt;
   const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
   const sic = readStringMetric(secItem.metrics, "sic");
@@ -180,8 +194,12 @@ export function addValuationEvidence(
   // Reference range and the DCF grid. See industry-classification.ts for why EV has no defensible
   // Definition for a deposit-funded issuer.
   const depositorySic = depositoryIssuerSic(extendedEvidence);
+  const netDebtWithheld = bridgeIncompleteReasons(secItem.metrics, ["shortTermInvestments"]);
+  const enterpriseValueWithheld = bridgeIncompleteReasons(secItem.metrics);
   const enterpriseValue =
-    depositorySic === undefined && debt !== undefined ? marketCap + debt - cash : undefined;
+    depositorySic === undefined
+      ? enterpriseValueFromMetrics(marketCap, secItem.metrics)
+      : undefined;
   const evToAnnualizedRevenue =
     enterpriseValue === undefined || annualizedRevenue === undefined
       ? undefined
@@ -191,7 +209,7 @@ export function addValuationEvidence(
   const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
   const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
   const debtToMarketCap = debtCurrent && debt !== undefined ? ratio(debt, marketCap) : undefined;
-  const netDebt = debt === undefined ? undefined : debt - cash;
+  const netDebt = netDebtFromMetrics(secItem.metrics);
   const netDebtToMarketCap =
     debtCurrent && cashCurrent && netDebt !== undefined ? ratio(netDebt, marketCap) : undefined;
   const staleBalances = [
@@ -203,14 +221,17 @@ export function addValuationEvidence(
     annualizedRevenue === undefined
       ? `${latestRevenuePeriod} does not reconcile to TTM revenue, revenue multiples withheld`
       : `TTM revenue ${formatUsd(annualizedRevenue)}${revenuePeriodEnd === undefined ? "" : ` through ${revenuePeriodEnd}`}`;
+  const bridgeWithheld = depositorySic === undefined && enterpriseValueWithheld.length > 0;
   const enterpriseValueText =
     debt === undefined
       ? `enterprise value withheld (debt incomplete as of ${withheldDebtPeriodEnd ?? "an undated period"})`
-      : enterpriseValue === undefined
-        ? `enterprise value not applicable (depository issuer, SIC ${depositorySic ?? "unknown"}: deposits and borrowings fund operations rather than sitting on top of them)`
-        : `enterprise value ${formatUsd(enterpriseValue)}`;
+      : depositorySic !== undefined
+        ? `enterprise value not applicable (depository issuer, SIC ${depositorySic}: deposits and borrowings fund operations rather than sitting on top of them)`
+        : enterpriseValue === undefined
+          ? `enterprise value withheld (${enterpriseValueWithheld.join("; ")})`
+          : `enterprise value ${formatUsd(enterpriseValue)}`;
   const evToRevenueText =
-    debt === undefined
+    debt === undefined || bridgeWithheld
       ? "EV/TTM revenue withheld"
       : enterpriseValue === undefined
         ? "EV/TTM revenue not applicable"
@@ -218,12 +239,13 @@ export function addValuationEvidence(
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, net debt/market cap ${percent(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, net debt/market cap ${percent(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}${currentEquityText}; EV bridge: ${ENTERPRISE_VALUE_BASIS}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
       marketCap,
       cash,
+      ...copyBridgeMetrics(secItem.metrics),
       ...(debt === undefined ? {} : { debt }),
       ...(netDebt === undefined ? {} : { netDebt }),
       ...(enterpriseValue === undefined ? {} : { enterpriseValue }),
@@ -265,6 +287,19 @@ export function addValuationEvidence(
         ]),
     ...(divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)]),
     ...incompleteDebt.gaps,
+    ...(debt === undefined || depositorySic !== undefined || enterpriseValueWithheld.length === 0
+      ? []
+      : [
+          sourceGap({
+            source: "valuation",
+            message: `SEC EV bridge incomplete for ${command.symbol} at cash period end ${cashPeriodEnd ?? "undated"}: ${enterpriseValueWithheld.join("; ")}; enterprise value${netDebtWithheld.length > 0 ? ", net debt" : ""} and dependent multiples withheld`,
+            symbol: command.symbol.toUpperCase(),
+            provider: "market-bot",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ]),
     ...(annualizedRevenue === undefined
       ? [
           sourceGap({

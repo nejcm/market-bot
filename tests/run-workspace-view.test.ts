@@ -226,6 +226,7 @@ function peerImpliedRange(currentPrice = 79) {
     peerP75EvToAnnualizedRevenue: 3,
     annualizedRevenue: 400,
     netDebt: 10,
+    nonCommonClaims: 0,
     sharesOutstanding: 10,
     currentPrice,
     quoteCurrency: "USD",
@@ -2182,6 +2183,7 @@ describe("run workspace view", () => {
         peerP75EvToAnnualizedRevenue: 3,
         annualizedRevenue: 391_035_000_000,
         netDebt: 40_000_000_000,
+        nonCommonClaims: 1_500_000_000,
         sharesOutstanding: 15_000_000_000,
         currentPrice: 198.5,
         quoteCurrency: "USD",
@@ -2191,7 +2193,7 @@ describe("run workspace view", () => {
 
     expect(view).toMatchObject({
       methodDisclosure: expect.stringContaining(
-        "TTM revenue $391.0B, net debt $40.0B, shares 15.0B",
+        "TTM revenue $391.0B, net debt $40.0B, noncontrolling interest + preferred stock + temporary equity $1.5B, shares 15.0B",
       ),
     });
   });
@@ -2359,6 +2361,7 @@ describe("run workspace view", () => {
       peerP75EvToAnnualizedRevenue: 3,
       annualizedRevenue: 400,
       netDebt: 10,
+      nonCommonClaims: 0,
       sharesOutstanding: 10,
       currentPrice: 79,
       quoteCurrency: "USD",

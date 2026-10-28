@@ -269,6 +269,7 @@ const PEER_IMPLIED_RANGE_SUPPRESSED_REASONS: ReadonlySet<PeerImpliedRangeSuppres
     "fewer than 3 usable peers",
     "net debt is unavailable",
     "net debt uses mixed reporting periods",
+    "noncontrolling interest, preferred stock or temporary equity is unavailable",
     "shares outstanding is not positive",
     "quote currency is not USD",
     "peer percentile inputs are unavailable",
@@ -288,6 +289,7 @@ function hasPeerImpliedRangeInputsShape(value: unknown): boolean {
     isNullableFiniteNumber(value.peerP75EvToAnnualizedRevenue) &&
     isNullableFiniteNumber(value.annualizedRevenue) &&
     (isNullableFiniteNumber(value.netDebt) || value.netDebt === "mixed-period") &&
+    (value.nonCommonClaims === undefined || isNullableFiniteNumber(value.nonCommonClaims)) &&
     isNullableFiniteNumber(value.sharesOutstanding) &&
     isNullableFiniteNumber(value.currentPrice) &&
     (value.quoteCurrency === null || typeof value.quoteCurrency === "string") &&

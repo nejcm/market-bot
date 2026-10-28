@@ -1,4 +1,12 @@
 import type { InstrumentIdentity } from "../../domain/instrument";
+import {
+  ENTERPRISE_VALUE_BRIDGE_CONCEPTS,
+  enterpriseValueBridgeMetrics,
+  resolveEnterpriseValueBridge,
+  trimToMezzaninePeriods,
+  type BridgeFact,
+  type EnterpriseValueBridgeFacts,
+} from "./enterprise-value-bridge";
 import type { Source, SourceGap } from "../../domain/sources";
 import { isInstrumentCommand } from "../../cli/args";
 import {
@@ -855,7 +863,10 @@ function selectNetDebtMetric(
       : comparablePrior(
           latest.fact,
           complete.flatMap((entry) =>
-            entry.resolution.basis === latest.resolution.basis ? [entry.fact] : [],
+            entry.resolution.basis === latest.resolution.basis ||
+            (entry.resolution.lineScope === true && latest.resolution.lineScope === true)
+              ? [entry.fact]
+              : [],
           ),
         );
   const [primary] = latest?.resolution.contributors ?? [];
@@ -987,6 +998,52 @@ export function formatSecFundamentalsSummary(
   return parts.length === 0 ? undefined : `SEC Fundamental Evidence: ${parts.join(", ")}.`;
 }
 
+function legacyEnterpriseValueBridgeFacts(
+  gaap: Record<string, unknown>,
+  analysisAsOf: string | undefined,
+): EnterpriseValueBridgeFacts {
+  const select = (concepts: readonly string[]): readonly BridgeFact[] => {
+    const byPeriodEnd = new Map<string, BridgeFact & { readonly priority: number }>();
+    for (const [priority, concept] of concepts.entries()) {
+      for (const fact of factValuesForConcept(gaap, concept, ["USD"])) {
+        if (
+          fact.start !== undefined ||
+          fact.end === undefined ||
+          fact.filed === undefined ||
+          !isFactObservableAsOf(fact, analysisAsOf)
+        ) {
+          continue;
+        }
+        const current = byPeriodEnd.get(fact.end);
+        if (
+          current === undefined ||
+          priority < current.priority ||
+          (priority === current.priority && fact.filed > current.filedAt)
+        ) {
+          byPeriodEnd.set(fact.end, {
+            value: fact.val,
+            periodEnd: fact.end,
+            concept,
+            filedAt: fact.filed,
+            priority,
+          });
+        }
+      }
+    }
+    return [...byPeriodEnd.values()].toSorted((left, right) =>
+      left.periodEnd.localeCompare(right.periodEnd),
+    );
+  };
+  return trimToMezzaninePeriods(
+    Object.fromEntries(
+      Object.entries(ENTERPRISE_VALUE_BRIDGE_CONCEPTS).map(([key, concepts]) => [
+        key,
+        select(concepts),
+      ]),
+    ) as unknown as EnterpriseValueBridgeFacts,
+  );
+}
+
 export function summarizeSecFundamentals(
   payload: unknown,
   analysisAsOf?: string,
@@ -1094,6 +1151,17 @@ export function summarizeSecFundamentals(
   }
   if (debtSelection?.grossPrincipal === undefined && debtSelection?.leaseInclusive !== undefined) {
     metrics.debtLeaseScope = DEBT_MAY_INCLUDE_FINANCE_LEASES;
+  }
+  if (typeof metrics.cash === "number" && typeof metrics.cashPeriodEnd === "string") {
+    Object.assign(
+      metrics,
+      enterpriseValueBridgeMetrics(
+        resolveEnterpriseValueBridge(legacyEnterpriseValueBridgeFacts(gaap, analysisAsOf), {
+          value: metrics.cash,
+          periodEnd: metrics.cashPeriodEnd,
+        }),
+      ),
+    );
   }
   const incompleteDebt = debtSelection?.incomplete;
   if (incompleteDebt !== undefined) {

@@ -22,7 +22,7 @@ import {
   PE_NEGATIVE_CAVEAT,
   PE_NOT_MEANINGFUL,
 } from "../src/sources/extended-evidence/value-format";
-import { marketSnapshot, researchReport } from "./support/fixtures";
+import { UNTAGGED_EV_BRIDGE, marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
 const tempDirs: string[] = [];
@@ -708,6 +708,7 @@ function secEvidenceWithRatios(
     sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
     observedAt: "2026-06-20T00:00:00.000Z",
     metrics: {
+      ...UNTAGGED_EV_BRIDGE,
       revenue: 100,
       grossProfit: 42,
       operatingIncome: 24,

@@ -1,4 +1,9 @@
 import { statementInput } from "./metric-engine";
+import {
+  ENTERPRISE_VALUE_BRIDGE_KEYS,
+  bridgeContributors,
+  resolveEnterpriseValueBridge,
+} from "./enterprise-value-bridge";
 import type {
   FinancialStatementSeriesKey,
   FinancialStatementFact,
@@ -40,6 +45,8 @@ export interface ValuationPeriodInputs {
   readonly freeCashFlow?: ValuationFundamentalInput;
   readonly cash?: ValuationFundamentalInput;
   readonly debt?: ValuationFundamentalInput;
+  readonly enterpriseValueBridge?: ValuationFundamentalInput;
+  readonly enterpriseValueBridgeIncomplete?: true;
 }
 
 export function unique(values: readonly string[]): readonly string[] {
@@ -172,6 +179,61 @@ function deriveShares(
   };
 }
 
+const BRIDGE_SIGNS = {
+  shortTermInvestments: -1,
+  noncontrollingInterest: 1,
+  preferredStock: 1,
+  temporaryEquity: 1,
+} as const;
+
+function bridgeInput(
+  artifact: FinancialStatementsArtifact,
+  cashFact: FinancialStatementFact | undefined,
+  publicAt: string,
+): Pick<ValuationPeriodInputs, "enterpriseValueBridge" | "enterpriseValueBridgeIncomplete"> {
+  if (cashFact === undefined) {
+    return {};
+  }
+  const resolved = resolveEnterpriseValueBridge(artifact.enterpriseValueBridge, cashFact, publicAt);
+  const parts = ENTERPRISE_VALUE_BRIDGE_KEYS.map((key) => [key, resolved[key]] as const);
+  if (parts.some(([, part]) => part.status === "incomplete")) {
+    return { enterpriseValueBridgeIncomplete: true };
+  }
+  const tagged = parts.flatMap(([key, part]) => (part.status === "tagged" ? [{ key, part }] : []));
+  const [first] = tagged;
+  if (first === undefined) {
+    return {};
+  }
+  const contributors = tagged.flatMap(({ key, part }) =>
+    bridgeContributors(part).map((contributor) => ({ key, ...contributor })),
+  );
+  return {
+    enterpriseValueBridge: {
+      value: tagged.reduce((sum, { key, part }) => sum + BRIDGE_SIGNS[key] * part.value, 0),
+      label: "EV bridge",
+      periodEnd: cashFact.periodEnd,
+      publicAt: latest(contributors.map(({ fact }) => fact.firstPublicAt)),
+      currency: first.part.fact.currency,
+      unit: first.part.fact.unit,
+      sourceIds: unique(contributors.flatMap(({ fact }) => fact.sourceIds)),
+      lineage: contributors.map(({ key, fact, value, label }) => ({
+        label: `${key} (${label})`,
+        value,
+        artifact: "statements" as const,
+        key: fact.concept,
+        periodType: fact.periodType,
+        periodEnd: fact.periodEnd,
+        periodKey: fact.periodKey,
+        unit: fact.unit,
+        ...(fact.currency === null ? {} : { currency: fact.currency }),
+        sourceIds: fact.sourceIds,
+      })),
+      derivation:
+        "preferred stock + noncontrolling interest + temporary equity − short-term investments",
+    },
+  };
+}
+
 // Older complete debt cannot stand in once a newer incomplete instant up to the cash instant is public.
 function debtInput(
   artifact: FinancialStatementsArtifact,
@@ -280,6 +342,7 @@ function annualInputs(
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
     ...debtInput(artifact, debtFact, cashFact, publicAt),
+    ...bridgeInput(artifact, cashFact, publicAt),
   };
 }
 
@@ -381,6 +444,7 @@ function periodInputsFromTtm(
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
     ...debtInput(artifact, debtFact, cashFact, publicAt),
+    ...bridgeInput(artifact, cashFact, publicAt),
   };
 }
 

@@ -1,3 +1,4 @@
+import { ENTERPRISE_VALUE_BASIS } from "./enterprise-value-bridge";
 import type { ExtendedEvidenceCategory, ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import type {
@@ -733,7 +734,7 @@ function sectionDefinitions(
         id: "evToAnnualizedRevenue",
         label: "EV/revenue",
         unit: "ratio",
-        basis: "valuation evidence enterprise value / TTM revenue",
+        basis: `valuation evidence enterprise value / TTM revenue; ${ENTERPRISE_VALUE_BASIS}`,
         applicable: depositoryEnterpriseValue,
         compute: citedByLens(
           lensMetrics,

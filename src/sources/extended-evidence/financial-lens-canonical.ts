@@ -1,4 +1,8 @@
 import { sourceGap } from "../../domain/source-gaps";
+import {
+  enterpriseValueBridgeMetrics,
+  resolveEnterpriseValueBridge,
+} from "./enterprise-value-bridge";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import type {
@@ -100,7 +104,8 @@ export function priorComparable(
         fact.periodEnd < selected.periodEnd &&
         !touchesEarlierShareBasis([fact, selected], earlierShareBasis) &&
         fact.basis === selected.basis &&
-        fact.concept === selected.concept &&
+        (fact.concept === selected.concept ||
+          (series.key === "debt" && fact.lineScope === true && selected.lineScope === true)) &&
         financialStatementPeriodMonths(fact) === months &&
         (series.statement === "balanceSheet"
           ? fact.periodStart === undefined &&
@@ -238,6 +243,17 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       "consolidatedNetIncome",
       consolidatedNetIncomeFact,
       income.consolidatedNetIncome,
+    );
+  }
+  if (typeof metrics.cash === "number" && typeof metrics.cashPeriodEnd === "string") {
+    Object.assign(
+      metrics,
+      enterpriseValueBridgeMetrics(
+        resolveEnterpriseValueBridge(artifact.enterpriseValueBridge, {
+          value: metrics.cash,
+          periodEnd: metrics.cashPeriodEnd,
+        }),
+      ),
     );
   }
   const withheld = withheldDebt(artifact);

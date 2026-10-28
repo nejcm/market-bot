@@ -4,7 +4,7 @@ import type { ExtendedEvidence } from "../src/domain/evidence";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
-import { marketSnapshot } from "./support/fixtures";
+import { UNTAGGED_EV_BRIDGE, marketSnapshot } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
 
@@ -21,7 +21,7 @@ function secEvidence(
         summary: "SEC Fundamental Evidence.",
         sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
         observedAt: "2026-05-18T00:00:00.000Z",
-        metrics,
+        metrics: { ...UNTAGGED_EV_BRIDGE, ...metrics },
       },
     ],
     gaps: [],
@@ -366,7 +366,7 @@ describe("addValuationEvidence", () => {
 
     expect(gross?.metrics?.debtBasis).toBe("gross-principal");
     expect(gross?.summary).toContain(
-      "; debt is gross principal; enterprise value is borrowing-based and excludes finance leases.",
+      "; debt is gross principal; enterprise value is borrowing-based and excludes finance leases; EV bridge:",
     );
     expect(net?.metrics && "debtBasis" in net.metrics).toBe(false);
     expect(net?.summary).not.toContain("gross principal");
@@ -499,6 +499,7 @@ describe("addValuationEvidence", () => {
                 cashPeriodEnd: "2026-03-31",
                 debt: 50,
                 debtPeriodEnd: "2026-03-31",
+                ...UNTAGGED_EV_BRIDGE,
               },
             },
           ],

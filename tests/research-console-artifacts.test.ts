@@ -444,6 +444,7 @@ describe("research console app artifacts", () => {
         peerP75EvToAnnualizedRevenue: 3,
         annualizedRevenue: 400,
         netDebt: 10,
+        nonCommonClaims: 0,
         sharesOutstanding: 10,
         currentPrice: 79,
         quoteCurrency: "USD",

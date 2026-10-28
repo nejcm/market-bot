@@ -214,6 +214,8 @@ export interface DebtResolution<T> {
   }[];
   readonly incompleteReason?: string;
   readonly leaseInclusive?: readonly string[];
+  // Classified carrying lines, or a LongTermDebt total that reconciles to them, are one scope across bases (NVDA).
+  readonly lineScope?: true;
 }
 
 export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): ReadonlySet<string> {
@@ -228,6 +230,7 @@ export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): Re
       ? []
       : [concepts.financeLeases.total, ...concepts.financeLeases.split]),
     ...Object.keys(concepts.umbrellas ?? {}),
+    ...(concepts.constituents ?? []),
   ]);
 }
 
@@ -330,6 +333,16 @@ export function unadjustedLeaseInclusiveDebt(
     .unadjusted;
 }
 
+function classifiedDebtLines(concepts: DebtTaxonomyConcepts): ReadonlySet<string> {
+  return new Set([
+    ...[concepts.current, concepts.noncurrent].flatMap((side) => [
+      ...side.generic,
+      ...side.instruments.flat(),
+    ]),
+    ...Object.entries(concepts.umbrellas ?? {}).flat(2),
+  ]);
+}
+
 function coveredDebtConcepts(
   concepts: DebtTaxonomyConcepts,
   sides: readonly DebtSide[],
@@ -348,6 +361,7 @@ function coveredDebtConcepts(
     ...(sides.every((side) => side.generic !== undefined) ? concepts.totals : []),
     ...Object.values(concepts.financeLeases ?? {}).flat(),
     ...usedUmbrellas.flatMap((umbrella) => [umbrella, ...(concepts.umbrellas?.[umbrella] ?? [])]),
+    ...(sides[1]?.generic === undefined ? [] : (concepts.constituents ?? [])),
   ]);
   for (const [umbrella, legs] of Object.entries(concepts.umbrellas ?? {})) {
     if (
@@ -671,6 +685,15 @@ export function resolveDebtAtInstant<T>(
   const added = unprovenInstruments.filter((concept) => used.includes(concept));
   const subsumed = unprovenInstruments.filter((concept) => !used.includes(concept));
   const generic = currentGeneric ?? "";
+  const classifiedLines = [...(sides[1]?.concepts ?? []), generic];
+  // The combined total is defined to hold short-term debt, so equal to the classified lines it shows them inside (AMD FY2025 10-K).
+  const combinedHoldsSubsumed =
+    currentGeneric !== undefined &&
+    total !== undefined &&
+    total === ambiguous?.combinedTotal &&
+    valueAt(total) === sum(classifiedLines) &&
+    sum(subsumed) <= sum([generic]) &&
+    [undefined, sum([generic])].includes(valueAt(ambiguous?.currentTotal ?? ""));
   const unprovenCurrent =
     ambiguous !== undefined &&
     currentGeneric !== undefined &&
@@ -678,8 +701,14 @@ export function resolveDebtAtInstant<T>(
     valueAt(currentGeneric) !== 0 &&
     ((added.length > 0 && valueAt(ambiguous.currentTotal) !== sum([generic, ...added])) ||
       (subsumed.length > 0 &&
-        (total === undefined ||
-          valueAt(total) !== sum([...(sides[1]?.concepts ?? []), generic, ...subsumed]))));
+        !combinedHoldsSubsumed &&
+        (total === undefined || valueAt(total) !== sum([...classifiedLines, ...subsumed]))));
+  const strayConstituents =
+    total === undefined && sides[1]?.generic === undefined
+      ? (concepts.constituents ?? []).filter(
+          (concept) => tagged.has(concept) && valueAt(concept) !== 0,
+        )
+      : [];
   // PayPal tags principal due within a year but not its current debt; Meta's line nets to its whole principal.
   const untaggedCurrent =
     total === undefined &&
@@ -688,17 +717,30 @@ export function resolveDebtAtInstant<T>(
     (principal.total === undefined ||
       principal.total - (principal.unamortized ?? 0) !== sum(used) - sum(subtracted));
   const incompleteReason =
-    total === ambiguous?.concept && restatedScope.length > 0
-      ? `a later filing restated ${restatedScope.join(", ")} without restating ${ambiguous?.concept ?? ""}`
-      : unprovenCurrent
-        ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
-        : untaggedCurrent
-          ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
-          : omittedShortTerm.length > 0
-            ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
-            : excess === undefined
-              ? componentReason
-              : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
+    strayConstituents.length > 0
+      ? `${strayConstituents.join(", ")} tagged without a noncurrent debt line or total that holds it`
+      : total === ambiguous?.concept && restatedScope.length > 0
+        ? `a later filing restated ${restatedScope.join(", ")} without restating ${ambiguous?.concept ?? ""}`
+        : unprovenCurrent
+          ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
+          : untaggedCurrent
+            ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
+            : omittedShortTerm.length > 0
+              ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
+              : excess === undefined
+                ? componentReason
+                : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
+  const reconciledTotal =
+    total === ambiguous?.concept &&
+    longTermDebt === "total" &&
+    restatedScope.length === 0 &&
+    (scopeSides[0]?.concepts ?? []).some((concept) => longTermDebtFiling.get(concept) !== 0);
+  const lines = classifiedDebtLines(concepts);
+  const lineScope =
+    unadjusted.length === 0 &&
+    (total === undefined
+      ? used.length > 0 && used.every((concept) => lines.has(concept))
+      : reconciledTotal);
   return {
     basis: total !== undefined && subtracted.length === 0 ? "total" : "components",
     contributors: [
@@ -707,6 +749,7 @@ export function resolveDebtAtInstant<T>(
     ],
     ...(incompleteReason !== undefined ? { incompleteReason } : {}),
     ...(unadjusted.length > 0 ? { leaseInclusive: unadjusted } : {}),
+    ...(lineScope ? { lineScope: true as const } : {}),
   };
 }
 

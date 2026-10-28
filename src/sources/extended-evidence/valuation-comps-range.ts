@@ -53,6 +53,14 @@ export function buildArtifact(
       ? { annualizedRevenue: target.annualizedRevenue }
       : {}),
     ...(target.netDebt !== undefined ? { netDebt: target.netDebt } : {}),
+    ...(target.noncontrollingInterest !== undefined &&
+    target.preferredStock !== undefined &&
+    target.temporaryEquity !== undefined
+      ? {
+          nonCommonClaims:
+            target.noncontrollingInterest + target.preferredStock + target.temporaryEquity,
+        }
+      : {}),
     ...(target.sharesOutstanding !== undefined
       ? { sharesOutstanding: target.sharesOutstanding }
       : {}),
@@ -124,6 +132,7 @@ interface DerivePeerImpliedRangeInput {
   readonly peerP75EvToAnnualizedRevenue?: number;
   readonly annualizedRevenue?: number;
   readonly netDebt?: number | typeof MIXED_PERIOD_METRIC;
+  readonly nonCommonClaims?: number;
   readonly sharesOutstanding?: number;
   readonly currentPrice?: number;
   readonly quoteCurrency?: string;
@@ -139,6 +148,7 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
     peerP75EvToAnnualizedRevenue,
     annualizedRevenue,
     netDebt,
+    nonCommonClaims,
     sharesOutstanding,
     currentPrice,
     quoteCurrency,
@@ -149,6 +159,7 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
     peerP75EvToAnnualizedRevenue: peerP75EvToAnnualizedRevenue ?? null,
     annualizedRevenue: annualizedRevenue ?? null,
     netDebt: netDebt ?? null,
+    nonCommonClaims: nonCommonClaims ?? null,
     sharesOutstanding: sharesOutstanding ?? null,
     currentPrice: currentPrice ?? null,
     quoteCurrency: quoteCurrency ?? null,
@@ -157,7 +168,8 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
   const base = {
     label: "peer-implied price reference range" as const,
     basis: "peer EV/TTM revenue percentiles applied to target TTM revenue" as const,
-    formula: "impliedPrice(m) = (m × TTM revenue − netDebt) / sharesOutstanding" as const,
+    formula:
+      "impliedPrice(m) = (m × TTM revenue − netDebt − nonCommonClaims) / sharesOutstanding" as const,
     inputs,
   };
   const suppressed = (suppressedReason: PeerImpliedRangeSuppressedReason): PeerImpliedRange => ({
@@ -181,6 +193,11 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
   if (netDebt === MIXED_PERIOD_METRIC) {
     return suppressed("net debt uses mixed reporting periods");
   }
+  if (nonCommonClaims === undefined) {
+    return suppressed(
+      "noncontrolling interest, preferred stock or temporary equity is unavailable",
+    );
+  }
   if (sharesOutstanding === undefined || sharesOutstanding <= 0) {
     return suppressed("shares outstanding is not positive");
   }
@@ -195,9 +212,10 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
   ) {
     return suppressed("peer percentile inputs are unavailable");
   }
-  const low = (peerP25EvToAnnualizedRevenue * annualizedRevenue - netDebt) / sharesOutstanding;
-  const mid = (peerMedianEvToAnnualizedRevenue * annualizedRevenue - netDebt) / sharesOutstanding;
-  const high = (peerP75EvToAnnualizedRevenue * annualizedRevenue - netDebt) / sharesOutstanding;
+  const claims = netDebt + nonCommonClaims;
+  const low = (peerP25EvToAnnualizedRevenue * annualizedRevenue - claims) / sharesOutstanding;
+  const mid = (peerMedianEvToAnnualizedRevenue * annualizedRevenue - claims) / sharesOutstanding;
+  const high = (peerP75EvToAnnualizedRevenue * annualizedRevenue - claims) / sharesOutstanding;
   const prices = [low, mid, high];
   if (prices.some((price) => !Number.isFinite(price) || price <= 0)) {
     return suppressed("one or more implied prices are not positive");
@@ -218,6 +236,7 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
     peerP75EvToAnnualizedRevenue,
     annualizedRevenue,
     netDebt,
+    nonCommonClaims,
     sharesOutstanding,
     currentPrice,
     quoteCurrency,

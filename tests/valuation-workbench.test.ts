@@ -30,7 +30,12 @@ import { validateResearchReport } from "../src/report/schema";
 import { buildReverseDcf } from "../src/sources/extended-evidence/reverse-dcf";
 import { collectPriceHistory } from "../src/sources/yahoo-price-history";
 import { renderMarkdownReport } from "../src/report/markdown";
-import { collectedSources, researchReport, reverseDcfWorkbench } from "./support/fixtures";
+import {
+  EMPTY_EV_BRIDGE_FACTS,
+  collectedSources,
+  researchReport,
+  reverseDcfWorkbench,
+} from "./support/fixtures";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 
@@ -186,6 +191,7 @@ function statements(): FinancialStatementsArtifact {
         dividendsPerShare: series("dividendsPerShare", "perShare"),
       },
     },
+    enterpriseValueBridge: EMPTY_EV_BRIDGE_FACTS,
     validationNotes: [],
     omissionNotes: [],
     structuredFinancialGaps: [],
@@ -341,6 +347,55 @@ describe("valuation workbench", () => {
       priceToSales: { status: "value", value: 2 },
       enterpriseValueToRevenue: { status: "value", value: 2.05 },
       priceToFreeCashFlow: { status: "value", value: 20 },
+    });
+  });
+
+  test("bridges EV/revenue through short-term investments and NCI known at each publicAt", () => {
+    const bridgeFact = (value: number, concept: string, periodEnd: string, filedAt: string) => {
+      const { periodStart: _instant, ...base } = fact({ key: "cash", value, periodEnd, filedAt });
+      return {
+        ...base,
+        key: "stockholdersEquity" as const,
+        periodKey: `instant|${periodEnd}`,
+        concept,
+      };
+    };
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: {
+        ...statements(),
+        enterpriseValueBridge: {
+          ...EMPTY_EV_BRIDGE_FACTS,
+          shortTermInvestments: [
+            bridgeFact(20, "ShortTermInvestments", "2023-12-31", "2024-02-15"),
+            // Filed after the FY2024 publicAt, so that observation sees a dropped nonzero line.
+            bridgeFact(25, "ShortTermInvestments", "2024-12-31", "2025-03-01"),
+          ],
+          noncontrollingInterest: [bridgeFact(3, "MinorityInterest", "2023-12-31", "2024-02-15")],
+        },
+      },
+      priceHistory: [
+        { date: "2024-02-15", close: 20 },
+        { date: "2025-02-18", close: 24 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const [fy2023, fy2024] = artifact.historicalMultiples.observations;
+
+    // (20 × 10 + debt 10 − cash 5 − STI 20 + NCI 3) / revenue 100
+    expect(fy2023?.metrics.enterpriseValueToRevenue).toMatchObject({
+      status: "value",
+      value: 1.88,
+    });
+    expect(fy2023?.inputs.enterpriseValueBridge).toMatchObject({
+      value: -17,
+      periodEnd: "2023-12-31",
+    });
+    expect(fy2024?.metrics.enterpriseValueToRevenue).toMatchObject({
+      status: "missing",
+      reason: "ev-bridge-incomplete",
     });
   });
 
@@ -966,7 +1021,14 @@ describe("valuation workbench", () => {
             version: 1,
             generatedAt: "2025-06-01T00:00:00.000Z",
             target,
-            peers: [{ ...target, symbol: "PEER", debtBasis: "gross-principal" }],
+            peers: [
+              {
+                ...target,
+                symbol: "PEER",
+                debtBasis: "gross-principal",
+                shortTermInvestmentsIncludeEquity: true,
+              },
+            ],
             excludedPeers: [],
             peerUniverseSourceIds: [],
             summary: {
@@ -988,7 +1050,9 @@ describe("valuation workbench", () => {
       researchReport(),
     );
 
-    expect(markdown).toContain("cash 2025-03-31; debt 2025-03-31 (gross principal)");
+    expect(markdown).toContain(
+      "cash 2025-03-31 (short-term investments include current equity securities that may be sale-restricted); debt 2025-03-31 (gross principal)",
+    );
     expect(markdown.match(/\(gross principal\)/gu)).toHaveLength(1);
     expect(violatesResearchOnly(markdown)).toBeNull();
   });

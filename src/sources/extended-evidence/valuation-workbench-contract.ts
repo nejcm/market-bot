@@ -34,7 +34,8 @@ export type ValuationMetricSuppressionReason =
   | "numerator-unavailable"
   | "cash-unavailable"
   | "debt-unavailable"
-  | "mixed-period-balance-sheet";
+  | "mixed-period-balance-sheet"
+  | "ev-bridge-incomplete";
 
 type ValuationMetricNotMeaningfulReason =
   | "negative-denominator"
@@ -82,6 +83,7 @@ export interface HistoricalValuationObservation {
     readonly freeCashFlow?: ValuationFundamentalInput;
     readonly cash?: ValuationFundamentalInput;
     readonly debt?: ValuationFundamentalInput;
+    readonly enterpriseValueBridge?: ValuationFundamentalInput;
   };
   readonly metrics: Readonly<Record<ValuationMetricKey, MetricResult>>;
   readonly sourceIds: readonly string[];
@@ -145,6 +147,7 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "cash-unavailable",
   "debt-unavailable",
   "mixed-period-balance-sheet",
+  "ev-bridge-incomplete",
 ]);
 const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mismatch"] as const);
 const READABLE_METRIC_SUPPRESSION_REASONS = new Set<string>([

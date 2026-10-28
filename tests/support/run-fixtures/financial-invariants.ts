@@ -488,6 +488,21 @@ export function assertCompositeFactIntegrity(
   }
 }
 
+// A9: EV bridge facts are reporting-currency instants; a filer's combined line below cash is the resolver's job.
+function assertEnterpriseValueBridge(
+  artifact: FinancialStatementsArtifact,
+  check: FinancialInvariantCheck,
+): void {
+  for (const fact of Object.values(artifact.enterpriseValueBridge ?? {}).flat()) {
+    check(
+      fact.periodKey.startsWith("instant|") && fact.currency === artifact.reportingCurrency,
+      "A9",
+      `EV bridge ${fact.concept} is not a reporting-currency instant`,
+      fact.periodEnd,
+    );
+  }
+}
+
 export function assertFinancialStatementInvariants(
   artifact: FinancialStatementsArtifact,
   check: FinancialInvariantCheck = invariant,
@@ -505,6 +520,7 @@ export function assertFinancialStatementInvariants(
   );
   assertBalanceSheetIdentity(artifact, check);
   assertCompositeFactIntegrity(artifact, check);
+  assertEnterpriseValueBridge(artifact, check);
   const surfaced = new Set(artifact.validationNotes.map(noteKey));
   for (const note of incompleteFinancialStatementNotes(series)) {
     check(
@@ -527,7 +543,7 @@ export function collectFinancialStatementInvariants(
     results.push({ passed, periodEnd });
     checks.set(code, results);
   });
-  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"].map((code) => {
+  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"].map((code) => {
     const results = checks.get(code) ?? [];
     const failures = results.filter((result) => !result.passed);
     const periods = new Set(

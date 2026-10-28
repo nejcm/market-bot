@@ -307,6 +307,14 @@ test.each(["specialist-analysis", "instrument-evidence-analysis", "critique"] as
 );
 
 describe("checked-in final-synthesis prompt", () => {
+  test("checks priorStages dataGaps against cited inputs", async () => {
+    const { instruction } = await loadStagePrompt("final-synthesis", tickerCommand);
+
+    expect(instruction).toContain(
+      "Apply the same check to `dataGaps` carried in from `priorStages[]`",
+    );
+  });
+
   test("carries the accounting-scope guidance", async () => {
     const { instruction } = await loadStagePrompt("final-synthesis", tickerCommand);
 

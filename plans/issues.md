@@ -28,12 +28,15 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## From deep-equity loop (2026-10-23, branch improve/deep-equity-loop)
 
-- Forecast Baseline lags one session: it scales σ by √h from the last close, but the resolver counts +N from the first session on or after the run date, so premarket/intraday/weekend runs score N+1 sessions out. Biases range Paired Skill; fix needs a baseline version bump.
 - Forecast Grid job fact sheet (`src/forecast/grid-job.ts`) lists grid events without the ±1σ band or base rate that final synthesis now states. Share the framing.
-- Final-synthesis +10 range anchor still states 0.32; the session-true rate for run d18dcf30 is ~0.34. Use `rangeReferenceSessions` for it too.
 - Per-call usage ledger does not cover Run Chat streams, eval judges, the standalone Forecast Grid job, or history-thesis-delta.
 - Pre-2026-10-23 token totals (runs, variance bands, eval estimates) double-count Codex reasoning; correction size unknown.
-- Earnings-date confirmation: when SEC website fields are empty, fall back to issuer hosts (AMD: `ir.amd.com`, `newsroom.amd.com`) in `earnings-date-confirmation.ts`.
+- Earnings-date confirmation (after 7d305758): runs 10-20 and 10-23 never gathered the issuer release, so the date stays provider-estimated; a Web Gather query issue. The ir.amd.com IR-calendar page ("Nov 3, 2026 • 2:00 pm PDT Webcast") fails the future-tense text check; loosening it needs a false-positive decision. Issuers whose domain is neither ticker nor full name (lilly.com, Nebius) cannot confirm via filing-text domains.
 - Range skill scoring should prefer the stamped `baselineProbability` (latent gap, 1 borderline flip in 131 predictions); needs an ADR 0003 change.
 - Open-web snippet cap: lower to ~2,400 chars or use fewer Exa highlights (cut lost one TrendForce volume fact in AMD runs).
-- Financial Lens citations carry 24–25 source ids per metric instead of per-metric ids (ADR 0004).
+- Financial Lens: per-metric ids fixed in 178cab2e; section- and lens-level ids still carry peer ids, and the SEC-summary path cites the whole SEC item.
+- Recapture the nbis, depository and earnings-release fixtures with an authorized live capture; their QQQ history entries are synthetic 503s (10cd0d2c, docs/testing.md).
+- Paired Skill excludes v1 range baselines (bc9fc853), so the range cohort restarts until v2 range Predictions resolve; check the cohort size before the 2027-01-15 review.
+- Relative benchmarks beyond SPY/QQQ still get a declared forecast-baseline gap; a QQQ 429 can still open the shared Yahoo circuit for later Yahoo calls.
+- Web Gather: when the earnings date is provider-estimated, query for the issuer's announcement of the upcoming results date (run 21814c9f gathered only past-quarter releases).
+- Final synthesis invented `financial-lens-growth.capexDeltaPercent` twice in run 21814c9f (one rejected attempt, ~73k tokens); capex growth exists in raw SEC metrics but not the Financial Lens Growth catalog.

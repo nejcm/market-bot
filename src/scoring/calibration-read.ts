@@ -217,6 +217,11 @@ export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | un
   }
   const overall = parsePairedSkillMetric(value.overall, false);
   const nextReviewDate = readString(value, "nextReviewDate");
+  const excludedLegacyRangeBaselineCount = readNumberWhere(
+    value,
+    "excludedLegacyRangeBaselineCount",
+    isCalibrationCount,
+  );
   return {
     policy: {
       minimumUsefulEffect,
@@ -228,6 +233,7 @@ export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | un
       poweredBlockCount,
     },
     excludedWithoutBaselineCount,
+    ...(excludedLegacyRangeBaselineCount === undefined ? {} : { excludedLegacyRangeBaselineCount }),
     ...(overall === undefined ? {} : { overall }),
     byKind: parsePairedSkillByKind(value.byKind),
     ...(nextReviewDate !== undefined && /^\d{4}-\d{2}-\d{2}$/u.test(nextReviewDate)

@@ -109,7 +109,9 @@
           <span class="text-xs font-semibold">Paired skill vs Forecast Baseline</span>
           <span class="font-mono text-[10.5px] text-muted-foreground">
             ΔBrier = baseline − model · {paired.summary.excludedWithoutBaselineCount} excluded without
-            a baseline{paired.summary.nextReviewDate === undefined
+            a baseline{paired.summary.excludedLegacyRangeBaselineCount === undefined
+              ? ""
+              : ` · ${String(paired.summary.excludedLegacyRangeBaselineCount)} range on superseded v1 baseline`}{paired.summary.nextReviewDate === undefined
               ? ""
               : ` · next review ${paired.summary.nextReviewDate}`}
           </span>

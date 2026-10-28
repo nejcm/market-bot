@@ -14,6 +14,7 @@ import { deriveFinancialStatements } from "../src/sources/extended-evidence/fina
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import type { MarketSnapshot } from "../src/domain/market-data";
+import type { MetricResult, MetricSection } from "../src/sources/extended-evidence/metric-engine";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 import { assertBusinessFrameworkMetricInvariants } from "./support/run-fixtures/assertions";
 
@@ -64,10 +65,51 @@ const ANNUAL_STATEMENTS = statements({
   PaymentsOfDividends: annual(4, 5),
 });
 
+function lensMetric(
+  id: string,
+  value: number,
+  sourceIds: readonly string[],
+  periodEnd?: string,
+): MetricResult {
+  return {
+    id,
+    label: id,
+    unit: "ratio",
+    basis: "lens basis",
+    status: "value",
+    value,
+    ...(periodEnd === undefined ? {} : { periodEnd }),
+    inputs: [{ label: id, value, artifact: "statements", unit: "USD", sourceIds }],
+    sourceIds,
+  };
+}
+
+const LENS_SECTIONS: readonly MetricSection[] = [
+  {
+    id: "financial-lens-financial-strength",
+    title: "Financial Lens: Financial Strength",
+    metrics: [
+      lensMetric("currentRatio", 1.5, ["extended-sec-edgar-aapl-fundamentals"], "2026-03-31"),
+      lensMetric("debtToMarketCap", 0.1, ["market-aapl", "extended-sec-edgar-aapl-fundamentals"]),
+    ],
+  },
+  {
+    id: "financial-lens-value",
+    title: "Financial Lens: Value",
+    metrics: [
+      lensMetric("evToAnnualizedRevenue", 6.2, [
+        "market-aapl",
+        "extended-sec-edgar-aapl-fundamentals",
+      ]),
+    ],
+  },
+];
+
 function framework(
   existing: ExtendedEvidence = evidence(),
   generatedAt = AS_OF,
   financialStatements: ReturnType<typeof statements> | null = ANNUAL_STATEMENTS,
+  lensSections: readonly MetricSection[] = LENS_SECTIONS,
 ) {
   return addBusinessFrameworkEvidence(
     command,
@@ -76,6 +118,7 @@ function framework(
     undefined,
     generatedAt,
     financialStatements ?? undefined,
+    lensSections,
   );
 }
 
@@ -789,7 +832,7 @@ describe("business framework evidence", () => {
         assetClass: "equity",
       })),
       dataGaps: (result.metricSectionGaps ?? []).map((gap) => `${gap.source}: ${gap.message}`),
-      extras: { metricSections: sections },
+      extras: { metricSections: [...LENS_SECTIONS, ...sections] },
     });
     const run = (metricSections: typeof sections) => () =>
       assertBusinessFrameworkMetricInvariants(
@@ -803,7 +846,7 @@ describe("business framework evidence", () => {
           }),
           markdown: renderMarkdownReport(report),
         },
-        { ...report, extras: { metricSections } },
+        { ...report, extras: { metricSections: [...LENS_SECTIONS, ...metricSections] } },
       );
     const forged = sections.map((section) => ({
       ...section,
@@ -814,9 +857,21 @@ describe("business framework evidence", () => {
       ),
     }));
 
+    const mutateDebt = (patch: Partial<MetricResult>) =>
+      sections.map((section) => ({
+        ...section,
+        metrics: section.metrics.map((metric) =>
+          metric.id === "debtToMarketCap" ? ({ ...metric, ...patch } as MetricResult) : metric,
+        ),
+      }));
+
     expect(metricOf(result, "business-framework-moat", "grossMargin")?.inputs).toHaveLength(2);
+    expect(metricOf(result, "business-framework-risk", "debtToMarketCap")?.status).toBe("value");
     expect(run(sections)).not.toThrow();
     expect(run(forged)).toThrow();
+    expect(run(mutateDebt({ sourceIds: [] }))).toThrow();
+    expect(run(mutateDebt({ sourceIds: ["extended-sec-edgar-aapl-filings"] }))).toThrow();
+    expect(run(mutateDebt({ value: 987_654 }))).toThrow();
   });
 
   test("returns evidence unchanged for non-equity commands", () => {
@@ -852,6 +907,43 @@ test("pass-through risk metrics preserve never-filed causes", () => {
     });
   }
   expect(gapOf(result, "business-framework-risk")?.triage).toBe("diagnostic");
+});
+
+test("pass-through lens values cite the lens metric's inputs, never the lens bundle", () => {
+  const peerIds = ["market-yahoo-equity-nvda", "extended-sec-edgar-nvda-fundamentals"];
+  const input = evidence();
+  const widened = {
+    ...input,
+    items: input.items.map((item) =>
+      item.category === "financial-lens" || item.category === "valuation"
+        ? { ...item, sourceIds: [...item.sourceIds, ...peerIds] }
+        : item,
+    ),
+  };
+  const result = framework(widened);
+  for (const [sectionId, id, lensSection] of [
+    ["business-framework-risk", "currentRatio", 0],
+    ["business-framework-risk", "debtToMarketCap", 0],
+    ["business-framework-valuation", "evToAnnualizedRevenue", 1],
+  ] as const) {
+    const lens = LENS_SECTIONS[lensSection]?.metrics.find((metric) => metric.id === id);
+    expect(metricOf(result, sectionId, id)).toMatchObject({
+      status: "value",
+      inputs: lens?.inputs,
+      sourceIds: lens?.sourceIds,
+    });
+  }
+
+  const uncited = framework(widened, AS_OF, ANNUAL_STATEMENTS, []);
+  expect(metricOf(uncited, "business-framework-risk", "currentRatio")).toMatchObject({
+    status: "missing",
+    reason: "no cited financial-lens current ratio",
+    inputs: [],
+    sourceIds: [],
+  });
+  expect(gapOf(uncited, "business-framework-risk")?.message).toContain(
+    "no cited financial-lens current ratio",
+  );
 });
 
 test("phase with no classification inputs is missing rather than an uncited value", () => {

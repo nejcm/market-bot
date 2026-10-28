@@ -59,8 +59,10 @@ import {
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import { formatMetricValue } from "../../../src/sources/extended-evidence/value-format";
 import {
-  rangeVolatilityReference,
+  RANGE_REFERENCE_OUTSIDE_PROBABILITY,
   rangeReferenceBand,
+  rangeReferenceOutsideProbability,
+  rangeVolatilityReference,
 } from "../../../src/research/range-volatility-reference";
 import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
 import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrument-identity";
@@ -315,9 +317,15 @@ export async function assertInvariants(
         band !== undefined &&
         expression.lo === band[0] &&
         expression.hi === band[1];
-      return (
-        Math.abs(prediction.probability - (matchesReference ? 0.32 : 0.5)) <= 0.1 + Number.EPSILON
-      );
+      const centre =
+        matchesReference && rangeSnapshot !== undefined && !("gap" in reference!)
+          ? (rangeReferenceOutsideProbability(
+              rangeSnapshot,
+              reference!,
+              prediction.horizonTradingDays,
+            )?.probability ?? RANGE_REFERENCE_OUTSIDE_PROBABILITY)
+          : 0.5;
+      return Math.abs(prediction.probability - centre) <= 0.1 + Number.EPSILON;
     }).length,
   );
   expect(result.analytics.predictions).not.toHaveProperty("replacementAttempted");
@@ -450,6 +458,31 @@ function isAnnualSpan(
   return span >= 350 && span <= 380;
 }
 
+const FILED_VALUATION_KEYS = new Set(["annualizedRevenue", "netDebt"]);
+
+// Valuation evidence also cites peers; a target figure cites its filing, plus the quote if price-relative.
+function evidenceLineage(
+  run: MetricInvariantRun,
+  input: MetricInput,
+  itemSourceIds: readonly string[],
+): readonly string[] {
+  if (input.category !== "valuation" || input.key === "valuationSupportability") {
+    return itemSourceIds;
+  }
+  const { extendedEvidence, financialStatements, marketSnapshots } = run.collectedSources;
+  const filed =
+    financialStatements === undefined
+      ? (extendedEvidence?.items.find(({ category }) => category === "sec-edgar")?.sourceIds ?? [])
+      : [financialStatements.sourceId];
+  const symbol = extendedEvidence?.instrument?.symbol.toUpperCase();
+  const quote = marketSnapshots.find(
+    (snapshot) => snapshot.assetClass === "equity" && snapshot.symbol.toUpperCase() === symbol,
+  )?.sourceId;
+  return FILED_VALUATION_KEYS.has(input.key ?? "") || quote === undefined
+    ? filed
+    : [quote, ...filed];
+}
+
 // Looks the input up in its own artifact; the input's lineage must equal what the artifact holds.
 function resolveInput(
   run: MetricInvariantRun,
@@ -498,7 +531,9 @@ function resolveInput(
     const item = extendedEvidence?.items.find(({ category }) => category === input.category);
     const value = item?.metrics?.[input.key ?? ""];
     resolved = value === undefined ? undefined : { value };
-    expect(input.sourceIds, `${label} cites its evidence item`).toEqual(item?.sourceIds ?? []);
+    expect(input.sourceIds, `${label} cites its own lineage`).toEqual(
+      evidenceLineage(run, input, item?.sourceIds ?? []),
+    );
   } else if (input.artifact === "capitalOwnership") {
     const fact = capitalOwnership?.stockBasedCompensation.find(
       (candidate) =>
@@ -1862,6 +1897,18 @@ const FRAMEWORK_RATIOS: Readonly<Record<string, readonly [string, string]>> = {
   operatingMargin: ["operatingIncome", "revenue"],
 };
 
+const LENS_CITED_FRAMEWORK_METRICS: Readonly<Record<string, readonly [string, string]>> = {
+  "business-framework-risk.currentRatio": ["financial-lens-financial-strength", "currentRatio"],
+  "business-framework-risk.debtToMarketCap": [
+    "financial-lens-financial-strength",
+    "debtToMarketCap",
+  ],
+  "business-framework-valuation.evToAnnualizedRevenue": [
+    "financial-lens-value",
+    "evToAnnualizedRevenue",
+  ],
+};
+
 export function assertBusinessFrameworkMetricInvariants(
   run: MetricInvariantRun,
   report: ResearchReport,
@@ -1929,6 +1976,22 @@ export function assertBusinessFrameworkMetricInvariants(
         const label = `${id}.${metric.id}`;
         for (const sourceId of metric.sourceIds) {
           expect(reportSourceIds.has(sourceId), `${label} cites ${sourceId}`).toBe(true);
+        }
+        const lens = LENS_CITED_FRAMEWORK_METRICS[`${id}.${metric.id}`];
+        if (lens !== undefined) {
+          const counterpart = metricIn(lens[0], lens[1]);
+          const cited = counterpart?.status === "value" ? counterpart : undefined;
+          expect(metric.inputs, `${label} cites its lens counterpart's inputs`).toEqual(
+            cited?.inputs ?? [],
+          );
+          expect(metric.sourceIds, `${label} cites its lens counterpart's sources`).toEqual(
+            cited?.sourceIds ?? [],
+          );
+          if (metric.status === "value") {
+            expect(cited, `${label} passes through a cited lens value`).toBeDefined();
+            expectClose(metric.value, Number(cited?.value), label);
+          }
+          continue;
         }
         const resolved = metric.inputs.map((input) =>
           resolveInput(run, input, `${label} ${input.label}`, false),

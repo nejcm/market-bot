@@ -158,7 +158,7 @@ Fixed set of observable events code issues on every equity instrument run — ±
 
 ## Forecast Baseline
 
-Frozen, versioned no-skill probability stamped on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`) from split-adjusted closes: EWMA volatility, zero drift, √h. Range, direction and relative only; missing inputs omit it with a declared gap. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
+Frozen, versioned no-skill probability stamped on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`) from split-adjusted closes: EWMA volatility, zero drift, √h over the sessions scoring spans after `infoCutoff`. Range, direction and relative only; missing inputs omit it with a declared gap. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
 
 ## Paired Skill
 
@@ -182,7 +182,7 @@ Prediction whose event depends on an earlier observable condition. Its probabili
 
 ## Near-Base-Rate Prediction
 
-Emitted Prediction within an inclusive ±0.10 band of its applicable reference: 0.32 only when a range Prediction matches its subject's reconstructed ±1σ band at a listed reference horizon and printed two-decimal precision; 0.5 otherwise, including unavailable references. It remains valid; analytics counts it apart from informative Predictions.
+Emitted Prediction within an inclusive ±0.10 band of its applicable reference: the band's stated base rate (Gaussian over the sessions scoring spans, or 0.32 when that count is unknown) only when a range Prediction matches its subject's reconstructed ±1σ band at a listed reference horizon and printed two-decimal precision; 0.5 otherwise, including unavailable references. It remains valid; analytics counts it apart from informative Predictions.
 
 ## Forecast-Shape Diversity Guidance
 

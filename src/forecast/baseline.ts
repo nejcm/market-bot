@@ -1,7 +1,7 @@
 import type { ObservableExpression } from "./observable-types";
 
 // Frozen Forecast Baseline estimator identity; any change to the math below needs a new version.
-export const FORECAST_BASELINE_VERSION = "ewma-0.94-w60-v1";
+export const FORECAST_BASELINE_VERSION = "ewma-0.94-w60-v2";
 const EWMA_LAMBDA = 0.94;
 export const FORECAST_BASELINE_RETURN_WINDOW = 60;
 const BASELINE_DECIMAL_PLACES = 4;
@@ -26,7 +26,8 @@ export type ForecastBaselineUnavailableReason =
   | "short-history"
   | "split-signature"
   | "zero-volatility"
-  | "stale-closes";
+  | "stale-closes"
+  | "unscored-sessions";
 
 export type ForecastBaselineResult =
   | { readonly status: "computed"; readonly probability: number; readonly infoCutoff: string }
@@ -157,11 +158,12 @@ function computed(probability: number, infoCutoff: string): ForecastBaselineResu
   };
 }
 
-// Forecast Baseline: zero-drift lognormal with EWMA volatility on split-adjusted closes, √h aggregation.
+// Forecast Baseline: zero-drift lognormal, EWMA volatility on split-adjusted closes, √h over the sessions scored after infoCutoff.
 // A symbol missing from splitDatesBySymbol has unknown split metadata, not "no splits".
 export function forecastBaseline(
   expression: ObservableExpression,
   closesBySymbol: ReadonlyMap<string, readonly BaselineClose[]>,
+  scoredSessions: (subject: string, infoCutoff: string, horizon: number) => number | undefined,
   splitDatesBySymbol?: ReadonlyMap<string, readonly string[]>,
 ): ForecastBaselineResult {
   switch (expression.kind) {
@@ -170,13 +172,21 @@ export function forecastBaseline(
       if ("status" in window) {
         return window;
       }
+      const horizon = scoredSessions(
+        expression.subject,
+        window.infoCutoff,
+        expression.horizonTradingDays,
+      );
+      if (horizon === undefined) {
+        return { status: "unavailable", symbol: expression.subject, reason: "unscored-sessions" };
+      }
       return computed(
         rangeOutsideProbability({
           sigma: window.sigma,
           spot: window.spot,
           lo: expression.lo,
           hi: expression.hi,
-          horizon: expression.horizonTradingDays,
+          horizon,
         }),
         window.infoCutoff,
       );

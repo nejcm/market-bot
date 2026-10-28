@@ -264,7 +264,14 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - Cited structured Web Subject Profile answers may clear matching atomic Business Framework gaps, never
   postures or Evidence Quality. Official earnings dates require exact future date/issuer identity and retained
   Source ID, URL, basis, span. Issuer HTTPS hosts come only from SEC metadata or hand-verified CIK fallback
-  with exact-host/subdomain matching; absent/malformed identity fails closed, never publisher/self-links. SEC
+  with exact-host/subdomain matching, or a `www.<label>.<tld>` host (a whole ASCII token bounded by
+  whitespace or ASCII punctuation; two labels; TLD com/net/org or a 2-letter ccTLD; label exactly the 3+ char
+  ticker or full normalized issuer name) in SEC filing text bound to the issuer: a sec-edgar www.sec.gov
+  archive source under the submissions CIK with ticker alias, whose `rawRef` names exactly one current
+  (not stale-fallback or compacted) filing-text snapshot. That domain matches only itself or its
+  ir/investor(s)/media/news/newsroom/press subdomain. Accepted residual: a bound filing that names a
+  ticker- or name-equal domain the issuer does not own would confirm from it. Absent/malformed identity
+  fails closed, never publisher/self-links. SEC
   8-K/6-K must explicitly announce future results, not past Item 2.02.
 - Exchange confirmation additionally requires direct disclosure/announcement on checked-in host/path allowlist
   and issuer name or ticker plus issuer context. Calendars, quotes, lookups, symbol equality alone, unknown

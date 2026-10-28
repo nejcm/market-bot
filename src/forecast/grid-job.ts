@@ -448,7 +448,7 @@ async function gridForSymbol(input: {
     now,
     input.fetchImpl,
   );
-  const collected = await collectPriceHistory(context, symbol);
+  const collected = await collectPriceHistory(context, symbol, []);
   const { snapshot } = collected.verifiedSnapshot;
   const gridSources = {
     priceHistory: collected.priceHistory,
@@ -469,6 +469,7 @@ async function gridForSymbol(input: {
     modelPredictions: [],
     modelEventGrid: priced.eventGrid,
     knownSourceIds: new Set(sources.map((source) => source.id)),
+    generatedAt: now.toISOString(),
     pricedBy: "the forecast-grid model",
   });
   return {

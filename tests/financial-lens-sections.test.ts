@@ -192,7 +192,7 @@ test("market leverage withholds mismatched currencies and retains quote currency
   ).toContain("currency");
 });
 
-test("market leverage permits unknown filed and quote currencies", () => {
+test("market leverage permits unknown filed currencies", () => {
   const artifact = statements({
     ...REVENUE,
     LongTermDebt: { units: { USD: [instantFact(40, "2026-03-31")] } },
@@ -218,15 +218,8 @@ test("market leverage permits unknown filed and quote currencies", () => {
   };
   const result = addFinancialLensEvidence(
     command,
-    [],
-    {
-      ...evidence(),
-      items: evidence().items.map((item) =>
-        item.category === "valuation"
-          ? { ...item, metrics: { ...item.metrics, marketCap: 1000 } }
-          : item,
-      ),
-    },
+    [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+    evidence(),
     undefined,
     AS_OF,
     undefined,
@@ -457,4 +450,72 @@ test("misaligned annual and unmatched latest periods never fall back to older ma
         ?.metrics.find(({ id }) => id === "grossMargin"),
     ).toMatchObject({ status: "missing" });
   }
+});
+
+test("valuation figures cite their own filing and quote, never the peer-widened item", () => {
+  // Operating cash flow gives the Value section the filed input it needs to be emitted.
+  const artifact = statements({
+    ...REVENUE,
+    NetCashProvidedByUsedInOperatingActivities: {
+      units: { USD: [annualFact(30, "2025-01-01", "2025-12-31")] },
+    },
+  });
+  const peerIds = ["market-yahoo-equity-nvda", "extended-sec-edgar-nvda-fundamentals"];
+  const widened = {
+    ...evidence(),
+    items: evidence().items.map((item) =>
+      item.category === "valuation"
+        ? {
+            ...item,
+            sourceIds: [
+              "market-yahoo-equity-aapl",
+              "extended-sec-edgar-aapl-filings",
+              "extended-sec-edgar-aapl-fundamentals",
+              ...peerIds,
+            ],
+          }
+        : item,
+    ),
+  };
+  const rows = (snapshots: Parameters<typeof addFinancialLensEvidence>[1]) => {
+    const result = addFinancialLensEvidence(
+      command,
+      snapshots,
+      withCanonicalFinancialLensInputs(widened, artifact),
+      verifiedMarketSnapshot(),
+      AS_OF,
+      undefined,
+      undefined,
+      artifact,
+    );
+    return {
+      metric: (id: string) =>
+        result.metricSections?.flatMap((section) => section.metrics).find((row) => row.id === id),
+      gaps: result.metricSectionGaps ?? [],
+    };
+  };
+  const cited = rows([marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })]);
+  expect(cited.metric("annualizedRevenue")?.sourceIds).toEqual([
+    "extended-sec-edgar-aapl-fundamentals",
+  ]);
+  for (const id of ["enterpriseValue", "evToAnnualizedRevenue", "marketCapToAnnualizedRevenue"]) {
+    expect(cited.metric(id)?.sourceIds).toEqual([
+      "market-yahoo-equity-aapl",
+      "extended-sec-edgar-aapl-fundamentals",
+    ]);
+  }
+  expect(cited.metric("valuationSupportability")?.sourceIds).toEqual(
+    widened.items.find(({ category }) => category === "valuation")?.sourceIds,
+  );
+
+  const unquoted = rows([]);
+  expect(unquoted.metric("evToAnnualizedRevenue")).toMatchObject({
+    status: "missing",
+    reason: "no cited EV/revenue source",
+    sourceIds: [],
+  });
+  expect(unquoted.metric("annualizedRevenue")?.status).toBe("value");
+  expect(unquoted.gaps.find(({ source }) => source === "financial-lens-value")?.message).toContain(
+    "no cited EV/revenue source",
+  );
 });

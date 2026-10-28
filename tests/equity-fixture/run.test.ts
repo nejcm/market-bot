@@ -54,44 +54,45 @@ const EXPECTED_EVENT_GRID: Record<
   keyof typeof EXPECTED_COMPLETENESS_GRADES,
   readonly (readonly [string, number | null])[]
 > = {
+  // The synthetic AAPL fixtures run on 2026-06-15 against closes ending 2026-05-01, so scoring spans ~30 more sessions.
   "equity-aapl-brief": [
-    ["grid-range-1", 0.2658],
-    ["grid-range-5", 0.2656],
-    ["grid-range-20", 0.2658],
+    ["grid-range-1", 0.8416],
+    ["grid-range-5", 0.6739],
+    ["grid-range-20", 0.4815],
     ["grid-relative-5", 0.5],
   ],
   "equity-aapl-deep": [],
   "equity-earnings-release-deep": [
-    ["grid-range-1", 0.3302],
-    ["grid-range-5", 0.3301],
-    ["grid-range-20", 0.3301],
+    ["grid-range-1", 0.4911],
+    ["grid-range-5", 0.374],
+    ["grid-range-20", 0.3419],
     ["grid-relative-5", null],
   ],
   "equity-nbis-deep": [
-    ["grid-range-1", 0.3524],
-    ["grid-range-5", 0.3523],
-    ["grid-range-20", 0.3524],
+    ["grid-range-1", 0.5108],
+    ["grid-range-5", 0.3958],
+    ["grid-range-20", 0.3641],
     ["grid-relative-5", null],
   ],
   "equity-fpi-quarterly": [],
   "equity-fpi-ifrs-semiannual": [],
   "equity-analysis-comprehensive": [
-    ["grid-range-1", 0.2658],
-    ["grid-range-5", 0.2656],
-    ["grid-range-20", 0.2658],
+    ["grid-range-1", 0.8416],
+    ["grid-range-5", 0.6739],
+    ["grid-range-20", 0.4815],
     ["grid-relative-5", 0.5],
   ],
   "equity-analysis-estimated-suppressed": [],
   "equity-web-fallback-deep": [
-    ["grid-range-1", 0.2658],
-    ["grid-range-5", 0.2656],
-    ["grid-range-20", 0.2658],
+    ["grid-range-1", 0.8416],
+    ["grid-range-5", 0.6739],
+    ["grid-range-20", 0.4815],
     ["grid-relative-5", 0.5],
   ],
   "equity-depository-deep": [
-    ["grid-range-1", 0.2903],
-    ["grid-range-5", 0.2893],
-    ["grid-range-20", 0.2894],
+    ["grid-range-1", 0.4547],
+    ["grid-range-5", 0.3333],
+    ["grid-range-20", 0.3012],
     ["grid-relative-5", null],
   ],
 };
@@ -364,6 +365,10 @@ describe("static equity run fixtures", () => {
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);
         await assertNbisUnsupportedInputs();
+      }
+      if (name === "equity-web-fallback-deep") {
+        // The +10 band scores 40 sessions out (base rate 0.62), so its 0.55 range is near; a 0.32 centre would not count it.
+        expect(result.analytics.predictions.nearBaseRateCount).toBe(2);
       }
       if (name === "equity-aapl-brief") {
         assertProviderGapRestatementsDropped(result);

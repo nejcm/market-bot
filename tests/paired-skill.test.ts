@@ -83,6 +83,20 @@ function paired(pairs: readonly ResolvedPair[]) {
   return buildCalibrationSummary(pairs, new Date("2026-10-20T00:00:00.000Z")).pairedSkill!;
 }
 
+function rangeAs(version: string, base: ResolvedPair, id: string): ResolvedPair {
+  return {
+    ...base,
+    prediction: {
+      ...base.prediction,
+      id,
+      kind: "range",
+      measurableAs: `close(${base.prediction.subject}, +5) outside [${version.endsWith("v1") ? "95, 105" : "96, 104"}]`,
+      baselineProbability: 0.32,
+      baselineVersion: version,
+    },
+  };
+}
+
 describe("Paired Skill", () => {
   test("model better than the baseline beyond the minimum useful effect", () => {
     const summary = paired(events(40, (hit) => (hit ? 0.8 : 0.2)));
@@ -121,6 +135,32 @@ describe("Paired Skill", () => {
     );
     expect(summary.overall!.ciLow).toBeGreaterThan(0);
     expect(summary.overall!.status).toBe("not-yet-decidable");
+  });
+
+  test("excludes v1 range baselines but keeps v1 direction and every v2 baseline", () => {
+    const direction = events(4, (hit) => (hit ? 0.8 : 0.2));
+    const legacy = events(3, () => 0.4).map((base, index) =>
+      rangeAs("ewma-0.94-w60-v1", base, `v1-${String(index)}`),
+    );
+    const current = events(2, () => 0.4).map((base, index) =>
+      rangeAs("ewma-0.94-w60-v2", base, `v2-${String(index)}`),
+    );
+    const summary = paired([...direction, ...legacy, ...current]);
+    expect(summary.excludedLegacyRangeBaselineCount).toBe(3);
+    expect(summary.excludedWithoutBaselineCount).toBe(0);
+    expect(summary.overall?.count).toBe(6);
+    expect(summary.byKind.range?.count).toBe(2);
+    expect(summary.byKind.direction?.count).toBe(4);
+    const calibration = buildCalibrationSummary(
+      [...direction, ...legacy, ...current],
+      new Date("2026-10-20T00:00:00.000Z"),
+    );
+    expect(renderCalibrationMarkdown(calibration)).toContain(
+      "Range events excluded on the superseded ewma-0.94-w60-v1 baseline: 3",
+    );
+    expect(renderCalibrationConsole(calibration)).toContain(
+      "3 range excluded on the superseded ewma-0.94-w60-v1 baseline",
+    );
   });
 
   test("predictions without a baseline are excluded and counted", () => {

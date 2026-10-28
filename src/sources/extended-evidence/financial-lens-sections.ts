@@ -272,6 +272,44 @@ function valuationItem(ctx: MetricContext): ExtendedEvidenceItem | undefined {
   return itemByCategory(ctx.evidence, "valuation");
 }
 
+// Valuation evidence also cites every peer; a target figure cites only its filing and quote.
+function targetValuationIds(
+  ctx: MetricContext,
+  priceRelative: boolean,
+): readonly string[] | undefined {
+  const filed =
+    ctx.statements === undefined ? (secItem(ctx)?.sourceIds ?? []) : [ctx.statements.sourceId];
+  const quote = ctx.snapshot?.sourceId;
+  if (filed.length === 0 || (priceRelative && quote === undefined)) {
+    return undefined;
+  }
+  return priceRelative && quote !== undefined ? [quote, ...filed] : filed;
+}
+
+function valuationOutcome(
+  ctx: MetricContext,
+  key: string,
+  label: string,
+  unit: LensValueUnit,
+  priceRelative: boolean,
+  period: MetricPeriod,
+): MetricOutcome {
+  const valuation = valuationItem(ctx);
+  const value = readNumberMetric(valuation?.metrics, key);
+  const sourceIds = targetValuationIds(ctx, priceRelative);
+  if (value === undefined) {
+    return { status: "missing", reason: `no ${key} input` };
+  }
+  return sourceIds === undefined
+    ? { status: "missing", reason: `no cited ${label} source` }
+    : {
+        status: "value",
+        value,
+        inputs: [{ ...evidenceInput(valuation, key, label, unit, value, period), sourceIds }],
+        ...period,
+      };
+}
+
 function yahooItem(ctx: MetricContext): ExtendedEvidenceItem | undefined {
   return itemByCategory(ctx.evidence, "yahoo-fundamentals");
 }
@@ -938,17 +976,21 @@ function netDebtDefinition(): MetricDefinition {
         const item = secItem(ctx);
         const valuation = valuationItem(ctx);
         const valuationNetDebt = valuation?.metrics?.netDebt;
+        const valuationIds = targetValuationIds(ctx, false);
         const inputs =
-          typeof valuationNetDebt === "number"
+          typeof valuationNetDebt === "number" && valuationIds !== undefined
             ? [
-                evidenceInput(
-                  valuation,
-                  "netDebt",
-                  "net debt",
-                  "currency",
-                  valuationNetDebt,
-                  period,
-                ),
+                {
+                  ...evidenceInput(
+                    valuation,
+                    "netDebt",
+                    "net debt",
+                    "currency",
+                    valuationNetDebt,
+                    period,
+                  ),
+                  sourceIds: valuationIds,
+                },
               ]
             : [
                 ...chosenInput(item, "debt", "debt", period),
@@ -1166,21 +1208,7 @@ function marketCapInput(ctx: MetricContext): MetricInput | undefined {
       sourceIds: [ctx.snapshot.sourceId],
     };
   }
-  const item = valuationItem(ctx);
-  const value = readNumberMetric(item?.metrics, "marketCap");
-  const currency = readStringMetric(item?.metrics, "quoteCurrency");
-  return value === undefined
-    ? undefined
-    : {
-        label: "market cap",
-        value,
-        artifact: "evidence",
-        category: "valuation",
-        key: "marketCap",
-        ...(currency !== undefined ? { currency } : {}),
-        unit: "currency",
-        sourceIds: item?.sourceIds ?? [],
-      };
+  return undefined;
 }
 
 function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"): MetricDefinition {
@@ -1194,8 +1222,7 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
         : "net debt at the latest balance-sheet instant / quote market cap",
     compute: (ctx) => {
       if (ctx.statements === undefined) {
-        const item = valuationItem(ctx);
-        const value = readNumberMetric(item?.metrics, id);
+        const value = readNumberMetric(valuationItem(ctx)?.metrics, id);
         const period = summaryPeriod(ctx, "debt");
         if (value === undefined) {
           return { status: "missing", reason: `no valuation ${id}` };
@@ -1208,12 +1235,7 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
             ...period,
           };
         }
-        return {
-          status: "value",
-          value,
-          inputs: [evidenceInput(item, id, id, "ratio-percent", value, period)],
-          ...period,
-        };
+        return valuationOutcome(ctx, id, id, "ratio-percent", true, period);
       }
       const marketCap = marketCapInput(ctx);
       const anchor = latestFact(ctx, "debt");
@@ -1600,24 +1622,29 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       label: tile.label,
       unit: tile.unit,
       basis: "market cap quote and balance sheet dates diverge",
-      compute: (): MetricOutcome => ({
-        status: "value",
-        value: tile.value,
-        ...(tile.periodEnd !== undefined ? { periodEnd: tile.periodEnd } : {}),
-        inputs:
-          quoteObservedAt === undefined
-            ? []
-            : [
-                evidenceInput(
-                  valuation,
-                  "quoteObservedAt",
-                  "EV date basis",
-                  "text",
-                  quoteObservedAt,
-                  periodEndInput(tile.periodEnd),
-                ),
+      compute: (): MetricOutcome => {
+        const sourceIds = targetValuationIds(ctx, true);
+        return quoteObservedAt === undefined || sourceIds === undefined
+          ? { status: "missing", reason: "no cited EV date basis source" }
+          : {
+              status: "value",
+              value: tile.value,
+              ...(tile.periodEnd !== undefined ? { periodEnd: tile.periodEnd } : {}),
+              inputs: [
+                {
+                  ...evidenceInput(
+                    valuation,
+                    "quoteObservedAt",
+                    "EV date basis",
+                    "text",
+                    quoteObservedAt,
+                    periodEndInput(tile.periodEnd),
+                  ),
+                  sourceIds,
+                },
               ],
-      }),
+            };
+      },
     };
   });
   const peDefinitions = peDefinitionsFor(ctx, yahoo, yahooPeriod);
@@ -1630,11 +1657,12 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       unit: "currency",
       basis: "valuation evidence enterprise value at the quote date",
       compute: () =>
-        evidenceOutcome(
-          valuation,
+        valuationOutcome(
+          ctx,
           "enterpriseValue",
           "enterprise value",
           "currency",
+          true,
           periodEndInput(
             readStringMetric(valuation?.metrics, "quoteObservedAt") ?? ctx.snapshot?.observedAt,
           ),
@@ -1646,7 +1674,14 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       unit: "currency",
       basis: "valuation evidence trailing-twelve-month SEC revenue",
       compute: () =>
-        evidenceOutcome(valuation, "annualizedRevenue", "TTM revenue", "currency", valuationPeriod),
+        valuationOutcome(
+          ctx,
+          "annualizedRevenue",
+          "TTM revenue",
+          "currency",
+          false,
+          valuationPeriod,
+        ),
     },
     {
       id: "evToAnnualizedRevenue",
@@ -1654,7 +1689,14 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       unit: "ratio",
       basis: "valuation evidence enterprise value / TTM revenue",
       compute: () =>
-        evidenceOutcome(valuation, "evToAnnualizedRevenue", "EV/revenue", "ratio", valuationPeriod),
+        valuationOutcome(
+          ctx,
+          "evToAnnualizedRevenue",
+          "EV/revenue",
+          "ratio",
+          true,
+          valuationPeriod,
+        ),
     },
     {
       id: "marketCapToAnnualizedRevenue",
@@ -1662,11 +1704,12 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       unit: "ratio",
       basis: "valuation evidence market cap / TTM revenue",
       compute: () =>
-        evidenceOutcome(
-          valuation,
+        valuationOutcome(
+          ctx,
           "marketCapToAnnualizedRevenue",
           "market cap/revenue",
           "ratio",
+          true,
           valuationPeriod,
         ),
     },

@@ -132,6 +132,13 @@
       },
       "body": "{\"error\":\"Fixture provider unavailable\"}"
     },
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/QQQ?events=div%2Csplits&interval=1d&period1=1625702400&period2=1784764800": {
+      "status": 503,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Fixture provider unavailable\"}"
+    },
     "GET  https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt": {
       "status": 503,
       "headers": {

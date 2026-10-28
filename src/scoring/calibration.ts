@@ -429,12 +429,26 @@ export function nextPairedSkillReviewDate(now: Date): string {
   );
 }
 
+// V1 scaled range baselines by the nominal horizon, not the sessions scored; direction and relative are 0.5 for any horizon.
+function isLegacyRangeBaseline({ prediction }: ResolvedPair): boolean {
+  if (prediction.baselineVersion !== "ewma-0.94-w60-v1") {
+    return false;
+  }
+  try {
+    return parseObservableExpression(prediction.measurableAs).kind === "range";
+  } catch {
+    return prediction.kind === "range";
+  }
+}
+
 function pairedMetrics(pairs: readonly ResolvedPair[]): {
   readonly overall?: PairedSkillMetric;
   readonly byKind: Record<string, PairedSkillMetric>;
 } {
   const paired = pairs
-    .filter(({ prediction }) => prediction.baselineProbability !== undefined)
+    .filter(
+      (pair) => pair.prediction.baselineProbability !== undefined && !isLegacyRangeBaseline(pair),
+    )
     .toSorted(compareIssuance);
   const byKind = groupPairs(paired, ({ prediction }) => prediction.kind);
   return {
@@ -451,6 +465,9 @@ function buildPairedSkill(pairs: readonly ResolvedPair[], now: Date): PairedSkil
     policy: PAIRED_SKILL_POLICY,
     excludedWithoutBaselineCount: pairs.filter(
       ({ prediction }) => prediction.baselineProbability === undefined,
+    ).length,
+    excludedLegacyRangeBaselineCount: pairs.filter(
+      (pair) => pair.prediction.baselineProbability !== undefined && isLegacyRangeBaseline(pair),
     ).length,
     ...pairedMetrics(pairs),
     nextReviewDate: nextPairedSkillReviewDate(now),

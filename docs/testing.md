@@ -600,12 +600,14 @@ fixture until the recorder's secret scan passes and `bun run check` is green.
 ### Generated fixture price series
 
 `scripts/generate-fixture-price-series.ts` owns the shared issuer Yahoo chart bodies (`SEED = 17`)
-and distinct SPY benchmark bodies (`BENCHMARK_SEED = 18`) in
+and distinct SPY and QQQ benchmark bodies (`BENCHMARK_SEED = 18`, `QQQ_SEED = 19`) in
 `equity-aapl-brief`, `equity-aapl-deep`, `equity-analysis-comprehensive`,
 `equity-analysis-estimated-suppressed`, `equity-fpi-quarterly`,
 `equity-fpi-ifrs-semiannual`, and `equity-web-fallback-deep`. Do not re-record these chart entries
 independently: preserve the existing chart bodies when updating unrelated cassette data, and use the generator only for an
 intentional shared price-path change before replaying all seven fixtures.
+
+Injected faults, pending recapture: the QQQ chart entries in `equity-nbis-deep`, `equity-depository-deep` and `equity-earnings-release-deep` are hand-added synthetic `503 Fixture provider unavailable` responses, not observed Yahoo output.
 
 ## Fixture maintenance rules
 

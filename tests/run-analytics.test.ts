@@ -970,6 +970,23 @@ describe("forecast quality telemetry (3.2)", () => {
   });
 
   test.each([
+    [0.55, 1],
+    [0.32, 0],
+  ])("centers a premarket band on its scored-session base rate: %s", (probability, near) => {
+    const premarket = collectedSourceBundle({
+      verifiedMarketSnapshot: { ...referenceSnapshot, analysisDate: "2026-05-22" },
+    });
+    const band = prediction({
+      kind: "range",
+      subject: "AAPL",
+      horizonTradingDays: 1,
+      measurableAs: "close(AAPL, +1) outside [97.99, 102.05]",
+      probability,
+    });
+    expect(predictionsFor([band], baseTrace, premarket).nearBaseRateCount).toBe(near);
+  });
+
+  test.each([
     { measurableAs: "close(AAPL, +5) outside [170, 230]" },
     { measurableAs: "close(AAPL, +5) outside [95.55, 104.65]" },
     { measurableAs: "close(AAPL, +5) outside [95.56, 104.66]" },

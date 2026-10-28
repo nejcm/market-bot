@@ -314,6 +314,13 @@
       },
       "body": "{\"error\":\"Fixture provider unavailable\"}"
     },
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/QQQ?events=div%2Csplits&interval=1d&period1=1627344000&period2=1786406400": {
+      "status": 503,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Fixture provider unavailable\"}"
+    },
     "GET  https://query1.finance.yahoo.com/v7/finance/quote?crumb=fixture-crumb&symbols=AAPL": {
       "status": 200,
       "headers": {

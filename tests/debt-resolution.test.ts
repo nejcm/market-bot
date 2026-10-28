@@ -437,6 +437,15 @@ describe("debt resolution refuses incomplete component sets", () => {
       "a later filing restated LongTermDebtCurrent",
     ],
     [
+      "an unrecognized borrowing restated to zero cannot be summed without a total",
+      {
+        LongTermDebtCurrent: [original(10)],
+        LongTermDebtNoncurrent: [original(90)],
+        SeniorLongTermNotes: [original(50), later(0)],
+      },
+      "a later filing restated SeniorLongTermNotes (originally 50",
+    ],
+    [
       "an amendment tagging only an unrecognized concept supersedes the original",
       {
         LongTermDebtCurrent: [original(10)],
@@ -464,6 +473,21 @@ describe("debt resolution refuses incomplete component sets", () => {
     });
 
     expect(canonical).toMatchObject({ value: 100, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(100);
+  });
+
+  test("an unrecognized borrowing tagged zero after redemption does not refuse the sum", () => {
+    const { canonical, legacy } = resolve({
+      LongTermDebtCurrent: [original(10)],
+      LongTermDebtNoncurrent: [original(90)],
+      SeniorLongTermNotes: [priorQuarter(50), original(0)],
+    });
+
+    expect(canonical).toMatchObject({
+      value: 100,
+      periodEnd: "2026-06-30",
+      concept: "LongTermDebtCurrent+LongTermDebtNoncurrent",
+    });
     expect(legacy?.metrics.debt).toBe(100);
   });
 

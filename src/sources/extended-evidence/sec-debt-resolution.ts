@@ -230,16 +230,32 @@ function omittedDebtConcepts(
     .toSorted();
 }
 
-function incompleteDebtReason(
+// A zero balance cannot be missing from the sum (Iridium 2020 SeniorLongTermNotes after redemption).
+function zeroUnrecognizedDebtConcepts<T>(
+  taxonomy: FinancialStatementTaxonomy,
+  tagged: ReadonlyMap<string, T>,
+  valueOf: (fact: T) => number,
+): readonly string[] {
+  const recognized = recognizedDebtConcepts(taxonomy);
+  return [...tagged].flatMap(([concept, fact]) =>
+    !recognized.has(concept) && valueOf(fact) === 0 ? [concept] : [],
+  );
+}
+
+function incompleteDebtReason<T>(
   taxonomy: FinancialStatementTaxonomy,
   instant: DebtInstant,
   sides: readonly DebtSide[],
   usedUmbrellas: readonly string[],
-  tagged: ReadonlyMap<string, unknown>,
+  tagged: ReadonlyMap<string, T>,
   history: readonly DebtHistoryFact[],
+  valueOf: (fact: T) => number,
 ): string | undefined {
   const recognized = recognizedDebtConcepts(taxonomy);
-  const unrecognized = [...tagged.keys()].filter((concept) => !recognized.has(concept));
+  const zeroTagged = new Set(zeroUnrecognizedDebtConcepts(taxonomy, tagged, valueOf));
+  const unrecognized = [...tagged.keys()].filter(
+    (concept) => !recognized.has(concept) && !zeroTagged.has(concept),
+  );
   if (unrecognized.length > 0) {
     return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
   }
@@ -253,7 +269,7 @@ function incompleteDebtReason(
   const bothGeneric = sides.every((side) => side.generic !== undefined);
   const omitted = omittedDebtConcepts(
     instant,
-    (concept) => covered.has(concept) || bothGeneric,
+    (concept) => covered.has(concept) || bothGeneric || zeroTagged.has(concept),
     history,
   );
   return omitted.length > 0
@@ -589,8 +605,14 @@ export function resolveDebtAtInstant<T>(
       return longTermDebt.reason;
     }
     return (
-      incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history) ??
-      restatedDebtComponentReason(instant, [...used, ...subtracted], tagged, history, valueOf)
+      incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history, valueOf) ??
+      restatedDebtComponentReason(
+        instant,
+        [...used, ...subtracted, ...zeroUnrecognizedDebtConcepts(taxonomy, tagged, valueOf)],
+        tagged,
+        history,
+        valueOf,
+      )
     );
   })();
   const omittedShortTerm =

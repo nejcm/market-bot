@@ -244,6 +244,59 @@ function missingFactsGap(symbol: string, item: ExtendedEvidenceItem): SourceGap 
   });
 }
 
+// Distinct QNames are distinct members; a same-label pair is disclosed unless a shared period disagrees.
+function renamedMemberGaps(symbol: string, items: readonly ExtendedEvidenceItem[]): SourceGap[] {
+  const byLabel = new Map<string, Map<string, { filing: string; facts: Map<string, number> }>>();
+  for (const item of items) {
+    const metrics = item.metrics ?? {};
+    for (const [key, value] of Object.entries(metrics)) {
+      const [, member, measure, start, end] = key.split("|");
+      const label = memberLabel(member ?? "")
+        .toLowerCase()
+        .replaceAll(/[^\p{L}\p{N}]/gu, "");
+      if (!key.startsWith(SEGMENT_FACT_PREFIX) || typeof value !== "number" || !end || !label) {
+        continue;
+      }
+      const members = byLabel.get(label) ?? new Map();
+      const entry = members.get(member!) ?? {
+        filing: `${String(metrics.form)} filed ${String(metrics.filingDate)}`,
+        facts: new Map<string, number>(),
+      };
+      if (!entry.facts.has(`${measure}|${start}|${end}`)) {
+        entry.facts.set(`${measure}|${start}|${end}`, value);
+      }
+      members.set(member!, entry);
+      byLabel.set(label, members);
+    }
+  }
+  return [...byLabel.values()]
+    .flatMap((members) => {
+      const entries = [...members];
+      return entries.flatMap((one, index) =>
+        entries
+          .slice(index + 1)
+          .filter(([, other]) =>
+            [...one[1].facts].every(
+              ([period, value]) => (other.facts.get(period) ?? value) === value,
+            ),
+          )
+          .map((other) => [one, other]),
+      );
+    })
+    .map((pair) =>
+      sourceGap({
+        source: SEGMENT_RESULTS_SECTION_ID,
+        message: `Segment members ${pair.map(([member, { filing }]) => `${member} (${filing})`).join(" and ")} share a label; segment continuity across these QNames is unverified, so rows remain separate`,
+        symbol,
+        provider: "sec-edgar",
+        capability: "extended-evidence",
+        cause: "suppressed-by-design",
+        evidenceQualityImpact: "no-cap",
+        triage: "diagnostic",
+      }),
+    );
+}
+
 // Undefined when no periodic filing was collected; each filing without segment facts is a declared gap.
 export function segmentResultsSection(
   symbol: string,
@@ -279,5 +332,8 @@ export function segmentResultsSection(
     ),
   );
   const result = evaluateMetricSection(SEGMENT_RESULTS_SECTION_ID, TITLE, definitions, { symbol });
-  return { section: result.section, sourceGaps: [...gaps, ...result.sourceGaps] };
+  return {
+    section: result.section,
+    sourceGaps: [...gaps, ...renamedMemberGaps(upper, withFacts), ...result.sourceGaps],
+  };
 }

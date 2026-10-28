@@ -27,6 +27,7 @@ import {
 } from "../src/sources/extended-evidence/sec-edgar";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { secIssuerRegistration } from "../src/sources/extended-evidence/industry-classification";
 import { sourceGap } from "../src/domain/source-gaps";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
 import { forPrompt } from "../src/research/verified-snapshot-contract";
@@ -2152,7 +2153,11 @@ describe("extended evidence provider collection", () => {
             }
             if (adapter === "sec-submissions") {
               // SIC classification present, but no recent filings to summarize.
-              return rawJson(adapter, { sic: "3571", sicDescription: "Electronic Computers" });
+              return rawJson(adapter, {
+                sic: "3571",
+                sicDescription: "Electronic Computers",
+                stateOfIncorporation: "CA",
+              });
             }
             if (adapter === "sec-companyfacts") {
               return rawJson(adapter, secCompanyFactsPayload());
@@ -2165,6 +2170,21 @@ describe("extended evidence provider collection", () => {
 
     const secItem = result.extendedEvidence?.items.find((item) => item.category === "sec-edgar");
     expect(secItem?.metrics?.sic).toBe("3571");
+    // Brief runs have no SEC target packet; ROIC's incorporation comes from this item.
+    const canonical = withCanonicalFinancialLensInputs(
+      result.extendedEvidence,
+      deriveFinancialStatements(secCompanyFactsPayload(), {
+        symbol: "AAPL",
+        generatedAt: "2026-07-23T00:00:00.000Z",
+        analysisAsOf: "2026-07-23T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      }),
+    );
+    expect(secIssuerRegistration(canonical)).toMatchObject({
+      sic: "3571",
+      stateOfIncorporation: "CA",
+      sourceIds: ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
+    });
     expect(secItem?.summary).not.toContain("Recent SEC filings");
     expect(secItem?.sourceIds).toEqual([
       "extended-sec-edgar-aapl-filings",
@@ -2180,6 +2200,7 @@ describe("extended evidence provider collection", () => {
     const submissionsPayload = {
       sic: "7370",
       sicDescription: "Services-Computer Programming, Data Processing, Etc.",
+      stateOfIncorporation: "P7",
       filings: {
         recent: {
           form: ["20-F", "6-K"],
@@ -2223,6 +2244,7 @@ describe("extended evidence provider collection", () => {
     expect(result.sicClassification).toEqual({
       sic: "7370",
       sicDescription: "Services-Computer Programming, Data Processing, Etc.",
+      stateOfIncorporation: "P7",
     });
     const artifact = deriveFinancialStatements(factsPayload, {
       symbol: "NBIS",

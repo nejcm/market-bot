@@ -90,7 +90,8 @@ export type SecMetricKey =
   | "revenuePeriodEnd"
   | "financialLensSelectionVersion"
   | "sic"
-  | "sicDescription";
+  | "sicDescription"
+  | "stateOfIncorporation";
 
 export function priorComparable(
   series: FinancialStatementSeries,
@@ -330,7 +331,7 @@ export function withCanonicalFinancialLensInputs(
   }
   const classificationMetrics = Object.fromEntries(
     Object.entries(legacy?.metrics ?? {}).filter(
-      ([key]) => key === "sic" || key === "sicDescription",
+      ([key]) => key === "sic" || key === "sicDescription" || key === "stateOfIncorporation",
     ),
   );
   const canonical: ExtendedEvidenceItem = {
@@ -346,6 +347,9 @@ export function withCanonicalFinancialLensInputs(
             sic: sicClassification.sic,
             ...(sicClassification.sicDescription !== undefined
               ? { sicDescription: sicClassification.sicDescription }
+              : {}),
+            ...(sicClassification.stateOfIncorporation !== undefined
+              ? { stateOfIncorporation: sicClassification.stateOfIncorporation }
               : {}),
           }
         : {}),

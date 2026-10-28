@@ -59,7 +59,10 @@ import {
   valuationCompsSkippedGap,
 } from "./extended-evidence/valuation-comps";
 import { collectValuationWorkbench } from "./extended-evidence/valuation-workbench";
-import { depositoryIssuerSic } from "./extended-evidence/industry-classification";
+import {
+  depositoryIssuerSic,
+  secIssuerRegistration,
+} from "./extended-evidence/industry-classification";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import { buildReverseDcf, type ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
@@ -387,6 +390,7 @@ export async function collectEquityEnrichment(
     financialStatements,
     financialLensResult.metricSections,
   );
+  const secIssuer = secIssuerRegistration(financialLensEvidence);
   const statementSections = [
     capitalReturnSection({
       symbol: input.command.symbol,
@@ -403,6 +407,7 @@ export async function collectEquityEnrichment(
       symbol: input.command.symbol,
       ...(financialStatements === undefined ? {} : { statements: financialStatements }),
       ...(depositorySic !== undefined ? { depositorySic } : {}),
+      ...(secIssuer !== undefined ? { secIssuer } : {}),
     }),
   ];
   const subjectSymbol = input.command.symbol;

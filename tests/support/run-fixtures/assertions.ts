@@ -3060,7 +3060,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-aapl-brief": {},
   "equity-aapl-deep": AAPL_WORKBENCH_VALUES,
   "equity-earnings-release-deep": {
-    "annual|2017-09-30|2019-10-31": [
+    "annual|2017-09-30|2018-11-05": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,

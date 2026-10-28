@@ -2,7 +2,11 @@ import type {
   FinancialStatementFact,
   FinancialStatementSeriesKey,
 } from "./financial-statements-contract";
-import { conceptScope, scopedLabel } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  NEGATIVE_CAPEX_REASON,
+  scopedLabel,
+} from "./financial-statement-definitions";
 import {
   compareFinancialStatementFacts,
   earlierShareBasisPeriods,
@@ -496,10 +500,18 @@ function freeCashFlowOf(
   const capitalExpenditure = facts[keys.indexOf("capitalExpenditure")];
   return operatingCashFlow === undefined || capitalExpenditure === undefined
     ? undefined
-    : operatingCashFlow.value - Math.abs(capitalExpenditure.value);
+    : operatingCashFlow.value - capitalExpenditure.value;
 }
 
 const freeCashFlowGate: Gate = (_ctx, facts, keys) => {
+  if ((facts[keys.indexOf("capitalExpenditure")]?.value ?? 0) < 0) {
+    return {
+      status: "not-meaningful",
+      reason: `${NEGATIVE_CAPEX_REASON} for the fiscal year ending ${facts[0]!.periodEnd}`,
+      periodEnd: facts[0]!.periodEnd,
+      inputs: inputsOf(facts, keys),
+    };
+  }
   const freeCashFlow = freeCashFlowOf(facts, keys);
   return freeCashFlow !== undefined && freeCashFlow <= 0
     ? {

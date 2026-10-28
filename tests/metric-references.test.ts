@@ -270,6 +270,13 @@ test.each([
   "{{metric:operating-ratios.margin}}",
   "{{ METRIC : operating-ratios.margin }}",
   "{{\nMeTrIc\t:operating-ratios.margin}",
+  "<<operating-ratios.margin>>",
+  "<<operating-ratios.margin|period>>",
+  "FY <<financial-lens-growth.revenueDeltaPercent|period>> growth",
+  "<<operating-ratios.<margin>>",
+  "<<financial-lens-growth.<revenueDeltaPercent>|period>>",
+  "Margin <<operating-ratios.margin",
+  "Margin operating-ratios.margin>> stray",
 ])("rejects malformed or legacy token %s across authored surfaces", (token) => {
   expect(() =>
     assembleResearchReport(input({ keyFindings: [{ text: token, sourceIds: [] }] })),
@@ -520,6 +527,33 @@ test.each(["notes", "webSubjectProfile"])(
     expect(result.report.extras?.[key]).toEqual({ nested: ["Filed margin."] });
   },
 );
+
+test("repairs an unprefixed placeholder instead of publishing or auto-prefixing it", async () => {
+  const assembly = input({});
+  const reprompts: string[] = [];
+  const result = await synthesizeReportUntilValid({
+    ...assembly,
+    knownSourceIds: new Set(sources.map(({ id }) => id)),
+    priorStages: [],
+    maxPredictionReprompts: 0,
+    runFinalSynthesis: async (_prior, reprompt) => {
+      reprompts.push(reprompt?.reportValidationErrors?.join(" ") ?? "");
+      const text =
+        reprompts.length === 1
+          ? "Margin <<operating-ratios.margin|period>>."
+          : "Margin <<metric:operating-ratios.margin>>.";
+      return {
+        stage: "final-synthesis",
+        tokenEstimate: 0,
+        content: JSON.stringify({ ...assembly.payload, keyFindings: [{ text, sourceIds: [] }] }),
+      };
+    },
+  });
+  expect(reprompts[1]).toContain(
+    "Malformed metric reference <<operating-ratios.margin|period>> in text; write it as <<metric:section.metric>>",
+  );
+  expect(result.report.keyFindings[0]?.text).toBe("Margin 12.5%.");
+});
 
 test("|period renders the metric's period label and rejects metrics without one", () => {
   const dated = {

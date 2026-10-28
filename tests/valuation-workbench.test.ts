@@ -27,6 +27,7 @@ import {
   renderValuationWorkbenchMarkdown,
 } from "../src/report/valuation-workbench-markdown";
 import { validateResearchReport } from "../src/report/schema";
+import { buildReverseDcf } from "../src/sources/extended-evidence/reverse-dcf";
 import { collectPriceHistory } from "../src/sources/yahoo-price-history";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { collectedSources, researchReport, reverseDcfWorkbench } from "./support/fixtures";
@@ -76,14 +77,14 @@ function ttm(
 ): FinancialStatementTtm {
   const fiscalYear = fact({
     key,
-    value: value - 10,
+    value,
     periodEnd: "2024-12-31",
     filedAt: "2025-02-15",
     unit,
   });
   const latestYearToDate = fact({
     key,
-    value: 20,
+    value: value / 2,
     periodEnd: "2025-03-31",
     filedAt,
     periodType: "interim",
@@ -91,7 +92,7 @@ function ttm(
   });
   const priorYearToDate = fact({
     key,
-    value: 10,
+    value: value / 2,
     periodEnd: "2024-03-31",
     filedAt: "2024-05-01",
     periodType: "interim",
@@ -620,6 +621,62 @@ describe("valuation workbench", () => {
     };
 
     expect(readValuationWorkbenchArtifact(legacyArtifact)).not.toBeUndefined();
+  });
+
+  test("withholds TTM free cash flow when a capex TTM component is filed negative", () => {
+    const input = statements();
+    const capex = input.statements.cashFlowStatement.capitalExpenditure;
+    const latestYearToDate = { ...capex.ttm!.components.latestYearToDate, value: -5 };
+    const negativeComponent = {
+      ...input,
+      statements: {
+        ...input.statements,
+        cashFlowStatement: {
+          ...input.statements.cashFlowStatement,
+          capitalExpenditure: {
+            ...capex,
+            ttm: { ...capex.ttm!, components: { ...capex.ttm!.components, latestYearToDate } },
+          },
+        },
+      },
+    };
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: negativeComponent,
+      priceHistory: [
+        { date: "2025-02-18", close: 24 },
+        { date: "2025-05-01", close: 26 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const ttmObservation = artifact.historicalMultiples.observations.find(
+      (item) => item.basis === "ttm",
+    )!;
+
+    expect(ttmObservation.inputs.freeCashFlow).toBeUndefined();
+    expect(ttmObservation.metrics.priceToFreeCashFlow).toMatchObject({
+      status: "missing",
+      reason: "free-cash-flow-unavailable",
+    });
+    expect(
+      ttmObservation.metrics.priceToFreeCashFlow.inputs.some(
+        (row) => row.series === "capitalExpenditure" && row.value === -5,
+      ),
+    ).toBe(true);
+    expect(
+      artifact.historicalMultiples.observations.find(
+        (item) => item.basis === "annual" && item.periodEnd === "2024-12-31",
+      )?.metrics.priceToFreeCashFlow.status,
+    ).toBe("value");
+    expect(
+      buildReverseDcf({
+        generatedAt: "2025-06-01T00:00:00.000Z",
+        symbol: "TEST",
+        valuationWorkbench: artifact,
+      }),
+    ).toMatchObject({ status: "suppressed", reason: "reconciled-ttm-fcf-unavailable" });
   });
 
   test("does not derive free cash flow across mismatched periods or units", () => {
@@ -1612,4 +1669,23 @@ test("model payloads gain declared gaps while workbench metric values stay outsi
       expect(payload).not.toHaveProperty("valuationWorkbench");
     }
   }
+});
+
+test.each([
+  [100, { status: "value", value: 1 }],
+  [0, { status: "value", value: 200 / 300 }],
+  [-100, { status: "missing", reason: "free-cash-flow-unavailable" }],
+])("P/FCF with capex %d withholds a negative-filed outflow", async (capex, expected) => {
+  const value = workbenchInput();
+  const filedStatements = structuredClone(value.financialStatements!);
+  Object.assign(filedStatements.statements.cashFlowStatement.capitalExpenditure.annual[0]!, {
+    value: capex,
+  });
+  const result = await evaluateWorkbench({ ...value, financialStatements: filedStatements });
+  const observation = result.artifact.historicalMultiples.observations[0]!;
+  expect(observation.metrics.priceToFreeCashFlow).toMatchObject(expected);
+  expect(
+    observation.metrics.priceToFreeCashFlow.inputs.map(({ series: seriesKey }) => seriesKey),
+  ).toContain("capitalExpenditure");
+  expect(observation.inputs.freeCashFlow === undefined).toBe(capex < 0);
 });

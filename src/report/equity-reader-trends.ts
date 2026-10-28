@@ -4,7 +4,10 @@ import type {
   FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
 import type { ValuationMetricSuppressionReason } from "../sources/extended-evidence/valuation-workbench-contract";
-import { conceptScope } from "../sources/extended-evidence/financial-statement-definitions";
+import {
+  conceptScope,
+  NEGATIVE_CAPEX_REASON,
+} from "../sources/extended-evidence/financial-statement-definitions";
 import { periodLabel } from "./equity-reader-statements";
 
 function metricCell(
@@ -92,14 +95,26 @@ function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod
 }
 
 export function financialTrendGaps(history: FundamentalHistoryArtifact): readonly string[] {
-  const missingRevenuePeriods = trendPeriods(history).filter(
+  const periods = trendPeriods(history);
+  const missingRevenuePeriods = periods.filter(
     (period) => historyPoint(history.series.revenue, period.periodEnd, period.kind) === undefined,
   ).length;
-  if (missingRevenuePeriods === 0) {
-    return [];
-  }
+  const negativeCapexPeriods = periods.filter((period) =>
+    history.series.freeCashFlowProxy.notes.some((note) =>
+      note.startsWith(`${period.kind}:negative-capex: ${period.periodEnd} omitted`),
+    ),
+  );
   return [
-    `fundamental-history-revenue: SEC revenue history is unavailable for ${String(missingRevenuePeriods)} rendered period(s); affected revenue and derived operating-margin values are shown as unavailable`,
+    ...(missingRevenuePeriods === 0
+      ? []
+      : [
+          `fundamental-history-revenue: SEC revenue history is unavailable for ${String(missingRevenuePeriods)} rendered period(s); affected revenue and derived operating-margin values are shown as unavailable`,
+        ]),
+    ...(negativeCapexPeriods.length === 0
+      ? []
+      : [
+          `fundamental-history-free-cash-flow: free cash flow proxy withheld for ${negativeCapexPeriods.map(periodLabel).join(", ")}; ${NEGATIVE_CAPEX_REASON} [${history.sourceId}]`,
+        ]),
   ];
 }
 

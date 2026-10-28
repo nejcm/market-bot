@@ -1772,6 +1772,15 @@
             "sourceIds": ["offline-sec-companyfacts-aapl"],
             "periodEnd": "2026-03-31",
             "periodMonths": 6
+          },
+          "capexDeltaPercent": {
+            "key": "capexDeltaPercent",
+            "label": "Capex YoY (outflow amount)",
+            "value": 16.666666666666664,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
           }
         }
       },
@@ -2539,6 +2548,15 @@
             "key": "operatingCashFlowDeltaPercent",
             "label": "Operating cash flow YoY",
             "value": 12.068965517241379,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "capexDeltaPercent": {
+            "key": "capexDeltaPercent",
+            "label": "Capex YoY (outflow amount)",
+            "value": 16.666666666666664,
             "unit": "whole-percent",
             "sourceIds": ["offline-sec-companyfacts-aapl"],
             "periodEnd": "2026-03-31",

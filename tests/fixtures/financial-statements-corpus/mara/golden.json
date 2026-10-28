@@ -4770,6 +4770,15 @@
             "sourceIds": ["offline-sec-companyfacts-mara"],
             "periodEnd": "2026-03-31",
             "periodMonths": 3
+          },
+          "capexDeltaPercent": {
+            "key": "capexDeltaPercent",
+            "label": "Capex YoY (outflow amount)",
+            "value": 104.6607988470249,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-mara"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 3
           }
         }
       },
@@ -6043,6 +6052,15 @@
             "key": "operatingCashFlowDeltaPercent",
             "label": "Operating cash flow YoY",
             "value": -14.850478912978913,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-mara"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 3
+          },
+          "capexDeltaPercent": {
+            "key": "capexDeltaPercent",
+            "label": "Capex YoY (outflow amount)",
+            "value": 104.6607988470249,
             "unit": "whole-percent",
             "sourceIds": ["offline-sec-companyfacts-mara"],
             "periodEnd": "2026-03-31",

@@ -150,6 +150,15 @@ const CONTINUING_OPERATIONS_SCOPE = "continuing operations";
 
 export const TOTAL_OPERATIONS_SCOPE = "total operations";
 
+// SEC payments-for-PP&E concepts are positive outflows; a negative filing is withheld, not sign-flipped.
+export const NEGATIVE_CAPEX_REASON =
+  "capital expenditure filed as a negative amount; outflow sign is ambiguous";
+
+// A derived capex total is withheld when it or any filed component is negative.
+export function hasNegativeCapex(values: readonly (number | string)[]): boolean {
+  return values.some((value) => typeof value === "number" && value < 0);
+}
+
 const CONCEPT_SCOPES: Readonly<Record<string, string>> = {
   IncomeLossFromContinuingOperations: "continuing operations, attributable to parent",
   IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest:

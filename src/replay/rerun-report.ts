@@ -12,6 +12,7 @@ import {
   EXTENDED_EVIDENCE_EXTRA_KEYS,
 } from "../research/extended-evidence-projections";
 import { assertSafeReportLanguage, validateResearchReport } from "../report/schema";
+import { assertNoUnresolvedMetricReferences } from "../research/metric-references";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources } from "../sources/types";
 import { freshEvalDir, writeEvalJson } from "./eval-output";
@@ -178,6 +179,7 @@ export async function rerunReport(options: {
         }),
       },
     });
+    assertNoUnresolvedMetricReferences(report, collected);
     assertSafeReportLanguage(report);
     await writeEvalJson(dir, "report.json", report);
     const snapshot = collected.marketSnapshots.find((row) => row.symbol === report.symbol);

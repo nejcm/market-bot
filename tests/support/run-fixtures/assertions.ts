@@ -258,6 +258,9 @@ export async function assertInvariants(
     JSON.parse(await readFile(join(runDir, file), "utf8")) as unknown;
   const persistedReport = await persisted(RUN_ARTIFACT_FILES.report);
   expect(persistedReport).toEqual(asWritten(result.report));
+  expect(asWritten(loaded.artifact?.report.predictions), "reader drops a Prediction field").toEqual(
+    asWritten(result.report.predictions),
+  );
   expect(await readFile(join(runDir, RUN_ARTIFACT_FILES.reportMarkdown), "utf8")).toBe(
     result.markdown,
   );
@@ -893,13 +896,13 @@ function capitalReturnFiledFailure(
   }
   const ocf = joined.get("operatingCashFlow");
   const capex = joined.get("capitalExpenditure");
-  if (
-    FCF_METRICS.has(metricId) &&
-    ocf !== undefined &&
-    capex !== undefined &&
-    ocf.value - Math.abs(capex.value) <= 0
-  ) {
-    return "free cash flow not positive";
+  if (FCF_METRICS.has(metricId) && ocf !== undefined && capex !== undefined) {
+    if (capex.value < 0) {
+      return "capital expenditure negative";
+    }
+    if (ocf.value - capex.value <= 0) {
+      return "free cash flow not positive";
+    }
   }
   return YIELD_METRICS.has(metricId) ? quoteFailure(run, statements, anchor?.currency) : undefined;
 }
@@ -987,6 +990,7 @@ const LENS_REQUIRED_METRICS: Readonly<Record<string, readonly string[]>> = {
     "continuingIncomeDeltaPercent",
     "continuingDilutedEpsDeltaPercent",
     "operatingCashFlowDeltaPercent",
+    "capexDeltaPercent",
   ],
   "Financial Strength": [
     "cash",
@@ -1007,7 +1011,7 @@ function lensRequiredMetricSeries(metric: string): string | undefined {
   if (metric === "pcfRatio") {
     return "operatingCashFlow";
   }
-  if (metric.endsWith("DeltaPercent")) {
+  if (metric !== "capexDeltaPercent" && metric.endsWith("DeltaPercent")) {
     return metric.replace("DeltaPercent", "");
   }
   return LENS_METRIC_SERIES[metric]?.[0];
@@ -1018,6 +1022,7 @@ const LENS_METRIC_SERIES: Readonly<Record<string, readonly FinancialStatementSer
   operatingMargin: ["operatingIncome", "revenue"],
   netMargin: ["netIncome", "revenue"],
   freeCashFlowProxy: ["operatingCashFlow", "capitalExpenditure"],
+  capexDeltaPercent: ["capitalExpenditure"],
   cashConversion: ["operatingCashFlow", "netIncome"],
   roe: ["netIncome", "stockholdersEquity"],
   roa: ["netIncome", "totalAssets"],
@@ -1043,6 +1048,7 @@ const AAPL_LENS_VALUES = {
   netIncomeDeltaPercent: 16,
   dilutedEpsDeltaPercent: 18.749_999_999_999_99,
   operatingCashFlowDeltaPercent: 12.068_965_517_241_379,
+  capexDeltaPercent: 16.666_666_666_666_664,
   cash: 60_000_000_000,
   debt: 100_000_000_000,
   netDebt: 40_000_000_000,
@@ -1076,6 +1082,7 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     netIncomeDeltaPercent: 20.013_247_539_742_62,
     dilutedEpsDeltaPercent: 22.419_928_825_622_77,
     operatingCashFlowDeltaPercent: 43.107_370_893_167_31,
+    capexDeltaPercent: -28.227_594_215_137_756,
     cash: 39_544_000_000,
     debt: 82_300_000_000,
     netDebt: 42_756_000_000,
@@ -1097,6 +1104,7 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     continuingIncomeDeltaPercent: 102.784_090_909_090_9,
     continuingDilutedEpsDeltaPercent: 103.2,
     operatingCashFlowDeltaPercent: 56.677_524_429_967_43,
+    capexDeltaPercent: 403.529_411_764_705_86,
     cash: 3_678_100_000,
     debt: 4_103_200_000,
     payoutRatio: 0,
@@ -1365,9 +1373,13 @@ export function assertFinancialLensMetricInvariants(
           break;
         }
         case "freeCashFlowProxy": {
+          expect(
+            valueOf("capitalExpenditure"),
+            `${label} capex is a filed outflow`,
+          ).toBeGreaterThanOrEqual(0);
           expectClose(
             metric.value,
-            valueOf("operatingCashFlow") - Math.abs(valueOf("capitalExpenditure")),
+            valueOf("operatingCashFlow") - valueOf("capitalExpenditure"),
             label,
           );
           break;
@@ -1540,7 +1552,7 @@ export function assertMetricSectionInvariants(
     const marketCap = valueOf("marketCap");
     const dividends = Math.abs(valueOf("dividendsPaid"));
     const repurchases = Math.abs(valueOf("shareRepurchases"));
-    const freeCashFlow = valueOf("operatingCashFlow") - Math.abs(valueOf("capitalExpenditure"));
+    const freeCashFlow = valueOf("operatingCashFlow") - valueOf("capitalExpenditure");
     const endpoint = /^(shareCountChange|dpsCagr)(\d)y$/u.exec(metric.id);
     const endpointYears = endpoint?.[2] ?? (metric.id === "shareCountTrend" ? "3" : undefined);
     if (endpointYears !== undefined) {
@@ -1570,11 +1582,19 @@ export function assertMetricSectionInvariants(
     switch (metric.id) {
       case "fcfPayoutRatio": {
         joined();
+        expect(
+          valueOf("capitalExpenditure"),
+          `${label} capex is a filed outflow`,
+        ).toBeGreaterThanOrEqual(0);
         expectClose(metric.value, dividends / freeCashFlow, label);
         break;
       }
       case "totalPayoutToFcf": {
         joined();
+        expect(
+          valueOf("capitalExpenditure"),
+          `${label} capex is a filed outflow`,
+        ).toBeGreaterThanOrEqual(0);
         expectClose(metric.value, (dividends + repurchases) / freeCashFlow, label);
         break;
       }
@@ -1648,6 +1668,9 @@ function operatingRatioBound(
   const [equity, debt, cash] = [valueOf("stockholdersEquity"), valueOf("debt"), valueOf("cash")];
   switch (metricId) {
     case "freeCashFlowMargin": {
+      if (below("capitalExpenditure", false)) {
+        return "capital expenditure negative";
+      }
       return below("revenue") ? "revenue not positive" : undefined;
     }
     case "interestCoverage": {
@@ -1876,8 +1899,7 @@ export function assertOperatingRatioInvariants(
     expect(operatingRatioBound(id, valueOf), `${label} value passes its bounds`).toBeUndefined();
     const at = (key: string): number => valueOf(key) ?? Number.NaN;
     const expected = {
-      freeCashFlowMargin:
-        (at("operatingCashFlow") - Math.abs(at("capitalExpenditure"))) / at("revenue"),
+      freeCashFlowMargin: (at("operatingCashFlow") - at("capitalExpenditure")) / at("revenue"),
       interestCoverage: at("operatingIncome") / at("interestExpense"),
       ebitdaProxy: at("operatingIncome") + at("depreciationAndAmortization"),
       effectiveTaxRate: at("incomeTaxExpense") / at("pretaxIncome"),
@@ -2638,6 +2660,9 @@ function assertValuationWorkbenchInvariants(
     };
     const inputSeries = [...new Set(lineage.map(({ series }) => series!))];
     if (input.derivation === "operating cash flow - capital expenditure") {
+      expect(valueOf("capitalExpenditure"), "FCF capex is a filed outflow").toBeGreaterThanOrEqual(
+        0,
+      );
       return valueOf("operatingCashFlow") - valueOf("capitalExpenditure");
     }
     if (input.derivation === "net income / diluted EPS") {

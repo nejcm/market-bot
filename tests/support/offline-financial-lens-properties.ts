@@ -22,6 +22,7 @@ import type {
 
 type LensName = "Quality" | "Growth" | "Financial Strength";
 type LensMetricKey =
+  | "capexDeltaPercent"
   | "cash"
   | "cashConversion"
   | "consolidatedNetIncome"
@@ -101,6 +102,7 @@ const EXACT_PERIOD_DELTAS: Readonly<Record<string, FinancialStatementSeriesKey>>
   netIncomeDeltaPercent: "netIncome",
   dilutedEpsDeltaPercent: "dilutedEps",
   operatingCashFlowDeltaPercent: "operatingCashFlow",
+  capexDeltaPercent: "capitalExpenditure",
 };
 
 const END_ALIGNED_BALANCE_RATIOS: Readonly<
@@ -128,6 +130,7 @@ const DIRECT_LEAF_METRICS: Readonly<Partial<Record<LensMetricKey, FinancialState
 };
 
 const LENS_METRIC_RELATIONS: Readonly<Record<LensMetricKey, LensMetricRelation>> = {
+  capexDeltaPercent: "exact-period",
   cash: "direct-leaf",
   cashConversion: "exact-period",
   consolidatedNetIncome: "net-income-period",

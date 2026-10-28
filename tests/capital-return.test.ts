@@ -7,6 +7,7 @@ import { validateResearchReport } from "../src/report/schema";
 import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
 import { deriveCapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import { capitalReturnSection } from "../src/sources/extended-evidence/capital-return";
+import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
 import type { MetricContext, MetricInput } from "../src/sources/extended-evidence/metric-engine";
@@ -1310,5 +1311,30 @@ describe("Capital Return in report.json and report.md", () => {
   test("no Metric Section renders no Capital Return heading", () => {
     const markdown = renderMarkdownReport(researchReport({ jobType: "equity", symbol: "TEST" }));
     expect(markdown).not.toContain("Capital Return");
+  });
+});
+
+describe("capitalReturnSection — capex sign", () => {
+  test.each([
+    [100, { status: "value", value: 60 / 300 }],
+    [0, { status: "value", value: 60 / 400 }],
+    [
+      -100,
+      {
+        status: "not-meaningful",
+        reason: `${NEGATIVE_CAPEX_REASON} for the fiscal year ending 2025-12-31`,
+      },
+    ],
+  ])("FCF payout ratios with capex %d", (capex, expected) => {
+    const result = evaluate(
+      context(usGaap({ PaymentsToAcquirePropertyPlantAndEquipment: series("USD", () => capex) })),
+    );
+    expect(result.metric("fcfPayoutRatio")).toMatchObject(expected);
+    expect(result.metric("totalPayoutToFcf")).toMatchObject({ status: expected.status });
+    expect(result.metric("fcfPayoutRatio").inputs.map((input) => input.series)).toEqual([
+      "dividendsPaid",
+      "operatingCashFlow",
+      "capitalExpenditure",
+    ]);
   });
 });

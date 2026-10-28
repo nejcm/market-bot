@@ -9,6 +9,7 @@ import type {
 import {
   conceptScope,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  hasNegativeCapex,
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
@@ -118,6 +119,9 @@ function fcfInput(
     return undefined;
   }
   if (
+    hasNegativeCapex(
+      [capitalExpenditure, ...(capitalExpenditure.lineage ?? [])].map(({ value }) => value),
+    ) ||
     operatingCashFlow.periodEnd !== capitalExpenditure.periodEnd ||
     operatingCashFlow.currency !== capitalExpenditure.currency ||
     operatingCashFlow.unit !== capitalExpenditure.unit

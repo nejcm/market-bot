@@ -72,6 +72,7 @@ const FINANCIAL_LENS_INPUTS: Readonly<Record<string, readonly FinancialStatement
   continuingIncomeDeltaPercent: ["continuingIncome"],
   continuingDilutedEpsDeltaPercent: ["continuingDilutedEps"],
   operatingCashFlowDeltaPercent: ["operatingCashFlow"],
+  capexDeltaPercent: ["capitalExpenditure"],
   annualizedRevenue: ["revenue"],
   evToAnnualizedRevenue: ["revenue"],
   marketCapToAnnualizedRevenue: ["revenue"],

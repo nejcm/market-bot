@@ -1,6 +1,7 @@
 import {
   buildFundamentalHistorySeries,
   fundamentalHistoryCagr,
+  negativeCapexTtmNote,
   totalOperationsScopes,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
@@ -15,6 +16,7 @@ import {
   type FinancialStatementSeriesKey,
   type FinancialStatementsArtifact,
 } from "./financial-statements-contract";
+import { hasNegativeCapex } from "./financial-statement-definitions";
 import {
   financialStatementFacts,
   financialStatementPeriodMonths,
@@ -128,11 +130,20 @@ function rawSeries(
     const point = annualPoint(fact);
     return point === undefined ? [] : [point];
   });
-  const ttm = ttmPoint(series);
+  const negativeCapexTtm =
+    definition.key === "capex" &&
+    series.ttm !== undefined &&
+    hasNegativeCapex([
+      series.ttm.value,
+      ...Object.values(series.ttm.components).map((fact) => fact.value),
+    ]);
+  const ttm = negativeCapexTtm ? undefined : ttmPoint(series);
   if (annual.length === 0) {
     notes.push("annual:missing-concept: no canonical annual facts found");
   }
-  if (ttm === undefined) {
+  if (negativeCapexTtm) {
+    notes.push(negativeCapexTtmNote(series.ttm!.periodEnd));
+  } else if (ttm === undefined) {
     notes.push("ttm:unreconciled: canonical TTM is unavailable");
   }
   if (definition.key === "dilutedEps" && ttm !== undefined) {

@@ -1249,6 +1249,9 @@ test.each([
   expect(result.metricSections[0]?.metrics).toEqual(Object.values(observation.metrics));
   expect(result.sourceGaps).toHaveLength(1);
   expect(result.sourceGaps[0]?.triage).toBe(structural ? "diagnostic" : "material");
+  expect(result.sourceGaps[0]?.source).toBe(
+    structural ? "valuation-workbench-outside-price-history-window" : result.metricSections[0]?.id,
+  );
   expect(hasNoPriceHistory(observation)).toBe(true);
   expect(readValuationWorkbenchArtifact(result.artifact)?.historicalMultiples).toEqual(
     result.artifact.historicalMultiples,
@@ -1268,6 +1271,66 @@ test.each([
     ],
   });
   expect(() => validateResearchReport(report)).not.toThrow();
+});
+
+const yearlyFact = (value: number, unit: string, instant = false) => ({
+  units: {
+    [unit]: [2022, 2023, 2024].map((fy) => ({
+      val: value,
+      start: instant ? undefined : `${String(fy)}-01-01`,
+      end: `${String(fy)}-12-31`,
+      filed: `${String(fy + 1)}-02-15`,
+      form: "10-K",
+      fy,
+      fp: "FY",
+      accn: `test-${String(fy)}`,
+    })),
+  },
+});
+
+test("periods before the price-history window share one Source Gap", async () => {
+  const yearlyStatements = deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: yearlyFact(1000, "USD"),
+          NetIncomeLoss: yearlyFact(100, "USD"),
+          EarningsPerShareDiluted: yearlyFact(10, "USD/shares"),
+          WeightedAverageNumberOfDilutedSharesOutstanding: yearlyFact(10, "shares"),
+          NetCashProvidedByUsedInOperatingActivities: yearlyFact(300, "USD"),
+          PaymentsToAcquirePropertyPlantAndEquipment: yearlyFact(100, "USD"),
+          CashAndCashEquivalentsAtCarryingValue: yearlyFact(50, "USD", true),
+          LongTermDebt: yearlyFact(100, "USD", true),
+        },
+      },
+    },
+    {
+      symbol: "TEST",
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      analysisAsOf: "2025-06-01T00:00:00.000Z",
+      sourceId: "filed",
+    },
+  );
+  const result = await evaluateWorkbench({
+    ...workbenchInput(),
+    financialStatements: yearlyStatements,
+    priceHistoryRequestedFrom: "2024-03-01",
+    priceHistory: [{ date: "2025-02-18", close: 20 }],
+  });
+  const ids = result.metricSections.map(({ id }) => id);
+  expect(ids).toHaveLength(3);
+  expect(result.sourceGaps.map(({ source }) => source)).toEqual([
+    "valuation-workbench-outside-price-history-window",
+  ]);
+  expect(result.sourceGaps[0]).toMatchObject({
+    cause: "suppressed-by-design",
+    triage: "diagnostic",
+    evidenceQualityImpact: "no-cap",
+  });
+  expect(result.sourceGaps[0]?.message).toContain("2 periods");
+  expect(result.sourceGaps[0]?.message).toContain("ANNUAL 2022-12-31 public 2023-02-15");
+  expect(result.sourceGaps[0]?.message).toContain("ANNUAL 2023-12-31 public 2024-02-15");
+  expect(result.sourceGaps[0]?.message).not.toContain("2024-12-31");
 });
 
 test("failed price-history requests keep workbench gaps material", async () => {

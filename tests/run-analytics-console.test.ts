@@ -130,6 +130,23 @@ describe("run analytics console", () => {
     expect(output).toContain("1 informative, 2 near base rate (below signal floor)");
   });
 
+  test("shows the signal floor as n/a at zero model predictions", () => {
+    const analytics = baseAnalytics();
+    const output = renderRunAnalyticsConsole({
+      ...analytics,
+      predictions: {
+        ...analytics.predictions,
+        count: 0,
+        informativeCount: 0,
+        nearBaseRateCount: 0,
+        signalTargetMet: null,
+      },
+    });
+
+    expect(output).toContain("0 informative, 0 near base rate (signal floor n/a)");
+    expect(output).not.toContain("below signal floor");
+  });
+
   test("renders subsystem outcome counters", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({

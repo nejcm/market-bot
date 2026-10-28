@@ -1090,12 +1090,18 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.mixWarnings).not.toContain(singleViewWarning);
   });
 
-  test("zero predictions yields signalTargetMet: true with empty warnings", () => {
+  test("zero predictions yields signalTargetMet: null with empty warnings", () => {
     const result = predictionsFor([]);
     expect(result.nearBaseRateCount).toBe(0);
     expect(result.informativeCount).toBe(0);
-    expect(result.signalTargetMet).toBe(true);
+    expect(result.signalTargetMet).toBeNull();
     expect(result.mixWarnings).toHaveLength(0);
+  });
+
+  test("grid-only predictions count as zero model predictions for signalTargetMet", () => {
+    const result = predictionsFor([{ ...rangeOn("p1", "AAPL", 5), origin: "grid" }]);
+    expect(result.informativeCount).toBe(0);
+    expect(result.signalTargetMet).toBeNull();
   });
 });
 

@@ -12,6 +12,7 @@ import {
 } from "../domain/report";
 import { type Source } from "../domain/sources";
 import { instrumentsForMeasurableAs } from "../forecast/observable";
+import { tradingDays } from "../forecast/observable-shapes";
 import { dataRootFromRunsDir } from "../data-paths";
 import type { ModelParams, ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
@@ -741,9 +742,7 @@ function findingTexts(items: readonly KeyFinding[]): readonly string[] {
 function predictionTexts(items: readonly Prediction[]): readonly string[] {
   return items.map(
     (item) =>
-      `${item.id}: ${predictionClaim(item)} (${item.measurableAs}, p=${item.probability.toFixed(2)}, ${String(
-        item.horizonTradingDays,
-      )} trading days)`,
+      `${item.id}: ${predictionClaim(item)} (${item.measurableAs}, p=${item.probability.toFixed(2)}, ${tradingDays(item.horizonTradingDays)})`,
   );
 }
 

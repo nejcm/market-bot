@@ -6,13 +6,14 @@ import { dirname, join } from "node:path";
 import { Database } from "bun:sqlite";
 import type { WebGatherLoopAudit } from "../src/domain/gather-audit";
 import type { AssetClass, JobType } from "../src/domain/job-type";
-import type { Source, SourceGap } from "../src/domain/sources";
+import type { Source, SourceGap, SourceGapCause } from "../src/domain/sources";
 import {
   buildProviderHealthSummary,
   parseSourceGap,
   writeProviderHealthSummary,
 } from "../src/health/provider-health";
 import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
+import { eventGrid } from "../src/research/event-grid";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { verifiedMarketSnapshotFromChart } from "../src/sources/verified-market-snapshot";
 import { deepEquityEvidenceBundle, failedRunOutcomesArtifact } from "./support/fixtures";
@@ -233,6 +234,18 @@ async function writeBaselineRuns(
   for (const fixture of fixtures) {
     await writeRun({ ...fixture, ...overrides[fixture.runId] });
   }
+}
+
+function forecastBookGap(source: string, cause: SourceGapCause): SourceGap {
+  return {
+    source,
+    symbol: "MSFT",
+    message: `${source} note`,
+    capability: "forecast-book",
+    cause,
+    evidenceQualityImpact: "no-cap",
+    triage: "diagnostic",
+  };
 }
 
 describe("provider health", () => {
@@ -730,6 +743,33 @@ describe("provider health", () => {
         classification: "informational",
       }),
     );
+  });
+
+  test("keeps Forecast Book gaps out of provider routes and readiness", async () => {
+    const cryptoGrid = eventGrid(
+      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      { priceHistory: [] },
+    );
+    expect(cryptoGrid.gaps.map(({ capability }) => capability)).toEqual(["forecast-book"]);
+    await writeBaselineRuns({
+      "ticker-crypto": { gaps: cryptoGrid.gaps },
+      "deep-equity": {
+        gaps: [
+          forecastBookGap("event-grid", "suppressed-by-design"),
+          forecastBookGap("forecast-baseline", "provider-data-missing"),
+          forecastBookGap("earnings-forecasts", "suppressed-by-design"),
+        ],
+      },
+    });
+    await writeCalibration();
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.routes).toEqual([]);
+    expect(summary.gapOverview.total).toBe(0);
+    expect(summary.validation.status).toBe("pass");
+    expect(summary.validation.blockingIssueCount).toBe(0);
+    expect(summary.validation.routeClassifications).toEqual([]);
   });
 
   test("fails when a required validation lane has no usable news", async () => {

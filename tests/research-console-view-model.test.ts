@@ -1926,19 +1926,22 @@ describe("report artifact parsers", () => {
 
   test("formats valuation metric tiles for display", () => {
     expect(
-      valuationMetricTiles({
-        marketCap: 2_500_000_000,
-        enterpriseValue: 2_700_000_000,
-        annualizedRevenue: 500_000_000,
-        evToAnnualizedRevenue: 5.4,
-        revenuePeriodMonths: 12,
-        corePeerCount: 2,
-        usablePeerCount: 3,
-        peerMedianEvToAnnualizedRevenue: 4.2,
-        peerP25EvToAnnualizedRevenue: 3.1,
-        peerP75EvToAnnualizedRevenue: 5.6,
-        valuationSupportability: "supported",
-      }),
+      valuationMetricTiles(
+        {
+          marketCap: 2_500_000_000,
+          enterpriseValue: 2_700_000_000,
+          annualizedRevenue: 500_000_000,
+          evToAnnualizedRevenue: 5.4,
+          revenuePeriodMonths: 12,
+          corePeerCount: 2,
+          usablePeerCount: 3,
+          peerMedianEvToAnnualizedRevenue: 4.2,
+          peerP25EvToAnnualizedRevenue: 3.1,
+          peerP75EvToAnnualizedRevenue: 5.6,
+          valuationSupportability: "supported",
+        },
+        "TTM revenue",
+      ),
     ).toEqual([
       { label: "Market cap", value: "$2.5B" },
       { label: "Enterprise value", value: "$2.7B" },
@@ -1957,7 +1960,19 @@ describe("report artifact parsers", () => {
       valuationMetricTiles({ corePeerCount: 2, peerMedianEvToAnnualizedRevenue: 4.2 }),
     ).toEqual([
       { label: "Core peers", value: "2" },
-      { label: "Peer median EV / TTM revenue", value: "4.2x" },
+      { label: "Peer median EV / revenue", value: "4.2x" },
+    ]);
+  });
+
+  test("labels valuation revenue tiles by basis and stays neutral without one", () => {
+    const metrics = { annualizedRevenue: 500_000_000, evToAnnualizedRevenue: 5.4 };
+    expect(valuationMetricTiles(metrics, "annualized revenue")).toEqual([
+      { label: "Annualized revenue", value: "$500.0M" },
+      { label: "EV / annualized revenue", value: "5.4x" },
+    ]);
+    expect(valuationMetricTiles(metrics)).toEqual([
+      { label: "Revenue", value: "$500.0M" },
+      { label: "EV / revenue", value: "5.4x" },
     ]);
   });
 

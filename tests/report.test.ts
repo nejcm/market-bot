@@ -4,6 +4,7 @@ import type { MarketContext, MarketSnapshot } from "../src/domain/market-data";
 import type { ResearchReport } from "../src/domain/report";
 import type { Source } from "../src/domain/sources";
 import { sourceGap } from "../src/domain/source-gaps";
+import { readGapTriage } from "../src/report/gap-triage";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import {
@@ -855,7 +856,7 @@ describe("report schema and rendering", () => {
       },
     });
 
-    const assembled = assembleResearchReport({
+    const { report: assembled, sourceGaps } = assembleResearchReportWithRelocations({
       runId: "earnings-gated-shortfall",
       generatedAt: "2026-06-01T00:00:00.000Z",
       command,
@@ -892,6 +893,66 @@ describe("report schema and rendering", () => {
     });
     expect(assembled.dataGaps).toContain("Earnings evidence remains incomplete.");
     expect(assembled.dataGaps).not.toContain("predictionShortfall: required 1, received 0");
+    const gateGap =
+      "earnings-forecasts: Earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required [AAPL]";
+    expect(assembled.dataGaps).toContain(gateGap);
+    expect(readGapTriage(gateGap, sourceGaps)).toBe("diagnostic");
+  });
+
+  test.each([
+    ["an exchange-confirmed date", "exchange-confirmed"],
+    ["no earnings setup", undefined],
+  ] as const)("declares no earnings-forecasts gap with %s", (_label, status) => {
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      ...(status === undefined
+        ? {}
+        : {
+            earningsSetup: {
+              event: {
+                symbol: "AAPL",
+                date: "2026-07-30",
+                timing: "amc",
+                eventDateStatus: status,
+                sourceIds: ["market-aapl"],
+                fetchedAt: "2026-06-01T00:00:00.000Z",
+                dateConfirmation: {
+                  sourceId: "market-aapl",
+                  sourceType: "official-exchange",
+                  sourceUrl: "https://exchange.example/aapl-earnings",
+                  evidenceSpan:
+                    "Apple will report fiscal third quarter financial results on July 30, 2026.",
+                  issuerIdentity: { symbol: "AAPL", matchedBy: "source-text" },
+                  confirmedAt: "2026-06-01T00:00:00.000Z",
+                },
+                confirmedBy: { sourceId: "market-aapl", sourceType: "official-exchange" },
+              },
+              gaps: [],
+            },
+          }),
+    });
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+
+    const { report: assembled, sourceGaps } = assembleResearchReportWithRelocations({
+      runId: "earnings-gate-off",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: { summary: "AAPL evidence summary." },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+
+    expect(assembled.dataGaps.filter((gap) => gap.startsWith("earnings-forecasts: "))).toEqual([]);
+    expect(sourceGaps.filter(({ source }) => source === "earnings-forecasts")).toEqual([]);
   });
 
   test("renders Finnhub earnings dates as provider-estimated and unconfirmed", () => {
@@ -1919,7 +1980,7 @@ describe("report schema and rendering", () => {
       calibrationContext: undefined,
     };
 
-    const assembled = assembleResearchReport({
+    const { report: assembled, sourceGaps } = assembleResearchReportWithRelocations({
       runId: "run-1",
       generatedAt: "2026-06-01T00:00:00.000Z",
       command,
@@ -1970,6 +2031,11 @@ describe("report schema and rendering", () => {
       "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AAPL]",
       "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AAPL]",
     ]);
+    expect(
+      assembled.dataGaps
+        .filter((gap) => gap.startsWith("event-grid: "))
+        .map((gap) => readGapTriage(gap, sourceGaps)),
+    ).toEqual(["diagnostic", "diagnostic"]);
   });
 
   test("keeps deterministic options and supplemental gaps over model restatements", () => {

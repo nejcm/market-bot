@@ -39,6 +39,7 @@ const SOURCE_GAP_CAPABILITY_TABLE = {
   "evidence-request": true,
   "web-gather": true,
   cache: true,
+  "forecast-book": true,
 } satisfies Record<SourceGapCapability, true>;
 
 const SOURCE_GAP_EVIDENCE_QUALITY_IMPACT_TABLE = {

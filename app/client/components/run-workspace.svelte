@@ -861,6 +861,7 @@
           {#if extendedEvidence.length > 0}
             <ExtendedEvidence
               items={extendedEvidence}
+              revenueBasisLabel={peerImpliedRange?.revenueBasisLabel}
               sectionKey="extendedEvidence"
               {citeChips}
               {sectionHeading}

@@ -16,12 +16,12 @@ import {
   isContinuingScope,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
+import type { SecSicClassification } from "./sec-edgar";
 import {
   DEBT_MAY_INCLUDE_FINANCE_LEASES,
   formatSecFundamentalsSummary,
   type SecMetricDefinitionKey,
-  type SecSicClassification,
-} from "./sec-edgar";
+} from "./sec-fundamentals-format";
 import {
   financialStatementFacts,
   financialStatementPeriodMonths,
@@ -191,9 +191,9 @@ export function cashConversionScopeGaps(
   ];
 }
 
-function canonicalMetrics(artifact: FinancialStatementsArtifact): {
-  readonly metrics: Record<string, number | string>;
-} {
+export function canonicalFinancialMetrics(
+  artifact: FinancialStatementsArtifact,
+): Record<string, number | string> {
   const metrics: Record<string, number | string> = {};
   [...FLOW_SERIES, ...INSTANT_SERIES].forEach(([metricKey, seriesKey]) => {
     const series = financialStatementSeriesByKey(artifact, seriesKey);
@@ -282,7 +282,7 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
     metrics[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] =
       CANONICAL_FINANCIAL_LENS_SELECTION_VERSION;
   }
-  return { metrics };
+  return metrics;
 }
 
 function legacySecItem(evidence: ExtendedEvidence | undefined): ExtendedEvidenceItem | undefined {
@@ -325,7 +325,7 @@ export function withCanonicalFinancialLensInputs(
   sicClassification?: SecSicClassification,
 ): ExtendedEvidence {
   const legacy = legacySecItem(evidence);
-  const { metrics } = canonicalMetrics(artifact);
+  const metrics = canonicalFinancialMetrics(artifact);
   if (legacy === undefined && Object.keys(metrics).length === 0) {
     return evidence ?? { items: [], gaps: [] };
   }

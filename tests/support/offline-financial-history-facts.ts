@@ -10,19 +10,12 @@ import {
   type CanonicalSecForm,
 } from "../../src/sources/extended-evidence/financial-statements-contract";
 import type { FundamentalHistoryPoint } from "../../src/sources/extended-evidence/fundamental-history";
-import {
-  isFactObservableAsOf,
-  periodMonths,
-  readSecFactValue,
-  type SecFactValue,
-} from "../../src/sources/extended-evidence/sec-edgar";
 import type { OfflineCorpusExecution } from "./offline-financial-statements-corpus";
 
-// Shared fact-lookup primitives for the offline history roster/alias oracles: concept-unit lookups, eligible-point derivation for both legacy (SEC us-gaap) and canonical (financial-statements) sides, and the selection-policy replicas (expectedSelectedConcept, canonicalUnion) both oracles depend on.
+// Shared fact-lookup primitives for the offline history roster/alias oracles: concept-unit lookups, canonical (financial-statements) eligible-point derivation, and the selection-policy replicas (expectedSelectedConcept, canonicalUnion) both oracles depend on.
 
-export type HistorySide = "canonical" | "legacy";
 export type HistorySeries =
-  OfflineCorpusExecution["projection"][HistorySide]["fundamentalHistory"][string];
+  OfflineCorpusExecution["projection"]["canonical"]["fundamentalHistory"][string];
 
 export interface RawHistoryDefinition {
   readonly key:
@@ -41,23 +34,12 @@ export interface RawHistoryDefinition {
     | "dilutedEps"
     | "operatingCashFlow"
     | "capitalExpenditure";
-  readonly legacyConcepts: readonly string[];
-  readonly legacyUnit: string;
 }
 
 export interface CanonicalDurationDefinition {
   readonly key: string;
   readonly unitKind: "monetary" | "per-share" | "shares";
   readonly concepts: Readonly<Record<"us-gaap" | "ifrs-full", readonly string[]>>;
-}
-
-interface CompleteLegacyFact extends SecFactValue {
-  readonly fp: string;
-  readonly fy: number;
-  readonly filed: string;
-  readonly start: string;
-  readonly end: string;
-  readonly months: number;
 }
 
 interface CanonicalFact {
@@ -81,62 +63,36 @@ export interface EligibleCanonicalPoint {
   readonly point: FundamentalHistoryPoint;
 }
 
-export const MAX_ANNUAL_POINTS = 10;
 const DAY_MS = 86_400_000;
 const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
 export const RAW_HISTORY_DEFINITIONS: readonly RawHistoryDefinition[] = [
   {
     key: "revenue",
     canonicalKey: "revenue",
-    legacyConcepts: [
-      "Revenues",
-      "SalesRevenueNet",
-      "RevenueFromContractWithCustomerExcludingAssessedTax",
-      "RevenueFromContractWithCustomerIncludingAssessedTax",
-    ],
-    legacyUnit: "USD",
   },
   {
     key: "grossProfit",
     canonicalKey: "grossProfit",
-    legacyConcepts: ["GrossProfit"],
-    legacyUnit: "USD",
   },
   {
     key: "operatingIncome",
     canonicalKey: "operatingIncome",
-    legacyConcepts: ["OperatingIncomeLoss"],
-    legacyUnit: "USD",
   },
   {
     key: "netIncome",
     canonicalKey: "netIncome",
-    legacyConcepts: ["NetIncomeLoss"],
-    legacyUnit: "USD",
   },
   {
     key: "dilutedEps",
     canonicalKey: "dilutedEps",
-    legacyConcepts: ["EarningsPerShareDiluted"],
-    legacyUnit: "USD/shares",
   },
   {
     key: "operatingCashFlow",
     canonicalKey: "operatingCashFlow",
-    legacyConcepts: [
-      "NetCashProvidedByUsedInOperatingActivities",
-      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-    ],
-    legacyUnit: "USD",
   },
   {
     key: "capex",
     canonicalKey: "capitalExpenditure",
-    legacyConcepts: [
-      "PaymentsToAcquirePropertyPlantAndEquipment",
-      "PaymentsToAcquireProductiveAssets",
-    ],
-    legacyUnit: "USD",
   },
 ];
 
@@ -258,76 +214,6 @@ function conceptUnitValues(
 function isInRevenueRecencyBucket(periodEnd: string, latestPeriodEnd: string): boolean {
   const ageDays = (Date.parse(latestPeriodEnd) - Date.parse(periodEnd)) / DAY_MS;
   return Number.isFinite(ageDays) && ageDays >= 0 && ageDays <= REVENUE_CONCEPT_RECENCY_BUCKET_DAYS;
-}
-
-function completeLegacyFact(fact: SecFactValue): CompleteLegacyFact | undefined {
-  const months = periodMonths(fact);
-  if (
-    fact.fp === undefined ||
-    fact.fy === undefined ||
-    fact.filed === undefined ||
-    fact.start === undefined ||
-    fact.end === undefined ||
-    months === undefined
-  ) {
-    return undefined;
-  }
-  return {
-    ...fact,
-    fp: fact.fp,
-    fy: fact.fy,
-    filed: fact.filed,
-    start: fact.start,
-    end: fact.end,
-    months,
-  };
-}
-
-export function legacyEligiblePoints(
-  execution: OfflineCorpusExecution,
-  concept: string,
-  unit: string,
-): readonly FundamentalHistoryPoint[] {
-  const candidates = conceptUnitValues(execution.input.companyFacts, "us-gaap", concept, unit)
-    .flatMap((value) => {
-      const fact = readSecFactValue(value);
-      return fact === undefined ? [] : [fact];
-    })
-    .filter(
-      (fact) =>
-        fact.canonicalForm === "10-K" && isFactObservableAsOf(fact, execution.input.analysisAsOf),
-    )
-    .flatMap((fact) => {
-      const complete = completeLegacyFact(fact);
-      return complete !== undefined && complete.months >= 10 && complete.months <= 14
-        ? [complete]
-        : [];
-    });
-  const byPeriodEnd = new Map<string, CompleteLegacyFact[]>();
-  for (const fact of candidates) {
-    byPeriodEnd.set(fact.end, [...(byPeriodEnd.get(fact.end) ?? []), fact]);
-  }
-  return [...byPeriodEnd.values()]
-    .map(
-      (matches) =>
-        matches.toSorted(
-          (left, right) =>
-            right.filed.localeCompare(left.filed) ||
-            `${right.end}@${right.filed}`.localeCompare(`${left.end}@${left.filed}`),
-        )[0]!,
-    )
-    .toSorted((left, right) => left.end.localeCompare(right.end))
-    .map((fact) => ({
-      value: fact.val,
-      form: "10-K",
-      fy: fact.fy,
-      fp: fact.fp,
-      periodStart: fact.start,
-      periodEnd: fact.end,
-      periodMonths: fact.months,
-      filedAt: fact.filed,
-      currency: unit,
-    }));
 }
 
 function parseCanonicalForm(value: string): CanonicalFact["canonicalForm"] | undefined {
@@ -472,12 +358,8 @@ export function expectedCanonicalUnit(
 export function expectedSelectedConcept(
   execution: OfflineCorpusExecution,
   definition: RawHistoryDefinition,
-  side: HistorySide,
 ): string | undefined {
-  const ranked =
-    side === "legacy"
-      ? legacyLatestPeriods(execution, definition)
-      : canonicalLatestPeriods(execution, definition);
+  const ranked = canonicalLatestPeriods(execution, definition);
   const latestPeriodEnd = ranked
     .map((candidate) => candidate.latestPeriodEnd)
     .toSorted()
@@ -494,31 +376,6 @@ export function expectedSelectedConcept(
 interface ConceptLatestPeriod {
   readonly concept: string;
   readonly latestPeriodEnd: string;
-}
-
-function legacyLatestPeriods(
-  execution: OfflineCorpusExecution,
-  definition: RawHistoryDefinition,
-): readonly ConceptLatestPeriod[] {
-  return definition.legacyConcepts.flatMap((concept) => {
-    const [latest] = conceptUnitValues(
-      execution.input.companyFacts,
-      "us-gaap",
-      concept,
-      definition.legacyUnit,
-    )
-      .flatMap((value) => {
-        const fact = readSecFactValue(value);
-        return fact === undefined ? [] : [fact];
-      })
-      .filter((fact) => isFactObservableAsOf(fact, execution.input.analysisAsOf))
-      .toSorted(
-        (left, right) =>
-          (right.end ?? "").localeCompare(left.end ?? "") ||
-          (right.filed ?? "").localeCompare(left.filed ?? ""),
-      );
-    return latest?.end === undefined ? [] : [{ concept, latestPeriodEnd: latest.end }];
-  });
 }
 
 function canonicalLatestPeriods(
@@ -611,19 +468,13 @@ interface AliasPoint {
 
 export function aliasPoints(
   execution: OfflineCorpusExecution,
-  side: HistorySide,
   concept: string,
   unit: string,
 ): readonly AliasPoint[] {
-  return side === "legacy"
-    ? legacyEligiblePoints(execution, concept, unit).map((point) => ({
-        key: point.periodEnd,
-        point,
-      }))
-    : canonicalEligiblePoints(execution, concept, unit).map(({ periodKey: key, point }) => ({
-        key,
-        point,
-      }));
+  return canonicalEligiblePoints(execution, concept, unit).map(({ periodKey: key, point }) => ({
+    key,
+    point,
+  }));
 }
 
 export function pointsExactlyAgree(

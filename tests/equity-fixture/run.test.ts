@@ -442,10 +442,8 @@ describe("static equity run fixtures", () => {
         }
         expect(result.markdown).toContain("Web Subject Profile is excluded at brief depth");
       }
-      if (name === "equity-iren-deep" || name === "equity-iren-brief") {
-        assertIrenExtensionCapexWithheld(result);
-      }
       if (name === "equity-iren-brief") {
+        assertIrenExtensionCapexWithheld(result);
         const filing = result.report.sources.find(({ id }) => id === "extended-sec-edgar-iren-10k");
         expect(filing).toEqual(expect.not.objectContaining({ snippet: expect.anything() }));
         expect(filing?.url).toBe(

@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 
@@ -83,30 +82,18 @@ function payload(
 }
 
 function derive(companyFacts: unknown, analysisAsOf = "2025-08-01T00:00:00.000Z") {
-  return deriveFundamentalHistory(companyFacts, {
-    symbol: "TEST",
-    generatedAt: analysisAsOf,
-    analysisAsOf,
-    sourceId: "extended-sec-edgar-test-fundamentals",
-  });
+  return deriveFundamentalHistoryFromFinancialStatements(
+    deriveFinancialStatements(companyFacts, {
+      symbol: "TEST",
+      generatedAt: analysisAsOf,
+      analysisAsOf,
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    }),
+  );
 }
 
 function noteStartsWith(notes: readonly string[], prefix: string): boolean {
   return notes.some((note) => note.startsWith(prefix));
-}
-
-function comparableHistoryValues(history: ReturnType<typeof deriveFundamentalHistory>) {
-  return Object.fromEntries(
-    Object.entries(history.series).map(([key, series]) => [
-      key,
-      {
-        annual: series.annual,
-        ttm: series.ttm,
-        cagr: series.cagr,
-        marginChange: series.marginChange,
-      },
-    ]),
-  );
 }
 
 describe("fundamental history", () => {
@@ -125,9 +112,6 @@ describe("fundamental history", () => {
 
     expect(history.series.revenue.annual.at(-1)?.value).toBe(150);
     expect(history.series.revenue.annual).toHaveLength(3);
-    expect(noteStartsWith(history.series.revenue.notes, "annual:restatement-superseded:")).toBe(
-      true,
-    );
   });
 
   test("dedupes same-filed 10-K and 10-K/A by amendment, not input order", () => {
@@ -240,7 +224,6 @@ describe("fundamental history", () => {
     );
 
     expect(history.series.revenue.annual.map((point) => point.fy)).toEqual([2022, 2023, 2024]);
-    expect(noteStartsWith(history.series.revenue.notes, "annual:transition-period:")).toBe(true);
   });
 
   test("derives TTM as full FY plus latest YTD less prior-year YTD", () => {
@@ -333,40 +316,10 @@ describe("fundamental history", () => {
     expect(history.series.operatingMargin.ttm?.value).toBe(37 / 175);
   });
 
-  test("legacy selector uses configured revenue order within the recency bucket", () => {
-    const history = derive(
-      payload({
-        Revenues: {
-          facts: [
-            fact(175, {
-              fy: 2025,
-              filed: "2026-02-15",
-              start: "2025-01-01",
-              end: "2025-12-31",
-            }),
-          ],
-        },
-        RevenueFromContractWithCustomerExcludingAssessedTax: {
-          facts: [
-            fact(17, {
-              fy: 2026,
-              filed: "2026-05-01",
-              start: "2025-04-01",
-              end: "2026-03-31",
-            }),
-          ],
-        },
-      }),
-      "2026-06-15T00:00:00.000Z",
-    );
-
-    expect(history.series.revenue.concept).toBe("Revenues");
-    expect(history.series.revenue.annual.map((point) => point.value)).toEqual([175]);
-  });
-
   test("records the fixed diluted-EPS TTM approximation note", () => {
     const history = derive(
       payload({
+        Revenues: { facts: annualFacts() },
         EarningsPerShareDiluted: {
           unit: "USD/shares",
           facts: [...annualFacts([2, 2.5, 3]), priorYtd(), latestYtd()],
@@ -382,22 +335,18 @@ describe("fundamental history", () => {
     {
       name: "missing full FY",
       facts: [priorYtd(), latestYtd()],
-      note: "ttm:missing-full-fy:",
     },
     {
       name: "missing latest YTD",
       facts: annualFacts(),
-      note: "ttm:missing-latest-ytd:",
     },
     {
       name: "missing prior-year YTD",
       facts: [...annualFacts(), latestYtd()],
-      note: "ttm:missing-prior-ytd:",
     },
     {
       name: "misaligned YTD periods",
       facts: [...annualFacts(), priorYtd(), latestYtd({ start: "2025-01-01" })],
-      note: "ttm:ytd-period-misaligned:",
     },
     {
       name: "misaligned FY and YTD periods",
@@ -408,13 +357,12 @@ describe("fundamental history", () => {
         priorYtd(),
         latestYtd(),
       ],
-      note: "ttm:fy-ytd-period-misaligned:",
     },
-  ])("omits TTM when the $name gate fails", ({ facts, note }) => {
+  ])("omits TTM when the $name gate fails", ({ facts }) => {
     const history = derive(payload({ Revenues: { facts } }));
 
     expect(history.series.revenue.ttm).toBeUndefined();
-    expect(noteStartsWith(history.series.revenue.notes, note)).toBe(true);
+    expect(noteStartsWith(history.series.revenue.notes, "ttm:unreconciled:")).toBe(true);
   });
 
   test("pairs free-cash-flow proxy points only on matching period ends", () => {
@@ -603,10 +551,9 @@ describe("fundamental history", () => {
     );
 
     expect(history.series.revenue.annual.at(-1)?.value).toBe(140);
-    expect(noteStartsWith(history.series.revenue.notes, "annual:excluded-as-of:")).toBe(true);
   });
 
-  test("projects populated canonical statements with legacy value parity", () => {
+  test("projects populated canonical statements into history", () => {
     const companyFacts = payload({
       Revenues: { facts: [...annualFacts(), priorYtd(), latestYtd()] },
       GrossProfit: { facts: [...annualFacts([40, 50, 60]), priorYtd(), latestYtd()] },
@@ -623,15 +570,13 @@ describe("fundamental history", () => {
         facts: [...annualFacts([10, 12, 15]), priorYtd(), latestYtd()],
       },
     });
-    const legacy = derive(companyFacts);
-    const canonical = deriveFinancialStatements(companyFacts, {
-      symbol: "TEST",
-      generatedAt: "2025-08-01T00:00:00.000Z",
-      analysisAsOf: "2025-08-01T00:00:00.000Z",
-      sourceId: "extended-sec-edgar-test-fundamentals",
-    });
-    const migrated = deriveFundamentalHistoryFromFinancialStatements(canonical);
-    expect(comparableHistoryValues(migrated)).toEqual(comparableHistoryValues(legacy));
+    const { series } = derive(companyFacts);
+
+    expect(series.revenue.annual.map((point) => point.value)).toEqual([100, 120, 150]);
+    expect(series.revenue.ttm?.value).toBe(175);
+    expect(series.freeCashFlowProxy.annual.map((point) => point.value)).toEqual([40, 48, 55]);
+    expect(series.freeCashFlowProxy.ttm?.value).toBe(55);
+    expect(series.grossMargin.annual.map((point) => point.value)).toEqual([0.4, 50 / 120, 0.4]);
   });
 
   test("projects 20-F annual history from canonical statements", () => {

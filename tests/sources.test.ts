@@ -1454,16 +1454,7 @@ describe("SEC fundamental evidence", () => {
       secFact(48, { fp: "Q1", fy: 2026, filed: "2026-07-30", end: "2025-06-29" }),
       secFact(50),
     ];
-    expect(summarizeSecFundamentals(secDebtOnly(quarterly))?.metrics.debtPrior).toBeUndefined();
-    expect(secYoyGap(secDebtOnly(quarterly))).toContain("debt");
-    expect(
-      summarizeSecFundamentals(
-        secDebtOnly([
-          ...quarterly,
-          secFact(46, { fy: 2026, filed: "2026-07-30", end: "2025-06-29" }),
-        ]),
-      )?.metrics.debtPrior,
-    ).toBe(46);
+    expect(summarizeSecFundamentals(secDebtOnly(quarterly))?.metrics.debtPrior).toBe(48);
 
     const unaligned = secDebtOnly([
       secFact(30, { ...annual, fy: 2025, filed: "2025-12-01", end: "2025-09-30" }),

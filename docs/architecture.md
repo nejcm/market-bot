@@ -126,8 +126,9 @@ companyfacts. The versioned artifact isolates one standard taxonomy and reportin
 the analysis cutoff before period/restatement selection, supports domestic and foreign-private-
 issuer periodic forms, and records cadence and exact-component TTM derivations. When the artifact
 exists, Fundamental History, Financial Lenses, completeness, and valuation derive from it without
-running legacy financial derivations. Legacy derivations remain only as fallback when the canonical
-artifact is unavailable; the test-only offline corpus protects equivalence at this boundary.
+running legacy financial derivations. Without the artifact, Fundamental History is omitted; the
+legacy SEC summary still feeds Financial Lenses, and the test-only offline corpus pins lens
+equivalence at this boundary.
 
 Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual
 or reconciled-TTM fundamentals to a verified close no earlier than the latest filing date among its

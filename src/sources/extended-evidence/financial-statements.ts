@@ -14,18 +14,11 @@ import {
   FACE_LABEL_PREFIX,
   FACE_LINE_PREFIX,
 } from "../sec-segment-facts";
-import type { CollectContext } from "../types";
 import {
-  collectSecPeriodicFilingItems,
-  type EvidenceRequestToolOutput,
-} from "../evidence-request-tools";
-import {
-  fetchSecCompanyFactsForSymbol,
   grossPrincipalDebtGap,
   leaseInclusiveDebtGap,
   withheldDebtGap,
-  type SecCompanyFactsResult,
-} from "./sec-edgar";
+} from "./sec-fundamentals-format";
 import {
   CAP_FOLLOWER_SERIES,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
@@ -2123,9 +2116,27 @@ function withGrossPrincipalDebt(
   const [grossAtNet] = gross
     .filter((fact) => fact.periodEnd === net?.periodEnd)
     .toSorted(compareFinancialStatementFacts);
+  const unrecognized = DEBT_CONCEPTS["us-gaap"].unrecognizedBorrowing;
+  // A borrowing line above gross principal at the same instant contradicts it as the total.
+  const exceedsGross =
+    latestGross !== undefined &&
+    root !== undefined &&
+    unrecognized !== undefined &&
+    Object.keys(root)
+      .filter((concept) => unrecognized.test(concept))
+      .some((concept) =>
+        unitFacts("us-gaap", root, concept).some(
+          (fact) =>
+            fact.periodStart === undefined &&
+            fact.periodEnd === latestGross.periodEnd &&
+            eligible(fact) &&
+            fact.value > latestGross.value,
+        ),
+      );
   if (
     net === undefined ||
     latestGross === undefined ||
+    exceedsGross ||
     !grossPrincipalDebtFallbackApplies(
       net,
       latestGross.periodEnd,
@@ -2945,7 +2956,7 @@ export function deriveFinancialStatements(
   };
 }
 
-// Same text and symbol as the legacy target gap, so dedupeSourceGaps collapses the pair.
+// Same text as the SEC summary gap, which is derived from it, so dedupeSourceGaps collapses the pair.
 export function financialStatementsDebtBasisGaps(
   artifact: FinancialStatementsArtifact,
 ): readonly SourceGap[] {
@@ -3081,43 +3092,4 @@ export function financialStatementsHistoryGaps(
         evidenceQualityImpact: "no-cap",
       }),
     );
-}
-
-export interface CollectedFinancialStatements {
-  readonly statements: FinancialStatementsArtifact | undefined;
-  readonly companyFacts: SecCompanyFactsResult;
-  readonly periodicFilings?: EvidenceRequestToolOutput;
-}
-
-export async function collectFinancialStatements(
-  context: CollectContext,
-  symbol: string,
-): Promise<CollectedFinancialStatements> {
-  const facts = await fetchSecCompanyFactsForSymbol(context, symbol);
-  if (facts.factsPayload === undefined || facts.sourceId === undefined) {
-    return { statements: undefined, companyFacts: facts };
-  }
-  const periodicFilings =
-    context.secUserAgent === undefined
-      ? undefined
-      : await collectSecPeriodicFilingItems(context, facts);
-  const statements = deriveFinancialStatements(facts.factsPayload, {
-    symbol,
-    generatedAt: context.fetchedAt,
-    analysisAsOf: context.fetchedAt,
-    sourceId: facts.sourceId,
-    ...(facts.sourceUrl !== undefined ? { sourceUrl: facts.sourceUrl } : {}),
-    ...(facts.submissionsPayload !== undefined
-      ? { submissionsPayload: facts.submissionsPayload }
-      : {}),
-    ...(facts.submissionsSourceId !== undefined
-      ? { submissionsSourceId: facts.submissionsSourceId }
-      : {}),
-    ...(periodicFilings !== undefined ? { secFilings: periodicFilings.items } : {}),
-  });
-  return {
-    statements,
-    companyFacts: facts,
-    ...(periodicFilings !== undefined ? { periodicFilings } : {}),
-  };
 }

@@ -21,7 +21,7 @@ import {
 } from "./valuation-comps-contract";
 
 import { readNumberMetric, readStringMetric } from "./utils";
-import { latestFilingWithoutDebtFacts, type SecDebtComposite } from "./sec-edgar";
+import { latestFilingWithoutDebtFacts } from "./sec-edgar";
 import type { DebtBasis } from "./financial-statements-contract";
 import {
   balanceSheetPeriodDivergence,
@@ -316,7 +316,7 @@ export function peerRow(
   const mixedPeriod =
     guardedMetrics?.enterpriseValue === MIXED_PERIOD_METRIC ||
     guardedMetrics?.netDebt === MIXED_PERIOD_METRIC;
-  const incompleteDebtBasis = isIncompleteDebtComposite(sec.debtComposite);
+  const incompleteDebtBasis = incompleteDebtBasisReason(metrics) !== undefined;
   let enterpriseValue: number | typeof MIXED_PERIOD_METRIC | undefined = computedEnterpriseValue;
   let netDebt: number | typeof MIXED_PERIOD_METRIC | undefined = computedNetDebt;
   let evToAnnualizedRevenue = computedEvToAnnualizedRevenue;
@@ -404,14 +404,7 @@ export function excludedPeer(
     sec === undefined || row.debtPeriodEnd === undefined
       ? undefined
       : latestFilingWithoutDebtFacts(sec, row.debtPeriodEnd, generatedAt);
-  const exclusion = exclusionReason(
-    row,
-    provenance,
-    generatedAt,
-    target,
-    sec?.debtComposite,
-    sec?.metrics,
-  );
+  const exclusion = exclusionReason(row, provenance, generatedAt, target, sec?.metrics);
   const vintage = exclusion.reason === peerVintageExclusionReason(row, generatedAt);
   return [
     {
@@ -435,7 +428,6 @@ function exclusionReason(
   provenance: PeerUniverse["provenance"],
   generatedAt: string,
   target: ValuationCompsRow,
-  debtComposite?: SecDebtComposite,
   secMetrics?: Readonly<Record<string, number | string>>,
 ): ValuationPeerExclusion {
   if (row.quoteObservedAt === undefined) {
@@ -450,7 +442,7 @@ function exclusionReason(
   if (row.cash === undefined) {
     return missing("missing SEC cash");
   }
-  const incompleteReason = incompleteDebtBasisReason(debtComposite);
+  const incompleteReason = incompleteDebtBasisReason(secMetrics);
   if (row.debt === undefined) {
     return missing(incompleteReason ?? "missing SEC debt");
   }
@@ -536,14 +528,11 @@ function peerVintageExclusionReason(
   return undefined;
 }
 
-function isIncompleteDebtComposite(
-  composite: SecDebtComposite | undefined,
-): composite is SecDebtComposite {
-  return composite?.incompleteReason !== undefined;
-}
-
-function incompleteDebtBasisReason(composite: SecDebtComposite | undefined): string | undefined {
-  return composite?.incompleteReason === undefined
+function incompleteDebtBasisReason(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): string | undefined {
+  const reason = readStringMetric(metrics, "debtIncompleteReason");
+  return reason === undefined
     ? undefined
-    : `incomplete SEC debt basis: debt composite for ${composite.periodEnd ?? "the latest period"} is incomplete: ${composite.incompleteReason}`;
+    : `incomplete SEC debt basis: debt composite for ${readStringMetric(metrics, "debtIncompletePeriodEnd") ?? "the latest period"} is incomplete: ${reason}`;
 }

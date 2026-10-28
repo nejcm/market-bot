@@ -6,11 +6,10 @@ import {
   expectedSelectedConcept,
   pointsExactlyAgree,
   RAW_HISTORY_DEFINITIONS,
-  type HistorySide,
 } from "./offline-financial-history-facts";
 import type { OfflineCorpusExecution } from "./offline-financial-statements-corpus";
 
-// Revenue-alias interchangeability oracle: whether the concept the roster selected was the only one that could have been selected, or an alternate legacy/canonical revenue concept would have produced a superset of the same periods with identical values on every shared period.
+// Revenue-alias interchangeability oracle: whether the concept the roster selected was the only one that could have been selected, or an alternate canonical revenue concept would have produced a superset of the same periods with identical values on every shared period.
 
 export type AliasRejectionReason = "not-a-superset" | "disagrees-on-shared-periods";
 
@@ -34,32 +33,27 @@ interface RevenueAliasContext {
   readonly candidateConcepts: readonly string[];
 }
 
-function revenueAliasContext(
-  execution: OfflineCorpusExecution,
-  side: HistorySide,
-): RevenueAliasContext | undefined {
+function revenueAliasContext(execution: OfflineCorpusExecution): RevenueAliasContext | undefined {
   const definition = RAW_HISTORY_DEFINITIONS.find((candidate) => candidate.key === "revenue")!;
-  const selectedConcept = expectedSelectedConcept(execution, definition, side);
-  const taxonomy = side === "legacy" ? "us-gaap" : execution.artifact.taxonomy;
+  const selectedConcept = expectedSelectedConcept(execution, definition);
+  const { taxonomy } = execution.artifact;
   if (taxonomy === undefined || selectedConcept === undefined) {
     return undefined;
   }
   const canonicalDefinition = CANONICAL_DURATION_DEFINITIONS.find(
     (candidate) => candidate.key === "revenue",
   )!;
-  const concepts =
-    side === "legacy" ? definition.legacyConcepts : canonicalDefinition.concepts[taxonomy];
-  const selectedUnit =
-    side === "legacy"
-      ? definition.legacyUnit
-      : expectedCanonicalUnit(canonicalDefinition, execution.artifact.reportingCurrency!);
+  const concepts = canonicalDefinition.concepts[taxonomy];
+  const selectedUnit = expectedCanonicalUnit(
+    canonicalDefinition,
+    execution.artifact.reportingCurrency!,
+  );
   return {
     selectedConcept,
     selectedUnit,
     candidateConcepts: concepts.filter(
       (concept) =>
-        concept !== selectedConcept &&
-        aliasPoints(execution, side, concept, selectedUnit).length > 0,
+        concept !== selectedConcept && aliasPoints(execution, concept, selectedUnit).length > 0,
     ),
   };
 }
@@ -67,16 +61,11 @@ function revenueAliasContext(
 export function detectEligibleRevenueAliasAlternatives(
   execution: OfflineCorpusExecution,
 ): ReadonlyMap<string, readonly string[] | undefined> {
-  return new Map(
-    (["canonical", "legacy"] as const).map((side) => {
-      const context = revenueAliasContext(execution, side);
-      return [`${side}.revenue`, context?.candidateConcepts] as const;
-    }),
-  );
+  return new Map([["canonical.revenue", revenueAliasContext(execution)?.candidateConcepts]]);
 }
 
-function aliasVerdictForSide(execution: OfflineCorpusExecution, side: HistorySide): AliasVerdict {
-  const context = revenueAliasContext(execution, side);
+function aliasVerdict(execution: OfflineCorpusExecution): AliasVerdict {
+  const context = revenueAliasContext(execution);
   if (context === undefined) {
     return { kind: "no-selected-concept" };
   }
@@ -85,13 +74,8 @@ function aliasVerdictForSide(execution: OfflineCorpusExecution, side: HistorySid
     return { kind: "no-alternative-concept-with-facts" };
   }
 
-  const selectedPoints = aliasPoints(
-    execution,
-    side,
-    context.selectedConcept,
-    context.selectedUnit,
-  );
-  const candidatePoints = aliasPoints(execution, side, candidateConcept, context.selectedUnit);
+  const selectedPoints = aliasPoints(execution, context.selectedConcept, context.selectedUnit);
+  const candidatePoints = aliasPoints(execution, candidateConcept, context.selectedUnit);
 
   const reasons: AliasRejectionReason[] = [];
   const selectedByKey = new Map<string, FundamentalHistoryPoint>(
@@ -129,10 +113,5 @@ function aliasVerdictForSide(execution: OfflineCorpusExecution, side: HistorySid
 export function detectInterchangeableAliasCandidates(
   execution: OfflineCorpusExecution,
 ): ReadonlyMap<string, AliasVerdict> {
-  return new Map(
-    (["canonical", "legacy"] as const).map((side) => [
-      `${side}.revenue`,
-      aliasVerdictForSide(execution, side),
-    ]),
-  );
+  return new Map([["canonical.revenue", aliasVerdict(execution)]]);
 }

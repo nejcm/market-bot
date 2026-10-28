@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
+import { collectFinancialStatements } from "../src/sources/extended-evidence/financial-statements-collection";
 import {
-  collectFinancialStatements,
   deriveFinancialStatements,
   financialStatementsHistoryGaps,
 } from "../src/sources/extended-evidence/financial-statements";

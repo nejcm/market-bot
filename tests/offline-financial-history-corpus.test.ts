@@ -3,11 +3,8 @@ import { yearsBetween } from "./support/fiscal-years";
 import { isRecord } from "../src/guards";
 import {
   OFFLINE_FINANCIAL_STATEMENT_FIXTURES,
-  auditOfflineCorpusCase,
   loadOfflineCorpusCase,
   mutateOfflineCorpusCase,
-  type OfflineCorpusExecution,
-  type OfflineCorpusMutation,
 } from "./support/offline-financial-statements-corpus";
 import {
   detectEligibleRevenueAliasAlternatives,
@@ -17,10 +14,8 @@ import {
   type RosterVerdict,
 } from "./support/offline-financial-history-roster";
 import {
-  classifierPattern,
   countNetworkAttemptsDuring,
   runOfflineCorpusFixture,
-  type OfflineCorpusFixtureName,
 } from "./support/offline-corpus-test-helpers";
 import {
   cloneCompanyFactsWithMutableUsGaap,
@@ -29,98 +24,6 @@ import {
 } from "./support/offline-financial-history-fixtures";
 
 const ASC_606_REVENUE_CONCEPT = "RevenueFromContractWithCustomerExcludingAssessedTax";
-
-const MARGIN_ANNUAL_PATH = "fundamentalHistory.operatingMargin.annual";
-const MARGIN_CHANGE_PATH = "fundamentalHistory.operatingMargin.marginChange";
-const MARA_GROSS_MARGIN_ANNUAL_PATH = "fundamentalHistory.grossMargin.annual";
-const MARA_GROSS_MARGIN_CHANGE_PATH = "fundamentalHistory.grossMargin.marginChange";
-
-type HistoryClassifierFaultScenario = readonly [
-  name: string,
-  fixture: OfflineCorpusFixtureName,
-  mutations: readonly OfflineCorpusMutation[],
-  regeneratedHashPaths: readonly string[],
-  expected: RegExp,
-];
-
-const HISTORY_CLASSIFIER_FAULT_SCENARIOS: readonly HistoryClassifierFaultScenario[] = [
-  [
-    "rejects a history defect when a regenerated hash hides a margin sign flip",
-    "nbis",
-    [[`${MARGIN_CHANGE_PATH}.percentagePoints`, "negate"]],
-    [MARGIN_CHANGE_PATH],
-    classifierPattern(
-      "unclassified nbis difference ",
-      MARGIN_ANNUAL_PATH,
-      ": fundamental-history property re-derivation failed",
-    ),
-  ],
-  [
-    "rejects a history defect when a regenerated hash hides a margin-years mutation",
-    "nbis",
-    [[`${MARGIN_CHANGE_PATH}.years`, "increment"]],
-    [MARGIN_CHANGE_PATH],
-    classifierPattern(
-      "unclassified nbis difference ",
-      MARGIN_ANNUAL_PATH,
-      ": fundamental-history property re-derivation failed",
-    ),
-  ],
-  [
-    "catches a CAGR percent sign flip after its allowance hash is regenerated",
-    "nbis",
-    [["fundamentalHistory.revenue.cagr.percent", "negate"]],
-    ["fundamentalHistory.revenue.cagr"],
-    classifierPattern(
-      "unclassified nbis difference ",
-      "fundamentalHistory.revenue.annual",
-      ": fundamental-history property re-derivation failed",
-    ),
-  ],
-  [
-    "rejects a degenerate single-point margin summary with regenerated hashes",
-    "nbis",
-    [
-      [MARGIN_ANNUAL_PATH, "last-only"],
-      [MARGIN_CHANGE_PATH, "zero-margin-last", MARGIN_ANNUAL_PATH],
-    ],
-    [MARGIN_ANNUAL_PATH, MARGIN_CHANGE_PATH],
-    classifierPattern(
-      "unclassified nbis difference ",
-      MARGIN_ANNUAL_PATH,
-      ": fundamental-history property re-derivation failed",
-    ),
-  ],
-  ...(["dilutedEps", "grossMargin"] as const).map((seriesKey): HistoryClassifierFaultScenario => {
-    const path = `fundamentalHistory.${seriesKey}.ttm`;
-    return [
-      `rejects malformed raw and derived TTM values with regenerated hashes (${seriesKey})`,
-      "fpi-quarterly",
-      [
-        seriesKey === "dilutedEps"
-          ? [`${path}.form`, "set", "20-F"]
-          : [`${path}.value`, "add-cent"],
-      ],
-      [path],
-      classifierPattern(
-        "unclassified fpi-quarterly difference ",
-        path,
-        ": fundamental-history property re-derivation failed",
-      ),
-    ];
-  }),
-  [
-    "catches an operating-cash-flow TTM value mutation with regenerated hashes",
-    "fpi-quarterly",
-    [["fundamentalHistory.operatingCashFlow.ttm.value", "double"]],
-    ["fundamentalHistory.operatingCashFlow.ttm"],
-    classifierPattern(
-      "unclassified fpi-quarterly difference ",
-      "fundamentalHistory.operatingCashFlow.ttm",
-      ": fundamental-history property re-derivation failed",
-    ),
-  ],
-];
 
 describe("offline financial-statement corpus — history rosters and alias fault injection", () => {
   test("keeps history-roster and alias fault-injection fixtures offline", async () => {
@@ -133,14 +36,6 @@ describe("offline financial-statement corpus — history rosters and alias fault
         void [...verifyHistoryAnnualRosters(execution)];
       }
       void [...detectInterchangeableAliasCandidates(syntheticAliasExecution(maraCase, "alias"))];
-      const mutated = mutateOfflineCorpusCase(maraCase, {
-        mutations: [[`${MARA_GROSS_MARGIN_CHANGE_PATH}.percentagePoints`, "negate"]],
-      });
-      try {
-        auditOfflineCorpusCase(mutated);
-      } catch {
-        // Expected: this fault injection intentionally trips the comparator alarm.
-      }
     });
 
     expect(networkAttempts).toBe(0);
@@ -157,27 +52,17 @@ describe("offline financial-statement corpus — history rosters and alias fault
 
     expect(verdicts).toEqual({
       "aapl.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
-      "aapl.legacy.revenue": { kind: "no-alternative-concept-with-facts" },
       "msft.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
-      "msft.legacy.revenue": { kind: "no-alternative-concept-with-facts" },
       "mara.canonical.revenue": {
         kind: "rejected",
         candidateConcept: ASC_606_REVENUE_CONCEPT,
         reasons: ["not-a-superset", "disagrees-on-shared-periods"],
       },
-      "mara.legacy.revenue": {
-        kind: "rejected",
-        candidateConcept: ASC_606_REVENUE_CONCEPT,
-        reasons: ["not-a-superset", "disagrees-on-shared-periods"],
-      },
       "nbis.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
-      "nbis.legacy.revenue": { kind: "no-selected-concept" },
       "fpi-quarterly.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
-      "fpi-quarterly.legacy.revenue": { kind: "no-selected-concept" },
       "fpi-ifrs-semiannual.canonical.revenue": {
         kind: "no-alternative-concept-with-facts",
       },
-      "fpi-ifrs-semiannual.legacy.revenue": { kind: "no-selected-concept" },
     });
     expect(
       Object.entries(verdicts)
@@ -185,16 +70,13 @@ describe("offline financial-statement corpus — history rosters and alias fault
         .map(([key]) => key),
     ).toEqual([]);
     expect(Object.values(verdicts).filter((verdict) => verdict.kind === "rejected")).toHaveLength(
-      2,
+      1,
     );
     expect(
       Object.values(verdicts).filter(
         (verdict) => verdict.kind === "no-alternative-concept-with-facts",
       ),
-    ).toHaveLength(7);
-    expect(
-      Object.values(verdicts).filter((verdict) => verdict.kind === "no-selected-concept"),
-    ).toHaveLength(3);
+    ).toHaveLength(5);
 
     const { execution } = await loadOfflineCorpusCase("mara");
     const revenues = eligibleMaraRevenueFacts(
@@ -233,7 +115,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
     ).toEqual([11.91, 6.72, 6.8, 15.45]);
   });
 
-  test("pins at most one eligible alternative revenue concept per corpus side", async () => {
+  test("pins at most one eligible alternative revenue concept per corpus fixture", async () => {
     const alternatives: Record<string, readonly string[] | undefined> = {};
     for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
       const execution = await runOfflineCorpusFixture(fixture);
@@ -243,19 +125,13 @@ describe("offline financial-statement corpus — history rosters and alias fault
     }
     expect(alternatives).toEqual({
       "aapl.canonical.revenue": [],
-      "aapl.legacy.revenue": [],
       "msft.canonical.revenue": [],
-      "msft.legacy.revenue": [],
       "mara.canonical.revenue": [ASC_606_REVENUE_CONCEPT],
-      "mara.legacy.revenue": [ASC_606_REVENUE_CONCEPT],
       "nbis.canonical.revenue": [],
-      "nbis.legacy.revenue": undefined,
       "fpi-quarterly.canonical.revenue": [],
-      "fpi-quarterly.legacy.revenue": undefined,
       "fpi-ifrs-semiannual.canonical.revenue": [],
-      "fpi-ifrs-semiannual.legacy.revenue": undefined,
     });
-    expect(Object.keys(alternatives)).toHaveLength(12);
+    expect(Object.keys(alternatives)).toHaveLength(6);
     expect(
       Object.values(alternatives).every(
         (concepts) => concepts === undefined || concepts.length <= 1,
@@ -275,40 +151,28 @@ describe("offline financial-statement corpus — history rosters and alias fault
         candidateConcept: "SalesRevenueNet",
         addedPeriodEnds: ["2016-12-31", "2017-12-31", "2018-12-31"],
       },
-      "legacy.revenue": {
-        kind: "alias-substitutable",
-        candidateConcept: "SalesRevenueNet",
-        addedPeriodEnds: ["2016-12-31", "2017-12-31", "2018-12-31"],
-      },
     });
   });
 
   test("counts a newer strict-superset alias when the selected series is cap-saturated", async () => {
     const maraCase = await loadOfflineCorpusCase("mara");
     const execution = syntheticAliasExecution(maraCase, "newer-alias");
-    for (const side of ["canonical", "legacy"] as const) {
-      const selected = execution.projection[side].fundamentalHistory.revenue;
-      expect(selected?.concept).toBe("Revenues");
-      expect(selected?.annual.map((point) => point.periodEnd)).toEqual([
-        "2013-12-31",
-        "2014-12-31",
-        "2015-12-31",
-        "2016-12-31",
-        "2017-12-31",
-        "2018-12-31",
-        "2019-12-31",
-        "2020-12-31",
-        "2021-12-31",
-        "2022-12-31",
-      ]);
-    }
+    const selected = execution.projection.canonical.fundamentalHistory.revenue;
+    expect(selected?.concept).toBe("Revenues");
+    expect(selected?.annual.map((point) => point.periodEnd)).toEqual([
+      "2013-12-31",
+      "2014-12-31",
+      "2015-12-31",
+      "2016-12-31",
+      "2017-12-31",
+      "2018-12-31",
+      "2019-12-31",
+      "2020-12-31",
+      "2021-12-31",
+      "2022-12-31",
+    ]);
     expect(Object.fromEntries(detectInterchangeableAliasCandidates(execution))).toEqual({
       "canonical.revenue": {
-        kind: "alias-substitutable",
-        candidateConcept: "SalesRevenueNet",
-        addedPeriodEnds: ["2023-12-31"],
-      },
-      "legacy.revenue": {
         kind: "alias-substitutable",
         candidateConcept: "SalesRevenueNet",
         addedPeriodEnds: ["2023-12-31"],
@@ -328,11 +192,6 @@ describe("offline financial-statement corpus — history rosters and alias fault
         candidateConcept: "SalesRevenueNet",
         reasons: ["disagrees-on-shared-periods"],
       },
-      "legacy.revenue": {
-        kind: "rejected",
-        candidateConcept: "SalesRevenueNet",
-        reasons: ["disagrees-on-shared-periods"],
-      },
     });
     expect(
       Object.fromEntries(
@@ -340,11 +199,6 @@ describe("offline financial-statement corpus — history rosters and alias fault
       ),
     ).toEqual({
       "canonical.revenue": {
-        kind: "rejected",
-        candidateConcept: "SalesRevenueNet",
-        reasons: ["not-a-superset"],
-      },
-      "legacy.revenue": {
         kind: "rejected",
         candidateConcept: "SalesRevenueNet",
         reasons: ["not-a-superset"],
@@ -384,146 +238,15 @@ describe("offline financial-statement corpus — history rosters and alias fault
     expect(excluded.toSorted()).toEqual([
       "fpi-ifrs-semiannual:canonical.capex:unanchored-empty",
       "fpi-ifrs-semiannual:canonical.freeCashFlowProxy:vacuous-empty",
-      "fpi-ifrs-semiannual:legacy.capex:unanchored-empty",
-      "fpi-ifrs-semiannual:legacy.dilutedEps:unanchored-empty",
-      "fpi-ifrs-semiannual:legacy.freeCashFlowProxy:vacuous-empty",
-      "fpi-ifrs-semiannual:legacy.grossMargin:vacuous-empty",
-      "fpi-ifrs-semiannual:legacy.grossProfit:unanchored-empty",
-      "fpi-ifrs-semiannual:legacy.netIncome:unanchored-empty",
-      "fpi-ifrs-semiannual:legacy.netMargin:vacuous-empty",
-      "fpi-ifrs-semiannual:legacy.operatingCashFlow:unanchored-empty",
-      "fpi-ifrs-semiannual:legacy.operatingIncome:unanchored-empty",
-      "fpi-ifrs-semiannual:legacy.operatingMargin:vacuous-empty",
-      "fpi-ifrs-semiannual:legacy.revenue:unanchored-empty",
       "fpi-quarterly:canonical.capex:unanchored-empty",
       "fpi-quarterly:canonical.freeCashFlowProxy:vacuous-empty",
-      "fpi-quarterly:legacy.capex:unanchored-empty",
-      "fpi-quarterly:legacy.dilutedEps:unanchored-empty",
-      "fpi-quarterly:legacy.freeCashFlowProxy:vacuous-empty",
-      "fpi-quarterly:legacy.grossMargin:vacuous-empty",
-      "fpi-quarterly:legacy.grossProfit:unanchored-empty",
-      "fpi-quarterly:legacy.netIncome:unanchored-empty",
-      "fpi-quarterly:legacy.netMargin:vacuous-empty",
-      "fpi-quarterly:legacy.operatingCashFlow:unanchored-empty",
-      "fpi-quarterly:legacy.operatingIncome:unanchored-empty",
-      "fpi-quarterly:legacy.operatingMargin:vacuous-empty",
-      "fpi-quarterly:legacy.revenue:unanchored-empty",
       "nbis:canonical.grossMargin:vacuous-empty",
       "nbis:canonical.grossProfit:unanchored-empty",
-      "nbis:legacy.capex:unanchored-empty",
-      "nbis:legacy.dilutedEps:unanchored-empty",
-      "nbis:legacy.freeCashFlowProxy:vacuous-empty",
-      "nbis:legacy.grossMargin:vacuous-empty",
-      "nbis:legacy.grossProfit:unanchored-empty",
-      "nbis:legacy.netIncome:unanchored-empty",
-      "nbis:legacy.netMargin:vacuous-empty",
-      "nbis:legacy.operatingCashFlow:unanchored-empty",
-      "nbis:legacy.operatingIncome:unanchored-empty",
-      "nbis:legacy.operatingMargin:vacuous-empty",
-      "nbis:legacy.revenue:unanchored-empty",
     ]);
     expect(maraDilutedEps).toEqual({
       kind: "verified-cap-displaced",
       droppedPeriodEnds: ["2014-12-31", "2015-12-31"],
       newerUnionPeriods: 10,
-    });
-  });
-
-  test("rejects a faithful MARA legacy revenue substitution to the ASC 606 component", async () => {
-    const maraCase = await loadOfflineCorpusCase("mara");
-    const { execution } = maraCase;
-    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(execution.input.companyFacts);
-    delete usGaap.Revenues;
-    delete usGaap.SalesRevenueNet;
-    const substituted = mutateOfflineCorpusCase(maraCase, { input: { companyFacts: payload } });
-    const substitutedHistory = substituted.execution.projection.legacy.fundamentalHistory;
-    const { revenue } = substitutedHistory;
-    if (revenue === undefined) {
-      throw new Error("MARA substitution did not produce legacy revenue history");
-    }
-    const injected: OfflineCorpusExecution = {
-      ...execution,
-      projection: {
-        ...execution.projection,
-        legacy: {
-          ...execution.projection.legacy,
-          fundamentalHistory: {
-            ...execution.projection.legacy.fundamentalHistory,
-            revenue,
-            grossMargin: substitutedHistory.grossMargin!,
-            operatingMargin: substitutedHistory.operatingMargin!,
-            netMargin: substitutedHistory.netMargin!,
-          },
-        },
-      },
-    };
-    const failed = [...verifyHistoryAnnualRosters(injected)]
-      .filter(([, verdict]) => verdict.kind === "failed")
-      .map(([key]) => key);
-
-    expect(revenue.concept).toBe(ASC_606_REVENUE_CONCEPT);
-    expect(failed).toEqual(["legacy.revenue"]);
-    expect(verifyHistoryAnnualRosters(injected).get("legacy.revenue")).toEqual({
-      kind: "failed",
-      reason: `legacy.revenue emitted concept ${ASC_606_REVENUE_CONCEPT} but selection policy yields Revenues`,
-    });
-  });
-
-  test("rejects a revenue concept outside the 100-day recency bucket", async () => {
-    const maraCase = await loadOfflineCorpusCase("mara");
-    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(
-      maraCase.execution.input.companyFacts,
-    );
-    const revenues = usGaap.Revenues;
-    if (!isRecord(revenues) || !isRecord(revenues.units) || !Array.isArray(revenues.units.USD)) {
-      throw new Error("MARA fixture is missing USD Revenues facts");
-    }
-    revenues.units.USD = revenues.units.USD.filter(
-      (fact) => isRecord(fact) && typeof fact.end === "string" && fact.end <= "2024-12-31",
-    );
-    const { execution } = mutateOfflineCorpusCase(maraCase, { input: { companyFacts: payload } });
-    const { payload: staleOnlyPayload, usGaap: staleOnlyUsGaap } =
-      cloneCompanyFactsWithMutableUsGaap(payload);
-    delete staleOnlyUsGaap[ASC_606_REVENUE_CONCEPT];
-    delete staleOnlyUsGaap.SalesRevenueNet;
-    delete staleOnlyUsGaap.RevenueFromContractWithCustomerIncludingAssessedTax;
-    const { execution: staleOnly } = mutateOfflineCorpusCase(maraCase, {
-      input: { companyFacts: staleOnlyPayload },
-    });
-    const staleHistory = staleOnly.projection.legacy.fundamentalHistory;
-    const staleRevenue = staleHistory.revenue;
-    if (staleRevenue === undefined) {
-      throw new Error("MARA stale-only input did not produce legacy revenue history");
-    }
-    const injected: OfflineCorpusExecution = {
-      ...execution,
-      projection: {
-        ...execution.projection,
-        legacy: {
-          ...execution.projection.legacy,
-          fundamentalHistory: {
-            ...execution.projection.legacy.fundamentalHistory,
-            revenue: staleRevenue,
-            grossMargin: staleHistory.grossMargin!,
-            operatingMargin: staleHistory.operatingMargin!,
-            netMargin: staleHistory.netMargin!,
-          },
-        },
-      },
-    };
-    const failed = [...verifyHistoryAnnualRosters(injected)]
-      .filter(([, verdict]) => verdict.kind === "failed")
-      .map(([key]) => key)
-      .toSorted();
-
-    expect(execution.projection.legacy.fundamentalHistory.revenue?.concept).toBe(
-      ASC_606_REVENUE_CONCEPT,
-    );
-    expect(staleRevenue.concept).toBe("Revenues");
-    expect(failed).toEqual(["legacy.revenue"]);
-    expect(verifyHistoryAnnualRosters(injected).get("legacy.revenue")).toEqual({
-      kind: "failed",
-      reason: `legacy.revenue emitted concept Revenues but selection policy yields ${ASC_606_REVENUE_CONCEPT}`,
     });
   });
 
@@ -547,15 +270,13 @@ describe("offline financial-statement corpus — history rosters and alias fault
     const { execution } = mutateOfflineCorpusCase(aaplCase, { input: { companyFacts: payload } });
     const verdicts = verifyHistoryAnnualRosters(execution);
 
-    for (const side of ["canonical", "legacy"] as const) {
-      const history = execution.projection[side].fundamentalHistory;
-      expect(history.operatingCashFlow?.concept).toBe(
-        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-      );
-      expect(history.capex?.concept).toBe("PaymentsToAcquireProductiveAssets");
-      for (const key of ["operatingCashFlow", "capex", "freeCashFlowProxy"]) {
-        expect(verdicts.get(`${side}.${key}`)?.kind).toMatch(/^verified-/u);
-      }
+    const history = execution.projection.canonical.fundamentalHistory;
+    expect(history.operatingCashFlow?.concept).toBe(
+      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    );
+    expect(history.capex?.concept).toBe("PaymentsToAcquireProductiveAssets");
+    for (const key of ["operatingCashFlow", "capex", "freeCashFlowProxy"]) {
+      expect(verdicts.get(`canonical.${key}`)?.kind).toMatch(/^verified-/u);
     }
   });
 
@@ -589,7 +310,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
     );
   });
 
-  test("catches consistently truncated NBIS net-margin history after hashes are regenerated", async () => {
+  test("catches consistently truncated NBIS net-margin history", async () => {
     const nbisCase = await loadOfflineCorpusCase("nbis");
     const { netMargin } = nbisCase.execution.projection.canonical.fundamentalHistory;
     const annual = netMargin?.annual.slice(-2);
@@ -614,17 +335,12 @@ describe("offline financial-statement corpus — history rosters and alias fault
         ["fundamentalHistory.netMargin.annual", "set", annual],
         ["fundamentalHistory.netMargin.marginChange", "set", marginChange],
       ],
-      allowanceUpdates: [
-        { path: "fundamentalHistory.netMargin.annual" },
-        { path: "fundamentalHistory.netMargin.marginChange" },
-      ],
     });
 
     expect(netMargin.annual).toHaveLength(3);
     expect(annual).toHaveLength(2);
     expect(marginChange.percentagePoints).toBeCloseTo(386.55, 2);
     expect(marginChange.years).toBeCloseTo(1, 2);
-    expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
     const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.netMargin");
     expect(verdict?.kind).toBe("failed");
     if (verdict?.kind !== "failed") {
@@ -648,7 +364,6 @@ describe("offline financial-statement corpus — history rosters and alias fault
         mutations: [
           ["fundamentalHistory.netMargin.annual", "set", [...annual.slice(0, -1), changed]],
         ],
-        allowanceUpdates: [{ path: "fundamentalHistory.netMargin.annual" }],
       });
       const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.netMargin");
 
@@ -659,7 +374,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
     }
   });
 
-  test("catches consistently truncated NBIS revenue history after hashes are regenerated", async () => {
+  test("catches consistently truncated NBIS revenue history", async () => {
     const nbisCase = await loadOfflineCorpusCase("nbis");
     const { revenue } = nbisCase.execution.projection.canonical.fundamentalHistory;
     const annual = revenue?.annual.slice(-3);
@@ -685,17 +400,12 @@ describe("offline financial-statement corpus — history rosters and alias fault
         ["fundamentalHistory.revenue.annual", "set", annual],
         ["fundamentalHistory.revenue.cagr", "set", cagr],
       ],
-      allowanceUpdates: [
-        { path: "fundamentalHistory.revenue.annual" },
-        { path: "fundamentalHistory.revenue.cagr" },
-      ],
     });
 
     expect(revenue.annual).toHaveLength(5);
     expect(annual).toHaveLength(3);
     expect(cagr.percent).toBeCloseTo(635.26, 2);
     expect(cagr.years).toBeCloseTo(2, 2);
-    expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
     const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.revenue");
     expect(verdict?.kind).toBe("failed");
     if (verdict?.kind !== "failed") {
@@ -713,12 +423,10 @@ describe("offline financial-statement corpus — history rosters and alias fault
     }
     const mutated = mutateOfflineCorpusCase(maraCase, {
       mutations: [["fundamentalHistory.dilutedEps.annual", "set", annual]],
-      allowanceUpdates: [{ path: "fundamentalHistory.dilutedEps.annual" }],
     });
 
     expect(dilutedEps.annual).toHaveLength(8);
     expect(annual).toHaveLength(5);
-    expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
     const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.dilutedEps");
     expect(verdict?.kind).toBe("failed");
     if (verdict?.kind !== "failed") {
@@ -729,75 +437,4 @@ describe("offline financial-statement corpus — history rosters and alias fault
       'admissibleCapDisplacedPeriodEnds=["2014-12-31","2015-12-31"]',
     );
   });
-
-  test("rejects the original truncated-history defect on an allowance-backed path", async () => {
-    const maraCase = await loadOfflineCorpusCase("mara");
-    const msftCase = await loadOfflineCorpusCase("msft");
-    const { grossMargin: maraGrossMargin } =
-      maraCase.execution.projection.canonical.fundamentalHistory;
-    const { grossMargin: msftGrossMargin } =
-      msftCase.execution.projection.canonical.fundamentalHistory;
-    const originalMarginChange = msftGrossMargin?.marginChange;
-    const annual = msftGrossMargin?.annual.slice(Math.floor(msftGrossMargin.annual.length / 2));
-    const first = annual?.at(0);
-    const last = annual?.at(-1);
-    if (
-      maraGrossMargin === undefined ||
-      msftGrossMargin === undefined ||
-      originalMarginChange === null ||
-      originalMarginChange === undefined ||
-      annual === undefined ||
-      first === undefined ||
-      last === undefined
-    ) {
-      throw new Error("MSFT golden is missing gross-margin history");
-    }
-    expect(maraCase.allowances).toContainEqual(
-      expect.objectContaining({
-        fixture: "mara",
-        path: "fundamentalHistory.dilutedEps.annual",
-      }),
-    );
-    expect(maraCase.allowances).toContainEqual(
-      expect.objectContaining({
-        fixture: "mara",
-        path: "fundamentalHistory.revenue.annual",
-      }),
-    );
-    expect(() => auditOfflineCorpusCase(maraCase)).not.toThrow();
-
-    const injectedMarginChange = {
-      percentagePoints: (last.value - first.value) * 100,
-      years: yearsBetween(first.periodEnd, last.periodEnd),
-      periodStart: first.periodEnd,
-      periodEnd: last.periodEnd,
-    };
-    const injected = mutateOfflineCorpusCase(maraCase, {
-      mutations: [
-        [MARA_GROSS_MARGIN_ANNUAL_PATH, "set", annual],
-        [MARA_GROSS_MARGIN_CHANGE_PATH, "set", injectedMarginChange],
-      ],
-    });
-
-    expect(originalMarginChange.percentagePoints).toBeCloseTo(3.42, 2);
-    expect(originalMarginChange.years).toBeCloseTo(9, 2);
-    expect(injectedMarginChange.percentagePoints).toBeCloseTo(-0.46, 2);
-    expect(injectedMarginChange.years).toBeCloseTo(4, 2);
-    expect(() => auditOfflineCorpusCase(injected)).toThrow(
-      /Offline comparator alarm: unclassified mara difference/u,
-    );
-  });
-
-  for (const scenario of HISTORY_CLASSIFIER_FAULT_SCENARIOS) {
-    const [name, fixture, mutations, hashPaths, expected] = scenario;
-    test(name, async () => {
-      const corpusCase = await loadOfflineCorpusCase(fixture);
-      const mutated = mutateOfflineCorpusCase(corpusCase, {
-        mutations,
-        allowanceUpdates: hashPaths.map((path) => ({ path })),
-      });
-
-      expect(() => auditOfflineCorpusCase(mutated)).toThrow(expected);
-    });
-  }
 });

@@ -1,3 +1,5 @@
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, readdir, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -31,7 +33,6 @@ import type {
   SourcePlanArtifact,
 } from "../src/research/source-plan";
 import type { RawSourceSnapshot } from "../src/sources/types";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-evidence/subsequent-financing";
 import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import {
@@ -454,13 +455,16 @@ describe("run artifact writer manifests", () => {
   });
 
   test("writes the collected fundamental-history sidecar", () => {
-    const fundamentalHistory = deriveFundamentalHistory(
-      { facts: { "us-gaap": {} } },
-      {
-        symbol: "AAPL",
-        generatedAt: GENERATED_AT,
-        sourceId: "extended-sec-edgar-aapl-fundamentals",
-      },
+    const fundamentalHistory = deriveFundamentalHistoryFromFinancialStatements(
+      deriveFinancialStatements(
+        { facts: { "us-gaap": {} } },
+        {
+          symbol: "AAPL",
+          generatedAt: GENERATED_AT,
+          analysisAsOf: GENERATED_AT,
+          sourceId: "extended-sec-edgar-aapl-fundamentals",
+        },
+      ),
     );
     const writes = buildResearchRunManifest(
       equityCommand,

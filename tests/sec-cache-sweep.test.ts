@@ -186,8 +186,8 @@ describe("SEC cache sweep", () => {
         false,
       );
       expect(report.summary.disagreementsByIssuerType.fpi.cikCount).toBe(1);
-      expect(report.summary.disagreementsByIssuerType.fpi.disagreeingCikCount).toBe(1);
-      expect(report.summary.disagreementsByIssuerType.fpi.paths.length).toBeGreaterThan(0);
+      expect(report.summary.disagreementsByIssuerType.fpi.disagreeingCikCount).toBe(0);
+      expect(report.summary.disagreementsByIssuerType.fpi.paths).toEqual([]);
       expect(report.summary.disagreementsByIssuerType.unknown.cikCount).toBe(1);
       expect(report.summary.seriesCoverage.revenue).toEqual({
         present: 1,

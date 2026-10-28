@@ -5,18 +5,15 @@ import {
   canonicalUnion,
   expectedCanonicalUnit,
   expectedSelectedConcept,
-  legacyEligiblePoints,
-  MAX_ANNUAL_POINTS,
   RAW_HISTORY_DEFINITIONS,
   rosterTuple,
   type EligibleCanonicalPoint,
   type HistorySeries,
-  type HistorySide,
   type RawHistoryDefinition,
 } from "./offline-financial-history-facts";
 import type { OfflineCorpusExecution } from "./offline-financial-statements-corpus";
 
-// Roster verification: whether the emitted annual history for each raw/derived series exactly matches (or, for canonical series, admissibly cap-displaces) what the selection policy in offline-financial-history-facts.ts would have produced from the raw source facts.
+// Roster verification: whether the emitted annual history for each raw/derived series exactly matches (or admissibly cap-displaces) what the selection policy in offline-financial-history-facts.ts would have produced from the raw source facts.
 
 export {
   detectEligibleRevenueAliasAlternatives,
@@ -63,7 +60,6 @@ const DERIVED_DEFINITIONS: readonly DerivedDefinition[] = [
 ];
 
 function rosterMismatchReason(
-  side: HistorySide,
   seriesKey: string,
   expected: readonly FundamentalHistoryPoint[],
   emitted: readonly FundamentalHistoryPoint[],
@@ -103,45 +99,7 @@ function rosterMismatchReason(
       expectedCounts.set(key, count - 1);
     }
   }
-  return `${side}.${seriesKey} annual roster mismatch; missingPeriodEnds=${JSON.stringify(missing)} extraPeriodEnds=${JSON.stringify(extra)}`;
-}
-
-function verifyLegacyRaw(
-  execution: OfflineCorpusExecution,
-  definition: RawHistoryDefinition,
-  series: HistorySeries,
-): RosterVerdict {
-  if (series.concept === null) {
-    if (series.annual.length > 0) {
-      return {
-        kind: "failed",
-        reason: `legacy.${definition.key} emitted annual points without a concept`,
-      };
-    }
-    const eligibleAcrossDefinitions = definition.legacyConcepts.flatMap((concept) =>
-      legacyEligiblePoints(execution, concept, definition.legacyUnit),
-    );
-    return eligibleAcrossDefinitions.length === 0
-      ? { kind: "unanchored-empty" }
-      : {
-          kind: "failed",
-          reason: `legacy.${definition.key} selected no concept despite ${String(eligibleAcrossDefinitions.length)} eligible source point(s)`,
-        };
-  }
-  const expectedConcept = expectedSelectedConcept(execution, definition, "legacy");
-  if (series.concept !== expectedConcept) {
-    return {
-      kind: "failed",
-      reason: `legacy.${definition.key} emitted concept ${series.concept} but selection policy yields ${String(expectedConcept)}`,
-    };
-  }
-  const eligible = legacyEligiblePoints(execution, series.concept, definition.legacyUnit);
-  if (eligible.length === 0 && series.annual.length === 0) {
-    return { kind: "vacuous-empty" };
-  }
-  const expected = eligible.slice(-MAX_ANNUAL_POINTS);
-  const reason = rosterMismatchReason("legacy", definition.key, expected, series.annual);
-  return reason === undefined ? { kind: "verified-exact" } : { kind: "failed", reason };
+  return `canonical.${seriesKey} annual roster mismatch; missingPeriodEnds=${JSON.stringify(missing)} extraPeriodEnds=${JSON.stringify(extra)}`;
 }
 
 function verifyCanonicalRaw(
@@ -186,8 +144,7 @@ function verifyCanonicalRaw(
     definition.key === "operatingCashFlow" && taxonomy === "us-gaap"
       ? scopedOperatingCashFlow(execution, unit)
       : undefined;
-  const expectedConcept =
-    scoped?.concept ?? expectedSelectedConcept(execution, definition, "canonical");
+  const expectedConcept = scoped?.concept ?? expectedSelectedConcept(execution, definition);
   if (series.concept !== expectedConcept) {
     return {
       kind: "failed",
@@ -204,7 +161,6 @@ function verifyCanonicalRaw(
   const retained = eligible.filter((point) => allowedPeriodKeys.has(point.periodKey));
   const dropped = eligible.filter((point) => !allowedPeriodKeys.has(point.periodKey));
   const reason = rosterMismatchReason(
-    "canonical",
     definition.key,
     retained.map((point) => point.point),
     series.annual,
@@ -273,7 +229,7 @@ function ratioValue(numerator: number, denominator: number): number | undefined 
 }
 
 function derivedExpected(
-  consumers: OfflineCorpusExecution["projection"][HistorySide],
+  consumers: OfflineCorpusExecution["projection"]["canonical"],
   definition: DerivedDefinition,
 ): readonly FundamentalHistoryPoint[] {
   const left = consumers.fundamentalHistory[definition.left]?.annual ?? [];
@@ -330,23 +286,17 @@ export const NET_MARGIN_CONCEPTS = {
 } as const;
 
 // Independent of production: consolidated income over revenue, parent income only without NCI evidence.
-function netMarginExpected(
-  execution: OfflineCorpusExecution,
-  side: HistorySide,
-  consumers: OfflineCorpusExecution["projection"][HistorySide],
-): readonly FundamentalHistoryPoint[] {
-  const revenue = consumers.fundamentalHistory.revenue?.annual ?? [];
+function netMarginExpected(execution: OfflineCorpusExecution): readonly FundamentalHistoryPoint[] {
+  const revenue = execution.projection.canonical.fundamentalHistory.revenue?.annual ?? [];
   const factAt = (
     concepts: readonly string[],
     revenuePoint: FundamentalHistoryPoint,
   ): FundamentalHistoryPoint | undefined =>
     concepts
       .flatMap((concept) =>
-        side === "canonical"
-          ? canonicalEligiblePoints(execution, concept, revenuePoint.currency).map(
-              (point) => point.point,
-            )
-          : legacyEligiblePoints(execution, concept, revenuePoint.currency),
+        canonicalEligiblePoints(execution, concept, revenuePoint.currency).map(
+          (point) => point.point,
+        ),
       )
       .find(
         (point) =>
@@ -385,38 +335,33 @@ function netMarginExpected(
 
 function verifyDerived(
   execution: OfflineCorpusExecution,
-  side: HistorySide,
   definition: DerivedDefinition,
 ): RosterVerdict {
-  const consumers = execution.projection[side];
+  const consumers = execution.projection.canonical;
   const series = consumers.fundamentalHistory[definition.key];
   if (series === undefined) {
-    return { kind: "failed", reason: `${side}.${definition.key} is missing` };
+    return { kind: "failed", reason: `canonical.${definition.key} is missing` };
   }
   const expected =
     definition.key === "netMargin"
-      ? netMarginExpected(execution, side, consumers)
+      ? netMarginExpected(execution)
       : derivedExpected(consumers, definition);
   if (expected.length === 0 && series.annual.length === 0) {
     return { kind: "vacuous-empty" };
   }
-  const reason = rosterMismatchReason(side, definition.key, expected, series.annual);
+  const reason = rosterMismatchReason(definition.key, expected, series.annual);
   return reason === undefined ? { kind: "verified-exact" } : { kind: "failed", reason };
 }
 
 function verifyRaw(
   execution: OfflineCorpusExecution,
-  side: HistorySide,
   definition: RawHistoryDefinition,
   union: readonly EligibleCanonicalPoint[],
 ): RosterVerdict {
-  const series = execution.projection[side].fundamentalHistory[definition.key];
-  if (series === undefined) {
-    return { kind: "failed", reason: `${side}.${definition.key} is missing` };
-  }
-  return side === "canonical"
-    ? verifyCanonicalRaw(execution, definition, series, union)
-    : verifyLegacyRaw(execution, definition, series);
+  const series = execution.projection.canonical.fundamentalHistory[definition.key];
+  return series === undefined
+    ? { kind: "failed", reason: `canonical.${definition.key} is missing` }
+    : verifyCanonicalRaw(execution, definition, series, union);
 }
 
 export function verifyHistoryAnnualRosters(
@@ -424,13 +369,11 @@ export function verifyHistoryAnnualRosters(
 ): ReadonlyMap<string, RosterVerdict> {
   const verdicts = new Map<string, RosterVerdict>();
   const union = canonicalUnion(execution);
-  for (const side of ["canonical", "legacy"] as const) {
-    for (const definition of RAW_HISTORY_DEFINITIONS) {
-      verdicts.set(`${side}.${definition.key}`, verifyRaw(execution, side, definition, union));
-    }
-    for (const definition of DERIVED_DEFINITIONS) {
-      verdicts.set(`${side}.${definition.key}`, verifyDerived(execution, side, definition));
-    }
+  for (const definition of RAW_HISTORY_DEFINITIONS) {
+    verdicts.set(`canonical.${definition.key}`, verifyRaw(execution, definition, union));
+  }
+  for (const definition of DERIVED_DEFINITIONS) {
+    verdicts.set(`canonical.${definition.key}`, verifyDerived(execution, definition));
   }
   return verdicts;
 }

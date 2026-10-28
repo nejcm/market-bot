@@ -147,9 +147,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   omitted/audited. EPS TTM is approximate; FCF/margins/CAGR/margin change need matched periods/units and CAGR
   is annual-only.
 - A canonical versioned financial-statements artifact accepts standard us-gaap/ifrs-full 10-K/Q/20-F/6-K and
-  amendments. It drives history, lenses, valuation, APIs, and completeness through tested seams; legacy
-  derivations run only when genuinely unavailable. Offline
-  canonical/legacy corpus differences need matches or exact fixture-specific allowances. Historical non-deep
+  amendments. It drives history, lenses, valuation, APIs, and completeness through tested seams; fundamental
+  history has no legacy derivation. Offline canonical/legacy financial-lens corpus differences need matches
+  or exact fixture-specific allowances. Historical non-deep
   artifacts without sidecars/completeness stay readable.
 - Canonical facts apply cutoff before selection, one taxonomy/currency, no extension primary totals; matching
   periods resolve by filed date, amendment, accession, never unrelated periods. Preserve
@@ -157,7 +157,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   stay null with notes. Shared roster caps ten annual/twelve interim exact periods, detects cadence, and
   derives TTM only with exact FY/current/prior-YTD components retained. Disclose duplicates, mixed
   periods/currencies, incomplete statements, cutoff, caps, and unreconciled TTM.
-- Debt is lease-exclusive borrowing, resolved per instant by the shared legacy/canonical rule: standard total
+- Debt is lease-exclusive borrowing, resolved per instant by the canonical rule (the SEC summary reads it): standard total
   first, otherwise disjoint component sum with every contributor and derived lineage.
   Aliases/totals/constituents are alternatives, never double-counted; generic noncurrent long-term debt and
   `DebtCurrent` subsume side instruments and convertible aliases. Issuers tag current instruments (short-term

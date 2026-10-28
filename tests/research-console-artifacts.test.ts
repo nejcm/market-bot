@@ -1,3 +1,4 @@
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
@@ -19,7 +20,6 @@ import {
   valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
@@ -405,33 +405,36 @@ describe("research console app artifacts", () => {
     });
     writeJson(
       join(runDir, "normalized", "fundamental-history.json"),
-      deriveFundamentalHistory(
-        {
-          facts: {
-            "us-gaap": {
-              Revenues: {
-                units: {
-                  USD: [
-                    {
-                      val: 100,
-                      form: "10-K",
-                      fp: "FY",
-                      fy: 2025,
-                      filed: "2025-11-01",
-                      start: "2024-10-01",
-                      end: "2025-09-30",
-                    },
-                  ],
+      deriveFundamentalHistoryFromFinancialStatements(
+        deriveFinancialStatements(
+          {
+            facts: {
+              "us-gaap": {
+                Revenues: {
+                  units: {
+                    USD: [
+                      {
+                        val: 100,
+                        form: "10-K",
+                        fp: "FY",
+                        fy: 2025,
+                        filed: "2025-11-01",
+                        start: "2024-10-01",
+                        end: "2025-09-30",
+                      },
+                    ],
+                  },
                 },
               },
             },
           },
-        },
-        {
-          symbol: "AAPL",
-          generatedAt: "2026-06-01T00:00:00.000Z",
-          sourceId: "extended-sec-edgar-aapl-fundamentals",
-        },
+          {
+            symbol: "AAPL",
+            generatedAt: "2026-06-01T00:00:00.000Z",
+            analysisAsOf: "2026-06-01T00:00:00.000Z",
+            sourceId: "extended-sec-edgar-aapl-fundamentals",
+          },
+        ),
       ),
     );
     writeJson(join(runDir, "normalized", "valuation-comps.json"), {

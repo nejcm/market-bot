@@ -9,12 +9,12 @@ import {
 describe("offline financial-statement corpus", () => {
   test("locks every issuer projection and classifies every consumer difference offline", async () => {
     const expectedClassifications = {
-      aapl: { matched: 71, allowances: 4 },
-      msft: { matched: 75, allowances: 4 },
-      mara: { matched: 66, allowances: 13 },
-      nbis: { matched: 38, allowances: 36 },
-      "fpi-quarterly": { matched: 24, allowances: 52 },
-      "fpi-ifrs-semiannual": { matched: 34, allowances: 41 },
+      aapl: { matched: 16, allowances: 4 },
+      msft: { matched: 20, allowances: 4 },
+      mara: { matched: 13, allowances: 11 },
+      nbis: { matched: 3, allowances: 16 },
+      "fpi-quarterly": { matched: 2, allowances: 19 },
+      "fpi-ifrs-semiannual": { matched: 3, allowances: 17 },
     } as const;
     const originalFetch = globalThis.fetch;
     let networkAttempts = 0;
@@ -63,7 +63,6 @@ describe("offline financial-statement corpus", () => {
       "support/offline-financial-history-roster.ts",
       "support/offline-financial-history-facts.ts",
       "support/offline-financial-history-aliases.ts",
-      "support/offline-financial-history-properties.ts",
       "support/offline-financial-lens-properties.ts",
       "support/synthetic-alias-companyfacts.ts",
       "support/offline-corpus-test-helpers.ts",
@@ -127,8 +126,6 @@ describe("offline financial-statement corpus", () => {
       "financialLens.Quality.metrics.netMargin",
       "financialLens.Quality.metrics.roa",
       "financialLens.Quality.metrics.roe",
-      "fundamentalHistory.dilutedEps.annual",
-      "fundamentalHistory.revenue.annual",
     ]);
     expect(exactPeriodPaths).toEqual([
       "financialLens.Growth.metrics.grossProfitDeltaPercent",
@@ -173,109 +170,6 @@ describe("offline financial-statement corpus", () => {
     expect(() => auditOfflineCorpusCase(maraCase)).not.toThrow();
   });
 
-  test("re-derives or explicitly reclassifies every history allowance", async () => {
-    const cases = new Map(
-      await Promise.all(
-        OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
-          async (fixture) => [fixture, await loadOfflineCorpusCase(fixture)] as const,
-        ),
-      ),
-    );
-    const historyAllowances = [...cases.values()]
-      .flatMap((corpusCase) => corpusCase.allowances)
-      .filter((allowance) => allowance.path.startsWith("fundamentalHistory."));
-    const reclassified = historyAllowances.filter(
-      (allowance) => allowance.kind === "history-property-not-rederivable",
-    );
-    const wouldFailReDerivation = historyAllowances.filter((allowance) => {
-      const [, seriesKey, field] = allowance.path.split(".");
-      const { projection } = cases.get(allowance.fixture)!.execution;
-      const canonical = projection.canonical.fundamentalHistory[seriesKey!];
-      const legacy = projection.legacy.fundamentalHistory[seriesKey!];
-      if (field === "concept") {
-        return (
-          typeof canonical?.concept === "string" &&
-          legacy?.concept === null &&
-          canonical.annual.length > 0 &&
-          canonical.annual.every((point) => point.form === "20-F") &&
-          legacy.annual.length === 0
-        );
-      }
-      const series = [canonical, legacy].filter((value) => value !== undefined);
-      return (
-        field === "annual" &&
-        series.every(
-          (value) =>
-            (value.cagr === null || value.cagr === undefined) &&
-            (value.marginChange === null || value.marginChange === undefined),
-        )
-      );
-    });
-
-    expect(historyAllowances).toHaveLength(79);
-    expect(historyAllowances.length - reclassified.length).toBe(56);
-    expect(reclassified).toHaveLength(23);
-    expect(
-      reclassified.map((allowance) => `${allowance.fixture}:${allowance.path}`).toSorted(),
-    ).toEqual(
-      wouldFailReDerivation.map((allowance) => `${allowance.fixture}:${allowance.path}`).toSorted(),
-    );
-    expect(
-      reclassified.every((allowance) => allowance.justification.includes("B9 cannot re-derive")),
-    ).toBe(true);
-    expect(
-      Object.fromEntries(
-        reclassified
-          .map((allowance) => allowance.path.split(".").at(-1)!)
-          .reduce((counts, field) => counts.set(field, (counts.get(field) ?? 0) + 1), new Map()),
-      ),
-    ).toEqual({ annual: 5, concept: 18 });
-  });
-
-  test("does not permit property-bearing annual or TTM allowances to claim reclassification", async () => {
-    const maraCase = await loadOfflineCorpusCase("mara");
-    const overriddenMara = mutateOfflineCorpusCase(maraCase, {
-      allowanceUpdates: [
-        { path: "fundamentalHistory.revenue.annual", kind: "history-property-not-rederivable" },
-      ],
-    });
-    const fpiCase = await loadOfflineCorpusCase("fpi-quarterly");
-    const overriddenFpi = mutateOfflineCorpusCase(fpiCase, {
-      allowanceUpdates: [
-        { path: "fundamentalHistory.revenue.ttm", kind: "history-property-not-rederivable" },
-      ],
-    });
-
-    expect(() => auditOfflineCorpusCase(overriddenMara)).toThrow(
-      /mara fundamentalHistory\.revenue\.annual is not eligible for history-property reclassification/u,
-    );
-    expect(() => auditOfflineCorpusCase(overriddenFpi)).toThrow(
-      /fpi-quarterly fundamentalHistory\.revenue\.ttm is not eligible for history-property reclassification/u,
-    );
-  });
-
-  test("rejects dumping an unsupported concept shape into the reclassification bucket", async () => {
-    const msftCase = await loadOfflineCorpusCase("msft");
-    const { revenue } = msftCase.execution.projection.canonical.fundamentalHistory;
-    if (revenue === undefined) {
-      throw new Error("MSFT golden is missing revenue history");
-    }
-    const mutated = mutateOfflineCorpusCase(msftCase, {
-      mutations: [["fundamentalHistory.revenue.concept", "set", "InjectedConcept"]],
-      allowanceUpdates: [
-        {
-          path: "fundamentalHistory.revenue.concept",
-          kind: "history-property-not-rederivable",
-          justification: "Injected concept bucket probe",
-        },
-      ],
-    });
-
-    expect(() => auditOfflineCorpusCase(mutated)).toThrow(
-      /msft fundamentalHistory\.revenue\.concept is not eligible for history-property reclassification/u,
-    );
-  });
-
   test("fires the test-only comparator alarm on an injected ROE mismatch", async () => {
     const msftCase = await loadOfflineCorpusCase("msft");
     const quality = msftCase.execution.projection.canonical.financialLens.Quality;
@@ -291,4 +185,24 @@ describe("offline financial-statement corpus", () => {
       /Offline comparator alarm: unclassified msft difference financialLens\.Quality\.metrics\.roe/u,
     );
   });
+
+  test.each([
+    ["fundamentalHistory.revenue.cagr.percent", "negate", "revenue.cagr"],
+    ["fundamentalHistory.netMargin.ttm.value", "add-cent", "netMargin.ttm"],
+    ["fundamentalHistory.operatingCashFlow.ttm.value", "add-cent", "operatingCashFlow.ttm"],
+  ] as const)(
+    "fires the canonical history property alarm on mutated %s",
+    async (path, operation, failure) => {
+      const aaplCase = await loadOfflineCorpusCase("aapl");
+      expect(() => auditOfflineCorpusCase(aaplCase)).not.toThrow();
+      const mutated = mutateOfflineCorpusCase(aaplCase, { mutations: [[path, operation]] });
+
+      expect(() => auditOfflineCorpusCase(mutated)).toThrow(
+        new RegExp(
+          `canonical history properties failed: .*fundamentalHistory\\.${failure.replace(".", String.raw`\.`)}`,
+          "u",
+        ),
+      );
+    },
+  );
 });

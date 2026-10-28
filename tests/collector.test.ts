@@ -13,6 +13,7 @@ import { collectSources, researchNewsRelevanceTargets } from "../src/sources/col
 import { collectValuationComps } from "../src/sources/extended-evidence/valuation-comps";
 import { addValuationEvidence as produceValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import {
   createCollectContext,
   resetSourceResilienceForTests,
@@ -149,6 +150,20 @@ function collectorSecFactUnits(
   };
 }
 
+function collectorSecInstantUnits(
+  current: number,
+  prior = current - 1,
+): { units: { USD: unknown[] } } {
+  return {
+    units: {
+      USD: collectorSecFactUnits(current, prior).units.USD.map((fact) => {
+        const { start: _start, ...instant } = fact as Record<string, unknown>;
+        return instant;
+      }),
+    },
+  };
+}
+
 function collectorSecPayload(revenue = 100, ttm = false): unknown {
   const fiscalYear = collectorSecFact(4 * revenue, {
     form: "10-K",
@@ -175,7 +190,7 @@ function collectorSecPayload(revenue = 100, ttm = false): unknown {
           units: { "USD/shares": [collectorSecFact(2), collectorSecFact(1.8, { fy: 2025 })] },
         },
         CashAndCashEquivalentsAtCarryingValue: collectorSecFactUnits(10, 9),
-        LongTermDebt: collectorSecFactUnits(20, 19),
+        LongTermDebt: collectorSecInstantUnits(20, 19),
         NetCashProvidedByUsedInOperatingActivities: collectorSecFactUnits(28, 22),
         PaymentsToAcquirePropertyPlantAndEquipment: collectorSecFactUnits(6, 5),
         WeightedAverageNumberOfDilutedSharesOutstanding: {
@@ -223,7 +238,7 @@ function collectorBankSecPayload(): unknown {
         CashAndCashEquivalentsAtCarryingValue: collectorSecFactUnits(60_000_000_000),
         AssetsCurrent: collectorSecFactUnits(500_000_000_000),
         LiabilitiesCurrent: collectorSecFactUnits(450_000_000_000),
-        LongTermDebt: collectorSecFactUnits(100_000_000_000),
+        LongTermDebt: collectorSecInstantUnits(100_000_000_000),
         NetCashProvidedByUsedInOperatingActivities: flow(
           140_000_000_000,
           65_000_000_000,
@@ -472,16 +487,6 @@ describe("collectSources", () => {
   });
 
   test("uses canonical financial derivations without legacy comparison passes", async () => {
-    const fundamentalHistoryModule =
-      await import("../src/sources/extended-evidence/fundamental-history");
-    const financialLensModule = await import("../src/sources/extended-evidence/financial-lens");
-    const valuationModule = await import("../src/sources/extended-evidence/valuation");
-    const deriveLegacyFundamentalHistory = spyOn(
-      fundamentalHistoryModule,
-      "deriveFundamentalHistory",
-    );
-    const addFinancialLensEvidence = spyOn(financialLensModule, "addFinancialLensEvidence");
-    const addValuationEvidence = spyOn(valuationModule, "addValuationEvidence");
     const marketCaps: Readonly<Record<string, number>> = {
       NVDA: 1000,
       AMD: 390,
@@ -577,19 +582,14 @@ describe("collectSources", () => {
         .flatMap((lens) => lens.metrics)
         .find((metric) => metric.key === "grossMargin")?.value,
     ).toBe(0.4);
-    expect(deriveLegacyFundamentalHistory).not.toHaveBeenCalled();
-    expect(addFinancialLensEvidence).toHaveBeenCalledTimes(1);
-    expect(addValuationEvidence).toHaveBeenCalledTimes(1);
+    expect(result.fundamentalHistory).toEqual(
+      deriveFundamentalHistoryFromFinancialStatements(result.financialStatements!),
+    );
     expect(
-      addValuationEvidence.mock.calls[0]?.[2]?.items.some(
-        (item) => item.metrics?.financialLensSelectionVersion === 1,
-      ),
-    ).toBe(true);
-    expect(
-      addFinancialLensEvidence.mock.calls[0]?.[2]?.items.some(
-        (item) => item.metrics?.financialLensSelectionVersion === 1,
-      ),
-    ).toBe(true);
+      result.extendedEvidence?.items
+        .filter((item) => item.metrics?.financialLensSelectionVersion === 1)
+        .map((item) => item.category),
+    ).toContain("sec-edgar");
     expect(nvdaCompanyFactsRequests).toBe(1);
     expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(1);
     for (const cik of Object.values(cikBySymbol)) {
@@ -625,12 +625,6 @@ describe("collectSources", () => {
   });
 
   test("skips legacy fundamental history in the no-packet canonical path", async () => {
-    const fundamentalHistoryModule =
-      await import("../src/sources/extended-evidence/fundamental-history");
-    const legacyFundamentalHistory = spyOn(
-      fundamentalHistoryModule,
-      "fundamentalHistoryFromCompanyFacts",
-    );
     const recordedRequests: string[] = [];
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
@@ -672,8 +666,9 @@ describe("collectSources", () => {
 
     expect(result.secTargetPacket).toBeUndefined();
     expect(result.financialStatements).toBeDefined();
-    expect(result.fundamentalHistory).toBeDefined();
-    expect(legacyFundamentalHistory).not.toHaveBeenCalled();
+    expect(result.fundamentalHistory).toEqual(
+      deriveFundamentalHistoryFromFinancialStatements(result.financialStatements!),
+    );
     expect(
       recordedRequests.filter((url) => url.includes("/companyfacts/CIK0000000001.json")),
     ).toHaveLength(1);
@@ -782,13 +777,7 @@ describe("collectSources", () => {
     ).toHaveLength(1);
   });
 
-  test("derives the no-packet legacy fallback from a single company facts fetch", async () => {
-    const fundamentalHistoryModule =
-      await import("../src/sources/extended-evidence/fundamental-history");
-    const legacyFundamentalHistory = spyOn(
-      fundamentalHistoryModule,
-      "fundamentalHistoryFromCompanyFacts",
-    );
+  test("derives the no-packet fallback from a single company facts fetch", async () => {
     const recordedRequests: string[] = [];
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
@@ -834,15 +823,12 @@ describe("collectSources", () => {
     ]);
     expect(result.sourceGaps.some((gap) => gap.source === "capital-return")).toBe(true);
     expect(result.fundamentalHistory).toBeUndefined();
-    expect(legacyFundamentalHistory).toHaveBeenCalledTimes(1);
     expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(2);
   });
 
   test("keeps valuation comps evidence in fallback financial lens consumption", async () => {
     const financialStatementsModule =
       await import("../src/sources/extended-evidence/financial-statements");
-    const fundamentalHistoryModule =
-      await import("../src/sources/extended-evidence/fundamental-history");
     const financialLensModule = await import("../src/sources/extended-evidence/financial-lens");
     const valuationModule = await import("../src/sources/extended-evidence/valuation");
     const marketCaps: Readonly<Record<string, number>> = {
@@ -859,13 +845,13 @@ describe("collectSources", () => {
       ANET: 4,
       VRT: 5,
     };
+    const deriveCanonical = financialStatementsModule.deriveFinancialStatements;
+    // The SEC summary derives with an empty symbol; only the collector's call falls back.
     const deriveFinancialStatements = spyOn(
       financialStatementsModule,
       "deriveFinancialStatements",
-    ).mockReturnValue(undefined as never);
-    const deriveLegacyFundamentalHistory = spyOn(
-      fundamentalHistoryModule,
-      "deriveFundamentalHistory",
+    ).mockImplementation((payload, options) =>
+      options.symbol === "" ? deriveCanonical(payload, options) : (undefined as never),
     );
     const addFinancialLensEvidence = spyOn(financialLensModule, "addFinancialLensEvidence");
     const addValuationEvidence = spyOn(valuationModule, "addValuationEvidence");
@@ -922,9 +908,8 @@ describe("collectSources", () => {
       );
 
       expect(result.financialStatements).toBeUndefined();
-      expect(result.fundamentalHistory).toBeDefined();
+      expect(result.fundamentalHistory).toBeUndefined();
       expect(result.financialLenses).toBeDefined();
-      expect(deriveLegacyFundamentalHistory).toHaveBeenCalledTimes(1);
       expect(addFinancialLensEvidence).toHaveBeenCalledTimes(1);
       expect(addValuationEvidence).toHaveBeenCalledTimes(1);
       expect(

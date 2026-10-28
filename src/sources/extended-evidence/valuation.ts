@@ -12,7 +12,7 @@ import { clampRoundedZero, formatRatioPercent } from "./percent-format";
 import { scaleCurrency } from "./value-format";
 import { depositoryIssuerSic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
-import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-edgar";
+import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-fundamentals-format";
 import {
   bridgeIncompleteReasons,
   copyBridgeMetrics,

@@ -638,6 +638,40 @@ describe("enterprise value bridge on both SEC producers", () => {
       concept: "ShortTermInvestments",
     });
   });
+
+  test("withholds summary debt and the EV bridge when the reporting currency is not USD", () => {
+    const accn = "0000002488-26-000123";
+    const summary = summarizeSecFundamentals(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                EUR: [
+                  {
+                    ...fact(30_000 * M, "2025-12-27", "2026-02-04", "rev", "10-K"),
+                    fp: "FY",
+                    start: "2025-01-01",
+                  },
+                ],
+              },
+            },
+            CashAndCashEquivalentsAtCarryingValue: {
+              units: { USD: [fact(5086 * M, "2026-06-27", "2026-08-05", accn)] },
+            },
+            DebtLongtermAndShorttermCombinedAmount: {
+              units: { USD: [fact(3226 * M, "2026-06-27", "2026-08-05", accn)] },
+            },
+          },
+        },
+      },
+      ANALYSIS_AS_OF,
+    );
+    expect(summary?.metrics).toEqual({ cash: 5086 * M, cashPeriodEnd: "2026-06-27" });
+    expect(summary?.gaps.map(({ message }) => message)).toContain(
+      "SEC summary withheld canonical debt is reported in EUR, not USD",
+    );
+  });
 });
 
 const CASH_INSTANT = "2026-06-30";

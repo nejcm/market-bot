@@ -2783,14 +2783,6 @@ describe("canonical financial statements", () => {
       const legacy = summarizeSecFundamentals(companyFacts, fy2026AsOf.analysisAsOf);
       expect(legacy?.metrics.debt).toBe(debt?.value);
       expect(legacy?.metrics.debtPeriodEnd).toBe(debt?.periodEnd);
-      expect(legacy?.debtComposite).toEqual(
-        debt?.composite === undefined
-          ? undefined
-          : {
-              selectedConcepts: debt.composite.components.map((component) => component.concept),
-              periodEnd: debt.periodEnd,
-            },
-      );
       return { artifact, debt };
     };
 
@@ -3468,7 +3460,7 @@ describe("canonical debt basis selection", () => {
       latestFinancialStatementFact(financialStatementFacts(artifact.statements.balanceSheet.debt)),
     ).toMatchObject({ value: 2_351_000_000, periodEnd: "2026-06-27" });
     expect(legacy?.metrics.debt).toBe(2_351_000_000);
-    expect(legacy?.debtComposite?.incompleteReason).toBeUndefined();
+    expect(legacy?.metrics.debtIncompleteReason).toBeUndefined();
   });
 
   test("refuses a one-sided generic line when the other side was nonzero within the prior year", () => {
@@ -3499,9 +3491,9 @@ describe("canonical debt basis selection", () => {
         message: expect.stringContaining("omits LongTermDebtCurrent"),
       }),
     );
-    expect(legacy?.debtComposite).toMatchObject({
-      periodEnd: "2026-06-27",
-      incompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
+    expect(legacy?.metrics).toMatchObject({
+      debtIncompletePeriodEnd: "2026-06-27",
+      debtIncompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
     });
   });
 
@@ -4280,10 +4272,9 @@ describe("canonical debt basis selection", () => {
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite).toMatchObject({
-      selectedConcepts: ["LongTermDebtNoncurrent"],
-      periodEnd: "2026-06-30",
-      incompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
+    expect(legacy?.metrics).toMatchObject({
+      debtIncompletePeriodEnd: "2026-06-30",
+      debtIncompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
     });
   });
 
@@ -4337,10 +4328,9 @@ describe("canonical debt basis selection", () => {
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite).toMatchObject({
-      selectedConcepts: ["LongTermDebtCurrent"],
-      periodEnd: "2026-06-30",
-      incompleteReason: expect.stringContaining("omits LongTermDebtNoncurrent"),
+    expect(legacy?.metrics).toMatchObject({
+      debtIncompletePeriodEnd: "2026-06-30",
+      debtIncompleteReason: expect.stringContaining("omits LongTermDebtNoncurrent"),
     });
   });
 
@@ -4463,10 +4453,9 @@ describe("canonical debt basis selection", () => {
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite).toMatchObject({
-      selectedConcepts: ["LongTermDebtNoncurrent"],
-      periodEnd: "2026-06-30",
-      incompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
+    expect(legacy?.metrics).toMatchObject({
+      debtIncompletePeriodEnd: "2026-06-30",
+      debtIncompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
     });
   });
 });
@@ -4548,9 +4537,8 @@ describe("gross-principal debt fallback", () => {
       debt: canonical?.value,
       debtPeriodEnd: canonical?.periodEnd,
       debtBasis: "gross-principal",
-      debtPrior: 11_171_485_000,
     });
-    expect(legacy?.debtComposite).toBeUndefined();
+    expect(legacy?.metrics.debtPrior).toBeUndefined();
     expect(legacy?.summary).toContain("debt (gross principal) 35551000000");
     expect(legacy?.gaps.map((gap) => gap.message)).toContain(
       "SEC debt uses gross principal (DebtInstrumentCarryingAmount) as of 2026-06-30: net carrying debt is not tagged in companyfacts after 2026-03-31, where gross principal was within 5% of it",
@@ -4928,5 +4916,70 @@ describe("gross-principal debt fallback", () => {
         [0, 3655],
       ),
     ).toBe(false);
+  });
+});
+
+describe("SEC summary canonical merge eligibility", () => {
+  const asOf = "2026-10-04T00:00:00.000Z";
+
+  test("withholds canonical debt and TTM reported outside the USD summary currency", () => {
+    const summary = summarizeSecFundamentals(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(200, 2025)], EUR: [annual(100, 2025), annual(90, 2024)] },
+          LongTermDebt: { EUR: [instant(50, 2025), instant(40, 2024)] },
+        },
+      }),
+      asOf,
+    );
+    expect(summary?.metrics.revenue).toBe(200);
+    expect(summary?.metrics.revenueTtm).not.toBe(100);
+    expect(summary?.metrics.debt).toBeUndefined();
+  });
+
+  test("keeps 20-F debt out of a summary that also has an older 10-K", () => {
+    const summary = summarizeSecFundamentals(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(200, 2024), annual(180, 2023)] },
+          LongTermDebt: { USD: [instant(70, 2025, "20-F"), instant(60, 2024, "20-F")] },
+        },
+      }),
+      asOf,
+    );
+    expect(summary?.metrics.revenue).toBe(200);
+    expect(summary?.metrics.debt).toBeUndefined();
+    expect(summary?.gaps.map((gap) => gap.message)).toContain(
+      "SEC summary withheld canonical debt for 2025-12-31 comes from a 20-F, not a 10-K/10-Q",
+    );
+  });
+
+  test("withholds gross principal when a same-instant borrowing line exceeds it", () => {
+    const q = (value: number, periodEnd: string, fp: string, filedAt: string) =>
+      amdInstant({
+        value,
+        form: fp === "FY" ? "10-K" : "10-Q",
+        fiscalPeriod: fp,
+        filedAt,
+        periodEnd,
+      });
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        LongTermDebt: { USD: [q(190, "2025-12-31", "FY", "2026-03-02")] },
+        DebtInstrumentCarryingAmount: {
+          USD: [q(195, "2025-12-31", "FY", "2026-03-02"), q(200, "2026-06-30", "Q2", "2026-08-12")],
+        },
+        SubordinatedLongTermDebt: { USD: [q(999, "2026-06-30", "Q2", "2026-08-12")] },
+      },
+    });
+    const artifact = derive(companyFacts, { analysisAsOf: asOf });
+    expect(
+      [
+        ...artifact.statements.balanceSheet.debt.annual,
+        ...artifact.statements.balanceSheet.debt.interim,
+      ].some((item) => item.basis === "gross-principal"),
+    ).toBe(false);
+    expect(summarizeSecFundamentals(companyFacts, asOf)?.metrics.debt).not.toBe(200);
   });
 });

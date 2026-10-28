@@ -20,7 +20,7 @@ import {
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../src/sources/extended-evidence/financial-statement-definitions";
-import { SEC_METRIC_DEFINITIONS } from "../src/sources/extended-evidence/sec-edgar";
+import { SEC_METRIC_DEFINITIONS } from "../src/sources/extended-evidence/sec-fundamentals-format";
 
 interface FactOverrides {
   readonly value?: number;

@@ -566,8 +566,13 @@ describe("business framework evidence", () => {
         const excluded = depth === "brief" && frameworkGapCode(gap) !== "analyst-consensus";
         expect(gap.cause).toBe(excluded ? "suppressed-by-design" : "provider-data-missing");
         expect(gap.evidenceQualityImpact).toBe("no-cap");
-        expect(gap.message.includes("Web Subject Profile is excluded at brief depth")).toBe(
-          excluded,
+        expect(
+          gap.message.includes(
+            "is not assessed at brief depth; filing prose and Web Subject Profile are excluded",
+          ),
+        ).toBe(excluded);
+        expect(gap.message.includes("current normalized sources")).toBe(
+          !excluded && frameworkGapCode(gap) !== "analyst-consensus",
         );
       }
       expect(result.artifact?.gaps).toHaveLength(12);
@@ -576,9 +581,11 @@ describe("business framework evidence", () => {
           if (typeof gap === "string") {
             throw new TypeError("Expected coded qualitative gap");
           }
-          expect(gap.text.includes("Web Subject Profile is excluded at brief depth")).toBe(
-            depth === "brief" && gap.code !== "analyst-consensus",
-          );
+          expect(
+            gap.text.includes(
+              "is not assessed at brief depth; filing prose and Web Subject Profile are excluded",
+            ),
+          ).toBe(depth === "brief" && gap.code !== "analyst-consensus");
         }
       }
     },

@@ -297,6 +297,15 @@ describe("loadStagePrompt — real prompt files", () => {
   });
 });
 
+test.each(["specialist-analysis", "instrument-evidence-analysis", "critique"] as const)(
+  "%s prompt checks sources before declaring a figure missing",
+  async (stage) => {
+    const { instruction } = await loadStagePrompt(stage, tickerCommand);
+
+    expect(instruction).toContain("Before declaring a figure missing, check supplied sources");
+  },
+);
+
 describe("checked-in final-synthesis prompt", () => {
   test("carries the accounting-scope guidance", async () => {
     const { instruction } = await loadStagePrompt("final-synthesis", tickerCommand);
@@ -306,9 +315,9 @@ describe("checked-in final-synthesis prompt", () => {
     );
     expect(instruction).toContain("(evidence.earningsBasis)");
     expect(instruction).toContain(
-      "a ratio such as a segment margin is quantified when sources state its inputs for the same period",
+      "check supplied sources for its numeric value (including an RPO share and recognition window)",
     );
-    expect(instruction).toContain("state the ratio only beside both cited inputs");
+    expect(instruction).toContain("show both cited inputs beside the ratio");
     expect(instruction).toContain(
       "Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.",
     );

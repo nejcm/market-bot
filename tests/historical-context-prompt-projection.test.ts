@@ -88,6 +88,14 @@ describe("compactHistoricalContext", () => {
         (run) => run.dataGaps.length === 8 && run.dataGaps[0]?.startsWith("price-performance: "),
       ),
     ).toBe(true);
+    for (const view of ["all", "web-gather"] as const) {
+      expect(compactHistoricalContext(context, view).priorRunDataGapsUse).toContain(
+        "prior-run observations",
+      );
+    }
+    expect(
+      compactHistoricalContext({ ...context, runs: [] }, "all").priorRunDataGapsUse,
+    ).toBeUndefined();
     const all = compactHistoricalContext(context, "all").runs as typeof context.runs;
     const web = compactHistoricalContext(context, "web-gather").runs as typeof context.runs;
     expect(all.every((run) => run.dataGaps[0]?.startsWith("price-performance: "))).toBe(true);

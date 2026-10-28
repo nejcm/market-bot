@@ -397,14 +397,21 @@ export function compactHistoricalContext(
   context: HistoricalResearchContext,
   sourceGapView: SourceGapView,
 ): Record<string, unknown> {
+  const runs = historicalRunsForGapView(context.runs, sourceGapView).map((run) =>
+    withResolvedPredictionsOnly(run),
+  );
   return {
     generatedAt: context.generatedAt,
     recentDays: context.recentDays,
     anchorMonths: context.anchorMonths,
     sourceIds: context.sources.map((source) => source.id),
-    runs: historicalRunsForGapView(context.runs, sourceGapView).map((run) =>
-      withResolvedPredictionsOnly(run),
-    ),
+    runs,
+    ...(runs.length > 0
+      ? {
+          priorRunDataGapsUse:
+            "runs[].dataGaps are prior-run observations, not current Source Gaps; re-check each against current supplied sources before repeating it.",
+        }
+      : {}),
     gaps: context.gaps,
     audit: context.audit,
     artifactDeltas: context.artifactDeltas,

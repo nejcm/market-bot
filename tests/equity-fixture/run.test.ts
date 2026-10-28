@@ -436,11 +436,15 @@ describe("static equity run fixtures", () => {
         ]);
         for (const gap of frameworkGaps) {
           if (gap.cause === "suppressed-by-design") {
-            expect(gap.message).toContain("Web Subject Profile is excluded at brief depth");
+            expect(gap.message).toContain(
+              "is not assessed at brief depth; filing prose and Web Subject Profile are excluded",
+            );
           }
           expect(result.report.dataGaps).toContain(`${gap.source}: ${gap.message}`);
         }
-        expect(result.markdown).toContain("Web Subject Profile is excluded at brief depth");
+        expect(result.markdown).toContain(
+          "is not assessed at brief depth; filing prose and Web Subject Profile are excluded",
+        );
       }
       if (name === "equity-iren-brief") {
         assertIrenExtensionCapexWithheld(result);

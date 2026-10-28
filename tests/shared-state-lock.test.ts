@@ -57,22 +57,28 @@ describe("withFileLock", () => {
       [
         "bun",
         "-e",
-        `const { Database } = require("bun:sqlite"); new Database(${JSON.stringify(path)}).exec("BEGIN EXCLUSIVE"); console.log("held"); setInterval(() => {}, 1000);`,
+        // Held on globalThis: an unreferenced Database is GC-closed, releasing the lock early.
+        `const { Database } = require("bun:sqlite"); globalThis.db = new Database(${JSON.stringify(path)}); db.exec("BEGIN EXCLUSIVE"); console.log("held"); setInterval(() => {}, 1000);`,
       ],
       { stdout: "pipe" },
     );
-    await holder.stdout.getReader().read();
-    let acquired = false;
-    const waiting = withFileLock(path, () => {
-      acquired = true;
-      return Promise.resolve();
-    });
-    await Bun.sleep(150);
-    expect(acquired).toBe(false);
-    holder.kill(9);
-    await holder.exited;
-    await waiting;
-    expect(acquired).toBe(true);
+    try {
+      await holder.stdout.getReader().read();
+      let acquired = false;
+      const waiting = withFileLock(path, () => {
+        acquired = true;
+        return Promise.resolve();
+      });
+      await Bun.sleep(150);
+      expect(acquired).toBe(false);
+      holder.kill(9);
+      await holder.exited;
+      await waiting;
+      expect(acquired).toBe(true);
+    } finally {
+      holder.kill(9);
+      await holder.exited;
+    }
   });
 });
 

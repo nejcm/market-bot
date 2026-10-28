@@ -146,11 +146,11 @@ Observable forecast whose `probability` is the chance `measurableAs` is true; be
 Structured disclosure that a report emitted fewer observable Predictions than its soft target after
 earnings and research-subject gates. It records emitted, target, and missing counts; presentation
 derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
-The valid final-synthesis report's count stands; no follow-up pass requests more Predictions. Event Grid Predictions are excluded from both counts.
+The valid final-synthesis report's count stands; no follow-up pass requests more Predictions. Event Grid Predictions, including model Predictions folded into a grid event they restate, are excluded from both counts.
 
 ## Event Grid
 
-Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response (or by a Forecast Grid Job) and stamped `origin: "grid"`. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response (or by a Forecast Grid Job) and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into that event and issued as grid, not counted as a model forecast. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
 ## Forecast Grid Job
 
@@ -535,7 +535,7 @@ Bounded text from up to two recent SEC current reports — 8-K for domestic file
 
 ## Valuation Evidence
 
-Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, and supportability. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
+Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, supportability, and the peer-implied price reference range (low/mid/high and spot position, or its suppression reason) so final synthesis reads the same range the report renders. Target and peers share one revenue basis, SEC TTM (fiscal year + latest YTD − prior-year YTD, or the latest 12-month fact); a partial period is never annualized, so a peer without reconciled TTM is rejected with that reason and a target without it withholds its revenue multiples behind a Source Gap. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Valuation Workbench
 

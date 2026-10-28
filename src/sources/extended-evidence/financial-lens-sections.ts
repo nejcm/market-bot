@@ -1561,7 +1561,7 @@ function peDefinitionsFor(
 function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
   const valuation = valuationItem(ctx);
   const yahoo = yahooItem(ctx);
-  // Annualized multiples date by revenue end only; a duration would label them as measured over it.
+  // TTM multiples date by revenue end only, matching the business framework.
   const valuationPeriod = periodEndInput(readStringMetric(valuation?.metrics, "revenuePeriodEnd"));
   const yahooPeriod = periodEndInput(yahoo?.observedAt);
   const supportability = valuation?.metrics?.valuationSupportability;
@@ -1642,23 +1642,17 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
     },
     {
       id: "annualizedRevenue",
-      label: "Annualized revenue",
+      label: "TTM revenue",
       unit: "currency",
-      basis: "valuation evidence revenue annualized to a year",
+      basis: "valuation evidence trailing-twelve-month SEC revenue",
       compute: () =>
-        evidenceOutcome(
-          valuation,
-          "annualizedRevenue",
-          "annualized revenue",
-          "currency",
-          valuationPeriod,
-        ),
+        evidenceOutcome(valuation, "annualizedRevenue", "TTM revenue", "currency", valuationPeriod),
     },
     {
       id: "evToAnnualizedRevenue",
       label: "EV/revenue",
       unit: "ratio",
-      basis: "valuation evidence enterprise value / annualized revenue",
+      basis: "valuation evidence enterprise value / TTM revenue",
       compute: () =>
         evidenceOutcome(valuation, "evToAnnualizedRevenue", "EV/revenue", "ratio", valuationPeriod),
     },
@@ -1666,7 +1660,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       id: "marketCapToAnnualizedRevenue",
       label: "Market cap/revenue",
       unit: "ratio",
-      basis: "valuation evidence market cap / annualized revenue",
+      basis: "valuation evidence market cap / TTM revenue",
       compute: () =>
         evidenceOutcome(
           valuation,

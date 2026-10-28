@@ -149,11 +149,25 @@ function collectorSecFactUnits(
   };
 }
 
-function collectorSecPayload(revenue = 100): unknown {
+function collectorSecPayload(revenue = 100, ttm = false): unknown {
+  const fiscalYear = collectorSecFact(4 * revenue, {
+    form: "10-K",
+    fp: "FY",
+    fy: 2025,
+    filed: "2026-05-01",
+    start: "2025-04-01",
+    end: "2026-03-31",
+  });
   return {
     facts: {
       "us-gaap": {
-        Revenues: { units: { USD: [collectorSecFact(revenue)] } },
+        Revenues: {
+          units: {
+            USD: ttm
+              ? [...collectorSecFactUnits(revenue, revenue).units.USD, fiscalYear]
+              : [collectorSecFact(revenue)],
+          },
+        },
         GrossProfit: collectorSecFactUnits(40, 35),
         OperatingIncomeLoss: collectorSecFactUnits(25, 20),
         NetIncomeLoss: collectorSecFactUnits(20, 18),
@@ -516,9 +530,9 @@ describe("collectSources", () => {
       if (url.includes("companyfacts")) {
         if (url.includes("CIK0000000001")) {
           nvdaCompanyFactsRequests += 1;
-          return jsonResponse(collectorSecPayload(100));
+          return jsonResponse(collectorSecPayload(100, true));
         }
-        return jsonResponse(collectorSecPayload());
+        return jsonResponse(collectorSecPayload(100, true));
       }
 
       if (url.includes("submissions")) {
@@ -879,7 +893,7 @@ describe("collectSources", () => {
         );
       }
       if (url.includes("companyfacts")) {
-        return jsonResponse(collectorSecPayload());
+        return jsonResponse(collectorSecPayload(100, true));
       }
       if (url.includes("submissions")) {
         return jsonResponse({

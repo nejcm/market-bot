@@ -813,7 +813,7 @@ export function assembleResearchReportWithRelocations(
     ]),
   ).map((gap) => gap.text);
   const predictionShortfall = derivePredictionShortfall(
-    researchGatedPredictions.predictions.length,
+    forecastBook.predictions.filter((prediction) => prediction.origin !== "grid").length,
     depthProfile.targetPredictions,
   );
 

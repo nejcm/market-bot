@@ -54,35 +54,35 @@
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":70000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":80000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":70000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"},{\"val\":70000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2025-01-01\",\"end\":\"2025-03-31\"},{\"val\":280000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2026-02-01\",\"start\":\"2025-01-01\",\"end\":\"2025-12-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":80000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
     },
     "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000002.json": {
       "status": 200,
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":90000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":30000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":90000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"},{\"val\":90000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2025-01-01\",\"end\":\"2025-03-31\"},{\"val\":360000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2026-02-01\",\"start\":\"2025-01-01\",\"end\":\"2025-12-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":30000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
     },
     "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000003.json": {
       "status": 200,
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":180000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":90000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":160000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":180000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"},{\"val\":180000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2025-01-01\",\"end\":\"2025-03-31\"},{\"val\":720000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2026-02-01\",\"start\":\"2025-01-01\",\"end\":\"2025-12-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":90000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":160000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
     },
     "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000004.json": {
       "status": 200,
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":50000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":60000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":40000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":50000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"},{\"val\":50000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2025-01-01\",\"end\":\"2025-03-31\"},{\"val\":200000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2026-02-01\",\"start\":\"2025-01-01\",\"end\":\"2025-12-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":60000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":40000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
     },
     "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000005.json": {
       "status": 200,
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":25000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":10000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":30000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":25000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"},{\"val\":25000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2025-01-01\",\"end\":\"2025-03-31\"},{\"val\":100000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2026-02-01\",\"start\":\"2025-01-01\",\"end\":\"2025-12-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":10000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":30000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
     },
     "GET  https://data.sec.gov/submissions/CIK0000000001.json": {
       "status": 200,

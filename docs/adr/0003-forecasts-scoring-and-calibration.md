@@ -133,13 +133,22 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   documented shortcut; volume is not consulted. (Amended 2026-10-21; availability only, the math and
   `ewma-0.94-w60-v1` are unchanged.)
 - Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
-  (same bands the prompt lists) and relative vs SPY at h = 5. The primary synthesis prices them in the same
+  (the prompt lists only the other ±1σ bands as prediction anchors) and relative vs SPY at h = 5. The primary synthesis prices them in the same
   response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the
   baseline; the 0.32 range-reference default is declared not to apply to grid rows. A repair attempt
-  that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, uncollected close sources, a
-  model Prediction already using the event, crypto runs and SPY's own relative event each leave the event
-  unissued and declare an `event-grid` data gap. Grid Predictions are scored and calibrated like any other
-  but do not count toward the prediction target, shortfall, kind mix or citation telemetry.
+  that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, uncollected close sources,
+  crypto runs and SPY's own relative event each leave the event unissued and declare an `event-grid` data
+  gap. A model Prediction identical to an issuable grid event (same id or `claimKey`) is folded into the
+  grid: the event is issued as `origin: "grid"` under its grid id with the model's `eventGrid` probability
+  when valid, else the duplicate's, and the grid's own sourceIds; the copy leaves the model list and no gap
+  is declared. Grid Predictions are scored and calibrated like any other but do not count toward the
+  prediction target, shortfall, kind mix or citation telemetry. (Amended 2026-10-23: previously a restating
+  model Prediction kept `origin: "model"`, counted toward the target and left the grid event unissued with a
+  "not issued separately" gap; 88% of model Predictions in grid-era evals were such restatements.
+  For a `claimKey` match, Forecast Event identity and dedupe are unchanged because the key is
+  origin-insensitive; an id-only match with a different expression is scored as the grid event's
+  expression instead. Either way a folded event is scored at the `eventGrid` probability when valid, so
+  Brier and Calibration inputs can differ from the duplicate's probability.)
 - The `forecast-grid` job issues the same Event Grid per watchlist equity, priced by one `quickModel` call
   from a compact fact sheet (no synthesis, not shown the baseline). It publishes a run-artifact dir under
   `data/runs/` so the existing score pass, Calibration, index and history read it unchanged; only parsed

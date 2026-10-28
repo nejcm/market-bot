@@ -30,6 +30,7 @@ function secEvidence(
 
 const baseExtendedEvidence: ExtendedEvidence = secEvidence({
   revenue: 100,
+  revenueTtm: 400,
   revenuePeriodMonths: 3,
   revenuePeriodEnd: "2026-06-29",
   cash: 30,
@@ -45,6 +46,7 @@ describe("addValuationEvidence", () => {
       [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
       secEvidence({
         revenue: 100,
+        revenueTtm: 400,
         cash: 30,
         cashPeriodEnd: "2026-06-30",
         debt: 50,
@@ -75,7 +77,7 @@ describe("addValuationEvidence", () => {
       const result = addValuationEvidence(
         command,
         [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
-        secEvidence({ revenue: 100, cash: 30, debt: 50, ...periods }),
+        secEvidence({ revenue: 100, revenueTtm: 400, cash: 30, debt: 50, ...periods }),
         cutoff,
       );
       return {
@@ -169,6 +171,24 @@ describe("addValuationEvidence", () => {
                   start: "2026-01-01",
                   end: "2026-03-31",
                 },
+                {
+                  val: 90,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2025,
+                  filed: "2025-05-01",
+                  start: "2025-01-01",
+                  end: "2025-03-31",
+                },
+                {
+                  val: 380,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2025,
+                  filed: "2026-02-01",
+                  start: "2025-01-01",
+                  end: "2025-12-31",
+                },
               ],
             },
           },
@@ -219,6 +239,7 @@ describe("addValuationEvidence", () => {
     ];
     const legacyInputs = secEvidence({
       revenue: 100,
+      revenueTtm: 390,
       revenuePeriodMonths: 3,
       revenuePeriodEnd: "2026-03-31",
       cash: 30,
@@ -239,7 +260,11 @@ describe("addValuationEvidence", () => {
       "2026-07-01T00:00:00.000Z",
     );
 
-    expect(canonical.extendedEvidence?.items.find((item) => item.category === "valuation")).toEqual(
+    const canonicalValuation = canonical.extendedEvidence?.items.find(
+      (item) => item.category === "valuation",
+    );
+    expect(canonicalValuation?.metrics?.annualizedRevenue).toBe(390);
+    expect(canonicalValuation).toEqual(
       legacy.extendedEvidence?.items.find((item) => item.category === "valuation"),
     );
   });
@@ -285,9 +310,8 @@ describe("addValuationEvidence", () => {
       },
     });
     expect(valuation?.summary).toContain(
-      "market cap $1.0K, enterprise value $1.0K, 3-month revenue $100, annualized revenue $400",
+      "market cap $1.0K, enterprise value $1.0K, TTM revenue $400 through 2026-06-29, EV/TTM revenue 2.55x, market cap/TTM revenue 2.50x",
     );
-    expect(valuation?.summary).toContain("EV/annualized revenue 2.55x");
     expect(valuation?.summary).toContain(
       "market cap as of 2026-05-19 (fetch time); cash/debt as of 2026-03-31",
     );
@@ -330,9 +354,15 @@ describe("addValuationEvidence", () => {
         "2026-07-01T00:00:00.000Z",
       ).extendedEvidence?.items.find((item) => item.category === "valuation");
     const gross = valuation(
-      secEvidence({ revenue: 400, cash: 30, debt: 50, debtBasis: "gross-principal" }),
+      secEvidence({
+        revenue: 400,
+        revenueTtm: 400,
+        cash: 30,
+        debt: 50,
+        debtBasis: "gross-principal",
+      }),
     );
-    const net = valuation(secEvidence({ revenue: 400, cash: 30, debt: 50 }));
+    const net = valuation(secEvidence({ revenue: 400, revenueTtm: 400, cash: 30, debt: 50 }));
 
     expect(gross?.metrics?.debtBasis).toBe("gross-principal");
     expect(gross?.summary).toContain(
@@ -361,47 +391,64 @@ describe("addValuationEvidence", () => {
     expect(valuation?.summary).not.toContain("-0.00x");
   });
 
-  test("treats a full-year (12-month) latest revenue fact as already annual", () => {
+  test("reads the SEC TTM revenue instead of annualizing the latest partial period", () => {
     const result = addValuationEvidence(
       command,
       [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
-      secEvidence({ revenue: 400, revenuePeriodMonths: 12, cash: 30, debt: 50 }),
+      secEvidence({
+        revenue: 300,
+        revenueTtm: 500,
+        revenuePeriodMonths: 9,
+        revenuePeriodEnd: "2026-06-29",
+        cash: 30,
+        debt: 50,
+      }),
       "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
     expect(valuation?.metrics).toMatchObject({
-      annualizedRevenue: 400,
-      marketCapToAnnualizedRevenue: 2.5,
+      latestPeriodRevenue: 300,
+      annualizedRevenue: 500,
+      marketCapToAnnualizedRevenue: 2,
     });
-    expect(valuation?.summary).toContain("12-month revenue $400, annualized revenue $400");
+    expect(valuation?.summary).toContain("TTM revenue $500 through 2026-06-29");
+    expect(valuation?.summary).not.toContain("9-month");
   });
 
-  test("annualizes a year-to-date (9-month) latest revenue fact by its period", () => {
+  test("withholds revenue multiples behind a Source Gap when TTM does not reconcile", () => {
     const result = addValuationEvidence(
       command,
       [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
-      secEvidence({ revenue: 300, revenuePeriodMonths: 9, cash: 30, debt: 50 }),
+      secEvidence({
+        revenue: 300,
+        revenuePeriodMonths: 9,
+        revenuePeriodEnd: "2026-06-29",
+        cash: 30,
+        cashPeriodEnd: "2026-06-29",
+        debt: 50,
+        debtPeriodEnd: "2026-06-29",
+      }),
       "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
-    expect(valuation?.metrics?.annualizedRevenue).toBeCloseTo(400);
-  });
-
-  test("does not extrapolate revenue when the period length is unknown", () => {
-    const result = addValuationEvidence(
-      command,
-      [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
-      secEvidence({ revenue: 400, cash: 30, debt: 50 }),
-      "2026-07-01T00:00:00.000Z",
+    expect(valuation?.metrics).toMatchObject({ latestPeriodRevenue: 300, enterpriseValue: 1020 });
+    expect(valuation?.metrics).not.toHaveProperty("annualizedRevenue");
+    expect(valuation?.metrics).not.toHaveProperty("evToAnnualizedRevenue");
+    expect(valuation?.metrics).not.toHaveProperty("marketCapToAnnualizedRevenue");
+    expect(valuation?.summary).toContain(
+      "latest 9-month revenue $300 through 2026-06-29 does not reconcile to TTM revenue, revenue multiples withheld",
     );
-
-    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
-    expect(valuation?.metrics).toMatchObject({ annualizedRevenue: 400 });
-    expect(valuation?.metrics?.revenuePeriodMonths).toBeUndefined();
-    expect(valuation?.summary).toContain("annualized revenue $400");
-    expect(valuation?.summary).not.toContain("-month revenue");
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        source: "valuation",
+        symbol: "AAPL",
+        cause: "provider-data-missing",
+        message:
+          "TTM revenue unavailable for AAPL: latest 9-month revenue $300 through 2026-06-29 has no reconciling fiscal-year and prior-year SEC facts; revenue multiples withheld",
+      }),
+    ]);
   });
 
   test("prefers the sec-edgar item carrying fundamentals over a metrics-less excerpt", () => {
@@ -428,6 +475,7 @@ describe("addValuationEvidence", () => {
               observedAt: "2026-05-18T00:00:00.000Z",
               metrics: {
                 revenue: 100,
+                revenueTtm: 400,
                 revenuePeriodMonths: 3,
                 cash: 30,
                 cashPeriodEnd: "2026-03-31",

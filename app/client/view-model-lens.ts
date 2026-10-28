@@ -39,14 +39,13 @@ function formatMultiple(value: number): string {
 const VALUATION_METRIC_LABELS: Readonly<Record<string, string>> = {
   marketCap: "Market cap",
   enterpriseValue: "Enterprise value",
-  annualizedRevenue: "Annualized revenue",
-  evToAnnualizedRevenue: "EV / annualized revenue",
-  revenuePeriodMonths: "Revenue period (months)",
+  annualizedRevenue: "TTM revenue",
+  evToAnnualizedRevenue: "EV / TTM revenue",
   corePeerCount: "Core peers",
   usablePeerCount: "Peers (median basis)",
-  peerMedianEvToAnnualizedRevenue: "Peer median EV / annualized revenue",
-  peerP25EvToAnnualizedRevenue: "Peer P25 EV / annualized revenue",
-  peerP75EvToAnnualizedRevenue: "Peer P75 EV / annualized revenue",
+  peerMedianEvToAnnualizedRevenue: "Peer median EV / TTM revenue",
+  peerP25EvToAnnualizedRevenue: "Peer P25 EV / TTM revenue",
+  peerP75EvToAnnualizedRevenue: "Peer P75 EV / TTM revenue",
   valuationSupportability: "Supportability",
 };
 
@@ -62,7 +61,6 @@ export function valuationMetricTiles(
     "enterpriseValue",
     "annualizedRevenue",
     "evToAnnualizedRevenue",
-    "revenuePeriodMonths",
     "usablePeerCount",
     "corePeerCount",
     "peerMedianEvToAnnualizedRevenue",
@@ -96,7 +94,7 @@ export function valuationMetricTiles(
       if (key === "corePeerCount" && hasUsablePeerCount) {
         return [];
       }
-      if (key === "revenuePeriodMonths" || key === "corePeerCount") {
+      if (key === "corePeerCount") {
         return [{ label, value: String(raw) }];
       }
       return [{ label, value: formatUsdCompact(raw) }];

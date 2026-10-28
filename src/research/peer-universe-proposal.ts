@@ -93,7 +93,7 @@ function comparabilityBand(target: PeerUniverseTargetInputs | undefined): string
       ? `an SEC SIC code in the two-digit group ${target.sic.slice(0, 2)} (target SIC ${target.sic})`
       : undefined,
     sizeBandClause("market capitalization", target?.marketCap),
-    sizeBandClause("annualized revenue", target?.annualizedRevenue),
+    sizeBandClause("TTM revenue", target?.annualizedRevenue),
   ].filter((clause): clause is string => clause !== undefined);
   return clauses.length === 0
     ? ""

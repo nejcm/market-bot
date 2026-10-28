@@ -563,3 +563,78 @@ describe("Segments anchor", () => {
     expect(result.misses).toContainEqual({ label: "Segments", reason: "absent" });
   });
 });
+
+function oldConcentration(year: number): string {
+  return `During fiscal year ${year}, one customer accounted for 30% of our net revenue${" in the period covered by this report and its predecessor reports".repeat(5)}.`;
+}
+
+describe("key disclosures", () => {
+  // Sentences from Harmonic (HLIT) 10-Q for the quarter ended July 3, 2026: RPO in Note 3, concentration in Item 1A.
+  const rpo =
+    "The aggregate balance of the Company’s remaining performance obligations as of July 3, 2026 was $ 587.6 million, 73 % of which is expected to be recognized as revenue over the next 12 months and the remainder thereafter.";
+  const concentration =
+    "During the six months ended July 3, 2026 , two of our customers accounted for approximately 41 % and 20 %, respectively, of our net revenue, compared to two customers accounted for approximately 51 % and 13 %, respectively, of our net revenue during the six months ended June 27, 2025.";
+  const filing = `NOTE 3: REVENUE ${rpo} ${"Deferred revenue is recognized over the term. ".repeat(40)} ${MDNA} ITEM 1A. RISK FACTORS ${"Competition could reduce our share of spending. ".repeat(40)}${concentration} ITEM 2. UNREGISTERED SALES None.`;
+
+  test("carries RPO conversion and customer concentration sentences outside every section budget", () => {
+    const disclosures = secFilingSectionPacket(filing, "10-Q").packet?.split(
+      "[Key Disclosures]",
+    )[1];
+
+    expect(disclosures).toContain(`${rpo} ${concentration}`);
+  });
+
+  test("omits the excerpt when no sentence matches, and skips receivables-only concentration", () => {
+    const { packet } = secFilingSectionPacket(
+      filing
+        .replace(rpo, "")
+        .replace(
+          concentration,
+          "One customer accounted for 18% of receivables from revenue contracts.",
+        ),
+      "10-Q",
+    );
+
+    expect(packet).toContain("[MD&A]");
+    expect(packet).not.toContain("[Key Disclosures]");
+  });
+
+  function disclosuresOf(body: string): string | undefined {
+    return secFilingSectionPacket(`${body} ${MDNA}`, "10-Q").packet?.split("[Key Disclosures] ")[1];
+  }
+
+  test("accepts RPO sentences that lead with the percentage", () => {
+    const sentence =
+      "As of June 30, 2026, the Company expected to recognize 64 % of its remaining performance obligations as revenue over the next 12 months with the remainder recognized thereafter.";
+
+    expect(disclosuresOf(sentence)).toBe(sentence);
+  });
+
+  test("trims table rows and headings glued to a sentence and keeps the negative statement", () => {
+    const negative =
+      "No customer accounted for at least 10% of the Company’s consolidated net revenue in fiscal years 2025 and 2024.";
+    const older =
+      "One Client and Gaming segment customer accounted for 18 % of consolidated net revenue in fiscal year 2023.";
+    const current =
+      "For the three months ended June 30, 2026, the Company had two customers, Customer A and Customer B, which accounted for approximately 13 % and 10 % of net sales, respectively.";
+
+    expect(
+      disclosuresOf(
+        `Other regions 6,055 3,946 7,354 Total sales to external customers $ 34,639 $ 25,785 $ 22,680 ${negative} ${older}`,
+      ),
+    ).toBe(`${negative} ${older}`);
+    expect(disclosuresOf(`Major Customer Concentration ${current}`)).toBe(current);
+    expect(disclosuresOf(`Customers: ${current}`)).toBe(current);
+  });
+
+  test("puts the current period first and skips a sentence that does not fit instead of stopping", () => {
+    const current = "During fiscal year 2026, one customer accounted for 40% of our net revenue.";
+    const disclosures = disclosuresOf(
+      `${oldConcentration(2021)} ${oldConcentration(2022)} ${oldConcentration(2023)} ${current}`,
+    );
+
+    expect(disclosures?.startsWith(current)).toBe(true);
+    expect(disclosures).toContain(oldConcentration(2023));
+    expect(disclosures).not.toContain(oldConcentration(2021));
+  });
+});

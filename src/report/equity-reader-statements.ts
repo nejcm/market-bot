@@ -8,8 +8,8 @@ import {
   financialStatementFacts,
   financialStatementSeriesByKey,
   latestFinancialStatementFact,
-  withheldDebt,
 } from "../sources/extended-evidence/financial-statement-selection";
+import { withheldDebt } from "../sources/extended-evidence/sec-debt";
 
 export interface LabeledPeriod {
   readonly kind: "annual" | "interim" | "ttm";

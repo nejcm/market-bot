@@ -32,9 +32,9 @@ import {
   latestFinancialStatementFact,
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
-  unadjustedLeaseInclusiveDebt,
-  withheldDebt,
 } from "./financial-statement-selection";
+import { withheldDebt } from "./sec-debt";
+import { unadjustedLeaseInclusiveDebt } from "./sec-debt-resolution";
 
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION = 1;
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY = "financialLensSelectionVersion";

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
   deriveFinancialStatements,
-  financialStatementsDebtBasisGaps,
   financialStatementsHistoryGaps,
   withinRetainedWindow,
 } from "../src/sources/extended-evidence/financial-statements";
@@ -39,6 +38,7 @@ import {
 } from "../src/sources/extended-evidence/valuation-comps";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { marketSnapshot, researchReport } from "./support/fixtures";
+import { financialStatementsDebtBasisGaps } from "../src/sources/extended-evidence/sec-debt";
 
 interface FactInput {
   readonly value: number;

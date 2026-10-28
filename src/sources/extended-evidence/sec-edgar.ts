@@ -21,7 +21,6 @@ import {
   financialStatementFacts,
   latestFinancialStatementFact,
   compareFinancialStatementFacts,
-  debtCandidateConcepts,
   isYearAligned,
 } from "./financial-statement-selection";
 import {
@@ -38,11 +37,10 @@ import {
   SEC_METRIC_DEFINITIONS,
   type SecMetricDefinition,
 } from "./sec-fundamentals-format";
-import {
-  deriveFinancialStatements,
-  financialStatementsDebtBasisGaps,
-} from "./financial-statements";
+import { deriveFinancialStatements } from "./financial-statements";
 import { canonicalFinancialMetrics } from "./financial-lens-canonical";
+import { financialStatementsDebtBasisGaps } from "./sec-debt";
+import { debtCandidateConcepts } from "./sec-debt-resolution";
 
 type SecForm = "10-K" | "10-Q" | "10-K/A" | "10-Q/A";
 

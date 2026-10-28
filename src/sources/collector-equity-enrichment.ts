@@ -37,10 +37,10 @@ import {
 } from "./extended-evidence/capital-ownership";
 import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "./extended-evidence/fundamental-history-canonical";
-import { collectFinancialStatements } from "./extended-evidence/financial-statements-collection";
+import { collectSecPeriodicFilingItems } from "./evidence-request-tools";
+import { fetchSecCompanyFactsForSymbol } from "./extended-evidence/sec-edgar";
 import {
   deriveFinancialStatements,
-  financialStatementsDebtBasisGaps,
   financialStatementsHistoryGaps,
 } from "./extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
@@ -78,6 +78,7 @@ import type { EvidenceRequestToolOutput } from "./evidence-request-output";
 import { deriveTradierImpliedMove, type TradierPacket } from "./tradier-packet";
 import { sourceGap } from "../domain/source-gaps";
 import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "./sec-packet-dependencies";
+import { financialStatementsDebtBasisGaps } from "./extended-evidence/sec-debt";
 
 export interface PeerUniverseSeam {
   readonly provider: ModelProvider;
@@ -657,5 +658,42 @@ async function collectEarningsSetup(
     },
     earningsExtraSources: impliedMoveSource !== undefined ? [impliedMoveSource] : [],
     earningsSourceGaps: moveResult.gaps,
+  };
+}
+
+interface CollectedFinancialStatements {
+  readonly statements: FinancialStatementsArtifact | undefined;
+  readonly periodicFilings?: EvidenceRequestToolOutput;
+}
+
+export async function collectFinancialStatements(
+  context: CollectContext,
+  symbol: string,
+): Promise<CollectedFinancialStatements> {
+  const facts = await fetchSecCompanyFactsForSymbol(context, symbol);
+  if (facts.factsPayload === undefined || facts.sourceId === undefined) {
+    return { statements: undefined };
+  }
+  const periodicFilings =
+    context.secUserAgent === undefined
+      ? undefined
+      : await collectSecPeriodicFilingItems(context, facts);
+  const statements = deriveFinancialStatements(facts.factsPayload, {
+    symbol,
+    generatedAt: context.fetchedAt,
+    analysisAsOf: context.fetchedAt,
+    sourceId: facts.sourceId,
+    ...(facts.sourceUrl !== undefined ? { sourceUrl: facts.sourceUrl } : {}),
+    ...(facts.submissionsPayload !== undefined
+      ? { submissionsPayload: facts.submissionsPayload }
+      : {}),
+    ...(facts.submissionsSourceId !== undefined
+      ? { submissionsSourceId: facts.submissionsSourceId }
+      : {}),
+    ...(periodicFilings !== undefined ? { secFilings: periodicFilings.items } : {}),
+  });
+  return {
+    statements,
+    ...(periodicFilings !== undefined ? { periodicFilings } : {}),
   };
 }

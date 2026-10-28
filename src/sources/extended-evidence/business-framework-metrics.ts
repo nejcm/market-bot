@@ -6,9 +6,14 @@ import type {
   BusinessFrameworkSectionName,
   BusinessLifecyclePhase,
 } from "./business-framework";
-import { currentRatioIsCurrent } from "./financial-lens-builders";
 import { priorComparable } from "./financial-lens-canonical";
-import { itemByCategory, secFundamentalItem, secScope } from "./financial-lens-metrics";
+import {
+  itemByCategory,
+  secFundamentalItem,
+  secPeriod as secItemPeriod,
+  secScope,
+} from "./financial-lens-metrics";
+import { isCurrentBalanceSheetPeriod } from "./valuation-comps-support";
 import { depositoryIssuerSic } from "./industry-classification";
 import { SEC_METRIC_DEFINITIONS } from "./sec-fundamentals-format";
 import {
@@ -862,4 +867,17 @@ export function businessFrameworkMetrics(
     phase: classifyBusinessLifecyclePhase(phaseInputs(ctx).classification),
     sourceGaps: evaluated.flatMap(([, result]) => result.sourceGaps),
   };
+}
+
+function currentRatioIsCurrent(
+  secItem: ExtendedEvidenceItem | undefined,
+  analysisAsOf: string,
+): boolean {
+  return (["currentAssets", "currentLiabilities"] as const).every((input) =>
+    isCurrentBalanceSheetPeriod(
+      secItem?.metrics,
+      secItemPeriod(secItem, input).periodEnd,
+      analysisAsOf,
+    ),
+  );
 }

@@ -28,7 +28,6 @@ import {
   financialStatementSeriesByKey,
   isYearAligned,
   latestFinancialStatementFact,
-  withheldDebt,
 } from "./financial-statement-selection";
 import type {
   FinancialStatementFact,
@@ -60,6 +59,7 @@ import {
   isFreshPeriodEnd,
 } from "./valuation-comps-support";
 import { type LensValueUnit } from "./value-format";
+import { withheldDebt } from "./sec-debt";
 
 type LensSeries = Extract<
   FinancialStatementSeriesKey,

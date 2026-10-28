@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  deriveFinancialStatements,
-  financialStatementsDebtBasisGaps,
-} from "../src/sources/extended-evidence/financial-statements";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   financialStatementFacts,
   latestFinancialStatementFact,
@@ -17,6 +14,7 @@ import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuatio
 import { marketSnapshot } from "./support/fixtures";
 import type { ValuationFundamentalInput } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { valuationMetricSection } from "../src/sources/extended-evidence/valuation-workbench-metrics";
+import { financialStatementsDebtBasisGaps } from "../src/sources/extended-evidence/sec-debt";
 
 const ANALYSIS_AS_OF = "2026-10-08T00:00:00.000Z";
 

@@ -23,7 +23,6 @@ import { summaryLens } from "./support/financial-lens";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 
@@ -176,31 +175,23 @@ describe("continuing-operations cash-flow aliases", () => {
     ).toEqual([]);
   });
 
-  test("carries the scope label through canonical and legacy history and the lenses", () => {
+  test("carries the scope label through canonical history and the lenses", () => {
     const canonical = deriveFundamentalHistoryFromFinancialStatements(
       statementsFor(clfdConcepts()),
     );
-    const legacy = deriveFundamentalHistory(payload(clfdConcepts()), {
-      symbol: "CLFD",
-      generatedAt: AS_OF,
-      analysisAsOf: AS_OF,
-      sourceId: "sec-clfd",
-    });
     const item = canonicalSecItem(clfdConcepts());
     const labels = [
       ...summaryLens(item, "Quality", AS_OF, statementsFor(clfdConcepts())).metrics,
       ...summaryLens(item, "Growth", AS_OF, statementsFor(clfdConcepts())).metrics,
     ].map((metric) => metric.label);
 
-    for (const history of [canonical, legacy]) {
-      expect(history.series.operatingCashFlow.concept).toBe(CONTINUING_OCF);
-      expect(history.series.operatingCashFlow.label).toBe(
-        "Operating cash flow (continuing operations)",
-      );
-      expect(history.series.freeCashFlowProxy.label).toBe(
-        "Free cash flow proxy (continuing operations)",
-      );
-    }
+    expect(canonical.series.operatingCashFlow.concept).toBe(CONTINUING_OCF);
+    expect(canonical.series.operatingCashFlow.label).toBe(
+      "Operating cash flow (continuing operations)",
+    );
+    expect(canonical.series.freeCashFlowProxy.label).toBe(
+      "Free cash flow proxy (continuing operations)",
+    );
     expect(item.metrics?.operatingCashFlowScope).toBe("continuing operations");
     expect(labels).toContain("Operating cash flow YoY (continuing operations)");
     expect(labels).toContain("FCF proxy (continuing operations)");
@@ -256,16 +247,11 @@ describe("continuing-operations cash-flow aliases", () => {
       [CONTINUING_OCF]: [q3Current(7_345_000)],
     };
     const summary = summarizeSecFundamentals(payload(concepts), asOf)!;
-    const legacy = deriveFundamentalHistory(payload(concepts), {
-      symbol: "CLFD",
-      generatedAt: asOf,
-      analysisAsOf: asOf,
-      sourceId: "sec-clfd",
-    });
+    const history = deriveFundamentalHistoryFromFinancialStatements(statementsFor(concepts, asOf));
 
     expect(summary.metrics.operatingCashFlow).toBe(18_116_000);
     expect(summary.metrics.operatingCashFlowScope).toBeUndefined();
-    expect(legacy.series.operatingCashFlow.concept).toBe(TOTAL_OCF);
+    expect(history.series.operatingCashFlow.concept).toBe(TOTAL_OCF);
   });
 
   test("declares the missing fact when neither OCF alias is tagged", () => {

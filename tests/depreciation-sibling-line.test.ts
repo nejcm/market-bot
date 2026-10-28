@@ -327,6 +327,25 @@ describe("combined D&A tagged as a sibling cash-flow line", () => {
     },
   );
 
+  test.each([
+    ["absent", strip(LTRX_FY2026, "AmortizationOfIntangibleAssets")],
+    [
+      "zero",
+      {
+        ...LTRX_FY2026,
+        concepts: {
+          ...LTRX_FY2026.concepts,
+          AmortizationOfIntangibleAssets: [
+            ["2025-07-01", "2026-06-30", 0],
+            ["2024-07-01", "2025-06-30", 0],
+          ],
+        },
+      } satisfies Filing,
+    ],
+  ] as const)("LTRX FY2026 DDA is kept when the amortization sibling is %s", (_case, filing) => {
+    expect(derive([filing]).value("2025-07-01", "2026-06-30")).toBe(1_602_000);
+  });
+
   test("GPN Q1 2026 without Depreciation is withheld by the fallback but kept by a verified 10-Q line", () => {
     const stripped = strip(GPN_Q1_2026, "Depreciation");
     expect(derive([stripped]).value("2026-01-01", "2026-03-31")).toBeUndefined();

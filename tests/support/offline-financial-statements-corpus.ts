@@ -11,16 +11,14 @@ import {
   financialStatementSeries,
   latestFinancialStatementFact,
 } from "../../src/sources/extended-evidence/financial-statement-selection";
+import { canonicalHistoryPropertyFailures } from "./offline-financial-history-properties";
 import { deriveFinancialStatements } from "../../src/sources/extended-evidence/financial-statements";
 import type {
   FinancialStatementFact,
   FinancialStatementsArtifact,
 } from "../../src/sources/extended-evidence/financial-statements-contract";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";
-import {
-  deriveFundamentalHistory,
-  type FundamentalHistoryArtifact,
-} from "../../src/sources/extended-evidence/fundamental-history";
+import type { FundamentalHistoryArtifact } from "../../src/sources/extended-evidence/fundamental-history";
 import { summarizeSecFundamentals } from "../../src/sources/extended-evidence/sec-edgar";
 import {
   allowanceKey,
@@ -30,10 +28,10 @@ import {
   exactValueHash,
   type ProjectedConsumers,
   type ProjectedHistorySeries,
+  type ProjectedLensConsumers,
   type ProjectedLens,
   type ProjectedLensMetric,
 } from "./offline-financial-corpus-compare";
-import { verifyHistoryAllowanceProperties } from "./offline-financial-history-properties";
 import { verifyLensAllowanceProperties } from "./offline-financial-lens-properties";
 
 export const OFFLINE_FINANCIAL_STATEMENT_FIXTURES = [
@@ -106,7 +104,7 @@ export interface OfflineCorpusProjection<
   readonly interimCadence: string;
   readonly statements: Readonly<Record<string, ProjectedStatementSeries>>;
   readonly canonical: ProjectedConsumers;
-  readonly legacy: ProjectedConsumers;
+  readonly legacy: ProjectedLensConsumers;
 }
 
 export interface OfflineCorpusDifference {
@@ -124,8 +122,7 @@ export interface OfflineCorpusAllowance {
     | "legacy-form-unsupported"
     | "canonical-exact-period-correction"
     | "filed-currency"
-    | "selection-policy"
-    | "history-property-not-rederivable";
+    | "selection-policy";
   readonly justification: string;
 }
 
@@ -197,7 +194,7 @@ async function loadOfflineCorpusGolden(
   // A golden without a legacy block asserts legacy === canonical (zero-difference fixtures).
   return {
     ...value,
-    legacy: value.legacy ?? structuredClone(value.canonical),
+    legacy: value.legacy ?? { financialLens: structuredClone(value.canonical.financialLens) },
   } as unknown as OfflineCorpusProjection;
 }
 
@@ -220,8 +217,7 @@ async function loadOfflineCorpusAllowances(): Promise<readonly OfflineCorpusAllo
         (item.kind === "legacy-form-unsupported" ||
           item.kind === "canonical-exact-period-correction" ||
           item.kind === "filed-currency" ||
-          item.kind === "selection-policy" ||
-          item.kind === "history-property-not-rederivable") &&
+          item.kind === "selection-policy") &&
         typeof item.justification === "string" &&
         item.justification !== "",
     )
@@ -377,19 +373,12 @@ export function runOfflineFinancialStatementCorpus<Fixture extends string>(
   const legacy = legacyEvidence(input);
   const canonicalFinancialLensEvidence = withCanonicalFinancialLensInputs(legacy, artifact);
   const canonicalHistory = deriveFundamentalHistoryFromFinancialStatements(artifact);
-  const legacyHistory = deriveFundamentalHistory(input.companyFacts, {
-    symbol: input.symbol,
-    generatedAt: input.analysisAsOf,
-    analysisAsOf: input.analysisAsOf,
-    sourceId: input.sourceId,
-  });
   const canonicalLens = deriveLens(input, canonicalFinancialLensEvidence, artifact);
   const canonicalConsumers: ProjectedConsumers = {
     fundamentalHistory: projectHistory(canonicalHistory),
     financialLens: projectLenses(canonicalLens.artifact),
   };
-  const legacyConsumers: ProjectedConsumers = {
-    fundamentalHistory: projectHistory(legacyHistory),
+  const legacyConsumers: ProjectedLensConsumers = {
     financialLens: projectLenses(deriveLens(input, legacy).artifact),
   };
   const projection: OfflineCorpusProjection<Fixture> = {
@@ -440,35 +429,6 @@ function classifyOfflineCorpusDifferences(
     if (allowance === undefined) {
       throw new Error(
         `Offline comparator alarm: unclassified ${execution.input.fixture} difference ${difference.path}: ${JSON.stringify(difference)}`,
-      );
-    }
-    const historyVerification = allowance.path.startsWith("fundamentalHistory.")
-      ? verifyHistoryAllowanceProperties(execution, allowance)
-      : undefined;
-    if (
-      historyVerification !== undefined &&
-      allowance.kind === "history-property-not-rederivable" &&
-      historyVerification !== "not-rederivable"
-    ) {
-      throw new Error(
-        `Offline comparator alarm: ${execution.input.fixture} ${difference.path} is not eligible for history-property reclassification`,
-      );
-    }
-    if (
-      historyVerification !== undefined &&
-      allowance.kind !== "history-property-not-rederivable" &&
-      historyVerification !== "verified"
-    ) {
-      throw new Error(
-        `Offline comparator alarm: unclassified ${execution.input.fixture} difference ${difference.path}: fundamental-history property re-derivation ${historyVerification}`,
-      );
-    }
-    if (
-      historyVerification === undefined &&
-      allowance.kind === "history-property-not-rederivable"
-    ) {
-      throw new Error(
-        `Offline comparator alarm: ${execution.input.fixture} ${difference.path} is not a fundamental-history difference`,
       );
     }
     if (
@@ -686,6 +646,12 @@ export interface OfflineCorpusAudit {
 }
 
 export function auditOfflineCorpusCase(corpusCase: OfflineCorpusCase): OfflineCorpusAudit {
+  const historyFailures = canonicalHistoryPropertyFailures(corpusCase.execution);
+  if (historyFailures.length > 0) {
+    throw new Error(
+      `Offline comparator alarm: ${corpusCase.execution.input.fixture} canonical history properties failed: ${historyFailures.join(", ")}`,
+    );
+  }
   const classification = classifyOfflineCorpusDifferences(
     corpusCase.execution,
     corpusCase.allowances,

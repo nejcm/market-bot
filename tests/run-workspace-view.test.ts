@@ -1,3 +1,4 @@
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -23,7 +24,6 @@ import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/market-data";
 import type { ResearchReport } from "../src/domain/report";
 import {
-  deriveFundamentalHistory,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
   type FundamentalHistorySeriesKey,
@@ -321,34 +321,36 @@ function balanceSheetHistoryFixture() {
 }
 
 function fundamentalHistoryFixture(epsValues: readonly number[] = [2, 2.5, 6.13]) {
-  return deriveFundamentalHistory(
-    {
-      facts: {
-        "us-gaap": {
-          Revenues: { units: { USD: fundamentalHistoryAnnualFacts([100, 120, 150]) } },
-          GrossProfit: { units: { USD: fundamentalHistoryAnnualFacts([40, 50, 66]) } },
-          OperatingIncomeLoss: {
-            units: { USD: fundamentalHistoryAnnualFacts([25, 32, 42]) },
-          },
-          NetIncomeLoss: { units: { USD: fundamentalHistoryAnnualFacts([20, 25, 33]) } },
-          EarningsPerShareDiluted: {
-            units: { "USD/shares": fundamentalHistoryAnnualFacts(epsValues) },
-          },
-          NetCashProvidedByUsedInOperatingActivities: {
-            units: { USD: fundamentalHistoryAnnualFacts([30, 36, 45]) },
-          },
-          PaymentsToAcquirePropertyPlantAndEquipment: {
-            units: { USD: fundamentalHistoryAnnualFacts([8, 9, 10]) },
+  return deriveFundamentalHistoryFromFinancialStatements(
+    deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: { units: { USD: fundamentalHistoryAnnualFacts([100, 120, 150]) } },
+            GrossProfit: { units: { USD: fundamentalHistoryAnnualFacts([40, 50, 66]) } },
+            OperatingIncomeLoss: {
+              units: { USD: fundamentalHistoryAnnualFacts([25, 32, 42]) },
+            },
+            NetIncomeLoss: { units: { USD: fundamentalHistoryAnnualFacts([20, 25, 33]) } },
+            EarningsPerShareDiluted: {
+              units: { "USD/shares": fundamentalHistoryAnnualFacts(epsValues) },
+            },
+            NetCashProvidedByUsedInOperatingActivities: {
+              units: { USD: fundamentalHistoryAnnualFacts([30, 36, 45]) },
+            },
+            PaymentsToAcquirePropertyPlantAndEquipment: {
+              units: { USD: fundamentalHistoryAnnualFacts([8, 9, 10]) },
+            },
           },
         },
       },
-    },
-    {
-      symbol: "AAPL",
-      generatedAt: "2025-08-01T00:00:00.000Z",
-      analysisAsOf: "2025-08-01T00:00:00.000Z",
-      sourceId: "extended-sec-edgar-aapl-fundamentals",
-    },
+      {
+        symbol: "AAPL",
+        generatedAt: "2025-08-01T00:00:00.000Z",
+        analysisAsOf: "2025-08-01T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    ),
   );
 }
 
@@ -374,20 +376,23 @@ function fundamentalHistoryWithEpsTtm() {
       end: "2025-06-30",
     },
   ];
-  return deriveFundamentalHistory(
-    {
-      facts: {
-        "us-gaap": {
-          EarningsPerShareDiluted: { units: { "USD/shares": epsFacts } },
+  return deriveFundamentalHistoryFromFinancialStatements(
+    deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: { units: { USD: epsFacts } },
+            EarningsPerShareDiluted: { units: { "USD/shares": epsFacts } },
+          },
         },
       },
-    },
-    {
-      symbol: "AAPL",
-      generatedAt: "2025-08-02T00:00:00.000Z",
-      analysisAsOf: "2025-08-02T00:00:00.000Z",
-      sourceId: "extended-sec-edgar-aapl-fundamentals",
-    },
+      {
+        symbol: "AAPL",
+        generatedAt: "2025-08-02T00:00:00.000Z",
+        analysisAsOf: "2025-08-02T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    ),
   );
 }
 

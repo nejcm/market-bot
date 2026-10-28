@@ -5,7 +5,7 @@ import type {
   OfflineCorpusDifference,
 } from "./offline-financial-statements-corpus";
 
-// Leaf comparison engine for the offline financial-statements corpus: the projected-consumer shapes, field-by-field diffing of canonical vs. legacy, and the stable hash/key helpers used to match a computed difference against its checked-in allowance. Kept as a private mechanics module — the corpus test suites never import from here directly.
+// Leaf comparison engine for the offline financial-statements corpus: the projected-consumer shapes, field-by-field diffing of canonical vs. legacy financial-lens, and the stable hash/key helpers used to match a computed difference against its checked-in allowance. Kept as a private mechanics module — the corpus test suites never import from here directly.
 
 export interface ProjectedLensMetric {
   readonly key: string;
@@ -31,27 +31,16 @@ export interface ProjectedHistorySeries {
   readonly marginChange: FundamentalHistorySeries["marginChange"] | null;
 }
 
-export interface ProjectedConsumers {
-  readonly fundamentalHistory: Readonly<Record<string, ProjectedHistorySeries>>;
+export interface ProjectedLensConsumers {
   readonly financialLens: Readonly<Record<string, ProjectedLens>>;
+}
+
+export interface ProjectedConsumers extends ProjectedLensConsumers {
+  readonly fundamentalHistory: Readonly<Record<string, ProjectedHistorySeries>>;
 }
 
 function sameValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function withoutFiscalYear(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => withoutFiscalYear(item));
-  }
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => key !== "fy")
-      .map(([key, nested]) => [key, withoutFiscalYear(nested)]),
-  );
 }
 
 function compareField(
@@ -59,43 +48,17 @@ function compareField(
   path: string,
   canonical: unknown,
   legacy: unknown,
-  ignoreFiscalYear = false,
 ): void {
-  if (
-    !sameValue(
-      ignoreFiscalYear ? withoutFiscalYear(canonical) : canonical,
-      ignoreFiscalYear ? withoutFiscalYear(legacy) : legacy,
-    )
-  ) {
+  if (!sameValue(canonical, legacy)) {
     differences.push({ path, canonical: canonical ?? null, legacy: legacy ?? null });
   }
 }
 
 export function compareConsumers(
-  canonical: ProjectedConsumers,
-  legacy: ProjectedConsumers,
+  canonical: ProjectedLensConsumers,
+  legacy: ProjectedLensConsumers,
 ): readonly OfflineCorpusDifference[] {
   const differences: OfflineCorpusDifference[] = [];
-  const historyKeys = [
-    ...new Set([
-      ...Object.keys(canonical.fundamentalHistory),
-      ...Object.keys(legacy.fundamentalHistory),
-    ]),
-  ].toSorted();
-  for (const key of historyKeys) {
-    const current = canonical.fundamentalHistory[key];
-    const previous = legacy.fundamentalHistory[key];
-    for (const field of ["concept", "annual", "ttm", "cagr", "marginChange"] as const) {
-      compareField(
-        differences,
-        `fundamentalHistory.${key}.${field}`,
-        current?.[field],
-        previous?.[field],
-        // NOTE — ponytail: Only canonical-vs-legacy parity ignores fy: canonical is period-derived while legacy remains filing-framed. Golden locking stays strict.
-        field === "annual" || field === "ttm",
-      );
-    }
-  }
   const lensNames = [
     ...new Set([...Object.keys(canonical.financialLens), ...Object.keys(legacy.financialLens)]),
   ].toSorted();
@@ -119,14 +82,10 @@ export function compareConsumers(
 }
 
 export function countComparableFields(
-  canonical: ProjectedConsumers,
-  legacy: ProjectedConsumers,
+  canonical: ProjectedLensConsumers,
+  legacy: ProjectedLensConsumers,
 ): number {
-  let count =
-    new Set([
-      ...Object.keys(canonical.fundamentalHistory),
-      ...Object.keys(legacy.fundamentalHistory),
-    ]).size * 5;
+  let count = 0;
   const lensNames = new Set([
     ...Object.keys(canonical.financialLens),
     ...Object.keys(legacy.financialLens),

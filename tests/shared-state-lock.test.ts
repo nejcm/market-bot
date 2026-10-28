@@ -35,12 +35,14 @@ describe("withFileLock", () => {
     const path = await lockPath();
     const events: string[] = [];
     const { promise: released, resolve: release } = Promise.withResolvers<void>();
+    const { promise: firstHeld, resolve: markFirstHeld } = Promise.withResolvers<void>();
     const first = withFileLock(path, async () => {
       events.push("first:start");
+      markFirstHeld();
       await released;
       events.push("first:end");
     });
-    await Bun.sleep(20);
+    await firstHeld;
     const second = withFileLock(path, async () => {
       events.push("second:start");
     });

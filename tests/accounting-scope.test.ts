@@ -33,7 +33,6 @@ import {
   type FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { config, contextWithHistory } from "./support/research-context-helpers";
 import type { ResearchCommand } from "../src/cli/args";
@@ -448,12 +447,6 @@ describe("accounting scope", () => {
     const { [CONTINUING_OCF]: ocf, ...rest } = clfd();
     const concepts = { ...rest, [TOTAL_OCF]: ocf! };
     const canonical = deriveFundamentalHistoryFromFinancialStatements(statements(concepts));
-    const legacy = deriveFundamentalHistory(payload(concepts), {
-      symbol: "CLFD",
-      generatedAt: AS_OF,
-      analysisAsOf: AS_OF,
-      sourceId: "sec-clfd",
-    });
     const trends = financialTrends(canonical, false)!;
     const cards = fundamentalHistoryView({
       summary: {} as RunSummary,
@@ -465,13 +458,11 @@ describe("accounting scope", () => {
       cases: [],
     });
 
-    for (const history of [canonical, legacy]) {
-      expect(history.series.netIncome).toMatchObject({
-        label: "Net income (total operations)",
-        scope: "total operations",
-      });
-      expect(history.series.dilutedEps.label).toBe("Diluted EPS (total operations)");
-    }
+    expect(canonical.series.netIncome).toMatchObject({
+      label: "Net income (total operations)",
+      scope: "total operations",
+    });
+    expect(canonical.series.dilutedEps.label).toBe("Diluted EPS (total operations)");
     expect(trends.freeCashFlowScope).toBeUndefined();
     expect(financialTrendFromProjection(trends)?.columns[2]).toBe("Net income (total operations)");
     expect(cards.cards.find((card) => card.key === "dilutedEps")?.label).toBe(
@@ -847,18 +838,11 @@ describe("continuing-operations basis for cash flow and margins", () => {
       [CONTINUING_PARENT]: amd()[CONTINUING_PARENT]!.filter((fact) => fact.end !== "2025-06-28"),
     };
     const artifact = statements(concepts);
-    const legacy = deriveFundamentalHistory(payload(concepts), {
-      symbol: "AMD",
-      generatedAt: AS_OF,
-      analysisAsOf: AS_OF,
-      sourceId: "sec-amd",
-    });
 
     expect(artifact.statements.incomeStatement.netIncome.ttm?.periodEnd).toBe("2026-06-27");
     expect(
       deriveFundamentalHistoryFromFinancialStatements(artifact).series.netMargin.ttm,
     ).toBeUndefined();
-    expect(legacy.series.netMargin.ttm).toBeUndefined();
     expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
       "SEC net margin is withheld for 2024-12-29 to 2025-06-28: discontinued operations are reported and no continuing-operations income is tagged",
     );

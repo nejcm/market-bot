@@ -1,7 +1,6 @@
 import { yearsBetween } from "./fiscal-years";
 import {
   type FundamentalHistoryCagr,
-  type FundamentalHistoryMarginChange,
   type FundamentalHistorySeries,
 } from "../../src/sources/extended-evidence/fundamental-history";
 
@@ -28,19 +27,12 @@ interface HistoryPropertyExecution {
   readonly projection: {
     readonly statements: Readonly<Record<string, { readonly ttm: ProjectedStatementTtm | null }>>;
     readonly canonical: ProjectedConsumers;
-    readonly legacy: ProjectedConsumers;
   };
 }
 
-interface HistoryPropertyAllowance {
-  readonly path: string;
-}
-
-export type HistoryPropertyVerification = "verified" | "not-rederivable" | "failed";
-
 function historySummarySpanMatches(
   annual: FundamentalHistorySeries["annual"],
-  summary: FundamentalHistoryCagr | FundamentalHistoryMarginChange,
+  summary: Pick<FundamentalHistoryCagr, "periodStart" | "periodEnd" | "years">,
 ): boolean {
   const first = annual.find((point) => point.periodEnd === summary.periodStart);
   const last = annual.find((point) => point.periodEnd === summary.periodEnd);
@@ -154,7 +146,9 @@ function historyRawMarginComponentTtmMatches(
   const dependents = RAW_TTM_MARGIN_DEPENDENTS[seriesKey];
   return (
     dependents !== undefined &&
-    dependents.every((dependent) => historyMarginTtmMatches(consumers, dependent))
+    dependents
+      .filter((dependent) => consumers.fundamentalHistory[dependent]?.ttm != null)
+      .every((dependent) => historyMarginTtmMatches(consumers, dependent))
   );
 }
 
@@ -194,9 +188,6 @@ function historyOperatingCashFlowTtmMatches(
   if (freeCashFlowMatches === false) {
     return false;
   }
-  if (consumers !== execution.projection.canonical) {
-    return freeCashFlowMatches === true;
-  }
   const statementTtm = execution.projection.statements.operatingCashFlow?.ttm;
   return (
     statementTtm !== null &&
@@ -223,6 +214,9 @@ function historyTtmMatches(
     // Diluted EPS has no sibling TTM identity; only its production-emitted shape is re-derivable.
     return true;
   }
+  if (seriesKey === "capex" || seriesKey === "freeCashFlowProxy") {
+    return historyFreeCashFlowTtmMatches(consumers) === true;
+  }
   if (seriesKey === "operatingCashFlow") {
     return historyOperatingCashFlowTtmMatches(execution, consumers, series);
   }
@@ -233,77 +227,17 @@ function historyTtmMatches(
   return historyMarginTtmMatches(consumers, seriesKey);
 }
 
-function historyConceptCanBeReclassified(
-  execution: HistoryPropertyExecution,
-  seriesKey: string,
-): boolean {
-  const canonical = execution.projection.canonical.fundamentalHistory[seriesKey];
-  const legacy = execution.projection.legacy.fundamentalHistory[seriesKey];
-  return (
-    typeof canonical?.concept === "string" &&
-    legacy?.concept === null &&
-    canonical.annual.length > 0 &&
-    canonical.annual.every((point) => point.form === "20-F") &&
-    legacy.annual.length === 0
-  );
-}
-
-export function verifyHistoryAllowanceProperties(
-  execution: HistoryPropertyExecution,
-  allowance: HistoryPropertyAllowance,
-): HistoryPropertyVerification {
-  const [root, seriesKey, field, extra] = allowance.path.split(".");
-  if (root !== "fundamentalHistory" || seriesKey === undefined || field === undefined || extra) {
-    return "failed";
-  }
-  if (field === "concept") {
-    return historyConceptCanBeReclassified(execution, seriesKey) ? "not-rederivable" : "failed";
-  }
-  if (field === "ttm") {
-    const consumers = [execution.projection.canonical, execution.projection.legacy];
-    let ttmCount = 0;
-    for (const consumer of consumers) {
-      const ttm = consumer.fundamentalHistory[seriesKey]?.ttm;
-      if (ttm === null || ttm === undefined) {
-        continue;
-      }
-      ttmCount += 1;
-      if (!historyTtmMatches(execution, consumer, seriesKey)) {
-        return "failed";
-      }
-    }
-    return ttmCount > 0 ? "verified" : "failed";
-  }
-  if (field !== "annual" && field !== "cagr" && field !== "marginChange") {
-    return "failed";
-  }
-
-  const series = [
-    execution.projection.canonical.fundamentalHistory[seriesKey],
-    execution.projection.legacy.fundamentalHistory[seriesKey],
-  ].filter((value): value is ProjectedHistorySeries => value !== undefined);
-  let summaryCount = 0;
-  for (const value of series) {
-    if (
-      (field === "annual" || field === "cagr") &&
-      value.cagr !== null &&
-      value.cagr !== undefined
-    ) {
-      summaryCount += 1;
-      if (!historyCagrMatches(value)) {
-        return "failed";
-      }
-    }
-    if (
-      (field === "annual" || field === "marginChange") &&
-      value.marginChange !== null &&
-      value.marginChange !== undefined
-    ) {
-      summaryCount += 1;
-      if (!historyMarginChangeMatches(value)) {
-        return "failed";
-      }
-    }
-  }
-  return summaryCount === 0 ? "not-rederivable" : "verified";
+export function canonicalHistoryPropertyFailures(execution: HistoryPropertyExecution): string[] {
+  const consumers = execution.projection.canonical;
+  return Object.entries(consumers.fundamentalHistory).flatMap(([seriesKey, series]) => [
+    ...(series.cagr != null && !historyCagrMatches(series)
+      ? [`fundamentalHistory.${seriesKey}.cagr`]
+      : []),
+    ...(series.marginChange != null && !historyMarginChangeMatches(series)
+      ? [`fundamentalHistory.${seriesKey}.marginChange`]
+      : []),
+    ...(series.ttm != null && !historyTtmMatches(execution, consumers, seriesKey)
+      ? [`fundamentalHistory.${seriesKey}.ttm`]
+      : []),
+  ]);
 }

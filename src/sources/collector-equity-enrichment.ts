@@ -35,15 +35,10 @@ import {
   deriveCapitalOwnershipArtifact,
   type CapitalOwnershipArtifact,
 } from "./extended-evidence/capital-ownership";
-import {
-  deriveFundamentalHistory,
-  fundamentalHistoryFromCompanyFacts,
-  type FundamentalHistoryArtifact,
-} from "./extended-evidence/fundamental-history";
+import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "./extended-evidence/fundamental-history-canonical";
-import type { SecCompanyFactsResult } from "./extended-evidence/sec-edgar";
+import { collectFinancialStatements } from "./extended-evidence/financial-statements-collection";
 import {
-  collectFinancialStatements,
   deriveFinancialStatements,
   financialStatementsDebtBasisGaps,
   financialStatementsHistoryGaps,
@@ -231,7 +226,6 @@ export async function collectEquityEnrichment(
   }
   const secFacts = input.secTargetPacket?.companyFacts;
   let financialStatements: FinancialStatementsArtifact | undefined = undefined;
-  let fallbackCompanyFacts: SecCompanyFactsResult | undefined = undefined;
   let periodicFilings: EvidenceRequestToolOutput | undefined = undefined;
   if (collectStructuredSec && secFacts !== undefined) {
     financialStatements = deriveFinancialStatements(secFacts.payload, {
@@ -253,28 +247,7 @@ export async function collectEquityEnrichment(
   } else if (collectStructuredSec) {
     const collected = await collectFinancialStatements(input.identityContext, input.command.symbol);
     financialStatements = collected.statements;
-    fallbackCompanyFacts = collected.companyFacts;
     ({ periodicFilings } = collected);
-  }
-  let legacyFundamentalHistory: FundamentalHistoryArtifact | undefined = undefined;
-  if (collectStructuredSec && financialStatements === undefined && secFacts !== undefined) {
-    legacyFundamentalHistory = deriveFundamentalHistory(secFacts.payload, {
-      symbol: input.command.symbol,
-      generatedAt: input.fetchedAt,
-      analysisAsOf: input.fetchedAt,
-      sourceId: secFacts.sourceId,
-      ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
-    });
-  } else if (
-    collectStructuredSec &&
-    financialStatements === undefined &&
-    fallbackCompanyFacts !== undefined
-  ) {
-    legacyFundamentalHistory = fundamentalHistoryFromCompanyFacts(
-      input.identityContext,
-      input.command.symbol,
-      fallbackCompanyFacts,
-    );
   }
   let subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined = undefined;
   let capitalOwnership: CapitalOwnershipArtifact | undefined = undefined;
@@ -363,7 +336,7 @@ export async function collectEquityEnrichment(
   );
   const fundamentalHistory =
     financialStatements === undefined
-      ? legacyFundamentalHistory
+      ? undefined
       : deriveFundamentalHistoryFromFinancialStatements(financialStatements);
   const financialLensEvidence =
     financialStatements === undefined

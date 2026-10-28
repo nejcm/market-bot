@@ -1,31 +1,11 @@
-import { isRecord } from "../../guards";
-import type { CollectContext } from "../types";
-import { readArray } from "./utils";
-import {
-  SEC_METRIC_DEFINITIONS,
-  isFactObservableAsOf,
-  periodMonths,
-  readSecFactValue,
-  type SecCompanyFactsResult,
-  type SecFactValue,
-  type SecMetricDefinition,
-} from "./sec-edgar";
 import {
   conceptScope,
   CAPEX_SCOPE_CAVEAT,
-  DISCONTINUED_OPERATIONS_CONCEPTS,
-  hasNegativeCapex,
   netMarginNumerator,
-  NONCONTROLLING_INCOME_CONCEPTS,
-  isRevenueConceptInRecencyBucket,
   NEGATIVE_CAPEX_REASON,
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
-import {
-  compareFinancialStatementFacts,
-  restatedFromOriginalFiling,
-} from "./financial-statement-selection";
 import type { AnnualReportForm, OriginalFiling } from "./financial-statements-contract";
 
 export type FundamentalHistorySeriesKey =
@@ -61,7 +41,7 @@ export interface FundamentalHistoryCagr {
   readonly periodEnd: string;
 }
 
-export interface FundamentalHistoryMarginChange {
+interface FundamentalHistoryMarginChange {
   readonly percentagePoints: number;
   readonly years: number;
   readonly periodStart: string;
@@ -90,222 +70,15 @@ export interface FundamentalHistoryArtifact {
   readonly series: Readonly<Record<FundamentalHistorySeriesKey, FundamentalHistorySeries>>;
 }
 
-export interface FundamentalHistoryDeriveInput {
-  readonly symbol: string;
-  readonly generatedAt: string;
-  readonly analysisAsOf?: string;
-  readonly sourceId: string;
-  readonly sourceUrl?: string;
-}
-
-interface SelectedFacts {
-  readonly concept: string;
-  readonly currency: string;
-  readonly facts: readonly SecFactValue[];
-}
-
-interface RankedSelectedFacts extends SelectedFacts {
-  readonly priority: number;
-  readonly unitPriority: number;
-  readonly latest: SecFactValue;
-}
-
-interface FactWithPeriod extends SecFactValue {
-  readonly fp: string;
-  readonly fy: number;
-  readonly filed: string;
-  readonly start: string;
-  readonly end: string;
-  readonly months: number;
-}
-
-interface RawSeriesDefinition {
-  readonly key:
-    | "revenue"
-    | "grossProfit"
-    | "operatingIncome"
-    | "netIncome"
-    | "dilutedEps"
-    | "operatingCashFlow"
-    | "capex";
-  readonly label: string;
-  readonly unit: "currency" | "per-share";
-  readonly secKey?: string;
-}
-
 export const CONTINUING_INCOME_HISTORY = {
   key: "netIncome",
   label: "Income from continuing operations",
   unit: "currency",
 } as const;
 
-const RAW_SERIES: readonly RawSeriesDefinition[] = [
-  { key: "revenue", label: "Revenue", unit: "currency" },
-  { key: "grossProfit", label: "Gross profit", unit: "currency" },
-  { key: "operatingIncome", label: "Operating income", unit: "currency" },
-  { key: "netIncome", label: "Net income", unit: "currency" },
-  { key: "dilutedEps", label: "Diluted EPS", unit: "per-share" },
-  { key: "operatingCashFlow", label: "Operating cash flow", unit: "currency" },
-  { key: "capex", label: "Capital expenditure", unit: "currency" },
-];
-
-const MAX_ANNUAL_POINTS = 10;
 const MAX_CAGR_YEARS = 5;
 const DAYS_PER_YEAR = 365.2425;
 export const MIN_CAGR_ANNUAL_POINTS = 3;
-const ALIGNMENT_MIN_DAYS = 350;
-const ALIGNMENT_MAX_DAYS = 380;
-const FY_BOUNDARY_TOLERANCE_DAYS = 10;
-const EPS_TTM_APPROXIMATION_NOTE =
-  "ttm:eps-approximation: diluted EPS TTM adds per-share periods and does not reweight diluted shares";
-
-function metricDefinition(key: string): SecMetricDefinition {
-  const definition = SEC_METRIC_DEFINITIONS.find((candidate) => candidate.key === key);
-  if (definition === undefined) {
-    throw new Error(`Missing SEC metric definition for ${key}`);
-  }
-  return definition;
-}
-
-function selectFacts(
-  payload: unknown,
-  definition: SecMetricDefinition,
-  analysisAsOf?: string,
-): SelectedFacts | undefined {
-  if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
-    return undefined;
-  }
-  const gaap = payload.facts["us-gaap"];
-  const ranked: RankedSelectedFacts[] = [];
-  for (const [priority, concept] of definition.concepts.entries()) {
-    const fact = isRecord(gaap[concept]) ? gaap[concept] : undefined;
-    const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
-    if (units === undefined) {
-      continue;
-    }
-    for (const [unitPriority, currency] of definition.unitKeys.entries()) {
-      const facts = readArray(units, currency).flatMap((value) => {
-        const parsed = readSecFactValue(value);
-        return parsed === undefined ? [] : [parsed];
-      });
-      if (facts.length > 0) {
-        const [latest] = facts
-          .filter((candidate) => isFactObservableAsOf(candidate, analysisAsOf))
-          .toSorted(
-            (left, right) =>
-              (right.end ?? "").localeCompare(left.end ?? "") ||
-              (right.filed ?? "").localeCompare(left.filed ?? ""),
-          );
-        if (latest !== undefined) {
-          ranked.push({ concept, currency, facts, priority, unitPriority, latest });
-        }
-      }
-    }
-  }
-  const latestPeriodEnd = ranked
-    .map((candidate) => candidate.latest.end ?? "")
-    .toSorted()
-    .at(-1);
-  if (latestPeriodEnd === undefined || latestPeriodEnd === "") {
-    return undefined;
-  }
-  return ranked
-    .filter((candidate) =>
-      definition.key === "revenue"
-        ? isRevenueConceptInRecencyBucket(candidate.latest.end ?? "", latestPeriodEnd)
-        : candidate.latest.end === latestPeriodEnd,
-    )
-    .toSorted(
-      (left, right) =>
-        left.priority - right.priority ||
-        left.unitPriority - right.unitPriority ||
-        left.concept.localeCompare(right.concept) ||
-        left.currency.localeCompare(right.currency),
-    )[0];
-}
-
-function factSignature(fact: SecFactValue): string {
-  return `${fact.end ?? "unknown-end"}@${fact.filed ?? "unknown-filed"}`;
-}
-
-function completeFact(fact: SecFactValue): FactWithPeriod | undefined {
-  const months = periodMonths(fact);
-  if (
-    fact.fp === undefined ||
-    fact.fy === undefined ||
-    fact.filed === undefined ||
-    fact.start === undefined ||
-    fact.end === undefined ||
-    months === undefined
-  ) {
-    return undefined;
-  }
-  return {
-    ...fact,
-    fp: fact.fp,
-    fy: fact.fy,
-    filed: fact.filed,
-    start: fact.start,
-    end: fact.end,
-    months,
-  };
-}
-
-function historySelectionFact(value: FactWithPeriod) {
-  return {
-    periodStart: value.start,
-    periodEnd: value.end,
-    filedAt: value.filed,
-    amendment: value.amendment,
-    accessionNumber: value.accessionNumber ?? null,
-  };
-}
-
-function compareLatestFiled(left: FactWithPeriod, right: FactWithPeriod): number {
-  return compareFinancialStatementFacts(historySelectionFact(left), historySelectionFact(right));
-}
-
-function dedupeFactsByPeriodEnd(facts: readonly FactWithPeriod[]): readonly FactWithPeriod[] {
-  const byPeriodEnd = new Map<string, FactWithPeriod[]>();
-  for (const fact of facts) {
-    byPeriodEnd.set(fact.end, [...(byPeriodEnd.get(fact.end) ?? []), fact]);
-  }
-  return [...byPeriodEnd.values()].map((matches) => matches.toSorted(compareLatestFiled)[0]!);
-}
-
-function dedupeQuarterlyFacts(facts: readonly FactWithPeriod[]): readonly FactWithPeriod[] {
-  const byPeriod = new Map<string, FactWithPeriod[]>();
-  for (const fact of facts) {
-    const key = `${fact.start}|${fact.end}`;
-    byPeriod.set(key, [...(byPeriod.get(key) ?? []), fact]);
-  }
-  return [...byPeriod.values()].map((matches) => matches.toSorted(compareLatestFiled)[0]!);
-}
-
-function annualPoint(
-  fact: FactWithPeriod,
-  currency: string,
-  peers: readonly FactWithPeriod[],
-): FundamentalHistoryPoint {
-  const restatedFrom = restatedFromOriginalFiling(
-    fact.val,
-    peers
-      .filter((peer) => peer.end === fact.end && peer.start === fact.start)
-      .map((peer) => ({ value: peer.val, filedAt: peer.filed, amendment: peer.amendment })),
-  );
-  return {
-    value: fact.val,
-    form: "10-K",
-    fy: fact.fy,
-    fp: fact.fp,
-    periodStart: fact.start,
-    periodEnd: fact.end,
-    periodMonths: fact.months,
-    filedAt: fact.filed,
-    currency,
-    ...(restatedFrom === undefined ? {} : { restatedFrom }),
-  };
-}
 
 function daysBetween(start: string, end: string): number | undefined {
   const startMs = Date.parse(start);
@@ -316,120 +89,8 @@ function daysBetween(start: string, end: string): number | undefined {
   return (endMs - startMs) / 86_400_000;
 }
 
-function isYearAligned(prior: string, latest: string): boolean {
-  const days = daysBetween(prior, latest);
-  return days !== undefined && days >= ALIGNMENT_MIN_DAYS && days <= ALIGNMENT_MAX_DAYS;
-}
-
-function nextDay(value: string): string {
-  const parsed = Date.parse(value);
-  return new Date(parsed + 86_400_000).toISOString().slice(0, 10);
-}
-
 export function negativeCapexTtmNote(periodEnd: string): string {
   return `ttm:negative-capex: ${periodEnd} omitted; ${NEGATIVE_CAPEX_REASON}`;
-}
-
-function ttmPoint(
-  annual: readonly FundamentalHistoryPoint[],
-  observableFacts: readonly SecFactValue[],
-  currency: string,
-  notes: string[],
-  outflow = false,
-): FundamentalHistoryPoint | undefined {
-  const fullFy = annual.at(-1);
-  if (fullFy === undefined) {
-    notes.push("ttm:missing-full-fy: no eligible 10-K annual point");
-    return undefined;
-  }
-
-  const completeQuarterly = observableFacts
-    .filter((fact) => fact.canonicalForm === "10-Q")
-    .flatMap((fact) => {
-      const complete = completeFact(fact);
-      return complete === undefined || complete.months >= 10 ? [] : [complete];
-    });
-  const [latestYtd] = dedupeQuarterlyFacts(completeQuarterly)
-    .filter((fact) => fact.end > fullFy.periodEnd)
-    .toSorted((left, right) => {
-      const periodEnd = right.end.localeCompare(left.end);
-      if (periodEnd !== 0) {
-        return periodEnd;
-      }
-      const leftBoundary = Math.abs(daysBetween(fullFy.periodEnd, left.start) ?? Infinity);
-      const rightBoundary = Math.abs(daysBetween(fullFy.periodEnd, right.start) ?? Infinity);
-      return leftBoundary - rightBoundary || compareLatestFiled(left, right);
-    });
-  if (latestYtd === undefined) {
-    notes.push("ttm:missing-latest-ytd: no complete post-FY 10-Q duration fact");
-    return undefined;
-  }
-
-  const [priorYtd] = dedupeQuarterlyFacts(completeQuarterly)
-    .filter((fact) => fact.end < fullFy.periodEnd)
-    .toSorted((left, right) => {
-      const leftEndAlignment = Math.abs(
-        (daysBetween(left.end, latestYtd.end) ?? Infinity) - DAYS_PER_YEAR,
-      );
-      const rightEndAlignment = Math.abs(
-        (daysBetween(right.end, latestYtd.end) ?? Infinity) - DAYS_PER_YEAR,
-      );
-      const leftStartAlignment = Math.abs(daysBetween(fullFy.periodStart, left.start) ?? Infinity);
-      const rightStartAlignment = Math.abs(
-        daysBetween(fullFy.periodStart, right.start) ?? Infinity,
-      );
-      return (
-        leftEndAlignment - rightEndAlignment ||
-        leftStartAlignment - rightStartAlignment ||
-        compareLatestFiled(left, right)
-      );
-    });
-  if (priorYtd === undefined) {
-    notes.push("ttm:missing-prior-ytd: no prior-fiscal-year 10-Q duration fact");
-    return undefined;
-  }
-  if (
-    latestYtd.months !== priorYtd.months ||
-    !isYearAligned(priorYtd.start, latestYtd.start) ||
-    !isYearAligned(priorYtd.end, latestYtd.end)
-  ) {
-    notes.push("ttm:ytd-period-misaligned: latest and prior-year YTD periods do not align");
-    return undefined;
-  }
-
-  const startAlignment = Math.abs(daysBetween(fullFy.periodStart, priorYtd.start) ?? Infinity);
-  const boundaryAlignment = Math.abs(daysBetween(fullFy.periodEnd, latestYtd.start) ?? Infinity);
-  if (
-    startAlignment > FY_BOUNDARY_TOLERANCE_DAYS ||
-    boundaryAlignment > FY_BOUNDARY_TOLERANCE_DAYS ||
-    priorYtd.end >= fullFy.periodEnd
-  ) {
-    notes.push(
-      "ttm:fy-ytd-period-misaligned: full FY does not contain prior YTD and precede latest YTD",
-    );
-    return undefined;
-  }
-  if (fullFy.currency !== currency) {
-    notes.push("ttm:currency-mismatch: FY and YTD facts do not use the same unit");
-    return undefined;
-  }
-  const value = fullFy.value + latestYtd.val - priorYtd.val;
-  if (outflow && hasNegativeCapex([value, fullFy.value, latestYtd.val, priorYtd.val])) {
-    notes.push(negativeCapexTtmNote(latestYtd.end));
-    return undefined;
-  }
-
-  return {
-    value,
-    form: "TTM",
-    fy: latestYtd.fy,
-    fp: "TTM",
-    periodStart: nextDay(priorYtd.end),
-    periodEnd: latestYtd.end,
-    periodMonths: 12,
-    filedAt: [fullFy.filedAt, latestYtd.filed, priorYtd.filed].toSorted().at(-1)!,
-    currency,
-  };
 }
 
 const FISCAL_YEAR_END_TOLERANCE_DAYS = 7;
@@ -497,89 +158,6 @@ export function fundamentalHistoryCagr(
     years,
     periodStart: first.periodEnd,
     periodEnd: latest.periodEnd,
-  };
-}
-
-function rawSeries(
-  payload: unknown,
-  definition: RawSeriesDefinition,
-  analysisAsOf?: string,
-): FundamentalHistorySeries {
-  const { secKey, ...series } = definition;
-  const selected = selectFacts(payload, metricDefinition(secKey ?? series.key), analysisAsOf);
-  const notes: string[] = [];
-  if (selected === undefined) {
-    notes.push("annual:missing-concept: no SEC facts found for the ordered concept list");
-    const annual: readonly FundamentalHistoryPoint[] = [];
-    ttmPoint(annual, [], "", notes);
-    const growth = fundamentalHistoryCagr(annual, notes);
-    return {
-      ...series,
-      annual,
-      ...(growth !== undefined ? { cagr: growth } : {}),
-      notes,
-    };
-  }
-
-  const observableFacts = selected.facts.filter((fact) => isFactObservableAsOf(fact, analysisAsOf));
-  const excludedAsOf = selected.facts.length - observableFacts.length;
-  if (excludedAsOf > 0) {
-    notes.push(
-      `annual:excluded-as-of: ${String(excludedAsOf)} fact(s) were not observable at the cutoff`,
-    );
-  }
-
-  const annualCandidates: FactWithPeriod[] = [];
-  for (const fact of observableFacts.filter((candidate) => candidate.canonicalForm === "10-K")) {
-    const complete = completeFact(fact);
-    if (complete === undefined) {
-      notes.push(`annual:incomplete-metadata: ${factSignature(fact)} omitted`);
-      continue;
-    }
-    if (complete.months < 10 || complete.months > 14) {
-      notes.push(
-        `annual:transition-period: ${complete.end} (${String(complete.months)} months) omitted`,
-      );
-      continue;
-    }
-    annualCandidates.push(complete);
-  }
-
-  const deduped = dedupeFactsByPeriodEnd(annualCandidates);
-  for (const fact of annualCandidates) {
-    const winner = deduped.find((candidate) => candidate.end === fact.end)!;
-    if (winner !== fact) {
-      notes.push(
-        `annual:restatement-superseded: ${fact.end} filed ${fact.filed} omitted for filed ${winner.filed}`,
-      );
-    }
-  }
-  const chronological = deduped.toSorted((left, right) => left.end.localeCompare(right.end));
-  const omittedByCap = Math.max(0, chronological.length - MAX_ANNUAL_POINTS);
-  if (omittedByCap > 0) {
-    notes.push(`annual:history-cap: ${String(omittedByCap)} older annual point(s) omitted`);
-  }
-  const annual = chronological
-    .slice(-MAX_ANNUAL_POINTS)
-    .map((fact) => annualPoint(fact, selected.currency, annualCandidates));
-  const ttm = ttmPoint(
-    annual,
-    observableFacts,
-    selected.currency,
-    notes,
-    definition.key === "capex",
-  );
-  if (definition.key === "dilutedEps" && ttm !== undefined) {
-    notes.push(EPS_TTM_APPROXIMATION_NOTE);
-  }
-  const growth = fundamentalHistoryCagr(annual, notes);
-  return {
-    ...series,
-    concept: selected.concept,
-    annual,
-    ...(ttm !== undefined ? { ttm } : {}),
-    ...(growth !== undefined ? { cagr: growth } : {}),
-    notes,
   };
 }
 
@@ -710,18 +288,6 @@ function pairSeries(
   };
 }
 
-function latestObservableEnd(
-  payload: unknown,
-  key: string,
-  analysisAsOf: string | undefined,
-): string | undefined {
-  return selectFacts(payload, metricDefinition(key), analysisAsOf)
-    ?.facts.filter((fact) => isFactObservableAsOf(fact, analysisAsOf))
-    .map((fact) => fact.end ?? "")
-    .toSorted()
-    .at(-1);
-}
-
 // Total earnings carry a scope only while a continuing counterpart is as current as they are.
 export function totalOperationsScopes(
   latestEnd: (key: EarningsHistoryKey) => string | undefined,
@@ -741,55 +307,6 @@ export function totalOperationsScopes(
   };
 }
 
-export function deriveFundamentalHistory(
-  payload: unknown,
-  input: FundamentalHistoryDeriveInput,
-): FundamentalHistoryArtifact {
-  const raw = Object.fromEntries(
-    RAW_SERIES.map((definition) => [
-      definition.key,
-      rawSeries(payload, definition, input.analysisAsOf),
-    ]),
-  ) as Record<RawSeriesDefinition["key"], FundamentalHistorySeries>;
-  const scopes = totalOperationsScopes((key) =>
-    latestObservableEnd(payload, key, input.analysisAsOf),
-  );
-  return {
-    version: 1,
-    generatedAt: input.generatedAt,
-    symbol: input.symbol.toUpperCase(),
-    sourceId: input.sourceId,
-    ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
-    series: buildFundamentalHistorySeries(raw, scopes, {
-      continuing: rawSeries(
-        payload,
-        { ...CONTINUING_INCOME_HISTORY, secKey: "continuingIncome" },
-        input.analysisAsOf,
-      ),
-      consolidatedContinuing: rawSeries(
-        payload,
-        { ...CONTINUING_INCOME_HISTORY, secKey: "consolidatedContinuingIncome" },
-        input.analysisAsOf,
-      ),
-      consolidated: rawSeries(
-        payload,
-        { ...CONTINUING_INCOME_HISTORY, secKey: "consolidatedNetIncome" },
-        input.analysisAsOf,
-      ),
-      reportsDiscontinued: reportedPeriods(
-        payload,
-        DISCONTINUED_OPERATIONS_CONCEPTS,
-        input.analysisAsOf,
-      ),
-      reportsNoncontrolling: reportedPeriods(
-        payload,
-        NONCONTROLLING_INCOME_CONCEPTS,
-        input.analysisAsOf,
-      ),
-    }),
-  };
-}
-
 type EarningsHistoryKey = "netIncome" | "dilutedEps" | "continuingIncome" | "continuingDilutedEps";
 
 export type FundamentalHistoryEarningsScopes = Partial<Record<"netIncome" | "dilutedEps", string>>;
@@ -804,33 +321,17 @@ function withEarningsScope(
 }
 
 export type FundamentalHistoryRawSeries = Readonly<
-  Record<RawSeriesDefinition["key"], FundamentalHistorySeries>
+  Record<
+    | "revenue"
+    | "grossProfit"
+    | "operatingIncome"
+    | "netIncome"
+    | "dilutedEps"
+    | "operatingCashFlow"
+    | "capex",
+    FundamentalHistorySeries
+  >
 >;
-
-function reportedPeriods(
-  payload: unknown,
-  concepts: readonly string[],
-  analysisAsOf: string | undefined,
-): (point: FundamentalHistoryPoint) => boolean {
-  const gaap = isRecord(payload) && isRecord(payload.facts) ? payload.facts["us-gaap"] : undefined;
-  const ends = concepts.flatMap((concept) => {
-    const units = isRecord(gaap) && isRecord(gaap[concept]) ? gaap[concept].units : undefined;
-    return readArray(units, "USD").flatMap((row) => {
-      const value = readSecFactValue(row);
-      return value !== undefined && value.val !== 0 && isFactObservableAsOf(value, analysisAsOf)
-        ? [value.end ?? ""]
-        : [];
-    });
-  });
-  const within = endsWithin(ends);
-  // A TTM window starts the day after its prior-YTD component ends.
-  return (point) =>
-    within(point) ||
-    (point.form === "TTM" &&
-      ends.includes(
-        new Date(Date.parse(point.periodStart) - 86_400_000).toISOString().slice(0, 10),
-      ));
-}
 
 export function endsWithin(ends: readonly string[]): (point: FundamentalHistoryPoint) => boolean {
   return (point) => ends.some((end) => end > point.periodStart && end <= point.periodEnd);
@@ -964,21 +465,4 @@ export function buildFundamentalHistorySeries(
     operatingMargin,
     netMargin,
   };
-}
-
-export function fundamentalHistoryFromCompanyFacts(
-  context: CollectContext,
-  symbol: string,
-  facts: SecCompanyFactsResult,
-): FundamentalHistoryArtifact | undefined {
-  if (facts.factsPayload === undefined || facts.sourceId === undefined) {
-    return undefined;
-  }
-  return deriveFundamentalHistory(facts.factsPayload, {
-    symbol,
-    generatedAt: context.fetchedAt,
-    analysisAsOf: context.fetchedAt,
-    sourceId: facts.sourceId,
-    ...(facts.sourceUrl !== undefined ? { sourceUrl: facts.sourceUrl } : {}),
-  });
 }

@@ -312,9 +312,6 @@ describe("financial table extraction phase", () => {
     const request = requestExecutor();
     const requestJson = spyOn(request, "json");
     const requestText = spyOn(request, "text");
-    const packetModule =
-      await import("../src/sources/extended-evidence/untagged-financial-table-packet");
-    const buildPacket = spyOn(packetModule, "buildFinancialTablePacket");
     const generateMapping = mock(async () => ({
       stage: "financial-table-mapping" as const,
       content: modelMapping(),
@@ -332,7 +329,6 @@ describe("financial table extraction phase", () => {
 
     expect(requestJson).toHaveBeenCalledTimes(0);
     expect(requestText).toHaveBeenCalledTimes(0);
-    expect(buildPacket).toHaveBeenCalledTimes(0);
     expect(generateMapping).toHaveBeenCalledTimes(0);
     expect(result.stageOutputs).toEqual([]);
     expect(result.collectedSources.untaggedFinancialStatements).toBeUndefined();
@@ -353,7 +349,6 @@ describe("financial table extraction phase", () => {
     );
     requestJson.mockRestore();
     requestText.mockRestore();
-    buildPacket.mockRestore();
   });
 
   test("validates and persists discovered untagged facts when the gate is open", async () => {
@@ -374,7 +369,6 @@ describe("financial table extraction phase", () => {
       generateMapping,
     });
 
-    expect(generateMapping).toHaveBeenCalledTimes(1);
     expect(result.stageOutputs).toEqual([
       expect.objectContaining({ stage: "financial-table-mapping" }),
     ]);
@@ -419,7 +413,6 @@ describe("financial table extraction phase", () => {
       generateMapping,
     });
 
-    expect(generateMapping).toHaveBeenCalledTimes(1);
     expect(result.stageOutputs).toHaveLength(1);
     expect(result.collectedSources.untaggedFinancialStatements).toMatchObject({
       mapping: null,

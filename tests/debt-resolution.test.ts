@@ -92,7 +92,7 @@ describe("debt resolution at the cash instant", () => {
     });
     expect(legacy?.metrics.debt).toBe(60_291_000);
     expect(legacy?.metrics.debtPeriodEnd).toBe("2026-06-30");
-    expect(legacy?.debtComposite?.incompleteReason).toBeUndefined();
+    expect(legacy?.metrics.debtIncompleteReason).toBeUndefined();
   });
 
   test("RFIL: a current line of credit beats stale zero LTD", () => {
@@ -151,7 +151,7 @@ describe("debt resolution at the cash instant", () => {
     });
 
     expect(canonical).toMatchObject({ value: 50_000, periodEnd: "2026-03-31" });
-    expect(legacy?.debtComposite?.incompleteReason).toContain("differs from the sum");
+    expect(legacy?.metrics.debtIncompleteReason).toContain("differs from the sum");
   });
 
   test("an umbrella equal to its legs up to float roundoff is not refused", () => {
@@ -189,7 +189,7 @@ describe("debt resolution at the cash instant", () => {
     });
 
     expect(canonical?.periodEnd).not.toBe("2026-06-30");
-    expect(legacy?.debtComposite?.incompleteReason).toContain("LineOfCredit may overlap");
+    expect(legacy?.metrics.debtIncompleteReason).toContain("LineOfCredit may overlap");
   });
 
   test("a generic current line alone does not cover a prior LineOfCredit umbrella", () => {
@@ -200,7 +200,7 @@ describe("debt resolution at the cash instant", () => {
     });
 
     expect(canonical).toMatchObject({ value: 50, periodEnd: "2026-03-31" });
-    expect(legacy?.debtComposite?.incompleteReason).toContain("omits LineOfCredit");
+    expect(legacy?.metrics.debtIncompleteReason).toContain("omits LineOfCredit");
   });
 
   test("a selected LineOfCredit umbrella covers a prior current leg", () => {
@@ -276,9 +276,9 @@ describe("debt resolution at the cash instant", () => {
       }),
     );
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite).toMatchObject({
-      periodEnd: "2026-07-31",
-      incompleteReason: expect.stringContaining("OtherLongTermDebtNoncurrent"),
+    expect(legacy?.metrics).toMatchObject({
+      debtIncompletePeriodEnd: "2026-07-31",
+      debtIncompleteReason: expect.stringContaining("OtherLongTermDebtNoncurrent"),
     });
   });
 
@@ -293,7 +293,7 @@ describe("debt resolution at the cash instant", () => {
 
     expect(canonical?.periodEnd).not.toBe("2026-07-31");
     expect(legacy?.metrics.debt).not.toBe(6_540_555);
-    expect(legacy?.debtComposite?.incompleteReason).toContain("LongTermLoansPayable");
+    expect(legacy?.metrics.debtIncompleteReason).toContain("LongTermLoansPayable");
   });
 
   test("REGN: a lone generic noncurrent line is complete and excludes finance leases", () => {
@@ -337,7 +337,7 @@ describe("debt resolution at the cash instant", () => {
 
     expect(canonical).toBeUndefined();
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite?.incompleteReason).toBe("no borrowing line item is tagged");
+    expect(legacy?.metrics.debtIncompleteReason).toBe("no borrowing line item is tagged");
   });
 
   test("never sums a total with its constituents or two aliases of one line item", () => {
@@ -404,7 +404,7 @@ describe("debt resolution refuses incomplete component sets", () => {
     const { artifact, canonical, legacy } = resolve(gaap);
     expect(canonical).toBeUndefined();
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite?.incompleteReason).toContain(reason);
+    expect(legacy?.metrics.debtIncompleteReason).toContain(reason);
     expect(artifact.omissionNotes).toContainEqual(
       expect.objectContaining({
         code: "incomplete-composite-series",
@@ -413,29 +413,53 @@ describe("debt resolution refuses incomplete component sets", () => {
     );
   };
 
-  test("a partial instrument amendment cannot drop a leg of the original filing", () => {
-    expectRefused(
-      {
-        NotesPayableCurrent: [original(30), amended(40)],
-        LongTermNotesPayable: [original(70)],
-      },
-      "omits LongTermNotesPayable",
-    );
-  });
+  const later = (value: number) => instant(value, "2026-06-30", "2026-08-20");
+  const latest = (value: number) => instant(value, "2026-06-30", "2026-09-10");
 
-  test("a later filing that restates a component the original reported cannot be summed without a total", () => {
-    const later = (value: number) => instant(value, "2026-06-30", "2026-08-20");
-    expectRefused(
+  test.each([
+    [
+      "a partial instrument amendment cannot drop a leg of the original filing",
+      { NotesPayableCurrent: [original(30), amended(40)], LongTermNotesPayable: [original(70)] },
+      "omits LongTermNotesPayable",
+    ],
+    [
+      "a later filing that restates a component the original reported cannot be summed without a total",
       {
         ConvertibleNotesPayableCurrent: [original(353), later(353)],
         ConvertibleLongTermNotesPayable: [original(0), later(353)],
       },
       "a later filing restated ConvertibleLongTermNotesPayable (originally 0, filed 2026-08-06)",
-    );
+    ],
+    [
+      "offsetting restatements from different filings cannot be summed",
+      {
+        LongTermDebtCurrent: [original(10), later(25), latest(15)],
+        LongTermDebtNoncurrent: [original(90), later(85)],
+      },
+      "a later filing restated LongTermDebtCurrent",
+    ],
+    [
+      "an amendment tagging only an unrecognized concept supersedes the original",
+      {
+        LongTermDebtCurrent: [original(10)],
+        LongTermDebtNoncurrent: [original(90)],
+        OtherLongTermDebtNoncurrent: [amended(95)],
+      },
+      "unrecognized borrowing concepts are tagged: OtherLongTermDebtNoncurrent",
+    ],
+    [
+      "an unrecognized borrowing reported the prior quarter must still be tagged",
+      {
+        NotesPayableCurrent: [original(100)],
+        OtherLongTermDebtNoncurrent: [priorQuarter(50)],
+      },
+      "omits OtherLongTermDebtNoncurrent",
+    ],
+  ] as const)("%s", (_name, gaap, reason) => {
+    expectRefused(gaap, reason);
   });
 
   test("a later filing that reclassifies components without changing their total keeps the sum", () => {
-    const later = (value: number) => instant(value, "2026-06-30", "2026-08-20");
     const { canonical, legacy } = resolve({
       LongTermDebtCurrent: [original(10), later(15)],
       LongTermDebtNoncurrent: [original(90), later(85)],
@@ -443,29 +467,6 @@ describe("debt resolution refuses incomplete component sets", () => {
 
     expect(canonical).toMatchObject({ value: 100, periodEnd: "2026-06-30" });
     expect(legacy?.metrics.debt).toBe(100);
-  });
-
-  test("offsetting restatements from different filings cannot be summed", () => {
-    const later = (value: number) => instant(value, "2026-06-30", "2026-08-20");
-    const latest = (value: number) => instant(value, "2026-06-30", "2026-09-10");
-    expectRefused(
-      {
-        LongTermDebtCurrent: [original(10), later(25), latest(15)],
-        LongTermDebtNoncurrent: [original(90), later(85)],
-      },
-      "a later filing restated LongTermDebtCurrent",
-    );
-  });
-
-  test("an amendment tagging only an unrecognized concept supersedes the original", () => {
-    expectRefused(
-      {
-        LongTermDebtCurrent: [original(10)],
-        LongTermDebtNoncurrent: [original(90)],
-        OtherLongTermDebtNoncurrent: [amended(95)],
-      },
-      "unrecognized borrowing concepts are tagged: OtherLongTermDebtNoncurrent",
-    );
   });
 
   test("a two-sided set still covers a borrowing reported the prior quarter", () => {
@@ -476,17 +477,7 @@ describe("debt resolution refuses incomplete component sets", () => {
     });
     expect(canonical?.periodEnd).not.toBe("2026-06-30");
     expect(legacy?.metrics.debt).not.toBe(300);
-    expect(legacy?.debtComposite?.incompleteReason).toContain("omits LongTermLoansPayable");
-  });
-
-  test("an unrecognized borrowing reported the prior quarter must still be tagged", () => {
-    expectRefused(
-      {
-        NotesPayableCurrent: [original(100)],
-        OtherLongTermDebtNoncurrent: [priorQuarter(50)],
-      },
-      "omits OtherLongTermDebtNoncurrent",
-    );
+    expect(legacy?.metrics.debtIncompleteReason).toContain("omits LongTermLoansPayable");
   });
 
   test("a lease-inclusive side loses its own tagged lease leg, else the basis is disclosed", () => {
@@ -809,7 +800,7 @@ describe("lease deductions and debt-scope disclosure", () => {
     });
     expect(canonical).toBeUndefined();
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite?.incompleteReason).toBe(
+    expect(legacy?.metrics.debtIncompleteReason).toBe(
       "finance-lease deduction FinanceLeaseLiabilityCurrent exceeds DebtCurrent",
     );
     expect(
@@ -1886,7 +1877,7 @@ describe("debt totals and instruments checked against their lines", () => {
     const { canonical, legacy } = resolve(gaap);
     expect(canonical?.periodEnd).not.toBe("2026-03-31");
     expect(legacy?.metrics.debt).toBeUndefined();
-    expect(legacy?.debtComposite?.incompleteReason).toContain("omits LongTermNotesPayable");
+    expect(legacy?.metrics.debtIncompleteReason).toContain("omits LongTermNotesPayable");
     const domestic = resolve({ ...gaap, LongTermNotesPayable: [] }).legacy;
     expect(domestic?.metrics.debt).toBe(12_995_000);
   });

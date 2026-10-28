@@ -1,12 +1,4 @@
 import type { InstrumentIdentity } from "../../domain/instrument";
-import {
-  ENTERPRISE_VALUE_BRIDGE_CONCEPTS,
-  enterpriseValueBridgeMetrics,
-  resolveEnterpriseValueBridge,
-  trimToMezzaninePeriods,
-  type BridgeFact,
-  type EnterpriseValueBridgeFacts,
-} from "./enterprise-value-bridge";
 import type { Source, SourceGap } from "../../domain/sources";
 import { isInstrumentCommand } from "../../cli/args";
 import {
@@ -21,42 +13,42 @@ import { isUsListing } from "../instrument-capability";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
 import {
   conceptScope,
-  DEBT_CONCEPTS,
   DISCONTINUED_OPERATIONS_CONCEPTS,
   NONCONTROLLING_INCOME_CONCEPTS,
-  US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
-  US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
-  scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
 import {
+  financialStatementFacts,
+  latestFinancialStatementFact,
   compareFinancialStatementFacts,
-  compareFinancialStatementRevisions,
-  compositeStatementIdentity,
   debtCandidateConcepts,
   isYearAligned,
-  recognizedDebtConcepts,
-  debtIdentityConcepts,
-  resolveDebtAtInstant,
-  unsupersededDebtResolutions,
-  type DebtHistoryFact,
-  type DebtResolution,
 } from "./financial-statement-selection";
 import {
-  grossPrincipalDebtFallbackApplies,
-  statementFiscalPeriodKey,
-  type StatementFiscalPeriod,
-} from "./financial-statement-period-identity";
-import {
   canonicalizeSecForm,
-  GROSS_PRINCIPAL_DEBT_CONCEPT,
+  type FinancialStatementsArtifact,
   isDomesticPeriodicCanonicalForm,
-  type DebtBasis,
   readSecFactPeriodMetadata,
 } from "./financial-statements-contract";
 import { readArray } from "./utils";
+import {
+  DEBT_METRIC,
+  deltaPercent,
+  formatSecFundamentalsSummary,
+  SEC_METRIC_DEFINITIONS,
+  type SecMetricDefinition,
+} from "./sec-fundamentals-format";
+import {
+  deriveFinancialStatements,
+  financialStatementsDebtBasisGaps,
+} from "./financial-statements";
+import { canonicalFinancialMetrics } from "./financial-lens-canonical";
 
 type SecForm = "10-K" | "10-Q" | "10-K/A" | "10-Q/A";
+
+const UNBOUNDED_AS_OF = "9999-12-31T00:00:00.000Z";
+const BRIDGE_METRIC =
+  /^(?:shortTermInvestments|noncontrollingInterest|preferredStock|temporaryEquity)/u;
 
 export interface SecFactValue {
   readonly val: number;
@@ -73,34 +65,16 @@ export interface SecFactValue {
 
 const DAYS_PER_MONTH = 30.4368;
 
-export interface SecMetricDefinition {
-  readonly key: string;
-  readonly label: string;
-  readonly concepts: readonly string[];
-  readonly unitKeys: readonly string[];
-  // Optional metrics are emitted when present but their absence is not a data
-  // Gap (e.g. dividendsPaid is absent for non-dividend-paying issuers). Required
-  // Metrics add to missingFacts/missingDeltas and cap evidence quality when absent.
-  readonly optional?: boolean;
-}
-
 interface SecMetricSelection {
   readonly latest: SecFactValue;
   readonly prior?: SecFactValue;
   readonly concept?: string;
 }
 
-export interface SecDebtComposite {
-  readonly selectedConcepts: readonly string[];
-  readonly periodEnd?: string;
-  readonly incompleteReason?: string;
-}
-
 export interface SecFundamentalsSummary {
   readonly summary: string;
   readonly metrics: Record<string, number | string>;
   readonly revenuePeriodEnd?: string;
-  readonly debtComposite?: SecDebtComposite;
   readonly gaps: readonly SourceGap[];
 }
 
@@ -121,7 +95,6 @@ export interface SecCompanyFactsResult {
   readonly metrics?: Record<string, number | string>;
   readonly summary?: string;
   readonly revenuePeriodEnd?: string;
-  readonly debtComposite?: SecDebtComposite;
   readonly sicClassification?: SecSicClassification;
   readonly filingsSummary?: string;
   readonly submissionsUrl?: string;
@@ -135,171 +108,6 @@ export interface SecCompanyFactsResult {
 export interface SecProviderResult extends ProviderResult {
   readonly sicClassification?: SecSicClassification;
 }
-
-export const SEC_METRIC_DEFINITIONS = [
-  {
-    key: "revenue",
-    label: "revenue",
-    concepts: [
-      "Revenues",
-      "SalesRevenueNet",
-      "RevenueFromContractWithCustomerExcludingAssessedTax",
-      "RevenueFromContractWithCustomerIncludingAssessedTax",
-    ],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "grossProfit",
-    label: "gross profit",
-    concepts: ["GrossProfit"],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "operatingIncome",
-    label: "operating income",
-    concepts: ["OperatingIncomeLoss"],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "netIncome",
-    label: "net income attributable to parent",
-    concepts: ["NetIncomeLoss"],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "consolidatedNetIncome",
-    label: "net income consolidated including NCI",
-    concepts: ["ProfitLoss"],
-    unitKeys: ["USD"],
-    optional: true,
-  },
-  {
-    key: "dilutedEps",
-    label: "diluted EPS",
-    concepts: ["EarningsPerShareDiluted"],
-    unitKeys: ["USD/shares"],
-  },
-  {
-    key: "continuingIncome",
-    label: "income",
-    concepts: [
-      "IncomeLossFromContinuingOperations",
-      "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
-    ],
-    unitKeys: ["USD"],
-    optional: true,
-  },
-  {
-    key: "consolidatedContinuingIncome",
-    label: "income including NCI",
-    concepts: [
-      "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
-    ],
-    unitKeys: ["USD"],
-    optional: true,
-  },
-  {
-    key: "continuingDilutedEps",
-    label: "diluted EPS",
-    concepts: ["IncomeLossFromContinuingOperationsPerDilutedShare"],
-    unitKeys: ["USD/shares"],
-    optional: true,
-  },
-  {
-    key: "cash",
-    label: "cash",
-    concepts: [
-      "CashAndCashEquivalentsAtCarryingValue",
-      "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
-    ],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "operatingCashFlow",
-    label: "operating cash flow",
-    // Continuing first: revenue is a continuing line once the issuer splits out discontinued operations.
-    concepts: [
-      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-      "NetCashProvidedByUsedInOperatingActivities",
-    ],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "capex",
-    label: "capex",
-    concepts: ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "dilutedShares",
-    label: "diluted shares",
-    concepts: ["WeightedAverageNumberOfDilutedSharesOutstanding"],
-    unitKeys: ["shares"],
-  },
-  {
-    key: "currentAssets",
-    label: "current assets",
-    concepts: ["AssetsCurrent"],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "currentLiabilities",
-    label: "current liabilities",
-    concepts: ["LiabilitiesCurrent"],
-    unitKeys: ["USD"],
-  },
-  {
-    key: "stockholdersEquity",
-    label: "stockholders' equity",
-    concepts: [
-      "StockholdersEquity",
-      "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
-    ],
-    unitKeys: ["USD"],
-    optional: true,
-  },
-  {
-    key: "assets",
-    label: "total assets",
-    concepts: ["Assets"],
-    unitKeys: ["USD"],
-    optional: true,
-  },
-  {
-    key: "dividendsPaid",
-    label: "dividends paid",
-    // Cash-flow total first: some filers tag the common-only concept just quarterly (Meta).
-    concepts: [
-      "PaymentsOfDividends",
-      "PaymentsOfDividendsCommonStock",
-      "PaymentsOfOrdinaryDividends",
-      "PaymentsForDividends",
-      "DividendsPaid",
-    ],
-    unitKeys: ["USD"],
-    optional: true,
-  },
-  {
-    key: "shareRepurchases",
-    label: "share repurchases",
-    concepts: [
-      "PaymentsForRepurchaseOfCommonStock",
-      "PaymentsForRepurchaseOfEquity",
-      "PaymentsForRepurchaseOfCommonStockAndPreferredStock",
-    ],
-    unitKeys: ["USD"],
-    optional: true,
-  },
-] as const satisfies readonly SecMetricDefinition[];
-
-export type SecMetricDefinitionKey = (typeof SEC_METRIC_DEFINITIONS)[number]["key"];
-
-const DEBT_METRIC = {
-  key: "debt",
-  label: "debt",
-  concepts: DEBT_CONCEPTS["us-gaap"].totals,
-  unitKeys: ["USD"],
-} as const satisfies SecMetricDefinition;
 
 const FLOW_METRIC_KEYS = new Set([
   "revenue",
@@ -637,66 +445,6 @@ function selectMetric(
   )[0];
 }
 
-const FY_BOUNDARY_TOLERANCE_DAYS = 10;
-
-function withinFiscalYearBoundary(left: string, right: string): boolean {
-  return Math.abs(Date.parse(left) - Date.parse(right)) <= FY_BOUNDARY_TOLERANCE_DAYS * DAY_MS;
-}
-
-// FY + latest-YTD − prior-YTD from one concept, the reconciliation the financial statements use.
-function trailingTwelveMonths(
-  latest: SecFactValue,
-  values: readonly SecFactValue[],
-): number | undefined {
-  if (periodMonths(latest) === 12) {
-    return latest.val;
-  }
-  const sameEnd = values.filter((value) => value.end === latest.end);
-  // Only each span's latest revision may reconcile; a superseded original never stands in.
-  const revisions = [...new Set(sameEnd.map((value) => periodMonths(value)))].map(
-    (months) =>
-      sameEnd
-        .filter((value) => periodMonths(value) === months)
-        .toSorted((a, b) =>
-          compareFinancialStatementRevisions(selectionFact(a), selectionFact(b)),
-        )[0]!,
-  );
-  for (const ytd of revisions) {
-    const months = periodMonths(ytd);
-    const { start, end } = ytd;
-    if (months === undefined || months >= 12 || start === undefined || end === undefined) {
-      continue;
-    }
-    const fiscalYear = latestFact(
-      values.filter(
-        (value) =>
-          periodMonths(value) === 12 &&
-          value.end !== undefined &&
-          value.end < start &&
-          withinFiscalYearBoundary(value.end, start),
-      ),
-    );
-    const prior = latestFact(
-      values.filter(
-        (value) =>
-          periodMonths(value) === months &&
-          value.start !== undefined &&
-          value.end !== undefined &&
-          isYearAligned(value.start, start) &&
-          isYearAligned(value.end, end),
-      ),
-    );
-    if (
-      fiscalYear?.start !== undefined &&
-      prior?.start !== undefined &&
-      withinFiscalYearBoundary(fiscalYear.start, prior.start)
-    ) {
-      return fiscalYear.val + ytd.val - prior.val;
-    }
-  }
-  return undefined;
-}
-
 function sameFiscalPeriod(a: SecFactValue, b: SecFactValue): boolean {
   return (
     a.canonicalForm === b.canonicalForm &&
@@ -710,404 +458,6 @@ function isCurrentFlowFact(anchor: SecFactValue, candidate: SecFactValue): boole
     sameFiscalPeriod(anchor, candidate) &&
     candidate.end === anchor.end &&
     (anchor.start === undefined || candidate.start === anchor.start)
-  );
-}
-
-function statementPeriod(value: SecFactValue): StatementFiscalPeriod | undefined {
-  return value.end === undefined
-    ? undefined
-    : { periodEnd: value.end, form: value.form, fiscalPeriod: value.fp ?? "" };
-}
-
-function debtPeriodIdentity(value: SecFactValue): string {
-  const period = statementPeriod(value);
-  return period === undefined ? value.form : statementFiscalPeriodKey(period);
-}
-
-function resolvedDebtFact(resolution: DebtResolution<SecFactValue>): SecFactValue | undefined {
-  const facts = resolution.contributors.map(({ fact, subtract }) =>
-    subtract === true ? { ...fact, val: -fact.val } : fact,
-  );
-  const [anchor] = facts;
-  if (anchor === undefined || resolution.basis === "total") {
-    return anchor;
-  }
-  const identity = compositeStatementIdentity(
-    facts.map((fact) => ({
-      value: fact.val,
-      accessionNumber: fact.accessionNumber ?? null,
-      filedAt: fact.filed ?? "",
-    })),
-  );
-  const { accessionNumber: _omitted, ...period } = anchor;
-  return {
-    ...period,
-    val: identity.value,
-    filed: identity.filedAt,
-    ...(identity.accessionNumber !== null ? { accessionNumber: identity.accessionNumber } : {}),
-  };
-}
-
-interface SecDebtSelection {
-  readonly selection?: SecMetricSelection;
-  readonly composite?: SecDebtComposite;
-  readonly grossPrincipal?: { readonly periodEnd: string; readonly netPeriodEnd: string };
-  readonly leaseInclusive?: { readonly periodEnd: string; readonly concepts: readonly string[] };
-  readonly incomplete?: { readonly periodEnd: string; readonly reason: string };
-}
-
-function selectDebtMetric(
-  gaap: Record<string, unknown>,
-  analysisAsOf?: string,
-): SecDebtSelection | undefined {
-  const net = selectNetDebtMetric(gaap, analysisAsOf);
-  const netLatest = net?.selection?.latest;
-  const gross = factValuesForConcept(
-    gaap,
-    GROSS_PRINCIPAL_DEBT_CONCEPT,
-    DEBT_METRIC.unitKeys,
-  ).filter((value) => value.start === undefined && isFactObservableAsOf(value, analysisAsOf));
-  const latestGross = latestFact(gross);
-  if (
-    net === undefined ||
-    netLatest?.end === undefined ||
-    latestGross?.end === undefined ||
-    !grossPrincipalDebtFallbackApplies(
-      { periodEnd: netLatest.end, value: netLatest.val },
-      latestGross.end,
-      latestFact(gross.filter((value) => value.end === netLatest.end))?.val,
-      US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS.flatMap((concept) =>
-        factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys)
-          .filter(
-            (value) =>
-              value.start === undefined &&
-              value.end === latestGross.end &&
-              isFactObservableAsOf(value, analysisAsOf),
-          )
-          .map((value) => value.val),
-      ),
-    )
-  ) {
-    return net;
-  }
-  const prior = comparablePrior(latestGross, gross);
-  return {
-    selection: { latest: latestGross, ...(prior !== undefined ? { prior } : {}) },
-    grossPrincipal: { periodEnd: latestGross.end, netPeriodEnd: netLatest.end },
-  };
-}
-
-// Continuity reads every form, as the canonical path does: a 40-F or 6-K line still counts as omitted (HIVE).
-function foreignFormDebtHistory(
-  gaap: Record<string, unknown>,
-  concept: string,
-  analysisAsOf?: string,
-): readonly DebtHistoryFact[] {
-  const fact = isRecord(gaap[concept]) ? gaap[concept] : undefined;
-  const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
-  const cutoff = analysisAsOf?.slice(0, 10) ?? "9999";
-  return DEBT_METRIC.unitKeys.flatMap((unitKey) =>
-    (units === undefined ? [] : readArray(units, unitKey)).flatMap((value) => {
-      const form = isRecord(value) ? readString(value, "form") : undefined;
-      const parsed = form === undefined ? undefined : canonicalizeSecForm(form);
-      const val = isRecord(value) ? readNumber(value, "val") : undefined;
-      const end = isRecord(value) ? readString(value, "end") : undefined;
-      const filed = isRecord(value) ? readString(value, "filed") : undefined;
-      return parsed === undefined ||
-        isDomesticPeriodicCanonicalForm(parsed.canonicalForm) ||
-        val === undefined ||
-        end === undefined ||
-        filed === undefined ||
-        (isRecord(value) && readString(value, "start") !== undefined) ||
-        end > cutoff ||
-        filed > cutoff
-        ? []
-        : [{ concept, amendment: parsed.amendment, periodEnd: end, filedAt: filed, value: val }];
-    }),
-  );
-}
-
-function selectNetDebtMetric(
-  gaap: Record<string, unknown>,
-  analysisAsOf?: string,
-): SecDebtSelection | undefined {
-  const instants = new Map<string, Map<string, SecFactValue>>();
-  const history: DebtHistoryFact[] = [];
-  const recognized = recognizedDebtConcepts("us-gaap");
-  for (const concept of debtCandidateConcepts("us-gaap", gaap)) {
-    const observable = (value: SecFactValue) =>
-      isFactObservableAsOf(value, analysisAsOf) &&
-      (value.start === undefined || recognized.has(concept));
-    history.push(...foreignFormDebtHistory(gaap, concept, analysisAsOf));
-    const values = factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys).filter(observable);
-    for (const value of values.toSorted(compareFactRecency)) {
-      history.push({
-        concept,
-        amendment: value.amendment,
-        periodEnd: value.end ?? "",
-        filedAt: value.filed ?? "",
-        value: value.val,
-      });
-      const tagged = instants.get(debtPeriodIdentity(value)) ?? new Map<string, SecFactValue>();
-      if (!tagged.has(concept)) {
-        tagged.set(concept, value);
-      }
-      instants.set(debtPeriodIdentity(value), tagged);
-    }
-  }
-  const principalFacts = Object.fromEntries(
-    (
-      [
-        ["dueWithinYear", US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT],
-        ["total", GROSS_PRINCIPAL_DEBT_CONCEPT],
-        ["unamortized", "DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet"],
-      ] as const
-    ).map(([key, concept]) => [
-      key,
-      factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys).filter(
-        (value) => value.start === undefined && isFactObservableAsOf(value, analysisAsOf),
-      ),
-    ]),
-  );
-  const liabilities = debtIdentityConcepts("us-gaap").flatMap((concept) =>
-    factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys)
-      .filter((value) => value.start === undefined && isFactObservableAsOf(value, analysisAsOf))
-      .map((value) => ({
-        concept,
-        amendment: value.amendment,
-        periodEnd: value.end ?? "",
-        filedAt: value.filed ?? "",
-        value: value.val,
-      })),
-  );
-  const resolved = unsupersededDebtResolutions(
-    [...instants.values()].map((tagged) => {
-      const [anchor] = [...tagged.values()].toSorted(compareFactRecency);
-      const instant = { periodEnd: anchor?.end ?? "", filedAt: anchor?.filed ?? "" };
-      const resolution = resolveDebtAtInstant(
-        "us-gaap",
-        instant,
-        tagged,
-        history,
-        (fact) => fact.val,
-        (fact) => fact.filed ?? "",
-        Object.fromEntries(
-          Object.entries(principalFacts).map(([key, values]) => [
-            key,
-            latestFact(
-              values.filter(
-                (value) =>
-                  value.end === instant.periodEnd && (value.filed ?? "") <= instant.filedAt,
-              ),
-            )?.val,
-          ]),
-        ),
-        liabilities,
-      );
-      const fact =
-        resolution.incompleteReason === undefined ? resolvedDebtFact(resolution) : undefined;
-      return { ...instant, resolution, fact, anchor, incomplete: fact === undefined };
-    }),
-  ).toSorted((left, right) =>
-    left.anchor === undefined || right.anchor === undefined
-      ? 0
-      : compareFactRecency(left.fact ?? left.anchor, right.fact ?? right.anchor),
-  );
-  const [newest] = resolved;
-  const complete = resolved.flatMap((entry) =>
-    entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }],
-  );
-  const latest = newest?.incomplete === true ? undefined : complete[0];
-  const prior =
-    latest === undefined
-      ? undefined
-      : comparablePrior(
-          latest.fact,
-          complete.flatMap((entry) =>
-            entry.resolution.basis === latest.resolution.basis ||
-            (entry.resolution.lineScope === true && latest.resolution.lineScope === true)
-              ? [entry.fact]
-              : [],
-          ),
-        );
-  const [primary] = latest?.resolution.contributors ?? [];
-  const leaseInclusive = latest?.resolution.leaseInclusive;
-  const composite =
-    newest?.resolution.basis === "components"
-      ? {
-          selectedConcepts: newest.resolution.contributors.map(
-            (contributor) => contributor.concept,
-          ),
-          periodEnd: newest.periodEnd,
-          ...(newest.resolution.incompleteReason !== undefined
-            ? { incompleteReason: newest.resolution.incompleteReason }
-            : {}),
-        }
-      : undefined;
-  if (latest === undefined && composite === undefined && newest?.incomplete !== true) {
-    return undefined;
-  }
-  return {
-    ...(latest !== undefined
-      ? {
-          selection: {
-            latest: latest.fact,
-            ...(prior !== undefined ? { prior } : {}),
-            ...(latest.resolution.basis === "total" && primary !== undefined
-              ? { concept: primary.concept }
-              : {}),
-          },
-        }
-      : {}),
-    ...(composite !== undefined ? { composite } : {}),
-    ...(newest?.resolution.incompleteReason !== undefined
-      ? { incomplete: { periodEnd: newest.periodEnd, reason: newest.resolution.incompleteReason } }
-      : {}),
-    ...(latest?.fact.end !== undefined && leaseInclusive !== undefined
-      ? { leaseInclusive: { periodEnd: latest.fact.end, concepts: leaseInclusive } }
-      : {}),
-  };
-}
-
-export const DEBT_MAY_INCLUDE_FINANCE_LEASES = "may-include-finance-leases";
-
-export function leaseInclusiveDebtGap(periodEnd: string, concepts: readonly string[]): SourceGap {
-  return sourceGap({
-    source: "sec-edgar",
-    message: `SEC debt as of ${periodEnd} may include finance leases: ${concepts.join(", ")} is tagged without a matching finance-lease amount to remove`,
-    provider: "sec-edgar",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
-}
-
-export function withheldDebtGap(periodEnd: string, reason: string): SourceGap {
-  return sourceGap({
-    source: "sec-edgar",
-    message: `SEC debt withheld: the newest debt instant ${periodEnd} is incomplete (${reason}), and no older amount stands in as current debt`,
-    provider: "sec-edgar",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
-}
-
-export function grossPrincipalDebtGap(periodEnd: string, netPeriodEnd: string): SourceGap {
-  return sourceGap({
-    source: "sec-edgar",
-    message: `SEC debt uses gross principal (${GROSS_PRINCIPAL_DEBT_CONCEPT}) as of ${periodEnd}: net carrying debt is not tagged in companyfacts after ${netPeriodEnd}, where gross principal was within 5% of it`,
-    provider: "sec-edgar",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
-}
-
-function deltaPercent(latest: number, prior: number): number | undefined {
-  return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
-}
-
-function formatMetric(
-  label: string,
-  latest: number,
-  prior: number | undefined,
-  delta: number | undefined,
-): string {
-  if (delta === undefined) {
-    return `${label} ${String(latest)}`;
-  }
-  if (prior !== undefined && latest < 0 && prior < 0) {
-    const direction = latest < prior ? "widened" : "narrowed";
-    return `${label} ${String(latest)} (loss ${direction} ${Math.abs(delta).toFixed(1)}% YoY)`;
-  }
-  return `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
-}
-
-const SUMMARY_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
-  ...SEC_METRIC_DEFINITIONS,
-  DEBT_METRIC,
-];
-
-// `metricsFor` picks the metric source per key, so canonical inputs can override legacy ones.
-export function formatSecFundamentalsSummary(
-  metricsFor: (key: string) => Readonly<Record<string, number | string>> | undefined,
-): string | undefined {
-  const parts = SUMMARY_METRIC_DEFINITIONS.flatMap(({ key, label }) => {
-    const metrics = metricsFor(key);
-    const latest = metrics?.[key];
-    if (typeof latest !== "number") {
-      return [];
-    }
-    if (key === "consolidatedNetIncome" && metricsFor("netIncome")?.netIncome === latest) {
-      return [];
-    }
-    if (
-      key === "consolidatedContinuingIncome" &&
-      metricsFor("continuingIncome")?.continuingIncome === latest
-    ) {
-      return [];
-    }
-    const prior = metrics?.[`${key}Prior`];
-    const delta = metrics?.[`${key}DeltaPercent`];
-    const scope = metrics?.[`${key}Scope`];
-    const basisLabel =
-      metrics?.[`${key}Basis`] === "gross-principal" ? `${label} (gross principal)` : label;
-    return [
-      formatMetric(
-        scopedLabel(basisLabel, typeof scope === "string" ? scope : undefined),
-        latest,
-        typeof prior === "number" ? prior : undefined,
-        typeof delta === "number" ? delta : undefined,
-      ),
-    ];
-  });
-  return parts.length === 0 ? undefined : `SEC Fundamental Evidence: ${parts.join(", ")}.`;
-}
-
-function legacyEnterpriseValueBridgeFacts(
-  gaap: Record<string, unknown>,
-  analysisAsOf: string | undefined,
-): EnterpriseValueBridgeFacts {
-  const select = (concepts: readonly string[]): readonly BridgeFact[] => {
-    const byPeriodEnd = new Map<string, BridgeFact & { readonly priority: number }>();
-    for (const [priority, concept] of concepts.entries()) {
-      for (const fact of factValuesForConcept(gaap, concept, ["USD"])) {
-        if (
-          fact.start !== undefined ||
-          fact.end === undefined ||
-          fact.filed === undefined ||
-          !isFactObservableAsOf(fact, analysisAsOf)
-        ) {
-          continue;
-        }
-        const current = byPeriodEnd.get(fact.end);
-        if (
-          current === undefined ||
-          priority < current.priority ||
-          (priority === current.priority && fact.filed > current.filedAt)
-        ) {
-          byPeriodEnd.set(fact.end, {
-            value: fact.val,
-            periodEnd: fact.end,
-            concept,
-            filedAt: fact.filed,
-            priority,
-          });
-        }
-      }
-    }
-    return [...byPeriodEnd.values()].toSorted((left, right) =>
-      left.periodEnd.localeCompare(right.periodEnd),
-    );
-  };
-  return trimToMezzaninePeriods(
-    Object.fromEntries(
-      Object.entries(ENTERPRISE_VALUE_BRIDGE_CONCEPTS).map(([key, concepts]) => [
-        key,
-        select(concepts),
-      ]),
-    ) as unknown as EnterpriseValueBridgeFacts,
   );
 }
 
@@ -1161,32 +511,25 @@ export function summarizeSecFundamentals(
       ? undefined
       : selectMetric(gaap, revenueDefinition, analysisAsOf);
   const flowPeriod = revenueSelection?.latest;
-  const debtSelection = selectDebtMetric(gaap, analysisAsOf);
   const metricSelections: readonly {
     readonly definition: SecMetricDefinition;
     readonly selection: SecMetricSelection | undefined;
-  }[] = [
-    ...SEC_METRIC_DEFINITIONS.map((definition) => ({
-      definition,
-      selection:
-        definition.key === "revenue"
-          ? revenueSelection
-          : selectMetric(
-              gaap,
-              definition,
-              analysisAsOf,
-              FLOW_METRIC_KEYS.has(definition.key) ? flowPeriod : undefined,
-            ),
-    })),
-    { definition: DEBT_METRIC, selection: debtSelection?.selection },
-  ];
+  }[] = SEC_METRIC_DEFINITIONS.map((definition) => ({
+    definition,
+    selection:
+      definition.key === "revenue"
+        ? revenueSelection
+        : selectMetric(
+            gaap,
+            definition,
+            analysisAsOf,
+            FLOW_METRIC_KEYS.has(definition.key) ? flowPeriod : undefined,
+          ),
+  }));
 
   for (const { definition, selection } of metricSelections) {
     if (selection === undefined) {
-      if (
-        !definition.optional &&
-        !(definition === DEBT_METRIC && debtSelection?.incomplete !== undefined)
-      ) {
+      if (!definition.optional) {
         missingFacts.push(definition.key);
       }
       continue;
@@ -1224,17 +567,44 @@ export function summarizeSecFundamentals(
     }
   }
 
-  const revenueTtm =
-    revenueDefinition === undefined || revenueSelection?.concept === undefined
-      ? undefined
-      : trailingTwelveMonths(
-          revenueSelection.latest,
-          factValuesForConcept(gaap, revenueSelection.concept, revenueDefinition.unitKeys).filter(
-            (value) => isFactObservableAsOf(value, analysisAsOf),
-          ),
-        );
-  if (revenueTtm !== undefined) {
-    metrics.revenueTtm = revenueTtm;
+  const statements = deriveFinancialStatements(payload, {
+    symbol: "",
+    generatedAt: analysisAsOf ?? UNBOUNDED_AS_OF,
+    analysisAsOf: analysisAsOf ?? UNBOUNDED_AS_OF,
+    sourceId: "",
+  });
+  // Canonical debt and EV join only a us-gaap summary with domestic 10-K/10-Q rows.
+  const usGaap = statements.taxonomy === "us-gaap" && hasDomesticPeriodicRow(secFactRows(payload));
+  const canonical = usGaap ? canonicalFinancialMetrics(statements) : {};
+  const usd = statements.reportingCurrency === "USD";
+  const debtMismatch =
+    usGaap && canonical.debtIncompletePeriodEnd === undefined
+      ? debtMismatchReason(statements)
+      : undefined;
+  const sameCash = usd && canonical.cashPeriodEnd === metrics.cashPeriodEnd;
+  for (const [key, value] of Object.entries(canonical)) {
+    if (
+      (debtMismatch === undefined && /^debt(?:[A-Z]|$)/u.test(key)) ||
+      (sameCash && BRIDGE_METRIC.test(key))
+    ) {
+      metrics[key] = value;
+    }
+  }
+  const ttmMismatch =
+    canonical.revenueTtm !== undefined && !usd
+      ? `TTM revenue is reported in ${statements.reportingCurrency ?? "no currency"}, not USD`
+      : undefined;
+  if (
+    ttmMismatch === undefined &&
+    canonical.revenueTtm !== undefined &&
+    canonical.revenuePeriodEnd === metrics.revenuePeriodEnd
+  ) {
+    metrics.revenueTtm = canonical.revenueTtm;
+  }
+  if (metrics.debt === undefined && metrics.debtIncompletePeriodEnd === undefined) {
+    missingFacts.push(DEBT_METRIC.key);
+  } else if (metrics.debt !== undefined && metrics.debtPrior === undefined) {
+    missingDeltas.push(DEBT_METRIC.key);
   }
 
   const cashFlow = metricSelections.find(({ definition }) => definition.key === "operatingCashFlow")
@@ -1262,29 +632,6 @@ export function summarizeSecFundamentals(
       metrics[`${totalKey}Scope`] = TOTAL_OPERATIONS_SCOPE;
     }
   }
-  if (debtSelection?.grossPrincipal !== undefined) {
-    metrics.debtBasis = "gross-principal" satisfies DebtBasis;
-  }
-  if (debtSelection?.grossPrincipal === undefined && debtSelection?.leaseInclusive !== undefined) {
-    metrics.debtLeaseScope = DEBT_MAY_INCLUDE_FINANCE_LEASES;
-  }
-  if (typeof metrics.cash === "number" && typeof metrics.cashPeriodEnd === "string") {
-    Object.assign(
-      metrics,
-      enterpriseValueBridgeMetrics(
-        resolveEnterpriseValueBridge(legacyEnterpriseValueBridgeFacts(gaap, analysisAsOf), {
-          value: metrics.cash,
-          periodEnd: metrics.cashPeriodEnd,
-        }),
-      ),
-    );
-  }
-  const incompleteDebt = debtSelection?.incomplete;
-  if (incompleteDebt !== undefined) {
-    metrics.debtIncompletePeriodEnd = incompleteDebt.periodEnd;
-    metrics.debtIncompleteReason = incompleteDebt.reason;
-  }
-
   const summary = formatSecFundamentalsSummary(() => metrics);
   if (summary === undefined) {
     return undefined;
@@ -1306,29 +653,25 @@ export function summarizeSecFundamentals(
         ]
       : [];
 
-  const grossPrincipalGap =
-    debtSelection?.grossPrincipal === undefined
-      ? []
-      : [
-          grossPrincipalDebtGap(
-            debtSelection.grossPrincipal.periodEnd,
-            debtSelection.grossPrincipal.netPeriodEnd,
-          ),
-        ];
-
   const gaps: SourceGap[] = [
-    ...grossPrincipalGap,
-    ...(incompleteDebt === undefined
-      ? []
-      : [withheldDebtGap(incompleteDebt.periodEnd, incompleteDebt.reason)]),
-    ...(debtSelection?.grossPrincipal === undefined && debtSelection?.leaseInclusive !== undefined
-      ? [
-          leaseInclusiveDebtGap(
-            debtSelection.leaseInclusive.periodEnd,
-            debtSelection.leaseInclusive.concepts,
-          ),
-        ]
-      : []),
+    ...(usGaap && debtMismatch === undefined
+      ? financialStatementsDebtBasisGaps(statements)
+      : []
+    ).map(({ symbol: _symbol, ...gap }) => gap),
+    ...[debtMismatch, ttmMismatch].flatMap((reason) =>
+      reason === undefined
+        ? []
+        : [
+            sourceGap({
+              source: "sec-edgar",
+              message: `SEC summary withheld canonical ${reason}`,
+              provider: "sec-edgar",
+              capability: "extended-evidence",
+              cause: "provider-data-missing",
+              evidenceQualityImpact: "no-cap",
+            }),
+          ],
+    ),
     ...(missingFacts.length > 0
       ? [
           sourceGap({
@@ -1364,7 +707,6 @@ export function summarizeSecFundamentals(
     ...(typeof metrics.revenuePeriodEnd === "string"
       ? { revenuePeriodEnd: metrics.revenuePeriodEnd }
       : {}),
-    ...(debtSelection?.composite !== undefined ? { debtComposite: debtSelection.composite } : {}),
     gaps,
   };
 }
@@ -1400,12 +742,7 @@ export function secFundamentalsUnavailableGap(
   if (rows.length === 0) {
     return { message: `No SEC company facts found for ${subject}`, cause: "provider-data-missing" };
   }
-  const hasDomesticPeriodicRow = rows.some((row) => {
-    const form = readString(row, "form");
-    const parsed = form === undefined ? undefined : canonicalizeSecForm(form);
-    return parsed !== undefined && isDomesticPeriodicCanonicalForm(parsed.canonicalForm);
-  });
-  return hasDomesticPeriodicRow
+  return hasDomesticPeriodicRow(rows)
     ? {
         message: `SEC company facts for ${subject} have no eligible rows for the tracked legacy summary metrics`,
         cause: "provider-data-missing",
@@ -1414,6 +751,26 @@ export function secFundamentalsUnavailableGap(
         message: `SEC company facts for ${subject} have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable`,
         cause: "unsupported-coverage",
       };
+}
+
+function debtMismatchReason(statements: FinancialStatementsArtifact): string | undefined {
+  if (statements.reportingCurrency !== "USD") {
+    return `debt is reported in ${statements.reportingCurrency ?? "no currency"}, not USD`;
+  }
+  const latest = latestFinancialStatementFact(
+    financialStatementFacts(statements.statements.balanceSheet.debt),
+  );
+  return latest === undefined || isDomesticPeriodicCanonicalForm(latest.canonicalForm)
+    ? undefined
+    : `debt for ${latest.periodEnd} comes from a ${latest.form}, not a 10-K/10-Q`;
+}
+
+function hasDomesticPeriodicRow(rows: readonly Record<string, unknown>[]): boolean {
+  return rows.some((row) => {
+    const form = readString(row, "form");
+    const parsed = form === undefined ? undefined : canonicalizeSecForm(form);
+    return parsed !== undefined && isDomesticPeriodicCanonicalForm(parsed.canonicalForm);
+  });
 }
 
 export async function fetchSecCompanyFactsForSymbol(
@@ -1537,9 +894,6 @@ export async function fetchSecCompanyFactsForSymbol(
           summary: fundamentals.summary,
           ...(fundamentals.revenuePeriodEnd !== undefined
             ? { revenuePeriodEnd: fundamentals.revenuePeriodEnd }
-            : {}),
-          ...(fundamentals.debtComposite !== undefined
-            ? { debtComposite: fundamentals.debtComposite }
             : {}),
         }
       : {}),

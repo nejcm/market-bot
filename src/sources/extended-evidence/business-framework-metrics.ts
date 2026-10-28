@@ -10,7 +10,7 @@ import { currentRatioIsCurrent } from "./financial-lens-builders";
 import { priorComparable } from "./financial-lens-canonical";
 import { itemByCategory, secFundamentalItem, secScope } from "./financial-lens-metrics";
 import { depositoryIssuerSic } from "./industry-classification";
-import { SEC_METRIC_DEFINITIONS } from "./sec-edgar";
+import { SEC_METRIC_DEFINITIONS } from "./sec-fundamentals-format";
 import {
   conceptScope,
   scopedLabel,

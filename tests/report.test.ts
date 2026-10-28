@@ -1,3 +1,5 @@
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { SourceIdValidationError } from "../src/report/source-id-validation-error";
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
@@ -24,7 +26,6 @@ import type { HistoricalResearchContext } from "../src/research/historical-conte
 import type { DepthProfile, ResearchContext } from "../src/research/research-context-types";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { auditSourceTextResearchOnly } from "../src/research/source-text-audit";
 import {
   collectedSources,
@@ -299,34 +300,36 @@ test("renders an uncited real company description as a paragraph", () => {
 });
 
 test("declares missing revenue history instead of leaving unexplained trend-table blanks", () => {
-  const history = deriveFundamentalHistory(
-    {
-      facts: {
-        "us-gaap": {
-          NetIncomeLoss: {
-            units: {
-              USD: [
-                {
-                  val: 20,
-                  form: "10-K",
-                  fp: "FY",
-                  fy: 2024,
-                  filed: "2024-11-01",
-                  start: "2023-10-01",
-                  end: "2024-09-30",
-                },
-              ],
+  const history = deriveFundamentalHistoryFromFinancialStatements(
+    deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetIncomeLoss: {
+              units: {
+                USD: [
+                  {
+                    val: 20,
+                    form: "10-K",
+                    fp: "FY",
+                    fy: 2024,
+                    filed: "2024-11-01",
+                    start: "2023-10-01",
+                    end: "2024-09-30",
+                  },
+                ],
+              },
             },
           },
         },
       },
-    },
-    {
-      symbol: "AAPL",
-      generatedAt: "2025-08-01T00:00:00.000Z",
-      analysisAsOf: "2025-08-01T00:00:00.000Z",
-      sourceId: "extended-sec-edgar-aapl-fundamentals",
-    },
+      {
+        symbol: "AAPL",
+        generatedAt: "2025-08-01T00:00:00.000Z",
+        analysisAsOf: "2025-08-01T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    ),
   );
   const markdown = renderMarkdownReport(
     {

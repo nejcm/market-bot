@@ -1,5 +1,6 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
-import type { Prediction, PredictionKind } from "../../domain/prediction";
+import type { PredictionKind } from "../../domain/prediction";
+import type { EventGridEvent } from "../event-grid";
 import type { CollectedSources } from "../../sources/types";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 import { FRED_SERIES } from "../../sources/fred";
@@ -27,26 +28,6 @@ export function isVixAllowedSubject(predictionSubjects: readonly string[]): bool
 // `macro` forecasts take a FRED series as subject; equity runs allow only their symbol.
 export function isFredAllowedSubject(predictionSubjects: readonly string[]): boolean {
   return predictionSubjects.some((subject) => FRED_SERIES.includes(subject));
-}
-
-interface PredictionCoverage {
-  readonly coveredKinds: readonly PredictionKind[];
-  readonly uncoveredSupportedKinds: readonly PredictionKind[];
-  readonly coveredExactHorizons: readonly number[];
-}
-
-function buildPredictionCoverage(
-  predictions: readonly Prediction[],
-  supportedKinds: readonly PredictionKind[],
-): PredictionCoverage {
-  const coveredKindSet = new Set(predictions.map((prediction) => prediction.kind));
-  return {
-    coveredKinds: supportedKinds.filter((kind) => coveredKindSet.has(kind)),
-    uncoveredSupportedKinds: supportedKinds.filter((kind) => !coveredKindSet.has(kind)),
-    coveredExactHorizons: [
-      ...new Set(predictions.map((prediction) => prediction.horizonTradingDays)),
-    ].toSorted((left, right) => left - right),
-  };
 }
 
 // `excludedKinds` withdraws kinds a specific path cannot support from every surface the prompt
@@ -78,18 +59,29 @@ export function supportedPredictionKinds(
 }
 
 export function predictionCoverageGuidance(
-  predictions: readonly Prediction[],
+  gridEvents: readonly EventGridEvent[],
   supportedKinds: readonly PredictionKind[],
 ): string {
-  const coverage = buildPredictionCoverage(predictions, supportedKinds);
-  const coveredKinds = coverage.coveredKinds.length > 0 ? coverage.coveredKinds.join(", ") : "none";
-  const uncoveredKinds =
-    coverage.uncoveredSupportedKinds.length > 0
-      ? coverage.uncoveredSupportedKinds.join(", ")
+  const horizonsByShape = new Map<string, number[]>();
+  for (const event of gridEvents) {
+    const shape =
+      event.kind === "range" ? `${event.subject} ±1σ range band` : `${event.kind} ${event.subject}`;
+    horizonsByShape.set(shape, [...(horizonsByShape.get(shape) ?? []), event.horizonTradingDays]);
+  }
+  const coveredShapes =
+    horizonsByShape.size > 0
+      ? [...horizonsByShape]
+          .map(
+            ([shape, horizons]) =>
+              `${shape} at ${horizons.map((horizon) => `${String(horizon)}d`).join(", ")}`,
+          )
+          .join("; ")
       : "none";
-  const coveredHorizons =
-    coverage.coveredExactHorizons.length > 0
-      ? coverage.coveredExactHorizons.map((horizon) => `${String(horizon)}d`).join(", ")
-      : "none";
-  return ` Prediction coverage: covered kinds: ${coveredKinds}; supported kinds not yet represented: ${uncoveredKinds}; covered exact horizons: ${coveredHorizons}. Seek an uncovered supported kind where evidence supports it. Use a different exact horizon only when evidence supports that horizon.`;
+  const gridKinds = new Set<PredictionKind>(gridEvents.map((event) => event.kind));
+  const uncoveredKinds = supportedKinds.filter((kind) => !gridKinds.has(kind));
+  const restatement =
+    gridEvents.length > 0
+      ? " A prediction restating a covered event is folded into the grid and does not count toward the target; do not carry forward a prior run's prediction that does. A range at a covered horizon is a new forecast only with different, evidence-supported bounds."
+      : "";
+  return ` Prediction coverage: events the Event Grid already covers: ${coveredShapes}; supported kinds it leaves uncovered: ${uncoveredKinds.length > 0 ? uncoveredKinds.join(", ") : "none"}.${restatement} Seek an uncovered supported kind, or a covered kind at another horizon or benchmark, where evidence supports it. Use a different exact horizon only when evidence supports that horizon.`;
 }

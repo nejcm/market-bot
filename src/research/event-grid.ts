@@ -118,6 +118,13 @@ export function eventGrid(
   return { events, gaps };
 }
 
+export function issuableGridEvents(
+  events: readonly EventGridEvent[],
+  knownSourceIds: ReadonlySet<string>,
+): readonly EventGridEvent[] {
+  return events.filter((event) => event.sourceIds.some((id) => knownSourceIds.has(id)));
+}
+
 function primarySymbol(event: EventGridEvent): string {
   return event.subject.split(":")[0]!;
 }
@@ -184,12 +191,12 @@ export function issueForecastBook(input: {
   const gaps: SourceGap[] = [...grid.gaps];
   const pModel = modelGridProbabilities(input.modelEventGrid);
   const restated = new Map<string, Prediction>();
+  const issuable = issuableGridEvents(grid.events, input.knownSourceIds);
   const modelPredictions = input.modelPredictions.filter((prediction) => {
-    const event = grid.events.find(
+    const event = issuable.find(
       (candidate) =>
-        (candidate.id === prediction.id ||
-          claimKey(candidate.measurableAs) === claimKey(prediction.measurableAs)) &&
-        candidate.sourceIds.some((id) => input.knownSourceIds.has(id)),
+        candidate.id === prediction.id ||
+        claimKey(candidate.measurableAs) === claimKey(prediction.measurableAs),
     );
     if (event === undefined) {
       return true;

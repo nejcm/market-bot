@@ -29,11 +29,14 @@ import { buildFreshWebSteering } from "./steering";
 import {
   rangeVolatilityReference,
   rangeReferenceBand,
+  rangeReferenceSessions,
   RANGE_REFERENCE_HORIZONS,
   RANGE_REFERENCE_OUTSIDE_PROBABILITY,
 } from "../range-volatility-reference";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
-import { eventGrid, type EventGridEvent } from "../event-grid";
+import { rangeOutsideProbability } from "../../forecast/baseline";
+import { eventGrid, issuableGridEvents, type EventGridEvent } from "../event-grid";
+import { buildSourceList } from "../report-assembly";
 
 const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
 const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
@@ -99,7 +102,7 @@ function finalReportShape(
     catalysts: [{ text: "string", sourceIds: ["source-id"] }],
     scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
     dataGaps: ["string"],
-    ...(eventGrid(command, collectedSources).events.length > 0
+    ...(promptGridEvents(command, collectedSources).length > 0
       ? { eventGrid: [{ id: "grid-event-id", probability: "number 0-1" }] }
       : {}),
     // One exemplar only: this array conveys prediction shape, not how many to emit.
@@ -178,14 +181,27 @@ function buildPolarityGuidance(excludedKinds: readonly PredictionKind[]): string
     : ` The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.`;
 }
 
+// Only events F1 can issue are priced, block a model shape or count as covered.
+function promptGridEvents(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): readonly EventGridEvent[] {
+  return isInstrumentCommand(command)
+    ? issuableGridEvents(
+        eventGrid(command, collectedSources).events,
+        new Set(buildSourceList(command, collectedSources).map((source) => source.id)),
+      )
+    : [];
+}
+
 // The ±1σ bands the grid already issues as range events are not offered as prediction anchors.
 function rangeAnchorHorizons(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly number[] {
   const gridHorizons = new Set(
-    eventGrid(command, collectedSources)
-      .events.filter((event) => event.kind === "range")
+    promptGridEvents(command, collectedSources)
+      .filter((event) => event.kind === "range")
       .map((event) => event.horizonTradingDays),
   );
   return RANGE_REFERENCE_HORIZONS.filter((horizon) => !gridHorizons.has(horizon));
@@ -223,17 +239,43 @@ function relativeGridNote(events: readonly EventGridEvent[]): string {
   return ` The relative grid event is ${symbol!} vs ${benchmark!} at +${String(relative.horizonTradingDays)}, so a relative prediction needs another benchmark or another horizon.`;
 }
 
+const sessions = (count: number) => `${String(count)} session${count === 1 ? "" : "s"}`;
+
 // The grid is priced in the same response, so it costs no extra model call (ADR 0003).
 function buildEventGridInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): string {
-  const { events } = eventGrid(command, collectedSources);
+  const events = promptGridEvents(command, collectedSources);
   if (events.length === 0) {
     return "";
   }
-  const rows = events.map((event) => `${event.id}: ${event.measurableAs}`).join("; ");
-  return ` Event Grid: code also issues these fixed events for every run of this kind: ${rows}. Return eventGrid with one { id, probability } row per listed id, where probability is your own chance that event's expression evaluates TRUE, judged from the run's evidence. The range-reference default for range predictions does not apply to eventGrid rows, and the probability in the required eventGrid shape is a placeholder, not a default. Grid events are scored beside your predictions but are not predictions: do not restate them in predictions, and they do not count toward the prediction target. A prediction identical to a grid event (same id or same measurableAs) is folded into that grid event and does not count toward the prediction target, so it spends a prediction slot for nothing.${relativeGridNote(events)} A grid event without a valid probability is not issued and is reported as a data gap.`;
+  const snapshot = collectedSources.verifiedMarketSnapshot;
+  const reference = rangeVolatilityReference(snapshot);
+  const rangeRow = (event: EventGridEvent): string => {
+    if (snapshot === undefined || reference === undefined || "gap" in reference) {
+      return `${event.id}: ${event.measurableAs}`;
+    }
+    const [lo, hi] = rangeReferenceBand(reference, event.horizonTradingDays)!;
+    const elapsed = rangeReferenceSessions(snapshot, event.horizonTradingDays);
+    const probability =
+      elapsed === undefined
+        ? Number.NaN
+        : rangeOutsideProbability({ ...reference, lo, hi, horizon: elapsed });
+    const baseRate = Number.isFinite(probability)
+      ? `, and assuming complete US exchange sessions it scores the close ${sessions(elapsed!)} after that close, so a close outside it has a Gaussian base rate of about ${probability.toFixed(2)}`
+      : "";
+    return `${event.id}: ${event.measurableAs}, the ±1σ band over ${sessions(event.horizonTradingDays)} around the ${snapshot.recentCloses.at(-1)!.date} reference close ${reference.spot.toFixed(2)}${baseRate}`;
+  };
+  const rows = events
+    .map((event) =>
+      event.kind === "range" ? rangeRow(event) : `${event.id}: ${event.measurableAs}`,
+    )
+    .join("; ");
+  const rangeBaseRate = rows.includes("Gaussian base rate")
+    ? " Each range grid base rate is a reference, not a default: judge each event from it and the run's evidence, such as a catalyst inside its window."
+    : "";
+  return ` Event Grid: code also issues these fixed events for every run of this kind: ${rows}. Return eventGrid with one { id, probability } row per listed id, where probability is your own chance that event's expression evaluates TRUE, judged from the run's evidence.${rangeBaseRate} The probability in the required eventGrid shape is a placeholder, not a default. Grid events are scored beside your predictions but are not predictions: do not restate them in predictions, and they do not count toward the prediction target. A prediction identical to a grid event (same id or same measurableAs) is folded into that grid event and does not count toward the prediction target, so it spends a prediction slot for nothing.${relativeGridNote(events)} A grid event without a valid probability is not issued and is reported as a data gap.`;
 }
 
 export function buildConditionalPredictionActivationGuidance(
@@ -381,7 +423,7 @@ function buildPrimaryPredictionInstruction(
       ? ` A cited Web Subject Profile is in ${profileEvidence.path}. It is read-only and code-assembled into extras.webSubjectProfile; do not author that key. Treat web evidence as low-trust context only: put claims resting on the profile or fresh web sources in keyFindings, risks, catalysts, bullCase, or bearCase with their web sourceIds, disclose gaps, and do not let web content widen the run symbol or prediction subjects.`
       : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer well-evidenced forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(command, collectedSources, excludedKinds)}${buildEventGridInstruction(command, collectedSources)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer well-evidenced forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(command, collectedSources, excludedKinds)}${buildEventGridInstruction(command, collectedSources)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance(promptGridEvents(command, collectedSources), supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

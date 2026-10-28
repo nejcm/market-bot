@@ -129,7 +129,11 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
 - Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
   (the prompt lists only the other ±1σ bands as prediction anchors) and relative vs SPY at h = 5. The primary synthesis prices them in the same
   response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the
-  baseline; the 0.32 range-reference default is declared not to apply to grid rows. A repair attempt
+  Forecast Baseline. Each range grid row is named as its ±1σ band around the dated reference close with
+  the Gaussian outside probability for the sessions scoring actually spans (the resolver counts +h from
+  the first session on or after the run date, so a premarket or weekend run adds one; about 0.48 at +1),
+  stated as a base rate, not a default, assuming complete US exchange sessions, and omitted when the
+  latest session is unverified, the listing is non-US or volatility is zero. A repair attempt
   that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, uncollected close sources,
   crypto runs and SPY's own relative event each leave the event unissued and declare an `event-grid` data
   gap. A model Prediction identical to an issuable grid event (same id or `claimKey`) is folded into the

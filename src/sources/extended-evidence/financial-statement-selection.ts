@@ -216,13 +216,23 @@ export interface DebtResolution<T> {
   readonly leaseInclusive?: readonly string[];
   // Classified carrying lines, or a LongTermDebt total that reconciles to them, are one scope across bases (NVDA).
   readonly lineScope?: true;
+  readonly proofSourceIds?: readonly string[];
 }
 
 export function debtIdentityConcepts(taxonomy: FinancialStatementTaxonomy): readonly string[] {
-  const identity = DEBT_CONCEPTS[taxonomy].ambiguousLongTermDebt?.noncurrentIdentity;
-  return identity === undefined
-    ? []
-    : [identity.noncurrentTotal, identity.total, identity.currentTotal, ...identity.others];
+  const ambiguous = DEBT_CONCEPTS[taxonomy].ambiguousLongTermDebt;
+  if (ambiguous === undefined) {
+    return [];
+  }
+  const identity = ambiguous.noncurrentIdentity;
+  return [
+    identity.noncurrentTotal,
+    identity.total,
+    identity.currentTotal,
+    ...identity.others,
+    ...identity.currentOthers,
+    ambiguous.capitalLeaseCurrent,
+  ];
 }
 
 export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): ReadonlySet<string> {
@@ -542,7 +552,7 @@ function longTermDebtUse(
   if (
     !asNoncurrentGeneric &&
     longTermDebt >= noncurrentSum &&
-    longTermDebt <= currentSum + noncurrentSum
+    longTermDebt <= Math.max(currentSum, value(ambiguous.current) ?? 0) + noncurrentSum
   ) {
     return "line";
   }
@@ -569,11 +579,28 @@ export function resolveDebtAtInstant<T>(
   const concepts = DEBT_CONCEPTS[taxonomy];
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
   const ambiguous = concepts.ambiguousLongTermDebt;
+  const taggedValue = (concept: string | undefined) => {
+    const fact = tagged.get(concept ?? "");
+    return fact === undefined ? undefined : valueOf(fact);
+  };
+  const maturitiesValue = taggedValue(ambiguous?.current);
+  const leaseInCurrent =
+    maturitiesValue !== undefined &&
+    liabilities.some(
+      (fact) =>
+        fact.concept === ambiguous?.capitalLeaseCurrent &&
+        fact.periodEnd === instant.periodEnd &&
+        fact.filedAt <= instant.filedAt &&
+        fact.value !== 0 &&
+        (taggedValue(ambiguous?.currentTotal) ?? 0) > maturitiesValue,
+    );
   const sidesOf = (has: (concept: string) => boolean) => {
     const firstOf = (aliases: readonly string[]) => aliases.find(has);
     const shortTermOf = ambiguous === undefined ? undefined : firstOf(ambiguous.shortTerm);
     return [concepts.current, concepts.noncurrent].map((side) => {
-      const generic = firstOf(side.generic);
+      const generic = firstOf(
+        side.generic.filter((concept) => concept !== ambiguous?.currentTotal || !leaseInCurrent),
+      );
       return {
         generic,
         instruments: side.instruments,
@@ -595,6 +622,11 @@ export function resolveDebtAtInstant<T>(
   const umbrellas = Object.entries(concepts.umbrellas ?? {})
     .filter(([umbrella, legs]) => tagged.has(umbrella) && !legs.some((leg) => tagged.has(leg)))
     .map(([umbrella]) => umbrella);
+  const loneLegsOnly = umbrellas.filter(
+    (umbrella) =>
+      concepts.legsOnlyUmbrellas?.includes(umbrella) === true &&
+      valueOf(tagged.get(umbrella) as T) !== 0,
+  );
   const mismatched = Object.entries(concepts.umbrellas ?? {})
     .filter(([umbrella, legs]) => {
       const tagLegs = legs.filter((leg) => tagged.has(leg));
@@ -610,7 +642,10 @@ export function resolveDebtAtInstant<T>(
   const overlap = sides.some((side) => side.generic !== undefined)
     ? umbrellas.filter((umbrella) => valueOf(tagged.get(umbrella) as T) !== 0)
     : [];
-  const usedUmbrellas = overlap.length > 0 ? [] : umbrellas;
+  const usedUmbrellas =
+    overlap.length > 0
+      ? []
+      : umbrellas.filter((umbrella) => concepts.legsOnlyUmbrellas?.includes(umbrella) !== true);
   const valueAt = (concept: string) =>
     tagged.has(concept) ? valueOf(tagged.get(concept) as T) : undefined;
   const longTermDebtFact = ambiguous === undefined ? undefined : tagged.get(ambiguous.concept);
@@ -643,6 +678,22 @@ export function resolveDebtAtInstant<T>(
           .flatMap((side) => side.concepts)
           .filter((concept) => valueAt(concept) !== longTermDebtFiling.get(concept))
       : [];
+  const combinedFact = tagged.get(ambiguous?.combinedTotal ?? "");
+  const genericFacts = sides.flatMap((side) =>
+    side.generic === undefined ? [] : [tagged.get(side.generic) as T],
+  );
+  // Same-filing classified lines are carrying basis; a Combined that misses them can be principal (AVGO) or omit paper (QCOM).
+  const principalCombined =
+    combinedFact !== undefined &&
+    genericFacts.length === 2 &&
+    genericFacts.every((fact) => filedAtOf(fact) === filedAtOf(combinedFact)) &&
+    valueOf(genericFacts[1] as T) !== 0 &&
+    ![
+      genericFacts.reduce((acc, fact) => acc + valueOf(fact), 0),
+      sides.flatMap((side) => side.concepts).reduce((acc, c) => acc + (valueAt(c) ?? 0), 0),
+    ].includes(valueOf(combinedFact))
+      ? ambiguous?.combinedTotal
+      : undefined;
   const filedTotal = first(
     ambiguous !== undefined &&
       longTermDebt === "total" &&
@@ -651,7 +702,9 @@ export function resolveDebtAtInstant<T>(
       ? // A total that reconciles to its filing's lines is carrying basis; Combined can be principal (AVGO).
         [ambiguous.concept, ...concepts.totals]
       : concepts.totals.filter(
-          (concept) => concept !== ambiguous?.concept || longTermDebt === "total",
+          (concept) =>
+            concept !== principalCombined &&
+            (concept !== ambiguous?.concept || longTermDebt === "total"),
         ),
   );
   const legs = filedTotal === undefined ? undefined : concepts.totalLegs?.[filedTotal];
@@ -685,6 +738,36 @@ export function resolveDebtAtInstant<T>(
       : undefined;
   const sum = (names: readonly string[]) =>
     names.reduce((acc, name) => acc + valueOf(tagged.get(name) as T), 0);
+  // Debt lines plus the listed face-statement lines foot exactly to the filed subtotal, the same-filing proof of placement.
+  const faceStatementLines = (side: "current" | "noncurrent", debtLines: readonly string[]) => {
+    const identity = ambiguous?.noncurrentIdentity;
+    const filings = new Set(debtLines.map((concept) => filedAtOf(tagged.get(concept) as T)));
+    const [filedAt] = filings;
+    if (identity === undefined || filings.size !== 1) {
+      return false;
+    }
+    const filed = (concept: string) =>
+      liabilities.find(
+        (fact) =>
+          fact.concept === concept &&
+          fact.periodEnd === instant.periodEnd &&
+          fact.filedAt === filedAt,
+      )?.value;
+    const currentTotal = filed(identity.currentTotal);
+    const liabilitiesTotal = filed(identity.total);
+    const subtotal =
+      side === "current"
+        ? currentTotal
+        : (filed(identity.noncurrentTotal) ??
+          (liabilitiesTotal === undefined || currentTotal === undefined
+            ? undefined
+            : liabilitiesTotal - currentTotal));
+    const others = side === "current" ? identity.currentOthers : identity.others;
+    return (
+      subtotal !== undefined &&
+      subtotal === sum(debtLines) + others.reduce((acc, concept) => acc + (filed(concept) ?? 0), 0)
+    );
+  };
   const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
   const componentReason = (() => {
     if (total !== undefined) {
@@ -743,6 +826,7 @@ export function resolveDebtAtInstant<T>(
     ((added.length > 0 && valueAt(ambiguous.currentTotal) !== sum([generic, ...added])) ||
       (subsumed.length > 0 &&
         !combinedHoldsSubsumed &&
+        !(valueAt(generic) === sum(subsumed) && faceStatementLines("current", subsumed)) &&
         (total === undefined || valueAt(total) !== sum([...classifiedLines, ...subsumed]))));
   const strayConstituents =
     total === undefined && sides[1]?.generic === undefined
@@ -758,7 +842,7 @@ export function resolveDebtAtInstant<T>(
     (principal.total === undefined ||
       principal.total - (principal.unamortized ?? 0) !== sum(used) - sum(subtracted));
   // An instrument larger than the only line that could hold it sits beside it (AAOI convertibles).
-  const besideInstruments = [concepts.current, concepts.noncurrent].flatMap((side, index) => {
+  const besideBySide = [concepts.current, concepts.noncurrent].map((side, index) => {
     const holder = total ?? sides[index]?.generic;
     const held = holder === undefined ? undefined : valueAt(holder);
     return held === undefined
@@ -766,29 +850,41 @@ export function resolveDebtAtInstant<T>(
       : side.instruments
           .flatMap((aliases) => first(aliases) ?? [])
           .filter((concept) => !used.includes(concept) && (valueAt(concept) ?? 0) > held)
-          .map(
-            (concept) =>
-              `${concept} (${String(valueAt(concept))}) exceeds ${holder ?? ""} (${String(held)})`,
-          );
+          .map((concept) => ({ concept, holder: holder ?? "", held }));
   });
+  const noncurrentBeside = (besideBySide[1] ?? []).map(({ concept }) => concept);
+  const provenBeside =
+    (besideBySide[0] ?? []).length === 0 &&
+    faceStatementLines("noncurrent", [...(sides[1]?.concepts ?? []), ...noncurrentBeside])
+      ? noncurrentBeside
+      : [];
+  const besideInstruments = besideBySide
+    .flat()
+    .filter(({ concept }) => !provenBeside.includes(concept))
+    .map(
+      ({ concept, holder, held }) =>
+        `${concept} (${String(valueAt(concept))}) exceeds ${holder} (${String(held)})`,
+    );
   const incompleteReason =
-    unsplitLease !== undefined
-      ? unsplitLease
-      : besideInstruments.length > 0
-        ? `${besideInstruments.join(", ")}, so it cannot be inside the selected debt`
-        : strayConstituents.length > 0
-          ? `${strayConstituents.join(", ")} tagged without a noncurrent debt line or total that holds it`
-          : total === ambiguous?.concept && restatedScope.length > 0
-            ? `a later filing restated ${restatedScope.join(", ")} without restating ${ambiguous?.concept ?? ""}`
-            : unprovenCurrent
-              ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
-              : untaggedCurrent
-                ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
-                : omittedShortTerm.length > 0
-                  ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
-                  : excess === undefined
-                    ? componentReason
-                    : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
+    loneLegsOnly.length > 0
+      ? `${loneLegsOnly.join(", ")} is tagged without its current or noncurrent legs`
+      : unsplitLease !== undefined
+        ? unsplitLease
+        : besideInstruments.length > 0
+          ? `${besideInstruments.join(", ")}, so it cannot be inside the selected debt`
+          : strayConstituents.length > 0
+            ? `${strayConstituents.join(", ")} tagged without a noncurrent debt line or total that holds it`
+            : total === ambiguous?.concept && restatedScope.length > 0
+              ? `a later filing restated ${restatedScope.join(", ")} without restating ${ambiguous?.concept ?? ""}`
+              : unprovenCurrent
+                ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
+                : untaggedCurrent
+                  ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
+                  : omittedShortTerm.length > 0
+                    ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
+                    : excess === undefined
+                      ? componentReason
+                      : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =
     total === ambiguous?.concept &&
     longTermDebt === "total" &&
@@ -801,9 +897,12 @@ export function resolveDebtAtInstant<T>(
       ? used.length > 0 && used.every((concept) => lines.has(concept))
       : reconciledTotal);
   return {
-    basis: total !== undefined && subtracted.length === 0 ? "total" : "components",
+    basis:
+      total !== undefined && subtracted.length === 0 && provenBeside.length === 0
+        ? "total"
+        : "components",
     contributors: [
-      ...used.map((concept) => contributor(concept)),
+      ...[...used, ...provenBeside].map((concept) => contributor(concept)),
       ...subtracted.map((concept) => ({ ...contributor(concept), subtract: true as const })),
     ],
     ...(incompleteReason !== undefined ? { incompleteReason } : {}),

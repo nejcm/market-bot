@@ -560,7 +560,7 @@ describe("financial statement selection", () => {
         unitKind: "per-share",
         deriveTtm: true,
         concepts: {
-          "us-gaap": ["EarningsPerShareDiluted"],
+          "us-gaap": ["EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted"],
           "ifrs-full": ["DilutedEarningsLossPerShare"],
         },
       },
@@ -608,9 +608,8 @@ describe("financial statement selection", () => {
 
   test("pins roster-covered income-statement series to one concept per taxonomy", () => {
     const legacyKeys = new Set(["grossProfit", "operatingIncome", "netIncome", "dilutedEps"]);
-    const canonicalKeys = new Set(
-      [...legacyKeys].map((key) => (key === "capex" ? "capitalExpenditure" : key)),
-    );
+    // EarningsPerShareBasicAndDiluted asserts basic = diluted, so it is a diluted EPS alias.
+    const canonicalKeys = new Set(["grossProfit", "operatingIncome", "netIncome"]);
     expect(
       SEC_METRIC_DEFINITIONS.filter((definition) => legacyKeys.has(definition.key)).every(
         (definition) => definition.concepts.length === 1,

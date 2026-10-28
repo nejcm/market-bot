@@ -3855,7 +3855,7 @@ describe("canonical debt basis selection", () => {
     expect(summary?.metrics.debtPeriodEnd).toBe("2026-06-30");
   });
 
-  test("keeps LongTermDebtCurrent over same-period DebtCurrent so the broader alias does not regress", () => {
+  test("prefers same-period DebtCurrent over narrower LongTermDebtCurrent maturities", () => {
     const narrowCurrent = amdInstant({
       value: 100,
       form: "10-Q",
@@ -3894,9 +3894,9 @@ describe("canonical debt basis selection", () => {
     ]);
 
     expect(debt).toMatchObject({
-      value: 400,
+      value: 500,
       periodEnd: "2026-06-30",
-      concept: "LongTermDebtCurrent+LongTermDebtNoncurrent",
+      concept: "DebtCurrent+LongTermDebtNoncurrent",
     });
   });
 

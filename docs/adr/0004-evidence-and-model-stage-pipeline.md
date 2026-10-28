@@ -165,7 +165,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   current-maturities line, and equal amounts prove neither. An instrument added beside maturities needs the same
   instant's `DebtCurrent` to sum both; one left out needs the selected total to equal the lines plus it;
   otherwise the instant is a gap. Commercial paper is never a long-term maturity and adds beside it (Apple), but
-  a selected total must still sum it.
+  a selected total must still sum it. `DebtCurrent` is the balance-sheet current line and outranks narrower
+  `LongTermDebtCurrent` maturities (INTC FY2018: 1,261M vs 761M), unless a nonzero `CapitalLeaseObligationsCurrent`
+  shows a `DebtCurrent` above the maturities may hold leases no finance-lease leg deducts (LRCX FY2018). A combined total that differs
+  from both same-filing classified lines and their component sum is refused for them (AVGO FY2024 principal, QCOM
+  FY2019 omits paper).
 - `LineOfCredit` covers both legs: use tagged legs instead only if their sum equals the tagged umbrella,
   otherwise refuse; with no legs but a generic side, refuse overlap. Continuity coverage requires both legs or
   tagged legs summing to the umbrella. Exclude operating/finance leases; subtract matching same-instant tagged
@@ -185,7 +189,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   from lines its own filing tags at that instant: it is the total alone (no nonzero current debt in any filing,
   no short-term borrowing reported nonzero within 400 days) or when it equals nonzero current plus noncurrent
   lines, which outranks other totals (a combined total can be principal, AVGO) unless a later filing restated
-  them; with explicit lines it may sit between the noncurrent line and their sum (principal vs carrying). Below the
+  them; with explicit lines it may sit between the noncurrent line and their sum, or maturities plus noncurrent (principal vs carrying). Below the
   noncurrent line, above the sum, beside current debt with no noncurrent line, unless the same filing's
   `LiabilitiesNoncurrent` (else `Liabilities − LiabilitiesCurrent`) equals nonzero `LongTermDebt` plus the
   allowlisted noncurrent liability lines exactly, which proves it is the noncurrent line (ADBE 2026-08-28 6,363M,

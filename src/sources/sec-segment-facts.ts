@@ -293,3 +293,126 @@ export function secExtensionCapexFactMetrics(
   }
   return metrics;
 }
+
+export const DA_CASH_FLOW_FACT_PREFIX = "daCashFlow|";
+const OPERATING_CASH_FLOW_CONCEPTS = new Set([
+  "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+  "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+]);
+const DA_TOTAL_CONCEPTS = new Set([
+  "us-gaap:DepreciationDepletionAndAmortization",
+  "us-gaap:DepreciationAndAmortization",
+]);
+
+// `daCashFlow|<concept>|<start>|<end>`: 1 when the cash-flow table also tags intangible amortization for that context, else 0.
+export function secDepreciationSiblingMetrics(
+  html: string,
+  periodEnd: string | undefined,
+): Record<string, number> {
+  if (periodEnd === undefined) {
+    return {};
+  }
+  const contexts = segmentContexts(html, periodEnd, "", GEOGRAPHY_TOTAL_MEMBER);
+  const metrics: Record<string, number> = {};
+  for (const [table] of html.matchAll(/<table\b[\s\S]*?<\/table>/gu)) {
+    const facts = [
+      ...table.matchAll(/<ix:nonFraction\b([^>]*?)\/?>(?:([\s\S]*?)<\/ix:nonFraction>)?/gu),
+    ].flatMap(([, attrs = ""]) => {
+      const concept = attribute(attrs, "name");
+      const context = contexts.get(attribute(attrs, "contextRef") ?? "");
+      return concept === undefined || context === undefined ? [] : [{ concept, context }];
+    });
+    const sameContext = (concept: string, { start, end }: SegmentContext) =>
+      facts.some(
+        (fact) =>
+          fact.concept === concept && fact.context.start === start && fact.context.end === end,
+      );
+    for (const total of facts.filter(({ concept }) => DA_TOTAL_CONCEPTS.has(concept))) {
+      if (
+        ![...OPERATING_CASH_FLOW_CONCEPTS].some((concept) => sameContext(concept, total.context))
+      ) {
+        continue;
+      }
+      const key = `${DA_CASH_FLOW_FACT_PREFIX}${total.concept.slice(8)}|${total.context.start}|${total.context.end}`;
+      metrics[key] = Math.max(
+        metrics[key] ?? 0,
+        sameContext("us-gaap:AmortizationOfIntangibleAssets", total.context) ? 1 : 0,
+      );
+    }
+  }
+  return metrics;
+}
+
+const sumRows = (rows: readonly { readonly value: number }[]) =>
+  Math.round(rows.reduce((acc, { value }) => acc + value, 0));
+
+export const FACE_LINE_PREFIX = "faceLine|";
+export const FACE_LABEL_PREFIX = "faceLabel|";
+
+// `faceLine|<current|noncurrent>|<concept>` liability rows of the report-date balance sheet, emitted only when both sides foot exactly.
+export function secBalanceSheetFaceMetrics(
+  html: string,
+  periodEnd: string | undefined,
+): Record<string, number | string> {
+  if (periodEnd === undefined) {
+    return {};
+  }
+  const contexts = new Set(
+    [...html.matchAll(/<xbrli:context id="([^"]+)">([\s\S]*?)<\/xbrli:context>/gu)].flatMap(
+      ([, id, body]) =>
+        /<xbrli:instant>\s*([^<\s]+)\s*</u.exec(body!)?.[1] === periodEnd &&
+        !body!.includes("<xbrli:segment>")
+          ? [id!]
+          : [],
+    ),
+  );
+  const facts: { concept: string; value: number; label: string }[] = [];
+  let previousEnd = 0;
+  for (const match of html.matchAll(/<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu)) {
+    const [whole, attrs, content] = match;
+    const label = html
+      .slice(previousEnd, match.index)
+      .replaceAll(/<[^>]*>/gu, " ")
+      .replaceAll(/&#\d+;|&nbsp;|&amp;/gu, " ")
+      .replaceAll(/\s+/gu, " ")
+      .trim()
+      .slice(-120);
+    previousEnd = match.index + whole.length;
+    const concept = attribute(attrs!, "name");
+    const value = factValue(attrs!, content!);
+    if (
+      concept !== undefined &&
+      value !== undefined &&
+      contexts.has(attribute(attrs!, "contextRef") ?? "")
+    ) {
+      facts.push({ concept, value, label });
+    }
+  }
+  const currentEnd = facts.findIndex(({ concept }) => concept === "us-gaap:LiabilitiesCurrent");
+  const totalEnd = facts.findIndex(
+    ({ concept }, index) => index > currentEnd && concept === "us-gaap:Liabilities",
+  );
+  const assetsEnd = facts.findLastIndex(
+    ({ concept }, index) => index < currentEnd && concept === "us-gaap:Assets",
+  );
+  if (currentEnd === -1 || totalEnd === -1 || assetsEnd === -1) {
+    return {};
+  }
+  const current = facts.slice(assetsEnd + 1, currentEnd);
+  const noncurrent = facts
+    .slice(currentEnd + 1, totalEnd)
+    .filter(({ concept }) => concept !== "us-gaap:LiabilitiesNoncurrent");
+  const lines = [...current, ...noncurrent];
+  if (
+    new Set(lines.map(({ concept }) => concept)).size !== lines.length ||
+    sumRows(current) !== Math.round(facts[currentEnd]!.value) ||
+    sumRows(noncurrent) !== Math.round(facts[totalEnd]!.value - facts[currentEnd]!.value)
+  ) {
+    return {};
+  }
+  return Object.fromEntries([
+    ...current.map(({ concept, value }) => [`${FACE_LINE_PREFIX}current|${concept}`, value]),
+    ...noncurrent.map(({ concept, value }) => [`${FACE_LINE_PREFIX}noncurrent|${concept}`, value]),
+    ...lines.map(({ concept, label }) => [`${FACE_LABEL_PREFIX}${concept}`, label]),
+  ]);
+}

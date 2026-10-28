@@ -348,6 +348,12 @@ const CASES: readonly ReferenceCase[] = [
       debt: statement(0, "R2 Current portion of long-term debt 0 + long-term debt 0"),
       cash: statement(60_466_000, "R2 Cash and cash equivalents"),
     },
+    // R6 files 1,602K "Depreciation and amortization" (DDA) beside 1,561K amortization of intangibles; no tagged total.
+    depreciationAndAmortization: {
+      "2026-06-30": {
+        omitted: "(1602000) in filing 0001683168-26-006754 is below a same-filing component",
+      },
+    },
     metrics: {
       freeCashFlowMargin: ratio(0.076_63, "R6 (9,877 - 612) / R4 120,899"),
       roic: {
@@ -412,6 +418,7 @@ const CASES: readonly ReferenceCase[] = [
       operatingCashFlow: statement(16_472_000_000, "R9 Net cash provided by operating activities"),
       capitalExpenditure: statement(4_112_000_000, "R9 Capital expenditures"),
       cash: statement(14_565_000_000, "R5 Cash and cash equivalents"),
+      debt: statement(49_339_000_000, "R5 current debt 2,589 + long-term debt 46,750"),
     },
     absent: ["operatingIncome"],
     metrics: {
@@ -523,14 +530,8 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
   // Pipeline disagrees with the filing; expected values come from the filing, not the code.
   const fact = (symbol: string, key: FinancialStatementSeriesKey, periodEnd: string) =>
     load(symbol).series[key]?.annual.find((candidate) => candidate.periodEnd === periodEnd)?.value;
-  test.todo("MRK FY2025 debt uses the rounded 49.3B note total; R5 lines sum to 49,339M", () => {
-    expect(fact("mrk", "debt", "2025-12-31")).toBe(49_339_000_000);
-  });
   test.todo("MRK FY2025 D&A uses rounded 2.8B amortization; R9 shows 3,045M + 2,793M", () => {
     expect(fact("mrk", "depreciationAndAmortization", "2025-12-31")).toBe(5_838_000_000);
-  });
-  test.todo("LTRX FY2026 D&A omits R6 amortization of intangibles 1,561K", () => {
-    expect(fact("ltrx", "depreciationAndAmortization", "2026-06-30")).toBe(3_163_000);
   });
 
   test("IREN FY2024-26 capex and FCF are withheld: 10-K R7 also pays computer hardware (1,335,081K FY2026)", () => {
@@ -793,8 +794,12 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       ),
     ).toBe(true);
   });
-  test.todo("MARA FY2025 debt is withheld; R3 notes 47,845K + 3,202,082K + LOC 350,000K", () => {
+  test("MARA FY2025 10-K 0001507605-26-000007 debt: notes 47,845K + 3,202,082K + LOC 350,000K", () => {
     expect(fact("mara", "debt", "2025-12-31")).toBe(3_599_927_000);
+    const debt = load("mara").series.debt?.annual.find(
+      ({ periodEnd }) => periodEnd === "2025-12-31",
+    );
+    expect(debt?.accessionNumber).toBe("0001507605-26-000007");
   });
 });
 

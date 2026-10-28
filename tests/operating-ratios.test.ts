@@ -1080,9 +1080,12 @@ describe("operatingRatiosSection", () => {
       extras: { metricSections: [result.section] },
     });
     const sections = metricSectionsView({ extras: report.extras }, statements);
-    expect(sections?.find(({ id }) => id === "operating-ratios")?.notes).toEqual(
-      notes.map(({ message }) => message),
-    );
+    expect(sections?.find(({ id }) => id === "operating-ratios")?.notes).toEqual([
+      ...statements.omissionNotes
+        .filter(({ code }) => code === "unchecked-extension-capex")
+        .map(({ message }) => message),
+      ...notes.map(({ message }) => message),
+    ]);
     const markdown = renderMarkdownReport(
       report,
       undefined,

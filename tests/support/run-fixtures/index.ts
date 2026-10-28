@@ -114,6 +114,15 @@ async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T;
 }
 
+export function fixtureCommand(meta: FixtureMeta): ResearchCommand {
+  return meta.command ?? researchCommand(meta.argv);
+}
+
+export function isDeepFixture(meta: FixtureMeta): boolean {
+  const command = fixtureCommand(meta);
+  return "depth" in command && command.depth === "deep";
+}
+
 function researchCommand(argv: readonly string[]): ResearchCommand {
   const command = parseArgs(argv);
   if (
@@ -394,7 +403,7 @@ export async function runFixture(
       }
     },
   };
-  const rawCommand = fixture.meta.command ?? researchCommand(fixture.meta.argv);
+  const rawCommand = fixtureCommand(fixture.meta);
   const resolvedSubject = resolveResearchSubject(rawCommand);
   const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
   const now = new Date(fixture.meta.now);
@@ -490,4 +499,6 @@ export const EQUITY_RUN_FIXTURES = [
   "equity-analysis-estimated-suppressed",
   "equity-web-fallback-deep",
   "equity-depository-deep",
+  "equity-iren-deep",
+  "equity-iren-brief",
 ] as const;

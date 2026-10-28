@@ -1,9 +1,11 @@
-// Dimensional ASC 280 segment facts read from a 10-K/10-Q inline XBRL primary document.
+// Dimensional ASC 280 segment facts and extension capex lines read from a 10-K/10-Q inline XBRL primary document.
 export const SEGMENT_FACT_PREFIX = "segment|";
 export const SEGMENT_UNIT_KEY = "segmentUnit";
 export const GEOGRAPHY_FACT_PREFIX = "geography|";
 export const GEOGRAPHY_UNIT_KEY = "geographyUnit";
 export const GEOGRAPHY_TOTAL_MEMBER = "total";
+export const EXTENSION_CAPEX_FACT_PREFIX = "extensionCapex|";
+export const EXTENSION_CAPEX_CHECKED_KEY = "extensionCapexChecked";
 
 export type SegmentMeasure = "revenue" | "operatingIncome";
 
@@ -216,4 +218,78 @@ function dimensionalFactMetrics(
     ),
     [unitKey]: keptUnits.size === 1 ? [...keptUnits][0]! : "mixed",
   };
+}
+
+const STANDARD_TAXONOMIES = new Set(["us-gaap", "ifrs-full", "dei", "srt"]);
+// Closed lists: a false positive only withholds capex, a miss publishes an understated one.
+const PPE_ASSET_WORDS = new Set([
+  "Hardware",
+  "Equipment",
+  "Machinery",
+  "Property",
+  "Plant",
+  "Building",
+  "Buildings",
+  "Miners",
+  "Servers",
+]);
+const NON_PPE_WORDS = new Set([
+  "Prepayment",
+  "Prepayments",
+  "Deposit",
+  "Deposits",
+  "Right",
+  "Intangible",
+  "Intangibles",
+  "Business",
+  "Businesses",
+  "Investment",
+  "Investments",
+  "Lease",
+  "Leases",
+  // Accounting Scope, not a missing PP&E line (AMD 2025 10-Q).
+  "Discontinued",
+]);
+
+function isExtensionCapexConcept(concept: string): boolean {
+  const [prefix, local = ""] = concept.split(":");
+  const words = local.match(/[A-Z][a-z]*/gu) ?? [];
+  return (
+    !STANDARD_TAXONOMIES.has(prefix!) &&
+    words[0] === "Payments" &&
+    words.some((word) => PPE_ASSET_WORDS.has(word)) &&
+    !words.some((word) => NON_PPE_WORDS.has(word))
+  );
+}
+
+// Flat `extensionCapex|<concept>|<start>|<end>|<unit>` metrics for issuer-extension PP&E-like payments.
+export function secExtensionCapexFactMetrics(
+  html: string,
+  periodEnd: string | undefined,
+): Record<string, number | string> {
+  if (periodEnd === undefined) {
+    return {};
+  }
+  const contexts = segmentContexts(html, periodEnd, "", GEOGRAPHY_TOTAL_MEMBER);
+  const unitMeasures = units(html);
+  const metrics: Record<string, number | string> = { [EXTENSION_CAPEX_CHECKED_KEY]: "true" };
+  for (const [, attrs, content] of html.matchAll(
+    /<ix:nonFraction\b[^>]*\/>|<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu,
+  )) {
+    const concept = attrs === undefined ? undefined : attribute(attrs, "name");
+    const context = contexts.get(attribute(attrs ?? "", "contextRef") ?? "");
+    const value = concept === undefined ? undefined : factValue(attrs!, content!);
+    if (
+      concept !== undefined &&
+      context !== undefined &&
+      value !== undefined &&
+      value !== 0 &&
+      isExtensionCapexConcept(concept)
+    ) {
+      const unit = unitMeasures.get(attribute(attrs!, "unitRef") ?? "") ?? "unknown";
+      metrics[`${EXTENSION_CAPEX_FACT_PREFIX}${concept}|${context.start}|${context.end}|${unit}`] =
+        Math.abs(value);
+    }
+  }
+  return metrics;
 }

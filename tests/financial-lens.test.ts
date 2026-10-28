@@ -2151,6 +2151,72 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
     );
   });
 
+  test.each([
+    ["negative", -2],
+    ["zero", 0],
+  ])("declares the Yahoo payout fallback not meaningful on %s trailing EPS", (_label, eps) => {
+    const analysisAsOf = "2026-03-01T00:00:00.000Z";
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: { units: { USD: [canonicalAnnualFact(100, 2025)] } },
+            NetIncomeLoss: { units: { USD: [canonicalAnnualFact(20, 2025)] } },
+            CashAndCashEquivalentsAtCarryingValue: {
+              units: {
+                USD: [
+                  {
+                    val: 35,
+                    form: "10-K",
+                    fp: "FY",
+                    fy: 2025,
+                    filed: "2026-02-15",
+                    end: "2025-12-31",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: analysisAsOf,
+        analysisAsOf,
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      withCanonicalFinancialLensInputs(
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            yahooFundamentalsEvidence({
+              trailingAnnualDividendRate: 0,
+              epsTrailingTwelveMonths: eps,
+            }),
+          ],
+          gaps: [],
+        },
+        artifact,
+      ),
+      verifiedSnapshot(),
+      analysisAsOf,
+      undefined,
+      undefined,
+      artifact,
+    );
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
+    expect(
+      result.metricSections
+        ?.find(({ id }) => id === "financial-lens-financial-strength")
+        ?.metrics.find(({ id }) => id === "payoutRatio"),
+    ).toMatchObject({ status: "not-meaningful", reason: "Yahoo trailing EPS is zero or negative" });
+  });
+
   test("keeps a fresh payout when a newer balance-sheet date has advanced", () => {
     const result = canonicalPayout(20, "2026-05-15T00:00:00.000Z", {
       CashAndCashEquivalentsAtCarryingValue: {

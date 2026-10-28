@@ -100,8 +100,10 @@ export function operatingRatioNotes(
 ): readonly FinancialStatementNote[] | undefined {
   return artifact?.omissionNotes?.filter(
     (note) =>
-      note.code === "incomplete-composite-series" &&
-      note.seriesKey === "depreciationAndAmortization",
+      (note.code === "incomplete-composite-series" &&
+        (note.seriesKey === "depreciationAndAmortization" ||
+          note.seriesKey === "capitalExpenditure")) ||
+      note.code === "unchecked-extension-capex",
   );
 }
 

@@ -6,6 +6,7 @@
     "research/**",
     ".plans/**",
     "tests/fixtures/untagged-financial-corpus/raw/**",
-    "tests/fixtures/sec-reference-set/**"
+    "tests/fixtures/sec-reference-set/**",
+    "tests/fixtures/runs/*/bodies/**"
   ]
 }

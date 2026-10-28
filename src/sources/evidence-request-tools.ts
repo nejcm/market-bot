@@ -53,6 +53,7 @@ import {
   secSectionOmissionGap,
   type EarningsReleaseProvenance,
 } from "./sec-filing-item";
+import { EXTENSION_CAPEX_CHECKED_KEY } from "./sec-segment-facts";
 import { collectTradierIvTermStructure } from "./tradier-iv-term-structure";
 
 export type { EvidenceRequestToolOutput } from "./evidence-request-output";
@@ -435,6 +436,41 @@ async function collectSecFiling(
     gaps: [...primaryFetchGaps, ...exhibitGaps, ...omissionGaps],
     sanitizationEntries: built.sanitizationEntries,
     droppedItemCount: 0,
+  };
+}
+
+export async function collectSecPeriodicFilingItems(
+  ctx: CollectContext,
+  companyFacts: SecCompanyFactsResult,
+): Promise<EvidenceRequestToolOutput> {
+  const { command } = ctx;
+  if (
+    !isInstrumentCommand(command) ||
+    companyFacts.cik === undefined ||
+    companyFacts.submissionsPayload === undefined
+  ) {
+    return emptyOutput([]);
+  }
+  const match = { cik: companyFacts.cik, ticker: companyFacts.symbol };
+  const tenK = selectLatestFilingByForm(companyFacts.submissionsPayload, "10-K");
+  const tenQ = selectCurrentQuarterlyFiling(companyFacts.submissionsPayload, tenK);
+  const results = await Promise.all(
+    [tenK, tenQ].flatMap((filing) =>
+      filing === undefined ? [] : [collectSecFiling(ctx, command, match, filing, false)],
+    ),
+  );
+  // Filing prose stays out of prompts: the source keeps provenance only.
+  return {
+    rawSnapshots: results.flatMap((result) => result.rawSnapshots),
+    sources: results.flatMap((result) =>
+      result.sources.map(({ snippet: _snippet, ...source }) => source),
+    ),
+    items: results.flatMap((result) => result.items),
+    gaps: results.flatMap((result) =>
+      result.items.some(({ metrics }) => metrics?.[EXTENSION_CAPEX_CHECKED_KEY] === "true")
+        ? []
+        : result.gaps,
+    ),
   };
 }
 

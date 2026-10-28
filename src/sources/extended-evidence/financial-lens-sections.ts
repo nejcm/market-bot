@@ -1557,32 +1557,38 @@ function payoutRatioDefinition(): MetricDefinition {
       const yahooRate = readNumberMetric(yahoo?.metrics, "trailingAnnualDividendRate");
       const yahooEps = readNumberMetric(yahoo?.metrics, "epsTrailingTwelveMonths");
       const yahooPeriod = periodEndInput(yahoo?.observedAt);
-      const yahooOutcome: MetricOutcome | undefined =
-        yahoo === undefined || yahooRate === undefined || yahooEps === undefined || yahooEps === 0
+      const yahooInputs =
+        yahoo === undefined || yahooRate === undefined || yahooEps === undefined
           ? undefined
-          : {
-              status: "value",
-              value: yahooRate / yahooEps,
-              inputs: [
-                evidenceInput(
-                  yahoo,
-                  "trailingAnnualDividendRate",
-                  "trailing dividend rate",
-                  "currency",
-                  yahooRate,
-                  yahooPeriod,
-                ),
-                evidenceInput(
-                  yahoo,
-                  "epsTrailingTwelveMonths",
-                  "trailing EPS",
-                  "number",
-                  yahooEps,
-                  yahooPeriod,
-                ),
-              ],
-              ...yahooPeriod,
-            };
+          : [
+              evidenceInput(
+                yahoo,
+                "trailingAnnualDividendRate",
+                "trailing dividend rate",
+                "currency",
+                yahooRate,
+                yahooPeriod,
+              ),
+              evidenceInput(
+                yahoo,
+                "epsTrailingTwelveMonths",
+                "trailing EPS",
+                "number",
+                yahooEps,
+                yahooPeriod,
+              ),
+            ];
+      const yahooOutcome: MetricOutcome | undefined =
+        yahooInputs === undefined || yahooRate === undefined || yahooEps === undefined
+          ? undefined
+          : yahooEps <= 0
+            ? {
+                status: "not-meaningful",
+                reason: "Yahoo trailing EPS is zero or negative",
+                inputs: yahooInputs,
+                ...yahooPeriod,
+              }
+            : { status: "value", value: yahooRate / yahooEps, inputs: yahooInputs, ...yahooPeriod };
       if (ctx.statements === undefined) {
         const item = secItem(ctx);
         const dividendsPaid = readNumberMetric(item?.metrics, "dividendsPaid");

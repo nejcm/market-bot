@@ -1,0 +1,2226 @@
+{
+  "values": {
+    "cache:bae07c33bca656558741ed66e27bde479ac5bf0ac5b77ab88ad6e1876adc5e3e:2026-10-27": [{}],
+    "host-circuit:query1.finance.yahoo.com": [
+      {
+        "value": false,
+        "count": 7
+      }
+    ],
+    "cache:b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce:2026-10-27": [{}],
+    "cache:b9bf084f8fb4084ad181e8bcb8054a52ca965dc51e11fa3b3faa9e5975f762b2:2026-10-27": [{}],
+    "host-circuit:api.marketaux.com": [
+      {
+        "value": false,
+        "count": 3
+      }
+    ],
+    "cache:fb3bd709318a5a48a29832147ed3ab6444c22502b698d495fed51019feb7344c:2026-10-27": [{}],
+    "cache:5bad0ee30252a4d46c0621e7b4c71550c853c3a1e5bc9cdbc5cdde0382369e3e:2026-10-27": [{}],
+    "host-circuit:finnhub.io": [
+      {
+        "value": false,
+        "count": 10
+      }
+    ],
+    "cache:7ece436e79dae1d81ee7eb34eb54a6ff84eebf7ffa899ce06572068d59eed24c:2026-10-27": [{}],
+    "host-circuit:api.massive.com": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:630a03d4bde601191abf5f688cfeaf3b90a511b14065dee6106e08fdb3cbe2f3:2026-10-27": [{}],
+    "cache:b32f8daf7a014f1351e4138f1ce941e7453e98e9d03e6d8bbb9d9e86887d806f:2026-10-27": [{}],
+    "cache:da29ef23edab84a692a69d4e204eeab676cce3dbbf049f30f98d35621239d58b:2026-10-27": [{}],
+    "cache:f1f2b30c63f2b2789999c1ce6d0b518a7ca15a06c4c43b3e6ff74680cccf24c8:2026-10-27": [{}],
+    "cache:c91c49b95e548aaecd1f87e2a135e83affd5203d5b3e46c299a7bfe42f46cdbb:2026-10-27": [{}],
+    "cache:eec855a60466e00b7a0093dff0cd0b58f3584b3b87e0078ced10651f0be137b4:2026-10-27": [{}],
+    "cache:caddc2e7922262a96e225b91fd63de863c698d5483d1af24818d307cfdd66650:2026-10-27": [{}],
+    "cache:4b3b30fe9a1d71f893ee948dc8e3b73d9ce9387763a248146dbcc9152073a786:2026-10-27": [{}],
+    "cache:f4ca918ac1b1708b21589cdb0546bdbebead0190d82430eb9605a77aaba83d77:2026-10-27": [{}],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-10-27": [{}],
+    "host-circuit:api.stlouisfed.org": [
+      {
+        "value": false,
+        "count": 7
+      }
+    ],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-10-27": [{}],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-10-27": [{}],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-10-27": [{}],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-10-27": [{}],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-10-27": [{}],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-10-27": [{}],
+    "cache:045da9e9d44971d89195ca2da8d54f9f5c8d751bba2b900a0f68b3d0e42161c3:2026-10-27": [{}],
+    "cache:f3f8f59c649cabfa9c70a028c7be6c49e53a2abd81a944bd585d8ddc4f5587d7:2026-10-27": [{}],
+    "cache:ec360efb8a2ea63a1f3e4944da57fa9dffb4abc5fdf7319784669fe8477d8f20:2026-10-27": [{}],
+    "host-circuit:www.sec.gov": [
+      {
+        "value": false,
+        "count": 5
+      }
+    ],
+    "cache:a5c2fd2163f8941f917cc40e605b099ddb2fee84bac88cfdb564d125ec9fe703:2026-10-27": [{}],
+    "cache:93f8df84d71a4ddc3513d86e65500bb87f75792664593ed231c54eb5f36eb9e1:2026-10-27": [{}],
+    "host-circuit:data.sec.gov": [
+      {
+        "value": false,
+        "count": 16
+      }
+    ],
+    "cache:93bf63bb19a600d5b99dce9579289f300ea202eac93b4031feb10e0a14742a05:2026-10-27": [{}],
+    "cache-stale:a5c2fd2163f8941f917cc40e605b099ddb2fee84bac88cfdb564d125ec9fe703": [{}],
+    "cache-stale:b32f8daf7a014f1351e4138f1ce941e7453e98e9d03e6d8bbb9d9e86887d806f": [{}],
+    "cache:95ddbcba54e2d550ed9a0983aca24cbbb7ecb7323f0234374aa6d5ecbf1efc8d:2026-10-27": [{}],
+    "cache-stale:da29ef23edab84a692a69d4e204eeab676cce3dbbf049f30f98d35621239d58b": [{}],
+    "cache-stale:f1f2b30c63f2b2789999c1ce6d0b518a7ca15a06c4c43b3e6ff74680cccf24c8": [{}],
+    "cache-stale:c91c49b95e548aaecd1f87e2a135e83affd5203d5b3e46c299a7bfe42f46cdbb": [{}],
+    "cache-stale:eec855a60466e00b7a0093dff0cd0b58f3584b3b87e0078ced10651f0be137b4": [{}],
+    "cache-stale:caddc2e7922262a96e225b91fd63de863c698d5483d1af24818d307cfdd66650": [{}],
+    "cache-stale:4b3b30fe9a1d71f893ee948dc8e3b73d9ce9387763a248146dbcc9152073a786": [{}],
+    "news-seen": [
+      {
+        "bodyFile": "bodies/8493b6fa32dc99abc7b36ce21a591dae65ebde1266f85dca584b8d2401916494.json",
+        "sha256": "8493b6fa32dc99abc7b36ce21a591dae65ebde1266f85dca584b8d2401916494"
+      },
+      {
+        "bodyFile": "bodies/8493b6fa32dc99abc7b36ce21a591dae65ebde1266f85dca584b8d2401916494.json",
+        "sha256": "8493b6fa32dc99abc7b36ce21a591dae65ebde1266f85dca584b8d2401916494"
+      }
+    ],
+    "cache:46b23530532d331598d399ab95c65b9c18cf04556227b4faa9a441f051a7490b:accession": [{}],
+    "cache:ad8d435e4747258806e2d32ca24819b355bdeb5d057ccccfe2b6989a90273f15:accession": [{}],
+    "cache:520ab5dcadc349d8c4f83f3a34c5c786ee8af953b39b21887981b3720b205435:2026-10-27": [{}],
+    "cache:e752f33e6ce6940c358b7ae0284320a8b2a4d6d427ad30a76d265e7dea2282c0:accession": [{}],
+    "learned-peers": [
+      {
+        "value": [
+          {
+            "targetSymbol": "CLFD",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ADTN",
+                "name": "ADTRAN Holdings, Inc.",
+                "role": "core",
+                "rationale": "SEC SIC 3661 company supplying broadband access and optical networking platforms to service providers, municipalities, and fiber overbuilders; revenue is above the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "FKWL",
+                "name": "FRANKLIN WIRELESS CORP",
+                "role": "core",
+                "rationale": "Small communications equipment maker selling fixed and mobile broadband routers to carrier customers; its recent market capitalization is below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "OCC",
+                "name": "OPTICAL CABLE CORP",
+                "role": "core",
+                "rationale": "Fiber-optic cabling and connectivity manufacturer serving carrier, enterprise, and specialty markets; strong product overlap, though its SEC SIC is 3357.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AAOI",
+                "name": "APPLIED OPTOELECTRONICS, INC.",
+                "role": "secondary",
+                "rationale": "US-listed optical networking component maker supplying fiber-optic transceivers and subsystems for broadband and data centers; product fit is relevant, though its current size may exceed the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AUDC",
+                "name": "AUDIOCODES LTD",
+                "role": "secondary",
+                "rationale": "Communications equipment and software supplier to enterprises and service providers, with revenue in range; incorporated outside the US.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "HLIT",
+                "name": "HARMONIC INC.",
+                "role": "secondary",
+                "rationale": "Provides broadband access and video infrastructure equipment to cable and fiber operators; relevant customer base, though revenue is likely above the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "VISN",
+                "name": "Vistance Networks, Inc.",
+                "role": "secondary",
+                "rationale": "Communications infrastructure equipment company serving broadband and enterprise networks; adjacent sector fit, with size and revenue likely above the target bands.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CLRO",
+                "name": "CLEARONE INC",
+                "role": "secondary",
+                "rationale": "Small US-listed communications equipment maker with a plausible sector and size fit, but its collaboration and conferencing products have limited overlap with fiber access.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-08T15:58:53.550Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            },
+            "windowStartedAt": "2026-10-07T14:04:29.654Z",
+            "refreshAttemptedAt": "2026-10-08T15:58:53.550Z",
+            "refreshProposerRevision": 2,
+            "evaluation": {
+              "usablePeerCount": 1,
+              "evaluatedAt": "2026-10-09T08:41:33.009Z",
+              "exclusions": [
+                {
+                  "symbol": "ADTN",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "FKWL",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "OCC",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "AAOI",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "AUDC",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "VISN",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "CLRO",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          },
+          {
+            "targetSymbol": "HLIT",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ADTN",
+                "name": "ADTRAN Holdings, Inc.",
+                "role": "core",
+                "rationale": "Provides fiber access and networking equipment to broadband and telecom operators, closely matching Harmonic’s broadband infrastructure focus.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CMTL",
+                "name": "COMTECH TELECOMMUNICATIONS CORP /DE/",
+                "role": "core",
+                "rationale": "Develops communications equipment and network solutions for telecom and government customers; overlaps in communications infrastructure and is near Harmonic’s scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "VIAV",
+                "name": "VIAVI SOLUTIONS INC.",
+                "role": "core",
+                "rationale": "Sells network test, monitoring, and optical technology to communications providers; a close sector fit, though likely above the target market-cap range.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "DAKT",
+                "name": "DAKTRONICS INC /SD/",
+                "role": "secondary",
+                "rationale": "Builds digital video display systems and related control technology, offering a smaller-scale fit in video and communications equipment.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CEVA",
+                "name": "CEVA INC",
+                "role": "secondary",
+                "rationale": "Licenses wireless connectivity and signal-processing technologies used in communications devices; plausible in size, but less directly comparable as an IP company.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "EXTR",
+                "name": "EXTREME NETWORKS INC",
+                "role": "secondary",
+                "rationale": "Provides networking hardware and software to enterprise and service-provider customers; a broader networking peer that may be near the upper size limit.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "BDC",
+                "name": "BELDEN INC.",
+                "role": "secondary",
+                "rationale": "Makes connectivity and networking products used in broadcast and industrial networks; relevant to Harmonic’s infrastructure markets, though likely above the target size bands.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-26T19:20:17.444Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 7,
+              "rejectedByDirectory": 1,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            },
+            "windowStartedAt": "2026-10-26T04:15:48.589Z",
+            "refreshAttemptedAt": "2026-10-26T19:20:17.444Z",
+            "refreshProposerRevision": 2,
+            "evaluation": {
+              "usablePeerCount": 1,
+              "evaluatedAt": "2026-10-26T21:07:10.394Z",
+              "exclusions": [
+                {
+                  "symbol": "CMTL",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "VIAV",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "DAKT",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "CEVA",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "EXTR",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "BDC",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          },
+          {
+            "targetSymbol": "IREN",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "CORZ",
+                "name": "Core Scientific, Inc./tx",
+                "role": "core",
+                "rationale": "Large-scale power and data-center operator pivoting from bitcoin mining toward AI and high-performance computing.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CIFR",
+                "name": "Cipher Digital Inc.",
+                "role": "core",
+                "rationale": "Develops industrial-scale data centers for hyperscaler and HPC customers while retaining bitcoin-mining flexibility.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "WULF",
+                "name": "TERAWULF INC.",
+                "role": "core",
+                "rationale": "Power-focused data-center company transitioning significant capacity from bitcoin mining to AI and HPC workloads.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "HUT",
+                "name": "Hut 8 Corp.",
+                "role": "core",
+                "rationale": "Energy infrastructure platform combining bitcoin mining, digital infrastructure, power assets, and compute development.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "MARA",
+                "name": "MARA Holdings, Inc.",
+                "role": "secondary",
+                "rationale": "Large US-listed bitcoin miner with vertically integrated energy and data-center operations.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "RIOT",
+                "name": "Riot Platforms, Inc.",
+                "role": "secondary",
+                "rationale": "Major US bitcoin miner with owned power infrastructure and expanding data-center capabilities.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CLSK",
+                "name": "CLEANSPARK, INC.",
+                "role": "secondary",
+                "rationale": "Scaled US bitcoin miner with vertically integrated data-center operations and a primarily mining-focused model.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-09-29T06:55:48.375Z",
+            "modelId": "gpt-5.6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 7,
+              "rejectedByDirectory": 1,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-5.6-luna"
+            }
+          },
+          {
+            "targetSymbol": "LLY",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ABBV",
+                "name": "AbbVie Inc.",
+                "role": "core",
+                "rationale": "Large US-listed biopharmaceutical company with major immunology, oncology, and specialty-medicine franchises.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AMGN",
+                "name": "AMGEN INC",
+                "role": "core",
+                "rationale": "Large-cap biotechnology company with comparable scale, innovative medicines, and significant metabolic and specialty-care exposure.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "REGN",
+                "name": "REGENERON PHARMACEUTICALS, INC.",
+                "role": "core",
+                "rationale": "US-listed innovative biotechnology company focused on high-value biologic therapies and specialty medicines.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "VRTX",
+                "name": "VERTEX PHARMACEUTICALS INC / MA",
+                "role": "core",
+                "rationale": "Large innovative biopharmaceutical company with concentrated, high-margin commercial products and a strong pipeline.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "MRK",
+                "name": "Merck & Co., Inc.",
+                "role": "core",
+                "rationale": "Major US pharmaceutical company with global scale, branded medicines, and substantial research investment.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "BMY",
+                "name": "BRISTOL MYERS SQUIBB CO",
+                "role": "core",
+                "rationale": "Large US pharmaceutical company with comparable branded-drug economics and broad specialty-care exposure.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "PFE",
+                "name": "PFIZER INC",
+                "role": "secondary",
+                "rationale": "Large US pharmaceutical company with comparable commercial scale, though its portfolio and recent revenue mix are more diversified.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "GILD",
+                "name": "GILEAD SCIENCES, INC.",
+                "role": "secondary",
+                "rationale": "US-listed biopharmaceutical company with substantial commercial scale and specialty-focused innovative medicines.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-09-20T14:26:41.398Z",
+            "modelId": "gpt-5.6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-5.6-luna"
+            }
+          },
+          {
+            "targetSymbol": "MELI",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "EBAY",
+                "name": "EBAY INC",
+                "role": "core",
+                "rationale": "Large online marketplace connecting buyers and sellers, with a business model closely aligned to MercadoLibre’s commerce segment.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "PYPL",
+                "name": "PayPal Holdings, Inc.",
+                "role": "core",
+                "rationale": "Digital payments platform serving consumers and merchants, comparable to MercadoLibre’s payments and financial-services businesses.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "XYZ",
+                "name": "Block, Inc.",
+                "role": "core",
+                "rationale": "Combines merchant payment tools with consumer financial services, overlapping with MercadoLibre’s fintech and commerce ecosystem.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "UBER",
+                "name": "Uber Technologies, Inc",
+                "role": "secondary",
+                "rationale": "A large consumer platform spanning mobility and delivery marketplaces, with shared network effects and on-demand commerce.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "DASH",
+                "name": "DoorDash, Inc.",
+                "role": "secondary",
+                "rationale": "Operates a two-sided marketplace with logistics and merchant services, offering a useful platform-commerce comparison.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "GPN",
+                "name": "GLOBAL PAYMENTS INC",
+                "role": "secondary",
+                "rationale": "Provides payment technology and merchant processing at comparable scale, though it has less consumer-facing marketplace activity.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-14T08:30:01.610Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 6,
+              "rejectedByDirectory": 1,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 1,
+              "modelId": "gpt-6-luna"
+            },
+            "evaluation": {
+              "usablePeerCount": 5,
+              "evaluatedAt": "2026-10-14T17:45:07.793Z",
+              "exclusions": [
+                {
+                  "symbol": "PYPL",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          },
+          {
+            "targetSymbol": "NBIS",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "CRWV",
+                "name": "CoreWeave, Inc.",
+                "role": "core",
+                "rationale": "Specialized cloud provider focused on GPU infrastructure and AI workloads, making it a close business-model comparable.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "APLD",
+                "name": "Applied Digital Corp.",
+                "role": "core",
+                "rationale": "Builds and operates data centers and cloud services for AI and high-performance computing.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "IREN",
+                "name": "IREN Ltd",
+                "role": "core",
+                "rationale": "Expanding from data-center operations into GPU cloud services for AI workloads.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "ORCL",
+                "name": "ORACLE CORP",
+                "role": "secondary",
+                "rationale": "A broader cloud provider that offers substantial AI and GPU infrastructure capacity.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "HUT",
+                "name": "Hut 8 Corp.",
+                "role": "secondary",
+                "rationale": "Develops and operates power-backed data-center infrastructure, including capacity for AI and high-performance computing.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CORZ",
+                "name": "Core Scientific, Inc./tx",
+                "role": "secondary",
+                "rationale": "Operates data centers and is transitioning part of its capacity toward high-performance computing and AI hosting.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "WULF",
+                "name": "TERAWULF INC.",
+                "role": "secondary",
+                "rationale": "Develops energy-intensive data centers and is adding hosting capacity for high-performance computing workloads.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CIFR",
+                "name": "Cipher Digital Inc.",
+                "role": "secondary",
+                "rationale": "Builds and operates power-backed data-center sites, with potential overlap in infrastructure supporting AI compute.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-03T16:36:59.084Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            }
+          },
+          {
+            "targetSymbol": "NET",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ZS",
+                "name": "Zscaler, Inc.",
+                "role": "core",
+                "rationale": "Cloud delivered security and zero trust access overlap with Cloudflare’s secure connectivity and edge security services, with similar software scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "PANW",
+                "name": "Palo Alto Networks Inc",
+                "role": "core",
+                "rationale": "Broad cloud security and network security platform competes for enterprise security budgets, with comparable public-company scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "FTNT",
+                "name": "Fortinet, Inc.",
+                "role": "core",
+                "rationale": "Network security, secure networking, and cloud security overlap with Cloudflare’s security and connectivity offerings.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CRWD",
+                "name": "CrowdStrike Holdings, Inc.",
+                "role": "core",
+                "rationale": "Cloud native security platform with substantial overlap in enterprise threat protection and a similar growth-oriented software profile.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "DDOG",
+                "name": "Datadog, Inc.",
+                "role": "secondary",
+                "rationale": "Cloud monitoring and application performance tools serve overlapping developer and cloud infrastructure buyers at a comparable revenue scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AKAM",
+                "name": "AKAMAI TECHNOLOGIES INC",
+                "role": "secondary",
+                "rationale": "Direct edge delivery, application security, and cloud infrastructure competitor; market capitalization may fall below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "FFIV",
+                "name": "F5, INC.",
+                "role": "secondary",
+                "rationale": "Application delivery and security products overlap with Cloudflare’s application services; market capitalization may fall below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CHKP",
+                "name": "CHECK POINT SOFTWARE TECHNOLOGIES LTD",
+                "role": "secondary",
+                "rationale": "Cybersecurity software and network protection align with Cloudflare’s security business; its market capitalization may be below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-14T08:30:49.704Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            },
+            "evaluation": {
+              "usablePeerCount": 3,
+              "evaluatedAt": "2026-10-14T17:16:06.204Z",
+              "exclusions": [
+                {
+                  "symbol": "PANW",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "FTNT",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "AKAM",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "FFIV",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "CHKP",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "value": [
+          {
+            "targetSymbol": "CLFD",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ADTN",
+                "name": "ADTRAN Holdings, Inc.",
+                "role": "core",
+                "rationale": "SEC SIC 3661 company supplying broadband access and optical networking platforms to service providers, municipalities, and fiber overbuilders; revenue is above the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "FKWL",
+                "name": "FRANKLIN WIRELESS CORP",
+                "role": "core",
+                "rationale": "Small communications equipment maker selling fixed and mobile broadband routers to carrier customers; its recent market capitalization is below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "OCC",
+                "name": "OPTICAL CABLE CORP",
+                "role": "core",
+                "rationale": "Fiber-optic cabling and connectivity manufacturer serving carrier, enterprise, and specialty markets; strong product overlap, though its SEC SIC is 3357.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AAOI",
+                "name": "APPLIED OPTOELECTRONICS, INC.",
+                "role": "secondary",
+                "rationale": "US-listed optical networking component maker supplying fiber-optic transceivers and subsystems for broadband and data centers; product fit is relevant, though its current size may exceed the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AUDC",
+                "name": "AUDIOCODES LTD",
+                "role": "secondary",
+                "rationale": "Communications equipment and software supplier to enterprises and service providers, with revenue in range; incorporated outside the US.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "HLIT",
+                "name": "HARMONIC INC.",
+                "role": "secondary",
+                "rationale": "Provides broadband access and video infrastructure equipment to cable and fiber operators; relevant customer base, though revenue is likely above the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "VISN",
+                "name": "Vistance Networks, Inc.",
+                "role": "secondary",
+                "rationale": "Communications infrastructure equipment company serving broadband and enterprise networks; adjacent sector fit, with size and revenue likely above the target bands.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CLRO",
+                "name": "CLEARONE INC",
+                "role": "secondary",
+                "rationale": "Small US-listed communications equipment maker with a plausible sector and size fit, but its collaboration and conferencing products have limited overlap with fiber access.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-08T15:58:53.550Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            },
+            "windowStartedAt": "2026-10-07T14:04:29.654Z",
+            "refreshAttemptedAt": "2026-10-08T15:58:53.550Z",
+            "refreshProposerRevision": 2,
+            "evaluation": {
+              "usablePeerCount": 1,
+              "evaluatedAt": "2026-10-09T08:41:33.009Z",
+              "exclusions": [
+                {
+                  "symbol": "ADTN",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "FKWL",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "OCC",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "AAOI",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "AUDC",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "VISN",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "CLRO",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          },
+          {
+            "targetSymbol": "HLIT",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ADTN",
+                "name": "ADTRAN Holdings, Inc.",
+                "role": "core",
+                "rationale": "Provides fiber access and networking equipment to broadband and telecom operators, closely matching Harmonic’s broadband infrastructure focus.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CMTL",
+                "name": "COMTECH TELECOMMUNICATIONS CORP /DE/",
+                "role": "core",
+                "rationale": "Develops communications equipment and network solutions for telecom and government customers; overlaps in communications infrastructure and is near Harmonic’s scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "VIAV",
+                "name": "VIAVI SOLUTIONS INC.",
+                "role": "core",
+                "rationale": "Sells network test, monitoring, and optical technology to communications providers; a close sector fit, though likely above the target market-cap range.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "DAKT",
+                "name": "DAKTRONICS INC /SD/",
+                "role": "secondary",
+                "rationale": "Builds digital video display systems and related control technology, offering a smaller-scale fit in video and communications equipment.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CEVA",
+                "name": "CEVA INC",
+                "role": "secondary",
+                "rationale": "Licenses wireless connectivity and signal-processing technologies used in communications devices; plausible in size, but less directly comparable as an IP company.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "EXTR",
+                "name": "EXTREME NETWORKS INC",
+                "role": "secondary",
+                "rationale": "Provides networking hardware and software to enterprise and service-provider customers; a broader networking peer that may be near the upper size limit.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "BDC",
+                "name": "BELDEN INC.",
+                "role": "secondary",
+                "rationale": "Makes connectivity and networking products used in broadcast and industrial networks; relevant to Harmonic’s infrastructure markets, though likely above the target size bands.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-26T19:20:17.444Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 7,
+              "rejectedByDirectory": 1,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            },
+            "windowStartedAt": "2026-10-26T04:15:48.589Z",
+            "refreshAttemptedAt": "2026-10-26T19:20:17.444Z",
+            "refreshProposerRevision": 2,
+            "evaluation": {
+              "usablePeerCount": 1,
+              "evaluatedAt": "2026-10-26T21:07:10.394Z",
+              "exclusions": [
+                {
+                  "symbol": "CMTL",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "VIAV",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "DAKT",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "CEVA",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "EXTR",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "BDC",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          },
+          {
+            "targetSymbol": "IREN",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "CORZ",
+                "name": "Core Scientific, Inc./tx",
+                "role": "core",
+                "rationale": "Large-scale power and data-center operator pivoting from bitcoin mining toward AI and high-performance computing.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CIFR",
+                "name": "Cipher Digital Inc.",
+                "role": "core",
+                "rationale": "Develops industrial-scale data centers for hyperscaler and HPC customers while retaining bitcoin-mining flexibility.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "WULF",
+                "name": "TERAWULF INC.",
+                "role": "core",
+                "rationale": "Power-focused data-center company transitioning significant capacity from bitcoin mining to AI and HPC workloads.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "HUT",
+                "name": "Hut 8 Corp.",
+                "role": "core",
+                "rationale": "Energy infrastructure platform combining bitcoin mining, digital infrastructure, power assets, and compute development.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "MARA",
+                "name": "MARA Holdings, Inc.",
+                "role": "secondary",
+                "rationale": "Large US-listed bitcoin miner with vertically integrated energy and data-center operations.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "RIOT",
+                "name": "Riot Platforms, Inc.",
+                "role": "secondary",
+                "rationale": "Major US bitcoin miner with owned power infrastructure and expanding data-center capabilities.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CLSK",
+                "name": "CLEANSPARK, INC.",
+                "role": "secondary",
+                "rationale": "Scaled US bitcoin miner with vertically integrated data-center operations and a primarily mining-focused model.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-09-29T06:55:48.375Z",
+            "modelId": "gpt-5.6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 7,
+              "rejectedByDirectory": 1,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-5.6-luna"
+            }
+          },
+          {
+            "targetSymbol": "LLY",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ABBV",
+                "name": "AbbVie Inc.",
+                "role": "core",
+                "rationale": "Large US-listed biopharmaceutical company with major immunology, oncology, and specialty-medicine franchises.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AMGN",
+                "name": "AMGEN INC",
+                "role": "core",
+                "rationale": "Large-cap biotechnology company with comparable scale, innovative medicines, and significant metabolic and specialty-care exposure.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "REGN",
+                "name": "REGENERON PHARMACEUTICALS, INC.",
+                "role": "core",
+                "rationale": "US-listed innovative biotechnology company focused on high-value biologic therapies and specialty medicines.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "VRTX",
+                "name": "VERTEX PHARMACEUTICALS INC / MA",
+                "role": "core",
+                "rationale": "Large innovative biopharmaceutical company with concentrated, high-margin commercial products and a strong pipeline.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "MRK",
+                "name": "Merck & Co., Inc.",
+                "role": "core",
+                "rationale": "Major US pharmaceutical company with global scale, branded medicines, and substantial research investment.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "BMY",
+                "name": "BRISTOL MYERS SQUIBB CO",
+                "role": "core",
+                "rationale": "Large US pharmaceutical company with comparable branded-drug economics and broad specialty-care exposure.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "PFE",
+                "name": "PFIZER INC",
+                "role": "secondary",
+                "rationale": "Large US pharmaceutical company with comparable commercial scale, though its portfolio and recent revenue mix are more diversified.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "GILD",
+                "name": "GILEAD SCIENCES, INC.",
+                "role": "secondary",
+                "rationale": "US-listed biopharmaceutical company with substantial commercial scale and specialty-focused innovative medicines.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-09-20T14:26:41.398Z",
+            "modelId": "gpt-5.6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-5.6-luna"
+            }
+          },
+          {
+            "targetSymbol": "MELI",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "EBAY",
+                "name": "EBAY INC",
+                "role": "core",
+                "rationale": "Large online marketplace connecting buyers and sellers, with a business model closely aligned to MercadoLibre’s commerce segment.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "PYPL",
+                "name": "PayPal Holdings, Inc.",
+                "role": "core",
+                "rationale": "Digital payments platform serving consumers and merchants, comparable to MercadoLibre’s payments and financial-services businesses.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "XYZ",
+                "name": "Block, Inc.",
+                "role": "core",
+                "rationale": "Combines merchant payment tools with consumer financial services, overlapping with MercadoLibre’s fintech and commerce ecosystem.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "UBER",
+                "name": "Uber Technologies, Inc",
+                "role": "secondary",
+                "rationale": "A large consumer platform spanning mobility and delivery marketplaces, with shared network effects and on-demand commerce.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "DASH",
+                "name": "DoorDash, Inc.",
+                "role": "secondary",
+                "rationale": "Operates a two-sided marketplace with logistics and merchant services, offering a useful platform-commerce comparison.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "GPN",
+                "name": "GLOBAL PAYMENTS INC",
+                "role": "secondary",
+                "rationale": "Provides payment technology and merchant processing at comparable scale, though it has less consumer-facing marketplace activity.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-14T08:30:01.610Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 6,
+              "rejectedByDirectory": 1,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 1,
+              "modelId": "gpt-6-luna"
+            },
+            "evaluation": {
+              "usablePeerCount": 5,
+              "evaluatedAt": "2026-10-14T17:45:07.793Z",
+              "exclusions": [
+                {
+                  "symbol": "PYPL",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          },
+          {
+            "targetSymbol": "NBIS",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "CRWV",
+                "name": "CoreWeave, Inc.",
+                "role": "core",
+                "rationale": "Specialized cloud provider focused on GPU infrastructure and AI workloads, making it a close business-model comparable.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "APLD",
+                "name": "Applied Digital Corp.",
+                "role": "core",
+                "rationale": "Builds and operates data centers and cloud services for AI and high-performance computing.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "IREN",
+                "name": "IREN Ltd",
+                "role": "core",
+                "rationale": "Expanding from data-center operations into GPU cloud services for AI workloads.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "ORCL",
+                "name": "ORACLE CORP",
+                "role": "secondary",
+                "rationale": "A broader cloud provider that offers substantial AI and GPU infrastructure capacity.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "HUT",
+                "name": "Hut 8 Corp.",
+                "role": "secondary",
+                "rationale": "Develops and operates power-backed data-center infrastructure, including capacity for AI and high-performance computing.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CORZ",
+                "name": "Core Scientific, Inc./tx",
+                "role": "secondary",
+                "rationale": "Operates data centers and is transitioning part of its capacity toward high-performance computing and AI hosting.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "WULF",
+                "name": "TERAWULF INC.",
+                "role": "secondary",
+                "rationale": "Develops energy-intensive data centers and is adding hosting capacity for high-performance computing workloads.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CIFR",
+                "name": "Cipher Digital Inc.",
+                "role": "secondary",
+                "rationale": "Builds and operates power-backed data-center sites, with potential overlap in infrastructure supporting AI compute.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-03T16:36:59.084Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            }
+          },
+          {
+            "targetSymbol": "NET",
+            "provenance": "model-proposed-validated",
+            "peers": [
+              {
+                "symbol": "ZS",
+                "name": "Zscaler, Inc.",
+                "role": "core",
+                "rationale": "Cloud delivered security and zero trust access overlap with Cloudflare’s secure connectivity and edge security services, with similar software scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "PANW",
+                "name": "Palo Alto Networks Inc",
+                "role": "core",
+                "rationale": "Broad cloud security and network security platform competes for enterprise security budgets, with comparable public-company scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "FTNT",
+                "name": "Fortinet, Inc.",
+                "role": "core",
+                "rationale": "Network security, secure networking, and cloud security overlap with Cloudflare’s security and connectivity offerings.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CRWD",
+                "name": "CrowdStrike Holdings, Inc.",
+                "role": "core",
+                "rationale": "Cloud native security platform with substantial overlap in enterprise threat protection and a similar growth-oriented software profile.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "DDOG",
+                "name": "Datadog, Inc.",
+                "role": "secondary",
+                "rationale": "Cloud monitoring and application performance tools serve overlapping developer and cloud infrastructure buyers at a comparable revenue scale.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "AKAM",
+                "name": "AKAMAI TECHNOLOGIES INC",
+                "role": "secondary",
+                "rationale": "Direct edge delivery, application security, and cloud infrastructure competitor; market capitalization may fall below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "FFIV",
+                "name": "F5, INC.",
+                "role": "secondary",
+                "rationale": "Application delivery and security products overlap with Cloudflare’s application services; market capitalization may fall below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              },
+              {
+                "symbol": "CHKP",
+                "name": "CHECK POINT SOFTWARE TECHNOLOGIES LTD",
+                "role": "secondary",
+                "rationale": "Cybersecurity software and network protection align with Cloudflare’s security business; its market capitalization may be below the target band.",
+                "sourceIds": ["sec-company-tickers"]
+              }
+            ],
+            "sources": [
+              {
+                "sourceId": "sec-company-tickers",
+                "title": "SEC company_tickers.json directory",
+                "url": "https://www.sec.gov/files/company_tickers.json"
+              }
+            ],
+            "proposedAt": "2026-10-14T08:30:49.704Z",
+            "modelId": "gpt-6-luna",
+            "providerName": "codex",
+            "audit": {
+              "proposed": 8,
+              "survived": 8,
+              "rejectedByDirectory": 0,
+              "rejectedByEtf": 0,
+              "rejectedByListing": 0,
+              "modelId": "gpt-6-luna"
+            },
+            "evaluation": {
+              "usablePeerCount": 3,
+              "evaluatedAt": "2026-10-14T17:16:06.204Z",
+              "exclusions": [
+                {
+                  "symbol": "PANW",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "FTNT",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "AKAM",
+                  "cause": "suppressed-by-design"
+                },
+                {
+                  "symbol": "FFIV",
+                  "cause": "provider-data-missing"
+                },
+                {
+                  "symbol": "CHKP",
+                  "cause": "provider-data-missing"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "cache:72b37b54bc2c067a272bfc679421af3ff28e91e70c857f81b814885047ac36b3:2026-10-27": [{}],
+    "cache:42408af197ba02c3df72d3ec984d254b14e35d70eaec77cc5224284dd9e02ffb:2026-10-27": [{}],
+    "cache:7228acbfacc44adcdd5d43bb0bb6ccb27304973fb0a33c7f2b913c5944cae994:2026-10-27": [{}],
+    "cache:b9cbff18c4a4c1e9fdcfa289490c5b8600de74007b0cac10c7841a8f01131e28:2026-10-27": [{}],
+    "cache:cd42753cba42044de89251974cc2c1abec901abf7cc007a9816ebf32e05ab62f:2026-10-27": [{}],
+    "cache:80ebc1137854aa0b905c1ab65687d661dd3ea9321a71476df47ae26fbc8446c0:2026-10-27": [{}],
+    "cache:41209d289c026d4086fafd7c13929fa7190de31d1dec35be2360d9aa6865414f:2026-10-27": [{}],
+    "cache:ace21b13ac665a3b020973e4bb10b8da9316c09f2812380cd39a32d9f631f562:2026-10-27": [{}],
+    "cache:58708e4374c6f9bdf3b8142f365b9df0a0546be0a1a363a763e407a398eac1ea:2026-10-27": [{}],
+    "cache:47e0402870dbddac421fd4a10a09b1e6b09484034f9c96c55a5e581f313a4d3d:2026-10-27": [{}],
+    "cache:a3e2fe522392ca0d191c40fb054a33d98f35957c55cb29ab7535bf7e7824454c:2026-10-27": [{}],
+    "cache:3296a1ec0b658819da8f6bd702baa7e05ec0f7426192f64949f898930f39d684:2026-10-27": [{}],
+    "cache:133adfb219fb1a81b67f2a26fe7101bf659814690ea996b6429e6b081533d3a0:2026-10-27": [{}],
+    "cache:2e7a9e10ae37f0af493ea2fa7c940957ec84a122291669262c4ffcf726eea426:2026-10-27": [{}],
+    "cache:dd0e306def947f12fe65024a074a2af685d7898b032e09dc811fdd77ac2df1b8:2026-10-27": [{}],
+    "calibration": [
+      {
+        "value": {
+          "generatedAt": "2026-10-27T07:01:15.567Z",
+          "resolvedCount": 72,
+          "duplicateForecastCount": 44,
+          "missAutopsyCount": 21,
+          "brierScore": 0.21249861111111124,
+          "hitRate": 0.375,
+          "bins": [
+            {
+              "pLow": 0.1,
+              "pHigh": 0.2,
+              "label": "0.1-0.2",
+              "hitCount": 1,
+              "totalCount": 8,
+              "hitRate": 0.125
+            },
+            {
+              "pLow": 0.2,
+              "pHigh": 0.3,
+              "label": "0.2-0.3",
+              "hitCount": 3,
+              "totalCount": 14,
+              "hitRate": 0.21428571428571427
+            },
+            {
+              "pLow": 0.3,
+              "pHigh": 0.4,
+              "label": "0.3-0.4",
+              "hitCount": 15,
+              "totalCount": 38,
+              "hitRate": 0.39473684210526316
+            },
+            {
+              "pLow": 0.4,
+              "pHigh": 0.5,
+              "label": "0.4-0.5",
+              "hitCount": 1,
+              "totalCount": 2,
+              "hitRate": 0.5
+            },
+            {
+              "pLow": 0.5,
+              "pHigh": 0.6,
+              "label": "0.5-0.6",
+              "hitCount": 1,
+              "totalCount": 2,
+              "hitRate": 0.5
+            },
+            {
+              "pLow": 0.6,
+              "pHigh": 0.7,
+              "label": "0.6-0.7",
+              "hitCount": 6,
+              "totalCount": 8,
+              "hitRate": 0.75
+            }
+          ],
+          "byKind": {
+            "range": {
+              "brierScore": 0.1947469387755103,
+              "count": 49,
+              "runCount": 31,
+              "brierStandardError": 0.025739778564736138
+            },
+            "relative": {
+              "brierScore": 0.22668888888888883,
+              "count": 18,
+              "runCount": 17,
+              "brierStandardError": 0.028116537492971275
+            },
+            "direction": {
+              "brierScore": 0.30362500000000003,
+              "count": 4,
+              "runCount": 4,
+              "brierStandardError": 0.05527622115340375
+            },
+            "conditional": {
+              "brierScore": 0.4624000000000001,
+              "count": 1,
+              "runCount": 1
+            }
+          },
+          "byAssetClass": {
+            "equity": {
+              "brierScore": 0.21249861111111124,
+              "count": 72,
+              "runCount": 36,
+              "brierStandardError": 0.017599116102190625
+            }
+          },
+          "byJobType": {
+            "equity": {
+              "brierScore": 0.2106942857142858,
+              "count": 70,
+              "runCount": 35,
+              "brierStandardError": 0.017989687491500383
+            },
+            "forecast-grid": {
+              "brierScore": 0.27564999999999995,
+              "count": 2,
+              "runCount": 1
+            }
+          },
+          "byMarketUpdateHorizonBucket": {},
+          "byHorizonBucket": {
+            "1d": {
+              "brierScore": 0.1504333333333333,
+              "count": 15,
+              "runCount": 14,
+              "brierStandardError": 0.046672359424856584
+            },
+            "2-5d": {
+              "brierScore": 0.23785454545454543,
+              "count": 44,
+              "runCount": 28,
+              "brierStandardError": 0.022486321629851456
+            },
+            "6-10d": {
+              "brierScore": 0.23567500000000005,
+              "count": 8,
+              "runCount": 8,
+              "brierStandardError": 0.07971961747722005
+            },
+            "16-20d": {
+              "brierScore": 0.13848000000000002,
+              "count": 5,
+              "runCount": 5,
+              "brierStandardError": 0.003686787219246593
+            }
+          },
+          "byMarketRegime": {
+            "risk-on": {
+              "brierScore": 0.21327999999999997,
+              "count": 20,
+              "runCount": 13,
+              "brierStandardError": 0.035614381369516064
+            },
+            "risk-off": {
+              "brierScore": 0.21858857142857138,
+              "count": 35,
+              "runCount": 17,
+              "brierStandardError": 0.029693904348876327
+            },
+            "mixed": {
+              "brierScore": 0.18882666666666667,
+              "count": 15,
+              "runCount": 5,
+              "brierStandardError": 0.01848517630994837
+            }
+          },
+          "marketRegimeCoverage": {
+            "risk-on": 20,
+            "risk-off": 35,
+            "mixed": 15,
+            "unknown": 2
+          },
+          "byMissAutopsyCause": {
+            "insufficient_evidence": 19,
+            "model_overconfidence": 2
+          },
+          "conditionalPredictions": {
+            "activatedCount": 1,
+            "voidedCount": 2
+          }
+        }
+      }
+    ],
+    "alpha-watchlist": [
+      {
+        "value": {
+          "watchlist": {
+            "generatedAt": "2026-08-17T04:02:33.492Z",
+            "candidates": [
+              {
+                "symbol": "ATR",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 24,
+                  "socialMomentumScore": 16.7,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "BILL",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 25,
+                  "socialMomentumScore": 15.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DRTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 13,
+                  "socialMomentumScore": 20.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DSGX",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "sec-only",
+                  "discoverySources": ["sec-filings"],
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "EOSE",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 14,
+                  "socialMomentumScore": 19.98,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "FA",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 17,
+                  "socialMomentumScore": 18.73,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "GETY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 11,
+                  "socialMomentumScore": 20.34,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 22,
+                  "socialMomentumScore": 16.99,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 20,
+                  "socialMomentumScore": 17.67,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NEXT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 15,
+                  "socialMomentumScore": 19.54,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NVTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 18,
+                  "socialMomentumScore": 18.39,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "OUT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 19,
+                  "socialMomentumScore": 18.31,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "PUMP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 21,
+                  "socialMomentumScore": 17.12,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "TMC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 10,
+                  "socialMomentumScore": 20.44,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "WAY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 4,
+                  "socialMomentumScore": 24.18,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "history:null": [
+      {
+        "value": {
+          "generatedAt": "2026-10-27T07:01:15.567Z",
+          "recentDays": 90,
+          "anchorMonths": [3, 6, 12],
+          "runs": [
+            {
+              "runId": "2026-09-29T17-00-02-047Z-4bb5fad0",
+              "sourceId": "history-report-2026-09-29T17-00-02-047Z-4bb5fad0",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "generatedAt": "2026-09-29T17:00:02.047Z",
+              "selectionReasons": ["recent", "miss-correction", "same-symbol"],
+              "summary": "IREN’s central thesis is a transition from Bitcoin mining toward a vertically integrated AI cloud business. FY2026 revenue grew, but Bitcoin mining remained the larger segment; substantial losses and capital spending leave the transition dependent on delivery, revenue conversion, and improving economics. August’s reported contracted ARR and GPU financing support the expansion case, while the gap between operating capacity and broader power arrangements underscores execution uncertainty.",
+              "confidence": "high",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: For the year ended June 30, 2026, IREN reported $707.0 million in revenue: $128.8 million from AI Cloud Services and $578.2 million from Bitcoin mining. AI accounted for 18.2% of reported revenue.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Issuer claim: IREN’s August 27 results announcement reported $4 billion of contracted ARR for 2026 capacity, $1 billion operating at that time, and 2026 capacity largely sold out. These annualized run rates are distinct from FY2026 recognized revenue.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Observed fact: As of June 30, 2026, IREN reported about 40 MW of operating AI computing capacity and about 5 GW of power agreements or similar arrangements, plus a further multi-gigawatt development pipeline. The evidence does not establish how quickly those arrangements can become energized, equipped, and utilized capacity.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Observed fact: FY2026 revenue grew 41.1% year over year, while operating income was negative $1.05 billion, net income attributable to the parent was negative $702.6 million, and diluted EPS was negative $2.22. Capex was $3.00 billion; the supplied free-cash-flow proxy was negative $897.6 million.",
+                  "sourceIds": ["extended-sec-edgar-iren-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: At June 30, 2026, cash was $5.90 billion and debt was $7.59 billion, for net debt of $1.70 billion. IREN reported $2.8 billion of GPU financing covering 90% of associated GPU capex; that figure does not establish coverage of all infrastructure or future funding needs.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Execution and monetization risk: the company-reported contracted ARR materially exceeds operating ARR, while reported AI revenue remained a minority of FY2026 revenue. The evidence does not provide detailed contract commencement schedules or deployment milestones.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Funding and dilution risk: debt exceeded cash at the latest reported period, FY2026 capex was substantial, and diluted shares increased 41.6% year over year. The supplied evidence does not establish a complete forward funding plan.",
+                  "sourceIds": ["extended-sec-edgar-iren-fundamentals"]
+                },
+                {
+                  "text": "Customer concentration and contract-quality risk remain difficult to assess because customer-level revenue shares, commencement schedules, renewal rates, and repeat-purchase rates are not supplied.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Valuation sensitivity is elevated in the supplied evidence: IREN trades at 25.33x EV to annualized FY2026 revenue, above the reported 11.22x peer median, but that median is based on one core peer and multiple peers were excluded.",
+                  "sourceIds": [
+                    "market-yahoo-equity-iren",
+                    "extended-sec-edgar-iren-fundamentals",
+                    "market-yahoo-equity-corz",
+                    "extended-sec-edgar-corz-fundamentals"
+                  ]
+                },
+                {
+                  "text": "Observed fact: The latest supplied reported financial period ended June 30, 2026. This limits visibility into subsequent deployment, liquidity, leverage, and operating results.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-filings",
+                    "extended-sec-edgar-iren-fundamentals"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Updates showing contracted capacity moving into operating ARR and recognized AI revenue would directly test the transition thesis. The August 27 update reported $4 billion of contracted ARR and $1 billion operating at that time.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Further disclosure on GPU deployment, operating capacity, and delivery under customer contracts would clarify whether power and infrastructure arrangements are becoming productive capacity. No specific future event date is supplied.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Conversion of late-stage 2027 customer discussions into signed agreements could improve forward capacity visibility; the supplied announcement does not quantify timing or conversion likelihood.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: Missing SEC company facts: grossProfit [IREN]",
+                "sec-edgar: Missing comparable SEC company facts for YoY deltas: debt [IREN]",
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "IREN outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:SPY",
+                  "measurableAs": "close(IREN, +5) / close(IREN, 0) > close(SPY, +5) / close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.36,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.9975833183606316,
+                    "returnB": 1.0194844470172602
+                  }
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "IREN closes outside 35-50 over 5 trading days",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +5) outside [35, 50]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.38,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 41.279998779296875,
+                    "lo": 35,
+                    "hi": 50
+                  }
+                },
+                {
+                  "id": "pred-3",
+                  "claim": "IREN outperforms QQQ over 10 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:QQQ",
+                  "measurableAs": "close(IREN, +10) / close(IREN, 0) > close(QQQ, +10) / close(QQQ, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.37,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.840985943421717,
+                    "returnB": 1.0076430212952674
+                  }
+                },
+                {
+                  "id": "pred-4",
+                  "claim": "IREN closes above its origin close over 5 trading days",
+                  "kind": "direction",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +5) > close(IREN, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.38,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "close0": 41.380001068115234,
+                    "closeN": 41.279998779296875
+                  }
+                }
+              ],
+              "scoreSummary": {
+                "total": 4,
+                "resolved": 4,
+                "hit": 0,
+                "miss": 4,
+                "unresolved": 0
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "IREN",
+                  "price": 41.13,
+                  "changePercent24h": -1.4141902,
+                  "volume": 19128470,
+                  "observedAt": "2026-09-29T17:00:02.047Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies negative: 4/4",
+                    "trend mixed: 2/4 proxies above 50-day average",
+                    "VIX term structure contango: VIX 16.33 vs VIX3M 18.22"
+                  ]
+                }
+              }
+            },
+            {
+              "runId": "2026-09-29T07-09-03-579Z-004c11b7",
+              "sourceId": "history-report-2026-09-29T07-09-03-579Z-004c11b7",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "generatedAt": "2026-09-29T07:09:03.579Z",
+              "selectionReasons": ["recent", "miss-correction", "same-symbol"],
+              "summary": "IREN’s thesis depends on converting its capital-intensive Bitcoin-mining business into a larger AI cloud platform. Company-reported contracts and capacity plans support a demand case, while FY2026 losses, heavy capital spending, and a large gap between contracted and operating ARR leave execution and financing central. The September 28 close showed pronounced weakness relative to broad equity proxies. The evidence supports a high-uncertainty research view, not a settled conclusion.",
+              "confidence": "high",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: IREN’s FY2026 10-K describes a vertically integrated AI cloud platform spanning data centers, compute, and software. For the year ended June 30, 2026, revenue was $707.0 million: $128.8 million from AI Cloud Services and $578.2 million from Bitcoin mining. AI remained a minority of reported revenue.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Issuer claim: In its August 27, 2026 results announcement, IREN reported $4 billion of contracted ARR for 2026 capacity, $1 billion of ARR operating at that time, and 2026 capacity largely sold out. These run-rate figures are not recognized FY2026 revenue; delivery and conversion remain important tests.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Issuer claim: The August results announcement described a new multi-year contract with a leading frontier AI lab, additional customer signings, and late-stage discussions over a significant portion of 2027 capacity. It does not quantify customer revenue shares or specify when those discussions would become signed contracts.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Observed fact: FY2026 revenue grew 41.1% year over year, while operating income was negative $1.05 billion, net income attributable to the parent was negative $702.6 million, and diluted EPS was negative $2.22. The supplied free-cash-flow proxy was negative $897.6 million; capex was $3.00 billion.",
+                  "sourceIds": ["extended-sec-edgar-iren-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: At June 30, 2026, cash was $5.90 billion, debt was $7.59 billion, and net debt was $1.70 billion. IREN reported $2.8 billion of GPU financing covering 90% of associated GPU capex. The financing helps fund expansion but does not remove broader capital and delivery risks.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Observed fact: The latest supplied reported financial period ended June 30, 2026, nearly three months before this analysis. The evidence flags the reporting surface as not current for quarterly cadence, limiting visibility into present deployment, liquidity, and leverage.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-filings"
+                  ]
+                },
+                {
+                  "text": "Missing required source: The supplied 10-K evidence does not quantify customer concentration, revenue shares by customer or region, contract commencement schedules, renewal rates, or repeat-purchase rates. Those omissions limit assessment of diversification and contracted revenue quality.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Missing required source: SEC-derived company facts omit gross profit and comparable year-over-year debt figures; untagged interim facts were not validated. This limits analysis of unit economics and leverage trends.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-filings",
+                    "extended-sec-edgar-iren-fundamentals"
+                  ]
+                },
+                {
+                  "text": "Observed fact: The supplied balance sheet showed $7.59 billion of debt against $5.90 billion of cash at June 30, 2026, while FY2026 capex was $3.00 billion. GPU financing covers associated GPU capex as reported by the company, but total funding and execution risk remains.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Missing required source: No intraday, order-flow, short-interest, positioning, or current peer price and volume series is supplied. The September 28 price move cannot be decomposed into market, sector, and issuer effects.",
+                  "sourceIds": ["market-yahoo-equity-iren", "verified-snapshot-IREN"]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Issuer claim: Evidence of progress moving contracted capacity into operating ARR and recognized revenue would directly test the transition thesis; IREN reported $4 billion of contracted ARR and $1 billion operating at the time of its August 27 update.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Issuer claim: Conversion of late-stage 2027 customer discussions into signed agreements, alongside delivery under the new multi-year contract and recent signings, could strengthen forward capacity visibility.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Model inference: Updates on GPU deployment, operating capacity, and financing could clarify whether capital spending is translating into productive AI infrastructure; the supplied evidence gives no specific future event date.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Conflicting evidence: Recent coverage describes a sector-wide neocloud selloff alongside reports of rising GPU rental rates and analyst disagreement. Further sector pricing and demand evidence could alter the context for IREN’s capacity economics, but the reports are secondary.",
+                  "sourceIds": [
+                    "web-iren-114742d9",
+                    "web-iren-dd1b483c",
+                    "news-equity-12",
+                    "news-equity-15"
+                  ]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: Missing SEC company facts: grossProfit [IREN]",
+                "sec-edgar: Missing comparable SEC company facts for YoY deltas: debt [IREN]",
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "IREN outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:SPY",
+                  "measurableAs": "close(IREN, +5) / close(IREN, 0) > close(SPY, +5) / close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.34,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.9975833183606316,
+                    "returnB": 1.0194844470172602
+                  }
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "IREN closes outside 35-50 over 5 trading days",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +5) outside [35, 50]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.37,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 41.279998779296875,
+                    "lo": 35,
+                    "hi": 50
+                  }
+                },
+                {
+                  "id": "pred-3",
+                  "claim": "IREN outperforms SPY over 10 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:SPY",
+                  "measurableAs": "close(IREN, +10) / close(IREN, 0) > close(SPY, +10) / close(SPY, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.43,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.840985943421717,
+                    "returnB": 1.0180711820701365
+                  }
+                }
+              ],
+              "scoreSummary": {
+                "total": 3,
+                "resolved": 3,
+                "hit": 0,
+                "miss": 3,
+                "unresolved": 0
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "IREN",
+                  "price": 41.72,
+                  "changePercent24h": -5.45042,
+                  "volume": 26170535,
+                  "observedAt": "2026-09-29T06:55:48.375Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies negative: 4/4",
+                    "trend mixed: 2/4 proxies above 50-day average",
+                    "VIX term structure contango: VIX 16.07 vs VIX3M 18.23"
+                  ]
+                }
+              }
+            }
+          ],
+          "sources": [
+            {
+              "id": "history-report-2026-09-29T17-00-02-047Z-4bb5fad0",
+              "title": "equity IREN prior report",
+              "fetchedAt": "2026-09-29T17:00:02.047Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "provider": "market-bot",
+              "rawRef": "2026-09-29T17-00-02-047Z-4bb5fad0/report.json",
+              "summary": "IREN’s central thesis is a transition from Bitcoin mining toward a vertically integrated AI cloud business. FY2026 revenue grew, but Bitcoin mining remained the larger segment; substantial losses and capital spending leave the transition dependent on delivery, revenue conversion, and improving economics. August’s reported contracted ARR and GPU financing support the expansion case, while the gap between operating capacity and broader power arrangements underscores execution uncertainty."
+            },
+            {
+              "id": "history-report-2026-09-29T07-09-03-579Z-004c11b7",
+              "title": "equity IREN prior report",
+              "fetchedAt": "2026-09-29T07:09:03.579Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "provider": "market-bot",
+              "rawRef": "2026-09-29T07-09-03-579Z-004c11b7/report.json",
+              "summary": "IREN’s thesis depends on converting its capital-intensive Bitcoin-mining business into a larger AI cloud platform. Company-reported contracts and capacity plans support a demand case, while FY2026 losses, heavy capital spending, and a large gap between contracted and operating ARR leave execution and financing central. The September 28 close showed pronounced weakness relative to broad equity proxies. The evidence supports a high-uncertainty research view, not a settled conclusion."
+            }
+          ],
+          "gaps": ["No prior equity market-update runs found"],
+          "audit": {
+            "scannedRunCount": 71,
+            "malformedRunCount": 0,
+            "malformedScoreCount": 0,
+            "candidateRunCount": 2,
+            "selectedRunCount": 2,
+            "recentSelectedCount": 2,
+            "anchorSelectedCount": 0,
+            "sameSymbolSelectedCount": 2,
+            "spotlightSymbolSelectedCount": 0,
+            "sameSubjectSelectedCount": 0,
+            "sameHorizonSelectedCount": 0,
+            "crossHorizonSelectedCount": 0,
+            "resolvedMissRunCount": 2,
+            "missCorrectionSelectedCount": 2,
+            "gapCount": 1
+          },
+          "artifactDeltas": []
+        }
+      }
+    ],
+    "reused-profile": [{}],
+    "cache:cb371ab130b35bcb37e80f06dfc40c2f3a7b8646ab14631e4d44505618515489:2026-10-27": [{}],
+    "host-circuit:api.exa.ai": [
+      {
+        "value": false,
+        "count": 3
+      }
+    ],
+    "cache:f8632107109e5f1c913e2ab18d5b60c5c0bfce73b0691d99537ff17e858d0d5f:2026-10-27": [{}],
+    "cache:6c68e33e222d804efb82840209b976fdddc3a17b916624eece1444dd5f09e91e:2026-10-27": [{}],
+    "forecast-persistence-baseline": [
+      {
+        "value": {
+          "runId": "2026-09-29T17-00-02-047Z-4bb5fad0",
+          "depth": "deep",
+          "predictions": [
+            {
+              "measurableAs": "close(IREN, +5) / close(IREN, 0) > close(SPY, +5) / close(SPY, 0)",
+              "probability": 0.36
+            },
+            {
+              "measurableAs": "close(IREN, +5) outside [35, 50]",
+              "probability": 0.38
+            },
+            {
+              "measurableAs": "close(IREN, +10) / close(IREN, 0) > close(QQQ, +10) / close(QQQ, 0)",
+              "probability": 0.37
+            },
+            {
+              "measurableAs": "close(IREN, +5) > close(IREN, 0)",
+              "probability": 0.38
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -2,7 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
-import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import {
+  collectFinancialStatements,
+  deriveFinancialStatements,
+  financialStatementsHistoryGaps,
+} from "../src/sources/extended-evidence/financial-statements";
+import type { CollectContext } from "../src/sources/types";
+import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
+import { buildSecFilingSourceItem } from "../src/sources/sec-filing-item";
+import { classifyGap } from "../src/report/gap-triage";
 import type {
   FinancialStatementSeries,
   FinancialStatementSeriesKey,
@@ -13,7 +21,10 @@ import {
   secIssuerRegistration,
 } from "../src/sources/extended-evidence/industry-classification";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
-import { secGeographyFactMetrics } from "../src/sources/sec-segment-facts";
+import {
+  secExtensionCapexFactMetrics,
+  secGeographyFactMetrics,
+} from "../src/sources/sec-segment-facts";
 
 const FIXTURES = join(import.meta.dir, "fixtures", "sec-reference-set");
 
@@ -35,9 +46,10 @@ interface ReferenceCase {
   readonly depreciationAndAmortization?: Readonly<Record<string, Expected | { omitted: string }>>;
 }
 
-function load(symbol: string) {
+function load(symbol: string, secFilings?: readonly ExtendedEvidenceItem[]) {
   const fixture = JSON.parse(readFileSync(join(FIXTURES, `${symbol}.json`), "utf8"));
   const statements = deriveFinancialStatements(fixture.companyFacts, {
+    ...(secFilings !== undefined ? { secFilings } : {}),
     symbol: fixture.symbol,
     generatedAt: fixture.analysisAsOf,
     analysisAsOf: fixture.analysisAsOf,
@@ -68,6 +80,60 @@ function load(symbol: string) {
     Object.assign({}, ...Object.values(statements.statements));
   return { statements, series, metrics: ratios.section?.metrics ?? [] };
 }
+
+function irenHtml() {
+  return readFileSync(join(FIXTURES, "iren-10k-0001878848-26-000052.xbrl.html"), "utf8");
+}
+
+function iren10K(html: string): ExtendedEvidenceItem {
+  const built = buildSecFilingSourceItem(
+    { jobType: "equity", assetClass: "equity", symbol: "IREN", depth: "deep" },
+    { cik: "0001878848", ticker: "IREN" },
+    {
+      form: "10-K",
+      filingDate: "2026-08-28",
+      reportDate: "2026-06-30",
+      accessionNumber: "0001878848-26-000052",
+      primaryDocument: "iren-20260630.htm",
+    },
+    "https://www.sec.gov/Archives/edgar/data/1878848/000187884826000052/iren-20260630.htm",
+    {
+      rawSnapshot: {
+        id: "raw-iren-10k",
+        adapter: "sec-filing-text",
+        fetchedAt: "2026-09-29T00:00:00.000Z",
+        payload: "",
+      },
+      payload: `ITEM 7. MANAGEMENT'S DISCUSSION ${"Revenue grew on stronger demand while margins held steady. ".repeat(8)} ${html}`,
+    },
+  );
+  if (built.kind !== "built") {
+    throw new Error(`IREN filing item ${built.kind}`);
+  }
+  return built.item;
+}
+
+const recent = (tenKReportDate: string, withTenQ: boolean) => ({
+  form: ["10-K", ...(withTenQ ? ["10-Q"] : [])],
+  filingDate: ["2025-08-28", ...(withTenQ ? ["2026-05-08"] : [])].map((date) =>
+    tenKReportDate === "2026-06-30" && date === "2025-08-28" ? "2026-08-28" : date,
+  ),
+  reportDate: [tenKReportDate, ...(withTenQ ? ["2026-03-31"] : [])],
+  accessionNumber: ["0001878848-26-000052", ...(withTenQ ? ["0001878848-26-000099"] : [])],
+  primaryDocument: ["iren-20260630.htm", ...(withTenQ ? ["iren-20260331.htm"] : [])],
+});
+const collect = async (ctx: CollectContext) => {
+  const { statements, periodicFilings } = await collectFinancialStatements(ctx, "IREN");
+  return {
+    fy2026: statements?.statements.cashFlowStatement.capitalExpenditure.annual.find(
+      ({ periodEnd }) => periodEnd === "2026-06-30",
+    )?.value,
+    codes: (statements?.omissionNotes ?? [])
+      .filter(({ seriesKey }) => seriesKey === "capitalExpenditure")
+      .map(({ code }) => code),
+    periodicFilings,
+  };
+};
 
 const statement = (value: number, line: string): Expected => ({ value, line });
 const ratio = (value: number, line: string): MetricExpectation => ({
@@ -466,9 +532,254 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
   test.todo("LTRX FY2026 D&A omits R6 amortization of intangibles 1,561K", () => {
     expect(fact("ltrx", "depreciationAndAmortization", "2026-06-30")).toBe(3_163_000);
   });
-  test.todo("IREN FY2026 capex omits R7 payments for computer hardware 1,335,081K", () => {
-    expect(fact("iren", "capitalExpenditure", "2026-06-30")).toBe(4_333_087_000);
+
+  test("IREN FY2024-26 capex and FCF are withheld: 10-K R7 also pays computer hardware (1,335,081K FY2026)", () => {
+    const { statements, series, metrics } = load("iren", [iren10K(irenHtml())]);
+    const capex = series.capitalExpenditure!;
+    expect(
+      capex.annual.map(({ periodEnd }) => periodEnd).filter((end) => end > "2023-06-30"),
+    ).toEqual([]);
+    expect(capex.annual.length).toBeGreaterThan(0);
+    expect(capex.interim.filter(({ periodEnd }) => periodEnd > "2023-06-30")).toEqual([]);
+    expect(capex.ttm).toBeUndefined();
+    expect(metrics.find(({ id }) => id === "freeCashFlowMargin")?.status).toBe("missing");
+    const valuation = valuationPeriodInputs(statements);
+    expect(valuation.ttm?.freeCashFlow).toBeUndefined();
+    expect(
+      valuation.periods.filter(
+        ({ periodEnd, freeCashFlow }) => periodEnd > "2023-06-30" && freeCashFlow !== undefined,
+      ),
+    ).toEqual([]);
+    const notes = statements.omissionNotes.filter(
+      ({ code, seriesKey }) =>
+        code === "incomplete-composite-series" && seriesKey === "capitalExpenditure",
+    );
+    expect(notes.map(({ periodKey }) => periodKey)).toEqual([
+      "duration:12|2026-06-30",
+      "duration:12|2025-06-30",
+      "duration:12|2024-06-30",
+    ]);
+    expect(notes[0]?.message).toContain(
+      "iren:PaymentsRelatedToComputerHardware 1335081000 iso4217:USD beside the standard PP&E line (2998006000 USD)",
+    );
+    expect(notes[0]?.message).toContain("extended-sec-edgar-iren-");
+    expect(notes.some(({ message }) => /RightOfUse|Prepayments/u.test(message))).toBe(false);
+    const gaps = financialStatementsHistoryGaps(statements).filter(({ message }) =>
+      message.startsWith("SEC capital expenditure"),
+    );
+    expect(gaps).toHaveLength(3);
+    expect(gaps.map((gap) => classifyGap(gap, "IREN"))).toEqual([
+      "material",
+      "material",
+      "material",
+    ]);
   });
+
+  test("IREN prepayment, deposit and right-of-use extension payments alone leave capex published", () => {
+    const html = irenHtml()
+      .split("\n")
+      .filter((line) => !line.includes("iren:PaymentsRelatedToComputerHardware"))
+      .join("\n");
+    expect(html).toContain("iren:PaymentsToAcquireRightOfUseAssets");
+    expect(html).toContain("iren:PaymentsForOtherPrepaymentsAndDepositsInvestingActivities");
+    expect(secExtensionCapexFactMetrics(html, "2026-06-30")).toEqual({
+      extensionCapexChecked: "true",
+    });
+    const { statements, series } = load("iren", [iren10K(html)]);
+    expect(
+      series.capitalExpenditure?.annual.find(({ periodEnd }) => periodEnd === "2026-06-30")?.value,
+    ).toBe(2_998_006_000);
+    expect(
+      statements.omissionNotes.filter(({ seriesKey }) => seriesKey === "capitalExpenditure"),
+    ).toEqual([]);
+  });
+
+  test("extension capex detection keeps hardware acquisitions and skips business acquisitions", () => {
+    const html = irenHtml()
+      .replaceAll(
+        "iren:PaymentsRelatedToComputerHardware",
+        "iren:PaymentsForAcquisitionOfComputerHardware",
+      )
+      .replaceAll(
+        "iren:PaymentsToAcquireRightOfUseAssets",
+        "iren:PaymentsToAcquireBusinessesAndEquipmentNetOfCash",
+      );
+    expect(Object.keys(secExtensionCapexFactMetrics(html, "2026-06-30")).slice(1)).toEqual([
+      "extensionCapex|iren:PaymentsForAcquisitionOfComputerHardware|2025-07-01|2026-06-30|iso4217:USD",
+      "extensionCapex|iren:PaymentsForAcquisitionOfComputerHardware|2024-07-01|2025-06-30|iso4217:USD",
+      "extensionCapex|iren:PaymentsForAcquisitionOfComputerHardware|2023-07-01|2024-06-30|iso4217:USD",
+    ]);
+  });
+
+  test("an extension line on no capex period withholds nothing", () => {
+    const html = irenHtml()
+      .replaceAll("2025-07-01", "1989-07-01")
+      .replaceAll("2026-06-30", "1990-06-30");
+    const { series } = load("iren", [iren10K(html)]);
+    expect(
+      series.capitalExpenditure?.annual.find(({ periodEnd }) => periodEnd === "2026-06-30")?.value,
+    ).toBe(2_998_006_000);
+  });
+
+  test("withholding a TTM component withholds the TTM", () => {
+    expect(load("aapl").series.capitalExpenditure?.ttm).toBeDefined();
+    const item = {
+      ...filingItem(
+        "hlit-10k-0001193125-26-067506.xbrl.html",
+        "10-K",
+        "2025-10-31",
+        "2025-09-27",
+        "0000320193-25-000079",
+      ),
+      metrics: {
+        form: "10-K",
+        extensionCapexChecked: "true",
+        "extensionCapex|aapl:PaymentsForServers|2024-09-29|2025-09-27|iso4217:USD": 1,
+      },
+    };
+    const { series } = load("aapl", [item]);
+    expect(
+      series.capitalExpenditure?.annual.some(({ periodEnd }) => periodEnd === "2025-09-27"),
+    ).toBe(false);
+    expect(series.capitalExpenditure?.ttm).toBeUndefined();
+  });
+
+  test("a metadata-only filing item still leaves capex unchecked", () => {
+    const item = {
+      ...iren10K(irenHtml()),
+      metrics: { form: "10-K", accessionNumber: "0001878848-26-000052" },
+    };
+    expect(
+      load("iren", [item]).statements.omissionNotes.filter(
+        ({ code }) => code === "unchecked-extension-capex",
+      ),
+    ).toHaveLength(1);
+  });
+
+  describe("brief collection checks the latest 10-K for extension capex", () => {
+    const irenFixture = JSON.parse(readFileSync(join(FIXTURES, "iren.json"), "utf8"));
+    const tenK =
+      "https://www.sec.gov/Archives/edgar/data/1878848/000187884826000052/iren-20260630.htm";
+    const tenQ =
+      "https://www.sec.gov/Archives/edgar/data/1878848/000187884826000099/iren-20260331.htm";
+    const textUrls: string[] = [];
+    const briefCtx = (
+      text: (url: string) => string | undefined,
+      options: { secUserAgent?: string; tenKReportDate?: string; withTenQ?: boolean } = {},
+    ): CollectContext => {
+      const json: Readonly<Record<string, unknown>> = {
+        "sec-tickers": { "0": { cik_str: 1_878_848, ticker: "IREN", title: "IREN Ltd" } },
+        "sec-companyfacts": irenFixture.companyFacts,
+        "sec-submissions": {
+          ...irenFixture.submissions,
+          filings: {
+            recent: recent(options.tenKReportDate ?? "2026-06-30", options.withTenQ ?? false),
+          },
+        },
+      };
+      return {
+        command: { jobType: "equity", assetClass: "equity", symbol: "IREN", depth: "brief" },
+        fetchedAt: irenFixture.analysisAsOf,
+        newsLimit: 0,
+        cryptoMoverLimit: 0,
+        ...(options.secUserAgent !== undefined ? { secUserAgent: options.secUserAgent } : {}),
+        request: {
+          json: async ({ adapter }) => {
+            const payload = json[adapter];
+            return {
+              rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt: "", payload },
+              payload,
+            };
+          },
+          text: async ({ url, adapter }) => {
+            textUrls.push(url);
+            const body = text(url);
+            return body === undefined
+              ? {
+                  source: "sec-edgar",
+                  message: `fetch failed ${url}`,
+                  cause: "fetch-failed" as const,
+                }
+              : {
+                  rawSnapshot: { id: `raw-${url.slice(-17)}`, adapter, fetchedAt: "", payload: "" },
+                  payload: `ITEM 7. MANAGEMENT'S DISCUSSION ${"Revenue grew on stronger demand while margins held steady. ".repeat(8)} ${body}`,
+                };
+          },
+        },
+      };
+    };
+    const agent = { secUserAgent: "test-agent" };
+
+    test("IREN FY2026 capex is withheld and the filing stays an auditable source without prose", async () => {
+      textUrls.length = 0;
+      const result = await collect(briefCtx(() => irenHtml(), agent));
+      expect(textUrls).toEqual([tenK]);
+      expect(result.fy2026).toBeUndefined();
+      expect(result.codes).not.toContain("unchecked-extension-capex");
+      expect(result.codes).toContain("incomplete-composite-series");
+      const [source] = result.periodicFilings?.sources ?? [];
+      expect(source).toMatchObject({
+        provider: "sec-edgar",
+        url: tenK,
+        rawRef: "raw-iren-20260630.htm",
+      });
+      expect(source?.snippet).toBeUndefined();
+      expect(result.periodicFilings?.rawSnapshots.map(({ id }) => id)).toEqual([
+        "raw-iren-20260630.htm",
+      ]);
+    });
+
+    test("an issuer filing no extension keeps capex and drops the unchecked note", async () => {
+      const html = irenHtml().replaceAll(
+        "iren:PaymentsRelatedToComputerHardware",
+        "iren:OtherCash",
+      );
+      const result = await collect(briefCtx(() => html, agent));
+      expect(result.periodicFilings?.gaps).toEqual([]);
+      expect([result.fy2026, result.codes]).toEqual([2_998_006_000, []]);
+    });
+
+    test("a parsed 10-K with a failed newer 10-Q leaves later capex unchecked and gaps the fetch", async () => {
+      const result = await collect(
+        briefCtx((url) => (url === tenQ ? undefined : "<html></html>"), {
+          ...agent,
+          tenKReportDate: "2025-06-30",
+          withTenQ: true,
+        }),
+      );
+      expect(result.fy2026).toBe(2_998_006_000);
+      expect(result.codes).toEqual(["unchecked-extension-capex"]);
+      expect(result.periodicFilings?.gaps.map(({ message }) => message)).toContain(
+        `fetch failed ${tenQ}`,
+      );
+    });
+
+    test("a failed 10-K fetch or no SEC user agent keeps capex with the unchecked note", async () => {
+      const failed = await collect(briefCtx(() => undefined, agent));
+      expect([failed.fy2026, failed.codes]).toEqual([2_998_006_000, ["unchecked-extension-capex"]]);
+      expect(failed.periodicFilings?.gaps).toHaveLength(1);
+      textUrls.length = 0;
+      const noAgent = await collect(briefCtx(() => irenHtml()));
+      expect([noAgent.codes, noAgent.periodicFilings, textUrls]).toEqual([
+        ["unchecked-extension-capex"],
+        undefined,
+        [],
+      ]);
+    });
+  });
+
+  test("capex without a read 10-K or 10-Q carries the unchecked-extension note, not a gap", () => {
+    const { statements } = load("aapl");
+    expect(
+      statements.omissionNotes.filter(({ code }) => code === "unchecked-extension-capex"),
+    ).toHaveLength(1);
+    expect(
+      financialStatementsHistoryGaps(statements).some(({ message }) =>
+        message.includes("not checked"),
+      ),
+    ).toBe(false);
+  });
+
   test.todo("CLFD FY2025 ROIC: Accounting Scope of debt (note 11 debt and factoring sit in discontinued ops)", () => {
     expect(load("clfd").metrics.find(({ id }) => id === "roic")?.status).not.toBe("missing");
   });
@@ -506,6 +817,7 @@ function filingItem(
       reportDate,
       accessionNumber,
       ...secGeographyFactMetrics(readFileSync(join(FIXTURES, file), "utf8"), reportDate),
+      ...secExtensionCapexFactMetrics(readFileSync(join(FIXTURES, file), "utf8"), reportDate),
     },
   };
 }

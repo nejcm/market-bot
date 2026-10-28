@@ -1,0 +1,2503 @@
+{
+  "values": {
+    "cache:bae07c33bca656558741ed66e27bde479ac5bf0ac5b77ab88ad6e1876adc5e3e:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "bae07c33bca656558741ed66e27bde479ac5bf0ac5b77ab88ad6e1876adc5e3e",
+          "adapter": "yahoo-ticker",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "EQUITY",
+                  "typeDisp": "Equity",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "corporateActions": [],
+                  "postMarketTime": 1793059154,
+                  "regularMarketTime": 1793044801,
+                  "exchange": "NMS",
+                  "messageBoardId": "finmb_706254871",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EDT",
+                  "gmtOffSetMilliseconds": -14400000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 1637159400000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": 1.6909174,
+                  "postMarketPrice": 25.86,
+                  "postMarketChange": 0.4300003,
+                  "regularMarketChange": 0.525,
+                  "regularMarketChangePercent": 2.10801,
+                  "fulldayChange": 0.4449997,
+                  "fulldayChangePercent": 1.7867886,
+                  "fulldayPrice": 25.43,
+                  "regularMarketPrice": 25.43,
+                  "regularMarketDayHigh": 26.74,
+                  "regularMarketDayRange": "23.72 - 26.74",
+                  "regularMarketDayLow": 23.72,
+                  "regularMarketVolume": 58208096,
+                  "regularMarketPreviousClose": 24.905,
+                  "bid": 24.28,
+                  "ask": 32,
+                  "bidSize": 2,
+                  "askSize": 1,
+                  "fullExchangeName": "NasdaqGS",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 24.028,
+                  "averageDailyVolume3Month": 45884796,
+                  "averageDailyVolume10Day": 64501190,
+                  "fiftyTwoWeekLowChange": 1.710001,
+                  "fiftyTwoWeekLowChangePercent": 0.0720911,
+                  "fiftyTwoWeekRange": "23.72 - 76.87",
+                  "fiftyTwoWeekHighChange": -51.440002,
+                  "fiftyTwoWeekHighChangePercent": -0.66918176,
+                  "fiftyTwoWeekLow": 23.72,
+                  "fiftyTwoWeekHigh": 76.87,
+                  "fiftyTwoWeekChangePercent": -60.870903,
+                  "earningsTimestamp": 1793908800,
+                  "earningsTimestampStart": 1793908800,
+                  "earningsTimestampEnd": 1793908800,
+                  "earningsCallTimestampStart": 1793916000,
+                  "earningsCallTimestampEnd": 1793916000,
+                  "isEarningsDateEstimate": false,
+                  "trailingAnnualDividendRate": 0,
+                  "trailingAnnualDividendYield": 0,
+                  "dividendYield": 0,
+                  "epsTrailingTwelveMonths": -2.22,
+                  "epsForward": -3.98264,
+                  "epsCurrentYear": -3.42114,
+                  "priceEpsCurrentYear": -7.433195,
+                  "sharesOutstanding": 404613536,
+                  "impliedSharesOutstanding": 404613536,
+                  "bookValue": 11.009,
+                  "fiftyDayAverage": 39.1077,
+                  "fiftyDayAverageChange": -13.6777,
+                  "fiftyDayAverageChangePercent": -0.3497444,
+                  "twoHundredDayAverage": 44.83805,
+                  "twoHundredDayAverageChange": -19.40805,
+                  "twoHundredDayAverageChangePercent": -0.43284777,
+                  "marketCap": 10289321984,
+                  "forwardPE": -6.385212,
+                  "priceToBook": 2.3099284,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "ipoExpectedDate": "2021-11-17",
+                  "prevName": "Iris Energy Limited",
+                  "nameChangeDate": "2026-10-27",
+                  "averageAnalystRating": "1.5 - Buy",
+                  "shortName": "IREN LIMITED",
+                  "longName": "IREN Limited",
+                  "marketState": "PREPRE",
+                  "displayName": "IREN",
+                  "symbol": "IREN"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    ],
+    "cache:b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce",
+          "adapter": "yahoo-regime",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 728317800000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": 0.13418053,
+                  "postMarketPrice": 766.397,
+                  "postMarketChange": 1.0269775,
+                  "regularMarketChange": 5.40002,
+                  "regularMarketChangePercent": 0.710558,
+                  "fulldayChange": 4.5700073,
+                  "fulldayChangePercent": 0.60134053,
+                  "fulldayPrice": 765.37,
+                  "regularMarketPrice": 765.37,
+                  "regularMarketDayHigh": 767.73,
+                  "regularMarketDayRange": "761.64 - 767.73",
+                  "regularMarketDayLow": 761.64,
+                  "regularMarketVolume": 31454797,
+                  "regularMarketPreviousClose": 759.97,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 160,
+                  "askSize": 2080,
+                  "fullExchangeName": "NYSEArca",
+                  "marketState": "PREPRE",
+                  "shortName": "State Street SPDR S&P 500 ETF T",
+                  "longName": "State Street SPDR S&P 500 ETF Trust",
+                  "corporateActions": [],
+                  "postMarketTime": 1793059195,
+                  "regularMarketTime": 1793044800,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_6160262",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EDT",
+                  "gmtOffSetMilliseconds": -14400000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "bookValue": 429.22,
+                  "fiftyDayAverage": 767.589,
+                  "fiftyDayAverageChange": -2.2189941,
+                  "fiftyDayAverageChangePercent": -0.0028908623,
+                  "twoHundredDayAverage": 727.3856,
+                  "twoHundredDayAverageChange": 37.984375,
+                  "twoHundredDayAverageChangePercent": 0.052220408,
+                  "netExpenseRatio": 0.0945,
+                  "priceToBook": 1.7831647,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 762.25,
+                  "averageDailyVolume3Month": 42547107,
+                  "averageDailyVolume10Day": 41407380,
+                  "fiftyTwoWeekLowChange": 136.08997,
+                  "fiftyTwoWeekLowChangePercent": 0.21626297,
+                  "fiftyTwoWeekRange": "629.28 - 781.62",
+                  "fiftyTwoWeekHighChange": -16.25,
+                  "fiftyTwoWeekHighChangePercent": -0.020790154,
+                  "fiftyTwoWeekLow": 629.28,
+                  "fiftyTwoWeekHigh": 781.62,
+                  "fiftyTwoWeekChangePercent": 11.693716,
+                  "trailingAnnualDividendRate": 5.662,
+                  "trailingPE": 24.299658,
+                  "trailingAnnualDividendYield": 0.0074502947,
+                  "dividendYield": 0.99,
+                  "ytdReturn": 12.67538,
+                  "trailingThreeMonthReturns": 2.27941,
+                  "trailingThreeMonthNavReturns": 2.27941,
+                  "netAssets": 809216110000,
+                  "epsTrailingTwelveMonths": 31.49715,
+                  "sharesOutstanding": 917782016,
+                  "displayName": "S&P 500 ETF Trust",
+                  "symbol": "SPY"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 921076200000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": 0.31451702,
+                  "postMarketPrice": 714.44,
+                  "postMarketChange": 2.2399902,
+                  "regularMarketChange": 7.79999,
+                  "regularMarketChangePercent": 1.10732,
+                  "fulldayChange": 4.6099854,
+                  "fulldayChangePercent": 0.6544556,
+                  "fulldayPrice": 712.2,
+                  "regularMarketPrice": 712.2,
+                  "regularMarketDayHigh": 715.25,
+                  "regularMarketDayRange": "705.58 - 715.25",
+                  "regularMarketDayLow": 705.58,
+                  "regularMarketVolume": 32734475,
+                  "regularMarketPreviousClose": 704.4,
+                  "bid": 717.24,
+                  "ask": 717.49,
+                  "bidSize": 1,
+                  "askSize": 1,
+                  "fullExchangeName": "NasdaqGM",
+                  "marketState": "PREPRE",
+                  "shortName": "Invesco QQQ Trust, Series 1",
+                  "longName": "Invesco QQQ Trust",
+                  "corporateActions": [],
+                  "postMarketTime": 1793059184,
+                  "regularMarketTime": 1793044800,
+                  "exchange": "NGM",
+                  "messageBoardId": "finmb_8108558",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EDT",
+                  "gmtOffSetMilliseconds": -14400000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "bookValue": 357.774,
+                  "fiftyDayAverage": 725.4348,
+                  "fiftyDayAverageChange": -13.234802,
+                  "fiftyDayAverageChangePercent": -0.018243957,
+                  "twoHundredDayAverage": 677.7539,
+                  "twoHundredDayAverageChange": 34.446106,
+                  "twoHundredDayAverageChangePercent": 0.050823912,
+                  "netExpenseRatio": 0.18,
+                  "priceToBook": 1.9906422,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 707.06,
+                  "averageDailyVolume3Month": 35859453,
+                  "averageDailyVolume10Day": 42577270,
+                  "fiftyTwoWeekLowChange": 156.60004,
+                  "fiftyTwoWeekLowChangePercent": 0.28185752,
+                  "fiftyTwoWeekRange": "555.6 - 762.86",
+                  "fiftyTwoWeekHighChange": -50.659973,
+                  "fiftyTwoWeekHighChangePercent": -0.066407956,
+                  "fiftyTwoWeekLow": 555.6,
+                  "fiftyTwoWeekHigh": 762.86,
+                  "fiftyTwoWeekChangePercent": 13.391388,
+                  "trailingAnnualDividendRate": 1.77,
+                  "trailingPE": 27.270658,
+                  "trailingAnnualDividendYield": 0.0025127768,
+                  "dividendYield": 0.42,
+                  "ytdReturn": 20.8292,
+                  "trailingThreeMonthReturns": 0.5336,
+                  "trailingThreeMonthNavReturns": 0.5336,
+                  "netAssets": 498945982000,
+                  "epsTrailingTwelveMonths": 26.115982,
+                  "sharesOutstanding": 393100000,
+                  "symbol": "QQQ"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 959347800000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": -0.0072165113,
+                  "postMarketPrice": 276.97,
+                  "postMarketChange": -0.019989014,
+                  "regularMarketChange": 1.23999,
+                  "regularMarketChangePercent": 0.449679,
+                  "fulldayChange": 0.8999939,
+                  "fulldayChangePercent": 0.3263804,
+                  "fulldayPrice": 276.99,
+                  "regularMarketPrice": 276.99,
+                  "regularMarketDayHigh": 278.76,
+                  "regularMarketDayRange": "276.0 - 278.76",
+                  "regularMarketDayLow": 276,
+                  "regularMarketVolume": 15378046,
+                  "regularMarketPreviousClose": 275.75,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 720,
+                  "askSize": 1840,
+                  "fullExchangeName": "NYSEArca",
+                  "marketState": "PREPRE",
+                  "shortName": "iShares Russell 2000 Index Fund",
+                  "longName": "iShares Russell 2000 ETF",
+                  "corporateActions": [],
+                  "postMarketTime": 1793059103,
+                  "regularMarketTime": 1793044800,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_8797658",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EDT",
+                  "gmtOffSetMilliseconds": -14400000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "bookValue": 218.694,
+                  "fiftyDayAverage": 285.8522,
+                  "fiftyDayAverageChange": -8.862213,
+                  "fiftyDayAverageChangePercent": -0.03100278,
+                  "twoHundredDayAverage": 278.32764,
+                  "twoHundredDayAverageChange": -1.3376465,
+                  "twoHundredDayAverageChangePercent": -0.004806014,
+                  "netExpenseRatio": 0.19,
+                  "priceToBook": 1.2665642,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 276.17,
+                  "averageDailyVolume3Month": 21901216,
+                  "averageDailyVolume10Day": 25594780,
+                  "fiftyTwoWeekLowChange": 48.089996,
+                  "fiftyTwoWeekLowChangePercent": 0.21009174,
+                  "fiftyTwoWeekRange": "228.9 - 305.18",
+                  "fiftyTwoWeekHighChange": -28.190002,
+                  "fiftyTwoWeekHighChangePercent": -0.092371725,
+                  "fiftyTwoWeekLow": 228.9,
+                  "fiftyTwoWeekHigh": 305.18,
+                  "fiftyTwoWeekChangePercent": 10.663199,
+                  "trailingAnnualDividendRate": 2.017,
+                  "trailingPE": 16.295704,
+                  "trailingAnnualDividendYield": 0.0073145963,
+                  "dividendYield": 0.98,
+                  "ytdReturn": 13.61976,
+                  "trailingThreeMonthReturns": -7.23716,
+                  "trailingThreeMonthNavReturns": -7.23716,
+                  "netAssets": 78041727000,
+                  "epsTrailingTwelveMonths": 16.99773,
+                  "sharesOutstanding": 281049984,
+                  "symbol": "IWM"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 885306600000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": 0.0066990806,
+                  "postMarketPrice": 523.005,
+                  "postMarketChange": 0.03503418,
+                  "regularMarketChange": 1.59998,
+                  "regularMarketChangePercent": 0.306879,
+                  "fulldayChange": 2.1799927,
+                  "fulldayChangePercent": 0.41812775,
+                  "fulldayPrice": 522.97,
+                  "regularMarketPrice": 522.97,
+                  "regularMarketDayHigh": 525.61,
+                  "regularMarketDayRange": "521.94 - 525.61",
+                  "regularMarketDayLow": 521.94,
+                  "regularMarketVolume": 2127795,
+                  "regularMarketPreviousClose": 521.37,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 40,
+                  "askSize": 560,
+                  "fullExchangeName": "NYSEArca",
+                  "marketState": "PREPRE",
+                  "shortName": "State Street SPDR Dow Jones Ind",
+                  "longName": "State Street SPDR Dow Jones Industrial Average ETF Trust",
+                  "corporateActions": [],
+                  "postMarketTime": 1793058946,
+                  "regularMarketTime": 1793044800,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_6184218",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EDT",
+                  "gmtOffSetMilliseconds": -14400000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "bookValue": 358.194,
+                  "fiftyDayAverage": 522.5074,
+                  "fiftyDayAverageChange": 0.46258545,
+                  "fiftyDayAverageChangePercent": 0.0008853185,
+                  "twoHundredDayAverage": 505.38504,
+                  "twoHundredDayAverageChange": 17.58493,
+                  "twoHundredDayAverageChangePercent": 0.034795113,
+                  "netExpenseRatio": 0.16,
+                  "priceToBook": 1.4600188,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 523.89,
+                  "averageDailyVolume3Month": 3430578,
+                  "averageDailyVolume10Day": 3308320,
+                  "fiftyTwoWeekLowChange": 72.52997,
+                  "fiftyTwoWeekLowChangePercent": 0.16102026,
+                  "fiftyTwoWeekRange": "450.44 - 546.75",
+                  "fiftyTwoWeekHighChange": -23.78003,
+                  "fiftyTwoWeekHighChangePercent": -0.043493424,
+                  "fiftyTwoWeekLow": 450.44,
+                  "fiftyTwoWeekHigh": 546.75,
+                  "fiftyTwoWeekChangePercent": 10.017883,
+                  "trailingAnnualDividendRate": 5.62,
+                  "trailingPE": 21.280565,
+                  "trailingAnnualDividendYield": 0.010779293,
+                  "dividendYield": 1.42,
+                  "ytdReturn": 6.94214,
+                  "trailingThreeMonthReturns": -2.37615,
+                  "trailingThreeMonthNavReturns": -2.37615,
+                  "netAssets": 43860341000,
+                  "epsTrailingTwelveMonths": 24.575003,
+                  "sharesOutstanding": 81242896,
+                  "displayName": "Dow Jones Indl Average ETF",
+                  "symbol": "DIA"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "triggerable": false,
+                  "customPriceAlertConfidence": "LOW",
+                  "currency": "USD",
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 631267200000,
+                  "priceHint": 2,
+                  "regularMarketChange": -1.0600014,
+                  "regularMarketChangePercent": -5.449878,
+                  "fulldayChange": -1.0600014,
+                  "fulldayChangePercent": -5.449878,
+                  "fulldayPrice": 18.39,
+                  "regularMarketPrice": 18.39,
+                  "regularMarketDayHigh": 0,
+                  "regularMarketDayRange": "0.0 - 0.0",
+                  "regularMarketDayLow": 0,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 19.45,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Cboe Indices",
+                  "marketState": "REGULAR",
+                  "shortName": "CBOE Volatility Index",
+                  "longName": "CBOE Volatility Index",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793045701,
+                  "exchange": "CXI",
+                  "messageBoardId": "finmb_INDEXVIX",
+                  "exchangeTimezoneName": "America/Chicago",
+                  "exchangeTimezoneShortName": "CDT",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "cboe_market",
+                  "esgPopulated": false,
+                  "fiftyDayAverage": 15.9992,
+                  "fiftyDayAverageChange": 2.3907995,
+                  "fiftyDayAverageChangePercent": 0.14943244,
+                  "twoHundredDayAverage": 18.2251,
+                  "twoHundredDayAverageChange": 0.16489983,
+                  "twoHundredDayAverageChangePercent": 0.009047952,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "regularMarketOpen": 0,
+                  "averageDailyVolume3Month": 0,
+                  "averageDailyVolume10Day": 0,
+                  "fiftyTwoWeekLowChange": 18.39,
+                  "fiftyTwoWeekRange": "0.0 - 35.3",
+                  "fiftyTwoWeekHighChange": -16.91,
+                  "fiftyTwoWeekHighChangePercent": -0.47903684,
+                  "fiftyTwoWeekLow": 0,
+                  "fiftyTwoWeekHigh": 35.3,
+                  "fiftyTwoWeekChangePercent": 16.466118,
+                  "symbol": "^VIX"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 1153143000000,
+                  "priceHint": 2,
+                  "regularMarketChange": -0.539999,
+                  "regularMarketChangePercent": -2.636714,
+                  "fulldayChange": -0.539999,
+                  "fulldayChangePercent": -2.636714,
+                  "fulldayPrice": 19.94,
+                  "regularMarketPrice": 19.94,
+                  "regularMarketDayHigh": 0,
+                  "regularMarketDayRange": "0.0 - 0.0",
+                  "regularMarketDayLow": 0,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 20.48,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Chicago Options",
+                  "marketState": "PREPRE",
+                  "shortName": "CBOE S&P 500 3-Month Volatility",
+                  "longName": "CBOE S&P 500 3-Month Volatility",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793045701,
+                  "exchange": "WCB",
+                  "messageBoardId": "finmb_INDEXVIX3M",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EDT",
+                  "gmtOffSetMilliseconds": -14400000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "fiftyDayAverage": 18.5156,
+                  "fiftyDayAverageChange": 1.4244003,
+                  "fiftyDayAverageChangePercent": 0.07692974,
+                  "twoHundredDayAverage": 20.4853,
+                  "twoHundredDayAverageChange": -0.54529953,
+                  "twoHundredDayAverageChangePercent": -0.026619066,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "regularMarketOpen": 0,
+                  "averageDailyVolume3Month": 0,
+                  "averageDailyVolume10Day": 0,
+                  "fiftyTwoWeekLowChange": 19.94,
+                  "fiftyTwoWeekRange": "0.0 - 29.46",
+                  "fiftyTwoWeekHighChange": -9.519999,
+                  "fiftyTwoWeekHighChangePercent": -0.32315,
+                  "fiftyTwoWeekLow": 0,
+                  "fiftyTwoWeekHigh": 29.46,
+                  "fiftyTwoWeekChangePercent": 5.0026298,
+                  "symbol": "^VIX3M"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    ],
+    "host-circuit:query1.finance.yahoo.com": [
+      {
+        "value": false,
+        "count": 6
+      }
+    ],
+    "cache:b9bf084f8fb4084ad181e8bcb8054a52ca965dc51e11fa3b3faa9e5975f762b2:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "b9bf084f8fb4084ad181e8bcb8054a52ca965dc51e11fa3b3faa9e5975f762b2",
+          "adapter": "marketaux-news",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "warnings": ["limit is higher than your plan allows"],
+            "meta": {
+              "found": 0,
+              "returned": 0,
+              "limit": 3,
+              "page": 1
+            },
+            "data": []
+          }
+        }
+      }
+    ],
+    "cache:5bad0ee30252a4d46c0621e7b4c71550c853c3a1e5bc9cdbc5cdde0382369e3e:2026-10-27": [
+      {
+        "bodyFile": "bodies/e3e606feddfd212de961ec084ad053c951b717409dd6d3667dca1fe1fcf3c1bb.json",
+        "sha256": "e3e606feddfd212de961ec084ad053c951b717409dd6d3667dca1fe1fcf3c1bb"
+      }
+    ],
+    "cache:fb3bd709318a5a48a29832147ed3ab6444c22502b698d495fed51019feb7344c:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "fb3bd709318a5a48a29832147ed3ab6444c22502b698d495fed51019feb7344c",
+          "adapter": "yahoo-news",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "explains": [],
+            "count": 22,
+            "quotes": [
+              {
+                "exchange": "NMS",
+                "shortname": "IREN LIMITED",
+                "quoteType": "EQUITY",
+                "symbol": "IREN",
+                "index": "quotes",
+                "score": 88260496,
+                "typeDisp": "Equity",
+                "longname": "IREN Limited",
+                "exchDisp": "NASDAQ",
+                "sector": "Financial Services",
+                "sectorDisp": "Financial Services",
+                "industry": "Capital Markets",
+                "industryDisp": "Capital Markets",
+                "dispSecIndFlag": true,
+                "isYahooFinance": true,
+                "prevName": "Iris Energy Limited",
+                "nameChangeDate": "2026-10-26"
+              },
+              {
+                "exchange": "PCX",
+                "shortname": "Defiance Daily Target 2X Long I",
+                "quoteType": "ETF",
+                "symbol": "IRE",
+                "index": "quotes",
+                "score": 23486,
+                "typeDisp": "ETF",
+                "longname": "Defiance Daily Target 2X Long IREN ETF",
+                "exchDisp": "NYSEArca",
+                "isYahooFinance": true
+              },
+              {
+                "exchange": "BTS",
+                "shortname": "Tradr 2X Long IREN Daily ETF",
+                "quoteType": "ETF",
+                "symbol": "IREX",
+                "index": "quotes",
+                "score": 20724,
+                "typeDisp": "ETF",
+                "longname": "Tradr 2X Long IREN Daily ETF",
+                "exchDisp": "BATS Trading",
+                "isYahooFinance": true
+              },
+              {
+                "exchange": "NGM",
+                "shortname": "Leverage Shares 2X Long IREN Da",
+                "quoteType": "ETF",
+                "symbol": "IREG",
+                "index": "quotes",
+                "score": 20493,
+                "typeDisp": "ETF",
+                "longname": "Leverage Shares 2X Long IREN Daily ETF",
+                "exchDisp": "NASDAQ",
+                "isYahooFinance": true
+              },
+              {
+                "exchange": "BTS",
+                "shortname": "Tradr 2X Short IREN Daily ETF",
+                "quoteType": "ETF",
+                "symbol": "IREZ",
+                "index": "quotes",
+                "score": 20359,
+                "typeDisp": "ETF",
+                "longname": "Tradr 2X Short Iren Daily ETF",
+                "exchDisp": "BATS Trading",
+                "isYahooFinance": true
+              },
+              {
+                "exchange": "MIL",
+                "shortname": "IREN",
+                "quoteType": "EQUITY",
+                "symbol": "IRE.MI",
+                "index": "quotes",
+                "score": 20026,
+                "typeDisp": "Equity",
+                "longname": "Iren SpA",
+                "exchDisp": "Milan",
+                "sector": "Utilities",
+                "sectorDisp": "Utilities",
+                "industry": "Utilities—Diversified",
+                "industryDisp": "Utilities—Diversified",
+                "isYahooFinance": true
+              },
+              {
+                "exchange": "FRA",
+                "shortname": "IREN Ltd.                     R",
+                "quoteType": "EQUITY",
+                "symbol": "F8P.F",
+                "index": "quotes",
+                "score": 20024,
+                "typeDisp": "Equity",
+                "longname": "IREN Limited",
+                "exchDisp": "Frankfurt",
+                "sector": "Financial Services",
+                "sectorDisp": "Financial Services",
+                "industry": "Capital Markets",
+                "industryDisp": "Capital Markets",
+                "isYahooFinance": true,
+                "prevName": "Iris Energy Limited",
+                "nameChangeDate": "2026-10-26"
+              }
+            ],
+            "news": [
+              {
+                "uuid": "03b0fc34-85b4-35b6-9ac4-718886caf509",
+                "title": "Why Did CRWV, IREN, NIO Stocks Slump To 52-Week Lows Today?",
+                "publisher": "Stocktwits",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/why-did-crwv-iren-nio-033017865.html",
+                "providerPublishTime": 1793071817,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/stocktwits_383/3d32439acfe284149f636eb6388655e5.jpg",
+                      "width": 1280,
+                      "height": 853,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/F18C32D6BE952A9FF3873F0334A3060669C2CE9BF8DE5DB674B6D2D5BDF5897B/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Fstocktwits_383%2F3d32439acfe284149f636eb6388655e5.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["IREN", "CRWV", "NIO", "SPCX"]
+              },
+              {
+                "uuid": "86d173b8-f7cd-3e1d-9d6e-395299ac1beb",
+                "title": "Elon Musk Warning Triggers Selloff Across Major Neocloud Stocks",
+                "publisher": "TIKR",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/elon-musk-warning-triggers-selloff-020302843.html",
+                "providerPublishTime": 1793066582,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/tikr_258/9e830f00b33fdacbcf4deac6cf4ff07b",
+                      "width": 1280,
+                      "height": 720,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/CA564069D5FE6788AB88491CD9EC1F2680866B845CA8913EF22CF7E59A671513/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Ftikr_258%2F9e830f00b33fdacbcf4deac6cf4ff07b",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["CRWV", "SPCX", "NBIS", "IREN"]
+              },
+              {
+                "uuid": "8bea589d-e90f-35d5-9c0e-a01b69803160",
+                "title": "Stocks to Watch Recap: Whirlpool, Petrobras, DoorDash, Microsoft",
+                "publisher": "The Wall Street Journal",
+                "link": "https://finance.yahoo.com/m/8bea589d-e90f-35d5-9c0e-a01b69803160/stocks-to-watch-recap%3A.html",
+                "providerPublishTime": 1793048448,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/wsj.com/76d858f466c8d34a5cf185a9a44f5da0.jpg",
+                      "width": 1280,
+                      "height": 640,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/71FD2EFE3741393B90D82071DDC2B84E818C72D05BCE1C8C7949CC64F44A32A8/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Fwsj.com%2F76d858f466c8d34a5cf185a9a44f5da0.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": [
+                  "MELI",
+                  "RRC",
+                  "PBR-A",
+                  "CRWV",
+                  "SPCX",
+                  "MRNA",
+                  "EQT",
+                  "NBIS",
+                  "IREN"
+                ]
+              },
+              {
+                "uuid": "ad20e9c8-6594-4774-b9c3-0354cc9e455d",
+                "title": "CoreWeave, AI landlord stocks sink to lowest levels in more than a year as the price of insuring CoreWeave's debt doubles",
+                "publisher": "Yahoo Finance",
+                "link": "https://finance.yahoo.com/markets/article/coreweave-ai-landlord-stocks-sink-to-lowest-levels-in-more-than-a-year-as-the-price-of-insuring-coreweaves-debt-doubles-140909005.html",
+                "providerPublishTime": 1793048118,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://d29szjachogqwa.cloudfront.net/images/2026-10/1d73ecd8-2195-457c-83a1-27f372b91f8a",
+                      "width": 3000,
+                      "height": 2000,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/3FC8D98E84C679D44BF4D53E2FCF482639C2939DAE0C7AADA81C3A44A564340B/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fd29szjachogqwa.cloudfront.net%2Fimages%2F2026-10%2F1d73ecd8-2195-457c-83a1-27f372b91f8a",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["CRWV", "MSFT", "NVDA", "IREN", "CORZ"]
+              },
+              {
+                "uuid": "f34285b4-f496-3c4f-b29d-49e2d71f092d",
+                "title": "Meta, SpaceX, Tesla, Microsoft, CoreWeave, FICO, and More Stocks That Explain Today’s Market",
+                "publisher": "Barrons.com",
+                "link": "https://finance.yahoo.com/m/f34285b4-f496-3c4f-b29d-49e2d71f092d/meta%2C-spacex%2C-tesla%2C.html",
+                "providerPublishTime": 1793046060,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/Barrons.com/2933caadeee043e8a0450d86d014b261.jpg",
+                      "width": 1280,
+                      "height": 640,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/EDAF3B1C5BF22DB80AFE7B44F97B5D6B464B1215B0B7A035C1F152327203D806/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2FBarrons.com%2F2933caadeee043e8a0450d86d014b261.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": [
+                  "SPCX",
+                  "TSLA",
+                  "CRWV",
+                  "ANTH.PVT",
+                  "ABEV",
+                  "PBR-A",
+                  "META",
+                  "MSFT",
+                  "FICO",
+                  "IREN",
+                  "ABEV",
+                  "PBR",
+                  "XP"
+                ]
+              },
+              {
+                "uuid": "02a250f8-e9b6-36b7-bede-60c43fe13bec",
+                "title": "AI Headlines Pile Up as Wall Street Navigates a Volatile Week",
+                "publisher": "Zacks",
+                "link": "https://finance.yahoo.com/technology/ai/articles/ai-headlines-pile-wall-street-190200236.html",
+                "providerPublishTime": 1793041320,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/zacks.com/a302f59310bd51da4bdd30fd12611e97.jpg",
+                      "width": 635,
+                      "height": 400,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/3FE63671AC12803B2C4E9AB715B8DE1164F5EC1CC789A6F0B6AB8240148B67F1/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Fzacks.com%2Fa302f59310bd51da4bdd30fd12611e97.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": [
+                  "ANTH.PVT",
+                  "^GSPC",
+                  "SPCX",
+                  "META",
+                  "CVX",
+                  "MA",
+                  "XOM",
+                  "LLY",
+                  "GOOGL",
+                  "IREN",
+                  "NBIS",
+                  "CRWV",
+                  "AMZN",
+                  "MSFT"
+                ]
+              },
+              {
+                "uuid": "1589fe64-a27a-3e09-be30-74dcb5b29446",
+                "title": "Elon Musk Sends Strong Warning to Nvidia-Backed Stocks",
+                "publisher": "GuruFocus.com",
+                "link": "https://finance.yahoo.com/technology/ai/articles/elon-musk-sends-strong-warning-184004078.html",
+                "providerPublishTime": 1793040004,
+                "type": "STORY",
+                "relatedTickers": ["NBIS", "CRWV", "IREN", "NVDA"]
+              },
+              {
+                "uuid": "3c6b2350-aba4-3e43-b61a-bc9cebcb18f7",
+                "title": "CoreWeave’s “Final Boss Battle”: AI Tenants Demand Penalties",
+                "publisher": "TIKR",
+                "link": "https://finance.yahoo.com/technology/ai/articles/coreweave-final-boss-battle-ai-182939567.html",
+                "providerPublishTime": 1793039379,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/tikr_258/90521c0af0fd80e72e8bb8c466b34d0b.png",
+                      "width": 1280,
+                      "height": 720,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/4F454F7259FCD4FB485486BD80743605E164D077B9400FAC824C9C1AC2500072/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Ftikr_258%2F90521c0af0fd80e72e8bb8c466b34d0b.png",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["CRWV", "IREN", "NBIS"]
+              },
+              {
+                "uuid": "29544f10-07bc-39dc-acd8-daa71c4a8c56",
+                "title": "News Failure: Neocloud Stocks Defy Musk's Warning",
+                "publisher": "Zacks",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/news-failure-neocloud-stocks-defy-182700918.html",
+                "providerPublishTime": 1793039220,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/zacks.com/a5eb4ad96144138a95c1141d155e4c65.jpg",
+                      "width": 619,
+                      "height": 245,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/C1CCD04AE202AE66B8E78A614AD528E635867169B79801BB3EC968B47E8969C3/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Fzacks.com%2Fa5eb4ad96144138a95c1141d155e4c65.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["CRWV", "NBIS", "IREN", "META"]
+              },
+              {
+                "uuid": "e9984ee7-42ea-3d3d-add0-0f27734734b3",
+                "title": "IREN (IREN) Could Be 65% Undervalued As Debt Fears Hit Neocloud Stocks",
+                "publisher": "Simply Wall St.",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/iren-iren-could-65-undervalued-160901523.html",
+                "providerPublishTime": 1793030941,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/simply_wall_st__316/43e1667cb7476cb45f84db58a8de8d48.jpg",
+                      "width": 1600,
+                      "height": 900,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/DB1542F97C23090E57191605CDE778D0A4EBA05AC2E6C0D683A18D0684D9D138/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Fsimply_wall_st__316%2F43e1667cb7476cb45f84db58a8de8d48.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["IREN"]
+              },
+              {
+                "uuid": "322f74ae-ba88-3c9d-a98d-bbc31d81dc06",
+                "title": "CoreWeave, Iren Slip as Musk Predicts Neocloud Shakeout",
+                "publisher": "GuruFocus.com",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/coreweave-iren-slip-musk-predicts-154005702.html",
+                "providerPublishTime": 1793029205,
+                "type": "STORY",
+                "relatedTickers": ["CRWV", "IREN", "TSLA", "SPCX", "NBIS"]
+              },
+              {
+                "uuid": "f54fba89-e765-3975-93bd-fed834ea866d",
+                "title": "IREN’s radical AI pivot: Is this 43% plunge a buying opportunity or a value trap?",
+                "publisher": "Investing.com",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/iren-radical-ai-pivot-43-151820853.html",
+                "providerPublishTime": 1793027900,
+                "type": "STORY",
+                "relatedTickers": ["IREN", "ANTH.PVT", "BTC-USD", "MSFT"]
+              },
+              {
+                "uuid": "377f004b-177c-3c4e-a8ce-913f99021087",
+                "title": "AI Stocks Will Rise Or Fall On These Midterm Election Races",
+                "publisher": "Investor's Business Daily",
+                "link": "https://finance.yahoo.com/m/377f004b-177c-3c4e-a8ce-913f99021087/ai-stocks-will-rise-or-fall.html",
+                "providerPublishTime": 1793026791,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/ibd.com/819ecf1385c68630a974c3bfb29460a0.jpg",
+                      "width": 1000,
+                      "height": 511,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/ABA5842F128D8783A547DEAC786D22E2EF201075C931944AD825244A6EF09666/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2Fibd.com%2F819ecf1385c68630a974c3bfb29460a0.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["GLXY", "IREN", "WULF", "AMZN", "HUT"]
+              },
+              {
+                "uuid": "ade068cc-dad3-30ed-91f6-a4247cca63e6",
+                "title": "Applied Digital Keeps Cratering: This Analyst Keeps Insisting It’s Going to Jump by 390%",
+                "publisher": "24/7 Wall St.",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/applied-digital-keeps-cratering-analyst-144517750.html",
+                "providerPublishTime": 1793025917,
+                "type": "STORY",
+                "thumbnail": {
+                  "resolutions": [
+                    {
+                      "url": "https://media.zenfs.com/en/24_7_wall_st__718/ed345ad47818aec7fce450ff88435892.jpg",
+                      "width": 1366,
+                      "height": 767,
+                      "tag": "original"
+                    },
+                    {
+                      "url": "https://s.yimg.com/lo/mysterio/api/B4880ABDDFDBE8706CA13AA9BF1768CE765B8A97779F1CD8E096A31FE0479614/subgraphmysterio/resizefill_w140_h140/https:%2F%2Fmedia.zenfs.com%2Fen%2F24_7_wall_st__718%2Fed345ad47818aec7fce450ff88435892.jpg",
+                      "width": 140,
+                      "height": 140,
+                      "tag": "140x140"
+                    }
+                  ]
+                },
+                "relatedTickers": ["APLD", "CRWV", "IREN", "SOFI", "CIFR", "BTC-USD"]
+              },
+              {
+                "uuid": "5b64c5f6-3fe4-33c2-bea5-115fa9b2438c",
+                "title": "BC-Most Active Stocks",
+                "publisher": "Associated Press",
+                "link": "https://finance.yahoo.com/markets/stocks/articles/bc-most-active-stocks-143017076.html",
+                "providerPublishTime": 1793025017,
+                "type": "STORY",
+                "relatedTickers": [
+                  "NVDA",
+                  "TGL",
+                  "WFF",
+                  "SHFS",
+                  "CLRO",
+                  "RCT",
+                  "INTC",
+                  "CRWV",
+                  "^IXIC",
+                  "SGRY",
+                  "AAL",
+                  "IREN",
+                  "INTR",
+                  "JBLU"
+                ]
+              }
+            ],
+            "nav": [],
+            "lists": [],
+            "researchReports": [],
+            "screenerFieldResults": [],
+            "totalTime": 195,
+            "timeTakenForQuotes": 414,
+            "timeTakenForNews": 600,
+            "timeTakenForAlgowatchlist": 400,
+            "timeTakenForPredefinedScreener": 400,
+            "timeTakenForCrunchbase": 0,
+            "timeTakenForNav": 400,
+            "timeTakenForResearchReports": 0,
+            "timeTakenForQuestions": 0,
+            "timeTakenForScreenerField": 0,
+            "timeTakenForCulturalAssets": 0,
+            "timeTakenForSearchLists": 0
+          }
+        }
+      }
+    ],
+    "cache:b725b54e7a9567f2f98465db038ab5ea46647ce6836aa641aec6b7d20a8f2ead:2026-10-27": [{}],
+    "host-circuit:api.massive.com": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:ec360efb8a2ea63a1f3e4944da57fa9dffb4abc5fdf7319784669fe8477d8f20:2026-10-27": [
+      {
+        "bodyFile": "bodies/b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0.json",
+        "sha256": "b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0"
+      },
+      {
+        "bodyFile": "bodies/b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0.json",
+        "sha256": "b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0"
+      },
+      {
+        "bodyFile": "bodies/b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0.json",
+        "sha256": "b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0"
+      },
+      {
+        "bodyFile": "bodies/b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0.json",
+        "sha256": "b2c9db8ed0893707b63bfb10af763c15a366847187f6d16c9e3ef808806bcab0"
+      }
+    ],
+    "cache:630a03d4bde601191abf5f688cfeaf3b90a511b14065dee6106e08fdb3cbe2f3:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "630a03d4bde601191abf5f688cfeaf3b90a511b14065dee6106e08fdb3cbe2f3",
+          "adapter": "finnhub-events-1",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "earningsCalendar": [
+              {
+                "symbol": "IREN",
+                "date": "2026-11-05",
+                "hour": "",
+                "quarter": 1,
+                "year": 2027,
+                "epsEstimate": -0.6789,
+                "epsActual": null,
+                "revenueEstimate": 227655136,
+                "revenueActual": null
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:b32f8daf7a014f1351e4138f1ce941e7453e98e9d03e6d8bbb9d9e86887d806f:2026-10-27": [{}],
+    "host-circuit:finnhub.io": [
+      {
+        "value": false,
+        "count": 3
+      }
+    ],
+    "cache:da29ef23edab84a692a69d4e204eeab676cce3dbbf049f30f98d35621239d58b:2026-10-27": [{}],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba",
+          "adapter": "fred-DGS10",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 16909,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-23",
+                "value": "5"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-22",
+                "value": "4.96"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d",
+          "adapter": "fred-T10Y2Y",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13150,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-26",
+                "value": "0.32"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-23",
+                "value": "0.31"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47",
+          "adapter": "fred-DGS2",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13149,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-23",
+                "value": "4.69"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-22",
+                "value": "4.65"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8",
+          "adapter": "fred-FEDFUNDS",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 867,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-09-01",
+                "value": "3.75"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-08-01",
+                "value": "3.63"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1",
+          "adapter": "fred-CPIAUCSL",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 957,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-09-01",
+                "value": "336.298"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-08-01",
+                "value": "334.131"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8",
+          "adapter": "fred-DTWEXBGS",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 5430,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-23",
+                "value": "121.3202"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-10-22",
+                "value": "121.3531"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-10-27": [
+      {
+        "value": {
+          "cacheKey": "729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed",
+          "adapter": "fred-UNRATE",
+          "fetchedAt": "2026-10-27T07:01:15.567Z",
+          "cachedDate": "2026-10-27",
+          "payload": {
+            "realtime_start": "2026-10-21",
+            "realtime_end": "2026-10-21",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 945,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-09-01",
+                "value": "4.2"
+              },
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-08-01",
+                "value": "4.1"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:045da9e9d44971d89195ca2da8d54f9f5c8d751bba2b900a0f68b3d0e42161c3:2026-10-27": [
+      {
+        "bodyFile": "bodies/43145224a458fb42ccc6fc1eeb90d7aae8de6f7b5a0771d2ce1d0078eeaaeb30.json",
+        "sha256": "43145224a458fb42ccc6fc1eeb90d7aae8de6f7b5a0771d2ce1d0078eeaaeb30"
+      }
+    ],
+    "cache:f3f8f59c649cabfa9c70a028c7be6c49e53a2abd81a944bd585d8ddc4f5587d7:2026-10-27": [
+      {
+        "bodyFile": "bodies/b25aec11148a359e17b05d0784daec64236c544ce4356f567612f2daf981bb3d.json",
+        "sha256": "b25aec11148a359e17b05d0784daec64236c544ce4356f567612f2daf981bb3d"
+      }
+    ],
+    "host-circuit:api.marketaux.com": [
+      {
+        "value": false
+      }
+    ],
+    "cache:93f8df84d71a4ddc3513d86e65500bb87f75792664593ed231c54eb5f36eb9e1:2026-10-27": [
+      {
+        "bodyFile": "bodies/ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1.json",
+        "sha256": "ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1"
+      },
+      {
+        "bodyFile": "bodies/ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1.json",
+        "sha256": "ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1"
+      },
+      {
+        "bodyFile": "bodies/ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1.json",
+        "sha256": "ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1"
+      },
+      {
+        "bodyFile": "bodies/ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1.json",
+        "sha256": "ed74f610a06ec0cbf8a1d60e3f83cfcc48a88d7bb1ce18b3c859503836915af1"
+      }
+    ],
+    "cache:93bf63bb19a600d5b99dce9579289f300ea202eac93b4031feb10e0a14742a05:2026-10-27": [
+      {
+        "bodyFile": "bodies/a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90.json",
+        "sha256": "a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90"
+      },
+      {
+        "bodyFile": "bodies/a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90.json",
+        "sha256": "a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90"
+      },
+      {
+        "bodyFile": "bodies/a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90.json",
+        "sha256": "a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90"
+      },
+      {
+        "bodyFile": "bodies/a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90.json",
+        "sha256": "a91e8c5845f750f22a9ea20900cb5a43fa6fed530a46aca7ceacca4e9af26f90"
+      }
+    ],
+    "cache-stale:b32f8daf7a014f1351e4138f1ce941e7453e98e9d03e6d8bbb9d9e86887d806f": [{}],
+    "cache-stale:da29ef23edab84a692a69d4e204eeab676cce3dbbf049f30f98d35621239d58b": [{}],
+    "news-seen": [
+      {
+        "bodyFile": "bodies/1f627dee180ad584e096272449660af6533cf179c9e3a6a3a482c0bd22cad0a3.json",
+        "sha256": "1f627dee180ad584e096272449660af6533cf179c9e3a6a3a482c0bd22cad0a3"
+      },
+      {
+        "bodyFile": "bodies/1f627dee180ad584e096272449660af6533cf179c9e3a6a3a482c0bd22cad0a3.json",
+        "sha256": "1f627dee180ad584e096272449660af6533cf179c9e3a6a3a482c0bd22cad0a3"
+      }
+    ],
+    "cache:95ddbcba54e2d550ed9a0983aca24cbbb7ecb7323f0234374aa6d5ecbf1efc8d:2026-10-27": [
+      {
+        "bodyFile": "bodies/5e9592ff2261c5ec3f581ba0481b2e95c826d6cc6004d4d378222dd9ae6ca903.json",
+        "sha256": "5e9592ff2261c5ec3f581ba0481b2e95c826d6cc6004d4d378222dd9ae6ca903"
+      }
+    ],
+    "cache:a5c2fd2163f8941f917cc40e605b099ddb2fee84bac88cfdb564d125ec9fe703:2026-10-27": [{}],
+    "cache-stale:a5c2fd2163f8941f917cc40e605b099ddb2fee84bac88cfdb564d125ec9fe703": [{}],
+    "cache:46b23530532d331598d399ab95c65b9c18cf04556227b4faa9a441f051a7490b:accession": [
+      {
+        "bodyFile": "bodies/f86cf78e3bd883b49734f2907f0e3e007a06d9a00b337d2b772ae9f3643a7d8e.json",
+        "sha256": "f86cf78e3bd883b49734f2907f0e3e007a06d9a00b337d2b772ae9f3643a7d8e"
+      }
+    ],
+    "calibration": [
+      {
+        "value": {
+          "generatedAt": "2026-10-27T08:35:23.838Z",
+          "resolvedCount": 72,
+          "duplicateForecastCount": 44,
+          "missAutopsyCount": 21,
+          "brierScore": 0.21249861111111124,
+          "hitRate": 0.375,
+          "bins": [
+            {
+              "pLow": 0.1,
+              "pHigh": 0.2,
+              "label": "0.1-0.2",
+              "hitCount": 1,
+              "totalCount": 8,
+              "hitRate": 0.125
+            },
+            {
+              "pLow": 0.2,
+              "pHigh": 0.3,
+              "label": "0.2-0.3",
+              "hitCount": 3,
+              "totalCount": 14,
+              "hitRate": 0.21428571428571427
+            },
+            {
+              "pLow": 0.3,
+              "pHigh": 0.4,
+              "label": "0.3-0.4",
+              "hitCount": 15,
+              "totalCount": 38,
+              "hitRate": 0.39473684210526316
+            },
+            {
+              "pLow": 0.4,
+              "pHigh": 0.5,
+              "label": "0.4-0.5",
+              "hitCount": 1,
+              "totalCount": 2,
+              "hitRate": 0.5
+            },
+            {
+              "pLow": 0.5,
+              "pHigh": 0.6,
+              "label": "0.5-0.6",
+              "hitCount": 1,
+              "totalCount": 2,
+              "hitRate": 0.5
+            },
+            {
+              "pLow": 0.6,
+              "pHigh": 0.7,
+              "label": "0.6-0.7",
+              "hitCount": 6,
+              "totalCount": 8,
+              "hitRate": 0.75
+            }
+          ],
+          "byKind": {
+            "range": {
+              "brierScore": 0.1947469387755103,
+              "count": 49,
+              "runCount": 31,
+              "brierStandardError": 0.025739778564736138
+            },
+            "relative": {
+              "brierScore": 0.22668888888888883,
+              "count": 18,
+              "runCount": 17,
+              "brierStandardError": 0.028116537492971275
+            },
+            "direction": {
+              "brierScore": 0.30362500000000003,
+              "count": 4,
+              "runCount": 4,
+              "brierStandardError": 0.05527622115340375
+            },
+            "conditional": {
+              "brierScore": 0.4624000000000001,
+              "count": 1,
+              "runCount": 1
+            }
+          },
+          "byAssetClass": {
+            "equity": {
+              "brierScore": 0.21249861111111124,
+              "count": 72,
+              "runCount": 36,
+              "brierStandardError": 0.017599116102190625
+            }
+          },
+          "byJobType": {
+            "equity": {
+              "brierScore": 0.2106942857142858,
+              "count": 70,
+              "runCount": 35,
+              "brierStandardError": 0.017989687491500383
+            },
+            "forecast-grid": {
+              "brierScore": 0.27564999999999995,
+              "count": 2,
+              "runCount": 1
+            }
+          },
+          "byMarketUpdateHorizonBucket": {},
+          "byHorizonBucket": {
+            "1d": {
+              "brierScore": 0.1504333333333333,
+              "count": 15,
+              "runCount": 14,
+              "brierStandardError": 0.046672359424856584
+            },
+            "2-5d": {
+              "brierScore": 0.23785454545454543,
+              "count": 44,
+              "runCount": 28,
+              "brierStandardError": 0.022486321629851456
+            },
+            "6-10d": {
+              "brierScore": 0.23567500000000005,
+              "count": 8,
+              "runCount": 8,
+              "brierStandardError": 0.07971961747722005
+            },
+            "16-20d": {
+              "brierScore": 0.13848000000000002,
+              "count": 5,
+              "runCount": 5,
+              "brierStandardError": 0.003686787219246593
+            }
+          },
+          "byMarketRegime": {
+            "risk-on": {
+              "brierScore": 0.21327999999999997,
+              "count": 20,
+              "runCount": 13,
+              "brierStandardError": 0.035614381369516064
+            },
+            "risk-off": {
+              "brierScore": 0.21858857142857138,
+              "count": 35,
+              "runCount": 17,
+              "brierStandardError": 0.029693904348876327
+            },
+            "mixed": {
+              "brierScore": 0.18882666666666667,
+              "count": 15,
+              "runCount": 5,
+              "brierStandardError": 0.01848517630994837
+            }
+          },
+          "marketRegimeCoverage": {
+            "risk-on": 20,
+            "risk-off": 35,
+            "mixed": 15,
+            "unknown": 2
+          },
+          "byMissAutopsyCause": {
+            "insufficient_evidence": 19,
+            "model_overconfidence": 2
+          },
+          "conditionalPredictions": {
+            "activatedCount": 1,
+            "voidedCount": 2
+          }
+        }
+      }
+    ],
+    "alpha-watchlist": [
+      {
+        "value": {
+          "watchlist": {
+            "generatedAt": "2026-08-17T04:02:33.492Z",
+            "candidates": [
+              {
+                "symbol": "ATR",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 24,
+                  "socialMomentumScore": 16.7,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "BILL",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 25,
+                  "socialMomentumScore": 15.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DRTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 13,
+                  "socialMomentumScore": 20.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DSGX",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "sec-only",
+                  "discoverySources": ["sec-filings"],
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "EOSE",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 14,
+                  "socialMomentumScore": 19.98,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "FA",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 17,
+                  "socialMomentumScore": 18.73,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "GETY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 11,
+                  "socialMomentumScore": 20.34,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 22,
+                  "socialMomentumScore": 16.99,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 20,
+                  "socialMomentumScore": 17.67,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NEXT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 15,
+                  "socialMomentumScore": 19.54,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NVTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 18,
+                  "socialMomentumScore": 18.39,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "OUT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 19,
+                  "socialMomentumScore": 18.31,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "PUMP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 21,
+                  "socialMomentumScore": 17.12,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "TMC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 10,
+                  "socialMomentumScore": 20.44,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "WAY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 4,
+                  "socialMomentumScore": 24.18,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "history:null": [
+      {
+        "value": {
+          "generatedAt": "2026-10-27T08:35:23.838Z",
+          "recentDays": 90,
+          "anchorMonths": [3, 6, 12],
+          "runs": [
+            {
+              "runId": "2026-10-27T07-01-15-567Z-8184fead",
+              "sourceId": "history-report-2026-10-27T07-01-15-567Z-8184fead",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "generatedAt": "2026-10-27T07:01:15.567Z",
+              "selectionReasons": ["recent", "same-symbol"],
+              "summary": "IREN is shifting from Bitcoin mining toward a vertically integrated AI cloud business, but the supplied financial evidence shows that the transition’s operating economics and pace remain uncertain. Contracted capacity and financing support the expansion case; losses, capital intensity, dilution, and sector funding concerns weigh on it. Recent price behavior is weak over the longer term, while the upcoming results release is a potential source of new operating and financing evidence.",
+              "confidence": "high",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: For the year ended June 30, 2026, IREN reported revenue of $707.0 million: $128.8 million from AI Cloud Services and $578.2 million from Bitcoin mining. AI remained a minority of recognized revenue.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Observed fact: FY2026 revenue grew +41.1% YoY (FY ending 2026-06-30), while operating income was $-1.0B and net income attributable to the parent was -$702.6 million. The reported gross margin of 68.9% is consolidated and does not establish AI segment profitability; segment operating income is unavailable.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Issuer claim: IREN’s August update reported $4 billion of contracted ARR for 2026 capacity and $1 billion of operating ARR at that time, with 2026 capacity largely sold out. These annualized run rates are distinct from recognized FY2026 revenue.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Observed fact: The 10-K reported about 40 MW of operating AI Cloud Services capacity and about 5 GW covered by grid agreements or similar arrangements as of June 30, 2026. The August update targeted cumulative delivery of approximately 0.3 GW in 2026 and 0.8 GW in 2027; the targets and power arrangements do not establish completed, utilized capacity.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Observed fact: At June 30, 2026, cash was $5.9B (as of 2026-06-30), debt was $7.6B (as of 2026-06-30), and net debt was $1.7B (as of 2026-06-30). IREN also described GPU financing and customer prepayments tied to GPU capex, but the supplied disclosures do not establish a complete funding plan for total infrastructure investment.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Execution and monetization risk: the company-reported contracted ARR exceeds operating ARR, while AI Cloud Services remained a minority of FY2026 recognized revenue. Customer-level commencement schedules, utilization, cancellation terms, and renewal rates are unavailable.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Funding and dilution risk: the latest reported balance sheet showed debt above cash, diluted weighted-average shares increased year over year, and total capex is not reliably established from the supplied filing evidence.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Business-mix risk: Bitcoin mining supplied most FY2026 revenue; the 10-K states that mining revenue changes with Bitcoin price and mining output. AI segment operating income is unavailable.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Observed fact: IREN’s October 26 close was below its 50-day and 200-day averages, with a negative MACD histogram. These observations indicate weak price behavior in the supplied window but do not identify positioning or establish future direction.",
+                  "sourceIds": ["verified-snapshot-IREN"]
+                },
+                {
+                  "text": "Valuation sensitivity is difficult to assess because the supplied EV/revenue calculation combines October market capitalization with June balance-sheet data, forward EPS is negative, and no usable peers support a peer-derived reference range.",
+                  "sourceIds": [
+                    "market-yahoo-equity-iren",
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-filings"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "IREN’s scheduled Q1 FY2027 results release is a near-term information event. The issuer notice gives November 5, 2026; the earnings calendar labels the date provider-estimated and gives no timing. Results could update evidence on deployment, revenue conversion, financing, and liquidity.",
+                  "sourceIds": ["web-iren-cbacb1ad", "extended-finnhub-events-iren"]
+                },
+                {
+                  "text": "Updates on operating AI capacity, operating ARR, and recognized AI revenue would test whether contracted capacity is converting into productive operations. The August update reported contracted and operating ARR but did not supply contract-level commencement schedules.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Conversion of late-stage 2027 customer discussions into signed agreements could clarify forward capacity demand; the August announcement does not quantify conversion likelihood or timing.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: Missing SEC company facts: grossProfit [IREN]",
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
+                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint is unavailable for the configured token (status 403)"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "IREN closes outside 21.9-29.53 over 10 trading days",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +10) outside [21.9, 29.53]",
+                  "horizonTradingDays": 10,
+                  "probability": 0.39,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-1",
+                  "claim": "IREN closes outside 24.26-26.66 over 1 trading day",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +1) outside [24.26, 26.66]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.52,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-5",
+                  "claim": "IREN closes outside 22.88-28.26 over 5 trading days",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +5) outside [22.88, 28.26]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.4,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-20",
+                  "claim": "IREN closes outside 20.59-31.41 over 20 trading days",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +20) outside [20.59, 31.41]",
+                  "horizonTradingDays": 20,
+                  "probability": 0.33,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-relative-5",
+                  "claim": "IREN outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:SPY",
+                  "measurableAs": "close(IREN, +5)/close(IREN, 0) > close(SPY, +5)/close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                }
+              ],
+              "scoreSummary": {
+                "total": 5,
+                "resolved": 0,
+                "hit": 0,
+                "miss": 0,
+                "unresolved": 5
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "IREN",
+                  "price": 25.43,
+                  "changePercent24h": 2.10801,
+                  "volume": 58208096,
+                  "observedAt": "2026-10-27T07:01:15.567Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "mixed",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies positive: 4/4",
+                    "trend negative: 3/4 proxies below 50-day average",
+                    "VIX term structure contango: VIX 18.39 vs VIX3M 19.94"
+                  ]
+                }
+              }
+            },
+            {
+              "runId": "2026-09-29T17-00-02-047Z-4bb5fad0",
+              "sourceId": "history-report-2026-09-29T17-00-02-047Z-4bb5fad0",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "generatedAt": "2026-09-29T17:00:02.047Z",
+              "selectionReasons": ["recent", "miss-correction", "same-symbol"],
+              "summary": "IREN’s central thesis is a transition from Bitcoin mining toward a vertically integrated AI cloud business. FY2026 revenue grew, but Bitcoin mining remained the larger segment; substantial losses and capital spending leave the transition dependent on delivery, revenue conversion, and improving economics. August’s reported contracted ARR and GPU financing support the expansion case, while the gap between operating capacity and broader power arrangements underscores execution uncertainty.",
+              "confidence": "high",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: For the year ended June 30, 2026, IREN reported $707.0 million in revenue: $128.8 million from AI Cloud Services and $578.2 million from Bitcoin mining. AI accounted for 18.2% of reported revenue.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Issuer claim: IREN’s August 27 results announcement reported $4 billion of contracted ARR for 2026 capacity, $1 billion operating at that time, and 2026 capacity largely sold out. These annualized run rates are distinct from FY2026 recognized revenue.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Observed fact: As of June 30, 2026, IREN reported about 40 MW of operating AI computing capacity and about 5 GW of power agreements or similar arrangements, plus a further multi-gigawatt development pipeline. The evidence does not establish how quickly those arrangements can become energized, equipped, and utilized capacity.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Observed fact: FY2026 revenue grew 41.1% year over year, while operating income was negative $1.05 billion, net income attributable to the parent was negative $702.6 million, and diluted EPS was negative $2.22. Capex was $3.00 billion; the supplied free-cash-flow proxy was negative $897.6 million.",
+                  "sourceIds": ["extended-sec-edgar-iren-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: At June 30, 2026, cash was $5.90 billion and debt was $7.59 billion, for net debt of $1.70 billion. IREN reported $2.8 billion of GPU financing covering 90% of associated GPU capex; that figure does not establish coverage of all infrastructure or future funding needs.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Execution and monetization risk: the company-reported contracted ARR materially exceeds operating ARR, while reported AI revenue remained a minority of FY2026 revenue. The evidence does not provide detailed contract commencement schedules or deployment milestones.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Funding and dilution risk: debt exceeded cash at the latest reported period, FY2026 capex was substantial, and diluted shares increased 41.6% year over year. The supplied evidence does not establish a complete forward funding plan.",
+                  "sourceIds": ["extended-sec-edgar-iren-fundamentals"]
+                },
+                {
+                  "text": "Customer concentration and contract-quality risk remain difficult to assess because customer-level revenue shares, commencement schedules, renewal rates, and repeat-purchase rates are not supplied.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Valuation sensitivity is elevated in the supplied evidence: IREN trades at 25.33x EV to annualized FY2026 revenue, above the reported 11.22x peer median, but that median is based on one core peer and multiple peers were excluded.",
+                  "sourceIds": [
+                    "market-yahoo-equity-iren",
+                    "extended-sec-edgar-iren-fundamentals",
+                    "market-yahoo-equity-corz",
+                    "extended-sec-edgar-corz-fundamentals"
+                  ]
+                },
+                {
+                  "text": "Observed fact: The latest supplied reported financial period ended June 30, 2026. This limits visibility into subsequent deployment, liquidity, leverage, and operating results.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-filings",
+                    "extended-sec-edgar-iren-fundamentals"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Updates showing contracted capacity moving into operating ARR and recognized AI revenue would directly test the transition thesis. The August 27 update reported $4 billion of contracted ARR and $1 billion operating at that time.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Further disclosure on GPU deployment, operating capacity, and delivery under customer contracts would clarify whether power and infrastructure arrangements are becoming productive capacity. No specific future event date is supplied.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Conversion of late-stage 2027 customer discussions into signed agreements could improve forward capacity visibility; the supplied announcement does not quantify timing or conversion likelihood.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: Missing SEC company facts: grossProfit [IREN]",
+                "sec-edgar: Missing comparable SEC company facts for YoY deltas: debt [IREN]",
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "IREN outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:SPY",
+                  "measurableAs": "close(IREN, +5) / close(IREN, 0) > close(SPY, +5) / close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.36,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.9975833183606316,
+                    "returnB": 1.0194844470172602
+                  }
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "IREN closes outside 35-50 over 5 trading days",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +5) outside [35, 50]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.38,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 41.279998779296875,
+                    "lo": 35,
+                    "hi": 50
+                  }
+                },
+                {
+                  "id": "pred-3",
+                  "claim": "IREN outperforms QQQ over 10 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:QQQ",
+                  "measurableAs": "close(IREN, +10) / close(IREN, 0) > close(QQQ, +10) / close(QQQ, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.37,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.840985943421717,
+                    "returnB": 1.0076430212952674
+                  }
+                },
+                {
+                  "id": "pred-4",
+                  "claim": "IREN closes above its origin close over 5 trading days",
+                  "kind": "direction",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +5) > close(IREN, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.38,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "close0": 41.380001068115234,
+                    "closeN": 41.279998779296875
+                  }
+                }
+              ],
+              "scoreSummary": {
+                "total": 4,
+                "resolved": 4,
+                "hit": 0,
+                "miss": 4,
+                "unresolved": 0
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "IREN",
+                  "price": 41.13,
+                  "changePercent24h": -1.4141902,
+                  "volume": 19128470,
+                  "observedAt": "2026-09-29T17:00:02.047Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies negative: 4/4",
+                    "trend mixed: 2/4 proxies above 50-day average",
+                    "VIX term structure contango: VIX 16.33 vs VIX3M 18.22"
+                  ]
+                }
+              }
+            },
+            {
+              "runId": "2026-09-29T07-09-03-579Z-004c11b7",
+              "sourceId": "history-report-2026-09-29T07-09-03-579Z-004c11b7",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "generatedAt": "2026-09-29T07:09:03.579Z",
+              "selectionReasons": ["recent", "miss-correction", "same-symbol"],
+              "summary": "IREN’s thesis depends on converting its capital-intensive Bitcoin-mining business into a larger AI cloud platform. Company-reported contracts and capacity plans support a demand case, while FY2026 losses, heavy capital spending, and a large gap between contracted and operating ARR leave execution and financing central. The September 28 close showed pronounced weakness relative to broad equity proxies. The evidence supports a high-uncertainty research view, not a settled conclusion.",
+              "confidence": "high",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: IREN’s FY2026 10-K describes a vertically integrated AI cloud platform spanning data centers, compute, and software. For the year ended June 30, 2026, revenue was $707.0 million: $128.8 million from AI Cloud Services and $578.2 million from Bitcoin mining. AI remained a minority of reported revenue.",
+                  "sourceIds": ["extended-sec-edgar-iren-10k"]
+                },
+                {
+                  "text": "Issuer claim: In its August 27, 2026 results announcement, IREN reported $4 billion of contracted ARR for 2026 capacity, $1 billion of ARR operating at that time, and 2026 capacity largely sold out. These run-rate figures are not recognized FY2026 revenue; delivery and conversion remain important tests.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Issuer claim: The August results announcement described a new multi-year contract with a leading frontier AI lab, additional customer signings, and late-stage discussions over a significant portion of 2027 capacity. It does not quantify customer revenue shares or specify when those discussions would become signed contracts.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Observed fact: FY2026 revenue grew 41.1% year over year, while operating income was negative $1.05 billion, net income attributable to the parent was negative $702.6 million, and diluted EPS was negative $2.22. The supplied free-cash-flow proxy was negative $897.6 million; capex was $3.00 billion.",
+                  "sourceIds": ["extended-sec-edgar-iren-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: At June 30, 2026, cash was $5.90 billion, debt was $7.59 billion, and net debt was $1.70 billion. IREN reported $2.8 billion of GPU financing covering 90% of associated GPU capex. The financing helps fund expansion but does not remove broader capital and delivery risks.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Observed fact: The latest supplied reported financial period ended June 30, 2026, nearly three months before this analysis. The evidence flags the reporting surface as not current for quarterly cadence, limiting visibility into present deployment, liquidity, and leverage.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-filings"
+                  ]
+                },
+                {
+                  "text": "Missing required source: The supplied 10-K evidence does not quantify customer concentration, revenue shares by customer or region, contract commencement schedules, renewal rates, or repeat-purchase rates. Those omissions limit assessment of diversification and contracted revenue quality.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-10k",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Missing required source: SEC-derived company facts omit gross profit and comparable year-over-year debt figures; untagged interim facts were not validated. This limits analysis of unit economics and leverage trends.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-filings",
+                    "extended-sec-edgar-iren-fundamentals"
+                  ]
+                },
+                {
+                  "text": "Observed fact: The supplied balance sheet showed $7.59 billion of debt against $5.90 billion of cash at June 30, 2026, while FY2026 capex was $3.00 billion. GPU financing covers associated GPU capex as reported by the company, but total funding and execution risk remains.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-fundamentals",
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051"
+                  ]
+                },
+                {
+                  "text": "Missing required source: No intraday, order-flow, short-interest, positioning, or current peer price and volume series is supplied. The September 28 price move cannot be decomposed into market, sector, and issuer effects.",
+                  "sourceIds": ["market-yahoo-equity-iren", "verified-snapshot-IREN"]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Issuer claim: Evidence of progress moving contracted capacity into operating ARR and recognized revenue would directly test the transition thesis; IREN reported $4 billion of contracted ARR and $1 billion operating at the time of its August 27 update.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Issuer claim: Conversion of late-stage 2027 customer discussions into signed agreements, alongside delivery under the new multi-year contract and recent signings, could strengthen forward capacity visibility.",
+                  "sourceIds": ["extended-sec-edgar-iren-8k-0001878848-26-000051"]
+                },
+                {
+                  "text": "Model inference: Updates on GPU deployment, operating capacity, and financing could clarify whether capital spending is translating into productive AI infrastructure; the supplied evidence gives no specific future event date.",
+                  "sourceIds": [
+                    "extended-sec-edgar-iren-8k-0001878848-26-000051",
+                    "extended-sec-edgar-iren-10k"
+                  ]
+                },
+                {
+                  "text": "Conflicting evidence: Recent coverage describes a sector-wide neocloud selloff alongside reports of rising GPU rental rates and analyst disagreement. Further sector pricing and demand evidence could alter the context for IREN’s capacity economics, but the reports are secondary.",
+                  "sourceIds": [
+                    "web-iren-114742d9",
+                    "web-iren-dd1b483c",
+                    "news-equity-12",
+                    "news-equity-15"
+                  ]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: Missing SEC company facts: grossProfit [IREN]",
+                "sec-edgar: Missing comparable SEC company facts for YoY deltas: debt [IREN]",
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "IREN outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:SPY",
+                  "measurableAs": "close(IREN, +5) / close(IREN, 0) > close(SPY, +5) / close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.34,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.9975833183606316,
+                    "returnB": 1.0194844470172602
+                  }
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "IREN closes outside 35-50 over 5 trading days",
+                  "kind": "range",
+                  "subject": "IREN",
+                  "measurableAs": "close(IREN, +5) outside [35, 50]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.37,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 41.279998779296875,
+                    "lo": 35,
+                    "hi": 50
+                  }
+                },
+                {
+                  "id": "pred-3",
+                  "claim": "IREN outperforms SPY over 10 trading days",
+                  "kind": "relative",
+                  "subject": "IREN:SPY",
+                  "measurableAs": "close(IREN, +10) / close(IREN, 0) > close(SPY, +10) / close(SPY, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.43,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.840985943421717,
+                    "returnB": 1.0180711820701365
+                  }
+                }
+              ],
+              "scoreSummary": {
+                "total": 3,
+                "resolved": 3,
+                "hit": 0,
+                "miss": 3,
+                "unresolved": 0
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "IREN",
+                  "price": 41.72,
+                  "changePercent24h": -5.45042,
+                  "volume": 26170535,
+                  "observedAt": "2026-09-29T06:55:48.375Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies negative: 4/4",
+                    "trend mixed: 2/4 proxies above 50-day average",
+                    "VIX term structure contango: VIX 16.07 vs VIX3M 18.23"
+                  ]
+                }
+              }
+            }
+          ],
+          "sources": [
+            {
+              "id": "history-report-2026-10-27T07-01-15-567Z-8184fead",
+              "title": "equity IREN prior report",
+              "fetchedAt": "2026-10-27T07:01:15.567Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "provider": "market-bot",
+              "rawRef": "2026-10-27T07-01-15-567Z-8184fead/report.json",
+              "summary": "IREN is shifting from Bitcoin mining toward a vertically integrated AI cloud business, but the supplied financial evidence shows that the transition’s operating economics and pace remain uncertain. Contracted capacity and financing support the expansion case; losses, capital intensity, dilution, and sector funding concerns weigh on it. Recent price behavior is weak over the longer term, while the upcoming results release is a potential source of new operating and financing evidence."
+            },
+            {
+              "id": "history-report-2026-09-29T17-00-02-047Z-4bb5fad0",
+              "title": "equity IREN prior report",
+              "fetchedAt": "2026-09-29T17:00:02.047Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "provider": "market-bot",
+              "rawRef": "2026-09-29T17-00-02-047Z-4bb5fad0/report.json",
+              "summary": "IREN’s central thesis is a transition from Bitcoin mining toward a vertically integrated AI cloud business. FY2026 revenue grew, but Bitcoin mining remained the larger segment; substantial losses and capital spending leave the transition dependent on delivery, revenue conversion, and improving economics. August’s reported contracted ARR and GPU financing support the expansion case, while the gap between operating capacity and broader power arrangements underscores execution uncertainty."
+            },
+            {
+              "id": "history-report-2026-09-29T07-09-03-579Z-004c11b7",
+              "title": "equity IREN prior report",
+              "fetchedAt": "2026-09-29T07:09:03.579Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "IREN",
+              "provider": "market-bot",
+              "rawRef": "2026-09-29T07-09-03-579Z-004c11b7/report.json",
+              "summary": "IREN’s thesis depends on converting its capital-intensive Bitcoin-mining business into a larger AI cloud platform. Company-reported contracts and capacity plans support a demand case, while FY2026 losses, heavy capital spending, and a large gap between contracted and operating ARR leave execution and financing central. The September 28 close showed pronounced weakness relative to broad equity proxies. The evidence supports a high-uncertainty research view, not a settled conclusion."
+            }
+          ],
+          "gaps": ["No prior equity market-update runs found"],
+          "audit": {
+            "scannedRunCount": 72,
+            "malformedRunCount": 0,
+            "malformedScoreCount": 0,
+            "candidateRunCount": 3,
+            "selectedRunCount": 3,
+            "recentSelectedCount": 3,
+            "anchorSelectedCount": 0,
+            "sameSymbolSelectedCount": 3,
+            "spotlightSymbolSelectedCount": 0,
+            "sameSubjectSelectedCount": 0,
+            "sameHorizonSelectedCount": 0,
+            "crossHorizonSelectedCount": 0,
+            "resolvedMissRunCount": 2,
+            "missCorrectionSelectedCount": 2,
+            "gapCount": 1
+          },
+          "artifactDeltas": []
+        }
+      }
+    ],
+    "forecast-persistence-baseline": [{}]
+  }
+}

@@ -10,7 +10,11 @@ import {
 } from "./model-input-sanitizer";
 import type { FetchTextResult } from "./types";
 import { secFilingKey, type SecFiling } from "./sec-filing-selection";
-import { secGeographyFactMetrics, secSegmentFactMetrics } from "./sec-segment-facts";
+import {
+  secExtensionCapexFactMetrics,
+  secGeographyFactMetrics,
+  secSegmentFactMetrics,
+} from "./sec-segment-facts";
 import {
   normalizeFilingText,
   secFilingSectionPacket,
@@ -274,6 +278,7 @@ export function buildSecFilingSourceItem(
         ? {
             ...secSegmentFactMetrics(filingText.payload, filing.reportDate),
             ...secGeographyFactMetrics(filingText.payload, filing.reportDate),
+            ...secExtensionCapexFactMetrics(filingText.payload, filing.reportDate),
           }
         : {}),
     },

@@ -22,7 +22,38 @@ function snapshot(
   };
 }
 
+function driverTexts(summary: MarketRegimeSummary): readonly string[] {
+  return summary.drivers.map((driver) => driver.text);
+}
+
+function driverSourceIds(summary: MarketRegimeSummary, prefix: string): readonly string[] {
+  return summary.drivers.find((driver) => driver.text.startsWith(prefix))?.sourceIds ?? [];
+}
+
 describe("summarizeMarketRegime", () => {
+  test("cites each driver with the snapshots it used", () => {
+    const summary = summarizeMarketRegime("equity", [
+      snapshot("SPY", 0.8, 105, 100),
+      snapshot("QQQ", 1.1, 210),
+      snapshot("^VIX", 3, 26),
+      snapshot("^VIX3M", 1, 24),
+    ]);
+
+    expect(driverSourceIds(summary, "equity breadth")).toEqual(["market-spy", "market-qqq"]);
+    expect(driverSourceIds(summary, "trend")).toEqual(["market-spy"]);
+    expect(driverSourceIds(summary, "VIX term structure")).toEqual([
+      "market-^vix",
+      "market-^vix3m",
+    ]);
+    expect(driverSourceIds(summary, "VIX elevated")).toEqual(["market-^vix"]);
+  });
+
+  test("omits the term structure driver when VIX3M is missing", () => {
+    const summary = summarizeMarketRegime("equity", [snapshot("SPY", 1), snapshot("^VIX", 0, 16)]);
+
+    expect(driverTexts(summary).some((text) => text.startsWith("VIX term structure"))).toBe(false);
+  });
+
   test("classifies equity regime from breadth proxies and volatility", () => {
     const summary = summarizeMarketRegime("equity", [
       snapshot("SPY", -1.2),
@@ -37,8 +68,8 @@ describe("summarizeMarketRegime", () => {
       proxyCount: 4,
     });
     expect(summary.sourceIds).toEqual(["market-spy", "market-qqq", "market-iwm", "market-^vix"]);
-    expect(summary.drivers).toContain("equity breadth proxies negative: 3/3");
-    expect(summary.drivers).toContain("VIX elevated at 29");
+    expect(driverTexts(summary)).toContain("equity breadth proxies negative: 3/3");
+    expect(driverTexts(summary)).toContain("VIX elevated at 29");
   });
 
   test("classifies crypto regime from major asset breadth", () => {
@@ -53,7 +84,7 @@ describe("summarizeMarketRegime", () => {
       label: "risk-on",
       proxyCount: 2,
     });
-    expect(summary.drivers).toContain("major crypto proxies positive: 2/2");
+    expect(driverTexts(summary)).toContain("major crypto proxies positive: 2/2");
   });
 
   test("uses elevated VIX as an explicit equity risk-off driver without breadth", () => {
@@ -69,7 +100,10 @@ describe("summarizeMarketRegime", () => {
       label: "risk-off",
       proxyCount: 1,
     });
-    expect(summary.drivers).toEqual(["equity breadth proxies unavailable", "VIX elevated at 28"]);
+    expect(driverTexts(summary)).toEqual([
+      "equity breadth proxies unavailable",
+      "VIX elevated at 28",
+    ]);
   });
 
   test("reports zero-change breadth as mixed without dropping proxy coverage", () => {
@@ -79,7 +113,7 @@ describe("summarizeMarketRegime", () => {
       label: "mixed",
       proxyCount: 2,
     });
-    expect(summary.drivers).toEqual(["equity breadth proxies mixed: 0/2"]);
+    expect(driverTexts(summary)).toEqual(["equity breadth proxies mixed: 0/2"]);
   });
 
   test("ignores VIX when summarizing crypto regime", () => {
@@ -91,7 +125,7 @@ describe("summarizeMarketRegime", () => {
       proxyCount: 1,
     });
     expect(summary.sourceIds).toEqual(["market-btc"]);
-    expect(summary.drivers).toEqual(["major crypto proxies positive: 1/1"]);
+    expect(driverTexts(summary)).toEqual(["major crypto proxies positive: 1/1"]);
   });
 
   test("classifies risk-on from agreeing breadth and trend with calm term structure", () => {
@@ -105,9 +139,9 @@ describe("summarizeMarketRegime", () => {
     ]);
 
     expect(summary).toMatchObject({ assetClass: "equity", label: "risk-on", proxyCount: 6 });
-    expect(summary.drivers).toContain("equity breadth proxies positive: 4/4");
-    expect(summary.drivers).toContain("trend positive: 4/4 proxies above 50-day average");
-    expect(summary.drivers).toContain("VIX term structure contango: VIX 16.00 vs VIX3M 18.00");
+    expect(driverTexts(summary)).toContain("equity breadth proxies positive: 4/4");
+    expect(driverTexts(summary)).toContain("trend positive: 4/4 proxies above 50-day average");
+    expect(driverTexts(summary)).toContain("VIX term structure contango: VIX 16.00 vs VIX3M 18.00");
     expect(summary.sourceIds).toContain("market-^vix3m");
   });
 
@@ -120,8 +154,10 @@ describe("summarizeMarketRegime", () => {
     ]);
 
     expect(summary.label).toBe("risk-off");
-    expect(summary.drivers).toContain("VIX term structure backwardation: VIX 22.00 vs VIX3M 20.00");
-    expect(summary.drivers).not.toContain("VIX elevated at 22");
+    expect(driverTexts(summary)).toContain(
+      "VIX term structure backwardation: VIX 22.00 vs VIX3M 20.00",
+    );
+    expect(driverTexts(summary)).not.toContain("VIX elevated at 22");
   });
 
   test("reports mixed when breadth and trend drivers disagree", () => {
@@ -135,8 +171,8 @@ describe("summarizeMarketRegime", () => {
     ]);
 
     expect(summary.label).toBe("mixed");
-    expect(summary.drivers).toContain("equity breadth proxies positive: 4/4");
-    expect(summary.drivers).toContain("trend negative: 4/4 proxies below 50-day average");
+    expect(driverTexts(summary)).toContain("equity breadth proxies positive: 4/4");
+    expect(driverTexts(summary)).toContain("trend negative: 4/4 proxies below 50-day average");
   });
 
   test("falls back to insufficient-data when no driver has inputs", () => {
@@ -144,7 +180,7 @@ describe("summarizeMarketRegime", () => {
 
     expect(summary.label).toBe("insufficient-data");
     expect(summary.label).not.toBe("risk-on");
-    expect(summary.drivers).toEqual(["equity breadth proxies unavailable"]);
+    expect(driverTexts(summary)).toEqual(["equity breadth proxies unavailable"]);
     expect(summary.proxyCount).toBe(0);
   });
 });
@@ -154,7 +190,7 @@ describe("addMarketContextToRegime", () => {
     assetClass: "equity",
     label: "risk-on",
     proxyCount: 2,
-    drivers: ["equity breadth proxies positive: 2/2"],
+    drivers: [{ text: "equity breadth proxies positive: 2/2", sourceIds: ["market-spy"] }],
     sourceIds: ["market-spy"],
   };
 
@@ -201,8 +237,11 @@ describe("addMarketContextToRegime", () => {
 
     expect(summary.label).toBe("risk-on");
     expect(summary.drivers).toEqual([
-      "equity breadth proxies positive: 2/2",
-      "FRED macro context: DGS10 4.25",
+      ...regime.drivers,
+      {
+        text: "FRED macro context: DGS10 4.25",
+        sourceIds: ["market-spy", "market-context-fred-macro"],
+      },
     ]);
     expect(summary.sourceIds).toEqual(["market-spy", "market-context-fred-macro"]);
   });
@@ -228,7 +267,7 @@ describe("addMarketContextToRegime", () => {
 
     const summary = addMarketContextToRegime(regime, context);
 
-    expect(summary.drivers).toEqual(regime.drivers);
+    expect(summary.drivers).toBe(regime.drivers);
     expect(summary.sourceIds).toEqual(["market-spy", "market-context-fred-macro"]);
   });
 });

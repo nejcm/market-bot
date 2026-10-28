@@ -185,6 +185,15 @@ function annualAndTtmHistory(): FundamentalHistoryArtifact {
   } as unknown as FundamentalHistoryArtifact;
 }
 
+function renderEarningsSection(report: Record<string, unknown>): string {
+  const projection = projectEquityReader({ report });
+  return renderCompactEarningsAndConsensus(
+    researchReport({ jobType: "equity", assetClass: "equity", symbol: "MSFT" }),
+    projection.defaultView.earningsConsensus,
+    projection.defaultView.earningsSetupCollected,
+  );
+}
+
 describe("equity reader projection", () => {
   test("projects each latest available financial-position metric independently", () => {
     const cash = statementSeries("cash", [
@@ -669,6 +678,27 @@ describe("equity reader projection", () => {
     ]);
   });
 
+  test("separates an uncollected earnings setup from a collected empty one", () => {
+    const notCollected = renderEarningsSection({ symbol: "MSFT", extras: { depth: "brief" } });
+    expect(notCollected).toContain(
+      "- Earnings setup was not collected for this run; upcoming earnings were not checked.",
+    );
+    expect(notCollected).not.toContain("No upcoming earnings");
+
+    // CollectEarningsSetup returns no setup for both a missing finnhub snapshot and no near-window event.
+    for (const extras of [{ depth: "deep" }, { depth: "deep", earningsForecasts: {} }]) {
+      expect(renderEarningsSection({ symbol: "MSFT", extras })).toContain(
+        "- No upcoming earnings or consensus snapshot is available.",
+      );
+    }
+
+    const collectedEmpty = renderEarningsSection({
+      symbol: "MSFT",
+      extras: { earningsSetup: { gaps: [] } },
+    });
+    expect(collectedEmpty).toContain("- No upcoming earnings or consensus snapshot is available.");
+  });
+
   test("renders a source-stated conflicting date beside the provider date", () => {
     const report = {
       symbol: "NET",
@@ -723,6 +753,7 @@ describe("equity reader projection", () => {
         ],
       }),
       projection.defaultView.earningsConsensus,
+      projection.defaultView.earningsSetupCollected,
     );
 
     expect(markdown).toContain(

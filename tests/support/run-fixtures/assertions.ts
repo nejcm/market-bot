@@ -1975,7 +1975,9 @@ export function assertOperatingRatioInvariants(
         (candidate) => candidate.periodKey === da?.periodKey,
       );
       expect(
-        metric.basis.includes("depreciation + intangible amortization"),
+        /D&A basis: (depreciation \+ intangible|cash-flow depreciation and amortization \+) amortization/u.test(
+          metric.basis,
+        ),
         `${label} names its component basis`,
       ).toBe(fact?.composite !== undefined);
     }
@@ -2601,6 +2603,18 @@ export function assertMarketRegimeRendered(result: RunFixtureResult): void {
     ? regime.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
     : [];
   expect(sourceIds.length, "market regime must cite sources").toBeGreaterThan(0);
+  const drivers = Array.isArray(regime.drivers) ? regime.drivers.filter(isRecord) : [];
+  expect(drivers.length, "market regime drivers").toBeGreaterThan(0);
+  for (const driver of drivers) {
+    const driverSourceIds = Array.isArray(driver.sourceIds) ? driver.sourceIds : [];
+    expect(
+      driverSourceIds.length,
+      `regime driver ${String(driver.text)} cites a source`,
+    ).toBeGreaterThan(0);
+    expect(result.markdown, `regime driver ${String(driver.text)} cited in report.md`).toContain(
+      `- ${String(driver.text)} [${String(driverSourceIds[0])}]`,
+    );
+  }
   for (const sourceId of sourceIds) {
     if (result.report.sources.some((source) => source.id === sourceId)) {
       expect(sourcesSection, `market regime source ${sourceId} in Sources`).toContain(

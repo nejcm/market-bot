@@ -415,7 +415,9 @@ test("renders the equity market regime with its drivers and citations", () => {
         assetClass: "equity",
         label: "risk-on",
         proxyCount: 4,
-        drivers: ["equity breadth proxies positive: 4/4"],
+        drivers: [
+          { text: "equity breadth proxies positive: 4/4", sourceIds: ["market-yahoo-equity-spy"] },
+        ],
         sourceIds: ["market-yahoo-equity-spy"],
       },
     },
@@ -425,10 +427,53 @@ test("renders the equity market regime with its drivers and citations", () => {
 
   expect(markdown).toContain("## Market Regime");
   expect(markdown).toContain("**Backdrop:** risk-on [market-yahoo-equity-spy]");
-  expect(markdown).toContain("- equity breadth proxies positive: 4/4");
+  expect(markdown).toContain("- equity breadth proxies positive: 4/4 [market-yahoo-equity-spy]");
   expect(markdown).toContain("- [market-yahoo-equity-spy] SPY snapshot");
   expect(markdown).not.toContain("uncited normalized source(s)");
   expect(renderMarkdownReport({ ...equityReport, extras: {} })).not.toContain("## Market Regime");
+});
+
+const regimeSource = (id: string, symbol: string) => ({
+  id,
+  title: `${symbol} snapshot`,
+  fetchedAt: "2026-05-19T00:00:00.000Z",
+  kind: "market-data" as const,
+  assetClass: "equity" as const,
+  symbol,
+});
+
+test("cites each market regime driver with its own sources", () => {
+  const vixIds = ["market-yahoo-equity-^vix", "market-yahoo-equity-^vix3m"];
+  const markdown = renderMarkdownReport({
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    sources: [
+      regimeSource("market-yahoo-equity-spy", "SPY"),
+      regimeSource("market-yahoo-equity-^vix", "^VIX"),
+      regimeSource("market-yahoo-equity-^vix3m", "^VIX3M"),
+    ],
+    extras: {
+      marketRegime: {
+        assetClass: "equity",
+        label: "mixed",
+        proxyCount: 3,
+        drivers: [
+          { text: "equity breadth proxies positive: 1/1", sourceIds: ["market-yahoo-equity-spy"] },
+          { text: "VIX term structure contango: VIX 17.86 vs VIX3M 19.59", sourceIds: vixIds },
+          { text: "trend positive: 1/1 proxies above 50-day average", sourceIds: ["unknown-id"] },
+        ],
+        sourceIds: ["market-yahoo-equity-spy", ...vixIds],
+      },
+    },
+  });
+
+  expect(markdown).toContain("- equity breadth proxies positive: 1/1 [market-yahoo-equity-spy]\n");
+  expect(markdown).toContain(
+    "- VIX term structure contango: VIX 17.86 vs VIX3M 19.59 [market-yahoo-equity-^vix] [market-yahoo-equity-^vix3m]\n",
+  );
+  expect(markdown).toContain("- trend positive: 1/1 proxies above 50-day average\n");
 });
 
 test("collects regime sources from a mixed sourceIds array", () => {
@@ -452,7 +497,7 @@ test("collects regime sources from a mixed sourceIds array", () => {
         assetClass: "equity",
         label: "risk-on",
         proxyCount: 1,
-        drivers: ["equity breadth proxies positive: 4/4"],
+        drivers: [{ text: "equity breadth proxies positive: 4/4", sourceIds: ["known-id"] }],
         sourceIds: ["known-id", null],
       },
     },

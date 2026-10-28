@@ -697,77 +697,94 @@ describe("operatingRatiosSection", () => {
     ).toMatchObject([{ value: expected, concept: "DepreciationDepletionAndAmortization" }]);
   });
 
-  test("AMD FY2023-25 component D&A below cash-flow D&A plus intangible add-back withholds", () => {
-    // AMD 10-K 0000002488-26-000018: Depreciation + AmortizationOfIntangibleAssets vs filed cash-flow lines.
+  test("AMD FY2023-25 D&A is the cash-flow D&A line plus the intangible add-back", () => {
+    // AMD 10-K 0000002488-26-000018 cash-flow statement: OtherDepreciationAndAmortization + AdjustmentForAmortization.
     const years = [
       { start: "2023-01-01", end: "2023-12-30", dep: 441, amort: 2800, other: 642, add: 2811 },
       { start: "2023-12-31", end: "2024-12-28", dep: 454, amort: 2400, other: 671, add: 2393 },
       { start: "2024-12-29", end: "2025-12-27", dep: 521, amort: 2300, other: 750, add: 2254 },
     ];
-    const filed = (pick: (year: (typeof years)[number]) => number) => ({
+    type Year = (typeof years)[number];
+    const filed = (pick: (year: Year) => number, accn = "0000002488-26-000018", extra = 0) => ({
       units: {
-        USD: years.map((year) =>
-          fact(pick(year) * 1_000_000, Number(year.end.slice(0, 4)), {
-            start: year.start,
-            end: year.end,
-            accn: "0000002488-26-000018",
-            fy: 2025,
-            filed: "2026-02-04",
-          }),
+        USD: years.flatMap((year) =>
+          [pick(year), ...(extra === 0 ? [] : [pick(year) + extra])].map((value) =>
+            fact(value * 1_000_000, Number(year.end.slice(0, 4)), {
+              start: year.start,
+              end: year.end,
+              accn,
+              fy: 2025,
+              filed: "2026-02-04",
+            }),
+          ),
         ),
       },
     });
-    const concepts = (adjustment: (year: (typeof years)[number]) => number) =>
-      usGaap({
-        Revenues: filed(() => 25_000),
-        OperatingIncomeLoss: filed(() => 1000),
-        DepreciationDepletionAndAmortization: undefined,
-        DepreciationAndAmortization: undefined,
-        Depreciation: filed((year) => year.dep),
-        AmortizationOfIntangibleAssets: filed((year) => year.amort),
-        OtherDepreciationAndAmortization: filed((year) => year.other),
-        AdjustmentForAmortization: filed(adjustment),
-      });
-    const withheld = evaluate(
-      context(
-        concepts((year) => year.add),
-        {},
-        "us-gaap",
-        AS_OF,
-      ),
-    );
-    const zero = evaluate(
-      context(
-        concepts(() => 0),
-        {},
-        "us-gaap",
-        AS_OF,
-      ),
-    );
+    const evaluateLines = (lines: Record<string, unknown>) =>
+      evaluate(
+        context(
+          usGaap({
+            Revenues: filed(() => 25_000),
+            OperatingIncomeLoss: filed(() => 1000),
+            DepreciationDepletionAndAmortization: undefined,
+            DepreciationAndAmortization: undefined,
+            Depreciation: filed((year) => year.dep),
+            AmortizationOfIntangibleAssets: filed((year) => year.amort),
+            OtherDepreciationAndAmortization: filed((year) => year.other),
+            AdjustmentForAmortization: filed((year) => year.add),
+            ...lines,
+          }),
+          {},
+          "us-gaap",
+          AS_OF,
+        ),
+      );
+    const run = (lines: Record<string, unknown>) => evaluateLines(lines).ctx.statements!;
+    const annual = (lines: Record<string, unknown>) =>
+      run(lines).statements.cashFlowStatement.depreciationAndAmortization.annual;
+    const componentSums = [3_241_000_000, 2_854_000_000, 2_821_000_000];
 
+    expect(annual({})).toMatchObject([
+      { value: 3_453_000_000, periodEnd: "2023-12-30", accessionNumber: "0000002488-26-000018" },
+      { value: 3_064_000_000, periodEnd: "2024-12-28", accessionNumber: "0000002488-26-000018" },
+      { value: 3_004_000_000, periodEnd: "2025-12-27", accessionNumber: "0000002488-26-000018" },
+    ]);
     expect(
-      withheld.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+      evaluateLines({}).section.metrics.find(({ id }) => id === "ebitdaProxy")?.basis,
+    ).toContain("D&A basis: cash-flow depreciation and amortization + amortization add-back");
+    expect(
+      run({}).omissionNotes.filter((note) => note.seriesKey === "depreciationAndAmortization"),
     ).toEqual([]);
-    for (const [end, published, cashFlow] of [
-      ["2023-12-30", 3_241_000_000, 3_453_000_000],
-      ["2024-12-28", 2_854_000_000, 3_064_000_000],
-      ["2025-12-27", 2_821_000_000, 3_004_000_000],
-    ] as const) {
-      expect(withheld.ctx.statements!.omissionNotes).toContainEqual(
+    // A zero or missing add-back leaves the note components, which the lone face line does not contradict.
+    for (const lines of [
+      { AdjustmentForAmortization: filed(() => 0) },
+      { AdjustmentForAmortization: undefined },
+    ]) {
+      expect(annual(lines).map((row) => row.value)).toEqual(componentSums);
+    }
+    const pairBelowComponents = (millions: number) => ({
+      AdjustmentForAmortization: filed((year) => year.dep + year.amort - year.other - millions),
+    });
+    // A pair more than 1% below the components falls back to them; within 1% the pair publishes.
+    expect(annual(pairBelowComponents(100)).map((row) => row.value)).toEqual(componentSums);
+    expect(annual(pairBelowComponents(20)).map((row) => row.value)).toEqual(
+      componentSums.map((sum) => sum - 20_000_000),
+    );
+    // Withheld: lines from different filings, a conflicting duplicate tag, or an add-back above intangible amortization.
+    for (const lines of [
+      { AdjustmentForAmortization: filed((year) => year.add, "0000002488-25-000012") },
+      { AdjustmentForAmortization: filed((year) => year.add, undefined, 5) },
+      { AdjustmentForAmortization: filed((year) => year.amort + 100) },
+    ]) {
+      expect(annual(lines)).toEqual([]);
+      expect(run(lines).omissionNotes).toContainEqual(
         expect.objectContaining({
           code: "incomplete-composite-series",
-          periodKey: `duration:12|${end}`,
-          message: expect.stringContaining(
-            `(${String(published)}) is below the filed cash-flow D&A lines (${String(cashFlow)})`,
-          ),
+          periodKey: "duration:12|2025-12-27",
+          message: expect.stringContaining("is below the filed cash-flow D&A lines"),
         }),
       );
     }
-    expect(
-      zero.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual.map(
-        (row) => row.value,
-      ),
-    ).toEqual([3_241_000_000, 2_854_000_000, 2_821_000_000]);
   });
 
   test("AMD FY2020-22 depreciation without an amortization component withholds with a gap", () => {

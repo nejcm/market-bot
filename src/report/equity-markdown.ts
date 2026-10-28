@@ -82,6 +82,7 @@ function equityProjectionRendererFactory() {
     earningsConsensus: (
       _report: ResearchReport,
       _value: typeof projection.defaultView.earningsConsensus,
+      _setupCollected: typeof projection.defaultView.earningsSetupCollected,
     ) => "",
     completeness: (_value: typeof projection.appendix.completeness) => "",
     balanceSheet: (
@@ -170,7 +171,11 @@ export function renderEquityMarkdownReport(
     sections.renderCatalystCalendar(report),
     sections.renderFindings("Key Findings", report.keyFindings),
     sections.renderFindings("Risks", report.risks),
-    sections.renderEarningsConsensus(report, projection.defaultView.earningsConsensus),
+    sections.renderEarningsConsensus(
+      report,
+      projection.defaultView.earningsConsensus,
+      projection.defaultView.earningsSetupCollected,
+    ),
     sections.renderGapSection(
       "Material Data Gaps",
       projection.defaultView.materialGaps,

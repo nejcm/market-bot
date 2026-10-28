@@ -84,14 +84,20 @@ export function renderMarketRegime(report: ResearchReport): string {
   if (!isRecord(regime) || typeof regime.label !== "string") {
     return "";
   }
-  const drivers = stringArrayValue(regime.drivers);
+  const drivers = Array.isArray(regime.drivers) ? regime.drivers.filter(isRecord) : [];
   const sourceIds = stringArrayValue(regime.sourceIds);
   const refs = sourceRefs(knownSourceIds(report, sourceIds));
   return [
     "## Market Regime",
     "",
     `**Backdrop:** ${markdownText(regime.label)}${refs === "" ? "" : ` ${refs}`}`,
-    ...drivers.map((driver) => `- ${markdownText(driver)}`),
+    ...drivers.flatMap((driver) => {
+      if (typeof driver.text !== "string") {
+        return [];
+      }
+      const driverRefs = sourceRefs(knownSourceIds(report, driver.sourceIds));
+      return [`- ${markdownText(driver.text)}${driverRefs === "" ? "" : ` ${driverRefs}`}`];
+    }),
     "",
   ].join("\n");
 }
@@ -300,14 +306,17 @@ function renderConsensusItem(report: ResearchReport, item: EquityReaderConsensus
 export function renderCompactEarningsAndConsensus(
   report: ResearchReport,
   items: readonly EquityReaderConsensusItem[],
+  setupCollected: boolean,
 ): string {
   const rows = items.map((item) => renderConsensusItem(report, item));
-  return [
-    "## Upcoming Earnings and Consensus",
-    "",
-    ...(rows.length === 0 ? ["- No upcoming earnings or consensus snapshot is available."] : rows),
-    "",
-  ].join("\n");
+  if (rows.length === 0) {
+    rows.push(
+      setupCollected
+        ? "- No upcoming earnings or consensus snapshot is available."
+        : "- Earnings setup was not collected for this run; upcoming earnings were not checked.",
+    );
+  }
+  return ["## Upcoming Earnings and Consensus", "", ...rows, ""].join("\n");
 }
 
 function firstEvidenceMetric(

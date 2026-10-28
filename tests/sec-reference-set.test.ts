@@ -227,15 +227,24 @@ const CASES: readonly ReferenceCase[] = [
         "R3 3,694 x (1 - 21% statutory; filed rate -2.5%) / R5 (62,999 + 3,222 - 5,539 - 5,013)",
       ),
       ebitdaProxy: {
-        status: "missing",
-        reason:
-          "no same-period depreciation and amortization for the fiscal year ending 2025-12-27",
+        status: "value",
+        value: 6_698_000_000,
+        line: "R3 operating income 3,694 + R8 depreciation and amortization 750 + amortization of acquisition-related intangibles 2,254",
       },
     },
     depreciationAndAmortization: {
-      "2023-12-30": { omitted: "below the filed cash-flow D&A lines (3453000000)" },
-      "2024-12-28": { omitted: "below the filed cash-flow D&A lines (3064000000)" },
-      "2025-12-27": { omitted: "below the filed cash-flow D&A lines (3004000000)" },
+      "2023-12-30": statement(
+        3_453_000_000,
+        "R8 FY2023 D&A 642 + acquisition-related intangibles 2,811",
+      ),
+      "2024-12-28": statement(
+        3_064_000_000,
+        "R8 FY2024 D&A 671 + acquisition-related intangibles 2,393",
+      ),
+      "2025-12-27": statement(
+        3_004_000_000,
+        "R8 FY2025 D&A 750 + acquisition-related intangibles 2,254",
+      ),
     },
   },
   {

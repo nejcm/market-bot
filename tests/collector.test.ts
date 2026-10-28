@@ -2266,7 +2266,9 @@ describe("collectSources", () => {
     expect(rankedSymbols).not.toContain("SPY");
 
     const regime = summarizeMarketRegime("equity", result.marketSnapshots);
-    expect(regime.drivers).toContain("trend positive: 1/1 proxies above 50-day average");
+    expect(regime.drivers.map((driver) => driver.text)).toContain(
+      "trend positive: 1/1 proxies above 50-day average",
+    );
   });
 
   test("adds sector benchmark context to equity movers without standalone snapshots", async () => {

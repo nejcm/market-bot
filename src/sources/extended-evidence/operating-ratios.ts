@@ -358,7 +358,13 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
         ...(facts[1]!.composite === undefined
           ? {}
           : {
-              basis: `${EBITDA_PROXY_BASIS}; D&A basis: depreciation + intangible amortization`,
+              basis: `${EBITDA_PROXY_BASIS}; D&A basis: ${
+                facts[1]!.composite.components.some(
+                  ({ concept }) => concept === "OtherDepreciationAndAmortization",
+                )
+                  ? "cash-flow depreciation and amortization + amortization add-back"
+                  : "depreciation + intangible amortization"
+              }`,
             }),
       }),
     ),

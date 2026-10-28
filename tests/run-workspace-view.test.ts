@@ -1035,12 +1035,18 @@ describe("run workspace view", () => {
   test("discloses unavailable earnings data in Simple", async () => {
     const detail = tableOfContentsFixture();
     const report = { ...detail.report, extras: undefined, extendedEvidence: undefined };
+    const briefReport = { ...report, extras: { depth: "brief" } };
 
-    const html = await renderRunWorkspaceComponent({ ...detail, report }, "simple");
-    const text = htmlText(html);
+    const text = htmlText(await renderRunWorkspaceComponent({ ...detail, report }, "simple"));
+    const briefText = htmlText(
+      await renderRunWorkspaceComponent({ ...detail, report: briefReport }, "simple"),
+    );
 
     expect(text).toContain("Upcoming earnings & consensus");
     expect(text).toContain("No confirmed upcoming earnings or consensus data is available.");
+    expect(briefText).toContain(
+      "Earnings setup was not collected for this run; upcoming earnings were not checked.",
+    );
   }, 15_000);
 
   test("renders and binds every Advanced equity table-of-contents target", async () => {
@@ -2082,7 +2088,7 @@ describe("run workspace view", () => {
             assetClass: "equity",
             label: "risk-on",
             proxyCount: 4,
-            drivers: ["equity breadth proxies positive: 4/4"],
+            drivers: [{ text: "equity breadth proxies positive: 4/4", sourceIds: ["market-aapl"] }],
             sourceIds: ["market-aapl"],
           },
         },
@@ -3617,18 +3623,21 @@ describe("run workspace view", () => {
 
 describe("earnings consensus conflict rendering", () => {
   test("renders the conflicting source date beside the provider earnings date", () => {
-    const view = earningsConsensusFromProjection([
-      {
-        kind: "earnings-date",
-        symbol: "NET",
-        date: "2026-10-29",
-        timing: "amc",
-        status: "provider-estimated",
-        sourceIds: ["extended-finnhub-events-net", "news-equity-6"],
-        conflictDate: "2026-11-05",
-        conflictSourceId: "news-equity-6",
-      },
-    ]);
+    const view = earningsConsensusFromProjection(
+      [
+        {
+          kind: "earnings-date",
+          symbol: "NET",
+          date: "2026-10-29",
+          timing: "amc",
+          status: "provider-estimated",
+          sourceIds: ["extended-finnhub-events-net", "news-equity-6"],
+          conflictDate: "2026-11-05",
+          conflictSourceId: "news-equity-6",
+        },
+      ],
+      true,
+    );
 
     expect(view.items).toEqual([
       {

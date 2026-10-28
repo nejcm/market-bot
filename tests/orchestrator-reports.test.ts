@@ -146,7 +146,10 @@ describe("runResearchJob report assembly and market context", () => {
         readonly marketContext?: unknown;
         readonly marketRegime?: {
           readonly label?: string;
-          readonly drivers?: readonly string[];
+          readonly drivers?: readonly {
+            readonly text: string;
+            readonly sourceIds: readonly string[];
+          }[];
           readonly sourceIds?: readonly string[];
         };
       };
@@ -154,7 +157,9 @@ describe("runResearchJob report assembly and market context", () => {
 
     expect(finalPrompt.evidence?.marketContext).toBeDefined();
     expect(finalPrompt.evidence?.marketRegime?.label).toBe("insufficient-data");
-    expect(finalPrompt.evidence?.marketRegime?.drivers).toContain("FRED macro context: DGS10 4.25");
+    expect(finalPrompt.evidence?.marketRegime?.drivers?.map((driver) => driver.text)).toContain(
+      "FRED macro context: DGS10 4.25",
+    );
     expect(finalPrompt.evidence?.marketRegime?.sourceIds).toContain("market-context-fred-macro");
     expect(result.report.sources.map((source) => source.id)).toContain("market-context-fred-macro");
     expect(result.report.extras?.marketContext).toEqual(marketContext);

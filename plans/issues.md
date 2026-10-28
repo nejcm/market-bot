@@ -6,8 +6,9 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 - EV preferred stock and temporary equity are carrying amounts, not market or redemption value.
 - ROIC subtracts short-term investments only where the EV bridge resolves (us-gaap facts, current artifact keys); otherwise it is withheld with the bridge reason, like net debt.
-- D&A is withheld when filed lines prove the selected value incomplete: AMD FY2020–25 (FY2023 $642M + $2,811M = $3,453M cash-flow D&A; FY2022 $4,174M), DDOG FY2022, and DDA-below-DA splits at DDOG, CRM, EBAY and RIOT. Publishing the totals needs cash-flow statement placement plus the calculation linkbase; a footing check on the latest 10-K (~170 src lines) would recover only AMD FY2023–25 from cached filings, so it is not built.
+- D&A is withheld when filed lines prove the selected value incomplete (AMD FY2023–25 now publish the same-filing cash-flow pair): AMD FY2020–22 (FY2022 $626M + $3,548M = $4,174M has no intangible-amortization component to bound the add-back; FY2020–21 file one line only), DDOG FY2022, and DDA-below-DA splits at DDOG, CRM, EBAY and RIOT. Publishing the rest needs cash-flow statement placement plus the calculation linkbase.
 - D&A component sums (Depreciation + AmortizationOfIntangibleAssets) with no cash-flow D&A line are published but unverifiable: 18 issuers / 179 annual periods (INTC, ABBV, MSFT, ORCL, AVGO among them); a missing COGS or other amortization line goes undetected.
+- The D&A cash-flow pair (`OtherDepreciationAndAmortization` + `AdjustmentForAmortization`, AMD FY2023–25) publishes overstated if an issuer's `OtherDepreciationAndAmortization` already includes intangible amortization and it also tags a small unrelated `AdjustmentForAmortization`; the guards bound the add-back by intangible amortization, not the face line's scope. No issuer in the 2026-10-28 sweep reproduces this.
 - ROIC's statutory-rate fallback uses the US federal rate only and the current `stateOfIncorporation`. A REIT outside SIC 6798 or a pass-through with a corporate-looking name is not caught; a filer-tagged `EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate` would be the sourced alternative.
 - Capex carries no operations-scope tag and is used as reported beside continuing OCF (the FCF basis says so); AMD's 2025 10-Q discontinued-operations capex extension is excluded unchecked. IFRS issuers have no continuing-OCF concept, so their discontinued periods are not checked.
 
@@ -33,8 +34,7 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## Run cost and citations
 
-- SEC evidence summaries carry the whole bounded section packet plus `[Key Disclosures]` (HLIT 10-Q summary 9,061 chars) per extendedEvidence stage; the HLIT 10-K Key Disclosures repeats the top-10 customer sentence in two wordings.
-- Final synthesis may invent peer source IDs on its first attempt (run 6349c37b: 3 retries, 233k tokens); measure the retry count on the next live runs.
+- SEC evidence summaries carry the whole bounded section packet plus `[Key Disclosures]` (HLIT 10-Q summary 9,061 chars) per extendedEvidence stage.
+
 - Final synthesis peer-median comparisons can omit peer sources (run a008bf63 bearCase[1]).
-- Uncited deterministic "VIX term structure contango" bullet in `report.md` (0600df32, b35e25a2); the `market-yahoo-equity-^vix3m` source exists but the bullet carries no source ID.
 - Earnings-date confirmation never gathered the AMD issuer release in runs 10-20/10-23, so the date stays provider-estimated; the ir.amd.com calendar page fails the future-tense check.

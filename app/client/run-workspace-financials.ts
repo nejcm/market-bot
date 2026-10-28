@@ -117,6 +117,7 @@ interface RunWorkspaceEarningsConsensusItem {
 
 export interface RunWorkspaceEarningsConsensusView {
   readonly items: readonly RunWorkspaceEarningsConsensusItem[];
+  readonly setupCollected: boolean;
 }
 
 export interface RunWorkspaceAnalystEstimateDistribution {
@@ -356,8 +357,10 @@ export function financialPositionFromProjection(
 
 export function earningsConsensusFromProjection(
   items: readonly EquityReaderConsensusItem[],
+  setupCollected: boolean,
 ): RunWorkspaceEarningsConsensusView {
   return {
+    setupCollected,
     items: items.map((item) => {
       if (item.kind === "earnings-date") {
         const conflict =

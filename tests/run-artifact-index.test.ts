@@ -947,7 +947,7 @@ describe("run artifact index", () => {
             assetClass: "equity",
             label: "risk-off",
             proxyCount: 3,
-            drivers: ["breadth"],
+            drivers: [{ text: "breadth", sourceIds: [] }],
             sourceIds: ["s1"],
           },
         },

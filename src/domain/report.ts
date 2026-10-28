@@ -14,11 +14,16 @@ export function isMarketRegimeLabel(value: unknown): value is MarketRegimeLabel 
   return MARKET_REGIME_LABELS.includes(value as MarketRegimeLabel);
 }
 
+export interface MarketRegimeDriver {
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+}
+
 export interface MarketRegimeSummary {
   readonly assetClass: AssetClass;
   readonly label: MarketRegimeLabel;
   readonly proxyCount: number;
-  readonly drivers: readonly string[];
+  readonly drivers: readonly MarketRegimeDriver[];
   readonly sourceIds: readonly string[];
 }
 

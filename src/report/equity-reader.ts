@@ -145,6 +145,7 @@ export interface EquityReaderProjection {
     readonly valuationContext: EquityReaderValuationContext;
     readonly earningsBasis?: EquityReaderEarningsBasis;
     readonly earningsConsensus: readonly EquityReaderConsensusItem[];
+    readonly earningsSetupCollected: boolean;
     readonly materialGaps: readonly string[];
   };
   readonly appendix: {
@@ -269,6 +270,12 @@ function valuationContext(
 
 function reportRecord(report: unknown): Record<string, unknown> | undefined {
   return isRecord(report) ? report : undefined;
+}
+
+function earningsSetupCollected(report: unknown): boolean {
+  const extras = reportRecord(report)?.extras;
+  // Deep runs collect the setup but emit none when the snapshot or a near-window event is missing.
+  return !isRecord(extras) || extras.depth !== "brief" || isRecord(extras.earningsSetup);
 }
 
 function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[] {
@@ -479,6 +486,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
       ),
       ...(projectedEarningsBasis === undefined ? {} : { earningsBasis: projectedEarningsBasis }),
       earningsConsensus: earningsConsensus(input.report),
+      earningsSetupCollected: earningsSetupCollected(input.report),
       materialGaps: gaps.material,
     },
     appendix: {

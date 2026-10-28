@@ -1,6 +1,9 @@
 // Dimensional ASC 280 segment facts read from a 10-K/10-Q inline XBRL primary document.
 export const SEGMENT_FACT_PREFIX = "segment|";
 export const SEGMENT_UNIT_KEY = "segmentUnit";
+export const GEOGRAPHY_FACT_PREFIX = "geography|";
+export const GEOGRAPHY_UNIT_KEY = "geographyUnit";
+export const GEOGRAPHY_TOTAL_MEMBER = "total";
 
 export type SegmentMeasure = "revenue" | "operatingIncome";
 
@@ -12,6 +15,7 @@ const NON_SEGMENT_MEMBERS = new Set([
 ]);
 
 const SEGMENT_AXIS = "us-gaap:StatementBusinessSegmentsAxis";
+const GEOGRAPHY_AXIS = "srt:StatementGeographicalAxis";
 const ALLOWED_EXTRA_DIMENSIONS: Readonly<Record<string, string>> = {
   "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
 };
@@ -21,6 +25,11 @@ const CONCEPTS: readonly (readonly [string, SegmentMeasure])[] = [
   ["us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax", "revenue"],
   ["us-gaap:OperatingIncomeLoss", "operatingIncome"],
 ];
+// Keyed by concept, so a total tagged with both keeps the one each region pairs with.
+export const GEOGRAPHY_CONCEPTS = [
+  "us-gaap:Revenues",
+  "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+] as const;
 
 interface SegmentContext {
   readonly member: string;
@@ -32,7 +41,13 @@ function attribute(attrs: string, name: string): string | undefined {
   return new RegExp(`\\b${name}="([^"]*)"`, "u").exec(attrs)?.[1];
 }
 
-function segmentContexts(html: string, periodEnd: string): ReadonlyMap<string, SegmentContext> {
+// `totalMember` keeps dimensionless contexts under that name, as the consolidated denominator.
+function segmentContexts(
+  html: string,
+  periodEnd: string,
+  axis: string,
+  totalMember?: string,
+): ReadonlyMap<string, SegmentContext> {
   const contexts = new Map<string, SegmentContext>();
   for (const [, id, body] of html.matchAll(
     /<xbrli:context id="([^"]+)">([\s\S]*?)<\/xbrli:context>/gu,
@@ -48,13 +63,15 @@ function segmentContexts(html: string, periodEnd: string): ReadonlyMap<string, S
     for (const [, dimension, value] of body!.matchAll(
       /<xbrldi:explicitMember dimension="([^"]+)">([^<]+)</gu,
     )) {
-      if (dimension === SEGMENT_AXIS) {
+      if (dimension === axis) {
         member = value!.trim();
       } else if (ALLOWED_EXTRA_DIMENSIONS[dimension!] !== value!.trim()) {
         foreign = true;
       }
     }
-    if (
+    if (totalMember !== undefined && !body!.includes("<xbrli:segment>")) {
+      contexts.set(id!, { member: totalMember, start, end });
+    } else if (
       member !== undefined &&
       !NON_SEGMENT_MEMBERS.has(member) &&
       !foreign &&
@@ -112,7 +129,45 @@ export function secSegmentFactMetrics(
   if (periodEnd === undefined || !html.includes(SEGMENT_AXIS)) {
     return {};
   }
-  const contexts = segmentContexts(html, periodEnd);
+  return dimensionalFactMetrics(
+    html,
+    segmentContexts(html, periodEnd, SEGMENT_AXIS),
+    CONCEPTS,
+    SEGMENT_FACT_PREFIX,
+    SEGMENT_UNIT_KEY,
+  );
+}
+
+// Flat `geography|<member>|<concept>|<start>|<end>` metrics plus `geography|total|...` consolidated revenue.
+export function secGeographyFactMetrics(
+  html: string,
+  periodEnd: string | undefined,
+): Record<string, number | string> {
+  if (periodEnd === undefined || !html.includes(GEOGRAPHY_AXIS)) {
+    return {};
+  }
+  const metrics = dimensionalFactMetrics(
+    html,
+    segmentContexts(html, periodEnd, GEOGRAPHY_AXIS, GEOGRAPHY_TOTAL_MEMBER),
+    GEOGRAPHY_CONCEPTS.map((concept) => [concept, concept] as const),
+    GEOGRAPHY_FACT_PREFIX,
+    GEOGRAPHY_UNIT_KEY,
+  );
+  const hasRegion = Object.keys(metrics).some(
+    (key) =>
+      key.startsWith(GEOGRAPHY_FACT_PREFIX) &&
+      !key.startsWith(`${GEOGRAPHY_FACT_PREFIX}${GEOGRAPHY_TOTAL_MEMBER}|`),
+  );
+  return hasRegion ? metrics : {};
+}
+
+function dimensionalFactMetrics(
+  html: string,
+  contexts: ReadonlyMap<string, SegmentContext>,
+  concepts: readonly (readonly [string, string])[],
+  prefix: string,
+  unitKey: string,
+): Record<string, number | string> {
   const unitMeasures = units(html);
   const values = new Map<
     string,
@@ -126,14 +181,14 @@ export function secSegmentFactMetrics(
       continue;
     }
     const concept = attribute(attrs, "name");
-    const rank = CONCEPTS.findIndex(([name]) => name === concept);
+    const rank = concepts.findIndex(([name]) => name === concept);
     const context = contexts.get(attribute(attrs, "contextRef") ?? "");
     const value = factValue(attrs, content);
     if (rank === -1 || context === undefined || value === undefined) {
       continue;
     }
     const unit = unitMeasures.get(attribute(attrs, "unitRef") ?? "") ?? "unknown";
-    const key = `${SEGMENT_FACT_PREFIX}${context.member}|${CONCEPTS[rank]![1]}|${context.start}|${context.end}`;
+    const key = `${prefix}${context.member}|${concepts[rank]![1]}|${context.start}|${context.end}`;
     const prior = values.get(key);
     if (prior === undefined || (prior !== "conflict" && rank < prior.rank)) {
       values.set(key, { value, rank, unit, concept: concept! });
@@ -159,6 +214,6 @@ export function secSegmentFactMetrics(
         [`${key}|concept`, entry.concept],
       ]),
     ),
-    [SEGMENT_UNIT_KEY]: keptUnits.size === 1 ? [...keptUnits][0]! : "mixed",
+    [unitKey]: keptUnits.size === 1 ? [...keptUnits][0]! : "mixed",
   };
 }

@@ -1,3 +1,4 @@
+import { geographicRevenueSection } from "./extended-evidence/geographic-revenue";
 import { segmentResultsSection } from "./extended-evidence/segment-results";
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import { type ExtendedEvidence } from "../domain/evidence";
@@ -470,10 +471,16 @@ export async function collectEquityEnrichment(
       financialLensResult,
       statementSections,
       valuationWorkbenchResult.metricSections,
-      segmentResultsSection(
-        input.command.symbol,
-        input.secTargetPacket?.filingEvidence.items ?? [],
-      ),
+      [
+        segmentResultsSection(
+          input.command.symbol,
+          input.secTargetPacket?.filingEvidence.items ?? [],
+        ),
+        geographicRevenueSection(
+          input.command.symbol,
+          input.secTargetPacket?.filingEvidence.items ?? [],
+        ),
+      ],
     ),
     ...earningsResult,
     packetFailureGaps: [],
@@ -485,13 +492,13 @@ function metricSectionsOf(
   financialLensResult: FinancialLensEvidenceResult,
   statementSections: readonly ReturnType<typeof capitalReturnSection>[],
   workbenchSections: readonly MetricSection[],
-  segmentResults: ReturnType<typeof segmentResultsSection>,
+  filingSections: readonly ReturnType<typeof segmentResultsSection>[],
 ): Pick<EquityEnrichmentResult, "metricSections" | "metricSectionGaps"> {
   const sections = [
     ...(businessFrameworkResult.metricSections ?? []),
     ...(financialLensResult.metricSections ?? []),
     ...statementSections.map(({ section }) => section),
-    ...(segmentResults?.section === undefined ? [] : [segmentResults.section]),
+    ...filingSections.flatMap((result) => (result?.section === undefined ? [] : [result.section])),
     ...workbenchSections,
   ];
   return {
@@ -500,7 +507,7 @@ function metricSectionsOf(
       ...(businessFrameworkResult.metricSectionGaps ?? []),
       ...(financialLensResult.metricSectionGaps ?? []),
       ...statementSections.flatMap(({ sourceGaps }) => sourceGaps),
-      ...(segmentResults?.sourceGaps ?? []),
+      ...filingSections.flatMap((result) => result?.sourceGaps ?? []),
     ],
   };
 }

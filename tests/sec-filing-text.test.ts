@@ -102,6 +102,21 @@ function amdShaped10K(resultsRepeat: number): string {
   );
 }
 
+function hlitShaped10Q(preamble: string): string {
+  return normalizeFilingText(
+    [
+      "<p>ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS</p>",
+      "<p>This discussion contains forward-looking statements that involve risks and uncertainties. </p>".repeat(
+        4,
+      ),
+      `<p>${preamble}</p>`,
+      "<p>RESULTS OF OPERATIONS</p>",
+      "<p>Total net revenue was $133,462 thousand, up 54% from $86,918 thousand. </p>".repeat(60),
+      "<p>ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK</p><p>Not material.</p>",
+    ].join(""),
+  );
+}
+
 describe("MD&A extraction", () => {
   test("AMD-shaped 10-Q reanchors on the results subheading past inline Item references", () => {
     const { packet } = secFilingSectionPacket(amdShaped10Q(), "10-Q");
@@ -149,6 +164,66 @@ describe("MD&A extraction", () => {
     expect(mdna).toContain("$41,914,000");
     expect(mdna).toContain("Gross profit rose on product mix");
     expect(mdna).not.toContain("QUANTITATIVE AND QUALITATIVE");
+  });
+
+  test("HLIT-shaped 10-Q keeps preamble divestiture sentences ahead of the results subheading", () => {
+    const text = normalizeFilingText(
+      [
+        "<p>ITE M 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS</p>",
+        "<p>This discussion contains forward-looking statements that involve risks and uncertainties. </p>".repeat(
+          4,
+        ),
+        "<p>OVERVIEW</p>",
+        "<p>We provide broadband solutions to cable and telco operators worldwide. </p>".repeat(8),
+        "<p>On June 16, 2026, we completed the sale of our Video business to the Buyer pursuant to the APA. Proceeds from the sale were $137.9 million paid at closing, subject to final adjustment under the terms of the APA. Refer to Note 3 for more information on discontinued operations.</p>",
+        "<p>RESULTS OF OPERATIONS</p>",
+        "<p>Total net revenue was $133,462 thousand, up 54% from $86,918 thousand. </p>".repeat(60),
+        "<p>ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK</p><p>Not material.</p>",
+      ].join(""),
+    );
+    const mdna = section(secFilingSectionPacket(text, "10-Q").packet, "MD&A");
+
+    expect(
+      mdna.startsWith(
+        "[MD&A] On June 16, 2026, we completed the sale of our Video business to the Buyer pursuant to the APA. Proceeds from the sale were $137.9 million",
+      ),
+    ).toBe(true);
+    expect(mdna).toContain("APA. ... RESULTS OF OPERATIONS Total net revenue was $133,462");
+    expect(mdna).not.toContain("forward-looking");
+    expect(mdna).not.toContain("Refer to Note 3");
+    expect(mdna.length - "[MD&A] ".length).toBeLessThanOrEqual(3000);
+  });
+
+  test("skips pending deals and page footers in the preamble", () => {
+    const text = hlitShaped10Q(
+      "The Disposition is expected to close during the first half of fiscal 2026. 40 Table of Contents In accordance with the guidance, the Video business is presented as discontinued operations.",
+    );
+    const mdna = section(secFilingSectionPacket(text, "10-Q").packet, "MD&A");
+
+    expect(mdna.startsWith("[MD&A] RESULTS OF OPERATIONS Total net revenue")).toBe(true);
+  });
+
+  test("a preamble without deal sentences keeps the plain results slice", () => {
+    const text = hlitShaped10Q("We provide broadband solutions to cable and telco operators.");
+    const anchor = text.lastIndexOf("RESULTS OF OPERATIONS");
+    const mdna = section(secFilingSectionPacket(text, "10-Q").packet, "MD&A");
+
+    expect(mdna).toBe(`[MD&A] ${text.slice(anchor, anchor + 3000)}`);
+  });
+
+  test("caps preamble deal sentences at 1,000 chars", () => {
+    const deals = Array.from(
+      { length: 20 },
+      (_, index) =>
+        `In 2026 we completed the acquisition of Target ${String(index)} for $10 million in cash.`,
+    ).join(" ");
+    const mdna = section(secFilingSectionPacket(hlitShaped10Q(deals), "10-Q").packet, "MD&A");
+    const lead = mdna.slice("[MD&A] ".length, mdna.indexOf(" ... RESULTS OF OPERATIONS"));
+
+    expect(lead.startsWith("In 2026 we completed the acquisition of Target 0")).toBe(true);
+    expect(lead.length).toBeLessThanOrEqual(1000);
+    expect(lead).not.toContain("Target 19");
+    expect(mdna.length - "[MD&A] ".length).toBeLessThanOrEqual(3000);
   });
 
   test("10-K skips cross-reference anchors and stops at a dashed heading after a page footer", () => {
@@ -373,6 +448,34 @@ describe("page furniture from cached filings", () => {
     );
   });
 
+  test("drop-cap Part and Item keywords still open Business and MD&A (HLIT 10-K FY2025, 10-Q Q2 2026)", () => {
+    const tenK = normalizeFilingText(
+      `<p>could be limited.</p><p>4</p><p>Table of Contents</p><p>PA RT I</p><p>Item 1. BUSIN ESS</p>${body}`,
+    );
+    const tenQ = normalizeFilingText(
+      `<p>forward-looking statements.</p><p>21</p><p>Table of Contents</p><p>ITE M 2. MANAGEMENT’S DISCUSSION AND ANALYSIS</p>${body}`,
+    );
+
+    expect(section(secFilingSectionPacket(tenK, "10-K").packet, "Business")).toContain(
+      "[Business] Item 1. BUSIN ESS We build",
+    );
+    expect(section(secFilingSectionPacket(tenQ, "10-Q").packet, "MD&A")).toContain(
+      "[MD&A] ITE M 2. MANAGEMENT’S DISCUSSION AND ANALYSIS We build",
+    );
+  });
+
+  test("a split next-Item heading ends the section and split inline references do not", () => {
+    const text = normalizeFilingText(
+      `<p>Table of Contents</p><p>ITE M 2. MANAGEMENT’S DISCUSSION AND ANALYSIS</p>${body}<p>As described in Part II, see ITE M 1A. Risk Factors, and item 1 above.</p>${body}<p>28</p><p>Table of Contents</p><p>ITE M 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES</p><p>Market risk text.</p>`,
+    );
+    const result = secFilingSectionPacket(text, "10-Q");
+    const mdna = section(result.packet, "MD&A");
+
+    expect(mdna).toContain("and item 1 above.");
+    expect(mdna).not.toContain("QUANTITATIVE");
+    expect(result.misses).toContainEqual({ label: "Risk Factors", reason: "absent" });
+  });
+
   test("a Roman token inside prose is not page furniture", () => {
     const result = secFilingSectionPacket(
       mixedCaseFiling({
@@ -386,5 +489,77 @@ describe("page furniture from cached filings", () => {
 
     expect(section(result.packet, "MD&A")).toContain("$9.2 billion");
     expect(result.misses).toContainEqual({ label: "Risk Factors", reason: "absent" });
+  });
+});
+
+describe("Segments anchor", () => {
+  const body =
+    "The Chief Operating Decision Maker (“CODM”) reviews consolidated results for one reportable segment. ".repeat(
+      4,
+    );
+  const leases = "NOTE 5: LEASES The components of lease expense are as follows. ".repeat(6);
+  const crossReference = `${MDNA} NOTE 4: REVENUE Refer to Note 11, “Segment Information, Geographic Information and Customer Concentration” for disaggregated revenue information. ${leases}`;
+
+  test("skips a quoted note title and anchors on the note itself (HLIT 10-Q Q2 2026)", () => {
+    const result = secFilingSectionPacket(
+      `${crossReference} NOTE 11: SEGMENT INFORMATION ${body}`,
+      "10-Q",
+    );
+
+    expect(section(result.packet, "Segments")).toStartWith(
+      "[Segments] SEGMENT INFORMATION The Chief",
+    );
+  });
+
+  test("straight and nested quotes around a cited title still mark a cross-reference", () => {
+    for (const title of ['"Segment Information"', "(the “segment note”) Segment Information"]) {
+      const result = secFilingSectionPacket(
+        `${MDNA} NOTE 4: REVENUE Refer to Note 11, ${title} for disaggregated revenue information. ${leases} NOTE 11: SEGMENT INFORMATION ${body}`,
+        "10-Q",
+      );
+
+      expect(section(result.packet, "Segments")).toStartWith(
+        "[Segments] SEGMENT INFORMATION The Chief",
+      );
+    }
+  });
+
+  test("a reference that ends before a numbered note heading does not reach into it", () => {
+    const result = secFilingSectionPacket(
+      normalizeFilingText(
+        `<p>${MDNA} Amounts included in Note 10</p><h2>NOTE 11: SEGMENT INFORMATION</h2><p>${body}</p>`,
+      ),
+      "10-Q",
+    );
+
+    expect(section(result.packet, "Segments")).toStartWith(
+      "[Segments] SEGMENT INFORMATION The Chief",
+    );
+  });
+
+  test("the Notes slot keeps a match that follows a note reference", () => {
+    const result = secFilingSectionPacket(
+      `${MDNA} Amounts are described in Note 1 of the Notes to Consolidated Financial Statements ${body}`,
+      "10-K",
+    );
+
+    expect(section(result.packet, "Notes")).toStartWith(
+      "[Notes] Notes to Consolidated Financial Statements The Chief",
+    );
+  });
+
+  test("a quoted note heading is still the note", () => {
+    const result = secFilingSectionPacket(`${MDNA} NOTE 11: “SEGMENT INFORMATION” ${body}`, "10-Q");
+
+    expect(section(result.packet, "Segments")).toStartWith(
+      "[Segments] SEGMENT INFORMATION” The Chief",
+    );
+  });
+
+  test("a quoted cross-reference alone declares Segments absent", () => {
+    const result = secFilingSectionPacket(crossReference, "10-Q");
+
+    expect(section(result.packet, "Segments")).toBe("");
+    expect(result.misses).toContainEqual({ label: "Segments", reason: "absent" });
   });
 });

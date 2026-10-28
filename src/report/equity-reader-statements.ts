@@ -95,13 +95,33 @@ function statementSurfaceNotes(
 export function operatingRatioNotes(
   artifact: FinancialStatementsArtifact | undefined,
 ): readonly FinancialStatementNote[] | undefined {
-  return artifact?.omissionNotes?.filter(
+  const notes = artifact?.omissionNotes;
+  if (notes === undefined) {
+    return undefined;
+  }
+  const unreconciled = notes.filter(
+    (note) =>
+      note.code === "unreconciled-component" && note.seriesKey === "depreciationAndAmortization",
+  );
+  const kept = notes.filter(
     (note) =>
       (note.code === "incomplete-composite-series" &&
         (note.seriesKey === "depreciationAndAmortization" ||
           note.seriesKey === "capitalExpenditure")) ||
       note.code === "unchecked-extension-capex",
   );
+  if (unreconciled.length < 2) {
+    return [...kept, ...unreconciled];
+  }
+  const periods = unreconciled.map((note) => note.periodKey?.split("|").at(-1) ?? "unknown");
+  return [
+    ...kept,
+    {
+      code: "unreconciled-component",
+      seriesKey: "depreciationAndAmortization",
+      message: `SEC depreciation and amortization for periods ending ${periods.join(", ")} uses AmortizationOfIntangibleAssets; the same-filing cash-flow AdjustmentForAmortization is higher in each and is not proven to be intangible amortization`,
+    },
+  ];
 }
 
 function latestPositionValue(

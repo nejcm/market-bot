@@ -14,7 +14,6 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 ## Possible wrong or false values
 
 - Prior-run `dataGaps` reach every stage through `historicalContext` (`src/research/historical-context.ts:450`) now labeled prior-run observations to re-check (`priorRunDataGapsUse`) but not code-checked, so a gap later disproved can still be echoed (AMD 6349c37b "Data Center margins … not quantified"); label effect unevaluated. The check-sources prompt rule covers new declarations only; the HLIT RPO and final-synthesis cases are unevaluated (2-sample specialist eval only).
-- Reference set todos (`tests/sec-reference-set.test.ts`): MRK FY2025 D&A uses a rounded 2.8B amortization (5,838M filed); CLFD FY2025 ROIC needs an Accounting Scope rule for debt and factoring held in discontinued operations.
 
 ## Withheld but recoverable
 
@@ -22,6 +21,7 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 - Debt: the noncurrent liabilities identity's allowlist fails closed on double tags (AMAT pension) and untagged lines (UBER reserves); a zero-valued unrecognized borrowing tag (Iridium FY2017) refuses the component sum.
 - Debt: historical instants have no face-statement proof because runs fetch only the latest 10-K/10-Q faces (`faceDebtLines` requires `reportDate === periodEnd`); HLIT FY2019–2024 EV/revenue is withheld as `debt-unavailable` (split convertible and loan tags with no reconcilable total). Recovery needs per-FY 10-K face fetches, and the face proof's existing scope, lease and accession checks.
 - ORCL has no canonical TTM revenue (peer-excluded): Q1 FY27 is tagged only as `RevenueFromContractWithCustomerExcludingAssessedTax` beside annual-only `Revenues`; switching concepts needs proof that both share scope across periods.
+- CLFD FY2025 ROIC is withheld: debt and factoring sit in liabilities held for sale (10-K 0001171843-25-007594); publishing needs a continuing-operations debt scope rule.
 - EV Bridge covers us-gaap only: IFRS filers (BNS) withhold EV, net debt and EV/revenue until `ifrs-full` current investments and `NoncontrollingInterests` are mapped.
 - EV Bridge withholds for a dropped short-term investments line (LLY, ABBV, eBay), a combined cash-and-investments line above cash + short-term (Check Point FY2025 time deposits), or unreconciled temporary equity (MARA, APLD).
 

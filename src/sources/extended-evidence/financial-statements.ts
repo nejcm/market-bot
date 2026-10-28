@@ -619,17 +619,41 @@ function factsForDepreciationAndAmortization(
       }
       return [];
     }
+    const [depreciation, amortization] = contributors as [ParsedFact, ParsedFact];
+    const sameFilingAmortization =
+      cashFlowLines.length === 1 &&
+      cashFlowLines[0]!.concept === "AdjustmentForAmortization" &&
+      cashFlowLines[0]!.accessionNumber === amortization.accessionNumber
+        ? cashFlowLines[0]
+        : undefined;
+    const amortizationGap =
+      sameFilingAmortization === undefined ? 0 : sameFilingAmortization.value - amortization.value;
+    // MRK FY2025: the note rounds intangible amortization (2.8B); the cash-flow line carries the filed 2,793M.
+    const faceAmortization =
+      Math.abs(amortizationGap) <= componentTolerance(sameFilingAmortization?.value ?? 0)
+        ? sameFilingAmortization
+        : undefined;
+    const selected =
+      faceAmortization === undefined ? contributors : [depreciation, faceAmortization];
     if (
       contradicted(
-        contributors.reduce((sum, fact) => sum + fact.value, 0),
-        contributors[0]!,
+        selected.reduce((sum, fact) => sum + fact.value, 0),
+        selected[0]!,
       )
     ) {
       return [];
     }
+    if (amortizationGap > componentTolerance(sameFilingAmortization?.value ?? 0)) {
+      notes.push({
+        code: "unreconciled-component",
+        seriesKey: definition.key,
+        periodKey: periodKey(amortization),
+        message: `SEC depreciation and amortization for ${amortization.periodStart ?? "instant"} to ${amortization.periodEnd} uses AmortizationOfIntangibleAssets (${String(amortization.value)}); the same-filing cash-flow AdjustmentForAmortization (${String(sameFilingAmortization!.value)}) is higher and is not proven to be intangible amortization`,
+      });
+    }
     return [
       withCompositeFirstPublicAt(
-        compositeFromContributors(contributors),
+        compositeFromContributors(selected),
         definition,
         candidates,
         new Set(),

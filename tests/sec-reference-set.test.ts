@@ -425,6 +425,17 @@ const CASES: readonly ReferenceCase[] = [
       freeCashFlowMargin: ratio(0.190_12, "R9 (16,472 - 4,112) / R3 65,011"),
       roic: { status: "missing", reason: "operating income not filed by the issuer" },
     },
+    depreciationAndAmortization: {
+      "2025-12-31": statement(5_838_000_000, "R9 Depreciation 3,045 + Amortization 2,793"),
+      "2024-12-31": statement(
+        4_499_000_000,
+        "10-K 0000310158-26-000063 R9 Depreciation 2,104 + Amortization 2,395",
+      ),
+      "2023-12-31": statement(
+        3_828_000_000,
+        "R9 Amortization 2,044 is 2.2% off note 2,000; composite 1,828 + 2,000 kept",
+      ),
+    },
   },
   {
     symbol: "bns",
@@ -530,8 +541,13 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
   // Pipeline disagrees with the filing; expected values come from the filing, not the code.
   const fact = (symbol: string, key: FinancialStatementSeriesKey, periodEnd: string) =>
     load(symbol).series[key]?.annual.find((candidate) => candidate.periodEnd === periodEnd)?.value;
-  test.todo("MRK FY2025 D&A uses rounded 2.8B amortization; R9 shows 3,045M + 2,793M", () => {
-    expect(fact("mrk", "depreciationAndAmortization", "2025-12-31")).toBe(5_838_000_000);
+
+  test("MRK FY2023 D&A discloses the 10-K 0000310158-26-000063 R9 Amortization 2,044M above the 2,000M note", () => {
+    const notes = load("mrk").statements.omissionNotes.filter(
+      ({ code }) => code === "unreconciled-component",
+    );
+    expect(notes.map(({ periodKey }) => periodKey)).toEqual(["duration:12|2023-12-31"]);
+    expect(notes[0]?.message).toContain("AdjustmentForAmortization (2044000000) is higher");
   });
 
   test("IREN FY2024-26 capex and FCF are withheld: 10-K R7 also pays computer hardware (1,335,081K FY2026)", () => {
@@ -781,8 +797,8 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
     ).toBe(false);
   });
 
-  test.todo("CLFD FY2025 ROIC: Accounting Scope of debt (note 11 debt and factoring sit in discontinued ops)", () => {
-    expect(load("clfd").metrics.find(({ id }) => id === "roic")?.status).not.toBe("missing");
+  test("CLFD FY2025 ROIC is withheld while debt sits in discontinued operations", () => {
+    expect(load("clfd").metrics.find(({ id }) => id === "roic")?.status).toBe("missing");
   });
   test("HLIT FY2025 D&A is withheld with an omission note", () => {
     const { statements } = load("hlit");

@@ -245,6 +245,7 @@ export interface FinancialStatementNote {
     | "untagged-balance-sheet-series"
     | "incomplete-composite-series"
     | "unchecked-extension-capex"
+    | "unreconciled-component"
     | "stale-instant-series"
     | "stale-concept-history"
     | "withheld-derivation"

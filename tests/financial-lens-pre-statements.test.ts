@@ -59,6 +59,7 @@ function evidence(overrides: Record<string, number | string> = {}): ExtendedEvid
         observedAt: "2026-06-21T00:00:00.000Z",
         metrics: {
           enterpriseValue: 985,
+          netDebt: -15,
           annualizedRevenue: 400,
           evToAnnualizedRevenue: 2.46,
           marketCapToAnnualizedRevenue: 2.5,
@@ -204,4 +205,79 @@ test("quote-only and disabled filed inputs emit neither lens sections nor their 
     expect(result.metricSections ?? []).toEqual([]);
     expect(result.metricSectionGaps).toBeUndefined();
   }
+});
+
+function withValuationNetDebt(netDebt: number | string | undefined): ExtendedEvidence {
+  const base = evidence();
+  const excerpt = {
+    category: "sec-edgar" as const,
+    title: "AAPL SEC filing excerpt",
+    summary: "Filing excerpt.",
+    sourceIds: ["extended-sec-edgar-aapl-excerpt"],
+    observedAt: "2026-06-20T00:00:00.000Z",
+    metrics: { debt: 100, debtPeriodEnd: "2026-03-31", cash: 10, cashPeriodEnd: "2026-03-31" },
+  };
+  const items = base.items.map((item) =>
+    item.category !== "valuation"
+      ? item
+      : {
+          ...item,
+          metrics: Object.fromEntries(
+            Object.entries({ ...item.metrics, netDebt }).filter(([, value]) => value !== undefined),
+          ) as Record<string, number | string>,
+        },
+  );
+  return { ...base, items: [excerpt, ...items] };
+}
+
+function strengthPosture(result: ReturnType<typeof lens>["result"]) {
+  return result.artifact?.lenses.find(({ name }) => name === "Financial Strength")?.posture;
+}
+
+test("summary net debt scores the same valuation figure it displays", () => {
+  const { result } = lens(withValuationNetDebt(40));
+
+  expect(strengthMetric(result, "netDebt")).toMatchObject({ value: 40 });
+  expect(strengthPosture(result)).toBe("criteria-not-supported");
+});
+
+test.each(["mixed-period", undefined])(
+  "summary net debt withheld by valuation (%s) is neither displayed nor scored",
+  (netDebt) => {
+    const { result } = lens(withValuationNetDebt(netDebt));
+
+    expect(strengthMetric(result, "netDebt")?.value).toBeUndefined();
+    expect(strengthPosture(result)).toBe("insufficient-data");
+  },
+);
+
+function valuationNetDebtOnFullSec(netDebt: string | undefined, dropValuation = false) {
+  const base = evidence();
+  const items = base.items.flatMap((item) => {
+    if (item.category !== "valuation") {
+      return [item];
+    }
+    if (dropValuation) {
+      return [];
+    }
+    const { netDebt: _netDebt, ...metrics } = item.metrics ?? {};
+    return [{ ...item, metrics: netDebt === undefined ? metrics : { ...metrics, netDebt } }];
+  });
+  return lens({ ...base, items }).result;
+}
+
+test.each(["mixed-period", undefined])(
+  "complete SEC inputs do not override a valuation net debt withheld as %s",
+  (netDebt) => {
+    const result = valuationNetDebtOnFullSec(netDebt);
+
+    expect(strengthMetric(result, "netDebt")?.value).toBeUndefined();
+  },
+);
+
+test("without a valuation item the guarded SEC net debt is shown and scored", () => {
+  const result = valuationNetDebtOnFullSec(undefined, true);
+
+  expect(strengthMetric(result, "netDebt")).toMatchObject({ value: -15 });
+  expect(strengthPosture(result)).toBe("criteria-supported");
 });

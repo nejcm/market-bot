@@ -1287,9 +1287,13 @@ describe("collectSources", () => {
         .filter(({ id, status }) => id === "evToAnnualizedRevenue" && status === "value") ?? [];
 
     expect(evOperandCoercions).toBe(0);
-    expect(valuationComps.gaps).toEqual([]);
-    expect(valuationComps.artifact.excludedPeers).toEqual([]);
-    expect(valuationComps.artifact.summary.usablePeerCount).toBe(4);
+    expect(valuationComps.artifact.summary.usablePeerCount).toBe(0);
+    expect(valuationComps.artifact.excludedPeers.map(({ reason }) => reason)).toEqual(
+      valuationComps.artifact.peers.map(
+        ({ sic }) =>
+          `depository peer (SIC ${String(sic)}): enterprise value and net debt not applicable`,
+      ),
+    );
     expect(result.financialStatements?.statements.incomeStatement.revenue.ttm?.value).toBe(
       420_000_000_000,
     );
@@ -1317,6 +1321,22 @@ describe("collectSources", () => {
     expect(valuationItem?.metrics?.enterpriseValue).toBeUndefined();
     expect(valuationItem?.metrics?.evToAnnualizedRevenue).toBeUndefined();
     expect(valuationItem?.summary).toContain("enterprise value not applicable");
+    expect(valuationItem?.metrics?.netDebt).toBeUndefined();
+    expect(valuationItem?.metrics?.netDebtToMarketCap).toBeUndefined();
+    expect(valuationItem?.summary).toContain(
+      "net debt not applicable (depository issuer (SIC 6022): deposits and borrowings",
+    );
+    expect(
+      result.metricSections
+        ?.flatMap(({ metrics }) => metrics)
+        .filter(({ id }) => id === "netDebt" || id === "netDebtToMarketCap")
+        .map(({ status, reason }) => [status, reason]),
+    ).toEqual(
+      ["netDebt", "netDebtToMarketCap"].map(() => [
+        "not-applicable",
+        expect.stringContaining("depository issuer (SIC 6022)"),
+      ]),
+    );
     expect(financialLensEvMetrics).toEqual([]);
     expect(businessFrameworkEvMetrics).toEqual([]);
     expect(markdown).toContain(

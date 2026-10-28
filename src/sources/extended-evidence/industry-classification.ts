@@ -37,7 +37,7 @@ const FOUR_DIGIT_SIC = /^\d{4}$/u;
 
 // Whether a SIC code is a depository institution's. The single definition of the set; callers that
 // Already hold the issuer's own SIC use this, callers holding evidence use depositoryIssuerSic.
-function isDepositorySic(sic: string | undefined): boolean {
+export function isDepositorySic(sic: string | undefined): sic is string {
   return (
     sic !== undefined &&
     FOUR_DIGIT_SIC.test(sic) &&
@@ -70,6 +70,10 @@ export function depositoryIssuerSic(extendedEvidence: unknown): string | undefin
     return isDepositorySic(sic) ? sic : undefined;
   }
   return undefined;
+}
+
+export function depositoryNetDebtReason(sic: string): string {
+  return `depository issuer (SIC ${sic}): deposits and borrowings fund operations rather than sitting on top of them`;
 }
 
 export interface SecIssuerRegistration {

@@ -2394,6 +2394,14 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
     "Valuation framework EV/revenue must be not-applicable",
   ).toBe("not-applicable");
 
+  const strengthMetrics = bundle?.derived.metricSections?.flatMap(({ metrics }) => metrics) ?? [];
+  for (const id of ["netDebt", "netDebtToMarketCap"]) {
+    expect(
+      strengthMetrics.find((metric) => metric.id === id),
+      `depository ${id} must be not-applicable with a declared reason`,
+    ).toMatchObject({ status: "not-applicable", reason: expect.stringContaining(`SIC ${sic}`) });
+  }
+
   const capitalReturn = bundle?.derived.metricSections?.find(({ id }) => id === "capital-return");
   for (const id of ["fcfPayoutRatio", "totalPayoutToFcf"]) {
     expect(

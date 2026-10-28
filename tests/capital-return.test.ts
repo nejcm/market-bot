@@ -1295,6 +1295,17 @@ describe("Capital Return in report.json and report.md", () => {
     }
   });
 
+  test("renders a not-applicable metric as not applicable with its reason", () => {
+    const markdown = renderMarkdownReport(
+      reportWith(context(usGaap(), { depositorySic: "6022" }), [SOURCE_ID, QUOTE_SOURCE_ID]),
+    );
+
+    expect(markdown).toContain(
+      String.raw`- Dividends / free cash flow: not applicable, depository issuer \(SIC 6022\)`,
+    );
+    expect(markdown).not.toMatch(/not available, depository issuer/u);
+  });
+
   test("renders values with period, basis and citations, and reasons for the rest", () => {
     const markdown = renderMarkdownReport(
       reportWith(context(usGaap(), { quote: { ...context(usGaap()).quote!, currency: "EUR" } }), [

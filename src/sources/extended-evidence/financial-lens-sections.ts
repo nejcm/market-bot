@@ -50,8 +50,9 @@ import {
   bridgeContributors,
   resolveEnterpriseValueBridge,
 } from "./enterprise-value-bridge";
+import { depositoryIssuerSic, depositoryNetDebtReason } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
-import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
+import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps-contract";
 import {
   balanceSheetPeriodDivergence,
@@ -437,9 +438,19 @@ function summaryCurrentness(
   return { current: false, ...(stale !== undefined ? { periodEnd: stale } : {}) };
 }
 
+function netDebtInapplicable(ctx: MetricContext): string | undefined {
+  const sic = depositoryIssuerSic(ctx.evidence);
+  return sic === undefined ? undefined : depositoryNetDebtReason(sic);
+}
+
+function withNetDebtApplicability(definition: MetricDefinition): MetricDefinition {
+  return { ...definition, applicable: netDebtInapplicable };
+}
+
 function evidenceGuardedNetDebt(ctx: MetricContext): number | undefined {
   const item = secItem(ctx);
-  return balanceSheetPeriodDivergence(item?.metrics) !== undefined
+  return netDebtInapplicable(ctx) !== undefined ||
+    balanceSheetPeriodDivergence(item?.metrics) !== undefined
     ? undefined
     : netDebtFromMetrics(item?.metrics);
 }
@@ -472,11 +483,12 @@ export function shortTermInvestmentsAt(
 }
 
 function evidenceDisplayNetDebt(ctx: MetricContext): number | undefined {
-  const valuationNetDebt = valuationItem(ctx)?.metrics?.netDebt;
-  if (valuationNetDebt === MIXED_PERIOD_METRIC) {
-    return undefined;
+  const valuation = valuationItem(ctx);
+  if (valuation === undefined) {
+    return evidenceGuardedNetDebt(ctx);
   }
-  return typeof valuationNetDebt === "number" ? valuationNetDebt : evidenceGuardedNetDebt(ctx);
+  const valuationNetDebt = valuation.metrics?.netDebt;
+  return typeof valuationNetDebt === "number" ? valuationNetDebt : undefined;
 }
 
 function summaryValue(
@@ -2204,10 +2216,10 @@ function growthPosture(section: readonly MetricResult[] | undefined): FinancialL
 }
 
 function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
-  if (evidenceDisplayNetDebt(ctx) === undefined || !summaryCurrentness(ctx, "netDebt").current) {
+  if (!summaryCurrentness(ctx, "netDebt").current) {
     return undefined;
   }
-  return meets(evidenceGuardedNetDebt(ctx), (value) => value <= 0);
+  return meets(evidenceDisplayNetDebt(ctx), (value) => value <= 0);
 }
 
 function strengthPosture(
@@ -2289,9 +2301,9 @@ function lensDefinitions(
     "Financial Strength": [
       instantDefinition("cash", "cash", "Cash"),
       withCompleteDebt(withFreshDebt(instantDefinition("debt", "debt", debtLabel(ctx)))),
-      withCompleteDebt(netDebtDefinition()),
+      withNetDebtApplicability(withCompleteDebt(netDebtDefinition())),
       withCompleteDebt(marketLeverageDefinition("debtToMarketCap")),
-      withCompleteDebt(marketLeverageDefinition("netDebtToMarketCap")),
+      withNetDebtApplicability(withCompleteDebt(marketLeverageDefinition("netDebtToMarketCap"))),
       currentRatioDefinition(),
       withCompleteDebt(debtToEquityDefinition()),
       payoutRatioDefinition(),

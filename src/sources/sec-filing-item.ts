@@ -10,6 +10,7 @@ import {
 } from "./model-input-sanitizer";
 import type { FetchTextResult } from "./types";
 import { secFilingKey, type SecFiling } from "./sec-filing-selection";
+import { secSegmentFactMetrics } from "./sec-segment-facts";
 import {
   normalizeFilingText,
   secFilingSectionPacket,
@@ -269,6 +270,9 @@ export function buildSecFilingSourceItem(
       ...(filing.items === undefined ? {} : { items: filing.items.join(",") }),
       ...(earningsRelease === undefined ? {} : earningsRelease),
       cik: match.cik,
+      ...(filing.form === "10-K" || filing.form === "10-Q"
+        ? secSegmentFactMetrics(filingText.payload, filing.reportDate)
+        : {}),
     },
     identity,
   };

@@ -1,5 +1,7 @@
 import type { ExtendedEvidence } from "../../domain/evidence";
 import type { MetricSection } from "../../sources/extended-evidence/metric-engine";
+import { SEGMENT_RESULTS_SECTION_ID } from "../../sources/extended-evidence/segment-results";
+import { SEGMENT_FACT_PREFIX, SEGMENT_UNIT_KEY } from "../../sources/sec-segment-facts";
 import { formatMetricValue } from "../../sources/extended-evidence/value-format";
 
 export function metricReferenceEvidence(
@@ -55,9 +57,20 @@ export function withoutRestatedMetricValues(
   if (sections.length === 0) {
     return evidence;
   }
+  const hasSegmentResults = sections.some(({ id }) => id === SEGMENT_RESULTS_SECTION_ID);
   return {
     ...evidence,
     items: evidence.items.map((item) => {
+      if (item.category === "sec-edgar" && hasSegmentResults) {
+        return {
+          ...item,
+          metrics: Object.fromEntries(
+            Object.entries(item.metrics ?? {}).filter(
+              ([key]) => !key.startsWith(SEGMENT_FACT_PREFIX) && key !== SEGMENT_UNIT_KEY,
+            ),
+          ),
+        };
+      }
       if (item.category !== "business-framework" && item.category !== "financial-lens") {
         return item;
       }

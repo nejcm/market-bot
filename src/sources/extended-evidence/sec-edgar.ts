@@ -36,6 +36,7 @@ import {
   debtCandidateConcepts,
   isYearAligned,
   recognizedDebtConcepts,
+  debtIdentityConcepts,
   resolveDebtAtInstant,
   unsupersededDebtResolutions,
   type DebtHistoryFact,
@@ -791,6 +792,36 @@ function selectDebtMetric(
   };
 }
 
+// Continuity reads every form, as the canonical path does: a 40-F or 6-K line still counts as omitted (HIVE).
+function foreignFormDebtHistory(
+  gaap: Record<string, unknown>,
+  concept: string,
+  analysisAsOf?: string,
+): readonly DebtHistoryFact[] {
+  const fact = isRecord(gaap[concept]) ? gaap[concept] : undefined;
+  const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
+  const cutoff = analysisAsOf?.slice(0, 10) ?? "9999";
+  return DEBT_METRIC.unitKeys.flatMap((unitKey) =>
+    (units === undefined ? [] : readArray(units, unitKey)).flatMap((value) => {
+      const form = isRecord(value) ? readString(value, "form") : undefined;
+      const parsed = form === undefined ? undefined : canonicalizeSecForm(form);
+      const val = isRecord(value) ? readNumber(value, "val") : undefined;
+      const end = isRecord(value) ? readString(value, "end") : undefined;
+      const filed = isRecord(value) ? readString(value, "filed") : undefined;
+      return parsed === undefined ||
+        isDomesticPeriodicCanonicalForm(parsed.canonicalForm) ||
+        val === undefined ||
+        end === undefined ||
+        filed === undefined ||
+        (isRecord(value) && readString(value, "start") !== undefined) ||
+        end > cutoff ||
+        filed > cutoff
+        ? []
+        : [{ concept, amendment: parsed.amendment, periodEnd: end, filedAt: filed, value: val }];
+    }),
+  );
+}
+
 function selectNetDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
@@ -799,11 +830,11 @@ function selectNetDebtMetric(
   const history: DebtHistoryFact[] = [];
   const recognized = recognizedDebtConcepts("us-gaap");
   for (const concept of debtCandidateConcepts("us-gaap", gaap)) {
-    const values = factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys).filter(
-      (value) =>
-        isFactObservableAsOf(value, analysisAsOf) &&
-        (value.start === undefined || recognized.has(concept)),
-    );
+    const observable = (value: SecFactValue) =>
+      isFactObservableAsOf(value, analysisAsOf) &&
+      (value.start === undefined || recognized.has(concept));
+    history.push(...foreignFormDebtHistory(gaap, concept, analysisAsOf));
+    const values = factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys).filter(observable);
     for (const value of values.toSorted(compareFactRecency)) {
       history.push({
         concept,
@@ -833,6 +864,17 @@ function selectNetDebtMetric(
       ),
     ]),
   );
+  const liabilities = debtIdentityConcepts("us-gaap").flatMap((concept) =>
+    factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys)
+      .filter((value) => value.start === undefined && isFactObservableAsOf(value, analysisAsOf))
+      .map((value) => ({
+        concept,
+        amendment: value.amendment,
+        periodEnd: value.end ?? "",
+        filedAt: value.filed ?? "",
+        value: value.val,
+      })),
+  );
   const resolved = unsupersededDebtResolutions(
     [...instants.values()].map((tagged) => {
       const [anchor] = [...tagged.values()].toSorted(compareFactRecency);
@@ -855,6 +897,7 @@ function selectNetDebtMetric(
             )?.val,
           ]),
         ),
+        liabilities,
       );
       const fact =
         resolution.incompleteReason === undefined ? resolvedDebtFact(resolution) : undefined;

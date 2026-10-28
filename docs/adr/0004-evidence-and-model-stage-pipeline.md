@@ -186,10 +186,20 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   no short-term borrowing reported nonzero within 400 days) or when it equals nonzero current plus noncurrent
   lines, which outranks other totals (a combined total can be principal, AVGO) unless a later filing restated
   them; with explicit lines it may sit between the noncurrent line and their sum (principal vs carrying). Below the
-  noncurrent line, above the sum, beside current debt with no noncurrent line (even short-term borrowings: UBER's
-  LongTermDebt can already include them, NOW 2026-06-30 stays withheld), or a total whose lines a later
+  noncurrent line, above the sum, beside current debt with no noncurrent line, unless the same filing's
+  `LiabilitiesNoncurrent` (else `Liabilities − LiabilitiesCurrent`) equals nonzero `LongTermDebt` plus the
+  allowlisted noncurrent liability lines exactly, which proves it is the noncurrent line (ADBE 2026-08-28 6,363M,
+  NOW 2026-06-30 7,517M); short-term borrowings alone never prove it (UBER), and an unclosed identity is a gap; or a total whose lines a later
   filing restated, it is a gap, never inferred from other filings or equal amounts. Absence is not zero, tagged zeros
   count, and standard-tag completeness is not proof about omitted dimensional/extension facts.
+  A `LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities` total that differs from its own tagged
+  current and noncurrent legs by exactly `DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet` is
+  principal (VSAT 6,570.503M − 128.104M = 6,442.399M lines, 2026-06-30), so the legs are used and the lease total is
+  deducted from both; any other difference keeps the total. Elsewhere a `FinanceLeaseLiability` total across two
+  lease-inclusive legs is a gap (split unknown), and a later filing's restated lease deduction is a gap like any
+  restated component. A nonzero instrument tag larger than the total or side line that would have to hold it cannot be
+  inside it and is a gap (AAOI 134.497M convertibles vs 26.682M `LongTermDebt`, 2024-12-31). Continuity history on the
+  legacy path also reads 20-F/40-F/6-K facts, as the canonical path does (HIVE).
   Without a total, a positive `LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths` beside no current
   debt line is incomplete unless principal minus unamortized costs equals the composite exactly (PYPL vs META).
 - Never publish an incomplete debt instant, and never let an older amount stand in for one. Every incomplete instant
@@ -210,7 +220,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   of that component's absolute value. Missing/rejected combined falls back only to complete same-date/currency
   depreciation (or nonproduction) plus intangible amortization, both known at cutoff; never infer zero.
   Equality/within tolerance keeps combined. Rejected/incomplete fallback emits period-specific omission/gap
-  and Markdown/Console note; retain lineage and name EBITDA proxy basis. IFRS is unchanged.
+  and Markdown/Console note; retain lineage and name EBITDA proxy basis. A selected combined fact more than 1%
+  below the other same-period combined alias (DDA under DA) is withheld, never replaced by the higher alias; the
+  reverse split publishes. IFRS is unchanged.
 - Never splice alternative financial concepts to extend history. Shortening is silent unless an alias has a
   newer annual period, or any annual period when selected has none: emit `stale-concept-history` without
   combining. Offline alias detection requires eligible same-unit/currency strict annual superset with exact

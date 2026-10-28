@@ -393,7 +393,7 @@ export function resolveEnterpriseValueBridge<F extends BridgeFact>(
     const unresolved: BridgeComponent<F> = {
       status: "incomplete",
       reason:
-        "EV bridge (short-term investments, noncontrolling interest, preferred stock, temporary equity) is resolved only from us-gaap company facts in the current artifact schema",
+        "EV bridge (short-term investments, noncontrolling interest, preferred stock, temporary equity) is not in this artifact: it resolves only from us-gaap company facts, and artifacts written before its current keys omit it",
     };
     return {
       shortTermInvestments: unresolved,

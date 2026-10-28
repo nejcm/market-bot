@@ -990,13 +990,111 @@ describe("ambiguous LongTermDebt", () => {
     );
   });
 
-  test("NOW: short-term borrowings beside LongTermDebt do not prove its scope, so 2026-06-30 stays withheld", () => {
-    const june = (value: number) => filed(value, "2026-06-30", "2026-07-23", "now-2026-q2");
-    expectGap(
-      { LongTermDebt: [june(5_435_000_000)], ShortTermBorrowings: [june(2_082_000_000)] },
-      "LongTermDebt is tagged beside nonzero current debt (ShortTermBorrowings)",
-      "2026-06-30",
-    );
+  // NOW 2026-06-30 10-Q (0001373715-26-000076): 6,997M noncurrent liabilities foot with LongTermDebt as the noncurrent line.
+  test("NOW: a closed noncurrent liabilities identity publishes 5,435M + 2,082M = 7,517M at 2026-06-30", () => {
+    const june = (value: number) =>
+      filed(value, "2026-06-30", "2026-07-23", "0001373715-26-000076");
+    const { canonical, legacy } = resolve({
+      LongTermDebt: [june(5_435_000_000)],
+      ShortTermBorrowings: [june(2_082_000_000)],
+      Liabilities: [june(17_000_000_000)],
+      LiabilitiesCurrent: [june(10_003_000_000)],
+      ContractWithCustomerLiabilityNoncurrent: [june(135_000_000)],
+      OperatingLeaseLiabilityNoncurrent: [june(822_000_000)],
+      OtherLiabilitiesNoncurrent: [june(605_000_000)],
+    });
+    expect(canonical).toMatchObject({ value: 7_517_000_000, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(7_517_000_000);
+  });
+
+  describe("ADBE noncurrent liabilities identity (2026-08-28 10-Q 0000796343-26-000156)", () => {
+    const august = (value: number) =>
+      filed(value, "2026-08-28", "2026-09-22", "0000796343-26-000156");
+    const adbe = {
+      DebtCurrent: [august(1_597_000_000)],
+      LongTermDebt: [august(4_766_000_000)],
+      Liabilities: [august(18_217_000_000)],
+      LiabilitiesCurrent: [august(11_888_000_000)],
+      AccruedIncomeTaxesNoncurrent: [august(567_000_000)],
+      ContractWithCustomerLiabilityNoncurrent: [august(110_000_000)],
+      OperatingLeaseLiabilityNoncurrent: [august(310_000_000)],
+      OtherLiabilitiesNoncurrent: [august(576_000_000)],
+    };
+    const scopeReason = "LongTermDebt is tagged beside nonzero current debt (DebtCurrent)";
+
+    test("publishes 1,597M current + 4,766M LongTermDebt = 6,363M", () => {
+      const { canonical, legacy } = resolve(adbe);
+      expect(canonical).toMatchObject({ value: 6_363_000_000, periodEnd: "2026-08-28" });
+      expect(legacy?.metrics.debt).toBe(6_363_000_000);
+      expect(legacy?.metrics.debtPeriodEnd).toBe("2026-08-28");
+    });
+
+    test("prefers a tagged LiabilitiesNoncurrent over the subtraction", () => {
+      expect(
+        resolve({ ...adbe, LiabilitiesNoncurrent: [august(6_329_000_000)], Liabilities: [] })
+          .canonical?.value,
+      ).toBe(6_363_000_000);
+      expectGap(
+        { ...adbe, LiabilitiesNoncurrent: [august(6_330_000_000)] },
+        scopeReason,
+        "2026-08-28",
+      );
+    });
+
+    test("withholds when the identity is off by 1M", () => {
+      expectGap(
+        { ...adbe, OtherLiabilitiesNoncurrent: [august(575_000_000)] },
+        scopeReason,
+        "2026-08-28",
+      );
+    });
+
+    test("withholds without a liabilities total", () => {
+      expectGap({ ...adbe, Liabilities: [] }, scopeReason, "2026-08-28");
+    });
+
+    test("withholds when the totals come from another filing", () => {
+      const other = (value: number) =>
+        filed(value, "2026-08-28", "2026-12-20", "0000796343-26-000200", "10-K");
+      expectGap(
+        {
+          ...adbe,
+          Liabilities: [other(18_217_000_000)],
+          LiabilitiesCurrent: [other(11_888_000_000)],
+        },
+        scopeReason,
+        "2026-08-28",
+      );
+    });
+
+    test("withholds when the totals sit at another instant", () => {
+      const may = (value: number) =>
+        filed(value, "2026-05-29", "2026-09-22", "0000796343-26-000156");
+      expectGap(
+        { ...adbe, Liabilities: [may(18_217_000_000)], LiabilitiesCurrent: [may(11_888_000_000)] },
+        scopeReason,
+        "2026-08-28",
+      );
+    });
+
+    test("ignores an asset-side noncurrent tag outside the allowlist", () => {
+      expect(
+        resolve({ ...adbe, CapitalizedContractCostNetNoncurrent: [august(815_000_000)] }).canonical
+          ?.value,
+      ).toBe(6_363_000_000);
+    });
+
+    test("a zero LongTermDebt never closes the identity", () => {
+      expectGap(
+        {
+          ...adbe,
+          LongTermDebt: [august(0)],
+          Liabilities: [august(13_451_000_000)],
+        },
+        "LongTermDebt is tagged beside nonzero current debt",
+        "2026-08-28",
+      );
+    });
   });
 
   test("UBER: the 2026-06-30 10-Q LongTermDebt already includes 1,997M short-term borrowings, so sparse tags stay withheld", () => {
@@ -1475,5 +1573,152 @@ describe("ambiguous LongTermDebt", () => {
     ],
   ] as const)("declares a gap for %s", (_label, gaap, reason) => {
     expectGap(gaap, reason);
+  });
+});
+
+describe("debt totals and instruments checked against their lines", () => {
+  const filed = (
+    value: number,
+    periodEnd: string,
+    filedAt: string,
+    accn: string,
+    form = "10-Q",
+  ) => ({
+    ...instant(value, periodEnd, filedAt, form, form === "10-K" ? "FY" : "Q1"),
+    accn,
+  });
+  const noteFor = (gaap: Parameters<typeof resolve>[0], periodEnd: string) =>
+    resolve(gaap).artifact.omissionNotes.find(
+      (note) =>
+        note.code === "incomplete-composite-series" && note.periodKey === `instant|${periodEnd}`,
+    )?.message;
+
+  describe("VSAT 2026-06-30 10-Q 0001193125-26-337903", () => {
+    const june = (value: number) =>
+      filed(value, "2026-06-30", "2026-08-06", "0001193125-26-337903");
+    const vsat = {
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [june(6_570_503_000)],
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [june(661_939_000)],
+      LongTermDebtCurrent: [june(661_939_000)],
+      LongTermDebtAndCapitalLeaseObligations: [june(5_780_460_000)],
+      FinanceLeaseLiability: [june(142_678_000)],
+      DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [june(128_104_000)],
+    };
+
+    test("a total above its balance-sheet legs is principal: 6,442.399M lines less 142.678M leases", () => {
+      const { canonical, legacy } = resolve(vsat);
+      expect(canonical).toMatchObject({ value: 6_299_721_000, periodEnd: "2026-06-30" });
+      expect(legacy?.metrics.debt).toBe(6_299_721_000);
+    });
+
+    test("the filed CommercialPaperNoncurrent notes tag withholds it", () => {
+      const gaap = { ...vsat, CommercialPaperNoncurrent: [june(3_068_721_000)] };
+      expect(resolve(gaap).canonical?.periodEnd).not.toBe("2026-06-30");
+      expect(resolve(gaap).legacy?.metrics.debt).toBeUndefined();
+      expect(noteFor(gaap, "2026-06-30")).toContain("CommercialPaperNoncurrent");
+    });
+
+    test("without the unamortized-cost proof the total stays", () => {
+      const { canonical } = resolve({
+        ...vsat,
+        DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [june(128_000_000)],
+      });
+      expect(canonical).toMatchObject({ value: 6_427_825_000 });
+    });
+
+    test("a total equal to its legs stays the total", () => {
+      const { canonical } = resolve({
+        ...vsat,
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [june(6_442_399_000)],
+      });
+      expect(canonical).toMatchObject({ value: 6_299_721_000 });
+      expect(canonical?.concept).toStartWith(
+        "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
+      );
+    });
+  });
+
+  describe("Corning 2024-12-31", () => {
+    const tenK = (value: number) =>
+      filed(value, "2024-12-31", "2026-02-12", "0000024741-26-000124", "10-K");
+    const tenQ = (value: number) =>
+      filed(value, "2024-12-31", "2025-10-31", "0000024741-25-000121");
+
+    test("10-K 0000024741-26-000124: 7,211M total less 174M finance leases = 7,037M", () => {
+      const { canonical } = resolve({
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [tenK(7_211_000_000)],
+        FinanceLeaseLiability: [tenK(174_000_000)],
+      });
+      expect(canonical).toMatchObject({ value: 7_037_000_000 });
+    });
+
+    const twoLegs = {
+      DebtCurrent: [tenQ(326_000_000)],
+      LongTermDebtAndCapitalLeaseObligations: [tenQ(6_885_000_000)],
+      FinanceLeaseLiability: [tenQ(144_000_000)],
+    };
+
+    test("10-Q 0000024741-25-000121: a lease total across two legs is withheld", () => {
+      expect(noteFor(twoLegs, "2024-12-31")).toContain("its split across");
+      expect(resolve(twoLegs).canonical).toBeUndefined();
+    });
+
+    test("a later filing's restated lease split leg withholds the deduction", () => {
+      const gaap = {
+        DebtCurrent: [tenQ(326_000_000), tenK(326_000_000)],
+        LongTermDebtAndCapitalLeaseObligations: [tenQ(6_885_000_000), tenK(6_885_000_000)],
+        FinanceLeaseLiabilityCurrent: [tenQ(0), tenK(30_000_000)],
+        FinanceLeaseLiabilityNoncurrent: [tenQ(144_000_000), tenK(144_000_000)],
+      };
+      const { canonical, legacy } = resolve(gaap);
+      expect(noteFor(gaap, "2024-12-31")).toContain("restated FinanceLeaseLiabilityCurrent");
+      expect(canonical).toBeUndefined();
+      expect(legacy?.metrics.debt).toBeUndefined();
+    });
+  });
+
+  describe("AAOI 2024-12-31 10-K 0001437749-26-005875", () => {
+    const fy = (value: number) =>
+      filed(value, "2024-12-31", "2026-02-26", "0001437749-26-005875", "10-K");
+    const aaoi = {
+      LongTermDebt: [fy(26_682_000)],
+      LongTermDebtCurrent: [fy(22_369_000)],
+      LongTermDebtNoncurrent: [fy(4_313_000)],
+      ConvertibleLongTermNotesPayable: [fy(134_497_000)],
+    };
+
+    test("withholds 26.682M LongTermDebt beside 134.497M convertibles it cannot hold", () => {
+      const { canonical, legacy } = resolve(aaoi);
+      expect(canonical).toBeUndefined();
+      expect(legacy?.metrics.debt).toBeUndefined();
+      expect(noteFor(aaoi, "2024-12-31")).toContain(
+        "ConvertibleLongTermNotesPayable (134497000) exceeds LongTermDebt (26682000)",
+      );
+    });
+
+    test("an instrument no larger than the total may sit inside it", () => {
+      expect(
+        resolve({ ...aaoi, ConvertibleLongTermNotesPayable: [fy(4_000_000)] }).canonical?.value,
+      ).toBe(26_682_000);
+    });
+  });
+
+  test("HIVE: a 40-F line renamed in the 10-K withholds legacy debt too (0001062993-26-002973)", () => {
+    const tenK = (value: number) =>
+      filed(value, "2026-03-31", "2026-06-02", "0001062993-26-002973", "10-K");
+    const gaap = {
+      LongTermNotesPayable: [
+        filed(10_200_000, "2025-03-31", "2025-06-26", "0001062993-25-012159", "40-F"),
+      ],
+      ShortTermBorrowings: [tenK(2_038_000)],
+      LoansPayableCurrent: [tenK(1_460_000)],
+      LongTermLoansPayable: [tenK(9_497_000)],
+    };
+    const { canonical, legacy } = resolve(gaap);
+    expect(canonical?.periodEnd).not.toBe("2026-03-31");
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(legacy?.debtComposite?.incompleteReason).toContain("omits LongTermNotesPayable");
+    const domestic = resolve({ ...gaap, LongTermNotesPayable: [] }).legacy;
+    expect(domestic?.metrics.debt).toBe(12_995_000);
   });
 });

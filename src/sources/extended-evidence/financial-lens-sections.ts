@@ -443,7 +443,7 @@ function evidenceGuardedNetDebt(ctx: MetricContext): number | undefined {
     : netDebtFromMetrics(item?.metrics);
 }
 
-function shortTermInvestmentsAt(
+export function shortTermInvestmentsAt(
   ctx: MetricContext,
   cash: FinancialStatementFact,
 ): { readonly value?: number; readonly inputs: readonly MetricInput[]; readonly reason?: string } {

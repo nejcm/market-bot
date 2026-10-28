@@ -1760,6 +1760,7 @@ function operatingRatioBound(
   };
   const [tax, pretax] = [valueOf("incomeTaxExpense"), valueOf("pretaxIncome")];
   const [equity, debt, cash] = [valueOf("stockholdersEquity"), valueOf("debt"), valueOf("cash")];
+  const shortTermInvestments = valueOf("shortTermInvestments") ?? 0;
   switch (metricId) {
     case "freeCashFlowMargin": {
       if (below("capitalExpenditure", false)) {
@@ -1786,7 +1787,7 @@ function operatingRatioBound(
       return equity !== undefined &&
         debt !== undefined &&
         cash !== undefined &&
-        equity + debt - cash <= 0
+        equity + debt - cash - shortTermInvestments <= 0
         ? "invested capital not positive"
         : undefined;
     }
@@ -1906,13 +1907,16 @@ export function assertOperatingRatioInvariants(
     for (const sourceId of metric.sourceIds) {
       expect(reportSourceIds.has(sourceId), `${label} cites ${sourceId}`).toBe(true);
     }
-    const resolved = metric.inputs.map((input) =>
+    // Short-term investment rows carry no series; ROIC subtracts them as the EV bridge resolved them.
+    const seriesInputs = metric.inputs.filter(({ series }) => series !== undefined);
+    const shortTermInvestments = metric.inputs
+      .filter(({ series }) => series === undefined)
+      .reduce((sum, { value }) => sum + Number(value), 0);
+    const resolved = seriesInputs.map((input) =>
       resolveInput(run, input, `${label} ${input.label}`),
     );
     expect(
-      metric.inputs.every(({ series }) =>
-        required?.includes(series as FinancialStatementSeriesKey),
-      ),
+      seriesInputs.every(({ series }) => required?.includes(series as FinancialStatementSeriesKey)),
       `${label} reads only its own inputs`,
     ).toBe(true);
     const flows = resolved.filter((fact) => fact?.periodStart !== undefined);
@@ -1931,7 +1935,10 @@ export function assertOperatingRatioInvariants(
       expect(metric.periodEnd, `${label} ends at its anchor FY`).toBe(anchorEnd);
     }
     const valueOf = (key: string): number | undefined => {
-      const index = metric.inputs.findIndex(({ series }) => series === key);
+      if (key === "shortTermInvestments") {
+        return shortTermInvestments;
+      }
+      const index = seriesInputs.findIndex(({ series }) => series === key);
       return index === -1 ? undefined : Number(resolved[index]?.value);
     };
     const pretax = metric.inputs.find(({ series }) => series === "pretaxIncome");
@@ -1987,7 +1994,7 @@ export function assertOperatingRatioInvariants(
       continue;
     }
     expect(
-      metric.inputs.map(({ series }) => series),
+      seriesInputs.map(({ series }) => series),
       `${label} joins every input`,
     ).toEqual([...(required ?? [])]);
     expect(operatingRatioBound(id, valueOf), `${label} value passes its bounds`).toBeUndefined();
@@ -1999,7 +2006,7 @@ export function assertOperatingRatioInvariants(
       effectiveTaxRate: at("incomeTaxExpense") / at("pretaxIncome"),
       roic:
         (at("operatingIncome") * (1 - at("incomeTaxExpense") / at("pretaxIncome"))) /
-        (at("stockholdersEquity") + at("debt") - at("cash")),
+        (at("stockholdersEquity") + at("debt") - at("cash") - at("shortTermInvestments")),
     }[id];
     expectClose(metric.value, expected ?? Number.NaN, label);
     if (metric.unit === "currency") {

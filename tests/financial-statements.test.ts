@@ -982,7 +982,7 @@ describe("canonical financial statements", () => {
           IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments:
             { USD: [annual(161, 2025)] },
           DepreciationDepletionAndAmortization: { USD: [annual(50, 2025)] },
-          DepreciationAndAmortization: { USD: [annual(51, 2025)] },
+          DepreciationAndAmortization: { USD: [annual(50.4, 2025)] },
         },
       }),
     );

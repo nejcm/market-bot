@@ -467,15 +467,19 @@ async function resolveBodies(
   dir: string,
   text: string,
   cache: Map<string, Promise<unknown>>,
+  used = new Set<string>(),
 ): Promise<unknown> {
   const refs = new Set<string>();
-  const parsed: unknown = JSON.parse(text, (_key, value: unknown) => {
+  const parsed: unknown = JSON.parse(text);
+  const collect = (value: unknown): void => {
     const sha256 = bodyRef(value);
     if (sha256 !== undefined) {
       refs.add(sha256);
+    } else if (Array.isArray(value) || isRecord(value)) {
+      Object.values(value).forEach(collect);
     }
-    return value;
-  });
+  };
+  collect(parsed);
   if (refs.size === 0) {
     return parsed;
   }
@@ -486,7 +490,7 @@ async function resolveBodies(
           cache.set(
             sha256,
             readRecordedBody(dir, `bodies/${sha256}.json`, sha256).then((body) =>
-              resolveBodies(dir, body, cache),
+              resolveBodies(dir, body, cache, used),
             ),
           );
         }
@@ -494,16 +498,28 @@ async function resolveBodies(
       }),
     ),
   );
-  return JSON.parse(text, (_key, value: unknown) => {
+  const substitute = (value: unknown): unknown => {
     const sha256 = bodyRef(value);
-    if (sha256 === undefined) {
-      return value;
+    if (sha256 !== undefined) {
+      if (!loaded.has(sha256)) {
+        throw new Error("Unresolved replay body reference");
+      }
+      // The first use takes the loaded body; repeats get a clone so no two sites alias.
+      const body = loaded.get(sha256);
+      return used.has(sha256) ? structuredClone(body) : (used.add(sha256), body);
     }
-    if (!loaded.has(sha256)) {
-      throw new Error("Unresolved replay body reference");
+    if (Array.isArray(value)) {
+      value.forEach((row, index) => {
+        value[index] = substitute(row);
+      });
+    } else if (isRecord(value)) {
+      for (const [key, row] of Object.entries(value)) {
+        value[key] = substitute(row);
+      }
     }
-    return structuredClone(loaded.get(sha256));
-  });
+    return value;
+  };
+  return substitute(parsed);
 }
 
 export async function loadSynthesisReplayInput(file: string): Promise<SynthesisReplayInput> {

@@ -244,11 +244,24 @@ describe("static equity run fixtures", () => {
                   value: "47.4%",
                 }),
               );
+              const geography = (
+                prompt.evidence.metricReferences as readonly {
+                  id: string;
+                  metrics: readonly { reference: string; status: string; unit?: string }[];
+                }[]
+              ).find(({ id }) => id === "geographic-revenue");
+              expect(
+                geography?.metrics.some(
+                  ({ reference, status }) => reference.endsWith("-share>>") && status === "value",
+                ),
+              ).toBe(true);
               for (const item of prompt.evidence.extendedEvidence.items as readonly {
                 metrics?: Record<string, unknown>;
               }[]) {
                 expect(
-                  Object.keys(item.metrics ?? {}).some((key) => key.startsWith("segment|")),
+                  Object.keys(item.metrics ?? {}).some(
+                    (key) => key.startsWith("segment|") || key.startsWith("geography|"),
+                  ),
                 ).toBe(false);
               }
             }

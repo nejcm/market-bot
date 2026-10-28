@@ -1,7 +1,13 @@
 import type { ExtendedEvidence } from "../../domain/evidence";
 import type { MetricSection } from "../../sources/extended-evidence/metric-engine";
+import { GEOGRAPHIC_REVENUE_SECTION_ID } from "../../sources/extended-evidence/geographic-revenue";
 import { SEGMENT_RESULTS_SECTION_ID } from "../../sources/extended-evidence/segment-results";
-import { SEGMENT_FACT_PREFIX, SEGMENT_UNIT_KEY } from "../../sources/sec-segment-facts";
+import {
+  GEOGRAPHY_FACT_PREFIX,
+  GEOGRAPHY_UNIT_KEY,
+  SEGMENT_FACT_PREFIX,
+  SEGMENT_UNIT_KEY,
+} from "../../sources/sec-segment-facts";
 import { formatMetricValue } from "../../sources/extended-evidence/value-format";
 
 export function metricReferenceEvidence(
@@ -57,16 +63,22 @@ export function withoutRestatedMetricValues(
   if (sections.length === 0) {
     return evidence;
   }
-  const hasSegmentResults = sections.some(({ id }) => id === SEGMENT_RESULTS_SECTION_ID);
+  const restated = (
+    [
+      [SEGMENT_RESULTS_SECTION_ID, SEGMENT_FACT_PREFIX, SEGMENT_UNIT_KEY],
+      [GEOGRAPHIC_REVENUE_SECTION_ID, GEOGRAPHY_FACT_PREFIX, GEOGRAPHY_UNIT_KEY],
+    ] as const
+  ).filter(([sectionId]) => sections.some(({ id }) => id === sectionId));
   return {
     ...evidence,
     items: evidence.items.map((item) => {
-      if (item.category === "sec-edgar" && hasSegmentResults) {
+      if (item.category === "sec-edgar" && restated.length > 0) {
         return {
           ...item,
           metrics: Object.fromEntries(
             Object.entries(item.metrics ?? {}).filter(
-              ([key]) => !key.startsWith(SEGMENT_FACT_PREFIX) && key !== SEGMENT_UNIT_KEY,
+              ([key]) =>
+                !restated.some(([, prefix, unitKey]) => key.startsWith(prefix) || key === unitKey),
             ),
           ),
         };

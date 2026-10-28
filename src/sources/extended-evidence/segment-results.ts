@@ -21,7 +21,9 @@ interface SegmentPeriod {
   readonly end: string;
 }
 
-function periodicItems(items: readonly ExtendedEvidenceItem[]): readonly ExtendedEvidenceItem[] {
+export function periodicItems(
+  items: readonly ExtendedEvidenceItem[],
+): readonly ExtendedEvidenceItem[] {
   return items
     .filter(
       (item) =>
@@ -46,14 +48,14 @@ function segmentPeriods(metrics: Record<string, number | string>): readonly Segm
 }
 
 // `amd:DataCenterMember` -> `Data Center`.
-function memberLabel(member: string): string {
+export function memberLabel(member: string): string {
   return (member.split(":").at(-1) ?? member)
     .replace(/(Segment)?Member$/u, "")
     .replaceAll(/(?<=[a-z0-9])(?=[A-Z])/gu, " ")
     .replaceAll(" And ", " and ");
 }
 
-function monthsBetween(start: string, end: string): number {
+export function monthsBetween(start: string, end: string): number {
   return Math.round((Date.parse(end) - Date.parse(start)) / (30.44 * 86_400_000));
 }
 

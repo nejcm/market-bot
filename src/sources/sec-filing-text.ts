@@ -125,14 +125,22 @@ const SEC_SECTION_BUDGETS = {
   notes: 500,
 } as const;
 
-const ITEM_HEADING = /ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]/giu;
+// Drop-cap typography splits the heading keyword too ("ITE M 2.", "PA RT I").
+const ITEM = whitespaceTolerantLiteral("ITEM");
+const ITEM_HEADING = new RegExp(String.raw`${ITEM}\s+\d+[A-Z]?\b[.\u2010-\u2015:-]`, "giu");
 // Normalized text has no line breaks: a heading follows page furniture or a sentence end, never prose.
 const HEADING_CONTEXT =
   /(?:[.!?:;)\]”\d]|\b[Cc]onten\s*t\s*s|\b\p{Lu}{2,}|[.!?]\s*[ivx]{1,5})\s*$/u;
-const PART_PREFIX = /\b(?:PART|Part)\s+[IVX]+,?\s*$/u;
+const PART_PREFIX = new RegExp(
+  String.raw`\b(?:${whitespaceTolerantLiteral("PART")}|Part)\s+[IVX]+,?\s*$`,
+  "u",
+);
 const REFERENCE_LEAD = /\b(?:see|refer\s+to|under|in|pursuant\s+to|also|of|and)\s*$/iu;
 // Cross-references are written "Item 7", so an all-caps "ITEM 7. TITLE" needs no sentence end before it.
-const ALL_CAPS_ITEM_HEADING = /^ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]?\s*\[?\p{Lu}\s?\p{Lu}/u;
+const ALL_CAPS_ITEM_HEADING = new RegExp(
+  String.raw`^${ITEM}\s+\d+[A-Z]?\b[.\u2010-\u2015:-]?\s*\[?\p{Lu}\s?\p{Lu}`,
+  "u",
+);
 
 // A page number, dotted leader or lowercase continuation marks a contents row or prose.
 const NOT_CONTENTS_ROW_OR_PROSE = String.raw`(?!\s*(?:\.{2,}|\(\d{1,3}\)|\d{1,3}(?![\d,.])|(?-i:[a-z])))`;
@@ -149,6 +157,14 @@ function isHeadingAt(text: string, index: number): boolean {
   );
 }
 
+// "Refer to Note 11, “Segment Information”" cites the note; "NOTE 11: SEGMENT INFORMATION" is it.
+const NOTE_REFERENCE =
+  /\b(?:see|refer(?:red)?\s+to|in)\s+(?:the\s+)?Note\s+\d+[A-Z]?\b(?:(?!\bNote\s+\d)[^.]){0,80}$/iu;
+
+function isCrossReferenceAt(text: string, index: number): boolean {
+  return NOTE_REFERENCE.test(text.slice(Math.max(0, index - 120), index));
+}
+
 function firstHeading(text: string, pattern: RegExp, from: number, to: number): number | undefined {
   for (const match of text.slice(from, to).matchAll(pattern)) {
     if (isHeadingAt(text, from + match.index)) {
@@ -156,6 +172,28 @@ function firstHeading(text: string, pattern: RegExp, from: number, to: number): 
     }
   }
   return undefined;
+}
+
+const PORTFOLIO_EVENT_SENTENCE =
+  /\b(?:completed|closed|consummated)\s+(?:the|its|our)\s+(?:previously announced\s+)?(?:sale|acquisition|divestiture|merger|spin-?off|disposition)\b|\bproceeds from the (?:sale|divestiture|disposition) (?:were|was)\b/iu;
+const POINTER_SENTENCE = /^(?:refer|see|unless|for (?:more|additional|further))\b/iu;
+const PREAMBLE_EVENTS_MAX_CHARS = 1000;
+
+// The skipped preamble is mostly boilerplate, but acquisitions and divestitures live there.
+function preambleEvents(preamble: string): string {
+  let events = "";
+  for (const raw of preamble.split(/(?<=[.!?])\s+(?=[A-Z“"\d])/u)) {
+    const sentence = raw.replace(/^\d+\s+Table of Contents\s+/iu, "");
+    if (!PORTFOLIO_EVENT_SENTENCE.test(sentence) || POINTER_SENTENCE.test(sentence)) {
+      continue;
+    }
+    const next = events === "" ? sentence : `${events} ${sentence}`;
+    if (next.length > PREAMBLE_EVENTS_MAX_CHARS) {
+      break;
+    }
+    events = next;
+  }
+  return events;
 }
 
 // Slices from `start` (or a selectable `subheading`) to the next ITEM heading, capped at `maxChars`.
@@ -167,9 +205,12 @@ function boundedSection(
 ): string {
   const end = firstHeading(text, ITEM_HEADING, start + 1, text.length) ?? text.length;
   const anchor = subheading === undefined ? undefined : firstHeading(text, subheading, start, end);
-  const anchored = anchor === undefined ? "" : text.slice(anchor, Math.min(end, anchor + maxChars));
+  const events = anchor === undefined ? "" : preambleEvents(text.slice(start, anchor));
+  const lead = events === "" ? "" : `${events} ... `;
+  const anchored =
+    anchor === undefined ? "" : text.slice(anchor, Math.min(end, anchor + maxChars - lead.length));
   return substantiveAlphaCount(anchored) >= SEC_SECTION_MIN_SELECTED_ALPHA_CHARS
-    ? anchored
+    ? `${lead}${anchored}`
     : text.slice(start, Math.min(end, start + maxChars));
 }
 
@@ -182,8 +223,7 @@ export function substantiveAlphaCount(value: string): number {
 // E.g. "ITEM 1. B USINESS" or "RIS K FACTORS") still matches the anchor. `\s*` between
 // Characters matches zero-width by default, so this is a strict superset of matching the
 // Literal with no whitespace at all \u2014 a normal, non-drop-cap filing anchors identically to
-// Before. False positives stay nil because callers always anchor this on a preceding
-// `ITEM\s+<n>` header first (see secFilingSectionPacket).
+// Before. Tolerant ITEM/PART tokens still pass isHeadingAt, which rejects inline references.
 function whitespaceTolerantLiteral(literal: string): string {
   return [...literal].join(String.raw`\s*`);
 }
@@ -206,9 +246,14 @@ function selectSection(
   maxChars: number,
   acceptsShort?: (section: string) => boolean,
   subheading?: RegExp,
+  skipsNoteReferences = false,
 ): SectionMiss | string {
   const candidates = [...text.matchAll(pattern)]
-    .filter((match) => !/^ITEM/iu.test(match[0]) || isHeadingAt(text, match.index))
+    .filter((match) =>
+      new RegExp(`^${ITEM}`, "iu").test(match[0])
+        ? isHeadingAt(text, match.index)
+        : !(skipsNoteReferences && isCrossReferenceAt(text, match.index)),
+    )
     .map((match) => {
       const section = boundedSection(text, match.index, maxChars, subheading);
       return { section, alphaCount: substantiveAlphaCount(section) };
@@ -261,8 +306,8 @@ export function secFilingSectionPacket(
   }
   const mdnaPattern =
     form === "10-K"
-      ? new RegExp(`ITEM\\s+7\\b[.\\u2010-\\u2015:-]?\\s*${tw("MANAGEMENT")}`, "giu")
-      : new RegExp(`ITEM\\s+2\\b[.\\u2010-\\u2015:-]?\\s*${tw("MANAGEMENT")}`, "giu");
+      ? new RegExp(`${ITEM}\\s+7\\b[.\\u2010-\\u2015:-]?\\s*${tw("MANAGEMENT")}`, "giu")
+      : new RegExp(`${ITEM}\\s+2\\b[.\\u2010-\\u2015:-]?\\s*${tw("MANAGEMENT")}`, "giu");
   const segmentsPattern = new RegExp(
     `${tw("SEGMENT")}\\s+(${tw("INFORMATION")}|${tw("REPORTING")}|${tw("DATA")}|${tw("RESULTS")}|${tw("REVENUE")})` +
       `|${tw("GEOGRAPH")}(${tw("IC")}|${tw("IES")}|${tw("Y")})\\s+(${tw("REVENUE")}|${tw("SALES")}|${tw("DISCLOSURE")}|${tw("INFORMATION")}|${tw("DATA")}|${tw("BREAKDOWN")})`,
@@ -283,12 +328,13 @@ export function secFilingSectionPacket(
     readonly maxChars: number;
     readonly acceptsShort?: (section: string) => boolean;
     readonly subheading?: RegExp;
+    readonly skipsNoteReferences?: boolean;
   }[] = [
     ...(form === "10-K"
       ? [
           {
             label: "Business",
-            pattern: new RegExp(`ITEM\\s+1\\b[.\\u2010-\\u2015:-]?\\s*${tw("BUSINESS")}`, "giu"),
+            pattern: new RegExp(`${ITEM}\\s+1\\b[.\\u2010-\\u2015:-]?\\s*${tw("BUSINESS")}`, "giu"),
             maxChars: SEC_SECTION_BUDGETS.business,
           },
         ]
@@ -296,7 +342,7 @@ export function secFilingSectionPacket(
     {
       label: "Risk Factors",
       pattern: new RegExp(
-        `ITEM\\s+1A\\b[.\\u2010-\\u2015:-]?\\s*${tw("RISK")}\\s+${tw("FACTORS")}`,
+        `${ITEM}\\s+1A\\b[.\\u2010-\\u2015:-]?\\s*${tw("RISK")}\\s+${tw("FACTORS")}`,
         "giu",
       ),
       maxChars: SEC_SECTION_BUDGETS.riskFactors,
@@ -311,7 +357,12 @@ export function secFilingSectionPacket(
         "giu",
       ),
     },
-    { label: "Segments", pattern: segmentsPattern, maxChars: SEC_SECTION_BUDGETS.segments },
+    {
+      label: "Segments",
+      pattern: segmentsPattern,
+      maxChars: SEC_SECTION_BUDGETS.segments,
+      skipsNoteReferences: true,
+    },
     { label: "Notes", pattern: notesPattern, maxChars: SEC_SECTION_BUDGETS.notes },
   ];
   const parts: string[] = [];
@@ -323,6 +374,7 @@ export function secFilingSectionPacket(
       section.maxChars,
       section.acceptsShort,
       section.subheading,
+      section.skipsNoteReferences,
     );
     if (typeof selected !== "string") {
       misses.push({ ...selected, label: section.label });

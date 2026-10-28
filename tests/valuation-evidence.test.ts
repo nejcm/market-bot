@@ -69,6 +69,43 @@ describe("addValuationEvidence", () => {
     ]);
   });
 
+  describe("depository issuer under balance-sheet guards", () => {
+    const bankValuation = (metrics: Record<string, number | string>) => {
+      const result = addValuationEvidence(
+        command,
+        [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+        secEvidence({ revenue: 100, revenueTtm: 400, cash: 30, debt: 50, sic: "6022", ...metrics }),
+        "2026-07-01T00:00:00.000Z",
+      );
+      return {
+        item: result.extendedEvidence?.items.find((item) => item.category === "valuation"),
+        gaps: result.sourceGaps,
+      };
+    };
+
+    test.each([
+      ["mixed-period", { cashPeriodEnd: "2026-06-30", debtPeriodEnd: "2025-06-30" }],
+      [
+        "incomplete debt",
+        {
+          cashPeriodEnd: "2026-03-31",
+          debtPeriodEnd: "2026-03-31",
+          debtIncompletePeriodEnd: "2026-03-31",
+          debtIncompleteReason: "untagged component",
+        },
+      ],
+      ["aligned", { cashPeriodEnd: "2026-03-31", debtPeriodEnd: "2026-03-31" }],
+    ])("keeps the not-applicable reason when %s", (_case, periods) => {
+      const { item, gaps } = bankValuation(periods);
+      expect(item?.metrics?.netDebt).toBeUndefined();
+      expect(item?.metrics?.enterpriseValue).toBeUndefined();
+      expect(item?.metrics?.netDebtToMarketCap).toBeUndefined();
+      expect(item?.summary).toContain("depository issuer (SIC 6022)");
+      expect(item?.summary).not.toMatch(/mixed-period|enterprise value, net debt[^;]*withheld/u);
+      expect(gaps.map(({ message }) => message).join("\n")).not.toContain("Mixed-period");
+    });
+  });
+
   describe("debt currentness at the analysis cutoff", () => {
     const valuationAt = (
       cutoff: string,

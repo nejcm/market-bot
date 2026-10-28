@@ -1563,6 +1563,46 @@ describe("collectValuationComps", () => {
     expect(result.artifact.excludedPeers).toEqual([]);
   });
 
+  test.each([
+    ["aligned balances", {}],
+    ["mixed-period balances", { debtEnd: "2025-03-31" }],
+  ])(
+    "excludes a depository peer with %s instead of publishing its EV and net debt",
+    async (_case, periods) => {
+      const result = await collectValuationComps(
+        collectContext(
+          requestExecutor({
+            sicOverrides: { AMD: { sic: "6022" } },
+            secOverrides: { AMD: periods },
+          }),
+        ),
+        command,
+        [
+          marketSnapshot({
+            sourceId: "market-yahoo-equity-nvda",
+            symbol: "NVDA",
+            marketCap: 1000,
+            observedAt: generatedAt,
+          }),
+        ],
+        valuationEvidence(),
+      );
+      const amd = result.artifact.peers.find(({ symbol }) => symbol === "AMD");
+
+      expect(result.artifact.summary.usablePeerCount).toBe(3);
+      expect(amd).toMatchObject({ usable: false, sic: "6022" });
+      expect(amd?.netDebt).toBeUndefined();
+      expect(amd?.enterpriseValue).toBeUndefined();
+      expect(result.artifact.excludedPeers).toEqual([
+        expect.objectContaining({
+          symbol: "AMD",
+          cause: "suppressed-by-design",
+          reason: "depository peer (SIC 6022): enterprise value and net debt not applicable",
+        }),
+      ]);
+    },
+  );
+
   test("ticker-mapping peers stay usable when a registrant SIC is missing", async () => {
     const result = await collectValuationComps(
       collectContext(requestExecutor({ sicOverrides: { AMD: { sic: undefined } } })),

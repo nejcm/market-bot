@@ -20,6 +20,7 @@ import {
   type ValuationPeerExclusion,
 } from "./valuation-comps-contract";
 
+import { isDepositorySic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { latestFilingWithoutDebtFacts } from "./sec-edgar";
 import type { DebtBasis } from "./financial-statements-contract";
@@ -279,6 +280,7 @@ export function peerRow(
   const revenuePeriodMonths = readNumberMetric(metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(metrics, "revenuePeriodEnd");
   const annualizedRevenue = readNumberMetric(metrics, "revenueTtm");
+  const depositoryPeer = isDepositorySic(sec.sicClassification?.sic);
   const computedEnterpriseValue =
     marketCap === undefined ? undefined : enterpriseValueFromMetrics(marketCap, metrics);
   const computedNetDebt = netDebtFromMetrics(metrics);
@@ -326,6 +328,11 @@ export function peerRow(
     evToAnnualizedRevenue = undefined;
   } else if (unverifiableVintage || incompleteDebtBasis) {
     enterpriseValue = undefined;
+    evToAnnualizedRevenue = undefined;
+  }
+  if (depositoryPeer) {
+    enterpriseValue = undefined;
+    netDebt = undefined;
     evToAnnualizedRevenue = undefined;
   }
   // SIC provenance is the SEC submissions endpoint, not company facts, so a
@@ -430,6 +437,9 @@ function exclusionReason(
   target: ValuationCompsRow,
   secMetrics?: Readonly<Record<string, number | string>>,
 ): ValuationPeerExclusion {
+  if (isDepositorySic(row.sic)) {
+    return gated(`depository peer (SIC ${row.sic}): enterprise value and net debt not applicable`);
+  }
   if (row.quoteObservedAt === undefined) {
     return missing("missing quote");
   }

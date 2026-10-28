@@ -21,7 +21,11 @@ function metricLine(
       ? formatMetricValue(metric.value, metric.unit, metric.currency)
       : undefined;
   if (value === undefined) {
-    return [`- ${label}: not available, ${markdownText(metric.reason ?? "no value")}`];
+    const status =
+      metric.status === "not-applicable" || metric.status === "not-meaningful"
+        ? metric.status.replaceAll("-", " ")
+        : "not available";
+    return [`- ${label}: ${status}, ${markdownText(metric.reason ?? "no value")}`];
   }
   const detail = [
     ...(metric.periodEnd === undefined

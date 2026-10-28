@@ -10,7 +10,7 @@ import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero, formatRatioPercent } from "./percent-format";
 import { scaleCurrency } from "./value-format";
-import { depositoryIssuerSic } from "./industry-classification";
+import { depositoryIssuerSic, depositoryNetDebtReason } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-fundamentals-format";
 import {
@@ -70,6 +70,29 @@ function fixed(value: number | undefined): string {
 
 function percent(value: number | undefined): string {
   return value === undefined ? "n/a" : formatRatioPercent(value);
+}
+
+// Balance-sheet guards run after classification and may re-add EV/net-debt markers or replace the summary.
+function depositoryValuationItem(
+  item: ExtendedEvidenceItem,
+  rawSummary: string,
+  sic: string,
+): ExtendedEvidenceItem {
+  const {
+    enterpriseValue: _enterpriseValue,
+    netDebt: _netDebt,
+    evToAnnualizedRevenue: _evToAnnualizedRevenue,
+    netDebtToMarketCap: _netDebtToMarketCap,
+    ...metrics
+  } = item.metrics ?? {};
+  return {
+    ...item,
+    summary:
+      item.summary === rawSummary
+        ? item.summary
+        : `Valuation Evidence: enterprise value and net debt not applicable (${depositoryNetDebtReason(sic)}); debt/market cap ${metrics.debtToMarketCap === undefined ? "withheld (see the balance-sheet source gap)" : "retained"}. Raw market cap, cash, ${metrics.debt === undefined ? "" : "debt, "}and revenue metrics are retained.`,
+    metrics,
+  };
 }
 
 function nonCurrentBalanceSheetGap(
@@ -209,7 +232,7 @@ export function addValuationEvidence(
   const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
   const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
   const debtToMarketCap = debtCurrent && debt !== undefined ? ratio(debt, marketCap) : undefined;
-  const netDebt = netDebtFromMetrics(secItem.metrics);
+  const netDebt = depositorySic === undefined ? netDebtFromMetrics(secItem.metrics) : undefined;
   const netDebtToMarketCap =
     debtCurrent && cashCurrent && netDebt !== undefined ? ratio(netDebt, marketCap) : undefined;
   const staleBalances = [
@@ -239,7 +262,7 @@ export function addValuationEvidence(
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, net debt/market cap ${percent(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}${currentEquityText}; EV bridge: ${ENTERPRISE_VALUE_BASIS}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, ${depositorySic === undefined ? `net debt/market cap ${percent(netDebtToMarketCap)}` : `net debt not applicable (${depositoryNetDebtReason(depositorySic)})`}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}${currentEquityText}; EV bridge: ${ENTERPRISE_VALUE_BASIS}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -273,7 +296,10 @@ export function addValuationEvidence(
     command.symbol,
     secItem.metrics,
   );
-  const { item } = incompleteDebt;
+  const item =
+    depositorySic === undefined
+      ? incompleteDebt.item
+      : depositoryValuationItem(incompleteDebt.item, rawItem.summary, depositorySic);
   const sourceGaps = [
     ...(staleBalances.length === 0
       ? []
@@ -285,7 +311,9 @@ export function addValuationEvidence(
             debtCurrent ? ["net debt/market cap"] : ["debt/market cap", "net debt/market cap"],
           ),
         ]),
-    ...(divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)]),
+    ...(divergence === undefined || depositorySic !== undefined
+      ? []
+      : [mixedPeriodValuationGap(command.symbol, divergence)]),
     ...incompleteDebt.gaps,
     ...(debt === undefined || depositorySic !== undefined || enterpriseValueWithheld.length === 0
       ? []

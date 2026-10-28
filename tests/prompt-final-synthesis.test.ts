@@ -94,9 +94,13 @@ describe("range volatility reference", () => {
     symbol: "AAPL",
     depth: "brief",
   };
+  const priceHistorySources = ["AAPL", "SPY"].map((symbol) =>
+    newsSource({ id: `price-history-${symbol}`, kind: "market-data" }),
+  );
   const reference = (recentCloses: readonly { date: string; close: number }[]) =>
     kindMixSynthesisInstruction(command, {
       verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses }),
+      extendedSources: priceHistorySources,
     });
 
   test("anchors range probabilities to a vol-scaled band from recent closes", () => {
@@ -122,6 +126,126 @@ describe("range volatility reference", () => {
     );
     expect(instruction).toContain(
       "The relative grid event is AAPL vs SPY at +5, so a relative prediction needs another benchmark or another horizon.",
+    );
+  });
+
+  test("names each grid range event as its ±1σ band with the base rate for its scored sessions", () => {
+    const sameDay = reference(rangeReferenceCloses(21));
+    for (const horizon of [1, 5, 20]) {
+      expect(sameDay).toMatch(
+        new RegExp(
+          `grid-range-${String(horizon)}: close\\(AAPL, \\+${String(horizon)}\\) outside \\[[\\d.]+, [\\d.]+\\], the ±1σ band over ${String(horizon)} sessions? around the 2026-05-21 reference close 100\\.00, and assuming complete US exchange sessions it scores the close ${String(horizon)} sessions? after that close, so a close outside it has a Gaussian base rate of about 0\\.32`,
+          "u",
+        ),
+      );
+    }
+    expect(sameDay).toContain(
+      "Each range grid base rate is a reference, not a default: judge each event from it and the run's evidence",
+    );
+    expect(sameDay).toMatch(/grid-relative-5: close\(AAPL, \+5\)\/close\(AAPL, 0\) > [^;]+?\. /u);
+
+    const premarket = kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({
+        analysisDate: "2026-05-22",
+        recentCloses: rangeReferenceCloses(21),
+      }),
+      extendedSources: priceHistorySources,
+    });
+    expect(premarket).toContain(
+      "the ±1σ band over 1 session around the 2026-05-21 reference close 100.00, and assuming complete US exchange sessions it scores the close 2 sessions after that close, so a close outside it has a Gaussian base rate of about 0.48",
+    );
+    expect(premarket).toContain(
+      "it scores the close 6 sessions after that close, so a close outside it has a Gaussian base rate of about 0.36",
+    );
+    expect(premarket).toContain(
+      "it scores the close 21 sessions after that close, so a close outside it has a Gaussian base rate of about 0.33",
+    );
+  });
+
+  test("states the band without a base rate when the latest session is unverified", () => {
+    const unverified = kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({
+        latestSessionStatus: "unverified",
+        recentCloses: rangeReferenceCloses(21),
+      }),
+    });
+    expect(unverified).toContain(
+      "the ±1σ band over 1 session around the 2026-05-21 reference close 100.00;",
+    );
+    expect(unverified).not.toContain("Gaussian base rate");
+    expect(unverified).not.toContain("Each range grid base rate");
+  });
+
+  test.each([
+    [
+      "flat closes",
+      "AAPL",
+      Array.from({ length: 21 }, (_, index) => ({
+        date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+        close: 100,
+      })),
+    ],
+    ["a non-US listing", "RY.TO", rangeReferenceCloses(21)],
+  ])("states the band without a base rate for %s", (_, symbol, recentCloses) => {
+    const instruction = kindMixSynthesisInstruction(
+      { ...command, symbol },
+      { verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol, recentCloses }) },
+    );
+    expect(instruction).toContain(
+      "the ±1σ band over 1 session around the 2026-05-21 reference close 100.00;",
+    );
+    expect(instruction).not.toContain("Gaussian base rate");
+    expect(instruction).not.toContain("NaN");
+  });
+
+  test("states no grid band or base rate when the range reference is unavailable", () => {
+    const split = reference(rangeReferenceCloses(21, 0.01, { at: 10, ratio: 0.5 }));
+    expect(split).toContain("grid-relative-5:");
+    expect(split).not.toContain("grid-range-");
+    expect(split).not.toContain("reference close");
+    expect(split).not.toContain("Gaussian base rate");
+
+    const noGrid = kindMixSynthesisInstruction(
+      { jobType: "crypto", assetClass: "crypto", symbol: "AAPL", depth: "brief" },
+      {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(21) }),
+      },
+    );
+    expect(noGrid).not.toContain("Event Grid:");
+    expect(noGrid).not.toContain("Gaussian base rate");
+  });
+
+  test("neither prices nor blocks a grid event whose close sources were not collected", () => {
+    const missingCloses = kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(21) }),
+    });
+    expect(missingCloses).toContain("grid-range-20:");
+    expect(missingCloses).not.toContain("grid-relative-5");
+    expect(missingCloses).not.toContain("The relative grid event");
+  });
+
+  test("counts only issuable grid events as covered prediction events", () => {
+    const closes = rangeReferenceCloses(21);
+    const missingCloses = kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: closes }),
+    });
+    expect(reference(closes)).toContain(
+      "Prediction coverage: events the Event Grid already covers: AAPL ±1σ range band at 1d, 5d, 20d; relative AAPL:SPY at 5d; supported kinds it leaves uncovered: direction. A prediction restating a covered event is folded into the grid and does not count toward the target; do not carry forward a prior run's prediction that does. A range at a covered horizon is a new forecast only with different, evidence-supported bounds.",
+    );
+    expect(reference(closes)).not.toContain("adds no signal");
+
+    expect(missingCloses).toContain(
+      "events the Event Grid already covers: AAPL ±1σ range band at 1d, 5d, 20d; supported kinds it leaves uncovered: direction, relative.",
+    );
+    expect(reference(rangeReferenceCloses(21, 0.01, { at: 10, ratio: 0.5 }))).toContain(
+      "events the Event Grid already covers: relative AAPL:SPY at 5d; supported kinds it leaves uncovered: direction, range.",
+    );
+    const crypto = kindMixSynthesisInstruction(
+      { jobType: "crypto", assetClass: "crypto", symbol: "AAPL", depth: "brief" },
+      { verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: closes }) },
+    );
+    expect(crypto).toContain(
+      "events the Event Grid already covers: none; supported kinds it leaves uncovered: direction, relative, range. Seek",
     );
   });
 

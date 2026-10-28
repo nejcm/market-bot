@@ -25,3 +25,15 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 - Trillion precision differs: Markdown `compactNumber` gives 1dp T (`$5.1T`), Console `scaleCurrency` 2dp T (`$5.07T`). Pick one; add a ≥1T case to the Console-vs-markdown parity tests in `tests/run-workspace-view.test.ts`.
 - Stage ablation: all stages kept, no confirmatory batch (`docs/testing.md`). Revisit only if per-run tokens or judge variance change materially; n=823 pairs at margin 0.5, 52 at 2.0 (~265M tokens).
 - Delete local branch feat/forecast-baseline once #112 merges.
+
+## From deep-equity loop (2026-10-23, branch improve/deep-equity-loop)
+
+- Forecast Baseline lags one session: it scales σ by √h from the last close, but the resolver counts +N from the first session on or after the run date, so premarket/intraday/weekend runs score N+1 sessions out. Biases range Paired Skill; fix needs a baseline version bump.
+- Forecast Grid job fact sheet (`src/forecast/grid-job.ts`) lists grid events without the ±1σ band or base rate that final synthesis now states. Share the framing.
+- Final-synthesis +10 range anchor still states 0.32; the session-true rate for run d18dcf30 is ~0.34. Use `rangeReferenceSessions` for it too.
+- Per-call usage ledger does not cover Run Chat streams, eval judges, the standalone Forecast Grid job, or history-thesis-delta.
+- Pre-2026-10-23 token totals (runs, variance bands, eval estimates) double-count Codex reasoning; correction size unknown.
+- Earnings-date confirmation: when SEC website fields are empty, fall back to issuer hosts (AMD: `ir.amd.com`, `newsroom.amd.com`) in `earnings-date-confirmation.ts`.
+- Range skill scoring should prefer the stamped `baselineProbability` (latent gap, 1 borderline flip in 131 predictions); needs an ADR 0003 change.
+- Open-web snippet cap: lower to ~2,400 chars or use fewer Exa highlights (cut lost one TrendForce volume fact in AMD runs).
+- Financial Lens citations carry 24–25 source ids per metric instead of per-metric ids (ADR 0004).

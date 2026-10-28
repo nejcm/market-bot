@@ -2,6 +2,8 @@ import type { VerifiedMarketSnapshot } from "../domain/market-data";
 import type { SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import { hasSplitSignature } from "../forecast/baseline";
+import { isExchangeTradingDay } from "../scoring/exchange-calendar";
+import { isUsListing } from "../sources/instrument-capability";
 
 const RANGE_REFERENCE_MIN_CLOSES = 11;
 // Gaussian P(|z| > 1); 5y AAPL/AMD/MSFT/SPY frequency was 0.285–0.334 (ADR 0003).
@@ -52,4 +54,30 @@ export function rangeReferenceBand(
     Number((reference.spot * Math.exp(-move)).toFixed(2)),
     Number((reference.spot * Math.exp(move)).toFixed(2)),
   ];
+}
+
+const ymd = (time: number) => new Date(time).toISOString().slice(0, 10);
+
+// The resolver counts +horizon from the first US session on or after the run date (resolver.ts).
+export function rangeReferenceSessions(
+  snapshot: VerifiedMarketSnapshot,
+  horizon: number,
+): number | undefined {
+  const referenceDate = snapshot.recentCloses.at(-1)?.date;
+  // An unverified latest session moves the scoring origin before the reference close.
+  if (
+    referenceDate === undefined ||
+    snapshot.latestSessionStatus === "unverified" ||
+    !isUsListing(snapshot.symbol)
+  ) {
+    return undefined;
+  }
+  let lag = 0;
+  for (let day = Date.parse(`${referenceDate}T00:00:00Z`); ymd(day) < snapshot.analysisDate; ) {
+    do {
+      day += 86_400_000;
+    } while (!isExchangeTradingDay(new Date(day)));
+    lag += 1;
+  }
+  return horizon + lag;
 }

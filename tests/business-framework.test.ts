@@ -13,6 +13,7 @@ import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-e
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { CURRENT_EQUITY_NOTE } from "../src/sources/extended-evidence/enterprise-value-bridge";
 import type { MarketSnapshot } from "../src/domain/market-data";
 import type { MetricResult, MetricSection } from "../src/sources/extended-evidence/metric-engine";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
@@ -713,6 +714,56 @@ describe("business framework evidence", () => {
       result.metricSections?.find(({ id }) => id === "business-framework-valuation")?.metrics[0],
     ).toMatchObject({ id: "valuationCaveat", value: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT });
     expect(valuation?.summary).toContain(REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT);
+  });
+
+  test("carries the current-equity note on EV/revenue only when the valuation bridge used it", () => {
+    const sourceIds = ["market-aapl", "extended-sec-edgar-aapl-fundamentals"];
+    const lens: readonly MetricSection[] = [
+      {
+        id: "financial-lens-value",
+        title: "Financial Lens: Value",
+        metrics: [
+          {
+            ...lensMetric("evToAnnualizedRevenue", 6.2, sourceIds),
+            inputs: [
+              {
+                label: "EV/revenue",
+                value: 6.2,
+                artifact: "evidence",
+                category: "valuation",
+                unit: "ratio",
+                sourceIds,
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const basisWith = (concept: string) => {
+      const base = evidence();
+      return metricOf(
+        framework(
+          {
+            ...base,
+            items: base.items.map((item) =>
+              item.category === "valuation"
+                ? { ...item, metrics: { ...item.metrics, shortTermInvestmentsConcept: concept } }
+                : item,
+            ),
+          },
+          AS_OF,
+          ANNUAL_STATEMENTS,
+          lens,
+        ),
+        "business-framework-valuation",
+        "evToAnnualizedRevenue",
+      )?.basis;
+    };
+
+    expect(basisWith("EquitySecuritiesFvNiCurrentAndNoncurrent")).toEndWith(
+      `; ${CURRENT_EQUITY_NOTE}`,
+    );
+    expect(basisWith("ShortTermInvestments")).not.toContain(CURRENT_EQUITY_NOTE);
   });
 
   test("marks EV/revenue not-applicable for a depository issuer", () => {

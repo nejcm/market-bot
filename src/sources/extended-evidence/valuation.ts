@@ -16,7 +16,8 @@ import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-fundamentals-format";
 import {
   bridgeIncompleteReasons,
   copyBridgeMetrics,
-  CURRENT_EQUITY_DISCLOSURE,
+  CURRENT_EQUITY_NOTE,
+  isCurrentEquityConcept,
   ENTERPRISE_VALUE_BASIS,
   enterpriseValueFromMetrics,
   netDebtFromMetrics,
@@ -195,16 +196,14 @@ export function addValuationEvidence(
   const revenuePeriodEnd = readStringMetric(secItem.metrics, "revenuePeriodEnd");
   const cashPeriodEnd = readStringMetric(secItem.metrics, "cashPeriodEnd");
   const debtPeriodEnd = readStringMetric(secItem.metrics, "debtPeriodEnd");
-  const grossPrincipalDebt = readStringMetric(secItem.metrics, "debtBasis") === "gross-principal";
   const debtLeaseScopeText =
     readStringMetric(secItem.metrics, "debtLeaseScope") === DEBT_MAY_INCLUDE_FINANCE_LEASES
       ? "enterprise value uses an SEC debt aggregate that may include finance leases"
       : "enterprise value is borrowing-based and excludes finance leases";
-  const currentEquityText = readStringMetric(
-    secItem.metrics,
-    "shortTermInvestmentsConcept",
-  )?.includes("EquitySecurities")
-    ? `; short-term investments include ${CURRENT_EQUITY_DISCLOSURE}`
+  const currentEquityText = isCurrentEquityConcept(
+    readStringMetric(secItem.metrics, "shortTermInvestmentsConcept"),
+  )
+    ? `; ${CURRENT_EQUITY_NOTE}`
     : "";
   const quoteObservedAt = snapshot.observedAt;
   const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
@@ -262,7 +261,7 @@ export function addValuationEvidence(
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, ${depositorySic === undefined ? `net debt/market cap ${percent(netDebtToMarketCap)}` : `net debt not applicable (${depositoryNetDebtReason(depositorySic)})`}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}${currentEquityText}; EV bridge: ${ENTERPRISE_VALUE_BASIS}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, ${depositorySic === undefined ? `net debt/market cap ${percent(netDebtToMarketCap)}` : `net debt not applicable (${depositoryNetDebtReason(depositorySic)})`}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}; ${debtLeaseScopeText}${currentEquityText}; EV bridge: ${ENTERPRISE_VALUE_BASIS}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -280,7 +279,6 @@ export function addValuationEvidence(
       ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),
       ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
       ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
-      ...(grossPrincipalDebt ? { debtBasis: "gross-principal" } : {}),
       ...(sic !== undefined ? { sic } : {}),
       ...(sicDescription !== undefined ? { sicDescription } : {}),
       ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),

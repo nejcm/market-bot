@@ -375,7 +375,7 @@ function withMezzanineIdentity<F extends BridgeFact>(
     };
   }
   const residual = assets - liabilities - equity;
-  return Math.abs(residual - part.value) > Math.abs(assets) * IDENTITY_TOLERANCE
+  return residual !== part.value
     ? {
         status: "incomplete",
         reason: `${LABELS.temporaryEquity} (${part.concept}) ${String(part.value)} does not reconcile with assets − liabilities − equity ${String(residual)} at ${instant}`,
@@ -442,8 +442,13 @@ export function resolveEnterpriseValueBridge<F extends BridgeFact>(
   };
 }
 
-export const CURRENT_EQUITY_DISCLOSURE =
-  "current equity securities may include holdings under sale restrictions, not cash on hand";
+const CURRENT_EQUITY_DISCLOSURE =
+  "current equity securities that may be sale-restricted, not cash on hand";
+export const CURRENT_EQUITY_NOTE = `short-term investments include ${CURRENT_EQUITY_DISCLOSURE}`;
+
+export function isCurrentEquityConcept(concept: string | undefined): boolean {
+  return concept?.includes("EquitySecurities") === true;
+}
 
 // Lineage rows for a tagged component: the pick, then any added current equity securities.
 export function bridgeContributors<F extends BridgeFact>(

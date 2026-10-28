@@ -176,11 +176,7 @@ function valuationRowInputDates(row: ValuationCompsRow): string {
       ...(priceAsOf === undefined ? [] : [priceAsOfLabel(priceAsOf)]),
       ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
       ...[compsCashLabel(row)].filter((label) => label !== undefined),
-      ...(row.debtPeriodEnd === undefined
-        ? []
-        : [
-            `debt ${row.debtPeriodEnd}${row.debtBasis === "gross-principal" ? " (gross principal)" : ""}`,
-          ]),
+      ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
     ].join(" · ") || "—"
   );
 }

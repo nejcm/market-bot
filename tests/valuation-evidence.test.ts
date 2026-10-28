@@ -381,34 +381,6 @@ describe("addValuationEvidence", () => {
     );
   });
 
-  test("carries a gross-principal debt basis only when the SEC item declares it", () => {
-    const snapshots = [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })];
-    const valuation = (evidence: ExtendedEvidence) =>
-      addValuationEvidence(
-        command,
-        snapshots,
-        evidence,
-        "2026-07-01T00:00:00.000Z",
-      ).extendedEvidence?.items.find((item) => item.category === "valuation");
-    const gross = valuation(
-      secEvidence({
-        revenue: 400,
-        revenueTtm: 400,
-        cash: 30,
-        debt: 50,
-        debtBasis: "gross-principal",
-      }),
-    );
-    const net = valuation(secEvidence({ revenue: 400, revenueTtm: 400, cash: 30, debt: 50 }));
-
-    expect(gross?.metrics?.debtBasis).toBe("gross-principal");
-    expect(gross?.summary).toContain(
-      "; debt is gross principal; enterprise value is borrowing-based and excludes finance leases; EV bridge:",
-    );
-    expect(net?.metrics && "debtBasis" in net.metrics).toBe(false);
-    expect(net?.summary).not.toContain("gross principal");
-  });
-
   test("clamps negative-zero valuation multiples", () => {
     const result = addValuationEvidence(
       command,

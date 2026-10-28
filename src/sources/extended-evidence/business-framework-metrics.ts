@@ -7,6 +7,7 @@ import type {
   BusinessLifecyclePhase,
 } from "./business-framework";
 import { priorComparable } from "./financial-lens-canonical";
+import { withCurrentEquityNote } from "./financial-lens-sections";
 import {
   itemByCategory,
   secFundamentalItem,
@@ -739,7 +740,7 @@ function sectionDefinitions(
           observedPeriod,
         ),
       },
-      {
+      withCurrentEquityNote({
         id: "evToAnnualizedRevenue",
         label: "EV/revenue",
         unit: "ratio",
@@ -754,7 +755,7 @@ function sectionDefinitions(
             return periodEnd === undefined ? {} : { periodEnd };
           }),
         ),
-      },
+      }),
     ],
   };
 }

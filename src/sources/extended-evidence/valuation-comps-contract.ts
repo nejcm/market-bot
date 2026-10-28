@@ -10,7 +10,6 @@ import type { Source, SourceGap, SourceGapCause } from "../../domain/sources";
 import type { RawSourceSnapshot } from "../types";
 import type { ResearchSubjectRegistryEntry } from "../../research/subject-registry";
 import type { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
-import type { DebtBasis } from "./financial-statements-contract";
 
 export const MIN_USABLE_PEERS = 3;
 export const MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS = 92;
@@ -52,7 +51,6 @@ export interface ValuationCompsRow {
   readonly debt?: number;
   readonly cashPeriodEnd?: string;
   readonly debtPeriodEnd?: string;
-  readonly debtBasis?: DebtBasis;
   readonly shortTermInvestments?: number;
   readonly shortTermInvestmentsIncludeEquity?: true;
   readonly noncontrollingInterest?: number;

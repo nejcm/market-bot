@@ -314,7 +314,7 @@ export function balanceSheetHistoryFromProjection(
     rows: history.rows.map((row) => ({
       period: row.period,
       cash: statementAmount(row.cash?.value, history.reportingCurrency),
-      debt: `${statementAmount(row.debt?.value, history.reportingCurrency)}${row.debt?.basis === "gross-principal" ? " (gross principal)" : ""}`,
+      debt: statementAmount(row.debt?.value, history.reportingCurrency),
       dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
     })),
   };
@@ -341,7 +341,7 @@ export function financialPositionFromProjection(
         label === "Diluted shares"
           ? scaleCurrency(item.value)
           : statementAmount(item.value, position.reportingCurrency),
-      dateBasis: `period ${item.periodEnd} · latest filed ${item.filedAt}${item.basis === "gross-principal" ? " · gross principal" : ""}`,
+      dateBasis: `period ${item.periodEnd} · latest filed ${item.filedAt}`,
       sourceIds: item.sourceIds,
     });
   }

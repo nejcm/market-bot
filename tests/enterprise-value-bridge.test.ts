@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { metricSectionsView } from "../app/client/view-model-metric-sections";
+import { renderMetricSections } from "../src/report/markdown-metric-sections";
+import { CURRENT_EQUITY_NOTE } from "../src/sources/extended-evidence/enterprise-value-bridge";
+import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -19,6 +23,8 @@ import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuatio
 import { loadRunArtifact } from "../src/run-artifacts";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
+const noteCount = (basis: string | undefined) =>
+  (basis?.split(CURRENT_EQUITY_NOTE).length ?? 1) - 1;
 const ANALYSIS_AS_OF = "2026-10-24T00:00:00.000Z";
 const M = 1_000_000;
 
@@ -79,6 +85,7 @@ function valuationOf(result: ReturnType<typeof addValuationEvidence>) {
     metrics: result.extendedEvidence?.items.find((item) => item.category === "valuation")?.metrics,
     summary: result.extendedEvidence?.items.find((item) => item.category === "valuation")?.summary,
     gaps: result.sourceGaps,
+    evidence: result.extendedEvidence,
   };
 }
 
@@ -229,6 +236,37 @@ describe("enterprise value bridge on both SEC producers", () => {
       expect(metrics?.enterpriseValue).toBeUndefined();
       expect(metrics?.temporaryEquityIncompleteReason).toContain("does not reconcile");
       expect(gaps.some((gap) => gap.message.startsWith("SEC EV bridge incomplete"))).toBe(true);
+    },
+  );
+
+  test.each(["legacy", "canonical"] as const)(
+    "%s withholds temporary equity 1K off the GPN identity, inside the old 0.1%-of-assets tolerance",
+    (path) => {
+      const { metrics } = valuations(gpn(210_756))[path];
+      expect(metrics?.netDebt).toBe(10_000 * M - 5_408_962_000);
+      expect(metrics?.enterpriseValue).toBeUndefined();
+      expect(metrics?.temporaryEquityIncompleteReason).toContain("does not reconcile");
+    },
+  );
+
+  // SPIR 10-Q for the quarter ended 2026-03-31 (filed 2026-05-14, accn 0001193125-26-222710) tags equity incl. NCI at −5,299K.
+  test.each(["legacy", "canonical"] as const)(
+    "SPIR %s withholds EV when equity including NCI sits below parent equity",
+    (path) => {
+      const at = (value: number) => [
+        fact(value * 1000, "2026-03-31", "2026-05-14", "0001193125-26-222710"),
+      ];
+      const { metrics } = valuations({
+        CashAndCashEquivalentsAtCarryingValue: at(50_000),
+        LongTermDebtNoncurrent: at(10_000),
+        Assets: at(182_856),
+        Liabilities: at(91_650),
+        StockholdersEquity: at(91_206),
+        StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest: at(-5299),
+      })[path];
+      expect(metrics?.enterpriseValue).toBeUndefined();
+      expect(metrics?.temporaryEquity).toBe(0);
+      expect(metrics?.noncontrollingInterestIncompleteReason).toContain("is negative");
     },
   );
 
@@ -414,7 +452,7 @@ describe("enterprise value bridge on both SEC producers", () => {
       ["DebtSecuritiesCurrent", 34_143 * M],
       ["EquitySecuritiesFvNi", 42_783 * M],
     ]);
-    expect(lineage?.[1]?.label).toContain("sale restrictions");
+    expect(lineage?.[1]?.label).toContain("sale-restricted");
     for (const { summary, metrics } of [legacy, canonical]) {
       expect(summary).toContain("short-term investments include current equity securities");
       const row = targetRow(
@@ -427,6 +465,76 @@ describe("enterprise value bridge on both SEC producers", () => {
         "cash 2026-07-26 (short-term investments include current equity securities that may be sale-restricted)",
       );
     }
+  });
+
+  const DISCLOSED = ["netDebt", "netDebtToMarketCap", "enterpriseValue", "evToAnnualizedRevenue"];
+  const snapshot = marketSnapshot({
+    symbol: "TEST",
+    marketCap: 400_000 * M,
+    observedAt: ANALYSIS_AS_OF,
+  });
+  const lensSurface = (ctx: Parameters<typeof financialLensMetrics>[0]) => {
+    const lens = financialLensMetrics({ ...ctx, snapshot });
+    const rows = Object.values(lens.lensMetrics)
+      .flat()
+      .filter((row) => DISCLOSED.includes(row.id));
+    const report = researchReport({ extras: { metricSections: lens.sections } });
+    const tiles = (metricSectionsView(report as unknown as Record<string, unknown>) ?? [])
+      .flatMap((section) => section.metrics)
+      .filter((tile) => tile.label === "Net debt");
+    return { rows, markdown: renderMetricSections(report), tiles };
+  };
+  const lensSurfaces = (gaap: Facts) => {
+    const { artifact, legacy, canonical } = valuations(gaap);
+    return [
+      { symbol: "TEST", statements: artifact, asOf: ANALYSIS_AS_OF, evidence: canonical.evidence! },
+      { symbol: "TEST", asOf: ANALYSIS_AS_OF, evidence: legacy.evidence! },
+    ].map(lensSurface);
+  };
+
+  test("NVDA net debt and EV rows carry the restriction disclosure on statement and evidence paths", () => {
+    for (const { rows, markdown, tiles } of lensSurfaces(
+      nvda({ EquitySecuritiesFvNi: [{ val: 42_783 * M }] }),
+    )) {
+      expect(rows.map((row) => row.id).toSorted()).toEqual(DISCLOSED.toSorted());
+      for (const row of rows) {
+        expect(row.status, row.id).toBe("value");
+        expect(noteCount(row.basis), row.id).toBe(1);
+      }
+      expect(markdown).toMatch(
+        /- Net debt: [^\n]*; short-term investments include current equity securities that may be sale-restricted, not cash on hand\)$/mu,
+      );
+      expect(noteCount(tiles[0]?.basis)).toBe(1);
+    }
+  });
+
+  test("net debt and EV rows carry no restriction disclosure without current equity securities", () => {
+    for (const { rows, markdown, tiles } of lensSurfaces(nvda({}))) {
+      expect(rows.length).toBe(DISCLOSED.length);
+      for (const row of rows) {
+        expect(row.status, row.id).toBe("value");
+        expect(row.basis, row.id).not.toContain("sale-restricted");
+      }
+      expect(markdown).not.toContain("sale-restricted");
+      expect(tiles[0]?.basis).not.toContain("sale-restricted");
+    }
+  });
+
+  test("statement-derived net debt ignores an equity concept on evidence it did not read", () => {
+    const { rows } = lensSurface({
+      symbol: "TEST",
+      statements: valuations(nvda({})).artifact,
+      asOf: ANALYSIS_AS_OF,
+      evidence: valuations(nvda({ EquitySecuritiesFvNi: [{ val: 42_783 * M }] })).canonical
+        .evidence!,
+    });
+    const basis = Object.fromEntries(rows.map((row) => [row.id, noteCount(row.basis)]));
+    expect(basis).toEqual({
+      netDebt: 0,
+      netDebtToMarketCap: 0,
+      enterpriseValue: 1,
+      evToAnnualizedRevenue: 1,
+    });
   });
 
   // META-shaped: a generic equity-securities fact the current-asset total does not hold is a long-term holding.

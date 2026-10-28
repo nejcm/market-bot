@@ -129,11 +129,7 @@ function peerRow(row: ValuationCompsRow, targetSymbol: string, report: ResearchR
     ...(priceDate === undefined ? [] : [priceDate]),
     ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
     ...[compsCashLabel(row)].filter((label) => label !== undefined),
-    ...(row.debtPeriodEnd === undefined
-      ? []
-      : [
-          `debt ${row.debtPeriodEnd}${row.debtBasis === "gross-principal" ? " (gross principal)" : ""}`,
-        ]),
+    ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
   ].join("; ");
   return [
     ...[

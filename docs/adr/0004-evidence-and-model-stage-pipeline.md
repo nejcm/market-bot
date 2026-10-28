@@ -214,12 +214,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   is also capped at 180 days. The Workbench drops debt when an incomplete instant falls at or before cash. Older
   instants are checked by the same rules, which prove only what the tagged facts show (see above). Direct facts remain
   `sec-companyfacts` without composite metadata; artifact extraction method stays companyfacts.
-- Gross-principal fallback permits only a strictly newer instant fact calibrated to net debt at net's selected
-  period within ±5% inclusive (zero matches zero) and no nonzero current debt or principal due within a year at the gross instant (the
-  calibration cannot show the gross fact includes it); otherwise retain net. Mark `gross-principal` (absent means
-  net), append only latest gross fact with `calibrationPeriodEnd`, never cross bases in priors (legacy
-  year-aligned gross, no canonical prior), and disclose basis on all consumers with a deduplicated no-cap
-  concept/last-net-period gap, including canonical-only fallback.
+- A strictly newer `DebtInstrumentCarryingAmount` instant, calibrated to net debt at net's selected period within
+  ±5% inclusive (zero matches zero) with no nonzero current debt or principal due within a year there, shows debt
+  continues but tags only principal (face value, before unamortized discount and issuance costs). EV and net debt
+  use the balance-sheet carrying amount, so that instant is withheld with an `incomplete-composite-series` note and
+  no older or principal amount stands in (HUT 2026-06-30 principal 7,735.1M vs balance-sheet carrying 7,638.4M); without that
+  calibration, net is retained.
 - US-GAAP D&A prefers combined per period unless below either same-period/duration/unit component by over 1%
   of that component's absolute value. Missing/rejected combined falls back only to complete same-date/currency
   depreciation (or nonproduction) plus intangible amortization, both known at cutoff; never infer zero.
@@ -323,7 +323,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   but absent at the instant is incomplete (the composite-debt continuity rule), as is a combined line that
   differs from cash + the picked short-term line (an unclassified holding: Check Point FY2025 combines
   deposits and long-term securities), or nonzero temporary equity that does not equal assets − liabilities −
-  equity (including NCI) within 0.1% of assets, or cannot be checked for lack of those lines; that identity
+  equity (including NCI) exactly (filed face totals foot), or cannot be checked for lack of those lines; that identity
   is what keeps temporary equity from double counting `MinorityInterest`. Untagged `MinorityInterest` is
   derived as equity including NCI − parent equity only when positive and assets − liabilities − equity
   including NCI − temporary equity reconciles (UBER 2026-06-30: 903M); otherwise it is incomplete. Otherwise

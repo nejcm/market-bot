@@ -104,7 +104,6 @@ export function priorComparable(
       (fact) =>
         fact.periodEnd < selected.periodEnd &&
         !touchesEarlierShareBasis([fact, selected], earlierShareBasis) &&
-        fact.basis === selected.basis &&
         (fact.concept === selected.concept ||
           (series.key === "debt" && fact.lineScope === true && selected.lineScope === true)) &&
         financialStatementPeriodMonths(fact) === months &&
@@ -132,9 +131,6 @@ function addFactMetrics(
   }
   metrics[key] = fact.value;
   metrics[`${key}PeriodEnd`] = fact.periodEnd;
-  if (fact.basis !== undefined) {
-    metrics[`${key}Basis`] = fact.basis;
-  }
   const scope = conceptScope(fact.concept);
   if (scope !== undefined) {
     metrics[`${key}Scope`] = scope;
@@ -273,7 +269,6 @@ export function canonicalFinancialMetrics(
   if (
     withheld === undefined &&
     latestDebt !== undefined &&
-    latestDebt.basis === undefined &&
     unadjustedLeaseInclusiveDebt(latestDebt.taxonomy, latestDebt.concept).length > 0
   ) {
     metrics.debtLeaseScope = DEBT_MAY_INCLUDE_FINANCE_LEASES;

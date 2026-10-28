@@ -14,8 +14,6 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 ## Possible wrong or false values
 
 - Prior-run `dataGaps` reach every stage through `historicalContext` (`src/research/historical-context.ts:450`) now labeled prior-run observations to re-check (`priorRunDataGapsUse`) but not code-checked, so a gap later disproved can still be echoed (AMD 6349c37b "Data Center margins … not quantified"); label effect unevaluated. The check-sources prompt rule covers new declarations only; the HLIT RPO and final-synthesis cases are unevaluated (2-sample specialist eval only).
-- The gross-principal debt fallback publishes principal, not carrying amount (HUT 7,735.1M vs carrying 7,638.4M; BLDN 1,248.5M), and peers now read it.
-- The EV temporary-equity identity tolerance (0.1% of assets, ~500M for a GOOGL-sized balance sheet) would pass a mis-tag of that size (SPIR 2026-03-31 equity-incl-NCI below parent equity).
 - Reference set todos (`tests/sec-reference-set.test.ts`): MRK FY2025 D&A uses a rounded 2.8B amortization (5,838M filed); CLFD FY2025 ROIC needs an Accounting Scope rule for debt and factoring held in discontinued operations.
 
 ## Withheld but recoverable

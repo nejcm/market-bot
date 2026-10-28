@@ -1245,7 +1245,7 @@ describe("collectValuationComps", () => {
     expect(result.artifact.excludedPeers.some((peer) => peer.symbol === "AMD")).toBe(false);
   });
 
-  test("admits a peer whose fresher debt is calibrated gross principal", async () => {
+  test("withholds peer debt when its fresher instant tags only gross principal", async () => {
     const result = await collectNvdaWithAmdPayload(
       secPayloadWithGaap({
         LongTermDebt: { units: { USD: [secInstantFact(20, "2025-12-28", "FY", "10-K")] } },
@@ -1261,17 +1261,11 @@ describe("collectValuationComps", () => {
     );
 
     const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
-    expect(amd).toMatchObject({
-      debt: 30,
-      debtPeriodEnd: "2026-06-29",
-      debtBasis: "gross-principal",
-      usable: true,
-    });
-    expect(result.artifact.target.debtBasis).toBeUndefined();
+    expect(amd?.debt).toBeUndefined();
     expect(result.gaps).toContainEqual(
       expect.objectContaining({
         symbol: "AMD",
-        message: expect.stringContaining("SEC debt uses gross principal"),
+        message: expect.stringContaining("only gross principal (DebtInstrumentCarryingAmount)"),
       }),
     );
   });
@@ -1368,7 +1362,7 @@ describe("collectValuationComps", () => {
       ).toEqual([]);
     });
 
-    test("CRWV-shaped gross fallback keeps debt current, so no cause fires", async () => {
+    test("CRWV-shaped principal-only instant excludes the peer with its declared reason", async () => {
       const gross = (calibration: number) =>
         secPayloadWithGaap({
           LongTermDebt: { units: { USD: [secInstantFact(20, "2025-12-28", "FY", "10-K")] } },
@@ -1382,7 +1376,9 @@ describe("collectValuationComps", () => {
           },
         });
 
-      expect(await amdExclusionReason(gross(20.5), latestQ)).toBeUndefined();
+      expect(await amdExclusionReason(gross(20.5), latestQ)).toBe(
+        "incomplete SEC debt basis: debt composite for 2026-06-29 is incomplete: only gross principal (DebtInstrumentCarryingAmount) is tagged after 2025-12-28, not the carrying amount",
+      );
       expect(await amdExclusionReason(gross(25), latestQ)).toBe(
         `${divergence}; latest 10-Q ${UNTAGGED}`,
       );

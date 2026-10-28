@@ -48,7 +48,7 @@ import {
   type DebtFactReader,
   debtAliasesTagged,
   factsForDebt,
-  withGrossPrincipalDebt,
+  withheldGrossPrincipalDebt,
 } from "./sec-debt";
 import { calendarYearFromPeriodEnd } from "./financial-statement-period-identity";
 import {
@@ -1852,13 +1852,6 @@ function selectSeries(
         candidates,
         subtracted,
       ),
-    selectedFact: (fact, history) =>
-      toSelectedFact(
-        withFirstPublicAt(fact, history),
-        definition,
-        reportingCurrency,
-        input.sourceId,
-      ),
   };
   const debt =
     definition.key === "debt"
@@ -1922,7 +1915,7 @@ function selectSeries(
     };
   }
   const withGross =
-    taxonomy === "us-gaap" ? withGrossPrincipalDebt(debtReader, selected, eligible) : selected;
+    taxonomy === "us-gaap" ? withheldGrossPrincipalDebt(debtReader, selected, eligible) : selected;
   return { ...withGross, omissionNotes: [...withGross.omissionNotes, ...debt.notes] };
 }
 

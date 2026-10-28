@@ -315,50 +315,6 @@ test("newer incomplete debt withholds net debt and preserves its warning from st
   });
 });
 
-test("statements preserve the gross-principal debt basis in the artifact", () => {
-  const artifact = statements({
-    ...REVENUE,
-    CashAndCashEquivalentsAtCarryingValue: { units: { USD: [instantFact(50, "2026-03-31")] } },
-    LongTermDebt: { units: { USD: [instantFact(100, "2025-12-31")] } },
-    DebtInstrumentCarryingAmount: {
-      units: { USD: [instantFact(102, "2025-12-31"), instantFact(200, "2026-03-31")] },
-    },
-  });
-  const snapshots = [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })];
-  const before = addValuationEvidence(
-    command,
-    snapshots,
-    withCanonicalFinancialLensInputs(
-      { ...evidence(), items: evidence().items.filter((item) => item.category !== "valuation") },
-      artifact,
-    ),
-    AS_OF,
-  ).extendedEvidence;
-  const result = addFinancialLensEvidence(
-    command,
-    snapshots,
-    before,
-    undefined,
-    AS_OF,
-    undefined,
-    undefined,
-    artifact,
-  );
-  const input = {
-    marketSnapshots: snapshots,
-    financialStatements: artifact,
-    ...(result.extendedEvidence !== undefined ? { extendedEvidence: result.extendedEvidence } : {}),
-    ...(result.artifact !== undefined ? { financialLenses: result.artifact } : {}),
-    ...(result.metricSections !== undefined ? { metricSections: result.metricSections } : {}),
-    sourceGaps: result.metricSectionGaps ?? [],
-  };
-  expect(
-    input.financialLenses?.lenses
-      .find((lens) => lens.name === "Financial Strength")
-      ?.metrics.find((row) => row.key === "debt")?.label,
-  ).toBe("Debt (gross principal)");
-});
-
 test("stale statement leverage is withheld with a Source Gap while historical margins remain", () => {
   const { input } = synthetic({
     Revenues: { units: { USD: [annualFact(100, "2024-01-01", "2024-12-31")] } },
@@ -500,6 +456,7 @@ test("valuation figures cite their own filing and quote, never the peer-widened 
     "extended-sec-edgar-aapl-fundamentals",
   ]);
   for (const id of ["enterpriseValue", "evToAnnualizedRevenue", "marketCapToAnnualizedRevenue"]) {
+    expect(cited.metric(id)?.status).toBe("value");
     expect(cited.metric(id)?.sourceIds).toEqual([
       "market-yahoo-equity-aapl",
       "extended-sec-edgar-aapl-fundamentals",

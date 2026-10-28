@@ -826,8 +826,8 @@ describe("lease deductions and debt-scope disclosure", () => {
   });
 });
 
-describe("newer valid debt is not withheld by an older incomplete instant", () => {
-  test("a calibrated gross-principal June fact outranks an incomplete March note", () => {
+describe("a principal-only instant withholds despite an older incomplete note", () => {
+  test("a calibrated gross-principal June fact withholds instead of standing in", () => {
     const fy = (value: number) => instant(value, "2025-12-31", "2026-02-15", "10-K", "FY");
     const march = (value: number) => instant(value, "2026-03-31", "2026-05-06", "10-Q", "Q1");
     const june = (value: number) => instant(value, "2026-06-30", "2026-08-06");
@@ -840,11 +840,11 @@ describe("newer valid debt is not withheld by an older incomplete instant", () =
     const replaced = withCanonicalFinancialLensInputs(secEvidenceFrom(legacy?.metrics), artifact);
     const sec = replaced.items.find((item) => item.category === "sec-edgar");
 
-    expect(sec?.metrics).toMatchObject({ debt: 200, debtPeriodEnd: "2026-06-30" });
-    expect(sec?.metrics?.debtIncompletePeriodEnd).toBeUndefined();
+    expect(sec?.metrics?.debt).toBeUndefined();
+    expect(sec?.metrics?.debtIncompletePeriodEnd).toBe("2026-06-30");
     expect(
       valuationItemFor(replaced as ReturnType<typeof secEvidenceFrom>)?.metrics?.enterpriseValue,
-    ).toBe(280);
+    ).toBeUndefined();
   });
 });
 

@@ -1,11 +1,7 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX } from "../sec-segment-facts";
-import {
-  grossPrincipalDebtGap,
-  leaseInclusiveDebtGap,
-  withheldDebtGap,
-} from "./sec-fundamentals-format";
+import { leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
   US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
@@ -18,12 +14,11 @@ import {
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
 import {
-  grossPrincipalDebtFallbackApplies,
+  grossPrincipalWithholdsDebt,
   statementFiscalPeriodKey,
 } from "./financial-statement-period-identity";
 import {
   GROSS_PRINCIPAL_DEBT_CONCEPT,
-  type FinancialStatementFact,
   type FinancialStatementNote,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
@@ -52,10 +47,6 @@ export interface DebtFactReader {
     subtracted: ReadonlySet<string>,
     candidates: readonly ParsedFact[],
   ) => ParsedFact;
-  readonly selectedFact: (
-    fact: ParsedFact,
-    history: readonly ParsedFact[],
-  ) => FinancialStatementFact;
 }
 
 // The newest debt instant is incomplete, so no older amount may stand in as the latest debt.
@@ -378,9 +369,9 @@ function withFaceStatementDebt(
   return resolution;
 }
 
-// One gross fact appended after the net history; priors never cross basis (financial-lens-canonical).
-export function withGrossPrincipalDebt(
-  { root: taxonomyRoot, unitFacts, selectedFact }: DebtFactReader,
+// Principal is face value, not the balance-sheet carrying amount EV needs, so its newer instant withholds debt.
+export function withheldGrossPrincipalDebt(
+  { root: taxonomyRoot, unitFacts }: DebtFactReader,
   selected: SelectedSeries,
   eligible: (fact: ParsedFact) => boolean,
 ): SelectedSeries {
@@ -414,7 +405,7 @@ export function withGrossPrincipalDebt(
     net === undefined ||
     latestGross === undefined ||
     exceedsGross ||
-    !grossPrincipalDebtFallbackApplies(
+    !grossPrincipalWithholdsDebt(
       net,
       latestGross.periodEnd,
       grossAtNet?.value,
@@ -432,18 +423,16 @@ export function withGrossPrincipalDebt(
   ) {
     return selected;
   }
-  const fact: FinancialStatementFact = {
-    ...selectedFact(latestGross, gross),
-    basis: "gross-principal",
-    calibrationPeriodEnd: net.periodEnd,
-  };
-  const { series } = selected;
   return {
     ...selected,
-    series:
-      fact.periodType === "annual"
-        ? { ...series, annual: [...series.annual, fact] }
-        : { ...series, interim: [...series.interim, fact] },
+    omissionNotes: [
+      ...selected.omissionNotes,
+      incompleteDebtNote(
+        latestGross.periodEnd,
+        `only gross principal (${GROSS_PRINCIPAL_DEBT_CONCEPT}) is tagged after ${net.periodEnd}, not the carrying amount`,
+        latestGross.filedAt,
+      ),
+    ],
   };
 }
 
@@ -473,14 +462,6 @@ export function financialStatementsDebtBasisGaps(
   const latest = latestFinancialStatementFact(
     financialStatementFacts(artifact.statements.balanceSheet.debt),
   );
-  if (latest?.calibrationPeriodEnd !== undefined) {
-    return [
-      {
-        ...grossPrincipalDebtGap(latest.periodEnd, latest.calibrationPeriodEnd),
-        symbol: artifact.symbol,
-      },
-    ];
-  }
   const leaseInclusive =
     latest === undefined ? [] : unadjustedLeaseInclusiveDebt(latest.taxonomy, latest.concept);
   return latest === undefined || leaseInclusive.length === 0

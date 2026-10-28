@@ -20,9 +20,8 @@ export function statementFiscalPeriodKey(period: StatementFiscalPeriod): string 
 
 const GROSS_DEBT_CALIBRATION_TOLERANCE = 0.05;
 
-// Gross principal stands in for net debt only when fresher and within tolerance of net at net's own period end.
-// Nonzero current debt or principal due within a year at the gross instant gaps instead: the calibration cannot show the gross fact includes it.
-export function grossPrincipalDebtFallbackApplies(
+// A fresher principal-only instant withholds debt when principal matched net at net's period end and no current debt is tagged there.
+export function grossPrincipalWithholdsDebt(
   net: { readonly periodEnd: string; readonly value: number },
   latestGrossPeriodEnd: string,
   grossAtNetPeriodEnd: number | undefined,

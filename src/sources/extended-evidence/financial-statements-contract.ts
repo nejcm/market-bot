@@ -81,8 +81,6 @@ export const COMPOSITE_STATEMENT_FACT_FORMULA = "sum";
 
 export const GROSS_PRINCIPAL_DEBT_CONCEPT = "DebtInstrumentCarryingAmount";
 
-export type DebtBasis = "gross-principal";
-
 // SEC companyfacts `val` values are already expressed in the base unit named by the units map.
 export const SEC_COMPANYFACTS_UNIT_SCALE = 1;
 
@@ -149,8 +147,6 @@ export interface FinancialStatementFact {
   readonly unitScale: number;
   readonly extractionMethod: FinancialStatementExtractionMethod;
   readonly sourceIds: readonly string[];
-  readonly basis?: DebtBasis;
-  readonly calibrationPeriodEnd?: string;
   // Debt only: classified carrying lines, or a LongTermDebt total reconciled to them.
   readonly lineScope?: true;
   readonly composite?: {
@@ -468,9 +464,6 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     ((value.extractionMethod === "sec-companyfacts" && value.composite === undefined) ||
       (value.extractionMethod === "derived-sec-companyfacts" &&
         hasCompositeFactShape(value.composite))) &&
-    ((value.basis === undefined && value.calibrationPeriodEnd === undefined) ||
-      (value.basis === "gross-principal" &&
-        stringField(value, "calibrationPeriodEnd") !== undefined)) &&
     (value.lineScope === undefined || value.lineScope === true) &&
     stringArrayField(value, "sourceIds") !== undefined
   );

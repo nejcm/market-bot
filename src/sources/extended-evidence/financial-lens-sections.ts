@@ -46,6 +46,8 @@ import {
 import {
   ENTERPRISE_VALUE_BASIS,
   NET_DEBT_BASIS,
+  CURRENT_EQUITY_NOTE,
+  isCurrentEquityConcept,
   netDebtFromMetrics,
   bridgeContributors,
   resolveEnterpriseValueBridge,
@@ -228,14 +230,6 @@ function incompleteDebtPeriod(ctx: MetricContext): string | undefined {
   return ctx.statements === undefined
     ? readStringMetric(secItem(ctx)?.metrics, "debtIncompletePeriodEnd")
     : withheldDebt(ctx.statements)?.periodEnd;
-}
-
-function debtLabel(ctx: MetricContext): string {
-  const basis =
-    ctx.statements === undefined
-      ? readStringMetric(secItem(ctx)?.metrics, "debtBasis")
-      : latestFact(ctx, "debt")?.basis;
-  return basis === "gross-principal" ? "Debt (gross principal)" : "Debt";
 }
 
 function withCompleteDebt(definition: MetricDefinition): MetricDefinition {
@@ -477,8 +471,40 @@ export function shortTermInvestmentsAt(
         "cash",
         `short-term investments (${label})`,
       );
-      return { ...input, value, key: fact.concept };
+      return {
+        ...input,
+        value,
+        key: fact.concept,
+        ...(isCurrentEquityConcept(fact.concept) ? { derivation: CURRENT_EQUITY_NOTE } : {}),
+      };
     }),
+  };
+}
+
+// Only an evidence item's own bridge concept may annotate the value read from it.
+export function withCurrentEquityNote(definition: MetricDefinition): MetricDefinition {
+  return {
+    ...definition,
+    compute: (ctx) => {
+      const outcome = definition.compute(ctx);
+      const inputs = outcome.inputs ?? [];
+      const included =
+        !inputs.some((input) => input.artifact === "statements") &&
+        inputs.some(
+          (input) =>
+            input.artifact === "evidence" &&
+            input.category !== undefined &&
+            isCurrentEquityConcept(
+              readStringMetric(
+                itemByCategory(ctx.evidence, input.category)?.metrics,
+                "shortTermInvestmentsConcept",
+              ),
+            ),
+        );
+      return included
+        ? { ...outcome, basis: `${outcome.basis ?? definition.basis}; ${CURRENT_EQUITY_NOTE}` }
+        : outcome;
+    },
   };
 }
 
@@ -1914,23 +1940,25 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
   return [
     ...caveat,
     ...dateBasis,
-    {
-      id: "enterpriseValue",
-      label: "Enterprise value",
-      unit: "currency",
-      basis: `valuation evidence enterprise value at the quote date: ${ENTERPRISE_VALUE_BASIS}`,
-      compute: () =>
-        valuationOutcome(
-          ctx,
-          "enterpriseValue",
-          "enterprise value",
-          "currency",
-          true,
-          periodEndInput(
-            readStringMetric(valuation?.metrics, "quoteObservedAt") ?? ctx.snapshot?.observedAt,
+    withNetDebtApplicability(
+      withCurrentEquityNote({
+        id: "enterpriseValue",
+        label: "Enterprise value",
+        unit: "currency",
+        basis: `valuation evidence enterprise value at the quote date: ${ENTERPRISE_VALUE_BASIS}`,
+        compute: () =>
+          valuationOutcome(
+            ctx,
+            "enterpriseValue",
+            "enterprise value",
+            "currency",
+            true,
+            periodEndInput(
+              readStringMetric(valuation?.metrics, "quoteObservedAt") ?? ctx.snapshot?.observedAt,
+            ),
           ),
-        ),
-    },
+      }),
+    ),
     {
       id: "annualizedRevenue",
       label: "TTM revenue",
@@ -1946,21 +1974,23 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
           valuationPeriod,
         ),
     },
-    {
-      id: "evToAnnualizedRevenue",
-      label: "EV/revenue",
-      unit: "ratio",
-      basis: `valuation evidence enterprise value / TTM revenue; ${ENTERPRISE_VALUE_BASIS}`,
-      compute: () =>
-        valuationOutcome(
-          ctx,
-          "evToAnnualizedRevenue",
-          "EV/revenue",
-          "ratio",
-          true,
-          valuationPeriod,
-        ),
-    },
+    withNetDebtApplicability(
+      withCurrentEquityNote({
+        id: "evToAnnualizedRevenue",
+        label: "EV/revenue",
+        unit: "ratio",
+        basis: `valuation evidence enterprise value / TTM revenue; ${ENTERPRISE_VALUE_BASIS}`,
+        compute: () =>
+          valuationOutcome(
+            ctx,
+            "evToAnnualizedRevenue",
+            "EV/revenue",
+            "ratio",
+            true,
+            valuationPeriod,
+          ),
+      }),
+    ),
     {
       id: "marketCapToAnnualizedRevenue",
       label: "Market cap/revenue",
@@ -2300,10 +2330,12 @@ function lensDefinitions(
     ],
     "Financial Strength": [
       instantDefinition("cash", "cash", "Cash"),
-      withCompleteDebt(withFreshDebt(instantDefinition("debt", "debt", debtLabel(ctx)))),
-      withNetDebtApplicability(withCompleteDebt(netDebtDefinition())),
+      withCompleteDebt(withFreshDebt(instantDefinition("debt", "debt", "Debt"))),
+      withNetDebtApplicability(withCompleteDebt(withCurrentEquityNote(netDebtDefinition()))),
       withCompleteDebt(marketLeverageDefinition("debtToMarketCap")),
-      withNetDebtApplicability(withCompleteDebt(marketLeverageDefinition("netDebtToMarketCap"))),
+      withNetDebtApplicability(
+        withCompleteDebt(withCurrentEquityNote(marketLeverageDefinition("netDebtToMarketCap"))),
+      ),
       currentRatioDefinition(),
       withCompleteDebt(debtToEquityDefinition()),
       payoutRatioDefinition(),

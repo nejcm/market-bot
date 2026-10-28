@@ -85,11 +85,7 @@ function factInput(
 ): ValuationFundamentalInput {
   return {
     value: fact.value,
-    ...withScope(
-      fact.basis === "gross-principal" ? `${label} (gross principal)` : label,
-      fact.concept,
-      totalOperations,
-    ),
+    ...withScope(label, fact.concept, totalOperations),
     periodEnd: fact.periodEnd,
     publicAt: fact.firstPublicAt,
     currency: fact.currency,

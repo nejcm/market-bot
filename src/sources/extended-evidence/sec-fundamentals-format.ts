@@ -1,7 +1,6 @@
 import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { DEBT_CONCEPTS, scopedLabel } from "./financial-statement-definitions";
-import { GROSS_PRINCIPAL_DEBT_CONCEPT } from "./financial-statements-contract";
 
 export interface SecMetricDefinition {
   readonly key: string;
@@ -203,17 +202,6 @@ export function withheldDebtGap(periodEnd: string, reason: string): SourceGap {
   });
 }
 
-export function grossPrincipalDebtGap(periodEnd: string, netPeriodEnd: string): SourceGap {
-  return sourceGap({
-    source: "sec-edgar",
-    message: `SEC debt uses gross principal (${GROSS_PRINCIPAL_DEBT_CONCEPT}) as of ${periodEnd}: net carrying debt is not tagged in companyfacts after ${netPeriodEnd}, where gross principal was within 5% of it`,
-    provider: "sec-edgar",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
-}
-
 export function deltaPercent(latest: number, prior: number): number | undefined {
   return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
 }
@@ -261,11 +249,9 @@ export function formatSecFundamentalsSummary(
     const prior = metrics?.[`${key}Prior`];
     const delta = metrics?.[`${key}DeltaPercent`];
     const scope = metrics?.[`${key}Scope`];
-    const basisLabel =
-      metrics?.[`${key}Basis`] === "gross-principal" ? `${label} (gross principal)` : label;
     return [
       formatMetric(
-        scopedLabel(basisLabel, typeof scope === "string" ? scope : undefined),
+        scopedLabel(label, typeof scope === "string" ? scope : undefined),
         latest,
         typeof prior === "number" ? prior : undefined,
         typeof delta === "number" ? delta : undefined,

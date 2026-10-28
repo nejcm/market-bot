@@ -1338,6 +1338,21 @@ describe("collectSources", () => {
       ]),
     );
     expect(financialLensEvMetrics).toEqual([]);
+    const lensValue = result.metricSections?.find(({ title }) => title === "Financial Lens: Value");
+    expect(
+      lensValue?.metrics
+        .filter(({ id }) => id === "enterpriseValue" || id === "evToAnnualizedRevenue")
+        .map(({ id, status, reason }) => [id, status, reason]),
+    ).toEqual(
+      ["enterpriseValue", "evToAnnualizedRevenue"].map((id) => [
+        id,
+        "not-applicable",
+        expect.stringContaining("depository issuer (SIC 6022)"),
+      ]),
+    );
+    expect(
+      result.sourceGaps.find(({ source }) => source === "financial-lens-value")?.message ?? "",
+    ).not.toMatch(/Enterprise value missing|EV\/revenue missing/);
     expect(businessFrameworkEvMetrics).toEqual([]);
     expect(markdown).toContain(
       "not applicable (deposit-funded issuer; enterprise value is not defined)",

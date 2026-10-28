@@ -27,6 +27,7 @@
     "app:check": "svelte-check --tsconfig ./tsconfig.json --config ./app/svelte.config.js --fail-on-warnings",
     "test": "bun test",
     "sweep:sec": "bun run scripts/sec-cache-sweep.ts",
+    "sweep:packets": "bun run scripts/sec-packet-diff.ts",
     "test:coverage": "bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit && bun run app:check",
     "lint": "oxlint",

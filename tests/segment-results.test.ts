@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 import { segmentResultsSection } from "../src/sources/extended-evidence/segment-results";
+import { resolveMetricReferences } from "../src/research/metric-references";
+import { researchReport } from "./support/fixtures";
 import { secSegmentFactMetrics } from "../src/sources/sec-segment-facts";
 
 const AXIS = "us-gaap:StatementBusinessSegmentsAxis";
@@ -395,6 +397,14 @@ describe("SEC segment facts", () => {
       expect(change?.value).toBeCloseTo((2103 / 6718 + 155 / 3240) * 100, 10);
       expect(change?.value).toBeCloseTo(36.09, 2);
       expect(change?.label).toContain("percentage points");
+      expect(
+        resolveMetricReferences(
+          researchReport({
+            keyFindings: [{ text: "Margin <<metric:segment-results.m>>.", sourceIds: [] }],
+          }),
+          [{ id: "segment-results", title: "Segments", metrics: [{ ...change!, id: "m" }] }],
+        ).keyFindings[0]!.text,
+      ).toBe("Margin +36.09 pp YoY.");
       expect(change?.basis).toContain(
         "2025-03-30 to 2025-06-28, both from 10-Q filed 2026-08-05, accession 0000002488-26-000123",
       );

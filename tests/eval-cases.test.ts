@@ -970,7 +970,7 @@ describe("deterministic checks", () => {
       sections,
     );
     expect(report.keyFindings[0]!.text).toBe(
-      "Close 108.00 (as of 2026-05-18), change 2.9%, RSI14 55.00.",
+      "Close 108.00 (as of 2026-05-18), change +2.9% vs prior close, RSI14 55.00.",
     );
     expect(
       scoreReportDefects({

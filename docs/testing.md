@@ -17,14 +17,17 @@ bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build
 
 ## Choosing the iteration loop
 
-| Change to exercise                                       | Use                                                                                                                | Inputs and scope                                                            |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| Parser, calculation, small deterministic rule            | Module test                                                                                                        | Small saved provider input; fastest behavioral assertion                    |
-| Evidence projection, report extra or Markdown            | `scripts/rerun-report.ts <run-id-or-path> --label <fresh>`                                                         | Saved normalized evidence plus `report.json`; zero network/model            |
-| Final-synthesis prompt construction, retries or assembly | `scripts/replay-stage.ts --input <file> --label <fresh>`                                                           | Final-Synthesis Input; strict recorded responses, current prompts/playbooks |
-| Collection and downstream integration                    | `scripts/replay-fixture-run.ts <name-or-capture-directory>`                                                        | Whole pipeline, HTTP/model cassettes, isolated state, no pacing             |
-| Selected model behavior                                  | `scripts/eval-deep.ts --fixtures <case> --live-stages <stage> --label <fresh>` or `--input <file> --label <fresh>` | Estimate-only first; an approved batch uses the existing approval flag      |
-| Changed source request or unavailable recording          | Explicitly authorized fresh research run                                                                           | Fresh acquisition; enable capture for subsequent offline iteration          |
+| Change to exercise                                       | Use                                                                                                                | Inputs and scope                                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Parser, calculation, small deterministic rule            | Module test                                                                                                        | Small saved provider input; fastest behavioral assertion                                                       |
+| Evidence projection, report extra or Markdown            | `scripts/rerun-report.ts <run-id-or-path> --label <fresh>`                                                         | Saved normalized evidence plus `report.json`; zero network/model                                               |
+| Final-synthesis prompt construction, retries or assembly | `scripts/replay-stage.ts --input <file> --label <fresh>`                                                           | Final-Synthesis Input; strict recorded responses, current prompts/playbooks                                    |
+| SEC section packet or inline-XBRL section extraction     | `bun run sweep:packets -- --base <rev> [--head <rev>] [--out-dir data/evals/<label>]`                              | Every cached 10-K/10-Q/20-F text, base worktree vs working tree; per-slot change counts and before/after heads |
+| Collection and downstream integration                    | `scripts/replay-fixture-run.ts <name-or-capture-directory>`                                                        | Whole pipeline, HTTP/model cassettes, isolated state, no pacing                                                |
+| Selected model behavior                                  | `scripts/eval-deep.ts --fixtures <case> --live-stages <stage> --label <fresh>` or `--input <file> --label <fresh>` | Estimate-only first; an approved batch uses the existing approval flag                                         |
+| Changed source request or unavailable recording          | Explicitly authorized fresh research run                                                                           | Fresh acquisition; enable capture for subsequent offline iteration                                             |
+
+`sweep:packets` removes its base worktree on exit; an interrupted run (Ctrl-C) can leave one behind, which `git worktree prune` cleans up.
 
 `bun run check` remains the final verification gate. Replayed model responses prove wiring and
 contract behavior, not model quality after a prompt change.

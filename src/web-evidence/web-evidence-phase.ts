@@ -93,6 +93,9 @@ async function runWebSubjectProfileExtraction(input: {
       modelContent: output.content,
       webSources: allowedSources,
       extendedEvidence: input.collectedSources.extendedEvidence,
+      ...(input.collectedSources.metricSections !== undefined
+        ? { metricSections: input.collectedSources.metricSections }
+        : {}),
       ...(subject.subjectKind === "company" && input.secFilingBasisDate !== undefined
         ? { secFilingBasisDate: input.secFilingBasisDate }
         : {}),
@@ -200,6 +203,9 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
         reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
         ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
         currentSources: collectedSources.extendedSources,
+        ...(collectedSources.metricSections !== undefined
+          ? { metricSections: collectedSources.metricSections }
+          : {}),
       }),
     );
     if (reusableWebSubjectProfile !== undefined) {

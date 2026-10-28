@@ -815,6 +815,47 @@ describe("operatingRatiosSection", () => {
     }
   });
 
+  test("HLIT FY2025 depreciation with no amortization or cash-flow D&A line withholds with a gap", () => {
+    // HLIT 10-K 0001193125-26-067506: Depreciation 11,082K only.
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: "2025-01-01", end: "2025-12-31" })] },
+    });
+    const run = (depreciation: ReturnType<typeof filed> | undefined) =>
+      evaluate(
+        context(
+          usGaap({
+            Revenues: filed(300_000_000),
+            OperatingIncomeLoss: filed(10_000_000),
+            DepreciationDepletionAndAmortization: undefined,
+            DepreciationAndAmortization: undefined,
+            Depreciation: depreciation,
+          }),
+          {},
+          "us-gaap",
+          AS_OF,
+        ),
+      ).ctx.statements!;
+    const withheld = run(filed(11_082_000));
+    const unfiled = run(undefined);
+
+    expect(withheld.statements.cashFlowStatement.depreciationAndAmortization.annual).toEqual([]);
+    expect(withheld.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        seriesKey: "depreciationAndAmortization",
+        periodKey: "duration:12|2025-12-31",
+        message: expect.stringContaining(
+          "no AmortizationOfIntangibleAssets component; no cash-flow D&A line is filed",
+        ),
+      }),
+    );
+    expect(
+      unfiled.omissionNotes.filter((note) => note.seriesKey === "depreciationAndAmortization"),
+    ).toEqual([]);
+    expect(withheld.unfiledSeries).not.toContain("depreciationAndAmortization");
+    expect(unfiled.unfiledSeries).toContain("depreciationAndAmortization");
+  });
+
   test("AMD FY2025 with its cash-flow D&A tags stripped publishes the component sum (accepted residual risk)", () => {
     const filed = (value: number) => ({
       units: { USD: [fact(value, 2025, { start: "2024-12-29", end: "2025-12-27" })] },
@@ -1064,7 +1105,7 @@ describe("operatingRatiosSection", () => {
   });
 
   test.each(["Depreciation", "AmortizationOfIntangibleAssets"])(
-    "missing %s keeps the not-filed cause",
+    "missing %s withholds D&A with a gap, not the not-filed cause",
     (missing) => {
       const result = evaluate(
         context(
@@ -1078,15 +1119,21 @@ describe("operatingRatiosSection", () => {
       );
       expect(result.metric("ebitdaProxy")).toMatchObject({
         status: "missing",
-        cause: "not-filed",
-        reason: "depreciation and amortization not filed by the issuer",
+        reason:
+          "no same-period depreciation and amortization for the fiscal year ending 2025-12-31",
       });
-      expect(result.metric("ebitdaProxy").value).toBeUndefined();
-      expect(
-        result.ctx.statements!.omissionNotes.filter(
-          (note) => note.seriesKey === "depreciationAndAmortization",
-        ),
-      ).toEqual([]);
+      expect(result.metric("ebitdaProxy").cause).toBeUndefined();
+      expect(result.ctx.statements!.unfiledSeries).not.toContain("depreciationAndAmortization");
+      expect(result.ctx.statements!.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "incomplete-composite-series",
+          seriesKey: "depreciationAndAmortization",
+          periodKey: "duration:12|2025-12-31",
+          message: expect.stringContaining(
+            `no ${missing} component; no cash-flow D&A line is filed`,
+          ),
+        }),
+      );
     },
   );
 

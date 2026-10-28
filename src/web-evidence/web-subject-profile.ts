@@ -4,10 +4,15 @@ import { violatesResearchOnly } from "../domain/research-language";
 import { sourceGap } from "../domain/source-gaps";
 import type { ExtendedEvidence, ExtendedEvidenceItem, SubjectKind } from "../domain/evidence";
 import type { Source, SourceGap } from "../domain/sources";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
+import { GEOGRAPHIC_REVENUE_SECTION_ID } from "../sources/extended-evidence/geographic-revenue";
 import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../guards";
 import {
   isWebSubjectProfileWithheldAnswer,
   substantiveProfileSourceIds,
+  WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
+  WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER,
+  WEB_SUBJECT_PROFILE_SHARE_MISMATCH_SUBJECT_SUMMARY_NOTICE,
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
   WEB_SUBJECT_PROFILE_WITHHELD_MARKER,
@@ -37,6 +42,58 @@ export interface WebSubjectProfileSubject {
 }
 
 const EMPTY_ANSWER: WebSubjectProfileAnswer = { answer: "", sourceIds: [] };
+// Profile assembly never resolves references, so a raw token would publish verbatim.
+const METRIC_TOKEN = /<<\s*metric\s*:/iu;
+const SHARE_BULLET = /^\s*(?:[-*•]\s*)?\[?([^\]\n:]+?)\]?:\s*([-+−]?\d+(?:\.\d+)?)%/u;
+const SHARE_LABEL = / share of revenue$/u;
+const SHARE_NAME_ALIASES: Readonly<Record<string, string>> = {
+  us: "united states",
+  "u.s.": "united states",
+  usa: "united states",
+  "u.s.a.": "united states",
+  "europe, middle east and africa": "emea",
+  "europe, middle east, and africa": "emea",
+  apac: "asia pacific",
+  "asia-pacific": "asia pacific",
+};
+const SHARE_TAIL =
+  /^\s*(?:(?:of (?:total |net )?revenue|of sales|revenue share)(?:\s+(?:in fiscal (?:year )?\d{4}|in FY\s?\d{4}|for the (?:three|six|nine|twelve) months ended [A-Z][a-z]+ \d{1,2}, \d{4}))?)?\s*\.?\s*(?:\[[^\]]+\]\s*)*$/u;
+const SHARE_TOLERANCE_POINTS = 0.5;
+
+type RevenueShares = ReadonlyMap<string, readonly number[]>;
+
+function revenueShares(sections: readonly MetricSection[] | undefined): RevenueShares {
+  const shares = new Map<string, number[]>();
+  for (const metric of sections?.find(({ id }) => id === GEOGRAPHIC_REVENUE_SECTION_ID)?.metrics ??
+    []) {
+    if (
+      metric.status === "value" &&
+      typeof metric.value === "number" &&
+      SHARE_LABEL.test(metric.label)
+    ) {
+      const name = metric.label.replace(SHARE_LABEL, "").toLowerCase();
+      shares.set(name, [...(shares.get(name) ?? []), metric.value * 100]);
+    }
+  }
+  return shares;
+}
+
+function contradictsRevenueShare(answer: string, shares: RevenueShares): boolean {
+  return answer.split("\n").some((line) => {
+    const [match, rawName, percent] = SHARE_BULLET.exec(line) ?? [];
+    const rest = line.slice(match?.length ?? 0);
+    if (!SHARE_TAIL.test(rest)) {
+      return false;
+    }
+    const name = rawName?.trim().toLowerCase() ?? "";
+    const known = shares.get(name) ?? shares.get(SHARE_NAME_ALIASES[name] ?? name);
+    const value = Number(percent?.replace("−", "-"));
+    return (
+      known !== undefined &&
+      known.every((share) => Math.abs(share - value) > SHARE_TOLERANCE_POINTS)
+    );
+  });
+}
 
 export function normalizedSubjectId(subject: string): string {
   const normalized = subject
@@ -197,10 +254,15 @@ function assertCodeAssembledProfileText(text: string, origin: string): string {
   return text;
 }
 
-function withheldCountSummary(noun: string, withheldCount: number, totalCount: number): string {
+function withheldCountSummary(
+  noun: string,
+  withheldCount: number,
+  totalCount: number,
+  marker = WEB_SUBJECT_PROFILE_WITHHELD_MARKER,
+): string {
   return (
     `Web Subject Profile: ${String(withheldCount)} of ${String(totalCount)} ${noun} ` +
-    `${WEB_SUBJECT_PROFILE_WITHHELD_MARKER}; the original wording stays in the run's raw stage output.`
+    `${marker}; the original wording stays in the run's raw stage output.`
   );
 }
 
@@ -208,12 +270,31 @@ function screenRequiredAnswer(
   answer: WebSubjectProfileAnswer,
   notice: string,
   origin: string,
+  shares: RevenueShares,
+  mismatchNotice: string,
 ): {
   readonly answer: WebSubjectProfileAnswer;
   readonly withheld: boolean;
+  readonly shareMismatch?: true;
 } {
   if (answer.answer === "") {
     return { answer, withheld: false };
+  }
+  if (answer.answer.includes(WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER)) {
+    return { answer, withheld: true, shareMismatch: true };
+  }
+  if (
+    violatesResearchOnly(answer.answer) === null &&
+    contradictsRevenueShare(answer.answer, shares)
+  ) {
+    return {
+      answer: {
+        answer: assertCodeAssembledProfileText(mismatchNotice, origin),
+        sourceIds: answer.sourceIds,
+      },
+      withheld: true,
+      shareMismatch: true,
+    };
   }
   if (violatesResearchOnly(answer.answer) !== null) {
     if (answer.sourceIds.length === 0) {
@@ -233,28 +314,38 @@ function screenRequiredAnswer(
   return { answer, withheld: false };
 }
 
-function screenModelQuestions(questions: Readonly<Record<string, WebSubjectProfileAnswer>>): {
+function screenModelQuestions(
+  questions: Readonly<Record<string, WebSubjectProfileAnswer>>,
+  shares: RevenueShares,
+): {
   readonly questions: Readonly<Record<string, WebSubjectProfileAnswer>>;
   readonly withheldCount: number;
+  readonly mismatchCount: number;
   readonly totalCount: number;
 } {
   const entries = Object.entries(questions);
   let withheldCount = 0;
+  let mismatchCount = 0;
   const next: [string, WebSubjectProfileAnswer][] = [];
   for (const [key, answer] of entries) {
     const screened = screenRequiredAnswer(
       answer,
       WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
       "withheld-answer notice",
+      shares,
+      WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
     );
-    if (screened.withheld) {
+    if (screened.shareMismatch === true) {
+      mismatchCount += 1;
+    } else if (screened.withheld) {
       withheldCount += 1;
     }
     next.push([key, screened.answer]);
   }
   return {
-    questions: withheldCount === 0 ? questions : Object.fromEntries(next),
+    questions: withheldCount + mismatchCount === 0 ? questions : Object.fromEntries(next),
     withheldCount,
+    mismatchCount,
     totalCount: entries.length,
   };
 }
@@ -263,6 +354,7 @@ function screenModelFacts(
   facts: readonly WebSubjectProfileFact[],
   fieldLabel: string,
   origin: string,
+  shares: RevenueShares,
 ): {
   readonly facts: readonly WebSubjectProfileFact[];
   readonly withheldGaps: readonly SourceGap[];
@@ -272,10 +364,13 @@ function screenModelFacts(
   }
   const kept: WebSubjectProfileFact[] = [];
   const withheld: WebSubjectProfileFact[] = [];
+  const mismatched: WebSubjectProfileFact[] = [];
   const preexistingNotices: WebSubjectProfileFact[] = [];
   for (const fact of facts) {
     if (violatesResearchOnly(fact.claim) !== null) {
       withheld.push(fact);
+    } else if (contradictsRevenueShare(fact.claim, shares)) {
+      mismatched.push(fact);
     } else if (isWebSubjectProfileWithheldAnswer(fact.claim)) {
       preexistingNotices.push(fact);
       kept.push(fact);
@@ -283,7 +378,7 @@ function screenModelFacts(
       kept.push(fact);
     }
   }
-  if (withheld.length === 0 && preexistingNotices.length === 0) {
+  if (withheld.length === 0 && mismatched.length === 0 && preexistingNotices.length === 0) {
     return { facts, withheldGaps: [] };
   }
   const gaps: SourceGap[] = [];
@@ -295,18 +390,31 @@ function screenModelFacts(
       ),
     );
   }
-  if (withheld.length === 0) {
-    return { facts: kept, withheldGaps: gaps };
-  }
   const considered = facts.length - preexistingNotices.length;
-  const summary = assertCodeAssembledProfileText(
-    withheldCountSummary(fieldLabel, withheld.length, considered),
-    origin,
+  const summaries = (
+    [
+      [withheld, WEB_SUBJECT_PROFILE_WITHHELD_MARKER],
+      [mismatched, WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER],
+    ] as const
+  ).flatMap(([group, marker]) =>
+    group.length === 0
+      ? []
+      : [
+          {
+            claim: assertCodeAssembledProfileText(
+              withheldCountSummary(fieldLabel, group.length, considered, marker),
+              origin,
+            ),
+            sourceIds: [...new Set(group.flatMap((fact) => fact.sourceIds))].toSorted(),
+          },
+        ],
   );
-  const sourceIds = [...new Set(withheld.flatMap((fact) => fact.sourceIds))].toSorted();
   return {
-    facts: [...kept, { claim: summary, sourceIds }],
-    withheldGaps: [...gaps, profileGap(summary, "validation-failed")],
+    facts: [...kept, ...summaries],
+    withheldGaps: [
+      ...gaps,
+      ...summaries.map(({ claim }) => profileGap(claim, "validation-failed")),
+    ],
   };
 }
 
@@ -330,22 +438,29 @@ function screenModelOpenGaps(gaps: readonly string[]): {
   return { kept, withheldCount, preexistingNotices };
 }
 
-function screenProfileFields(profile: ScreenableProfileFields): ScreenedProfileFields {
+function screenProfileFields(
+  profile: ScreenableProfileFields,
+  shares: RevenueShares,
+): ScreenedProfileFields {
   const subjectSummary = screenRequiredAnswer(
     profile.subjectSummary,
     WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
     "withheld-summary notice",
+    shares,
+    WEB_SUBJECT_PROFILE_SHARE_MISMATCH_SUBJECT_SUMMARY_NOTICE,
   );
-  const questions = screenModelQuestions(profile.questions);
+  const questions = screenModelQuestions(profile.questions, shares);
   const events = screenModelFacts(
     profile.recentMaterialEvents,
     "recent material events",
     "withheld-events summary",
+    shares,
   );
   const ledger = screenModelFacts(
     profile.factLedger,
     "fact-ledger claims",
     "withheld-facts summary",
+    shares,
   );
   const openGaps = screenModelOpenGaps(profile.openGaps);
   const withheldGaps: SourceGap[] = [];
@@ -353,7 +468,9 @@ function screenProfileFields(profile: ScreenableProfileFields): ScreenedProfileF
     withheldGaps.push(
       profileGap(
         assertCodeAssembledProfileText(
-          WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
+          subjectSummary.shareMismatch === true
+            ? WEB_SUBJECT_PROFILE_SHARE_MISMATCH_SUBJECT_SUMMARY_NOTICE
+            : WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
           "withheld-summary gap",
         ),
         "validation-failed",
@@ -365,6 +482,22 @@ function screenProfileFields(profile: ScreenableProfileFields): ScreenedProfileF
       profileGap(
         assertCodeAssembledProfileText(
           withheldCountSummary("question answers", questions.withheldCount, questions.totalCount),
+          "withheld-questions summary",
+        ),
+        "validation-failed",
+      ),
+    );
+  }
+  if (questions.mismatchCount > 0) {
+    withheldGaps.push(
+      profileGap(
+        assertCodeAssembledProfileText(
+          withheldCountSummary(
+            "question answers",
+            questions.mismatchCount,
+            questions.totalCount,
+            WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER,
+          ),
           "withheld-questions summary",
         ),
         "validation-failed",
@@ -452,9 +585,10 @@ export interface ScreenedReusedWebSubjectProfile {
 
 export function screenReusedWebSubjectProfile(
   reused: WebSubjectProfileArtifact,
+  metricSections?: readonly MetricSection[],
 ): ScreenedReusedWebSubjectProfile {
   const artifact = withoutSourceIdMarkers(reused);
-  const screened = screenProfileFields(artifact);
+  const screened = screenProfileFields(artifact, revenueShares(metricSections));
   if (screened.withheldGaps.length === 0) {
     return { artifact, withheldGaps: [] };
   }
@@ -469,6 +603,7 @@ export function buildWebSubjectProfileEvidence(input: {
   readonly modelContent: string;
   readonly webSources: readonly Source[];
   readonly extendedEvidence: ExtendedEvidence | undefined;
+  readonly metricSections?: readonly MetricSection[];
   readonly secFilingBasisDate?: string;
 }): WebSubjectProfileResult {
   const webSourceIds = new Set(input.webSources.map((source) => source.id));
@@ -499,7 +634,7 @@ export function buildWebSubjectProfileEvidence(input: {
     return profileResult(input.command, input.extendedEvidence, input.subject, artifact, [], [gap]);
   }
 
-  const screened = screenProfileFields(parsed.profile);
+  const screened = screenProfileFields(parsed.profile, revenueShares(input.metricSections));
   const rejectionSummary =
     parsed.rejections.length > 0
       ? assertCodeAssembledProfileText(
@@ -669,7 +804,7 @@ function parseProfile(
       questions: questions.questions,
       recentMaterialEvents: recentMaterialEvents.facts,
       factLedger: factLedger.facts,
-      openGaps: stringArrayValue(parsed.openGaps),
+      openGaps: stringArrayValue(parsed.openGaps).filter((gap) => !METRIC_TOKEN.test(gap)),
       ...(subjectLabel !== undefined ? { subjectLabel } : {}),
       ...(companyName !== undefined ? { companyName } : {}),
     }),
@@ -743,7 +878,7 @@ function readAnswer(
   const sourceIds = nonEmptyStringArrayValue(value.sourceIds);
   const disallowedSourceIds = disallowedSourceIdsOf(sourceIds, webSourceIds);
   const unknownSourceIdCount = new Set(disallowedSourceIds).size;
-  if (answer === undefined) {
+  if (answer === undefined || METRIC_TOKEN.test(answer)) {
     return { error: true };
   }
   if (sourceIds.length === 0) {
@@ -783,7 +918,12 @@ function readFacts(
     const claim = readString(item, "claim");
     const sourceIds = nonEmptyStringArrayValue(item.sourceIds);
     const disallowedSourceIds = disallowedSourceIdsOf(sourceIds, webSourceIds);
-    if (claim === undefined || sourceIds.length === 0 || disallowedSourceIds.length > 0) {
+    if (
+      claim === undefined ||
+      METRIC_TOKEN.test(claim) ||
+      sourceIds.length === 0 ||
+      disallowedSourceIds.length > 0
+    ) {
       // Per-item rejection: this fact is dropped, but siblings in the same
       // Array are still evaluated (B1.1). The allowlist check above still
       // Rejects the whole item if any cited id is disallowed — no partial

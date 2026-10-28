@@ -123,7 +123,15 @@ export function assertMetricPromptCatalog(
       const projected = catalog[index]!;
       expect(projected.metrics).toHaveLength(section.metrics.length);
       for (const [rowIndex, metric] of section.metrics.entries()) {
-        const { id, inputs: _inputs, reason: _reason, cause: _cause, value, ...preserved } = metric;
+        const {
+          id,
+          inputs: _inputs,
+          reason: _reason,
+          cause: _cause,
+          change: _change,
+          value,
+          ...preserved
+        } = metric;
         expect(asWritten({ ...projected.defaults, ...projected.metrics[rowIndex] })).toEqual(
           asWritten({
             ...preserved,

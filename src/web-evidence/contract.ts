@@ -74,8 +74,17 @@ export const WEB_SUBJECT_PROFILE_WITHHELD_MARKER = "withheld for research-only w
 export const WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE = `Web Subject Profile: this answer ${WEB_SUBJECT_PROFILE_WITHHELD_MARKER}; the original wording stays in the run's raw stage output.`;
 export const WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE = `Web Subject Profile: subject summary ${WEB_SUBJECT_PROFILE_WITHHELD_MARKER}; the original wording stays in the run's raw stage output.`;
 
+export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER =
+  "withheld because a revenue share contradicts every filed geographic-revenue share";
+
+export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE = `Web Subject Profile: this answer ${WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER}; the original wording stays in the run's raw stage output.`;
+export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_SUBJECT_SUMMARY_NOTICE = `Web Subject Profile: subject summary ${WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER}; the original wording stays in the run's raw stage output.`;
+
 export function isWebSubjectProfileWithheldAnswer(answer: string): boolean {
-  return answer.includes(WEB_SUBJECT_PROFILE_WITHHELD_MARKER);
+  return (
+    answer.includes(WEB_SUBJECT_PROFILE_WITHHELD_MARKER) ||
+    answer.includes(WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER)
+  );
 }
 
 interface WebSubjectProfileBase {

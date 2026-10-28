@@ -150,6 +150,7 @@ function segmentDefinitions(item: ExtendedEvidenceItem, periods: readonly Segmen
               id: `${id}-margin-yoy-change`,
               label: `${label} segment operating margin YoY change, percentage points`,
               unit: "number",
+              change: { over: "pp YoY" },
               basis: `segment operating margin ${period.start} to ${period.end} minus ${prior.start} to ${prior.end}, both from ${filing}`,
               compute: () => {
                 const current = segmentMargin(metrics, period);

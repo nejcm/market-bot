@@ -23,6 +23,7 @@ export interface DebtResolution<T> {
   // Classified carrying lines, or a LongTermDebt total that reconciles to them, are one scope across bases (NVDA).
   readonly lineScope?: true;
   readonly proofSourceIds?: readonly string[];
+  readonly faceLeases?: readonly string[];
 }
 
 export function debtIdentityConcepts(taxonomy: FinancialStatementTaxonomy): readonly string[] {

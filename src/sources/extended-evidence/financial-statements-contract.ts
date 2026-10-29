@@ -149,6 +149,8 @@ export interface FinancialStatementFact {
   readonly sourceIds: readonly string[];
   // Debt only: classified carrying lines, or a LongTermDebt total reconciled to them.
   readonly lineScope?: true;
+  // Debt only: finance-lease tags a same-filing face presents beside the debt lines.
+  readonly faceLeases?: readonly string[];
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -466,6 +468,7 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
       (value.extractionMethod === "derived-sec-companyfacts" &&
         hasCompositeFactShape(value.composite))) &&
     (value.lineScope === undefined || value.lineScope === true) &&
+    (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&
     stringArrayField(value, "sourceIds") !== undefined
   );
 }

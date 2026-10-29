@@ -5,6 +5,7 @@ import {
   financialStatementFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
+import { financialStatementsDebtBasisGaps } from "../src/sources/extended-evidence/sec-debt";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
 
@@ -71,6 +72,8 @@ function derive(
       financialStatementFacts(artifact.statements.balanceSheet.debt),
     ),
     legacy: summarizeSecFundamentals(companyFacts, AS_OF)?.metrics.debt,
+    notes: artifact.omissionNotes,
+    gaps: financialStatementsDebtBasisGaps(artifact),
   };
 }
 
@@ -261,5 +264,163 @@ describe("VSAT 10-Q 0001193125-26-337903 2026-06-30 face statement", () => {
     expect(derive(VSAT_GAAP, [faceFiling(VSAT_ACCN, "2026-06-30", rows)]).debt?.periodEnd).not.toBe(
       "2026-06-30",
     );
+  });
+});
+
+const SAME_ACCN = "0000000000-26-000001";
+const sameJune = (value: number, accn = SAME_ACCN) => fact(value, "2026-06-30", "2026-08-10", accn);
+const NOTES_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 1000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 50],
+  ["Current loans", "us-gaap:LoansPayableCurrent", 10],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 60],
+  ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 90],
+  ["Notes payable", "us-gaap:LongTermNotesPayable", 10],
+  ["Total liabilities", "us-gaap:Liabilities", 160],
+];
+const NOTES_GAAP = {
+  LoansPayableCurrent: [sameJune(10_000)],
+  LongTermDebtNoncurrent: [sameJune(90_000)],
+  LongTermNotesPayable: [sameJune(10_000)],
+};
+const LEASE_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 1000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 50],
+  ["Current debt", "us-gaap:DebtCurrent", 10],
+  ["Current finance lease liabilities", "us-gaap:FinanceLeaseLiabilityCurrent", 5],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 65],
+  ["Loans payable", "us-gaap:LongTermLoansPayable", 90],
+  ["Total liabilities", "us-gaap:Liabilities", 155],
+];
+const LEASE_GAAP = {
+  DebtCurrent: [sameJune(10_000)],
+  FinanceLeaseLiabilityCurrent: [sameJune(5000)],
+  LongTermLoansPayable: [sameJune(90_000)],
+};
+
+describe("complete resolution checked against a same-filing face", () => {
+  test("a separate notes row beside LongTermDebtNoncurrent withholds the 100 sum", () => {
+    const { debt, notes } = derive(NOTES_GAAP, [faceFiling(SAME_ACCN, "2026-06-30", NOTES_ROWS)]);
+    expect(debt).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        message: expect.stringContaining("LongTermNotesPayable outside the resolved debt lines"),
+      }),
+    );
+  });
+
+  test("without a face the notes row stays subsumed", () => {
+    expect(derive(NOTES_GAAP, []).debt?.value).toBe(100_000);
+  });
+
+  test("a separate face finance lease is not deducted: 10 + 90", () => {
+    const { debt, gaps } = derive(LEASE_GAAP, [faceFiling(SAME_ACCN, "2026-06-30", LEASE_ROWS)]);
+    expect(debt).toMatchObject({ value: 100_000, concept: "DebtCurrent+LongTermLoansPayable" });
+    expect(gaps).toEqual([]);
+    expect(debt?.sourceIds).toContain(`sec-filing-${SAME_ACCN}`);
+  });
+
+  test.each([
+    ["no face", []],
+    ["a face from another filing", [faceFiling("0000000000-26-000002", "2026-06-30", LEASE_ROWS)]],
+  ] as const)("with %s the lease is still deducted: 95", (_case, filings) => {
+    expect(derive(LEASE_GAAP, filings).debt?.value).toBe(95_000);
+  });
+
+  test("a current face lease leaves the noncurrent lease deduction: 10 + 90 - 5", () => {
+    const rows = withRow(
+      withRow(
+        withRow(LEASE_ROWS, "us-gaap:LongTermLoansPayable", [
+          "Long-term debt and finance leases",
+          "us-gaap:LongTermDebtAndCapitalLeaseObligations",
+          90,
+        ]),
+        "us-gaap:DebtCurrent",
+        ["Current loans", "us-gaap:LoansPayableCurrent", 10],
+      ),
+      "us-gaap:FinanceLeaseLiabilityCurrent",
+      ["Current finance lease liabilities", "us-gaap:FinanceLeaseLiabilityCurrent", 2],
+    ).map(
+      (row): Row =>
+        row[1] === "us-gaap:LiabilitiesCurrent"
+          ? [row[0], row[1], 62]
+          : row[1] === "us-gaap:Liabilities"
+            ? [row[0], row[1], 152]
+            : row,
+    );
+    const gaap = {
+      LoansPayableCurrent: [sameJune(10_000)],
+      FinanceLeaseLiabilityCurrent: [sameJune(2000)],
+      LongTermDebtAndCapitalLeaseObligations: [sameJune(90_000)],
+      FinanceLeaseLiabilityNoncurrent: [sameJune(5000)],
+    };
+    expect(derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]).debt?.value).toBe(95_000);
+  });
+
+  test("a tagged amount that differs from its face row withholds it", () => {
+    const gaap = { ...LEASE_GAAP, DebtCurrent: [sameJune(15_000)] };
+    const { debt, notes } = derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", LEASE_ROWS)]);
+    expect(debt).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("face statement amounts differ from tagged DebtCurrent"),
+      }),
+    );
+  });
+
+  test("a zero face notes row leaves 10 + 90", () => {
+    const rows = withRow(NOTES_ROWS, "us-gaap:LongTermNotesPayable", [
+      "Notes payable",
+      "us-gaap:LongTermNotesPayable",
+      0,
+    ]).map((row): Row => (row[1] === "us-gaap:Liabilities" ? [row[0], row[1], 150] : row));
+    const gaap = { ...NOTES_GAAP, LongTermNotesPayable: [sameJune(0)] };
+    expect(derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]).debt?.value).toBe(100_000);
+  });
+
+  test("a labelled extension notes row beside the lines withholds it", () => {
+    const rows = withRow(NOTES_ROWS, "us-gaap:LongTermNotesPayable", [
+      "Notes payable",
+      "test:NotesPayableNoncurrent",
+      10,
+    ]);
+    const { LongTermNotesPayable: _notes, ...gaap } = NOTES_GAAP;
+    const { debt, notes } = derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]);
+    expect(debt).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({ message: expect.stringContaining("NotesPayableNoncurrent") }),
+    );
+  });
+
+  test("a current face lease keeps the noncurrent possible-lease gap", () => {
+    const rows = withRow(LEASE_ROWS, "us-gaap:LongTermLoansPayable", [
+      "Long-term debt and finance leases",
+      "us-gaap:LongTermDebtAndCapitalLeaseObligations",
+      90,
+    ]);
+    const gaap = {
+      DebtCurrent: [sameJune(10_000)],
+      FinanceLeaseLiabilityCurrent: [sameJune(5000)],
+      LongTermDebtAndCapitalLeaseObligations: [sameJune(90_000)],
+    };
+    const { debt, gaps } = derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]);
+    expect(debt?.value).toBe(100_000);
+    expect(gaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("LongTermDebtAndCapitalLeaseObligations is tagged"),
+      }),
+    ]);
+    expect(gaps[0]?.message).not.toContain("DebtCurrent");
+  });
+
+  test("an extension row sharing a standard local name still withholds it", () => {
+    const rows = withRow(NOTES_ROWS, "us-gaap:LongTermNotesPayable", [
+      "Other long-term debt",
+      "test:LongTermDebtNoncurrent",
+      10,
+    ]);
+    const { LongTermNotesPayable: _notes, ...gaap } = NOTES_GAAP;
+    expect(derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]).debt).toBeUndefined();
   });
 });

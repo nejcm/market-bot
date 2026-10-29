@@ -216,6 +216,7 @@ export function factsForDebt(
       basis: resolution.basis,
       lineScope: resolution.lineScope === true,
       proofSourceIds: resolution.proofSourceIds,
+      faceLeases: resolution.faceLeases,
     };
   });
   const current = unsupersededDebtResolutions(resolved);
@@ -243,6 +244,13 @@ export function factsForDebt(
         : entry.restatements.map((fact) => [fact, entry.proofSourceIds] as const),
     ),
   );
+  const faceLeases = new Map(
+    current.flatMap((entry) =>
+      entry.incomplete || entry.faceLeases === undefined
+        ? []
+        : entry.restatements.map((fact) => [fact, entry.faceLeases] as const),
+    ),
+  );
   return {
     facts: [
       ...candidates.filter((fact) => kept.has(fact)),
@@ -252,6 +260,7 @@ export function factsForDebt(
       ...fact,
       ...(lineScoped.has(fact) ? { lineScope: true as const } : {}),
       ...(proofs.has(fact) ? { proofSourceIds: proofs.get(fact) ?? [] } : {}),
+      ...(faceLeases.has(fact) ? { faceLeases: faceLeases.get(fact) ?? [] } : {}),
     })),
     notes: [...notes.values()],
   };
@@ -322,7 +331,7 @@ function withFaceStatementDebt(
   faces: readonly FaceDebtLines[],
 ): DebtResolution<ParsedFact> {
   if (resolution.incompleteReason === undefined) {
-    return resolution;
+    return withFaceRowsChecked(resolution, tagged, resolveAt, faces);
   }
   const recognized = recognizedDebtConcepts("us-gaap");
   for (const face of faces) {
@@ -367,6 +376,69 @@ function withFaceStatementDebt(
         };
   }
   return resolution;
+}
+
+const presentsAll = (face: FaceDebtLines, proven: DebtResolution<ParsedFact>) =>
+  proven.contributors.length > 0 &&
+  proven.contributors.every(({ fact }) => fact.accessionNumber === face.accessionNumber) &&
+  proven.contributors.every(({ concept, subtract }) => subtract || face.standard.has(concept));
+
+// When every gross line is its own same-filing face row, other face debt rows sit beside them, not inside.
+function withFaceRowsChecked(
+  resolution: DebtResolution<ParsedFact>,
+  tagged: ReadonlyMap<string, ParsedFact>,
+  resolveAt: (lines: ReadonlyMap<string, ParsedFact>) => DebtResolution<ParsedFact>,
+  faces: readonly FaceDebtLines[],
+): DebtResolution<ParsedFact> {
+  const leases = DEBT_CONCEPTS["us-gaap"].financeLeases;
+  const leaseConcepts = new Set(leases === undefined ? [] : [leases.total, ...leases.split]);
+  const face = faces.find((candidate) => presentsAll(candidate, resolution));
+  if (face === undefined) {
+    return resolution;
+  }
+  const faceLeases = new Set(
+    resolution.contributors.flatMap(({ concept, subtract }) =>
+      subtract === true && face.standard.has(concept) ? [concept] : [],
+    ),
+  );
+  const conflicting = resolution.contributors.filter(
+    ({ concept, fact }) => face.standard.has(concept) && face.standard.get(concept) !== fact.value,
+  );
+  if (conflicting.length > 0) {
+    return {
+      ...resolution,
+      incompleteReason: `face statement amounts differ from tagged ${conflicting.map(({ concept }) => concept).join(", ")}`,
+    };
+  }
+  const proven =
+    faceLeases.size === 0
+      ? resolution
+      : resolveAt(new Map([...tagged].filter(([concept]) => !faceLeases.has(concept))));
+  // Complete-path contributors are us-gaap tags, so no extension row is among them.
+  const omitted = [
+    ...[...face.standard]
+      .filter(
+        ([concept, value]) =>
+          value !== 0 &&
+          !leaseConcepts.has(concept) &&
+          !proven.contributors.some((contributor) => contributor.concept === concept),
+      )
+      .map(([concept]) => concept),
+    ...face.extensions.filter(({ value }) => value !== 0).map(({ concept }) => concept),
+  ];
+  const reason =
+    proven.incompleteReason ??
+    (!presentsAll(face, proven)
+      ? "face statement lease rows leave lines outside the same-filing face"
+      : omitted.length > 0
+        ? `face statement presents ${omitted.join(", ")} outside the resolved debt lines`
+        : undefined);
+  if (reason !== undefined) {
+    return { ...proven, incompleteReason: reason };
+  }
+  return faceLeases.size === 0
+    ? proven
+    : { ...proven, proofSourceIds: face.sourceIds, faceLeases: [...faceLeases] };
 }
 
 // Principal is face value, not the balance-sheet carrying amount EV needs, so its newer instant withholds debt.
@@ -462,8 +534,22 @@ export function financialStatementsDebtBasisGaps(
   const latest = latestFinancialStatementFact(
     financialStatementFacts(artifact.statements.balanceSheet.debt),
   );
+  const concepts = latest === undefined ? undefined : DEBT_CONCEPTS[latest.taxonomy];
+  const faceSides = new Set<string>(
+    (latest?.faceLeases ?? []).map((lease) =>
+      lease === concepts?.financeLeases?.split[0]
+        ? "current"
+        : lease === concepts?.financeLeases?.split[1]
+          ? "noncurrent"
+          : "total",
+    ),
+  );
   const leaseInclusive =
-    latest === undefined ? [] : unadjustedLeaseInclusiveDebt(latest.taxonomy, latest.concept);
+    latest === undefined
+      ? []
+      : unadjustedLeaseInclusiveDebt(latest.taxonomy, latest.concept).filter(
+          (concept) => !faceSides.has(concepts?.leaseInclusive?.[concept] ?? ""),
+        );
   return latest === undefined || leaseInclusive.length === 0
     ? []
     : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];

@@ -208,6 +208,14 @@ These rules apply when adding or fixing a metric, parser, or projection. They de
 - **Valuation is context.** Use multiples vs the company's own history and vs a justified Peer Universe, plus what the price implies (reverse DCF). Never what it is "worth".
 - **Forecast quality.** Use proper scoring (Brier), and judge skill by Paired Skill vs the Forecast Baseline, reliability and resolution, not by hit rate. Near-Base-Rate Predictions are not skill. Below the Paired Skill sample floor, make no skill claim and do not justify a prompt change with skill numbers. Check live deltas against [docs/run-variance-baseline.md](./docs/run-variance-baseline.md) if its bands still apply.
 
+## Code or model
+
+Before writing code for any change, decide whether code or a model stage should own the judgment. Prefer the design that keeps working when issuers, sources, or formats change: a change upstream should degrade to a declared gap or a model reading, never break code or publish a wrong number.
+
+- **Code** owns what is stable and checkable: structured facts, formulas, units and periods, and checks such as footing, reconciliation, and source matching.
+- **A model** owns what varies by issuer or source: presentation, labels, scope, prose, and classification. If each new case needs another rule, allowlist, or heuristic, hand the judgment to a model.
+- **Code verifies models.** A model value carries its quoted source, period, and unit, and code confirms it against the source before publishing. Neither side guesses: what cannot be proven becomes a Source Gap.
+
 ## Fixes and improvements workflow
 
 Every value, metric, data, or behavior issue, whether found in a run review, a test, or by eye, goes through these steps in order. Typo and docs-only fixes can skip it. Do not skip a step because the fix looks obvious. "Obvious" fixes are how `684e454`-style one-path changes land.

@@ -100,6 +100,7 @@ export interface ParsedFact {
   readonly lineScope?: true;
   readonly sourceIds?: readonly string[];
   readonly proofSourceIds?: readonly string[];
+  readonly faceLeases?: readonly string[];
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly ParsedCompositeComponent[];
@@ -1504,6 +1505,7 @@ function toSelectedFact(
     extractionMethod: composite === undefined ? "sec-companyfacts" : "derived-sec-companyfacts",
     sourceIds,
     ...(fact.lineScope === true ? { lineScope: true as const } : {}),
+    ...(fact.faceLeases === undefined ? {} : { faceLeases: fact.faceLeases }),
     ...(composite !== undefined ? { composite } : {}),
   };
 }

@@ -206,6 +206,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   legacy path also reads 20-F/40-F/6-K facts, as the canonical path does (HIVE).
   Without a total, a positive `LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths` beside no current
   debt line is incomplete unless principal minus unamortized costs equals the composite exactly (PYPL vs META).
+- A complete instant whose every gross line is its own row on a footing face statement from the same accession is
+  checked against that face: a tagged amount unequal to its face row withholds debt; another nonzero face borrowing
+  row (standard, or an extension whose name and label both read as debt) is beside those lines and withholds debt
+  rather than being subsumed; a face finance-lease row is not deducted and clears the possible-lease gap for its own
+  side only (other sides keep their deductions and gaps).
 - Never publish an incomplete debt instant, and never let an older amount stand in for one. Every incomplete instant
   emits a dated `incomplete-composite-series` note. When the newest debt instant is incomplete, both paths drop the
   latest-debt metrics: SEC prose, the lens debt row, the financial-position projection, peers, alpha debt features,

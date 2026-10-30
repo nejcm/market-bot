@@ -20,6 +20,11 @@ export function finalizeSynthesis(
   const postSynthesisWarnings = auditPostSynthesisReport(
     synthesis.report,
     computeWebSourceUsage(synthesis.report, collected),
+    new Set(
+      collected.valuationComps?.peers
+        .filter((peer) => peer.usable)
+        .flatMap((peer) => peer.sourceIds),
+    ),
   );
   const audit = auditReportIntegrity(synthesis.report, assessment);
   const integrityAudit = {

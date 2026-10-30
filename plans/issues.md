@@ -25,7 +25,7 @@ None open.
 - ORCL has no canonical TTM revenue (peer-excluded): Q1 FY27 is tagged only as `RevenueFromContractWithCustomerExcludingAssessedTax` beside annual-only `Revenues`; switching concepts needs proof that both share scope across periods.
 - CLFD FY2025 ROIC is withheld: debt and factoring sit in liabilities held for sale (10-K 0001171843-25-007594); publishing needs a continuing-operations debt scope rule.
 - EV Bridge covers us-gaap only: IFRS filers (BNS) withhold EV, net debt and EV/revenue until `ifrs-full` current investments and `NoncontrollingInterests` are mapped.
-- EV Bridge withholds for a dropped short-term investments line (LLY, ABBV, eBay), a combined cash-and-investments line above cash + short-term (Check Point FY2025 time deposits), or unreconciled temporary equity (MARA, APLD).
+- EV Bridge withholds for a dropped short-term investments line (LLY, ABBV: face line removed in 2026 10-Qs and folded into "other current assets"/"prepaid expenses and other", so the amount is not separable; eBay: face line tagged `ebay:ShortTermInvestmentsExcludingEquitySecuritiesAccountedForUnderFairValueOption`, absent from companyfacts, needs the filing's own XBRL instance), a combined cash-and-investments line above cash + short-term (Check Point FY2025 time deposits), or unreconciled temporary equity (MARA, APLD).
 
 ## Forecasts and evaluation
 

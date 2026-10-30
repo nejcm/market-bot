@@ -397,9 +397,11 @@ export function compactHistoricalContext(
   context: HistoricalResearchContext,
   sourceGapView: SourceGapView,
 ): Record<string, unknown> {
-  const runs = historicalRunsForGapView(context.runs, sourceGapView).map((run) =>
-    withResolvedPredictionsOnly(run),
-  );
+  // Renamed so prior-run gaps read as re-check context, not rows to copy into this report's dataGaps.
+  const runs = historicalRunsForGapView(context.runs, sourceGapView).map((run) => {
+    const { dataGaps, ...rest } = withResolvedPredictionsOnly(run);
+    return { ...rest, priorRunGapsToRecheck: dataGaps };
+  });
   return {
     generatedAt: context.generatedAt,
     recentDays: context.recentDays,
@@ -408,8 +410,8 @@ export function compactHistoricalContext(
     runs,
     ...(runs.length > 0
       ? {
-          priorRunDataGapsUse:
-            "runs[].dataGaps are prior-run observations, not current Source Gaps. Before repeating one, check whether supplied sources carry its figure, or the inputs to compute it (both ratio inputs for the same period, or the same ratio across the cited periods for a trend); anything computable from cited inputs is not absent. Then drop it, or keep only the named items still missing in the same words; do not generalize a satisfied item into a broader one.",
+          priorRunGapsToRecheckUse:
+            "runs[].priorRunGapsToRecheck are prior-run observations to re-check, not current Source Gaps and not items to carry forward; never copy one into dataGaps. Declare a current gap only when current evidence shows it is still missing, worded from current evidence. Before declaring one, check whether supplied sources carry its figure, or the inputs to compute it (both ratio inputs for the same period, or the same ratio across the cited periods for a trend); anything computable from cited inputs is not absent. Then drop it, or keep only the named items still missing in the same words; do not generalize a satisfied item into a broader one.",
         }
       : {}),
     gaps: context.gaps,

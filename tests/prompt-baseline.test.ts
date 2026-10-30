@@ -22,11 +22,11 @@ function historicalDataGaps(key: string): readonly string[] {
   const prompt = JSON.parse(baseline.text) as {
     readonly evidence: {
       readonly historicalContext: {
-        readonly runs: readonly { readonly dataGaps: readonly string[] }[];
+        readonly runs: readonly { readonly priorRunGapsToRecheck: readonly string[] }[];
       };
     };
   };
-  return prompt.evidence.historicalContext.runs[0]?.dataGaps ?? [];
+  return prompt.evidence.historicalContext.runs[0]?.priorRunGapsToRecheck ?? [];
 }
 
 describe("prompt baseline", () => {

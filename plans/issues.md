@@ -38,5 +38,5 @@ None open.
 
 - SEC evidence summaries carry the whole bounded section packet plus `[Key Disclosures]` (HLIT 10-Q summary 9,061 chars) per extendedEvidence stage.
 
-- Final synthesis peer-median comparisons can omit peer sources (run a008bf63 bearCase[1]).
+- Peer-median claims that cite no usable peer now raise the warn-only `peer-median-uncited` post-synthesis warning (run a008bf63 bearCase[1]); no repair reprompt or prune acts on it yet, and P/E or other-subset medians are matched against the EV/revenue peer set.
 - Earnings-date confirmation never gathered the AMD issuer release in runs 10-20/10-23, so the date stays provider-estimated; the ir.amd.com calendar page fails the future-tense check.

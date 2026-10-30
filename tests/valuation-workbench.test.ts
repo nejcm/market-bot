@@ -4,7 +4,9 @@ import { config, contextWithHistory } from "./support/research-context-helpers";
 import { sourceGapScopedReportText } from "../src/domain/source-gaps";
 import { describe, expect, test } from "bun:test";
 import { violatesResearchOnly } from "../src/domain/research-language";
-import { resolveMarketSnapshotPriceAsOf } from "../src/domain/market-data";
+import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../src/domain/market-data";
+import { earningsBasis } from "../src/report/equity-reader-earnings-basis";
+import { latestFiscalYearTrailingBasis } from "../src/sources/extended-evidence/financial-statement-selection";
 import type {
   FinancialStatementFact,
   FinancialStatementName,
@@ -32,6 +34,7 @@ import { collectPriceHistory } from "../src/sources/yahoo-price-history";
 import { renderMarkdownReport } from "../src/report/markdown";
 import {
   EMPTY_EV_BRIDGE_FACTS,
+  marketSnapshot,
   collectedSources,
   researchReport,
   reverseDcfWorkbench,
@@ -1691,4 +1694,143 @@ test.each([
     observation.metrics.priceToFreeCashFlow.inputs.map(({ series: seriesKey }) => seriesKey),
   ).toContain("capitalExpenditure");
   expect(observation.inputs.freeCashFlow === undefined).toBe(capex < 0);
+});
+
+describe("latest fiscal year as the trailing basis", () => {
+  const msftRevenue = (interim: readonly FinancialStatementFact[]): FinancialStatementSeries => ({
+    key: "revenue",
+    label: "revenue",
+    statement: "incomeStatement",
+    annual: [
+      {
+        ...fact({
+          key: "revenue",
+          value: 331_839_000_000,
+          periodEnd: "2026-06-30",
+          filedAt: "2026-07-29",
+        }),
+        periodStart: "2025-07-01",
+        accessionNumber: "0001193125-26-323660",
+      },
+    ],
+    interim,
+  });
+  // MSFT FY2026 10-K 0001193125-26-323660; latest 10-Q before it is Q3 FY26 (9M to 2026-03-31).
+  const msftQ3 = {
+    ...fact({
+      key: "revenue",
+      value: 241_832_000_000,
+      periodEnd: "2026-03-31",
+      filedAt: "2026-04-29",
+      periodType: "interim",
+    }),
+    periodStart: "2025-07-01",
+  };
+  const withRevenue = (revenue: FinancialStatementSeries): FinancialStatementsArtifact => {
+    const base = withoutTtm(statements());
+    return {
+      ...base,
+      statements: {
+        ...base.statements,
+        incomeStatement: { ...base.statements.incomeStatement, revenue },
+      },
+    };
+  };
+  const trailingDetail = (revenue: FinancialStatementSeries) => {
+    const basis = buildValuationWorkbench({
+      generatedAt: "2026-10-28T00:00:00.000Z",
+      symbol: "MSFT",
+      financialStatements: withRevenue(revenue),
+      priceHistory: [],
+      priceSourceId: "verified-snapshot-MSFT",
+      quoteCurrency: "USD",
+    }).historicalMultiples.trailingBasis;
+    return basis.status === "suppressed" ? basis.detail : undefined;
+  };
+  const msftQuote = marketSnapshot({
+    sourceId: "market-yahoo-equity-msft",
+    symbol: "MSFT",
+    identity: { quoteCurrency: "USD" } as NonNullable<MarketSnapshot["identity"]>,
+    fundamentals: { epsTrailingTwelveMonths: 17.95 },
+  });
+  const FY_BASIS =
+    "The latest fiscal year (2025-07-01 to 2026-06-30, 10-K accession 0001193125-26-323660) is the newest period in the SEC revenue series; no later interim revenue period is tagged.";
+  const UNAVAILABLE =
+    "Canonical reconciled TTM is unavailable; retained quarter-only periods are not combined into an unreconciled TTM.";
+
+  test("names the MSFT FY2026 10-K when no interim ends after it", () => {
+    expect(trailingDetail(msftRevenue([msftQ3]))).toBe(FY_BASIS);
+    expect(latestFiscalYearTrailingBasis(msftRevenue([msftQ3]))).toBe(FY_BASIS);
+    expect(violatesResearchOnly(FY_BASIS)).toBeNull();
+    expect(earningsBasis(msftQuote, withRevenue(msftRevenue([msftQ3])))).toEqual({
+      text: `Provider trailing EPS 17.95 (Yahoo; accounting scope and period basis undisclosed). ${FY_BASIS}`,
+      sourceIds: ["market-yahoo-equity-msft", SOURCE_ID],
+    });
+  });
+
+  test("keeps the unavailable wording off the fiscal-year path", () => {
+    const offBoundary = { ...msftQ3, periodStart: "2026-08-01", periodEnd: "2026-09-30" };
+    expect(trailingDetail(msftRevenue([msftQ3, offBoundary]))).toBe(UNAVAILABLE);
+    expect(trailingDetail({ ...msftRevenue([msftQ3]), annual: [] })).toBe(UNAVAILABLE);
+    expect(trailingDetail(msftRevenue([]))).toBe(UNAVAILABLE);
+    expect(latestFiscalYearTrailingBasis(undefined)).toBeUndefined();
+    const [fiscalYear] = msftRevenue([]).annual;
+    const withYear = (periodStart: string) => ({
+      ...msftRevenue([msftQ3]),
+      annual: [{ ...fiscalYear!, periodStart }],
+    });
+    expect(trailingDetail(withYear("2025-09-01"))).toBe(UNAVAILABLE);
+    expect(trailingDetail(withYear("2025-06-01"))).toBe(UNAVAILABLE);
+  });
+
+  test("keeps the revenue-series wording for a 52/53-week year", () => {
+    const [fiscalYear] = msftRevenue([]).annual;
+    for (const periodStart of ["2025-07-02", "2025-06-24"]) {
+      expect(
+        latestFiscalYearTrailingBasis({
+          ...msftRevenue([msftQ3]),
+          annual: [{ ...fiscalYear!, periodStart }],
+        }),
+      ).toStartWith(`The latest fiscal year (${periodStart} to 2026-06-30`);
+    }
+  });
+
+  test("claims only the revenue series when another concept has a later quarter", () => {
+    const base = withRevenue(msftRevenue([msftQ3]));
+    const laterNetIncome = fact({
+      key: "netIncome",
+      value: 1,
+      periodEnd: "2026-09-30",
+      filedAt: "2026-10-28",
+      periodType: "interim",
+    });
+    const artifact = {
+      ...base,
+      statements: {
+        ...base.statements,
+        incomeStatement: {
+          ...base.statements.incomeStatement,
+          netIncome: { ...base.statements.incomeStatement.netIncome, interim: [laterNetIncome] },
+        },
+      },
+    };
+    const detail = buildValuationWorkbench({
+      generatedAt: "2026-10-28T00:00:00.000Z",
+      symbol: "MSFT",
+      financialStatements: artifact,
+      priceHistory: [],
+      priceSourceId: "verified-snapshot-MSFT",
+      quoteCurrency: "USD",
+    }).historicalMultiples.trailingBasis;
+    expect(detail.status === "suppressed" ? detail.detail : undefined).toBe(FY_BASIS);
+    expect(FY_BASIS).not.toContain("filed since");
+    expect(
+      earningsBasis(
+        msftQuote,
+        withRevenue(
+          msftRevenue([msftQ3, { ...msftQ3, periodStart: "2026-08-01", periodEnd: "2026-09-30" }]),
+        ),
+      )?.text,
+    ).toEndWith("No SEC diluted EPS TTM is available to compare.");
+  });
 });

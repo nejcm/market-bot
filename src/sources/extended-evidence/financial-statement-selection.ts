@@ -167,6 +167,22 @@ export function latestFinancialStatementFact(
   return facts.toSorted(compareFinancialStatementFacts).at(0);
 }
 
+// TTM at a fiscal-year end is the FY itself; the canonical TTM stays undefined and readers say so.
+export function latestFiscalYearTrailingBasis(
+  revenue: FinancialStatementSeries | undefined,
+): string | undefined {
+  const fiscalYear = latestFinancialStatementFact(revenue?.annual ?? []);
+  if (
+    fiscalYear?.periodStart === undefined ||
+    financialStatementPeriodMonths(fiscalYear) !== 12 ||
+    revenue?.interim.length === 0 ||
+    revenue?.interim.some((fact) => fact.periodEnd > fiscalYear.periodEnd) !== false
+  ) {
+    return undefined;
+  }
+  return `The latest fiscal year (${fiscalYear.periodStart} to ${fiscalYear.periodEnd}, ${fiscalYear.form} accession ${fiscalYear.accessionNumber ?? "undisclosed"}) is the newest period in the SEC revenue series; no later interim revenue period is tagged.`;
+}
+
 export function financialStatementFacts(
   series: FinancialStatementSeries,
 ): readonly FinancialStatementFact[] {

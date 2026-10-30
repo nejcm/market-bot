@@ -716,3 +716,184 @@ describe("the SEC summary's debt reading follows the face-aware statements", () 
     expect(withStatementDebtBasisGaps(summaryGaps, undefined)).toBe(summaryGaps);
   });
 });
+
+const NVDA_ACCN = "0001045810-26-000075";
+const NVDA_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 200_000_000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 20_000_000],
+  ["Short-term debt", "us-gaap:DebtCurrent", 1_000_000],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 21_000_000],
+  ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 32_366_000],
+  ["Other long-term liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 10_918_000],
+  ["Total liabilities", "us-gaap:Liabilities", 64_284_000],
+];
+const nvdaJuly = (value: number) => fact(value, "2026-07-26", "2026-08-27", NVDA_ACCN);
+const NVDA_GAAP = {
+  DebtCurrent: [nvdaJuly(1_000_000_000)],
+  LongTermDebt: [nvdaJuly(33_366_000_000)],
+  LongTermDebtNoncurrent: [nvdaJuly(32_366_000_000)],
+};
+const NVDA_NOTES_ROWS = withRow(NVDA_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [
+  "Notes payable",
+  "us-gaap:LongTermNotesPayable",
+  10_918_000,
+]);
+const NVDA_NOTES_GAAP = { ...NVDA_GAAP, LongTermNotesPayable: [nvdaJuly(10_918_000_000)] };
+
+describe("an off-face complete total checked against same-filing face rows", () => {
+  test("NVDA 10-Q 0001045810-26-000075 2026-07-26: LongTermDebt 33,366M equals face 1,000M + 32,366M", () => {
+    const { debt } = derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", NVDA_ROWS)]);
+    expect(debt).toMatchObject({ value: 33_366_000_000, concept: "LongTermDebt" });
+  });
+
+  test("a face notes row the off-face total leaves out withholds it", () => {
+    expect(derive(NVDA_NOTES_GAAP, []).debt?.value).toBe(33_366_000_000);
+    const { debt, notes } = derive(NVDA_NOTES_GAAP, [
+      faceFiling(NVDA_ACCN, "2026-07-26", NVDA_NOTES_ROWS),
+    ]);
+    expect(debt).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("face statement debt rows total 44284000000"),
+      }),
+    );
+  });
+
+  test.each([
+    ["no face", []],
+    [
+      "a face from another filing",
+      [faceFiling("0001045810-26-000001", "2026-07-26", NVDA_NOTES_ROWS)],
+    ],
+    [
+      "an unfooted face",
+      [
+        faceFiling(
+          NVDA_ACCN,
+          "2026-07-26",
+          withRow(NVDA_NOTES_ROWS, "us-gaap:Liabilities", [
+            "Total liabilities",
+            "us-gaap:Liabilities",
+            1,
+          ]),
+        ),
+      ],
+    ],
+  ] as const)("%s keeps today's 33,366M", (_name, filings) => {
+    expect(derive(NVDA_NOTES_GAAP, filings).debt?.value).toBe(33_366_000_000);
+  });
+
+  test("face legs keep 93,000; a lease deduction from an off-face 100,000 total withholds it", () => {
+    const rows: readonly Row[] = [
+      ["Total assets", "us-gaap:Assets", 1000],
+      ["Accounts payable", "us-gaap:AccountsPayableCurrent", 50],
+      ["Current debt", "us-gaap:DebtCurrent", 10],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 60],
+      ["Long-term debt and finance leases", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 90],
+      ["Total liabilities", "us-gaap:Liabilities", 150],
+    ];
+    const gaap = {
+      DebtCurrent: [sameJune(10_000)],
+      LongTermDebtAndCapitalLeaseObligations: [sameJune(90_000)],
+      FinanceLeaseLiabilityCurrent: [sameJune(2000)],
+      FinanceLeaseLiabilityNoncurrent: [sameJune(5000)],
+    };
+    const face = [faceFiling(SAME_ACCN, "2026-06-30", rows)];
+    expect(derive(gaap, face).debt?.value).toBe(93_000);
+    const withTotal = {
+      ...gaap,
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [sameJune(100_000)],
+    };
+    expect(derive(withTotal, face).debt).toBeUndefined();
+  });
+
+  test("face rows that sum with float error still match: 1.001 + 1.001 at scale 3 is 2,002", () => {
+    const rows = withRow(
+      withRow(NVDA_ROWS, "us-gaap:DebtCurrent", ["Short-term debt", "us-gaap:DebtCurrent", 1.001]),
+      "us-gaap:LongTermDebtNoncurrent",
+      ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 1.001],
+    ).map(
+      ([label, concept, value]): Row =>
+        concept === "us-gaap:LiabilitiesCurrent"
+          ? [label, concept, 20_000_001.001]
+          : concept === "us-gaap:Liabilities"
+            ? [label, concept, 30_918_002.002]
+            : [label, concept, value],
+    );
+    const gaap = {
+      DebtCurrent: [nvdaJuly(1001)],
+      LongTermDebt: [nvdaJuly(2002)],
+      LongTermDebtNoncurrent: [nvdaJuly(1001)],
+    };
+    expect(derive(gaap, [faceFiling(NVDA_ACCN, "2026-07-26", rows)]).debt?.value).toBe(2002);
+  });
+
+  const LEASE_FACE_ROWS: readonly Row[] = [
+    ["Total assets", "us-gaap:Assets", 1000],
+    ["Accounts payable", "us-gaap:AccountsPayableCurrent", 50],
+    ["Current debt", "us-gaap:DebtCurrent", 10],
+    ["Current finance lease liabilities", "us-gaap:FinanceLeaseLiabilityCurrent", 2],
+    ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 62],
+    ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 90],
+    ["Finance lease liabilities", "us-gaap:FinanceLeaseLiabilityNoncurrent", 5],
+    ["Total liabilities", "us-gaap:Liabilities", 157],
+  ];
+  const LEASES_IN_OTHER_ROWS: readonly Row[] = [
+    ["Total assets", "us-gaap:Assets", 1000],
+    ["Accounts payable", "us-gaap:AccountsPayableCurrent", 50],
+    ["Current debt", "us-gaap:DebtCurrent", 10],
+    ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 60],
+    ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 90],
+    ["Other liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 7],
+    ["Total liabilities", "us-gaap:Liabilities", 157],
+  ];
+  const debtLegs = { DebtCurrent: [sameJune(10_000)], LongTermDebtNoncurrent: [sameJune(90_000)] };
+  const splitLeases = {
+    FinanceLeaseLiabilityCurrent: [sameJune(2000)],
+    FinanceLeaseLiabilityNoncurrent: [sameJune(5000)],
+  };
+  const offFaceTotal = (value: number) => ({
+    LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [sameJune(value)],
+  });
+  test.each([
+    [
+      "a lease-inclusive 107,000 beside face leases",
+      LEASE_FACE_ROWS,
+      { ...splitLeases, ...offFaceTotal(107_000) },
+    ],
+    [
+      "a lease-exclusive 100,000 beside face leases",
+      LEASE_FACE_ROWS,
+      { ...splitLeases, ...offFaceTotal(100_000) },
+    ],
+    [
+      "9,000 deducted where the face shows 7,000 of leases",
+      LEASE_FACE_ROWS,
+      { FinanceLeaseLiability: [sameJune(9000)], ...offFaceTotal(107_000) },
+    ],
+    [
+      "leases inside other liabilities under a 102,000 total",
+      LEASES_IN_OTHER_ROWS,
+      { FinanceLeaseLiability: [sameJune(7000)], ...offFaceTotal(102_000) },
+    ],
+    [
+      "9,000 deducted from another filing",
+      LEASE_FACE_ROWS,
+      {
+        ...splitLeases,
+        FinanceLeaseLiability: [sameJune(9000, "0000000000-26-000002")],
+        ...offFaceTotal(107_000),
+      },
+    ],
+  ] as const)("a lease deduction from an off-face total withholds it: %s", (_name, rows, gaap) => {
+    const { debt, notes } = derive({ ...debtLegs, ...gaap }, [
+      faceFiling(SAME_ACCN, "2026-06-30", rows),
+    ]);
+    expect(debt?.periodEnd).not.toBe("2026-06-30");
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("lease deduction from an off-face total is not proven"),
+      }),
+    );
+  });
+});

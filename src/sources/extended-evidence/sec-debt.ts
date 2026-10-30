@@ -421,7 +421,7 @@ function withFaceRowsChecked(
   const leaseConcepts = new Set(leases === undefined ? [] : [leases.total, ...leases.split]);
   const face = faces.find((candidate) => presentsAll(candidate, resolution));
   if (face === undefined) {
-    return resolution;
+    return withOffFaceTotalChecked(resolution, faces, leaseConcepts);
   }
   const faceLeases = new Set(
     resolution.contributors.flatMap(({ concept, subtract }) =>
@@ -479,6 +479,43 @@ function withFaceRowsChecked(
   return faceLeases.size === 0
     ? proven
     : { ...proven, proofSourceIds: face.sourceIds, faceLeases: [...faceLeases] };
+}
+
+// A footed same-filing face lists every debt row, so an off-face total must equal their sum to publish.
+function withOffFaceTotalChecked(
+  resolution: DebtResolution<ParsedFact>,
+  faces: readonly FaceDebtLines[],
+  leaseConcepts: ReadonlySet<string>,
+): DebtResolution<ParsedFact> {
+  const gross = resolution.contributors.filter(({ subtract }) => subtract !== true);
+  const face = faces.find(
+    (candidate) =>
+      gross.length > 0 &&
+      gross.every(({ fact }) => fact.accessionNumber === candidate.accessionNumber),
+  );
+  if (face === undefined || resolution.incompleteReason !== undefined) {
+    return resolution;
+  }
+  if (resolution.contributors.some(({ subtract }) => subtract === true)) {
+    return {
+      ...resolution,
+      incompleteReason:
+        "lease deduction from an off-face total is not proven by the face statement",
+    };
+  }
+  const total = sumOf(resolution.contributors.map(({ fact }) => fact.value));
+  const faceTotal = sumOf([
+    ...[...face.standard]
+      .filter(([concept]) => !leaseConcepts.has(concept))
+      .map(([, value]) => value),
+    ...face.extensions.map(({ value }) => value),
+  ]);
+  return Math.round(total) === Math.round(faceTotal)
+    ? resolution
+    : {
+        ...resolution,
+        incompleteReason: `face statement debt rows total ${faceTotal}, not the off-face ${resolution.contributors.map(({ concept }) => concept).join(", ")} ${total}`,
+      };
 }
 
 // Principal is face value, not the balance-sheet carrying amount EV needs, so its newer instant withholds debt.

@@ -897,3 +897,206 @@ describe("an off-face complete total checked against same-filing face rows", () 
     );
   });
 });
+
+const ORCL_ACCN = "0001193125-26-389274";
+const ORCL_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 303_259_000],
+  ["Notes payable, current", "us-gaap:NotesPayableCurrent", 7_625_000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 11_063_000],
+  ["Accrued compensation", "us-gaap:EmployeeRelatedLiabilitiesCurrent", 1_760_000],
+  ["Deferred revenues", "us-gaap:ContractWithCustomerLiabilityCurrent", 14_686_000],
+  ["Other current liabilities", "us-gaap:OtherLiabilitiesCurrent", 12_380_000],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 47_514_000],
+  ["Notes payable and other borrowings", "us-gaap:LongTermNotesAndLoans", 117_712_000],
+  ["Income taxes payable", "us-gaap:AccruedIncomeTaxesNoncurrent", 12_060_000],
+  ["Operating lease liabilities", "us-gaap:OperatingLeaseLiabilityNoncurrent", 30_594_000],
+  ["Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 28_183_000],
+  ["Total non-current liabilities", "us-gaap:LiabilitiesNoncurrent", 188_549_000],
+];
+const orclAug = (value: number, accn = ORCL_ACCN) => fact(value, "2026-08-31", "2026-09-11", accn);
+const orclFy = (value: number) =>
+  fact(value, "2026-05-31", "2026-06-22", "0001193125-26-277521", "10-K");
+const ORCL_GAAP = {
+  NotesPayableCurrent: [orclFy(7_199_000_000), orclAug(7_625_000_000)],
+  LongTermNotesAndLoans: [orclFy(122_342_000_000), orclAug(117_712_000_000)],
+  DebtCurrent: [orclFy(7_199_000_000)],
+  LongTermNotesPayable: [orclFy(122_342_000_000)],
+  DebtLongtermAndShorttermCombinedAmount: [orclFy(129_541_000_000)],
+  SeniorNotes: [fact(42_749_000_000, "2026-02-28", "2026-03-11", "0001193125-26-101045")],
+};
+
+const augustDebt = (...args: Parameters<typeof derive>) =>
+  financialStatementFacts(derive(...args).artifact.statements.balanceSheet.debt).find(
+    ({ periodEnd }) => periodEnd === "2026-08-31",
+  );
+
+describe("ORCL 10-Q 0001193125-26-389274 2026-08-31: a face with no total-liabilities row", () => {
+  test("foots on LiabilitiesNoncurrent and publishes 7,625M + 117,712M = 125,337M", () => {
+    expect(augustDebt(ORCL_GAAP, [])).toBeUndefined();
+    const { debt } = derive(ORCL_GAAP, [faceFiling(ORCL_ACCN, "2026-08-31", ORCL_ROWS)]);
+    expect(debt).toMatchObject({ value: 125_337_000_000, periodEnd: "2026-08-31" });
+    expect(debt?.accessionNumber).toBe(ORCL_ACCN);
+  });
+
+  test.each([
+    [
+      "a face from another filing",
+      ORCL_GAAP,
+      [faceFiling("0001193125-26-000001", "2026-08-31", ORCL_ROWS)],
+    ],
+    [
+      "an unfooted face",
+      ORCL_GAAP,
+      [
+        faceFiling(
+          ORCL_ACCN,
+          "2026-08-31",
+          withRow(ORCL_ROWS, "us-gaap:LiabilitiesNoncurrent", [
+            "Total non-current liabilities",
+            "us-gaap:LiabilitiesNoncurrent",
+            188_548_000,
+          ]),
+        ),
+      ],
+    ],
+    [
+      "an omitted concept still on the face",
+      { ...ORCL_GAAP, SeniorNotes: [...ORCL_GAAP.SeniorNotes, orclAug(28_183_000_000)] },
+      [
+        faceFiling(
+          ORCL_ACCN,
+          "2026-08-31",
+          withRow(ORCL_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [
+            "Senior notes",
+            "us-gaap:SeniorNotes",
+            28_183_000,
+          ]),
+        ),
+      ],
+    ],
+  ] as const)("%s stays withheld", (_name, gaap, filings) => {
+    expect(augustDebt(gaap, filings)).toBeUndefined();
+  });
+});
+
+const ORCL_CURRENT = ORCL_ROWS.slice(0, 7);
+const orclFace = (html: string) =>
+  ({
+    sourceIds: [`sec-filing-${ORCL_ACCN}`],
+    metrics: {
+      accessionNumber: ORCL_ACCN,
+      reportDate: "2026-08-31",
+      ...secBalanceSheetFaceMetrics(html, "2026-08-31"),
+    },
+  }) as unknown as ExtendedEvidenceItem;
+const orclRow = (row: Row) => withRow(ORCL_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", row);
+
+describe("ORCL face proof fails closed", () => {
+  test("a noncurrent subtotal reached across an equity row emits no face", () => {
+    const html = balanceSheet("2026-08-31", [
+      ...ORCL_CURRENT,
+      ["Stockholders' equity", "us-gaap:StockholdersEquity", 117_712_000],
+      ["Total non-current liabilities", "us-gaap:LiabilitiesNoncurrent", 117_712_000],
+    ]);
+    expect(secBalanceSheetFaceMetrics(html, "2026-08-31")).toEqual({});
+    expect(augustDebt(ORCL_GAAP, [orclFace(html)])).toBeUndefined();
+  });
+
+  test("a noncurrent subtotal from a later table emits no face", () => {
+    const html = `${balanceSheet("2026-08-31", [
+      ...ORCL_CURRENT,
+      ["Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 117_712_000],
+    ])}<table><tr><td>Total</td>${cell("us-gaap:LiabilitiesNoncurrent", 117_712_000, "c")}</tr></table>`;
+    expect(secBalanceSheetFaceMetrics(html, "2026-08-31")).toEqual({});
+  });
+
+  test.each([
+    [
+      "a mixed notes and lease row",
+      "Notes payable and finance leases",
+      "us-gaap:LongTermNotesAndFinanceLeaseLiabilities",
+    ],
+    [
+      "a notes plus accrued interest row",
+      "Notes payable and accrued interest",
+      "us-gaap:NotesAndInterestPayableNoncurrentX",
+    ],
+    ["a loan commitments row", "Loan commitments", "us-gaap:LoanCommitments"],
+    ["an unrecognized row labelled as borrowings", "Other borrowings", "us-gaap:OtherNoncurrentX"],
+  ] as const)("%s withholds rather than publishing 7,625M", (_name, label, concept) => {
+    const face = faceFiling(ORCL_ACCN, "2026-08-31", orclRow([label, concept, 28_183_000]));
+    expect(augustDebt(ORCL_GAAP, [face])).toBeUndefined();
+  });
+});
+
+describe("a rejected face never behaves like no face", () => {
+  const mixed = (rows: readonly Row[], label: string, concept: string) =>
+    withRow(
+      rows,
+      rows === NVDA_ROWS ? "us-gaap:OtherLiabilitiesNoncurrent" : "us-gaap:LongTermNotesPayable",
+      [label, concept, 10_918_000],
+    );
+
+  test("NVDA off-face 33,366M beside a mixed notes-and-lease row withholds with a reason", () => {
+    const rows = mixed(
+      NVDA_NOTES_ROWS,
+      "Notes payable and finance leases",
+      "us-gaap:LongTermNotesAndFinanceLeaseLiabilities",
+    );
+    const { debt, notes } = derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", rows)]);
+    expect(debt).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "LongTermNotesAndFinanceLeaseLiabilities as a possible borrowing",
+        ),
+      }),
+    );
+  });
+
+  test("a complete resolution whose same-filing face is rejected withholds", () => {
+    const rows = mixed(NVDA_ROWS, "Loan commitments", "us-gaap:LoanCommitments");
+    expect(derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", NVDA_ROWS)]).debt?.value).toBe(
+      33_366_000_000,
+    );
+    expect(derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", rows)]).debt).toBeUndefined();
+  });
+
+  test("a rejected face from another filing leaves the resolution alone", () => {
+    const rows = mixed(NVDA_ROWS, "Loan commitments", "us-gaap:LoanCommitments");
+    const face = faceFiling("0001045810-26-000001", "2026-07-26", rows);
+    expect(derive(NVDA_GAAP, [face]).debt?.value).toBe(33_366_000_000);
+  });
+});
+
+test("a face with LiabilitiesNoncurrent but no current or total row emits nothing", () => {
+  const html = balanceSheet("2026-08-31", [
+    ["Total assets", "us-gaap:Assets", 100],
+    ["Other", "us-gaap:OtherLiabilitiesNoncurrent", 40],
+    ["Total non-current liabilities", "us-gaap:LiabilitiesNoncurrent", 40],
+  ]);
+  expect(secBalanceSheetFaceMetrics(html, "2026-08-31")).toEqual({});
+});
+
+test.each([
+  ["a zero loan commitments row", "Loan commitments", "us-gaap:LoanCommitments", 0],
+  [
+    "an asset retirement obligations row",
+    "Asset retirement obligations",
+    "us-gaap:AssetRetirementObligationsNoncurrent",
+    10_918_000,
+  ],
+] as const)("%s keeps NVDA's face-checked 33,366M", (_name, label, concept, value) => {
+  const rows = withRow(NVDA_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [label, concept, value]);
+  const fixed =
+    value === 0
+      ? [
+          ...rows.slice(0, -1),
+          ["Other", "us-gaap:OtherLiabilitiesNoncurrent", 10_918_000] as Row,
+          rows.at(-1)!,
+        ]
+      : rows;
+  expect(derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", fixed)]).debt?.value).toBe(
+    33_366_000_000,
+  );
+});

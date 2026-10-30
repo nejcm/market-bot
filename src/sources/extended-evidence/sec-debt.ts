@@ -277,12 +277,25 @@ const sumOf = (values: readonly number[]) => values.reduce((acc, value) => acc +
 const FACE_NON_DEBT_WORDS =
   /lease|receivable|warrant|tax|interest|derivative|accrued|accounts payable|accountspayable/iu;
 
+// Standard borrowings whose scope varies by filer (AAOI current + noncurrent), so only a face row places them.
+const FACE_SCOPED_BORROWINGS: ReadonlySet<string> = new Set(["LongTermNotesAndLoans"]);
+// Rejects only, never counts, so widening it is safe.
+const BORROWING_HINT = /notes|loan|debt|borrowing|credit|lease|obligation|commitment/iu;
+const KNOWN_NON_BORROWING_ROWS: ReadonlySet<string> = new Set([
+  ...(DEBT_CONCEPTS["us-gaap"].ambiguousLongTermDebt?.noncurrentIdentity.others ?? []),
+  ...(DEBT_CONCEPTS["us-gaap"].ambiguousLongTermDebt?.noncurrentIdentity.currentOthers ?? []),
+  "AssetRetirementObligationsNoncurrent",
+  "AssetRetirementObligationsCurrent",
+  "AssetRetirementObligation",
+]);
+
 interface FaceDebtLines {
   readonly accessionNumber: string;
   readonly sourceIds: readonly string[];
   readonly standard: ReadonlyMap<string, number>;
   readonly sides: ReadonlyMap<string, DebtFaceSide>;
   readonly extensions: readonly { readonly concept: string; readonly value: number }[];
+  readonly rejected?: string;
 }
 
 function faceDebtLines(
@@ -292,11 +305,16 @@ function faceDebtLines(
   taxonomy: FinancialStatementTaxonomy,
 ): readonly FaceDebtLines[] {
   const pattern = DEBT_CONCEPTS[taxonomy].unrecognizedBorrowing;
+  const noRows = {
+    standard: new Map<string, number>(),
+    sides: new Map<string, DebtFaceSide>(),
+    extensions: [],
+  };
   const classify = (text: string) => {
     const debt = FACE_DEBT_WORDS.test(text);
     return debt === FACE_NON_DEBT_WORDS.test(text) ? undefined : debt;
   };
-  return filings.flatMap(({ metrics, sourceIds }) => {
+  return filings.flatMap(({ metrics, sourceIds }): readonly FaceDebtLines[] => {
     if (taxonomy !== "us-gaap" || metrics?.reportDate !== periodEnd) {
       return [];
     }
@@ -314,6 +332,25 @@ function faceDebtLines(
         if (recognized.has(concept) || pattern?.test(concept) === true) {
           standard.set(concept, value);
           sides.set(concept, key.split("|")[1] === "current" ? "current" : "noncurrent");
+          continue;
+        }
+        if (FACE_SCOPED_BORROWINGS.has(concept)) {
+          extensions.push({ concept, value });
+        } else if (
+          value !== 0 &&
+          !KNOWN_NON_BORROWING_ROWS.has(concept) &&
+          (BORROWING_HINT.test(concept) || BORROWING_HINT.test(label))
+        ) {
+          return typeof metrics.accessionNumber === "string"
+            ? [
+                {
+                  ...noRows,
+                  accessionNumber: metrics.accessionNumber,
+                  sourceIds,
+                  rejected: concept,
+                },
+              ]
+            : [];
         }
         continue;
       }
@@ -340,8 +377,20 @@ function withFaceStatementDebt(
     lines: ReadonlyMap<string, ParsedFact>,
     face?: FaceDebtLines,
   ) => DebtResolution<ParsedFact>,
-  faces: readonly FaceDebtLines[],
+  allFaces: readonly FaceDebtLines[],
 ): DebtResolution<ParsedFact> {
+  const rejected = allFaces.find(
+    ({ accessionNumber, rejected: concept }) =>
+      concept !== undefined &&
+      resolution.contributors.some(({ fact }) => fact.accessionNumber === accessionNumber),
+  );
+  if (rejected !== undefined) {
+    return {
+      ...resolution,
+      incompleteReason: `face statement presents ${rejected.rejected} as a possible borrowing outside the recognized debt lines`,
+    };
+  }
+  const faces = allFaces.filter((face) => face.rejected === undefined);
   // Same-concept rows of a footed same-filing face settle LongTermDebt scope and current-line placement.
   const placed = faces
     .map((face) => ({ face, candidate: resolveAt(tagged, face) }))

@@ -347,6 +347,8 @@ const sumRows = (rows: readonly { readonly value: number }[]) =>
   Math.round(rows.reduce((acc, { value }) => acc + value, 0));
 
 export const FACE_LINE_PREFIX = "faceLine|";
+const EQUITY_ROW =
+  /Equity|StockValue|PaidInCapital|RetainedEarnings|MinorityInterest|ComprehensiveIncome/u;
 export const FACE_LABEL_PREFIX = "faceLabel|";
 
 // `faceLine|<current|noncurrent>|<concept>` liability rows of the report-date balance sheet, emitted only when both sides foot exactly.
@@ -366,7 +368,8 @@ export function secBalanceSheetFaceMetrics(
           : [],
     ),
   );
-  const facts: { concept: string; value: number; label: string }[] = [];
+  const facts: { concept: string; value: number; label: string; table: number }[] = [];
+  const tableStarts = [...html.matchAll(/<table\b/gu)].map(({ index }) => index);
   let previousEnd = 0;
   for (const match of html.matchAll(/<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu)) {
     const [whole, attrs, content] = match;
@@ -385,28 +388,45 @@ export function secBalanceSheetFaceMetrics(
       value !== undefined &&
       contexts.has(attribute(attrs!, "contextRef") ?? "")
     ) {
-      facts.push({ concept, value, label });
+      facts.push({
+        concept,
+        value,
+        label,
+        table: tableStarts.filter((start) => start < match.index).length,
+      });
     }
   }
   const currentEnd = facts.findIndex(({ concept }) => concept === "us-gaap:LiabilitiesCurrent");
-  const totalEnd = facts.findIndex(
-    ({ concept }, index) => index > currentEnd && concept === "us-gaap:Liabilities",
-  );
+  const after = (name: string) =>
+    facts.findIndex(({ concept }, index) => index > currentEnd && concept === name);
+  const totalEnd = after("us-gaap:Liabilities");
+  // Faces without a total-liabilities row (ORCL) end the noncurrent side at its own subtotal.
+  const noncurrentEnd = totalEnd === -1 ? after("us-gaap:LiabilitiesNoncurrent") : totalEnd;
+  const crossesSection =
+    currentEnd !== -1 &&
+    totalEnd === -1 &&
+    facts
+      .slice(currentEnd + 1, noncurrentEnd + 1)
+      .some(({ concept, table }) => table !== facts[currentEnd]!.table || EQUITY_ROW.test(concept));
   const assetsEnd = facts.findLastIndex(
     ({ concept }, index) => index < currentEnd && concept === "us-gaap:Assets",
   );
-  if (currentEnd === -1 || totalEnd === -1 || assetsEnd === -1) {
+  if (currentEnd === -1 || noncurrentEnd === -1 || assetsEnd === -1 || crossesSection) {
     return {};
   }
   const current = facts.slice(assetsEnd + 1, currentEnd);
   const noncurrent = facts
-    .slice(currentEnd + 1, totalEnd)
+    .slice(currentEnd + 1, noncurrentEnd)
     .filter(({ concept }) => concept !== "us-gaap:LiabilitiesNoncurrent");
+  const noncurrentTotal =
+    totalEnd === -1
+      ? facts[noncurrentEnd]!.value
+      : facts[totalEnd]!.value - facts[currentEnd]!.value;
   const lines = [...current, ...noncurrent];
   if (
     new Set(lines.map(({ concept }) => concept)).size !== lines.length ||
     sumRows(current) !== Math.round(facts[currentEnd]!.value) ||
-    sumRows(noncurrent) !== Math.round(facts[totalEnd]!.value - facts[currentEnd]!.value)
+    sumRows(noncurrent) !== Math.round(noncurrentTotal)
   ) {
     return {};
   }

@@ -350,15 +350,9 @@ export const FACE_LINE_PREFIX = "faceLine|";
 const EQUITY_ROW =
   /Equity|StockValue|PaidInCapital|RetainedEarnings|MinorityInterest|ComprehensiveIncome/u;
 export const FACE_LABEL_PREFIX = "faceLabel|";
+export const PRIOR_FACE_LINE_PREFIX = "priorFaceLine|";
 
-// `faceLine|<current|noncurrent>|<concept>` liability rows of the report-date balance sheet, emitted only when both sides foot exactly.
-export function secBalanceSheetFaceMetrics(
-  html: string,
-  periodEnd: string | undefined,
-): Record<string, number | string> {
-  if (periodEnd === undefined) {
-    return {};
-  }
+function footedFaceRows(html: string, periodEnd: string) {
   const contexts = new Set(
     [...html.matchAll(/<xbrli:context id="([^"]+)">([\s\S]*?)<\/xbrli:context>/gu)].flatMap(
       ([, id, body]) =>
@@ -373,8 +367,10 @@ export function secBalanceSheetFaceMetrics(
   let previousEnd = 0;
   for (const match of html.matchAll(/<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu)) {
     const [whole, attrs, content] = match;
-    const label = html
-      .slice(previousEnd, match.index)
+    const rowStart = html.lastIndexOf("<tr", match.index);
+    const span = html.slice(rowStart === -1 ? previousEnd : rowStart, match.index);
+    // A nested table in the label cell hides the row's own label, so leave it empty and fail closed.
+    const label = (span.includes("</table") ? "" : span)
       .replaceAll(/<[^>]*>/gu, " ")
       .replaceAll(/&#\d+;|&nbsp;|&amp;/gu, " ")
       .replaceAll(/\s+/gu, " ")
@@ -412,7 +408,7 @@ export function secBalanceSheetFaceMetrics(
     ({ concept }, index) => index < currentEnd && concept === "us-gaap:Assets",
   );
   if (currentEnd === -1 || noncurrentEnd === -1 || assetsEnd === -1 || crossesSection) {
-    return {};
+    return undefined;
   }
   const current = facts.slice(assetsEnd + 1, currentEnd);
   const noncurrent = facts
@@ -428,11 +424,52 @@ export function secBalanceSheetFaceMetrics(
     sumRows(current) !== Math.round(facts[currentEnd]!.value) ||
     sumRows(noncurrent) !== Math.round(noncurrentTotal)
   ) {
+    return undefined;
+  }
+  return { current, noncurrent, lines };
+}
+
+const faceRowEntries = (
+  prefix: string,
+  { current, noncurrent }: NonNullable<ReturnType<typeof footedFaceRows>>,
+) => [
+  ...current.map(({ concept, value }) => [`${prefix}current|${concept}`, value] as const),
+  ...noncurrent.map(({ concept, value }) => [`${prefix}noncurrent|${concept}`, value] as const),
+];
+
+// `faceLine|<current|noncurrent>|<concept>` liability rows of the report-date balance sheet, emitted only when both sides foot exactly;
+// `priorFaceLine|<instant>|…` holds an earlier footed column of the same face (a 10-Q's prior fiscal year end).
+export function secBalanceSheetFaceMetrics(
+  html: string,
+  periodEnd: string | undefined,
+): Record<string, number | string> {
+  const face = periodEnd === undefined ? undefined : footedFaceRows(html, periodEnd);
+  if (periodEnd === undefined || face === undefined) {
     return {};
   }
+  const priorInstants = new Set(
+    [...html.matchAll(/<xbrli:context id="[^"]+">([\s\S]*?)<\/xbrli:context>/gu)].flatMap(
+      ([, body]) => {
+        const instant = /<xbrli:instant>\s*([^<\s]+)\s*</u.exec(body!)?.[1];
+        return instant !== undefined && instant < periodEnd && !body!.includes("<xbrli:segment>")
+          ? [instant]
+          : [];
+      },
+    ),
+  );
   return Object.fromEntries([
-    ...current.map(({ concept, value }) => [`${FACE_LINE_PREFIX}current|${concept}`, value]),
-    ...noncurrent.map(({ concept, value }) => [`${FACE_LINE_PREFIX}noncurrent|${concept}`, value]),
-    ...lines.map(({ concept, label }) => [`${FACE_LABEL_PREFIX}${concept}`, label]),
+    ...faceRowEntries(FACE_LINE_PREFIX, face),
+    ...[...priorInstants].flatMap((instant) => {
+      const prior = footedFaceRows(html, instant);
+      return prior === undefined
+        ? []
+        : [
+            ...faceRowEntries(`${PRIOR_FACE_LINE_PREFIX}${instant}|`, prior),
+            ...prior.lines.map(
+              ({ concept, label }) => [`${FACE_LABEL_PREFIX}${instant}|${concept}`, label] as const,
+            ),
+          ];
+    }),
+    ...face.lines.map(({ concept, label }) => [`${FACE_LABEL_PREFIX}${concept}`, label] as const),
   ]);
 }

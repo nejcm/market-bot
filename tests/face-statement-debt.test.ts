@@ -1100,3 +1100,170 @@ test.each([
     33_366_000_000,
   );
 });
+
+const ORCL_PRIOR_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 261_759_000],
+  ["Notes payable, current", "us-gaap:NotesPayableCurrent", 7_199_000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 10_977_000],
+  ["Accrued compensation", "us-gaap:EmployeeRelatedLiabilitiesCurrent", 2_225_000],
+  ["Deferred revenues", "us-gaap:ContractWithCustomerLiabilityCurrent", 9_916_000],
+  ["Other current liabilities", "us-gaap:OtherLiabilitiesCurrent", 11_447_000],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 41_764_000],
+  ["Notes payable and other borrowings", "us-gaap:LongTermNotesAndLoans", 122_342_000],
+  ["Income taxes payable", "us-gaap:AccruedIncomeTaxesNoncurrent", 11_771_000],
+  ["Operating lease liabilities", "us-gaap:OperatingLeaseLiabilityNoncurrent", 26_648_000],
+  ["Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 16_178_000],
+  ["Total non-current liabilities", "us-gaap:LiabilitiesNoncurrent", 176_939_000],
+];
+
+const twoColumnFace = (prior: readonly Row[]) =>
+  [
+    `<xbrli:context id="c"><xbrli:period><xbrli:instant>2026-08-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    `<xbrli:context id="p"><xbrli:period><xbrli:instant>2026-05-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    "<table>",
+    ...ORCL_ROWS.map(
+      ([label, concept, value], index) =>
+        `<tr><td>${label}</td>${cell(concept, value, "c")}${cell(concept, prior[index]![2], "p")}</tr>`,
+    ),
+    "</table>",
+  ].join("");
+
+describe("ORCL 10-Q 0001193125-26-389274 prior-year-end column 2026-05-31", () => {
+  const priorQ1 = (value: number) => fact(value, "2026-05-31", "2026-09-11", ORCL_ACCN);
+  const gaap = {
+    ...ORCL_GAAP,
+    NotesPayableCurrent: [...ORCL_GAAP.NotesPayableCurrent, priorQ1(7_199_000_000)],
+    LongTermNotesAndLoans: [...ORCL_GAAP.LongTermNotesAndLoans, priorQ1(122_342_000_000)],
+  };
+  const mayDebt = (prior: readonly Row[]) =>
+    financialStatementFacts(
+      derive(gaap, [orclFace(twoColumnFace(prior))]).artifact.statements.balanceSheet.debt,
+    ).filter(({ periodEnd }) => periodEnd === "2026-05-31");
+
+  test("the footed comparative column proves 7,199M + 122,342M = 129,541M", () => {
+    expect(mayDebt(ORCL_PRIOR_ROWS)).toContainEqual(
+      expect.objectContaining({ value: 129_541_000_000, accessionNumber: ORCL_ACCN }),
+    );
+  });
+
+  test("an unfooted comparative column keeps it withheld", () => {
+    const rows = withRow(ORCL_PRIOR_ROWS, "us-gaap:LiabilitiesNoncurrent", [
+      "Total non-current liabilities",
+      "us-gaap:LiabilitiesNoncurrent",
+      176_938_000,
+    ]);
+    expect(mayDebt(rows)).toEqual([]);
+  });
+});
+
+test("a prior-only borrowing row keeps its row label and withholds 2026-05-31", () => {
+  const html = [
+    `<xbrli:context id="c"><xbrli:period><xbrli:instant>2026-08-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    `<xbrli:context id="p"><xbrli:period><xbrli:instant>2026-05-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    "<table>",
+    ...ORCL_ROWS.map(([label, concept, value], index) => {
+      const prior = ORCL_PRIOR_ROWS[index]![2];
+      const bumped = concept === "us-gaap:LiabilitiesNoncurrent" ? prior + 1_000_000 : prior;
+      const extra =
+        concept === "us-gaap:LiabilitiesNoncurrent"
+          ? `<tr><td>Other borrowings</td><td></td>${cell("us-gaap:OtherNoncurrentX", 1_000_000, "p")}</tr>`
+          : "";
+      return `${extra}<tr><td>${label}</td>${cell(concept, value, "c")}${cell(concept, bumped, "p")}</tr>`;
+    }),
+    "</table>",
+  ].join("");
+  const metrics = secBalanceSheetFaceMetrics(html, "2026-08-31");
+  expect(metrics["priorFaceLine|2026-05-31|noncurrent|us-gaap:OtherNoncurrentX"]).toBe(
+    1_000_000_000,
+  );
+  expect(metrics["faceLabel|2026-05-31|us-gaap:OtherNoncurrentX"]).toContain("Other borrowings");
+  const gaap = {
+    ...ORCL_GAAP,
+    NotesPayableCurrent: [
+      ...ORCL_GAAP.NotesPayableCurrent,
+      fact(7_199_000_000, "2026-05-31", "2026-09-11", ORCL_ACCN),
+    ],
+    LongTermNotesAndLoans: [
+      ...ORCL_GAAP.LongTermNotesAndLoans,
+      fact(122_342_000_000, "2026-05-31", "2026-09-11", ORCL_ACCN),
+    ],
+  };
+  const may = financialStatementFacts(
+    derive(gaap, [orclFace(html)]).artifact.statements.balanceSheet.debt,
+  ).filter(({ periodEnd }) => periodEnd === "2026-05-31");
+  expect(may).toEqual([]);
+});
+
+test("an unlabelled nonzero unrecognized face row withholds ORCL", () => {
+  const face = faceFiling(
+    ORCL_ACCN,
+    "2026-08-31",
+    orclRow(["", "us-gaap:OtherNoncurrentX", 28_183_000]),
+  );
+  expect(augustDebt(ORCL_GAAP, [face])).toBeUndefined();
+});
+
+test("a nested footnote table in the label cell cannot hide a borrowing row", () => {
+  const label = "Other borrowings<table><tr><td>(1)</td></tr></table>";
+  const rows = withRow(NVDA_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [
+    label,
+    "us-gaap:OtherNoncurrentX",
+    10_918_000,
+  ]);
+  expect(derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", rows)]).debt).toBeUndefined();
+});
+
+test("a prior-column borrowing label is not overwritten by the current column's label", () => {
+  const html = [
+    `<xbrli:context id="c"><xbrli:period><xbrli:instant>2026-08-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    `<xbrli:context id="p"><xbrli:period><xbrli:instant>2026-05-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    "<table>",
+    ...ORCL_ROWS.map(([label, concept, value], index) => {
+      const prior = ORCL_PRIOR_ROWS[index]![2];
+      if (concept === "us-gaap:OtherLiabilitiesNoncurrent") {
+        return [
+          `<tr><td>Other liabilities</td>${cell("us-gaap:OtherNoncurrentX", value, "c")}<td></td></tr>`,
+          `<tr><td>Other non-current liabilities</td><td></td>${cell(concept, prior - 1_000_000, "p")}</tr>`,
+          `<tr><td>Other borrowings</td><td></td>${cell("us-gaap:OtherNoncurrentX", 1_000_000, "p")}</tr>`,
+        ].join("");
+      }
+      return `<tr><td>${label}</td>${cell(concept, value, "c")}${cell(concept, prior, "p")}</tr>`;
+    }),
+    "</table>",
+  ].join("");
+  const metrics = secBalanceSheetFaceMetrics(html, "2026-08-31");
+  expect(metrics["priorFaceLine|2026-05-31|noncurrent|us-gaap:OtherNoncurrentX"]).toBe(
+    1_000_000_000,
+  );
+  const gaap = {
+    ...ORCL_GAAP,
+    NotesPayableCurrent: [
+      ...ORCL_GAAP.NotesPayableCurrent,
+      fact(7_199_000_000, "2026-05-31", "2026-09-11", ORCL_ACCN),
+    ],
+    LongTermNotesAndLoans: [
+      ...ORCL_GAAP.LongTermNotesAndLoans,
+      fact(122_342_000_000, "2026-05-31", "2026-09-11", ORCL_ACCN),
+    ],
+  };
+  const may = financialStatementFacts(
+    derive(gaap, [orclFace(html)]).artifact.statements.balanceSheet.debt,
+  ).filter(({ periodEnd }) => periodEnd === "2026-05-31");
+  expect(may).toEqual([]);
+});
+
+test("a blank-labelled extension borrowing row rejects the face, so NVDA's 33,366M withholds", () => {
+  const label = "Other borrowings<table><tr><td>(1)</td></tr></table>";
+  const rows = withRow(NVDA_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [
+    label,
+    "nvda:OtherBorrowingsNoncurrent",
+    10_918_000,
+  ]);
+  const { debt, notes } = derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", rows)]);
+  expect(debt).toBeUndefined();
+  expect(notes).toContainEqual(
+    expect.objectContaining({
+      message: expect.stringContaining("OtherBorrowingsNoncurrent as a possible borrowing"),
+    }),
+  );
+});

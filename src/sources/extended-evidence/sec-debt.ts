@@ -1,6 +1,6 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
-import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX } from "../sec-segment-facts";
+import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX, PRIOR_FACE_LINE_PREFIX } from "../sec-segment-facts";
 import { isDebtBasisGap, leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
@@ -315,23 +315,35 @@ function faceDebtLines(
     return debt === FACE_NON_DEBT_WORDS.test(text) ? undefined : debt;
   };
   return filings.flatMap(({ metrics, sourceIds }): readonly FaceDebtLines[] => {
-    if (taxonomy !== "us-gaap" || metrics?.reportDate !== periodEnd) {
+    if (taxonomy !== "us-gaap" || metrics === undefined) {
       return [];
     }
+    const linePrefix =
+      metrics.reportDate === periodEnd
+        ? FACE_LINE_PREFIX
+        : `${PRIOR_FACE_LINE_PREFIX}${periodEnd}|`;
+    const reject = (concept: string): readonly FaceDebtLines[] =>
+      typeof metrics.accessionNumber === "string"
+        ? [{ ...noRows, accessionNumber: metrics.accessionNumber, sourceIds, rejected: concept }]
+        : [];
     const standard = new Map<string, number>();
     const sides = new Map<string, DebtFaceSide>();
     const extensions: { concept: string; value: number }[] = [];
     for (const [key, value] of Object.entries(metrics)) {
-      const qualified = key.startsWith(FACE_LINE_PREFIX) ? key.split("|")[2] : undefined;
+      const [side, qualified] = key.startsWith(linePrefix)
+        ? key.slice(linePrefix.length).split("|")
+        : [];
       const [prefix, concept] = qualified?.split(":") ?? [];
       if (prefix === undefined || concept === undefined || typeof value !== "number") {
         continue;
       }
-      const label = String(metrics[`${FACE_LABEL_PREFIX}${qualified ?? ""}`] ?? "");
+      const labelKey =
+        linePrefix === FACE_LINE_PREFIX ? qualified : `${periodEnd}|${qualified ?? ""}`;
+      const label = String(metrics[`${FACE_LABEL_PREFIX}${labelKey ?? ""}`] ?? "");
       if (prefix === "us-gaap") {
         if (recognized.has(concept) || pattern?.test(concept) === true) {
           standard.set(concept, value);
-          sides.set(concept, key.split("|")[1] === "current" ? "current" : "noncurrent");
+          sides.set(concept, side === "current" ? "current" : "noncurrent");
           continue;
         }
         if (FACE_SCOPED_BORROWINGS.has(concept)) {
@@ -339,29 +351,24 @@ function faceDebtLines(
         } else if (
           value !== 0 &&
           !KNOWN_NON_BORROWING_ROWS.has(concept) &&
-          (BORROWING_HINT.test(concept) || BORROWING_HINT.test(label))
+          (label === "" || BORROWING_HINT.test(concept) || BORROWING_HINT.test(label))
         ) {
-          return typeof metrics.accessionNumber === "string"
-            ? [
-                {
-                  ...noRows,
-                  accessionNumber: metrics.accessionNumber,
-                  sourceIds,
-                  rejected: concept,
-                },
-              ]
-            : [];
+          return reject(concept);
         }
         continue;
       }
       // Name and filer label must each classify the line and agree, or footing proves nothing about it.
       const debt = classify(concept);
       if (debt === undefined || debt !== classify(label)) {
-        return [];
+        return reject(concept);
       }
       if (debt) {
         extensions.push({ concept, value });
       }
+    }
+    const unproven = extensions.find(({ value }) => value !== 0);
+    if (standard.size === 0 && unproven !== undefined) {
+      return reject(unproven.concept);
     }
     return standard.size === 0 || typeof metrics.accessionNumber !== "string"
       ? []

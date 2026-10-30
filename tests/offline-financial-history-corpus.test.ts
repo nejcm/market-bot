@@ -154,13 +154,12 @@ describe("offline financial-statement corpus — history rosters and alias fault
     });
   });
 
-  test("counts a newer strict-superset alias when the selected series is cap-saturated", async () => {
+  test("switches to a newer strict-superset alias that matches every capped annual period in the same filings", async () => {
     const maraCase = await loadOfflineCorpusCase("mara");
     const execution = syntheticAliasExecution(maraCase, "newer-alias");
     const selected = execution.projection.canonical.fundamentalHistory.revenue;
-    expect(selected?.concept).toBe("Revenues");
+    expect(selected?.concept).toBe("SalesRevenueNet");
     expect(selected?.annual.map((point) => point.periodEnd)).toEqual([
-      "2013-12-31",
       "2014-12-31",
       "2015-12-31",
       "2016-12-31",
@@ -170,6 +169,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
       "2020-12-31",
       "2021-12-31",
       "2022-12-31",
+      "2023-12-31",
     ]);
     expect(Object.fromEntries(detectInterchangeableAliasCandidates(execution))).toEqual({
       "canonical.revenue": {

@@ -3,6 +3,7 @@ import type {
   FinancialStatementsArtifact,
   FinancialStatementTtm,
 } from "../sources/extended-evidence/financial-statements-contract";
+import { latestFiscalYearTrailingBasis } from "../sources/extended-evidence/financial-statement-selection";
 
 export interface EquityReaderEarningsBasis {
   readonly text: string;
@@ -64,10 +65,18 @@ export function earningsBasis(
   ];
   const [first] = filed;
   if (financialStatements === undefined || first === undefined) {
-    return {
-      text: `${provider} No SEC diluted EPS TTM is available to compare.`,
-      sourceIds: [marketSnapshot.sourceId],
-    };
+    const fiscalYearBasis = latestFiscalYearTrailingBasis(
+      financialStatements?.statements.incomeStatement.revenue,
+    );
+    return fiscalYearBasis === undefined || financialStatements === undefined
+      ? {
+          text: `${provider} No SEC diluted EPS TTM is available to compare.`,
+          sourceIds: [marketSnapshot.sourceId],
+        }
+      : {
+          text: `${provider} ${fiscalYearBasis}`,
+          sourceIds: [marketSnapshot.sourceId, financialStatements.sourceId],
+        };
   }
   const approximation = `${filed.length === 1 ? "The SEC value is an approximation that adds" : "Both SEC values are approximations that add"} per-share periods without reweighting diluted shares.`;
   const sec = `${filed.map(([, clause]) => `${clause}.`).join(" ")} ${approximation}`;

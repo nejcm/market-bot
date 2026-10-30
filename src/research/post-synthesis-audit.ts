@@ -38,6 +38,7 @@ const CANONICAL_POSTURE_REQUIRED_PATTERN = /\b(?:missing source|source gap|data 
 const HISTORICAL_OUTCOME_CONTEXT_PATTERN = /\b(?:prior|previous|historical|past|resolved)\b/iu;
 const FORECAST_OUTCOME_PATTERN =
   /\b(?:forecast|prediction|miss(?:es|ed)?|hit(?:s)?|resolved|outcome)\b/iu;
+const PEER_MEDIAN_PATTERN = /\bpeer[\s-]+median\b/iu;
 const FORECAST_HORIZON_PATTERN = /\b\d+\s*(?:-| )?(?:trading\s*)?day\b/iu;
 
 interface AuditClaim {
@@ -49,9 +50,10 @@ interface AuditClaim {
 export function auditPostSynthesisReport(
   report: ResearchReport,
   webSourceUsage?: WebSourceUsage,
+  usablePeerSourceIds: ReadonlySet<string> = new Set(),
 ): readonly PostSynthesisAuditWarning[] {
   return [
-    ...claimsForReport(report).flatMap((claim) => auditClaim(claim)),
+    ...claimsForReport(report).flatMap((claim) => auditClaim(claim, usablePeerSourceIds)),
     ...(webSourceUsage !== undefined &&
     webSourceUsage.currentRunIds.size >= 4 &&
     webSourceUsage.currentRunUsedIds.size === 0
@@ -99,8 +101,16 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
   }));
 }
 
-function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
+function auditClaim(
+  claim: AuditClaim,
+  usablePeerSourceIds: ReadonlySet<string>,
+): readonly PostSynthesisAuditWarning[] {
   return [
+    ...(usablePeerSourceIds.size > 0 &&
+    PEER_MEDIAN_PATTERN.test(claim.text) &&
+    !claim.sourceIds.some((id) => usablePeerSourceIds.has(id))
+      ? [peerMedianUncitedWarning(claim)]
+      : []),
     ...(isGapShapedClaimForAuditWarning(claim.text) && claim.sourceIds.length > 0
       ? [citedGapShapedClaimWarning(claim)]
       : []),
@@ -183,6 +193,15 @@ function unsupportedNumericWarning(claim: AuditClaim): PostSynthesisAuditWarning
     code: "unsupported-numeric-claim",
     location: claim.location,
     message: "numeric or technical claim has no non-history supporting source citation",
+    sourceIds: claim.sourceIds,
+  };
+}
+
+function peerMedianUncitedWarning(claim: AuditClaim): PostSynthesisAuditWarning {
+  return {
+    code: "peer-median-uncited",
+    location: claim.location,
+    message: "peer-median claim cites no usable peer source",
     sourceIds: claim.sourceIds,
   };
 }

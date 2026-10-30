@@ -803,7 +803,9 @@ function assertDepreciationAndAmortizationSelection(run: MetricInvariantRun): vo
       series.annual.some((fact) => fact.periodEnd === end) ||
         statements.omissionNotes.some(
           (note) =>
-            note.seriesKey === "depreciationAndAmortization" && note.periodKey?.endsWith(end),
+            note.code === "incomplete-composite-series" &&
+            note.seriesKey === "depreciationAndAmortization" &&
+            note.periodKey?.endsWith(end),
         ),
       `D&A FY ending ${end} has filed components, so it is published or carries a gap`,
     ).toBe(true);

@@ -110,16 +110,35 @@ export function operatingRatioNotes(
           note.seriesKey === "capitalExpenditure")) ||
       note.code === "unchecked-extension-capex",
   );
-  if (unreconciled.length < 2) {
-    return [...kept, ...unreconciled];
-  }
-  const periods = unreconciled.map((note) => note.periodKey?.split("|").at(-1) ?? "unknown");
+  const unchecked = notes.filter((note) => note.code === "unchecked-component-sum");
   return [
     ...kept,
+    ...collapsed(
+      unreconciled,
+      (periods) =>
+        `SEC depreciation and amortization for periods ending ${periods} uses AmortizationOfIntangibleAssets; the same-filing cash-flow AdjustmentForAmortization is higher in each and is not proven to be intangible amortization`,
+    ),
+    ...collapsed(
+      unchecked,
+      (periods) =>
+        `SEC depreciation and amortization for periods ending ${periods} is depreciation + intangible amortization, not checked against the filed cash-flow statement`,
+    ),
+  ];
+}
+
+function collapsed(
+  notes: readonly FinancialStatementNote[],
+  message: (periods: string) => string,
+): readonly FinancialStatementNote[] {
+  if (notes.length < 2) {
+    return notes;
+  }
+  const periods = notes.map((note) => note.periodKey?.split("|").at(-1) ?? "unknown");
+  return [
     {
-      code: "unreconciled-component",
+      code: notes[0]!.code,
       seriesKey: "depreciationAndAmortization",
-      message: `SEC depreciation and amortization for periods ending ${periods.join(", ")} uses AmortizationOfIntangibleAssets; the same-filing cash-flow AdjustmentForAmortization is higher in each and is not proven to be intangible amortization`,
+      message: message(periods.join(", ")),
     },
   ];
 }

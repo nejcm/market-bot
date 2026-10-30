@@ -1005,3 +1005,23 @@ test("unreconciled D&A component notes collapse to one line listing their period
     "duration:12|2023-12-31",
   ]);
 });
+
+test("unchecked D&A component sums collapse separately from unreconciled ones", () => {
+  const unchecked = (periodKey: string) => ({
+    ...note(periodKey),
+    code: "unchecked-component-sum",
+  });
+  expect(
+    notes([
+      note("duration:12|2023-12-31"),
+      unchecked("duration:12|2024-12-31") as unknown as ReturnType<typeof note>,
+      unchecked("duration:12|2025-12-31") as unknown as ReturnType<typeof note>,
+    ])?.map(({ code, message }) => [code, message]),
+  ).toEqual([
+    ["unreconciled-component", "duration:12|2023-12-31"],
+    [
+      "unchecked-component-sum",
+      "SEC depreciation and amortization for periods ending 2024-12-31, 2025-12-31 is depreciation + intangible amortization, not checked against the filed cash-flow statement",
+    ],
+  ]);
+});

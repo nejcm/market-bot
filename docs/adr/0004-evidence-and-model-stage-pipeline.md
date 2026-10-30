@@ -231,6 +231,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   filing tags both cash-flow lines (`OtherDepreciationAndAmortization` + `AdjustmentForAmortization`, no conflicting
   same-filing duplicate), the add-back is within 1% of or below intangible amortization, and their sum is not more
   than 1% below the components, that sum replaces the components (AMD FY2023–25).
+  A plain component sum (annual or interim) publishes with an `unchecked-component-sum` note: it is not checked against the
+  cash-flow statement. Same-filing face verification was tried and dropped, because name-pattern iXBRL scanning
+  cannot prove the row set (extension names, nesting, units): MSFT FY2025 face `msft:DepreciationAmortizationAndOther`
+  34,153M vs 28.0B components; INTC face rows match companyfacts.
   Equality/within tolerance keeps combined. Rejected/incomplete fallback emits period-specific omission/gap
   and Markdown/Console note; retain lineage and name EBITDA proxy basis. A selected combined fact more than 1%
   below the other same-period combined alias (DDA under DA) is withheld, never replaced by the higher alias; the

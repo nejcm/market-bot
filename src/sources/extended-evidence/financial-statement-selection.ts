@@ -23,7 +23,7 @@ const FY_BOUNDARY_TOLERANCE_DAYS = 10;
 // Two facts in one duration bucket can differ by at most twice this; 7 covers 52/53-week years.
 const PERIOD_DRIFT_TOLERANCE_DAYS = 7;
 // Each limit applies per shape (duration and instant): up to 20 annual and 24 interim keys.
-const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
+export const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
 const MAX_INTERIM_PERIODS_PER_SHAPE = 12;
 
 function daysBetween(start: string, end: string): number | undefined {

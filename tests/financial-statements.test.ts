@@ -769,6 +769,168 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  describe("revenue concept switch on a same-filing dual tag (ORCL FY26 10-K 0001193125-26-277521)", () => {
+    const asc606 = "RevenueFromContractWithCustomerExcludingAssessedTax";
+    const tenK = "0001193125-26-277521";
+    const fy = (year: number, value: number, accessionNumber = tenK, filedAt = "2026-06-20") =>
+      fact({
+        value,
+        accessionNumber,
+        filedAt,
+        form: "10-K",
+        fiscalPeriod: "FY",
+        periodStart: `${String(year - 1)}-06-01`,
+        periodEnd: `${String(year)}-05-31`,
+      });
+    const quarters = [
+      fact({
+        value: 14_926_000_000,
+        form: "10-Q",
+        fiscalPeriod: "Q1",
+        filedAt: "2025-09-10",
+        accessionNumber: "0001193125-25-200095",
+        periodStart: "2025-06-01",
+        periodEnd: "2025-08-31",
+      }),
+      fact({
+        value: 19_345_000_000,
+        form: "10-Q",
+        fiscalPeriod: "Q1",
+        filedAt: "2026-09-10",
+        accessionNumber: "0001193125-26-389274",
+        periodStart: "2026-06-01",
+        periodEnd: "2026-08-31",
+      }),
+    ];
+    const orclAsc606 = [
+      fy(2024, 52_961_000_000),
+      fy(2025, 57_399_000_000),
+      fy(2026, 67_357_000_000),
+    ];
+    const revenue = (revenues: readonly Record<string, unknown>[], other = orclAsc606) =>
+      derive(
+        payload({
+          "us-gaap": { Revenues: { USD: revenues }, [asc606]: { USD: [...other, ...quarters] } },
+        }),
+        { analysisAsOf: "2026-10-01T00:00:00.000Z" },
+      ).statements.incomeStatement.revenue;
+
+    test("switches when every annual period matches and derives TTM from one concept", () => {
+      const series = revenue(orclAsc606);
+      expect(series.annual.map((row) => [row.concept, row.value])).toEqual(
+        [52_961_000_000, 57_399_000_000, 67_357_000_000].map((value) => [asc606, value]),
+      );
+      expect(series.ttm).toMatchObject({ value: 71_776_000_000, periodEnd: "2026-08-31" });
+    });
+
+    test.each([
+      [
+        "an older overlap contradicts",
+        [fy(2025, 90), fy(2026, 100)],
+        [fy(2025, 50), fy(2026, 100)],
+      ],
+      ["the latest values differ", [fy(2025, 90), fy(2026, 100)], [fy(2025, 90), fy(2026, 101)]],
+      [
+        "the anchor is from another filing",
+        [fy(2025, 90), fy(2026, 100, "0001193125-26-999999")],
+        [fy(2025, 90), fy(2026, 100)],
+      ],
+      [
+        "a later filing supersedes the anchor",
+        [fy(2025, 90), fy(2026, 100), fy(2026, 105, "0001193125-26-500000", "2026-08-01")],
+        [fy(2025, 90), fy(2026, 100)],
+      ],
+      [
+        "the candidate misses an annual period",
+        [fy(2022, 70), fy(2023, 80), fy(2024, 90), fy(2025, 95), fy(2026, 100)],
+        [fy(2026, 100)],
+      ],
+      [
+        "a later candidate revision of the anchor period differs",
+        [fy(2025, 90), fy(2026, 100)],
+        [
+          fy(2025, 90),
+          fy(2026, 100),
+          { ...fy(2026, 999, "0001193125-26-500000", "2026-08-01"), start: "2025-06-02" },
+        ],
+      ],
+      [
+        "the candidate misses the oldest capped period",
+        [2016, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((year) => fy(year, year)),
+        [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((year) => fy(year, year)),
+      ],
+      [
+        "only the older-ended period shares a filing",
+        [
+          { ...fy(2026, 90, "0001193125-26-100000"), start: "2025-06-01", end: "2026-03-31" },
+          { ...fy(2026, 100, "0001193125-26-200000"), start: "2025-04-01", end: "2026-05-31" },
+        ],
+        [
+          { ...fy(2026, 90, "0001193125-26-100000"), start: "2025-06-01", end: "2026-03-31" },
+          { ...fy(2026, 100, "0001193125-26-300000"), start: "2025-04-01", end: "2026-05-31" },
+        ],
+      ],
+    ])("keeps Revenues without TTM when %s", (_, revenues, other) => {
+      const series = revenue(revenues, other);
+      expect(new Set(series.annual.map((row) => row.concept))).toEqual(new Set(["Revenues"]));
+      expect(series.ttm).toBeUndefined();
+    });
+
+    test("notes a preferred annual period the switch pushes past the cap", () => {
+      const calendarYear = (year: number) =>
+        fact({
+          value: year,
+          form: "10-K",
+          fiscalPeriod: "FY",
+          filedAt: `${String(year + 1)}-02-15`,
+          accessionNumber: `0000000001-${String(year + 1).slice(-2)}-000001`,
+          periodStart: `${String(year)}-01-01`,
+          periodEnd: `${String(year)}-12-31`,
+        });
+      const years = (from: number) =>
+        Array.from({ length: 10 }, (_, index) => calendarYear(from + index));
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: [
+                ...years(2015),
+                fact({
+                  value: 2025,
+                  form: "10-Q",
+                  fiscalPeriod: "Q3",
+                  filedAt: "2025-11-01",
+                  periodStart: "2025-07-01",
+                  periodEnd: "2025-09-30",
+                }),
+              ],
+            },
+            [asc606]: { USD: years(2016) },
+          },
+        }),
+        { analysisAsOf: "2026-06-15T00:00:00.000Z" },
+      );
+      expect(
+        artifact.statements.incomeStatement.revenue.annual.map((row) => row.periodEnd)[0],
+      ).toBe("2016-12-31");
+      expect(artifact.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "history-cap",
+          seriesKey: "revenue",
+          periodKey: "annual|duration:12|2015-12-31",
+        }),
+      );
+    });
+
+    test("derives TTM when only one concept is tagged", () => {
+      const series = derive(
+        payload({ "us-gaap": { [asc606]: { USD: [...orclAsc606, ...quarters] } } }),
+        { analysisAsOf: "2026-10-01T00:00:00.000Z" },
+      ).statements.incomeStatement.revenue;
+      expect(series.ttm?.value).toBe(71_776_000_000);
+    });
+  });
+
   test.each([
     "PaymentsOfDividends",
     "PaymentsOfDividendsCommonStock",

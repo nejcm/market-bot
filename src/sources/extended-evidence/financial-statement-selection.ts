@@ -23,7 +23,7 @@ const FY_BOUNDARY_TOLERANCE_DAYS = 10;
 // Two facts in one duration bucket can differ by at most twice this; 7 covers 52/53-week years.
 const PERIOD_DRIFT_TOLERANCE_DAYS = 7;
 // Each limit applies per shape (duration and instant): up to 20 annual and 24 interim keys.
-const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
+export const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
 const MAX_INTERIM_PERIODS_PER_SHAPE = 12;
 
 function daysBetween(start: string, end: string): number | undefined {
@@ -165,6 +165,22 @@ export function latestFinancialStatementFact(
   facts: readonly FinancialStatementFact[],
 ): FinancialStatementFact | undefined {
   return facts.toSorted(compareFinancialStatementFacts).at(0);
+}
+
+// TTM at a fiscal-year end is the FY itself; the canonical TTM stays undefined and readers say so.
+export function latestFiscalYearTrailingBasis(
+  revenue: FinancialStatementSeries | undefined,
+): string | undefined {
+  const fiscalYear = latestFinancialStatementFact(revenue?.annual ?? []);
+  if (
+    fiscalYear?.periodStart === undefined ||
+    financialStatementPeriodMonths(fiscalYear) !== 12 ||
+    revenue?.interim.length === 0 ||
+    revenue?.interim.some((fact) => fact.periodEnd > fiscalYear.periodEnd) !== false
+  ) {
+    return undefined;
+  }
+  return `The latest fiscal year (${fiscalYear.periodStart} to ${fiscalYear.periodEnd}, ${fiscalYear.form} accession ${fiscalYear.accessionNumber ?? "undisclosed"}) is the newest period in the SEC revenue series; no later interim revenue period is tagged.`;
 }
 
 export function financialStatementFacts(

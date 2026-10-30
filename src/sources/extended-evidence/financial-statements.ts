@@ -43,6 +43,7 @@ import {
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
   compareFinancialStatementRevisions,
+  MAX_ANNUAL_PERIODS_PER_SHAPE,
 } from "./financial-statement-selection";
 import {
   type DebtFactReader,
@@ -292,10 +293,18 @@ function factsForDefinition(
       ? statementBasis
       : factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
   }
-  if (definition.key !== "revenue") {
-    return factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
-  }
-  const ranked = concepts
+  return definition.key === "revenue"
+    ? selectRevenueConcept(taxonomy, root, definition, eligible).facts
+    : factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
+}
+
+function selectRevenueConcept(
+  taxonomy: FinancialStatementTaxonomy,
+  root: Record<string, unknown>,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
+  const ranked = definition.concepts[taxonomy]
     .map((concept, priority) => {
       const facts = unitFacts(taxonomy, root, concept);
       const [latest] = facts
@@ -317,20 +326,80 @@ function factsForDefinition(
     .toSorted()
     .at(-1);
   if (latestPeriodEnd === undefined) {
-    return [];
+    return { facts: [], notes: [] };
   }
-  return (
-    ranked
-      .filter((candidate) =>
-        isRevenueConceptInRecencyBucket(candidate.latest.periodEnd, latestPeriodEnd),
-      )
-      .toSorted(
-        (left, right) =>
-          left.priority - right.priority ||
-          left.latest.concept.localeCompare(right.latest.concept) ||
-          left.latest.unit.localeCompare(right.latest.unit),
-      )[0]?.facts ?? []
-  );
+  const [preferred, ...rest] = ranked
+    .filter((candidate) =>
+      isRevenueConceptInRecencyBucket(candidate.latest.periodEnd, latestPeriodEnd),
+    )
+    .toSorted(
+      (left, right) =>
+        left.priority - right.priority ||
+        left.latest.concept.localeCompare(right.latest.concept) ||
+        left.latest.unit.localeCompare(right.latest.unit),
+    );
+  if (preferred === undefined) {
+    return { facts: [], notes: [] };
+  }
+  const annualRevisions = (facts: readonly ParsedFact[]) =>
+    new Map(
+      selectRestatements(
+        facts.filter((fact) => eligible(fact) && periodType(fact, definition) === "annual"),
+        definition.key,
+        [],
+      ).facts.map((fact) => [periodKey(fact), fact] as const),
+    );
+  const preferredAnnual = annualRevisions(preferred.facts);
+  // A newer tag replaces the preferred one only if, inside the annual cap over both tags' periods, it
+  // Carries every preferred period at the same value and one filing tags both for the newest one.
+  const sameScopeNewer = rest.find((candidate) => {
+    const candidateAnnual = annualRevisions(candidate.facts);
+    const capped = [...new Map([...candidateAnnual, ...preferredAnnual]).values()]
+      .toSorted(chronological)
+      .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
+      .map((fact) => periodKey(fact))
+      .filter((key) => preferredAnnual.has(key));
+    const anchor = preferredAnnual.get(capped.at(-1) ?? "");
+    return (
+      candidate.latest.periodEnd > preferred.latest.periodEnd &&
+      anchor !== undefined &&
+      anchor.accessionNumber !== null &&
+      candidateAnnual.get(periodKey(anchor))?.accessionNumber === anchor.accessionNumber &&
+      capped.every((key) => candidateAnnual.get(key)?.value === preferredAnnual.get(key)!.value)
+    );
+  });
+  if (sameScopeNewer === undefined) {
+    return { facts: preferred.facts, notes: [] };
+  }
+  const cappedKeys = (annual: ReadonlyMap<string, ParsedFact>) =>
+    [...annual.values()]
+      .toSorted(chronological)
+      .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
+      .map((fact) => periodKey(fact));
+  const switchedKeys = new Set(cappedKeys(annualRevisions(sameScopeNewer.facts)));
+  return {
+    facts: sameScopeNewer.facts,
+    notes: cappedKeys(preferredAnnual)
+      .filter((key) => !switchedKeys.has(key))
+      .map((key) => ({
+        code: "history-cap" as const,
+        seriesKey: definition.key,
+        periodKey: `annual|${key}`,
+        message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
+      })),
+  };
+}
+
+function revenueConceptSwitchNotes(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): readonly FinancialStatementNote[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  return root === undefined || definition.key !== "revenue"
+    ? []
+    : selectRevenueConcept(taxonomy, root, definition, eligible).notes;
 }
 
 function compositeFromContributors(
@@ -1956,6 +2025,7 @@ function selectSeries(
       omissionNotes: [
         ...selected.omissionNotes,
         ...(depreciationAndAmortization?.notes ?? []),
+        ...revenueConceptSwitchNotes(payload, taxonomy, definition, eligible),
         ...(operatingCashFlow === undefined
           ? staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible)
           : []),

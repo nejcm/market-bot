@@ -87,6 +87,8 @@ interface DebtInstant {
   readonly filedAt: string;
 }
 
+export type DebtFaceSide = "current" | "noncurrent";
+
 interface DebtSide {
   readonly generic: string | undefined;
   readonly concepts: readonly string[];
@@ -313,7 +315,7 @@ function restatedDebtComponentReason<T>(
   return `a later filing restated ${restated.map(({ concept, original }) => `${concept} (originally ${String(original?.value)}, filed ${original?.filedAt ?? ""})`).join(", ")} without restating a debt total`;
 }
 
-type LongTermDebtUse = "line" | "total" | "line-without-current";
+type LongTermDebtUse = "line" | "beside" | "total" | "line-without-current";
 
 // LongTermDebt's scope is read only from its own filing's lines; `currentElsewhere` is nonzero current debt in any filing.
 function longTermDebtUse(
@@ -321,6 +323,7 @@ function longTermDebtUse(
   value: (concept: string) => number | undefined,
   currentElsewhere: boolean,
   [current, noncurrent]: readonly DebtSide[],
+  faceRow: (concept: string, side: DebtFaceSide) => boolean,
 ): LongTermDebtUse | { readonly reason: string } {
   const ambiguous = concepts.ambiguousLongTermDebt;
   const longTermDebt = ambiguous === undefined ? undefined : value(ambiguous.concept);
@@ -337,6 +340,17 @@ function longTermDebtUse(
     : (noncurrent?.concepts ?? []);
   const currentLines = current?.concepts ?? [];
   const currentSum = sum(currentLines);
+  if (
+    faceRow(ambiguous.concept, "noncurrent") &&
+    currentLines.every((concept) => faceRow(concept, "current")) &&
+    noncurrentLines.every((concept) => faceRow(concept, "noncurrent"))
+  ) {
+    return asNoncurrentGeneric ||
+      noncurrentLines.length === 0 ||
+      noncurrentLines.includes(ambiguous.concept)
+      ? "line"
+      : "beside";
+  }
   if (noncurrentLines.length === 0) {
     if (currentSum === 0 && !currentElsewhere) {
       return "total";
@@ -398,6 +412,7 @@ export function resolveDebtAtInstant<T>(
     readonly unamortized?: number;
   } = {},
   liabilities: readonly DebtHistoryFact[] = [],
+  faceRow: (concept: string, side: DebtFaceSide) => boolean = () => false,
 ): DebtResolution<T> {
   const concepts = DEBT_CONCEPTS[taxonomy];
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
@@ -494,6 +509,7 @@ export function resolveDebtAtInstant<T>(
     (concept) => longTermDebtFiling.get(concept),
     (sides[0]?.concepts ?? []).some((concept) => valueAt(concept) !== 0),
     scopeSides,
+    faceRow,
   );
   const restatedScope =
     longTermDebt === "total"
@@ -543,9 +559,12 @@ export function resolveDebtAtInstant<T>(
   const total = legLines === undefined ? filedTotal : undefined;
   const used =
     total === undefined
-      ? (legLines ?? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas]).filter(
-          (concept) => longTermDebt !== "line-without-current" || concept !== ambiguous?.current,
-        )
+      ? (legLines ?? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas])
+          .filter(
+            (concept) => longTermDebt !== "line-without-current" || concept !== ambiguous?.current,
+          )
+          .concat(longTermDebt === "beside" && ambiguous !== undefined ? [ambiguous.concept] : [])
+          .filter((concept, index, all) => all.indexOf(concept) === index)
       : [total];
   const { subtracted, unadjusted, deductions } = leaseAdjustment(
     concepts,

@@ -1006,10 +1006,10 @@ describe("Web Gather historical Source Gap view", () => {
     };
     const input = { ...history, runs: [...history.runs, edgeRun] };
     const projected = promptEvidence("web-gather", amdSources(), input).historicalContext as {
-      readonly runs: readonly { readonly dataGaps: readonly string[] }[];
+      readonly runs: readonly { readonly priorRunGapsToRecheck: readonly string[] }[];
     };
 
-    expect(projected.runs.map((run) => run.dataGaps)).toEqual([
+    expect(projected.runs.map((run) => run.priorRunGapsToRecheck)).toEqual([
       ...history.runs.map((run) =>
         run.dataGaps.filter(
           (gap) => !excludedHistoricalPrefixes.some((prefix) => gap.startsWith(`${prefix}:`)),
@@ -1047,13 +1047,15 @@ describe("Web Gather historical Source Gap view", () => {
     const completeHistory = (
       JSON.parse(completeAfter) as {
         readonly evidence: {
-          readonly historicalContext: { readonly runs: HistoricalResearchContext["runs"] };
+          readonly historicalContext: {
+            readonly runs: readonly { readonly priorRunGapsToRecheck: readonly string[] }[];
+          };
         };
       }
     ).evidence.historicalContext;
 
     expect(completeAfter).toBe(completeBefore);
-    expect(completeHistory.runs.map((run) => run.dataGaps)).toEqual(
+    expect(completeHistory.runs.map((run) => run.priorRunGapsToRecheck)).toEqual(
       history.runs.map((run) => run.dataGaps),
     );
     expect(bundle).toEqual(original);
@@ -1124,23 +1126,26 @@ describe("Web Gather historical Source Gap view", () => {
     const inputBytes = JSON.stringify(input);
     const gatherProjected = promptEvidence("web-gather", amdSources(), input).historicalContext as {
       readonly sourceIds: readonly string[];
-      readonly runs: HistoricalResearchContext["runs"];
+      readonly runs: readonly Record<string, unknown>[];
       readonly gaps: readonly string[];
       readonly audit: HistoricalResearchContext["audit"];
     };
     const completeProjected = promptEvidence("evidence-request", amdSources(), input)
       .historicalContext as {
-      readonly runs: HistoricalResearchContext["runs"];
+      readonly runs: readonly Record<string, unknown>[];
     };
     const projectedRun = gatherProjected.runs[0]!;
 
     expect(gatherProjected.runs).toHaveLength(1);
-    expect(projectedRun).toEqual({ ...run, dataGaps: [] });
+    const { dataGaps: priorGaps, ...runWithoutGaps } = run;
+    expect(projectedRun).toEqual({ ...runWithoutGaps, priorRunGapsToRecheck: [] });
     expect(Object.hasOwn(projectedRun, "keyExtras")).toBe(false);
     expect(gatherProjected.sourceIds).toEqual([history.sources[0]!.id]);
     expect(gatherProjected.gaps).toEqual(history.gaps);
     expect(gatherProjected.audit).toEqual(history.audit);
-    expect(completeProjected.runs).toEqual([run]);
+    expect(completeProjected.runs).toEqual([
+      { ...runWithoutGaps, priorRunGapsToRecheck: priorGaps },
+    ]);
     expect(JSON.stringify(input)).toBe(inputBytes);
   });
 });

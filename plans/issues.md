@@ -14,7 +14,7 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## Possible wrong or false values
 
-- Prior-run `dataGaps` reach every stage through `historicalContext` (`src/research/historical-context.ts:450`) now labeled prior-run observations to re-check (`priorRunDataGapsUse`) but not code-checked, so a gap later disproved can still be echoed (AMD 6349c37b "Data Center margins … not quantified"). Final-synthesis eval `data/evals/prior-gap-label-20261028` (AMD 7958d472 input, 3 samples): all cite Data Center operating income yet keep the gap reworded as "segment-margin trajectory … not quantified". With the computable-from-cited-inputs hint (`prior-gap-narrow-20261028`) it still repeats in 2/3: the same gap also arrives through the current run's `priorStages` (specialist and critique output), which the prior-run hint does not cover; extending the final-synthesis check-sources rule to inherited stage gaps (`prior-gap-stages-20261028`) left it in 3/3, copied verbatim from `priorStages.1`/`.3` with the genuinely missing items (shipment economics, Helios volumes, utilization), so prompt wording alone does not split a mixed gap; a code-side check or upstream-stage fix is needed. Upstream-stage label effect unevaluated. The check-sources prompt rule covers new declarations only; the HLIT RPO and final-synthesis cases are unevaluated (2-sample specialist eval only).
+None open.
 
 ## Withheld but recoverable
 

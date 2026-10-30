@@ -662,6 +662,14 @@ function factsForDepreciationAndAmortization(
     ) {
       return [];
     }
+    if (selected === contributors) {
+      notes.push({
+        code: "unchecked-component-sum",
+        seriesKey: definition.key,
+        periodKey: periodKey(depreciation),
+        message: `SEC depreciation and amortization for ${String(depreciation.periodStart)} to ${depreciation.periodEnd} is depreciation + intangible amortization, not checked against the filed cash-flow statement`,
+      });
+    }
     if (amortizationGap > componentTolerance(sameFilingAmortization?.value ?? 0)) {
       notes.push({
         code: "unreconciled-component",

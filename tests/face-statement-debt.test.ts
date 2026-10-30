@@ -424,3 +424,205 @@ describe("complete resolution checked against a same-filing face", () => {
     expect(derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]).debt).toBeUndefined();
   });
 });
+
+const QCOM_ACCN = "0000804328-26-000086";
+const QCOM_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 57_367_000],
+  ["Trade accounts payable", "us-gaap:AccountsPayableCurrent", 8_924_000],
+  ["Short-term debt", "us-gaap:DebtCurrent", 2_489_000],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 11_413_000],
+  ["Long-term debt", "us-gaap:LongTermDebt", 12_781_000],
+  ["Other liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 5_515_000],
+  ["Total liabilities", "us-gaap:Liabilities", 29_709_000],
+];
+const qcomJune = (value: number, accn = QCOM_ACCN) => fact(value, "2026-06-28", "2026-07-29", accn);
+const QCOM_GAAP = {
+  CommercialPaper: [qcomJune(498_000_000)],
+  DebtCurrent: [qcomJune(2_489_000_000)],
+  LongTermDebt: [qcomJune(12_781_000_000)],
+  LongTermDebtCurrent: [qcomJune(1_991_000_000)],
+};
+
+const RKLB_ACCN = "0001819994-26-000062";
+const RKLB_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 4_187_374],
+  ["Other current liabilities", "us-gaap:OtherLiabilitiesCurrent", 528_196],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 528_196],
+  ["Convertible senior notes, net", "us-gaap:LongTermDebt", 13_129],
+  ["Long-term borrowings, net", "us-gaap:LongTermDebtNoncurrent", 1716],
+  ["Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 152_180],
+  ["Total liabilities", "us-gaap:Liabilities", 695_221],
+];
+const RKLB_GAAP = {
+  LongTermDebt: [fact(13_129_000, "2026-06-30", "2026-08-10", RKLB_ACCN)],
+  LongTermDebtNoncurrent: [fact(1_716_000, "2026-06-30", "2026-08-10", RKLB_ACCN)],
+};
+
+const GPN_ACCN = "0001123360-26-000084";
+const GPN_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 50_000_000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 3_000_000],
+  ["Lines of credit", "us-gaap:LinesOfCreditCurrent", 1_136_764],
+  [
+    "Current portion of long-term debt",
+    "us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent",
+    925_032,
+  ],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 5_061_796],
+  ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 21_493_294],
+  ["Other noncurrent liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 2_000_000],
+  ["Total liabilities", "us-gaap:Liabilities", 28_555_090],
+];
+const gpnJune = (value: number) => fact(value, "2026-06-30", "2026-08-05", GPN_ACCN);
+const GPN_GAAP = {
+  LinesOfCreditCurrent: [gpnJune(1_136_764_000)],
+  LongTermDebtAndCapitalLeaseObligationsCurrent: [gpnJune(925_032_000)],
+  LongTermDebtAndCapitalLeaseObligations: [gpnJune(21_493_294_000)],
+  LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [gpnJune(22_418_326_000)],
+  FinanceLeaseLiability: [gpnJune(34_976_000)],
+};
+
+describe("same-concept face rows settle LongTermDebt scope and current placement", () => {
+  test("QCOM 10-Q 0000804328-26-000086 2026-06-28: DebtCurrent 2,489M + LongTermDebt 12,781M", () => {
+    expect(derive(QCOM_GAAP, []).debt).toBeUndefined();
+    const { debt } = derive(QCOM_GAAP, [faceFiling(QCOM_ACCN, "2026-06-28", QCOM_ROWS)]);
+    expect(debt?.value).toBe(15_270_000_000);
+    expect(debt?.periodEnd).toBe("2026-06-28");
+  });
+
+  test("RKLB 10-Q 0001819994-26-000062 2026-06-30: two noncurrent face rows, 14,845k", () => {
+    expect(derive(RKLB_GAAP, []).debt).toBeUndefined();
+    const { debt } = derive(RKLB_GAAP, [faceFiling(RKLB_ACCN, "2026-06-30", RKLB_ROWS)]);
+    expect(debt?.value).toBe(14_845_000);
+  });
+
+  test("GPN 10-Q 0001123360-26-000084 2026-06-30 stays withheld: its total is off the face", () => {
+    expect(derive(GPN_GAAP, []).debt).toBeUndefined();
+    expect(derive(GPN_GAAP, [faceFiling(GPN_ACCN, "2026-06-30", GPN_ROWS)]).debt).toBeUndefined();
+  });
+
+  test("an off-face total is never face-backed: the face leaves it as without a face", () => {
+    const gaap = {
+      ...QCOM_GAAP,
+      DebtLongtermAndShorttermCombinedAmount: [qcomJune(15_270_000_000)],
+    };
+    const { debt } = derive(gaap, [faceFiling(QCOM_ACCN, "2026-06-28", QCOM_ROWS)]);
+    expect(debt).toEqual(derive(gaap, []).debt);
+    expect(debt?.sourceIds).not.toContain(`sec-filing-${QCOM_ACCN}`);
+  });
+
+  test.each([
+    ["a face from another filing", [faceFiling("0000804328-26-000001", "2026-06-28", QCOM_ROWS)]],
+    [
+      "a face row whose amount differs",
+      [
+        faceFiling(
+          QCOM_ACCN,
+          "2026-06-28",
+          withRow(
+            withRow(QCOM_ROWS, "us-gaap:LongTermDebt", [
+              "Long-term debt",
+              "us-gaap:LongTermDebt",
+              12_780_000,
+            ]),
+            "us-gaap:OtherLiabilitiesNoncurrent",
+            ["Other liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 5_516_000],
+          ),
+        ),
+      ],
+    ],
+    [
+      "an unfooted face",
+      [
+        faceFiling(
+          QCOM_ACCN,
+          "2026-06-28",
+          withRow(QCOM_ROWS, "us-gaap:Liabilities", [
+            "Total liabilities",
+            "us-gaap:Liabilities",
+            1,
+          ]),
+        ),
+      ],
+    ],
+    [
+      "LongTermDebt on the current side of the face",
+      [
+        faceFiling(QCOM_ACCN, "2026-06-28", [
+          ["Total assets", "us-gaap:Assets", 57_367_000],
+          ["Short-term debt", "us-gaap:DebtCurrent", 2_489_000],
+          ["Long-term debt", "us-gaap:LongTermDebt", 12_781_000],
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 15_270_000],
+          ["Other liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 14_439_000],
+          ["Total liabilities", "us-gaap:Liabilities", 29_709_000],
+        ]),
+      ],
+    ],
+  ] as const)("QCOM stays withheld with %s", (_case, filings) => {
+    expect(derive(QCOM_GAAP, filings).debt).toBeUndefined();
+  });
+
+  test("an instrument that is not its own face row stays withheld (AMAT-like)", () => {
+    const accn = "0001628280-26-058235";
+    const june = (value: number) => fact(value, "2026-07-26", "2026-08-20", accn);
+    const rows: readonly Row[] = [
+      ["Total assets", "us-gaap:Assets", 40_000_000],
+      ["Accounts payable", "us-gaap:AccountsPayableCurrent", 5_000_000],
+      ["Short-term borrowings and current debt", "us-gaap:ShortTermBorrowings", 1_299_000],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 6_299_000],
+      ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 5_245_000],
+      ["Total liabilities", "us-gaap:Liabilities", 11_544_000],
+    ];
+    const gaap = {
+      ShortTermBorrowings: [june(1_299_000_000)],
+      LongTermDebtCurrent: [june(1_199_000_000)],
+      LongTermDebtNoncurrent: [june(5_245_000_000)],
+    };
+    expect(derive(gaap, []).debt).toBeUndefined();
+    expect(derive(gaap, [faceFiling(accn, "2026-07-26", rows)]).debt).toBeUndefined();
+  });
+});
+
+describe("face-row placement review cases", () => {
+  test("LongTermDebt already the noncurrent generic is not counted twice", () => {
+    const june = (value: number) => fact(value, "2026-06-28", "2026-07-29", QCOM_ACCN);
+    const rows: readonly Row[] = [
+      ["Total assets", "us-gaap:Assets", 500],
+      ["Accounts payable", "us-gaap:AccountsPayableCurrent", 40],
+      ["Short-term debt", "us-gaap:DebtCurrent", 10],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 50],
+      ["Long-term debt", "us-gaap:LongTermDebt", 90],
+      ["Notes payable", "us-gaap:LongTermNotesPayable", 0],
+      ["Total liabilities", "us-gaap:Liabilities", 140],
+    ];
+    const gaap = {
+      DebtCurrent: [june(10_000)],
+      LongTermDebt: [june(90_000)],
+      LongTermNotesPayable: [june(0)],
+    };
+    expect(derive(gaap, [faceFiling(QCOM_ACCN, "2026-06-28", rows)]).debt).toMatchObject({
+      value: 100_000,
+      concept: "DebtCurrent+LongTermDebt",
+    });
+  });
+
+  test("GPN with an off-face total that misses the face legs stays withheld", () => {
+    const gaap = {
+      ...GPN_GAAP,
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [gpnJune(22_500_000_000)],
+    };
+    expect(derive(gaap, [faceFiling(GPN_ACCN, "2026-06-30", GPN_ROWS)]).debt).toBeUndefined();
+  });
+
+  test.each([
+    "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
+    "FinanceLeaseLiability",
+  ] as const)("GPN with %s from another filing stays withheld", (concept) => {
+    const value = GPN_GAAP[concept][0]?.val ?? 0;
+    const gaap = {
+      ...GPN_GAAP,
+      [concept]: [fact(value, "2026-06-30", "2026-08-05", "0001123360-26-000099")],
+    };
+    expect(derive(gaap, [faceFiling(GPN_ACCN, "2026-06-30", GPN_ROWS)]).debt).toBeUndefined();
+  });
+});

@@ -24,6 +24,7 @@ import {
   type FinancialStatementTaxonomy,
 } from "./financial-statements-contract";
 import {
+  type DebtFaceSide,
   type DebtResolution,
   debtCandidateConcepts,
   debtIdentityConcepts,
@@ -161,7 +162,7 @@ export function factsForDebt(
           .toSorted()
           .at(-1) ?? "",
     };
-    const resolveAt = (lines: ReadonlyMap<string, ParsedFact>) =>
+    const resolveAt = (lines: ReadonlyMap<string, ParsedFact>, face?: FaceDebtLines) =>
       resolveDebtAtInstant(
         taxonomy,
         instant,
@@ -181,6 +182,11 @@ export function factsForDebt(
           ]),
         ),
         liabilities,
+        (concept, side) =>
+          face !== undefined &&
+          face.sides.get(concept) === side &&
+          lines.get(concept)?.accessionNumber === face.accessionNumber &&
+          lines.get(concept)?.value === face.standard.get(concept),
       );
     const resolution = withFaceStatementDebt(
       resolveAt(tagged),
@@ -275,6 +281,7 @@ interface FaceDebtLines {
   readonly accessionNumber: string;
   readonly sourceIds: readonly string[];
   readonly standard: ReadonlyMap<string, number>;
+  readonly sides: ReadonlyMap<string, DebtFaceSide>;
   readonly extensions: readonly { readonly concept: string; readonly value: number }[];
 }
 
@@ -294,6 +301,7 @@ function faceDebtLines(
       return [];
     }
     const standard = new Map<string, number>();
+    const sides = new Map<string, DebtFaceSide>();
     const extensions: { concept: string; value: number }[] = [];
     for (const [key, value] of Object.entries(metrics)) {
       const qualified = key.startsWith(FACE_LINE_PREFIX) ? key.split("|")[2] : undefined;
@@ -305,6 +313,7 @@ function faceDebtLines(
       if (prefix === "us-gaap") {
         if (recognized.has(concept) || pattern?.test(concept) === true) {
           standard.set(concept, value);
+          sides.set(concept, key.split("|")[1] === "current" ? "current" : "noncurrent");
         }
         continue;
       }
@@ -319,7 +328,7 @@ function faceDebtLines(
     }
     return standard.size === 0 || typeof metrics.accessionNumber !== "string"
       ? []
-      : [{ accessionNumber: metrics.accessionNumber, sourceIds, standard, extensions }];
+      : [{ accessionNumber: metrics.accessionNumber, sourceIds, standard, sides, extensions }];
   });
 }
 
@@ -327,11 +336,26 @@ function faceDebtLines(
 function withFaceStatementDebt(
   resolution: DebtResolution<ParsedFact>,
   tagged: ReadonlyMap<string, ParsedFact>,
-  resolveAt: (lines: ReadonlyMap<string, ParsedFact>) => DebtResolution<ParsedFact>,
+  resolveAt: (
+    lines: ReadonlyMap<string, ParsedFact>,
+    face?: FaceDebtLines,
+  ) => DebtResolution<ParsedFact>,
   faces: readonly FaceDebtLines[],
 ): DebtResolution<ParsedFact> {
-  if (resolution.incompleteReason === undefined) {
-    return withFaceRowsChecked(resolution, tagged, resolveAt, faces);
+  // Same-concept rows of a footed same-filing face settle LongTermDebt scope and current-line placement.
+  const placed = faces
+    .map((face) => ({ face, candidate: resolveAt(tagged, face) }))
+    .find(
+      ({ face, candidate }) =>
+        candidate.incompleteReason === undefined && presentsAll(face, candidate),
+    )?.candidate;
+  if (resolution.incompleteReason === undefined || placed !== undefined) {
+    return withFaceRowsChecked(
+      resolution.incompleteReason === undefined ? resolution : (placed ?? resolution),
+      tagged,
+      resolveAt,
+      faces,
+    );
   }
   const recognized = recognizedDebtConcepts("us-gaap");
   for (const face of faces) {
@@ -387,7 +411,10 @@ const presentsAll = (face: FaceDebtLines, proven: DebtResolution<ParsedFact>) =>
 function withFaceRowsChecked(
   resolution: DebtResolution<ParsedFact>,
   tagged: ReadonlyMap<string, ParsedFact>,
-  resolveAt: (lines: ReadonlyMap<string, ParsedFact>) => DebtResolution<ParsedFact>,
+  resolveAt: (
+    lines: ReadonlyMap<string, ParsedFact>,
+    face?: FaceDebtLines,
+  ) => DebtResolution<ParsedFact>,
   faces: readonly FaceDebtLines[],
 ): DebtResolution<ParsedFact> {
   const leases = DEBT_CONCEPTS["us-gaap"].financeLeases;
@@ -413,7 +440,7 @@ function withFaceRowsChecked(
   const proven =
     faceLeases.size === 0
       ? resolution
-      : resolveAt(new Map([...tagged].filter(([concept]) => !faceLeases.has(concept))));
+      : resolveAt(new Map([...tagged].filter(([concept]) => !faceLeases.has(concept))), face);
   // Complete-path contributors are us-gaap tags, so no extension row is among them.
   const omitted = [
     ...[...face.standard]

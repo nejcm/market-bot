@@ -364,6 +364,37 @@ describe("complete resolution checked against a same-filing face", () => {
     expect(derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]).debt?.value).toBe(95_000);
   });
 
+  describe("a total lease deducted beside a split face lease row", () => {
+    const rows: readonly Row[] = [
+      ["Total assets", "us-gaap:Assets", 1000],
+      ["Accounts payable", "us-gaap:AccountsPayableCurrent", 50],
+      ["Current finance lease liabilities", "us-gaap:FinanceLeaseLiabilityCurrent", 2],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 52],
+      ["Debt and finance leases", "us-gaap:DebtAndCapitalLeaseObligations", 100],
+      ["Total liabilities", "us-gaap:Liabilities", 152],
+    ];
+    const gaap = {
+      DebtAndCapitalLeaseObligations: [sameJune(100_000)],
+      FinanceLeaseLiabilityCurrent: [sameJune(2000)],
+      FinanceLeaseLiability: [sameJune(7000)],
+    };
+
+    test("withholds rather than removing the face's current part: not 100 - 7", () => {
+      const { debt, gaps } = derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows)]);
+      expect(debt).toBeUndefined();
+      expect(gaps[0]?.message).toContain(
+        "presents FinanceLeaseLiabilityCurrent on its own row, so the part of FinanceLeaseLiability",
+      );
+    });
+
+    test.each([
+      ["no face", []],
+      ["a face from another filing", [faceFiling("0000000000-26-000002", "2026-06-30", rows)]],
+    ] as const)("with %s the total is still deducted: 93", (_case, filings) => {
+      expect(derive(gaap, filings).debt?.value).toBe(93_000);
+    });
+  });
+
   test("a tagged amount that differs from its face row withholds it", () => {
     const gaap = { ...LEASE_GAAP, DebtCurrent: [sameJune(15_000)] };
     const { debt, notes } = derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", LEASE_ROWS)]);

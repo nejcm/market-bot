@@ -428,6 +428,19 @@ function withFaceRowsChecked(
       subtract === true && face.standard.has(concept) ? [concept] : [],
     ),
   );
+  const offFaceLease = resolution.contributors.find(
+    ({ concept, subtract }) =>
+      subtract === true && concept === leases?.total && !face.standard.has(concept),
+  );
+  const splitFaceLease = [...face.standard].find(
+    ([concept, value]) => value !== 0 && leaseConcepts.has(concept) && !faceLeases.has(concept),
+  );
+  if (offFaceLease !== undefined && splitFaceLease !== undefined) {
+    return {
+      ...resolution,
+      incompleteReason: `face statement presents ${splitFaceLease[0]} on its own row, so the part of ${offFaceLease.concept} inside the debt lines is unknown`,
+    };
+  }
   const conflicting = resolution.contributors.filter(
     ({ concept, fact }) => face.standard.has(concept) && face.standard.get(concept) !== fact.value,
   );

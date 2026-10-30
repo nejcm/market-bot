@@ -1,7 +1,7 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX } from "../sec-segment-facts";
-import { leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
+import { isDebtBasisGap, leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
   US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
@@ -550,7 +550,7 @@ export function debtAliasesTagged(
   });
 }
 
-// Same text as the SEC summary gap, which is derived from it, so dedupeSourceGaps collapses the pair.
+// The collector puts these in place of the faceless SEC summary copies (isDebtBasisGap).
 export function financialStatementsDebtBasisGaps(
   artifact: FinancialStatementsArtifact,
 ): readonly SourceGap[] {
@@ -580,4 +580,33 @@ export function financialStatementsDebtBasisGaps(
   return latest === undefined || leaseInclusive.length === 0
     ? []
     : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];
+}
+
+// The SEC summary derives debt without filing faces; the statements' face-aware gaps take its slot.
+export function withStatementDebtBasisGaps(
+  summaryGaps: readonly SourceGap[],
+  artifact: FinancialStatementsArtifact | undefined,
+): readonly SourceGap[] {
+  if (artifact === undefined) {
+    return summaryGaps;
+  }
+  const ownDebtBasis = (gap: SourceGap) => isDebtBasisGap(gap) && gap.symbol === artifact.symbol;
+  const slot = summaryGaps.findIndex(ownDebtBasis);
+  const own = summaryGaps.filter(ownDebtBasis);
+  const [template] = own;
+  const replaced = own.map((gap) => gap.message);
+  const replacements = financialStatementsDebtBasisGaps(artifact).map((gap) => gap.message);
+  if (
+    template === undefined ||
+    (replaced.length === replacements.length &&
+      replaced.every((message, index) => message === replacements[index]))
+  ) {
+    return summaryGaps;
+  }
+  const kept = summaryGaps.filter((gap) => !ownDebtBasis(gap));
+  return [
+    ...kept.slice(0, slot),
+    ...replacements.map((message) => ({ ...template, message })),
+    ...kept.slice(slot),
+  ];
 }

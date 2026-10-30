@@ -202,6 +202,14 @@ export function withheldDebtGap(periodEnd: string, reason: string): SourceGap {
   });
 }
 
+export function isDebtBasisGap(gap: SourceGap): boolean {
+  return (
+    gap.provider === "sec-edgar" &&
+    (gap.message.startsWith("SEC debt withheld: ") ||
+      /^SEC debt as of \S+ may include finance leases: /u.test(gap.message))
+  );
+}
+
 export function deltaPercent(latest: number, prior: number): number | undefined {
   return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
 }

@@ -5,7 +5,11 @@ import {
   financialStatementFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
-import { financialStatementsDebtBasisGaps } from "../src/sources/extended-evidence/sec-debt";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import {
+  financialStatementsDebtBasisGaps,
+  withStatementDebtBasisGaps,
+} from "../src/sources/extended-evidence/sec-debt";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
 
@@ -72,6 +76,8 @@ function derive(
       financialStatementFacts(artifact.statements.balanceSheet.debt),
     ),
     legacy: summarizeSecFundamentals(companyFacts, AS_OF)?.metrics.debt,
+    summary: summarizeSecFundamentals(companyFacts, AS_OF),
+    artifact,
     notes: artifact.omissionNotes,
     gaps: financialStatementsDebtBasisGaps(artifact),
   };
@@ -624,5 +630,58 @@ describe("face-row placement review cases", () => {
       [concept]: [fact(value, "2026-06-30", "2026-08-05", "0001123360-26-000099")],
     };
     expect(derive(gaap, [faceFiling(GPN_ACCN, "2026-06-30", GPN_ROWS)]).debt).toBeUndefined();
+  });
+});
+
+const withheldJune = <T extends { message: string }>(gaps: readonly T[]) =>
+  gaps.filter((gap) =>
+    gap.message.startsWith("SEC debt withheld: the newest debt instant 2026-06-28"),
+  );
+
+describe("the SEC summary's debt reading follows the face-aware statements", () => {
+  const face = derive(QCOM_GAAP, [faceFiling(QCOM_ACCN, "2026-06-28", QCOM_ROWS)]);
+  const faceless = derive(QCOM_GAAP, []);
+  const summaryGaps = (faceless.summary?.gaps ?? []).map((gap) => ({
+    ...gap,
+    symbol: "TEST",
+    evidenceQualityImpact: "extended-evidence-cap" as const,
+  }));
+
+  test("QCOM face: the faceless withheld gap gives way to the statements' gaps", () => {
+    expect(withheldJune(summaryGaps)).toHaveLength(1);
+    const gaps = withStatementDebtBasisGaps(summaryGaps, face.artifact);
+    expect(withheldJune(gaps)).toEqual([]);
+    expect(
+      gaps.filter((gap) => gap.message.startsWith("SEC debt")).map((gap) => gap.message),
+    ).toEqual(face.gaps.map((gap) => gap.message));
+    expect(gaps.every((gap) => gap.evidenceQualityImpact === "extended-evidence-cap")).toBe(true);
+    const item = withCanonicalFinancialLensInputs(
+      {
+        items: [
+          {
+            category: "sec-edgar",
+            title: "TEST SEC",
+            summary: faceless.summary?.summary ?? "",
+            sourceIds: ["sec"],
+            observedAt: AS_OF,
+            metrics: faceless.summary?.metrics,
+          } as ExtendedEvidenceItem,
+        ],
+        gaps: [],
+      },
+      face.artifact,
+    ).items[0];
+    expect(item?.summary).toContain("debt 15270000000");
+    expect(item?.metrics?.debtIncompletePeriodEnd).toBeUndefined();
+  });
+
+  test("another symbol's debt gap is not the statements' to replace", () => {
+    const peer = { ...withheldJune(summaryGaps)[0]!, symbol: "PEER" };
+    expect(withStatementDebtBasisGaps([...summaryGaps, peer], face.artifact)).toContainEqual(peer);
+  });
+
+  test("without a face, or without enrichment, the summary gaps stand unchanged", () => {
+    expect(withStatementDebtBasisGaps(summaryGaps, faceless.artifact)).toBe(summaryGaps);
+    expect(withStatementDebtBasisGaps(summaryGaps, undefined)).toBe(summaryGaps);
   });
 });

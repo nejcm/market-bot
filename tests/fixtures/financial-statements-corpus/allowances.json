@@ -1,14 +1,6 @@
 [
   {
     "fixture": "mara",
-    "path": "financialLens.Growth.metrics.grossProfitDeltaPercent",
-    "canonicalSha256": "dc9dadb78c7250b2872204d938fac04308f52f1d35a1aafbfeb246a6f2dbc3d9",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "canonical-exact-period-correction",
-    "justification": "MARA canonical gross-profit growth uses compatible 2022 and 2021 annual GrossProfit facts; the legacy revenue-anchored selector omits the metric."
-  },
-  {
-    "fixture": "mara",
     "path": "financialLens.Growth.metrics.netIncomeDeltaPercent",
     "canonicalSha256": "ec19ac3ed3d9c98cc07605bb33a65d5f7bd8e813e54802db8183f4739070a3a3",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
@@ -22,14 +14,6 @@
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "canonical-exact-period-correction",
     "justification": "MARA canonical consolidated net income reads the 2025 annual ProfitLoss fact on net income's own exact period; the legacy revenue-anchored selector finds no 2026 NetIncomeLoss fact, omits net income, and so withholds the consolidated figure."
-  },
-  {
-    "fixture": "mara",
-    "path": "financialLens.Quality.metrics.grossMargin",
-    "canonicalSha256": "badb1339058cf12c974606a1a25220f66cf2c5ed8ed17ff19c63075d7c8d8e01",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "canonical-exact-period-correction",
-    "justification": "MARA canonical gross margin uses exact-period compatible 2022 GrossProfit and revenue facts; the legacy selector omits rather than mixing periods."
   },
   {
     "fixture": "mara",

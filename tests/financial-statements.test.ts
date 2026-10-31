@@ -4324,6 +4324,43 @@ describe("canonical debt basis selection", () => {
     );
   });
 
+  test("a newer filing's complete debt resolution drops older withhold notes for that instant", () => {
+    const debtFact = (value: number, periodEnd: string, form: string, filedAt: string) =>
+      fact({ value, form, fiscalPeriod: form === "10-K" ? "FY" : "Q1", filedAt, periodEnd });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtCurrent: {
+            USD: [
+              debtFact(10, "2025-05-31", "10-K", "2025-06-20"),
+              debtFact(10, "2025-05-31", "10-Q", "2025-09-10"),
+              debtFact(10, "2025-05-31", "10-K", "2026-06-20"),
+              debtFact(12, "2026-05-31", "10-K", "2026-06-20"),
+            ],
+          },
+          LongTermDebtNoncurrent: {
+            USD: [
+              debtFact(90, "2025-05-31", "10-K", "2025-06-20"),
+              debtFact(90, "2025-05-31", "10-K", "2026-06-20"),
+              debtFact(95, "2026-05-31", "10-K", "2026-06-20"),
+            ],
+          },
+        },
+      }),
+      { generatedAt: "2026-07-01T00:00:00.000Z", analysisAsOf: "2026-07-01T00:00:00.000Z" },
+    );
+    const debt = [
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ];
+
+    expect(debt.find((row) => row.periodEnd === "2025-05-31")?.value).toBe(100);
+    expect(artifact.omissionNotes).not.toContainEqual(
+      expect.objectContaining({ seriesKey: "debt", periodKey: "instant|2025-05-31" }),
+    );
+  });
+
   test("canonical and legacy writers agree on a same-period direct-vs-complete-composite tie", () => {
     const companyFacts = payload({
       "us-gaap": {
@@ -5093,6 +5130,133 @@ describe("SEC summary canonical merge eligibility", () => {
   });
 });
 
+test("notes held-for-sale debt only when no debt is tagged in the recast filing or later", () => {
+  const heldNotes = (debtFiledAt: string) =>
+    derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          LongTermDebtNoncurrent: {
+            USD: [
+              fact({
+                value: 20,
+                form: "10-K",
+                fiscalYear: 2024,
+                fiscalPeriod: "FY",
+                filedAt: debtFiledAt,
+                periodEnd: "2024-12-31",
+              }),
+            ],
+          },
+          LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: {
+            USD: [
+              fact({
+                value: 50,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodEnd: "2024-12-31",
+              }),
+            ],
+          },
+        },
+      }),
+    )
+      .omissionNotes.filter(({ code }) => code === "debt-held-for-sale")
+      .map(({ periodKey, publicAt }) => [periodKey, publicAt]);
+  expect(heldNotes("2025-02-15")).toEqual([["instant|2024-12-31", "2026-02-15"]]);
+  expect(heldNotes("2026-02-15")).toEqual([]);
+});
+
+describe("valuation debt never pairs past a newer incomplete debt instant", () => {
+  const row = (input: {
+    readonly taxonomy: "us-gaap" | "ifrs-full";
+    readonly unit: string;
+    readonly debtEnd: string;
+    readonly debtFiledAt: string;
+    readonly heldEnd: string;
+    readonly yearEnd: string;
+  }) => {
+    const filed = "2025-11-20";
+    const at = (value: number, periodEnd: string, filedAt: string, periodStart?: string) =>
+      fact({
+        value,
+        form: input.taxonomy === "us-gaap" ? "10-K" : "20-F",
+        fiscalYear: 2025,
+        fiscalPeriod: "FY",
+        filedAt,
+        periodEnd,
+        ...(periodStart === undefined ? {} : { periodStart }),
+      });
+    const concepts =
+      input.taxonomy === "us-gaap"
+        ? {
+            Revenues: [at(1000, input.yearEnd, filed, "2024-09-29")],
+            CashAndCashEquivalentsAtCarryingValue: [at(40, input.yearEnd, filed)],
+            LongTermDebtNoncurrent: [at(20, input.debtEnd, input.debtFiledAt)],
+            LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: [
+              at(50, input.heldEnd, filed),
+            ],
+          }
+        : {
+            Revenue: [at(1000, input.yearEnd, filed, "2024-09-29")],
+            CashAndCashEquivalents: [at(40, input.yearEnd, filed)],
+            Borrowings: [at(20, input.debtEnd, input.debtFiledAt)],
+            LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale: [
+              at(50, input.heldEnd, filed),
+            ],
+          };
+    const artifact = derive(
+      payload({
+        [input.taxonomy]: Object.fromEntries(
+          Object.entries(concepts).map(([concept, facts]) => [concept, { [input.unit]: facts }]),
+        ),
+      }),
+    );
+    const period = valuationPeriodInputs(artifact).periods.find(
+      ({ periodEnd }) => periodEnd === input.yearEnd,
+    );
+    return {
+      debt: period?.debt?.periodEnd,
+      scope: period?.debtScopeMismatch,
+      behind: period?.debtBehindIncompleteInstant,
+    };
+  };
+  const usGaap = { taxonomy: "us-gaap", unit: "USD", debtFiledAt: "2025-08-01" } as const;
+
+  test("52/53-week: a held-for-sale note at the cash instant withholds the prior-quarter debt", () => {
+    expect(
+      row({ ...usGaap, debtEnd: "2025-06-28", heldEnd: "2025-09-27", yearEnd: "2025-09-27" }),
+    ).toEqual({ debt: undefined, scope: undefined, behind: undefined });
+  });
+
+  test("debt 91 days before cash never pairs past a note between them, though within 92 days", () => {
+    expect(
+      row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-09-27", yearEnd: "2025-10-01" }),
+    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: true });
+  });
+
+  test("off-path: no note between debt and cash pairs them normally", () => {
+    expect(
+      row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-06-28", yearEnd: "2025-10-01" }),
+    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: undefined });
+  });
+
+  test("IFRS: pre-recast borrowings at a held-for-sale instant are mixed scope", () => {
+    expect(
+      row({
+        taxonomy: "ifrs-full",
+        unit: "EUR",
+        debtEnd: "2025-09-27",
+        debtFiledAt: "2024-12-01",
+        heldEnd: "2025-09-27",
+        yearEnd: "2025-09-27",
+      }),
+    ).toEqual({ debt: undefined, scope: true, behind: undefined });
+  });
+});
+
 test("notes IFRS liabilities held for sale with no tagged debt as unproven debt", () => {
   const artifact = derive(
     payload({
@@ -5111,7 +5275,7 @@ test("notes IFRS liabilities held for sale with no tagged debt as unproven debt"
   ).toEqual([
     [
       "instant|2025-12-31",
-      "Debt for 2025-12-31 is incomplete: LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale (20260215-20-F) files liabilities held for sale and no standard ifrs-full debt concept is tagged for that date, so continuing-operations debt is unproven.",
+      "Debt for 2025-12-31 is incomplete: LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale (20260215-20-F) files liabilities held for sale and no standard ifrs-full debt concept is tagged for that date in that filing or later, so continuing-operations debt is unproven.",
     ],
   ]);
 });

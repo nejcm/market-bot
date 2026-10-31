@@ -687,6 +687,59 @@ describe("business framework evidence", () => {
     });
   });
 
+  // ORCL last tagged GrossProfit for FY ending 2018-05-31 (run 2026-10-31T11-27-34-541Z-6f265e0e).
+  test("a gross profit series years older than the newest filed period is withheld as stale", () => {
+    const filed = (val: number, start: string, end: string, form = "10-K") => ({
+      ...fact(val, Number(end.slice(0, 4)), start, end, form),
+      filed: "2026-09-28",
+    });
+    const revenue = {
+      units: {
+        USD: [
+          filed(39.83, "2017-06-01", "2018-05-31"),
+          filed(57.4, "2025-06-01", "2026-05-31"),
+          filed(19.3, "2026-06-01", "2026-08-31", "10-Q"),
+        ],
+      },
+    };
+    const grossProfit = (start: string, end: string) => ({
+      units: { USD: [filed(24.3, start, end)] },
+    });
+    const asOf = "2026-10-31T00:00:00.000Z";
+    const derive = (gross: unknown) =>
+      deriveFinancialStatements(
+        { facts: { "us-gaap": { Revenues: revenue, GrossProfit: gross } } },
+        {
+          symbol: "ORCL",
+          generatedAt: asOf,
+          analysisAsOf: asOf,
+          sourceId: "extended-sec-edgar-orcl-fundamentals",
+        },
+      );
+    const stale = framework(evidence(), asOf, derive(grossProfit("2017-06-01", "2018-05-31")));
+    const reason =
+      "latest gross profit period ends 2018-05-31, more than a year before the newest filed period 2026-08-31";
+
+    expect(metricOf(stale, "business-framework-business", "grossProfit")).toMatchObject({
+      status: "missing",
+      reason,
+      periodEnd: "2018-05-31",
+      sourceIds: ["extended-sec-edgar-orcl-fundamentals"],
+    });
+    expect(metricOf(stale, "business-framework-moat", "grossMargin")).toMatchObject({
+      status: "missing",
+      reason,
+    });
+    expect(gapOf(stale, "business-framework-business")?.triage).toBe("material");
+
+    const fresh = framework(evidence(), asOf, derive(grossProfit("2025-06-01", "2026-05-31")));
+    expect(metricOf(fresh, "business-framework-business", "grossProfit")).toMatchObject({
+      status: "value",
+      periodEnd: "2026-05-31",
+    });
+    expect(metricOf(fresh, "business-framework-moat", "grossMargin")?.status).toBe("value");
+  });
+
   test("keeps lifecycle classification on parent-attributable net income", () => {
     expect(
       classifyBusinessLifecyclePhase({

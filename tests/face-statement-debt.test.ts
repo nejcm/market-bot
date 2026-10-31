@@ -451,6 +451,41 @@ describe("complete resolution checked against a same-filing face", () => {
     expect(gaps[0]?.message).not.toContain("DebtCurrent");
   });
 
+  test("a neutral extension row beside the lines keeps 10 + 90", () => {
+    const rows = withRow(LEASE_ROWS, "us-gaap:AccountsPayableCurrent", [
+      "Deferred revenue",
+      "test:DeferredRevenueCurrent",
+      50,
+    ]);
+    expect(derive(LEASE_GAAP, [faceFiling(SAME_ACCN, "2026-06-30", rows)]).debt?.value).toBe(
+      100_000,
+    );
+  });
+
+  test("a credit-facility extension neither name nor label calls debt withholds it", () => {
+    const rows = withRow(LEASE_ROWS, "us-gaap:AccountsPayableCurrent", [
+      "Revolving credit facility",
+      "test:CreditFacility",
+      50,
+    ]);
+    const { debt, notes } = derive(LEASE_GAAP, [faceFiling(SAME_ACCN, "2026-06-30", rows)]);
+    expect(debt).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("CreditFacility as a possible borrowing"),
+      }),
+    );
+  });
+
+  test("an extension hinting at borrowing in its label only withholds it", () => {
+    const rows = withRow(LEASE_ROWS, "us-gaap:AccountsPayableCurrent", [
+      "Credit facility",
+      "test:OtherLiabilitiesCurrent",
+      50,
+    ]);
+    expect(derive(LEASE_GAAP, [faceFiling(SAME_ACCN, "2026-06-30", rows)]).debt).toBeUndefined();
+  });
+
   test("an extension row sharing a standard local name still withholds it", () => {
     const rows = withRow(NOTES_ROWS, "us-gaap:LongTermNotesPayable", [
       "Other long-term debt",
@@ -1086,6 +1121,12 @@ test.each([
     "us-gaap:AssetRetirementObligationsNoncurrent",
     10_918_000,
   ],
+  [
+    "a blank-labelled accounts payable row",
+    "<table><tr><td>(1)</td></tr></table>",
+    "us-gaap:AccountsPayableCurrent",
+    10_918_000,
+  ],
 ] as const)("%s keeps NVDA's face-checked 33,366M", (_name, label, concept, value) => {
   const rows = withRow(NVDA_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [label, concept, value]);
   const fixed =
@@ -1203,11 +1244,21 @@ test("an unlabelled nonzero unrecognized face row withholds ORCL", () => {
   expect(augustDebt(ORCL_GAAP, [face])).toBeUndefined();
 });
 
-test("a nested footnote table in the label cell cannot hide a borrowing row", () => {
+test("a hidden label on an opaque unrecognized row withholds NVDA", () => {
   const label = "Other borrowings<table><tr><td>(1)</td></tr></table>";
   const rows = withRow(NVDA_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [
     label,
     "us-gaap:OtherNoncurrentX",
+    10_918_000,
+  ]);
+  expect(derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", rows)]).debt).toBeUndefined();
+});
+
+test("a nested footnote table in the label cell cannot hide a borrowing row", () => {
+  const label = "Other borrowings<table><tr><td>(1)</td></tr></table>";
+  const rows = withRow(NVDA_ROWS, "us-gaap:OtherLiabilitiesNoncurrent", [
+    label,
+    "us-gaap:OtherBorrowingsNoncurrentX",
     10_918_000,
   ]);
   expect(derive(NVDA_GAAP, [faceFiling(NVDA_ACCN, "2026-07-26", rows)]).debt).toBeUndefined();

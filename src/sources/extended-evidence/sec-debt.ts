@@ -401,19 +401,26 @@ function faceDebtLines(
         } else if (
           value !== 0 &&
           !KNOWN_NON_BORROWING_ROWS.has(concept) &&
-          (label === "" || BORROWING_HINT.test(concept) || BORROWING_HINT.test(label))
+          (BORROWING_HINT.test(concept) ||
+            BORROWING_HINT.test(label) ||
+            (label === "" && classify(concept) !== false))
         ) {
           return reject(concept);
         }
         continue;
       }
-      // Name and filer label must each classify the line and agree, or footing proves nothing about it.
-      const debt = classify(concept);
-      if (debt === undefined || debt !== classify(label)) {
-        return reject(concept);
-      }
-      if (debt) {
+      // Debt needs name and label to agree; only both naming non-debt words (lease, tax) clears a borrowing hint.
+      const named = classify(concept);
+      const labelled = classify(label);
+      if (named === true && labelled === true) {
         extensions.push({ concept, value });
+      } else if (
+        named === true ||
+        labelled === true ||
+        ((named === undefined || labelled === undefined) &&
+          (BORROWING_HINT.test(concept) || BORROWING_HINT.test(label)))
+      ) {
+        return reject(concept);
       }
     }
     const unproven = extensions.find(({ value }) => value !== 0);

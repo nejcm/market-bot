@@ -50,7 +50,7 @@ interface AuditClaim {
 export function auditPostSynthesisReport(
   report: ResearchReport,
   webSourceUsage?: WebSourceUsage,
-  usablePeerSourceIds: ReadonlySet<string> = new Set(),
+  usablePeerSourceIds?: ReadonlySet<string>,
 ): readonly PostSynthesisAuditWarning[] {
   return [
     ...claimsForReport(report).flatMap((claim) => auditClaim(claim, usablePeerSourceIds)),
@@ -103,10 +103,10 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
 
 function auditClaim(
   claim: AuditClaim,
-  usablePeerSourceIds: ReadonlySet<string>,
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
 ): readonly PostSynthesisAuditWarning[] {
   return [
-    ...(usablePeerSourceIds.size > 0 &&
+    ...(usablePeerSourceIds !== undefined &&
     PEER_MEDIAN_PATTERN.test(claim.text) &&
     !claim.sourceIds.some((id) => usablePeerSourceIds.has(id))
       ? [peerMedianUncitedWarning(claim)]

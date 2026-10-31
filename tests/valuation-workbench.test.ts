@@ -849,10 +849,28 @@ describe("valuation workbench", () => {
   });
 
   test("suppresses trailing multiples instead of combining retained quarters", () => {
+    const base = withoutTtm(statements());
+    const laterQuarter = fact({
+      key: "revenue",
+      value: 35,
+      periodEnd: "2025-03-31",
+      filedAt: "2025-05-01",
+      periodType: "interim",
+    });
+    const { revenue } = base.statements.incomeStatement;
     const artifact = buildValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",
       symbol: "TEST",
-      financialStatements: withoutTtm(statements()),
+      financialStatements: {
+        ...base,
+        statements: {
+          ...base.statements,
+          incomeStatement: {
+            ...base.statements.incomeStatement,
+            revenue: { ...revenue, interim: [laterQuarter] },
+          },
+        },
+      },
       priceHistory: [{ date: "2025-02-18", close: 24 }],
       priceSourceId: "verified-snapshot-TEST",
       quoteCurrency: "USD",
@@ -1760,10 +1778,11 @@ describe("latest fiscal year as the trailing basis", () => {
 
   test("names the MSFT FY2026 10-K when no interim ends after it", () => {
     expect(trailingDetail(msftRevenue([msftQ3]))).toBe(FY_BASIS);
+    expect(trailingDetail(msftRevenue([]))).toBe(FY_BASIS);
     expect(latestFiscalYearTrailingBasis(msftRevenue([msftQ3]))).toBe(FY_BASIS);
     expect(violatesResearchOnly(FY_BASIS)).toBeNull();
     expect(earningsBasis(msftQuote, withRevenue(msftRevenue([msftQ3])))).toEqual({
-      text: `Provider trailing EPS 17.95 (Yahoo; accounting scope and period basis undisclosed). ${FY_BASIS}`,
+      text: `Provider trailing EPS 17.95 (Yahoo; accounting scope and period basis undisclosed). No SEC diluted EPS TTM is available to compare. ${FY_BASIS}`,
       sourceIds: ["market-yahoo-equity-msft", SOURCE_ID],
     });
   });
@@ -1772,7 +1791,6 @@ describe("latest fiscal year as the trailing basis", () => {
     const offBoundary = { ...msftQ3, periodStart: "2026-08-01", periodEnd: "2026-09-30" };
     expect(trailingDetail(msftRevenue([msftQ3, offBoundary]))).toBe(UNAVAILABLE);
     expect(trailingDetail({ ...msftRevenue([msftQ3]), annual: [] })).toBe(UNAVAILABLE);
-    expect(trailingDetail(msftRevenue([]))).toBe(UNAVAILABLE);
     expect(latestFiscalYearTrailingBasis(undefined)).toBeUndefined();
     const [fiscalYear] = msftRevenue([]).annual;
     const withYear = (periodStart: string) => ({

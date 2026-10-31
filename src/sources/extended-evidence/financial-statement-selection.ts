@@ -175,7 +175,6 @@ export function latestFiscalYearTrailingBasis(
   if (
     fiscalYear?.periodStart === undefined ||
     financialStatementPeriodMonths(fiscalYear) !== 12 ||
-    revenue?.interim.length === 0 ||
     revenue?.interim.some((fact) => fact.periodEnd > fiscalYear.periodEnd) !== false
   ) {
     return undefined;

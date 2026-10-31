@@ -920,6 +920,18 @@ describe("canonical financial statements", () => {
           periodKey: "annual|duration:12|2015-12-31",
         }),
       );
+      expect(
+        artifact.omissionNotes
+          .filter(({ periodKey }) => periodKey?.startsWith("interim|"))
+          .map(({ code, seriesKey, periodKey, message }) => [code, seriesKey, periodKey, message]),
+      ).toEqual([
+        [
+          "history-cap",
+          "revenue",
+          "interim|duration:3|2025-09-30",
+          `Interim period duration:3|2025-09-30 under Revenues omitted: revenue switched to ${asc606} on same-filing proof, which does not tag that period`,
+        ],
+      ]);
     });
 
     test("derives TTM when only one concept is tagged", () => {
@@ -4952,4 +4964,27 @@ describe("SEC summary canonical merge eligibility", () => {
     ).toBe(false);
     expect(summarizeSecFundamentals(companyFacts, asOf)?.metrics.debt).not.toBe(200);
   });
+});
+
+test("notes IFRS liabilities held for sale with no tagged debt as unproven debt", () => {
+  const artifact = derive(
+    payload({
+      "ifrs-full": {
+        Revenue: { EUR: [annual(1000, 2025, "20-F")] },
+        LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale: {
+          EUR: [instant(50, 2025, "20-F")],
+        },
+      },
+    }),
+  );
+  expect(
+    artifact.omissionNotes
+      .filter(({ code }) => code === "debt-held-for-sale")
+      .map(({ periodKey, message }) => [periodKey, message]),
+  ).toEqual([
+    [
+      "instant|2025-12-31",
+      "Debt for 2025-12-31 is incomplete: LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale (20260215-20-F) files liabilities held for sale and no standard ifrs-full debt concept is tagged for that date, so continuing-operations debt is unproven.",
+    ],
+  ]);
 });

@@ -74,7 +74,7 @@ export function earningsBasis(
           sourceIds: [marketSnapshot.sourceId],
         }
       : {
-          text: `${provider} ${fiscalYearBasis}`,
+          text: `${provider} No SEC diluted EPS TTM is available to compare. ${fiscalYearBasis}`,
           sourceIds: [marketSnapshot.sourceId, financialStatements.sourceId],
         };
   }

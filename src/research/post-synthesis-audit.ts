@@ -39,6 +39,8 @@ const HISTORICAL_OUTCOME_CONTEXT_PATTERN = /\b(?:prior|previous|historical|past|
 const FORECAST_OUTCOME_PATTERN =
   /\b(?:forecast|prediction|miss(?:es|ed)?|hit(?:s)?|resolved|outcome)\b/iu;
 const PEER_MEDIAN_PATTERN = /\bpeer[\s-]+median\b/iu;
+const NEGATED_PEER_MEDIAN_PATTERN =
+  /\b(?:no|without)\s+(?:usable\s+)?peer[\s-]+median\b|\bpeer[\s-]+median\b[^.]*\b(?:not available|unavailable|not computed|could not be computed|cannot be computed|not computable|withheld)\b/iu;
 const FORECAST_HORIZON_PATTERN = /\b\d+\s*(?:-| )?(?:trading\s*)?day\b/iu;
 
 interface AuditClaim {
@@ -108,6 +110,8 @@ function auditClaim(
   return [
     ...(usablePeerSourceIds !== undefined &&
     PEER_MEDIAN_PATTERN.test(claim.text) &&
+    !NEGATED_PEER_MEDIAN_PATTERN.test(claim.text) &&
+    !isGapShapedClaimForAuditWarning(claim.text) &&
     !claim.sourceIds.some((id) => usablePeerSourceIds.has(id))
       ? [peerMedianUncitedWarning(claim)]
       : []),

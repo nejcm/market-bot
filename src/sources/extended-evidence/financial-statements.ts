@@ -379,16 +379,33 @@ function selectRevenueConcept(
       .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
       .map((fact) => periodKey(fact));
   const switchedKeys = new Set(cappedKeys(annualRevisions(sameScopeNewer.facts)));
+  const interimKeys = (facts: readonly ParsedFact[]) =>
+    new Set(
+      facts
+        .filter((fact) => eligible(fact) && periodType(fact, definition) === "interim")
+        .map((fact) => periodKey(fact)),
+    );
+  const switchedInterim = interimKeys(sameScopeNewer.facts);
   return {
     facts: sameScopeNewer.facts,
-    notes: cappedKeys(preferredAnnual)
-      .filter((key) => !switchedKeys.has(key))
-      .map((key) => ({
-        code: "history-cap" as const,
-        seriesKey: definition.key,
-        periodKey: `annual|${key}`,
-        message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
-      })),
+    notes: [
+      ...cappedKeys(preferredAnnual)
+        .filter((key) => !switchedKeys.has(key))
+        .map((key) => ({
+          code: "history-cap" as const,
+          seriesKey: definition.key,
+          periodKey: `annual|${key}`,
+          message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
+        })),
+      ...[...interimKeys(preferred.facts)]
+        .filter((key) => !switchedInterim.has(key))
+        .map((key) => ({
+          code: "history-cap" as const,
+          seriesKey: definition.key,
+          periodKey: `interim|${key}`,
+          message: `Interim period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, which does not tag that period`,
+        })),
+    ],
   };
 }
 

@@ -96,6 +96,16 @@ describe("finalizeSynthesis peer-median citation check", () => {
     ).toEqual(["peer-median-uncited@bearCase[0]"]);
   });
 
+  test.each([
+    "No peer median is available for AMD.",
+    "Peer median could not be computed because the peer set is incomplete.",
+    "The peer-median multiple is withheld for AMD.",
+  ])("does not flag a claim that the peer median is absent: %s", (text) => {
+    expect(codes(finalize([{ text, sourceIds: ["market-amd"] }], COMPS))).not.toContain(
+      "peer-median-uncited@bearCase[0]",
+    );
+  });
+
   test("flags nothing without comps", () => {
     expect(codes(finalize([{ text: CLAIM, sourceIds: ["market-amd"] }]))).toEqual([]);
   });
@@ -110,7 +120,10 @@ describe("finalizeSynthesis peer-median citation check", () => {
       ],
       COMPS,
     );
-    expect(codes(result)).toContain("unsupported-numeric-claim@bearCase[0]");
+    expect(codes(result)).toEqual([
+      "unsupported-numeric-claim@bearCase[0]",
+      "weak-evidence-posture-missing@bearCase[0]",
+    ]);
     expect(result.report.bearCase).toEqual([]);
   });
 });

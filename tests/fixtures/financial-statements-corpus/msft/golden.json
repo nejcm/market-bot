@@ -288,7 +288,27 @@
           "unit": "USD"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 331839000000,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 331839000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
     },
     "grossProfit": {
       "selectedConcept": "GrossProfit",
@@ -572,7 +592,27 @@
           "unit": "USD"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 225465000000,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "GrossProfit",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 225465000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
     },
     "operatingIncome": {
       "selectedConcept": "OperatingIncomeLoss",
@@ -856,7 +896,27 @@
           "unit": "USD"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 155237000000,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "OperatingIncomeLoss",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 155237000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
     },
     "netIncome": {
       "selectedConcept": "NetIncomeLoss",
@@ -1140,7 +1200,27 @@
           "unit": "USD"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 133749000000,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "NetIncomeLoss",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 133749000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
     },
     "consolidatedNetIncome": {
       "selectedConcept": null,
@@ -2908,7 +2988,27 @@
           "unit": "USD"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 182935000000,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "NetCashProvidedByUsedInOperatingActivities",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 182935000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
     },
     "capitalExpenditure": {
       "selectedConcept": "PaymentsToAcquirePropertyPlantAndEquipment",
@@ -3192,7 +3292,27 @@
           "unit": "USD"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 115948000000,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 115948000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
     },
     "depreciationAndAmortization": {
       "selectedConcept": null,
@@ -3430,7 +3550,27 @@
           "unit": "USD"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 22271000000,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "PaymentsForRepurchaseOfCommonStock",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 22271000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
     },
     "dilutedEps": {
       "selectedConcept": "EarningsPerShareDiluted",
@@ -3714,7 +3854,27 @@
           "unit": "USD/shares"
         }
       ],
-      "ttm": null
+      "ttm": {
+        "value": 17.95,
+        "periodStart": "2025-07-01",
+        "periodEnd": "2026-06-30",
+        "currency": "USD",
+        "unit": "USD/shares",
+        "components": {
+          "fiscalYear": {
+            "concept": "EarningsPerShareDiluted",
+            "periodKey": "duration:12|2026-06-30",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "form": "10-K",
+            "filingDate": "2026-07-29",
+            "accession": "0001193125-26-323660",
+            "value": 17.95,
+            "currency": "USD",
+            "unit": "USD/shares"
+          }
+        }
+      }
     },
     "continuingDilutedEps": {
       "selectedConcept": null,
@@ -4071,7 +4231,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 331839000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": {
           "percent": 14.571907380953132,
           "years": 5,
@@ -4194,7 +4364,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 225465000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": {
           "percent": 14.243663337772272,
           "years": 5,
@@ -4317,7 +4497,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 155237000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": {
           "percent": 17.29614351078621,
           "years": 5,
@@ -4440,7 +4630,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 133749000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": {
           "percent": 16.89800918323765,
           "years": 5,
@@ -4563,7 +4763,17 @@
             "currency": "USD/shares"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 17.95,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD/shares"
+        },
         "cagr": {
           "percent": 17.396112163192925,
           "years": 5,
@@ -4686,7 +4896,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 182935000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": {
           "percent": 18.974805085202128,
           "years": 5,
@@ -4809,7 +5029,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 115948000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": {
           "percent": 41.249362326918494,
           "years": 5,
@@ -4932,7 +5162,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 66987000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": {
           "percent": 3.604273274160441,
           "years": 5,
@@ -5055,7 +5295,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 0.6794409337058032,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": null,
         "marginChange": {
           "percentagePoints": 3.421617679120148,
@@ -5178,7 +5428,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 0.4678081840892722,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": null,
         "marginChange": {
           "percentagePoints": 16.72521165327594,
@@ -5301,7 +5561,17 @@
             "currency": "USD"
           }
         ],
-        "ttm": null,
+        "ttm": {
+          "value": 0.4030538905915218,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2026-06-30",
+          "periodMonths": 12,
+          "filedAt": "2026-07-29",
+          "currency": "USD"
+        },
         "cagr": null,
         "marginChange": {
           "percentagePoints": 13.911337014542513,

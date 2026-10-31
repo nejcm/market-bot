@@ -29,6 +29,7 @@ import {
   financialStatementSeriesByKey,
   latestFinancialStatementFact,
   earlierShareBasisPeriods,
+  fiscalYearTtmLabel,
   touchesEarlierShareBasis,
 } from "./financial-statement-selection";
 
@@ -110,7 +111,8 @@ function ttmPoint(series: FinancialStatementSeries): FundamentalHistoryPoint | u
   return {
     value: ttm.value,
     form: "TTM",
-    fy: ttm.components.latestYearToDate.fiscalYear,
+    fy: (ttm.formula === "FY" ? ttm.components.fiscalYear : ttm.components.latestYearToDate)
+      .fiscalYear,
     fp: "TTM",
     periodStart: ttm.periodStart,
     periodEnd: ttm.periodEnd,
@@ -152,7 +154,9 @@ function rawSeries(
   } else if (ttm === undefined) {
     notes.push("ttm:unreconciled: canonical TTM is unavailable");
   }
-  if (definition.key === "dilutedEps" && ttm !== undefined) {
+  if (ttm !== undefined && series.ttm?.formula === "FY") {
+    notes.push(`ttm:fiscal-year: ${fiscalYearTtmLabel(series.ttm.components.fiscalYear)}`);
+  } else if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
   }
   const derivation = [...series.annual, ...Object.values(series.ttm?.components ?? {})]

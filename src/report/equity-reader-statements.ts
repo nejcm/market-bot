@@ -112,7 +112,10 @@ export function operatingRatioNotes(
           note.seriesKey === "capitalExpenditure")) ||
       note.code === "unchecked-extension-capex",
   );
-  const unchecked = notes.filter((note) => note.code === "unchecked-component-sum");
+  const unchecked = notes.filter(
+    (note) =>
+      note.code === "unchecked-component-sum" && note.seriesKey === "depreciationAndAmortization",
+  );
   return [
     ...kept,
     ...collapsed(

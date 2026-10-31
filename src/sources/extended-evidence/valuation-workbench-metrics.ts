@@ -193,7 +193,7 @@ export function valuationMetricSection(input: {
           return missing(`${DENOMINATOR_LABELS[denominatorKey]}-unavailable`, absent);
         }
         if (
-          period.basis === "annual" &&
+          (period.basis === "annual" || period.revenue?.derivation === "FY") &&
           lineage.some(
             (row) =>
               row.artifact === "statements" &&

@@ -17,18 +17,20 @@ export function finalizeSynthesis(
   readonly postSynthesisWarnings: ReturnType<typeof auditPostSynthesisReport>;
   readonly integrityAudit: ReturnType<typeof auditReportIntegrity>;
 } {
-  const postSynthesisWarnings = auditPostSynthesisReport(
-    synthesis.report,
-    computeWebSourceUsage(synthesis.report, collected),
+  const usablePeerSourceIds =
     collected.valuationComps === undefined
       ? undefined
       : new Set(
           collected.valuationComps.peers
             .filter((peer) => peer.usable)
             .flatMap((peer) => peer.sourceIds),
-        ),
+        );
+  const postSynthesisWarnings = auditPostSynthesisReport(
+    synthesis.report,
+    computeWebSourceUsage(synthesis.report, collected),
+    usablePeerSourceIds,
   );
-  const audit = auditReportIntegrity(synthesis.report, assessment);
+  const audit = auditReportIntegrity(synthesis.report, assessment, usablePeerSourceIds);
   const integrityAudit = {
     ...audit,
     report: rederivePredictionShortfallReportAfterPruning(audit.report),

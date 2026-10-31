@@ -5,7 +5,7 @@ import type { OhlcvBar } from "../../domain/market-data";
 import type { Source, SourceGap } from "../../domain/sources";
 import type { FetchLike } from "../types";
 import { depositoryIssuerSic } from "./industry-classification";
-import { latestFiscalYearTrailingBasis } from "./financial-statement-selection";
+import { fiscalYearTtmLabel } from "./financial-statement-selection";
 import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import {
@@ -173,15 +173,18 @@ function trailingBasis(
       status: "suppressed",
       reason: "canonical-ttm-unavailable",
       detail:
-        latestFiscalYearTrailingBasis(artifact?.statements.incomeStatement.revenue) ??
         "Canonical reconciled TTM is unavailable; retained quarter-only periods are not combined into an unreconciled TTM.",
       sourceIds: artifact === undefined ? [] : [artifact.sourceId],
     };
   }
+  const revenue = artifact.statements.incomeStatement.revenue.ttm;
   return {
     status: "available",
     periodEnd: ttm.periodEnd,
     publicAt: periodPublicAt(ttm),
+    ...(revenue?.formula === "FY"
+      ? { fiscalYearLabel: fiscalYearTtmLabel(revenue.components.fiscalYear) }
+      : {}),
     sourceIds: unique(
       Object.values(ttm).flatMap((value) =>
         typeof value === "object" && value !== null && "sourceIds" in value

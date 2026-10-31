@@ -12,6 +12,7 @@ import {
   EXTENSION_CAPEX_CHECKED_KEY,
   EXTENSION_CAPEX_FACT_PREFIX,
 } from "../sec-segment-facts";
+import { DA_CALC_PREFIX, DA_CALC_READ_KEY } from "../sec-calculation-linkbase";
 import {
   CAP_FOLLOWER_SERIES,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
@@ -379,16 +380,33 @@ function selectRevenueConcept(
       .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
       .map((fact) => periodKey(fact));
   const switchedKeys = new Set(cappedKeys(annualRevisions(sameScopeNewer.facts)));
+  const interimKeys = (facts: readonly ParsedFact[]) =>
+    new Set(
+      facts
+        .filter((fact) => eligible(fact) && periodType(fact, definition) === "interim")
+        .map((fact) => periodKey(fact)),
+    );
+  const switchedInterim = interimKeys(sameScopeNewer.facts);
   return {
     facts: sameScopeNewer.facts,
-    notes: cappedKeys(preferredAnnual)
-      .filter((key) => !switchedKeys.has(key))
-      .map((key) => ({
-        code: "history-cap" as const,
-        seriesKey: definition.key,
-        periodKey: `annual|${key}`,
-        message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
-      })),
+    notes: [
+      ...cappedKeys(preferredAnnual)
+        .filter((key) => !switchedKeys.has(key))
+        .map((key) => ({
+          code: "history-cap" as const,
+          seriesKey: definition.key,
+          periodKey: `annual|${key}`,
+          message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
+        })),
+      ...[...interimKeys(preferred.facts)]
+        .filter((key) => !switchedInterim.has(key))
+        .map((key) => ({
+          code: "history-cap" as const,
+          seriesKey: definition.key,
+          periodKey: `interim|${key}`,
+          message: `Interim period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, which does not tag that period`,
+        })),
+    ],
   };
 }
 
@@ -490,6 +508,30 @@ function depreciationPresentation(
   );
 }
 
+// Accession -> D&A-like direct children of operating cash flow in that filing's calculation linkbase, with weights.
+function depreciationCalculation(
+  filings: readonly ExtendedEvidenceItem[],
+): ReadonlyMap<string, ReadonlyMap<string, number>> {
+  return new Map(
+    filings.flatMap(({ metrics }) =>
+      metrics?.[DA_CALC_READ_KEY] === "true" || metrics?.[DA_CALC_READ_KEY] === "conflict"
+        ? [
+            [
+              String(metrics.accessionNumber),
+              new Map(
+                Object.entries(metrics).flatMap(([key, value]) =>
+                  key.startsWith(DA_CALC_PREFIX)
+                    ? [[key.slice(DA_CALC_PREFIX.length), Number(value)] as const]
+                    : [],
+                ),
+              ),
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+}
+
 function factsForDepreciationAndAmortization(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -501,6 +543,12 @@ function factsForDepreciationAndAmortization(
     return { facts: [], notes: [] };
   }
   const presentation = depreciationPresentation(filings);
+  const calculation = depreciationCalculation(filings);
+  const calculationConflicts = new Set(
+    filings.flatMap(({ metrics }) =>
+      metrics?.[DA_CALC_READ_KEY] === "conflict" ? [String(metrics.accessionNumber)] : [],
+    ),
+  );
   const totals = definition.concepts["us-gaap"];
   const concepts = [
     ...totals,
@@ -733,12 +781,28 @@ function factsForDepreciationAndAmortization(
     ) {
       return [];
     }
-    if (selected === contributors) {
+    const calcChildren =
+      depreciation.accessionNumber === amortization.accessionNumber
+        ? calculation.get(String(depreciation.accessionNumber))
+        : undefined;
+    // ORCL, ABBV, GLW: the cash-flow calculation adds exactly these two concepts into operating cash flow, so their sum is the face D&A.
+    const calcProven =
+      calcChildren?.size === 2 &&
+      calcChildren.get(depreciation.concept) === 1 &&
+      calcChildren.get(amortization.concept) === 1;
+    if (selected === contributors && !calcProven) {
+      const reason =
+        calcChildren === undefined
+          ? "no same-filing calculation linkbase was read"
+          : calcChildren.size === 0 &&
+              calculationConflicts.has(String(depreciation.accessionNumber))
+            ? `filing ${String(depreciation.accessionNumber)}'s operating cash-flow calculation roles disagree`
+            : `filing ${String(depreciation.accessionNumber)}'s cash-flow calculation adds ${[...calcChildren.keys()].join(", ") || "no D&A line"} into operating cash flow`;
       notes.push({
         code: "unchecked-component-sum",
         seriesKey: definition.key,
         periodKey: periodKey(depreciation),
-        message: `SEC depreciation and amortization for ${String(depreciation.periodStart)} to ${depreciation.periodEnd} is depreciation + intangible amortization, not checked against the filed cash-flow statement`,
+        message: `SEC depreciation and amortization for ${String(depreciation.periodStart)} to ${depreciation.periodEnd} is depreciation + intangible amortization, not checked against the filed cash-flow statement: ${reason}`,
       });
     }
     if (amortizationGap > componentTolerance(sameFilingAmortization?.value ?? 0)) {
@@ -2459,6 +2523,42 @@ function withoutMixedShareBasisTtm(
       };
 }
 
+function latestFiledDurationEnd(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+): string | undefined {
+  const root = taxonomyRoot(payload, taxonomy);
+  return root === undefined
+    ? undefined
+    : Object.keys(root)
+        .flatMap((concept) => unitFacts(taxonomy, root, concept))
+        .filter((fact) => fact.periodStart !== undefined && isObservable(fact, analysisAsOf))
+        .map((fact) => fact.periodEnd)
+        .toSorted()
+        .at(-1);
+}
+
+// A later period tagged under any concept (e.g. a newer revenue tag) means the FY is no longer trailing.
+function withoutSupersededFiscalYearTtm(
+  series: FinancialStatementSeries,
+  latestDurationEnd: string | undefined,
+): { readonly series: FinancialStatementSeries; readonly note?: FinancialStatementNote } {
+  const { ttm, ...rest } = series;
+  return ttm?.formula !== "FY" ||
+    latestDurationEnd === undefined ||
+    latestDurationEnd <= ttm.periodEnd
+    ? { series }
+    : {
+        series: rest,
+        note: {
+          code: "unreconciled-ttm",
+          seriesKey: series.key,
+          message: `The latest fiscal year ends ${ttm.periodEnd}, but a later period ending ${latestDurationEnd} is filed outside this series`,
+        },
+      };
+}
+
 function seriesRecord(
   series: readonly FinancialStatementSeries[],
 ): FinancialStatementsArtifact["statements"] {
@@ -2626,7 +2726,16 @@ export function deriveFinancialStatements(
   const uncapped = selected.map((item) => item.series);
   const { series: retained, notes: capNotes } = capFinancialStatementPeriods(uncapped);
   const shareBasisNotes = mixedShareBasisNotes(uncapped, retained);
-  const shareBasisTtm = retained.map((item) => withoutMixedShareBasisTtm(item, shareBasisNotes));
+  const latestDurationEnd =
+    taxonomy === undefined
+      ? undefined
+      : latestFiledDurationEnd(payload, taxonomy, input.analysisAsOf);
+  const shareBasisTtm = retained.map((item) => {
+    const shareBasis = withoutMixedShareBasisTtm(item, shareBasisNotes);
+    return shareBasis.note === undefined
+      ? withoutSupersededFiscalYearTtm(shareBasis.series, latestDurationEnd)
+      : shareBasis;
+  });
   const series = shareBasisTtm.map((item) => item.series);
   const statements = seriesRecord(series);
   const currentAnnual = latestFinancialStatementFact(

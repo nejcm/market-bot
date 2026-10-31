@@ -10,6 +10,17 @@ import {
   stagePromptFromArgs,
 } from "./support/research-context-helpers";
 
+function secFiling(form: string, summary: string) {
+  return {
+    category: "sec-edgar" as const,
+    title: `AMD SEC ${form}`,
+    summary,
+    sourceIds: [`extended-sec-edgar-amd-${form.toLowerCase()}`],
+    observedAt: "2026-10-28T00:00:00.000Z",
+    metrics: { form, filingDate: "2026-08-05" },
+  };
+}
+
 describe("buildStagePrompt", () => {
   test("includes mover feature breakdown in evidence payload", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
@@ -644,5 +655,54 @@ describe("buildStagePrompt", () => {
       instruction:
         "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
     });
+  });
+  test("keeps periodic SEC filing excerpts only in stages that author cited findings", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AMD",
+      depth: "deep",
+    };
+    const sources = collectedSources({
+      marketSnapshots: [marketSnapshot({ symbol: "AMD" })],
+      extendedEvidence: {
+        gaps: [],
+        items: [
+          secFiling(
+            "10-Q",
+            "10-Q filed 2026-08-05 for period 2026-06-27. Filing excerpt: [MD&A] Data Center net revenue of $6.7 billion",
+          ),
+          secFiling(
+            "8-K",
+            "8-K filed 2026-08-05 (material current report). Filing excerpt: ITEM 2.02 Results",
+          ),
+        ],
+      },
+    });
+    const summariesFor = (stage: Parameters<typeof stagePromptFromArgs>[0]) =>
+      (
+        JSON.parse(
+          stagePromptFromArgs(stage, command, sources, config, contextWithHistory(command), {
+            system: "Research only.",
+            instruction: "Analyze.",
+            goal: "Find evidence.",
+          }),
+        ) as { evidence: { extendedEvidence: { items: { summary: string }[] } } }
+      ).evidence.extendedEvidence.items.map((item) => item.summary);
+
+    for (const stage of ["web-gather", "evidence-request", "market-behavior-analysis"] as const) {
+      expect(summariesFor(stage)).toEqual([
+        "10-Q filed 2026-08-05 for period 2026-06-27.",
+        "8-K filed 2026-08-05 (material current report). Filing excerpt: ITEM 2.02 Results",
+      ]);
+    }
+    for (const stage of [
+      "specialist-analysis",
+      "instrument-evidence-analysis",
+      "critique",
+      "final-synthesis",
+    ] as const) {
+      expect(summariesFor(stage)[0]).toContain("Data Center net revenue of $6.7 billion");
+    }
   });
 });

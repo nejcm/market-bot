@@ -2,7 +2,9 @@ import type { StageSettings } from "./stage-envelope";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
 import type { VerifiedMarketSnapshot } from "../../domain/market-data";
+import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { CollectedSources } from "../../sources/types";
+import { SEC_FILING_EXCERPT_MARKER } from "../../sources/sec-filing-item";
 import { earningsBasis } from "../../report/equity-reader-earnings-basis";
 import { tickerSnapshot } from "../../sources/extended-evidence/financial-lens-metrics";
 import { profileCitableSources, subjectKindForCommand } from "../../web-evidence";
@@ -58,6 +60,8 @@ export interface EvidencePayloadOptions {
   // (and company SEC filing text); final-synthesis surfaces text for fresh web sources
   // Only; every other stage projects bare metadata.
   readonly webSourceText: "profile" | "fresh-only" | "metadata";
+  // "header" drops 10-K/10-Q excerpt text for stages that only plan or read price behavior.
+  readonly periodicFilingText?: "header";
 }
 
 /*
@@ -80,7 +84,7 @@ const projectMarketContext: EvidenceProjector = (_options, _command, collectedSo
     ? { marketContext: collectedSources.marketContext }
     : {};
 
-const projectExtendedEvidence: EvidenceProjector = (_options, command, collectedSources) => {
+const projectExtendedEvidence: EvidenceProjector = (options, command, collectedSources) => {
   if (!isInstrumentCommand(command) || collectedSources.extendedEvidence === undefined) {
     return {};
   }
@@ -92,10 +96,22 @@ const projectExtendedEvidence: EvidenceProjector = (_options, command, collected
   return {
     extendedEvidence: {
       ...evidence,
+      ...(options.periodicFilingText === "header"
+        ? { items: evidence.items.map(withoutPeriodicFilingExcerpt) }
+        : {}),
       gaps: evidence.gaps.filter((gap) => !declaredGaps.has(sourceGapScopedReportText(gap))),
     },
   };
 };
+
+function withoutPeriodicFilingExcerpt(item: ExtendedEvidenceItem): ExtendedEvidenceItem {
+  const form = item.metrics?.["form"];
+  if (item.category !== "sec-edgar" || (form !== "10-K" && form !== "10-Q")) {
+    return item;
+  }
+  const [header = item.summary] = item.summary.split(SEC_FILING_EXCERPT_MARKER, 1);
+  return { ...item, summary: header };
+}
 
 const projectMetricReferences: EvidenceProjector = (options, command, collectedSources) =>
   isInstrumentCommand(command) &&

@@ -38,5 +38,5 @@ None open.
 
 - SEC 10-K/10-Q excerpts (8–9k chars each) still reach specialist, instrument-evidence, critique and final synthesis in full; evidence request, Web Gather and market-behavior analysis now get the header only. `[Key Disclosures]` was checked and does not repeat section text (0 overlapping sentences across 10 captured filings). Next cut, if a live eval shows no quality loss: header-only for specialist or instrument-evidence too.
 
-- Peer-median claims that cite no usable peer now raise the warn-only `peer-median-uncited` post-synthesis warning (run a008bf63 bearCase[1]); no repair reprompt or prune acts on it yet, and P/E or other-subset medians are matched against the EV/revenue peer set.
+- Uncited peer-median claims are pruned by a clause regex (`isUncitedPeerMedianClaim`): clauses split only on `.;!?`, and a median of a metric not on the other-metric list counts as EV/revenue. Codex found a new phrasing gap each round; if more appear, hand the metric/negation reading to a model stage instead of growing the regex.
 - Earnings-date confirmation never gathered the AMD issuer release in runs 10-20/10-23, so the date stays provider-estimated; the ir.amd.com calendar page fails the future-tense check.

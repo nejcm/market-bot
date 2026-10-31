@@ -9,7 +9,7 @@ const HISTORY_ONLY = ["history-report-run-0"];
 const AMD_DATED_SUMMARY =
   "AMD's operating evidence supports a high-growth Data Center and AI infrastructure thesis, with substantial revenue, profit, and cash-flow expansion through 2026-06-27.";
 const SUMMARY_FALLBACK =
-  "Summary withheld: every summary sentence carried an uncited numeric or technical claim. See the cited sections of this report.";
+  "Summary withheld: every summary sentence carried an uncited numeric, technical, or peer-median claim. See the cited sections of this report.";
 
 function citedFinding(text: string) {
   return { text, sourceIds: CITED };

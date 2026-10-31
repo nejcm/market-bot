@@ -396,6 +396,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   eligible support, never asserting semantic entailment. Bare years/FY labels, valid ISO/capitalized-month
   dates, horizon wording, and cited historic forecast outcomes are exempt from numeric classification; posture
   omissions remain advisory.
+- When peer comps were collected, the same audit prunes a non-negated peer-median(s) claim that cites no usable
+  peer source (warned as `peer-median-uncited`), and any such summary sentence (summaries carry no citations);
+  comps carry only EV/revenue, so a median whose own clause names another metric (any EV/x other than
+  revenue/sales included) and not EV/revenue is out of scope. Negation is also judged per clause. Peer ids are never appended: the figure may not come
+  from those peers.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
   `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,

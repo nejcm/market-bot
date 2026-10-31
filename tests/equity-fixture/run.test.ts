@@ -462,6 +462,12 @@ describe("static equity run fixtures", () => {
             payloadSha256: "cc858d776e95fdfd6b4c405c2194aa35df01918c52609b5fb0f5675db1a80565",
           }),
         ]);
+        // IREN FY2026 10-K: the schema references a separate _cal.xml, read from the same accession.
+        expect(
+          persistedRaw
+            .map(({ adapter }) => adapter)
+            .filter((adapter) => adapter.startsWith("sec-xbrl") || adapter.startsWith("sec-calc")),
+        ).toEqual(["sec-xbrl-schema", "sec-calculation-linkbase"]);
         expect(
           result.collectedSources.sourceGaps.filter(({ message }) =>
             message.includes("section packet"),

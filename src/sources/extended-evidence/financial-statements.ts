@@ -12,6 +12,7 @@ import {
   EXTENSION_CAPEX_CHECKED_KEY,
   EXTENSION_CAPEX_FACT_PREFIX,
 } from "../sec-segment-facts";
+import { DA_CALC_PREFIX, DA_CALC_READ_KEY } from "../sec-calculation-linkbase";
 import {
   CAP_FOLLOWER_SERIES,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
@@ -507,6 +508,30 @@ function depreciationPresentation(
   );
 }
 
+// Accession -> D&A-like direct children of operating cash flow in that filing's calculation linkbase, with weights.
+function depreciationCalculation(
+  filings: readonly ExtendedEvidenceItem[],
+): ReadonlyMap<string, ReadonlyMap<string, number>> {
+  return new Map(
+    filings.flatMap(({ metrics }) =>
+      metrics?.[DA_CALC_READ_KEY] === "true" || metrics?.[DA_CALC_READ_KEY] === "conflict"
+        ? [
+            [
+              String(metrics.accessionNumber),
+              new Map(
+                Object.entries(metrics).flatMap(([key, value]) =>
+                  key.startsWith(DA_CALC_PREFIX)
+                    ? [[key.slice(DA_CALC_PREFIX.length), Number(value)] as const]
+                    : [],
+                ),
+              ),
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+}
+
 function factsForDepreciationAndAmortization(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -518,6 +543,12 @@ function factsForDepreciationAndAmortization(
     return { facts: [], notes: [] };
   }
   const presentation = depreciationPresentation(filings);
+  const calculation = depreciationCalculation(filings);
+  const calculationConflicts = new Set(
+    filings.flatMap(({ metrics }) =>
+      metrics?.[DA_CALC_READ_KEY] === "conflict" ? [String(metrics.accessionNumber)] : [],
+    ),
+  );
   const totals = definition.concepts["us-gaap"];
   const concepts = [
     ...totals,
@@ -750,12 +781,28 @@ function factsForDepreciationAndAmortization(
     ) {
       return [];
     }
-    if (selected === contributors) {
+    const calcChildren =
+      depreciation.accessionNumber === amortization.accessionNumber
+        ? calculation.get(String(depreciation.accessionNumber))
+        : undefined;
+    // ORCL, ABBV, GLW: the cash-flow calculation adds exactly these two concepts into operating cash flow, so their sum is the face D&A.
+    const calcProven =
+      calcChildren?.size === 2 &&
+      calcChildren.get(depreciation.concept) === 1 &&
+      calcChildren.get(amortization.concept) === 1;
+    if (selected === contributors && !calcProven) {
+      const reason =
+        calcChildren === undefined
+          ? "no same-filing calculation linkbase was read"
+          : calcChildren.size === 0 &&
+              calculationConflicts.has(String(depreciation.accessionNumber))
+            ? `filing ${String(depreciation.accessionNumber)}'s operating cash-flow calculation roles disagree`
+            : `filing ${String(depreciation.accessionNumber)}'s cash-flow calculation adds ${[...calcChildren.keys()].join(", ") || "no D&A line"} into operating cash flow`;
       notes.push({
         code: "unchecked-component-sum",
         seriesKey: definition.key,
         periodKey: periodKey(depreciation),
-        message: `SEC depreciation and amortization for ${String(depreciation.periodStart)} to ${depreciation.periodEnd} is depreciation + intangible amortization, not checked against the filed cash-flow statement`,
+        message: `SEC depreciation and amortization for ${String(depreciation.periodStart)} to ${depreciation.periodEnd} is depreciation + intangible amortization, not checked against the filed cash-flow statement: ${reason}`,
       });
     }
     if (amortizationGap > componentTolerance(sameFilingAmortization?.value ?? 0)) {

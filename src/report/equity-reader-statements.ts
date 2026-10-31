@@ -8,7 +8,7 @@ import {
   financialStatementSeriesByKey,
   latestFinancialStatementFact,
 } from "../sources/extended-evidence/financial-statement-selection";
-import { withheldDebt } from "../sources/extended-evidence/sec-debt";
+import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/sec-debt";
 
 export interface LabeledPeriod {
   readonly kind: "annual" | "interim" | "ttm";
@@ -78,15 +78,18 @@ function statementValue(fact: FinancialStatementFact): EquityReaderStatementValu
 
 function statementSurfaceNotes(
   artifact: FinancialStatementsArtifact,
+  cutoff: string,
+  recastPeriodKeys: readonly string[] = [],
 ): readonly FinancialStatementNote[] | undefined {
   if (artifact.omissionNotes === undefined && artifact.validationNotes === undefined) {
     return undefined;
   }
-  const withheldDebtKey = `instant|${withheldDebt(artifact)?.periodEnd}`;
+  const withheldDebtKey = `instant|${withheldDebt(artifact, cutoff)?.periodEnd}`;
   const notes = [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
-      (note.code === "debt-held-for-sale" && note.periodKey === withheldDebtKey) ||
+      (note.code === "debt-held-for-sale" &&
+        (note.periodKey === withheldDebtKey || recastPeriodKeys.includes(note.periodKey ?? ""))) ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||
       ((note.code === "untagged-balance-sheet-series" ||
         note.code === "incomplete-composite-series") &&
@@ -212,14 +215,14 @@ export function financialPosition(
   const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
   const cash = latestPositionValue(artifact, "cash", cutoff);
   const debt =
-    withheldDebt(artifact) === undefined
+    withheldDebt(artifact, cutoff) === undefined
       ? latestPositionValue(artifact, "debt", cutoff)
       : undefined;
   const dilutedShares = latestPositionValue(artifact, "dilutedShares", cutoff);
   if (cash === undefined && debt === undefined && dilutedShares === undefined) {
     return undefined;
   }
-  const notes = statementSurfaceNotes(artifact);
+  const notes = statementSurfaceNotes(artifact, cutoff);
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}
@@ -250,17 +253,24 @@ export function balanceSheetHistory(
     .flatMap((item) => financialStatementFacts(item))
     .filter((fact) => observableStatementFact(fact, cutoff));
   const periods = [...new Set(facts.map((fact) => fact.periodEnd))].toSorted().slice(-5);
+  const recastPeriodKeys: string[] = [];
   const rows = periods.flatMap((periodEnd): readonly EquityReaderBalanceSheetRow[] => {
     const cashFact = latestFinancialStatementFact(
       financialStatementFacts(cash).filter(
         (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
       ),
     );
-    const debtFact = latestFinancialStatementFact(
+    const publishedDebt = latestFinancialStatementFact(
       financialStatementFacts(debt).filter(
         (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
       ),
     );
+    const recast =
+      publishedDebt !== undefined && heldForSaleRecast(artifact, publishedDebt, cutoff);
+    if (recast) {
+      recastPeriodKeys.push(`instant|${periodEnd}`);
+    }
+    const debtFact = recast ? undefined : publishedDebt;
     const dilutedSharesFact = latestFinancialStatementFact(
       financialStatementFacts(dilutedShares).filter(
         (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
@@ -289,7 +299,7 @@ export function balanceSheetHistory(
   if (rows.length === 0) {
     return undefined;
   }
-  const notes = statementSurfaceNotes(artifact);
+  const notes = statementSurfaceNotes(artifact, cutoff, recastPeriodKeys);
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}

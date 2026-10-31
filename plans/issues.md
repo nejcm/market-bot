@@ -14,10 +14,14 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## Possible wrong or false values
 
+- Only Business Framework and Financial Lens `latestFact` withhold stale series; the reader's cash and diluted shares, workbench cash/EV inputs and `canonicalFinancialMetrics` still take a series' newest fact unchecked, so a cash series that moved to an untracked alias can feed a years-old balance into EV.
+- A pre-restatement tagged pretax total still covers its period when a later 10-K restates it as Domestic + Foreign only (`derivedPretaxIncomeFacts` builds `covered` from every filing).
+
 - CLFD FY2023 EV/revenue (1.13x) is mixed scope: 2023-09-30 DebtCurrent 2,112K was last filed in 10-K 0001171843-24-006402 and is Nestor Cables factoring debt (FY2025 10-K 0001171843-25-007594 MD&A; discontinued financing flow 1,586K; parent repaid its 16,700K term debt in FY2023), while FY2023 revenue is restated to continuing 225,722K. No tagged fact proves the debt's scope: a rule keyed on nonzero `CashProvidedByUsedInFinancingActivitiesDiscontinuedOperations` was tried and reverted, because a flow is not a balance and it over-fires (HLIT 2023-12-31, debt was the parent's notes) and would split workbench from Console/ROIC debt. Needs a model reading of the discontinued-ops note, verified against the filing; parked 2026-10-31: no reusable verified-quote stage exists, it needs a live CLFD capture, and scope must move into debt resolution so EV, Console and ROIC agree. Revisit if more recast cases appear (CLFD FY2023 ROIC unchecked).
-- ORCL `faceLabel|<instant>` keys look shifted one column early (`faceLabel|2026-05-31` holds the 2026-08-31 value 117,712); debt values are right. Unconfirmed: Codex disputed it.
 
 ## Withheld but recoverable
+
+- Face labels for prior columns (`faceLabel|<instant>`, `footedFaceRows` in sec-segment-facts.ts) include earlier columns' cell text, so a row with an empty label cell gets a numeric label and skips `faceDebtLines`' blank-label check (sec-debt.ts ~418). No case seen; strip numeric cells from labels if one appears.
 
 - OCF for Global Payments (after FY2022) and Vistance (after FY2020) is withheld correctly, not a selection gap: every later period reports discontinued operations, and neither issuer tags continuing or discontinued OCF (only the total; companyfacts and the FY2025 instances 0001123360-26-000008 and 0001193125-26-072523 checked 2026-10-31, no extension either). The stale reason now names the withhold. Recovery needs discontinued OCF read from each filing's cash flow statement or discontinued-ops note.
 
@@ -40,7 +44,14 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## Run cost and citations
 
-- SEC 10-K/10-Q excerpts (8–9k chars each) still reach specialist, instrument-evidence, critique and final synthesis in full; evidence request, Web Gather and market-behavior analysis now get the header only. `[Key Disclosures]` was checked and does not repeat section text (0 overlapping sentences across 10 captured filings). Next cut, if a live eval shows no quality loss: header-only for specialist or instrument-evidence too.
+- Replays captured before fb250601 miss the two new `sec-xbrl-schema` / `sec-calculation-linkbase` recordings for a 10-K; recapture rather than loosen replay.
+- Text-coupled parsing: the reader's debt-note grouping and `staleSeriesReason`'s withheld spans re-parse producer message strings; a structured `periods` field on the notes would remove both parses.
+- The calc-linkbase D&A proof reads only direct OCF children (an intermediate `AdjustmentsToReconcile…` parent reads as "adds no D&A line") and treats one role split across several `calculationLink` elements as a conflict; both keep the note, never a wrong value.
+- TTM = FY is withheld when any later duration fact exists under any concept, so a subsequent-event duration fact can block it with a confusing note.
+- eab055a4 drops an older incomplete debt note when a newer filing proves the instant complete, not the reverse (older complete, newer incomplete keeps value plus note).
+- Peer-median audit: "above the peer median given its margins" counts as naming another metric, so an unnamed EV/revenue claim with that wording is neither warned nor pruned.
+
+- SEC 10-K/10-Q excerpts (8–9k chars each) still reach specialist, instrument-evidence, market-behavior analysis, critique and final synthesis in full; evidence request and Web Gather get the header only (market-behavior analysis was reverted to full text because its findings cite the filings). `[Key Disclosures]` was checked and does not repeat section text (0 overlapping sentences across 10 captured filings). Next cut, if a live eval shows no quality loss: header-only for specialist or instrument-evidence too.
 
 - Uncited peer-median claims are pruned by a clause regex (`isUncitedPeerMedianClaim`): clauses split only on `.;!?`, and a median of a metric not on the other-metric list counts as EV/revenue. Codex found a new phrasing gap each round; if more appear, hand the metric/negation reading to a model stage instead of growing the regex.
 - Earnings-date confirmation never gathered the AMD issuer release in runs 10-20/10-23, so the date stays provider-estimated; the ir.amd.com calendar page fails the future-tense check.

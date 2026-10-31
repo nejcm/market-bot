@@ -55,6 +55,7 @@ import {
 } from "./sec-filing-item";
 import { EXTENSION_CAPEX_CHECKED_KEY } from "./sec-segment-facts";
 import {
+  DA_CALC_READ_KEY,
   calculationLinkbaseHref,
   secDepreciationCalcMetrics,
   xbrlSchemaHref,
@@ -141,6 +142,8 @@ function secEarningsExhibitGap(
   });
 }
 
+const DA_CALC_ADAPTERS = new Set(["sec-xbrl-schema", "sec-calculation-linkbase"]);
+
 // A 10-K's calculation linkbase sits in its schema (inline DTS) or a `_cal.xml` the schema references.
 async function fetchDepreciationCalc(
   ctx: CollectContext,
@@ -150,41 +153,46 @@ async function fetchDepreciationCalc(
 ): Promise<{
   readonly metrics: Record<string, number | string>;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly gaps: readonly SourceGap[];
 }> {
   const schemaHref = xbrlSchemaHref(html);
   if (filing.form !== "10-K" || schemaHref === undefined || schemaHref.includes("/")) {
-    return { metrics: {}, rawSnapshots: [] };
+    return { metrics: {}, rawSnapshots: [], gaps: [] };
   }
   const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
   const init = secTextRequestInit(ctx.secUserAgent);
   const schema = await ctx.request.text({
     url: `${baseUrl}/${schemaHref}`,
     adapter: "sec-xbrl-schema",
-    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
     init,
   });
   if (!isFetchTextResult(schema)) {
-    return { metrics: {}, rawSnapshots: [] };
+    return { metrics: { [DA_CALC_READ_KEY]: "fetch-failed" }, rawSnapshots: [], gaps: [schema] };
   }
   const calcHref = calculationLinkbaseHref(schema.payload);
   if (calcHref === undefined || calcHref.includes("/")) {
     return {
       metrics: secDepreciationCalcMetrics(schema.payload),
       rawSnapshots: [schema.rawSnapshot],
+      gaps: [],
     };
   }
   const calc = await ctx.request.text({
     url: `${baseUrl}/${calcHref}`,
     adapter: "sec-calculation-linkbase",
-    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
     init,
   });
   return isFetchTextResult(calc)
     ? {
         metrics: secDepreciationCalcMetrics(calc.payload),
         rawSnapshots: [schema.rawSnapshot, calc.rawSnapshot],
+        gaps: [],
       }
-    : { metrics: {}, rawSnapshots: [schema.rawSnapshot] };
+    : {
+        metrics: { [DA_CALC_READ_KEY]: "fetch-failed" },
+        rawSnapshots: [schema.rawSnapshot],
+        gaps: [calc],
+      };
 }
 
 interface EarningsExhibitResolution {
@@ -485,7 +493,7 @@ async function collectSecFiling(
     rawSnapshots: [...rawSnapshots, ...calc.rawSnapshots],
     sources: [built.source],
     items: [{ ...built.item, metrics: { ...built.item.metrics, ...calc.metrics } }],
-    gaps: [...primaryFetchGaps, ...exhibitGaps, ...omissionGaps],
+    gaps: [...primaryFetchGaps, ...exhibitGaps, ...omissionGaps, ...calc.gaps],
     sanitizationEntries: built.sanitizationEntries,
     droppedItemCount: 0,
   };
@@ -520,7 +528,7 @@ export async function collectSecPeriodicFilingItems(
     items: results.flatMap((result) => result.items),
     gaps: results.flatMap((result) =>
       result.items.some(({ metrics }) => metrics?.[EXTENSION_CAPEX_CHECKED_KEY] === "true")
-        ? []
+        ? result.gaps.filter(({ source }) => DA_CALC_ADAPTERS.has(source))
         : result.gaps,
     ),
   };

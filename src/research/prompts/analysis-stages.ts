@@ -26,12 +26,7 @@ export function buildAnalysisStagePrompt(stage: StageLabel, input: StageInput): 
     stageGoal: loaded.goal,
     depthProfile,
     evidence: buildEvidencePayload(
-      {
-        includePriorCalibration: false,
-        sourceGapView: "all",
-        webSourceText: "metadata",
-        ...(stage === "market-behavior-analysis" ? { periodicFilingText: "header" } : {}),
-      },
+      { includePriorCalibration: false, sourceGapView: "all", webSourceText: "metadata" },
       command,
       collectedSources,
       config,

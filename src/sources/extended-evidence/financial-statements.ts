@@ -553,6 +553,11 @@ function factsForDepreciationAndAmortization(
       metrics?.[DA_CALC_READ_KEY] === "conflict" ? [String(metrics.accessionNumber)] : [],
     ),
   );
+  const calculationFetchFailures = new Set(
+    filings.flatMap(({ metrics }) =>
+      metrics?.[DA_CALC_READ_KEY] === "fetch-failed" ? [String(metrics.accessionNumber)] : [],
+    ),
+  );
   const totals = definition.concepts["us-gaap"];
   const concepts = [
     ...totals,
@@ -797,7 +802,9 @@ function factsForDepreciationAndAmortization(
     if (selected === contributors && !calcProven) {
       const reason =
         calcChildren === undefined
-          ? "no same-filing calculation linkbase was read"
+          ? calculationFetchFailures.has(String(depreciation.accessionNumber))
+            ? `filing ${String(depreciation.accessionNumber)}'s calculation linkbase could not be fetched`
+            : "no same-filing calculation linkbase was read"
           : calcChildren.size === 0 &&
               calculationConflicts.has(String(depreciation.accessionNumber))
             ? `filing ${String(depreciation.accessionNumber)}'s operating cash-flow calculation roles disagree`

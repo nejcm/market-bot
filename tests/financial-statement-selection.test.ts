@@ -9,6 +9,7 @@ import type {
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import {
   capFinancialStatementPeriods,
+  deriveFinancialStatementTtm,
   financialStatementFactForPeriod,
   financialStatementFactsAreCompatible,
   financialStatementSeries,
@@ -96,7 +97,7 @@ function ttm(overrides: Partial<FinancialStatementTtm> = {}): FinancialStatement
     sourceIds: ["sec-test"],
     components: { fiscalYear, latestYearToDate, priorYearToDate },
     ...overrides,
-  };
+  } as FinancialStatementTtm;
 }
 
 function series(
@@ -718,6 +719,58 @@ describe("financial statement selection", () => {
 
   test("requires matching unit scale for compatible facts", () => {
     expect(financialStatementFactsAreCompatible([fact(), fact({ unitScale: 1000 })])).toBe(false);
+  });
+
+  test("derives TTM as the latest FY only until a later interim is filed", () => {
+    const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "revenue")!;
+    // MSFT FY2026 10-K 0001193125-26-323660.
+    const fiscalYear = fact({
+      value: 331_839,
+      periodStart: "2025-07-01",
+      periodEnd: "2026-06-30",
+      periodKey: "2025-07-01|2026-06-30",
+      accessionNumber: "0001193125-26-323660",
+      filedAt: "2026-07-29",
+    });
+    const interim = (value: number, periodStart: string, periodEnd: string) =>
+      fact({
+        value,
+        periodType: "interim",
+        periodStart,
+        periodEnd,
+        periodKey: `${periodStart}|${periodEnd}`,
+      });
+    const priorQ1 = interim(80, "2025-07-01", "2025-09-30");
+    const derive = (
+      annual: readonly FinancialStatementFact[],
+      interims: readonly FinancialStatementFact[],
+      currency = "USD",
+    ) => deriveFinancialStatementTtm(revenue, annual, interims, currency);
+
+    expect(derive([fiscalYear], [priorQ1]).ttm).toEqual({
+      value: 331_839,
+      periodStart: "2025-07-01",
+      periodEnd: "2026-06-30",
+      currency: "USD",
+      unit: "USD",
+      unitScale: 1,
+      extractionMethod: "derived-sec-companyfacts",
+      formula: "FY",
+      sourceIds: fiscalYear.sourceIds,
+      components: { fiscalYear },
+    });
+    const nextQ1 = interim(90, "2026-07-01", "2026-09-30");
+    expect(derive([fiscalYear], [priorQ1, nextQ1]).ttm).toMatchObject({
+      formula: "FY + latest-YTD - prior-YTD",
+      value: 331_839 + 90 - 80,
+      periodEnd: "2026-09-30",
+    });
+    expect(derive([fiscalYear], [nextQ1])).toEqual({
+      note: expect.objectContaining({ code: "unreconciled-ttm" }),
+    });
+    expect(derive([fiscalYear], [], "EUR").ttm).toBeUndefined();
+    const thirteenMonths = { ...fiscalYear, periodStart: "2025-06-01" };
+    expect(derive([thirteenMonths], []).ttm).toBeUndefined();
   });
 
   test("checks TTM period alignment separately from full compatibility", () => {

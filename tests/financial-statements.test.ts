@@ -8,6 +8,7 @@ import { grossPrincipalWithholdsDebt } from "../src/sources/extended-evidence/fi
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { balanceSheetHistory } from "../src/report/equity-reader-statements";
 import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
+import { financialTrends } from "../src/report/equity-reader-trends";
 import {
   financialStatementFacts,
   latestFinancialStatementFact,
@@ -1342,6 +1343,28 @@ describe("canonical financial statements", () => {
       ).toBe(
         "Derived input: gross profit derived as Revenues − CostOfRevenue; tagged cost of revenue may exclude amortization or D&A.",
       );
+    });
+
+    test("shows a TTM equal to the latest FY once, labelled with its accession", () => {
+      const history = deriveFundamentalHistoryFromFinancialStatements(
+        deriveAt({
+          Revenues: [annual(100, 2024), annual(120, 2025)],
+          CostOfRevenue: [annual(40, 2024), annual(50, 2025)],
+        }),
+      );
+      const cards = fundamentalHistoryView({
+        summary: {} as RunSummary,
+        fundamentalHistory: history,
+      })?.cards;
+      const revenue = cards?.find((card) => card.key === "revenue");
+
+      expect(history.series.revenue.ttm).toMatchObject({ value: 120, periodEnd: "2025-12-31" });
+      expect(revenue).toMatchObject({ basis: "ttm", pointCount: 2 });
+      expect(revenue?.valuePeriod).toStartWith("TTM = FY2025, 10-K accession ");
+      expect(financialTrends(history, false)?.rows.map((row) => row.period)).toEqual([
+        "FY ending 2024-12-31 (latest filed 2025-02-15)",
+        "FY ending 2025-12-31 (latest filed 2026-02-15)",
+      ]);
     });
 
     test("keeps tagged gross profit and never derives alongside it", () => {

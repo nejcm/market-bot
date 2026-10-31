@@ -3241,9 +3241,15 @@ describe("run workspace view", () => {
   });
 
   test("requires reconciled TTM metrics while preserving legitimate zero and negative values", () => {
+    const history = fundamentalHistoryFixture();
     const annualOnly = equitySnapshotView({
       summary: summary(),
-      fundamentalHistory: fundamentalHistoryFixture(),
+      fundamentalHistory: {
+        ...history,
+        series: Object.fromEntries(
+          Object.entries(history.series).map(([key, { ttm: _ttm, ...series }]) => [key, series]),
+        ) as typeof history.series,
+      },
     });
     const populated = equitySnapshotView({
       summary: summary(),

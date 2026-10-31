@@ -124,7 +124,7 @@ Three more deterministic Extended Evidence items attach to equity runs. **Financ
 Equity runs additionally derive canonical `normalized/financial-statements.json` from SEC
 companyfacts. The versioned artifact isolates one standard taxonomy and reporting currency, applies
 the analysis cutoff before period/restatement selection, supports domestic and foreign-private-
-issuer periodic forms, and records cadence and exact-component TTM derivations. When the artifact
+issuer periodic forms, and records cadence and exact-component TTM derivations (FY + latest YTD − prior YTD, or the latest fiscal year itself when no later period is filed). When the artifact
 exists, Fundamental History, Financial Lenses, completeness, and valuation derive from it without
 running legacy financial derivations. Without the artifact, Fundamental History is omitted; the
 legacy SEC summary still feeds Financial Lenses, and the test-only offline corpus pins lens

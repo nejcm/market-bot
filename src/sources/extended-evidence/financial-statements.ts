@@ -2476,6 +2476,42 @@ function withoutMixedShareBasisTtm(
       };
 }
 
+function latestFiledDurationEnd(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+): string | undefined {
+  const root = taxonomyRoot(payload, taxonomy);
+  return root === undefined
+    ? undefined
+    : Object.keys(root)
+        .flatMap((concept) => unitFacts(taxonomy, root, concept))
+        .filter((fact) => fact.periodStart !== undefined && isObservable(fact, analysisAsOf))
+        .map((fact) => fact.periodEnd)
+        .toSorted()
+        .at(-1);
+}
+
+// A later period tagged under any concept (e.g. a newer revenue tag) means the FY is no longer trailing.
+function withoutSupersededFiscalYearTtm(
+  series: FinancialStatementSeries,
+  latestDurationEnd: string | undefined,
+): { readonly series: FinancialStatementSeries; readonly note?: FinancialStatementNote } {
+  const { ttm, ...rest } = series;
+  return ttm?.formula !== "FY" ||
+    latestDurationEnd === undefined ||
+    latestDurationEnd <= ttm.periodEnd
+    ? { series }
+    : {
+        series: rest,
+        note: {
+          code: "unreconciled-ttm",
+          seriesKey: series.key,
+          message: `The latest fiscal year ends ${ttm.periodEnd}, but a later period ending ${latestDurationEnd} is filed outside this series`,
+        },
+      };
+}
+
 function seriesRecord(
   series: readonly FinancialStatementSeries[],
 ): FinancialStatementsArtifact["statements"] {
@@ -2643,7 +2679,16 @@ export function deriveFinancialStatements(
   const uncapped = selected.map((item) => item.series);
   const { series: retained, notes: capNotes } = capFinancialStatementPeriods(uncapped);
   const shareBasisNotes = mixedShareBasisNotes(uncapped, retained);
-  const shareBasisTtm = retained.map((item) => withoutMixedShareBasisTtm(item, shareBasisNotes));
+  const latestDurationEnd =
+    taxonomy === undefined
+      ? undefined
+      : latestFiledDurationEnd(payload, taxonomy, input.analysisAsOf);
+  const shareBasisTtm = retained.map((item) => {
+    const shareBasis = withoutMixedShareBasisTtm(item, shareBasisNotes);
+    return shareBasis.note === undefined
+      ? withoutSupersededFiscalYearTtm(shareBasis.series, latestDurationEnd)
+      : shareBasis;
+  });
   const series = shareBasisTtm.map((item) => item.series);
   const statements = seriesRecord(series);
   const currentAnnual = latestFinancialStatementFact(

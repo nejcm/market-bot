@@ -3,7 +3,10 @@ import type {
   FinancialStatementsArtifact,
   FinancialStatementTtm,
 } from "../sources/extended-evidence/financial-statements-contract";
-import { latestFiscalYearTrailingBasis } from "../sources/extended-evidence/financial-statement-selection";
+import {
+  fiscalYearTtmLabel,
+  latestFiscalYearTrailingBasis,
+} from "../sources/extended-evidence/financial-statement-selection";
 
 export interface EquityReaderEarningsBasis {
   readonly text: string;
@@ -30,6 +33,10 @@ function comparison(
   return `The provider value matches ${filed.length === 1 ? "no SEC value" : "neither SEC value"} at two decimals, and the supplied evidence does not reconcile the difference.`;
 }
 
+function fiscalYearClause(ttm: FinancialStatementTtm): string {
+  return ttm.formula === "FY" ? ` (${fiscalYearTtmLabel(ttm.components.fiscalYear)})` : "";
+}
+
 // Yahoo does not state the accounting scope or period behind its trailing EPS, so both observations stay side by side.
 export function earningsBasis(
   marketSnapshot: MarketSnapshot | undefined,
@@ -49,7 +56,7 @@ export function earningsBasis(
       : [
           [
             continuing === undefined ? "diluted EPS TTM" : "total-operations",
-            `SEC diluted EPS TTM ${eps(total.value)} ${total.currency} through ${total.periodEnd}${continuing === undefined ? "" : " (total operations)"}`,
+            `SEC diluted EPS TTM ${eps(total.value)} ${total.currency} through ${total.periodEnd}${fiscalYearClause(total)}${continuing === undefined ? "" : " (total operations)"}`,
             total,
           ] as const,
         ]),
@@ -58,7 +65,7 @@ export function earningsBasis(
       : [
           [
             "continuing-operations",
-            `SEC diluted EPS TTM from continuing operations ${eps(continuing.value)} ${continuing.currency} through ${continuing.periodEnd}`,
+            `SEC diluted EPS TTM from continuing operations ${eps(continuing.value)} ${continuing.currency} through ${continuing.periodEnd}${fiscalYearClause(continuing)}`,
             continuing,
           ] as const,
         ]),
@@ -78,8 +85,12 @@ export function earningsBasis(
           sourceIds: [marketSnapshot.sourceId, financialStatements.sourceId],
         };
   }
-  const approximation = `${filed.length === 1 ? "The SEC value is an approximation that adds" : "Both SEC values are approximations that add"} per-share periods without reweighting diluted shares.`;
-  const sec = `${filed.map(([, clause]) => `${clause}.`).join(" ")} ${approximation}`;
+  const added = filed.filter(([, , ttm]) => ttm.formula !== "FY").length;
+  const approximation =
+    added === 0
+      ? ""
+      : ` ${added === 1 ? `The ${filed.length === 1 ? "" : "interim-derived "}SEC value is an approximation that adds` : "Both SEC values are approximations that add"} per-share periods without reweighting diluted shares.`;
+  const sec = `${filed.map(([, clause]) => `${clause}.`).join(" ")}${approximation}`;
   return {
     text: `${provider} ${sec} ${comparison(providerEps, marketSnapshot.identity?.quoteCurrency, first[2].currency, filed)}`,
     sourceIds: [marketSnapshot.sourceId, financialStatements.sourceId],

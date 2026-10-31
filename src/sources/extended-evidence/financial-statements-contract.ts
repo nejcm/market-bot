@@ -8,6 +8,9 @@ import {
   withArtifactReadDiagnostics,
 } from "./utils";
 
+export const ALIGNMENT_MIN_DAYS = 350;
+export const ALIGNMENT_MAX_DAYS = 380;
+
 export type FinancialStatementTaxonomy = "us-gaap" | "ifrs-full";
 
 export const CANONICAL_SEC_FORMS = [
@@ -180,7 +183,7 @@ export function derivedFactDisclosure(
   return undefined;
 }
 
-export interface FinancialStatementTtm {
+interface FinancialStatementTtmBase {
   readonly value: number;
   readonly periodStart: string;
   readonly periodEnd: string;
@@ -188,14 +191,25 @@ export interface FinancialStatementTtm {
   readonly unit: string;
   readonly unitScale: number;
   readonly extractionMethod: "derived-sec-companyfacts";
-  readonly formula: "FY + latest-YTD - prior-YTD";
   readonly sourceIds: readonly string[];
-  readonly components: {
-    readonly fiscalYear: FinancialStatementFact;
-    readonly latestYearToDate: FinancialStatementFact;
-    readonly priorYearToDate: FinancialStatementFact;
-  };
 }
+
+// "FY": no interim ends after the latest fiscal year, so the trailing twelve months are that year.
+export type FinancialStatementTtm = FinancialStatementTtmBase &
+  (
+    | {
+        readonly formula: "FY + latest-YTD - prior-YTD";
+        readonly components: {
+          readonly fiscalYear: FinancialStatementFact;
+          readonly latestYearToDate: FinancialStatementFact;
+          readonly priorYearToDate: FinancialStatementFact;
+        };
+      }
+    | {
+        readonly formula: "FY";
+        readonly components: { readonly fiscalYear: FinancialStatementFact };
+      }
+  );
 
 export interface FinancialStatementSeries {
   readonly key: FinancialStatementSeriesKey;
@@ -487,12 +501,32 @@ function hasFinancialStatementTtmShape(value: unknown): boolean {
     stringField(value, "unit") !== undefined &&
     numberField(value, "unitScale") !== undefined &&
     value.extractionMethod === "derived-sec-companyfacts" &&
-    value.formula === "FY + latest-YTD - prior-YTD" &&
     stringArrayField(value, "sourceIds") !== undefined &&
     isRecord(value.components) &&
     hasFinancialStatementFactShape(value.components.fiscalYear) &&
-    hasFinancialStatementFactShape(value.components.latestYearToDate) &&
-    hasFinancialStatementFactShape(value.components.priorYearToDate)
+    (value.formula === "FY"
+      ? Object.keys(value.components).length === 1 &&
+        matchesFiscalYear(value, value.components.fiscalYear as Record<string, unknown>)
+      : value.formula === "FY + latest-YTD - prior-YTD" &&
+        hasFinancialStatementFactShape(value.components.latestYearToDate) &&
+        hasFinancialStatementFactShape(value.components.priorYearToDate))
+  );
+}
+
+function matchesFiscalYear(
+  ttm: Record<string, unknown>,
+  fiscalYear: Record<string, unknown>,
+): boolean {
+  const days =
+    (Date.parse(String(fiscalYear.periodEnd)) - Date.parse(String(fiscalYear.periodStart))) /
+    86_400_000;
+  return (
+    fiscalYear.periodType === "annual" &&
+    days >= ALIGNMENT_MIN_DAYS &&
+    days <= ALIGNMENT_MAX_DAYS &&
+    (["value", "periodStart", "periodEnd", "currency", "unit"] as const).every(
+      (field) => ttm[field] === fiscalYear[field],
+    )
   );
 }
 
@@ -582,12 +616,13 @@ function readFinancialStatementSeries(
         : {
             ttm: {
               ...readTtm,
-              components: {
-                fiscalYear: backfillFirstPublicAt(readTtm.components.fiscalYear),
-                latestYearToDate: backfillFirstPublicAt(readTtm.components.latestYearToDate),
-                priorYearToDate: backfillFirstPublicAt(readTtm.components.priorYearToDate),
-              },
-            },
+              components: Object.fromEntries(
+                Object.entries(readTtm.components).map(([name, fact]) => [
+                  name,
+                  backfillFirstPublicAt(fact),
+                ]),
+              ) as typeof readTtm.components,
+            } as FinancialStatementTtm,
           }),
     },
     drops: [...annual.drops, ...interim.drops, ...(ttm?.drops ?? [])],

@@ -3330,7 +3330,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2019-12-31|2020-04-02": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      { status: "missing", reason: "mixed-period-balance-sheet" },
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2020-12-31|2021-04-01": [

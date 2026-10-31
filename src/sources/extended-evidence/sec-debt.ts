@@ -296,7 +296,8 @@ const DISPOSAL_GROUP_LIABILITY_CONCEPTS: Readonly<
   "ifrs-full": ["LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale"],
 };
 
-// A disposal group's liabilities carry no debt breakdown, so an instant with no debt line stays unproven.
+// A disposal group's liabilities carry no debt breakdown, so an instant with no debt line stays unproven;
+// Debt filed only before the held-for-sale recast is the pre-recast scope (CLFD FY2024).
 function heldForSaleDebtNotes(
   unitFacts: DebtFactReader["unitFacts"],
   taxonomy: FinancialStatementTaxonomy,
@@ -304,7 +305,12 @@ function heldForSaleDebtNotes(
   eligible: (fact: ParsedFact) => boolean,
   debtCandidates: readonly ParsedFact[],
 ): readonly FinancialStatementNote[] {
-  const withDebt = new Set(debtCandidates.map(({ periodEnd }) => periodEnd));
+  const debtFiledAt = new Map<string, string>();
+  for (const { periodEnd, filedAt } of debtCandidates) {
+    if (filedAt > (debtFiledAt.get(periodEnd) ?? "")) {
+      debtFiledAt.set(periodEnd, filedAt);
+    }
+  }
   const held = new Map<string, ParsedFact>();
   for (const fact of DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy].flatMap((concept) =>
     unitFacts(taxonomy, root, concept),
@@ -313,7 +319,7 @@ function heldForSaleDebtNotes(
       fact.periodStart === undefined &&
       fact.value !== 0 &&
       eligible(fact) &&
-      !withDebt.has(fact.periodEnd) &&
+      (debtFiledAt.get(fact.periodEnd) ?? "") < fact.filedAt &&
       !held.has(fact.periodEnd)
     ) {
       held.set(fact.periodEnd, fact);
@@ -324,7 +330,7 @@ function heldForSaleDebtNotes(
     seriesKey: "debt",
     periodKey: `instant|${periodEnd}`,
     publicAt: filedAt,
-    message: `Debt for ${periodEnd} is incomplete: ${concept} (${accessionNumber ?? "accession not filed"}) files liabilities held for sale and no standard ${taxonomy} debt concept is tagged for that date, so continuing-operations debt is unproven.`,
+    message: `Debt for ${periodEnd} is incomplete: ${concept} (${accessionNumber ?? "accession not filed"}) files liabilities held for sale and no standard ${taxonomy} debt concept is tagged for that date in that filing or later, so continuing-operations debt is unproven.`,
   }));
 }
 

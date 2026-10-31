@@ -884,7 +884,7 @@ function fundamental(value: number, periodEnd: string): ValuationFundamentalInpu
   };
 }
 
-function evToRevenue(debtPeriodEnd: string) {
+function evToRevenue(debtPeriodEnd: string, behindIncompleteInstant = false) {
   return valuationMetricSection({
     symbol: "TEST",
     period: {
@@ -894,6 +894,7 @@ function evToRevenue(debtPeriodEnd: string) {
       dilutedShares: { ...fundamental(10, "2026-06-30"), unit: "shares", currency: null },
       cash: fundamental(20, "2026-06-30"),
       debt: fundamental(30, debtPeriodEnd),
+      ...(behindIncompleteInstant ? { debtBehindIncompleteInstant: true as const } : {}),
     },
     price: { close: 10, sessionDate: "2026-08-07", currency: "USD", sourceId: "quote" },
     reportingCurrency: "USD",
@@ -904,6 +905,13 @@ function evToRevenue(debtPeriodEnd: string) {
 describe("valuation workbench balance-sheet period gate", () => {
   test("populates EV/revenue when cash and debt are 92 days apart", () => {
     expect(evToRevenue("2026-03-30")).toMatchObject({ status: "value", value: 1.1 });
+  });
+
+  test("suppresses EV/revenue within 92 days when a newer incomplete debt instant sits between", () => {
+    expect(evToRevenue("2026-03-30", true)).toMatchObject({
+      status: "missing",
+      reason: "mixed-period-balance-sheet",
+    });
   });
 
   test("suppresses EV/revenue with a declared reason at 93 days apart", () => {

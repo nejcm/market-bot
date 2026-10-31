@@ -235,9 +235,13 @@ export function factsForDebt(
   const [latest] = current
     .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))
     .toSorted((left, right) => compareFinancialStatementFacts(left.fact, right.fact));
+  // A newer filing's complete resolution of the instant publishes it, so older withholds are moot (ORCL 10-Q prior-year columns).
   const notes = new Map(
     current.flatMap(({ periodEnd, filedAt, incompleteReason }) =>
-      incompleteReason === undefined
+      incompleteReason === undefined ||
+      current.some(
+        (other) => !other.incomplete && other.periodEnd === periodEnd && other.filedAt > filedAt,
+      )
         ? []
         : [[periodEnd, incompleteDebtNote(periodEnd, incompleteReason, filedAt)] as const],
     ),

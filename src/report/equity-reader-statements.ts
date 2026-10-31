@@ -83,7 +83,7 @@ function statementSurfaceNotes(
     return undefined;
   }
   const withheldDebtKey = `instant|${withheldDebt(artifact)?.periodEnd}`;
-  return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
+  const notes = [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
       (note.code === "debt-held-for-sale" && note.periodKey === withheldDebtKey) ||
@@ -92,6 +92,43 @@ function statementSurfaceNotes(
         note.code === "incomplete-composite-series") &&
         note.seriesKey === "debt"),
   );
+  return groupedDebtCompositeNotes(notes);
+}
+
+const DEBT_COMPOSITE_NOTE = /^Debt composite for (\S+) is incomplete: (.+)\.$/u;
+
+// One note per withhold reason, listing its instants; each instant's note stays in the evidence bundle.
+function groupedDebtCompositeNotes(
+  notes: readonly FinancialStatementNote[],
+): readonly FinancialStatementNote[] {
+  const periodsByReason = new Map<string, string[]>();
+  for (const note of notes) {
+    const match =
+      note.code === "incomplete-composite-series" && DEBT_COMPOSITE_NOTE.exec(note.message);
+    if (match) {
+      periodsByReason.set(match[2]!, [...(periodsByReason.get(match[2]!) ?? []), match[1]!]);
+    }
+  }
+  const emitted = new Set<string>();
+  return notes.flatMap((note) => {
+    const match =
+      note.code === "incomplete-composite-series" && DEBT_COMPOSITE_NOTE.exec(note.message);
+    if (!match) {
+      return [note];
+    }
+    const periods = periodsByReason.get(match[2]!) ?? [];
+    if (periods.length < 2) {
+      return [note];
+    }
+    if (emitted.has(match[2]!)) {
+      return [];
+    }
+    emitted.add(match[2]!);
+    const { periodKey: _periodKey, ...rest } = note;
+    return [
+      { ...rest, message: `Debt composite for ${periods.join(", ")} is incomplete: ${match[2]}.` },
+    ];
+  });
 }
 
 export function operatingRatioNotes(

@@ -4324,6 +4324,43 @@ describe("canonical debt basis selection", () => {
     );
   });
 
+  test("a newer filing's complete debt resolution drops older withhold notes for that instant", () => {
+    const debtFact = (value: number, periodEnd: string, form: string, filedAt: string) =>
+      fact({ value, form, fiscalPeriod: form === "10-K" ? "FY" : "Q1", filedAt, periodEnd });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtCurrent: {
+            USD: [
+              debtFact(10, "2025-05-31", "10-K", "2025-06-20"),
+              debtFact(10, "2025-05-31", "10-Q", "2025-09-10"),
+              debtFact(10, "2025-05-31", "10-K", "2026-06-20"),
+              debtFact(12, "2026-05-31", "10-K", "2026-06-20"),
+            ],
+          },
+          LongTermDebtNoncurrent: {
+            USD: [
+              debtFact(90, "2025-05-31", "10-K", "2025-06-20"),
+              debtFact(90, "2025-05-31", "10-K", "2026-06-20"),
+              debtFact(95, "2026-05-31", "10-K", "2026-06-20"),
+            ],
+          },
+        },
+      }),
+      { generatedAt: "2026-07-01T00:00:00.000Z", analysisAsOf: "2026-07-01T00:00:00.000Z" },
+    );
+    const debt = [
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ];
+
+    expect(debt.find((row) => row.periodEnd === "2025-05-31")?.value).toBe(100);
+    expect(artifact.omissionNotes).not.toContainEqual(
+      expect.objectContaining({ seriesKey: "debt", periodKey: "instant|2025-05-31" }),
+    );
+  });
+
   test("canonical and legacy writers agree on a same-period direct-vs-complete-composite tie", () => {
     const companyFacts = payload({
       "us-gaap": {

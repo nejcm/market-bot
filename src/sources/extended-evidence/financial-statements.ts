@@ -144,6 +144,8 @@ const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
 const GROSS_PROFIT_COST_CONCEPTS = ["CostOfRevenue", "CostOfGoodsAndServicesSold"];
 const CONSOLIDATED_NET_INCOME_CONCEPT = "ProfitLoss";
+const STATUTORY_TAX_RATE_CONCEPT =
+  "EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate";
 type EquityStackComponentKey =
   | "minorityInterest"
   | "stockholdersEquityIncludingNoncontrollingInterest"
@@ -1682,6 +1684,36 @@ function selectEnterpriseValueBridge(
   );
 }
 
+function selectStatutoryTaxRate(
+  payload: unknown,
+  input: FinancialStatementsDeriveInput,
+): readonly FinancialStatementFact[] {
+  const root = taxonomyRoot(payload, "us-gaap");
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (candidate) => candidate.key === "incomeTaxExpense",
+  )!;
+  const annual = (
+    root === undefined ? [] : unitFacts("us-gaap", root, STATUTORY_TAX_RATE_CONCEPT)
+  ).filter(
+    (fact) =>
+      fact.unit === "pure" &&
+      fact.periodStart !== undefined &&
+      isObservable(fact, input.analysisAsOf) &&
+      periodType(fact, definition) === "annual",
+  );
+  const byPeriod = new Map<string, ParsedFact[]>();
+  for (const fact of annual) {
+    byPeriod.set(periodKey(fact), [...(byPeriod.get(periodKey(fact)) ?? []), fact]);
+  }
+  return [...byPeriod.values()]
+    .map((facts) => withFirstPublicAt(facts.toSorted(compareFinancialStatementFacts)[0]!, facts))
+    .toSorted(chronological)
+    .map((fact) => ({
+      ...toSelectedFact(fact, definition, "", input.sourceId),
+      currency: null,
+    }));
+}
+
 function selectEquityStack(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -2639,7 +2671,10 @@ export function deriveFinancialStatements(
       ? { equityStack: equityStackSelection.equityStack }
       : {}),
     ...(taxonomy === "us-gaap" && reportingCurrency !== undefined
-      ? { enterpriseValueBridge: selectEnterpriseValueBridge(payload, reportingCurrency, input) }
+      ? {
+          enterpriseValueBridge: selectEnterpriseValueBridge(payload, reportingCurrency, input),
+          statutoryTaxRate: selectStatutoryTaxRate(payload, input),
+        }
       : {}),
     ...(taxonomy !== undefined
       ? {

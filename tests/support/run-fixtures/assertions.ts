@@ -1925,7 +1925,10 @@ export function assertOperatingRatioInvariants(
     // Short-term investment rows carry no series; ROIC subtracts them as the EV bridge resolved them.
     const seriesInputs = metric.inputs.filter(({ series }) => series !== undefined);
     const shortTermInvestments = metric.inputs
-      .filter(({ series, artifact }) => series === undefined && artifact !== "evidence")
+      .filter(
+        ({ series, artifact, key }) =>
+          series === undefined && artifact !== "evidence" && key !== "statutoryTaxRate",
+      )
       .reduce((sum, { value }) => sum + Number(value), 0);
     const resolved = seriesInputs.map((input) =>
       resolveInput(run, input, `${label} ${input.label}`),
@@ -2019,6 +2022,21 @@ export function assertOperatingRatioInvariants(
       metric.basis,
     )?.[1];
     const effectiveRate = at("incomeTaxExpense") / at("pretaxIncome");
+    const tagged = metric.inputs.find(({ key }) => key === "statutoryTaxRate");
+    if (tagged !== undefined) {
+      expect(
+        statements.statutoryTaxRate?.some(
+          (fact) => fact.periodKey === tagged.periodKey && fact.value === tagged.value,
+        ),
+        `${label} tagged statutory rate resolves to the filer's fact`,
+      ).toBe(true);
+      expect(tagged.periodKey, `${label} tagged statutory rate is same-period`).toBe(
+        seriesInputs[0]?.periodKey,
+      );
+      expect(metric.basis, `${label} basis names the tagged rate`).toContain(
+        "statutory rate the filer tags",
+      );
+    }
     const incorporation = metric.inputs.filter(({ artifact }) => artifact === "evidence");
     expect(
       incorporation.map(({ key }) => key),
@@ -2033,7 +2051,7 @@ export function assertOperatingRatioInvariants(
         `(issuer incorporated in ${String(input.value)})`,
       );
     }
-    if (statutoryPercent !== undefined) {
+    if (statutoryPercent !== undefined || tagged !== undefined) {
       expect(id, `${label} statutory fallback is ROIC only`).toBe("roic");
       expect(
         effectiveRate < 0 || effectiveRate > 1,
@@ -2042,12 +2060,18 @@ export function assertOperatingRatioInvariants(
     }
     expect(
       operatingRatioBound(id, (key) =>
-        statutoryPercent !== undefined && key === "incomeTaxExpense" ? undefined : valueOf(key),
+        (statutoryPercent !== undefined || tagged !== undefined) && key === "incomeTaxExpense"
+          ? undefined
+          : valueOf(key),
       ),
       `${label} value passes its bounds`,
     ).toBeUndefined();
     const roicTaxRate =
-      statutoryPercent === undefined ? effectiveRate : Number(statutoryPercent) / 100;
+      tagged !== undefined
+        ? Number(tagged.value)
+        : statutoryPercent === undefined
+          ? effectiveRate
+          : Number(statutoryPercent) / 100;
     const expected = {
       freeCashFlowMargin: (at("operatingCashFlow") - at("capitalExpenditure")) / at("revenue"),
       interestCoverage: at("operatingIncome") / at("interestExpense"),

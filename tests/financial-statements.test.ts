@@ -1572,6 +1572,78 @@ describe("canonical financial statements", () => {
 
       expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
     });
+
+    test("never pairs an annual component with a quarterly one ending the same day", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [{ ...orclFy26(2_900_000_000), start: "2026-03-01", fp: "Q4" }],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toContain(
+        `SEC pretax income from continuing operations is not derived for 2025-06-01 to 2026-05-31: no ${FOREIGN} fact is tagged for the period`,
+      );
+    });
+
+    test("withholds components whose spans start on different days", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [{ ...orclFy26(10_861_000_000), start: "2025-06-02" }],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+    });
+
+    test("withholds components tagged in different units", () => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: [orclFy26(67_000_000_000)] },
+            [DOMESTIC]: { USD: [orclFy26(8_693_000_000)] },
+            [FOREIGN]: { EUR: [orclFy26(10_861_000_000)] },
+          },
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+    });
+
+    describe("restated components", () => {
+      const original = (value: number) => ({
+        ...annual(value, 2024),
+        accn: "0000000000-25-000001",
+      });
+      const restated = (value: number) => ({
+        ...annual(value, 2024),
+        filed: "2026-02-15",
+        accn: "0000000000-26-000001",
+      });
+
+      test("sums the later filing's pair when it restates both components", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [DOMESTIC]: [original(10), restated(11)],
+          [FOREIGN]: [original(14), restated(15)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 26, accessionNumber: "0000000000-26-000001" },
+        ]);
+      });
+
+      test("withholds rather than mixing a restated component with an original one", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [DOMESTIC]: [original(10), restated(11)],
+          [FOREIGN]: [original(14)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+      });
+    });
   });
 
   describe("consolidated net income fallback", () => {
@@ -2628,6 +2700,47 @@ describe("canonical financial statements", () => {
       }
     },
   );
+
+  test("withholds FY-as-TTM when a later quarter is filed under another revenue concept", () => {
+    const fiscalYear = fact({
+      value: 57_399,
+      form: "10-K",
+      fiscalYear: 2025,
+      fiscalPeriod: "FY",
+      filedAt: "2025-06-20",
+      periodStart: "2024-06-01",
+      periodEnd: "2025-05-31",
+    });
+    const laterQuarter = fact({
+      value: 14_926,
+      form: "10-Q",
+      fiscalYear: 2026,
+      fiscalPeriod: "Q1",
+      filedAt: "2025-09-10",
+      periodStart: "2025-06-01",
+      periodEnd: "2025-08-31",
+    });
+    const withLater = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [fiscalYear] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: { USD: [laterQuarter] },
+        },
+      }),
+    );
+    expect(withLater.statements.incomeStatement.revenue.ttm).toBeUndefined();
+    expect(withLater.validationNotes).toContainEqual(
+      expect.objectContaining({
+        code: "unreconciled-ttm",
+        seriesKey: "revenue",
+        message: expect.stringContaining("later period ending 2025-08-31"),
+      }),
+    );
+
+    const fyOnly = derive(payload({ "us-gaap": { Revenues: { USD: [fiscalYear] } } }));
+    expect(fyOnly.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
+    expect(fyOnly.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
+  });
 
   test("detects quarterly 6-K cadence across quarter-only and year-to-date contexts", () => {
     const artifact = derive(

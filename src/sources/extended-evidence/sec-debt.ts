@@ -57,22 +57,41 @@ export function isWithheldDebtNote(note: FinancialStatementNote): boolean {
   );
 }
 
+// Debt filed before a held-for-sale note at its own instant is the pre-recast scope (CLFD FY2024).
+export function heldForSaleRecast(
+  artifact: FinancialStatementsArtifact,
+  fact: { readonly periodEnd: string; readonly filedAt: string },
+  cutoff = artifact.analysisAsOf.slice(0, 10),
+): FinancialStatementNote | undefined {
+  return (artifact.omissionNotes ?? []).find(
+    (note) =>
+      note.code === "debt-held-for-sale" &&
+      note.periodKey === `instant|${fact.periodEnd}` &&
+      (note.publicAt ?? "") > fact.filedAt &&
+      (note.publicAt ?? "") <= cutoff,
+  );
+}
+
 // The newest debt instant is incomplete, so no older amount may stand in as the latest debt.
 export function withheldDebt(
   artifact: FinancialStatementsArtifact,
+  cutoff = artifact.analysisAsOf.slice(0, 10),
 ): { readonly periodEnd: string; readonly reason: string } | undefined {
   const debt = financialStatementSeriesByKey(artifact, "debt");
-  const debtEnd =
-    debt === undefined
-      ? undefined
-      : latestFinancialStatementFact(financialStatementFacts(debt))?.periodEnd;
+  const latest =
+    debt === undefined ? undefined : latestFinancialStatementFact(financialStatementFacts(debt));
+  const debtEnd = latest?.periodEnd;
+  const recast = latest === undefined ? undefined : heldForSaleRecast(artifact, latest, cutoff);
   // Reader artifacts written before omission notes existed carry none.
   const [note] = (artifact.omissionNotes ?? [])
     .filter(
       (candidate) =>
         isWithheldDebtNote(candidate) &&
         candidate.periodKey !== undefined &&
-        (debtEnd === undefined || candidate.periodKey.replace(/^instant\|/u, "") > debtEnd),
+        (candidate.publicAt === undefined || candidate.publicAt <= cutoff) &&
+        (debtEnd === undefined ||
+          candidate.periodKey.replace(/^instant\|/u, "") > debtEnd ||
+          candidate === recast),
     )
     .toSorted((left, right) => (right.periodKey ?? "").localeCompare(left.periodKey ?? ""));
   return note?.periodKey === undefined

@@ -1079,3 +1079,54 @@ describe("stale operating cash flow behind a discontinued-operations withhold", 
     });
   }
 });
+
+const lagFy = (start: string, end: string, filed: string) => ({
+  val: 1e9,
+  accn: `acc-${end}`,
+  filed,
+  form: "10-K",
+  fp: "FY",
+  start,
+  end,
+});
+const staleGrossReason = (grossYears: string[][], revenueYears: string[][]) => {
+  const artifact = deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: { units: { USD: revenueYears.map(([s, e, f]) => lagFy(s!, e!, f!)) } },
+          GrossProfit: { units: { USD: grossYears.map(([s, e, f]) => lagFy(s!, e!, f!)) } },
+        },
+      },
+    },
+    { symbol: "TEST", generatedAt: "2024-06-01", analysisAsOf: "2024-06-01", sourceId: "sec" },
+  );
+  const gross = latestFinancialStatementFact(
+    financialStatementFacts(financialStatementSeriesByKey(artifact, "grossProfit")!),
+  )!;
+  return staleSeriesReason(artifact, gross, "grossProfit", "gross profit");
+};
+describe("stale series lag across fiscal calendars", () => {
+  // AAPL 52/53-week fiscal years: FY2021 ends 2021-09-25, FY2022 2022-09-24, FY2023 (53 weeks) 2023-09-30.
+  const aapl = {
+    fy2021: ["2020-09-27", "2021-09-25", "2021-10-29"],
+    fy2022: ["2021-09-26", "2022-09-24", "2022-10-28"],
+    fy2023: ["2022-09-25", "2023-09-30", "2023-11-03"],
+  };
+  const calendar = {
+    fy2021: ["2021-01-01", "2021-12-31", "2022-02-15"],
+    fy2022: ["2022-01-01", "2022-12-31", "2023-02-15"],
+    fy2023: ["2023-01-01", "2023-12-31", "2024-02-15"],
+  };
+
+  for (const [name, years] of Object.entries({ aapl, calendar })) {
+    test(`${name}: one missed fiscal year publishes, two are stale`, () => {
+      expect(staleGrossReason([years.fy2022], [years.fy2022, years.fy2023])).toBeUndefined();
+      expect(
+        staleGrossReason([years.fy2021], [years.fy2021, years.fy2022, years.fy2023]),
+      ).toStartWith(
+        `latest gross profit period ends ${years.fy2021[1]!}, more than a year before the newest filed period ${years.fy2023[1]!}`,
+      );
+    });
+  }
+});

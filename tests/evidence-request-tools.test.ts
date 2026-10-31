@@ -627,6 +627,50 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.rawSnapshots).toHaveLength(4);
   });
 
+  test("declares a calculation-linkbase fetch failure instead of reading it as no linkbase", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-K"],
+          filingDate: ["2025-11-01"],
+          reportDate: ["2025-09-30"],
+          accessionNumber: ["0000320193-25-000010"],
+          primaryDocument: ["a10k.htm"],
+        },
+      },
+    };
+    const run = (failing: string) =>
+      executeEvidenceRequestTool(
+        "sec_latest_filing",
+        baseCtx({
+          request: requestExecutor({
+            json: async ({ adapter }) =>
+              adapter === "sec-tickers"
+                ? jsonResult(adapter, secTickersPayload())
+                : jsonResult(adapter, submissions),
+            text: async ({ adapter }) =>
+              adapter === failing
+                ? gap(adapter, "circuit open")
+                : adapter === "sec-xbrl-schema"
+                  ? textResult(
+                      adapter,
+                      '<link:linkbaseRef xlink:href="aapl_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/>',
+                    )
+                  : textResult(
+                      adapter,
+                      `<link:schemaRef xlink:href="aapl.xsd"/>ITEM 7-MANAGEMENT ${repeatToMinAlpha("Annual discussion for the 10-K filing text body continues here.")}`,
+                    ),
+          }),
+        }),
+      );
+
+    for (const failing of ["sec-xbrl-schema", "sec-calculation-linkbase"]) {
+      const result = await run(failing);
+      expect(result.gaps).toContainEqual({ source: failing, message: "circuit open" });
+      expect(result.items[0]?.metrics?.daCalcRead).toBe("fetch-failed");
+    }
+  });
+
   test("drops a malformed SEC row without shifting following filing metadata", async () => {
     const submissions = {
       filings: {

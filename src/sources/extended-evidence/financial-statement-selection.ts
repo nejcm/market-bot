@@ -185,9 +185,6 @@ export function latestFiscalYearTrailingBasis(
   return `The latest fiscal year (${fiscalYear.periodStart} to ${fiscalYear.periodEnd}, ${fiscalYear.form} accession ${fiscalYear.accessionNumber ?? "undisclosed"}) is the newest period in the SEC revenue series; no later interim revenue period is tagged.`;
 }
 
-// Healthy annual-only lines lag the newest filed period by at most three quarters.
-const STALE_SERIES_LAG_DAYS = 366;
-
 export function staleSeriesReason(
   artifact: FinancialStatementsArtifact,
   fact: FinancialStatementFact,
@@ -200,7 +197,8 @@ export function staleSeriesReason(
     .toSorted()
     .at(-1);
   const lag = newest === undefined ? undefined : daysBetween(fact.periodEnd, newest);
-  if (lag === undefined || lag <= STALE_SERIES_LAG_DAYS) {
+  // One fiscal year of lag (up to 380 days for 52/53-week filers) is not stale.
+  if (lag === undefined || lag <= ALIGNMENT_MAX_DAYS) {
     return undefined;
   }
   const withheld = artifact.omissionNotes.flatMap((note) => {

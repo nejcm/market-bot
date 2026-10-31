@@ -690,13 +690,14 @@ describe("buildStagePrompt", () => {
         ) as { evidence: { extendedEvidence: { items: { summary: string }[] } } }
       ).evidence.extendedEvidence.items.map((item) => item.summary);
 
-    for (const stage of ["web-gather", "evidence-request", "market-behavior-analysis"] as const) {
+    for (const stage of ["web-gather", "evidence-request"] as const) {
       expect(summariesFor(stage)).toEqual([
         "10-Q filed 2026-08-05 for period 2026-06-27.",
         "8-K filed 2026-08-05 (material current report). Filing excerpt: ITEM 2.02 Results",
       ]);
     }
     for (const stage of [
+      "market-behavior-analysis",
       "specialist-analysis",
       "instrument-evidence-analysis",
       "critique",

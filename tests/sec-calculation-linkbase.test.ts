@@ -176,10 +176,18 @@ describe("D&A component sum checked by the calculation linkbase", () => {
     );
   });
 
-  test("no linkbase read (absent or fetch failed) keeps the note with a declared reason", () => {
+  test("no linkbase read keeps the note with a declared reason", () => {
     const result = deriveAbbv(undefined);
     expect(result.value).toBe(8_139_000_000);
     expect(result.note).toContain("no same-filing calculation linkbase was read");
+  });
+
+  test("a failed linkbase fetch keeps the note and says the fetch failed", () => {
+    const result = deriveAbbv({ daCalcRead: "fetch-failed" });
+    expect(result.value).toBe(8_139_000_000);
+    expect(result.note).toContain(
+      `filing ${ABBV_ACCN}'s calculation linkbase could not be fetched`,
+    );
   });
 
   test("conflicting OCF roles keep the note and say why", () => {

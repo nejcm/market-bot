@@ -14,6 +14,7 @@ import { classifyGap } from "../src/report/gap-triage";
 import type {
   FinancialStatementSeries,
   FinancialStatementSeriesKey,
+  FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import { geographicRevenueSection } from "../src/sources/extended-evidence/geographic-revenue";
 import {
@@ -21,8 +22,8 @@ import {
   secIssuerRegistration,
 } from "../src/sources/extended-evidence/industry-classification";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
-import { financialPosition } from "../src/report/equity-reader-statements";
-import { withheldDebt } from "../src/sources/extended-evidence/sec-debt";
+import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
+import { heldForSaleRecast, withheldDebt } from "../src/sources/extended-evidence/sec-debt";
 import {
   secExtensionCapexFactMetrics,
   secGeographyFactMetrics,
@@ -81,6 +82,39 @@ function load(symbol: string, secFilings?: readonly ExtendedEvidenceItem[]) {
   const series: Partial<Record<FinancialStatementSeriesKey, FinancialStatementSeries>> =
     Object.assign({}, ...Object.values(statements.statements));
   return { statements, series, metrics: ratios.section?.metrics ?? [] };
+}
+
+function truncatedStatements(statements: FinancialStatementsArtifact, asOf: string) {
+  return {
+    ...statements,
+    statements: Object.fromEntries(
+      Object.entries(statements.statements).map(([name, group]) => [
+        name,
+        Object.fromEntries(
+          Object.entries(group).map(([key, item]) => {
+            const { ttm: _ttm, ...rest } = item as FinancialStatementSeries;
+            return [
+              key,
+              {
+                ...rest,
+                annual: rest.annual.filter(({ periodEnd }) => periodEnd <= asOf),
+                interim: rest.interim.filter(({ periodEnd }) => periodEnd <= asOf),
+              },
+            ];
+          }),
+        ),
+      ]),
+    ) as unknown as FinancialStatementsArtifact["statements"],
+    omissionNotes: statements.omissionNotes.filter(
+      ({ periodKey }) => periodKey === undefined || periodKey <= `instant|${asOf}`,
+    ),
+  };
+}
+
+function roicOf(statements: FinancialStatementsArtifact) {
+  return operatingRatiosSection({ symbol: "CLFD", statements }).section?.metrics.find(
+    ({ id }) => id === "roic",
+  );
 }
 
 function irenHtml() {
@@ -844,6 +878,52 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       undefined,
       true,
     ]);
+  });
+  test("CLFD as of FY2024: debt 2,228K filed before the recast 10-K (0001171843-25-007594) is withheld on every surface", () => {
+    const { statements } = load("clfd");
+    const asOf = "2024-09-30";
+    const asOfFy2024 = truncatedStatements(statements, asOf);
+    const debt = asOfFy2024.statements.balanceSheet.debt.annual.at(-1);
+    expect([debt?.periodEnd, debt?.value, heldForSaleRecast(asOfFy2024, debt!)?.code]).toEqual([
+      asOf,
+      2_228_000,
+      "debt-held-for-sale",
+    ]);
+    expect(withheldDebt(asOfFy2024)?.periodEnd).toBe(asOf);
+    expect(financialPosition(asOfFy2024, undefined)?.debt).toBeUndefined();
+    const history = balanceSheetHistory(asOfFy2024, "2026-10-31");
+    const fy2024Row = history?.rows.find(({ period }) => period.includes(`ending ${asOf}`));
+    expect([fy2024Row?.cash !== undefined, fy2024Row?.debt]).toEqual([true, undefined]);
+    expect(
+      history?.notes?.filter(({ code }) => code === "debt-held-for-sale").map((n) => n.periodKey),
+    ).toEqual([`instant|${asOf}`]);
+    const beforeRecast = balanceSheetHistory(asOfFy2024, "2025-01-15");
+    expect([
+      beforeRecast?.rows.find(({ period }) => period.includes(`ending ${asOf}`))?.debt?.value,
+      beforeRecast?.notes?.some(({ code }) => code === "debt-held-for-sale") ?? false,
+    ]).toEqual([2_228_000, false]);
+  });
+  test("ROIC withholds FY-end debt a later filing recast into a disposal group (constructed from CLFD FY2023)", () => {
+    const { statements } = load("clfd");
+    const asOf = "2023-09-30";
+    const recastNote = statements.omissionNotes.find(({ code }) => code === "debt-held-for-sale");
+    const fy2023 = truncatedStatements(statements, asOf);
+    const debt = fy2023.statements.balanceSheet.debt.annual.at(-1)!;
+    const recast = {
+      ...fy2023,
+      analysisAsOf: "2025-01-15",
+      omissionNotes: [
+        ...fy2023.omissionNotes,
+        { ...recastNote!, periodKey: `instant|${asOf}`, publicAt: "2025-01-10" },
+      ],
+    };
+    expect(debt.filedAt < "2025-01-10").toBe(true);
+    expect(roicOf({ ...recast, omissionNotes: fy2023.omissionNotes })?.status).toBe("value");
+    expect(roicOf(recast)).toMatchObject({
+      status: "missing",
+      periodEnd: asOf,
+      reason: expect.stringContaining("not separable from liabilities held for sale"),
+    });
   });
   test("CLFD TTM rows after FY2025 pair their own cash instant with the last tagged debt, not the 2025-09-30 withhold", () => {
     const ttm = valuationPeriodInputs(load("clfd").statements).periods.filter(

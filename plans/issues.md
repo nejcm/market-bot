@@ -36,7 +36,7 @@ None open.
 
 ## Run cost and citations
 
-- SEC evidence summaries carry the whole bounded section packet plus `[Key Disclosures]` (HLIT 10-Q summary 9,061 chars) per extendedEvidence stage.
+- SEC 10-K/10-Q excerpts (8–9k chars each) still reach specialist, instrument-evidence, critique and final synthesis in full; evidence request, Web Gather and market-behavior analysis now get the header only. `[Key Disclosures]` was checked and does not repeat section text (0 overlapping sentences across 10 captured filings). Next cut, if a live eval shows no quality loss: header-only for specialist or instrument-evidence too.
 
 - Peer-median claims that cite no usable peer now raise the warn-only `peer-median-uncited` post-synthesis warning (run a008bf63 bearCase[1]); no repair reprompt or prune acts on it yet, and P/E or other-subset medians are matched against the EV/revenue peer set.
 - Earnings-date confirmation never gathered the AMD issuer release in runs 10-20/10-23, so the date stays provider-estimated; the ir.amd.com calendar page fails the future-tense check.

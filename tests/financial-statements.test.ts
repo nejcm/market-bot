@@ -15,6 +15,7 @@ import {
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import {
   canonicalizeSecForm,
+  derivedFactDisclosure,
   type FinancialStatementFact,
   type FinancialStatementNote,
   type FinancialStatementSeriesKey,
@@ -1467,6 +1468,109 @@ describe("canonical financial statements", () => {
 
       expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
       expect(historyGapMessages(artifact)).toEqual([]);
+    });
+  });
+
+  describe("pretax income from domestic + foreign components (ORCL FY26 10-K 0001193125-26-277521)", () => {
+    const DOMESTIC = "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic";
+    const FOREIGN = "IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign";
+    const TOTAL =
+      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest";
+    const orclFy26 = (value: number) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalYear: 2026,
+        fiscalPeriod: "FY",
+        filedAt: "2026-06-22",
+        periodStart: "2025-06-01",
+        periodEnd: "2026-05-31",
+        accessionNumber: "0001193125-26-277521",
+      });
+    const deriveAt = (concepts: Readonly<Record<string, readonly Record<string, unknown>[]>>) =>
+      derive(
+        payload({
+          "us-gaap": Object.fromEntries(
+            Object.entries(concepts).map(([concept, rows]) => [concept, { USD: rows }]),
+          ),
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+    test("sums same-filing components when no total is tagged, disclosed as derived", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        IncomeTaxExpenseBenefit: [orclFy26(2_467_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [orclFy26(10_861_000_000)],
+      });
+      const { pretaxIncome, incomeTaxExpense } = artifact.statements.incomeStatement;
+      const [pretax] = pretaxIncome.annual;
+
+      expect(pretax).toMatchObject({
+        value: 19_554_000_000,
+        accessionNumber: "0001193125-26-277521",
+        periodEnd: "2026-05-31",
+        concept: `${DOMESTIC}+${FOREIGN}`,
+      });
+      expect(incomeTaxExpense.annual[0]!.value / pretax!.value).toBeCloseTo(0.126_16, 5);
+      expect(derivedFactDisclosure("pretaxIncome", pretax!)).toBe(
+        `pretax income derived as ${DOMESTIC} + ${FOREIGN}; no total pretax income is tagged for the period`,
+      );
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("prefers a tagged total over disagreeing components", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [TOTAL]: [orclFy26(19_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [orclFy26(10_861_000_000)],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+        { value: 19_000_000_000, concept: TOTAL },
+      ]);
+    });
+
+    test("never derives a period whose total is tagged under a non-selected alias", () => {
+      const ALIAS =
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments";
+      const artifact = deriveAt({
+        Revenues: [annual(100, 2024), annual(120, 2025)],
+        [TOTAL]: [annual(30, 2025)],
+        [ALIAS]: [annual(25, 2024)],
+        [DOMESTIC]: [annual(10, 2024), annual(12, 2025)],
+        [FOREIGN]: [annual(14, 2024), annual(18, 2025)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.pretaxIncome.annual.some(
+          (row) => row.composite !== undefined,
+        ),
+      ).toBe(false);
+    });
+
+    test("leaves pretax income missing with a gap when only one component is tagged", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toContain(
+        `SEC pretax income from continuing operations is not derived for 2025-06-01 to 2026-05-31: no ${FOREIGN} fact is tagged for the period`,
+      );
+    });
+
+    test("withholds components from different filings", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [{ ...orclFy26(10_861_000_000), accn: "0001193125-26-999999" }],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
     });
   });
 

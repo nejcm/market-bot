@@ -35,6 +35,7 @@ export type ValuationMetricSuppressionReason =
   | "cash-unavailable"
   | "debt-unavailable"
   | "mixed-period-balance-sheet"
+  | "mixed-scope-debt"
   | "ev-bridge-incomplete";
 
 type ValuationMetricNotMeaningfulReason =
@@ -94,6 +95,7 @@ export type TrailingValuationBasis =
       readonly status: "available";
       readonly periodEnd: string;
       readonly publicAt: string;
+      readonly fiscalYearLabel?: string;
       readonly sourceIds: readonly string[];
     }
   | {
@@ -147,6 +149,7 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "cash-unavailable",
   "debt-unavailable",
   "mixed-period-balance-sheet",
+  "mixed-scope-debt",
   "ev-bridge-incomplete",
 ]);
 const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mismatch"] as const);
@@ -345,7 +348,9 @@ function hasTrailingBasisShape(value: unknown): boolean {
     return false;
   }
   return value.status === "available"
-    ? readString(value, "periodEnd") !== undefined && readString(value, "publicAt") !== undefined
+    ? readString(value, "periodEnd") !== undefined &&
+        readString(value, "publicAt") !== undefined &&
+        (value.fiscalYearLabel === undefined || readString(value, "fiscalYearLabel") !== undefined)
     : value.status === "suppressed" &&
         value.reason === "canonical-ttm-unavailable" &&
         readString(value, "detail") !== undefined;

@@ -1,4 +1,5 @@
 import { statementInput } from "./metric-engine";
+import { isWithheldDebtNote } from "./sec-debt";
 import {
   ENTERPRISE_VALUE_BRIDGE_KEYS,
   bridgeContributors,
@@ -48,6 +49,9 @@ export interface ValuationPeriodInputs {
   readonly debt?: ValuationFundamentalInput;
   readonly enterpriseValueBridge?: ValuationFundamentalInput;
   readonly enterpriseValueBridgeIncomplete?: true;
+  readonly debtScopeMismatch?: true;
+  // A newer incomplete debt instant sits between this debt and the cash instant, so they never pair.
+  readonly debtBehindIncompleteInstant?: true;
 }
 
 export function unique(values: readonly string[]): readonly string[] {
@@ -245,28 +249,43 @@ function bridgeInput(
   };
 }
 
-// Older complete debt cannot stand in once a newer incomplete instant up to the cash instant is public.
+// Older complete debt never stands in past a newer incomplete debt instant.
 function debtInput(
   artifact: FinancialStatementsArtifact,
   debtFact: FinancialStatementFact | undefined,
   cashFact: FinancialStatementFact | undefined,
   publicAt: string,
-): { readonly debt?: ValuationFundamentalInput } {
+): Pick<ValuationPeriodInputs, "debt" | "debtScopeMismatch" | "debtBehindIncompleteInstant"> {
   if (debtFact === undefined) {
     return {};
   }
-  const masked = artifact.omissionNotes.some((note) => {
+  const published = artifact.omissionNotes.filter(
+    (note) => isWithheldDebtNote(note) && (note.publicAt ?? "") <= publicAt,
+  );
+  const atInstant = (periodEnd: string | undefined) =>
+    published.filter((note) => note.periodKey === `instant|${periodEnd}`);
+  if (
+    atInstant(debtFact.periodEnd).some(
+      (note) => note.code === "debt-held-for-sale" && (note.publicAt ?? "") > debtFact.filedAt,
+    )
+  ) {
+    return { debtScopeMismatch: true };
+  }
+  const newer = published.filter((note) => {
     const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
     return (
-      note.code === "incomplete-composite-series" &&
-      note.seriesKey === "debt" &&
       periodEnd !== undefined &&
       periodEnd > debtFact.periodEnd &&
-      periodEnd <= (cashFact?.periodEnd ?? debtFact.periodEnd) &&
-      (note.publicAt ?? "") <= publicAt
+      periodEnd <= (cashFact?.periodEnd ?? debtFact.periodEnd)
     );
   });
-  return masked ? {} : { debt: factInput("Debt", debtFact) };
+  if (newer.some((note) => note.periodKey === `instant|${cashFact?.periodEnd}`)) {
+    return {};
+  }
+  return {
+    debt: factInput("Debt", debtFact),
+    ...(newer.length > 0 ? { debtBehindIncompleteInstant: true as const } : {}),
+  };
 }
 
 function annualInputs(
@@ -384,6 +403,11 @@ function periodInputsFromTtm(
   artifact: FinancialStatementsArtifact,
   values: ValuationTtmInputs,
 ): ValuationPeriodInputs {
+  if (values.revenue.formula === "FY") {
+    // The fiscal year's own facts, including filed diluted shares rather than NI / rounded EPS.
+    const annual = annualInputs(artifact, values.revenue.components.fiscalYear);
+    return { ...annual, basis: "ttm", revenue: { ...annual.revenue!, derivation: "FY" } };
+  }
   const { balanceSheet } = artifact.statements;
   const revenue = ttmInput("Revenue", values.revenue);
   const compatibleNetIncome =
@@ -560,7 +584,13 @@ function uniquePeriodInputs(
 ): readonly ValuationPeriodInputs[] {
   const byKey = new Map<string, ValuationPeriodInputs>();
   for (const value of values) {
-    byKey.set(`${value.basis}|${value.periodEnd}|${periodPublicAt(value)}`, value);
+    // A TTM ending at a fiscal-year end is that FY (formula "FY"); the TTM row stands for both.
+    const coveredByTtm =
+      value.basis === "annual" &&
+      values.some((other) => other.basis === "ttm" && other.periodEnd === value.periodEnd);
+    if (!coveredByTtm) {
+      byKey.set(`${value.basis}|${value.periodEnd}|${periodPublicAt(value)}`, value);
+    }
   }
   return [...byKey.values()].toSorted(
     (left, right) =>

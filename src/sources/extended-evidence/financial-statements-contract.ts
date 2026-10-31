@@ -8,6 +8,9 @@ import {
   withArtifactReadDiagnostics,
 } from "./utils";
 
+export const ALIGNMENT_MIN_DAYS = 350;
+export const ALIGNMENT_MAX_DAYS = 380;
+
 export type FinancialStatementTaxonomy = "us-gaap" | "ifrs-full";
 
 export const CANONICAL_SEC_FORMS = [
@@ -149,6 +152,8 @@ export interface FinancialStatementFact {
   readonly sourceIds: readonly string[];
   // Debt only: classified carrying lines, or a LongTermDebt total reconciled to them.
   readonly lineScope?: true;
+  // Debt only: finance-lease tags a same-filing face presents beside the debt lines.
+  readonly faceLeases?: readonly string[];
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -172,13 +177,16 @@ export function derivedFactDisclosure(
   if (key === "grossProfit") {
     return `gross profit derived as ${fact.concept.replace("-", " − ")}; tagged cost of revenue may exclude amortization or D&A`;
   }
+  if (key === "pretaxIncome") {
+    return `pretax income derived as ${fact.concept.replace("+", " + ")}; no total pretax income is tagged for the period`;
+  }
   if (key === "netIncome") {
     return `net income uses consolidated ${fact.concept} where NetIncomeLoss is untagged and tagged noncontrolling-interest income is zero or absent`;
   }
   return undefined;
 }
 
-export interface FinancialStatementTtm {
+interface FinancialStatementTtmBase {
   readonly value: number;
   readonly periodStart: string;
   readonly periodEnd: string;
@@ -186,14 +194,25 @@ export interface FinancialStatementTtm {
   readonly unit: string;
   readonly unitScale: number;
   readonly extractionMethod: "derived-sec-companyfacts";
-  readonly formula: "FY + latest-YTD - prior-YTD";
   readonly sourceIds: readonly string[];
-  readonly components: {
-    readonly fiscalYear: FinancialStatementFact;
-    readonly latestYearToDate: FinancialStatementFact;
-    readonly priorYearToDate: FinancialStatementFact;
-  };
 }
+
+// "FY": no interim ends after the latest fiscal year, so the trailing twelve months are that year.
+export type FinancialStatementTtm = FinancialStatementTtmBase &
+  (
+    | {
+        readonly formula: "FY + latest-YTD - prior-YTD";
+        readonly components: {
+          readonly fiscalYear: FinancialStatementFact;
+          readonly latestYearToDate: FinancialStatementFact;
+          readonly priorYearToDate: FinancialStatementFact;
+        };
+      }
+    | {
+        readonly formula: "FY";
+        readonly components: { readonly fiscalYear: FinancialStatementFact };
+      }
+  );
 
 export interface FinancialStatementSeries {
   readonly key: FinancialStatementSeriesKey;
@@ -246,12 +265,14 @@ export interface FinancialStatementNote {
     | "incomplete-composite-series"
     | "unchecked-extension-capex"
     | "unreconciled-component"
+    | "unchecked-component-sum"
     | "stale-instant-series"
     | "stale-concept-history"
     | "withheld-derivation"
     | "mixed-share-basis"
     | "earlier-share-basis"
-    | "declaration-span";
+    | "declaration-span"
+    | "debt-held-for-sale";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
@@ -279,6 +300,8 @@ export interface FinancialStatementsArtifact {
   readonly equityStack?: FinancialStatementEquityStack;
   // Instant facts per balance-sheet date for the EV bridge; us-gaap only.
   readonly enterpriseValueBridge?: FinancialStatementEnterpriseValueBridge;
+  // Filer-tagged annual EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate (pure); us-gaap only.
+  readonly statutoryTaxRate?: readonly FinancialStatementFact[];
   readonly statements: {
     readonly incomeStatement: Readonly<
       Record<
@@ -466,6 +489,7 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
       (value.extractionMethod === "derived-sec-companyfacts" &&
         hasCompositeFactShape(value.composite))) &&
     (value.lineScope === undefined || value.lineScope === true) &&
+    (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&
     stringArrayField(value, "sourceIds") !== undefined
   );
 }
@@ -480,12 +504,32 @@ function hasFinancialStatementTtmShape(value: unknown): boolean {
     stringField(value, "unit") !== undefined &&
     numberField(value, "unitScale") !== undefined &&
     value.extractionMethod === "derived-sec-companyfacts" &&
-    value.formula === "FY + latest-YTD - prior-YTD" &&
     stringArrayField(value, "sourceIds") !== undefined &&
     isRecord(value.components) &&
     hasFinancialStatementFactShape(value.components.fiscalYear) &&
-    hasFinancialStatementFactShape(value.components.latestYearToDate) &&
-    hasFinancialStatementFactShape(value.components.priorYearToDate)
+    (value.formula === "FY"
+      ? Object.keys(value.components).length === 1 &&
+        matchesFiscalYear(value, value.components.fiscalYear as Record<string, unknown>)
+      : value.formula === "FY + latest-YTD - prior-YTD" &&
+        hasFinancialStatementFactShape(value.components.latestYearToDate) &&
+        hasFinancialStatementFactShape(value.components.priorYearToDate))
+  );
+}
+
+function matchesFiscalYear(
+  ttm: Record<string, unknown>,
+  fiscalYear: Record<string, unknown>,
+): boolean {
+  const days =
+    (Date.parse(String(fiscalYear.periodEnd)) - Date.parse(String(fiscalYear.periodStart))) /
+    86_400_000;
+  return (
+    fiscalYear.periodType === "annual" &&
+    days >= ALIGNMENT_MIN_DAYS &&
+    days <= ALIGNMENT_MAX_DAYS &&
+    (["value", "periodStart", "periodEnd", "currency", "unit"] as const).every(
+      (field) => ttm[field] === fiscalYear[field],
+    )
   );
 }
 
@@ -575,12 +619,13 @@ function readFinancialStatementSeries(
         : {
             ttm: {
               ...readTtm,
-              components: {
-                fiscalYear: backfillFirstPublicAt(readTtm.components.fiscalYear),
-                latestYearToDate: backfillFirstPublicAt(readTtm.components.latestYearToDate),
-                priorYearToDate: backfillFirstPublicAt(readTtm.components.priorYearToDate),
-              },
-            },
+              components: Object.fromEntries(
+                Object.entries(readTtm.components).map(([name, fact]) => [
+                  name,
+                  backfillFirstPublicAt(fact),
+                ]),
+              ) as typeof readTtm.components,
+            } as FinancialStatementTtm,
           }),
     },
     drops: [...annual.drops, ...interim.drops, ...(ttm?.drops ?? [])],
@@ -735,8 +780,12 @@ export function readFinancialStatementsArtifact(
           ENTERPRISE_VALUE_BRIDGE_FACT_KEYS,
           "financialStatements.enterpriseValueBridge",
         );
+  const statutoryTaxRate = Array.isArray(value.statutoryTaxRate)
+    ? readFinancialStatementFacts(value.statutoryTaxRate, "financialStatements.statutoryTaxRate")
+    : undefined;
   if (
     previous === undefined ||
+    (value.statutoryTaxRate !== undefined && statutoryTaxRate === undefined) ||
     (value.equityStack !== undefined && equityStack === undefined) ||
     (value.enterpriseValueBridge !== undefined &&
       staleBridgeKeys.length === 0 &&
@@ -768,6 +817,7 @@ export function readFinancialStatementsArtifact(
   const drops: ArtifactObservationDrop[] = [
     ...(equityStack?.drops ?? []),
     ...(enterpriseValueBridge?.drops ?? []),
+    ...(statutoryTaxRate?.drops ?? []),
     ...(staleBridgeKeys.length === 0
       ? []
       : [
@@ -780,6 +830,7 @@ export function readFinancialStatementsArtifact(
   const backfills: ArtifactObservationDrop[] = [
     ...(equityStack?.backfills ?? []),
     ...(enterpriseValueBridge?.backfills ?? []),
+    ...(statutoryTaxRate?.backfills ?? []),
   ];
   for (const key of FINANCIAL_STATEMENT_SERIES_KEYS) {
     const later = LATER_SERIES[key];
@@ -808,6 +859,9 @@ export function readFinancialStatementsArtifact(
       ...value,
       ...(equityStack === undefined ? {} : { equityStack: equityStack.group }),
       enterpriseValueBridge: enterpriseValueBridge?.group,
+      ...(statutoryTaxRate === undefined
+        ? {}
+        : { statutoryTaxRate: statutoryTaxRate.observations }),
       statements: {
         ...value.statements,
         incomeStatement: statement(income),

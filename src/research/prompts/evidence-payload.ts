@@ -2,7 +2,9 @@ import type { StageSettings } from "./stage-envelope";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
 import type { VerifiedMarketSnapshot } from "../../domain/market-data";
+import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { CollectedSources } from "../../sources/types";
+import { SEC_FILING_EXCERPT_MARKER } from "../../sources/sec-filing-item";
 import { earningsBasis } from "../../report/equity-reader-earnings-basis";
 import { tickerSnapshot } from "../../sources/extended-evidence/financial-lens-metrics";
 import { profileCitableSources, subjectKindForCommand } from "../../web-evidence";
@@ -58,6 +60,8 @@ export interface EvidencePayloadOptions {
   // (and company SEC filing text); final-synthesis surfaces text for fresh web sources
   // Only; every other stage projects bare metadata.
   readonly webSourceText: "profile" | "fresh-only" | "metadata";
+  // "header" drops 10-K/10-Q excerpt text for stages that only plan or read price behavior.
+  readonly periodicFilingText?: "header";
 }
 
 /*
@@ -80,7 +84,7 @@ const projectMarketContext: EvidenceProjector = (_options, _command, collectedSo
     ? { marketContext: collectedSources.marketContext }
     : {};
 
-const projectExtendedEvidence: EvidenceProjector = (_options, command, collectedSources) => {
+const projectExtendedEvidence: EvidenceProjector = (options, command, collectedSources) => {
   if (!isInstrumentCommand(command) || collectedSources.extendedEvidence === undefined) {
     return {};
   }
@@ -92,10 +96,22 @@ const projectExtendedEvidence: EvidenceProjector = (_options, command, collected
   return {
     extendedEvidence: {
       ...evidence,
+      ...(options.periodicFilingText === "header"
+        ? { items: evidence.items.map(withoutPeriodicFilingExcerpt) }
+        : {}),
       gaps: evidence.gaps.filter((gap) => !declaredGaps.has(sourceGapScopedReportText(gap))),
     },
   };
 };
+
+function withoutPeriodicFilingExcerpt(item: ExtendedEvidenceItem): ExtendedEvidenceItem {
+  const form = item.metrics?.["form"];
+  if (item.category !== "sec-edgar" || (form !== "10-K" && form !== "10-Q")) {
+    return item;
+  }
+  const [header = item.summary] = item.summary.split(SEC_FILING_EXCERPT_MARKER, 1);
+  return { ...item, summary: header };
+}
 
 const projectMetricReferences: EvidenceProjector = (options, command, collectedSources) =>
   isInstrumentCommand(command) &&
@@ -397,9 +413,11 @@ export function compactHistoricalContext(
   context: HistoricalResearchContext,
   sourceGapView: SourceGapView,
 ): Record<string, unknown> {
-  const runs = historicalRunsForGapView(context.runs, sourceGapView).map((run) =>
-    withResolvedPredictionsOnly(run),
-  );
+  // Renamed so prior-run gaps read as re-check context, not rows to copy into this report's dataGaps.
+  const runs = historicalRunsForGapView(context.runs, sourceGapView).map((run) => {
+    const { dataGaps, ...rest } = withResolvedPredictionsOnly(run);
+    return { ...rest, priorRunGapsToRecheck: dataGaps };
+  });
   return {
     generatedAt: context.generatedAt,
     recentDays: context.recentDays,
@@ -408,8 +426,8 @@ export function compactHistoricalContext(
     runs,
     ...(runs.length > 0
       ? {
-          priorRunDataGapsUse:
-            "runs[].dataGaps are prior-run observations, not current Source Gaps. Before repeating one, check whether supplied sources carry its figure, or the inputs to compute it (both ratio inputs for the same period, or the same ratio across the cited periods for a trend); anything computable from cited inputs is not absent. Then drop it, or keep only the named items still missing in the same words; do not generalize a satisfied item into a broader one.",
+          priorRunGapsToRecheckUse:
+            "runs[].priorRunGapsToRecheck are prior-run observations to re-check, not current Source Gaps and not items to carry forward; never copy one into dataGaps. Declare a current gap only when current evidence shows it is still missing, worded from current evidence. Before declaring one, check whether supplied sources carry its figure, or the inputs to compute it (both ratio inputs for the same period, or the same ratio across the cited periods for a trend); anything computable from cited inputs is not absent. Then drop it, or keep only the named items still missing in the same words; do not generalize a satisfied item into a broader one.",
         }
       : {}),
     gaps: context.gaps,

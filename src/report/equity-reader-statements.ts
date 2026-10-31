@@ -82,14 +82,53 @@ function statementSurfaceNotes(
   if (artifact.omissionNotes === undefined && artifact.validationNotes === undefined) {
     return undefined;
   }
-  return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
+  const withheldDebtKey = `instant|${withheldDebt(artifact)?.periodEnd}`;
+  const notes = [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
+      (note.code === "debt-held-for-sale" && note.periodKey === withheldDebtKey) ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||
       ((note.code === "untagged-balance-sheet-series" ||
         note.code === "incomplete-composite-series") &&
         note.seriesKey === "debt"),
   );
+  return groupedDebtCompositeNotes(notes);
+}
+
+const DEBT_COMPOSITE_NOTE = /^Debt composite for (\S+) is incomplete: (.+)\.$/u;
+
+// One note per withhold reason, listing its instants; each instant's note stays in the evidence bundle.
+function groupedDebtCompositeNotes(
+  notes: readonly FinancialStatementNote[],
+): readonly FinancialStatementNote[] {
+  const periodsByReason = new Map<string, string[]>();
+  for (const note of notes) {
+    const match =
+      note.code === "incomplete-composite-series" && DEBT_COMPOSITE_NOTE.exec(note.message);
+    if (match) {
+      periodsByReason.set(match[2]!, [...(periodsByReason.get(match[2]!) ?? []), match[1]!]);
+    }
+  }
+  const emitted = new Set<string>();
+  return notes.flatMap((note) => {
+    const match =
+      note.code === "incomplete-composite-series" && DEBT_COMPOSITE_NOTE.exec(note.message);
+    if (!match) {
+      return [note];
+    }
+    const periods = periodsByReason.get(match[2]!) ?? [];
+    if (periods.length < 2) {
+      return [note];
+    }
+    if (emitted.has(match[2]!)) {
+      return [];
+    }
+    emitted.add(match[2]!);
+    const { periodKey: _periodKey, ...rest } = note;
+    return [
+      { ...rest, message: `Debt composite for ${periods.join(", ")} is incomplete: ${match[2]}.` },
+    ];
+  });
 }
 
 export function operatingRatioNotes(
@@ -110,16 +149,38 @@ export function operatingRatioNotes(
           note.seriesKey === "capitalExpenditure")) ||
       note.code === "unchecked-extension-capex",
   );
-  if (unreconciled.length < 2) {
-    return [...kept, ...unreconciled];
-  }
-  const periods = unreconciled.map((note) => note.periodKey?.split("|").at(-1) ?? "unknown");
+  const unchecked = notes.filter(
+    (note) =>
+      note.code === "unchecked-component-sum" && note.seriesKey === "depreciationAndAmortization",
+  );
   return [
     ...kept,
+    ...collapsed(
+      unreconciled,
+      (periods) =>
+        `SEC depreciation and amortization for periods ending ${periods} uses AmortizationOfIntangibleAssets; the same-filing cash-flow AdjustmentForAmortization is higher in each and is not proven to be intangible amortization`,
+    ),
+    ...collapsed(
+      unchecked,
+      (periods) =>
+        `SEC depreciation and amortization for periods ending ${periods} is depreciation + intangible amortization, not checked against the filed cash-flow statement`,
+    ),
+  ];
+}
+
+function collapsed(
+  notes: readonly FinancialStatementNote[],
+  message: (periods: string) => string,
+): readonly FinancialStatementNote[] {
+  if (notes.length < 2) {
+    return notes;
+  }
+  const periods = notes.map((note) => note.periodKey?.split("|").at(-1) ?? "unknown");
+  return [
     {
-      code: "unreconciled-component",
+      code: notes[0]!.code,
       seriesKey: "depreciationAndAmortization",
-      message: `SEC depreciation and amortization for periods ending ${periods.join(", ")} uses AmortizationOfIntangibleAssets; the same-filing cash-flow AdjustmentForAmortization is higher in each and is not proven to be intangible amortization`,
+      message: message(periods.join(", ")),
     },
   ];
 }

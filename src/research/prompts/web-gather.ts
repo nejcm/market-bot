@@ -42,6 +42,7 @@ export function buildWebGatherStagePrompt(input: StageInput): string {
         includePriorCalibration: false,
         sourceGapView: "web-gather",
         webSourceText: "metadata",
+        periodicFilingText: "header",
       },
       command,
       collectedSources,

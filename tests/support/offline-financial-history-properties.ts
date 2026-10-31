@@ -106,7 +106,10 @@ function historyTtmShapeMatches(series: ProjectedHistorySeries): boolean {
     latestAnnual !== undefined &&
     ttm.form === "TTM" &&
     ttm.periodMonths === 12 &&
-    ttm.periodEnd > latestAnnual.periodEnd
+    (ttm.periodEnd > latestAnnual.periodEnd ||
+      (ttm.periodEnd === latestAnnual.periodEnd &&
+        ttm.periodStart === latestAnnual.periodStart &&
+        ttm.value === latestAnnual.value))
   );
 }
 
@@ -121,6 +124,10 @@ function historyMarginTtmMatches(consumers: ProjectedConsumers, seriesKey: strin
     series.ttm === undefined
   ) {
     return false;
+  }
+  if (series.ttm.periodEnd === series.annual.at(-1)?.periodEnd) {
+    // TTM = FY: the shape check already pinned it to the independently paired annual margin.
+    return true;
   }
   const left = consumers.fundamentalHistory[components[0]]?.ttm;
   const right = consumers.fundamentalHistory[components[1]]?.ttm;

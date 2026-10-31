@@ -28,6 +28,7 @@ import {
   financialStatementSeriesByKey,
   isYearAligned,
   latestFinancialStatementFact,
+  staleSeriesReason,
 } from "./financial-statement-selection";
 import type {
   FinancialStatementFact,
@@ -136,7 +137,18 @@ function eligibleFacts(ctx: MetricContext, key: LensSeries): readonly FinancialS
 }
 
 function latestFact(ctx: MetricContext, key: LensSeries): FinancialStatementFact | undefined {
-  return latestFinancialStatementFact(eligibleFacts(ctx, key));
+  const fact = latestFinancialStatementFact(eligibleFacts(ctx, key));
+  return fact === undefined || staleReason(ctx, fact, key) === undefined ? fact : undefined;
+}
+
+function staleReason(
+  ctx: MetricContext,
+  fact: FinancialStatementFact,
+  key: LensSeries,
+): string | undefined {
+  return ctx.statements === undefined
+    ? undefined
+    : staleSeriesReason(ctx.statements, fact, key, SERIES_LABELS[key]);
 }
 
 function samePeriodFact(
@@ -197,6 +209,11 @@ function noFact(ctx: MetricContext, key: LensSeries): MetricOutcome {
       reason: `${SERIES_LABELS[key]} not filed by the issuer`,
       cause: "not-filed",
     };
+  }
+  const stale = latestFinancialStatementFact(eligibleFacts(ctx, key));
+  const reason = stale === undefined ? undefined : staleReason(ctx, stale, key);
+  if (stale !== undefined && reason !== undefined) {
+    return { status: "missing", reason, ...periodOf(stale), inputs: [factInput(stale, key)] };
   }
   return {
     status: "missing",

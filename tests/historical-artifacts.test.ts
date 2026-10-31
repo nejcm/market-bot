@@ -61,6 +61,61 @@ describe("frozen historical artifacts", () => {
     });
   });
 
+  test("reads a TTM equal to the latest FY and backfills its one component", async () => {
+    const artifact = (await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json()) as FinancialStatementsArtifact;
+    const { revenue } = artifact.statements.incomeStatement;
+    const fiscalYear = revenue.annual.at(-1)!;
+    const withTtm = (ttm: unknown) =>
+      readFinancialStatementsArtifact({
+        ...artifact,
+        statements: {
+          ...artifact.statements,
+          incomeStatement: { ...artifact.statements.incomeStatement, revenue: { ...revenue, ttm } },
+        },
+      })?.statements.incomeStatement.revenue.ttm;
+    const fiscalYearTtm = {
+      value: fiscalYear.value,
+      periodStart: fiscalYear.periodStart,
+      periodEnd: fiscalYear.periodEnd,
+      currency: "USD",
+      unit: fiscalYear.unit,
+      unitScale: 1,
+      extractionMethod: "derived-sec-companyfacts",
+      formula: "FY",
+      sourceIds: fiscalYear.sourceIds,
+      components: { fiscalYear },
+    };
+
+    expect(withTtm(fiscalYearTtm)?.components).toEqual({
+      fiscalYear: { ...fiscalYear, firstPublicAt: fiscalYear.filedAt },
+    });
+    expect(
+      withTtm({ ...fiscalYearTtm, components: { fiscalYear, latestYearToDate: fiscalYear } }),
+    ).toBeUndefined();
+    expect(withTtm({ ...fiscalYearTtm, formula: "FY + latest-YTD - prior-YTD" })).toBeUndefined();
+    for (const [field, mismatch] of [
+      ["value", fiscalYear.value + 1],
+      ["periodStart", "1999-01-01"],
+      ["periodEnd", "1999-12-31"],
+      ["currency", "EUR"],
+      ["unit", "EUR"],
+    ] as const) {
+      expect(withTtm({ ...fiscalYearTtm, [field]: mismatch }), field).toBeUndefined();
+    }
+    const quarter = { ...fiscalYear, periodType: "interim" };
+    expect(withTtm({ ...fiscalYearTtm, components: { fiscalYear: quarter } })).toBeUndefined();
+    const shortYear = { ...fiscalYear, periodStart: "2025-07-01" };
+    expect(
+      withTtm({
+        ...fiscalYearTtm,
+        periodStart: "2025-07-01",
+        components: { fiscalYear: shortYear },
+      }),
+    ).toBeUndefined();
+  });
+
   test("drops a fact with a non-string firstPublicAt", async () => {
     const frozen: unknown = await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),

@@ -1,598 +1,262 @@
 # Market Bot Context
 
-## Glossary
+Domain glossary. Definitions state what a term means and the invariants that matter; mechanics live in [docs/architecture.md](./docs/architecture.md), the ADRs, and the code. Everything here is research-only: nothing implies a recommendation, trade signal, or portfolio action.
 
-All artifacts and terms below are research-only: they do not imply investment conviction, recommendations, trade signals, or portfolio actions unless a definition explicitly says otherwise.
+## Research artifacts and views
 
-## Research View
+**Research View** — Sourced artifact summarizing evidence, uncertainty, scenarios, risks, and gaps.
 
-A sourced artifact summarizing evidence, uncertainty, scenarios, risks, and gaps.
+**Research Thesis** — Research View narrative state: summary, findings, cases, risks, catalysts, gaps, and Predictions. Not an investment thesis.
 
-## Default View
+**Default View** — Reader-facing surface of a deep-equity report or Console run: business, price with market date and freshness, a three-to-five-year plus TTM trend table, valuation context relative to the quote (never a target), catalysts and risks, upcoming earnings and consensus, and Material Gaps.
 
-The reader-facing surface of a deep-equity report or Console run: what the company does; price with
-market date and freshness; a three-to-five-year plus TTM trend table; valuation context positioned
-relative to the observed quote and never as a target price; catalysts and risks; upcoming earnings
-and consensus; and material data gaps.
+**Appendix** — Trailing detail surface: reverse DCF, full valuation and peer tables, excluded-peer diagnostics, institutional/insider detail, analyst distributions, options IV, financing bridge, capital ownership, and the five Financial Lenses. Collection drops nothing; only placement changes.
 
-## Appendix
+**Run Artifact** — Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`. Later runs and history read it; Source Providers are never refetched for it. Layout in AGENTS.md.
 
-The trailing detail surface containing reverse DCF, full valuation tables, full peer rows and
-excluded-peer diagnostics, institutional and insider detail, analyst estimate distributions,
-options IV, the subsequent-financing bridge, capital ownership, and the five Financial Lenses with
-their posture labels. Collection drops nothing; only placement changes.
+**Failed Run Artifact** — Diagnostics of a run whose final synthesis never produced a valid Research View. `failure.json` marks it complete; `report.json` is deliberately absent.
 
-## Research Console App
+**Run Artifact Index** — Rebuildable SQLite index over Run Artifacts for console/search/calibration queries. Disk artifacts stay authoritative; a missing or stale index falls back to disk or rebuilds.
 
-Local UI for browsing run history, Research Views, Sources, Source Gaps, evidence quality, analytics, and provider health.
+**Subsystem Outcome** — Coded record of what one run subsystem was expected to do and whether it acquired output (`produced`), stayed `empty`, `declined`, `failed`, or was `blocked`. The statuses are not a clean taxonomy: each records how that subsystem's own producer classified its situation, so the same condition can map differently across subsystems (a missing Exa credential `declined`s Web Gather; a lane-local missing credential is `blocked`). The code beside the status is the specific part. `empty` means no output was accepted; accepted output with a usability posture stays `produced`. Run telemetry, not a Diagnostic Gap.
 
-## Watchlist
+**Stage Duration** — Positive monotonic ms awaiting a model-stage attempt (`durationMs`). Not additive wall-clock time across concurrent stages.
 
-Named, manually orderable list of equities in the Console, persisted in the Console DB as
-`watchlists` / `watchlist_items` rows. Rows show only derived data read from the Run Artifact
-Index — latest run date/age, depth, open Observable Predictions, and latest Calibration hit/miss —
-never stored notes or tags. A symbol with no runs renders as "never run", and an unavailable
-index is declared per row instead of silently omitted.
+## Research Console
 
-An instrument's runs are those whose `symbol` matches the row's instrument, plus symbol-less
-multi-subject runs (Forecast Grid, market overview) holding a Prediction whose primary subject
-(the `subject` before any `:`) is that instrument; both paths feed the latest run and the counts.
-An open Observable Prediction is one counted from those runs, filtered to Predictions whose
-`measurableAs` resolves to that instrument, that has no score row, or whose score is unresolved with a
-pending-family status (`pending`, `pending-condition`, `active-pending`). Voided and abandoned
-scores are terminal scoring states and never count as open; a Prediction in a run that was never
-scored counts as open because no scoring verdict exists yet. Watchlists never enter research
-artifacts, prompts, exports, search, or history.
+**Research Console App** — Local UI for run history, Research Views, Sources, gaps, evidence quality, analytics, and provider health.
 
-## Run Note
+Console-only user state lives in the Console DB (`data/console/console.sqlite`) and never enters research artifacts, prompts, exports, or the history search index:
 
-User-authored plain text attached to an Instrument or Run Artifact, stored only in the Console DB
-(`data/console/console.sqlite`) as a `notes(kind, key, body, updated_at)` row. Saving an empty body
-deletes the note; whitespace is preserved. Notes are limited to 10,000 characters and never enter
-Run Chat context, prompts, research artifacts, exports, or the history search index.
+- **Watchlist** — Named, orderable equity list (`watchlists` / `watchlist_items`). Rows show only data derived from the Run Artifact Index: latest run date/age, depth, open Observable Predictions, latest Calibration hit/miss. An instrument's runs are those whose `symbol` matches, plus symbol-less multi-subject runs (Forecast Grid, market overview) with a Prediction whose primary subject (before any `:`) is that instrument. A Prediction is open when its `measurableAs` resolves to the instrument and it has no score row or an unresolved pending-family score (`pending`, `pending-condition`, `active-pending`); voided and abandoned scores are terminal. No runs renders "never run"; an unavailable index is declared per row.
+- **Run Note** — Plain text on an Instrument or Run Artifact (`notes` row), max 10,000 chars, whitespace preserved, empty body deletes. Never enters Run Chat context.
+- **Pin** — Sorts a Run Artifact to the top of every run list (`pins` row). A pinned run whose directory is gone stays listed as missing and can be unpinned.
+- **Run Chat** — Ephemeral per-Run Artifact Q&A. Not persisted; with the Codex provider it may use web context, which never becomes a Source or Evidence.
+- **Instrument Accountability Timeline** — Console view for one `assetClass + symbol` joining Theses, Predictions, scores, Miss Autopsies, and verified closes.
+- **Instrument Run History** — Every Run Artifact for one Instrument, newest first. Runs without an Instrument stand alone.
 
-## Pin
+## Subjects and instruments
 
-Console user state: the user pins a Run Artifact so it sorts to the top of every Console run list
-(sidebar, dashboard, instrument run history, search), each side keeping its existing order. Stored
-only in the Console DB as a `pins(run_id, created_at)` row. A pinned run whose directory is gone
-stays listed in the sidebar's pinned group as missing and can be unpinned. Pins never enter
-research artifacts, prompts, exports, or the history search index.
+**Subject** — Research target: a resolved Instrument (equity/crypto) or free-text theme. Bounds web evidence, not Prediction Subjects.
 
-## Run Chat
+**Subject Kind** — `company` (equity), `crypto-asset`, `theme` (research runs). Selects the Web Subject Profile question set and reuse rule.
 
-Ephemeral, per-Run Artifact Q&A in the Console. It is not persisted; when the Codex provider is active it may use web context, which never becomes a Source or Evidence.
+**Instrument** — Listed or quoted target identified by `symbol + assetClass`, with optional exchange, currency, provider IDs, aliases.
 
-## Web Gather
+**Instrument Identity** — Provider-normalized metadata relating Source Provider records to an Instrument.
 
-Bounded deep-run loop for on-subject `web_search` and allowlisted `web_fetch` through the cached Source Provider seam. Exa is primary; configured Firecrawl is fallback-only for failed or thin Exa responses, never a substitute for a missing `MARKET_BOT_EXA_API_KEY`. It persists Sources, gaps, and audit sidecars. A fallback that covers a failed, empty, or thin Exa `web_search` response closes the Exa Source Gap but never erases the incident: the run still reports a non-available web-search row in Provider Health and a `web-search-provider` Subsystem Outcome. `web_fetch` fallbacks have no endpoint row of their own and are recorded in that outcome's detail counts.
+**Quote Currency** — Currency of quoted prices (`InstrumentIdentity.quoteCurrency`). Yahoo `GBp` is pence, not `GBP`; it renders as pence without K/M/B scaling.
 
-For company subjects, SEC 10-K/10-Q profile coverage rejects redundant `background` and `current-subject` searches that give no recency, corroboration, or explicit-gap rationale; reused-profile coverage rejects `background` searches on the same terms only, and `news` and `market` searches are exempt from both. Reused profiles narrow implicit per-query ingestion from 5 to 3 results. `web-gather` is Source-Gap taxonomy, not an Evidence Lane.
+**Reporting Currency** — Currency of issuer fundamentals, distinct from Quote Currency. Cash/debt/FCF threading is deferred to P2.
 
-## Web Evidence
+**Research Subject Registry** — Checked-in registry for `research` runs: aliases → `subjectKey`, representative instruments, provenance, optional ETF prediction proxy. Never restricts user subjects; a missing proxy permits zero scored Predictions with a disclosed gap.
 
-Low-trust, open-web Sources (`kind: "web"`) tagged with `exa` or fallback `firecrawl` provenance. They can support cited qualitative claims but cannot widen run or Prediction scope, or raise Evidence Quality beyond the extended-evidence cap.
+**Peer Universe** — Auditable comparable-Instrument set for peer valuation, resolved from checked-in ticker mapping, Subject Registry, or model-proposed candidates that code validates and caches. The model never authors the set. Candidates face tier-scoped comparability gates; too few valid peers yield a valuation Source Gap. A learned set's evaluation feedback (usable-peer count, each excluded peer's cause) is recorded per cache generation and shown to the next re-proposal; a transient fetch failure or stale fallback withholds it. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
-## Raw Web Snapshot
+## Predictions, forecasting, scoring
 
-Exact provider payload retained for audit and replay; never model-visible evidence.
+**Observation** — Public market value, point-in-time or windowed, used to resolve a Prediction.
 
-## Freshness-Budgeted Source Cache
+**Prediction** — Observable Prediction: `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
 
-Replays same-day provider payloads only within adapter freshness budgets; accession-addressed SEC filing documents are reused across days for 30 days from their original fetch. Expired entries require a live refetch; a failed refetch leaves any stale payload raw-audit-only and records a stale-cache Source Gap.
+**Prediction Subject** — Declared set a Prediction may concern. Direction/range/volatility/IV use the forecast subject; relative uses its primary instrument; research runs use their dedicated gate.
 
-## Model-Visible Web Text
+**Prediction Shortfall** — Structured `ResearchReport.predictionShortfall` disclosure (emitted, target, missing counts) that a report emitted fewer Predictions than its soft target after earnings and research-subject gates. Event Grid Predictions are excluded from both counts. No follow-up pass requests more.
 
-Sanitized, low-trust web prose used for profile extraction and final synthesis. Profile-covered sources stay metadata-only because their facts enter through the cited profile digest.
+**Prediction Trim** — Valid Prediction omitted after redundancy removal. Telemetry, not a failure.
 
-## Model Input Sanitization
+**Conditional Prediction** — Prediction depending on an earlier observable condition. Its probability is conditional; unmet conditions void it and exclude it from Calibration.
 
-Deterministic, profile-aware removal of high-confidence model-directed instructions from untrusted provider prose, metadata, SEC text, and prompt-bound history. Raw snapshots and history remain unchanged; only aggregate counts are persisted in trace and analytics.
+**Near-Base-Rate Prediction** — Valid Prediction within an inclusive ±0.10 band of its reference: the band's base rate (Gaussian over the scoring sessions, or 0.32 when unknown) for a range Prediction matching its subject's reconstructed ±1σ band at a listed horizon and printed two-decimal precision; 0.5 otherwise. Analytics counts it apart from informative Predictions.
 
-## Web Source Roles
+**Forecast-Shape Diversity Guidance** — Soft prompt guidance for varied Prediction shapes on deep instrument runs. Never a gate.
 
-Separate web accounting prevents volume being mistaken for coverage: current-run accepted, profile-used, report-cited, and unused Sources appear in `analytics.json:webSources`; reused-profile coverage appears separately with source run, age, and timestamp.
+**Event Grid** — Fixed set of events code issues on every equity instrument run (±1σ range outside-events at +1/+5/+20, relative vs SPY at +5), priced by the primary synthesis or a Forecast Grid Job and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into it. An unpriced event is a declared gap, never dropped or defaulted. See ADR 0003.
 
-## Web Subject Profile
+**Forecast Grid Job** — `forecast-grid --watchlist <name>`: issues the Event Grid with Baselines for every equity on a watchlist, one quick-model call per symbol from a compact fact sheet. No synthesis or Web Gather. Dry run unless `--yes`. Publishes one symbol-less run (`jobType: "forecast-grid"`) scored and calibrated like any other.
 
-Deterministic, citation-checked sidecar answering a fixed Subject-Kind question set from Web Evidence. Company profiles may use issuer 10-K/10-Q text first and require a current SEC basis for reuse; reuse skips extraction, not fresh Web Gather.
+**Forecast Baseline** — Frozen, versioned no-skill probability on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`): EWMA volatility, zero drift, √h over the sessions scoring spans. Range, direction, relative only; missing inputs omit it with a declared gap. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
 
-Its model-authored prose — `subjectSummary`, `questions`, `recentMaterialEvents`,
-`factLedger`, and `openGaps` — reaches report prose as a code-assembled digest, so it is
-screened against the research-only patterns where it is written, not where it is read.
-Required answers that trip are replaced by a code-generated withheld notice; array entries
-that trip are dropped and replaced by a code-generated withheld-count entry. Both produce a
-matching Source Gap; the original wording stays in the run's raw stage output. Code-generated
-entries are asserted rather than dropped, because wording the generator produced is a
-generator defect. Reuse of a notice-bearing profile re-emits those Source Gaps so the reusing
-run keeps the declaration and the evidence-quality cap. A profile whose required answers are
-all withheld notices is not a reuse basis: reuse skips extraction, and occupying the window
-would prevent a retry.
+**Forecast Event** — The unit Calibration counts: one canonical claim per asset class and origin, where origin follows the claim's resolution clock (next trading day for equity close windows, UTC date for crypto and calendar-day macro/IV, declared date for earnings). Same-session repeats collapse to the earliest (`duplicateForecastCount`). Per-run views still count issuances.
 
-## Subject Kind
+**Paired Skill** — Brier(Baseline) − Brier(model) over the same resolved Forecast Events, overall and per kind, with a subject-clustered block-bootstrap interval. Status: `model-better`, `baseline-better`, `not-yet-decidable` (interval spans 0 or below the 30-event / 5-block floor). Events without a baseline are excluded and counted. See ADR 0003.
 
-Web Subject Profile question set and reuse rule: `company` for equity, `crypto-asset` for crypto, and `theme` for research runs.
+**Reference Skill** — Descriptive Brier skill vs the fixed always-0.5 reference; secondary column beside Paired Skill. Does not change Actionable Negative Calibration's 0.25 gate.
 
-## Subject
+**Calibration** — Stated probabilities vs resolved outcomes, counted in Forecast Events: resolved count, hit rate, Brier, reliability bins, slices, small-sample warnings. New dashboards use policy-v3 forecasts.
 
-Research target: resolved Instrument for equity/crypto, or free-text thematic subject. It bounds web evidence but not Prediction Subjects.
+**Regime-Sliced Calibration** — Calibration grouped by persisted Market Regime (`risk-on`, `risk-off`, `mixed`, `insufficient-data`). Missing regimes are a coverage gap; Brier appears only above the sample floor.
 
-## Instrument
+**Actionable Negative Calibration** — Slice with ≥30 resolved Forecast Events, ≥10 distinct Runs, and a Bonferroni-adjusted 98.75% one-sided Brier lower bound above 0.25. Qualifying slices (asset-class, job-type, horizon, regime, kind) can guide probability discipline, never count, shape, or evidence rules. A kind slice below the floor is declared insufficient and supports no guidance.
 
-Tradable listed or quoted target, currently identified by `symbol + assetClass`, with optional exchange, currency, provider IDs, and aliases.
+**Scoring Policy** — Versioned Prediction clock contract. New Predictions are v3; unversioned legacy forecasts are v2 and scoring passes never change a resolved score. V3 grades provider-observed completed sessions for equity/earnings (a session still trading is withheld), target UTC date for crypto, calendar days for macro/IV. See ADR 0003.
 
-## Instrument Identity
+**Score Repair** — Explicit, audited replacement of one resolved score that consumed an unfinished session. Proven premature = a recorded exchange schedule shows the bar was still trading at acquisition; suspect = no schedule proves it closed. Dry run by default; keeps the original score and never touches the report.
 
-Provider-normalized metadata that relates Source Provider records to an Instrument.
+**Prediction Citation Classes** — Counts of Prediction `sourceIds` by Source `kind` (missing metadata → `unknown`). Measures citation use, not evidence influence.
 
-## Quote Currency
+**Forecast Disagreement** — Deep-run signal of challenger-model probability spread, variance, and mean over existing `measurableAs` events. Never replaces canonical probabilities. Per Prediction, band `low`/`medium`/`high`; with fewer than two probabilities the band is `unavailable` and spread/variance are omitted, never 0. Challengers do not see the primary probability (prose is not filtered); older-run bands were measured with it exposed.
 
-Currency of quoted market prices (`InstrumentIdentity.quoteCurrency`). Yahoo `GBp` means pence, not ISO `GBP`; it renders as pence without K/M/B scaling.
+**Forecast Persistence Telemetry** — Per-run comparison with the newest comparable prior run of the same known depth: repeated claims, unchanged probabilities, `changedProbabilityCount`, `maxAbsProbabilityDelta`. Omitted without a matching baseline or known depth. Descriptive only.
 
-## Reporting Currency
+**Miss Autopsy** — Post-score `miss-autopsy.json` classification of a material Prediction error from persisted artifacts only; `insufficient_evidence` when no cause is supported.
 
-Currency used in issuer fundamentals, distinct from Quote Currency (for example, GBP reports versus GBp quotes). Fundamental Financial Lens metrics use it; cash/debt/FCF threading is deferred to P2.
+**Prior-Thesis Error Correction** — Instrument-run prompt block of prior missed Predictions with probabilities, observations, and citations. Informs wording and calibration, not recommendations.
 
-## Observation
+## Cross-run history
 
-Public market value, point-in-time or windowed, used to resolve a Prediction.
+**Cross-run Intelligence** — Curated prior-state readback: Historical Research Context, history CLI, Instrument timelines, Calibration, Miss Autopsies, Forecast Persistence, error-correction blocks, and the Run Artifact read seam. Never uses raw `data/cache`; derived indexes are access paths, not truth.
 
-## Prediction
+**Historical Research Context** — Artifact-backed prompt and user-facing context from prior reports, Sources, Predictions, theses, gaps, extras, and numeric snapshots. Selection records recency, topical, and miss-correction reasons. Informs wording and comparison, not Prediction count or horizons. Prompts list only resolved prior Predictions; pending ones are counted.
 
-Observable forecast whose `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5 under the asymmetric grammar. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed through the structured `ResearchReport.predictionShortfall` contract, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+**Historical Context Gap** — Disclosed absence, parse failure, or mismatch in prior artifacts. Not a live-provider Source Gap.
 
-## Prediction Shortfall
+**Market Update Delta** — Deterministic Market Overview summary vs the previous overview: regime drivers, mover entries/exits, newly resolved Predictions. Distinct from `history thesis-delta`.
 
-Structured disclosure that a report emitted fewer observable Predictions than its soft target after
-earnings and research-subject gates. It records emitted, target, and missing counts; presentation
-derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
-The valid final-synthesis report's count stands; no follow-up pass requests more Predictions. Event Grid Predictions, including model Predictions folded into a grid event they restate, are excluded from both counts.
+## Market overview runs
 
-## Event Grid
+**Market Overview** — Horizon-parameterized asset-class run (`jobType: "market-overview"`): regime, movers, themes, catalysts, risks, gaps. Deprecated `daily`/`weekly` = 5/15 trading days; longer horizons still use one-day mover inputs and disclose it.
 
-Fixed set of observable events code issues on every equity instrument run — ±1σ range outside-events at +1/+5/+20 and relative vs SPY at +5 — priced by the primary synthesis in the same response (or by a Forecast Grid Job) and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into that event and issued as grid, not counted as a model forecast. An unpriced or unissuable event is a declared data gap, never dropped or defaulted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+**Market Spotlight** — Optional validated Overview focus chosen from collected snapshots. History and alpha-search can enrich but not create it; no nested jobs, fetches, or depth upgrades. Absent from equity, crypto, and research reports.
 
-## Forecast Grid Job
+**Market Regime** — Fetched-evidence backdrop: direction, volatility, liquidity, dominant themes.
 
-`forecast-grid --watchlist <name>`: issues the Event Grid with Forecast Baselines for every equity on a Research Console watchlist, priced by one quick-model call per symbol from a compact fact sheet (price history summary, regime and latest instrument-run summary when fresh). No report synthesis or Web Gather. Dry run by default; only `--yes` spends. Publishes one run dir (`jobType: "forecast-grid"`, no `symbol`) whose Predictions are scored and calibrated like any other; only parsed probabilities persist. An event it shares with an instrument run on the same session is one Forecast Event in Paired Skill.
+**Ticker Regime Context** — Live equity breadth/volatility proxy that labels an Instrument's Market Regime without historical overviews.
 
-## Forecast Baseline
+**Market Context** — Market-level evidence enriching an Overview without targeting an Instrument.
 
-Frozen, versioned no-skill probability stamped on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`) from split-adjusted closes: EWMA volatility, zero drift, √h over the sessions scoring spans after `infoCutoff`. Range, direction and relative only; missing inputs omit it with a declared gap. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
+**Mover** — Liquid Instrument ranked deterministically by move magnitude, liquidity, and Mover Features. **Mover Feature** — explainable ranking input; absence is neutral. **Benchmark-Relative Mover Context** — citeable sector-ETF/index comparison that never changes rank.
 
-## Paired Skill
+**Catalyst Calendar** — Passive Overview list of narrative catalysts, macro context, and prior Prediction resolution dates. Never scores or anchors Predictions.
 
-Calibration headline: Brier of the Forecast Baseline minus Brier of the model probability over the same resolved Forecast Events (positive means the model beat the baseline), overall and per kind, with a subject-clustered block-bootstrap interval. Status is `model-better`, `baseline-better` or `not-yet-decidable` (interval spans 0 or below the 30-event / 5-block floor). Events without a baseline are excluded and counted. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+## Sources, web, and gaps
 
-## Scoring Policy
+**Source** — Fetched market, news, or reference item with an ID for claim citations.
 
-Versioned, persisted Prediction clock contract selected through a registry. New Predictions are stamped v3; unversioned legacy forecasts remain v2 and scoring passes never change a resolved score (only a Score Repair can). V3 uses provider-observed completed sessions for equity and earnings — a session still trading at the scoring clock is withheld, not graded — target UTC date for crypto, and calendar days for macro/IV. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+**Source Provider** — External service normalized into Sources. **Supplemental Source Provider** — optional citeable provider that does not drive ranking, regime, or Observations unless promoted.
 
-## Score Repair
+**Source Gap** — Disclosed missing, weak, failed, or stale provider evidence. Persisted telemetry dedupes normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps stay separate. Every gap stays declared in the report, analytics, sidecar, and Console; only the Web Gather stage prompt sees a narrower view omitting gaps no web search can close.
 
-Explicit, audited replacement of one resolved score that consumed an unfinished session. Proven premature means a recorded exchange schedule shows a bar the score consumed was still trading at acquisition; suspect means no schedule proves it had closed. Dry run by default; an applied repair keeps the original score and its provenance, and never touches the report.
+**Material Gap** — Affects what a reader can conclude (missing statements, failed verified snapshot, core-lane provider data missing); appears in the Default View. Prediction shortfalls rank last among them.
 
-## Prediction Trim
+**Diagnostic Gap** — Instrumentation or entitlement artifact (absent optional provider, entitlement 403, unconfigured KPI registry, forecast-book notes such as `event-grid`, `forecast-baseline`, `earnings-forecasts` suppression, `forecast-grid` skip/fact-sheet notes); appears only in the Appendix, or labeled Diagnostic in the Data Gaps list of runs without one. Non-equity Console views keep the shortfall in a dedicated block.
 
-Valid Prediction omitted after redundancy removal; telemetry, not a validation failure or retry reason.
+**Provider Coverage Gap** — Source Gap from provider, account, region, or instrument limits; usually informational. Gated US-only sources emit `unsupported-coverage` without network calls.
 
-## Conditional Prediction
+**Not-Assessed** — Completeness status for a dimension whose inputs were never configured or available (unconfigured KPI registry, missing optional credential). Never counts as complete or raises a grade versus `partial`; unlike `partial`, it does not mean incomplete data.
 
-Prediction whose event depends on an earlier observable condition. Its probability is conditional; unmet conditions void it and exclude it from Calibration.
+**Gap-Shaped Claim** — Narrative absence-of-evidence claim, recognized by two non-interchangeable predicates. The broad relocation predicate moves an uncited claim from a findings section (or an eligible Business Framework section with no fallback source IDs) into `dataGaps` and records `trace.json:relocatedGapClaims`. The stricter audit predicate warns `gap-shaped-claim-cited` when such a claim carries source IDs.
 
-## Near-Base-Rate Prediction
+**Source Plan** — Deterministic, pre-collection policy of intended Evidence Lanes (core, material, supplemental), frozen from the command and checked-in subject; credentials and outcomes cannot change it. See ADR 0004.
 
-Emitted Prediction within an inclusive ±0.10 band of its applicable reference: the band's stated base rate (Gaussian over the sessions scoring spans, or 0.32 when that count is unknown) only when a range Prediction matches its subject's reconstructed ±1σ band at a listed reference horizon and printed two-decimal precision; 0.5 otherwise, including unavailable references. It remains valid; analytics counts it apart from informative Predictions.
+**Evidence Lane** — Intended Source Plan channel (market data, news, verified snapshot, SEC EDGAR). Covered only by a backing Source; an uncovered lane is distinct from a Source Gap.
 
-## Forecast-Shape Diversity Guidance
+**Relevant News Source** — News Source matching a News Relevance Target. It counts toward a lane's min-relevant-keep floor only when the subject is in its title or `source.symbol`. If seen-dedupe leaves the floor unmet, the newest qualifying repeats are restored and disclosed as `repeat-fallback`.
 
-Soft prompt guidance for direction, relative, range, volatility, earnings, and conditional shapes on deep instrument runs; never a validation gate.
+**Grace Window** — 24 h exemption from seen-news suppression measured from `firstSeenAt`; re-records keep the original `firstSeenAt`, so cross-day suppression still applies.
 
-## Stage Duration
+**News Relevance Target** — Ticker/issuer terms (instrument runs) or subject representatives and aliases (research runs) for deterministic relevance matching.
 
-Positive monotonic milliseconds awaiting a model-stage attempt, recorded as optional `durationMs` in trace and analytics. It excludes orchestration time and is not additive wall-clock time across concurrent stages.
+**Temporal Integrity** — Evidence contains only facts observable by its analysis cutoff. Later facts are excluded; stale fallbacks stay raw-audit-only with disclosure.
 
-## Prediction Subject
+**Freshness-Budgeted Source Cache** — Replays same-day provider payloads within adapter freshness budgets; accession-addressed SEC filing documents are reused 30 days from original fetch. A failed refetch leaves the stale payload raw-audit-only and records a stale-cache Source Gap.
 
-Declared set an instrument or Market Overview Prediction may concern. Direction/range/volatility/IV use the forecast subject; relative uses its primary instrument. Research runs instead use their dedicated prediction gate. See [ADR 0003](./docs/adr/0003-forecasts-scoring-and-calibration.md).
+**Web Gather** — Bounded deep-run loop of on-subject `web_search` and allowlisted `web_fetch` through the cached Source Provider seam. Exa is primary; Firecrawl is fallback-only for failed or thin Exa responses, never a substitute for a missing `MARKET_BOT_EXA_API_KEY`. A fallback closes the Exa Source Gap but never erases the incident: Provider Health still shows a non-available web-search row and a `web-search-provider` Subsystem Outcome. `web_fetch` fallbacks are recorded in that outcome's detail counts. For company subjects, SEC 10-K/10-Q profile coverage rejects redundant `background`/`current-subject` searches lacking a recency, corroboration, or explicit-gap rationale; reused-profile coverage rejects same-terms `background` searches; `news`/`market` are exempt. Reused profiles cut implicit per-query ingestion from 5 to 3. `web-gather` is Source-Gap taxonomy, not an Evidence Lane.
 
-## Forecast Disagreement
+**Web Evidence** — Low-trust open-web Sources (`kind: "web"`) with `exa` or `firecrawl` provenance. Support cited qualitative claims only; cannot widen run or Prediction scope or raise Evidence Quality beyond the extended-evidence cap.
 
-Deep-run uncertainty signal summarizing configured challenger-model probability spread, variance, and mean over existing `measurableAs` events. It never replaces canonical probabilities. Per Prediction, spread maps to band `low` / `medium` / `high`; with fewer than two model probabilities the band is `unavailable` and spread and variance are omitted, never reported as 0. Challengers do not see the structured primary probability (report prose is not filtered); bands from older runs were measured with it exposed.
+**Raw Web Snapshot** — Exact provider payload kept for audit and replay; never model-visible.
 
-## Forecast Persistence Telemetry
+**Model-Visible Web Text** — Sanitized low-trust web prose for profile extraction and synthesis. Profile-covered sources stay metadata-only; their facts enter through the cited profile digest.
 
-Per-run comparison with the newest comparable prior run of the same known depth, counting repeated canonical claims and unchanged probabilities, plus `changedProbabilityCount` and `maxAbsProbabilityDelta`. Omitted when no matching baseline exists or the current depth is unknown. It is descriptive Cross-run Intelligence only; Historical Research Context selection remains independent of depth.
+**Model Input Sanitization** — Deterministic removal of high-confidence model-directed instructions from untrusted prose, metadata, SEC text, and prompt-bound history. Raw snapshots stay unchanged; only aggregate counts persist.
 
-## Forecast Event
+**Web Source Roles** — Separate accounting (accepted, profile-used, report-cited, unused; reused-profile coverage with source run and age) in `analytics.json:webSources`, so volume isn't mistaken for coverage.
 
-The unit Calibration counts: one canonical claim per asset class and origin, where the origin follows the claim's resolution clock — the report's UTC date rolled to the next exchange trading day for equity close windows, the unrolled UTC date for crypto and calendar-day macro/IV claims, and the declared event date for earnings claims. Repeat issuances of the same claim on the same session collapse to the earliest one; the summary reports how many collapsed as `duplicateForecastCount`. Per-run views still count issuances.
+**Web Subject Profile** — Citation-checked sidecar answering a fixed Subject-Kind question set from Web Evidence. Company profiles may use issuer 10-K/10-Q text first and need a current SEC basis for reuse; reuse skips extraction, not fresh Web Gather. Its model-authored prose (`subjectSummary`, `questions`, `recentMaterialEvents`, `factLedger`, `openGaps`) reaches report prose as a code-assembled digest, so it is screened against the research-only patterns where written: tripped required answers become a code-generated withheld notice, tripped array entries are dropped and replaced by a withheld-count entry, each with a matching Source Gap; original wording stays in raw stage output. Code-generated entries are asserted, not dropped (a trip is a generator defect). Reuse of a notice-bearing profile re-emits those gaps, keeping the evidence-quality cap. A profile whose required answers are all withheld notices is not a reuse basis.
 
-## Calibration
+## Evidence quality and report audit
 
-Aggregate measurement of stated probabilities against resolved outcomes, counted in Forecast Events: resolved count, hit rate, Brier score, reliability bins, slices, and small-sample warnings. New dashboards use policy-v3 forecasts; legacy summaries remain readable.
+**Evidence Quality** — Deterministic grade of completeness, recency, corroboration, traceability. Model judgment and probabilities cannot set it.
 
-## Reference Skill
+**Equity Analysis Completeness** — Deterministic grade of what an issuer's reporting surface makes achievable (due interim coverage, filing cadence, per-share and payout evidence). Distinct from Evidence Quality: complete sourcing can expose an incomplete surface, such as an unfiled due quarter. See ADR 0004.
 
-Descriptive Brier skill against the fixed always-0.5 reference for all kinds; a secondary column beside Paired Skill. It does not change Actionable Negative Calibration's fixed 0.25 gate.
+**Post-Synthesis Audit** — Warn-only, no-model check for weak-evidence hygiene; records telemetry, never blocks or rewrites.
 
-## Prediction Citation Classes
+**Report Integrity Audit** — No-model pass after schema-valid synthesis, before Forecast Disagreement, that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (an emptied summary gets a fixed neutral fallback). Missing posture labels stay advisory; pruned Predictions never score. See ADR 0004.
 
-Counts of Prediction `sourceIds` by existing Source `kind`, counting each citation occurrence across Predictions. Missing Source metadata uses `unknown`; no citations yields an empty count map. This text-free telemetry measures citation use, not evidence influence.
+**Report Integrity** — Audit grade: `high` (no pruning), `medium` (pruned, required sections remain), `low` (pruning emptied a populated required section). Always stamped on new reports; tolerant reads may omit it.
 
-## Actionable Negative Calibration
+**Research Quality** — The worse of Evidence Quality and Report Integrity.
 
-Underperforming Calibration slice with at least 30 resolved Forecast Events, 10 distinct Runs among them, and a Bonferroni-adjusted 98.75% one-sided Brier lower bound above 0.25. Qualifying asset-class, job-type, default-horizon, Market-Regime, and Prediction-kind slices can guide probability discipline, never count, shape, or evidence rules. A Prediction-kind slice below the floor is declared insufficient rather than omitted, for disclosure only; an insufficient sample supports no probability guidance.
+**Domain Playbook** — Checked-in guidance (`prompts/playbooks/`) selected deterministically after collection: every planned stage gets all eligible playbooks plus mandatory discipline and subject selections, with no selector model call. Fetches no data and changes no schema; `trace.domainPlaybooks` records what was injected.
 
-## Regime-Sliced Calibration
+## Equity evidence
 
-Calibration grouped by persisted `risk-on`, `risk-off`, `mixed`, or `insufficient-data` Market Regime. Missing/unparseable regimes are reported as a coverage gap; Brier score appears only after the minimum sample floor.
+**Extended Evidence** — Optional higher-specificity provider evidence for instrument Research Views. **Fundamental Evidence** — sourced issuer operating and financial facts used as Extended Evidence.
 
-## Market Overview
+**Verified Market Snapshot** — Analysis-date-anchored, citeable OHLCV and technical-indicator block (Yahoo daily bars, ≥400-day lookback). A latest session provider metadata cannot prove closed is retained but marked `latestSessionStatus: "unverified"` and no longer called verified. Supplemental evidence, not a scoring Observation. `latestSessionStatus` is a closed set: a new value must update both the strict deep-equity bundle validator and the tolerant sidecar reader. See ADR 0004.
 
-Horizon-parameterized asset-class research run (`jobType: "market-overview"`) covering regime, liquid movers, themes, catalysts, risks, and gaps. Deprecated `daily`/`weekly` aliases mean 5/15 trading days; longer horizons still use one-day Yahoo/CoinGecko mover inputs and disclose that limitation.
+**Origin Anchor Quarantine** — Score evidence preventing an unverified snapshot session from becoming a Prediction's origin Observation: walks back to the latest verified session at or before the report origin, or leaves the Observation unavailable. Recorded at `score.json:evidence.originAnchorQuarantine`, summarized in `miss-autopsy.json`.
 
-## Research Subject Registry
+**Accounting Scope** — Basis of an earnings or cash-flow figure on three independent axes: continuing vs total operations, parent vs including noncontrolling interests (NCI), SEC filing vs provider basis. Figures are compared or divided only within one scope; equal values never imply equal scope. Revenue is continuing once discontinued operations are split out (ASC 205-20), so operating cash flow and net margin use continuing amounts where tagged, and a total-operations period with discontinued operations is withheld with a Source Gap. Net margin divides income including NCI; parent income stands in only without NCI income, else withheld with a gap. Capex carries no scope tag and is used as reported. See ADR 0004.
 
-Checked-in registry for thematic `research` runs. It resolves aliases to a `subjectKey`, representative instruments, provenance, and optional listed ETF prediction proxy, but never restricts user subjects. Missing registry/proxy permits zero scored Predictions with a disclosed proxy gap.
+**Earnings Basis Disclosure** — Deterministic line beside Yahoo trailing EPS/P/E keeping both observations: the provider value with its undisclosed basis, and the SEC diluted EPS TTM approximation (plus continuing-operations EPS TTM when tagged), stating agreement, mismatch, or currency mismatch without inventing an explanation.
 
-## Cross-run Intelligence
+**Current Report Evidence** — Bounded text from up to two SEC current reports (8-K domestic, 6-K foreign private issuers) filed within 120 days. Routine 8-Ks must postdate the newest periodic filing; the newest Item 2.02 earnings release gets a slot despite that floor. A substantive EX-99 exhibit is preferred over the primary document; a gap says when neither reports results. A domestic filer without a 10-K/10-Q gets no packet.
 
-Curated prior-state readback: Historical Research Context, history CLI, Instrument timelines, Calibration, Miss Autopsies, Forecast Persistence, error-correction blocks, and the canonical Run Artifact read seam. It never uses raw `data/cache`; derived indexes are access paths, not truth.
+**Yahoo Fundamentals Evidence** — Typed fundamentals from normalized Yahoo quotes (`yahoo-fundamentals`): P/E, P/B, yield, EPS, shares, dividend, book value. Supports non-US and price-relative ratios. See ADR 0004.
 
-## Historical Research Context
+**Valuation Evidence** — Deterministic Extended Evidence: market cap, fundamentals, and (for `equity --deep`) peer comps → EV, revenue multiples, peer median/IQR, supportability, and the peer-implied price reference range (low/mid/high, spot position, or suppression reason), so synthesis reads the range the report renders. Target and peers share one revenue basis, SEC TTM (FY + latest YTD − prior YTD, or the latest 12-month fact); a partial period is never annualized, so a peer without reconciled TTM is rejected and a target without it withholds revenue multiples behind a Source Gap. Peers need ≥3 qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except curated `ticker-mapping` (`curated-no-sic` vs `full` gate profiles). Rejections stay visible. See ADR 0004.
 
-Artifact-backed prompt and user-facing context from prior reports, Sources, Predictions, theses, gaps, extras, and selected numeric snapshots. Selection records recency, topical, and miss-correction reasons; it informs wording, calibration, and comparison, not Prediction count or horizons. Prompts list only resolved prior Predictions as rows; pending ones are counted, not listed.
+**EV Bridge** — EV = market cap + debt + preferred (carrying) + NCI + temporary equity (redeemable NCI and preferred) − cash − short-term investments; net debt = debt − cash − short-term investments; long-term investments stay out. Each component resolves from us-gaap company facts at the cash instant from a priority list of never-summed alternatives: a tagged fact (zero counts), else `CashCashEquivalentsAndShortTermInvestments` − cash, else a nonzero fact within 400 days makes it incomplete, else untagged = zero. Short-term investments are also incomplete when the combined line differs from cash plus the picked line. Untagged NCI is derived as equity incl. NCI − parent equity only when positive and the balance-sheet identity reconciles; temporary equity counts only where assets − liabilities − equity reconciles to it. Incomplete short-term investments withhold net debt and EV; incomplete NCI, preferred, or temporary equity withhold EV only, each behind a Source Gap. Non-us-gaap issuers have no bridge, so EV and net debt are withheld. See ADR 0004.
 
-## Run Artifact
+**Valuation Workbench** — Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. Reports P/E, P/S, EV/revenue, P/FCF proxy as MetricResults with input lineage and a declared filing-date close/FX basis, plus the peer table/reference range. When no period of any concept ends after the latest 12-month fiscal year, canonical TTM is that fiscal year (`formula: "FY"`, public at its 10-K filing date, labelled "TTM = FY<year>, <form> accession <n>") and replaces the duplicate annual observation; once a later interim is filed only the reconciled FY + YTD − prior YTD counts. Missing canonical TTM is suppressed; quarter-only periods are never combined into an unreconciled trailing value. Each observation is a Metric Section (`valuation-workbench-<basis>-<periodEnd>-<publicAt>`) with one Source Gap for unresolved metrics. A close before the requested history start carries cause `outside-price-history-window` only when usable history was returned; observations whose only unresolved metrics carry it share one diagnostic gap (`valuation-workbench-outside-price-history-window`) naming every period. Missing bars inside the window, provider failures, and independent unresolved inputs stay material.
 
-Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`: Research View, scores, and normalized snapshots. Later runs and history read it; Source Providers are never refetched for it.
+**Reverse DCF Input Sensitivity** — Isolated equity sidecar solving the five-year FCF growth input across 8%–16% discount and 0%–4% terminal-growth rates, from reconciled-TTM FCF and observed EV. Missing, non-positive, or currency-incompatible inputs suppress it. Boundary: [ADR 0001](./docs/adr/0001-research-only-boundary.md).
 
-## Subsystem Outcome
+**Financial Lens Evidence** — Neutral SEC/Yahoo metric groups (Quality, Growth, Financial Strength, Value, Momentum) with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. Numbers are Metric Sections (`financial-lens-<lens>`); the `financial-lens` Extended Evidence item is rebuilt from them. Financial Strength counts only balance-sheet inputs within 180 days of the cutoff and 92 days of the newest balance-sheet period; older is `missing` with a `stale <input> as of <end>` reason and a section Source Gap, never shown as a dated figure. See ADR 0004.
 
-Coded record of what one run subsystem was expected to do and whether it acquired output, stayed
-empty, declined, failed, or was blocked. `empty` means no output was accepted as the subsystem's
-result: nothing came back, or what came back was not accepted. Output that is accepted but carries a usability posture stays `produced`
-under a code saying so, so an unsupportable Evidence Lane is not `empty`. `declined` means the
-subsystem yielded no result and its producer did not treat that as a failure or a blockage: out of
-scope for the run, never enabled by scope, configuration, budget, or credentials, suppressed by
-design, unsupported for the subject, or run and cleanly refused.
+**Business Framework Evidence** — Deterministic framework (Business, Phase, Moat, Growth, Management, Risk, Valuation) in `normalized/business-framework.json`. Numbers are Metric Sections (`business-framework-<section>`, none for Management) referenced by `metricSectionIds`; the framework keeps phase, posture, model text, and qualitative gaps, with neutral postures and lifecycle labels. Brief runs keep the eleven profile-mapped qualitative gaps as `suppressed-by-design` (not assessed at brief depth; filing prose and Web Subject Profile excluded); analyst consensus stays an independent `provider-data-missing` gap.
 
-The five statuses are not a clean taxonomy and will mislead if read as one. Each records how that
-subsystem's own producer classified its situation, so the same condition can map differently across
-subsystems: a missing Exa credential skips Web Gather as `declined` while a lane-local
-missing credential is `blocked`. The code beside the status is the
-specific part — it distinguishes acquired-but-unusable output and lane-local causes. Reading
-`empty` as nothing accepted is what keeps `expectedEmptyCount` an accurate name for every row it
-counts. It is run telemetry, not a Diagnostic Gap.
+**Evidence Reconciliation** — No-model post-profile pass for `equity --deep` that removes a Business Framework qualitative gap only when the matching structured, cited web profile answer exists. Records the resolution; never adds prose, changes postures/phase, or clears unrelated gaps. May never clear numeric postures or phase.
 
-## Failed Run Artifact
+**Metric Section** — Ordered list of metrics evaluated once at collection from raw statement, capital-ownership, and quote inputs (or pass-through Extended Evidence values with lineage). Tenants: six Business Framework sections, five Financial Lenses, Capital Return, Operating Ratios (FCF margin, interest coverage, EBITDA proxy, effective tax rate, ROIC), Valuation Workbench observations, Price Performance. Each metric has a status (`value`, `missing`, `not-meaningful`, `not-applicable`), input lineage, and source IDs; every non-value metric is listed in one section Source Gap, material when any `missing` metric lacks a structural cause, else diagnostic. Causes: `outside-price-history-window`; `insufficient-history` (returned history starts 8–14 days after the anniversary; SPY rows also need benchmark coverage); `not-filed` (no raw fact under any alias, or for debt under any concept the debt selection reads). Capital Return and Operating Ratios always emit on equity runs (unavailable statements → missing rows plus material gaps). A lens with nothing off SEC facts keeps its Extended Evidence item but no section. An omitted `metricSections` is `undefined`, distinct from `[]`. A lifecycle phase without cited inputs is missing. Projected to `report.extras.metricSections` (report.md appendix, Console Advanced view), persisted in the deep bundle's `derived.metricSections`, and shown to evidence-request, analysis, critique, and final-synthesis prompts as a reference catalog.
 
-Persisted diagnostics from a run whose final synthesis never produced a valid Research View. `failure.json` marks a complete Failed Run Artifact; `outcomes.json`, `rejected-report.json`, `stages.json`, normalized evidence, and raw snapshots preserve the rejection context, while `report.json` is deliberately absent.
+**Metric Reference** — `<<metric:<section>.<id>>>` token in cited model prose; `<<metric:<section>.<id>|period>>` appends the period label. Assembly merges the metric's source IDs into the claim, validates citations and research-only wording, then substitutes the formatted value. Unknown/unavailable metrics, unknown formats, and `|period` on a metric without a period end reject the draft for repair. Catalog = collected Metric Sections plus a reference-only `market-session` section from the Verified Market Snapshot (never in `report.extras.metricSections`). Free-typed numbers stay allowed for figures no metric holds. Summary stays qualitative; data gaps and Prediction expressions cannot contain references.
 
-## Fixture Run
+**Price Performance** — `price-performance` Metric Section: cumulative 1/3/5-year issuer and "SPY (S&P 500 proxy)" price returns on split-adjusted closes, excluding dividends. Issuer returns use issuer completed sessions independently of SPY; SPY comparison rows use common sessions. Starts are within ±7 calendar days of the anniversary, the end at most seven days old. History is collected once for this section, the Valuation Workbench, and the Verified Market Snapshot. Each row discloses its own quote currency, no FX. Unavailable or ambiguous split metadata, or missing inputs, give unavailable rows plus one section gap; missing SPY history withholds only SPY rows, and a SPY fetch failure also declares a Yahoo gap. `insufficient-history` applies only when the earliest completed bar is 8–14 days after the anniversary (and, for SPY rows, the benchmark covers it); later starts are material. Section triage is diagnostic only when every missing row has that cause. Web Gather receives no catalog or these gaps.
 
-Engineering-only deterministic test/eval run using real orchestration with HTTP/model boundaries replaced by cassettes or a live eval model.
+**Earnings Setup** — For `equity --deep`, event context when Finnhub reports earnings within 30 days: metadata, date certainty, optional Tradier implied move, sourced bullets, gaps. Finnhub dates stay `provider-estimated`; issuer IR/press release or explicit-future SEC 8-K/6-K can establish `issuer-confirmed`, only a direct official exchange source `exchange-confirmed`, recorded in `confirmedBy`. A fetched source stating a different future date sets `event.dateConflict` and a Source Gap without changing the status. Earnings Predictions use post-event trading-day horizons and `earningsReturn` only for confirmed dates. IV crush is deferred.
 
-## Replay Capture
+**Scored Catalyst** — Dated provider event (earnings, dividend, split, macro release) scored only by fixed materiality and date confidence. Only confirmed-exact dates anchor Predictions. Distinct from narrative catalysts and the Catalyst Calendar.
 
-Opt-in, local engineering sidecar at `<run>/replay/`: sanitized effective settings, Data and LLM
-Cassettes, the recorded clock and consumed cross-run/cache state, plus a Final-Synthesis Input.
-Publication follows validation and secret scanning; failure does not invalidate the Run Artifact.
-It is excluded from report fields, Calibration, history and the Run Artifact Index.
+## Alpha search
 
-## Final-Synthesis Input
+**Research Lead** — Equity candidate surfaced for further research. **Alpha Search Report** — research-only artifact listing valid Leads and rejected candidates with source IDs and reasons.
 
-Versioned structured input saved before prompt rendering for direct execution of final synthesis
-and its deterministic report audits. Includes normalized evidence, allowed source/subject identities,
-prior outputs, consumed context and recorded model responses; current Domain Playbooks reload on
-replay. Direct outputs are partial evaluation artifacts, not new completed Run Artifacts.
+**Social Momentum Score** — Alpha-search rank from ApeWisdom aggregate social features before market validation. **Discussion Stance** — noisy classification of cited discussion as constructive, skeptical, mixed, or unclear.
 
-## Report Rerun
+**Source Promotion Criteria** — Historical validation thresholds for raising a discovery source/group's budget, weighting, or retention; never for promoting individual Leads.
 
-Zero-network, zero-model projection and rendering of a past report with its saved normalized
-inputs, writing a separate evaluation candidate. It tests current projections, validation and
-renderers without recomputing source collection or model reasoning.
+**Validation Baseline** — Minimum exercised routes and source capabilities for provider readiness to pass.
 
-## Data Cassette
+## Fixtures, replay, evals
 
-Secret-scrubbed canonical HTTP request-to-response map replayed beneath the cache, leaving collector, normalization, and Source-Gap behavior active.
+**Fixture Run** — Engineering-only deterministic run using real orchestration with HTTP/model boundaries replaced by cassettes or a live eval model.
 
-## LLM Cassette
+**Data Cassette** — Secret-scrubbed canonical HTTP request→response map replayed beneath the cache; collector, normalization, and Source-Gap behavior stay active.
 
-Ordered recorded `ModelProvider.generate` responses by stage/model. Replay matches the exact model first, then a unique recorded model for the stage; missing, ambiguous, exhausted, and unidentified stage requests fail. Unused responses alone do not fail replay. Regression mode uses it; eval mode bypasses it, except `--live-stages <stage>`, which keeps one validated stage live and replays every other stage from it.
+**LLM Cassette** — Ordered recorded `ModelProvider.generate` responses by stage/model. Replay matches the exact model first, then a unique recorded model for the stage; missing, ambiguous, exhausted, and unidentified requests fail; unused responses alone do not. Eval mode bypasses it except `--live-stages <stage>`.
 
-## Regression Mode
+**Regression Mode** — Fixture mode replaying both cassettes: zero network, zero model cost. **Eval Mode** — replays Data Cassettes, calls the configured live model.
 
-Fixture mode replaying Data and LLM Cassettes for deterministic, zero-network, zero-model-cost coverage.
+**Replay Capture** — Opt-in sidecar `<run>/replay/`: sanitized settings, both cassettes, recorded clock and consumed cross-run/cache state, and a Final-Synthesis Input. Published after validation and secret scanning; failure does not invalidate the Run Artifact. Excluded from report fields, Calibration, history, and the index.
 
-## Eval Mode
+**Final-Synthesis Input** — Versioned input saved before prompt rendering for direct execution of final synthesis and its deterministic audits (evidence, allowed source/subject identities, prior outputs, consumed context, recorded responses; current Playbooks reload on replay). Direct outputs are partial evaluation artifacts, not Run Artifacts.
 
-Fixture mode replaying Data Cassettes while calling the configured live model, keeping market data static.
+**Report Rerun** — Zero-network, zero-model re-projection and rendering of a past report from saved normalized inputs into a separate evaluation candidate. Tests projections, validation, and renderers only.
 
-## Frozen-Input Eval
+**Frozen-Input Eval** — `scripts/eval-deep.ts`: each fixture N times against the same Data Cassette, comparing artifact-derived metrics between two labels. `--live-stages <stage>` keeps one validated stage live (with its bounded loops/repairs), the rest recorded; `--input <file>` evaluates a Final-Synthesis Input directly with no upstream execution. Planning measures prompt sizes offline and adds attempt headroom; estimates are not cost caps. Writes only under `data/evals/<label>/` (never Calibration, index, or history). Every Data Cassette miss is counted per sample and goes through `fetch-failed` handling, which a fallback may close, so the count — not the Source Gaps — is authoritative. HTTP/model replay misses make the sample incomplete and block later model spend; recorded provider failures are valid inputs. A selected stage with zero invocations is not exercised. Adaptive requests stay cassette-only.
 
-Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. `--live-stages <stage>` keeps one validated stage live, including its phase-bounded loops/repairs; all other model reasoning stays recorded. This is selected-stage evaluation within pipeline execution. `--input <file>` instead evaluates a Final-Synthesis Input directly, with no upstream execution. Selected-stage planning measures current prompt sizes in a strict offline preflight and adds bounded-attempt headroom; estimates are not provider-enforced cost caps. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps. HTTP and model replay misses make the sample incomplete and block subsequent model spending; recorded provider failures remain valid inputs. Samples also record replayed/live call counts, separate successful-response token estimates, evaluation scope and available response-consumption diagnostics. A selected stage with zero invocations is not exercised. Adaptive requests remain cassette-only.
-
-## Labeled Eval Case
-
-Frozen claim from a replay capture (`tests/fixtures/eval-cases/cases.json`), pinned by file hash and JSON pointer, labeled `stale-support`, `omission` (citation coverage), `unsupported-inference`, `contradiction`, `extraction-error`, or `clean`, with the artifact evidence that justifies the label. Deterministic checks score stale support and citation coverage, with figures as a diagnostic; `contradiction` and `unsupported-inference` need a k=3 model judge. `eval-deep.ts --input --ablate <arm>` scores Frozen-Input Eval samples with the same checks plus a judged report pass; an isolated arm skips one analysis stage and regenerates its consumers live, and is compared in pre-paired samples against a matched control that regenerates the same consumers with the stage kept (the recorded baseline for terminal critique); identical judge requests cancel across a pair, so its scores are relative. The statistics inform a human stage-deletion decision under the rule pre-registered in docs/testing.md.
-
-## Run Artifact Index
-
-Rebuildable SQLite index over Run Artifacts (`data/index.sqlite` by default) for console/search/calibration queries. Jobs update it incrementally; stale indexes rebuild automatically, missing/unsupported indexes fall back to disk, and disk artifacts remain authoritative.
-
-## Research Thesis
-
-Research View narrative state: sourced summary, findings, cases, risks, catalysts, gaps, and observable Predictions; not an investment thesis.
-
-## Prior-Thesis Error Correction
-
-Instrument-run prompt block of prior missed Predictions, their probabilities, observations, and citations. It explicitly informs wording and calibration, not recommendations.
-
-## Miss Autopsy
-
-Post-score `miss-autopsy.json` classification of a material Prediction error from persisted artifacts only. It uses `insufficient_evidence` when no specific cause is supported.
-
-## Market Update Delta
-
-Deterministic Market Overview summary of changes from the comparable previous overview: regime drivers, mover entries/exits, and newly resolved Predictions. It is distinct from manual instrument `history thesis-delta`.
-
-## Verified Market Snapshot
-
-Analysis-date-anchored, citeable OHLCV and technical-indicator block for an equity Instrument. V1 uses Yahoo daily bars with a ≥400-day lookback; it retains a latest session that provider metadata cannot prove closed, marks it `latestSessionStatus: "unverified"`, and stops describing that session as verified. It is supplemental evidence, not a scoring Observation. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Origin Anchor Quarantine
-
-Score evidence that prevents a retained-unverified Verified Market Snapshot session from silently becoming a Prediction's origin Observation. It walks backward within the scoring window to the latest verified session at or before the report origin, or leaves the Observation unavailable; the full decision is recorded at `score.json:evidence.originAnchorQuarantine` and a compact summary at `miss-autopsy.json:autopsies[].evidence.originAnchorQuarantine`.
-
-`latestSessionStatus` is a closed set. A new status must update both the strict deep-equity bundle validator and the tolerant sidecar reader.
-
-## Instrument Accountability Timeline
-
-Console view for one `assetClass + symbol`, joining Research Theses, Predictions, scores, Miss Autopsies, and available verified closes for traceability.
-
-## Instrument Run History
-
-Every Run Artifact for one Instrument, newest first; the newest leads and earlier runs follow. Runs without an Instrument stand alone.
-
-## Historical Context Gap
-
-Disclosed absence, parse failure, or mismatch in prior artifacts; not a live-provider Source Gap.
-
-## Market Spotlight
-
-Optional validated Market Overview focus chosen from current collected market snapshots. History and alpha-search can enrich it but cannot create it; it does not launch nested jobs, fetch sources, or upgrade depth. Equity, crypto, and research reports carry none, and final synthesis cannot author one without a selection.
-
-## Market Regime
-
-Current fetched-evidence backdrop: broad direction, volatility, liquidity, and dominant themes.
-
-## Ticker Regime Context
-
-Live equity breadth/volatility proxy evidence collected with an Instrument to label its current Market Regime without relying on historical overviews.
-
-## Market Context
-
-Market-level evidence that enriches a Market Overview without targeting an Instrument.
-
-## Domain Playbook
-
-Checked-in guidance selected deterministically after collection and any deterministic deep-equity packet merge. Every planned stage receives all eligible playbooks plus mandatory discipline and subject selections, without a selector model call. It steers downstream stages without fetching data, changing schema, or trading behavior; `trace.domainPlaybooks` records what was injected.
-
-## Mover
-
-Liquid Instrument ranked deterministically by movement magnitude, liquidity, and available Mover Features.
-
-## Mover Feature
-
-Deterministic, explainable ranking input; absence is neutral.
-
-## Benchmark-Relative Mover Context
-
-Citeable sector-ETF or index comparison for a Mover that never changes rank.
-
-## Evidence Quality
-
-Deterministic grade of evidence completeness, recency, corroboration, and traceability. Model judgment, narrative uncertainty, and Prediction probability cannot set it.
-
-## Equity Analysis Completeness
-
-Deterministic grade of what an equity issuer's reporting surface makes achievable, including due interim coverage, filing cadence, and per-share and payout evidence. It is distinct from Evidence Quality, which grades what sourcing achieved: complete sourcing can expose an incomplete reporting surface, such as a due quarter the issuer has not filed. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Temporal Integrity
-
-Current evidence contains only facts observable by its analysis cutoff. Later facts are excluded; stale fallbacks stay raw-audit-only with disclosure.
-
-## Post-Synthesis Audit
-
-Warn-only, no-model inspection for weak-evidence hygiene (for example unsupported numeric/technical claims or missing evidence posture). It records telemetry without blocking, rewriting, or re-synthesis; Report Integrity Audit handles pruning.
-
-## Gap-Shaped Claim
-
-Narrative absence-of-evidence claim recognized by two consumer-specific predicates. The broad relocation predicate moves an uncited claim from a findings section, or an eligible known Business Framework section with no projected fallback source IDs, into `dataGaps` and records its original path and text in `trace.json:relocatedGapClaims`. The stricter audit predicate emits the observational `gap-shaped-claim-cited` warning when such a claim carries source IDs. The predicates are not interchangeable.
-
-## Report Integrity Audit
-
-No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (the summary has no citation field; an emptied summary gets a fixed neutral fallback), then validates/persists the result. Missing posture labels remain advisory; pruned Predictions never score. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Report Integrity
-
-Audit grade: `high` (no pruning), `medium` (pruned but required sections remain), or `low` (pruning emptied a previously populated required section). New reports always stamp it; tolerant historical reads may omit it.
-
-## Research Quality
-
-The worse of Evidence Quality and Report Integrity, stamped on new reports.
-
-## Source
-
-Fetched market, news, or reference item with an ID for claim citations.
-
-## Relevant News Source
-
-News Source matching a News Relevance Target. Same-day repeats stay visible through the Grace Window. A Source counts toward an instrument lane's min-relevant-keep floor only when the subject appears in its title or `source.symbol`; summary/snippet-only matches stay selectable but do not satisfy the floor. If seen-dedupe leaves the floor unmet, the newest qualifying repeats are restored up to it and disclosed as `repeat-fallback`.
-
-## Grace Window
-
-The 24 h exemption from seen-news suppression measured from an entry's `firstSeenAt`: a repeat first sighted less than 24 h before the run is not suppressed, so a same-day rerun of a lane still sees that day's news. Cross-day suppression stays: re-records keep the original `firstSeenAt`, so the exemption lapses 24 h after the first sighting.
-
-## News Relevance Target
-
-Ticker/issuer terms for instrument runs, or subject representatives and aliases for research runs, used for deterministic relevance matching.
-
-## Source Provider
-
-External market, news, or reference service normalized into Sources.
-
-## Supplemental Source Provider
-
-Optional citeable provider that does not drive mover ranking, regime labels, or scoring Observations unless explicitly promoted.
-
-## Source Gap
-
-Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps remain separate because their acquisition paths differ, while both flow through Source Plan lanes.
-
-Every Source Gap stays declared in the report, analytics, sidecar, and Console. Only the Web Gather stage prompt sees a narrower view that omits gaps no web search can close.
-
-## Not-Assessed
-
-Completeness status for a dimension that could not be evaluated because its inputs were never
-configured or available to the deployment, such as an unconfigured operating-KPI registry or a
-missing optional provider credential or entitlement. It never counts as complete, and never
-upgrades a tier or raises the headline grade relative to counting the same dimension as `partial`.
-Unlike `partial`, it does not mean the dimension was assessed with incomplete data.
-
-## Material Gap
-
-A Material Gap affects what a reader can conclude about the company, such as missing financial
-statements, a failed verified price snapshot, or provider data missing from a core lane, and appears
-in the Default View.
-
-## Diagnostic Gap
-
-A Diagnostic Gap is an instrumentation or entitlement artifact, such as an absent optional
-provider, an entitlement 403, an unconfigured operating-KPI registry, or a forecast-book note
-(`event-grid`, `forecast-baseline`, `earnings-forecasts` suppression, and the Forecast Grid Job's
-watchlist-skip and fact-sheet `forecast-grid` notes), and appears only in the Appendix; Markdown
-without an Appendix (non-equity runs, Forecast Grid) labels it Diagnostic in its Data Gaps list.
-Prediction shortfalls affect the delivered research scope and appear last among Material Gaps in
-the Default View. Non-equity Console views keep the structured disclosure in a dedicated Shortfall
-block.
-
-## Source Plan
-
-Deterministic, pre-collection policy for intended Evidence Lanes classified core, material, or supplemental. It is frozen from the command and checked-in subject, so credentials, availability, and outcomes cannot change it. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Evidence Lane
-
-Intended Source Plan channel, such as market data, news, verified snapshot, or SEC EDGAR. It is covered only by a backing Source; an uncovered lane is distinct from a Source Gap.
-
-## Research Lead
-
-Equity candidate surfaced for further alpha-search research.
-
-## Source Promotion Criteria
-
-Historical validation thresholds for increasing a discovery source/group's workflow budget, weighting, or retention; never for promoting individual Research Leads.
-
-## Social Momentum Score
-
-Deterministic alpha-search rank from ApeWisdom aggregate social-momentum features before market-data validation.
-
-## Discussion Stance
-
-Noisy heuristic classification of cited discussion as constructive, skeptical, mixed, or unclear.
-
-## Alpha Search Report
-
-Research-only discovery artifact listing valid Research Leads and rejected candidates with source IDs and reasons.
-
-## Validation Baseline
-
-Minimum exercised research routes and source capabilities required for provider readiness to pass.
-
-## Provider Coverage Gap
-
-Source Gap caused by provider, account, region, or instrument limits, usually expected/informational in provider-health validation. Gated US-only sources emit `unsupported-coverage` without network calls and analytics classify it separately.
-
-## Extended Evidence
-
-Optional higher-specificity provider evidence for instrument Research Views.
-
-## Fundamental Evidence
-
-Sourced issuer operating and financial facts used as Extended Evidence.
-
-## Accounting Scope
-
-The basis an earnings or cash-flow figure is measured on, along three independent axes: continuing versus total operations (total includes discontinued operations), parent-attributable versus including noncontrolling interests (NCI), and SEC filing versus provider earnings basis. Figures are compared, divided, or called conflicting only within one scope; equal values never imply equal scope. Revenue is a continuing line once an issuer splits out discontinued operations (ASC 205-20), so operating cash flow and net margin use continuing amounts where tagged, and a total-operations period that reports discontinued operations is withheld with a Source Gap. Revenue is also consolidated, so net margin divides income including NCI; parent-attributed income stands in only without NCI income, and is otherwise withheld with a Source Gap. Capex carries no scope tag and is used as reported, which FCF bases state. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Earnings Basis Disclosure
-
-The deterministic line beside Yahoo trailing EPS and P/E that keeps both observations: the provider value with its undisclosed basis, and the SEC diluted EPS TTM approximation (plus continuing-operations EPS TTM when tagged), with agreement, mismatch, or currency mismatch stated and no explanation invented.
-
-## Current Report Evidence
-
-Bounded text from up to two recent SEC current reports — 8-K for domestic filers, 6-K for foreign private issuers — filed within 120 days of collection. Routine 8-Ks must postdate the newest periodic filing, while the newest Item 2.02 earnings release within the window gets one of the two slots despite that floor because it normally precedes the periodic filing and carries nonduplicative results context. The no-periodic-basis path is foreign-private-issuer/6-K only; a domestic filer without a 10-K or 10-Q receives no current-report packet. A substantive EX-99 earnings-release exhibit is preferred over the primary document; a gap discloses when neither reports substantive results.
-
-## Valuation Evidence
-
-Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, supportability, and the peer-implied price reference range (low/mid/high and spot position, or its suppression reason) so final synthesis reads the same range the report renders. Target and peers share one revenue basis, SEC TTM (fiscal year + latest YTD − prior-year YTD, or the latest 12-month fact); a partial period is never annualized, so a peer without reconciled TTM is rejected with that reason and a target without it withholds its revenue multiples behind a Source Gap. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## EV Bridge
-
-The non-common claims and near-cash assets that turn market cap plus debt into enterprise value: EV = market cap + debt + preferred stock (carrying amount) + noncontrolling interest + temporary equity (redeemable noncontrolling interest and redeemable preferred) − cash − short-term investments; net debt = debt − cash − short-term investments. Long-term investments stay out. Each component is resolved from us-gaap company facts at the cash instant from a priority list of alternatives that are never summed: a tagged fact (zero counts), else short-term investments as `CashCashEquivalentsAndShortTermInvestments` − cash, else a nonzero fact within 400 days makes the component incomplete, else it is untagged and counts as zero. Short-term investments are also incomplete when the combined line differs from cash plus the picked line; untagged noncontrolling interest is derived as equity including NCI − parent equity only when positive and the balance-sheet identity reconciles; temporary equity counts only where assets − liabilities − equity reconciles to it, so it never double counts noncontrolling interest. Incomplete short-term investments withhold net debt and EV; incomplete noncontrolling interest, preferred stock or temporary equity withholds EV only, each behind a Source Gap. Non-us-gaap issuers have no EV Bridge, so their EV and net debt are withheld. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Valuation Workbench
-
-Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. It reports P/E, P/S, EV/revenue, and P/FCF proxy as engine MetricResults with input lineage and a declared filing-date close/FX basis, and carries the existing peer table/reference range with dates, currencies, supportability, and sources. Missing canonical TTM is suppressed; retained quarter-only periods are never combined into an unreconciled trailing value. Each observation is a Metric Section (`valuation-workbench-<basis>-<periodEnd>-<publicAt>`) with one Source Gap for unresolved metrics; absent statements or periods produce a missing workbench section. Unavailable closes before the requested history start carry structural cause `outside-price-history-window` only when usable history was returned; the status and `price-history-unavailable` reason remain unchanged. Observations whose only unresolved metrics carry that cause share one diagnostic Source Gap (`valuation-workbench-outside-price-history-window`) naming every affected period instead of one gap each; their Metric Sections stay per period. Missing bars inside the requested window, provider failures, and independent unresolved inputs remain material. The dedicated historical table renders these sections. P/FCF reads raw statement and price inputs without depending on another enricher.
-
-## Reverse DCF Input Sensitivity
-
-An isolated versioned equity sidecar that solves the five-year FCF growth input across 8%–16% discount rates and 0%–4% terminal-growth assumptions. It discloses reconciled-TTM starting FCF, observed enterprise value, input dates, currencies, sources, and the five-year horizon. Missing, non-positive, or currency-incompatible inputs suppress the artifact. Its research-only boundary is defined by [ADR 0001](./docs/adr/0001-research-only-boundary.md).
-
-## Financial Lens Evidence
-
-Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. Its numbers are Metric Sections (`financial-lens-<lens>`, one per lens with a filed input) and the `financial-lens` Extended Evidence item is rebuilt from them with unchanged keys. Financial Strength counts only current balance-sheet criteria: within 180 days of the analysis cutoff and 92 days of the newest balance-sheet period; an older input is `missing` with a `stale <input> as of <end>` reason and is declared in the lens section's Source Gap, never displayed as a dated historical figure. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Business Framework Evidence
-
-Deterministic framework for Business, Phase, Moat, Growth, Management, Risk, and Valuation, persisted in `normalized/business-framework.json`. Its numbers are Metric Sections (`business-framework-<section>`, none for Management) referenced by each section's `metricSectionIds`; the framework keeps phase, posture, model text and qualitative gaps. It has neutral section postures and lifecycle labels; on deep web-enabled equity runs, Evidence Reconciliation may clear qualitative gaps but never numeric postures or phase.
-
-Brief runs retain the eleven profile-mapped qualitative gaps as `suppressed-by-design`, with text declaring the topic not assessed at brief depth because filing prose and Web Subject Profile are excluded. Analyst consensus remains an independent `provider-data-missing` gap.
-
-## Metric Section
-
-Deterministic, ordered list of metrics evaluated once at collection from raw statement, capital-ownership and quote inputs, or pass-through Extended Evidence values with their item as lineage; the tenants are the six Business Framework sections, the five Financial Lenses (`financial-lens-<lens>`, emitted for a lens that read a filed input), then Capital Return, then Operating Ratios (FCF margin, interest coverage, EBITDA proxy, effective tax rate, ROIC), then the Valuation Workbench observations (with raw verified-close and FX lineage), then Price Performance (with split-adjusted Yahoo-close lineage). Each metric has a status (`value`, `missing`, `not-meaningful`, `not-applicable`), its input lineage and source IDs; every non-value metric is listed in one section Source Gap (material when any `missing` metric lacks a structural cause: `outside-price-history-window` for a workbench price date before the requested history start with usable returned closes, `insufficient-history` only when the issuer’s returned completed history starts 8–14 calendar days after the anniversary (SPY rows also require benchmark coverage there), or `not-filed`, which marks a concept with no raw fact under any alias, or for debt under any concept the debt selection reads; diagnostic otherwise). Capital Return and Operating Ratios always emit their Metric Sections on equity runs; unavailable statements produce missing rows and declared material Source Gaps. An omitted `metricSections` collection remains `undefined`, distinct from an explicitly empty `[]`. A lifecycle phase with no cited classification inputs is missing. Metric inputs that carry no filed data are absent by design: a lens keeps its Extended Evidence item and artifact rows but no section when nothing came off SEC facts or the SEC summary. Projected to `report.extras.metricSections` (rendered in report.md's appendix and the Research Console's Advanced view) and persisted in the deep bundle's `derived.metricSections`; model-visible as a metric reference catalog in evidence-request, analysis, critique and final-synthesis prompts.
-
-## Metric Reference
-
-An exact `<<metric:<section>.<id>>>` token in cited model-authored narrative prose, optionally `<<metric:<section>.<id>|period>>` to append the metric's period label ("44.1% (6-month period ending 2026-06-27)"). Deterministic assembly merges the metric's source IDs into the claim, validates citations and research-only wording before substitution, then resolves the token with the Metric Section's unit/currency formatter. Unknown or unavailable metrics, unknown formats, and `|period` on a metric without a period end reject the draft for repair. The referenceable catalog is the collected Metric Sections plus a reference-only `market-session` section derived from the Verified Market Snapshot (session close/open/high/low, prior close, session change and non-null indicators, citing the snapshot source); it never joins `report.extras.metricSections`. Free-typed numbers stay allowed for figures no metric holds. Summary stays qualitative; data gaps and Prediction expressions cannot contain references. The prompt catalog exposes Capital Return, Operating Ratios, Price Performance and migrated section values without duplicating numeric Business Framework/Financial Lens summaries.
-
-## Price Performance
-
-Standalone `price-performance` Metric Section showing cumulative 1-, 3-, and 5-year issuer and "SPY (S&P 500 proxy)" price returns, not total returns. Issuer returns use issuer completed sessions independently of SPY; SPY comparison rows use common completed sessions. Start sessions are within ±7 calendar days of the anniversary and the end is at most seven days old. The issuer history is collected once for Price Performance, the Valuation Workbench and the Verified Market Snapshot. Both histories use the scoring path’s split-adjusted closes, excluding dividends; unavailable or ambiguous split metadata produces unavailable rows. The metric requires completed bars. Each row discloses its own quote currency without FX conversion. Missing inputs produce unavailable rows and one section Source Gap; missing SPY history withholds only the SPY comparison rows, and a SPY fetch failure also declares a Yahoo Source Gap. A short returned issuer history is `missing` with `cause: "insufficient-history"` only when its earliest completed bar is 8–14 calendar days after the requested anniversary and, for a SPY comparison row, the benchmark covers that anniversary; later starts remain material. Section triage is diagnostic when all missing rows have that cause; provider failures, benchmark failures and missing sessions inside an otherwise long history remain material. Rendered beside the existing Console price card and sparkline, without replacing them; values reach the metric reference catalog and section Source Gaps reach synthesis and Historical Research Context. Web Gather excludes these gaps and receives no metric catalog.
-
-## Evidence Reconciliation
-
-No-model post-profile pass for `equity --deep` that removes a Business Framework qualitative gap only when the corresponding structured, cited web profile answer exists. It records the resolution and never adds prose, changes postures/phase, or clears unrelated gaps.
-
-## Yahoo Fundamentals Evidence
-
-Typed fundamentals captured once from normalized Yahoo quotes and emitted as `yahoo-fundamentals`: P/E, P/B, yield, EPS, shares, dividend, and book value. It supports non-US ratios and price-relative ratios with source provenance. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
-
-## Earnings Setup
-
-For `equity --deep`, deterministic event context when Finnhub reports earnings within 30 days: metadata, event-date certainty, optional Tradier implied move, sourced analytical bullets, and gaps. Finnhub dates remain `provider-estimated`; direct issuer IR/press-release or explicit-future SEC 8-K/6-K evidence can establish `issuer-confirmed`, and only a direct official exchange source can establish `exchange-confirmed`. A confirmed event must record the confirming source in `confirmedBy`; a fetched source that states a different future earnings date sets `event.dateConflict` (date + source id) and a Source Gap without changing the date status. Earnings Predictions use post-event trading-day horizons and `earningsReturn` only for confirmed dates; estimated setups remain contextual. IV crush is deferred.
-
-## Scored Catalyst
-
-Deterministic dated provider event (earnings, dividend, split, macro release) scored only by fixed materiality and date confidence. Only confirmed-exact dates can anchor Predictions; it is distinct from narrative catalysts and the Catalyst Calendar.
-
-## Catalyst Calendar
-
-Passive Market Overview list of narrative catalysts, observed macro context, and prior Prediction resolution dates; it never scores or anchors Predictions.
-
-## Peer Universe
-
-Deterministic, auditable comparable-Instrument set for peer valuation. It resolves in order from checked-in ticker mapping, Subject Registry, or model-proposed candidates that code validates and caches; the model never authors the set. All candidates face tier-scoped comparability gates, and insufficient valid peers yield a valuation Source Gap. A learned set's evaluation feedback (usable-peer count plus each excluded peer's cause) is recorded per cache generation and shown to the next allowed re-proposal; a transient fetch failure or stale fallback withholds it. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
+**Labeled Eval Case** — Frozen claim from a replay capture (`tests/fixtures/eval-cases/cases.json`), pinned by file hash and JSON pointer, labeled `stale-support`, `omission`, `unsupported-inference`, `contradiction`, `extraction-error`, or `clean`, with justifying evidence. Deterministic checks score stale support and citation coverage; `contradiction` and `unsupported-inference` need a k=3 model judge. `eval-deep.ts --input --ablate <arm>` scores with the same checks plus a judged pass; an isolated arm skips one analysis stage and regenerates its consumers live, compared in pre-paired samples against a matched control (identical judge requests cancel across a pair, so scores are relative). Results inform a human stage-deletion decision under the rule pre-registered in docs/testing.md.

@@ -477,3 +477,39 @@ test("valuation figures cite their own filing and quote, never the peer-widened 
     "no cited EV/revenue source",
   );
 });
+
+test("lens withholds gross margin and YoY when gross profit stops years before revenue", () => {
+  const metric = (concepts: Record<string, unknown>, id: string) =>
+    synthetic(concepts)
+      .input.metricSections?.flatMap((section) => section.metrics)
+      .find((row) => row.id === id);
+  const revenue = {
+    Revenues: {
+      units: {
+        USD: [
+          annualFact(90, "2017-01-01", "2017-12-31"),
+          annualFact(95, "2018-01-01", "2018-12-31"),
+          annualFact(100, "2025-01-01", "2025-12-31"),
+        ],
+      },
+    },
+  };
+  const stale = {
+    ...revenue,
+    GrossProfit: {
+      units: {
+        USD: [
+          annualFact(27, "2017-01-01", "2017-12-31"),
+          annualFact(30, "2018-01-01", "2018-12-31"),
+        ],
+      },
+    },
+  };
+  const reason =
+    "latest gross profit period ends 2018-12-31, more than a year before the newest filed period 2025-12-31";
+
+  for (const id of ["grossMargin", "grossProfitDeltaPercent"]) {
+    expect(metric(stale, id)).toMatchObject({ status: "missing", reason });
+  }
+  expect(metric(D7_ALIGNED_MARGIN, "grossMargin")).toMatchObject({ status: "value", value: 0.3 });
+});

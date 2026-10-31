@@ -803,7 +803,9 @@ function assertDepreciationAndAmortizationSelection(run: MetricInvariantRun): vo
       series.annual.some((fact) => fact.periodEnd === end) ||
         statements.omissionNotes.some(
           (note) =>
-            note.seriesKey === "depreciationAndAmortization" && note.periodKey?.endsWith(end),
+            note.code === "incomplete-composite-series" &&
+            note.seriesKey === "depreciationAndAmortization" &&
+            note.periodKey?.endsWith(end),
         ),
       `D&A FY ending ${end} has filed components, so it is published or carries a gap`,
     ).toBe(true);
@@ -1923,7 +1925,10 @@ export function assertOperatingRatioInvariants(
     // Short-term investment rows carry no series; ROIC subtracts them as the EV bridge resolved them.
     const seriesInputs = metric.inputs.filter(({ series }) => series !== undefined);
     const shortTermInvestments = metric.inputs
-      .filter(({ series, artifact }) => series === undefined && artifact !== "evidence")
+      .filter(
+        ({ series, artifact, key }) =>
+          series === undefined && artifact !== "evidence" && key !== "statutoryTaxRate",
+      )
       .reduce((sum, { value }) => sum + Number(value), 0);
     const resolved = seriesInputs.map((input) =>
       resolveInput(run, input, `${label} ${input.label}`),
@@ -2017,6 +2022,21 @@ export function assertOperatingRatioInvariants(
       metric.basis,
     )?.[1];
     const effectiveRate = at("incomeTaxExpense") / at("pretaxIncome");
+    const tagged = metric.inputs.find(({ key }) => key === "statutoryTaxRate");
+    if (tagged !== undefined) {
+      expect(
+        statements.statutoryTaxRate?.some(
+          (fact) => fact.periodKey === tagged.periodKey && fact.value === tagged.value,
+        ),
+        `${label} tagged statutory rate resolves to the filer's fact`,
+      ).toBe(true);
+      expect(tagged.periodKey, `${label} tagged statutory rate is same-period`).toBe(
+        seriesInputs[0]?.periodKey,
+      );
+      expect(metric.basis, `${label} basis names the tagged rate`).toContain(
+        "statutory rate the filer tags",
+      );
+    }
     const incorporation = metric.inputs.filter(({ artifact }) => artifact === "evidence");
     expect(
       incorporation.map(({ key }) => key),
@@ -2031,7 +2051,7 @@ export function assertOperatingRatioInvariants(
         `(issuer incorporated in ${String(input.value)})`,
       );
     }
-    if (statutoryPercent !== undefined) {
+    if (statutoryPercent !== undefined || tagged !== undefined) {
       expect(id, `${label} statutory fallback is ROIC only`).toBe("roic");
       expect(
         effectiveRate < 0 || effectiveRate > 1,
@@ -2040,12 +2060,18 @@ export function assertOperatingRatioInvariants(
     }
     expect(
       operatingRatioBound(id, (key) =>
-        statutoryPercent !== undefined && key === "incomeTaxExpense" ? undefined : valueOf(key),
+        (statutoryPercent !== undefined || tagged !== undefined) && key === "incomeTaxExpense"
+          ? undefined
+          : valueOf(key),
       ),
       `${label} value passes its bounds`,
     ).toBeUndefined();
     const roicTaxRate =
-      statutoryPercent === undefined ? effectiveRate : Number(statutoryPercent) / 100;
+      tagged !== undefined
+        ? Number(tagged.value)
+        : statutoryPercent === undefined
+          ? effectiveRate
+          : Number(statutoryPercent) / 100;
     const expected = {
       freeCashFlowMargin: (at("operatingCashFlow") - at("capitalExpenditure")) / at("revenue"),
       interestCoverage: at("operatingIncome") / at("interestExpense"),
@@ -3184,7 +3210,7 @@ const IREN_WORKBENCH_VALUES: WorkbenchValues = {
     MIXED_WORKBENCH_BALANCE_SHEET,
     MISSING_WORKBENCH_FCF,
   ],
-  "annual|2026-06-30|2026-08-27": [
+  "ttm|2026-06-30|2026-08-27": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
     18.122_127_052_430_16,
     20.522_885_460_762_748,
@@ -3304,7 +3330,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2019-12-31|2020-04-02": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
+      { status: "missing", reason: "mixed-period-balance-sheet" },
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2020-12-31|2021-04-01": [
@@ -3338,7 +3364,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MISSING_WORKBENCH_DEBT,
       NEGATIVE_WORKBENCH_DENOMINATOR,
     ],
-    "annual|2025-12-31|2026-04-30": [
+    "ttm|2025-12-31|2026-04-30": [
       418.878_774_931_936_56,
       64.622_117_548_843_16,
       65.470_739_670_398_46,
@@ -3384,7 +3410,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       IFRS_WORKBENCH_EV,
       MISSING_WORKBENCH_SHARES,
     ],
-    "annual|2025-12-31|2026-03-15": [
+    "ttm|2025-12-31|2026-03-15": [
       14.314_666_666_666_666,
       MISSING_WORKBENCH_SHARES,
       IFRS_WORKBENCH_EV,

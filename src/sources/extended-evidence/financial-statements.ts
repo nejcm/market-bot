@@ -12,6 +12,7 @@ import {
   EXTENSION_CAPEX_CHECKED_KEY,
   EXTENSION_CAPEX_FACT_PREFIX,
 } from "../sec-segment-facts";
+import { DA_CALC_PREFIX, DA_CALC_READ_KEY } from "../sec-calculation-linkbase";
 import {
   CAP_FOLLOWER_SERIES,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
@@ -43,6 +44,7 @@ import {
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
   compareFinancialStatementRevisions,
+  MAX_ANNUAL_PERIODS_PER_SHAPE,
 } from "./financial-statement-selection";
 import {
   type DebtFactReader,
@@ -100,6 +102,7 @@ export interface ParsedFact {
   readonly lineScope?: true;
   readonly sourceIds?: readonly string[];
   readonly proofSourceIds?: readonly string[];
+  readonly faceLeases?: readonly string[];
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly ParsedCompositeComponent[];
@@ -142,6 +145,12 @@ const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
 const GROSS_PROFIT_COST_CONCEPTS = ["CostOfRevenue", "CostOfGoodsAndServicesSold"];
 const CONSOLIDATED_NET_INCOME_CONCEPT = "ProfitLoss";
+const PRETAX_INCOME_COMPONENT_CONCEPTS = [
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign",
+] as const;
+const STATUTORY_TAX_RATE_CONCEPT =
+  "EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate";
 type EquityStackComponentKey =
   | "minorityInterest"
   | "stockholdersEquityIncludingNoncontrollingInterest"
@@ -291,10 +300,18 @@ function factsForDefinition(
       ? statementBasis
       : factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
   }
-  if (definition.key !== "revenue") {
-    return factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
-  }
-  const ranked = concepts
+  return definition.key === "revenue"
+    ? selectRevenueConcept(taxonomy, root, definition, eligible).facts
+    : factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
+}
+
+function selectRevenueConcept(
+  taxonomy: FinancialStatementTaxonomy,
+  root: Record<string, unknown>,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
+  const ranked = definition.concepts[taxonomy]
     .map((concept, priority) => {
       const facts = unitFacts(taxonomy, root, concept);
       const [latest] = facts
@@ -316,20 +333,97 @@ function factsForDefinition(
     .toSorted()
     .at(-1);
   if (latestPeriodEnd === undefined) {
-    return [];
+    return { facts: [], notes: [] };
   }
-  return (
-    ranked
-      .filter((candidate) =>
-        isRevenueConceptInRecencyBucket(candidate.latest.periodEnd, latestPeriodEnd),
-      )
-      .toSorted(
-        (left, right) =>
-          left.priority - right.priority ||
-          left.latest.concept.localeCompare(right.latest.concept) ||
-          left.latest.unit.localeCompare(right.latest.unit),
-      )[0]?.facts ?? []
-  );
+  const [preferred, ...rest] = ranked
+    .filter((candidate) =>
+      isRevenueConceptInRecencyBucket(candidate.latest.periodEnd, latestPeriodEnd),
+    )
+    .toSorted(
+      (left, right) =>
+        left.priority - right.priority ||
+        left.latest.concept.localeCompare(right.latest.concept) ||
+        left.latest.unit.localeCompare(right.latest.unit),
+    );
+  if (preferred === undefined) {
+    return { facts: [], notes: [] };
+  }
+  const annualRevisions = (facts: readonly ParsedFact[]) =>
+    new Map(
+      selectRestatements(
+        facts.filter((fact) => eligible(fact) && periodType(fact, definition) === "annual"),
+        definition.key,
+        [],
+      ).facts.map((fact) => [periodKey(fact), fact] as const),
+    );
+  const preferredAnnual = annualRevisions(preferred.facts);
+  // A newer tag replaces the preferred one only if, inside the annual cap over both tags' periods, it
+  // Carries every preferred period at the same value and one filing tags both for the newest one.
+  const sameScopeNewer = rest.find((candidate) => {
+    const candidateAnnual = annualRevisions(candidate.facts);
+    const capped = [...new Map([...candidateAnnual, ...preferredAnnual]).values()]
+      .toSorted(chronological)
+      .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
+      .map((fact) => periodKey(fact))
+      .filter((key) => preferredAnnual.has(key));
+    const anchor = preferredAnnual.get(capped.at(-1) ?? "");
+    return (
+      candidate.latest.periodEnd > preferred.latest.periodEnd &&
+      anchor !== undefined &&
+      anchor.accessionNumber !== null &&
+      candidateAnnual.get(periodKey(anchor))?.accessionNumber === anchor.accessionNumber &&
+      capped.every((key) => candidateAnnual.get(key)?.value === preferredAnnual.get(key)!.value)
+    );
+  });
+  if (sameScopeNewer === undefined) {
+    return { facts: preferred.facts, notes: [] };
+  }
+  const cappedKeys = (annual: ReadonlyMap<string, ParsedFact>) =>
+    [...annual.values()]
+      .toSorted(chronological)
+      .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
+      .map((fact) => periodKey(fact));
+  const switchedKeys = new Set(cappedKeys(annualRevisions(sameScopeNewer.facts)));
+  const interimKeys = (facts: readonly ParsedFact[]) =>
+    new Set(
+      facts
+        .filter((fact) => eligible(fact) && periodType(fact, definition) === "interim")
+        .map((fact) => periodKey(fact)),
+    );
+  const switchedInterim = interimKeys(sameScopeNewer.facts);
+  return {
+    facts: sameScopeNewer.facts,
+    notes: [
+      ...cappedKeys(preferredAnnual)
+        .filter((key) => !switchedKeys.has(key))
+        .map((key) => ({
+          code: "history-cap" as const,
+          seriesKey: definition.key,
+          periodKey: `annual|${key}`,
+          message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
+        })),
+      ...[...interimKeys(preferred.facts)]
+        .filter((key) => !switchedInterim.has(key))
+        .map((key) => ({
+          code: "history-cap" as const,
+          seriesKey: definition.key,
+          periodKey: `interim|${key}`,
+          message: `Interim period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, which does not tag that period`,
+        })),
+    ],
+  };
+}
+
+function revenueConceptSwitchNotes(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): readonly FinancialStatementNote[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  return root === undefined || definition.key !== "revenue"
+    ? []
+    : selectRevenueConcept(taxonomy, root, definition, eligible).notes;
 }
 
 function compositeFromContributors(
@@ -418,6 +512,30 @@ function depreciationPresentation(
   );
 }
 
+// Accession -> D&A-like direct children of operating cash flow in that filing's calculation linkbase, with weights.
+function depreciationCalculation(
+  filings: readonly ExtendedEvidenceItem[],
+): ReadonlyMap<string, ReadonlyMap<string, number>> {
+  return new Map(
+    filings.flatMap(({ metrics }) =>
+      metrics?.[DA_CALC_READ_KEY] === "true" || metrics?.[DA_CALC_READ_KEY] === "conflict"
+        ? [
+            [
+              String(metrics.accessionNumber),
+              new Map(
+                Object.entries(metrics).flatMap(([key, value]) =>
+                  key.startsWith(DA_CALC_PREFIX)
+                    ? [[key.slice(DA_CALC_PREFIX.length), Number(value)] as const]
+                    : [],
+                ),
+              ),
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+}
+
 function factsForDepreciationAndAmortization(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -429,6 +547,12 @@ function factsForDepreciationAndAmortization(
     return { facts: [], notes: [] };
   }
   const presentation = depreciationPresentation(filings);
+  const calculation = depreciationCalculation(filings);
+  const calculationConflicts = new Set(
+    filings.flatMap(({ metrics }) =>
+      metrics?.[DA_CALC_READ_KEY] === "conflict" ? [String(metrics.accessionNumber)] : [],
+    ),
+  );
   const totals = definition.concepts["us-gaap"];
   const concepts = [
     ...totals,
@@ -660,6 +784,30 @@ function factsForDepreciationAndAmortization(
       )
     ) {
       return [];
+    }
+    const calcChildren =
+      depreciation.accessionNumber === amortization.accessionNumber
+        ? calculation.get(String(depreciation.accessionNumber))
+        : undefined;
+    // ORCL, ABBV, GLW: the cash-flow calculation adds exactly these two concepts into operating cash flow, so their sum is the face D&A.
+    const calcProven =
+      calcChildren?.size === 2 &&
+      calcChildren.get(depreciation.concept) === 1 &&
+      calcChildren.get(amortization.concept) === 1;
+    if (selected === contributors && !calcProven) {
+      const reason =
+        calcChildren === undefined
+          ? "no same-filing calculation linkbase was read"
+          : calcChildren.size === 0 &&
+              calculationConflicts.has(String(depreciation.accessionNumber))
+            ? `filing ${String(depreciation.accessionNumber)}'s operating cash-flow calculation roles disagree`
+            : `filing ${String(depreciation.accessionNumber)}'s cash-flow calculation adds ${[...calcChildren.keys()].join(", ") || "no D&A line"} into operating cash flow`;
+      notes.push({
+        code: "unchecked-component-sum",
+        seriesKey: definition.key,
+        periodKey: periodKey(depreciation),
+        message: `SEC depreciation and amortization for ${String(depreciation.periodStart)} to ${depreciation.periodEnd} is depreciation + intangible amortization, not checked against the filed cash-flow statement: ${reason}`,
+      });
     }
     if (amortizationGap > componentTolerance(sameFilingAmortization?.value ?? 0)) {
       notes.push({
@@ -996,6 +1144,75 @@ function scopeAlignedOperatingCashFlow(
   };
 }
 
+// Only for periods with no total tagged under any concept, and only when both components share one filing context.
+function derivedPretaxIncomeFacts(
+  payload: unknown,
+  definition: FinancialStatementSeriesDefinition,
+  reported: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+): DerivedSeriesFacts {
+  const root = taxonomyRoot(payload, "us-gaap");
+  if (root === undefined) {
+    return NO_DERIVED_FACTS;
+  }
+  const totals = [
+    ...reported,
+    ...definition.concepts["us-gaap"].flatMap((concept) => unitFacts("us-gaap", root, concept)),
+  ];
+  const covered = new Set(totals.filter((fact) => eligible(fact)).map((fact) => periodKey(fact)));
+  const [domestic, foreign] = PRETAX_INCOME_COMPONENT_CONCEPTS.map((concept) =>
+    unitFacts("us-gaap", root, concept).filter(
+      (fact) => eligible(fact) && fact.periodStart !== undefined && !covered.has(periodKey(fact)),
+    ),
+  ) as [ParsedFact[], ParsedFact[]];
+  const domesticGroups = periodGroups(domestic, definition);
+  const foreignGroups = periodGroups(foreign, definition);
+  const facts: ParsedFact[] = [];
+  const withheld: WithheldDerivation[] = [];
+  for (const [key, [current]] of domesticGroups) {
+    const [currentForeign] = foreignGroups.get(key) ?? [];
+    if (current === undefined) {
+      continue;
+    }
+    const context = filingContextKey(current);
+    if (currentForeign === undefined) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          `no ${PRETAX_INCOME_COMPONENT_CONCEPTS[1]} fact is tagged for the period`,
+        ),
+      );
+    } else if (context === undefined || context !== filingContextKey(currentForeign)) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          "the current domestic and foreign pretax revisions do not share one filing, form, span, and unit",
+        ),
+      );
+    } else {
+      facts.push(
+        withCompositeFirstPublicAt(
+          compositeFromContributors([current, currentForeign]),
+          definition,
+          [...domestic, ...foreign],
+          new Set(),
+        ),
+      );
+    }
+  }
+  for (const [key, [current]] of foreignGroups) {
+    if (current !== undefined && !domesticGroups.has(key)) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          `no ${PRETAX_INCOME_COMPONENT_CONCEPTS[0]} fact is tagged for the period`,
+        ),
+      );
+    }
+  }
+  return { facts, withheld };
+}
+
 function derivedSeriesFacts(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -1005,6 +1222,9 @@ function derivedSeriesFacts(
 ): DerivedSeriesFacts | undefined {
   if (definition.key === "grossProfit" && reported.length === 0) {
     return derivedGrossProfitFacts(payload, definition, eligible);
+  }
+  if (definition.key === "pretaxIncome") {
+    return derivedPretaxIncomeFacts(payload, definition, reported, eligible);
   }
   if (definition.key === "netIncome") {
     return consolidatedNetIncomeFallbackFacts(payload, definition, reported, eligible, observable);
@@ -1504,6 +1724,7 @@ function toSelectedFact(
     extractionMethod: composite === undefined ? "sec-companyfacts" : "derived-sec-companyfacts",
     sourceIds,
     ...(fact.lineScope === true ? { lineScope: true as const } : {}),
+    ...(fact.faceLeases === undefined ? {} : { faceLeases: fact.faceLeases }),
     ...(composite !== undefined ? { composite } : {}),
   };
 }
@@ -1601,6 +1822,36 @@ function selectEnterpriseValueBridge(
       ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [key, select(key)]),
     ) as unknown as FinancialStatementEnterpriseValueBridge,
   );
+}
+
+function selectStatutoryTaxRate(
+  payload: unknown,
+  input: FinancialStatementsDeriveInput,
+): readonly FinancialStatementFact[] {
+  const root = taxonomyRoot(payload, "us-gaap");
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (candidate) => candidate.key === "incomeTaxExpense",
+  )!;
+  const annual = (
+    root === undefined ? [] : unitFacts("us-gaap", root, STATUTORY_TAX_RATE_CONCEPT)
+  ).filter(
+    (fact) =>
+      fact.unit === "pure" &&
+      fact.periodStart !== undefined &&
+      isObservable(fact, input.analysisAsOf) &&
+      periodType(fact, definition) === "annual",
+  );
+  const byPeriod = new Map<string, ParsedFact[]>();
+  for (const fact of annual) {
+    byPeriod.set(periodKey(fact), [...(byPeriod.get(periodKey(fact)) ?? []), fact]);
+  }
+  return [...byPeriod.values()]
+    .map((facts) => withFirstPublicAt(facts.toSorted(compareFinancialStatementFacts)[0]!, facts))
+    .toSorted(chronological)
+    .map((fact) => ({
+      ...toSelectedFact(fact, definition, "", input.sourceId),
+      currency: null,
+    }));
 }
 
 function selectEquityStack(
@@ -1946,6 +2197,7 @@ function selectSeries(
       omissionNotes: [
         ...selected.omissionNotes,
         ...(depreciationAndAmortization?.notes ?? []),
+        ...revenueConceptSwitchNotes(payload, taxonomy, definition, eligible),
         ...(operatingCashFlow === undefined
           ? staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible)
           : []),
@@ -2347,6 +2599,42 @@ function withoutMixedShareBasisTtm(
       };
 }
 
+function latestFiledDurationEnd(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+): string | undefined {
+  const root = taxonomyRoot(payload, taxonomy);
+  return root === undefined
+    ? undefined
+    : Object.keys(root)
+        .flatMap((concept) => unitFacts(taxonomy, root, concept))
+        .filter((fact) => fact.periodStart !== undefined && isObservable(fact, analysisAsOf))
+        .map((fact) => fact.periodEnd)
+        .toSorted()
+        .at(-1);
+}
+
+// A later period tagged under any concept (e.g. a newer revenue tag) means the FY is no longer trailing.
+function withoutSupersededFiscalYearTtm(
+  series: FinancialStatementSeries,
+  latestDurationEnd: string | undefined,
+): { readonly series: FinancialStatementSeries; readonly note?: FinancialStatementNote } {
+  const { ttm, ...rest } = series;
+  return ttm?.formula !== "FY" ||
+    latestDurationEnd === undefined ||
+    latestDurationEnd <= ttm.periodEnd
+    ? { series }
+    : {
+        series: rest,
+        note: {
+          code: "unreconciled-ttm",
+          seriesKey: series.key,
+          message: `The latest fiscal year ends ${ttm.periodEnd}, but a later period ending ${latestDurationEnd} is filed outside this series`,
+        },
+      };
+}
+
 function seriesRecord(
   series: readonly FinancialStatementSeries[],
 ): FinancialStatementsArtifact["statements"] {
@@ -2514,7 +2802,16 @@ export function deriveFinancialStatements(
   const uncapped = selected.map((item) => item.series);
   const { series: retained, notes: capNotes } = capFinancialStatementPeriods(uncapped);
   const shareBasisNotes = mixedShareBasisNotes(uncapped, retained);
-  const shareBasisTtm = retained.map((item) => withoutMixedShareBasisTtm(item, shareBasisNotes));
+  const latestDurationEnd =
+    taxonomy === undefined
+      ? undefined
+      : latestFiledDurationEnd(payload, taxonomy, input.analysisAsOf);
+  const shareBasisTtm = retained.map((item) => {
+    const shareBasis = withoutMixedShareBasisTtm(item, shareBasisNotes);
+    return shareBasis.note === undefined
+      ? withoutSupersededFiscalYearTtm(shareBasis.series, latestDurationEnd)
+      : shareBasis;
+  });
   const series = shareBasisTtm.map((item) => item.series);
   const statements = seriesRecord(series);
   const currentAnnual = latestFinancialStatementFact(
@@ -2559,7 +2856,10 @@ export function deriveFinancialStatements(
       ? { equityStack: equityStackSelection.equityStack }
       : {}),
     ...(taxonomy === "us-gaap" && reportingCurrency !== undefined
-      ? { enterpriseValueBridge: selectEnterpriseValueBridge(payload, reportingCurrency, input) }
+      ? {
+          enterpriseValueBridge: selectEnterpriseValueBridge(payload, reportingCurrency, input),
+          statutoryTaxRate: selectStatutoryTaxRate(payload, input),
+        }
       : {}),
     ...(taxonomy !== undefined
       ? {

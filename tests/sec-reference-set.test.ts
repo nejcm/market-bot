@@ -21,6 +21,8 @@ import {
   secIssuerRegistration,
 } from "../src/sources/extended-evidence/industry-classification";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
+import { financialPosition } from "../src/report/equity-reader-statements";
+import { withheldDebt } from "../src/sources/extended-evidence/sec-debt";
 import {
   secExtensionCapexFactMetrics,
   secGeographyFactMetrics,
@@ -806,8 +808,61 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
     ).toBe(false);
   });
 
-  test("CLFD FY2025 ROIC is withheld while debt sits in discontinued operations", () => {
-    expect(load("clfd").metrics.find(({ id }) => id === "roic")?.status).toBe("missing");
+  test("CLFD FY2025 ROIC is withheld while debt sits in liabilities held for sale (0001171843-25-007594)", () => {
+    const { statements, metrics } = load("clfd");
+    expect(metrics.find(({ id }) => id === "roic")).toMatchObject({
+      status: "missing",
+      reason: expect.stringContaining("not separable from liabilities held for sale"),
+    });
+    expect(
+      statements.omissionNotes
+        .filter(({ code }) => code === "debt-held-for-sale")
+        .map(({ periodKey, message }) => [periodKey, message.includes("0001171843-25-007594")]),
+    ).toEqual([
+      ["instant|2024-09-30", true],
+      ["instant|2025-09-30", true],
+    ]);
+    expect(withheldDebt(statements)?.periodEnd).toBe("2025-09-30");
+    const fy2025 = valuationPeriodInputs(statements).periods.find(
+      ({ periodEnd }) => periodEnd === "2025-09-30",
+    );
+    expect(fy2025?.revenue).toBeDefined();
+    expect(fy2025?.debt).toBeUndefined();
+    const position = financialPosition(statements, undefined);
+    expect(position?.debt).toBeUndefined();
+    expect(
+      position?.notes?.filter(({ code }) => code === "debt-held-for-sale").map((n) => n.periodKey),
+    ).toEqual(["instant|2025-09-30"]);
+  });
+  test("CLFD FY2024 EV withholds pre-recast debt 2,228K (0001171843-24-006402) beside restated revenue (0001171843-25-007594)", () => {
+    const { periods } = valuationPeriodInputs(load("clfd").statements);
+    const fy2024 = periods.find(
+      ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2024-09-30",
+    );
+    expect([fy2024?.revenue?.value, fy2024?.debt, fy2024?.debtScopeMismatch]).toEqual([
+      125_568_000,
+      undefined,
+      true,
+    ]);
+  });
+  test("CLFD TTM rows after FY2025 pair their own cash instant with the last tagged debt, not the 2025-09-30 withhold", () => {
+    const ttm = valuationPeriodInputs(load("clfd").statements).periods.filter(
+      ({ basis, periodEnd }) => basis === "ttm" && periodEnd > "2025-09-30",
+    );
+    expect(
+      ttm.map(({ periodEnd, cash, debt }) => [periodEnd, cash?.periodEnd, debt?.periodEnd]),
+    ).toEqual([
+      ["2025-12-31", "2025-12-31", "2025-06-30"],
+      ["2026-03-31", "2026-03-31", "2025-06-30"],
+      ["2026-06-30", "2026-06-30", "2025-06-30"],
+    ]);
+  });
+  test("debt held for sale notes only CLFD among reference cases", () => {
+    expect(
+      CASES.filter(({ symbol }) =>
+        load(symbol).statements.omissionNotes.some(({ code }) => code === "debt-held-for-sale"),
+      ).map(({ symbol }) => symbol),
+    ).toEqual(["clfd"]);
   });
   test("HLIT FY2025 D&A is withheld with an omission note", () => {
     const { statements } = load("hlit");

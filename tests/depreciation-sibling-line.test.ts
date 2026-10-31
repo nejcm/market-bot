@@ -389,3 +389,57 @@ describe("secDepreciationSiblingMetrics", () => {
     expect(secDepreciationSiblingMetrics(html, "2026-06-30")).toEqual({});
   });
 });
+
+// MSFT FY2025 10-K 0000950170-25-100235: notes file depreciation 22.0B and intangible amortization 6.0B.
+const MSFT_FY2025: Filing = {
+  accn: "0000950170-25-100235",
+  form: "10-K",
+  filed: "2025-07-30",
+  concepts: {
+    // A zero combined caption is ignored by the resolver; derive() keys revenue off its columns.
+    DepreciationDepletionAndAmortization: [["2024-07-01", "2025-06-30", 0]],
+    Depreciation: [["2024-07-01", "2025-06-30", 22_000_000_000]],
+    AmortizationOfIntangibleAssets: [["2024-07-01", "2025-06-30", 6_000_000_000]],
+  },
+};
+
+describe("D&A component sum disclosure", () => {
+  test("MSFT FY2025 publishes 28.0B with an unchecked-against-cash-flow note", () => {
+    const result = derive([MSFT_FY2025]);
+    expect(result.value("2024-07-01", "2025-06-30")).toBe(28_000_000_000);
+    expect(result.note("2025-06-30")).toContain(
+      "is depreciation + intangible amortization, not checked against the filed cash-flow statement",
+    );
+  });
+
+  test("an interim component sum carries the note too", () => {
+    const quarter: Filing = {
+      accn: "0000950170-26-000001",
+      form: "10-Q",
+      filed: "2026-04-29",
+      concepts: {
+        DepreciationDepletionAndAmortization: [["2026-01-01", "2026-03-31", 0]],
+        Depreciation: [["2026-01-01", "2026-03-31", 9_000_000_000]],
+        AmortizationOfIntangibleAssets: [["2026-01-01", "2026-03-31", 1_100_000_000]],
+      },
+    };
+    const result = derive([quarter]);
+    expect(result.value("2026-01-01", "2026-03-31")).toBe(10_100_000_000);
+    expect(result.note("2026-03-31")).toContain(
+      "not checked against the filed cash-flow statement",
+    );
+  });
+
+  test("a same-filing cash-flow amortization line replaces the note path", () => {
+    const filing: Filing = {
+      ...MSFT_FY2025,
+      concepts: {
+        ...MSFT_FY2025.concepts,
+        AdjustmentForAmortization: [["2024-07-01", "2025-06-30", 6_000_000_000]],
+      },
+    };
+    const result = derive([filing]);
+    expect(result.value("2024-07-01", "2025-06-30")).toBe(28_000_000_000);
+    expect(result.note("2025-06-30")).toBeUndefined();
+  });
+});

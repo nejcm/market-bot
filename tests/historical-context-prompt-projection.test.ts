@@ -89,19 +89,31 @@ describe("compactHistoricalContext", () => {
       ),
     ).toBe(true);
     for (const view of ["all", "web-gather"] as const) {
-      expect(compactHistoricalContext(context, view).priorRunDataGapsUse).toContain(
+      expect(compactHistoricalContext(context, view).priorRunGapsToRecheckUse).toContain(
         "computable from cited inputs",
       );
     }
     expect(
-      compactHistoricalContext({ ...context, runs: [] }, "all").priorRunDataGapsUse,
+      compactHistoricalContext({ ...context, runs: [] }, "all").priorRunGapsToRecheckUse,
     ).toBeUndefined();
-    const all = compactHistoricalContext(context, "all").runs as typeof context.runs;
-    const web = compactHistoricalContext(context, "web-gather").runs as typeof context.runs;
-    expect(all.every((run) => run.dataGaps[0]?.startsWith("price-performance: "))).toBe(true);
+    interface PromptRun {
+      readonly dataGaps?: unknown;
+      readonly priorRunGapsToRecheck: string[];
+    }
+    const all = compactHistoricalContext(context, "all").runs as readonly PromptRun[];
+    const web = compactHistoricalContext(context, "web-gather").runs as readonly PromptRun[];
+    expect(all.every((run) => run.dataGaps === undefined)).toBe(true);
     expect(
-      web.every((run) => run.dataGaps.every((gap) => !gap.startsWith("price-performance: "))),
+      all.every((run) => run.priorRunGapsToRecheck[0]?.startsWith("price-performance: ")),
     ).toBe(true);
+    expect(
+      web.every((run) =>
+        run.priorRunGapsToRecheck.every((gap) => !gap.startsWith("price-performance: ")),
+      ),
+    ).toBe(true);
+    expect(compactHistoricalContext(context, "all").priorRunGapsToRecheckUse).toContain(
+      "never copy one into dataGaps",
+    );
     const runs = compactHistoricalContext(context, "all").runs as readonly {
       readonly runId: string;
       readonly predictions: readonly { readonly id: string; readonly measurableAs: string }[];

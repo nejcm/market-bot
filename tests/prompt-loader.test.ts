@@ -307,11 +307,11 @@ test.each(["specialist-analysis", "instrument-evidence-analysis", "critique"] as
 );
 
 describe("checked-in final-synthesis prompt", () => {
-  test("checks priorStages dataGaps against cited inputs", async () => {
+  test("treats priorStages and prior-run gaps as re-check context", async () => {
     const { instruction } = await loadStagePrompt("final-synthesis", tickerCommand);
 
     expect(instruction).toContain(
-      "Apply the same check to `dataGaps` carried in from `priorStages[]`",
+      "`historicalContext.runs[].priorRunGapsToRecheck` are context to re-check, not items to carry forward",
     );
   });
 

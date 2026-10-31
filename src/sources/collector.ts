@@ -1,5 +1,6 @@
 import { collectPriceHistory } from "./yahoo-price-history";
 import { pricePerformanceSection } from "./extended-evidence/price-performance";
+import { withStatementDebtBasisGaps } from "./extended-evidence/sec-debt";
 import { collectEquityEnrichment, type PeerUniverseSeam } from "./collector-equity-enrichment";
 
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
@@ -535,7 +536,15 @@ export async function collectSources(
       ...(enrichmentResult.periodicFilings?.sources ?? []),
     ],
     ...(enrichmentResult.businessFrameworkResult.extendedEvidence !== undefined
-      ? { extendedEvidence: enrichmentResult.businessFrameworkResult.extendedEvidence }
+      ? {
+          extendedEvidence: {
+            ...enrichmentResult.businessFrameworkResult.extendedEvidence,
+            gaps: withStatementDebtBasisGaps(
+              enrichmentResult.businessFrameworkResult.extendedEvidence.gaps,
+              enrichmentResult.financialStatements,
+            ),
+          },
+        }
       : {}),
     ...(marketContextResult.marketContext !== undefined
       ? { marketContext: marketContextResult.marketContext }
@@ -614,7 +623,10 @@ export async function collectSources(
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
-      ...deepExtendedResult.sourceGaps,
+      ...withStatementDebtBasisGaps(
+        deepExtendedResult.sourceGaps,
+        enrichmentResult.financialStatements,
+      ),
       ...enrichmentResult.valuationResult.sourceGaps,
       ...(enrichmentResult.valuationCompsResult?.gaps ?? []),
       ...enrichmentResult.valuationCompsSkippedGaps,

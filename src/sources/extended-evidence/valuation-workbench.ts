@@ -5,6 +5,7 @@ import type { OhlcvBar } from "../../domain/market-data";
 import type { Source, SourceGap } from "../../domain/sources";
 import type { FetchLike } from "../types";
 import { depositoryIssuerSic } from "./industry-classification";
+import { fiscalYearTtmLabel } from "./financial-statement-selection";
 import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import {
@@ -176,10 +177,14 @@ function trailingBasis(
       sourceIds: artifact === undefined ? [] : [artifact.sourceId],
     };
   }
+  const revenue = artifact.statements.incomeStatement.revenue.ttm;
   return {
     status: "available",
     periodEnd: ttm.periodEnd,
     publicAt: periodPublicAt(ttm),
+    ...(revenue?.formula === "FY"
+      ? { fiscalYearLabel: fiscalYearTtmLabel(revenue.components.fiscalYear) }
+      : {}),
     sourceIds: unique(
       Object.values(ttm).flatMap((value) =>
         typeof value === "object" && value !== null && "sourceIds" in value

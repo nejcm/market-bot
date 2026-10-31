@@ -8,12 +8,14 @@ import { grossPrincipalWithholdsDebt } from "../src/sources/extended-evidence/fi
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { balanceSheetHistory } from "../src/report/equity-reader-statements";
 import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
+import { financialTrends } from "../src/report/equity-reader-trends";
 import {
   financialStatementFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import {
   canonicalizeSecForm,
+  derivedFactDisclosure,
   type FinancialStatementFact,
   type FinancialStatementNote,
   type FinancialStatementSeriesKey,
@@ -769,6 +771,180 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  describe("revenue concept switch on a same-filing dual tag (ORCL FY26 10-K 0001193125-26-277521)", () => {
+    const asc606 = "RevenueFromContractWithCustomerExcludingAssessedTax";
+    const tenK = "0001193125-26-277521";
+    const fy = (year: number, value: number, accessionNumber = tenK, filedAt = "2026-06-20") =>
+      fact({
+        value,
+        accessionNumber,
+        filedAt,
+        form: "10-K",
+        fiscalPeriod: "FY",
+        periodStart: `${String(year - 1)}-06-01`,
+        periodEnd: `${String(year)}-05-31`,
+      });
+    const quarters = [
+      fact({
+        value: 14_926_000_000,
+        form: "10-Q",
+        fiscalPeriod: "Q1",
+        filedAt: "2025-09-10",
+        accessionNumber: "0001193125-25-200095",
+        periodStart: "2025-06-01",
+        periodEnd: "2025-08-31",
+      }),
+      fact({
+        value: 19_345_000_000,
+        form: "10-Q",
+        fiscalPeriod: "Q1",
+        filedAt: "2026-09-10",
+        accessionNumber: "0001193125-26-389274",
+        periodStart: "2026-06-01",
+        periodEnd: "2026-08-31",
+      }),
+    ];
+    const orclAsc606 = [
+      fy(2024, 52_961_000_000),
+      fy(2025, 57_399_000_000),
+      fy(2026, 67_357_000_000),
+    ];
+    const revenue = (revenues: readonly Record<string, unknown>[], other = orclAsc606) =>
+      derive(
+        payload({
+          "us-gaap": { Revenues: { USD: revenues }, [asc606]: { USD: [...other, ...quarters] } },
+        }),
+        { analysisAsOf: "2026-10-01T00:00:00.000Z" },
+      ).statements.incomeStatement.revenue;
+
+    test("switches when every annual period matches and derives TTM from one concept", () => {
+      const series = revenue(orclAsc606);
+      expect(series.annual.map((row) => [row.concept, row.value])).toEqual(
+        [52_961_000_000, 57_399_000_000, 67_357_000_000].map((value) => [asc606, value]),
+      );
+      expect(series.ttm).toMatchObject({ value: 71_776_000_000, periodEnd: "2026-08-31" });
+    });
+
+    test.each([
+      [
+        "an older overlap contradicts",
+        [fy(2025, 90), fy(2026, 100)],
+        [fy(2025, 50), fy(2026, 100)],
+      ],
+      ["the latest values differ", [fy(2025, 90), fy(2026, 100)], [fy(2025, 90), fy(2026, 101)]],
+      [
+        "the anchor is from another filing",
+        [fy(2025, 90), fy(2026, 100, "0001193125-26-999999")],
+        [fy(2025, 90), fy(2026, 100)],
+      ],
+      [
+        "a later filing supersedes the anchor",
+        [fy(2025, 90), fy(2026, 100), fy(2026, 105, "0001193125-26-500000", "2026-08-01")],
+        [fy(2025, 90), fy(2026, 100)],
+      ],
+      [
+        "the candidate misses an annual period",
+        [fy(2022, 70), fy(2023, 80), fy(2024, 90), fy(2025, 95), fy(2026, 100)],
+        [fy(2026, 100)],
+      ],
+      [
+        "a later candidate revision of the anchor period differs",
+        [fy(2025, 90), fy(2026, 100)],
+        [
+          fy(2025, 90),
+          fy(2026, 100),
+          { ...fy(2026, 999, "0001193125-26-500000", "2026-08-01"), start: "2025-06-02" },
+        ],
+      ],
+      [
+        "the candidate misses the oldest capped period",
+        [2016, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((year) => fy(year, year)),
+        [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((year) => fy(year, year)),
+      ],
+      [
+        "only the older-ended period shares a filing",
+        [
+          { ...fy(2026, 90, "0001193125-26-100000"), start: "2025-06-01", end: "2026-03-31" },
+          { ...fy(2026, 100, "0001193125-26-200000"), start: "2025-04-01", end: "2026-05-31" },
+        ],
+        [
+          { ...fy(2026, 90, "0001193125-26-100000"), start: "2025-06-01", end: "2026-03-31" },
+          { ...fy(2026, 100, "0001193125-26-300000"), start: "2025-04-01", end: "2026-05-31" },
+        ],
+      ],
+    ])("keeps Revenues without TTM when %s", (_, revenues, other) => {
+      const series = revenue(revenues, other);
+      expect(new Set(series.annual.map((row) => row.concept))).toEqual(new Set(["Revenues"]));
+      expect(series.ttm).toBeUndefined();
+    });
+
+    test("notes a preferred annual period the switch pushes past the cap", () => {
+      const calendarYear = (year: number) =>
+        fact({
+          value: year,
+          form: "10-K",
+          fiscalPeriod: "FY",
+          filedAt: `${String(year + 1)}-02-15`,
+          accessionNumber: `0000000001-${String(year + 1).slice(-2)}-000001`,
+          periodStart: `${String(year)}-01-01`,
+          periodEnd: `${String(year)}-12-31`,
+        });
+      const years = (from: number) =>
+        Array.from({ length: 10 }, (_, index) => calendarYear(from + index));
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: [
+                ...years(2015),
+                fact({
+                  value: 2025,
+                  form: "10-Q",
+                  fiscalPeriod: "Q3",
+                  filedAt: "2025-11-01",
+                  periodStart: "2025-07-01",
+                  periodEnd: "2025-09-30",
+                }),
+              ],
+            },
+            [asc606]: { USD: years(2016) },
+          },
+        }),
+        { analysisAsOf: "2026-06-15T00:00:00.000Z" },
+      );
+      expect(
+        artifact.statements.incomeStatement.revenue.annual.map((row) => row.periodEnd)[0],
+      ).toBe("2016-12-31");
+      expect(artifact.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "history-cap",
+          seriesKey: "revenue",
+          periodKey: "annual|duration:12|2015-12-31",
+        }),
+      );
+      expect(
+        artifact.omissionNotes
+          .filter(({ periodKey }) => periodKey?.startsWith("interim|"))
+          .map(({ code, seriesKey, periodKey, message }) => [code, seriesKey, periodKey, message]),
+      ).toEqual([
+        [
+          "history-cap",
+          "revenue",
+          "interim|duration:3|2025-09-30",
+          `Interim period duration:3|2025-09-30 under Revenues omitted: revenue switched to ${asc606} on same-filing proof, which does not tag that period`,
+        ],
+      ]);
+    });
+
+    test("derives TTM when only one concept is tagged", () => {
+      const series = derive(
+        payload({ "us-gaap": { [asc606]: { USD: [...orclAsc606, ...quarters] } } }),
+        { analysisAsOf: "2026-10-01T00:00:00.000Z" },
+      ).statements.incomeStatement.revenue;
+      expect(series.ttm?.value).toBe(71_776_000_000);
+    });
+  });
+
   test.each([
     "PaymentsOfDividends",
     "PaymentsOfDividendsCommonStock",
@@ -1170,6 +1346,28 @@ describe("canonical financial statements", () => {
       );
     });
 
+    test("shows a TTM equal to the latest FY once, labelled with its accession", () => {
+      const history = deriveFundamentalHistoryFromFinancialStatements(
+        deriveAt({
+          Revenues: [annual(100, 2024), annual(120, 2025)],
+          CostOfRevenue: [annual(40, 2024), annual(50, 2025)],
+        }),
+      );
+      const cards = fundamentalHistoryView({
+        summary: {} as RunSummary,
+        fundamentalHistory: history,
+      })?.cards;
+      const revenue = cards?.find((card) => card.key === "revenue");
+
+      expect(history.series.revenue.ttm).toMatchObject({ value: 120, periodEnd: "2025-12-31" });
+      expect(revenue).toMatchObject({ basis: "ttm", pointCount: 2 });
+      expect(revenue?.valuePeriod).toStartWith("TTM = FY2025, 10-K accession ");
+      expect(financialTrends(history, false)?.rows.map((row) => row.period)).toEqual([
+        "FY ending 2024-12-31 (latest filed 2025-02-15)",
+        "FY ending 2025-12-31 (latest filed 2026-02-15)",
+      ]);
+    });
+
     test("keeps tagged gross profit and never derives alongside it", () => {
       const { grossProfit } = deriveAt({
         Revenues: [annual(100, 2025)],
@@ -1270,6 +1468,109 @@ describe("canonical financial statements", () => {
 
       expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
       expect(historyGapMessages(artifact)).toEqual([]);
+    });
+  });
+
+  describe("pretax income from domestic + foreign components (ORCL FY26 10-K 0001193125-26-277521)", () => {
+    const DOMESTIC = "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic";
+    const FOREIGN = "IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign";
+    const TOTAL =
+      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest";
+    const orclFy26 = (value: number) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalYear: 2026,
+        fiscalPeriod: "FY",
+        filedAt: "2026-06-22",
+        periodStart: "2025-06-01",
+        periodEnd: "2026-05-31",
+        accessionNumber: "0001193125-26-277521",
+      });
+    const deriveAt = (concepts: Readonly<Record<string, readonly Record<string, unknown>[]>>) =>
+      derive(
+        payload({
+          "us-gaap": Object.fromEntries(
+            Object.entries(concepts).map(([concept, rows]) => [concept, { USD: rows }]),
+          ),
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+    test("sums same-filing components when no total is tagged, disclosed as derived", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        IncomeTaxExpenseBenefit: [orclFy26(2_467_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [orclFy26(10_861_000_000)],
+      });
+      const { pretaxIncome, incomeTaxExpense } = artifact.statements.incomeStatement;
+      const [pretax] = pretaxIncome.annual;
+
+      expect(pretax).toMatchObject({
+        value: 19_554_000_000,
+        accessionNumber: "0001193125-26-277521",
+        periodEnd: "2026-05-31",
+        concept: `${DOMESTIC}+${FOREIGN}`,
+      });
+      expect(incomeTaxExpense.annual[0]!.value / pretax!.value).toBeCloseTo(0.126_16, 5);
+      expect(derivedFactDisclosure("pretaxIncome", pretax!)).toBe(
+        `pretax income derived as ${DOMESTIC} + ${FOREIGN}; no total pretax income is tagged for the period`,
+      );
+      expect(historyGapMessages(artifact)).toEqual([]);
+    });
+
+    test("prefers a tagged total over disagreeing components", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [TOTAL]: [orclFy26(19_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [orclFy26(10_861_000_000)],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+        { value: 19_000_000_000, concept: TOTAL },
+      ]);
+    });
+
+    test("never derives a period whose total is tagged under a non-selected alias", () => {
+      const ALIAS =
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments";
+      const artifact = deriveAt({
+        Revenues: [annual(100, 2024), annual(120, 2025)],
+        [TOTAL]: [annual(30, 2025)],
+        [ALIAS]: [annual(25, 2024)],
+        [DOMESTIC]: [annual(10, 2024), annual(12, 2025)],
+        [FOREIGN]: [annual(14, 2024), annual(18, 2025)],
+      });
+
+      expect(
+        artifact.statements.incomeStatement.pretaxIncome.annual.some(
+          (row) => row.composite !== undefined,
+        ),
+      ).toBe(false);
+    });
+
+    test("leaves pretax income missing with a gap when only one component is tagged", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toContain(
+        `SEC pretax income from continuing operations is not derived for 2025-06-01 to 2026-05-31: no ${FOREIGN} fact is tagged for the period`,
+      );
+    });
+
+    test("withholds components from different filings", () => {
+      const artifact = deriveAt({
+        Revenues: [orclFy26(67_000_000_000)],
+        [DOMESTIC]: [orclFy26(8_693_000_000)],
+        [FOREIGN]: [{ ...orclFy26(10_861_000_000), accn: "0001193125-26-999999" }],
+      });
+
+      expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
     });
   });
 
@@ -4023,6 +4324,43 @@ describe("canonical debt basis selection", () => {
     );
   });
 
+  test("a newer filing's complete debt resolution drops older withhold notes for that instant", () => {
+    const debtFact = (value: number, periodEnd: string, form: string, filedAt: string) =>
+      fact({ value, form, fiscalPeriod: form === "10-K" ? "FY" : "Q1", filedAt, periodEnd });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtCurrent: {
+            USD: [
+              debtFact(10, "2025-05-31", "10-K", "2025-06-20"),
+              debtFact(10, "2025-05-31", "10-Q", "2025-09-10"),
+              debtFact(10, "2025-05-31", "10-K", "2026-06-20"),
+              debtFact(12, "2026-05-31", "10-K", "2026-06-20"),
+            ],
+          },
+          LongTermDebtNoncurrent: {
+            USD: [
+              debtFact(90, "2025-05-31", "10-K", "2025-06-20"),
+              debtFact(90, "2025-05-31", "10-K", "2026-06-20"),
+              debtFact(95, "2026-05-31", "10-K", "2026-06-20"),
+            ],
+          },
+        },
+      }),
+      { generatedAt: "2026-07-01T00:00:00.000Z", analysisAsOf: "2026-07-01T00:00:00.000Z" },
+    );
+    const debt = [
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ];
+
+    expect(debt.find((row) => row.periodEnd === "2025-05-31")?.value).toBe(100);
+    expect(artifact.omissionNotes).not.toContainEqual(
+      expect.objectContaining({ seriesKey: "debt", periodKey: "instant|2025-05-31" }),
+    );
+  });
+
   test("canonical and legacy writers agree on a same-period direct-vs-complete-composite tie", () => {
     const companyFacts = payload({
       "us-gaap": {
@@ -4790,4 +5128,154 @@ describe("SEC summary canonical merge eligibility", () => {
     ).toBe(false);
     expect(summarizeSecFundamentals(companyFacts, asOf)?.metrics.debt).not.toBe(200);
   });
+});
+
+test("notes held-for-sale debt only when no debt is tagged in the recast filing or later", () => {
+  const heldNotes = (debtFiledAt: string) =>
+    derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          LongTermDebtNoncurrent: {
+            USD: [
+              fact({
+                value: 20,
+                form: "10-K",
+                fiscalYear: 2024,
+                fiscalPeriod: "FY",
+                filedAt: debtFiledAt,
+                periodEnd: "2024-12-31",
+              }),
+            ],
+          },
+          LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: {
+            USD: [
+              fact({
+                value: 50,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodEnd: "2024-12-31",
+              }),
+            ],
+          },
+        },
+      }),
+    )
+      .omissionNotes.filter(({ code }) => code === "debt-held-for-sale")
+      .map(({ periodKey, publicAt }) => [periodKey, publicAt]);
+  expect(heldNotes("2025-02-15")).toEqual([["instant|2024-12-31", "2026-02-15"]]);
+  expect(heldNotes("2026-02-15")).toEqual([]);
+});
+
+describe("valuation debt never pairs past a newer incomplete debt instant", () => {
+  const row = (input: {
+    readonly taxonomy: "us-gaap" | "ifrs-full";
+    readonly unit: string;
+    readonly debtEnd: string;
+    readonly debtFiledAt: string;
+    readonly heldEnd: string;
+    readonly yearEnd: string;
+  }) => {
+    const filed = "2025-11-20";
+    const at = (value: number, periodEnd: string, filedAt: string, periodStart?: string) =>
+      fact({
+        value,
+        form: input.taxonomy === "us-gaap" ? "10-K" : "20-F",
+        fiscalYear: 2025,
+        fiscalPeriod: "FY",
+        filedAt,
+        periodEnd,
+        ...(periodStart === undefined ? {} : { periodStart }),
+      });
+    const concepts =
+      input.taxonomy === "us-gaap"
+        ? {
+            Revenues: [at(1000, input.yearEnd, filed, "2024-09-29")],
+            CashAndCashEquivalentsAtCarryingValue: [at(40, input.yearEnd, filed)],
+            LongTermDebtNoncurrent: [at(20, input.debtEnd, input.debtFiledAt)],
+            LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: [
+              at(50, input.heldEnd, filed),
+            ],
+          }
+        : {
+            Revenue: [at(1000, input.yearEnd, filed, "2024-09-29")],
+            CashAndCashEquivalents: [at(40, input.yearEnd, filed)],
+            Borrowings: [at(20, input.debtEnd, input.debtFiledAt)],
+            LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale: [
+              at(50, input.heldEnd, filed),
+            ],
+          };
+    const artifact = derive(
+      payload({
+        [input.taxonomy]: Object.fromEntries(
+          Object.entries(concepts).map(([concept, facts]) => [concept, { [input.unit]: facts }]),
+        ),
+      }),
+    );
+    const period = valuationPeriodInputs(artifact).periods.find(
+      ({ periodEnd }) => periodEnd === input.yearEnd,
+    );
+    return {
+      debt: period?.debt?.periodEnd,
+      scope: period?.debtScopeMismatch,
+      behind: period?.debtBehindIncompleteInstant,
+    };
+  };
+  const usGaap = { taxonomy: "us-gaap", unit: "USD", debtFiledAt: "2025-08-01" } as const;
+
+  test("52/53-week: a held-for-sale note at the cash instant withholds the prior-quarter debt", () => {
+    expect(
+      row({ ...usGaap, debtEnd: "2025-06-28", heldEnd: "2025-09-27", yearEnd: "2025-09-27" }),
+    ).toEqual({ debt: undefined, scope: undefined, behind: undefined });
+  });
+
+  test("debt 91 days before cash never pairs past a note between them, though within 92 days", () => {
+    expect(
+      row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-09-27", yearEnd: "2025-10-01" }),
+    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: true });
+  });
+
+  test("off-path: no note between debt and cash pairs them normally", () => {
+    expect(
+      row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-06-28", yearEnd: "2025-10-01" }),
+    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: undefined });
+  });
+
+  test("IFRS: pre-recast borrowings at a held-for-sale instant are mixed scope", () => {
+    expect(
+      row({
+        taxonomy: "ifrs-full",
+        unit: "EUR",
+        debtEnd: "2025-09-27",
+        debtFiledAt: "2024-12-01",
+        heldEnd: "2025-09-27",
+        yearEnd: "2025-09-27",
+      }),
+    ).toEqual({ debt: undefined, scope: true, behind: undefined });
+  });
+});
+
+test("notes IFRS liabilities held for sale with no tagged debt as unproven debt", () => {
+  const artifact = derive(
+    payload({
+      "ifrs-full": {
+        Revenue: { EUR: [annual(1000, 2025, "20-F")] },
+        LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale: {
+          EUR: [instant(50, 2025, "20-F")],
+        },
+      },
+    }),
+  );
+  expect(
+    artifact.omissionNotes
+      .filter(({ code }) => code === "debt-held-for-sale")
+      .map(({ periodKey, message }) => [periodKey, message]),
+  ).toEqual([
+    [
+      "instant|2025-12-31",
+      "Debt for 2025-12-31 is incomplete: LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale (20260215-20-F) files liabilities held for sale and no standard ifrs-full debt concept is tagged for that date in that filing or later, so continuing-operations debt is unproven.",
+    ],
+  ]);
 });

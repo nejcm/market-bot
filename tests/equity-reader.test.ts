@@ -194,6 +194,15 @@ function renderEarningsSection(report: Record<string, unknown>): string {
   );
 }
 
+function debtNote(periodEnd: string, reason: string) {
+  return {
+    code: "incomplete-composite-series" as const,
+    seriesKey: "debt" as const,
+    periodKey: `instant|${periodEnd}`,
+    message: `Debt composite for ${periodEnd} is incomplete: ${reason}.`,
+  };
+}
+
 describe("equity reader projection", () => {
   test("projects each latest available financial-position metric independently", () => {
     const cash = statementSeries("cash", [
@@ -286,6 +295,35 @@ describe("equity reader projection", () => {
 
     expect(projection.appendix.balanceSheetHistory?.notes).toEqual([note]);
     expect(projection.defaultView.financialPosition?.notes).toEqual([note]);
+  });
+
+  test("groups per-instant debt composite notes by reason", () => {
+    const base = amendedFilingArtifact();
+    const single = debtNote("2024-05-31", "no borrowing line item is tagged");
+    const projection = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: {
+        ...base,
+        omissionNotes: [
+          debtNote("2025-02-28", "unrecognized borrowing concepts are tagged: SeniorNotes"),
+          single,
+          debtNote("2024-11-30", "unrecognized borrowing concepts are tagged: SeniorNotes"),
+        ],
+        validationNotes: [],
+      },
+    });
+
+    const grouped = [
+      {
+        code: "incomplete-composite-series" as const,
+        seriesKey: "debt" as const,
+        message:
+          "Debt composite for 2025-02-28, 2024-11-30 is incomplete: unrecognized borrowing concepts are tagged: SeniorNotes.",
+      },
+      single,
+    ];
+    expect(projection.appendix.balanceSheetHistory?.notes).toEqual(grouped);
+    expect(projection.defaultView.financialPosition?.notes).toEqual(grouped);
   });
 
   test("renders stale-instant-series notes below the table when the series cell still has a value", () => {
@@ -1004,4 +1042,33 @@ test("unreconciled D&A component notes collapse to one line listing their period
   expect(notes([note("duration:12|2023-12-31")])?.map(({ message }) => message)).toEqual([
     "duration:12|2023-12-31",
   ]);
+});
+
+test("unchecked D&A component sums collapse separately from unreconciled ones", () => {
+  const unchecked = (periodKey: string) => ({
+    ...note(periodKey),
+    code: "unchecked-component-sum",
+  });
+  expect(
+    notes([
+      note("duration:12|2023-12-31"),
+      unchecked("duration:12|2024-12-31") as unknown as ReturnType<typeof note>,
+      unchecked("duration:12|2025-12-31") as unknown as ReturnType<typeof note>,
+    ])?.map(({ code, message }) => [code, message]),
+  ).toEqual([
+    ["unreconciled-component", "duration:12|2023-12-31"],
+    [
+      "unchecked-component-sum",
+      "SEC depreciation and amortization for periods ending 2024-12-31, 2025-12-31 is depreciation + intangible amortization, not checked against the filed cash-flow statement",
+    ],
+  ]);
+});
+
+test("unchecked component sums on another series are not collapsed as D&A", () => {
+  const otherSeries = {
+    ...note("duration:12|2024-12-31"),
+    code: "unchecked-component-sum",
+    seriesKey: "capitalExpenditure",
+  } as unknown as ReturnType<typeof note>;
+  expect(notes([otherSeries])).toEqual([]);
 });

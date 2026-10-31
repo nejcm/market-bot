@@ -38,6 +38,14 @@ const CANONICAL_POSTURE_REQUIRED_PATTERN = /\b(?:missing source|source gap|data 
 const HISTORICAL_OUTCOME_CONTEXT_PATTERN = /\b(?:prior|previous|historical|past|resolved)\b/iu;
 const FORECAST_OUTCOME_PATTERN =
   /\b(?:forecast|prediction|miss(?:es|ed)?|hit(?:s)?|resolved|outcome)\b/iu;
+const PEER_MEDIAN_PATTERN = /\bpeer[\s-]+medians?\b/iu;
+const NEGATED_PEER_MEDIAN_PATTERN =
+  /\b(?:no|without)\s+(?:usable\s+)?peer[\s-]+medians?\b|\bpeer[\s-]+medians?\b[^.]*\b(?:not available|unavailable|not computed|could not be computed|cannot be computed|not computable|withheld)\b/iu;
+// Comps rows carry only EV/revenue, so a median of another metric is outside the usable-peer set.
+const EV_REVENUE_PATTERN =
+  /\bEV\s*\/\s*(?:TTM\s+|annualized\s+)?(?:revenue|sales)\b|\benterprise[\s-]value[\s-]to[\s-](?:revenue|sales)\b/iu;
+const OTHER_PEER_METRIC_PATTERN =
+  /\bEV\s*\/\s*(?!(?:TTM\s+|annualized\s+)?(?:revenue|sales)\b)\w|\benterprise[\s-]value[\s-]to[\s-](?!revenue\b|sales\b)\w|\b(?:P\s*\/\s*[EBS]|gross profit|price[\s-]to[\s-](?:earnings|book|sales)|EBITDA|EBIT|earnings multiple|FCF|free cash flow|margins?|growth|ROIC|ROE|yield|payout)\b/iu;
 const FORECAST_HORIZON_PATTERN = /\b\d+\s*(?:-| )?(?:trading\s*)?day\b/iu;
 
 interface AuditClaim {
@@ -49,9 +57,10 @@ interface AuditClaim {
 export function auditPostSynthesisReport(
   report: ResearchReport,
   webSourceUsage?: WebSourceUsage,
+  usablePeerSourceIds?: ReadonlySet<string>,
 ): readonly PostSynthesisAuditWarning[] {
   return [
-    ...claimsForReport(report).flatMap((claim) => auditClaim(claim)),
+    ...claimsForReport(report).flatMap((claim) => auditClaim(claim, usablePeerSourceIds)),
     ...(webSourceUsage !== undefined &&
     webSourceUsage.currentRunIds.size >= 4 &&
     webSourceUsage.currentRunUsedIds.size === 0
@@ -99,8 +108,14 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
   }));
 }
 
-function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
+function auditClaim(
+  claim: AuditClaim,
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
+): readonly PostSynthesisAuditWarning[] {
   return [
+    ...(isUncitedPeerMedianClaim(claim.text, claim.sourceIds, usablePeerSourceIds)
+      ? [peerMedianUncitedWarning(claim)]
+      : []),
     ...(isGapShapedClaimForAuditWarning(claim.text) && claim.sourceIds.length > 0
       ? [citedGapShapedClaimWarning(claim)]
       : []),
@@ -114,6 +129,26 @@ function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
       ? [missingPostureWarning(claim)]
       : []),
   ];
+}
+
+export function isUncitedPeerMedianClaim(
+  text: string,
+  sourceIds: readonly string[],
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
+): boolean {
+  return (
+    usablePeerSourceIds !== undefined &&
+    text
+      .split(/[;.!?](?:\s|$)/u)
+      .some(
+        (clause) =>
+          PEER_MEDIAN_PATTERN.test(clause) &&
+          !NEGATED_PEER_MEDIAN_PATTERN.test(clause) &&
+          !isGapShapedClaimForAuditWarning(clause) &&
+          (EV_REVENUE_PATTERN.test(clause) || !OTHER_PEER_METRIC_PATTERN.test(clause)),
+      ) &&
+    !sourceIds.some((id) => usablePeerSourceIds.has(id))
+  );
 }
 
 function isNumericOrTechnicalClaim(text: string): boolean {
@@ -183,6 +218,15 @@ function unsupportedNumericWarning(claim: AuditClaim): PostSynthesisAuditWarning
     code: "unsupported-numeric-claim",
     location: claim.location,
     message: "numeric or technical claim has no non-history supporting source citation",
+    sourceIds: claim.sourceIds,
+  };
+}
+
+function peerMedianUncitedWarning(claim: AuditClaim): PostSynthesisAuditWarning {
+  return {
+    code: "peer-median-uncited",
+    location: claim.location,
+    message: "peer-median claim cites no usable peer source",
     sourceIds: claim.sourceIds,
   };
 }

@@ -91,7 +91,7 @@ function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod
       };
     }
   }
-  return ttm === undefined ? annualRows : [...annualRows, ttm];
+  return ttm === undefined || annual.has(ttm.periodEnd) ? annualRows : [...annualRows, ttm];
 }
 
 export function financialTrendGaps(history: FundamentalHistoryArtifact): readonly string[] {

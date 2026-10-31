@@ -16,10 +16,11 @@ import {
   isHistoricalForecastOutcome,
   isNumericClaim,
   isTechnicalClaim,
+  isUncitedPeerMedianClaim,
   shouldCarryPostureLabel,
 } from "./post-synthesis-audit";
 
-// ADR 0004: prune unsupported numeric/technical claims and grade; posture labels stay advisory.
+// ADR 0004: prune unsupported numeric/technical and uncited peer-median claims and grade; posture labels stay advisory.
 
 interface ReportIntegrityPrunedItem {
   readonly location: string;
@@ -131,11 +132,15 @@ function partitionItems<T>(
   items: readonly T[],
   textOf: (item: T) => string,
   sourceIdsOf: (item: T) => readonly string[],
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
 ): Partition<T> {
   const kept: T[] = [];
   const pruned: ReportIntegrityPrunedItem[] = [];
   items.forEach((item, index) => {
-    if (isBlockingViolation(textOf(item), sourceIdsOf(item))) {
+    if (
+      isBlockingViolation(textOf(item), sourceIdsOf(item)) ||
+      isUncitedPeerMedianClaim(textOf(item), sourceIdsOf(item), usablePeerSourceIds)
+    ) {
       pruned.push({
         location: `${section}[${String(index)}]`,
         text: textOf(item),
@@ -151,16 +156,21 @@ function partitionItems<T>(
 function partitionFindings(
   section: string,
   findings: readonly KeyFinding[],
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
 ): Partition<KeyFinding> {
   return partitionItems(
     section,
     findings,
     (finding) => finding.text,
     (finding) => finding.sourceIds,
+    usablePeerSourceIds,
   );
 }
 
-function partitionScenarios(scenarios: readonly Scenario[]): Partition<Scenario> {
+function partitionScenarios(
+  scenarios: readonly Scenario[],
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
+): Partition<Scenario> {
   return partitionItems(
     "scenarios",
     scenarios,
@@ -169,20 +179,25 @@ function partitionScenarios(scenarios: readonly Scenario[]): Partition<Scenario>
     // The blocking check.
     (scenario) => `${scenario.name}: ${scenario.description}`,
     (scenario) => scenario.sourceIds,
+    usablePeerSourceIds,
   );
 }
 
-function partitionPredictions(predictions: readonly Prediction[]): Partition<Prediction> {
+function partitionPredictions(
+  predictions: readonly Prediction[],
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
+): Partition<Prediction> {
   return partitionItems(
     "predictions",
     predictions,
     (prediction) => prediction.claim,
     (prediction) => prediction.sourceIds,
+    usablePeerSourceIds,
   );
 }
 
 const SUMMARY_FALLBACK =
-  "Summary withheld: every summary sentence carried an uncited numeric or technical claim. See the cited sections of this report.";
+  "Summary withheld: every summary sentence carried an uncited numeric, technical, or peer-median claim. See the cited sections of this report.";
 
 const NON_FINAL_ABBREVIATION = /^(?:e\.g|i\.e|vs|cf|Mr|Mrs|Ms|Dr|No|St)\.$/iu;
 const FINAL_CAPABLE_ABBREVIATION = /^(?:(?:[A-Za-z]\.)+|Inc\.|Corp\.|Co\.|Ltd\.|Jr\.|Sr\.)$/u;
@@ -243,13 +258,19 @@ function lineBreakCount(separator: string): number {
   return separator.split("\n").length;
 }
 
-function partitionSummary(summary: string): {
+function partitionSummary(
+  summary: string,
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
+): {
   readonly summary: string;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
 } {
   const pieces = splitSummarySentences(summary);
   const blocking = pieces.map(
-    ({ text }) => text.trim() !== "" && isBlockingViolation(text.trim(), []),
+    ({ text }) =>
+      text.trim() !== "" &&
+      (isBlockingViolation(text.trim(), []) ||
+        isUncitedPeerMedianClaim(text.trim(), [], usablePeerSourceIds)),
   );
   // Right to left so a chain of initials ("J. R. Smith ...") follows its pruned continuation.
   for (let index = pieces.length - 2; index >= 0; index -= 1) {
@@ -353,15 +374,16 @@ const REQUIRED_SECTIONS = ["keyFindings", "risks", "scenarios"] as const;
 export function auditReportIntegrity(
   report: ResearchReport,
   evidenceQualityAssessment?: EvidenceQualityAssessment,
+  usablePeerSourceIds?: ReadonlySet<string>,
 ): ReportIntegrityAuditResult {
-  const keyFindings = partitionFindings("keyFindings", report.keyFindings);
-  const bullCase = partitionFindings("bullCase", report.bullCase);
-  const bearCase = partitionFindings("bearCase", report.bearCase);
-  const risks = partitionFindings("risks", report.risks);
-  const catalysts = partitionFindings("catalysts", report.catalysts);
-  const scenarios = partitionScenarios(report.scenarios);
-  const predictions = partitionPredictions(report.predictions);
-  const summary = partitionSummary(report.summary);
+  const keyFindings = partitionFindings("keyFindings", report.keyFindings, usablePeerSourceIds);
+  const bullCase = partitionFindings("bullCase", report.bullCase, usablePeerSourceIds);
+  const bearCase = partitionFindings("bearCase", report.bearCase, usablePeerSourceIds);
+  const risks = partitionFindings("risks", report.risks, usablePeerSourceIds);
+  const catalysts = partitionFindings("catalysts", report.catalysts, usablePeerSourceIds);
+  const scenarios = partitionScenarios(report.scenarios, usablePeerSourceIds);
+  const predictions = partitionPredictions(report.predictions, usablePeerSourceIds);
+  const summary = partitionSummary(report.summary, usablePeerSourceIds);
 
   const pruned = [
     ...summary.pruned,

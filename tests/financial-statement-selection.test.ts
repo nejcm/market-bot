@@ -9,7 +9,9 @@ import type {
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import {
   capFinancialStatementPeriods,
+  deriveFinancialStatementTtm,
   financialStatementFactForPeriod,
+  financialStatementFacts,
   financialStatementFactsAreCompatible,
   financialStatementSeries,
   financialStatementSeriesByKey,
@@ -18,7 +20,9 @@ import {
   latestCommonFinancialStatementFacts,
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
+  staleSeriesReason,
 } from "../src/sources/extended-evidence/financial-statement-selection";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { SEC_METRIC_DEFINITIONS } from "../src/sources/extended-evidence/sec-fundamentals-format";
 
@@ -96,7 +100,7 @@ function ttm(overrides: Partial<FinancialStatementTtm> = {}): FinancialStatement
     sourceIds: ["sec-test"],
     components: { fiscalYear, latestYearToDate, priorYearToDate },
     ...overrides,
-  };
+  } as FinancialStatementTtm;
 }
 
 function series(
@@ -720,6 +724,58 @@ describe("financial statement selection", () => {
     expect(financialStatementFactsAreCompatible([fact(), fact({ unitScale: 1000 })])).toBe(false);
   });
 
+  test("derives TTM as the latest FY only until a later interim is filed", () => {
+    const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "revenue")!;
+    // MSFT FY2026 10-K 0001193125-26-323660.
+    const fiscalYear = fact({
+      value: 331_839,
+      periodStart: "2025-07-01",
+      periodEnd: "2026-06-30",
+      periodKey: "2025-07-01|2026-06-30",
+      accessionNumber: "0001193125-26-323660",
+      filedAt: "2026-07-29",
+    });
+    const interim = (value: number, periodStart: string, periodEnd: string) =>
+      fact({
+        value,
+        periodType: "interim",
+        periodStart,
+        periodEnd,
+        periodKey: `${periodStart}|${periodEnd}`,
+      });
+    const priorQ1 = interim(80, "2025-07-01", "2025-09-30");
+    const derive = (
+      annual: readonly FinancialStatementFact[],
+      interims: readonly FinancialStatementFact[],
+      currency = "USD",
+    ) => deriveFinancialStatementTtm(revenue, annual, interims, currency);
+
+    expect(derive([fiscalYear], [priorQ1]).ttm).toEqual({
+      value: 331_839,
+      periodStart: "2025-07-01",
+      periodEnd: "2026-06-30",
+      currency: "USD",
+      unit: "USD",
+      unitScale: 1,
+      extractionMethod: "derived-sec-companyfacts",
+      formula: "FY",
+      sourceIds: fiscalYear.sourceIds,
+      components: { fiscalYear },
+    });
+    const nextQ1 = interim(90, "2026-07-01", "2026-09-30");
+    expect(derive([fiscalYear], [priorQ1, nextQ1]).ttm).toMatchObject({
+      formula: "FY + latest-YTD - prior-YTD",
+      value: 331_839 + 90 - 80,
+      periodEnd: "2026-09-30",
+    });
+    expect(derive([fiscalYear], [nextQ1])).toEqual({
+      note: expect.objectContaining({ code: "unreconciled-ttm" }),
+    });
+    expect(derive([fiscalYear], [], "EUR").ttm).toBeUndefined();
+    const thirteenMonths = { ...fiscalYear, periodStart: "2025-06-01" };
+    expect(derive([thirteenMonths], []).ttm).toBeUndefined();
+  });
+
   test("checks TTM period alignment separately from full compatibility", () => {
     const base = ttm();
     const differentUnit = ttm({ unit: "EUR" });
@@ -908,4 +964,118 @@ describe("financial statement selection", () => {
     expect(financialStatementSeriesByKey(artifact, "revenue")).toBe(revenue);
     expect(financialStatementSeriesByKey(artifact, "cash")).toBeUndefined();
   });
+});
+
+// Neither 10-K tags continuing or discontinued OCF (instance documents checked 2026-10-31).
+const annualFact = (year: number, val: number, accn: string, filed: string) => ({
+  val,
+  accn,
+  filed,
+  form: "10-K",
+  fp: "FY",
+  fy: year,
+  start: `${String(year)}-01-01`,
+  end: `${String(year)}-12-31`,
+});
+
+describe("stale operating cash flow behind a discontinued-operations withhold", () => {
+  const cases = [
+    {
+      symbol: "GPN",
+      lastShown: { year: 2022, value: 2_244_040_000, accn: "0001123360-25-000011" },
+      latest: { value: 2_656_592_000, discontinued: 327_371_000, accn: "0001123360-26-000008" },
+    },
+    {
+      symbol: "VISN",
+      lastShown: { year: 2020, value: 436_200_000, accn: "0000950170-23-003856" },
+      latest: { value: 322_900_000, discontinued: -854_000_000, accn: "0001193125-26-072523" },
+    },
+  ];
+
+  for (const { symbol, lastShown, latest } of cases) {
+    test(`${symbol} names the scope withhold, not only the lag`, () => {
+      const old = annualFact(lastShown.year, lastShown.value, lastShown.accn, "2025-02-14");
+      const now = (val: number) => annualFact(2025, val, latest.accn, "2026-02-20");
+      const derive = (discontinued: number) =>
+        deriveFinancialStatements(
+          {
+            facts: {
+              "us-gaap": {
+                Revenues: { units: { USD: [{ ...old, val: 9e9 }, now(9e9)] } },
+                NetCashProvidedByUsedInOperatingActivities: {
+                  units: { USD: [old, now(latest.value)] },
+                },
+                IncomeLossFromDiscontinuedOperationsNetOfTax: {
+                  units: { USD: [now(discontinued)] },
+                },
+              },
+            },
+          },
+          { symbol, generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+        );
+      const withheld = derive(latest.discontinued);
+      const ocf = financialStatementSeriesByKey(withheld, "operatingCashFlow")!;
+      const latestOcf = latestFinancialStatementFact(financialStatementFacts(ocf))!;
+
+      expect(latestOcf.value).toBe(lastShown.value);
+      expect(
+        staleSeriesReason(withheld, latestOcf, "operatingCashFlow", "operating cash flow"),
+      ).toBe(
+        `latest operating cash flow period ends ${String(lastShown.year)}-12-31, more than a year before the newest filed period 2025-12-31; operating cash flow for 2025-01-01 to 2025-12-31 is withheld: discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged`,
+      );
+      const mid = annualFact(lastShown.year + 1, lastShown.value, lastShown.accn, "2025-02-14");
+      const older = deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: { units: { USD: [old, mid, now(9e9)].map((f) => ({ ...f, val: 9e9 })) } },
+              NetCashProvidedByUsedInOperatingActivities: { units: { USD: [old, mid] } },
+              IncomeLossFromDiscontinuedOperationsNetOfTax: {
+                units: { USD: [{ ...old, val: latest.discontinued }] },
+              },
+            },
+          },
+        },
+        { symbol, generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+      );
+      const staleMid = latestFinancialStatementFact(
+        financialStatementFacts(financialStatementSeriesByKey(older, "operatingCashFlow")!),
+      )!;
+      expect(older.omissionNotes.some((note) => note.seriesKey === "operatingCashFlow")).toBe(true);
+      expect(staleSeriesReason(older, staleMid, "operatingCashFlow", "operating cash flow")).toBe(
+        `latest operating cash flow period ends ${String(lastShown.year + 1)}-12-31, more than a year before the newest filed period 2025-12-31`,
+      );
+      const bothSides = deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: { units: { USD: [old, mid, now(9e9)].map((f) => ({ ...f, val: 9e9 })) } },
+              NetCashProvidedByUsedInOperatingActivities: {
+                units: { USD: [old, mid, now(latest.value)] },
+              },
+              IncomeLossFromDiscontinuedOperationsNetOfTax: {
+                units: { USD: [{ ...old, val: 1 }, now(latest.discontinued)] },
+              },
+            },
+          },
+        },
+        { symbol, generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+      );
+      const aggregated = bothSides.omissionNotes.find(
+        (note) => note.seriesKey === "operatingCashFlow",
+      )!;
+      expect(aggregated.message).toContain(`${String(lastShown.year)}-01-01 to`);
+      expect(
+        staleSeriesReason(bothSides, staleMid, "operatingCashFlow", "operating cash flow"),
+      ).toBe(
+        `latest operating cash flow period ends ${String(lastShown.year + 1)}-12-31, more than a year before the newest filed period 2025-12-31; operating cash flow for 2025-01-01 to 2025-12-31 is withheld: discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged`,
+      );
+      const clean = derive(0);
+      expect(
+        latestFinancialStatementFact(
+          financialStatementFacts(financialStatementSeriesByKey(clean, "operatingCashFlow")!),
+        )?.value,
+      ).toBe(latest.value);
+    });
+  }
 });

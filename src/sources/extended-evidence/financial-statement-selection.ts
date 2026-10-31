@@ -3,6 +3,8 @@ import {
   type FinancialStatementSeriesDefinition,
 } from "./financial-statement-definitions";
 import {
+  ALIGNMENT_MAX_DAYS,
+  ALIGNMENT_MIN_DAYS,
   SEC_COMPANYFACTS_UNIT_SCALE,
   type FinancialStatementFact,
   type FinancialStatementName,
@@ -17,13 +19,11 @@ import {
 
 const DAY_MS = 86_400_000;
 const DAYS_PER_MONTH = 30.4368;
-const ALIGNMENT_MIN_DAYS = 350;
-const ALIGNMENT_MAX_DAYS = 380;
 const FY_BOUNDARY_TOLERANCE_DAYS = 10;
 // Two facts in one duration bucket can differ by at most twice this; 7 covers 52/53-week years.
 const PERIOD_DRIFT_TOLERANCE_DAYS = 7;
 // Each limit applies per shape (duration and instant): up to 20 annual and 24 interim keys.
-const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
+export const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
 const MAX_INTERIM_PERIODS_PER_SHAPE = 12;
 
 function daysBetween(start: string, end: string): number | undefined {
@@ -165,6 +165,58 @@ export function latestFinancialStatementFact(
   facts: readonly FinancialStatementFact[],
 ): FinancialStatementFact | undefined {
   return facts.toSorted(compareFinancialStatementFacts).at(0);
+}
+
+export function fiscalYearTtmLabel(fiscalYear: FinancialStatementFact): string {
+  return `TTM = FY${String(fiscalYear.fiscalYear)}, ${fiscalYear.form} accession ${fiscalYear.accessionNumber ?? "undisclosed"}`;
+}
+
+export function latestFiscalYearTrailingBasis(
+  revenue: FinancialStatementSeries | undefined,
+): string | undefined {
+  const fiscalYear = latestFinancialStatementFact(revenue?.annual ?? []);
+  if (
+    fiscalYear?.periodStart === undefined ||
+    financialStatementPeriodMonths(fiscalYear) !== 12 ||
+    revenue?.interim.some((fact) => fact.periodEnd > fiscalYear.periodEnd) !== false
+  ) {
+    return undefined;
+  }
+  return `The latest fiscal year (${fiscalYear.periodStart} to ${fiscalYear.periodEnd}, ${fiscalYear.form} accession ${fiscalYear.accessionNumber ?? "undisclosed"}) is the newest period in the SEC revenue series; no later interim revenue period is tagged.`;
+}
+
+// Healthy annual-only lines lag the newest filed period by at most three quarters.
+const STALE_SERIES_LAG_DAYS = 366;
+
+export function staleSeriesReason(
+  artifact: FinancialStatementsArtifact,
+  fact: FinancialStatementFact,
+  key: FinancialStatementSeriesKey,
+  label: string,
+): string | undefined {
+  const newest = financialStatementSeries(artifact)
+    .flatMap(financialStatementFacts)
+    .map((candidate) => candidate.periodEnd)
+    .toSorted()
+    .at(-1);
+  const lag = newest === undefined ? undefined : daysBetween(fact.periodEnd, newest);
+  if (lag === undefined || lag <= STALE_SERIES_LAG_DAYS) {
+    return undefined;
+  }
+  const withheld = artifact.omissionNotes.flatMap((note) => {
+    // Aggregated notes carry withheld spans only as text: "... for <start> to <end>, ...: <reason>".
+    const parsed = /for (.+?): (.+)$/.exec(note.message);
+    if (note.code !== "withheld-derivation" || note.seriesKey !== key || parsed === null) {
+      return [];
+    }
+    const later = parsed[1]!
+      .split(", ")
+      .filter((span) => (span.split(" to ")[1] ?? "") > fact.periodEnd);
+    return later.length === 0
+      ? []
+      : [`; ${label} for ${later.join(", ")} is withheld: ${parsed[2]!}`];
+  });
+  return `latest ${label} period ends ${fact.periodEnd}, more than a year before the newest filed period ${newest}${withheld.join("")}`;
 }
 
 export function financialStatementFacts(
@@ -331,6 +383,27 @@ export function deriveFinancialStatementTtm(
     return {};
   }
   const fiscalYear = latestFinancialStatementFact(annual)!;
+  if (
+    fiscalYear.periodStart !== undefined &&
+    financialStatementPeriodMonths(fiscalYear) === 12 &&
+    fiscalYear.currency === currency &&
+    !interim.some((fact) => fact.periodEnd > fiscalYear.periodEnd)
+  ) {
+    return {
+      ttm: {
+        value: fiscalYear.value,
+        periodStart: fiscalYear.periodStart,
+        periodEnd: fiscalYear.periodEnd,
+        currency,
+        unit: fiscalYear.unit,
+        unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
+        extractionMethod: "derived-sec-companyfacts",
+        formula: "FY",
+        sourceIds: fiscalYear.sourceIds,
+        components: { fiscalYear },
+      },
+    };
+  }
   const latestInterimEnd = latestFinancialStatementFact(interim)?.periodEnd;
   const latestEndFacts = interim.filter((fact) => fact.periodEnd === latestInterimEnd);
   // Only each span's latest revision may reconcile; a superseded original never stands in.

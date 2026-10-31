@@ -23,6 +23,7 @@ export interface DebtResolution<T> {
   // Classified carrying lines, or a LongTermDebt total that reconciles to them, are one scope across bases (NVDA).
   readonly lineScope?: true;
   readonly proofSourceIds?: readonly string[];
+  readonly faceLeases?: readonly string[];
 }
 
 export function debtIdentityConcepts(taxonomy: FinancialStatementTaxonomy): readonly string[] {
@@ -85,6 +86,8 @@ interface DebtInstant {
   readonly periodEnd: string;
   readonly filedAt: string;
 }
+
+export type DebtFaceSide = "current" | "noncurrent";
 
 interface DebtSide {
   readonly generic: string | undefined;
@@ -230,16 +233,32 @@ function omittedDebtConcepts(
     .toSorted();
 }
 
-function incompleteDebtReason(
+// A zero balance cannot be missing from the sum (Iridium 2020 SeniorLongTermNotes after redemption).
+function zeroUnrecognizedDebtConcepts<T>(
+  taxonomy: FinancialStatementTaxonomy,
+  tagged: ReadonlyMap<string, T>,
+  valueOf: (fact: T) => number,
+): readonly string[] {
+  const recognized = recognizedDebtConcepts(taxonomy);
+  return [...tagged].flatMap(([concept, fact]) =>
+    !recognized.has(concept) && valueOf(fact) === 0 ? [concept] : [],
+  );
+}
+
+function incompleteDebtReason<T>(
   taxonomy: FinancialStatementTaxonomy,
   instant: DebtInstant,
   sides: readonly DebtSide[],
   usedUmbrellas: readonly string[],
-  tagged: ReadonlyMap<string, unknown>,
+  tagged: ReadonlyMap<string, T>,
   history: readonly DebtHistoryFact[],
+  valueOf: (fact: T) => number,
 ): string | undefined {
   const recognized = recognizedDebtConcepts(taxonomy);
-  const unrecognized = [...tagged.keys()].filter((concept) => !recognized.has(concept));
+  const zeroTagged = new Set(zeroUnrecognizedDebtConcepts(taxonomy, tagged, valueOf));
+  const unrecognized = [...tagged.keys()].filter(
+    (concept) => !recognized.has(concept) && !zeroTagged.has(concept),
+  );
   if (unrecognized.length > 0) {
     return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
   }
@@ -253,7 +272,7 @@ function incompleteDebtReason(
   const bothGeneric = sides.every((side) => side.generic !== undefined);
   const omitted = omittedDebtConcepts(
     instant,
-    (concept) => covered.has(concept) || bothGeneric,
+    (concept) => covered.has(concept) || bothGeneric || zeroTagged.has(concept),
     history,
   );
   return omitted.length > 0
@@ -296,7 +315,7 @@ function restatedDebtComponentReason<T>(
   return `a later filing restated ${restated.map(({ concept, original }) => `${concept} (originally ${String(original?.value)}, filed ${original?.filedAt ?? ""})`).join(", ")} without restating a debt total`;
 }
 
-type LongTermDebtUse = "line" | "total" | "line-without-current";
+type LongTermDebtUse = "line" | "beside" | "total" | "line-without-current";
 
 // LongTermDebt's scope is read only from its own filing's lines; `currentElsewhere` is nonzero current debt in any filing.
 function longTermDebtUse(
@@ -304,6 +323,7 @@ function longTermDebtUse(
   value: (concept: string) => number | undefined,
   currentElsewhere: boolean,
   [current, noncurrent]: readonly DebtSide[],
+  faceRow: (concept: string, side: DebtFaceSide) => boolean,
 ): LongTermDebtUse | { readonly reason: string } {
   const ambiguous = concepts.ambiguousLongTermDebt;
   const longTermDebt = ambiguous === undefined ? undefined : value(ambiguous.concept);
@@ -320,6 +340,17 @@ function longTermDebtUse(
     : (noncurrent?.concepts ?? []);
   const currentLines = current?.concepts ?? [];
   const currentSum = sum(currentLines);
+  if (
+    faceRow(ambiguous.concept, "noncurrent") &&
+    currentLines.every((concept) => faceRow(concept, "current")) &&
+    noncurrentLines.every((concept) => faceRow(concept, "noncurrent"))
+  ) {
+    return asNoncurrentGeneric ||
+      noncurrentLines.length === 0 ||
+      noncurrentLines.includes(ambiguous.concept)
+      ? "line"
+      : "beside";
+  }
   if (noncurrentLines.length === 0) {
     if (currentSum === 0 && !currentElsewhere) {
       return "total";
@@ -381,6 +412,7 @@ export function resolveDebtAtInstant<T>(
     readonly unamortized?: number;
   } = {},
   liabilities: readonly DebtHistoryFact[] = [],
+  faceRow: (concept: string, side: DebtFaceSide) => boolean = () => false,
 ): DebtResolution<T> {
   const concepts = DEBT_CONCEPTS[taxonomy];
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
@@ -477,6 +509,7 @@ export function resolveDebtAtInstant<T>(
     (concept) => longTermDebtFiling.get(concept),
     (sides[0]?.concepts ?? []).some((concept) => valueAt(concept) !== 0),
     scopeSides,
+    faceRow,
   );
   const restatedScope =
     longTermDebt === "total"
@@ -526,9 +559,12 @@ export function resolveDebtAtInstant<T>(
   const total = legLines === undefined ? filedTotal : undefined;
   const used =
     total === undefined
-      ? (legLines ?? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas]).filter(
-          (concept) => longTermDebt !== "line-without-current" || concept !== ambiguous?.current,
-        )
+      ? (legLines ?? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas])
+          .filter(
+            (concept) => longTermDebt !== "line-without-current" || concept !== ambiguous?.current,
+          )
+          .concat(longTermDebt === "beside" && ambiguous !== undefined ? [ambiguous.concept] : [])
+          .filter((concept, index, all) => all.indexOf(concept) === index)
       : [total];
   const { subtracted, unadjusted, deductions } = leaseAdjustment(
     concepts,
@@ -589,8 +625,14 @@ export function resolveDebtAtInstant<T>(
       return longTermDebt.reason;
     }
     return (
-      incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history) ??
-      restatedDebtComponentReason(instant, [...used, ...subtracted], tagged, history, valueOf)
+      incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history, valueOf) ??
+      restatedDebtComponentReason(
+        instant,
+        [...used, ...subtracted, ...zeroUnrecognizedDebtConcepts(taxonomy, tagged, valueOf)],
+        tagged,
+        history,
+        valueOf,
+      )
     );
   })();
   const omittedShortTerm =

@@ -206,6 +206,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   legacy path also reads 20-F/40-F/6-K facts, as the canonical path does (HIVE).
   Without a total, a positive `LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths` beside no current
   debt line is incomplete unless principal minus unamortized costs equals the composite exactly (PYPL vs META).
+- A complete instant whose every gross line is its own row on a footing face statement from the same accession is
+  checked against that face: a tagged amount unequal to its face row withholds debt; another nonzero face borrowing
+  row (standard, or an extension whose name and label both read as debt) is beside those lines and withholds debt
+  rather than being subsumed; a face finance-lease row is not deducted and clears the possible-lease gap for its own
+  side only (other sides keep their deductions and gaps).
 - Never publish an incomplete debt instant, and never let an older amount stand in for one. Every incomplete instant
   emits a dated `incomplete-composite-series` note. When the newest debt instant is incomplete, both paths drop the
   latest-debt metrics: SEC prose, the lens debt row, the financial-position projection, peers, alpha debt features,
@@ -226,6 +231,14 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   filing tags both cash-flow lines (`OtherDepreciationAndAmortization` + `AdjustmentForAmortization`, no conflicting
   same-filing duplicate), the add-back is within 1% of or below intangible amortization, and their sum is not more
   than 1% below the components, that sum replaces the components (AMD FY2023–25).
+  A plain component sum (annual or interim) publishes with an `unchecked-component-sum` note: it is not checked against the
+  cash-flow statement. Same-filing face verification was tried and dropped, because name-pattern iXBRL scanning
+  cannot prove the row set (extension names, nesting, units): MSFT FY2025 face `msft:DepreciationAmortizationAndOther`
+  34,153M vs 28.0B components; INTC face rows match companyfacts. The filing's XBRL calculation linkbase proves the row
+  set instead: the latest 10-K's schema (or the `_cal.xml` it references) is read once, and a component sum from that
+  accession publishes without the note only when operating cash flow's D&A-like summation children are exactly its two
+  concepts, each weight +1 (ORCL, ABBV, GLW). Amount equality is never the proof. Any other child set (MSFT's extension
+  line), another accession, or no linkbase keeps the note and names the reason.
   Equality/within tolerance keeps combined. Rejected/incomplete fallback emits period-specific omission/gap
   and Markdown/Console note; retain lineage and name EBITDA proxy basis. A selected combined fact more than 1%
   below the other same-period combined alias (DDA under DA) is withheld, never replaced by the higher alias; the
@@ -387,6 +400,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   eligible support, never asserting semantic entailment. Bare years/FY labels, valid ISO/capitalized-month
   dates, horizon wording, and cited historic forecast outcomes are exempt from numeric classification; posture
   omissions remain advisory.
+- When peer comps were collected, the same audit prunes a non-negated peer-median(s) claim that cites no usable
+  peer source (warned as `peer-median-uncited`), and any such summary sentence (summaries carry no citations);
+  comps carry only EV/revenue, so a median whose own clause names another metric (any EV/x other than
+  revenue/sales included) and not EV/revenue is out of scope. Negation is also judged per clause. Peer ids are never appended: the figure may not come
+  from those peers.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
   `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,

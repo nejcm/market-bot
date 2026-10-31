@@ -89,6 +89,13 @@ describe("finalizeSynthesis peer-median citation check", () => {
     ).toEqual([]);
   });
 
+  test("flags the claim when comps were collected but no peer is usable", () => {
+    const comps = { ...COMPS, peers: [row("NVDA", false), row("AVGO", false)] };
+    expect(
+      codes(finalize([{ text: CLAIM, sourceIds: ["market-amd", "market-avgo"] }], comps)),
+    ).toEqual(["peer-median-uncited@bearCase[0]"]);
+  });
+
   test("flags nothing without comps", () => {
     expect(codes(finalize([{ text: CLAIM, sourceIds: ["market-amd"] }]))).toEqual([]);
   });

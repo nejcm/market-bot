@@ -1,6 +1,6 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
-import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX } from "../sec-segment-facts";
+import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX, PRIOR_FACE_LINE_PREFIX } from "../sec-segment-facts";
 import { isDebtBasisGap, leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
@@ -50,6 +50,13 @@ export interface DebtFactReader {
   ) => ParsedFact;
 }
 
+export function isWithheldDebtNote(note: FinancialStatementNote): boolean {
+  return (
+    (note.code === "incomplete-composite-series" || note.code === "debt-held-for-sale") &&
+    note.seriesKey === "debt"
+  );
+}
+
 // The newest debt instant is incomplete, so no older amount may stand in as the latest debt.
 export function withheldDebt(
   artifact: FinancialStatementsArtifact,
@@ -63,8 +70,7 @@ export function withheldDebt(
   const [note] = (artifact.omissionNotes ?? [])
     .filter(
       (candidate) =>
-        candidate.code === "incomplete-composite-series" &&
-        candidate.seriesKey === "debt" &&
+        isWithheldDebtNote(candidate) &&
         candidate.periodKey !== undefined &&
         (debtEnd === undefined || candidate.periodKey.replace(/^instant\|/u, "") > debtEnd),
     )
@@ -268,8 +274,52 @@ export function factsForDebt(
       ...(proofs.has(fact) ? { proofSourceIds: proofs.get(fact) ?? [] } : {}),
       ...(faceLeases.has(fact) ? { faceLeases: faceLeases.get(fact) ?? [] } : {}),
     })),
-    notes: [...notes.values()],
+    notes: [
+      ...notes.values(),
+      ...heldForSaleDebtNotes(unitFacts, taxonomy, root, eligible, candidates),
+    ],
   };
+}
+
+const DISPOSAL_GROUP_LIABILITY_CONCEPTS = [
+  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperation",
+  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent",
+  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationNoncurrent",
+];
+
+// A disposal group's liabilities carry no debt breakdown, so an instant with no debt line stays unproven.
+function heldForSaleDebtNotes(
+  unitFacts: DebtFactReader["unitFacts"],
+  taxonomy: FinancialStatementTaxonomy,
+  root: Record<string, unknown>,
+  eligible: (fact: ParsedFact) => boolean,
+  debtCandidates: readonly ParsedFact[],
+): readonly FinancialStatementNote[] {
+  if (taxonomy !== "us-gaap") {
+    return [];
+  }
+  const withDebt = new Set(debtCandidates.map(({ periodEnd }) => periodEnd));
+  const held = new Map<string, ParsedFact>();
+  for (const fact of DISPOSAL_GROUP_LIABILITY_CONCEPTS.flatMap((concept) =>
+    unitFacts(taxonomy, root, concept),
+  )) {
+    if (
+      fact.periodStart === undefined &&
+      fact.value !== 0 &&
+      eligible(fact) &&
+      !withDebt.has(fact.periodEnd) &&
+      !held.has(fact.periodEnd)
+    ) {
+      held.set(fact.periodEnd, fact);
+    }
+  }
+  return [...held.values()].map(({ periodEnd, filedAt, concept, accessionNumber }) => ({
+    code: "debt-held-for-sale",
+    seriesKey: "debt",
+    periodKey: `instant|${periodEnd}`,
+    publicAt: filedAt,
+    message: `Debt for ${periodEnd} is incomplete: ${concept} (${accessionNumber ?? "accession not filed"}) files liabilities held for sale with no debt breakdown, so continuing-operations debt is unproven.`,
+  }));
 }
 
 const FACE_DEBT_WORDS = /debt|loan|mortgage|notes|borrowing/iu;
@@ -277,12 +327,25 @@ const sumOf = (values: readonly number[]) => values.reduce((acc, value) => acc +
 const FACE_NON_DEBT_WORDS =
   /lease|receivable|warrant|tax|interest|derivative|accrued|accounts payable|accountspayable/iu;
 
+// Standard borrowings whose scope varies by filer (AAOI current + noncurrent), so only a face row places them.
+const FACE_SCOPED_BORROWINGS: ReadonlySet<string> = new Set(["LongTermNotesAndLoans"]);
+// Rejects only, never counts, so widening it is safe.
+const BORROWING_HINT = /notes|loan|debt|borrowing|credit|lease|obligation|commitment/iu;
+const KNOWN_NON_BORROWING_ROWS: ReadonlySet<string> = new Set([
+  ...(DEBT_CONCEPTS["us-gaap"].ambiguousLongTermDebt?.noncurrentIdentity.others ?? []),
+  ...(DEBT_CONCEPTS["us-gaap"].ambiguousLongTermDebt?.noncurrentIdentity.currentOthers ?? []),
+  "AssetRetirementObligationsNoncurrent",
+  "AssetRetirementObligationsCurrent",
+  "AssetRetirementObligation",
+]);
+
 interface FaceDebtLines {
   readonly accessionNumber: string;
   readonly sourceIds: readonly string[];
   readonly standard: ReadonlyMap<string, number>;
   readonly sides: ReadonlyMap<string, DebtFaceSide>;
   readonly extensions: readonly { readonly concept: string; readonly value: number }[];
+  readonly rejected?: string;
 }
 
 function faceDebtLines(
@@ -292,39 +355,77 @@ function faceDebtLines(
   taxonomy: FinancialStatementTaxonomy,
 ): readonly FaceDebtLines[] {
   const pattern = DEBT_CONCEPTS[taxonomy].unrecognizedBorrowing;
+  const noRows = {
+    standard: new Map<string, number>(),
+    sides: new Map<string, DebtFaceSide>(),
+    extensions: [],
+  };
   const classify = (text: string) => {
     const debt = FACE_DEBT_WORDS.test(text);
     return debt === FACE_NON_DEBT_WORDS.test(text) ? undefined : debt;
   };
-  return filings.flatMap(({ metrics, sourceIds }) => {
-    if (taxonomy !== "us-gaap" || metrics?.reportDate !== periodEnd) {
+  return filings.flatMap(({ metrics, sourceIds }): readonly FaceDebtLines[] => {
+    if (taxonomy !== "us-gaap" || metrics === undefined) {
       return [];
     }
+    const linePrefix =
+      metrics.reportDate === periodEnd
+        ? FACE_LINE_PREFIX
+        : `${PRIOR_FACE_LINE_PREFIX}${periodEnd}|`;
+    const reject = (concept: string): readonly FaceDebtLines[] =>
+      typeof metrics.accessionNumber === "string"
+        ? [{ ...noRows, accessionNumber: metrics.accessionNumber, sourceIds, rejected: concept }]
+        : [];
     const standard = new Map<string, number>();
     const sides = new Map<string, DebtFaceSide>();
     const extensions: { concept: string; value: number }[] = [];
     for (const [key, value] of Object.entries(metrics)) {
-      const qualified = key.startsWith(FACE_LINE_PREFIX) ? key.split("|")[2] : undefined;
+      const [side, qualified] = key.startsWith(linePrefix)
+        ? key.slice(linePrefix.length).split("|")
+        : [];
       const [prefix, concept] = qualified?.split(":") ?? [];
       if (prefix === undefined || concept === undefined || typeof value !== "number") {
         continue;
       }
-      const label = String(metrics[`${FACE_LABEL_PREFIX}${qualified ?? ""}`] ?? "");
+      const labelKey =
+        linePrefix === FACE_LINE_PREFIX ? qualified : `${periodEnd}|${qualified ?? ""}`;
+      const label = String(metrics[`${FACE_LABEL_PREFIX}${labelKey ?? ""}`] ?? "");
       if (prefix === "us-gaap") {
         if (recognized.has(concept) || pattern?.test(concept) === true) {
           standard.set(concept, value);
-          sides.set(concept, key.split("|")[1] === "current" ? "current" : "noncurrent");
+          sides.set(concept, side === "current" ? "current" : "noncurrent");
+          continue;
+        }
+        if (FACE_SCOPED_BORROWINGS.has(concept)) {
+          extensions.push({ concept, value });
+        } else if (
+          value !== 0 &&
+          !KNOWN_NON_BORROWING_ROWS.has(concept) &&
+          (BORROWING_HINT.test(concept) ||
+            BORROWING_HINT.test(label) ||
+            (label === "" && classify(concept) !== false))
+        ) {
+          return reject(concept);
         }
         continue;
       }
-      // Name and filer label must each classify the line and agree, or footing proves nothing about it.
-      const debt = classify(concept);
-      if (debt === undefined || debt !== classify(label)) {
-        return [];
-      }
-      if (debt) {
+      // Debt needs name and label to agree; only both naming non-debt words (lease, tax) clears a borrowing hint.
+      const named = classify(concept);
+      const labelled = classify(label);
+      if (named === true && labelled === true) {
         extensions.push({ concept, value });
+      } else if (
+        named === true ||
+        labelled === true ||
+        ((named === undefined || labelled === undefined) &&
+          (BORROWING_HINT.test(concept) || BORROWING_HINT.test(label)))
+      ) {
+        return reject(concept);
       }
+    }
+    const unproven = extensions.find(({ value }) => value !== 0);
+    if (standard.size === 0 && unproven !== undefined) {
+      return reject(unproven.concept);
     }
     return standard.size === 0 || typeof metrics.accessionNumber !== "string"
       ? []
@@ -340,8 +441,20 @@ function withFaceStatementDebt(
     lines: ReadonlyMap<string, ParsedFact>,
     face?: FaceDebtLines,
   ) => DebtResolution<ParsedFact>,
-  faces: readonly FaceDebtLines[],
+  allFaces: readonly FaceDebtLines[],
 ): DebtResolution<ParsedFact> {
+  const rejected = allFaces.find(
+    ({ accessionNumber, rejected: concept }) =>
+      concept !== undefined &&
+      resolution.contributors.some(({ fact }) => fact.accessionNumber === accessionNumber),
+  );
+  if (rejected !== undefined) {
+    return {
+      ...resolution,
+      incompleteReason: `face statement presents ${rejected.rejected} as a possible borrowing outside the recognized debt lines`,
+    };
+  }
+  const faces = allFaces.filter((face) => face.rejected === undefined);
   // Same-concept rows of a footed same-filing face settle LongTermDebt scope and current-line placement.
   const placed = faces
     .map((face) => ({ face, candidate: resolveAt(tagged, face) }))

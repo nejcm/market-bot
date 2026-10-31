@@ -14,7 +14,7 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## Possible wrong or false values
 
-- CLFD FY2023 EV/revenue (1.13x) pairs 2023-09-30 debt from 10-K 0001171843-24-006402 with FY2023 revenue restated to continuing operations by 10-K 0001171843-25-007594; no held-for-sale fact exists at 2023-09-30, so the `mixed-scope-debt` withhold cannot prove it. Needs a rule that ties a discontinued-operations recast to every earlier instant it restates revenue for.
+- CLFD FY2023 EV/revenue (1.13x) is mixed scope: 2023-09-30 DebtCurrent 2,112K was last filed in 10-K 0001171843-24-006402 and is Nestor Cables factoring debt (FY2025 10-K 0001171843-25-007594 MD&A; discontinued financing flow 1,586K; parent repaid its 16,700K term debt in FY2023), while FY2023 revenue is restated to continuing 225,722K. No tagged fact proves the debt's scope: a rule keyed on nonzero `CashProvidedByUsedInFinancingActivitiesDiscontinuedOperations` was tried and reverted, because a flow is not a balance and it over-fires (HLIT 2023-12-31, debt was the parent's notes) and would split workbench from Console/ROIC debt. Needs a model reading of the discontinued-ops note, verified against the filing.
 - ORCL `faceLabel|<instant>` keys look shifted one column early (`faceLabel|2026-05-31` holds the 2026-08-31 value 117,712); debt values are right. Unconfirmed: Codex disputed it.
 
 ## Withheld but recoverable

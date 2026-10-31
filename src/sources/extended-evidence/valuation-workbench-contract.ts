@@ -94,6 +94,7 @@ export type TrailingValuationBasis =
       readonly status: "available";
       readonly periodEnd: string;
       readonly publicAt: string;
+      readonly fiscalYearLabel?: string;
       readonly sourceIds: readonly string[];
     }
   | {
@@ -345,7 +346,9 @@ function hasTrailingBasisShape(value: unknown): boolean {
     return false;
   }
   return value.status === "available"
-    ? readString(value, "periodEnd") !== undefined && readString(value, "publicAt") !== undefined
+    ? readString(value, "periodEnd") !== undefined &&
+        readString(value, "publicAt") !== undefined &&
+        (value.fiscalYearLabel === undefined || readString(value, "fiscalYearLabel") !== undefined)
     : value.status === "suppressed" &&
         value.reason === "canonical-ttm-unavailable" &&
         readString(value, "detail") !== undefined;

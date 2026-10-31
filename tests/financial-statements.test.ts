@@ -8,6 +8,7 @@ import { grossPrincipalWithholdsDebt } from "../src/sources/extended-evidence/fi
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { balanceSheetHistory } from "../src/report/equity-reader-statements";
 import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
+import { financialTrends } from "../src/report/equity-reader-trends";
 import {
   financialStatementFacts,
   latestFinancialStatementFact,
@@ -920,6 +921,18 @@ describe("canonical financial statements", () => {
           periodKey: "annual|duration:12|2015-12-31",
         }),
       );
+      expect(
+        artifact.omissionNotes
+          .filter(({ periodKey }) => periodKey?.startsWith("interim|"))
+          .map(({ code, seriesKey, periodKey, message }) => [code, seriesKey, periodKey, message]),
+      ).toEqual([
+        [
+          "history-cap",
+          "revenue",
+          "interim|duration:3|2025-09-30",
+          `Interim period duration:3|2025-09-30 under Revenues omitted: revenue switched to ${asc606} on same-filing proof, which does not tag that period`,
+        ],
+      ]);
     });
 
     test("derives TTM when only one concept is tagged", () => {
@@ -1330,6 +1343,28 @@ describe("canonical financial statements", () => {
       ).toBe(
         "Derived input: gross profit derived as Revenues − CostOfRevenue; tagged cost of revenue may exclude amortization or D&A.",
       );
+    });
+
+    test("shows a TTM equal to the latest FY once, labelled with its accession", () => {
+      const history = deriveFundamentalHistoryFromFinancialStatements(
+        deriveAt({
+          Revenues: [annual(100, 2024), annual(120, 2025)],
+          CostOfRevenue: [annual(40, 2024), annual(50, 2025)],
+        }),
+      );
+      const cards = fundamentalHistoryView({
+        summary: {} as RunSummary,
+        fundamentalHistory: history,
+      })?.cards;
+      const revenue = cards?.find((card) => card.key === "revenue");
+
+      expect(history.series.revenue.ttm).toMatchObject({ value: 120, periodEnd: "2025-12-31" });
+      expect(revenue).toMatchObject({ basis: "ttm", pointCount: 2 });
+      expect(revenue?.valuePeriod).toStartWith("TTM = FY2025, 10-K accession ");
+      expect(financialTrends(history, false)?.rows.map((row) => row.period)).toEqual([
+        "FY ending 2024-12-31 (latest filed 2025-02-15)",
+        "FY ending 2025-12-31 (latest filed 2026-02-15)",
+      ]);
     });
 
     test("keeps tagged gross profit and never derives alongside it", () => {
@@ -4952,4 +4987,27 @@ describe("SEC summary canonical merge eligibility", () => {
     ).toBe(false);
     expect(summarizeSecFundamentals(companyFacts, asOf)?.metrics.debt).not.toBe(200);
   });
+});
+
+test("notes IFRS liabilities held for sale with no tagged debt as unproven debt", () => {
+  const artifact = derive(
+    payload({
+      "ifrs-full": {
+        Revenue: { EUR: [annual(1000, 2025, "20-F")] },
+        LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale: {
+          EUR: [instant(50, 2025, "20-F")],
+        },
+      },
+    }),
+  );
+  expect(
+    artifact.omissionNotes
+      .filter(({ code }) => code === "debt-held-for-sale")
+      .map(({ periodKey, message }) => [periodKey, message]),
+  ).toEqual([
+    [
+      "instant|2025-12-31",
+      "Debt for 2025-12-31 is incomplete: LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale (20260215-20-F) files liabilities held for sale and no standard ifrs-full debt concept is tagged for that date, so continuing-operations debt is unproven.",
+    ],
+  ]);
 });

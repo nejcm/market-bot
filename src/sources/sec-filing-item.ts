@@ -26,6 +26,8 @@ import {
   type SectionMiss,
 } from "./sec-filing-text";
 
+export const SEC_FILING_EXCERPT_MARKER = " Filing excerpt: ";
+
 export function secPacketGap(symbol: string, form: SecFiling["form"]): SourceGap {
   return sourceGap({
     source: "sec-edgar",
@@ -264,7 +266,7 @@ export function buildSecFilingSourceItem(
   const item: ExtendedEvidenceItem = {
     category: "sec-edgar",
     title,
-    summary: `${source.summary} Filing excerpt: ${sanitizedPacket.text}`,
+    summary: `${source.summary}${SEC_FILING_EXCERPT_MARKER}${sanitizedPacket.text}`,
     sourceIds: [source.id],
     observedAt: source.fetchedAt,
     metrics: {

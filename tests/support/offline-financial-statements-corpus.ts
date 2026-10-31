@@ -85,11 +85,7 @@ interface ProjectedStatementSeries {
     readonly periodEnd: string;
     readonly currency: string;
     readonly unit: string;
-    readonly components: {
-      readonly fiscalYear: ProjectedFact;
-      readonly latestYearToDate: ProjectedFact;
-      readonly priorYearToDate: ProjectedFact;
-    };
+    readonly components: Readonly<Record<string, ProjectedFact>>;
   };
 }
 
@@ -264,11 +260,12 @@ function projectStatements(
                   periodEnd: series.ttm.periodEnd,
                   currency: series.ttm.currency,
                   unit: series.ttm.unit,
-                  components: {
-                    fiscalYear: projectFact(series.ttm.components.fiscalYear),
-                    latestYearToDate: projectFact(series.ttm.components.latestYearToDate),
-                    priorYearToDate: projectFact(series.ttm.components.priorYearToDate),
-                  },
+                  components: Object.fromEntries(
+                    Object.entries(series.ttm.components).map(([name, fact]) => [
+                      name,
+                      projectFact(fact),
+                    ]),
+                  ),
                 },
         },
       ];

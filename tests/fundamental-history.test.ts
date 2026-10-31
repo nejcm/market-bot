@@ -331,14 +331,31 @@ describe("fundamental history", () => {
     expect(noteStartsWith(history.series.dilutedEps.notes, "ttm:eps-approximation:")).toBe(true);
   });
 
+  test("uses the latest fiscal year as TTM when no interim ends after it", () => {
+    const history = derive(
+      payload({
+        Revenues: { facts: annualFacts() },
+        EarningsPerShareDiluted: { unit: "USD/shares", facts: annualFacts([2, 2.5, 3]) },
+      }),
+    );
+
+    expect(history.series.revenue.ttm).toMatchObject({
+      value: 150,
+      fy: 2024,
+      periodStart: "2023-10-01",
+      periodEnd: "2024-09-30",
+    });
+    expect(
+      noteStartsWith(history.series.revenue.notes, "ttm:fiscal-year: TTM = FY2024, 10-K"),
+    ).toBe(true);
+    expect(history.series.dilutedEps.ttm?.value).toBe(3);
+    expect(noteStartsWith(history.series.dilutedEps.notes, "ttm:eps-approximation:")).toBe(false);
+  });
+
   test.each([
     {
       name: "missing full FY",
       facts: [priorYtd(), latestYtd()],
-    },
-    {
-      name: "missing latest YTD",
-      facts: annualFacts(),
     },
     {
       name: "missing prior-year YTD",

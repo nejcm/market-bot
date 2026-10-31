@@ -77,16 +77,40 @@ const codes = (result: ReturnType<typeof finalize>) =>
 const CLAIM = "The peer screen places AMD's EV/revenue above the peer median.";
 
 describe("finalizeSynthesis peer-median citation check", () => {
-  test("flags a peer-median claim citing no usable peer (run a008bf63 bearCase[1])", () => {
-    const result = finalize([{ text: CLAIM, sourceIds: ["market-amd", "market-nvda"] }], COMPS);
-    expect(codes(result)).toEqual(["peer-median-uncited@bearCase[0]"]);
-    expect(result.report.bearCase[0]!.sourceIds).toEqual(["market-amd", "market-nvda"]);
+  test("flags and prunes a peer-median claim citing no usable peer (run a008bf63 bearCase[1])", () => {
+    const text =
+      "The peer screen places AMD’s EV/revenue above the peer median, but the limited peer comparability and mixed quote and balance-sheet dates constrain the inference. A risk-off market snapshot and recent weakness add market-context risks without establishing future direction.";
+    const kept = { text: "Qualitative bear point.", sourceIds: ["market-amd"] };
+    const result = finalize([kept, { text, sourceIds: ["market-amd", "market-nvda"] }], COMPS);
+    expect(codes(result)).toContain("peer-median-uncited@bearCase[1]");
+    expect(result.report.bearCase).toEqual([kept]);
+    expect(result.integrityAudit.pruned.map((item) => item.location)).toEqual(["bearCase[1]"]);
+    expect(result.report.reportIntegrity).toBe("medium");
   });
 
-  test("does not flag a claim citing a usable peer", () => {
-    expect(
-      codes(finalize([{ text: CLAIM, sourceIds: ["market-amd", "market-avgo"] }], COMPS)),
-    ).toEqual([]);
+  test("does not flag or prune a claim citing a usable peer", () => {
+    const result = finalize([{ text: CLAIM, sourceIds: ["market-amd", "market-avgo"] }], COMPS);
+    expect(codes(result)).toEqual([]);
+    expect(result.report.bearCase).toHaveLength(1);
+  });
+
+  test.each([
+    "AMD's P/E sits above the peer median.",
+    "AMD's EV/EBITDA trails the peer median.",
+    "Gross margin is below the peer median.",
+    "EV/gross profit sits above the peer median.",
+    "EV/EBIT trails the peer median.",
+  ])("leaves medians of metrics the comps rows do not carry alone: %s", (text) => {
+    const result = finalize([{ text, sourceIds: ["market-amd"] }], COMPS);
+    expect(codes(result)).not.toContain("peer-median-uncited@bearCase[0]");
+    expect(result.report.bearCase).toHaveLength(1);
+  });
+
+  test("checks an EV/revenue median even when another metric is also named", () => {
+    const text = "EV/sales is above the peer median while margins compress.";
+    expect(codes(finalize([{ text, sourceIds: ["market-amd"] }], COMPS))).toEqual([
+      "peer-median-uncited@bearCase[0]",
+    ]);
   });
 
   test("flags the claim when comps were collected but no peer is usable", () => {
@@ -96,8 +120,57 @@ describe("finalizeSynthesis peer-median citation check", () => {
     ).toEqual(["peer-median-uncited@bearCase[0]"]);
   });
 
-  test("flags nothing without comps", () => {
-    expect(codes(finalize([{ text: CLAIM, sourceIds: ["market-amd"] }]))).toEqual([]);
+  test.each([
+    "No peer median is available for AMD.",
+    "Peer median could not be computed because the peer set is incomplete.",
+    "The peer-median multiple is withheld for AMD.",
+  ])("does not flag a claim that the peer median is absent: %s", (text) => {
+    expect(codes(finalize([{ text, sourceIds: ["market-amd"] }], COMPS))).not.toContain(
+      "peer-median-uncited@bearCase[0]",
+    );
+  });
+
+  test.each([
+    "The peer-median multiple is high; revenue growth accelerated.",
+    "AMD trades above peer medians.",
+    "The peer median is unavailable for P/E; EV/revenue is above the peer median.",
+    "Evidence is unavailable; EV/revenue is above the peer median.",
+  ])("checks a median whose clause names no other metric: %s", (text) => {
+    expect(codes(finalize([{ text, sourceIds: ["market-amd"] }], COMPS))).toContain(
+      "peer-median-uncited@bearCase[0]",
+    );
+  });
+
+  test("prunes an uncited peer-median summary sentence only when comps exist", () => {
+    const summary = "AMD faces cyclical demand. EV/revenue sits above the peer median.";
+    const run = (comps?: ValuationCompsArtifact) =>
+      finalizeSynthesis(
+        {
+          report: researchReport({
+            jobType: "equity",
+            symbol: "AMD",
+            summary,
+            sources: IDS.map(source),
+          }),
+          sourceGaps: [],
+          stageOutputs: [],
+          predictionRetryErrors: [],
+          predictionTrimWarnings: [],
+          predictionErrors: [],
+          reportValidationErrors: [],
+          relocatedGapClaims: [],
+        },
+        collectedSources(comps === undefined ? {} : { valuationComps: comps }),
+        ASSESSMENT,
+      ).report.summary;
+    expect(run(COMPS)).toBe("AMD faces cyclical demand.");
+    expect(run()).toBe(summary);
+  });
+
+  test("flags and prunes nothing without comps", () => {
+    const result = finalize([{ text: CLAIM, sourceIds: ["market-amd"] }]);
+    expect(codes(result)).toEqual([]);
+    expect(result.report.bearCase).toHaveLength(1);
   });
 
   test("keeps the unsupported-numeric warning and prune for an uncited figure", () => {
@@ -110,7 +183,10 @@ describe("finalizeSynthesis peer-median citation check", () => {
       ],
       COMPS,
     );
-    expect(codes(result)).toContain("unsupported-numeric-claim@bearCase[0]");
+    expect(codes(result)).toEqual([
+      "unsupported-numeric-claim@bearCase[0]",
+      "weak-evidence-posture-missing@bearCase[0]",
+    ]);
     expect(result.report.bearCase).toEqual([]);
   });
 });

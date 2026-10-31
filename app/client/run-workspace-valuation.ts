@@ -279,7 +279,7 @@ export function valuationWorkbenchView(
     priceSelectionRule: `Selected (possibly restated) fundamentals, publicAt the first filing that reported each value, priced at the ${artifact.historicalMultiples.priceSelectionRule}`,
     trailingDisclosure:
       trailingBasis.status === "available"
-        ? `Reconciled TTM through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
+        ? `${trailingBasis.fiscalYearLabel ?? "Reconciled TTM"} through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
         : trailingBasis.detail,
     ...(scopeDisclosure === undefined ? {} : { scopeDisclosure }),
     rows: observations

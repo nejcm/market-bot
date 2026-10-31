@@ -54,6 +54,11 @@ import {
   type EarningsReleaseProvenance,
 } from "./sec-filing-item";
 import { EXTENSION_CAPEX_CHECKED_KEY } from "./sec-segment-facts";
+import {
+  calculationLinkbaseHref,
+  secDepreciationCalcMetrics,
+  xbrlSchemaHref,
+} from "./sec-calculation-linkbase";
 import { collectTradierIvTermStructure } from "./tradier-iv-term-structure";
 
 export type { EvidenceRequestToolOutput } from "./evidence-request-output";
@@ -134,6 +139,52 @@ function secEarningsExhibitGap(
     cause: "provider-data-missing",
     evidenceQualityImpact: "extended-evidence-cap",
   });
+}
+
+// A 10-K's calculation linkbase sits in its schema (inline DTS) or a `_cal.xml` the schema references.
+async function fetchDepreciationCalc(
+  ctx: CollectContext,
+  filing: SecFiling,
+  cik: string,
+  html: string,
+): Promise<{
+  readonly metrics: Record<string, number | string>;
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+}> {
+  const schemaHref = xbrlSchemaHref(html);
+  if (filing.form !== "10-K" || schemaHref === undefined || schemaHref.includes("/")) {
+    return { metrics: {}, rawSnapshots: [] };
+  }
+  const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
+  const init = secTextRequestInit(ctx.secUserAgent);
+  const schema = await ctx.request.text({
+    url: `${baseUrl}/${schemaHref}`,
+    adapter: "sec-xbrl-schema",
+    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
+    init,
+  });
+  if (!isFetchTextResult(schema)) {
+    return { metrics: {}, rawSnapshots: [] };
+  }
+  const calcHref = calculationLinkbaseHref(schema.payload);
+  if (calcHref === undefined || calcHref.includes("/")) {
+    return {
+      metrics: secDepreciationCalcMetrics(schema.payload),
+      rawSnapshots: [schema.rawSnapshot],
+    };
+  }
+  const calc = await ctx.request.text({
+    url: `${baseUrl}/${calcHref}`,
+    adapter: "sec-calculation-linkbase",
+    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
+    init,
+  });
+  return isFetchTextResult(calc)
+    ? {
+        metrics: secDepreciationCalcMetrics(calc.payload),
+        rawSnapshots: [schema.rawSnapshot, calc.rawSnapshot],
+      }
+    : { metrics: {}, rawSnapshots: [schema.rawSnapshot] };
 }
 
 interface EarningsExhibitResolution {
@@ -429,10 +480,11 @@ async function collectSecFiling(
             built.responseBytes,
           ),
         ];
+  const calc = await fetchDepreciationCalc(ctx, filing, match.cik, selected.payload);
   return {
-    rawSnapshots,
+    rawSnapshots: [...rawSnapshots, ...calc.rawSnapshots],
     sources: [built.source],
-    items: [built.item],
+    items: [{ ...built.item, metrics: { ...built.item.metrics, ...calc.metrics } }],
     gaps: [...primaryFetchGaps, ...exhibitGaps, ...omissionGaps],
     sanitizationEntries: built.sanitizationEntries,
     droppedItemCount: 0,

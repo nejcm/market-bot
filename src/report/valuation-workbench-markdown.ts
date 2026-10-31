@@ -268,10 +268,11 @@ export function renderValuationWorkbenchMarkdown(
   }
   const unpricedLine = unpricedPeriodsLine(observations);
   const scopeDisclosure = valuationScopeDisclosure(observations);
+  const basis = artifact.historicalMultiples.trailingBasis;
   const trailing =
-    artifact.historicalMultiples.trailingBasis.status === "available"
+    basis.status === "available"
       ? [
-          `- Trailing basis: reconciled TTM through ${artifact.historicalMultiples.trailingBasis.periodEnd}, public ${artifact.historicalMultiples.trailingBasis.publicAt}.`,
+          `- Trailing basis: ${basis.fiscalYearLabel ?? "reconciled TTM"} through ${basis.periodEnd}, public ${basis.publicAt}.`,
           "",
         ]
       : [];

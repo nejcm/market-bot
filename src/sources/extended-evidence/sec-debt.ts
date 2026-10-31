@@ -281,11 +281,16 @@ export function factsForDebt(
   };
 }
 
-const DISPOSAL_GROUP_LIABILITY_CONCEPTS = [
-  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperation",
-  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent",
-  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationNoncurrent",
-];
+const DISPOSAL_GROUP_LIABILITY_CONCEPTS: Readonly<
+  Record<FinancialStatementTaxonomy, readonly string[]>
+> = {
+  "us-gaap": [
+    "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperation",
+    "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent",
+    "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationNoncurrent",
+  ],
+  "ifrs-full": ["LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale"],
+};
 
 // A disposal group's liabilities carry no debt breakdown, so an instant with no debt line stays unproven.
 function heldForSaleDebtNotes(
@@ -295,12 +300,9 @@ function heldForSaleDebtNotes(
   eligible: (fact: ParsedFact) => boolean,
   debtCandidates: readonly ParsedFact[],
 ): readonly FinancialStatementNote[] {
-  if (taxonomy !== "us-gaap") {
-    return [];
-  }
   const withDebt = new Set(debtCandidates.map(({ periodEnd }) => periodEnd));
   const held = new Map<string, ParsedFact>();
-  for (const fact of DISPOSAL_GROUP_LIABILITY_CONCEPTS.flatMap((concept) =>
+  for (const fact of DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy].flatMap((concept) =>
     unitFacts(taxonomy, root, concept),
   )) {
     if (
@@ -318,7 +320,7 @@ function heldForSaleDebtNotes(
     seriesKey: "debt",
     periodKey: `instant|${periodEnd}`,
     publicAt: filedAt,
-    message: `Debt for ${periodEnd} is incomplete: ${concept} (${accessionNumber ?? "accession not filed"}) files liabilities held for sale with no debt breakdown, so continuing-operations debt is unproven.`,
+    message: `Debt for ${periodEnd} is incomplete: ${concept} (${accessionNumber ?? "accession not filed"}) files liabilities held for sale and no standard ${taxonomy} debt concept is tagged for that date, so continuing-operations debt is unproven.`,
   }));
 }
 

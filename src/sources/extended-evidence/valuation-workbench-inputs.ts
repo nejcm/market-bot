@@ -384,6 +384,11 @@ function periodInputsFromTtm(
   artifact: FinancialStatementsArtifact,
   values: ValuationTtmInputs,
 ): ValuationPeriodInputs {
+  if (values.revenue.formula === "FY") {
+    // The fiscal year's own facts, including filed diluted shares rather than NI / rounded EPS.
+    const annual = annualInputs(artifact, values.revenue.components.fiscalYear);
+    return { ...annual, basis: "ttm", revenue: { ...annual.revenue!, derivation: "FY" } };
+  }
   const { balanceSheet } = artifact.statements;
   const revenue = ttmInput("Revenue", values.revenue);
   const compatibleNetIncome =
@@ -560,7 +565,13 @@ function uniquePeriodInputs(
 ): readonly ValuationPeriodInputs[] {
   const byKey = new Map<string, ValuationPeriodInputs>();
   for (const value of values) {
-    byKey.set(`${value.basis}|${value.periodEnd}|${periodPublicAt(value)}`, value);
+    // A TTM ending at a fiscal-year end is that FY (formula "FY"); the TTM row stands for both.
+    const coveredByTtm =
+      value.basis === "annual" &&
+      values.some((other) => other.basis === "ttm" && other.periodEnd === value.periodEnd);
+    if (!coveredByTtm) {
+      byKey.set(`${value.basis}|${value.periodEnd}|${periodPublicAt(value)}`, value);
+    }
   }
   return [...byKey.values()].toSorted(
     (left, right) =>

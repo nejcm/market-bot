@@ -1025,3 +1025,12 @@ test("unchecked D&A component sums collapse separately from unreconciled ones", 
     ],
   ]);
 });
+
+test("unchecked component sums on another series are not collapsed as D&A", () => {
+  const otherSeries = {
+    ...note("duration:12|2024-12-31"),
+    code: "unchecked-component-sum",
+    seriesKey: "capitalExpenditure",
+  } as unknown as ReturnType<typeof note>;
+  expect(notes([otherSeries])).toEqual([]);
+});

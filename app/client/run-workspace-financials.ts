@@ -214,7 +214,13 @@ export function fundamentalHistoryView(
     if (latest === undefined || firstAnnual === undefined || lastAnnual === undefined) {
       return [];
     }
-    const points = [...series.annual, ...(series.ttm !== undefined ? [series.ttm] : [])];
+    const ttmIsFiscalYear = series.annual.some(
+      (point) => point.periodEnd === series.ttm?.periodEnd,
+    );
+    const points = [
+      ...series.annual,
+      ...(series.ttm !== undefined && !ttmIsFiscalYear ? [series.ttm] : []),
+    ];
     const trendLabel = historyTrendLabel(artifact, key);
     const epsTtmApproximation =
       key === "dilutedEps" && latest.form === "TTM"
@@ -242,7 +248,13 @@ export function fundamentalHistoryView(
         label: series.label,
         value: historyPointValue(artifact, key, latest),
         valuePeriod:
-          latest.form === "TTM" ? `TTM through ${latest.periodEnd}` : `FY ${String(latest.fy)}`,
+          latest.form !== "TTM"
+            ? `FY ${String(latest.fy)}`
+            : ttmIsFiscalYear
+              ? (series.notes
+                  .find((note) => note.startsWith("ttm:fiscal-year: "))
+                  ?.slice("ttm:fiscal-year: ".length) ?? `TTM = FY ${String(latest.fy)}`)
+              : `TTM through ${latest.periodEnd}`,
         ...(trendLabel !== undefined ? { trendLabel } : {}),
         periodRange: `FY ${String(firstAnnual.fy)}–FY ${String(lastAnnual.fy)} · ${firstAnnual.periodEnd} to ${lastAnnual.periodEnd}`,
         sourceCaption: "SEC EDGAR · companyfacts",

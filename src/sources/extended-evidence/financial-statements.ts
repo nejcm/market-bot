@@ -145,6 +145,10 @@ const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
 const GROSS_PROFIT_COST_CONCEPTS = ["CostOfRevenue", "CostOfGoodsAndServicesSold"];
 const CONSOLIDATED_NET_INCOME_CONCEPT = "ProfitLoss";
+const PRETAX_INCOME_COMPONENT_CONCEPTS = [
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign",
+] as const;
 const STATUTORY_TAX_RATE_CONCEPT =
   "EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate";
 type EquityStackComponentKey =
@@ -1140,6 +1144,75 @@ function scopeAlignedOperatingCashFlow(
   };
 }
 
+// Only for periods with no total tagged under any concept, and only when both components share one filing context.
+function derivedPretaxIncomeFacts(
+  payload: unknown,
+  definition: FinancialStatementSeriesDefinition,
+  reported: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+): DerivedSeriesFacts {
+  const root = taxonomyRoot(payload, "us-gaap");
+  if (root === undefined) {
+    return NO_DERIVED_FACTS;
+  }
+  const totals = [
+    ...reported,
+    ...definition.concepts["us-gaap"].flatMap((concept) => unitFacts("us-gaap", root, concept)),
+  ];
+  const covered = new Set(totals.filter((fact) => eligible(fact)).map((fact) => periodKey(fact)));
+  const [domestic, foreign] = PRETAX_INCOME_COMPONENT_CONCEPTS.map((concept) =>
+    unitFacts("us-gaap", root, concept).filter(
+      (fact) => eligible(fact) && fact.periodStart !== undefined && !covered.has(periodKey(fact)),
+    ),
+  ) as [ParsedFact[], ParsedFact[]];
+  const domesticGroups = periodGroups(domestic, definition);
+  const foreignGroups = periodGroups(foreign, definition);
+  const facts: ParsedFact[] = [];
+  const withheld: WithheldDerivation[] = [];
+  for (const [key, [current]] of domesticGroups) {
+    const [currentForeign] = foreignGroups.get(key) ?? [];
+    if (current === undefined) {
+      continue;
+    }
+    const context = filingContextKey(current);
+    if (currentForeign === undefined) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          `no ${PRETAX_INCOME_COMPONENT_CONCEPTS[1]} fact is tagged for the period`,
+        ),
+      );
+    } else if (context === undefined || context !== filingContextKey(currentForeign)) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          "the current domestic and foreign pretax revisions do not share one filing, form, span, and unit",
+        ),
+      );
+    } else {
+      facts.push(
+        withCompositeFirstPublicAt(
+          compositeFromContributors([current, currentForeign]),
+          definition,
+          [...domestic, ...foreign],
+          new Set(),
+        ),
+      );
+    }
+  }
+  for (const [key, [current]] of foreignGroups) {
+    if (current !== undefined && !domesticGroups.has(key)) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          `no ${PRETAX_INCOME_COMPONENT_CONCEPTS[0]} fact is tagged for the period`,
+        ),
+      );
+    }
+  }
+  return { facts, withheld };
+}
+
 function derivedSeriesFacts(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -1149,6 +1222,9 @@ function derivedSeriesFacts(
 ): DerivedSeriesFacts | undefined {
   if (definition.key === "grossProfit" && reported.length === 0) {
     return derivedGrossProfitFacts(payload, definition, eligible);
+  }
+  if (definition.key === "pretaxIncome") {
+    return derivedPretaxIncomeFacts(payload, definition, reported, eligible);
   }
   if (definition.key === "netIncome") {
     return consolidatedNetIncomeFallbackFacts(payload, definition, reported, eligible, observable);

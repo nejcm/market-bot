@@ -413,6 +413,7 @@ export function assertCompositeFactIntegrity(
         series.key === "netIncome" ||
         series.key === "debt" ||
         series.key === "operatingCashFlow" ||
+        series.key === "pretaxIncome" ||
         methods.size <= 1,
       "A8",
       `${series.key} mixes composite and direct bases`,
@@ -448,6 +449,15 @@ export function assertCompositeFactIntegrity(
             "NetCashProvidedByUsedInOperatingActivities,CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations",
           "A8",
           `${series.key} ${fact.periodKey} derives OCF from anything but total minus discontinued`,
+          fact.periodEnd,
+        );
+      }
+      if (series.key === "pretaxIncome") {
+        check(
+          fact.composite.components.map(({ concept }) => concept).join(",") ===
+            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic,IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign",
+          "A8",
+          `${series.key} ${fact.periodKey} derives pretax income from anything but domestic + foreign`,
           fact.periodEnd,
         );
       }

@@ -177,6 +177,9 @@ export function derivedFactDisclosure(
   if (key === "grossProfit") {
     return `gross profit derived as ${fact.concept.replace("-", " − ")}; tagged cost of revenue may exclude amortization or D&A`;
   }
+  if (key === "pretaxIncome") {
+    return `pretax income derived as ${fact.concept.replace("+", " + ")}; no total pretax income is tagged for the period`;
+  }
   if (key === "netIncome") {
     return `net income uses consolidated ${fact.concept} where NetIncomeLoss is untagged and tagged noncontrolling-interest income is zero or absent`;
   }

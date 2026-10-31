@@ -119,6 +119,16 @@ type StatutoryRate =
 const REIT_SIC = "6798";
 const NON_CORPORATE_NAME = /\b(?:L\.?P\.?|L\.?L\.?C\.?|TRUST|PARTNERS)$/iu;
 
+function passThroughReason(issuer: SecIssuerRegistration | undefined): string | undefined {
+  if (issuer?.sic === REIT_SIC) {
+    return "the issuer files under SIC 6798 (REIT), so corporate tax treatment is unverified";
+  }
+  const name = issuer?.entityName?.replace(/\s*\/[A-Z]{2}\/?\s*$/u, "").replace(/[\s,.]+$/u, "");
+  return name !== undefined && NON_CORPORATE_NAME.test(name)
+    ? `the issuer name (${issuer!.entityName}) indicates a partnership, LLC or trust`
+    : undefined;
+}
+
 function corporateIssuerReason(issuer: SecIssuerRegistration | undefined): string | undefined {
   const state = issuer?.stateOfIncorporation;
   if (state === undefined) {
@@ -130,16 +140,47 @@ function corporateIssuerReason(issuer: SecIssuerRegistration | undefined): strin
   if (issuer?.sic === undefined) {
     return "SIC was not collected, so corporate tax treatment is unverified";
   }
-  if (issuer.sic === REIT_SIC) {
-    return "the issuer files under SIC 6798 (REIT), so corporate tax treatment is unverified";
-  }
-  const name = issuer.entityName?.replace(/\s*\/[A-Z]{2}\/?\s*$/u, "").replace(/[\s,.]+$/u, "");
-  if (name === undefined) {
+  if (issuer.entityName === undefined) {
     return "the issuer name was not collected, so corporate tax treatment is unverified";
   }
-  return NON_CORPORATE_NAME.test(name)
-    ? `the issuer name (${issuer.entityName}) indicates a partnership, LLC or trust`
-    : undefined;
+  return passThroughReason(issuer);
+}
+
+// The filer's own reconciliation rate for the same fiscal year beats an inferred federal rate.
+function taggedStatutoryRateOf(
+  ctx: MetricContext,
+  anchor: FinancialStatementFact,
+  prefix: string,
+): StatutoryRate | undefined {
+  const tagged = ctx.statements?.statutoryTaxRate?.find(
+    (fact) => fact.periodKey === anchor.periodKey,
+  );
+  if (tagged === undefined) {
+    return undefined;
+  }
+  const passThrough = passThroughReason(ctx.secIssuer);
+  if (tagged.value <= 0 || tagged.value >= 1 || passThrough !== undefined) {
+    return {
+      reason: `${prefix} ${passThrough ?? `the filer-tagged statutory rate (${String(tagged.value)}) is not between 0 and 1`}`,
+    };
+  }
+  const percent = String(Math.round(tagged.value * 1000) / 10);
+  return {
+    rate: tagged.value,
+    basis: `NOPAT at the ${percent}% statutory rate the filer tags in its tax rate reconciliation (accession ${tagged.accessionNumber ?? "unknown"}) because the effective tax rate is outside 0-100%`,
+    input: {
+      label: "statutory income tax rate",
+      value: tagged.value,
+      artifact: "statements",
+      key: "statutoryTaxRate",
+      periodType: "annual",
+      ...(tagged.periodStart === undefined ? {} : { periodStart: tagged.periodStart }),
+      periodEnd: tagged.periodEnd,
+      periodKey: tagged.periodKey,
+      unit: tagged.unit,
+      sourceIds: tagged.sourceIds,
+    },
+  };
 }
 
 // A 52/53-week year is deemed to begin on the nearest month's first day (Treas. Reg. 1.441-2(e)).
@@ -153,6 +194,10 @@ function usStatutoryRateFor(start: string, end: string): number | undefined {
 // Damodaran: NOPAT uses the marginal rate when the effective rate is distorted; TCJA set 21% for tax years beginning after 2017.
 function usStatutoryRateOf(ctx: MetricContext, anchor: FinancialStatementFact): StatutoryRate {
   const prefix = "effective tax rate is outside 0-100% and";
+  const tagged = taggedStatutoryRateOf(ctx, anchor, prefix);
+  if (tagged !== undefined) {
+    return tagged;
+  }
   const ineligible = corporateIssuerReason(ctx.secIssuer);
   if (ineligible !== undefined) {
     return { reason: `${prefix} ${ineligible}` };
@@ -205,6 +250,18 @@ const roicGate: Gate = (ctx, facts, keys) => {
   );
   const inputs = [...inputsOf(facts, keys), ...found];
   const absent = filed.filter((_key, index) => instants[index] === undefined);
+  const heldForSale = ctx.statements?.omissionNotes.some(
+    (note) =>
+      note.code === "debt-held-for-sale" && note.periodKey === `instant|${anchor.periodEnd}`,
+  );
+  if (absent.includes("debt") && heldForSale === true) {
+    return {
+      status: "missing",
+      reason: `debt at the fiscal year end ${anchor.periodEnd} is not separable from liabilities held for sale, so continuing-operations invested capital is unproven`,
+      periodEnd: anchor.periodEnd,
+      inputs,
+    };
+  }
   if (absent.length > 0) {
     return {
       status: "missing",
@@ -278,7 +335,7 @@ function roic(ctx: MetricContext): MetricOutcome {
 }
 
 const FISCAL_YEAR = "all from one year-aligned fiscal year";
-const ROIC_BASIS = `operating income x (1 - income tax expense / pretax income), ${FISCAL_YEAR}, / (stockholders' equity + debt - cash and cash equivalents - short-term investments) at that fiscal year end, long-term investments excluded; an effective tax rate outside 0-100% uses the US federal statutory rate (21% for fiscal years beginning 2018 or later, 35% for those ending by 2017) when the issuer is incorporated in a US state or DC, its SIC is collected and not 6798 (REIT), and its name has no LP, LLC, trust or partners suffix, otherwise not meaningful; pretax income or invested capital at or below zero is not meaningful`;
+const ROIC_BASIS = `operating income x (1 - income tax expense / pretax income), ${FISCAL_YEAR}, / (stockholders' equity + debt - cash and cash equivalents - short-term investments) at that fiscal year end, long-term investments excluded; an effective tax rate outside 0-100% uses the filer-tagged statutory rate of its tax rate reconciliation for that fiscal year (withheld when not between 0 and 1, or under SIC 6798 or a partnership, LLC or trust name), else the US federal statutory rate (21% for fiscal years beginning 2018 or later, 35% for those ending by 2017) when the issuer is incorporated in a US state or DC, its SIC is collected and not 6798 (REIT), and its name has no LP, LLC, trust or partners suffix, otherwise not meaningful; pretax income or invested capital at or below zero is not meaningful`;
 const EBITDA_PROXY_BASIS = `operating income + depreciation and amortization as filed (an add-back is positive), ${FISCAL_YEAR}; negative depreciation and amortization is not meaningful`;
 
 // A scoped pretax label marks the fallback concept, which excludes equity-method income.

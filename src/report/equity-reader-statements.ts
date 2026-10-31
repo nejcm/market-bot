@@ -82,9 +82,11 @@ function statementSurfaceNotes(
   if (artifact.omissionNotes === undefined && artifact.validationNotes === undefined) {
     return undefined;
   }
+  const withheldDebtKey = `instant|${withheldDebt(artifact)?.periodEnd}`;
   return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
+      (note.code === "debt-held-for-sale" && note.periodKey === withheldDebtKey) ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||
       ((note.code === "untagged-balance-sheet-series" ||
         note.code === "incomplete-composite-series") &&

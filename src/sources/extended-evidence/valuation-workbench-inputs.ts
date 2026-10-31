@@ -1,4 +1,5 @@
 import { statementInput } from "./metric-engine";
+import { isWithheldDebtNote } from "./sec-debt";
 import {
   ENTERPRISE_VALUE_BRIDGE_KEYS,
   bridgeContributors,
@@ -258,8 +259,7 @@ function debtInput(
   const masked = artifact.omissionNotes.some((note) => {
     const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
     return (
-      note.code === "incomplete-composite-series" &&
-      note.seriesKey === "debt" &&
+      isWithheldDebtNote(note) &&
       periodEnd !== undefined &&
       periodEnd > debtFact.periodEnd &&
       periodEnd <= (cashFact?.periodEnd ?? debtFact.periodEnd) &&

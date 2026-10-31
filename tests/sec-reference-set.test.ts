@@ -21,6 +21,8 @@ import {
   secIssuerRegistration,
 } from "../src/sources/extended-evidence/industry-classification";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
+import { financialPosition } from "../src/report/equity-reader-statements";
+import { withheldDebt } from "../src/sources/extended-evidence/sec-debt";
 import {
   secExtensionCapexFactMetrics,
   secGeographyFactMetrics,
@@ -806,8 +808,35 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
     ).toBe(false);
   });
 
-  test("CLFD FY2025 ROIC is withheld while debt sits in discontinued operations", () => {
-    expect(load("clfd").metrics.find(({ id }) => id === "roic")?.status).toBe("missing");
+  test("CLFD FY2025 ROIC is withheld while debt sits in liabilities held for sale (0001171843-25-007594)", () => {
+    const { statements, metrics } = load("clfd");
+    expect(metrics.find(({ id }) => id === "roic")).toMatchObject({
+      status: "missing",
+      reason: expect.stringContaining("not separable from liabilities held for sale"),
+    });
+    expect(
+      statements.omissionNotes
+        .filter(({ code }) => code === "debt-held-for-sale")
+        .map(({ periodKey, message }) => [periodKey, message.includes("0001171843-25-007594")]),
+    ).toEqual([["instant|2025-09-30", true]]);
+    expect(withheldDebt(statements)?.periodEnd).toBe("2025-09-30");
+    const fy2025 = valuationPeriodInputs(statements).periods.find(
+      ({ periodEnd }) => periodEnd === "2025-09-30",
+    );
+    expect(fy2025?.revenue).toBeDefined();
+    expect(fy2025?.debt).toBeUndefined();
+    const position = financialPosition(statements, undefined);
+    expect(position?.debt).toBeUndefined();
+    expect(
+      position?.notes?.filter(({ code }) => code === "debt-held-for-sale").map((n) => n.periodKey),
+    ).toEqual(["instant|2025-09-30"]);
+  });
+  test("debt held for sale notes only CLFD among reference cases", () => {
+    expect(
+      CASES.filter(({ symbol }) =>
+        load(symbol).statements.omissionNotes.some(({ code }) => code === "debt-held-for-sale"),
+      ).map(({ symbol }) => symbol),
+    ).toEqual(["clfd"]);
   });
   test("HLIT FY2025 D&A is withheld with an omission note", () => {
     const { statements } = load("hlit");

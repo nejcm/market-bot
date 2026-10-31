@@ -254,7 +254,8 @@ export interface FinancialStatementNote {
     | "withheld-derivation"
     | "mixed-share-basis"
     | "earlier-share-basis"
-    | "declaration-span";
+    | "declaration-span"
+    | "debt-held-for-sale";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
@@ -282,6 +283,8 @@ export interface FinancialStatementsArtifact {
   readonly equityStack?: FinancialStatementEquityStack;
   // Instant facts per balance-sheet date for the EV bridge; us-gaap only.
   readonly enterpriseValueBridge?: FinancialStatementEnterpriseValueBridge;
+  // Filer-tagged annual EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate (pure); us-gaap only.
+  readonly statutoryTaxRate?: readonly FinancialStatementFact[];
   readonly statements: {
     readonly incomeStatement: Readonly<
       Record<
@@ -739,8 +742,12 @@ export function readFinancialStatementsArtifact(
           ENTERPRISE_VALUE_BRIDGE_FACT_KEYS,
           "financialStatements.enterpriseValueBridge",
         );
+  const statutoryTaxRate = Array.isArray(value.statutoryTaxRate)
+    ? readFinancialStatementFacts(value.statutoryTaxRate, "financialStatements.statutoryTaxRate")
+    : undefined;
   if (
     previous === undefined ||
+    (value.statutoryTaxRate !== undefined && statutoryTaxRate === undefined) ||
     (value.equityStack !== undefined && equityStack === undefined) ||
     (value.enterpriseValueBridge !== undefined &&
       staleBridgeKeys.length === 0 &&
@@ -772,6 +779,7 @@ export function readFinancialStatementsArtifact(
   const drops: ArtifactObservationDrop[] = [
     ...(equityStack?.drops ?? []),
     ...(enterpriseValueBridge?.drops ?? []),
+    ...(statutoryTaxRate?.drops ?? []),
     ...(staleBridgeKeys.length === 0
       ? []
       : [
@@ -784,6 +792,7 @@ export function readFinancialStatementsArtifact(
   const backfills: ArtifactObservationDrop[] = [
     ...(equityStack?.backfills ?? []),
     ...(enterpriseValueBridge?.backfills ?? []),
+    ...(statutoryTaxRate?.backfills ?? []),
   ];
   for (const key of FINANCIAL_STATEMENT_SERIES_KEYS) {
     const later = LATER_SERIES[key];
@@ -812,6 +821,9 @@ export function readFinancialStatementsArtifact(
       ...value,
       ...(equityStack === undefined ? {} : { equityStack: equityStack.group }),
       enterpriseValueBridge: enterpriseValueBridge?.group,
+      ...(statutoryTaxRate === undefined
+        ? {}
+        : { statutoryTaxRate: statutoryTaxRate.observations }),
       statements: {
         ...value.statements,
         incomeStatement: statement(income),

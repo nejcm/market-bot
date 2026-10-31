@@ -1265,6 +1265,66 @@ describe("operatingRatiosSection", () => {
     expect(evaluate(context(amd)).metric("roic")).toMatchObject({ status: "not-meaningful" });
   });
 
+  test("AMD FY2025 uses its tagged 21% statutory rate from 10-K 0000002488-26-000018", () => {
+    const filing = { start: "2024-12-29", end: "2025-12-27", accn: "0000002488-26-000018" };
+    const year = (value: number, unit = "USD") => ({
+      units: { [unit]: [fact(value, 2025, { ...filing, filed: "2026-02-04" })] },
+    });
+    const at = (value: number) => ({
+      units: { USD: [fact(value, 2025, { start: undefined, end: "2025-12-27" })] },
+    });
+    const amd = (rate: number | undefined, overrides: Concepts = {}) =>
+      usGaap({
+        OperatingIncomeLoss: year(3694e6),
+        IncomeTaxExpenseBenefit: year(-103e6),
+        IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest:
+          year(4140e6),
+        StockholdersEquity: at(62_999e6),
+        LongTermDebt: at(3222e6),
+        CashAndCashEquivalentsAtCarryingValue: at(5539e6),
+        ShortTermInvestments: at(5013e6),
+        EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate:
+          rate === undefined ? undefined : year(rate, "pure"),
+        ...overrides,
+      });
+    const tagged = evaluate(context(amd(0.21), issuer("L2")));
+    expect(tagged.metric("roic").status).toBe("value");
+    expect(tagged.metric("roic").value).toBeCloseTo((3694 * 0.79) / 55_669, 12);
+    expect(tagged.metric("roic").basis).toContain(
+      "NOPAT at the 21% statutory rate the filer tags in its tax rate reconciliation (accession 0000002488-26-000018)",
+    );
+    expect(tagged.metric("roic").inputs.at(-1)).toMatchObject({
+      key: "statutoryTaxRate",
+      value: 0.21,
+      unit: "pure",
+      periodKey: "duration:12|2025-12-27",
+    });
+    expect(invariantRun(tagged.ctx, tagged.section.metrics)).not.toThrow();
+
+    for (const [rate, overrides, reason] of [
+      [0, issuer("DE"), "the filer-tagged statutory rate (0) is not between 0 and 1"],
+      [-0.35, issuer("DE"), "the filer-tagged statutory rate (-0.35) is not between 0 and 1"],
+      [0.21, issuer("DE", "6798", "SOME REALTY INC"), "SIC 6798 (REIT)"],
+      [0.21, issuer("DE", "4922", "FOO PARTNERS"), "indicates a partnership"],
+    ] as const) {
+      const withheld = evaluate(context(amd(rate), overrides));
+      expect(withheld.metric("roic").status).toBe("not-meaningful");
+      expect(withheld.metric("roic").reason).toContain(reason);
+    }
+
+    const otherYear = amd(undefined, {
+      EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate: {
+        units: { pure: [fact(0.21, 2024, { accn: "0000002488-25-000012" })] },
+      },
+    });
+    expect(evaluate(context(otherYear, issuer("L2"))).metric("roic").reason).toContain(
+      "not incorporated in a US state (L2)",
+    );
+    expect(evaluate(context(amd(undefined), issuer("DE"))).metric("roic").basis).toContain(
+      "US federal statutory rate (issuer incorporated in DE)",
+    );
+  });
+
   test.each([
     ["positive rate ignores the statutory rate", 32, 160, "DE", "value", (200 * 0.8) / 1000],
     ["rate over 100% at 21%", 200, 160, "NY", "value", (200 * 0.79) / 1000],

@@ -21,6 +21,7 @@ import {
   type FinancialLensEvidenceResult,
 } from "./extended-evidence/financial-lens";
 import {
+  canonicalStaleSeriesGaps,
   cashConversionScopeGaps,
   withCanonicalFinancialLensInputs,
 } from "./extended-evidence/financial-lens-canonical";
@@ -436,13 +437,7 @@ export async function collectEquityEnrichment(
     financialStatements,
     periodicFilings,
     financialStatementGaps:
-      financialStatements === undefined
-        ? []
-        : [
-            ...financialStatementsDebtBasisGaps(financialStatements),
-            ...cashConversionScopeGaps(financialStatements),
-            ...financialStatementsHistoryGaps(financialStatements),
-          ],
+      financialStatements === undefined ? [] : financialStatementGapsOf(financialStatements),
     reportingFreshness,
     subsequentFinancing,
     capitalOwnership,
@@ -664,6 +659,17 @@ async function collectEarningsSetup(
 interface CollectedFinancialStatements {
   readonly statements: FinancialStatementsArtifact | undefined;
   readonly periodicFilings?: EvidenceRequestToolOutput;
+}
+
+export function financialStatementGapsOf(
+  financialStatements: FinancialStatementsArtifact,
+): readonly SourceGap[] {
+  return [
+    ...financialStatementsDebtBasisGaps(financialStatements),
+    ...cashConversionScopeGaps(financialStatements),
+    ...canonicalStaleSeriesGaps(financialStatements),
+    ...financialStatementsHistoryGaps(financialStatements),
+  ];
 }
 
 export async function collectFinancialStatements(

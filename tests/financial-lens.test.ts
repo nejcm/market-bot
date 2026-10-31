@@ -1035,12 +1035,11 @@ describe("financial lens artifact compatibility", () => {
       debtPeriodEnd: "2025-12-31",
       operatingCashFlow: 30,
       operatingCashFlowPeriodEnd: "2025-12-31",
-      capex: 5,
-      capexPeriodEnd: "2024-12-31",
       currentAssets: 90,
       currentAssetsPeriodEnd: "2026-03-31",
       financialLensSelectionVersion: 1,
     });
+    expect(secItem?.metrics?.capex).toBeUndefined();
 
     const result = addFinancialLensEvidence(
       command,

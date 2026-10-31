@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.9.0](https://github.com/nejcm/market-bot/compare/v1.8.0...v1.9.0) (2026-10-31)
+
+### Features
+
+- **sec:** publish fy ttm, header-only filings, d&a linkbase proof ([8f4ee41](https://github.com/nejcm/market-bot/commit/8f4ee41ac6d43517d18614ded0f49ccbae24df3d))
+
+### Bug Fixes
+
+- close pr review findings on debt, ttm, staleness and linkbase ([aab872f](https://github.com/nejcm/market-bot/commit/aab872fc9bff16e20db15fa2f67f7b45e484bc66))
+- **sec:** withhold stale series and held-for-sale recast debt ([fd72634](https://github.com/nejcm/market-bot/commit/fd72634f612b73f089572ea47afdc42e3860b457))
+- **sec:** derive pretax income from domestic and foreign components ([4036bb0](https://github.com/nejcm/market-bot/commit/4036bb031c4277cd460d7c83cba7c3518c74fc14))
+- **sec:** prove debt faces and withhold held-for-sale debt ([ddc36ce](https://github.com/nejcm/market-bot/commit/ddc36ce817298a6a86b305b5a786c02a3364e397))
+- **sec:** check off-face debt totals and flag uncited peer medians ([db73c2f](https://github.com/nejcm/market-bot/commit/db73c2ff77929c458cebf77525dcf8e7615d20fe))
+- **sec:** switch revenue concept on a proven same-filing dual tag ([31adc1f](https://github.com/nejcm/market-bot/commit/31adc1f1ce194945728002bae4cc268ecd04c3fa))
+- **sec:** settle debt scope and d&a sums from the filing face ([2af647e](https://github.com/nejcm/market-bot/commit/2af647efe34a60288fdf03f5460344278e989618))
+- **prompts:** pass prior-run gaps as re-check context ([ac548dc](https://github.com/nejcm/market-bot/commit/ac548dcde0ce1e8cd4a4fe5493fba65e88fbfb53))
+- **sec:** check complete debt against same-filing face rows ([9cf7b6f](https://github.com/nejcm/market-bot/commit/9cf7b6fded4fc1599c6e26aa4bbd3fa5be33c1ee))
+
 ## [1.8.0](https://github.com/nejcm/market-bot/compare/v1.7.0...v1.8.0) (2026-10-28)
 
 ### Features

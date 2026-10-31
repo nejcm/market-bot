@@ -149,7 +149,7 @@ function staleReason(
 ): string | undefined {
   return ctx.statements === undefined
     ? undefined
-    : staleSeriesReason(ctx.statements, fact, SERIES_LABELS[key]);
+    : staleSeriesReason(ctx.statements, fact, key, SERIES_LABELS[key]);
 }
 
 function factInput(fact: FinancialStatementFact, key: FrameworkSeries): MetricInput {

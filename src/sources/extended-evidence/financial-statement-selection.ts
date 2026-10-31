@@ -185,6 +185,40 @@ export function latestFiscalYearTrailingBasis(
   return `The latest fiscal year (${fiscalYear.periodStart} to ${fiscalYear.periodEnd}, ${fiscalYear.form} accession ${fiscalYear.accessionNumber ?? "undisclosed"}) is the newest period in the SEC revenue series; no later interim revenue period is tagged.`;
 }
 
+// Healthy annual-only lines lag the newest filed period by at most three quarters.
+const STALE_SERIES_LAG_DAYS = 366;
+
+export function staleSeriesReason(
+  artifact: FinancialStatementsArtifact,
+  fact: FinancialStatementFact,
+  key: FinancialStatementSeriesKey,
+  label: string,
+): string | undefined {
+  const newest = financialStatementSeries(artifact)
+    .flatMap(financialStatementFacts)
+    .map((candidate) => candidate.periodEnd)
+    .toSorted()
+    .at(-1);
+  const lag = newest === undefined ? undefined : daysBetween(fact.periodEnd, newest);
+  if (lag === undefined || lag <= STALE_SERIES_LAG_DAYS) {
+    return undefined;
+  }
+  const withheld = artifact.omissionNotes.flatMap((note) => {
+    // Aggregated notes carry withheld spans only as text: "... for <start> to <end>, ...: <reason>".
+    const parsed = /for (.+?): (.+)$/.exec(note.message);
+    if (note.code !== "withheld-derivation" || note.seriesKey !== key || parsed === null) {
+      return [];
+    }
+    const later = parsed[1]!
+      .split(", ")
+      .filter((span) => (span.split(" to ")[1] ?? "") > fact.periodEnd);
+    return later.length === 0
+      ? []
+      : [`; ${label} for ${later.join(", ")} is withheld: ${parsed[2]!}`];
+  });
+  return `latest ${label} period ends ${fact.periodEnd}, more than a year before the newest filed period ${newest}${withheld.join("")}`;
+}
+
 export function financialStatementFacts(
   series: FinancialStatementSeries,
 ): readonly FinancialStatementFact[] {

@@ -141,6 +141,9 @@ export function valuationMetricSection(input: {
           if (period.cash === undefined) {
             return missing("cash-unavailable", ["cash"]);
           }
+          if (period.debtScopeMismatch) {
+            return missing("mixed-scope-debt");
+          }
           if (period.debt === undefined) {
             return missing("debt-unavailable", ["debt"]);
           }
@@ -151,7 +154,7 @@ export function valuationMetricSection(input: {
             cashPeriodEnd: period.cash.periodEnd,
             debtPeriodEnd: period.debt.periodEnd,
           });
-          if (mixed !== undefined) {
+          if (mixed !== undefined || period.debtBehindIncompleteInstant) {
             return missing("mixed-period-balance-sheet");
           }
         }

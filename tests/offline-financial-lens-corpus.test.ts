@@ -306,7 +306,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 71 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 69 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -334,7 +334,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(71);
+    expect(lensAllowances).toHaveLength(69);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(

@@ -4698,15 +4698,6 @@
       "Quality": {
         "posture": "criteria-not-supported",
         "metrics": {
-          "grossMargin": {
-            "key": "grossMargin",
-            "label": "Gross margin",
-            "value": -0.28594600562193745,
-            "unit": "ratio-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2022-12-31",
-            "periodMonths": 12
-          },
           "operatingMargin": {
             "key": "operatingMargin",
             "label": "Operating margin",
@@ -4776,15 +4767,6 @@
             "sourceIds": ["offline-sec-companyfacts-mara"],
             "periodEnd": "2026-03-31",
             "periodMonths": 3
-          },
-          "grossProfitDeltaPercent": {
-            "key": "grossProfitDeltaPercent",
-            "label": "Gross profit YoY",
-            "value": -128.8360581328629,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2022-12-31",
-            "periodMonths": 12
           },
           "operatingIncomeDeltaPercent": {
             "key": "operatingIncomeDeltaPercent",

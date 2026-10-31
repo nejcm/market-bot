@@ -50,6 +50,13 @@ export interface DebtFactReader {
   ) => ParsedFact;
 }
 
+export function isWithheldDebtNote(note: FinancialStatementNote): boolean {
+  return (
+    (note.code === "incomplete-composite-series" || note.code === "debt-held-for-sale") &&
+    note.seriesKey === "debt"
+  );
+}
+
 // The newest debt instant is incomplete, so no older amount may stand in as the latest debt.
 export function withheldDebt(
   artifact: FinancialStatementsArtifact,
@@ -63,8 +70,7 @@ export function withheldDebt(
   const [note] = (artifact.omissionNotes ?? [])
     .filter(
       (candidate) =>
-        candidate.code === "incomplete-composite-series" &&
-        candidate.seriesKey === "debt" &&
+        isWithheldDebtNote(candidate) &&
         candidate.periodKey !== undefined &&
         (debtEnd === undefined || candidate.periodKey.replace(/^instant\|/u, "") > debtEnd),
     )
@@ -268,8 +274,52 @@ export function factsForDebt(
       ...(proofs.has(fact) ? { proofSourceIds: proofs.get(fact) ?? [] } : {}),
       ...(faceLeases.has(fact) ? { faceLeases: faceLeases.get(fact) ?? [] } : {}),
     })),
-    notes: [...notes.values()],
+    notes: [
+      ...notes.values(),
+      ...heldForSaleDebtNotes(unitFacts, taxonomy, root, eligible, candidates),
+    ],
   };
+}
+
+const DISPOSAL_GROUP_LIABILITY_CONCEPTS = [
+  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperation",
+  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent",
+  "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationNoncurrent",
+];
+
+// A disposal group's liabilities carry no debt breakdown, so an instant with no debt line stays unproven.
+function heldForSaleDebtNotes(
+  unitFacts: DebtFactReader["unitFacts"],
+  taxonomy: FinancialStatementTaxonomy,
+  root: Record<string, unknown>,
+  eligible: (fact: ParsedFact) => boolean,
+  debtCandidates: readonly ParsedFact[],
+): readonly FinancialStatementNote[] {
+  if (taxonomy !== "us-gaap") {
+    return [];
+  }
+  const withDebt = new Set(debtCandidates.map(({ periodEnd }) => periodEnd));
+  const held = new Map<string, ParsedFact>();
+  for (const fact of DISPOSAL_GROUP_LIABILITY_CONCEPTS.flatMap((concept) =>
+    unitFacts(taxonomy, root, concept),
+  )) {
+    if (
+      fact.periodStart === undefined &&
+      fact.value !== 0 &&
+      eligible(fact) &&
+      !withDebt.has(fact.periodEnd) &&
+      !held.has(fact.periodEnd)
+    ) {
+      held.set(fact.periodEnd, fact);
+    }
+  }
+  return [...held.values()].map(({ periodEnd, filedAt, concept, accessionNumber }) => ({
+    code: "debt-held-for-sale",
+    seriesKey: "debt",
+    periodKey: `instant|${periodEnd}`,
+    publicAt: filedAt,
+    message: `Debt for ${periodEnd} is incomplete: ${concept} (${accessionNumber ?? "accession not filed"}) files liabilities held for sale with no debt breakdown, so continuing-operations debt is unproven.`,
+  }));
 }
 
 const FACE_DEBT_WORDS = /debt|loan|mortgage|notes|borrowing/iu;

@@ -254,7 +254,8 @@ export interface FinancialStatementNote {
     | "withheld-derivation"
     | "mixed-share-basis"
     | "earlier-share-basis"
-    | "declaration-span";
+    | "declaration-span"
+    | "debt-held-for-sale";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;

@@ -250,6 +250,18 @@ const roicGate: Gate = (ctx, facts, keys) => {
   );
   const inputs = [...inputsOf(facts, keys), ...found];
   const absent = filed.filter((_key, index) => instants[index] === undefined);
+  const heldForSale = ctx.statements?.omissionNotes.some(
+    (note) =>
+      note.code === "debt-held-for-sale" && note.periodKey === `instant|${anchor.periodEnd}`,
+  );
+  if (absent.includes("debt") && heldForSale === true) {
+    return {
+      status: "missing",
+      reason: `debt at the fiscal year end ${anchor.periodEnd} is not separable from liabilities held for sale, so continuing-operations invested capital is unproven`,
+      periodEnd: anchor.periodEnd,
+      inputs,
+    };
+  }
   if (absent.length > 0) {
     return {
       status: "missing",

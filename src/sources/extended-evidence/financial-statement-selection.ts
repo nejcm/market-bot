@@ -185,6 +185,25 @@ export function latestFiscalYearTrailingBasis(
   return `The latest fiscal year (${fiscalYear.periodStart} to ${fiscalYear.periodEnd}, ${fiscalYear.form} accession ${fiscalYear.accessionNumber ?? "undisclosed"}) is the newest period in the SEC revenue series; no later interim revenue period is tagged.`;
 }
 
+// Healthy annual-only lines lag the newest filed period by at most three quarters.
+const STALE_SERIES_LAG_DAYS = 366;
+
+export function staleSeriesReason(
+  artifact: FinancialStatementsArtifact,
+  fact: FinancialStatementFact,
+  label: string,
+): string | undefined {
+  const newest = financialStatementSeries(artifact)
+    .flatMap(financialStatementFacts)
+    .map((candidate) => candidate.periodEnd)
+    .toSorted()
+    .at(-1);
+  const lag = newest === undefined ? undefined : daysBetween(fact.periodEnd, newest);
+  return lag !== undefined && lag > STALE_SERIES_LAG_DAYS
+    ? `latest ${label} period ends ${fact.periodEnd}, more than a year before the newest filed period ${newest}`
+    : undefined;
+}
+
 export function financialStatementFacts(
   series: FinancialStatementSeries,
 ): readonly FinancialStatementFact[] {

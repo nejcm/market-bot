@@ -1,3 +1,4 @@
+import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import {
   enterpriseValueBridgeMetrics,
@@ -232,25 +233,32 @@ export function canonicalStaleSeriesGaps(
 }
 
 function staleRevenueGaps(artifact: FinancialStatementsArtifact): readonly SourceGap[] {
-  const { revenue } = artifact.statements.incomeStatement;
-  const reason = canonicalStaleReason(
-    artifact,
-    revenue,
-    latestFinancialStatementFact(financialStatementFacts(revenue)),
+  const latest = latestFinancialStatementFact(
+    financialStatementFacts(artifact.statements.incomeStatement.revenue),
   );
-  return reason === undefined
-    ? []
-    : [
+  return latest === undefined ? [] : staleSecRevenueGaps(latest.periodEnd, artifact.analysisAsOf);
+}
+
+export function staleSecRevenueGaps(
+  periodEnd: string,
+  analysisAsOf: string | undefined,
+): readonly SourceGap[] {
+  const periodMs = Date.parse(periodEnd);
+  const cutoffMs = Date.parse(analysisAsOf ?? "");
+  return Number.isFinite(periodMs) &&
+    Number.isFinite(cutoffMs) &&
+    cutoffMs - periodMs > SEC_FRESHNESS_DAYS * DAY_MS
+    ? [
         sourceGap({
           source: "sec-edgar",
-          message: `Stale SEC revenue period: ${reason}`,
-          symbol: artifact.symbol,
+          message: `Stale SEC revenue period: period end ${periodEnd} exceeds ${SEC_FRESHNESS_DAYS} days`,
           provider: "sec-edgar",
           capability: "extended-evidence",
           cause: "provider-data-missing",
           evidenceQualityImpact: "extended-evidence-cap",
         }),
-      ];
+      ]
+    : [];
 }
 
 export function canonicalFinancialMetrics(

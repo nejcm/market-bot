@@ -1,11 +1,7 @@
 import type { InstrumentIdentity } from "../../domain/instrument";
 import type { Source, SourceGap } from "../../domain/sources";
 import { isInstrumentCommand } from "../../cli/args";
-import {
-  DAY_MS,
-  SEC_COMPANYFACTS_MAX_RESPONSE_BYTES,
-  SEC_FRESHNESS_DAYS,
-} from "../../config/shared";
+import { SEC_COMPANYFACTS_MAX_RESPONSE_BYTES } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
@@ -38,7 +34,7 @@ import {
   type SecMetricDefinition,
 } from "./sec-fundamentals-format";
 import { deriveFinancialStatements } from "./financial-statements";
-import { canonicalFinancialMetrics } from "./financial-lens-canonical";
+import { canonicalFinancialMetrics, staleSecRevenueGaps } from "./financial-lens-canonical";
 import { financialStatementsDebtBasisGaps } from "./sec-debt";
 import { debtCandidateConcepts } from "./sec-debt-resolution";
 
@@ -330,17 +326,6 @@ export function isFactObservableAsOf(fact: SecFactValue, analysisAsOf?: string):
     (fact.end === undefined || fact.end <= cutoff) &&
     (fact.filed === undefined || fact.filed <= cutoff)
   );
-}
-
-// Returns true when the revenue period end is older than SEC_FRESHNESS_DAYS.
-// The gap does not suppress the metric, so downstream consumers can still use it.
-function isStalePeriodEnd(periodEnd: string, analysisAsOf: string): boolean {
-  const periodMs = Date.parse(periodEnd);
-  const cutoffMs = Date.parse(analysisAsOf);
-  if (!Number.isFinite(periodMs) || !Number.isFinite(cutoffMs)) {
-    return false;
-  }
-  return cutoffMs - periodMs > SEC_FRESHNESS_DAYS * DAY_MS;
 }
 
 function selectionFact(value: SecFactValue) {
@@ -636,19 +621,8 @@ export function summarizeSecFundamentals(
   }
 
   const staleRevenueGap =
-    typeof metrics.revenuePeriodEnd === "string" &&
-    analysisAsOf !== undefined &&
-    isStalePeriodEnd(metrics.revenuePeriodEnd, analysisAsOf)
-      ? [
-          sourceGap({
-            source: "sec-edgar",
-            message: `Stale SEC revenue period: period end ${metrics.revenuePeriodEnd} exceeds ${SEC_FRESHNESS_DAYS} days`,
-            provider: "sec-edgar",
-            capability: "extended-evidence",
-            cause: "provider-data-missing",
-            evidenceQualityImpact: "extended-evidence-cap",
-          }),
-        ]
+    typeof metrics.revenuePeriodEnd === "string"
+      ? staleSecRevenueGaps(metrics.revenuePeriodEnd, analysisAsOf)
       : [];
 
   const gaps: SourceGap[] = [

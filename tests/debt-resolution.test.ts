@@ -884,7 +884,11 @@ function fundamental(value: number, periodEnd: string): ValuationFundamentalInpu
   };
 }
 
-function evToRevenue(debtPeriodEnd: string, behindIncompleteInstant = false) {
+function evToRevenue(
+  debtPeriodEnd: string,
+  behindIncompleteInstant = false,
+  cashPeriodEnd = "2026-06-30",
+) {
   return valuationMetricSection({
     symbol: "TEST",
     period: {
@@ -892,7 +896,7 @@ function evToRevenue(debtPeriodEnd: string, behindIncompleteInstant = false) {
       periodEnd: "2026-06-30",
       revenue: fundamental(100, "2026-06-30"),
       dilutedShares: { ...fundamental(10, "2026-06-30"), unit: "shares", currency: null },
-      cash: fundamental(20, "2026-06-30"),
+      cash: fundamental(20, cashPeriodEnd),
       debt: fundamental(30, debtPeriodEnd),
       ...(behindIncompleteInstant ? { debtBehindIncompleteInstant: true as const } : {}),
     },
@@ -919,6 +923,24 @@ describe("valuation workbench balance-sheet period gate", () => {
       status: "missing",
       reason: "mixed-period-balance-sheet",
     });
+  });
+
+  test("suppresses EV/revenue when cash and debt both stopped years before the row", () => {
+    expect(evToRevenue("2021-12-31", false, "2021-12-31")).toMatchObject({
+      status: "missing",
+      reason: "mixed-period-balance-sheet",
+    });
+  });
+
+  test("suppresses EV/revenue when fresh debt pairs with stale cash", () => {
+    expect(evToRevenue("2026-06-30", false, "2021-12-31")).toMatchObject({
+      status: "missing",
+      reason: "mixed-period-balance-sheet",
+    });
+  });
+
+  test("populates EV/revenue when cash and debt sit at the row period end", () => {
+    expect(evToRevenue("2026-06-30")).toMatchObject({ status: "value", value: 1.1 });
   });
 });
 

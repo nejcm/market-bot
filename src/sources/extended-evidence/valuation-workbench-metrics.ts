@@ -154,7 +154,15 @@ export function valuationMetricSection(input: {
             cashPeriodEnd: period.cash.periodEnd,
             debtPeriodEnd: period.debt.periodEnd,
           });
-          if (mixed !== undefined || period.debtBehindIncompleteInstant) {
+          const laggingRow = balanceSheetPeriodDivergence({
+            cashPeriodEnd: [period.cash.periodEnd, period.debt.periodEnd].toSorted()[0]!,
+            debtPeriodEnd: period.periodEnd,
+          });
+          if (
+            mixed !== undefined ||
+            laggingRow !== undefined ||
+            period.debtBehindIncompleteInstant
+          ) {
             return missing("mixed-period-balance-sheet");
           }
         }

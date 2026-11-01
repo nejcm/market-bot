@@ -18,8 +18,6 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 - CLFD FY2023 EV/revenue (1.13x) is mixed scope: 2023-09-30 DebtCurrent 2,112K was last filed in 10-K 0001171843-24-006402 and is Nestor Cables factoring debt (FY2025 10-K 0001171843-25-007594 MD&A; discontinued financing flow 1,586K; parent repaid its 16,700K term debt in FY2023), while FY2023 revenue is restated to continuing 225,722K. No tagged fact proves the debt's scope: a rule keyed on nonzero `CashProvidedByUsedInFinancingActivitiesDiscontinuedOperations` was tried and reverted, because a flow is not a balance and it over-fires (HLIT 2023-12-31, debt was the parent's notes) and would split workbench from Console/ROIC debt. Needs a model reading of the discontinued-ops note, verified against the filing; parked 2026-10-31: no reusable verified-quote stage exists, it needs a live CLFD capture, and scope must move into debt resolution so EV, Console and ROIC agree. Revisit if more recast cases appear (CLFD FY2023 ROIC unchecked).
 
-- Stale revenue is declared at 180 days on the legacy SEC path (`isStalePeriodEnd`) but at 380 days on the canonical-only path (`staleRevenueGaps`), so 180–380-day-old revenue goes undeclared when no legacy item exists.
-
 ## Withheld but recoverable
 
 - Face labels for prior columns (`faceLabel|<instant>`, `footedFaceRows` in sec-segment-facts.ts) include earlier columns' cell text, so a row with an empty label cell gets a numeric label and skips `faceDebtLines`' blank-label check (sec-debt.ts ~418). No case seen; strip numeric cells from labels if one appears.

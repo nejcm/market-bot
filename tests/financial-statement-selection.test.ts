@@ -1251,9 +1251,37 @@ describe("canonical metrics withhold a stale series", () => {
     );
     expect(
       withCanonicalFinancialLensInputs(undefined, artifact).gaps.map((gap) => gap.message),
-    ).toEqual([
-      "Stale SEC revenue period: latest revenue period ends 2018-05-31, more than a year before the newest filed period 2026-05-31",
+    ).toEqual(["Stale SEC revenue period: period end 2018-05-31 exceeds 180 days"]);
+  });
+
+  test("canonical-only evidence uses the 180-day SEC freshness rule for revenue", () => {
+    const revenueGaps = (revenueEnd: string) =>
+      withCanonicalFinancialLensInputs(
+        undefined,
+        deriveFinancialStatements(
+          {
+            facts: {
+              "us-gaap": {
+                Revenues: {
+                  units: {
+                    USD: [orclFact(revenueEnd, 57e9, "0000950170-26-000001", "2026-06-20")],
+                  },
+                },
+              },
+            },
+          },
+          {
+            symbol: "ORCL",
+            generatedAt: "2026-10-31",
+            analysisAsOf: "2026-10-31",
+            sourceId: "sec",
+          },
+        ),
+      ).gaps.map((gap) => gap.message);
+    expect(revenueGaps("2026-01-31")).toEqual([
+      "Stale SEC revenue period: period end 2026-01-31 exceeds 180 days",
     ]);
+    expect(revenueGaps("2026-05-31")).toEqual([]);
   });
 
   test("a series within a year of the newest period still publishes", () => {

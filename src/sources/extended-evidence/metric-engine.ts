@@ -1,5 +1,10 @@
 import type { ExtendedEvidence, ExtendedEvidenceCategory } from "../../domain/evidence";
-import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
+import {
+  resolveMarketSnapshotPriceAsOf,
+  type MarketSnapshot,
+  type MarketSnapshotPriceAsOf,
+  type VerifiedMarketSnapshot,
+} from "../../domain/market-data";
 import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/sources";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
@@ -55,6 +60,8 @@ export interface MetricResult {
   readonly currency?: string;
   readonly periodEnd?: string;
   readonly periodMonths?: number;
+  // Quote date of a price-relative metric whose periodEnd dates its fundamentals.
+  readonly priceAsOf?: string;
   readonly reason?: string;
   readonly cause?: MetricMissingCause;
   readonly inputs: readonly MetricInput[];
@@ -80,6 +87,7 @@ export interface MetricContext {
     readonly marketCap: number;
     readonly currency?: string;
     readonly asOf: string;
+    readonly asOfKind?: MarketSnapshotPriceAsOf["kind"];
     readonly sourceId: string;
   };
   readonly priceHistory?: readonly {
@@ -189,13 +197,62 @@ function evaluateMetric(definition: MetricDefinition, ctx: MetricContext): Metri
       inputs.flatMap((input) => (input.derivation === undefined ? [] : [input.derivation])),
     ),
   ];
+  const sourceIds = [...new Set(inputs.flatMap((input) => input.sourceIds))];
+  const priceAsOf = fundamentalsPriceAsOf(ctx, outcome.periodEnd, inputs);
   return {
     ...identity,
     ...outcome,
+    ...(outcome.status === "value" && priceAsOf !== undefined ? { priceAsOf } : {}),
     basis: [outcome.basis ?? basis, ...derivations].join("; "),
     inputs,
-    sourceIds: [...new Set(inputs.flatMap((input) => input.sourceIds))],
+    sourceIds,
   };
+}
+
+function fundamentalsPriceAsOf(
+  ctx: MetricContext,
+  periodEnd: string | undefined,
+  inputs: readonly MetricInput[],
+): string | undefined {
+  const { snapshot } = ctx;
+  const price =
+    snapshot === undefined
+      ? ctx.quote
+      : { sourceId: snapshot.sourceId, ...priceAsOfFields(snapshot) };
+  if (
+    price === undefined ||
+    periodEnd === undefined ||
+    periodEnd === snapshot?.observedAt ||
+    !inputs.some(
+      (input) =>
+        input.sourceIds.includes(price.sourceId) &&
+        (input.artifact === "quote" ||
+          (input.key !== undefined && PRICE_RELATIVE_EVIDENCE_KEYS.has(input.key))),
+    )
+  ) {
+    return undefined;
+  }
+  const date = price.asOf.slice(0, 10);
+  if (date === periodEnd.slice(0, 10)) {
+    return undefined;
+  }
+  return price.asOfKind === "fetch-time-only" ? `${date} (fetch time)` : date;
+}
+
+const PRICE_RELATIVE_EVIDENCE_KEYS: ReadonlySet<string> = new Set([
+  "debtToMarketCap",
+  "netDebtToMarketCap",
+  "evToAnnualizedRevenue",
+  "marketCapToAnnualizedRevenue",
+  "enterpriseValue",
+]);
+
+export function priceAsOfFields(snapshot: Pick<MarketSnapshot, "observedAt" | "quoteTimeUtc">): {
+  readonly asOf: string;
+  readonly asOfKind: MarketSnapshotPriceAsOf["kind"];
+} {
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
+  return { asOf: priceAsOf.instant, asOfKind: priceAsOf.kind };
 }
 
 function sectionGap(

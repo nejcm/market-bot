@@ -50,14 +50,22 @@ export function metricSectionsView(
                 status === "value"
                   ? formatMetricValue(metric.value, metric.unit, metric.currency)
                   : undefined;
-              const { periodEnd, periodMonths, basis, reason } = metric;
+              const { periodEnd, periodMonths, priceAsOf, basis, reason } = metric;
               return [
                 {
                   label: metric.label,
                   status,
                   ...(value !== undefined ? { value } : {}),
                   ...(periodEnd !== undefined
-                    ? { period: metricPeriodLabel(periodEnd, periodMonths, id, metric.inputs) }
+                    ? {
+                        period: metricPeriodLabel(
+                          periodEnd,
+                          periodMonths,
+                          id,
+                          metric.inputs,
+                          priceAsOf,
+                        ),
+                      }
                     : {}),
                   ...(basis !== undefined ? { basis } : {}),
                   ...(value === undefined ? { reason: reason ?? "no value" } : {}),

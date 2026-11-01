@@ -3,11 +3,7 @@ import { segmentResultsSection } from "./extended-evidence/segment-results";
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import { type ExtendedEvidence, type ExtendedEvidenceItem } from "../domain/evidence";
 import { isMarketUpdateJobType } from "../domain/job-type";
-import {
-  type MarketSnapshot,
-  resolveMarketSnapshotPriceAsOf,
-  type VerifiedMarketSnapshot,
-} from "../domain/market-data";
+import { type MarketSnapshot, type VerifiedMarketSnapshot } from "../domain/market-data";
 import { type Source, type SourceGap } from "../domain/sources";
 import type { CollectContext, EarningsSetupCollected, FetchLike, RawSourceSnapshot } from "./types";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
@@ -51,7 +47,11 @@ import type { FinancialStatementsArtifact } from "./extended-evidence/financial-
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { capitalReturnSection } from "./extended-evidence/capital-return";
 import { operatingRatiosSection } from "./extended-evidence/operating-ratios";
-import type { MetricContext, MetricSection } from "./extended-evidence/metric-engine";
+import {
+  priceAsOfFields,
+  type MetricContext,
+  type MetricSection,
+} from "./extended-evidence/metric-engine";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import {
@@ -524,7 +524,7 @@ function quoteContext(
     quote: {
       marketCap: snapshot.marketCap,
       ...(currency !== undefined ? { currency } : {}),
-      asOf: resolveMarketSnapshotPriceAsOf(snapshot).instant,
+      ...priceAsOfFields(snapshot),
       sourceId: snapshot.sourceId,
     },
   };

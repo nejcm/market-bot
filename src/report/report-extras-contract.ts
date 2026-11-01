@@ -178,6 +178,7 @@ interface MetricResultValue {
   readonly currency?: string;
   readonly periodEnd?: string;
   readonly periodMonths?: number;
+  readonly priceAsOf?: string;
   readonly reason?: string;
   readonly cause?: string;
   readonly sourceIds: readonly string[];
@@ -391,6 +392,7 @@ function readMetricResult(value: unknown): MetricResultValue | undefined {
       "status",
       "currency",
       "periodEnd",
+      "priceAsOf",
       "reason",
       "cause",
     ]),

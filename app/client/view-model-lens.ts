@@ -316,18 +316,26 @@ function financialLensMetricCaption(
     return source;
   }
   const date = metric.periodEnd.slice(0, 10);
+  const marketSnapshot = marketSnapshots.find((snapshot) =>
+    metric.sourceIds.includes(snapshot.sourceId),
+  );
+  const priceAsOf =
+    marketSnapshot === undefined ? undefined : resolveMarketSnapshotPriceAsOf(marketSnapshot);
+  const priceCaption =
+    priceAsOf === undefined
+      ? undefined
+      : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
   if (metric.periodMonths === undefined && metric.periodEnd === date && source.startsWith("SEC")) {
-    return BALANCE_SHEET_LENS_METRICS.has(metric.key)
-      ? `${source} · balance sheet ${date}`
-      : `${source} · period ending ${date}`;
+    const filed = BALANCE_SHEET_LENS_METRICS.has(metric.key)
+      ? `balance sheet ${date}`
+      : `period ending ${date}`;
+    return priceCaption === undefined
+      ? `${source} · ${filed}`
+      : `${source} · ${priceCaption} · fundamentals ${filed}`;
   }
   if (metric.periodMonths === undefined) {
-    const marketSnapshot = marketSnapshots.find((snapshot) =>
-      metric.sourceIds.includes(snapshot.sourceId),
-    );
-    if (marketSnapshot !== undefined) {
-      const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
-      return `${source} · ${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+    if (priceCaption !== undefined) {
+      return `${source} · ${priceCaption}`;
     }
     if (metric.sourceIds.some((sourceId) => sourceId.includes("yahoo"))) {
       return `${source} · fetch time ${metric.periodEnd}`;
@@ -335,7 +343,10 @@ function financialLensMetricCaption(
     return `${source} · observed ${date}`;
   }
   const period = metric.periodMonths === 12 ? "FY" : `${String(metric.periodMonths)}M`;
-  return `${source} · ${period} period ended ${date}`;
+  const ended = `${period} period ended ${date}`;
+  return priceCaption === undefined
+    ? `${source} · ${ended}`
+    : `${source} · ${priceCaption} · fundamentals ${ended}`;
 }
 
 export function financialLensStatTiles(

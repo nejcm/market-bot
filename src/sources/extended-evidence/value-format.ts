@@ -113,6 +113,23 @@ export function metricPeriodLabel(
     readonly periodStart?: string;
     readonly periodEnd?: string;
   }[] = [],
+  priceAsOf?: string,
+): string {
+  const label = fundamentalsPeriodLabel(periodEnd, periodMonths, sectionId, inputs);
+  return priceAsOf === undefined
+    ? label
+    : `Price as of ${priceAsOf}; fundamentals ${label.replace(/^(As of|Period)/u, (lead) => lead.toLowerCase())}`;
+}
+
+function fundamentalsPeriodLabel(
+  periodEnd: string,
+  periodMonths: number | undefined,
+  sectionId: string | undefined,
+  inputs: readonly {
+    readonly periodType?: string;
+    readonly periodStart?: string;
+    readonly periodEnd?: string;
+  }[],
 ): string {
   // Provider observations carry a full timestamp; a label names the date.
   const end = /^\d{4}-\d{2}-\d{2}T/u.test(periodEnd) ? periodEnd.slice(0, 10) : periodEnd;

@@ -30,7 +30,15 @@ function metricLine(
   const detail = [
     ...(metric.periodEnd === undefined
       ? []
-      : [metricPeriodLabel(metric.periodEnd, metric.periodMonths, sectionId, metric.inputs)]),
+      : [
+          metricPeriodLabel(
+            metric.periodEnd,
+            metric.periodMonths,
+            sectionId,
+            metric.inputs,
+            metric.priceAsOf,
+          ),
+        ]),
     ...(metric.basis === undefined ? [] : [metric.basis]),
   ].join("; ");
   const refs = sourceRefs(citedSourceIds(report, metric));

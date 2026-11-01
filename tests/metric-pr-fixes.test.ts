@@ -11,7 +11,7 @@ import {
 } from "../src/sources/extended-evidence/metric-engine";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { config, contextWithHistory } from "./support/research-context-helpers";
-import { collectedSources, researchReport } from "./support/fixtures";
+import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 
 const AS_OF = "2026-06-22T00:00:00.000Z";
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -174,4 +174,105 @@ test("derived gross profit discloses its formula in metric basis, markdown, and 
   expect(
     financialLensSectionTiles(report as unknown as Record<string, unknown>)[0]?.caption,
   ).toContain(disclosure);
+});
+
+function orclMarketLeverage(snapshot: boolean, quoteTimeUtc?: string) {
+  const debt = {
+    label: "debt",
+    value: 125_337_000_000,
+    artifact: "statements",
+    series: "debt",
+    periodType: "instant",
+    periodEnd: "2026-08-31",
+    unit: "USD",
+    sourceIds: ["extended-sec-edgar-orcl-fundamentals"],
+  } as const;
+  const marketCap = {
+    label: "market cap",
+    value: 396_126_224_384,
+    artifact: "quote",
+    unit: "currency",
+    sourceIds: ["market-yahoo-equity-orcl"],
+  } as const;
+  const { section } = evaluateMetricSection(
+    "financial-lens-financial-strength",
+    "Financial strength",
+    [
+      {
+        id: "debtToMarketCap",
+        label: "Debt/market cap",
+        unit: "ratio-percent",
+        basis: "debt / quote market cap",
+        compute: () => ({
+          status: "value",
+          value: debt.value / marketCap.value,
+          periodEnd: "2026-08-31",
+          inputs: [marketCap, debt],
+        }),
+      },
+      {
+        id: "valuationSupportability",
+        label: "Peer supportability",
+        unit: "text",
+        basis: "valuation evidence peer supportability",
+        compute: () => ({
+          status: "value",
+          value: "supported",
+          periodEnd: "2026-08-31",
+          inputs: [
+            {
+              label: "valuation supportability",
+              value: "supported",
+              artifact: "evidence",
+              key: "valuationSupportability",
+              unit: "text",
+              sourceIds: ["market-yahoo-equity-orcl", "extended-sec-edgar-orcl-fundamentals"],
+            },
+          ],
+        }),
+      },
+    ],
+    {
+      symbol: "ORCL",
+      ...(snapshot
+        ? {
+            snapshot: marketSnapshot({
+              sourceId: "market-yahoo-equity-orcl",
+              observedAt: "2026-11-01T09:33:28.645Z",
+              ...(quoteTimeUtc === undefined ? {} : { quoteTimeUtc }),
+            }),
+          }
+        : {}),
+    },
+  );
+  return section;
+}
+
+test("a price-relative ratio names its quote date beside the fundamentals date (ORCL 2026-08-31 10-Q)", () => {
+  const section = orclMarketLeverage(true, "2026-10-30T20:03:42.000Z");
+  expect(section.metrics[0]?.priceAsOf).toBe("2026-10-30");
+  const report = researchReport({ extras: { metricSections: [section] } });
+  expect(renderMetricSections(report)).toContain(
+    "Price as of 2026-10-30; fundamentals as of 2026-08-31",
+  );
+  expect(
+    metricSectionsView(report as unknown as Record<string, unknown>)?.[0]?.metrics[0]?.period,
+  ).toBe("Price as of 2026-10-30; fundamentals as of 2026-08-31");
+});
+
+test("a ratio without a quote snapshot keeps its fundamentals date only", () => {
+  const section = orclMarketLeverage(false);
+  expect(section.metrics[0]?.priceAsOf).toBeUndefined();
+  expect(metricPeriodLabel("2026-05-31", undefined, undefined, [], "2026-10-30")).toBe(
+    "Price as of 2026-10-30; fundamentals as of 2026-05-31",
+  );
+});
+
+test("a price-relative ratio without a quote time labels the fetch date as fetch time", () => {
+  expect(orclMarketLeverage(true).metrics[0]?.priceAsOf).toBe("2026-11-01 (fetch time)");
+});
+
+test("a valuation text metric that only cites the quote carries no price date", () => {
+  const section = orclMarketLeverage(true, "2026-10-30T20:03:42.000Z");
+  expect(section.metrics[1]?.priceAsOf).toBeUndefined();
 });

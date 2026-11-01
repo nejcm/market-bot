@@ -856,7 +856,8 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       ["instant|2024-09-30", true],
       ["instant|2025-09-30", true],
     ]);
-    expect(withheldDebt(statements)?.periodEnd).toBe("2025-09-30");
+    // Without the 10-Q faces, 2026-06-30 liabilities with no debt tag withhold latest debt.
+    expect(withheldDebt(statements)?.periodEnd).toBe("2026-06-30");
     const fy2025 = valuationPeriodInputs(statements).periods.find(
       ({ periodEnd }) => periodEnd === "2025-09-30",
     );
@@ -865,8 +866,8 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
     const position = financialPosition(statements, undefined);
     expect(position?.debt).toBeUndefined();
     expect(
-      position?.notes?.filter(({ code }) => code === "debt-held-for-sale").map((n) => n.periodKey),
-    ).toEqual(["instant|2025-09-30"]);
+      position?.notes?.filter(({ seriesKey }) => seriesKey === "debt").map(({ code }) => code),
+    ).toEqual(["incomplete-composite-series", "stale-instant-series"]);
   });
   test("CLFD FY2024 EV withholds pre-recast debt 2,228K (0001171843-24-006402) beside restated revenue (0001171843-25-007594)", () => {
     const { periods } = valuationPeriodInputs(load("clfd").statements);
@@ -925,16 +926,16 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       reason: expect.stringContaining("not separable from liabilities held for sale"),
     });
   });
-  test("CLFD TTM rows after FY2025 pair their own cash instant with the last tagged debt, not the 2025-09-30 withhold", () => {
+  test("CLFD TTM rows after FY2025 pair no stale debt: their instants await a zero-borrowings face", () => {
     const ttm = valuationPeriodInputs(load("clfd").statements).periods.filter(
       ({ basis, periodEnd }) => basis === "ttm" && periodEnd > "2025-09-30",
     );
     expect(
       ttm.map(({ periodEnd, cash, debt }) => [periodEnd, cash?.periodEnd, debt?.periodEnd]),
     ).toEqual([
-      ["2025-12-31", "2025-12-31", "2025-06-30"],
-      ["2026-03-31", "2026-03-31", "2025-06-30"],
-      ["2026-06-30", "2026-06-30", "2025-06-30"],
+      ["2025-12-31", "2025-12-31", undefined],
+      ["2026-03-31", "2026-03-31", undefined],
+      ["2026-06-30", "2026-06-30", undefined],
     ]);
   });
   test("debt held for sale notes only CLFD among reference cases", () => {

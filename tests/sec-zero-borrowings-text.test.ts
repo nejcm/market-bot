@@ -77,6 +77,11 @@ describe("zero-borrowings text proof", () => {
     expect(
       proof(`${overdrafts} As of June 30, 2026, the Company had no debt.`).zeroBorrowingText,
     ).toBe("As of June 30, 2026, the Company had no debt.");
+    expect(
+      proof(
+        "Bank overdrafts and the line of credit totaled $2,000,000. As of June 30, 2026, the Company had no borrowings against its line of credit.",
+      ),
+    ).toEqual({ zeroBorrowingReject: "uncovered-facility:overdraft" });
   });
 
   test("a continuing facility the sentence does not cover rejects", () => {

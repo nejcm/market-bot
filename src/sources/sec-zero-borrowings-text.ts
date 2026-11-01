@@ -25,7 +25,7 @@ const FACILITY_ZERO = new RegExp(
 const BARE_ZERO = new RegExp(String.raw`${LEAD}(?:debt|indebtedness|borrowings)\.?$`, "iu");
 // Overdrafts are mentioned, never facility-zeroed: only a bare no-debt sentence covers them.
 const MENTION = new RegExp(
-  String.raw`((?:[\w$,.'-]+ ){0,4})\b(${KIND_TERM.slice(1, -1)}|(?:bank )?overdrafts?)\b`,
+  String.raw`(?<=((?:[\w$,.'-]+ ){0,4}))\b(${KIND_TERM.slice(1, -1)}|(?:bank )?overdrafts?)\b`,
   "giu",
 );
 const NOT_MODIFIER =

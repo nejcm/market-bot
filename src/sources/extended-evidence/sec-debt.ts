@@ -267,6 +267,7 @@ export function factsForDebt(
     return {
       ...instant,
       fact,
+      lines: new Map(facts.map(({ concept, value }) => [concept, value])),
       restatements: debtRestatements(fact, resolution.basis, candidates),
       incomplete,
       incompleteReason: resolution.incompleteReason,
@@ -277,7 +278,14 @@ export function factsForDebt(
       faceAccession: faceFixable ? faceAccession : undefined,
     };
   });
-  const current = unsupersededDebtResolutions(resolved);
+  const current = unsupersededDebtResolutions(
+    resolved,
+    DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy].flatMap((concept) =>
+      unitFacts(taxonomy, root, concept).filter(
+        (fact) => fact.periodStart === undefined && fact.value !== 0 && eligible(fact),
+      ),
+    ),
+  );
 
   const [latest] = current
     .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))

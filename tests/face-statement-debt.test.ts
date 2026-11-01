@@ -1187,13 +1187,36 @@ describe("ORCL 10-Q 0001193125-26-389274 prior-year-end column 2026-05-31", () =
     );
   });
 
-  test("an unfooted comparative column keeps it withheld", () => {
+  test("an unfooted comparative column falls back to the 10-K its lines equal", () => {
     const rows = withRow(ORCL_PRIOR_ROWS, "us-gaap:LiabilitiesNoncurrent", [
       "Total non-current liabilities",
       "us-gaap:LiabilitiesNoncurrent",
       176_938_000,
     ]);
-    expect(mayDebt(rows)).toEqual([]);
+    expect(mayDebt(rows)).toEqual([
+      expect.objectContaining({
+        value: 129_541_000_000,
+        accessionNumber: "0001193125-26-277521",
+        form: "10-K",
+      }),
+    ]);
+  });
+
+  test("an unfooted comparative column that restates a 10-K line keeps it withheld", () => {
+    const rows = withRow(ORCL_PRIOR_ROWS, "us-gaap:LiabilitiesNoncurrent", [
+      "Total non-current liabilities",
+      "us-gaap:LiabilitiesNoncurrent",
+      176_938_000,
+    ]);
+    const restated = {
+      ...gaap,
+      NotesPayableCurrent: [...ORCL_GAAP.NotesPayableCurrent, priorQ1(7_200_000_000)],
+    };
+    expect(
+      financialStatementFacts(
+        derive(restated, [orclFace(twoColumnFace(rows))]).artifact.statements.balanceSheet.debt,
+      ).filter(({ periodEnd }) => periodEnd === "2026-05-31"),
+    ).toEqual([]);
   });
 });
 

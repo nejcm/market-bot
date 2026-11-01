@@ -884,7 +884,11 @@ function fundamental(value: number, periodEnd: string): ValuationFundamentalInpu
   };
 }
 
-function evToRevenue(debtPeriodEnd: string, behindIncompleteInstant = false) {
+function evToRevenue(
+  debtPeriodEnd: string,
+  behindIncompleteInstant = false,
+  cashPeriodEnd = "2026-06-30",
+) {
   return valuationMetricSection({
     symbol: "TEST",
     period: {
@@ -892,7 +896,7 @@ function evToRevenue(debtPeriodEnd: string, behindIncompleteInstant = false) {
       periodEnd: "2026-06-30",
       revenue: fundamental(100, "2026-06-30"),
       dilutedShares: { ...fundamental(10, "2026-06-30"), unit: "shares", currency: null },
-      cash: fundamental(20, "2026-06-30"),
+      cash: fundamental(20, cashPeriodEnd),
       debt: fundamental(30, debtPeriodEnd),
       ...(behindIncompleteInstant ? { debtBehindIncompleteInstant: true as const } : {}),
     },
@@ -919,6 +923,24 @@ describe("valuation workbench balance-sheet period gate", () => {
       status: "missing",
       reason: "mixed-period-balance-sheet",
     });
+  });
+
+  test("suppresses EV/revenue when cash and debt both stopped years before the row", () => {
+    expect(evToRevenue("2021-12-31", false, "2021-12-31")).toMatchObject({
+      status: "missing",
+      reason: "mixed-period-balance-sheet",
+    });
+  });
+
+  test("suppresses EV/revenue when fresh debt pairs with stale cash", () => {
+    expect(evToRevenue("2026-06-30", false, "2021-12-31")).toMatchObject({
+      status: "missing",
+      reason: "mixed-period-balance-sheet",
+    });
+  });
+
+  test("populates EV/revenue when cash and debt sit at the row period end", () => {
+    expect(evToRevenue("2026-06-30")).toMatchObject({ status: "value", value: 1.1 });
   });
 });
 
@@ -1910,5 +1932,82 @@ describe("debt totals and instruments checked against their lines", () => {
     expect(legacy?.metrics.debtIncompleteReason).toContain("omits LongTermNotesPayable");
     const domestic = resolve({ ...gaap, LongTermNotesPayable: [] }).legacy;
     expect(domestic?.metrics.debt).toBe(12_995_000);
+  });
+});
+
+describe("a newer partial comparative of an older complete instant", () => {
+  const fy = (value: number) => instant(value, "2025-12-31", "2026-02-15", "10-K", "FY");
+  const comparative = (value: number) => ({
+    ...instant(value, "2025-12-31", "2026-05-05", "10-Q", "Q1"),
+    fy: 2026,
+  });
+  const debtAt = (notesPayableCurrent: number) => {
+    const { artifact } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [fy(20)],
+      NotesPayableCurrent: [fy(40), comparative(notesPayableCurrent)],
+      LongTermNotesPayable: [fy(60)],
+    });
+    return {
+      values: artifact.statements.balanceSheet.debt.annual.map(({ periodEnd, value }) => [
+        periodEnd,
+        value,
+      ]),
+      notes: [...artifact.validationNotes, ...artifact.omissionNotes]
+        .filter(
+          ({ code, seriesKey }) => code === "incomplete-composite-series" && seriesKey === "debt",
+        )
+        .map(({ periodKey }) => periodKey),
+    };
+  };
+
+  test("ORCL shape: every comparative line equals the 10-K, so the 10-K value publishes", () => {
+    expect(debtAt(40)).toEqual({ values: [["2025-12-31", 100]], notes: [] });
+  });
+
+  test("a comparative line that differs from the 10-K withholds the instant", () => {
+    expect(debtAt(55)).toEqual({ values: [], notes: ["instant|2025-12-31"] });
+  });
+});
+
+describe("a partial comparative recovers only an uncontested complete instant", () => {
+  const fy = (value: number) => instant(value, "2025-12-31", "2026-02-15", "10-K", "FY");
+  const column = (value: number, filedAt: string, fiscalPeriod: string) => ({
+    ...instant(value, "2025-12-31", filedAt, "10-Q", fiscalPeriod),
+    fy: 2026,
+  });
+  const decemberDebt = (gaap: Parameters<typeof resolve>[0]) => {
+    const { artifact } = resolve({ CashAndCashEquivalentsAtCarryingValue: [fy(20)], ...gaap });
+    return {
+      values: financialStatementFacts(artifact.statements.balanceSheet.debt)
+        .filter(({ periodEnd }) => periodEnd === "2025-12-31")
+        .map(({ value }) => value),
+      withheld: [...artifact.validationNotes, ...artifact.omissionNotes].some(
+        ({ seriesKey, periodKey }) => seriesKey === "debt" && periodKey === "instant|2025-12-31",
+      ),
+    };
+  };
+
+  test("a later complete restatement the partial contradicts blocks recovery", () => {
+    expect(
+      decemberDebt({
+        NotesPayableCurrent: [
+          fy(40),
+          column(55, "2026-05-05", "Q1"),
+          column(40, "2026-08-05", "Q2"),
+        ],
+        LongTermNotesPayable: [fy(60), column(55, "2026-05-05", "Q1")],
+        DebtLongtermAndShorttermCombinedAmount: [fy(100), column(110, "2026-05-05", "Q1")],
+      }),
+    ).toEqual({ values: [], withheld: true });
+  });
+
+  test("disposal-group liabilities beside the partial block recovery", () => {
+    expect(
+      decemberDebt({
+        NotesPayableCurrent: [fy(40), column(40, "2026-05-05", "Q1")],
+        LongTermNotesPayable: [fy(60)],
+        LiabilitiesOfDisposalGroupIncludingDiscontinuedOperation: [column(50, "2026-05-05", "Q1")],
+      }),
+    ).toEqual({ values: [], withheld: true });
   });
 });

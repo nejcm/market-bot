@@ -1515,7 +1515,7 @@ describe("canonical financial statements", () => {
       });
       expect(incomeTaxExpense.annual[0]!.value / pretax!.value).toBeCloseTo(0.126_16, 5);
       expect(derivedFactDisclosure("pretaxIncome", pretax!)).toBe(
-        `pretax income derived as ${DOMESTIC} + ${FOREIGN}; no total pretax income is tagged for the period`,
+        `pretax income derived as ${DOMESTIC} + ${FOREIGN}; the components' filing tags no total pretax income`,
       );
       expect(historyGapMessages(artifact)).toEqual([]);
     });
@@ -1642,6 +1642,157 @@ describe("canonical financial statements", () => {
         });
 
         expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+      });
+
+      // ORCL FY2018 total 12,891M (10-K filed 2018-06-22) vs FY2020 10-K Domestic + Foreign 12,424M.
+      test("a later component pair restates an older tagged total", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [original(30)],
+          [DOMESTIC]: [original(10), restated(11)],
+          [FOREIGN]: [original(14), restated(15)],
+        });
+
+        const [pretax] = artifact.statements.incomeStatement.pretaxIncome.annual;
+
+        expect(pretax).toMatchObject({
+          value: 26,
+          accessionNumber: "0000000000-26-000001",
+          concept: `${DOMESTIC}+${FOREIGN}`,
+          restatedFrom: { value: 30, filedAt: "2025-02-15" },
+        });
+        expect(derivedFactDisclosure("pretaxIncome", pretax!)).toBe(
+          `pretax income derived as ${DOMESTIC} + ${FOREIGN}; the components' filing tags no total pretax income and restates the 30 total filed 2025-02-15`,
+        );
+      });
+
+      test("withholds a superseded total when a later revision leaves the pair unpaired", () => {
+        const revised = { ...restated(12), filed: "2026-05-01", accn: "0000000000-26-000002" };
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [original(30)],
+          [DOMESTIC]: [original(10), restated(11), revised],
+          [FOREIGN]: [original(14), restated(15)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toEqual([]);
+        expect(historyGapMessages(artifact)).toContain(
+          "SEC pretax income from continuing operations is not derived for 2024-01-01 to 2024-12-31: the current domestic and foreign pretax revisions do not share one filing, form, span, and unit",
+        );
+      });
+
+      test("a same-day amended pair restates that day's original total", () => {
+        const amended = (value: number) => ({
+          ...annual(value, 2024, "10-K/A"),
+          accn: "0000000000-25-000002",
+        });
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [original(30)],
+          [DOMESTIC]: [amended(11)],
+          [FOREIGN]: [amended(15)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 26, accessionNumber: "0000000000-25-000002" },
+        ]);
+      });
+
+      test("dates a restoring total from its own filing when a pair intervened", () => {
+        const midYear = (value: number) => ({
+          ...annual(value, 2024),
+          filed: "2025-08-01",
+          accn: "0000000000-25-000003",
+        });
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [original(26), restated(26)],
+          [DOMESTIC]: [midYear(12)],
+          [FOREIGN]: [midYear(18)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 26, concept: TOTAL, firstPublicAt: "2026-02-15" },
+        ]);
+      });
+
+      test("a total filed after the cutoff never displaces the standing total", () => {
+        const midYear = (value: number) => ({
+          ...annual(value, 2024),
+          filed: "2025-08-01",
+          accn: "0000000000-25-000003",
+        });
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [
+            original(26),
+            restated(26),
+            { ...annual(31, 2024), filed: "2026-10-01", accn: "0000000000-26-000009" },
+          ],
+          [DOMESTIC]: [midYear(12)],
+          [FOREIGN]: [midYear(18)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 26, concept: TOTAL, firstPublicAt: "2026-02-15" },
+        ]);
+      });
+
+      test("restatedFrom names the replaced tagged total, never an earlier derived pair", () => {
+        const midYear = { ...annual(30, 2024), filed: "2025-08-01", accn: "0000000000-25-000003" };
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [midYear],
+          [DOMESTIC]: [original(10), restated(11)],
+          [FOREIGN]: [original(14), restated(15)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 26, restatedFrom: { value: 30, filedAt: "2025-08-01" } },
+        ]);
+      });
+
+      test("dates a restoring pair from its own filing, not the first total with that value", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [
+            original(26),
+            { ...annual(30, 2024), filed: "2025-08-01", accn: "0000000000-25-000003" },
+          ],
+          [DOMESTIC]: [restated(11)],
+          [FOREIGN]: [restated(15)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 26, firstPublicAt: "2026-02-15" },
+        ]);
+      });
+
+      test("keeps the tagged total when the later pair is filed after the cutoff", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [original(30)],
+          [DOMESTIC]: [{ ...restated(11), filed: "2026-10-01" }],
+          [FOREIGN]: [{ ...restated(15), filed: "2026-10-01" }],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 30, concept: TOTAL },
+        ]);
+      });
+
+      test("keeps the tagged total without a gap when only one component is restated", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [TOTAL]: [original(30)],
+          [DOMESTIC]: [original(10), restated(11)],
+          [FOREIGN]: [original(14)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 30, concept: TOTAL },
+        ]);
+        expect(historyGapMessages(artifact)).toEqual([]);
       });
     });
   });
@@ -2733,13 +2884,86 @@ describe("canonical financial statements", () => {
       expect.objectContaining({
         code: "unreconciled-ttm",
         seriesKey: "revenue",
-        message: expect.stringContaining("later period ending 2025-08-31"),
+        message: expect.stringContaining(
+          "RevenueFromContractWithCustomerExcludingAssessedTax for 2025-06-01 to 2025-08-31 is filed outside this series (10-Q accession 20250910-10-Q)",
+        ),
       }),
     );
 
     const fyOnly = derive(payload({ "us-gaap": { Revenues: { USD: [fiscalYear] } } }));
     expect(fyOnly.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
     expect(fyOnly.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
+  });
+
+  test("keeps FY-as-TTM when the only later duration fact is a subsequent event in the FY's own 10-K", () => {
+    const fiscalYear = fact({
+      value: 4500,
+      form: "10-K",
+      fiscalYear: 2026,
+      fiscalPeriod: "FY",
+      filedAt: "2026-05-20",
+      periodStart: "2025-04-01",
+      periodEnd: "2026-03-31",
+    });
+    const subsequentEvent = fact({
+      value: 30,
+      form: "10-K",
+      fiscalYear: 2026,
+      fiscalPeriod: "FY",
+      filedAt: "2026-05-20",
+      periodStart: "2026-04-20",
+      periodEnd: "2026-05-15",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [fiscalYear] },
+          PaymentsForRepurchaseOfCommonStock: { USD: [subsequentEvent] },
+        },
+      }),
+    );
+    expect(artifact.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
+    expect(artifact.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
+  });
+
+  test("withholds FY-as-TTM when a 10-K/A also tags the completed next quarter", () => {
+    const accessionNumber = "0000000000-25-000077";
+    const restatedFiscalYear = fact({
+      value: 57_399,
+      form: "10-K/A",
+      fiscalYear: 2025,
+      fiscalPeriod: "FY",
+      filedAt: "2025-09-10",
+      periodStart: "2024-06-01",
+      periodEnd: "2025-05-31",
+      accessionNumber,
+    });
+    const quarter = fact({
+      value: 14_926,
+      form: "10-K/A",
+      fiscalYear: 2025,
+      fiscalPeriod: "FY",
+      filedAt: "2025-09-10",
+      periodStart: "2025-06-01",
+      periodEnd: "2025-08-31",
+      accessionNumber,
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [restatedFiscalYear] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: { USD: [quarter] },
+        },
+      }),
+    );
+    expect(artifact.statements.incomeStatement.revenue.ttm).toBeUndefined();
+    expect(artifact.validationNotes).toContainEqual(
+      expect.objectContaining({
+        code: "unreconciled-ttm",
+        seriesKey: "revenue",
+        message: expect.stringContaining(`(10-K/A accession ${accessionNumber})`),
+      }),
+    );
   });
 
   test("detects quarterly 6-K cadence across quarter-only and year-to-date contexts", () => {

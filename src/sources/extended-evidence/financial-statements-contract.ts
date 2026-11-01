@@ -154,6 +154,8 @@ export interface FinancialStatementFact {
   readonly lineScope?: true;
   // Debt only: finance-lease tags a same-filing face presents beside the debt lines.
   readonly faceLeases?: readonly string[];
+  // Debt only: the filing's own sentence proving a zero instant.
+  readonly zeroBorrowingsQuote?: string;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -169,7 +171,7 @@ export interface FinancialStatementFact {
 
 export function derivedFactDisclosure(
   key: FinancialStatementSeriesKey,
-  fact: Pick<FinancialStatementFact, "composite" | "concept">,
+  fact: Pick<FinancialStatementFact, "composite" | "concept" | "restatedFrom">,
 ): string | undefined {
   if (fact.composite === undefined) {
     return undefined;
@@ -178,7 +180,10 @@ export function derivedFactDisclosure(
     return `gross profit derived as ${fact.concept.replace("-", " − ")}; tagged cost of revenue may exclude amortization or D&A`;
   }
   if (key === "pretaxIncome") {
-    return `pretax income derived as ${fact.concept.replace("+", " + ")}; no total pretax income is tagged for the period`;
+    const derived = `pretax income derived as ${fact.concept.replace("+", " + ")}; the components' filing tags no total pretax income`;
+    return fact.restatedFrom === undefined
+      ? derived
+      : `${derived} and restates the ${fact.restatedFrom.value} total filed ${fact.restatedFrom.filedAt}`;
   }
   if (key === "netIncome") {
     return `net income uses consolidated ${fact.concept} where NetIncomeLoss is untagged and tagged noncontrolling-interest income is zero or absent`;
@@ -277,6 +282,8 @@ export interface FinancialStatementNote {
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
   readonly publicAt?: string;
+  // Debt withheld only for want of this filing's balance-sheet face.
+  readonly faceAccession?: string;
 }
 
 export interface StructuredFinancialGap {
@@ -490,6 +497,7 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
         hasCompositeFactShape(value.composite))) &&
     (value.lineScope === undefined || value.lineScope === true) &&
     (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&
+    (value.zeroBorrowingsQuote === undefined || typeof value.zeroBorrowingsQuote === "string") &&
     stringArrayField(value, "sourceIds") !== undefined
   );
 }

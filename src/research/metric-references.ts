@@ -133,7 +133,13 @@ function withFormat(
   if (format !== "period" || metric.periodEnd === undefined) {
     return undefined;
   }
-  const label = metricPeriodLabel(metric.periodEnd, metric.periodMonths, sectionId, metric.inputs);
+  const label = metricPeriodLabel(
+    metric.periodEnd,
+    metric.periodMonths,
+    sectionId,
+    metric.inputs,
+    metric.priceAsOf,
+  );
   return `${value} (${label.replace(/^[A-Z](?=[a-z])/u, (letter) => letter.toLowerCase())})`;
 }
 

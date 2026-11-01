@@ -23,6 +23,12 @@ import {
   staleSeriesReason,
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { financialStatementGapsOf } from "../src/sources/collector-equity-enrichment";
+import {
+  canonicalFinancialMetrics,
+  canonicalStaleSeriesGaps,
+  withCanonicalFinancialLensInputs,
+} from "../src/sources/extended-evidence/financial-lens-canonical";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { SEC_METRIC_DEFINITIONS } from "../src/sources/extended-evidence/sec-fundamentals-format";
 
@@ -1129,4 +1135,158 @@ describe("stale series lag across fiscal calendars", () => {
       );
     });
   }
+});
+
+// ORCL stopped tagging GrossProfit after FY2018 (10-K 0001193125-18-201034); FY2026 revenue is current.
+const orclFact = (end: string, val: number, accn: string, filed: string) => ({
+  val,
+  accn,
+  filed,
+  form: "10-K",
+  fp: "FY",
+  fy: Number(end.slice(0, 4)),
+  start: `${String(Number(end.slice(0, 4)) - 1)}-06-01`,
+  end,
+});
+
+describe("canonical metrics withhold a stale series", () => {
+  const derive = (grossProfitEnd: string) =>
+    deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: { USD: [orclFact("2026-05-31", 67e9, "0000950170-26-000001", "2026-06-20")] },
+            },
+            GrossProfit: {
+              units: {
+                USD: [
+                  orclFact(grossProfitEnd, 24_287_000_000, "0001193125-18-201034", "2018-06-22"),
+                ],
+              },
+            },
+          },
+        },
+      },
+      { symbol: "ORCL", generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+    );
+
+  test("ORCL FY2018 gross profit is withheld with a declared gap", () => {
+    const artifact = derive("2018-05-31");
+    expect(canonicalFinancialMetrics(artifact).grossProfit).toBeUndefined();
+    expect(canonicalStaleSeriesGaps(artifact).map((gap) => gap.message)).toEqual([
+      "SEC Gross profit withheld as latest: latest gross profit period ends 2018-05-31, more than a year before the newest filed period 2026-05-31",
+    ]);
+  });
+
+  test("the collector surfaces the stale gap", () => {
+    expect(financialStatementGapsOf(derive("2018-05-31")).map((gap) => gap.message)).toContain(
+      "SEC Gross profit withheld as latest: latest gross profit period ends 2018-05-31, more than a year before the newest filed period 2026-05-31",
+    );
+  });
+
+  test("stale net income also withholds consolidated net income", () => {
+    const old = orclFact("2018-05-31", 3_825_000_000, "0001193125-18-201034", "2018-06-22");
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: { USD: [orclFact("2026-05-31", 67e9, "0000950170-26-000001", "2026-06-20")] },
+            },
+            NetIncomeLoss: { units: { USD: [old] } },
+            ProfitLoss: { units: { USD: [old] } },
+          },
+        },
+      },
+      { symbol: "ORCL", generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+    );
+    const metrics = canonicalFinancialMetrics(artifact);
+    expect(metrics.netIncome).toBeUndefined();
+    expect(metrics.consolidatedNetIncome).toBeUndefined();
+    expect(canonicalStaleSeriesGaps(artifact).map((gap) => gap.message)).toEqual([
+      "SEC Net income withheld as latest: latest net income period ends 2018-05-31, more than a year before the newest filed period 2026-05-31",
+    ]);
+  });
+
+  test("stale revenue keeps only the SEC freshness gap", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [orclFact("2018-05-31", 39e9, "0001193125-18-201034", "2018-06-22")],
+              },
+            },
+            GrossProfit: {
+              units: { USD: [orclFact("2026-05-31", 47e9, "0000950170-26-000001", "2026-06-20")] },
+            },
+          },
+        },
+      },
+      { symbol: "ORCL", generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+    );
+    expect(canonicalFinancialMetrics(artifact).revenue).toBe(39e9);
+    expect(canonicalStaleSeriesGaps(artifact)).toEqual([]);
+  });
+
+  test("canonical-only evidence declares stale revenue once", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [orclFact("2018-05-31", 39e9, "0001193125-18-201034", "2018-06-22")],
+              },
+            },
+            GrossProfit: {
+              units: { USD: [orclFact("2026-05-31", 47e9, "0000950170-26-000001", "2026-06-20")] },
+            },
+          },
+        },
+      },
+      { symbol: "ORCL", generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+    );
+    expect(
+      withCanonicalFinancialLensInputs(undefined, artifact).gaps.map((gap) => gap.message),
+    ).toEqual(["Stale SEC revenue period: period end 2018-05-31 exceeds 180 days"]);
+  });
+
+  test("canonical-only evidence uses the 180-day SEC freshness rule for revenue", () => {
+    const revenueGaps = (revenueEnd: string) =>
+      withCanonicalFinancialLensInputs(
+        undefined,
+        deriveFinancialStatements(
+          {
+            facts: {
+              "us-gaap": {
+                Revenues: {
+                  units: {
+                    USD: [orclFact(revenueEnd, 57e9, "0000950170-26-000001", "2026-06-20")],
+                  },
+                },
+              },
+            },
+          },
+          {
+            symbol: "ORCL",
+            generatedAt: "2026-10-31",
+            analysisAsOf: "2026-10-31",
+            sourceId: "sec",
+          },
+        ),
+      ).gaps.map((gap) => gap.message);
+    expect(revenueGaps("2026-01-31")).toEqual([
+      "Stale SEC revenue period: period end 2026-01-31 exceeds 180 days",
+    ]);
+    expect(revenueGaps("2026-05-31")).toEqual([]);
+  });
+
+  test("a series within a year of the newest period still publishes", () => {
+    const artifact = derive("2025-05-31");
+    expect(canonicalFinancialMetrics(artifact).grossProfit).toBe(24_287_000_000);
+    expect(canonicalStaleSeriesGaps(artifact)).toEqual([]);
+  });
 });

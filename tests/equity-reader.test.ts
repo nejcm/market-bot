@@ -737,6 +737,52 @@ describe("equity reader projection", () => {
     expect(collectedEmpty).toContain("- No upcoming earnings or consensus snapshot is available.");
   });
 
+  test("shows a calendar earnings date outside the Earnings Setup window", () => {
+    const sourceIds = ["extended-finnhub-events-orcl"];
+    const projection = projectEquityReader({
+      report: {
+        symbol: "ORCL",
+        extras: { depth: "deep" },
+        extendedEvidence: {
+          items: [
+            {
+              category: "equity-events",
+              title: "ORCL equity events",
+              sourceIds,
+              metrics: {
+                nextEarningsDate: "2026-12-08",
+                nextEarningsTiming: "unknown",
+                epsEstimate: 1.9322,
+                revenueEstimate: 21_762_632_973,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(projection.defaultView.earningsConsensus).toEqual([
+      {
+        kind: "earnings-date",
+        symbol: "ORCL",
+        date: "2026-12-08",
+        timing: "unknown",
+        status: "provider-estimated",
+        sourceIds,
+      },
+      { kind: "eps-consensus", value: 1.9322, sourceIds },
+      { kind: "revenue-consensus", value: 21_762_632_973, sourceIds },
+    ]);
+    expect(
+      projectEquityReader({
+        report: {
+          symbol: "ORCL",
+          extendedEvidence: { items: [{ category: "equity-events", sourceIds, metrics: {} }] },
+        },
+      }).defaultView.earningsConsensus,
+    ).toEqual([]);
+  });
+
   test("renders a source-stated conflicting date beside the provider date", () => {
     const report = {
       symbol: "NET",

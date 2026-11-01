@@ -104,6 +104,8 @@ export function formatMetricValue(
     : formatLensValue(value, unit, currency);
 }
 
+const PROVIDER_OBSERVATION = /^\d{4}-\d{2}-\d{2}T/u;
+
 export function metricPeriodLabel(
   periodEnd: string,
   periodMonths?: number,
@@ -113,9 +115,29 @@ export function metricPeriodLabel(
     readonly periodStart?: string;
     readonly periodEnd?: string;
   }[] = [],
+  priceAsOf?: string,
+): string {
+  if (priceAsOf !== undefined && PROVIDER_OBSERVATION.test(periodEnd)) {
+    return `Price as of ${priceAsOf}`;
+  }
+  const label = fundamentalsPeriodLabel(periodEnd, periodMonths, sectionId, inputs);
+  return priceAsOf === undefined
+    ? label
+    : `Price as of ${priceAsOf}; fundamentals ${label.replace(/^(As of|Period)/u, (lead) => lead.toLowerCase())}`;
+}
+
+function fundamentalsPeriodLabel(
+  periodEnd: string,
+  periodMonths: number | undefined,
+  sectionId: string | undefined,
+  inputs: readonly {
+    readonly periodType?: string;
+    readonly periodStart?: string;
+    readonly periodEnd?: string;
+  }[],
 ): string {
   // Provider observations carry a full timestamp; a label names the date.
-  const end = /^\d{4}-\d{2}-\d{2}T/u.test(periodEnd) ? periodEnd.slice(0, 10) : periodEnd;
+  const end = PROVIDER_OBSERVATION.test(periodEnd) ? periodEnd.slice(0, 10) : periodEnd;
   if (sectionId === "price-performance") {
     return `Session ending ${end}`;
   }

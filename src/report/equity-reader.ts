@@ -278,6 +278,48 @@ function earningsSetupCollected(report: unknown): boolean {
   return !isRecord(extras) || extras.depth !== "brief" || isRecord(extras.earningsSetup);
 }
 
+// An event outside the Earnings Setup window still shows from the provider calendar row.
+function calendarEarnings(
+  extendedItems: readonly unknown[],
+  reportSymbol: unknown,
+): readonly EquityReaderConsensusItem[] {
+  const item = extendedItems.find(
+    (candidate) =>
+      isRecord(candidate) &&
+      candidate.category === "equity-events" &&
+      isRecord(candidate.metrics) &&
+      typeof candidate.metrics.nextEarningsDate === "string",
+  );
+  if (
+    !isRecord(item) ||
+    !isRecord(item.metrics) ||
+    typeof item.metrics.nextEarningsDate !== "string"
+  ) {
+    return [];
+  }
+  const { metrics } = item;
+  const sourceIds = stringArrayValue(item.sourceIds);
+  return [
+    {
+      kind: "earnings-date",
+      symbol: typeof reportSymbol === "string" ? reportSymbol : "",
+      date: metrics.nextEarningsDate as string,
+      timing:
+        typeof metrics.nextEarningsTiming === "string"
+          ? metrics.nextEarningsTiming
+          : "timing unavailable",
+      status: "provider-estimated",
+      sourceIds,
+    },
+    ...(typeof metrics.epsEstimate === "number"
+      ? [{ kind: "eps-consensus" as const, value: metrics.epsEstimate, sourceIds }]
+      : []),
+    ...(typeof metrics.revenueEstimate === "number"
+      ? [{ kind: "revenue-consensus" as const, value: metrics.revenueEstimate, sourceIds }]
+      : []),
+  ];
+}
+
 function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[] {
   const record = reportRecord(report);
   const extras = isRecord(record?.extras) ? record.extras : undefined;
@@ -337,6 +379,9 @@ function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[
   }
   const extendedEvidence = isRecord(record?.extendedEvidence) ? record.extendedEvidence : undefined;
   const extendedItems = Array.isArray(extendedEvidence?.items) ? extendedEvidence.items : [];
+  if (event === undefined) {
+    items.push(...calendarEarnings(extendedItems, record?.symbol));
+  }
   for (const item of extendedItems) {
     if (
       !isRecord(item) ||

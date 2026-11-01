@@ -245,6 +245,8 @@ function zeroUnrecognizedDebtConcepts<T>(
   );
 }
 
+export const UNRECOGNIZED_BORROWING_REASON = "unrecognized borrowing concepts are tagged";
+
 function incompleteDebtReason<T>(
   taxonomy: FinancialStatementTaxonomy,
   instant: DebtInstant,
@@ -260,7 +262,7 @@ function incompleteDebtReason<T>(
     (concept) => !recognized.has(concept) && !zeroTagged.has(concept),
   );
   if (unrecognized.length > 0) {
-    return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
+    return `${UNRECOGNIZED_BORROWING_REASON}: ${unrecognized.join(", ")}`;
   }
   if (usedUmbrellas.length === 0 && sides.every((side) => side.concepts.length === 0)) {
     return "no borrowing line item is tagged";
@@ -761,8 +763,42 @@ export function resolveDebtAtInstant<T>(
 
 // A later filing's incomplete resolution of an instant supersedes earlier complete ones (partial amendments).
 export function unsupersededDebtResolutions<
-  R extends { readonly periodEnd: string; readonly filedAt: string; readonly incomplete: boolean },
->(resolved: readonly R[]): readonly R[] {
+  R extends {
+    readonly periodEnd: string;
+    readonly filedAt: string;
+    readonly incomplete: boolean;
+    readonly incompleteReason: string | undefined;
+    readonly fact: { readonly value: number } | undefined;
+    readonly lines: ReadonlyMap<string, number>;
+  },
+>(
+  all: readonly R[],
+  heldForSale: readonly { readonly periodEnd: string; readonly filedAt: string }[],
+): readonly R[] {
+  // A partial re-tag of the latest uncontested complete instant at identical values proves nothing new.
+  const repeatsComplete = (entry: R) => {
+    const complete = all.filter(
+      (other) => !other.incomplete && other.periodEnd === entry.periodEnd,
+    );
+    const latest = complete
+      .filter((other) => other.filedAt < entry.filedAt)
+      .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))
+      .at(-1);
+    return (
+      latest !== undefined &&
+      complete.every((other) => other.fact?.value === latest.fact?.value) &&
+      [...entry.lines].every(([concept, value]) => latest.lines.get(concept) === value) &&
+      !heldForSale.some(
+        (fact) =>
+          fact.periodEnd === entry.periodEnd &&
+          fact.filedAt > latest.filedAt &&
+          fact.filedAt <= entry.filedAt,
+      )
+    );
+  };
+  const resolved = all.filter(
+    (entry) => !entry.incompleteReason?.startsWith("omits ") || !repeatsComplete(entry),
+  );
   return resolved.filter(
     (entry) =>
       !resolved.some(

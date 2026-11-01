@@ -1,13 +1,9 @@
 import { geographicRevenueSection } from "./extended-evidence/geographic-revenue";
 import { segmentResultsSection } from "./extended-evidence/segment-results";
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
-import { type ExtendedEvidence } from "../domain/evidence";
+import { type ExtendedEvidence, type ExtendedEvidenceItem } from "../domain/evidence";
 import { isMarketUpdateJobType } from "../domain/job-type";
-import {
-  type MarketSnapshot,
-  resolveMarketSnapshotPriceAsOf,
-  type VerifiedMarketSnapshot,
-} from "../domain/market-data";
+import { type MarketSnapshot, type VerifiedMarketSnapshot } from "../domain/market-data";
 import { type Source, type SourceGap } from "../domain/sources";
 import type { CollectContext, EarningsSetupCollected, FetchLike, RawSourceSnapshot } from "./types";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
@@ -21,6 +17,7 @@ import {
   type FinancialLensEvidenceResult,
 } from "./extended-evidence/financial-lens";
 import {
+  canonicalStaleSeriesGaps,
   cashConversionScopeGaps,
   withCanonicalFinancialLensInputs,
 } from "./extended-evidence/financial-lens-canonical";
@@ -37,8 +34,11 @@ import {
 } from "./extended-evidence/capital-ownership";
 import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "./extended-evidence/fundamental-history-canonical";
-import { collectSecPeriodicFilingItems } from "./evidence-request-tools";
-import { fetchSecCompanyFactsForSymbol } from "./extended-evidence/sec-edgar";
+import { collectSecDebtFaceFilings, collectSecPeriodicFilingItems } from "./evidence-request-tools";
+import {
+  fetchSecCompanyFactsForSymbol,
+  type SecCompanyFactsResult,
+} from "./extended-evidence/sec-edgar";
 import {
   deriveFinancialStatements,
   financialStatementsHistoryGaps,
@@ -47,7 +47,11 @@ import type { FinancialStatementsArtifact } from "./extended-evidence/financial-
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { capitalReturnSection } from "./extended-evidence/capital-return";
 import { operatingRatiosSection } from "./extended-evidence/operating-ratios";
-import type { MetricContext, MetricSection } from "./extended-evidence/metric-engine";
+import {
+  priceAsOfFields,
+  type MetricContext,
+  type MetricSection,
+} from "./extended-evidence/metric-engine";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import {
@@ -78,7 +82,10 @@ import type { EvidenceRequestToolOutput } from "./evidence-request-output";
 import { deriveTradierImpliedMove, type TradierPacket } from "./tradier-packet";
 import { sourceGap } from "../domain/source-gaps";
 import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "./sec-packet-dependencies";
-import { financialStatementsDebtBasisGaps } from "./extended-evidence/sec-debt";
+import {
+  debtInstantsNeedingFace,
+  financialStatementsDebtBasisGaps,
+} from "./extended-evidence/sec-debt";
 
 export interface PeerUniverseSeam {
   readonly provider: ModelProvider;
@@ -229,22 +236,33 @@ export async function collectEquityEnrichment(
   let financialStatements: FinancialStatementsArtifact | undefined = undefined;
   let periodicFilings: EvidenceRequestToolOutput | undefined = undefined;
   if (collectStructuredSec && secFacts !== undefined) {
-    financialStatements = deriveFinancialStatements(secFacts.payload, {
-      symbol: input.command.symbol,
-      generatedAt: input.fetchedAt,
-      analysisAsOf: input.fetchedAt,
-      sourceId: secFacts.sourceId,
-      ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
-      ...(input.secTargetPacket?.submissions !== undefined
-        ? {
-            submissionsPayload: input.secTargetPacket.submissions.payload,
-            submissionsSourceId: input.secTargetPacket.submissions.sourceId,
-          }
-        : {}),
-      ...(input.secTargetPacket?.filingEvidence !== undefined
-        ? { secFilings: input.secTargetPacket.filingEvidence.items }
-        : {}),
-    });
+    const packetSymbol = input.command.symbol;
+    const derive = (faces: readonly ExtendedEvidenceItem[]) =>
+      deriveFinancialStatements(secFacts.payload, {
+        symbol: packetSymbol,
+        generatedAt: input.fetchedAt,
+        analysisAsOf: input.fetchedAt,
+        sourceId: secFacts.sourceId,
+        ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
+        ...(input.secTargetPacket?.submissions !== undefined
+          ? {
+              submissionsPayload: input.secTargetPacket.submissions.payload,
+              submissionsSourceId: input.secTargetPacket.submissions.sourceId,
+            }
+          : {}),
+        secFilings: [...(input.secTargetPacket?.filingEvidence?.items ?? []), ...faces],
+      });
+    const withFaces = await withDebtFaces(
+      input.identityContext,
+      {
+        symbol: packetSymbol,
+        ...(input.secTargetPacket?.cik === undefined ? {} : { cik: input.secTargetPacket.cik }),
+        submissionsPayload: input.secTargetPacket?.submissions?.payload,
+      },
+      derive,
+    );
+    financialStatements = withFaces.statements;
+    periodicFilings = withFaces.faces;
   } else if (collectStructuredSec) {
     const collected = await collectFinancialStatements(input.identityContext, input.command.symbol);
     financialStatements = collected.statements;
@@ -436,13 +454,7 @@ export async function collectEquityEnrichment(
     financialStatements,
     periodicFilings,
     financialStatementGaps:
-      financialStatements === undefined
-        ? []
-        : [
-            ...financialStatementsDebtBasisGaps(financialStatements),
-            ...cashConversionScopeGaps(financialStatements),
-            ...financialStatementsHistoryGaps(financialStatements),
-          ],
+      financialStatements === undefined ? [] : financialStatementGapsOf(financialStatements),
     reportingFreshness,
     subsequentFinancing,
     capitalOwnership,
@@ -512,7 +524,7 @@ function quoteContext(
     quote: {
       marketCap: snapshot.marketCap,
       ...(currency !== undefined ? { currency } : {}),
-      asOf: resolveMarketSnapshotPriceAsOf(snapshot).instant,
+      ...priceAsOfFields(snapshot),
       sourceId: snapshot.sourceId,
     },
   };
@@ -666,6 +678,17 @@ interface CollectedFinancialStatements {
   readonly periodicFilings?: EvidenceRequestToolOutput;
 }
 
+export function financialStatementGapsOf(
+  financialStatements: FinancialStatementsArtifact,
+): readonly SourceGap[] {
+  return [
+    ...financialStatementsDebtBasisGaps(financialStatements),
+    ...cashConversionScopeGaps(financialStatements),
+    ...canonicalStaleSeriesGaps(financialStatements),
+    ...financialStatementsHistoryGaps(financialStatements),
+  ];
+}
+
 export async function collectFinancialStatements(
   context: CollectContext,
   symbol: string,
@@ -678,22 +701,51 @@ export async function collectFinancialStatements(
     context.secUserAgent === undefined
       ? undefined
       : await collectSecPeriodicFilingItems(context, facts);
-  const statements = deriveFinancialStatements(facts.factsPayload, {
-    symbol,
-    generatedAt: context.fetchedAt,
-    analysisAsOf: context.fetchedAt,
-    sourceId: facts.sourceId,
-    ...(facts.sourceUrl !== undefined ? { sourceUrl: facts.sourceUrl } : {}),
-    ...(facts.submissionsPayload !== undefined
-      ? { submissionsPayload: facts.submissionsPayload }
-      : {}),
-    ...(facts.submissionsSourceId !== undefined
-      ? { submissionsSourceId: facts.submissionsSourceId }
-      : {}),
-    ...(periodicFilings !== undefined ? { secFilings: periodicFilings.items } : {}),
-  });
+  const { factsPayload, sourceId } = facts;
+  const derive = (faces: readonly ExtendedEvidenceItem[]) =>
+    deriveFinancialStatements(factsPayload, {
+      symbol,
+      generatedAt: context.fetchedAt,
+      analysisAsOf: context.fetchedAt,
+      sourceId,
+      ...(facts.sourceUrl !== undefined ? { sourceUrl: facts.sourceUrl } : {}),
+      ...(facts.submissionsPayload !== undefined
+        ? { submissionsPayload: facts.submissionsPayload }
+        : {}),
+      ...(facts.submissionsSourceId !== undefined
+        ? { submissionsSourceId: facts.submissionsSourceId }
+        : {}),
+      secFilings: [...(periodicFilings?.items ?? []), ...faces],
+    });
+  const { statements, faces } = await withDebtFaces(context, facts, derive);
+  const filings =
+    periodicFilings === undefined || faces === undefined
+      ? periodicFilings
+      : {
+          rawSnapshots: [...periodicFilings.rawSnapshots, ...faces.rawSnapshots],
+          sources: [...periodicFilings.sources, ...faces.sources],
+          items: [...periodicFilings.items, ...faces.items],
+          gaps: [...periodicFilings.gaps, ...faces.gaps],
+        };
   return {
     statements,
-    ...(periodicFilings !== undefined ? { periodicFilings } : {}),
+    ...(filings !== undefined ? { periodicFilings: filings } : {}),
   };
+}
+
+async function withDebtFaces(
+  context: CollectContext,
+  facts: Pick<SecCompanyFactsResult, "cik" | "symbol" | "submissionsPayload">,
+  derive: (faces: readonly ExtendedEvidenceItem[]) => FinancialStatementsArtifact,
+): Promise<{
+  readonly statements: FinancialStatementsArtifact;
+  readonly faces?: EvidenceRequestToolOutput;
+}> {
+  const statements = derive([]);
+  const instants = context.secUserAgent === undefined ? [] : debtInstantsNeedingFace(statements);
+  if (instants.length === 0) {
+    return { statements };
+  }
+  const faces = await collectSecDebtFaceFilings(context, facts, instants);
+  return { statements: faces.items.length === 0 ? statements : derive(faces.items), faces };
 }

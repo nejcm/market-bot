@@ -1,3 +1,4 @@
+import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import {
   enterpriseValueBridgeMetrics,
@@ -31,6 +32,7 @@ import {
   latestCommonFinancialStatementFacts,
   latestFinancialStatementFact,
   earlierShareBasisPeriods,
+  staleSeriesReason,
   touchesEarlierShareBasis,
 } from "./financial-statement-selection";
 import { withheldDebt } from "./sec-debt";
@@ -58,6 +60,10 @@ const FLOW_SERIES = [
   ["continuingIncome", "continuingIncome"],
   ["continuingDilutedEps", "continuingDilutedEps"],
 ] as const satisfies readonly (readonly [string, FinancialStatementSeriesKey])[];
+
+// Revenue is the period anchor and already carries the SEC freshness gap.
+const STALE_GUARDED_FLOWS = FLOW_SERIES.filter(([metricKey]) => metricKey !== "revenue");
+const STALE_GUARDED_METRICS = Object.fromEntries(STALE_GUARDED_FLOWS);
 
 const TOTAL_COUNTERPARTS = {
   continuingIncome: "netIncome",
@@ -187,6 +193,74 @@ export function cashConversionScopeGaps(
   ];
 }
 
+function canonicalStaleReason(
+  artifact: FinancialStatementsArtifact,
+  series: FinancialStatementSeries,
+  fact: FinancialStatementFact | undefined,
+): string | undefined {
+  return fact === undefined
+    ? undefined
+    : staleSeriesReason(artifact, fact, series.key, series.label.toLowerCase());
+}
+
+export function canonicalStaleSeriesGaps(
+  artifact: FinancialStatementsArtifact,
+): readonly SourceGap[] {
+  return STALE_GUARDED_FLOWS.flatMap(([, seriesKey]) => {
+    const series = financialStatementSeriesByKey(artifact, seriesKey);
+    const reason =
+      series === undefined
+        ? undefined
+        : canonicalStaleReason(
+            artifact,
+            series,
+            latestFinancialStatementFact(financialStatementFacts(series)),
+          );
+    return reason === undefined
+      ? []
+      : [
+          sourceGap({
+            source: "sec-edgar",
+            message: `SEC ${series!.label} withheld as latest: ${reason}`,
+            symbol: artifact.symbol,
+            provider: "sec-edgar",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ];
+  });
+}
+
+function staleRevenueGaps(artifact: FinancialStatementsArtifact): readonly SourceGap[] {
+  const latest = latestFinancialStatementFact(
+    financialStatementFacts(artifact.statements.incomeStatement.revenue),
+  );
+  return latest === undefined ? [] : staleSecRevenueGaps(latest.periodEnd, artifact.analysisAsOf);
+}
+
+export function staleSecRevenueGaps(
+  periodEnd: string,
+  analysisAsOf: string | undefined,
+): readonly SourceGap[] {
+  const periodMs = Date.parse(periodEnd);
+  const cutoffMs = Date.parse(analysisAsOf ?? "");
+  return Number.isFinite(periodMs) &&
+    Number.isFinite(cutoffMs) &&
+    cutoffMs - periodMs > SEC_FRESHNESS_DAYS * DAY_MS
+    ? [
+        sourceGap({
+          source: "sec-edgar",
+          message: `Stale SEC revenue period: period end ${periodEnd} exceeds ${SEC_FRESHNESS_DAYS} days`,
+          provider: "sec-edgar",
+          capability: "extended-evidence",
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ]
+    : [];
+}
+
 export function canonicalFinancialMetrics(
   artifact: FinancialStatementsArtifact,
 ): Record<string, number | string> {
@@ -202,10 +276,12 @@ export function canonicalFinancialMetrics(
         ? metrics[`${TOTAL_COUNTERPARTS[metricKey as keyof typeof TOTAL_COUNTERPARTS]}PeriodEnd`]
         : undefined;
     // A continuing-operations series older than its total counterpart is history, not a scope split.
+    // Stale balance-sheet instants already carry stale-instant-series notes and mixed-period guards.
+    const stale =
+      metricKey in STALE_GUARDED_METRICS ? canonicalStaleReason(artifact, series, fact) : undefined;
     if (
-      typeof totalPeriodEnd !== "string" ||
-      fact === undefined ||
-      fact.periodEnd >= totalPeriodEnd
+      stale === undefined &&
+      (typeof totalPeriodEnd !== "string" || fact === undefined || fact.periodEnd >= totalPeriodEnd)
     ) {
       addFactMetrics(
         metrics,
@@ -234,7 +310,10 @@ export function canonicalFinancialMetrics(
   const [netIncomeFact, consolidatedNetIncomeFact] =
     latestCommonFinancialStatementFacts([income.netIncome, income.consolidatedNetIncome]) ?? [];
   // Consolidated income is read against net income, so only net income's own period qualifies.
-  if (netIncomeFact === latestFinancialStatementFact(financialStatementFacts(income.netIncome))) {
+  if (
+    metrics.netIncome !== undefined &&
+    netIncomeFact === latestFinancialStatementFact(financialStatementFacts(income.netIncome))
+  ) {
     addFactMetrics(
       metrics,
       "consolidatedNetIncome",
@@ -360,6 +439,7 @@ export function withCanonicalFinancialLensInputs(
       legacy === undefined
         ? [...items.filter((item) => item.category !== "financial-lens"), canonical]
         : items.map((item) => (item === legacy ? canonical : item)),
-    gaps: evidence?.gaps ?? [],
+    // Without a legacy item, no SEC freshness gap declares stale revenue.
+    gaps: [...(evidence?.gaps ?? []), ...(legacy === undefined ? staleRevenueGaps(artifact) : [])],
   };
 }

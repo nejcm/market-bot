@@ -1,6 +1,7 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX, PRIOR_FACE_LINE_PREFIX } from "../sec-segment-facts";
+import { ZERO_BORROWINGS_REJECT_KEY, ZERO_BORROWINGS_TEXT_KEY } from "../sec-zero-borrowings-text";
 import { isDebtBasisGap, leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
@@ -321,11 +322,19 @@ export function factsForDebt(
         : entry.restatements.map((fact) => [fact, entry.faceLeases] as const),
     ),
   );
+  const zero = zeroBorrowingInstants(
+    { root: taxonomyRoot, unitFacts, composite },
+    taxonomy,
+    eligible,
+    filings,
+    candidates,
+  );
   return {
     facts: [
       ...candidates.filter((fact) => kept.has(fact)),
       ...[...kept].filter((fact) => fact.composite !== undefined),
       ...ineligible,
+      ...zero.facts,
     ].map((fact) => ({
       ...fact,
       ...(lineScoped.has(fact) ? { lineScope: true as const } : {}),
@@ -334,9 +343,123 @@ export function factsForDebt(
     })),
     notes: [
       ...notes.values(),
+      ...zero.notes,
       ...heldForSaleDebtNotes(unitFacts, taxonomy, root, eligible, candidates),
     ],
   };
+}
+
+const ZERO_BORROWINGS_REASON =
+  "liabilities are filed with no debt line, and zero borrowings needs that filing's footed balance-sheet face with no debt row";
+
+// Liabilities filed after the last debt instant with no debt tag publish 0 only on their own filing's face (CLFD 10-Qs).
+function zeroBorrowingInstants(
+  { root: taxonomyRoot, unitFacts, composite }: DebtFactReader,
+  taxonomy: FinancialStatementTaxonomy,
+  eligible: (fact: ParsedFact) => boolean,
+  filings: readonly ExtendedEvidenceItem[],
+  candidates: readonly ParsedFact[],
+): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
+  const root = taxonomyRoot(taxonomy);
+  const lastDebt = candidates
+    .map(({ periodEnd }) => periodEnd)
+    .toSorted()
+    .at(-1);
+  if (taxonomy !== "us-gaap" || root === undefined || lastDebt === undefined) {
+    return { facts: [], notes: [] };
+  }
+  const original = new Map<string, ParsedFact>();
+  for (const fact of ["Liabilities", "LiabilitiesCurrent"]
+    .flatMap((concept) => unitFacts(taxonomy, root, concept))
+    .filter((row) => row.periodStart === undefined && row.periodEnd > lastDebt && eligible(row))
+    .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))) {
+    if (!original.has(fact.periodEnd)) {
+      original.set(fact.periodEnd, fact);
+    }
+  }
+  const heldForSale = new Set(
+    DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy]
+      .flatMap((concept) => unitFacts(taxonomy, root, concept))
+      .filter((fact) => fact.periodStart === undefined && fact.value !== 0 && eligible(fact))
+      .map(({ periodEnd }) => periodEnd),
+  );
+  const facts: ParsedFact[] = [];
+  const notes: FinancialStatementNote[] = [];
+  for (const [periodEnd, liabilities] of original) {
+    if (heldForSale.has(periodEnd)) {
+      continue;
+    }
+    const proof = zeroDebtFace(filings, liabilities);
+    if (typeof proof !== "object") {
+      const fetched = filings.some(
+        ({ metrics }) => metrics?.accessionNumber === liabilities.accessionNumber,
+      );
+      notes.push({
+        ...incompleteDebtNote(
+          periodEnd,
+          proof === undefined
+            ? ZERO_BORROWINGS_REASON
+            : `${ZERO_BORROWINGS_REASON}; its text proof was rejected (${proof})`,
+          liabilities.filedAt,
+        ),
+        ...(liabilities.accessionNumber === null || fetched
+          ? {}
+          : { faceAccession: liabilities.accessionNumber }),
+      });
+      continue;
+    }
+    const zeroLine = (concept: string) => ({ ...liabilities, concept, value: 0 });
+    facts.push({
+      ...composite([zeroLine("DebtCurrent"), zeroLine("LongTermDebtNoncurrent")], new Set(), []),
+      proofSourceIds: proof.sourceIds,
+      zeroBorrowingsQuote: proof.quote,
+    });
+  }
+  return { facts, notes };
+}
+
+// Footing proves arithmetic, not absence, so a zero needs every nonzero liability row known to carry no borrowings.
+const NON_BORROWING_LIABILITY =
+  /^us-gaap:(?:AccountsPayable|EmployeeRelatedLiabilities|AccruedLiabilities|OperatingLeaseLiability|ContractWithCustomerLiability|DeferredRevenue|AccruedIncomeTaxes|TaxesPayable|DividendsPayable)(?:Current|Noncurrent)?$/u;
+const BORROWING_WORDS =
+  /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible|current ?portion/iu;
+// "Current portion of lease liability" is the standard operating-lease label (CLFD 10-Qs).
+const BORROWING_WORDS_BUT_PORTION =
+  /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible/iu;
+
+// The instant's own footed face (nonzero liability rows allowlisted) plus its own sentence stating zero borrowings;
+// A string is the text proof's rejection codes.
+function zeroDebtFace(
+  filings: readonly ExtendedEvidenceItem[],
+  liabilities: ParsedFact,
+): { readonly sourceIds: readonly string[]; readonly quote: string } | string | undefined {
+  const own = filings.filter(
+    ({ metrics }) =>
+      metrics?.reportDate === liabilities.periodEnd &&
+      metrics.accessionNumber === liabilities.accessionNumber,
+  );
+  const [filing] = own;
+  const rows = Object.entries(filing?.metrics ?? {}).filter(([key]) =>
+    key.startsWith(FACE_LINE_PREFIX),
+  );
+  const unproven = rows.some(([key, value]) => {
+    const concept = key.split("|").at(-1) ?? "";
+    const label = String(filing?.metrics?.[`${FACE_LABEL_PREFIX}${concept}`] ?? "");
+    const words = concept.includes("OperatingLeaseLiability")
+      ? BORROWING_WORDS_BUT_PORTION
+      : BORROWING_WORDS;
+    return (
+      value !== 0 &&
+      (!NON_BORROWING_LIABILITY.test(concept) || !/\p{L}/u.test(label) || words.test(label))
+    );
+  });
+  if (filing === undefined || own.length !== 1 || rows.length === 0 || unproven) {
+    return undefined;
+  }
+  const quote = filing.metrics?.[ZERO_BORROWINGS_TEXT_KEY];
+  return typeof quote === "string"
+    ? { sourceIds: filing.sourceIds, quote }
+    : String(filing.metrics?.[ZERO_BORROWINGS_REJECT_KEY] ?? "no-text");
 }
 
 const DISPOSAL_GROUP_LIABILITY_CONCEPTS: Readonly<
@@ -806,7 +929,9 @@ export function financialStatementsDebtBasisGaps(
       : unadjustedLeaseInclusiveDebt(latest.taxonomy, latest.concept).filter(
           (concept) => !faceSides.has(concepts?.leaseInclusive?.[concept] ?? ""),
         );
-  return latest === undefined || leaseInclusive.length === 0
+  return latest === undefined ||
+    latest.zeroBorrowingsQuote !== undefined ||
+    leaseInclusive.length === 0
     ? []
     : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];
 }

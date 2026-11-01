@@ -154,6 +154,8 @@ export interface FinancialStatementFact {
   readonly lineScope?: true;
   // Debt only: finance-lease tags a same-filing face presents beside the debt lines.
   readonly faceLeases?: readonly string[];
+  // Debt only: the filing's own sentence proving a zero instant.
+  readonly zeroBorrowingsQuote?: string;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -495,6 +497,7 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
         hasCompositeFactShape(value.composite))) &&
     (value.lineScope === undefined || value.lineScope === true) &&
     (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&
+    (value.zeroBorrowingsQuote === undefined || typeof value.zeroBorrowingsQuote === "string") &&
     stringArrayField(value, "sourceIds") !== undefined
   );
 }

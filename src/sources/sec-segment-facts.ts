@@ -372,12 +372,14 @@ function footedFaceRows(html: string, periodEnd: string) {
     const rowStart = html.lastIndexOf("<tr", match.index);
     const span = html.slice(rowStart === -1 ? previousEnd : rowStart, match.index);
     // A nested table in the label cell hides the row's own label, so leave it empty and fail closed.
-    const label = (span.includes("</table") ? "" : span)
+    const text = (span.includes("</table") ? "" : span)
       .replaceAll(/<[^>]*>/gu, " ")
       .replaceAll(/&#\d+;|&nbsp;|&amp;/gu, " ")
       .replaceAll(/\s+/gu, " ")
       .trim()
       .slice(-120);
+    // A prior column's span holds earlier columns' numbers, so a blank label cell must not read as numeric text.
+    const label = /\p{L}/u.test(text) ? text : "";
     previousEnd = match.index + whole.length;
     const concept = attribute(attrs!, "name");
     const value = factValue(attrs!, content!);

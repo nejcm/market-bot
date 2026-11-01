@@ -1341,3 +1341,39 @@ test("a blank-labelled extension borrowing row rejects the face, so NVDA's 33,36
     }),
   );
 });
+
+test("a blank-labelled row's prior label drops the current column's number, so 2026-05-31 withholds", () => {
+  const html = [
+    `<xbrli:context id="c"><xbrli:period><xbrli:instant>2026-08-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    `<xbrli:context id="p"><xbrli:period><xbrli:instant>2026-05-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    "<table>",
+    ...ORCL_ROWS.map(([label, concept, value], index) => {
+      const prior = ORCL_PRIOR_ROWS[index]![2];
+      const extra = concept === "us-gaap:LiabilitiesNoncurrent" ? 1_000_000 : 0;
+      const blank =
+        extra === 0
+          ? ""
+          : `<tr><td></td>${cell("us-gaap:OtherNoncurrentX", 1_000_000, "c")}${cell("us-gaap:OtherNoncurrentX", 1_000_000, "p")}</tr>`;
+      return `${blank}<tr><td>${label}</td>${cell(concept, value + extra, "c")}${cell(concept, prior + extra, "p")}</tr>`;
+    }),
+    "</table>",
+  ].join("");
+  const metrics = secBalanceSheetFaceMetrics(html, "2026-08-31");
+  expect(metrics["faceLabel|2026-05-31|us-gaap:OtherNoncurrentX"]).toBe("");
+  const gaap = {
+    ...ORCL_GAAP,
+    NotesPayableCurrent: [
+      ...ORCL_GAAP.NotesPayableCurrent,
+      fact(7_199_000_000, "2026-05-31", "2026-09-11", ORCL_ACCN),
+    ],
+    LongTermNotesAndLoans: [
+      ...ORCL_GAAP.LongTermNotesAndLoans,
+      fact(122_342_000_000, "2026-05-31", "2026-09-11", ORCL_ACCN),
+    ],
+  };
+  expect(
+    financialStatementFacts(
+      derive(gaap, [orclFace(html)]).artifact.statements.balanceSheet.debt,
+    ).filter(({ periodEnd }) => periodEnd === "2026-05-31"),
+  ).toEqual([]);
+});

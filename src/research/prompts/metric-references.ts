@@ -25,6 +25,7 @@ export function metricReferenceEvidence(
           ...(metric.currency !== undefined ? { currency: metric.currency } : {}),
           ...(metric.periodEnd !== undefined ? { periodEnd: metric.periodEnd } : {}),
           ...(metric.periodMonths !== undefined ? { periodMonths: metric.periodMonths } : {}),
+          ...(metric.priceAsOf !== undefined ? { priceAsOf: metric.priceAsOf } : {}),
           sourceIds: metric.sourceIds,
           ...(metric.status === "value"
             ? { value: formatMetricValue(metric.value, metric.unit, metric.currency) }

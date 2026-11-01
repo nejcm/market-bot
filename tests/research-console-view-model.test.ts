@@ -5,6 +5,7 @@ import { financialLensGroupViews } from "../app/client/run-workspace-detail";
 import { parseCalibrationContext } from "../src/research/calibration-context";
 import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 import { resolvedPair } from "./support/research-context-helpers";
+import { marketSnapshot as marketSnapshotFixture } from "./support/fixtures";
 import type { ConsoleJob } from "../app/types";
 import {
   calibrationAutopsyCauses,
@@ -3021,6 +3022,57 @@ describe("report artifact parsers", () => {
       "SEC EDGAR + Yahoo quote · balance sheet 2025-12-31",
       "SEC EDGAR · period ending 2026-06-30",
     ]);
+  });
+
+  test("captions a price-relative lens ratio with its quote time and fundamentals date", () => {
+    const tiles = financialLensStatTiles(
+      {
+        version: 1,
+        generatedAt: "2026-11-01T09:45:24.875Z",
+        symbol: "ORCL",
+        lenses: [
+          {
+            name: "Value",
+            posture: "insufficient-data",
+            sourceIds: ["market-yahoo-equity-orcl", "extended-sec-edgar-orcl-fundamentals"],
+            metrics: [
+              {
+                key: "evToAnnualizedRevenue",
+                label: "EV/revenue",
+                value: 6.82,
+                unit: "ratio",
+                sourceIds: ["market-yahoo-equity-orcl", "extended-sec-edgar-orcl-fundamentals"],
+                periodEnd: "2026-08-31",
+              },
+              {
+                key: "pcfRatio",
+                label: "PCF",
+                value: 4.29,
+                unit: "ratio",
+                sourceIds: ["extended-sec-edgar-orcl-fundamentals", "market-yahoo-equity-orcl"],
+                periodEnd: "2026-08-31",
+                periodMonths: 3,
+              },
+            ],
+          },
+        ],
+        sourceIds: ["market-yahoo-equity-orcl", "extended-sec-edgar-orcl-fundamentals"],
+      },
+      [
+        {
+          ...marketSnapshotFixture(),
+          sourceId: "market-yahoo-equity-orcl",
+          quoteTimeUtc: "2026-10-30T20:03:42.000Z",
+        },
+      ],
+    );
+
+    expect(tiles[0]?.caption).toBe(
+      "SEC EDGAR + Yahoo quote · quote time 2026-10-30T20:03:42.000Z · fundamentals period ending 2026-08-31",
+    );
+    expect(tiles[1]?.caption).toBe(
+      "SEC EDGAR + Yahoo quote · quote time 2026-10-30T20:03:42.000Z · fundamentals 3M period ended 2026-08-31",
+    );
   });
 
   test("formats sub-1 percent values by convention, not by magnitude", () => {

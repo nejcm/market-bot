@@ -303,6 +303,7 @@ export function addBusinessFrameworkEvidence(
       symbol: command.symbol,
       ...(statements !== undefined ? { statements } : {}),
       ...(extendedEvidence !== undefined ? { evidence: extendedEvidence } : {}),
+      ...(snapshot !== undefined ? { snapshot } : {}),
       asOf: generatedAt,
     },
     lensSections.flatMap((section) => section.metrics),

@@ -280,6 +280,8 @@ export interface FinancialStatementNote {
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
   readonly publicAt?: string;
+  // Debt withheld only for want of this filing's balance-sheet face.
+  readonly faceAccession?: string;
 }
 
 export interface StructuredFinancialGap {

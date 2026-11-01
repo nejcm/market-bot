@@ -514,7 +514,7 @@ function depreciationPresentation(
   );
 }
 
-// Accession -> D&A-like direct children of operating cash flow in that filing's calculation linkbase, with weights.
+// Accession -> D&A-like descendants of operating cash flow in that filing's calculation linkbase, with weights.
 function depreciationCalculation(
   filings: readonly ExtendedEvidenceItem[],
 ): ReadonlyMap<string, ReadonlyMap<string, number>> {

@@ -16,10 +16,13 @@ const arc = (
   from: string,
   to: string,
   arcrole = "http://www.xbrl.org/2003/arcrole/summation-item",
+  weight = 1,
 ) =>
-  `<link:loc xlink:label="${from}" xlink:href="x.xsd#us-gaap_${from}"/><link:loc xlink:label="${to}" xlink:href="x.xsd#us-gaap_${to}"/><link:calculationArc xlink:arcrole="${arcrole}" xlink:from="${from}" xlink:to="${to}" weight="1"/>`;
-const role = (body: string) =>
-  `<link:calculationLink xlink:role="r">${body}</link:calculationLink>`;
+  `<link:loc xlink:label="${from}" xlink:href="x.xsd#us-gaap_${from}"/><link:loc xlink:label="${to}" xlink:href="x.xsd#us-gaap_${to}"/><link:calculationArc xlink:arcrole="${arcrole}" xlink:from="${from}" xlink:to="${to}" weight="${weight}"/>`;
+const SUM = "http://www.xbrl.org/2003/arcrole/summation-item";
+const role = (body: string, name = "r") =>
+  `<link:calculationLink xlink:role="${name}">${body}</link:calculationLink>`;
+const ADJ = "AdjustmentsToReconcileNetIncomeLossToCashProvidedByUsedInOperatingActivities";
 const OCF = "NetCashProvidedByUsedInOperatingActivities";
 
 describe("secDepreciationCalcMetrics", () => {
@@ -60,9 +63,94 @@ describe("secDepreciationCalcMetrics", () => {
   test("components split across two OCF roles are a conflict, not a proof", () => {
     expect(
       secDepreciationCalcMetrics(
-        role(arc(OCF, "Depreciation")) + role(arc(OCF, "AmortizationOfIntangibleAssets")),
+        role(arc(OCF, "Depreciation"), "a") + role(arc(OCF, "AmortizationOfIntangibleAssets"), "b"),
       ),
     ).toEqual({ daCalcRead: "conflict" });
+  });
+
+  test("one role split across several calculationLink elements merges into one network", () => {
+    expect(
+      secDepreciationCalcMetrics(
+        role(arc(OCF, "Depreciation")) + role(arc(OCF, "AmortizationOfIntangibleAssets")),
+      ),
+    ).toEqual({
+      "daCalc|Depreciation": 1,
+      "daCalc|AmortizationOfIntangibleAssets": 1,
+      daCalcRead: "true",
+    });
+  });
+
+  test("the same arc re-weighted within one role is a conflict", () => {
+    expect(
+      secDepreciationCalcMetrics(
+        role(arc(OCF, "Depreciation")) + role(arc(OCF, "Depreciation", SUM, -1)),
+      ),
+    ).toEqual({ daCalcRead: "conflict" });
+  });
+
+  test("reads D&A under an intermediate adjustments parent with composed weights", () => {
+    expect(
+      secDepreciationCalcMetrics(
+        role(
+          arc(OCF, "NetIncomeLoss") +
+            arc(OCF, ADJ, SUM, -1) +
+            arc(ADJ, "Depreciation") +
+            arc(ADJ, "AmortizationOfIntangibleAssets"),
+        ),
+      ),
+    ).toEqual({
+      "daCalc|Depreciation": -1,
+      "daCalc|AmortizationOfIntangibleAssets": -1,
+      daCalcRead: "true",
+    });
+  });
+
+  test("a prohibiting or prioritized arc is a conflict, not a proof", () => {
+    const prohibited = arc(ADJ, "Depreciation").replace(
+      ' weight="1"',
+      ' weight="1" use="prohibited" priority="1"',
+    );
+    expect(
+      secDepreciationCalcMetrics(
+        role(
+          arc(OCF, ADJ) +
+            arc(ADJ, "Depreciation") +
+            arc(ADJ, "AmortizationOfIntangibleAssets") +
+            prohibited,
+        ),
+      ),
+    ).toEqual({ daCalcRead: "conflict" });
+  });
+
+  test("a rootless operating cash flow cycle in one role is a conflict, not a proof", () => {
+    const CONT = "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";
+    expect(
+      secDepreciationCalcMetrics(
+        role(arc(OCF, CONT) + arc(CONT, OCF) + arc(CONT, "Depreciation"), "a") +
+          role(arc(OCF, "NetIncomeLoss"), "b"),
+      ),
+    ).toEqual({ daCalcRead: "conflict" });
+  });
+
+  test("links sharing a role but not an arcrole do not merge", () => {
+    expect(
+      secDepreciationCalcMetrics(
+        role(arc(OCF, "Depreciation")) +
+          role(
+            arc(
+              OCF,
+              "AmortizationOfIntangibleAssets",
+              "https://xbrl.org/2023/arcrole/summation-item",
+            ),
+          ),
+      ),
+    ).toEqual({ daCalcRead: "conflict" });
+  });
+
+  test("a calculation cycle is a conflict, not a proof", () => {
+    expect(secDepreciationCalcMetrics(role(arc(OCF, ADJ) + arc(ADJ, OCF)))).toEqual({
+      daCalcRead: "conflict",
+    });
   });
 
   test("ignores arcs that are not summation-item", () => {

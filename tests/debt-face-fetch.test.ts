@@ -145,6 +145,23 @@ describe("debt instants withheld for want of a face", () => {
     );
   });
 
+  // An amount bound proves no containment: SeniorNotes may sit in OtherLiabilitiesNoncurrent (28,183M).
+  test.each([
+    ["inside other liabilities", { SeniorNotes: [aug(28_183_000_000)] }],
+    [
+      "two tags summing above the face rows",
+      { SeniorNotes: [aug(80_000_000_000)], SubordinatedDebt: [aug(80_000_000_000)] },
+    ],
+  ] as const)(
+    "a footed face does not publish beside unrecognized tags %s",
+    async (_name, extra) => {
+      const artifact = await derive({ ...GAAP, ...extra }, [
+        faceItem(AUG_ACCN, "2026-08-31", AUG_ROWS),
+      ]);
+      expect(augustDebt(artifact)).toBeUndefined();
+    },
+  );
+
   test("QCOM 0000804328-26-000086 with off-face CommercialPaper and LongTermDebtCurrent still asks for its face", async () => {
     const june = (value: number) => fact(value, "2026-06-28", "2026-07-29", QCOM_ACCN);
     const artifact = await derive({

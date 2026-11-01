@@ -430,10 +430,10 @@ function zeroBorrowingInstants(
 const NON_BORROWING_LIABILITY =
   /^us-gaap:(?:AccountsPayable|EmployeeRelatedLiabilities|AccruedLiabilities|OperatingLeaseLiability|ContractWithCustomerLiability|DeferredRevenue|AccruedIncomeTaxes|TaxesPayable|DividendsPayable)(?:Current|Noncurrent)?$/u;
 const BORROWING_WORDS =
-  /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible|current ?portion/iu;
+  /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible|overdraft|current ?portion/iu;
 // "Current portion of lease liability" is the standard operating-lease label (CLFD 10-Qs).
 const BORROWING_WORDS_BUT_PORTION =
-  /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible/iu;
+  /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible|overdraft/iu;
 
 // The instant's own footed face (nonzero liability rows allowlisted) plus its own sentence stating zero borrowings;
 // A string is the text proof's rejection codes.

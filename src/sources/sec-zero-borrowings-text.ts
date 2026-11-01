@@ -11,6 +11,7 @@ const KINDS = [
   ["notes", /^(?:notes payable|senior notes|convertible notes)$/iu],
   ["factoring", /^factoring (?:arrangements?|facilit(?:y|ies))$/iu],
   ["commercial paper", /^commercial paper$/iu],
+  ["overdraft", /^(?:bank )?overdrafts?$/iu],
 ] as const;
 const KIND_TERM = String.raw`(lines? of credit|credit facilit(?:y|ies)|term loans?|notes payable|senior notes|convertible notes|factoring (?:arrangements?|facilit(?:y|ies))|commercial paper)`;
 const PLURAL =
@@ -22,7 +23,11 @@ const FACILITY_ZERO = new RegExp(
   "iu",
 );
 const BARE_ZERO = new RegExp(String.raw`${LEAD}(?:debt|indebtedness|borrowings)\.?$`, "iu");
-const MENTION = new RegExp(String.raw`((?:[\w$,.'-]+ ){0,4})\b${KIND_TERM}\b`, "giu");
+// Overdrafts are mentioned, never facility-zeroed: only a bare no-debt sentence covers them.
+const MENTION = new RegExp(
+  String.raw`((?:[\w$,.'-]+ ){0,4})\b(${KIND_TERM.slice(1, -1)}|(?:bank )?overdrafts?)\b`,
+  "giu",
+);
 const NOT_MODIFIER =
   /^(?:a|an|the|its|our|their|this|that|these|those|of|and|or|under|against|on|with|to|from|for|by|in|at|any|all|each|such|no|has|have|had|is|was|\W*|[\d$,.]+|[\w-]+'s|[\w-]*\W)$/iu;
 // Disposal-group borrowings are withheld by the held-for-sale checks, so only continuing facilities need cover.

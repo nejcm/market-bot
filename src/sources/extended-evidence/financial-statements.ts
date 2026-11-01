@@ -2669,38 +2669,57 @@ function withoutMixedShareBasisTtm(
       };
 }
 
-function latestFiledDurationEnd(
+function filedDurationFacts(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
-): string | undefined {
+): readonly ParsedFact[] {
   const root = taxonomyRoot(payload, taxonomy);
   return root === undefined
-    ? undefined
+    ? []
     : Object.keys(root)
         .flatMap((concept) => unitFacts(taxonomy, root, concept))
         .filter((fact) => fact.periodStart !== undefined && isObservable(fact, analysisAsOf))
-        .map((fact) => fact.periodEnd)
-        .toSorted()
-        .at(-1);
+        .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
+}
+
+const FISCAL_YEAR_BOUNDARY_DAYS = 10;
+
+// Only an original annual filing's own fact that cannot open the next fiscal year (a subsequent event) is exempt.
+function isSubsequentEventFact(fact: ParsedFact, fiscalYear: FinancialStatementFact): boolean {
+  const startGapDays =
+    (Date.parse(fact.periodStart!) - Date.parse(fiscalYear.periodEnd)) / 86_400_000;
+  return (
+    fiscalYear.accessionNumber !== null &&
+    fact.accessionNumber === fiscalYear.accessionNumber &&
+    !fiscalYear.amendment &&
+    !(startGapDays <= FISCAL_YEAR_BOUNDARY_DAYS)
+  );
 }
 
 // A later period tagged under any concept (e.g. a newer revenue tag) means the FY is no longer trailing.
 function withoutSupersededFiscalYearTtm(
   series: FinancialStatementSeries,
-  latestDurationEnd: string | undefined,
+  durationFacts: readonly ParsedFact[],
 ): { readonly series: FinancialStatementSeries; readonly note?: FinancialStatementNote } {
   const { ttm, ...rest } = series;
-  return ttm?.formula !== "FY" ||
-    latestDurationEnd === undefined ||
-    latestDurationEnd <= ttm.periodEnd
+  if (ttm?.formula !== "FY") {
+    return { series };
+  }
+  const blocking = durationFacts.filter(
+    (fact) =>
+      fact.periodEnd > ttm.periodEnd && !isSubsequentEventFact(fact, ttm.components.fiscalYear),
+  );
+  const seriesConcepts = new Set([...series.annual, ...series.interim].map((fact) => fact.concept));
+  const named = blocking.findLast((fact) => seriesConcepts.has(fact.concept)) ?? blocking.at(-1);
+  return named === undefined
     ? { series }
     : {
         series: rest,
         note: {
           code: "unreconciled-ttm",
           seriesKey: series.key,
-          message: `The latest fiscal year ends ${ttm.periodEnd}, but a later period ending ${latestDurationEnd} is filed outside this series`,
+          message: `The latest fiscal year ends ${ttm.periodEnd}, but ${named.concept} for ${named.periodStart!} to ${named.periodEnd} is filed outside this series (${named.form} accession ${named.accessionNumber ?? "undisclosed"})`,
         },
       };
 }
@@ -2872,14 +2891,12 @@ export function deriveFinancialStatements(
   const uncapped = selected.map((item) => item.series);
   const { series: retained, notes: capNotes } = capFinancialStatementPeriods(uncapped);
   const shareBasisNotes = mixedShareBasisNotes(uncapped, retained);
-  const latestDurationEnd =
-    taxonomy === undefined
-      ? undefined
-      : latestFiledDurationEnd(payload, taxonomy, input.analysisAsOf);
+  const durationFacts =
+    taxonomy === undefined ? [] : filedDurationFacts(payload, taxonomy, input.analysisAsOf);
   const shareBasisTtm = retained.map((item) => {
     const shareBasis = withoutMixedShareBasisTtm(item, shareBasisNotes);
     return shareBasis.note === undefined
-      ? withoutSupersededFiscalYearTtm(shareBasis.series, latestDurationEnd)
+      ? withoutSupersededFiscalYearTtm(shareBasis.series, durationFacts)
       : shareBasis;
   });
   const series = shareBasisTtm.map((item) => item.series);

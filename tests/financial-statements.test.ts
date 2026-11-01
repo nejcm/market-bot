@@ -2884,13 +2884,86 @@ describe("canonical financial statements", () => {
       expect.objectContaining({
         code: "unreconciled-ttm",
         seriesKey: "revenue",
-        message: expect.stringContaining("later period ending 2025-08-31"),
+        message: expect.stringContaining(
+          "RevenueFromContractWithCustomerExcludingAssessedTax for 2025-06-01 to 2025-08-31 is filed outside this series (10-Q accession 20250910-10-Q)",
+        ),
       }),
     );
 
     const fyOnly = derive(payload({ "us-gaap": { Revenues: { USD: [fiscalYear] } } }));
     expect(fyOnly.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
     expect(fyOnly.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
+  });
+
+  test("keeps FY-as-TTM when the only later duration fact is a subsequent event in the FY's own 10-K", () => {
+    const fiscalYear = fact({
+      value: 4500,
+      form: "10-K",
+      fiscalYear: 2026,
+      fiscalPeriod: "FY",
+      filedAt: "2026-05-20",
+      periodStart: "2025-04-01",
+      periodEnd: "2026-03-31",
+    });
+    const subsequentEvent = fact({
+      value: 30,
+      form: "10-K",
+      fiscalYear: 2026,
+      fiscalPeriod: "FY",
+      filedAt: "2026-05-20",
+      periodStart: "2026-04-20",
+      periodEnd: "2026-05-15",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [fiscalYear] },
+          PaymentsForRepurchaseOfCommonStock: { USD: [subsequentEvent] },
+        },
+      }),
+    );
+    expect(artifact.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
+    expect(artifact.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
+  });
+
+  test("withholds FY-as-TTM when a 10-K/A also tags the completed next quarter", () => {
+    const accessionNumber = "0000000000-25-000077";
+    const restatedFiscalYear = fact({
+      value: 57_399,
+      form: "10-K/A",
+      fiscalYear: 2025,
+      fiscalPeriod: "FY",
+      filedAt: "2025-09-10",
+      periodStart: "2024-06-01",
+      periodEnd: "2025-05-31",
+      accessionNumber,
+    });
+    const quarter = fact({
+      value: 14_926,
+      form: "10-K/A",
+      fiscalYear: 2025,
+      fiscalPeriod: "FY",
+      filedAt: "2025-09-10",
+      periodStart: "2025-06-01",
+      periodEnd: "2025-08-31",
+      accessionNumber,
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [restatedFiscalYear] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: { USD: [quarter] },
+        },
+      }),
+    );
+    expect(artifact.statements.incomeStatement.revenue.ttm).toBeUndefined();
+    expect(artifact.validationNotes).toContainEqual(
+      expect.objectContaining({
+        code: "unreconciled-ttm",
+        seriesKey: "revenue",
+        message: expect.stringContaining(`(10-K/A accession ${accessionNumber})`),
+      }),
+    );
   });
 
   test("detects quarterly 6-K cadence across quarter-only and year-to-date contexts", () => {

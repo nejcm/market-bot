@@ -36,6 +36,7 @@ import type {
 } from "./financial-statements-contract";
 import {
   evaluateMetricSection,
+  PRICE_RELATIVE_KEYS,
   statementInput,
   type MetricContext,
   type MetricDefinition,
@@ -332,12 +333,11 @@ function valuationOutcome(
   key: string,
   label: string,
   unit: LensValueUnit,
-  priceRelative: boolean,
   period: MetricPeriod,
 ): MetricOutcome {
   const valuation = valuationItem(ctx);
   const value = readNumberMetric(valuation?.metrics, key);
-  const sourceIds = targetValuationIds(ctx, priceRelative);
+  const sourceIds = targetValuationIds(ctx, PRICE_RELATIVE_KEYS.has(key));
   if (value === undefined) {
     return { status: "missing", reason: `no ${key} input` };
   }
@@ -1530,7 +1530,7 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
             ...period,
           };
         }
-        return valuationOutcome(ctx, id, id, "ratio-percent", true, period);
+        return valuationOutcome(ctx, id, id, "ratio-percent", period);
       }
       const marketCap = marketCapInput(ctx);
       const anchor = latestFact(ctx, "debt");
@@ -1848,7 +1848,8 @@ function peDefinitionsFor(
       id: "forwardPe",
       label: "Forward PE",
       unit: forwardClean ? "ratio" : "text",
-      basis: "Yahoo Finance forward price/earnings",
+      basis:
+        "Yahoo Finance forward price/earnings; consensus forward EPS has no provider as-of date",
       compute: () => {
         const value =
           forwardPe === undefined ? undefined : peMetricValue(forwardPe, epsForward, forwardClean);
@@ -1969,7 +1970,6 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
             "enterpriseValue",
             "enterprise value",
             "currency",
-            true,
             periodEndInput(
               readStringMetric(valuation?.metrics, "quoteObservedAt") ?? ctx.snapshot?.observedAt,
             ),
@@ -1982,14 +1982,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       unit: "currency",
       basis: "valuation evidence trailing-twelve-month SEC revenue",
       compute: () =>
-        valuationOutcome(
-          ctx,
-          "annualizedRevenue",
-          "TTM revenue",
-          "currency",
-          false,
-          valuationPeriod,
-        ),
+        valuationOutcome(ctx, "annualizedRevenue", "TTM revenue", "currency", valuationPeriod),
     },
     withNetDebtApplicability(
       withCurrentEquityNote({
@@ -1998,14 +1991,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
         unit: "ratio",
         basis: `valuation evidence enterprise value / TTM revenue; ${ENTERPRISE_VALUE_BASIS}`,
         compute: () =>
-          valuationOutcome(
-            ctx,
-            "evToAnnualizedRevenue",
-            "EV/revenue",
-            "ratio",
-            true,
-            valuationPeriod,
-          ),
+          valuationOutcome(ctx, "evToAnnualizedRevenue", "EV/revenue", "ratio", valuationPeriod),
       }),
     ),
     {
@@ -2019,7 +2005,6 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
           "marketCapToAnnualizedRevenue",
           "market cap/revenue",
           "ratio",
-          true,
           valuationPeriod,
         ),
     },

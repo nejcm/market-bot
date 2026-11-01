@@ -97,6 +97,7 @@ export interface WebSubjectProfileView {
   readonly subjectLabel?: string;
   readonly subjectSummary?: WebSubjectProfileQuestionView;
   readonly generatedAt?: string;
+  readonly secFilingBasisDate?: string;
   readonly questions: readonly WebSubjectProfileQuestionView[];
   readonly recentMaterialEvents: readonly WebSubjectProfileFactView[];
   readonly factLedger: readonly WebSubjectProfileFactView[];
@@ -267,7 +268,7 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
         };
   const recentMaterialEvents = webProfileFacts(profile.recentMaterialEvents);
   const factLedger = webProfileFacts(profile.factLedger);
-  const { subjectKind, openGaps } = profile;
+  const { subjectKind, openGaps, secFilingBasisDate } = profile;
   if (
     questions.length === 0 &&
     recentMaterialEvents.length === 0 &&
@@ -285,6 +286,7 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
     ...(subjectLabel !== undefined ? { subjectLabel } : {}),
     ...(subjectSummary !== undefined ? { subjectSummary } : {}),
     ...(generatedAt !== undefined ? { generatedAt } : {}),
+    ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
     questions,
     recentMaterialEvents,
     factLedger,

@@ -2712,6 +2712,18 @@ describe("report artifact parsers", () => {
     ).toBeUndefined();
   });
 
+  test("carries the profile SEC filing basis date only when present", () => {
+    const profile = { openGaps: ["No geographic split."] };
+    expect(
+      webSubjectProfileView({
+        extras: { webSubjectProfile: { ...profile, secFilingBasisDate: "2026-09-11" } },
+      })?.secFilingBasisDate,
+    ).toBe("2026-09-11");
+    expect(webSubjectProfileView({ extras: { webSubjectProfile: profile } })).not.toHaveProperty(
+      "secFilingBasisDate",
+    );
+  });
+
   test("keeps a blank subject label instead of falling back to the company name", () => {
     const answer = { answer: "Cited answer.", sourceIds: ["web-source"] };
     const profileWith = (label?: unknown): unknown =>

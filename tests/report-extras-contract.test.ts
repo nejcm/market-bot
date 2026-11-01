@@ -402,6 +402,36 @@ describe("web subject profile extra", () => {
     expect(markdown).not.toContain("- A gap");
   });
 
+  test("scopes profile gaps to the profile's own evidence and filing basis", () => {
+    const markdown = renderMarkdownReport(
+      researchReport({
+        jobType: "research",
+        sources: [
+          {
+            id: "web-orcl",
+            title: "Profile source",
+            fetchedAt: "2026-11-01T00:00:00.000Z",
+            kind: "web",
+            assetClass: "equity",
+          },
+        ],
+        extras: {
+          webSubjectProfile: {
+            subjectKind: "company",
+            secFilingBasisDate: "2026-09-11",
+            questions: { whatItDoes: { answer: "Sells cloud services.", sourceIds: ["web-orcl"] } },
+            openGaps: [
+              "The supplied evidence does not contain revenue percentages by geographic region.",
+            ],
+          },
+        },
+      }),
+    );
+    expect(markdown).toContain(
+      "### Profile Gaps\n\n_Gaps in the evidence the profile stage read (latest SEC filing basis 2026-09-11), not in this run's deterministic sections, which may publish the same data._\n\n- The supplied evidence does not contain revenue percentages by geographic region.",
+    );
+  });
+
   test("lists a source cited only by the subject summary", () => {
     const markdown = renderMarkdownReport(
       researchReport({

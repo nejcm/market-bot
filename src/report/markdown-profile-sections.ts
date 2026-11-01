@@ -240,9 +240,19 @@ export function renderWebSubjectProfile(report: ResearchReport): string {
     ...rows,
     ...(events.length > 0 ? ["", "### Recent Material Events", "", ...events] : []),
     ...(facts.length > 0 ? ["", "### Fact Ledger", "", ...facts] : []),
-    ...(gaps.length > 0 ? ["", "### Profile Gaps", "", ...gaps] : []),
+    ...(gaps.length > 0
+      ? ["", "### Profile Gaps", "", profileGapsScopeLine(profile), "", ...gaps]
+      : []),
     "",
   ].join("\n");
+}
+
+function profileGapsScopeLine(profile: WebSubjectProfileExtraValue): string {
+  const basis =
+    profile.secFilingBasisDate === undefined
+      ? ""
+      : ` (latest SEC filing basis ${profile.secFilingBasisDate})`;
+  return `_Gaps in the evidence the profile stage read${basis}, not in this run's deterministic sections, which may publish the same data._`;
 }
 
 export function renderEarningsSetup(report: ResearchReport): string {

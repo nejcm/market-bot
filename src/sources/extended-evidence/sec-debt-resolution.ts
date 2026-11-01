@@ -245,6 +245,8 @@ function zeroUnrecognizedDebtConcepts<T>(
   );
 }
 
+export const UNRECOGNIZED_BORROWING_REASON = "unrecognized borrowing concepts are tagged";
+
 function incompleteDebtReason<T>(
   taxonomy: FinancialStatementTaxonomy,
   instant: DebtInstant,
@@ -260,7 +262,7 @@ function incompleteDebtReason<T>(
     (concept) => !recognized.has(concept) && !zeroTagged.has(concept),
   );
   if (unrecognized.length > 0) {
-    return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
+    return `${UNRECOGNIZED_BORROWING_REASON}: ${unrecognized.join(", ")}`;
   }
   if (usedUmbrellas.length === 0 && sides.every((side) => side.concepts.length === 0)) {
     return "no borrowing line item is tagged";

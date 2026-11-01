@@ -37,6 +37,7 @@ import {
   selectCurrentQuarterlyFiling,
   selectLatestFilingByForm,
   selectRecentCurrentReports,
+  selectOriginalPeriodicFiling,
   selectRecentSixKs,
   type SecFiling,
 } from "./sec-filing-selection";
@@ -53,7 +54,11 @@ import {
   secSectionOmissionGap,
   type EarningsReleaseProvenance,
 } from "./sec-filing-item";
-import { EXTENSION_CAPEX_CHECKED_KEY } from "./sec-segment-facts";
+import {
+  EXTENSION_CAPEX_CHECKED_KEY,
+  FACE_LINE_PREFIX,
+  secBalanceSheetFaceMetrics,
+} from "./sec-segment-facts";
 import {
   DA_CALC_READ_KEY,
   calculationLinkbaseHref,
@@ -531,6 +536,91 @@ export async function collectSecPeriodicFilingItems(
         ? result.gaps.filter(({ source }) => DA_CALC_ADAPTERS.has(source))
         : result.gaps,
     ),
+  };
+}
+
+export const DEBT_FACE_FETCH_CAP = 4;
+
+// Historical balance-sheet faces for debt instants withheld only for want of face proof.
+export async function collectSecDebtFaceFilings(
+  ctx: CollectContext,
+  companyFacts: Pick<SecCompanyFactsResult, "cik" | "symbol" | "submissionsPayload">,
+  instants: readonly { readonly periodEnd: string; readonly accessionNumber: string }[],
+): Promise<EvidenceRequestToolOutput> {
+  const { command } = ctx;
+  const { cik } = companyFacts;
+  if (!isInstrumentCommand(command) || cik === undefined) {
+    return emptyOutput([]);
+  }
+  const reads = await Promise.all(
+    instants.slice(0, DEBT_FACE_FETCH_CAP).map(async (instant) => {
+      const filing = selectOriginalPeriodicFiling(
+        companyFacts.submissionsPayload,
+        instant.accessionNumber,
+        instant.periodEnd,
+      );
+      if (filing === undefined) {
+        return { instant, outcome: "no original 10-K/10-Q in the submissions index" } as const;
+      }
+      const { result, url } = await fetchFilingText(ctx, filing, cik);
+      if (!isFetchTextResult(result)) {
+        return { instant, outcome: "fetch failed" } as const;
+      }
+      const face = secBalanceSheetFaceMetrics(result.payload, filing.reportDate);
+      if (!Object.keys(face).some((key) => key.startsWith(FACE_LINE_PREFIX))) {
+        return { instant, outcome: "no footed balance-sheet face", result } as const;
+      }
+      const { source, item } = buildSecFilingMetadataOnlyItem(
+        command,
+        { cik, ticker: companyFacts.symbol },
+        filing,
+        url,
+        result.rawSnapshot.fetchedAt,
+        result.rawSnapshot.id,
+      );
+      const id = `${source.id}-face-${filing.accessionNumber}`;
+      const summary = `${filing.form} filed ${filing.filingDate} for period ${instant.periodEnd}: balance-sheet face read for debt proof.`;
+      return {
+        instant,
+        result,
+        source: { ...source, id, summary },
+        item: { ...item, summary, sourceIds: [id], metrics: { ...item.metrics, ...face } },
+      } as const;
+    }),
+  );
+  const unread = new Map<string, string[]>();
+  for (const read of reads) {
+    if ("outcome" in read) {
+      unread.set(read.outcome, [...(unread.get(read.outcome) ?? []), read.instant.periodEnd]);
+    }
+  }
+  const capped = instants.slice(DEBT_FACE_FETCH_CAP).map(({ periodEnd }) => periodEnd);
+  if (capped.length > 0) {
+    unread.set(`past the ${String(DEBT_FACE_FETCH_CAP)}-filing cap per run`, capped);
+  }
+  return {
+    rawSnapshots: reads.flatMap((entry) =>
+      entry.result === undefined ? [] : [entry.result.rawSnapshot],
+    ),
+    sources: reads.flatMap((entry) => (entry.source === undefined ? [] : [entry.source])),
+    items: reads.flatMap((entry) => (entry.item === undefined ? [] : [entry.item])),
+    gaps:
+      unread.size === 0
+        ? []
+        : [
+            sourceGap({
+              source: "sec-edgar",
+              message: `${command.symbol} debt stays withheld where no filing balance-sheet face proved it (${[...unread].map(([reason, periods]) => `${reason}: ${periods.join(", ")}`).join("; ")})`,
+              provider: "sec-edgar",
+              capability: "evidence-request",
+              cause: unread.has("fetch failed")
+                ? "fetch-failed"
+                : capped.length > 0
+                  ? "suppressed-by-design"
+                  : "provider-data-missing",
+              evidenceQualityImpact: "extended-evidence-cap",
+            }),
+          ],
   };
 }
 

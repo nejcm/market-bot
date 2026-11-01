@@ -127,6 +127,20 @@ export function selectLatestFilingByForm(
     )[0];
 }
 
+export function selectOriginalPeriodicFiling(
+  payload: unknown,
+  accessionNumber: string,
+  reportDate: string,
+): SecFiling | undefined {
+  return recentSecFilingRows(payload).find(
+    (filing) =>
+      filing.accessionNumber === accessionNumber &&
+      filing.reportDate === reportDate &&
+      filing.amended !== true &&
+      (filing.form === "10-K" || filing.form === "10-Q"),
+  );
+}
+
 function filingBasisDate(filing: SecFiling): string {
   return filing.reportDate ?? filing.filingDate;
 }

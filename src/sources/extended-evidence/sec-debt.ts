@@ -31,6 +31,7 @@ import {
   incompleteDebtNote,
   recognizedDebtConcepts,
   resolveDebtAtInstant,
+  UNRECOGNIZED_BORROWING_REASON,
   unadjustedLeaseInclusiveDebt,
   unsupersededDebtResolutions,
 } from "./sec-debt-resolution";
@@ -70,6 +71,27 @@ export function heldForSaleRecast(
       (note.publicAt ?? "") > fact.filedAt &&
       (note.publicAt ?? "") <= cutoff,
   );
+}
+
+// Face-fixable debt withholds at instants the revenue history joins, newest first.
+export function debtInstantsNeedingFace(
+  artifact: FinancialStatementsArtifact,
+): readonly { readonly periodEnd: string; readonly accessionNumber: string }[] {
+  const revenue = financialStatementSeriesByKey(artifact, "revenue");
+  const joined = new Set(
+    revenue === undefined ? [] : financialStatementFacts(revenue).map((fact) => fact.periodEnd),
+  );
+  return (artifact.omissionNotes ?? [])
+    .flatMap((note) => {
+      const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
+      return note.faceAccession === undefined ||
+        periodEnd === undefined ||
+        !isWithheldDebtNote(note) ||
+        !joined.has(periodEnd)
+        ? []
+        : [{ periodEnd, accessionNumber: note.faceAccession }];
+    })
+    .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd));
 }
 
 // The newest debt instant is incomplete, so no older amount may stand in as the latest debt.
@@ -213,12 +235,15 @@ export function factsForDebt(
           lines.get(concept)?.accessionNumber === face.accessionNumber &&
           lines.get(concept)?.value === face.standard.get(concept),
       );
-    const resolution = withFaceStatementDebt(
-      resolveAt(tagged),
-      tagged,
-      resolveAt,
-      faceDebtLines(filings, instant.periodEnd, recognized, taxonomy),
-    );
+    const faces = faceDebtLines(filings, instant.periodEnd, recognized, taxonomy);
+    const resolution = withFaceStatementDebt(resolveAt(tagged), tagged, resolveAt, faces);
+    const [faceAccession, ...otherAccessions] = new Set(facts.map((fact) => fact.accessionNumber));
+    // A real fetched face still has to prove the instant, so eligibility only rules out what no face settles.
+    const faceFixable =
+      faces.length === 0 &&
+      otherAccessions.length === 0 &&
+      typeof faceAccession === "string" &&
+      resolution.incompleteReason?.startsWith(UNRECOGNIZED_BORROWING_REASON) === false;
     const subtracted = new Set(
       resolution.contributors.flatMap((contributor) =>
         contributor.subtract === true ? [contributor.concept] : [],
@@ -248,21 +273,31 @@ export function factsForDebt(
       lineScope: resolution.lineScope === true,
       proofSourceIds: resolution.proofSourceIds,
       faceLeases: resolution.faceLeases,
+      faceAccession: faceFixable ? faceAccession : undefined,
     };
   });
   const current = unsupersededDebtResolutions(resolved);
+
   const [latest] = current
     .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))
     .toSorted((left, right) => compareFinancialStatementFacts(left.fact, right.fact));
   // A newer filing's complete resolution of the instant publishes it, so older withholds are moot (ORCL 10-Q prior-year columns).
   const notes = new Map(
-    current.flatMap(({ periodEnd, filedAt, incompleteReason }) =>
+    current.flatMap(({ periodEnd, filedAt, incompleteReason, faceAccession }) =>
       incompleteReason === undefined ||
       current.some(
         (other) => !other.incomplete && other.periodEnd === periodEnd && other.filedAt > filedAt,
       )
         ? []
-        : [[periodEnd, incompleteDebtNote(periodEnd, incompleteReason, filedAt)] as const],
+        : [
+            [
+              periodEnd,
+              {
+                ...incompleteDebtNote(periodEnd, incompleteReason, filedAt),
+                ...(faceAccession === undefined ? {} : { faceAccession }),
+              },
+            ] as const,
+          ],
     ),
   );
   const ineligible = (latest?.fact.concept.split(/[+-]/u) ?? []).flatMap((concept) =>

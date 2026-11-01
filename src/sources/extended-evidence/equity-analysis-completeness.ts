@@ -607,6 +607,7 @@ function capitalOwnershipDimension(
     ...dividendsPaid.flatMap((fact) => fact.sourceIds),
     ...(artifact?.debtPrincipal?.current?.sourceIds ?? []),
     ...(artifact?.debtPrincipal?.noncurrent?.sourceIds ?? []),
+    ...(artifact?.debtPrincipal?.maturities.flatMap((fact) => fact.sourceIds) ?? []),
     ...(artifact?.subsequentFinancing?.sourceIds ?? []),
     ...(yahoo?.sourceIds ?? []),
     ...(ownershipSignal?.status === "available" ? ownershipSignal.sourceIds : []),

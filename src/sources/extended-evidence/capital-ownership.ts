@@ -35,6 +35,7 @@ interface CapitalOwnershipFact {
   readonly taxonomy: FinancialStatementTaxonomy;
   readonly concept: string;
   readonly unit: string;
+  readonly accessionNumber?: string;
   readonly sourceIds: readonly string[];
 }
 
@@ -46,7 +47,7 @@ export interface CapitalOwnershipArtifact {
   readonly debtPrincipal?: {
     readonly current?: CapitalOwnershipFact;
     readonly noncurrent?: CapitalOwnershipFact;
-    readonly maturities: readonly { readonly bucket: string; readonly value: number }[];
+    readonly maturities: readonly (CapitalOwnershipFact & { readonly bucket: string })[];
   };
   readonly subsequentFinancing?: {
     readonly eventCount: number;
@@ -175,6 +176,65 @@ function readPeriodFacts(
   return readArtifactObservations<CapitalOwnershipPeriodFact>(value, reason, readPeriodFact);
 }
 
+type DebtPrincipal = NonNullable<CapitalOwnershipArtifact["debtPrincipal"]>;
+type MaturityRow = DebtPrincipal["maturities"][number];
+
+function readMaturityRow(value: unknown): MaturityRow | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const bucket = readString(value.bucket);
+  const periodEnd = readString(value.periodEnd);
+  const filedAt = readString(value.filedAt);
+  const { taxonomy, accessionNumber } = value;
+  const concept = readString(value.concept);
+  const unit = readString(value.unit);
+  const sourceIds = readSourceIds(value.sourceIds);
+  if (
+    bucket === undefined ||
+    typeof value.value !== "number" ||
+    !Number.isFinite(value.value) ||
+    periodEnd === undefined ||
+    filedAt === undefined ||
+    (taxonomy !== "us-gaap" && taxonomy !== "ifrs-full") ||
+    concept === undefined ||
+    unit === undefined ||
+    sourceIds === undefined ||
+    (accessionNumber !== undefined && readString(accessionNumber) === undefined)
+  ) {
+    return undefined;
+  }
+  return {
+    bucket,
+    value: value.value,
+    periodEnd,
+    filedAt,
+    taxonomy,
+    concept,
+    unit,
+    ...(typeof accessionNumber === "string" ? { accessionNumber } : {}),
+    sourceIds,
+  };
+}
+
+function readDebtPrincipal(value: Record<string, unknown>): {
+  readonly debtPrincipal: DebtPrincipal;
+  readonly drops: readonly ArtifactObservationDrop[];
+} {
+  const maturities = readArtifactObservations<MaturityRow>(
+    Array.isArray(value.maturities) ? value.maturities : [],
+    "capitalOwnership.debtPrincipal.maturities.invalid",
+    readMaturityRow,
+  );
+  return {
+    debtPrincipal: {
+      ...(value as unknown as DebtPrincipal),
+      maturities: maturities.observations,
+    },
+    drops: maturities.drops,
+  };
+}
+
 export function readCapitalOwnershipArtifact(
   value: unknown,
 ): ReadArtifact<CapitalOwnershipArtifact> | undefined {
@@ -198,6 +258,9 @@ export function readCapitalOwnershipArtifact(
   ) {
     return undefined;
   }
+  const debtPrincipal = isRecord(value.debtPrincipal)
+    ? readDebtPrincipal(value.debtPrincipal)
+    : undefined;
   const omissions = readArtifactObservations<CapitalOwnershipArtifact["omissions"][number]>(
     value.omissions,
     "capitalOwnership.omissions.invalid",
@@ -214,13 +277,7 @@ export function readCapitalOwnershipArtifact(
       generatedAt: value.generatedAt as string,
       symbol: value.symbol as string,
       stockBasedCompensation: stockBasedCompensation.observations,
-      ...(isRecord(value.debtPrincipal)
-        ? {
-            debtPrincipal: value.debtPrincipal as NonNullable<
-              CapitalOwnershipArtifact["debtPrincipal"]
-            >,
-          }
-        : {}),
+      ...(debtPrincipal !== undefined ? { debtPrincipal: debtPrincipal.debtPrincipal } : {}),
       ...(isRecord(value.subsequentFinancing)
         ? {
             subsequentFinancing: value.subsequentFinancing as NonNullable<
@@ -231,7 +288,7 @@ export function readCapitalOwnershipArtifact(
       omissions: omissions.observations,
     },
     previous,
-    [...stockBasedCompensation.drops, ...omissions.drops],
+    [...stockBasedCompensation.drops, ...(debtPrincipal?.drops ?? []), ...omissions.drops],
   );
 }
 
@@ -339,6 +396,7 @@ function latestInstantFact(
             taxonomy: definition.taxonomy,
             concept: definition.concept,
             unit,
+            ...(typeof fact.accn === "string" ? { accessionNumber: fact.accn } : {}),
             sourceIds: [sourceId],
           },
         ];
@@ -403,7 +461,7 @@ export function deriveCapitalOwnershipArtifact(
             financialStatements.analysisAsOf,
             sourceId,
           );
-          return fact === undefined ? [] : [{ bucket: definition.bucket, value: fact.value }];
+          return fact === undefined ? [] : [{ bucket: definition.bucket, ...fact }];
         });
   const omissions = [
     ...(stockBasedCompensation.length === 0

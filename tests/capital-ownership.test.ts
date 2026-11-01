@@ -180,7 +180,53 @@ describe("capital ownership artifact", () => {
         { bucket: "year-two", value: 75 },
       ],
     });
+    expect(readCapitalOwnershipArtifact(artifact)?.debtPrincipal?.maturities).toEqual(
+      artifact.debtPrincipal?.maturities,
+    );
     expect(artifact.omissions).toEqual([]);
+  });
+
+  test("maturity rows carry currency, period end, accession and source id", () => {
+    const payload = companyfacts();
+    const gaap = (payload.facts as Record<string, Record<string, unknown>>)["us-gaap"];
+    gaap!.LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths = concept("USD", [
+      {
+        ...instant(7_210_000_000, "2026-05-31"),
+        accn: "0001193125-26-277521",
+        filed: "2026-06-20",
+      },
+    ]);
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.debtPrincipal?.maturities[0]).toEqual({
+      bucket: "next-twelve-months",
+      value: 7_210_000_000,
+      periodEnd: "2026-05-31",
+      filedAt: "2026-06-20",
+      taxonomy: "us-gaap",
+      concept: "LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths",
+      unit: "USD",
+      accessionNumber: "0001193125-26-277521",
+      sourceIds: [SOURCE_ID],
+    });
+    const [row] = artifact.debtPrincipal!.maturities;
+    const malformed = [
+      { bucket: row!.bucket, value: row!.value },
+      { ...row, unit: null },
+      { ...row, filedAt: undefined },
+      { ...row, taxonomy: "other" },
+      { ...row, concept: "" },
+      { ...row, accessionNumber: { wrong: true } },
+    ];
+    const read = readCapitalOwnershipArtifact({
+      ...artifact,
+      debtPrincipal: { ...artifact.debtPrincipal, maturities: [row, ...malformed] },
+    });
+    expect(read?.debtPrincipal?.maturities).toEqual([row!]);
+    expect(read?.readDiagnostics?.drops).toEqual([
+      { reason: "capitalOwnership.debtPrincipal.maturities.invalid", count: malformed.length },
+    ]);
   });
 
   test.each([

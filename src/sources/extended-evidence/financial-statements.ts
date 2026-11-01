@@ -86,6 +86,7 @@ interface ParsedCompositeComponent {
 
 export interface ParsedFact {
   readonly value: number;
+  readonly restatedFrom?: OriginalFiling;
   readonly form: SupportedSecForm;
   readonly canonicalForm: CanonicalSecForm;
   readonly amendment: boolean;
@@ -846,6 +847,7 @@ interface WithheldDerivation {
 interface DerivedSeriesFacts {
   readonly facts: readonly ParsedFact[];
   readonly withheld: readonly WithheldDerivation[];
+  readonly superseded?: ReadonlySet<string>;
 }
 
 const NO_DERIVED_FACTS: DerivedSeriesFacts = { facts: [], withheld: [] };
@@ -1151,7 +1153,7 @@ function scopeAlignedOperatingCashFlow(
   };
 }
 
-// Only for periods with no total tagged under any concept, and only when both components share one filing context.
+// A same-filing pair fills a period with no total, or restates one when its filing tags no total and is newer than every total.
 function derivedPretaxIncomeFacts(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
@@ -1165,21 +1167,63 @@ function derivedPretaxIncomeFacts(
   const totals = [
     ...reported,
     ...definition.concepts["us-gaap"].flatMap((concept) => unitFacts("us-gaap", root, concept)),
-  ];
-  const covered = new Set(totals.filter((fact) => eligible(fact)).map((fact) => periodKey(fact)));
+  ].filter(eligible);
+  const totalsFor = (fact: ParsedFact) =>
+    totals.filter((total) => periodKey(total) === periodKey(fact));
   const [domestic, foreign] = PRETAX_INCOME_COMPONENT_CONCEPTS.map((concept) =>
     unitFacts("us-gaap", root, concept).filter(
-      (fact) => eligible(fact) && fact.periodStart !== undefined && !covered.has(periodKey(fact)),
+      (fact) => eligible(fact) && fact.periodStart !== undefined,
     ),
   ) as [ParsedFact[], ParsedFact[]];
+  const pairs = domestic.flatMap((fact) => {
+    const context = filingContextKey(fact);
+    const partner = foreign.find((candidate) => filingContextKey(candidate) === context);
+    return context === undefined ||
+      partner === undefined ||
+      totalsFor(fact).some((total) => total.accessionNumber === fact.accessionNumber)
+      ? []
+      : [{ ...fact, value: fact.value + partner.value }];
+  });
+  const restatesTotals = (fact: ParsedFact) =>
+    pairs.some(
+      (pair) =>
+        periodKey(pair) === periodKey(fact) &&
+        totalsFor(fact).every((total) => compareFinancialStatementRevisions(pair, total) < 0),
+    );
   const domesticGroups = periodGroups(domestic, definition);
   const foreignGroups = periodGroups(foreign, definition);
   const facts: ParsedFact[] = [];
   const withheld: WithheldDerivation[] = [];
+  const superseded = new Set<string>();
   for (const [key, [current]] of domesticGroups) {
     const [currentForeign] = foreignGroups.get(key) ?? [];
     if (current === undefined) {
       continue;
+    }
+    const periodTotals = totalsFor(current);
+    const history = [
+      ...periodTotals,
+      ...pairs.filter((pair) => periodKey(pair) === periodKey(current)),
+    ];
+    if (periodTotals.length > 0 && !restatesTotals(current)) {
+      const peers = reported.filter(
+        (fact) => eligible(fact) && periodKey(fact) === periodKey(current),
+      );
+      const [standing] = peers.toSorted(compareFinancialStatementFacts);
+      if (standing === undefined || history.length === periodTotals.length) {
+        continue;
+      }
+      superseded.add(periodKey(current));
+      const restatedFrom = restatedFromOriginalFiling(standing.value, peers);
+      facts.push({
+        ...standing,
+        firstPublicAt: firstPublicDate(standing.value, standing.filedAt, [history]),
+        ...(restatedFrom === undefined ? {} : { restatedFrom }),
+      });
+      continue;
+    }
+    if (periodTotals.length > 0) {
+      superseded.add(periodKey(current));
     }
     const context = filingContextKey(current);
     if (currentForeign === undefined) {
@@ -1197,18 +1241,29 @@ function derivedPretaxIncomeFacts(
         ),
       );
     } else {
-      facts.push(
-        withCompositeFirstPublicAt(
-          compositeFromContributors([current, currentForeign]),
-          definition,
-          [...domestic, ...foreign],
-          new Set(),
-        ),
+      const composite = withCompositeFirstPublicAt(
+        compositeFromContributors([current, currentForeign]),
+        definition,
+        [...domestic, ...foreign],
+        new Set(),
       );
+      if (periodTotals.length === 0) {
+        facts.push(composite);
+        continue;
+      }
+      const restatedFrom = restatedFromOriginalFiling(composite.value, [
+        ...periodTotals,
+        composite,
+      ]);
+      facts.push({
+        ...composite,
+        firstPublicAt: firstPublicDate(composite.value, composite.filedAt, [history]),
+        ...(restatedFrom === undefined ? {} : { restatedFrom }),
+      });
     }
   }
   for (const [key, [current]] of foreignGroups) {
-    if (current !== undefined && !domesticGroups.has(key)) {
+    if (current !== undefined && !domesticGroups.has(key) && totalsFor(current).length === 0) {
       withheld.push(
         withheldPeriod(
           current,
@@ -1217,7 +1272,7 @@ function derivedPretaxIncomeFacts(
       );
     }
   }
-  return { facts, withheld };
+  return { facts, withheld, superseded };
 }
 
 function derivedSeriesFacts(
@@ -1669,7 +1724,8 @@ function withFirstPublicAt(
 ): DatedFact {
   const peers = candidates.filter((fact) => periodKey(fact) === periodKey(winner));
   const restatedFrom =
-    winner.composite === undefined ? restatedFromOriginalFiling(winner.value, peers) : undefined;
+    winner.restatedFrom ??
+    (winner.composite === undefined ? restatedFromOriginalFiling(winner.value, peers) : undefined);
   // An alias tag that filed the same figure dates it with its full history (A -> B -> A holds);
   // An alias that never matched may be another scope, so it is ignored.
   const aliasPeers = aliasFacts.filter((fact) => periodKey(fact) === periodKey(winner));
@@ -2178,7 +2234,10 @@ function selectSeries(
             isObservable(fact, input.analysisAsOf),
           )
         : undefined;
-  const basis = [...reported, ...(derived?.facts ?? [])];
+  const basis = [
+    ...reported.filter((fact) => derived?.superseded?.has(periodKey(fact)) !== true),
+    ...(derived?.facts ?? []),
+  ];
   const declarationSpans =
     definition.key === "dividendsPerShare"
       ? basis.filter((fact) => !isStatementPeriod(fact, definition))

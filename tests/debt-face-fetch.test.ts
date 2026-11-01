@@ -476,6 +476,16 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       ],
     ],
     [
+      "an aggregate row that embeds bank overdrafts",
+      [
+        faceItem(
+          Q_ACCN,
+          "2025-12-31",
+          relabel("Accrued liabilities and bank overdrafts", "us-gaap:AccruedLiabilitiesCurrent"),
+        ),
+      ],
+    ],
+    [
       "an untagged drawn revolver",
       [faceItem(Q_ACCN, "2025-12-31", relabel("Revolving credit facility", "clfd:RevolverDrawn"))],
     ],

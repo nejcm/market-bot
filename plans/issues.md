@@ -15,6 +15,8 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 ## Possible wrong or false values
 
 - CLFD FY2023 EV/revenue (1.13x) is mixed scope: 2023-09-30 DebtCurrent 2,112K was last filed in 10-K 0001171843-24-006402 and is Nestor Cables factoring debt (FY2025 10-K 0001171843-25-007594 MD&A; discontinued financing flow 1,586K; parent repaid its 16,700K term debt in FY2023), while FY2023 revenue is restated to continuing 225,722K. No tagged fact proves the debt's scope: a rule keyed on nonzero `CashProvidedByUsedInFinancingActivitiesDiscontinuedOperations` was tried and reverted, because a flow is not a balance and it over-fires (HLIT 2023-12-31, debt was the parent's notes) and would split workbench from Console/ROIC debt. Needs a model reading of the discontinued-ops note, verified against the filing; parked 2026-10-31: no reusable verified-quote stage exists, it needs a live CLFD capture, and scope must move into debt resolution so EV, Console and ROIC agree. Revisit if more recast cases appear (CLFD FY2023 ROIC unchecked).
+- Reused web subject profile (`extras.webSubjectProfile`) keeps its own gaps that deny geographic %, dividend history and segment breakdown the same report publishes deterministically (ORCL 2026-11-01T09-45-24-875Z-6aa813e3 report.md ~410: EMEA 22.7%, dividend CAGR, three segments). Reconcile reused profile gaps against current evidence.
+- Current valuation ratios (EV/revenue 6.82x, debt/market cap) display "As of <fundamentals period end>" though market cap uses the latest quote date (ORCL: 2026-08-31 vs the Oct 30 quote).
 
 ## Withheld but recoverable
 
@@ -45,6 +47,8 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 - Text-coupled parsing: the reader's debt-note grouping and `staleSeriesReason`'s withheld spans re-parse producer message strings; a structured `periods` field on the notes would remove both parses.
 - The calc-linkbase D&A proof reads only direct OCF children (an intermediate `AdjustmentsToReconcile…` parent reads as "adds no D&A line") and treats one role split across several `calculationLink` elements as a conflict; both keep the note, never a wrong value.
 - TTM = FY is withheld when any later duration fact exists under any concept, so a subsequent-event duration fact can block it with a confusing note.
+- `derived.capitalOwnership.debtPrincipal.maturities` stores bucket/value only, with no currency, period end, accession or source id (ORCL $7.210B next-twelve-months from 2026-05-31, 0001193125-26-277521).
+- Fresh web sources are accepted but uncited: ORCL 6aa813e3 4 accepted / 0 used (trace `webEvidenceUtilization`), baseline 6f265e0e 9 / 1.
 - Peer-median audit: "above the peer median given its margins" counts as naming another metric, so an unnamed EV/revenue claim with that wording is neither warned nor pruned.
 
 - SEC 10-K/10-Q excerpts (8–9k chars each) still reach specialist, instrument-evidence, market-behavior analysis, critique and final synthesis in full; evidence request and Web Gather get the header only (market-behavior analysis was reverted to full text because its findings cite the filings). `[Key Disclosures]` was checked and does not repeat section text (0 overlapping sentences across 10 captured filings). Next cut, if a live eval shows no quality loss: header-only for specialist or instrument-evidence too.

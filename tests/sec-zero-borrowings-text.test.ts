@@ -67,6 +67,18 @@ describe("zero-borrowings text proof", () => {
     ).toBe("As of June 30, 2026, the Company had no debt.");
   });
 
+  test("an overdraft mention needs a bare no-debt sentence", () => {
+    const overdrafts = "Accrued liabilities include $2,000,000 of bank overdrafts.";
+    expect(
+      proof(
+        `${overdrafts} As of June 30, 2026, the Company had no borrowings against its line of credit.`,
+      ),
+    ).toEqual({ zeroBorrowingReject: "uncovered-facility:overdraft" });
+    expect(
+      proof(`${overdrafts} As of June 30, 2026, the Company had no debt.`).zeroBorrowingText,
+    ).toBe("As of June 30, 2026, the Company had no debt.");
+  });
+
   test("a continuing facility the sentence does not cover rejects", () => {
     expect(proof(`${CLFD} The Company also has a term loan with the bank.`)).toEqual({
       zeroBorrowingReject: "uncovered-facility:term loan",

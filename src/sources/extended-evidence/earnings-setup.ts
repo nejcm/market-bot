@@ -52,12 +52,13 @@ export function parseNearEarningsEvent(
   symbol: string,
   fetchedAt: string,
   sourceId: string,
+  windowDays = NEAR_EVENT_WINDOW_DAYS,
 ): EarningsEvent | undefined {
   const records = readArray(earningsPayload, "earningsCalendar");
   const today = fetchedAt.slice(0, 10);
 
   let nearest: EarningsEvent | undefined = undefined;
-  let nearestDays = NEAR_EVENT_WINDOW_DAYS + 1;
+  let nearestDays = windowDays + 1;
 
   for (const record of records) {
     if (!isRecord(record)) {
@@ -72,7 +73,7 @@ export function parseNearEarningsEvent(
       continue;
     }
     const daysUntil = calendarDaysBetween(today, date);
-    if (daysUntil < 0 || daysUntil > NEAR_EVENT_WINDOW_DAYS) {
+    if (daysUntil < 0 || daysUntil > windowDays) {
       continue;
     }
     if (daysUntil < nearestDays) {

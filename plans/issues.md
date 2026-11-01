@@ -49,7 +49,6 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 - The calc-linkbase D&A proof reads only direct OCF children (an intermediate `AdjustmentsToReconcile…` parent reads as "adds no D&A line") and treats one role split across several `calculationLink` elements as a conflict; both keep the note, never a wrong value.
 - TTM = FY is withheld when any later duration fact exists under any concept, so a subsequent-event duration fact can block it with a confusing note.
 - `derived.capitalOwnership.debtPrincipal.maturities` stores bucket/value only, with no currency, period end, accession or source id (ORCL $7.210B next-twelve-months from 2026-05-31, 0001193125-26-277521).
-- Fresh web sources are accepted but uncited: ORCL 6aa813e3 4 accepted / 0 used (trace `webEvidenceUtilization`), baseline 6f265e0e 9 / 1.
 - Peer-median audit: "above the peer median given its margins" counts as naming another metric, so an unnamed EV/revenue claim with that wording is neither warned nor pruned.
 
 - SEC 10-K/10-Q excerpts (8–9k chars each) still reach specialist, instrument-evidence, market-behavior analysis, critique and final synthesis in full; evidence request and Web Gather get the header only (market-behavior analysis was reverted to full text because its findings cite the filings). `[Key Disclosures]` was checked and does not repeat section text (0 overlapping sentences across 10 captured filings). Next cut, if a live eval shows no quality loss: header-only for specialist or instrument-evidence too.

@@ -4,7 +4,10 @@ import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
 import { isUsListing } from "../instrument-capability";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
+import { parseNearEarningsEvent, type EarningsEvent } from "./earnings-setup";
 import { daysFrom, encodeQuery, readArray } from "./utils";
+
+const CALENDAR_WINDOW_DAYS = 90;
 
 const EVENT_ROUTE_NAMES: Readonly<Record<string, string>> = {
   "finnhub-events-1": "earnings calendar",
@@ -59,11 +62,33 @@ function joinSummaryParts(parts: readonly string[]): string {
   return `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1) as string}`;
 }
 
-function summarizeFinnhubEvents(results: readonly FinnhubEventRouteResult[]): string | undefined {
+function nextEarningsSentence(event: EarningsEvent): string {
+  const estimates = [
+    ...(event.epsEstimate !== undefined ? [`EPS ${String(event.epsEstimate)}`] : []),
+    ...(event.revenueEstimate !== undefined ? [`revenue ${String(event.revenueEstimate)}`] : []),
+  ];
+  return ` Next earnings date ${event.date} (provider-estimated, not confirmed by the issuer; timing ${event.timing})${estimates.length > 0 ? `; provider consensus estimates: ${estimates.join(", ")}` : ""}.`;
+}
+
+function nextEarningsMetrics(event: EarningsEvent): Record<string, number | string> {
+  return {
+    nextEarningsDate: event.date,
+    nextEarningsTiming: event.timing,
+    ...(event.epsEstimate !== undefined ? { epsEstimate: event.epsEstimate } : {}),
+    ...(event.revenueEstimate !== undefined ? { revenueEstimate: event.revenueEstimate } : {}),
+  };
+}
+
+function summarizeFinnhubEvents(
+  results: readonly FinnhubEventRouteResult[],
+  next: EarningsEvent | undefined,
+): string | undefined {
   const parts = results
     .map((result) => eventSummaryPart(result))
     .filter((part): part is string => part !== undefined);
-  return parts.length > 0 ? `Finnhub returned ${joinSummaryParts(parts)}.` : undefined;
+  return parts.length > 0
+    ? `Finnhub returned ${joinSummaryParts(parts)}.${next === undefined ? "" : nextEarningsSentence(next)}`
+    : undefined;
 }
 
 export async function collectFinnhubEvents(ctx: CollectContext): Promise<ProviderResult> {
@@ -103,8 +128,8 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
       ],
     };
   }
-  const from = daysFrom(fetchedAt, -90);
-  const to = daysFrom(fetchedAt, 90);
+  const from = daysFrom(fetchedAt, -CALENDAR_WINDOW_DAYS);
+  const to = daysFrom(fetchedAt, CALENDAR_WINDOW_DAYS);
   const urls = [
     `https://finnhub.io/api/v1/calendar/earnings?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
     `https://finnhub.io/api/v1/stock/dividend?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
@@ -122,11 +147,24 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
   const gaps = results
     .filter((value): value is SourceGap => !isFetchJsonResult(value))
     .map((gap) => normalizeEventGap(gap));
+  const sourceId = `extended-finnhub-events-${command.symbol.toLowerCase()}`;
+  const calendar = fetched.find((result) => result.rawSnapshot.adapter === "finnhub-events-1");
+  const next =
+    calendar === undefined
+      ? undefined
+      : parseNearEarningsEvent(
+          calendar.payload,
+          command.symbol,
+          calendar.rawSnapshot.fetchedAt,
+          sourceId,
+          CALENDAR_WINDOW_DAYS,
+        );
   const summary = summarizeFinnhubEvents(
     fetched.map((result) => ({
       adapter: result.rawSnapshot.adapter,
       payload: result.payload,
     })),
+    next,
   );
   const items =
     summary === undefined
@@ -137,7 +175,7 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
             `${command.symbol} equity events`,
             summary,
             evidenceSource(
-              `extended-finnhub-events-${command.symbol.toLowerCase()}`,
+              sourceId,
               `${command.symbol} equity events`,
               "finnhub",
               command,
@@ -146,6 +184,7 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
                 fetchedAt,
               ),
             ),
+            next === undefined ? undefined : nextEarningsMetrics(next),
           ),
         ];
   return { rawSnapshots: fetched.map((result) => result.rawSnapshot), items, gaps };

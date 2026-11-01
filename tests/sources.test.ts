@@ -2376,6 +2376,7 @@ describe("extended evidence provider collection", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.item.summary).toBe("Finnhub returned 1 earnings calendar record.");
+    expect(result.items[0]?.item.metrics).toBeUndefined();
     expect(result.gaps).toEqual([
       expect.objectContaining({
         source: "finnhub-events-2",
@@ -2415,6 +2416,45 @@ describe("extended evidence provider collection", () => {
       "Finnhub returned 1 earnings calendar record, 2 dividend records, and 1 split record.",
     );
     expect(result.gaps).toEqual([]);
+  });
+
+  test("keeps the next earnings date outside the Earnings Setup window as provider data", async () => {
+    // ORCL run 6aa813e3: 37 days out, so no Earnings Setup, yet the date and estimates are sourced.
+    const result = await collectFinnhubEvents(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "ORCL", depth: "deep" },
+        finnhubApiToken: "finnhub-token",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            rawJson(
+              adapter,
+              adapter === "finnhub-events-1"
+                ? {
+                    earningsCalendar: [
+                      {
+                        symbol: "ORCL",
+                        date: "2026-06-25",
+                        hour: "",
+                        epsEstimate: 1.9322,
+                        revenueEstimate: 21_762_632_973,
+                      },
+                    ],
+                  }
+                : [],
+            ),
+        }),
+      }),
+    );
+
+    expect(result.items[0]?.item.summary).toBe(
+      "Finnhub returned 1 earnings calendar record. Next earnings date 2026-06-25 (provider-estimated, not confirmed by the issuer; timing unknown); provider consensus estimates: EPS 1.9322, revenue 21762632973.",
+    );
+    expect(result.items[0]?.item.metrics).toEqual({
+      nextEarningsDate: "2026-06-25",
+      nextEarningsTiming: "unknown",
+      epsEstimate: 1.9322,
+      revenueEstimate: 21_762_632_973,
+    });
   });
 
   test("routes crypto extended evidence only through crypto providers", async () => {

@@ -211,6 +211,27 @@ function orclMarketLeverage(snapshot: boolean, quoteTimeUtc?: string) {
         }),
       },
       {
+        id: "peRatio",
+        label: "PE",
+        unit: "ratio",
+        basis: "Yahoo Finance trailing price/earnings",
+        compute: () => ({
+          status: "value",
+          value: 20.48,
+          periodEnd: "2026-11-01T09:33:28.645Z",
+          inputs: [
+            {
+              label: "trailing PE",
+              value: 20.48,
+              artifact: "evidence",
+              key: "trailingPE",
+              unit: "ratio",
+              sourceIds: ["market-yahoo-equity-orcl"],
+            },
+          ],
+        }),
+      },
+      {
         id: "valuationSupportability",
         label: "Peer supportability",
         unit: "text",
@@ -274,5 +295,16 @@ test("a price-relative ratio without a quote time labels the fetch date as fetch
 
 test("a valuation text metric that only cites the quote carries no price date", () => {
   const section = orclMarketLeverage(true, "2026-10-30T20:03:42.000Z");
-  expect(section.metrics[1]?.priceAsOf).toBeUndefined();
+  expect(section.metrics[2]?.priceAsOf).toBeUndefined();
+});
+
+test("a provider P/E observed at fetch time is labeled with the ORCL quote time", () => {
+  const quoted = orclMarketLeverage(true, "2026-10-30T20:03:42.000Z").metrics[1]!;
+  expect(metricPeriodLabel(quoted.periodEnd!, undefined, undefined, [], quoted.priceAsOf)).toBe(
+    "Price as of 2026-10-30",
+  );
+  const fetched = orclMarketLeverage(true).metrics[1]!;
+  expect(metricPeriodLabel(fetched.periodEnd!, undefined, undefined, [], fetched.priceAsOf)).toBe(
+    "Price as of 2026-11-01 (fetch time)",
+  );
 });

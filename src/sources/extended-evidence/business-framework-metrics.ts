@@ -748,7 +748,8 @@ function sectionDefinitions(
         id: "forwardPE",
         label: "Forward PE",
         unit: "ratio",
-        basis: "Yahoo Finance forward price/earnings",
+        basis:
+          "Yahoo Finance forward price/earnings; consensus forward EPS has no provider as-of date",
         compute: evidenceValue(
           "yahoo-fundamentals",
           "forwardPE",

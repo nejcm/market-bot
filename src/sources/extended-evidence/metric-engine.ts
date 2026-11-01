@@ -222,29 +222,34 @@ function fundamentalsPriceAsOf(
   if (
     price === undefined ||
     periodEnd === undefined ||
-    periodEnd === snapshot?.observedAt ||
     !inputs.some(
       (input) =>
         input.sourceIds.includes(price.sourceId) &&
         (input.artifact === "quote" ||
-          (input.key !== undefined && PRICE_RELATIVE_EVIDENCE_KEYS.has(input.key))),
+          (input.key !== undefined && PRICE_RELATIVE_KEYS.has(input.key))),
     )
   ) {
     return undefined;
   }
   const date = price.asOf.slice(0, 10);
-  if (date === periodEnd.slice(0, 10)) {
-    return undefined;
+  const label = price.asOfKind === "fetch-time-only" ? `${date} (fetch time)` : date;
+  if (periodEnd === snapshot?.observedAt || periodEnd === price.asOf) {
+    return label;
   }
-  return price.asOfKind === "fetch-time-only" ? `${date} (fetch time)` : date;
+  return date === periodEnd.slice(0, 10) ? undefined : label;
 }
 
-const PRICE_RELATIVE_EVIDENCE_KEYS: ReadonlySet<string> = new Set([
+// Evidence keys whose value moves with the quote price.
+export const PRICE_RELATIVE_KEYS: ReadonlySet<string> = new Set([
   "debtToMarketCap",
   "netDebtToMarketCap",
   "evToAnnualizedRevenue",
   "marketCapToAnnualizedRevenue",
   "enterpriseValue",
+  "trailingPE",
+  "forwardPE",
+  "priceToBook",
+  "dividendYield",
 ]);
 
 export function priceAsOfFields(snapshot: Pick<MarketSnapshot, "observedAt" | "quoteTimeUtc">): {

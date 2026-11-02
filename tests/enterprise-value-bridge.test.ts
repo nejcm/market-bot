@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { renderMetricSections } from "../src/report/markdown-metric-sections";
-import { CURRENT_EQUITY_NOTE } from "../src/sources/extended-evidence/enterprise-value-bridge";
+import {
+  CURRENT_EQUITY_NOTE,
+  ENTERPRISE_VALUE_BASIS,
+} from "../src/sources/extended-evidence/enterprise-value-bridge";
 import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -976,4 +979,10 @@ describe("peer-implied range with non-common claims", () => {
         "noncontrolling interest, preferred stock or temporary equity is unavailable",
     });
   });
+});
+
+test("EV basis declares carrying-amount preferred, NCI and temporary equity", () => {
+  expect(ENTERPRISE_VALUE_BASIS).toContain(
+    "preferred stock, noncontrolling interest and temporary equity at balance-sheet carrying amount, not market, liquidation or redemption value",
+  );
 });

@@ -244,7 +244,7 @@ function bridgeInput(
         sourceIds: fact.sourceIds,
       })),
       derivation:
-        "preferred stock + noncontrolling interest + temporary equity − short-term investments",
+        "preferred stock + noncontrolling interest + temporary equity (each at carrying amount) − short-term investments",
     },
   };
 }

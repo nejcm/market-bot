@@ -36,7 +36,7 @@ const METRICS = [
   [
     "enterpriseValueToRevenue",
     "EV/revenue",
-    "((close × diluted shares) + debt + preferred stock + noncontrolling interest + temporary equity - cash - short-term investments) / revenue",
+    "((close × diluted shares) + debt + preferred stock + noncontrolling interest + temporary equity - cash - short-term investments) / revenue; preferred, noncontrolling interest and temporary equity at carrying amount",
     "revenue",
   ],
   [

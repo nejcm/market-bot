@@ -113,7 +113,7 @@ const DERIVED_NONCONTROLLING_CONCEPT =
 
 export const NET_DEBT_BASIS = "debt less cash and short-term investments";
 export const ENTERPRISE_VALUE_BASIS =
-  "market cap + debt + preferred stock + noncontrolling interest + temporary equity (redeemable noncontrolling interest and preferred) − cash and short-term investments; long-term investments excluded";
+  "market cap + debt + preferred stock + noncontrolling interest + temporary equity (redeemable noncontrolling interest and preferred) − cash and short-term investments; long-term investments excluded; preferred stock, noncontrolling interest and temporary equity at balance-sheet carrying amount, not market, liquidation or redemption value";
 
 // Identity lists are kept only where temporary equity is tagged, NCI must be derived, or equity securities need proof.
 export function trimToMezzaninePeriods<F extends BridgeFact>(

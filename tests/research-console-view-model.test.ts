@@ -3087,6 +3087,38 @@ describe("report artifact parsers", () => {
     );
   });
 
+  test("captions a report lens row with quote time only when it carries priceAsOf", () => {
+    const yahoo = "market-yahoo-equity-orcl";
+    const row = (id: string, priceAsOf?: string) => ({
+      id,
+      label: id,
+      unit: id === "trailingPE" ? "ratio" : "currency",
+      status: "value",
+      value: 5.1,
+      periodEnd: "2026-10-30T20:03:42.000Z",
+      sourceIds: [yahoo],
+      ...(priceAsOf === undefined ? {} : { priceAsOf }),
+    });
+    const report = {
+      extras: {
+        metricSections: [
+          {
+            id: "financial-lens-value",
+            title: "Value",
+            metrics: [row("epsTrailingTwelveMonths"), row("trailingPE", "2026-10-30")],
+          },
+        ],
+      },
+    };
+
+    const captions = financialLensSectionTiles(report, [
+      { ...marketSnapshotFixture(), sourceId: yahoo, quoteTimeUtc: "2026-10-30T20:03:42.000Z" },
+    ]).map((tile) => tile.caption);
+
+    expect(captions[0]).not.toContain("quote time");
+    expect(captions[1]).toContain("quote time 2026-10-30T20:03:42.000Z");
+  });
+
   test("formats sub-1 percent values by convention, not by magnitude", () => {
     // Ratio convention: 0.005 -> 0.5%. Whole-percent convention: 0.5 -> 0.5%.
     const tiles = financialLensMetricTiles({

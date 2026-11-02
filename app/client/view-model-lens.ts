@@ -307,6 +307,7 @@ const BALANCE_SHEET_LENS_METRICS = new Set([
 function financialLensMetricCaption(
   metric: Pick<FinancialLensMetric, "key" | "sourceIds" | "periodEnd" | "periodMonths">,
   marketSnapshots: readonly MarketSnapshot[],
+  priced = true,
 ): string | undefined {
   const source = financialLensSourceLabel(metric.sourceIds);
   if (source === undefined) {
@@ -316,9 +317,9 @@ function financialLensMetricCaption(
     return source;
   }
   const date = metric.periodEnd.slice(0, 10);
-  const marketSnapshot = marketSnapshots.find((snapshot) =>
-    metric.sourceIds.includes(snapshot.sourceId),
-  );
+  const marketSnapshot = priced
+    ? marketSnapshots.find((snapshot) => metric.sourceIds.includes(snapshot.sourceId))
+    : undefined;
   const priceAsOf =
     marketSnapshot === undefined ? undefined : resolveMarketSnapshotPriceAsOf(marketSnapshot);
   const priceCaption =
@@ -402,6 +403,7 @@ export function financialLensSectionTiles(
           ...(metric.periodMonths !== undefined ? { periodMonths: metric.periodMonths } : {}),
         },
         marketSnapshots,
+        metric.priceAsOf !== undefined,
       );
       const derivations = [...new Set(metric.inputs.flatMap((input) => input.derivation ?? []))];
       const caption =

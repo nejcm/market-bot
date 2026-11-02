@@ -67,6 +67,43 @@ describe("zero-borrowings text proof", () => {
     ).toBe("As of June 30, 2026, the Company had no debt.");
   });
 
+  test("mortgage, promissory note, FHLB advance and loan agreement debt needs a bare no-debt sentence", () => {
+    const zero = "As of June 30, 2026, the Company had no borrowings against its line of credit.";
+    for (const [debt, kind] of [
+      ["The Company's headquarters secures a mortgage note of $3,000,000.", "mortgage"],
+      ["The Company issued a promissory note to the seller.", "promissory note"],
+      ["The bank funds loans with FHLB advances.", "advances"],
+      ["The bank repaid a Federal Home Loan Bank advance in May.", "advances"],
+      ["The Company has an equipment loan agreement with its bank.", "loan agreement"],
+    ] as const) {
+      expect(proof(`${debt} ${zero}`)).toEqual({
+        zeroBorrowingReject: `uncovered-facility:${kind}`,
+      });
+      expect(
+        proof(`${debt} As of June 30, 2026, the Company had no debt.`).zeroBorrowingText,
+      ).toBeDefined();
+    }
+    expect(proof(`The Company holds mortgage-backed securities. ${zero}`).zeroBorrowingText).toBe(
+      zero,
+    );
+  });
+
+  test("a separate loan agreement beside two lines of credit is uncovered", () => {
+    expect(
+      proof(
+        "The Company has a domestic line of credit, a foreign line of credit, and a separate equipment loan agreement with $3 million outstanding. As of June 30, 2026, the Company had no borrowings against its lines of credit.",
+      ),
+    ).toEqual({ zeroBorrowingReject: "uncovered-facility:loan agreement" });
+  });
+
+  test("a loan agreement beside a term loan in one sentence is still uncovered by a line-of-credit zero", () => {
+    expect(
+      proof(
+        "The loan agreement provides a line of credit and a term loan. As of June 30, 2026, the Company had no borrowings against its line of credit.",
+      ).zeroBorrowingReject,
+    ).toBe("uncovered-facility:term loan");
+  });
+
   test("an overdraft mention needs a bare no-debt sentence", () => {
     const overdrafts = "Accrued liabilities include $2,000,000 of bank overdrafts.";
     expect(

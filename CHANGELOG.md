@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.10.0](https://github.com/nejcm/market-bot/compare/v1.9.0...v1.10.0) (2026-11-02)
+
+### Features
+
+- **profile:** reconcile profile gaps against published sections ([36504cf](https://github.com/nejcm/market-bot/commit/36504cf3bf42ddae2247cc3298030cecff90f5b0))
+- **audit:** classify peer-median claims with a model stage ([6c2e893](https://github.com/nejcm/market-bot/commit/6c2e8930e664e9b109e5792fe97aa38d16521450))
+- **sec:** require same-filing text before publishing zero debt ([913a9ef](https://github.com/nejcm/market-bot/commit/913a9ef5a890a9a027e397423b96b8a22be4056e))
+- **sec:** prove historical debt from each instant's own filing face ([bac59f1](https://github.com/nejcm/market-bot/commit/bac59f1224e42451162757e41071519165251a4f))
+
+### Bug Fixes
+
+- **sec:** label the text-proven zero debt and show its quote ([03bae85](https://github.com/nejcm/market-bot/commit/03bae8548a02f23149bb6b39bd0aad7a9aec00e0))
+- **events:** format consensus estimates and declare no currency ([c4ec6d9](https://github.com/nejcm/market-bot/commit/c4ec6d97b8a24709b5ef80f313c562b22da64ec1))
+- **report:** show timing unavailable for unknown earnings timing ([75c1b7f](https://github.com/nejcm/market-bot/commit/75c1b7feacf0f43392afe513963f551be26d4039))
+- **console:** caption quote time only on price-dated metrics ([2e602e3](https://github.com/nejcm/market-bot/commit/2e602e3823f5b820399ffc585cbdcc326d435377))
+- **sec:** drop the stale gap when a continuing series just ended ([9318778](https://github.com/nejcm/market-bot/commit/9318778e214690c5dcbf0ff8825bb9cebc7c4487))
+- **sec:** require calc proof for the mrk d&a component sum ([ed9b590](https://github.com/nejcm/market-bot/commit/ed9b59054135ec7c07e9bdcf78c4defe40aef195))
+- **sec:** make loans, mortgages, notes and advances need cover ([e56eb2b](https://github.com/nejcm/market-bot/commit/e56eb2b286392fd352c4f64af371c34a86bf7bb3))
+- **ev:** state that preferred, nci and temp equity are carrying amounts ([cfeeee1](https://github.com/nejcm/market-bot/commit/cfeeee1af53364f87c8cd6c26de45822df811919))
+- **sec:** require calc proof before the d&a face pair drops its note ([743ade5](https://github.com/nejcm/market-bot/commit/743ade5d6d81f972a964f9eab5c56e58a9836329))
+- **sec:** read d&a through the full ocf calculation network ([721494e](https://github.com/nejcm/market-bot/commit/721494e2d2af5b05baa191ec3a6f3bccc08f3f61))
+- **sec:** let a 10-k's own subsequent-event facts keep ttm = fy ([a442c8d](https://github.com/nejcm/market-bot/commit/a442c8d7f287c03021e7d0f9e6324423bc752929))
+- **report:** scope profile gaps to the evidence the profile read ([666545d](https://github.com/nejcm/market-bot/commit/666545d5acbb7e63314547aa064b81407e209176))
+- **metrics:** date provider p/e and yield by the quote, not the fetch ([26a58ae](https://github.com/nejcm/market-bot/commit/26a58aea4fb5ba9f4269cad2842a095062ffbfb1))
+- **metrics:** label price-relative ratios with the quote date ([da4d222](https://github.com/nejcm/market-bot/commit/da4d222bf1d57845822a33229468d5593d7b0c12))
+- **sec:** carry provenance on debt maturity rows ([861a3f7](https://github.com/nejcm/market-bot/commit/861a3f7445555d02f919dfb79b0cfeeb25dea92e))
+- **sec:** keep an overdraft beside another facility in the proof ([9270cda](https://github.com/nejcm/market-bot/commit/9270cdaa18947b64b7a88d73ee7020d2ce0a6fb6))
+- **events:** keep the provider earnings date outside the setup window ([5c21709](https://github.com/nejcm/market-bot/commit/5c21709a91a39aa821a9a6633407f2d11b75d5f7))
+- **sec:** treat bank overdrafts as borrowings in the zero-debt proof ([79e4fc9](https://github.com/nejcm/market-bot/commit/79e4fc904c836b5f13b4cfa3efbd55da7b3112c2))
+- **sec:** treat letterless prior-column face labels as blank ([a72fb92](https://github.com/nejcm/market-bot/commit/a72fb9265246b83ddc3ad06e5dccbb7b08ce5926))
+- **sec:** recover debt when a newer filing repeats it partially ([c6406bb](https://github.com/nejcm/market-bot/commit/c6406bbdbb59faabdfafbd6b574cd3e8069c7963))
+- **sec:** withhold workbench ev when cash or debt lags the row ([20a4429](https://github.com/nejcm/market-bot/commit/20a442914f5e956202d66f466823da87f711254e))
+- **sec:** declare stale revenue at 180 days on the canonical-only path ([22ab0d6](https://github.com/nejcm/market-bot/commit/22ab0d6c207dd6dcfc63df0be2d7245b9c75e4e6))
+- **sec:** let a later domestic + foreign pair restate pretax totals ([b9e8775](https://github.com/nejcm/market-bot/commit/b9e8775452229a7489ebca42a6b269e1a08ef9ea))
+- **sec:** withhold stale flow series from canonical metrics ([8785654](https://github.com/nejcm/market-bot/commit/87856544716e2c4ca2d25b335f46439476e61deb))
+
 ## [1.9.0](https://github.com/nejcm/market-bot/compare/v1.8.0...v1.9.0) (2026-10-31)
 
 ### Features

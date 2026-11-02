@@ -1,5 +1,6 @@
 import { buildModelStageRequest } from "./model-stage-prompt";
 import { finalizeSynthesis } from "./finalize-synthesis";
+import { createPeerMedianAudit } from "./peer-median-audit";
 import { replayValue, captureSynthesisInput } from "../replay/session";
 import type { AppConfig } from "../config";
 import { readCodeVersion, type CodeVersion } from "../code-version";
@@ -818,7 +819,19 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     report: integrityReport,
     postSynthesisWarnings,
     integrityAudit,
-  } = finalizeSynthesis(synthesis, collectedSources, evidenceQualityAssessment);
+    peerMedianAuditOutput,
+  } = await finalizeSynthesis(
+    synthesis,
+    collectedSources,
+    evidenceQualityAssessment,
+    createPeerMedianAudit({
+      provider,
+      model: runParams.quickModel,
+      ...(runParams.quickModelParams === undefined ? {} : { params: runParams.quickModelParams }),
+      command,
+      ...(input.config.promptDir === undefined ? {} : { promptDir: input.config.promptDir }),
+    }),
+  );
   progress("forecast-disagreement phase");
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,
@@ -851,6 +864,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...analysisOutputs,
     critiqueOutput,
     ...synthesis.stageOutputs,
+    ...(peerMedianAuditOutput === undefined ? [] : [peerMedianAuditOutput]),
     ...forecastDisagreementStageOutputs,
   ];
   // Ledger totals include calls with no stage output, such as peer-universe proposals.

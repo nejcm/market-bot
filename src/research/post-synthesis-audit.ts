@@ -48,6 +48,10 @@ const OTHER_PEER_METRIC_PATTERN =
   /\bEV\s*\/\s*(?!(?:TTM\s+|annualized\s+)?(?:revenue|sales)\b)\w|\benterprise[\s-]value[\s-]to[\s-](?!revenue\b|sales\b)\w|\b(?:P\s*\/\s*[EBS]|gross profit|price[\s-]to[\s-](?:earnings|book|sales)|EBITDA|EBIT|earnings multiple|FCF|free cash flow|margins?|growth|ROIC|ROE|yield|payout)\b/iu;
 const FORECAST_HORIZON_PATTERN = /\b\d+\s*(?:-| )?(?:trading\s*)?day\b/iu;
 
+export type PeerMedianMetric = "ev-revenue" | "other" | "absence";
+// Keyed by trimmed clause text; a clause without a label falls back to the regex.
+export type PeerMedianLabels = ReadonlyMap<string, PeerMedianMetric>;
+
 interface AuditClaim {
   readonly location: string;
   readonly text: string;
@@ -58,9 +62,12 @@ export function auditPostSynthesisReport(
   report: ResearchReport,
   webSourceUsage?: WebSourceUsage,
   usablePeerSourceIds?: ReadonlySet<string>,
+  peerMedianLabels?: PeerMedianLabels,
 ): readonly PostSynthesisAuditWarning[] {
   return [
-    ...claimsForReport(report).flatMap((claim) => auditClaim(claim, usablePeerSourceIds)),
+    ...claimsForReport(report).flatMap((claim) =>
+      auditClaim(claim, usablePeerSourceIds, peerMedianLabels),
+    ),
     ...(webSourceUsage !== undefined &&
     webSourceUsage.currentRunIds.size >= 4 &&
     webSourceUsage.currentRunUsedIds.size === 0
@@ -111,9 +118,10 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
 function auditClaim(
   claim: AuditClaim,
   usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels: PeerMedianLabels | undefined,
 ): readonly PostSynthesisAuditWarning[] {
   return [
-    ...(isUncitedPeerMedianClaim(claim.text, claim.sourceIds, usablePeerSourceIds)
+    ...(isUncitedPeerMedianClaim(claim.text, claim.sourceIds, usablePeerSourceIds, peerMedianLabels)
       ? [peerMedianUncitedWarning(claim)]
       : []),
     ...(isGapShapedClaimForAuditWarning(claim.text) && claim.sourceIds.length > 0
@@ -131,22 +139,32 @@ function auditClaim(
   ];
 }
 
+export function peerMedianClauses(text: string): readonly string[] {
+  return text
+    .split(/[;.!?](?:\s|$)/u)
+    .map((clause) => clause.trim())
+    .filter(
+      (clause) =>
+        PEER_MEDIAN_PATTERN.test(clause) &&
+        !NEGATED_PEER_MEDIAN_PATTERN.test(clause) &&
+        !isGapShapedClaimForAuditWarning(clause),
+    );
+}
+
 export function isUncitedPeerMedianClaim(
   text: string,
   sourceIds: readonly string[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels?: PeerMedianLabels,
 ): boolean {
   return (
     usablePeerSourceIds !== undefined &&
-    text
-      .split(/[;.!?](?:\s|$)/u)
-      .some(
-        (clause) =>
-          PEER_MEDIAN_PATTERN.test(clause) &&
-          !NEGATED_PEER_MEDIAN_PATTERN.test(clause) &&
-          !isGapShapedClaimForAuditWarning(clause) &&
-          (EV_REVENUE_PATTERN.test(clause) || !OTHER_PEER_METRIC_PATTERN.test(clause)),
-      ) &&
+    peerMedianClauses(text).some((clause) => {
+      const label = peerMedianLabels?.get(clause);
+      return label === undefined
+        ? EV_REVENUE_PATTERN.test(clause) || !OTHER_PEER_METRIC_PATTERN.test(clause)
+        : label === "ev-revenue";
+    }) &&
     !sourceIds.some((id) => usablePeerSourceIds.has(id))
   );
 }

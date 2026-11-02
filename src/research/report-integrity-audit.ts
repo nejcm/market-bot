@@ -17,6 +17,7 @@ import {
   isNumericClaim,
   isTechnicalClaim,
   isUncitedPeerMedianClaim,
+  type PeerMedianLabels,
   shouldCarryPostureLabel,
 } from "./post-synthesis-audit";
 
@@ -133,13 +134,19 @@ function partitionItems<T>(
   textOf: (item: T) => string,
   sourceIdsOf: (item: T) => readonly string[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels: PeerMedianLabels | undefined,
 ): Partition<T> {
   const kept: T[] = [];
   const pruned: ReportIntegrityPrunedItem[] = [];
   items.forEach((item, index) => {
     if (
       isBlockingViolation(textOf(item), sourceIdsOf(item)) ||
-      isUncitedPeerMedianClaim(textOf(item), sourceIdsOf(item), usablePeerSourceIds)
+      isUncitedPeerMedianClaim(
+        textOf(item),
+        sourceIdsOf(item),
+        usablePeerSourceIds,
+        peerMedianLabels,
+      )
     ) {
       pruned.push({
         location: `${section}[${String(index)}]`,
@@ -157,6 +164,7 @@ function partitionFindings(
   section: string,
   findings: readonly KeyFinding[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels: PeerMedianLabels | undefined,
 ): Partition<KeyFinding> {
   return partitionItems(
     section,
@@ -164,12 +172,14 @@ function partitionFindings(
     (finding) => finding.text,
     (finding) => finding.sourceIds,
     usablePeerSourceIds,
+    peerMedianLabels,
   );
 }
 
 function partitionScenarios(
   scenarios: readonly Scenario[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels: PeerMedianLabels | undefined,
 ): Partition<Scenario> {
   return partitionItems(
     "scenarios",
@@ -180,12 +190,14 @@ function partitionScenarios(
     (scenario) => `${scenario.name}: ${scenario.description}`,
     (scenario) => scenario.sourceIds,
     usablePeerSourceIds,
+    peerMedianLabels,
   );
 }
 
 function partitionPredictions(
   predictions: readonly Prediction[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels: PeerMedianLabels | undefined,
 ): Partition<Prediction> {
   return partitionItems(
     "predictions",
@@ -193,6 +205,7 @@ function partitionPredictions(
     (prediction) => prediction.claim,
     (prediction) => prediction.sourceIds,
     usablePeerSourceIds,
+    peerMedianLabels,
   );
 }
 
@@ -228,6 +241,10 @@ function sentenceEnd(text: string, rest: string): "hard" | "ambiguous" | undefin
 }
 
 // Blank lines always separate.
+export function summarySentenceTexts(summary: string): readonly string[] {
+  return splitSummarySentences(summary).map(({ text }) => text.trim());
+}
+
 function splitSummarySentences(summary: string): readonly SummaryPiece[] {
   const pieces: SummaryPiece[] = [];
   let start = 0;
@@ -261,6 +278,7 @@ function lineBreakCount(separator: string): number {
 function partitionSummary(
   summary: string,
   usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels: PeerMedianLabels | undefined,
 ): {
   readonly summary: string;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
@@ -270,7 +288,7 @@ function partitionSummary(
     ({ text }) =>
       text.trim() !== "" &&
       (isBlockingViolation(text.trim(), []) ||
-        isUncitedPeerMedianClaim(text.trim(), [], usablePeerSourceIds)),
+        isUncitedPeerMedianClaim(text.trim(), [], usablePeerSourceIds, peerMedianLabels)),
   );
   // Right to left so a chain of initials ("J. R. Smith ...") follows its pruned continuation.
   for (let index = pieces.length - 2; index >= 0; index -= 1) {
@@ -375,15 +393,40 @@ export function auditReportIntegrity(
   report: ResearchReport,
   evidenceQualityAssessment?: EvidenceQualityAssessment,
   usablePeerSourceIds?: ReadonlySet<string>,
+  peerMedianLabels?: PeerMedianLabels,
 ): ReportIntegrityAuditResult {
-  const keyFindings = partitionFindings("keyFindings", report.keyFindings, usablePeerSourceIds);
-  const bullCase = partitionFindings("bullCase", report.bullCase, usablePeerSourceIds);
-  const bearCase = partitionFindings("bearCase", report.bearCase, usablePeerSourceIds);
-  const risks = partitionFindings("risks", report.risks, usablePeerSourceIds);
-  const catalysts = partitionFindings("catalysts", report.catalysts, usablePeerSourceIds);
-  const scenarios = partitionScenarios(report.scenarios, usablePeerSourceIds);
-  const predictions = partitionPredictions(report.predictions, usablePeerSourceIds);
-  const summary = partitionSummary(report.summary, usablePeerSourceIds);
+  const keyFindings = partitionFindings(
+    "keyFindings",
+    report.keyFindings,
+    usablePeerSourceIds,
+    peerMedianLabels,
+  );
+  const bullCase = partitionFindings(
+    "bullCase",
+    report.bullCase,
+    usablePeerSourceIds,
+    peerMedianLabels,
+  );
+  const bearCase = partitionFindings(
+    "bearCase",
+    report.bearCase,
+    usablePeerSourceIds,
+    peerMedianLabels,
+  );
+  const risks = partitionFindings("risks", report.risks, usablePeerSourceIds, peerMedianLabels);
+  const catalysts = partitionFindings(
+    "catalysts",
+    report.catalysts,
+    usablePeerSourceIds,
+    peerMedianLabels,
+  );
+  const scenarios = partitionScenarios(report.scenarios, usablePeerSourceIds, peerMedianLabels);
+  const predictions = partitionPredictions(
+    report.predictions,
+    usablePeerSourceIds,
+    peerMedianLabels,
+  );
+  const summary = partitionSummary(report.summary, usablePeerSourceIds, peerMedianLabels);
 
   const pruned = [
     ...summary.pruned,

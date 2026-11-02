@@ -31,6 +31,9 @@ type PhaseInput = Omit<
   readonly settings: StageSettings;
 };
 
+// The peer-median audit runs inside finalizeSynthesis, so stage replay needs its recording too.
+const SYNTHESIS_RESPONSE_STAGES = ["final-synthesis", "peer-median-audit"] as const;
+
 export interface SynthesisReplayInput {
   readonly version: 1;
   readonly phase: "final-synthesis";
@@ -429,7 +432,7 @@ export function readSynthesisReplayInput(value: unknown): SynthesisReplayInput {
   }
   for (const [key, sequence] of Object.entries(value.responses.entries)) {
     if (
-      !key.startsWith("final-synthesis|") ||
+      !SYNTHESIS_RESPONSE_STAGES.some((stage) => key.startsWith(`${stage}|`)) ||
       !Array.isArray(sequence) ||
       !sequence.every(
         (row) =>
@@ -586,7 +589,9 @@ export function makeSynthesisReplayInput(
     input,
     responses: {
       entries: Object.fromEntries(
-        Object.entries(cassette.entries).filter(([key]) => key.startsWith("final-synthesis|")),
+        Object.entries(cassette.entries).filter(([key]) =>
+          SYNTHESIS_RESPONSE_STAGES.some((stage) => key.startsWith(`${stage}|`)),
+        ),
       ),
     },
   });

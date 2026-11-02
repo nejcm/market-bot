@@ -413,6 +413,8 @@ export async function assertInvariants(
       result.stageOutputs.filter((output) => output.stage === stage).length,
     );
   }
+  // No fixture collects usable comps peers, so none may spend a peer-median audit call.
+  expect(modelCalls.filter((call) => call.stage === "peer-median-audit")).toEqual([]);
   expect(
     modelCalls
       .filter((call) => call.stage === "web-gather" || call.stage === "evidence-request")

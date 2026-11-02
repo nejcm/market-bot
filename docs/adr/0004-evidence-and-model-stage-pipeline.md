@@ -403,7 +403,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - When peer comps were collected, the same audit prunes a non-negated peer-median(s) claim that cites no usable
   peer source (warned as `peer-median-uncited`), and any such summary sentence (summaries carry no citations);
   comps carry only EV/revenue, so a median whose own clause names another metric (any EV/x other than
-  revenue/sales included) and not EV/revenue is out of scope. Negation is also judged per clause. Peer ids are never appended: the figure may not come
+  revenue/sales included) and not EV/revenue is out of scope. A quick-model `peer-median-audit` call (at most one per run,
+  only when comps exist and a clause mentions a peer median) labels each clause's compared metric; code still
+  decides the prune, and an omitted or unknown label, provider error, or malformed reply falls back to the clause regex. Negation is also judged per clause. Peer ids are never appended: the figure may not come
   from those peers.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record

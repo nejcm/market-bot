@@ -64,6 +64,7 @@ export const LIVE_STAGES = [
   "financial-table-mapping",
   "forecast-disagreement",
   "spotlight-selection",
+  "peer-median-audit",
 ] as const satisfies readonly StageLabel[];
 
 export type LiveStage = (typeof LIVE_STAGES)[number];

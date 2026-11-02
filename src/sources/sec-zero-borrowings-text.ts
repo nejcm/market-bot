@@ -12,6 +12,10 @@ const KINDS = [
   ["factoring", /^factoring (?:arrangements?|facilit(?:y|ies))$/iu],
   ["commercial paper", /^commercial paper$/iu],
   ["overdraft", /^(?:bank )?overdrafts?$/iu],
+  ["loan agreement", /^loan agreements?$/iu],
+  ["mortgage", /^mortgages?(?: notes?| loans?)?$/iu],
+  ["promissory note", /^promissory notes?$/iu],
+  ["advances", /^(?:FHLB|Federal Home Loan Bank) advances?$/iu],
 ] as const;
 const KIND_TERM = String.raw`(lines? of credit|credit facilit(?:y|ies)|term loans?|notes payable|senior notes|convertible notes|factoring (?:arrangements?|facilit(?:y|ies))|commercial paper)`;
 const PLURAL =
@@ -23,10 +27,14 @@ const FACILITY_ZERO = new RegExp(
   "iu",
 );
 const BARE_ZERO = new RegExp(String.raw`${LEAD}(?:debt|indebtedness|borrowings)\.?$`, "iu");
-// Overdrafts are mentioned, never facility-zeroed: only a bare no-debt sentence covers them.
+// These are mentioned, never facility-zeroed: only a bare no-debt sentence covers them.
 const MENTION = new RegExp(
-  String.raw`(?<=((?:[\w$,.'-]+ ){0,4}))\b(${KIND_TERM.slice(1, -1)}|(?:bank )?overdrafts?)\b`,
+  String.raw`(?<=((?:[\w$,.'-]+ ){0,4}))\b(${KIND_TERM.slice(1, -1)}|(?:bank )?overdrafts?|loan agreements?|mortgages?(?: notes?| loans?)?(?!-)|promissory notes?|(?:FHLB|Federal Home Loan Bank) advances?)\b`,
   "giu",
+);
+const TIED_LOAN_AGREEMENT = new RegExp(
+  String.raw`\bloan agreement (?:that |which )?(?:provides|establishes) (?:for )?(?:a|an|the)? ?(?:[\w$,.-]+ ){0,4}?${KIND_TERM}`,
+  "iu",
 );
 const NOT_MODIFIER =
   /^(?:a|an|the|its|our|their|this|that|these|those|of|and|or|under|against|on|with|to|from|for|by|in|at|any|all|each|such|no|has|have|had|is|was|\W*|[\d$,.]+|[\w-]+'s|[\w-]*\W)$/iu;
@@ -92,8 +100,13 @@ export function zeroBorrowingsTextProof(
       continue;
     }
     const counts = new Map<string, number>();
-    for (const [, words, term] of sentence.matchAll(MENTION)) {
+    const mentions = [...sentence.matchAll(MENTION)];
+    for (const [, words, term] of mentions) {
       const kind = kindOf(term!) ?? term!;
+      // CLFD: "a loan agreement that provides a ... line of credit" is that one facility, not another.
+      if (kind === "loan agreement" && TIED_LOAN_AGREEMENT.test(sentence)) {
+        continue;
+      }
       const entry = named.get(kind) ?? { modifiers: new Set<string>(), several: false };
       named.set(kind, entry);
       counts.set(kind, (counts.get(kind) ?? 0) + 1);

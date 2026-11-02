@@ -2010,4 +2010,58 @@ describe("a partial comparative recovers only an uncontested complete instant", 
       }),
     ).toEqual({ values: [], withheld: true });
   });
+
+  // Core Scientific Q2 2025 10-Q 0001628280-25-039284 recast 2024-12-31 current liabilities beside it.
+  const restated = (accrued: readonly number[], liabilities: readonly number[]) =>
+    decemberDebt({
+      NotesPayableCurrent: [fy(40), column(40, "2026-05-05", "Q1")],
+      LongTermNotesPayable: [fy(60)],
+      AccruedLiabilitiesCurrent: [
+        fy(30),
+        ...accrued.map((value) => column(value, "2026-05-05", "Q1")),
+      ],
+      Liabilities: [fy(500), ...liabilities.map((value) => column(value, "2026-05-05", "Q1"))],
+    });
+
+  test("a partial that tags no liability line recovers it", () => {
+    expect(restated([], [])).toEqual({ values: [100], withheld: false });
+  });
+
+  test("a partial whose liability lines repeat the 10-K recovers it", () => {
+    expect(restated([30], [500])).toEqual({ values: [100], withheld: false });
+  });
+
+  test("a partial that reclassifies a liability line blocks recovery", () => {
+    expect(restated([90], [500])).toEqual({ values: [], withheld: true });
+  });
+
+  test("the withhold names the recast line", () => {
+    const { artifact } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [fy(20)],
+      NotesPayableCurrent: [fy(40), column(40, "2026-05-05", "Q1")],
+      LongTermNotesPayable: [fy(60)],
+      AccruedLiabilitiesCurrent: [fy(30), column(90, "2026-05-05", "Q1")],
+    });
+    expect(
+      [...artifact.validationNotes, ...artifact.omissionNotes]
+        .filter(({ seriesKey }) => seriesKey === "debt")
+        .map(({ reason }) => reason),
+    ).toContain(
+      "omits LongTermNotesPayable, reported nonzero within the prior year or earlier for this instant; AccruedLiabilitiesCurrent recast since the last complete filing",
+    );
+  });
+
+  test("a partial that restates total liabilities blocks recovery", () => {
+    expect(restated([30], [520])).toEqual({ values: [], withheld: true });
+  });
+
+  test("a partial that adds a nonzero liability line blocks recovery", () => {
+    expect(
+      decemberDebt({
+        NotesPayableCurrent: [fy(40), column(40, "2026-05-05", "Q1")],
+        LongTermNotesPayable: [fy(60)],
+        OtherLiabilitiesCurrent: [column(60, "2026-05-05", "Q1")],
+      }),
+    ).toEqual({ values: [], withheld: true });
+  });
 });

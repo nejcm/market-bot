@@ -2447,7 +2447,7 @@ describe("extended evidence provider collection", () => {
     );
 
     expect(result.items[0]?.item.summary).toBe(
-      "Finnhub returned 1 earnings calendar record. Next earnings date 2026-06-25 (provider-estimated, not confirmed by the issuer; timing unknown); provider consensus estimates: EPS 1.9322, revenue 21762632973.",
+      "Finnhub returned 1 earnings calendar record. Next earnings date 2026-06-25 (provider-estimated, not confirmed by the issuer; timing unknown); provider consensus estimates (currency undeclared): EPS 1.9322, revenue 21.8B.",
     );
     expect(result.items[0]?.item.metrics).toEqual({
       nextEarningsDate: "2026-06-25",

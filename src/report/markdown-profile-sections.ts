@@ -294,12 +294,12 @@ export function renderEarningsSetup(report: ResearchReport): string {
 
   if (typeof event.epsEstimate === "number") {
     lines.push(
-      `**EPS estimate:** ${String(event.epsEstimate)} — single-provider snapshot (Finnhub)`,
+      `**EPS estimate:** ${String(event.epsEstimate)} (currency undeclared) — single-provider snapshot (Finnhub)`,
     );
   }
   if (typeof event.revenueEstimate === "number") {
     lines.push(
-      `**Revenue estimate:** ${compactNumber(event.revenueEstimate)} — single-provider snapshot (Finnhub)`,
+      `**Revenue estimate:** ${compactNumber(event.revenueEstimate)} (currency undeclared) — single-provider snapshot (Finnhub)`,
     );
   }
 

@@ -696,10 +696,10 @@ describe("static equity run fixtures", () => {
       "this is valuation context, not a target price. [market-yahoo-equity-aapl]",
     );
     expect(reader).toContain(
-      "**EPS consensus:** 1.72 (single-provider snapshot) [extended-finnhub-events-aapl]",
+      "**EPS consensus:** 1.72 (currency undeclared; single-provider snapshot) [extended-finnhub-events-aapl]",
     );
     expect(reader).toContain(
-      "**Revenue consensus:** 98.0B (single-provider snapshot) [extended-finnhub-events-aapl]",
+      "**Revenue consensus:** 98.0B (currency undeclared; single-provider snapshot) [extended-finnhub-events-aapl]",
     );
     expect(reader).toContain("**Material:** emitted 2 of 3 target predictions");
     expect(reader).not.toContain("evidence did not support more");

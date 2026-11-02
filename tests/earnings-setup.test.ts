@@ -963,9 +963,11 @@ describe("renderMarkdownReport — earnings setup section", () => {
     expect(currentMarkdown).toContain(
       "AAPL earnings on 2026-07-24 (timing: amc) — date provider-estimated (Finnhub), unconfirmed",
     );
-    expect(currentMarkdown).toContain("**EPS estimate:** 2.1 — single-provider snapshot (Finnhub)");
     expect(currentMarkdown).toContain(
-      "**Revenue estimate:** 95.0B — single-provider snapshot (Finnhub)",
+      "**EPS estimate:** 2.1 (currency undeclared) — single-provider snapshot (Finnhub)",
+    );
+    expect(currentMarkdown).toContain(
+      "**Revenue estimate:** 95.0B (currency undeclared) — single-provider snapshot (Finnhub)",
     );
     expect(legacyMarkdown).not.toContain("provider-estimated");
   });

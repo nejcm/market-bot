@@ -1029,6 +1029,40 @@ describe("stale operating cash flow behind a discontinued-operations withhold", 
       ).toBe(
         `latest operating cash flow period ends ${String(lastShown.year)}-12-31, more than a year before the newest filed period 2025-12-31; operating cash flow for 2025-01-01 to 2025-12-31 is withheld: discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged`,
       );
+      const stale = `latest operating cash flow period ends ${String(lastShown.year)}-12-31, more than a year before the newest filed period 2025-12-31`;
+      const withNotes = (omissionNotes: typeof withheld.omissionNotes) => ({
+        ...withheld,
+        omissionNotes,
+      });
+      const unstructured = withheld.omissionNotes.map(
+        ({ periods: _periods, reason: _reason, ...note }) => note,
+      );
+      expect(
+        staleSeriesReason(
+          withNotes(unstructured),
+          latestOcf,
+          "operatingCashFlow",
+          "operating cash flow",
+        ),
+      ).toBe(stale);
+      const multi = [
+        {
+          code: "withheld-derivation" as const,
+          seriesKey: "operatingCashFlow" as const,
+          periods: [
+            { start: "1990-01-01", end: "1990-12-31" },
+            { start: "2025-01-01", end: "2025-06-30" },
+            { end: "2025-12-31" },
+          ],
+          reason: "test reason",
+          message: "unparsed text: no spans here",
+        },
+      ];
+      expect(
+        staleSeriesReason(withNotes(multi), latestOcf, "operatingCashFlow", "operating cash flow"),
+      ).toBe(
+        `${stale}; operating cash flow for 2025-01-01 to 2025-06-30, instant to 2025-12-31 is withheld: test reason`,
+      );
       const mid = annualFact(lastShown.year + 1, lastShown.value, lastShown.accn, "2025-02-14");
       const older = deriveFinancialStatements(
         {

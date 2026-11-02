@@ -202,17 +202,19 @@ export function staleSeriesReason(
     return undefined;
   }
   const withheld = artifact.omissionNotes.flatMap((note) => {
-    // Aggregated notes carry withheld spans only as text: "... for <start> to <end>, ...: <reason>".
-    const parsed = /for (.+?): (.+)$/.exec(note.message);
-    if (note.code !== "withheld-derivation" || note.seriesKey !== key || parsed === null) {
+    if (
+      note.code !== "withheld-derivation" ||
+      note.seriesKey !== key ||
+      note.periods === undefined
+    ) {
       return [];
     }
-    const later = parsed[1]!
-      .split(", ")
-      .filter((span) => (span.split(" to ")[1] ?? "") > fact.periodEnd);
+    const later = note.periods
+      .filter((period) => period.end > fact.periodEnd)
+      .map((period) => `${period.start ?? "instant"} to ${period.end}`);
     return later.length === 0
       ? []
-      : [`; ${label} for ${later.join(", ")} is withheld: ${parsed[2]!}`];
+      : [`; ${label} for ${later.join(", ")} is withheld: ${note.reason}`];
   });
   return `latest ${label} period ends ${fact.periodEnd}, more than a year before the newest filed period ${newest}${withheld.join("")}`;
 }

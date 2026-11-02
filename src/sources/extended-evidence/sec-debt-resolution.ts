@@ -818,6 +818,8 @@ export function incompleteDebtNote(
     seriesKey: "debt",
     periodKey: `instant|${periodEnd}`,
     publicAt,
+    periods: [{ end: periodEnd }],
+    reason,
     message: `Debt composite for ${periodEnd} is incomplete: ${reason}.`,
   };
 }

@@ -284,6 +284,13 @@ export interface FinancialStatementNote {
   readonly publicAt?: string;
   // Debt withheld only for want of this filing's balance-sheet face.
   readonly faceAccession?: string;
+  readonly periods?: readonly FinancialStatementNotePeriod[];
+  readonly reason?: string;
+}
+
+export interface FinancialStatementNotePeriod {
+  readonly start?: string;
+  readonly end: string;
 }
 
 export interface StructuredFinancialGap {

@@ -1476,6 +1476,8 @@ describe("canonical financial statements", () => {
     const FOREIGN = "IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign";
     const TOTAL =
       "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest";
+    const EQUITY_METHOD_TOTAL =
+      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments";
     const orclFy26 = (value: number) =>
       fact({
         value,
@@ -1793,6 +1795,108 @@ describe("canonical financial statements", () => {
           { value: 30, concept: TOTAL },
         ]);
         expect(historyGapMessages(artifact)).toEqual([]);
+      });
+
+      test("a later pair never restates an equity-method-scoped total", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024)],
+          [EQUITY_METHOD_TOTAL]: [original(28)],
+          [DOMESTIC]: [restated(11)],
+          [FOREIGN]: [restated(15)],
+        });
+
+        const [pretax] = artifact.statements.incomeStatement.pretaxIncome.annual;
+        expect(pretax).toMatchObject({ value: 28, concept: EQUITY_METHOD_TOTAL });
+        expect(pretax?.restatedFrom).toBeUndefined();
+      });
+
+      test("a pair filling a period tagged only with the equity-method total discloses no restatement", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024), annual(120, 2025)],
+          [TOTAL]: [{ ...annual(40, 2025), filed: "2026-02-15", accn: "0000000000-26-000001" }],
+          [EQUITY_METHOD_TOTAL]: [original(28)],
+          [DOMESTIC]: [restated(11)],
+          [FOREIGN]: [restated(15)],
+        });
+
+        const pretax = artifact.statements.incomeStatement.pretaxIncome.annual.find(
+          (candidate) => candidate.periodEnd === "2024-12-31",
+        );
+        expect(pretax).toMatchObject({ value: 26, concept: `${DOMESTIC}+${FOREIGN}` });
+        expect(derivedFactDisclosure("pretaxIncome", pretax!)).toBe(
+          `pretax income derived as ${DOMESTIC} + ${FOREIGN}; the components' filing tags no total pretax income`,
+        );
+      });
+
+      test("withholds a pair under an equity-method series instead of mixing scopes", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2023), annual(100, 2024)],
+          [EQUITY_METHOD_TOTAL]: [annual(28, 2024)],
+          [DOMESTIC]: [annual(5, 2023)],
+          [FOREIGN]: [annual(6, 2023)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 28, concept: EQUITY_METHOD_TOTAL },
+        ]);
+        expect(historyGapMessages(artifact)).toContain(
+          `SEC pretax income from continuing operations is not derived for 2023-01-01 to 2023-12-31: the series reports ${EQUITY_METHOD_TOTAL}, and domestic + foreign components are not proven to share its scope`,
+        );
+      });
+
+      test("declares a period whose filing tags only the equity-method total beside its components", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2023), annual(100, 2024)],
+          [TOTAL]: [annual(40, 2024)],
+          [EQUITY_METHOD_TOTAL]: [annual(11, 2023)],
+          [DOMESTIC]: [annual(5, 2023)],
+          [FOREIGN]: [annual(6, 2023)],
+        });
+
+        expect(artifact.statements.incomeStatement.pretaxIncome.annual).toMatchObject([
+          { value: 40, concept: TOTAL },
+        ]);
+        expect(historyGapMessages(artifact)).toContain(
+          `SEC pretax income from continuing operations is not derived for 2023-01-01 to 2023-12-31: no ${TOTAL} fact is tagged for the period, and its other pretax total differs in scope`,
+        );
+      });
+
+      test("declares a period tagged only with the equity-method total even without components", () => {
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2022), annual(100, 2023), annual(100, 2024)],
+          [TOTAL]: [annual(30, 2022), annual(40, 2024)],
+          [EQUITY_METHOD_TOTAL]: [annual(11, 2023)],
+        });
+
+        expect(historyGapMessages(artifact)).toContain(
+          `SEC pretax income from continuing operations is not derived for 2023-01-01 to 2023-12-31: no ${TOTAL} fact is tagged for the period, and its other pretax total differs in scope`,
+        );
+      });
+
+      test("leaves alias periods past the series' annual history to the stale-concept note", () => {
+        const quarter = (value: number) =>
+          fact({
+            value,
+            form: "10-Q",
+            fiscalYear: 2025,
+            fiscalPeriod: "Q1",
+            filedAt: "2025-05-01",
+            periodStart: "2025-01-01",
+            periodEnd: "2025-03-31",
+          });
+        const artifact = deriveAt({
+          Revenues: [annual(100, 2024), quarter(25)],
+          [TOTAL]: [quarter(9)],
+          [EQUITY_METHOD_TOTAL]: [annual(11, 2024)],
+          [DOMESTIC]: [annual(5, 2024)],
+          [FOREIGN]: [annual(6, 2024)],
+        });
+
+        const gaps = historyGapMessages(artifact);
+        expect(gaps.filter((gap) => gap.includes("differs in scope"))).toEqual([]);
+        expect(
+          gaps.some((gap) => gap.includes(`annual history under ${TOTAL} has no annual period`)),
+        ).toBe(true);
       });
     });
   });

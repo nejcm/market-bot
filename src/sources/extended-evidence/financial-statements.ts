@@ -1185,11 +1185,17 @@ function derivedPretaxIncomeFacts(
       ? []
       : [{ ...fact, value: fact.value + partner.value }];
   });
+  // Cached filings show D+F reconciling to whichever pretax total the filing tags, so a pair only stands in for the first concept.
+  const [sumConcept] = definition.concepts["us-gaap"];
+  const seriesConcept = reported[0]?.concept ?? sumConcept;
+  const sumTotalsFor = (fact: ParsedFact) =>
+    totalsFor(fact).filter((total) => total.concept === sumConcept);
   const restatesTotals = (fact: ParsedFact) =>
+    seriesConcept === sumConcept &&
     pairs.some(
       (pair) =>
         periodKey(pair) === periodKey(fact) &&
-        totalsFor(fact).every((total) => compareFinancialStatementRevisions(pair, total) < 0),
+        sumTotalsFor(fact).every((total) => compareFinancialStatementRevisions(pair, total) < 0),
     );
   const domesticGroups = periodGroups(domestic, definition);
   const foreignGroups = periodGroups(foreign, definition);
@@ -1202,16 +1208,14 @@ function derivedPretaxIncomeFacts(
       continue;
     }
     const periodTotals = totalsFor(current);
-    const history = [
-      ...periodTotals,
-      ...pairs.filter((pair) => periodKey(pair) === periodKey(current)),
-    ];
+    const periodPairs = pairs.filter((pair) => periodKey(pair) === periodKey(current));
+    const history = [...periodTotals, ...periodPairs];
     if (periodTotals.length > 0 && !restatesTotals(current)) {
       const peers = reported.filter(
         (fact) => eligible(fact) && periodKey(fact) === periodKey(current),
       );
       const [standing] = peers.toSorted(compareFinancialStatementFacts);
-      if (standing === undefined || history.length === periodTotals.length) {
+      if (standing === undefined || periodPairs.length === 0) {
         continue;
       }
       superseded.add(periodKey(current));
@@ -1227,7 +1231,14 @@ function derivedPretaxIncomeFacts(
       superseded.add(periodKey(current));
     }
     const context = filingContextKey(current);
-    if (currentForeign === undefined) {
+    if (seriesConcept !== sumConcept) {
+      withheld.push(
+        withheldPeriod(
+          current,
+          `the series reports ${seriesConcept}, and domestic + foreign components are not proven to share its scope`,
+        ),
+      );
+    } else if (currentForeign === undefined) {
       withheld.push(
         withheldPeriod(
           current,
@@ -1253,12 +1264,14 @@ function derivedPretaxIncomeFacts(
         continue;
       }
       const restatedFrom = restatedFromOriginalFiling(composite.value, [
-        ...periodTotals,
+        ...sumTotalsFor(current),
         composite,
       ]);
       facts.push({
         ...composite,
-        firstPublicAt: firstPublicDate(composite.value, composite.filedAt, [history]),
+        firstPublicAt: firstPublicDate(composite.value, composite.filedAt, [
+          [...sumTotalsFor(current), ...periodPairs],
+        ]),
         ...(restatedFrom === undefined ? {} : { restatedFrom }),
       });
     }
@@ -1269,6 +1282,27 @@ function derivedPretaxIncomeFacts(
         withheldPeriod(
           current,
           `no ${PRETAX_INCOME_COMPONENT_CONCEPTS[0]} fact is tagged for the period`,
+        ),
+      );
+    }
+  }
+  const shown = new Set([...reported, ...facts].filter(eligible).map(periodKey));
+  const seriesAnnualEnd = [...reported, ...facts]
+    .filter((fact) => eligible(fact) && periodType(fact, definition) === "annual")
+    .map((fact) => fact.periodEnd)
+    .toSorted()
+    .at(-1);
+  for (const total of totals.filter((fact) => fact.concept !== seriesConcept)) {
+    const key = periodKey(total);
+    // StaleConceptHistoryNotes already declares alias annual periods past the series' last annual end.
+    const staleNoted =
+      periodType(total, definition) === "annual" &&
+      (seriesAnnualEnd === undefined || total.periodEnd > seriesAnnualEnd);
+    if (!shown.has(key) && !staleNoted && !withheld.some((period) => period.periodKey === key)) {
+      withheld.push(
+        withheldPeriod(
+          total,
+          `no ${seriesConcept} fact is tagged for the period, and its other pretax total differs in scope`,
         ),
       );
     }

@@ -286,6 +286,7 @@ export function factsForDebt(
         (fact) => fact.periodStart === undefined && fact.value !== 0 && eligible(fact),
       ),
     ),
+    liabilities,
   );
 
   const [latest] = current

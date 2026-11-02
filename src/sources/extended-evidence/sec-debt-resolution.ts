@@ -774,9 +774,11 @@ export function unsupersededDebtResolutions<
 >(
   all: readonly R[],
   heldForSale: readonly { readonly periodEnd: string; readonly filedAt: string }[],
+  liabilities: readonly DebtHistoryFact[],
 ): readonly R[] {
   // A partial re-tag of the latest uncontested complete instant at identical values proves nothing new.
-  const repeatsComplete = (entry: R) => {
+  // A recast column (disposal, restatement, or reclassification of a liability line) supersedes it.
+  const repeatedComplete = (entry: R) => {
     const complete = all.filter(
       (other) => !other.incomplete && other.periodEnd === entry.periodEnd,
     );
@@ -784,8 +786,7 @@ export function unsupersededDebtResolutions<
       .filter((other) => other.filedAt < entry.filedAt)
       .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))
       .at(-1);
-    return (
-      latest !== undefined &&
+    return latest !== undefined &&
       complete.every((other) => other.fact?.value === latest.fact?.value) &&
       [...entry.lines].every(([concept, value]) => latest.lines.get(concept) === value) &&
       !heldForSale.some(
@@ -794,11 +795,48 @@ export function unsupersededDebtResolutions<
           fact.filedAt > latest.filedAt &&
           fact.filedAt <= entry.filedAt,
       )
-    );
+      ? latest
+      : undefined;
   };
-  const resolved = all.filter(
-    (entry) => !entry.incompleteReason?.startsWith("omits ") || !repeatsComplete(entry),
-  );
+  const recastLiabilities = (entry: R, latest: R) => [
+    ...new Set(
+      liabilities
+        .filter(
+          (fact) =>
+            fact.periodEnd === entry.periodEnd &&
+            fact.filedAt > latest.filedAt &&
+            fact.filedAt <= entry.filedAt &&
+            fact.value !==
+              (liabilities
+                .filter(
+                  (prior) =>
+                    prior.concept === fact.concept &&
+                    prior.periodEnd === fact.periodEnd &&
+                    prior.filedAt <= latest.filedAt,
+                )
+                .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))
+                .at(-1)?.value ?? 0),
+        )
+        .map(({ concept }) => concept),
+    ),
+  ];
+  const resolved = all.flatMap((entry) => {
+    const latest = entry.incompleteReason?.startsWith("omits ")
+      ? repeatedComplete(entry)
+      : undefined;
+    if (latest === undefined) {
+      return [entry];
+    }
+    const recast = recastLiabilities(entry, latest);
+    return recast.length === 0
+      ? []
+      : [
+          {
+            ...entry,
+            incompleteReason: `${entry.incompleteReason ?? ""}; ${recast.join(", ")} recast since the last complete filing`,
+          },
+        ];
+  });
   return resolved.filter(
     (entry) =>
       !resolved.some(

@@ -23,6 +23,7 @@ interface EquityReaderStatementValue {
   readonly unit: string;
   readonly unitScale: number;
   readonly sourceIds: readonly string[];
+  readonly zeroBorrowingsQuote?: string;
 }
 
 interface EquityReaderBalanceSheetRow {
@@ -74,6 +75,9 @@ function statementValue(fact: FinancialStatementFact): EquityReaderStatementValu
     unit: fact.unit,
     unitScale: fact.unitScale,
     sourceIds: fact.sourceIds,
+    ...(fact.zeroBorrowingsQuote === undefined
+      ? {}
+      : { zeroBorrowingsQuote: fact.zeroBorrowingsQuote }),
   };
 }
 

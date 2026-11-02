@@ -78,7 +78,14 @@ export function readSecFactPeriodMetadata(
   return { filed, end, fp };
 }
 
-type FinancialStatementExtractionMethod = "sec-companyfacts" | "derived-sec-companyfacts";
+type FinancialStatementExtractionMethod =
+  | "sec-companyfacts"
+  | "derived-sec-companyfacts"
+  | typeof ZERO_BORROWINGS_EXTRACTION_METHOD;
+
+// A zero proved by a footed filing face plus the filing's own zero-borrowings sentence, not by tagged debt.
+export const ZERO_BORROWINGS_EXTRACTION_METHOD = "sec-filing-face-text";
+export const ZERO_BORROWINGS_CONCEPT = "NoBorrowingsOnFootedFace";
 
 export const COMPOSITE_STATEMENT_FACT_FORMULA = "sum";
 
@@ -501,6 +508,10 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     numberField(value, "unitScale") !== undefined &&
     ((value.extractionMethod === "sec-companyfacts" && value.composite === undefined) ||
       (value.extractionMethod === "derived-sec-companyfacts" &&
+        hasCompositeFactShape(value.composite)) ||
+      (value.extractionMethod === ZERO_BORROWINGS_EXTRACTION_METHOD &&
+        value.value === 0 &&
+        typeof value.zeroBorrowingsQuote === "string" &&
         hasCompositeFactShape(value.composite))) &&
     (value.lineScope === undefined || value.lineScope === true) &&
     (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&

@@ -43,6 +43,13 @@
       </tbody>
     </table>
   </div>
+  {#each history.rows as row}
+    {#if row.debtQuote !== undefined}
+      <p class="mt-2 text-[11px] text-muted-foreground">
+        Debt for {row.period} is 0 per the filing: <q>{row.debtQuote}</q>
+      </p>
+    {/if}
+  {/each}
   {@render citeChips(history.sourceIds)}
   {#if history.notes !== undefined && history.notes.length > 0}
     <p class="mt-2 text-[11px] text-muted-foreground">

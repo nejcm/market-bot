@@ -7,6 +7,7 @@ import {
   normalizeFilingText,
 } from "../../../src/sources/evidence-request-tools";
 import { EQUITY_FRESHNESS_GAP_REASON_CODES } from "../../../src/sources/extended-evidence/equity-analysis-completeness";
+import { ZERO_BORROWINGS_EXTRACTION_METHOD } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import { filingDocuments } from "../../../src/sources/extended-evidence/sec-archive";
 import {
   EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS,
@@ -429,7 +430,11 @@ export function assertCompositeFactIntegrity(
         continue;
       }
       check(
-        fact.extractionMethod === "derived-sec-companyfacts",
+        fact.extractionMethod === "derived-sec-companyfacts" ||
+          (fact.extractionMethod === ZERO_BORROWINGS_EXTRACTION_METHOD &&
+            series.key === "debt" &&
+            fact.value === 0 &&
+            fact.zeroBorrowingsQuote !== undefined),
         "A8",
         `${series.key} ${fact.periodKey} carries composite contributors on a direct fact`,
         fact.periodEnd,

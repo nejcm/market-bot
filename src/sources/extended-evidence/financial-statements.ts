@@ -793,30 +793,30 @@ function factsForDepreciationAndAmortization(
     ) {
       return [];
     }
+    const summed = facePair ?? (selected === contributors ? contributors : undefined);
+    const accession = String(summed?.[0]!.accessionNumber);
     const calcChildren =
-      depreciation.accessionNumber === amortization.accessionNumber
-        ? calculation.get(String(depreciation.accessionNumber))
+      summed !== undefined && summed.every((fact) => String(fact.accessionNumber) === accession)
+        ? calculation.get(accession)
         : undefined;
-    // ORCL, ABBV, GLW: the cash-flow calculation adds exactly these two concepts into operating cash flow, so their sum is the face D&A.
+    // ORCL, ABBV, GLW, AMD FY2025: the cash-flow calculation adds exactly these two concepts into operating cash flow, so their sum is the face D&A.
     const calcProven =
-      calcChildren?.size === 2 &&
-      calcChildren.get(depreciation.concept) === 1 &&
-      calcChildren.get(amortization.concept) === 1;
-    if (selected === contributors && !calcProven) {
+      calcChildren?.size === 2 && summed!.every((fact) => calcChildren.get(fact.concept) === 1);
+    if (summed !== undefined && !calcProven) {
       const reason =
         calcChildren === undefined
-          ? calculationFetchFailures.has(String(depreciation.accessionNumber))
-            ? `filing ${String(depreciation.accessionNumber)}'s calculation linkbase could not be fetched`
+          ? calculationFetchFailures.has(accession)
+            ? `filing ${accession}'s calculation linkbase could not be fetched`
             : "no same-filing calculation linkbase was read"
-          : calcChildren.size === 0 &&
-              calculationConflicts.has(String(depreciation.accessionNumber))
-            ? `filing ${String(depreciation.accessionNumber)}'s operating cash-flow calculation roles disagree`
-            : `filing ${String(depreciation.accessionNumber)}'s cash-flow calculation adds ${[...calcChildren.keys()].join(", ") || "no D&A line"} into operating cash flow`;
+          : calcChildren.size === 0 && calculationConflicts.has(accession)
+            ? `filing ${accession}'s operating cash-flow calculation roles disagree`
+            : `filing ${accession}'s cash-flow calculation adds ${[...calcChildren.keys()].join(", ") || "no D&A line"} into operating cash flow`;
+      const [first] = summed;
       notes.push({
         code: "unchecked-component-sum",
         seriesKey: definition.key,
-        periodKey: periodKey(depreciation),
-        message: `SEC depreciation and amortization for ${String(depreciation.periodStart)} to ${depreciation.periodEnd} is depreciation + intangible amortization, not checked against the filed cash-flow statement: ${reason}`,
+        periodKey: periodKey(first!),
+        message: `SEC depreciation and amortization for ${String(first!.periodStart)} to ${first!.periodEnd} is ${facePair === undefined ? "depreciation + intangible amortization" : "cash-flow OtherDepreciationAndAmortization + AdjustmentForAmortization"}, not checked against the filed cash-flow statement: ${reason}`,
       });
     }
     if (amortizationGap > componentTolerance(sameFilingAmortization?.value ?? 0)) {

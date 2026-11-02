@@ -753,8 +753,12 @@ describe("operatingRatiosSection", () => {
       evaluateLines({}).section.metrics.find(({ id }) => id === "ebitdaProxy")?.basis,
     ).toContain("D&A basis: cash-flow depreciation and amortization + amortization add-back");
     expect(
-      run({}).omissionNotes.filter((note) => note.seriesKey === "depreciationAndAmortization"),
-    ).toEqual([]);
+      run({})
+        .omissionNotes.filter((note) => note.seriesKey === "depreciationAndAmortization")
+        .map((note) => [note.code, note.message.split(": ").at(-1)]),
+    ).toEqual(
+      years.map(() => ["unchecked-component-sum", "no same-filing calculation linkbase was read"]),
+    );
     // A zero or missing add-back leaves the note components, which the lone face line does not contradict.
     for (const lines of [
       { AdjustmentForAmortization: filed(() => 0) },

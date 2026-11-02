@@ -290,3 +290,114 @@ describe("D&A component sum checked by the calculation linkbase", () => {
     expect(result.note).toContain("no same-filing calculation linkbase was read");
   });
 });
+
+const AMD_ACCN = "0000002488-26-000018";
+
+function deriveAmd(calcMetrics: Record<string, number | string> | undefined) {
+  const concepts = Object.fromEntries(
+    (
+      [
+        ["Revenues", 34_639_000_000],
+        ["Depreciation", 521_000_000],
+        ["AmortizationOfIntangibleAssets", 2_300_000_000],
+        ["OtherDepreciationAndAmortization", 750_000_000],
+        ["AdjustmentForAmortization", 2_254_000_000],
+      ] as const
+    ).map(([concept, val]) => [
+      concept,
+      {
+        units: {
+          USD: [
+            {
+              start: "2024-12-29",
+              end: "2025-12-27",
+              val,
+              accn: AMD_ACCN,
+              fy: 2025,
+              fp: "FY",
+              form: "10-K",
+              filed: "2026-02-04",
+            },
+          ],
+        },
+      },
+    ]),
+  );
+  const statements = deriveFinancialStatements(
+    { facts: { "us-gaap": concepts } },
+    {
+      symbol: "AMD",
+      generatedAt: "2026-10-31T00:00:00.000Z",
+      analysisAsOf: "2026-10-31T00:00:00.000Z",
+      sourceId: "sec",
+      secFilings:
+        calcMetrics === undefined
+          ? []
+          : [
+              {
+                category: "sec-edgar",
+                title: "AMD SEC 10-K",
+                summary: "",
+                sourceIds: [],
+                observedAt: "2026-10-31T00:00:00.000Z",
+                metrics: { form: "10-K", accessionNumber: AMD_ACCN, ...calcMetrics },
+              },
+            ],
+    },
+  );
+  return {
+    value: statements.statements.cashFlowStatement.depreciationAndAmortization.annual[0]?.value,
+    note: statements.omissionNotes.find((note) => note.code === "unchecked-component-sum")?.message,
+  };
+}
+
+describe("D&A face pair checked by the calculation linkbase", () => {
+  test("AMD FY2025 publishes 3,004M unqualified when 10-K 0000002488-26-000018 adds both lines into OCF", async () => {
+    const result = deriveAmd(await calc("amd-10k-0000002488-26-000018"));
+    expect(result.value).toBe(3_004_000_000);
+    expect(result.note).toBeUndefined();
+  });
+
+  test("an add-back nested under the face D&A line keeps the value with the note", () => {
+    const nested = secDepreciationCalcMetrics(
+      role(arc(OCF, "OtherDepreciationAndAmortization")) +
+        role(arc("OtherDepreciationAndAmortization", "AdjustmentForAmortization")),
+    );
+    const result = deriveAmd(nested);
+    expect(result.value).toBe(3_004_000_000);
+    expect(result.note).toContain(
+      "is cash-flow OtherDepreciationAndAmortization + AdjustmentForAmortization, not checked",
+    );
+    expect(result.note).toContain(
+      "cash-flow calculation adds OtherDepreciationAndAmortization into operating cash flow",
+    );
+  });
+
+  test("no linkbase or conflicting roles keep the note with the reason", () => {
+    expect(deriveAmd(undefined).note).toContain("no same-filing calculation linkbase was read");
+    expect(deriveAmd({ daCalcRead: "conflict" }).note).toContain(
+      "operating cash-flow calculation roles disagree",
+    );
+  });
+});
+
+describe("disconnected operating cash-flow totals in one role", () => {
+  const split = (first: string, second: string) =>
+    secDepreciationCalcMetrics(
+      role(
+        arc("NetCashProvidedByUsedInOperatingActivities", first) +
+          arc("NetCashProvidedByUsedInOperatingActivitiesContinuingOperations", second),
+      ),
+    );
+
+  test("are a conflict, so the AMD face pair keeps its note", () => {
+    const metrics = split("OtherDepreciationAndAmortization", "AdjustmentForAmortization");
+    expect(metrics).toEqual({ daCalcRead: "conflict" });
+    expect(deriveAmd(metrics).note).toContain("operating cash-flow calculation roles disagree");
+  });
+
+  test("are a conflict, so the ABBV component sum keeps its note", () => {
+    const metrics = split("Depreciation", "AmortizationOfIntangibleAssets");
+    expect(deriveAbbv(metrics).note).toContain("operating cash-flow calculation roles disagree");
+  });
+});

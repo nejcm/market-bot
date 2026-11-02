@@ -1133,7 +1133,7 @@ test("unchecked D&A component sums collapse separately from unreconciled ones", 
     ["unreconciled-component", "duration:12|2023-12-31"],
     [
       "unchecked-component-sum",
-      "SEC depreciation and amortization for periods ending 2024-12-31, 2025-12-31 is depreciation + intangible amortization, not checked against the filed cash-flow statement",
+      "SEC depreciation and amortization for periods ending 2024-12-31, 2025-12-31 is a sum of filed D&A components, not checked against the filed cash-flow statement",
     ],
   ]);
 });

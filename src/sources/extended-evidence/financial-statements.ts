@@ -793,16 +793,14 @@ function factsForDepreciationAndAmortization(
     ) {
       return [];
     }
-    const summed = facePair ?? (selected === contributors ? contributors : undefined);
-    const accession = String(summed?.[0]!.accessionNumber);
-    const calcChildren =
-      summed !== undefined && summed.every((fact) => String(fact.accessionNumber) === accession)
-        ? calculation.get(accession)
-        : undefined;
+    const accession = String(selected[0]!.accessionNumber);
+    const calcChildren = selected.every((fact) => String(fact.accessionNumber) === accession)
+      ? calculation.get(accession)
+      : undefined;
     // ORCL, ABBV, GLW, AMD FY2025: the cash-flow calculation adds exactly these two concepts into operating cash flow, so their sum is the face D&A.
     const calcProven =
-      calcChildren?.size === 2 && summed!.every((fact) => calcChildren.get(fact.concept) === 1);
-    if (summed !== undefined && !calcProven) {
+      calcChildren?.size === 2 && selected.every((fact) => calcChildren.get(fact.concept) === 1);
+    if (!calcProven) {
       const reason =
         calcChildren === undefined
           ? calculationFetchFailures.has(accession)
@@ -811,12 +809,12 @@ function factsForDepreciationAndAmortization(
           : calcChildren.size === 0 && calculationConflicts.has(accession)
             ? `filing ${accession}'s operating cash-flow calculation roles disagree`
             : `filing ${accession}'s cash-flow calculation adds ${[...calcChildren.keys()].join(", ") || "no D&A line"} into operating cash flow`;
-      const [first] = summed;
+      const [first] = selected;
       notes.push({
         code: "unchecked-component-sum",
         seriesKey: definition.key,
         periodKey: periodKey(first!),
-        message: `SEC depreciation and amortization for ${String(first!.periodStart)} to ${first!.periodEnd} is ${facePair === undefined ? "depreciation + intangible amortization" : "cash-flow OtherDepreciationAndAmortization + AdjustmentForAmortization"}, not checked against the filed cash-flow statement: ${reason}`,
+        message: `SEC depreciation and amortization for ${String(first!.periodStart)} to ${first!.periodEnd} is ${facePair !== undefined ? "cash-flow OtherDepreciationAndAmortization + AdjustmentForAmortization" : selected === contributors ? "depreciation + intangible amortization" : "depreciation + cash-flow AdjustmentForAmortization"}, not checked against the filed cash-flow statement: ${reason}`,
       });
     }
     if (amortizationGap > componentTolerance(sameFilingAmortization?.value ?? 0)) {

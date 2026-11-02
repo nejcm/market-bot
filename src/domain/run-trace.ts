@@ -28,7 +28,8 @@ type PostSynthesisAuditWarningCode =
   | "weak-evidence-posture-missing"
   | "fresh-web-unused"
   | "gap-shaped-claim-cited"
-  | "peer-median-uncited";
+  | "peer-median-uncited"
+  | "peer-median-audit-unavailable";
 
 export interface PostSynthesisAuditWarning {
   readonly code: PostSynthesisAuditWarningCode;

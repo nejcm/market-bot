@@ -40,6 +40,7 @@
   "file:prompts/instrument-evidence-analysis/base.md": "3b4d783093695a5105cee36f85fd6745f6a6fbc969f59952811c28b04447f1cb",
   "file:prompts/market-behavior-analysis/base.md": "311217ef5f4ad8f1a0223f6cc05c449dab40644282c8068df6a488a67fec04c5",
   "file:prompts/mover-theme-analysis/base.md": "c9b0220e02050336702428bd6a24a02f09f707a5caa546a0efc31d0c59b769af",
+  "file:prompts/peer-median-audit/base.md": "9715193359c980e7b13de6a9a1884e15ccd413bbb157304edddf36c68c109839",
   "file:prompts/playbooks/critique-discipline.md": "e986feb18292fd4f0f03a1061da5c8bb874bf6f5486e846c25644fd541ac3fa1",
   "file:prompts/playbooks/instrument-evidence.md": "4f833156ffb0dc66d5276a08453ffd008c3e25bd891515122a903fdfa90eae32",
   "file:prompts/playbooks/market-behavior.md": "fb92b50959a5449fb4e16ad9459672f81cb363a8b7bf2f16427253060bb98cd6",

@@ -1,22 +1,31 @@
 import type { SynthesizeReportUntilValidResult } from "./final-synthesis";
 import type { CollectedSources } from "../sources/types";
 import type { EvidenceQualityAssessment } from "../domain/evidence";
-import { auditPostSynthesisReport } from "./post-synthesis-audit";
+import type { ResearchReport } from "../domain/report";
+import {
+  auditPostSynthesisReport,
+  claimsForReport,
+  peerMedianClauses,
+} from "./post-synthesis-audit";
+import type { PeerMedianAudit, PeerMedianAuditClause } from "./peer-median-audit";
+import type { StageOutput } from "./final-synthesis";
 import { computeWebSourceUsage } from "../web-evidence";
-import { auditReportIntegrity } from "./report-integrity-audit";
+import { auditReportIntegrity, summarySentenceTexts } from "./report-integrity-audit";
 import { rederivePredictionShortfallReportAfterPruning } from "../report/prediction-shortfall";
 import { reconcileEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { validateResearchReport } from "../report/schema";
 
-export function finalizeSynthesis(
+export async function finalizeSynthesis(
   synthesis: SynthesizeReportUntilValidResult,
   collected: CollectedSources,
   assessment: EvidenceQualityAssessment,
-): {
+  peerMedianAudit: PeerMedianAudit,
+): Promise<{
   readonly report: SynthesizeReportUntilValidResult["report"];
   readonly postSynthesisWarnings: ReturnType<typeof auditPostSynthesisReport>;
   readonly integrityAudit: ReturnType<typeof auditReportIntegrity>;
-} {
+  readonly peerMedianAuditOutput?: StageOutput;
+}> {
   const usablePeerSourceIds =
     collected.valuationComps === undefined
       ? undefined
@@ -25,12 +34,23 @@ export function finalizeSynthesis(
             .filter((peer) => peer.usable)
             .flatMap((peer) => peer.sourceIds),
         );
-  const postSynthesisWarnings = auditPostSynthesisReport(
+  const clauses = usablePeerSourceIds === undefined ? [] : peerMedianAuditClauses(synthesis.report);
+  const peerMedian = clauses.length === 0 ? undefined : await peerMedianAudit(clauses);
+  const postSynthesisWarnings = [
+    ...auditPostSynthesisReport(
+      synthesis.report,
+      computeWebSourceUsage(synthesis.report, collected),
+      usablePeerSourceIds,
+      peerMedian?.labels,
+    ),
+    ...(peerMedian?.warnings ?? []),
+  ];
+  const audit = auditReportIntegrity(
     synthesis.report,
-    computeWebSourceUsage(synthesis.report, collected),
+    assessment,
     usablePeerSourceIds,
+    peerMedian?.labels,
   );
-  const audit = auditReportIntegrity(synthesis.report, assessment, usablePeerSourceIds);
   const integrityAudit = {
     ...audit,
     report: rederivePredictionShortfallReportAfterPruning(audit.report),
@@ -39,5 +59,29 @@ export function finalizeSynthesis(
     report: validateResearchReport(reconcileEarningsForecastTelemetry(integrityAudit.report)),
     postSynthesisWarnings,
     integrityAudit,
+    ...(peerMedian?.stageOutput === undefined
+      ? {}
+      : { peerMedianAuditOutput: peerMedian.stageOutput }),
   };
+}
+
+// Scenario name+description and summary sentences mirror the texts the integrity audit splits.
+function peerMedianAuditClauses(report: ResearchReport): readonly PeerMedianAuditClause[] {
+  const seen = new Set<string>();
+  return [
+    ...claimsForReport(report),
+    ...report.scenarios.map((scenario, index) => ({
+      location: `scenarios[${String(index)}]`,
+      text: `${scenario.name}: ${scenario.description}`,
+    })),
+    ...summarySentenceTexts(report.summary).map((text) => ({ location: "summary", text })),
+  ].flatMap(({ location, text }) =>
+    peerMedianClauses(text).flatMap((clause) => {
+      if (seen.has(clause)) {
+        return [];
+      }
+      seen.add(clause);
+      return [{ location, text: clause }];
+    }),
+  );
 }

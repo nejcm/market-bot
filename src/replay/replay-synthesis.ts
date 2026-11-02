@@ -16,6 +16,7 @@ import {
   synthesizeReportUntilValid,
 } from "../research/final-synthesis";
 import { finalizeSynthesis } from "../research/finalize-synthesis";
+import { createPeerMedianAudit } from "../research/peer-median-audit";
 import { renderMarkdownReport } from "../report/markdown";
 import {
   loadPlaybookRegistry,
@@ -23,7 +24,7 @@ import {
   playbookScopeWithSubjectKey,
   selectPlaybooks,
 } from "../research/playbooks";
-import { makeReplayProvider, ModelReplayError } from "./llm-cassette";
+import { makeReplayProvider, ModelReplayError, requestStage } from "./llm-cassette";
 import {
   loadSynthesisReplayInput,
   synthesisReplayFacts,
@@ -151,7 +152,7 @@ async function regenerateAnalysis(
   return [...analysisOutputs, critiqueOutput];
 }
 
-type SynthesisReplayResult = ReturnType<typeof finalizeSynthesis> & {
+type SynthesisReplayResult = Awaited<ReturnType<typeof finalizeSynthesis>> & {
   readonly synthesis: Awaited<ReturnType<typeof synthesizeReportUntilValid>>;
   readonly calls: number;
   readonly markdown: string;
@@ -247,7 +248,29 @@ export async function executeSynthesisInput(
     },
   });
   const collected = { ...input.collectedSources, sourceGaps: synthesis.sourceGaps };
-  const finalized = finalizeSynthesis(synthesis, collected, context.evidenceQualityAssessment!);
+  const finalized = await finalizeSynthesis(
+    synthesis,
+    collected,
+    context.evidenceQualityAssessment!,
+    createPeerMedianAudit({
+      provider: {
+        ...provider,
+        generate: async (request) => {
+          options.onRequest?.(request);
+          calls += 1;
+          const response = await provider.generate(request);
+          options.onResponse?.(response);
+          return response;
+        },
+      },
+      model: models.quick,
+      ...(context.runParams.quickModelParams === undefined
+        ? {}
+        : { params: context.runParams.quickModelParams }),
+      command: input.command,
+      promptDir,
+    }),
+  );
   const snapshot = collected.marketSnapshots.find(
     (row) => "symbol" in input.command && row.symbol === input.command.symbol,
   );
@@ -302,7 +325,7 @@ export async function replaySynthesisFile(options: {
     usage: ModelUsage | "unknown";
   }[] = [];
   const synthesisAttempts: {
-    stage: "final-synthesis";
+    stage: string;
     tokenEstimate: number;
     usage: ModelUsage | "unknown";
   }[] = [];
@@ -322,7 +345,7 @@ export async function replaySynthesisFile(options: {
         calls += 1;
         tokens += response.tokenEstimate;
         synthesisAttempts.push({
-          stage: "final-synthesis",
+          stage: requestStage(requests.at(-1)!),
           tokenEstimate: response.tokenEstimate,
           usage: response.usage ?? "unknown",
         });
@@ -338,7 +361,6 @@ export async function replaySynthesisFile(options: {
         });
       },
     });
-    ({ calls } = result);
     facts = synthesisReplayFacts(result.report);
     const evidence = judgeEvidence(saved);
     defects = scoreReportDefects({
@@ -350,7 +372,14 @@ export async function replaySynthesisFile(options: {
     });
     await writeEvalJson(dir, "report.json", result.report);
     await writeFile(join(dir, "report.md"), result.markdown);
-    await writeEvalJson(dir, "synthesis.json", { ...result.synthesis, regeneratedAnalysis });
+    await writeEvalJson(dir, "synthesis.json", {
+      ...result.synthesis,
+      stageOutputs: [
+        ...result.synthesis.stageOutputs,
+        ...(result.peerMedianAuditOutput === undefined ? [] : [result.peerMedianAuditOutput]),
+      ],
+      regeneratedAnalysis,
+    });
     synthesisWritten = true;
     await writeEvalJson(dir, "validation.json", {
       warnings: result.postSynthesisWarnings,

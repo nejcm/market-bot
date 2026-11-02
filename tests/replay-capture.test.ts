@@ -902,6 +902,115 @@ test("circuit capture stays compact across distinct requests while preserving tr
   expect(failures).toEqual([`Invalid replay state count: ${key}`]);
 });
 
+// Stage replay must run the same peer-median audit as a live run through finalizeSynthesis.
+async function expectStageReplayRunsPeerMedianAudit(
+  saved: Awaited<ReturnType<typeof loadSynthesisReplayInput>>,
+): Promise<void> {
+  const probe = structuredClone(saved);
+  const key = Object.keys(probe.responses.entries).find((row) =>
+    row.startsWith("final-synthesis|"),
+  );
+  const first = probe.responses.entries[key!]![0]!;
+  // The capture drops a few cited ids; remap them so the report survives validation.
+  const known = new Set(probe.input.knownSourceIds);
+  Object.assign(first, {
+    content: JSON.stringify(
+      JSON.parse(first.content, (field, value: unknown) =>
+        field === "sourceIds" && Array.isArray(value)
+          ? value.map((id) => (known.has(id as string) ? id : probe.input.knownSourceIds[0]))
+          : value,
+      ),
+    ),
+  });
+  Object.assign(probe.input.collectedSources, {
+    valuationComps: {
+      version: 1,
+      generatedAt: "2026-08-10T00:00:00.000Z",
+      target: { symbol: "AAPL", sourceIds: [], usable: true },
+      peers: [{ symbol: "MSFT", sourceIds: ["market-msft"], usable: true }],
+      excludedPeers: [],
+      peerUniverseSourceIds: [],
+      summary: { corePeerCount: 1, secondaryPeerCount: 0, usablePeerCount: 1 },
+      sourceIds: [],
+      freshnessFlags: {
+        targetQuoteFresh: true,
+        targetSecFresh: true,
+        peerQuoteFresh: true,
+        peerSecFresh: true,
+      },
+    },
+  });
+  const audited: { readonly id: number; readonly location: string }[][] = [];
+  const metered: string[] = [];
+  const run = (metric: string) => {
+    const replay = makeReplayProvider(probe.responses);
+    return executeSynthesisInput(probe, {
+      onRequest: (request) => {
+        metered.push(requestStage(request));
+      },
+      provider: {
+        ...replay,
+        generate: async (request) => {
+          if (request.stage !== "peer-median-audit") {
+            return replay.generate(request);
+          }
+          const { clauses } = JSON.parse(request.messages[1]!.content) as {
+            clauses: { id: number; location: string }[];
+          };
+          audited.push(clauses);
+          return {
+            content: JSON.stringify({
+              version: 1,
+              clauses: clauses.map(({ id }) => ({ id, metric })),
+            }),
+            tokenEstimate: 1,
+          };
+        },
+      },
+    });
+  };
+  const kept = await run("other");
+  expect(audited).toHaveLength(1);
+  expect(metered).toEqual(["final-synthesis", "peer-median-audit"]);
+  expect(kept.calls).toBe(2);
+  expect(audited[0]!.map((clause) => clause.location)).toContain("bearCase[2]");
+  expect(kept.peerMedianAuditOutput?.stage).toBe("peer-median-audit");
+  expect(kept.postSynthesisWarnings.map((row) => row.code)).not.toContain("peer-median-uncited");
+  const dir = await createRoot();
+  const file = join(dir, "probe-final-synthesis-input.json");
+  await writeFile(file, JSON.stringify(probe));
+  const sample = async (label: string, audit: () => Promise<string>) => {
+    const replay = makeReplayProvider(probe.responses);
+    const { dir: out } = await replaySynthesisFile({
+      input: file,
+      label,
+      root: dir,
+      provider: {
+        ...replay,
+        generate: async (request) =>
+          request.stage === "peer-median-audit"
+            ? { content: await audit(), tokenEstimate: 7 }
+            : replay.generate(request),
+      },
+    });
+    return {
+      synthesis: JSON.parse(await readFile(join(out, "synthesis.json"), "utf8")),
+      summary: JSON.parse(await readFile(join(out, "eval-sample.json"), "utf8")),
+    };
+  };
+  const ok = await sample("audit-ok", async () => '{"version":1,"clauses":[]}');
+  expect(ok.synthesis.stageOutputs.map((row: { stage: string }) => row.stage)).toContain(
+    "peer-median-audit",
+  );
+  const timedOut = await sample("audit-timeout", async () => {
+    throw new Error("timeout");
+  });
+  expect(timedOut.summary.completedCalls).toBe(1);
+  expect(timedOut.summary.attemptedCalls).toBe(2);
+  const pruned = await run("ev-revenue");
+  expect(pruned.integrityAudit.pruned.map((row) => row.location)).toContain("bearCase[2]");
+}
+
 test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
   "%s captures its conditional stages and repairs through the real producer",
   async (name) => {
@@ -920,6 +1029,9 @@ test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
       const stage = await executeSynthesisInput(saved);
       expect(stage.calls).toBe(name === "equity-earnings-release-deep" ? 2 : 1);
       expect(stage.report.extras?.webSubjectProfile).toBeDefined();
+      if (name === "equity-earnings-release-deep") {
+        await expectStageReplayRunsPeerMedianAudit(saved);
+      }
     } finally {
       await replay.cleanup();
     }

@@ -203,19 +203,47 @@ function canonicalStaleReason(
     : staleSeriesReason(artifact, fact, series.key, series.label.toLowerCase());
 }
 
+// A continuing-operations series older than its total counterpart is history, not a scope split.
+function olderThanTotal(
+  fact: FinancialStatementFact | undefined,
+  totalPeriodEnd: unknown,
+): boolean {
+  return (
+    typeof totalPeriodEnd === "string" && fact !== undefined && fact.periodEnd < totalPeriodEnd
+  );
+}
+
+function publishedTotalPeriodEnd(
+  artifact: FinancialStatementsArtifact,
+  metricKey: string,
+): string | undefined {
+  if (!(metricKey in TOTAL_COUNTERPARTS)) {
+    return undefined;
+  }
+  const total = financialStatementSeriesByKey(
+    artifact,
+    TOTAL_COUNTERPARTS[metricKey as keyof typeof TOTAL_COUNTERPARTS],
+  );
+  const fact =
+    total === undefined ? undefined : latestFinancialStatementFact(financialStatementFacts(total));
+  return total === undefined || canonicalStaleReason(artifact, total, fact) !== undefined
+    ? undefined
+    : fact?.periodEnd;
+}
+
 export function canonicalStaleSeriesGaps(
   artifact: FinancialStatementsArtifact,
 ): readonly SourceGap[] {
-  return STALE_GUARDED_FLOWS.flatMap(([, seriesKey]) => {
+  return STALE_GUARDED_FLOWS.flatMap(([metricKey, seriesKey]) => {
     const series = financialStatementSeriesByKey(artifact, seriesKey);
-    const reason =
+    const fact =
       series === undefined
         ? undefined
-        : canonicalStaleReason(
-            artifact,
-            series,
-            latestFinancialStatementFact(financialStatementFacts(series)),
-          );
+        : latestFinancialStatementFact(financialStatementFacts(series));
+    const reason =
+      series === undefined || olderThanTotal(fact, publishedTotalPeriodEnd(artifact, metricKey))
+        ? undefined
+        : canonicalStaleReason(artifact, series, fact);
     return reason === undefined
       ? []
       : [
@@ -275,14 +303,10 @@ export function canonicalFinancialMetrics(
       metricKey in TOTAL_COUNTERPARTS
         ? metrics[`${TOTAL_COUNTERPARTS[metricKey as keyof typeof TOTAL_COUNTERPARTS]}PeriodEnd`]
         : undefined;
-    // A continuing-operations series older than its total counterpart is history, not a scope split.
     // Stale balance-sheet instants already carry stale-instant-series notes and mixed-period guards.
     const stale =
       metricKey in STALE_GUARDED_METRICS ? canonicalStaleReason(artifact, series, fact) : undefined;
-    if (
-      stale === undefined &&
-      (typeof totalPeriodEnd !== "string" || fact === undefined || fact.periodEnd >= totalPeriodEnd)
-    ) {
+    if (stale === undefined && !olderThanTotal(fact, totalPeriodEnd)) {
       addFactMetrics(
         metrics,
         metricKey,

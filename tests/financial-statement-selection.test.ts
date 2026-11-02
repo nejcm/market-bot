@@ -1243,6 +1243,31 @@ describe("canonical metrics withhold a stale series", () => {
     ]);
   });
 
+  test("a continuing-ops series that ended before net income is history, not a stale gap", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: { USD: [orclFact("2026-05-31", 67e9, "0000950170-26-000001", "2026-06-20")] },
+            },
+            NetIncomeLoss: {
+              units: { USD: [orclFact("2026-05-31", 12e9, "0000950170-26-000001", "2026-06-20")] },
+            },
+            IncomeLossFromContinuingOperations: {
+              units: {
+                USD: [orclFact("2020-05-31", 10e9, "0001564590-20-030988", "2020-06-22")],
+              },
+            },
+          },
+        },
+      },
+      { symbol: "ORCL", generatedAt: "2026-10-31", analysisAsOf: "2026-10-31", sourceId: "sec" },
+    );
+    expect(canonicalFinancialMetrics(artifact).continuingIncome).toBeUndefined();
+    expect(canonicalStaleSeriesGaps(artifact)).toEqual([]);
+  });
+
   test("stale revenue keeps only the SEC freshness gap", () => {
     const artifact = deriveFinancialStatements(
       {

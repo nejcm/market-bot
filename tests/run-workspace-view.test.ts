@@ -2755,6 +2755,9 @@ describe("run workspace view", () => {
       "Revenue consensus",
       "Analyst consensus sentinel",
     ]);
+    expect(reader?.earningsConsensus.items[2]?.value).toContain(
+      "currency undeclared · single-provider snapshot",
+    );
     expect(advanced?.analystEstimateDistributions).toEqual([
       {
         title: "Analyst consensus sentinel",

@@ -295,10 +295,10 @@ function renderConsensusItem(report: ResearchReport, item: EquityReaderConsensus
     return `- **Upcoming earnings:** ${markdownText(item.symbol)} on ${item.date} (${item.timing}; ${item.status}${conflict})${citation}`;
   }
   if (item.kind === "eps-consensus") {
-    return `- **EPS consensus:** ${String(item.value)} (single-provider snapshot)${citation}`;
+    return `- **EPS consensus:** ${String(item.value)} (currency undeclared; single-provider snapshot)${citation}`;
   }
   if (item.kind === "revenue-consensus") {
-    return `- **Revenue consensus:** ${compactNumber(item.value)} (single-provider snapshot)${citation}`;
+    return `- **Revenue consensus:** ${compactNumber(item.value)} (currency undeclared; single-provider snapshot)${citation}`;
   }
   return `- **${markdownText(item.title)}:** mean ${compactNumber(item.mean)}${item.period === undefined ? "" : ` for ${item.period}`}${item.count === undefined ? "" : ` (${String(item.count)} estimates)`}${citation}`;
 }

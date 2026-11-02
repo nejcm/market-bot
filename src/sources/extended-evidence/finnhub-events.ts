@@ -6,6 +6,7 @@ import { isUsListing } from "../instrument-capability";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { parseNearEarningsEvent, type EarningsEvent } from "./earnings-setup";
 import { daysFrom, encodeQuery, readArray } from "./utils";
+import { scaleCurrency } from "./value-format";
 
 const CALENDAR_WINDOW_DAYS = 90;
 
@@ -65,9 +66,11 @@ function joinSummaryParts(parts: readonly string[]): string {
 function nextEarningsSentence(event: EarningsEvent): string {
   const estimates = [
     ...(event.epsEstimate !== undefined ? [`EPS ${String(event.epsEstimate)}`] : []),
-    ...(event.revenueEstimate !== undefined ? [`revenue ${String(event.revenueEstimate)}`] : []),
+    ...(event.revenueEstimate !== undefined
+      ? [`revenue ${scaleCurrency(event.revenueEstimate)}`]
+      : []),
   ];
-  return ` Next earnings date ${event.date} (provider-estimated, not confirmed by the issuer; timing ${event.timing})${estimates.length > 0 ? `; provider consensus estimates: ${estimates.join(", ")}` : ""}.`;
+  return ` Next earnings date ${event.date} (provider-estimated, not confirmed by the issuer; timing ${event.timing})${estimates.length > 0 ? `; provider consensus estimates (currency undeclared): ${estimates.join(", ")}` : ""}.`;
 }
 
 function nextEarningsMetrics(event: EarningsEvent): Record<string, number | string> {

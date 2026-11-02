@@ -386,14 +386,14 @@ export function earningsConsensusFromProjection(
       if (item.kind === "eps-consensus") {
         return {
           label: "EPS consensus",
-          value: `${String(item.value)} · single-provider snapshot`,
+          value: `${String(item.value)} · currency undeclared · single-provider snapshot`,
           sourceIds: item.sourceIds,
         };
       }
       if (item.kind === "revenue-consensus") {
         return {
           label: "Revenue consensus",
-          value: `${compactNumber(item.value)} · single-provider snapshot`,
+          value: `${compactNumber(item.value)} · currency undeclared · single-provider snapshot`,
           sourceIds: item.sourceIds,
         };
       }

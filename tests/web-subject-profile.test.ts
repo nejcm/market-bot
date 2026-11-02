@@ -219,7 +219,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       extendedEvidence: undefined,
     });
 
-    expect(result.artifact?.openGaps[0]).toContain("not valid JSON");
+    expect(result.artifact?.openGaps.map((gap) => gap.text)[0]).toContain("not valid JSON");
     expect(result.sourceGaps[0]).toMatchObject({ cause: "validation-failed" });
   });
 
@@ -615,7 +615,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       "Web Subject Profile: 1 of 15 items rejected for source-citation errors " +
         "(recentMaterialEvents[0]).",
     );
-    expect(result.artifact?.openGaps).toEqual([
+    expect(result.artifact?.openGaps.map((gap) => gap.text)).toEqual([
       "Pre-existing model-reported gap.",
       result.sourceGaps[0]!.message,
     ]);
@@ -664,7 +664,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(result.sourceGaps[0]?.message).not.toContain("Sell side note on Microsoft");
     expect(violatesResearchOnly(result.sourceGaps[0]!.message)).toBeNull();
 
-    for (const gapText of result.artifact?.openGaps ?? []) {
+    for (const gapText of result.artifact?.openGaps.map((gap) => gap.text) ?? []) {
       expect(gapText).not.toContain("BUY AAPL");
       expect(gapText).not.toContain("Sell side note on Microsoft");
       // The required assertion: the sanitized text must not trip the
@@ -701,7 +701,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       extendedEvidence: undefined,
     });
 
-    for (const gapText of result.artifact?.openGaps ?? []) {
+    for (const gapText of result.artifact?.openGaps.map((gap) => gap.text) ?? []) {
       expect(violatesResearchOnly(gapText)).toBeNull();
     }
   });
@@ -751,7 +751,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     // The sanitized openGaps summary truncates its field-path list the same
     // Way, and states the true total (12 of 26: 1 summary + 11 questions +
     // 2 surviving facts + 12 rejected facts).
-    const openGap = result.artifact?.openGaps.at(-1) ?? "";
+    const openGap = result.artifact?.openGaps.map((gap) => gap.text).at(-1) ?? "";
     expect(openGap).toContain("12 of 26 items rejected");
     expect(openGap).toContain("factLedger[6]");
     expect(openGap).not.toContain("factLedger[7]");
@@ -931,7 +931,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     "riskFactors",
   ] as const;
 
-  function payloadWithGaps(openGaps: readonly string[], sourceId = webSource.id): string {
+  function payloadWithGaps(openGaps: readonly unknown[], sourceId = webSource.id): string {
     const answer = { answer: "Apple sells devices and services.", sourceIds: [sourceId] };
     return JSON.stringify({
       companyName: "Apple Inc.",
@@ -943,7 +943,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     });
   }
 
-  function buildWithGaps(openGaps: readonly string[]) {
+  function buildWithGaps(openGaps: readonly unknown[]) {
     return buildWebSubjectProfileEvidence({
       command,
       subject,
@@ -955,13 +955,41 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     });
   }
 
+  test("keeps each gap paired with its topic through parse, marker strip and screening", () => {
+    const result = buildWithGaps([
+      { text: LIVE_GAP_SENTENCE, topic: "analyst-estimates" },
+      { text: "Regional split missing.", topic: "geographic-revenue" },
+      "Legacy string gap.",
+      { text: "Mix <<metric:geographic-revenue.a-share>> unclear.", topic: "geographic-revenue" },
+      { text: `Segment mix unclear [${webSource.id}].`, topic: "segment-results" },
+      { text: "Unlisted topic.", topic: "made-up" },
+      { topic: "dividend-history" },
+      42,
+    ]);
+    const gaps = result.artifact?.openGaps ?? [];
+    expect(gaps.slice(0, -1)).toEqual([
+      { text: "Regional split missing.", topic: "geographic-revenue" },
+      { text: "Legacy string gap.", topic: "other" },
+      { text: "Segment mix unclear.", topic: "segment-results" },
+      { text: "Unlisted topic.", topic: "other" },
+      {
+        text: "Web Subject Profile: 2 open-gap entries were unreadable and are not shown.",
+        topic: "other",
+      },
+    ]);
+    expect(gaps.at(-1)).toEqual({
+      text: expect.stringContaining("1 of 5 declared open gaps withheld"),
+      topic: "other",
+    });
+  });
+
   test("withholds the live gap sentence and declares the withholding", () => {
     const result = buildWithGaps([
       "The supplied excerpts do not provide region-by-region revenue percentages.",
       LIVE_GAP_SENTENCE,
     ]);
 
-    const gaps = result.artifact?.openGaps ?? [];
+    const gaps = result.artifact?.openGaps.map((gap) => gap.text) ?? [];
     expect(gaps).not.toContain(LIVE_GAP_SENTENCE);
     expect(gaps).toContain(
       "The supplied excerpts do not provide region-by-region revenue percentages.",
@@ -993,7 +1021,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     const asserted = "Our price target is 240 USD, well above spot.";
     const result = buildWithGaps([asserted]);
 
-    const gaps = result.artifact?.openGaps ?? [];
+    const gaps = result.artifact?.openGaps.map((gap) => gap.text) ?? [];
     expect(gaps).not.toContain(asserted);
     // Not reworded, not partially retained: no fragment of the assertion survives.
     expect(gaps.join("\n")).not.toContain("240");
@@ -1028,7 +1056,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
       extendedEvidence: undefined,
     });
 
-    const gaps = result.artifact?.openGaps ?? [];
+    const gaps = result.artifact?.openGaps.map((gap) => gap.text) ?? [];
     // Model entry withheld; the code-generated entry (the mixed array's other origin) survives.
     expect(gaps).not.toContain(LIVE_GAP_SENTENCE);
     expect(gaps.some((gap) => gap.includes("rejected for source-citation errors"))).toBe(true);
@@ -1042,12 +1070,12 @@ describe("Web Subject Profile openGaps research-only screen", () => {
   test("leaves a clean profile untouched and keeps an empty array empty", () => {
     const clean = ["The supplied excerpts do not provide customer concentration."];
     const kept = buildWithGaps(clean);
-    expect(kept.artifact?.openGaps).toEqual(clean);
+    expect(kept.artifact?.openGaps.map((gap) => gap.text)).toEqual(clean);
     expect(kept.sourceGaps).toEqual([]);
 
     // `undefined` and `[]` are different: an absent gap list must not grow a withheld notice.
     const empty = buildWithGaps([]);
-    expect(empty.artifact?.openGaps).toEqual([]);
+    expect(empty.artifact?.openGaps.map((gap) => gap.text)).toEqual([]);
     expect(empty.sourceGaps).toEqual([]);
   });
 
@@ -1063,7 +1091,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
       extendedEvidence: undefined,
     });
 
-    expect(result.artifact?.openGaps).toEqual([
+    expect(result.artifact?.openGaps.map((gap) => gap.text)).toEqual([
       "Web Subject Profile unavailable; the stage failure detail was withheld for research-only wording.",
     ]);
     // The SourceGap is outside the report-language scan, so the diagnostic detail is not lost.
@@ -1081,7 +1109,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
       cause: "malformed-response",
       extendedEvidence: undefined,
     });
-    expect(result.artifact?.openGaps).toEqual([message]);
+    expect(result.artifact?.openGaps.map((gap) => gap.text)).toEqual([message]);
   });
 
   test("screens a reused artifact persisted before the screen existed", () => {
@@ -1091,7 +1119,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     expect(origin).toBeDefined();
     const legacy = {
       ...origin,
-      openGaps: [...(origin?.openGaps ?? []), LIVE_GAP_SENTENCE],
+      openGaps: [...(origin?.openGaps ?? []), { text: LIVE_GAP_SENTENCE, topic: "other" as const }],
     } as NonNullable<typeof origin>;
 
     const freshnessGap = sourceGap({
@@ -1109,8 +1137,10 @@ describe("Web Subject Profile openGaps research-only screen", () => {
       freshnessGap,
     });
 
-    expect(result.artifact?.openGaps).not.toContain(LIVE_GAP_SENTENCE);
-    expect(result.artifact?.openGaps.at(-1)).toContain("1 of 2 declared open gaps withheld");
+    expect(result.artifact?.openGaps.map((gap) => gap.text)).not.toContain(LIVE_GAP_SENTENCE);
+    expect(result.artifact?.openGaps.map((gap) => gap.text).at(-1)).toContain(
+      "1 of 2 declared open gaps withheld",
+    );
     expect(result.sourceGaps).toHaveLength(2);
     expect(() =>
       assertSafeReportLanguage(researchReport({ extras: { webSubjectProfile: result.artifact } })),
@@ -1320,7 +1350,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     expect(whatItDoes?.answer).not.toBe(probe);
     expect(whatItDoes?.answer).toBe(WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE);
     expect(result.artifact?.factLedger.map((fact) => fact.claim)).not.toContain(probe);
-    expect(result.artifact?.openGaps).not.toContain(probe);
+    expect(result.artifact?.openGaps.map((gap) => gap.text)).not.toContain(probe);
     expect(JSON.stringify(result.artifact)).not.toContain("price target");
     expect(result.sourceGaps.some((gap) => gap.message.includes("question answers withheld"))).toBe(
       true,
@@ -1568,7 +1598,9 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const origin = buildCompany().artifact;
     expect(origin).toBeDefined();
     const factNotice = buildCompany({ factLedger: [BUY_LNG] }).artifact?.factLedger.at(-1);
-    const gapNotice = buildCompany({ openGaps: [YOU_SHOULD] }).artifact?.openGaps.at(-1);
+    const gapNotice = buildCompany({ openGaps: [YOU_SHOULD] })
+      .artifact?.openGaps.map((gap) => gap.text)
+      .at(-1);
     expect(factNotice?.claim).toContain("fact-ledger claims withheld");
     expect(gapNotice).toContain("declared open gaps withheld");
 
@@ -1579,7 +1611,10 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
         factNotice!,
         { claim: BUY_LNG, sourceIds: [webSource.id] },
       ],
-      openGaps: ["A remaining qualitative gap.", gapNotice!, YOU_SHOULD],
+      openGaps: ["A remaining qualitative gap.", gapNotice!, YOU_SHOULD].map((text) => ({
+        text,
+        topic: "other" as const,
+      })),
     } as NonNullable<typeof origin>;
 
     const result = buildWebSubjectProfileReuseEvidence({
@@ -1591,7 +1626,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     });
 
     expect(result.artifact?.factLedger.map((fact) => fact.claim)).not.toContain(BUY_LNG);
-    expect(result.artifact?.openGaps).not.toContain(YOU_SHOULD);
+    expect(result.artifact?.openGaps.map((gap) => gap.text)).not.toContain(YOU_SHOULD);
     expect(
       result.sourceGaps.some((gap) => gap.message.includes("1 of 2 fact-ledger claims withheld")),
     ).toBe(true);
@@ -1647,7 +1682,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
   test("leaves empty event arrays empty and does not mint a withheld notice", () => {
     const result = buildCompany({ recentMaterialEvents: [], openGaps: [] });
     expect(result.artifact?.recentMaterialEvents).toEqual([]);
-    expect(result.artifact?.openGaps).toEqual([]);
+    expect(result.artifact?.openGaps.map((gap) => gap.text)).toEqual([]);
     expect(result.sourceGaps).toEqual([]);
   });
 
@@ -2004,7 +2039,7 @@ describe("Web Subject Profile inline source-id markers", () => {
       expect(readWebSubjectProfileFacts(artifact.factLedger)).toEqual([
         { claim: "", sourceIds: [other.id] },
       ]);
-      expect(artifact.openGaps).toEqual(["Segment mix unclear."]);
+      expect(artifact.openGaps.map((gap) => gap.text)).toEqual(["Segment mix unclear."]);
     }
   });
 
@@ -2042,7 +2077,10 @@ describe("Web Subject Profile inline source-id markers", () => {
     expect(artifact).toMatchObject({
       subjectLabel: "Apple",
       companyName: "Apple Inc.",
-      openGaps: ["Regional split missing.", "[Products] mix unclear."],
+      openGaps: [
+        { text: "Regional split missing.", topic: "other" },
+        { text: "[Products] mix unclear.", topic: "other" },
+      ],
     });
   });
 
@@ -2244,6 +2282,6 @@ describe("geography share screen", () => {
     const result = produce("Devices and services.", [geography], (payload) => {
       payload.openGaps = ["Mix <<metric:geographic-revenue.a-share>> unclear.", "Kept gap."];
     });
-    expect(result.artifact.openGaps).toEqual(["Kept gap."]);
+    expect(result.artifact.openGaps.map((gap) => gap.text)).toEqual(["Kept gap."]);
   });
 });

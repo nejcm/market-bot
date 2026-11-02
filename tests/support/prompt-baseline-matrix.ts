@@ -134,7 +134,7 @@ const companyProfile: WebSubjectProfileArtifact = {
   },
   recentMaterialEvents: [{ claim: "Launched a device", sourceIds: ["web-1"] }],
   factLedger: [{ claim: "Revenue grew", sourceIds: ["web-1"] }],
-  openGaps: ["No segment split"],
+  openGaps: [{ text: "No segment split", topic: "segment-results" }],
   sourceIds: ["web-1"],
 };
 

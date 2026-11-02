@@ -950,7 +950,7 @@ describe("runResearchJob web subject profile", () => {
     expect(result.collectedSources.webSubjectProfile).toMatchObject({
       sourceIds: [],
       factLedger: [],
-      openGaps: [expect.stringContaining("profile timeout")],
+      openGaps: [{ text: expect.stringContaining("profile timeout"), topic: "other" }],
     });
     expect(result.collectedSources.extendedEvidence?.gaps).toContainEqual(
       expect.objectContaining({

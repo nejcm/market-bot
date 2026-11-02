@@ -80,6 +80,54 @@ export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER =
 export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE = `Web Subject Profile: this answer ${WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER}; the original wording stays in the run's raw stage output.`;
 export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_SUBJECT_SUMMARY_NOTICE = `Web Subject Profile: subject summary ${WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER}; the original wording stays in the run's raw stage output.`;
 
+const WEB_SUBJECT_PROFILE_GAP_TOPICS = [
+  "geographic-revenue",
+  "segment-results",
+  "dividend-history",
+  "analyst-estimates",
+  "options-data",
+  "management-track-record",
+  "pricing-power",
+  "cyclicality",
+  "other",
+] as const;
+export type WebSubjectProfileGapTopic = (typeof WEB_SUBJECT_PROFILE_GAP_TOPICS)[number];
+
+export interface WebSubjectProfileOpenGap {
+  readonly text: string;
+  readonly topic: WebSubjectProfileGapTopic;
+}
+
+export function unreadableOpenGapsNotice(count: number): string {
+  return count === 1
+    ? "Web Subject Profile: 1 open-gap entry was unreadable and is not shown."
+    : `Web Subject Profile: ${String(count)} open-gap entries were unreadable and are not shown.`;
+}
+
+export function isUnreadableOpenGapsNotice(text: string): boolean {
+  return /^Web Subject Profile: \d+ open-gap entr(?:y was|ies were) unreadable/.test(text);
+}
+
+// Legacy string gaps and unknown topics read as "other", which never reconciles.
+export function readWebSubjectProfileOpenGap(value: unknown): WebSubjectProfileOpenGap | undefined {
+  if (typeof value === "string") {
+    return { text: value, topic: "other" };
+  }
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+  const { text, topic } = value as Record<string, unknown>;
+  if (typeof text !== "string") {
+    return undefined;
+  }
+  return {
+    text,
+    topic: (WEB_SUBJECT_PROFILE_GAP_TOPICS as readonly unknown[]).includes(topic)
+      ? (topic as WebSubjectProfileGapTopic)
+      : "other",
+  };
+}
+
 export function isWebSubjectProfileWithheldAnswer(answer: string): boolean {
   return (
     answer.includes(WEB_SUBJECT_PROFILE_WITHHELD_MARKER) ||
@@ -97,7 +145,7 @@ interface WebSubjectProfileBase {
   readonly subjectSummary: WebSubjectProfileAnswer;
   readonly recentMaterialEvents: readonly WebSubjectProfileFact[];
   readonly factLedger: readonly WebSubjectProfileFact[];
-  readonly openGaps: readonly string[];
+  readonly openGaps: readonly WebSubjectProfileOpenGap[];
   readonly sourceIds: readonly string[];
 }
 

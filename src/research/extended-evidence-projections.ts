@@ -1,8 +1,15 @@
 import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../web-evidence";
+import {
+  readWebSubjectProfileOpenGap,
+  unreadableOpenGapsNotice,
+  type WebSubjectProfileGapTopic,
+} from "../web-evidence/contract";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import type {
   BusinessFrameworkExtra,
   MetricSectionsExtra,
+  ReconcilableGapTopic,
   WebSubjectProfileExtra,
 } from "../report/report-extras-contract";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
@@ -75,12 +82,103 @@ function businessFrameworkExtra(
   };
 }
 
+function latestPeriodEnd(sections: readonly MetricSection[], periodMonths?: number): string {
+  return sections
+    .flatMap(({ metrics }) => metrics)
+    .reduce(
+      (max, metric) =>
+        metric.periodMonths !== undefined &&
+        (periodMonths === undefined || metric.periodMonths === periodMonths) &&
+        metric.periodEnd !== undefined &&
+        metric.periodEnd > max
+          ? metric.periodEnd
+          : max,
+      "",
+    );
+}
+
+// Unreconciled is the safe default. Geographic gaps never reconcile: shares can overlap
+// (Americas + US) and the metrics carry no axis that proves the members are disjoint.
+function gapTopicProof(
+  topic: WebSubjectProfileGapTopic,
+  sections: readonly MetricSection[] | undefined,
+): { readonly topic: ReconcilableGapTopic; readonly metricId: string } | undefined {
+  if (sections === undefined) {
+    return undefined;
+  }
+  const allMetrics = sections.flatMap(({ metrics }) => metrics);
+  const metricsOf = (id: string) => sections.find((section) => section.id === id)?.metrics ?? [];
+  if (topic === "segment-results") {
+    const latest = metricsOf("segment-results").reduce(
+      (max, { periodEnd }) => (periodEnd !== undefined && periodEnd > max ? periodEnd : max),
+      latestPeriodEnd(sections),
+    );
+    const rows = metricsOf("segment-results").filter(({ periodEnd }) => periodEnd === latest);
+    if (rows.some(({ periodMonths }) => periodMonths === undefined)) {
+      return undefined;
+    }
+    const proven = [...new Set(rows.map(({ periodMonths }) => periodMonths))].flatMap((months) => {
+      const group = rows.filter((metric) => metric.periodMonths === months);
+      const revenue = group.filter(({ id }) => id.endsWith("-revenue"));
+      const total = allMetrics.find(
+        (metric) =>
+          metric.id === "revenue" &&
+          metric.status === "value" &&
+          metric.periodEnd === latest &&
+          metric.periodMonths === months,
+      )?.value;
+      const segmentSum = revenue.reduce(
+        (sum, { status, value }) =>
+          sum + (status === "value" && typeof value === "number" ? value : Number.NaN),
+        0,
+      );
+      const withIncome = revenue.every((row) =>
+        group.some(
+          (metric) =>
+            metric.id === row.id.replace(/-revenue$/, "-operating-income") &&
+            metric.status === "value",
+        ),
+      );
+      // Untagged segments are invisible, so only a sum matching total revenue proves coverage.
+      const complete =
+        typeof total === "number" && total > 0 && Math.abs(segmentSum - total) <= total * 0.01;
+      return revenue[0] !== undefined && withIncome && complete ? [revenue[0].id] : [];
+    });
+    return proven[0] === undefined ? undefined : { topic, metricId: proven[0] };
+  }
+  if (topic === "dividend-history") {
+    const fiscalYearEnd = latestPeriodEnd(sections, 12);
+    const cagr = metricsOf("capital-return").find(
+      (metric) =>
+        /^dpsCagr\d+y$/.test(metric.id) &&
+        metric.status === "value" &&
+        metric.periodEnd === fiscalYearEnd,
+    );
+    return cagr === undefined ? undefined : { topic, metricId: cagr.id };
+  }
+  return undefined;
+}
+
 function webSubjectProfileExtra(
   artifact: WebSubjectProfileArtifact | undefined,
+  metricSections: readonly MetricSection[] | undefined,
 ): WebSubjectProfileExtra | undefined {
   if (artifact === undefined) {
     return undefined;
   }
+  // Rerun and deep-bundle paths pass sidecars unvalidated, so legacy string gaps arrive here.
+  const readable = artifact.openGaps.flatMap((gap) => readWebSubjectProfileOpenGap(gap) ?? []);
+  const unreadable = artifact.openGaps.length - readable.length;
+  const openGaps = [
+    ...(unreadable > 0
+      ? [{ text: unreadableOpenGapsNotice(unreadable), topic: "other" as const }]
+      : []),
+    ...readable,
+  ];
+  const reconciledGaps = openGaps.flatMap((gap) => {
+    const proof = gapTopicProof(gap.topic, metricSections);
+    return proof === undefined ? [] : [{ text: gap.text, ...proof }];
+  });
   return {
     version: artifact.version,
     subjectKind: artifact.subjectKind,
@@ -94,7 +192,8 @@ function webSubjectProfileExtra(
     questions: artifact.questions,
     recentMaterialEvents: artifact.recentMaterialEvents,
     factLedger: artifact.factLedger,
-    openGaps: artifact.openGaps,
+    openGaps: openGaps.map((gap) => gap.text),
+    ...(reconciledGaps.length > 0 ? { reconciledGaps } : {}),
     sourceIds: artifact.sourceIds,
     ...("secFilingBasisDate" in artifact && artifact.secFilingBasisDate !== undefined
       ? { secFilingBasisDate: artifact.secFilingBasisDate }
@@ -140,7 +239,7 @@ const EXTENDED_EVIDENCE_EXTRA_PROJECTORS: readonly ExtraProjector[] = [
     key: "webSubjectProfile",
     codeAssembledDigest: true,
     project: (_modelExtras, collectedSources) =>
-      webSubjectProfileExtra(collectedSources.webSubjectProfile),
+      webSubjectProfileExtra(collectedSources.webSubjectProfile, collectedSources.metricSections),
   },
   {
     key: "metricSections",

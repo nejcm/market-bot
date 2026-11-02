@@ -12,6 +12,7 @@ import type {
 import {
   readBusinessFrameworkExtra,
   readWebSubjectProfileExtra,
+  splitProfileGaps,
   webSubjectProfileQuestionKeys,
   type BusinessFrameworkExtraGap,
   type WebSubjectProfileFactValue,
@@ -102,6 +103,7 @@ export interface WebSubjectProfileView {
   readonly recentMaterialEvents: readonly WebSubjectProfileFactView[];
   readonly factLedger: readonly WebSubjectProfileFactView[];
   readonly openGaps: readonly string[];
+  readonly reconciledGaps: readonly { readonly text: string; readonly section: string }[];
   readonly sourceIds: readonly string[];
 }
 
@@ -268,12 +270,14 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
         };
   const recentMaterialEvents = webProfileFacts(profile.recentMaterialEvents);
   const factLedger = webProfileFacts(profile.factLedger);
-  const { subjectKind, openGaps, secFilingBasisDate } = profile;
+  const { subjectKind, secFilingBasisDate } = profile;
+  const { open: openGaps, reconciled: reconciledGaps } = splitProfileGaps(profile);
   if (
     questions.length === 0 &&
     recentMaterialEvents.length === 0 &&
     factLedger.length === 0 &&
-    openGaps.length === 0
+    openGaps.length === 0 &&
+    reconciledGaps.length === 0
   ) {
     return undefined;
   }
@@ -291,6 +295,7 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
     recentMaterialEvents,
     factLedger,
     openGaps,
+    reconciledGaps,
     sourceIds: profile.sourceIds,
   };
 }

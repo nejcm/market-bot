@@ -82,20 +82,25 @@
       </div>
     </div>
   {/if}
-  {#if profile.openGaps.length > 0}
+  {#if profile.openGaps.length > 0 || profile.reconciledGaps.length > 0}
     <div class="mt-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
       <div class="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
         Profile gaps
       </div>
+      {#if profile.openGaps.length > 0}
       <div class="mb-2 text-[11.5px] italic text-[#8a6116]">
         Gaps in the evidence the profile stage read{profile.secFilingBasisDate === undefined
           ? ""
           : ` (latest SEC filing basis ${profile.secFilingBasisDate})`}, not in this run's deterministic sections, which
         may publish the same data.
       </div>
+      {/if}
       <div class="space-y-1 text-[12.5px] text-[#5c6066]">
         {#each profile.openGaps as gap}
           <div>{gap}</div>
+        {/each}
+        {#each profile.reconciledGaps as gap}
+          <div>Profile stage lacked: {gap.text.replace(/\.\s*$/, "")}; published under {gap.section}.</div>
         {/each}
       </div>
     </div>

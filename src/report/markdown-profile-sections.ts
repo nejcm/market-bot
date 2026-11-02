@@ -4,6 +4,7 @@ import { isRecord } from "../guards";
 import {
   readBusinessFrameworkExtra,
   readWebSubjectProfileExtra,
+  splitProfileGaps,
   webSubjectProfileQuestionKeys,
   type WebSubjectProfileAnswerValue,
   type WebSubjectProfileExtraValue,
@@ -224,10 +225,19 @@ export function renderWebSubjectProfile(report: ResearchReport): string {
     });
   const events = factRows(profile.recentMaterialEvents);
   const facts = trimEquityReaderDuplicates ? [] : factRows(profile.factLedger);
-  const gaps = (profile.openGapsComplete ? profile.openGaps : []).map(
-    (gap) => `- ${markdownText(gap)}`,
+  const { open, reconciled } = splitProfileGaps(profile);
+  const gaps = open.map((gap) => `- ${markdownText(gap)}`);
+  const reconciledRows = reconciled.map(
+    ({ text, section }) =>
+      `- Profile stage lacked: ${markdownText(text.replace(/\.\s*$/, ""))}; published under ${markdownText(section)}.`,
   );
-  if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
+  if (
+    rows.length === 0 &&
+    events.length === 0 &&
+    facts.length === 0 &&
+    gaps.length === 0 &&
+    reconciledRows.length === 0
+  ) {
     return "";
   }
   const basis = subjectKind === "company" ? companyFilingBasisLine(report, profile) : undefined;
@@ -240,8 +250,15 @@ export function renderWebSubjectProfile(report: ResearchReport): string {
     ...rows,
     ...(events.length > 0 ? ["", "### Recent Material Events", "", ...events] : []),
     ...(facts.length > 0 ? ["", "### Fact Ledger", "", ...facts] : []),
-    ...(gaps.length > 0
-      ? ["", "### Profile Gaps", "", profileGapsScopeLine(profile), "", ...gaps]
+    ...(gaps.length > 0 || reconciledRows.length > 0
+      ? [
+          "",
+          "### Profile Gaps",
+          "",
+          ...(gaps.length > 0 ? [profileGapsScopeLine(profile), "", ...gaps] : []),
+          ...(gaps.length > 0 && reconciledRows.length > 0 ? [""] : []),
+          ...reconciledRows,
+        ]
       : []),
     "",
   ].join("\n");

@@ -2672,6 +2672,7 @@ describe("report artifact parsers", () => {
       ],
       factLedger: [{ claim: "Apple sells devices and services.", sourceIds: ["report-source"] }],
       openGaps: ["Customer concentration not fully quantified."],
+      reconciledGaps: [],
     });
   });
 
@@ -2710,6 +2711,33 @@ describe("report artifact parsers", () => {
     expect(
       webSubjectProfileView({ extras: { webSubjectProfile: { questions: {} } } }),
     ).toBeUndefined();
+  });
+
+  test("splits reconciled profile gaps from the scoped open ones", () => {
+    const view = webSubjectProfileView({
+      extras: {
+        webSubjectProfile: {
+          openGaps: ["No regional split.", "No options data."],
+          reconciledGaps: [
+            {
+              text: "No regional split.",
+              topic: "dividend-history",
+              section: "Buy.",
+              metricId: "x",
+            },
+            { text: "No options data.", topic: "options-data", metricId: "x" },
+          ],
+        },
+      },
+    });
+    expect(view?.openGaps).toEqual(["No options data."]);
+    expect(view?.reconciledGaps).toEqual([
+      { text: "No regional split.", section: "Capital Return" },
+    ]);
+    expect(
+      webSubjectProfileView({ extras: { webSubjectProfile: { openGaps: ["No options data."] } } })
+        ?.reconciledGaps,
+    ).toEqual([]);
   });
 
   test("carries the profile SEC filing basis date only when present", () => {

@@ -10,14 +10,14 @@
   "stage:web-gather": "08461d4fff4fa34df7cd54a59b6f64d68582d5472f55ad5ed05aee99bedab56f",
   "stage:evidence-request:historical-gaps": "386b62e298a719135ef57ac3bc8944f3e26bd5fa42a1b8e3d1dc6a548922abfa",
   "stage:web-gather:historical-gaps": "b58ceb1a6c8b5b68e5104afb2a6c72000611a6bb607ccc70d27fd808166d6fc8",
-  "stage:web-subject-profile:company": "15720172045a56d8b6d48668b5b7e7b5c47b057c32fe0315ce760288e933a31d",
-  "stage:web-subject-profile:crypto-asset": "87f48c5f2e6393db430c79bf48ba88269897aef30a8e23fd483115eb33dbbed4",
-  "stage:web-subject-profile:theme": "39bf4a87c9b1f0d84db60f4fdede528207dbdf449cba7bdfbac17703cf0c3dc4",
+  "stage:web-subject-profile:company": "22bc5582c10084d38476a56bd536c3c0bd466cee156a958649c22485b81d9386",
+  "stage:web-subject-profile:crypto-asset": "873c697e254899e3ce4f1dc42d8fd867a767dc525bdfc22a48b4bb9cfdb74d93",
+  "stage:web-subject-profile:theme": "be838fc4285e88ce8556edbc8c41f66e5bd11269bdf9b6771869f4571fcb28df",
   "stage:final-synthesis:primary": "61d14f161f18d5cc199f77abe1b743a7e4f640799f3d01f9b7840b5f800b88d4",
   "stage:specialist-analysis:metric-references": "ccaa77446969929253ddbe721cd2639b68a70882d5981293ebbe7ede4e78f8aa",
   "stage:final-synthesis:metric-references": "f4c513636c962c529196ccd9c0b491a5d7e591532b26673d0b5aa172f43f7222",
   "stage:web-gather:metric-references": "be66ec7bf8b64ba01dc4558b98c9b6beb2c52956b8d8fbcfb6b237035ead3930",
-  "stage:web-subject-profile:metric-references": "7a94edd978ec85a874b9f948b4e97aeff785d176009577d8f5a71ab331a19516",
+  "stage:web-subject-profile:metric-references": "086f81a1b2733a760c22d9aef1de4e07765e9cc0a05a9688c6add487892b53f7",
   "stage:final-synthesis:repair": "0180e474937aa5366ae1929f8c2185ddbdb57ae0fd13b8b809284da0e73d84c1",
   "stage:final-synthesis:language-repair": "9a2d3f8683c1e48f5127c6dc949ad32e59f25f655ba22e25349c62a57bea9f76",
   "stage:final-synthesis:kind-calibration-insufficient": "fe3b6f2d9280472e5455f7a339ddda1ffba43da8b7a24a5e09700d9a6e3561e3",
@@ -55,5 +55,5 @@
   "file:prompts/specialist-analysis/base.md": "265daa5474b02b79f1143c2801c5e00d5ab2e23aaed3f4b41fff1f6ec99911d1",
   "file:prompts/spotlight-selection/base.md": "534db80c3ea34c167034debe0f59f5178dca15d2078ff0efef13b342f389a306",
   "file:prompts/web-gather/base.md": "69d7c7310cdd5b6e5033a37a76c5f094be3217c1aff5438e6481e013dea84a8e",
-  "file:prompts/web-subject-profile/base.md": "611d1a4cf7c9ce6f3139e84985db83a937f697ee714db967d2e5316d04b2acb9"
+  "file:prompts/web-subject-profile/base.md": "f835fa999da6ab06fae217521b72fe93b86611099229a84698a780a1dfc69a5e"
 }

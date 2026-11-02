@@ -47,12 +47,17 @@ const baseWebSubjectProfile = {
 // The profile stage wrote, which no final-synthesis draft can rewrite.
 const poisonedWebSubjectProfile = {
   ...baseWebSubjectProfile,
-  openGaps: ["Analyst consensus and price targets are not available in the supplied web sources."],
+  openGaps: [
+    {
+      text: "Analyst consensus and price targets are not available in the supplied web sources.",
+      topic: "analyst-estimates" as const,
+    },
+  ],
 };
 
 const cleanWebSubjectProfile = {
   ...baseWebSubjectProfile,
-  openGaps: ["No segment split is disclosed."],
+  openGaps: [{ text: "No segment split is disclosed.", topic: "segment-results" as const }],
 };
 
 afterEach(cleanupDataDirs);
@@ -383,7 +388,12 @@ describe("runResearchJob synthesis retry and source gaps", () => {
           sourceGaps: [],
           webSubjectProfile: {
             ...baseWebSubjectProfile,
-            openGaps: ["Buy the dip is the only framing the supplied sources offer."],
+            openGaps: [
+              {
+                text: "Buy the dip is the only framing the supplied sources offer.",
+                topic: "other",
+              },
+            ],
           },
         }),
         now: new Date("2026-05-19T00:00:00.000Z"),

@@ -744,6 +744,24 @@ describe("equity reader projection", () => {
     ]);
   });
 
+  test("maps an earnings-setup Finnhub timing of unknown to timing unavailable", () => {
+    const projection = projectEquityReader({
+      report: {
+        symbol: "ORCL",
+        extras: {
+          earningsSetup: {
+            event: { date: "2026-12-08", timing: "unknown", sourceIds: ["finnhub"] },
+            gaps: [],
+          },
+        },
+      },
+    });
+
+    expect(projection.defaultView.earningsConsensus[0]).toMatchObject({
+      timing: "timing unavailable",
+    });
+  });
+
   test("separates an uncollected earnings setup from a collected empty one", () => {
     const notCollected = renderEarningsSection({ symbol: "MSFT", extras: { depth: "brief" } });
     expect(notCollected).toContain(
@@ -794,7 +812,7 @@ describe("equity reader projection", () => {
         kind: "earnings-date",
         symbol: "ORCL",
         date: "2026-12-08",
-        timing: "unknown",
+        timing: "timing unavailable",
         status: "provider-estimated",
         sourceIds,
       },

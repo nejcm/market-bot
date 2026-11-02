@@ -35,6 +35,7 @@ import { readPeerImpliedRange } from "../src/run-artifact-evidence-reader";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { renderFinancialTrends, renderMarkdownReport } from "../src/report/markdown";
 import { projectEquityReader } from "../src/report/equity-reader";
+import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";
 import {
   researchReport,
   reverseDcfArtifact,
@@ -767,6 +768,31 @@ describe("run workspace view", () => {
     );
     expect(await renderRunWorkspaceComponent(detail)).not.toContain(note.message);
   }, 15_000);
+
+  test("shows the zero-borrowings quote beside a zero debt in Markdown and Console", () => {
+    const quote = "As of December 31, 2025, the Company had no borrowings.";
+    const zero = { value: 0, filedAt: "2026-02-01", unit: "USD", unitScale: 1, sourceIds: ["sec"] };
+    const history = {
+      reportingCurrency: "USD",
+      sourceIds: ["sec"],
+      rows: [
+        { period: "Interim ending 2025-12-31", debt: { ...zero, zeroBorrowingsQuote: quote } },
+        { period: "Interim ending 2025-09-30", debt: zero },
+      ],
+    };
+    const view = balanceSheetHistoryFromProjection(history);
+    expect(view?.rows.map((row) => row.debtQuote)).toEqual([quote, undefined]);
+    const position = financialPositionFromProjection({
+      reportingCurrency: "USD",
+      debt: { ...zero, periodEnd: "2025-12-31", zeroBorrowingsQuote: quote },
+    });
+    expect(position?.metrics.find((metric) => metric.label === "Debt")?.quote).toBe(quote);
+    const markdown = renderBalanceSheetAndShareCount(researchReport(), history);
+    expect(markdown).toContain(
+      `- Debt for Interim ending 2025-12-31 is 0 per the filing: "${quote}"`,
+    );
+    expect(markdown.match(/per the filing/gu)).toHaveLength(1);
+  });
 
   test("keeps stale instant-series notes out of current statement values", () => {
     const note = {

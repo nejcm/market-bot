@@ -196,6 +196,11 @@ export function renderBalanceSheetAndShareCount(
     "Period | Cash | Debt | Diluted shares",
     "--- | ---: | ---: | ---:",
     ...rows,
+    ...history.rows.flatMap(({ period, debt }) =>
+      debt?.zeroBorrowingsQuote === undefined
+        ? []
+        : [`- Debt for ${period} is 0 per the filing: "${markdownText(debt.zeroBorrowingsQuote)}"`],
+    ),
     ...statementSurfaceNoteLines(history.notes),
   ].join("\n");
 }

@@ -10,6 +10,8 @@ import {
   debtInstantsNeedingFace,
   financialStatementsDebtBasisGaps,
 } from "../src/sources/extended-evidence/sec-debt";
+import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
+import { assertCompositeFactIntegrity } from "./support/run-fixtures/financial-invariants";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
 import type { CollectContext, SourceRequestExecutor } from "../src/sources/types";
 
@@ -378,11 +380,31 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
   test("its footed face with no debt row publishes 0 cited to the face", async () => {
     const face = faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS);
     const debt = decDebt(await derive(ZERO_GAAP, [face]));
-    expect(debt).toMatchObject({ value: 0 });
+    expect(debt).toMatchObject({
+      value: 0,
+      concept: "NoBorrowingsOnFootedFace",
+      extractionMethod: "sec-filing-face-text",
+    });
     expect(debt?.sourceIds).toContain(face.sourceIds[0]);
     expect(debt?.zeroBorrowingsQuote).toBe(
       "As of December 31, 2025 and September 30, 2025, the Company had no borrowings against this line of credit.",
     );
+  });
+
+  test("the synthetic zero passes composite-fact integrity", async () => {
+    const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS)]);
+    expect(decDebt(artifact)?.value).toBe(0);
+    expect(() => assertCompositeFactIntegrity(artifact)).not.toThrow();
+  });
+
+  test("the reader carries the zero-borrowings quote beside the zero debt", async () => {
+    const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS)]);
+    const quote = decDebt(artifact)?.zeroBorrowingsQuote;
+    expect(quote).toBeString();
+    expect(financialPosition(artifact, "2026-06-30")?.debt?.zeroBorrowingsQuote).toBe(quote);
+    const rows = balanceSheetHistory(artifact, "2026-06-30")?.rows ?? [];
+    expect(rows.find((row) => row.debt?.value === 0)?.debt?.zeroBorrowingsQuote).toBe(quote);
+    expect(rows.filter((row) => row.debt?.zeroBorrowingsQuote !== undefined)).toHaveLength(1);
   });
 
   test("an operating-lease current-portion row still proves 0", async () => {

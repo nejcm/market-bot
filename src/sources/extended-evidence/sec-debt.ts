@@ -20,6 +20,7 @@ import {
 } from "./financial-statement-period-identity";
 import {
   GROSS_PRINCIPAL_DEBT_CONCEPT,
+  ZERO_BORROWINGS_CONCEPT,
   type FinancialStatementNote,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
@@ -419,6 +420,7 @@ function zeroBorrowingInstants(
     const zeroLine = (concept: string) => ({ ...liabilities, concept, value: 0 });
     facts.push({
       ...composite([zeroLine("DebtCurrent"), zeroLine("LongTermDebtNoncurrent")], new Set(), []),
+      concept: ZERO_BORROWINGS_CONCEPT,
       proofSourceIds: proof.sourceIds,
       zeroBorrowingsQuote: proof.quote,
     });

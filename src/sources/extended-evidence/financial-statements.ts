@@ -74,6 +74,7 @@ import {
   type OriginalFiling,
   type StructuredFinancialGap,
   type SupportedSecForm,
+  ZERO_BORROWINGS_EXTRACTION_METHOD,
 } from "./financial-statements-contract";
 
 interface ParsedCompositeComponent {
@@ -1824,7 +1825,12 @@ function toSelectedFact(
     currency: fact.unit === "shares" ? null : currency,
     unit: fact.unit,
     unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
-    extractionMethod: composite === undefined ? "sec-companyfacts" : "derived-sec-companyfacts",
+    extractionMethod:
+      fact.zeroBorrowingsQuote !== undefined
+        ? ZERO_BORROWINGS_EXTRACTION_METHOD
+        : composite === undefined
+          ? "sec-companyfacts"
+          : "derived-sec-companyfacts",
     sourceIds,
     ...(fact.lineScope === true ? { lineScope: true as const } : {}),
     ...(fact.faceLeases === undefined ? {} : { faceLeases: fact.faceLeases }),

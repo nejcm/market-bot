@@ -430,7 +430,7 @@ describe("D&A component sum disclosure", () => {
     );
   });
 
-  test("a same-filing cash-flow amortization line replaces the note path", () => {
+  test("a same-filing cash-flow amortization line still needs calc proof", () => {
     const filing: Filing = {
       ...MSFT_FY2025,
       concepts: {
@@ -440,6 +440,8 @@ describe("D&A component sum disclosure", () => {
     };
     const result = derive([filing]);
     expect(result.value("2024-07-01", "2025-06-30")).toBe(28_000_000_000);
-    expect(result.note("2025-06-30")).toBeUndefined();
+    expect(result.note("2025-06-30")).toContain(
+      "is depreciation + cash-flow AdjustmentForAmortization, not checked",
+    );
   });
 });

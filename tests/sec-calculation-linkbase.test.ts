@@ -293,17 +293,17 @@ describe("D&A component sum checked by the calculation linkbase", () => {
 
 const AMD_ACCN = "0000002488-26-000018";
 
-function deriveAmd(calcMetrics: Record<string, number | string> | undefined) {
+const AMD_VALUES: readonly (readonly [string, number])[] = [
+  ["Revenues", 34_639_000_000],
+  ["Depreciation", 521_000_000],
+  ["AmortizationOfIntangibleAssets", 2_300_000_000],
+  ["OtherDepreciationAndAmortization", 750_000_000],
+  ["AdjustmentForAmortization", 2_254_000_000],
+];
+
+function deriveAmd(calcMetrics: Record<string, number | string> | undefined, values = AMD_VALUES) {
   const concepts = Object.fromEntries(
-    (
-      [
-        ["Revenues", 34_639_000_000],
-        ["Depreciation", 521_000_000],
-        ["AmortizationOfIntangibleAssets", 2_300_000_000],
-        ["OtherDepreciationAndAmortization", 750_000_000],
-        ["AdjustmentForAmortization", 2_254_000_000],
-      ] as const
-    ).map(([concept, val]) => [
+    values.map(([concept, val]) => [
       concept,
       {
         units: {
@@ -378,6 +378,33 @@ describe("D&A face pair checked by the calculation linkbase", () => {
     expect(deriveAmd({ daCalcRead: "conflict" }).note).toContain(
       "operating cash-flow calculation roles disagree",
     );
+  });
+});
+
+// MRK FY2025 shape: rounded 2.8B note amortization yields to the 2,793M cash-flow line.
+const MRK_VALUES = [
+  ["Revenues", 64_000_000_000],
+  ["Depreciation", 3_045_000_000],
+  ["AmortizationOfIntangibleAssets", 2_800_000_000],
+  ["AdjustmentForAmortization", 2_793_000_000],
+] as const;
+
+describe("D&A depreciation plus cash-flow amortization checked by the calculation linkbase", () => {
+  test("no linkbase keeps 5,838M with a note naming the cash-flow add-back", () => {
+    const result = deriveAmd(undefined, MRK_VALUES);
+    expect(result.value).toBe(5_838_000_000);
+    expect(result.note).toContain(
+      "is depreciation + cash-flow AdjustmentForAmortization, not checked against the filed cash-flow statement: no same-filing calculation linkbase was read",
+    );
+  });
+
+  test("a calc tree adding Depreciation and AdjustmentForAmortization into OCF drops the note", () => {
+    const proof = secDepreciationCalcMetrics(
+      role(arc(OCF, "Depreciation") + arc(OCF, "AdjustmentForAmortization")),
+    );
+    const result = deriveAmd(proof, MRK_VALUES);
+    expect(result.value).toBe(5_838_000_000);
+    expect(result.note).toBeUndefined();
   });
 });
 

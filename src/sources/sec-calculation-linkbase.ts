@@ -85,13 +85,18 @@ function mergeLink(networks: Map<string, Network>, role: string, body: string): 
 // D&A-like descendants of operating cash flow at any depth, weights composed; "conflict" when a node is reached twice.
 function roleChildren(network: Network): Map<string, number> | "conflict" | undefined {
   const present = [...OPERATING_CASH_FLOW].filter((concept) => network.has(concept));
+  const reaches = (from: string, to: string, seen = new Set<string>()): boolean =>
+    [...(network.get(from)?.keys() ?? [])].some(
+      (child) => child === to || (!seen.has(child) && seen.add(child) && reaches(child, to, seen)),
+    );
   const roots = present.filter(
-    (concept) => !present.some((total) => network.get(total)?.has(concept) && total !== concept),
+    (concept) => !present.some((total) => total !== concept && reaches(total, concept)),
   );
   if (present.length === 0) {
     return undefined;
   }
-  if (roots.length === 0) {
+  // Disconnected OCF totals in one role are separate calculations, never one proof.
+  if (roots.length !== 1) {
     return "conflict";
   }
   const found = new Map<string, number>();

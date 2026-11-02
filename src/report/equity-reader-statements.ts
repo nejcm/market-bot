@@ -179,7 +179,7 @@ export function operatingRatioNotes(
     ...collapsed(
       unchecked,
       (periods) =>
-        `SEC depreciation and amortization for periods ending ${periods} is depreciation + intangible amortization, not checked against the filed cash-flow statement`,
+        `SEC depreciation and amortization for periods ending ${periods} is a sum of filed D&A components, not checked against the filed cash-flow statement`,
     ),
   ];
 }

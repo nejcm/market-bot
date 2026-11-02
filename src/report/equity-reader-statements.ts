@@ -1,6 +1,7 @@
 import type {
   FinancialStatementFact,
   FinancialStatementNote,
+  FinancialStatementNotePeriod,
   FinancialStatementsArtifact,
 } from "../sources/extended-evidence/financial-statements-contract";
 import {
@@ -98,38 +99,50 @@ function statementSurfaceNotes(
   return groupedDebtCompositeNotes(notes);
 }
 
-const DEBT_COMPOSITE_NOTE = /^Debt composite for (\S+) is incomplete: (.+)\.$/u;
+const LEGACY_DEBT_COMPOSITE_NOTE = /^Debt composite for (\S+) is incomplete: (.+)\.$/u;
+
+// Artifacts written before notes carried `periods`/`reason` hold them only in the message.
+function debtReason(note: FinancialStatementNote): string | undefined {
+  if (note.code !== "incomplete-composite-series") {
+    return undefined;
+  }
+  return note.reason ?? LEGACY_DEBT_COMPOSITE_NOTE.exec(note.message)?.[2];
+}
+
+function debtPeriods(note: FinancialStatementNote): readonly FinancialStatementNotePeriod[] {
+  const legacyEnd = LEGACY_DEBT_COMPOSITE_NOTE.exec(note.message)?.[1];
+  return note.periods ?? (legacyEnd === undefined ? [] : [{ end: legacyEnd }]);
+}
 
 // One note per withhold reason, listing its instants; each instant's note stays in the evidence bundle.
 function groupedDebtCompositeNotes(
   notes: readonly FinancialStatementNote[],
 ): readonly FinancialStatementNote[] {
-  const periodsByReason = new Map<string, string[]>();
+  const periodsByReason = new Map<string, FinancialStatementNotePeriod[]>();
   for (const note of notes) {
-    const match =
-      note.code === "incomplete-composite-series" && DEBT_COMPOSITE_NOTE.exec(note.message);
-    if (match) {
-      periodsByReason.set(match[2]!, [...(periodsByReason.get(match[2]!) ?? []), match[1]!]);
+    const reason = debtReason(note);
+    if (reason !== undefined) {
+      periodsByReason.set(reason, [...(periodsByReason.get(reason) ?? []), ...debtPeriods(note)]);
     }
   }
   const emitted = new Set<string>();
   return notes.flatMap((note) => {
-    const match =
-      note.code === "incomplete-composite-series" && DEBT_COMPOSITE_NOTE.exec(note.message);
-    if (!match) {
+    const reason = debtReason(note);
+    const periods = reason === undefined ? [] : (periodsByReason.get(reason) ?? []);
+    if (reason === undefined || periods.length < 2) {
       return [note];
     }
-    const periods = periodsByReason.get(match[2]!) ?? [];
-    if (periods.length < 2) {
-      return [note];
-    }
-    if (emitted.has(match[2]!)) {
+    if (emitted.has(reason)) {
       return [];
     }
-    emitted.add(match[2]!);
+    emitted.add(reason);
     const { periodKey: _periodKey, ...rest } = note;
     return [
-      { ...rest, message: `Debt composite for ${periods.join(", ")} is incomplete: ${match[2]}.` },
+      {
+        ...rest,
+        periods,
+        message: `Debt composite for ${periods.map((period) => period.end).join(", ")} is incomplete: ${reason}.`,
+      },
     ];
   });
 }

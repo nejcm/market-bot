@@ -199,6 +199,8 @@ function debtNote(periodEnd: string, reason: string) {
     code: "incomplete-composite-series" as const,
     seriesKey: "debt" as const,
     periodKey: `instant|${periodEnd}`,
+    periods: [{ end: periodEnd }],
+    reason,
     message: `Debt composite for ${periodEnd} is incomplete: ${reason}.`,
   };
 }
@@ -317,6 +319,8 @@ describe("equity reader projection", () => {
       {
         code: "incomplete-composite-series" as const,
         seriesKey: "debt" as const,
+        periods: [{ end: "2025-02-28" }, { end: "2024-11-30" }],
+        reason: "unrecognized borrowing concepts are tagged: SeniorNotes",
         message:
           "Debt composite for 2025-02-28, 2024-11-30 is incomplete: unrecognized borrowing concepts are tagged: SeniorNotes.",
       },
@@ -324,6 +328,30 @@ describe("equity reader projection", () => {
     ];
     expect(projection.appendix.balanceSheetHistory?.notes).toEqual(grouped);
     expect(projection.defaultView.financialPosition?.notes).toEqual(grouped);
+  });
+
+  test("groups legacy debt composite notes from their message", () => {
+    const legacy = ["2025-02-28", "2024-11-30"].map((end) => {
+      const { periods: _periods, reason: _reason, ...note } = debtNote(end, "same reason");
+      return note;
+    });
+    const projection = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: {
+        ...amendedFilingArtifact(),
+        omissionNotes: legacy,
+        validationNotes: [],
+      },
+    });
+
+    expect(projection.appendix.balanceSheetHistory?.notes).toEqual([
+      {
+        code: "incomplete-composite-series",
+        seriesKey: "debt",
+        periods: [{ end: "2025-02-28" }, { end: "2024-11-30" }],
+        message: "Debt composite for 2025-02-28, 2024-11-30 is incomplete: same reason.",
+      },
+    ]);
   });
 
   test("renders stale-instant-series notes below the table when the series cell still has a value", () => {

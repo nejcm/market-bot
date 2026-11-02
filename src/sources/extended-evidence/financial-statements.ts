@@ -65,6 +65,7 @@ import {
   type FinancialStatementEnterpriseValueBridge,
   type FinancialStatementEquityStack,
   type FinancialStatementNote,
+  type FinancialStatementNotePeriod,
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
   type FinancialStatementsArtifact,
@@ -1295,6 +1296,25 @@ function derivedSeriesFacts(
   return undefined;
 }
 
+function noteSpan(start: string | undefined, end: string): string {
+  return `${start ?? "instant"} to ${end}`;
+}
+
+function withheldFact(
+  fact: Pick<FinancialStatementFact, "periodStart" | "periodEnd">,
+  reason: string,
+): Pick<FinancialStatementNote, "periods" | "reason"> {
+  return {
+    periods: [
+      {
+        ...(fact.periodStart === undefined ? {} : { start: fact.periodStart }),
+        end: fact.periodEnd,
+      },
+    ],
+    reason,
+  };
+}
+
 // One note per series and reason, limited to periods its input series retains after the cap.
 function withheldDerivationNotes(
   selected: readonly SelectedSeries[],
@@ -1303,16 +1323,25 @@ function withheldDerivationNotes(
   return selected.flatMap(({ series, withheld = [] }) => {
     const input = series.key === "netIncome" ? income.consolidatedNetIncome : income.revenue;
     const retained = new Set(financialStatementFacts(input).map((fact) => fact.periodKey));
-    const byReason = new Map<string, string[]>();
+    const byReason = new Map<string, Map<string, FinancialStatementNotePeriod>>();
     for (const period of withheld.filter((item) => retained.has(item.periodKey))) {
-      const span = `${period.periodStart ?? "instant"} to ${period.periodEnd}`;
-      byReason.set(period.reason, [...(byReason.get(period.reason) ?? []), span]);
+      const spans = byReason.get(period.reason) ?? new Map();
+      spans.set(noteSpan(period.periodStart, period.periodEnd), {
+        ...(period.periodStart === undefined ? {} : { start: period.periodStart }),
+        end: period.periodEnd,
+      });
+      byReason.set(period.reason, spans);
     }
-    return [...byReason].map(([reason, spans]) => ({
-      code: "withheld-derivation" as const,
-      seriesKey: series.key,
-      message: `SEC ${series.label.toLowerCase()} is not derived for ${[...new Set(spans)].toSorted().join(", ")}: ${reason}`,
-    }));
+    return [...byReason].map(([reason, spans]) => {
+      const sorted = [...spans].toSorted(([left], [right]) => left.localeCompare(right));
+      return {
+        code: "withheld-derivation" as const,
+        seriesKey: series.key,
+        periods: sorted.map(([, period]) => period),
+        reason,
+        message: `SEC ${series.label.toLowerCase()} is not derived for ${sorted.map(([span]) => span).join(", ")}: ${reason}`,
+      };
+    });
   });
 }
 
@@ -1341,7 +1370,11 @@ function untaggedContinuingIncomeNotes(
       code: "withheld-derivation" as const,
       seriesKey: "continuingIncome" as const,
       periodKey: fact.periodKey,
-      message: `SEC net margin is withheld for ${fact.periodStart ?? "instant"} to ${fact.periodEnd}: discontinued operations are reported and no continuing-operations income is tagged`,
+      ...withheldFact(
+        fact,
+        "discontinued operations are reported and no continuing-operations income is tagged",
+      ),
+      message: `SEC net margin is withheld for ${noteSpan(fact.periodStart, fact.periodEnd)}: discontinued operations are reported and no continuing-operations income is tagged`,
     }));
 }
 
@@ -1398,7 +1431,7 @@ function untaggedConsolidatedIncomeNotes(
   const consolidatedContinuing = periodKeys(income.consolidatedContinuingIncome);
   const continuing = periodKeys(income.continuingIncome);
   return financialStatementFacts(income.netIncome).flatMap((fact): FinancialStatementNote[] => {
-    const span = `${fact.periodStart ?? "instant"} to ${fact.periodEnd}`;
+    const span = noteSpan(fact.periodStart, fact.periodEnd);
     const consolidatedValue = consolidatedValues.get(fact.periodKey);
     if (
       !noncontrolling.has(fact.periodKey) &&
@@ -1412,6 +1445,10 @@ function untaggedConsolidatedIncomeNotes(
           code: "withheld-derivation" as const,
           seriesKey: "consolidatedContinuingIncome" as const,
           periodKey: fact.periodKey,
+          ...withheldFact(
+            fact,
+            "noncontrolling interest income is reported and continuing income is tagged only as attributable to parent",
+          ),
           message: `SEC continuing net margin is withheld for ${span}: noncontrolling interest income is reported and continuing income is tagged only as attributable to parent`,
         },
       ];
@@ -1423,6 +1460,10 @@ function untaggedConsolidatedIncomeNotes(
             code: "withheld-derivation" as const,
             seriesKey: "consolidatedNetIncome" as const,
             periodKey: fact.periodKey,
+            ...withheldFact(
+              fact,
+              "noncontrolling interest income is reported and no consolidated net income including NCI is tagged",
+            ),
             message: `SEC net margin is withheld for ${span}: noncontrolling interest income is reported and no consolidated net income including NCI is tagged`,
           },
         ];

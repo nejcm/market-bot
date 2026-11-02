@@ -432,6 +432,61 @@ describe("web subject profile extra", () => {
     );
   });
 
+  test("prints reconciled profile gaps with their section and scopes only the rest", () => {
+    const gap = "The supplied evidence does not contain revenue percentages by geographic region.";
+    const render = (openGaps: readonly string[]) =>
+      renderMarkdownReport(
+        researchReport({
+          jobType: "research",
+          extras: {
+            webSubjectProfile: {
+              subjectKind: "company",
+              questions: {},
+              openGaps,
+              reconciledGaps: [
+                { text: gap, topic: "dividend-history", section: "Buy the dip.", metricId: "x" },
+                { text: "Not in openGaps.", topic: "segment-results", metricId: "x" },
+                { text: gap, topic: "geographic-revenue", metricId: "x" },
+                { text: "No options data.", topic: "options-data", metricId: "x" },
+              ],
+            },
+          },
+        }),
+      );
+    const reconciledLine =
+      "- Profile stage lacked: The supplied evidence does not contain revenue percentages by geographic region; published under Capital Return.";
+
+    const onlyReconciled = render([gap]);
+    expect(onlyReconciled).toContain(`### Profile Gaps\n\n${reconciledLine}`);
+    expect(onlyReconciled).not.toContain("_Gaps in the evidence the profile stage read");
+    expect(onlyReconciled).not.toContain("Not in openGaps");
+    expect(onlyReconciled).not.toContain("Buy the dip");
+
+    const mixed = render([gap, "No options data."]);
+    expect(mixed).toContain(
+      `which may publish the same data._\n\n- No options data.\n\n${reconciledLine}`,
+    );
+  });
+
+  test("reconciles duplicate profile gap texts one-to-one", () => {
+    const gap = "No regional split.";
+    const markdown = renderMarkdownReport(
+      researchReport({
+        jobType: "research",
+        extras: {
+          webSubjectProfile: {
+            subjectKind: "company",
+            questions: {},
+            openGaps: [gap, gap],
+            reconciledGaps: [{ text: gap, topic: "dividend-history", metricId: "x" }],
+          },
+        },
+      }),
+    );
+    expect(markdown).toContain("- No regional split.\n");
+    expect(markdown).toContain("- Profile stage lacked: No regional split; published under");
+  });
+
   test("lists a source cited only by the subject summary", () => {
     const markdown = renderMarkdownReport(
       researchReport({

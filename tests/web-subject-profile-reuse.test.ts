@@ -14,6 +14,8 @@ import {
   WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
 } from "../src/web-evidence/contract";
 import { readWebSubjectProfileArtifact } from "../src/run-artifact-evidence-reader";
+import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
+import type { MetricSection } from "../src/sources/extended-evidence/metric-engine";
 import {
   buildWebSubjectProfileEvidence,
   normalizedSubjectId,
@@ -78,6 +80,24 @@ function tempRunsDir(): string {
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function dividendCagr(status: string): MetricSection {
+  return {
+    id: "capital-return",
+    title: "Capital Return",
+    metrics: [
+      { id: "dpsCagr5y", status, periodEnd: "2026-03-31", inputs: [], sourceIds: [] },
+      {
+        id: "fyRevenue",
+        status: "value",
+        periodEnd: "2026-03-31",
+        periodMonths: 12,
+        inputs: [],
+        sourceIds: [],
+      },
+    ],
+  } as unknown as MetricSection;
 }
 
 function profile(
@@ -1367,6 +1387,15 @@ describe("Web Subject Profile reuse", () => {
     ).toBeUndefined();
   });
 
+  test("sidecar reader reads legacy string gaps and unknown topics as other", () => {
+    const legacy = { ...profile(), openGaps: ["Legacy gap.", { text: "Mix.", topic: "bogus" }] };
+    expect(readWebSubjectProfileArtifact(legacy)?.openGaps).toEqual([
+      { text: "Legacy gap.", topic: "other" },
+      { text: "Mix.", topic: "other" },
+    ]);
+    expect(readWebSubjectProfileArtifact({ ...profile(), openGaps: [42] })).toBeUndefined();
+  });
+
   describe("inline source-id markers across the reuse load", () => {
     const marker = `[${webSource.id}]`;
 
@@ -1475,12 +1504,33 @@ describe("Web Subject Profile reuse", () => {
       expect(reuse?.profile.subjectSummary.answer).toBe("Apple sells devices.");
     });
 
+    test("reconciles reused gaps against the current run's Metric Sections", async () => {
+      const reuse = await loadPrior({
+        ...profile(),
+        openGaps: [{ text: "No dividend history.", topic: "dividend-history" }],
+      });
+      const project = (metricSections: readonly MetricSection[]) =>
+        projectExtendedEvidenceReportExtras({
+          modelExtras: {},
+          collectedSources: attachReusableWebSubjectProfile({
+            command,
+            collectedSources: collectedSources({ metricSections }),
+            reuse: reuse as NonNullable<typeof reuse>,
+          }),
+        }).webSubjectProfile as { reconciledGaps?: unknown };
+
+      expect(project([dividendCagr("value")]).reconciledGaps).toEqual([
+        { text: "No dividend history.", topic: "dividend-history", metricId: "dpsCagr5y" },
+      ]);
+      expect(project([dividendCagr("missing")]).reconciledGaps).toBeUndefined();
+    });
+
     test("strips markers from a legacy profile loaded for reuse", async () => {
       const legacy = profile();
       const reuse = await loadPrior({
         ...legacy,
         subjectSummary: { answer: `Apple sells devices. ${marker}`, sourceIds: [webSource.id] },
-        openGaps: [`Regional split missing ${marker}.`],
+        openGaps: [`Regional split missing ${marker}.`] as never,
       });
       expect(reuse).toBeDefined();
       const attached = attachReusableWebSubjectProfile({
@@ -1493,7 +1543,9 @@ describe("Web Subject Profile reuse", () => {
         answer: "Apple sells devices.",
         sourceIds: [webSource.id],
       });
-      expect(attached.webSubjectProfile?.openGaps).toEqual(["Regional split missing."]);
+      expect(attached.webSubjectProfile?.openGaps).toEqual([
+        { text: "Regional split missing.", topic: "other" },
+      ]);
     });
   });
 });

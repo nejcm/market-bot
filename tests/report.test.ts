@@ -4191,6 +4191,17 @@ describe("report schema and rendering", () => {
     expect(rejection.path).toBe("extras.webSubjectProfile.openGaps[0]");
   });
 
+  test("scans object-shaped open gaps the readers render", () => {
+    const rejection = languageRejection({
+      ...report,
+      extras: {
+        webSubjectProfile: { openGaps: [{ text: "Buy the dip.", topic: "other" }] },
+      },
+    });
+
+    expect(rejection.path).toBe("extras.webSubjectProfile.openGaps[0].text");
+  });
+
   test("reports no attribution when the match straddles two scanned fields", () => {
     const rejection = languageRejection({
       ...report,

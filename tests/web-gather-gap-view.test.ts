@@ -589,7 +589,7 @@ describe("Web Gather Source Gap view", () => {
         subjectSummary: { answer: "Apple makes consumer devices.", sourceIds: ["web-aapl"] },
         recentMaterialEvents: [],
         factLedger: [],
-        openGaps,
+        openGaps: openGaps.map((text) => ({ text, topic: "other" as const })),
         sourceIds: ["web-aapl"],
         questions: {
           whatItDoes: { answer: "Devices.", sourceIds: ["web-aapl"] },
@@ -609,7 +609,7 @@ describe("Web Gather Source Gap view", () => {
     ).openGaps;
 
     expect(JSON.stringify(gatherOpenGaps)).toBe(JSON.stringify(allOpenGaps));
-    expect(gatherOpenGaps).toBe(openGaps);
+    expect(gatherOpenGaps).toEqual(openGaps);
   });
 
   test("keeps dropped gaps visible to every other prompt stage", () => {

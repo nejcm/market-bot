@@ -32,9 +32,11 @@ import {
 // Importing the barrel here would form a run-artifacts → phase → profile-reuse → run-artifacts cycle.
 import {
   LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS,
+  readWebSubjectProfileOpenGap,
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   type WebSubjectProfileAnswer,
   type WebSubjectProfileArtifact,
+  type WebSubjectProfileOpenGap,
 } from "./web-evidence/contract";
 import {
   readWebSubjectProfileAnswer,
@@ -538,7 +540,13 @@ export function readWebSubjectProfileArtifact(
   const subjectSummary = readWebSubjectProfileAnswer(value.subjectSummary);
   const recentMaterialEvents = readWebSubjectProfileFacts(value.recentMaterialEvents);
   const factLedger = readWebSubjectProfileFacts(value.factLedger);
-  const openGaps = readStringArray(value, "openGaps");
+  const gapRows = Array.isArray(value.openGaps)
+    ? value.openGaps.map(readWebSubjectProfileOpenGap)
+    : undefined;
+  const openGaps =
+    gapRows?.every((gap): gap is WebSubjectProfileOpenGap => gap !== undefined) === true
+      ? (gapRows as readonly WebSubjectProfileOpenGap[])
+      : undefined;
   const sourceIds = readStringArray(value, "sourceIds");
   const symbol = readString(value, "symbol");
   const subjectLabel = readString(value, "subjectLabel");

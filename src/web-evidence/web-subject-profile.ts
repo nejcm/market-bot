@@ -6,7 +6,7 @@ import type { ExtendedEvidence, ExtendedEvidenceItem, SubjectKind } from "../dom
 import type { Source, SourceGap } from "../domain/sources";
 import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import { GEOGRAPHIC_REVENUE_SECTION_ID } from "../sources/extended-evidence/geographic-revenue";
-import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../guards";
+import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import {
   isWebSubjectProfileWithheldAnswer,
   substantiveProfileSourceIds,
@@ -22,7 +22,11 @@ import {
   type WebSubjectProfileCompanyQuestionKey,
   type WebSubjectProfileCryptoQuestionKey,
   type WebSubjectProfileFact,
+  type WebSubjectProfileOpenGap,
   type WebSubjectProfileThemeQuestionKey,
+  isUnreadableOpenGapsNotice,
+  readWebSubjectProfileOpenGap,
+  unreadableOpenGapsNotice,
 } from "./contract";
 
 export { type WebSubjectProfileArtifact } from "./contract";
@@ -185,7 +189,7 @@ export function webSubjectProfileRequiredShape(subjectKind: SubjectKind): Record
     ),
     recentMaterialEvents: [{ claim: "string", sourceIds: ["web-source-id"] }],
     factLedger: [{ claim: "string", sourceIds: ["web-source-id"] }],
-    openGaps: ["string"],
+    openGaps: [{ text: "string", topic: "other" }],
   };
 }
 
@@ -237,7 +241,7 @@ interface ScreenableProfileFields {
   readonly questions: Readonly<Record<string, WebSubjectProfileAnswer>>;
   readonly recentMaterialEvents: readonly WebSubjectProfileFact[];
   readonly factLedger: readonly WebSubjectProfileFact[];
-  readonly openGaps: readonly string[];
+  readonly openGaps: readonly WebSubjectProfileOpenGap[];
 }
 
 interface ScreenedProfileFields extends ScreenableProfileFields {
@@ -418,18 +422,18 @@ function screenModelFacts(
   };
 }
 
-function screenModelOpenGaps(gaps: readonly string[]): {
-  readonly kept: readonly string[];
+function screenModelOpenGaps(gaps: readonly WebSubjectProfileOpenGap[]): {
+  readonly kept: readonly WebSubjectProfileOpenGap[];
   readonly withheldCount: number;
-  readonly preexistingNotices: readonly string[];
+  readonly preexistingNotices: readonly WebSubjectProfileOpenGap[];
 } {
-  const preexistingNotices: string[] = [];
-  const kept: string[] = [];
+  const preexistingNotices: WebSubjectProfileOpenGap[] = [];
+  const kept: WebSubjectProfileOpenGap[] = [];
   let withheldCount = 0;
   for (const gap of gaps) {
-    if (violatesResearchOnly(gap) !== null) {
+    if (violatesResearchOnly(gap.text) !== null) {
       withheldCount += 1;
-    } else if (isWebSubjectProfileWithheldAnswer(gap)) {
+    } else if (isWebSubjectProfileWithheldAnswer(gap.text)) {
       preexistingNotices.push(gap);
     } else {
       kept.push(gap);
@@ -517,7 +521,8 @@ function screenProfileFields(
           withheldCountSummary(
             "declared open gaps",
             openGaps.withheldCount,
-            openGaps.kept.length + openGaps.withheldCount,
+            openGaps.kept.filter((gap) => !isUnreadableOpenGapsNotice(gap.text)).length +
+              openGaps.withheldCount,
           ),
           "withheld-gaps summary",
         );
@@ -527,7 +532,10 @@ function screenProfileFields(
   if (openGaps.preexistingNotices[0] !== undefined) {
     withheldGaps.push(
       profileGap(
-        assertCodeAssembledProfileText(openGaps.preexistingNotices[0], "withheld-gaps summary"),
+        assertCodeAssembledProfileText(
+          openGaps.preexistingNotices[0].text,
+          "withheld-gaps summary",
+        ),
         "validation-failed",
       ),
     );
@@ -540,7 +548,7 @@ function screenProfileFields(
     openGaps:
       withheldOpenGapsNotice === undefined
         ? profile.openGaps
-        : [...openGaps.kept, ...openGaps.preexistingNotices, withheldOpenGapsNotice],
+        : [...openGaps.kept, ...openGaps.preexistingNotices, otherGap(withheldOpenGapsNotice)],
     withheldGaps,
   };
 }
@@ -566,8 +574,23 @@ function applyScreenedFields(
 // The report-language scan (ADR 0001).
 const WITHHELD_FAILURE_GAP = `Web Subject Profile unavailable; the stage failure detail was ${WEB_SUBJECT_PROFILE_WITHHELD_MARKER}.`;
 
-function screenedFailureOpenGap(gap: string): string {
-  return violatesResearchOnly(gap) === null ? gap : WITHHELD_FAILURE_GAP;
+function parsedOpenGaps(value: unknown): readonly WebSubjectProfileOpenGap[] {
+  const items: readonly unknown[] = Array.isArray(value) ? value : [];
+  const readable = items.flatMap((item) => readWebSubjectProfileOpenGap(item) ?? []);
+  return [
+    ...readable.filter((gap) => !METRIC_TOKEN.test(gap.text)),
+    ...(readable.length < items.length
+      ? [otherGap(unreadableOpenGapsNotice(items.length - readable.length))]
+      : []),
+  ];
+}
+
+function screenedFailureOpenGap(gap: string): WebSubjectProfileOpenGap {
+  return otherGap(violatesResearchOnly(gap) === null ? gap : WITHHELD_FAILURE_GAP);
+}
+
+function otherGap(text: string): WebSubjectProfileOpenGap {
+  return { text, topic: "other" };
 }
 
 /*
@@ -663,7 +686,10 @@ export function buildWebSubjectProfileEvidence(input: {
     questions: screened.questions,
     recentMaterialEvents: screened.recentMaterialEvents,
     factLedger: screened.factLedger,
-    openGaps: [...screened.openGaps, ...(rejectionSummary === undefined ? [] : [rejectionSummary])],
+    openGaps: [
+      ...screened.openGaps,
+      ...(rejectionSummary === undefined ? [] : [otherGap(rejectionSummary)]),
+    ],
   };
   const sourceIds = profileSourceIds(profileForArtifact);
   const artifact = profileArtifact({
@@ -737,7 +763,7 @@ interface ParsedProfile {
   readonly questions: Readonly<Record<string, WebSubjectProfileAnswer>>;
   readonly recentMaterialEvents: readonly WebSubjectProfileFact[];
   readonly factLedger: readonly WebSubjectProfileFact[];
-  readonly openGaps: readonly string[];
+  readonly openGaps: readonly WebSubjectProfileOpenGap[];
 }
 
 type AnswerSourceIdFailure =
@@ -804,7 +830,7 @@ function parseProfile(
       questions: questions.questions,
       recentMaterialEvents: recentMaterialEvents.facts,
       factLedger: factLedger.facts,
-      openGaps: stringArrayValue(parsed.openGaps).filter((gap) => !METRIC_TOKEN.test(gap)),
+      openGaps: parsedOpenGaps(parsed.openGaps),
       ...(subjectLabel !== undefined ? { subjectLabel } : {}),
       ...(companyName !== undefined ? { companyName } : {}),
     }),
@@ -972,7 +998,9 @@ function withoutSourceIdMarkers<
     ),
     recentMaterialEvents: profile.recentMaterialEvents.map(fact),
     factLedger: profile.factLedger.map(fact),
-    openGaps: profile.openGaps.map(strip).filter((gap) => gap !== ""),
+    openGaps: profile.openGaps
+      .map((gap) => ({ ...gap, text: strip(gap.text) }))
+      .filter((gap) => gap.text !== ""),
     ...(profile.subjectLabel !== undefined ? { subjectLabel: strip(profile.subjectLabel) } : {}),
     ...(profile.companyName !== undefined ? { companyName: strip(profile.companyName) } : {}),
   };

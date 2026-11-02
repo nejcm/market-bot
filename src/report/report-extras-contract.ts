@@ -81,8 +81,27 @@ export interface WebSubjectProfileExtra {
   readonly recentMaterialEvents: readonly WebSubjectProfileFact[];
   readonly factLedger: readonly WebSubjectProfileFact[];
   readonly openGaps: readonly string[];
+  // Computed against this run's Metric Sections at projection time; never persisted on the artifact.
+  readonly reconciledGaps?: readonly WebSubjectProfileReconciledGap[];
   readonly sourceIds: readonly string[];
   readonly secFilingBasisDate?: string;
+}
+
+interface WebSubjectProfileReconciledGap {
+  readonly text: string;
+  readonly topic: ReconcilableGapTopic;
+  readonly metricId: string;
+}
+
+// Closed and code-owned, so no extras input can choose the rendered section label.
+const RECONCILED_GAP_SECTION_LABELS = {
+  "segment-results": "Segment results per ASC 280",
+  "dividend-history": "Capital Return",
+} as const;
+export type ReconcilableGapTopic = keyof typeof RECONCILED_GAP_SECTION_LABELS;
+
+function isReconcilableGapTopic(value: unknown): value is ReconcilableGapTopic {
+  return typeof value === "string" && Object.hasOwn(RECONCILED_GAP_SECTION_LABELS, value);
 }
 
 export type MetricSectionsExtra = readonly MetricSection[];
@@ -156,6 +175,7 @@ export interface WebSubjectProfileExtraValue {
   readonly factLedger: readonly WebSubjectProfileFactValue[];
   readonly openGaps: readonly string[];
   readonly openGapsComplete: boolean;
+  readonly reconciledGaps: readonly WebSubjectProfileReconciledGap[];
   readonly sourceIds: readonly string[];
   readonly sourceIdsComplete: boolean;
   readonly secFilingBasisDate?: string;
@@ -518,7 +538,17 @@ export function readWebSubjectProfileExtra(
   const companyName = readStringVerbatim(value, "companyName");
   const secFilingBasisDate = readString(value, "secFilingBasisDate");
   const subjectSummary = readAnswerValue(value.subjectSummary);
-  const openGaps = stringList(value, "openGaps");
+  // A sidecar artifact carries {text, topic} gaps where report.json carries strings.
+  const openGaps = stringList(
+    {
+      openGaps: Array.isArray(value.openGaps)
+        ? value.openGaps.map((gap: unknown) =>
+            isRecord(gap) && typeof gap.text === "string" ? gap.text : gap,
+          )
+        : value.openGaps,
+    },
+    "openGaps",
+  );
   const sourceIds = stringList(value);
   return {
     ...(version !== undefined ? { version } : {}),
@@ -546,10 +576,40 @@ export function readWebSubjectProfileExtra(
     factLedger: readFactValues(value.factLedger),
     openGaps: openGaps.values,
     openGapsComplete: openGaps.complete,
+    reconciledGaps: (Array.isArray(value.reconciledGaps) ? value.reconciledGaps : []).flatMap(
+      (gap: unknown) =>
+        isRecord(gap) &&
+        typeof gap.text === "string" &&
+        isReconcilableGapTopic(gap.topic) &&
+        typeof gap.metricId === "string"
+          ? [{ text: gap.text, topic: gap.topic, metricId: gap.metricId }]
+          : [],
+    ),
     sourceIds: sourceIds.values,
     sourceIdsComplete: sourceIds.complete,
     ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
   };
+}
+
+// Reconciled gaps render by matching openGaps text, so only scanned prose ever renders.
+export function splitProfileGaps(profile: WebSubjectProfileExtraValue): {
+  readonly open: readonly string[];
+  readonly reconciled: readonly { readonly text: string; readonly section: string }[];
+} {
+  const gaps = profile.openGapsComplete ? profile.openGaps : [];
+  const unmatched = [...profile.reconciledGaps];
+  const open: string[] = [];
+  const reconciled: { readonly text: string; readonly section: string }[] = [];
+  for (const text of gaps) {
+    const index = unmatched.findIndex((gap) => gap.text === text);
+    const match = index === -1 ? undefined : unmatched.splice(index, 1)[0];
+    if (match === undefined) {
+      open.push(text);
+    } else {
+      reconciled.push({ text, section: RECONCILED_GAP_SECTION_LABELS[match.topic] });
+    }
+  }
+  return { open, reconciled };
 }
 
 // One row the validation, research-only and citation walks share; paths are relative to the extra.
@@ -602,9 +662,15 @@ export function webSubjectProfileSourceRows(value: unknown): readonly ExtraSourc
       : []),
     ...facts("recentMaterialEvents"),
     ...facts("factLedger"),
-    ...allStrings(value.openGaps).map((gap, index) => {
+    // Every shape the reader renders is scanned: legacy strings and {text, topic} pairs.
+    ...(Array.isArray(value.openGaps) ? value.openGaps : []).flatMap((gap: unknown, index) => {
       const path = `openGaps[${String(index)}]`;
-      return { path, text: { path, value: gap } };
+      if (typeof gap === "string") {
+        return [{ path, text: { path, value: gap } }];
+      }
+      return isRecord(gap) && typeof gap.text === "string"
+        ? [{ path, text: { path: `${path}.text`, value: gap.text } }]
+        : [];
     }),
   ];
 }

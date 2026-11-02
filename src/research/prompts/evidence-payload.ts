@@ -8,6 +8,7 @@ import { SEC_FILING_EXCERPT_MARKER } from "../../sources/sec-filing-item";
 import { earningsBasis } from "../../report/equity-reader-earnings-basis";
 import { tickerSnapshot } from "../../sources/extended-evidence/financial-lens-metrics";
 import { profileCitableSources, subjectKindForCommand } from "../../web-evidence";
+import { readWebSubjectProfileOpenGap } from "../../web-evidence/contract";
 import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 import {
   forPrompt,
@@ -237,7 +238,7 @@ const projectWebSubjectProfile: EvidenceProjector = (_options, command, collecte
       questions: profile.questions,
       factLedger: profile.factLedger,
       recentMaterialEvents: profile.recentMaterialEvents,
-      openGaps: profile.openGaps,
+      openGaps: profile.openGaps.map((gap) => readWebSubjectProfileOpenGap(gap)?.text ?? gap),
     },
   };
 };

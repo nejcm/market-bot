@@ -304,10 +304,7 @@ function calendarEarnings(
       kind: "earnings-date",
       symbol: typeof reportSymbol === "string" ? reportSymbol : "",
       date: metrics.nextEarningsDate as string,
-      timing:
-        typeof metrics.nextEarningsTiming === "string"
-          ? metrics.nextEarningsTiming
-          : "timing unavailable",
+      timing: earningsTiming(metrics.nextEarningsTiming),
       status: "provider-estimated",
       sourceIds,
     },
@@ -318,6 +315,11 @@ function calendarEarnings(
       ? [{ kind: "revenue-consensus" as const, value: metrics.revenueEstimate, sourceIds }]
       : []),
   ];
+}
+
+// Finnhub reports an unscheduled session as "unknown".
+function earningsTiming(timing: unknown): string {
+  return typeof timing === "string" && timing !== "unknown" ? timing : "timing unavailable";
 }
 
 function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[] {
@@ -356,7 +358,7 @@ function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[
         kind: "earnings-date",
         symbol,
         date: event.date,
-        timing: typeof event.timing === "string" ? event.timing : "timing unavailable",
+        timing: earningsTiming(event.timing),
         status,
         sourceIds: [
           ...new Set([...sourceIds, ...(conflictSourceId !== undefined ? [conflictSourceId] : [])]),

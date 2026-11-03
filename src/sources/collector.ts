@@ -269,6 +269,7 @@ export interface CollectSourcesRuntimeOptions {
   readonly fetchImpl?: FetchLike;
   readonly retryDelaysMs?: readonly number[];
   readonly peerUniverse?: PeerUniverseSeam;
+  readonly taggedZeroDebtDisabled?: boolean;
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly collectTradierTermStructure?: boolean;
 }
@@ -470,6 +471,7 @@ export async function collectSources(
     preliminaryIdentityResult,
     now,
     peerUniverse: peerUniverseSeam,
+    taggedZeroDebtDisabled: runtime.taggedZeroDebtDisabled,
     secTargetPacket,
     tradierPacket,
     fetchImpl: requestFetchImpl,

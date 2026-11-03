@@ -238,7 +238,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   set instead: the latest 10-K's schema (or the `_cal.xml` it references) is read once, and a component sum from that
   accession publishes without the note only when operating cash flow's D&A-like summation children are exactly its two
   concepts, each weight +1 (ORCL, ABBV, GLW). Amount equality is never the proof. Any other child set (MSFT's extension
-  line), another accession, or no linkbase keeps the note and names the reason.
+  line), another accession, or no linkbase keeps the note and names the reason; a schema naming more than one
+  calculation linkbase, or one beside an embedded calculationLink, reads as a conflict, since the unread network
+  could change the child set.
   Equality/within tolerance keeps combined. Rejected/incomplete fallback emits period-specific omission/gap
   and Markdown/Console note; retain lineage and name EBITDA proxy basis. A selected combined fact more than 1%
   below the other same-period combined alias (DDA under DA) is withheld, never replaced by the higher alias; the
@@ -407,6 +409,49 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   only when comps exist and a clause mentions a peer median) labels each clause's compared metric; code still
   decides the prune, and an omitted or unknown label, provider error, or malformed reply falls back to the clause regex. Negation is also judged per clause. Peer ids are never appended: the figure may not come
   from those peers.
+- Tagged Zero Debt (collection, amended 2026-11-03; replaces the Verified Quote prose link): debt 0 on a
+  footed face with no borrowing row publishes only from the same 10-K/10-Q's SEC-extracted XBRL instance, read as
+  XML by a strict namespace-aware reader with a closed XBRL 2.1 grammar (DTDs and custom entities are refused;
+  only the predefined and XML-legal numeric character references decode; unknown root subtrees, element children
+  in simple values, non-calendar dates, and contexts without exactly one entity and one period throw; schemaRef,
+  linkbaseRef, roleRef and arcroleRef must be empty, and a footnoteLink holds only locators, arcs and footnotes of
+  XHTML markup; a concept is its expanded name, so any number of non-reserved prefixes may alias one namespace;
+  `xml:base`, which the SEC EDGAR Filer Manual forbids, makes the instance, schema or linkbase unreadable),
+  plus its `MetaLinks.json` balance and item types (an entry with a bad `crdr`, no `xbrltype`, or a conflicting
+  duplicate makes MetaLinks unreadable). Every context must name the issuer's CIK under the SEC scheme; every fact
+  at the instant must be in MetaLinks. A fact leaves the census only when its MetaLinks type is a known
+  nonmonetary one and its unit fits that type (shares in `xbrli:shares`, per-share in currency over shares, pure
+  and percent in `xbrli:pure`, other numeric types in a unit with no currency, non-numeric types with no unit); an
+  empty or unknown type never does. A nonmonetary type on a fact MetaLinks gives a `crdr`, or on a us-gaap
+  borrowing or listed credit concept, contradicts XBRL 2.1's balance-only-on-monetary rule and rejects as
+  `metalinks-contradicts:<concept>`. Every other fact typed monetary, in a currency unit, or nonzero or nil and not
+  debit needs exactly one `iso4217` measure in the issuer-wide `Liabilities` currency and a lexical decimal value
+  (zero means no nonzero digit, never a number coercion); such a nil fact rejects unless debit. The
+  instance must tag an allowlisted borrowing concept 0 at the instant, issuer-wide or on facility axes only, and a
+  fail-closed census requires every nonzero non-debit monetary fact there, in any context, to be a closed us-gaap
+  non-debt credit concept (liability totals only issuer-wide) or an extension-namespace concept the calculation
+  linkbase places, with weight exactly 1 in every network (decided on the lexical decimal, so `+01.000` is one and
+  `1.0000000000000000001` is not), only under us-gaap operating-lease parents. The schema is the instance's own
+  single schemaRef and the linkbase the schema's calculation linkbaseRef, both read as XML and resolved as URLs
+  against the document naming them; either outside the filing's accession folder is not fetched. Placement needs
+  exactly one calculation source, with no DTS discovery: a second possible calculation linkbaseRef, a calculationLink embedded
+  beside it, or a calculation linkbaseRef on the instance is `calculation-linkbase-ambiguous`. Links, locators and
+  arcs must carry their XLink types (`extended`, `locator`, `arc`), and locator fragments are percent-decoded
+  (a malformed escape is unreadable). A linkbaseRef counts as a calculation source unless its role is the standard
+  presentation, label, definition or reference role, because an unspecified role may hold any extended link (XBRL 2.1
+  §4.3.4); the same rule applies to the D&A read's conflict. Calc locators
+  resolve as URLs against the linkbase: extension hrefs through the xsd's top-level element ids (a duplicate id
+  makes it unreadable) and `targetNamespace`, us-gaap only from the `xbrl.fasb.org` schema. A schema whose
+  `targetNamespace` is a standard taxonomy's (fasb.org, xbrl.org, sec.gov, ifrs.org, w3.org hosts) is unreadable,
+  and placement never pardons a fact in such a namespace, whatever the schema says; conflicting, prohibited or
+  non-decimal weights make the linkbase unreadable. The instance, MetaLinks, schema and linkbase are each a cited
+  Source on the zero. Prose matching is gone: a regex sentence link and facility-word match were shown to publish
+  unsupported zeros and to reject real ones. Residual reliance, not closed by these checks: a borrowing balance
+  the issuer leaves untagged, tags as a debit, or folds into an allowlisted aggregate such as
+  `AccruedLiabilitiesCurrent` would pass; facility identity is the tag's own members, not a prose reading. CLFD's 10-Qs 2025-12-31 through
+  2026-06-30 publish 0 (`LineOfCredit` = 0 on the revolver and Bremer Bank loan agreement members). A rejection
+  or a failed instance, MetaLinks or linkbase read withholds with its code and Source Gap.
+  `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
   `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,

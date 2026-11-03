@@ -106,7 +106,7 @@ export interface ParsedFact {
   readonly sourceIds?: readonly string[];
   readonly proofSourceIds?: readonly string[];
   readonly faceLeases?: readonly string[];
-  readonly zeroBorrowingsQuote?: string;
+  readonly zeroBorrowingsProof?: string;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly ParsedCompositeComponent[];
@@ -1860,7 +1860,7 @@ function toSelectedFact(
     unit: fact.unit,
     unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
     extractionMethod:
-      fact.zeroBorrowingsQuote !== undefined
+      fact.zeroBorrowingsProof !== undefined
         ? ZERO_BORROWINGS_EXTRACTION_METHOD
         : composite === undefined
           ? "sec-companyfacts"
@@ -1868,9 +1868,9 @@ function toSelectedFact(
     sourceIds,
     ...(fact.lineScope === true ? { lineScope: true as const } : {}),
     ...(fact.faceLeases === undefined ? {} : { faceLeases: fact.faceLeases }),
-    ...(fact.zeroBorrowingsQuote === undefined
+    ...(fact.zeroBorrowingsProof === undefined
       ? {}
-      : { zeroBorrowingsQuote: fact.zeroBorrowingsQuote }),
+      : { zeroBorrowingsProof: fact.zeroBorrowingsProof }),
     ...(composite !== undefined ? { composite } : {}),
   };
 }

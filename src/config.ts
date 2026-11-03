@@ -113,6 +113,7 @@ export interface AppConfig {
   readonly evidenceRequestOptions: EvidenceRequestOptions;
   readonly webGatherOptions: WebGatherOptions;
   readonly webGatherDisabled: boolean;
+  readonly taggedZeroDebtDisabled?: boolean;
   readonly webProfileReuseDaysBySubjectKind: Readonly<Record<SubjectKind, number>>;
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
@@ -655,6 +656,7 @@ export function resolveConfig(
       },
     },
     webGatherDisabled: readBoolean(env.MARKET_BOT_WEB_GATHER_DISABLE),
+    taggedZeroDebtDisabled: readBoolean(env.MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE),
     webProfileReuseDaysBySubjectKind: {
       company: readPositiveInteger(
         env.MARKET_BOT_WEB_PROFILE_COMPANY_REUSE_DAYS,

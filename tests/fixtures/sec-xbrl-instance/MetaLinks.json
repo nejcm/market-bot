@@ -1,0 +1,549 @@
+{
+  "version": "2.2",
+  "instance": {
+    "clfd20260331_10q.htm": {
+      "tag": {
+        "us-gaap_AccountsPayableCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AccountsPayableCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_AccountsReceivableNetCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AccountsReceivableNetCurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_AccruedLiabilitiesCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AccruedLiabilitiesCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_AccumulatedOtherComprehensiveIncomeLossNetOfTax": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AccumulatedOtherComprehensiveIncomeLossNetOfTax",
+          "crdr": "credit"
+        },
+        "us-gaap_AdditionalPaidInCapital": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AdditionalPaidInCapital",
+          "crdr": "credit"
+        },
+        "us-gaap_AllowanceForDoubtfulAccountsReceivableCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AllowanceForDoubtfulAccountsReceivableCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_Assets": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "Assets",
+          "crdr": "debit"
+        },
+        "us-gaap_AssetsCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AssetsCurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_AssetsOfDisposalGroupIncludingDiscontinuedOperationCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AssetsOfDisposalGroupIncludingDiscontinuedOperationCurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax",
+          "crdr": "credit"
+        },
+        "us-gaap_AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax",
+          "crdr": "debit"
+        },
+        "us-gaap_AvailableForSaleDebtSecuritiesAmortizedCostBasis": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AvailableForSaleDebtSecuritiesAmortizedCostBasis",
+          "crdr": "debit"
+        },
+        "us-gaap_AvailableForSaleSecuritiesDebtSecurities": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "AvailableForSaleSecuritiesDebtSecurities",
+          "crdr": "debit"
+        },
+        "us-gaap_CashAndCashEquivalentsAtCarryingValue": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "CashAndCashEquivalentsAtCarryingValue",
+          "crdr": "debit"
+        },
+        "us-gaap_CashAndDueFromBanks": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "CashAndDueFromBanks",
+          "crdr": "debit"
+        },
+        "us-gaap_CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations",
+          "crdr": "debit"
+        },
+        "clfd_CashEquivalentsFairValueDisclosure": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "CashEquivalentsFairValueDisclosure",
+          "crdr": "debit"
+        },
+        "us-gaap_CommonStockValue": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "CommonStockValue",
+          "crdr": "credit"
+        },
+        "us-gaap_DebtInstrumentCollateralAmount": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DebtInstrumentCollateralAmount",
+          "crdr": "debit"
+        },
+        "us-gaap_DebtSecuritiesAvailableForSaleAllowanceForCreditLoss": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DebtSecuritiesAvailableForSaleAllowanceForCreditLoss",
+          "crdr": "credit"
+        },
+        "us-gaap_DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPosition12MonthsOrLonger": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPosition12MonthsOrLonger",
+          "crdr": "debit"
+        },
+        "us-gaap_DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPosition12MonthsOrLongerAccumulatedLoss": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPosition12MonthsOrLongerAccumulatedLoss",
+          "crdr": "debit"
+        },
+        "us-gaap_DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPositionLessThan12Months": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPositionLessThan12Months",
+          "crdr": "debit"
+        },
+        "us-gaap_DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPositionLessThan12MonthsAccumulatedLoss": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DebtSecuritiesAvailableForSaleContinuousUnrealizedLossPositionLessThan12MonthsAccumulatedLoss",
+          "crdr": "debit"
+        },
+        "us-gaap_DeferredIncomeTaxAssetsNet": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DeferredIncomeTaxAssetsNet",
+          "crdr": "debit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationAccountsNotesAndLoansReceivableNet": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationAccountsNotesAndLoansReceivableNet",
+          "crdr": "debit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationAccountsPayableCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationAccountsPayableCurrent",
+          "crdr": "credit"
+        },
+        "clfd_DisposalGroupIncludingDiscontinuedOperationAccruedCompensationCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationAccruedCompensationCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationAssetsNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationAssetsNoncurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationCashAndCashEquivalents": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationCashAndCashEquivalents",
+          "crdr": "debit"
+        },
+        "clfd_DisposalGroupIncludingDiscontinuedOperationFactoringLiabilityCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationFactoringLiabilityCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationIntangibleAssetsNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationIntangibleAssetsNoncurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationInventoryCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationInventoryCurrent",
+          "crdr": "debit"
+        },
+        "clfd_DisposalGroupIncludingDiscontinuedOperationLeaseLiabilityCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationLeaseLiabilityCurrent",
+          "crdr": "credit"
+        },
+        "clfd_DisposalGroupIncludingDiscontinuedOperationLongtermDebtCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationLongtermDebtCurrent",
+          "crdr": "credit"
+        },
+        "clfd_DisposalGroupIncludingDiscontinuedOperationLongtermDebtNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationLongtermDebtNoncurrent",
+          "crdr": "credit"
+        },
+        "clfd_DisposalGroupIncludingDiscontinuedOperationOtherAssetsNoncurrentNet": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationOtherAssetsNoncurrentNet",
+          "crdr": "debit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationOtherCurrentAssets": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationOtherCurrentAssets",
+          "crdr": "debit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationOtherCurrentLiabilities": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationOtherCurrentLiabilities",
+          "crdr": "credit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationOtherNoncurrentLiabilities": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationOtherNoncurrentLiabilities",
+          "crdr": "credit"
+        },
+        "us-gaap_DisposalGroupIncludingDiscontinuedOperationPropertyPlantAndEquipmentNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationPropertyPlantAndEquipmentNoncurrent",
+          "crdr": "debit"
+        },
+        "clfd_DisposalGroupIncludingDiscontinuedOperationRightofuseAssetsNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "DisposalGroupIncludingDiscontinuedOperationRightofuseAssetsNoncurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_EmployeeRelatedLiabilitiesCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "EmployeeRelatedLiabilitiesCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_EmployeeServiceShareBasedCompensationNonvestedAwardsTotalCompensationCostNotYetRecognized": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "EmployeeServiceShareBasedCompensationNonvestedAwardsTotalCompensationCostNotYetRecognized",
+          "crdr": "debit"
+        },
+        "clfd_FiniteLivedIntangibleAssetExpectedAmortizationAfterYearFour": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "FiniteLivedIntangibleAssetExpectedAmortizationAfterYearFour",
+          "crdr": "debit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsAccumulatedAmortization": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsAccumulatedAmortization",
+          "crdr": "credit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsAmortizationExpenseNextTwelveMonths": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsAmortizationExpenseNextTwelveMonths",
+          "crdr": "debit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsAmortizationExpenseRemainderOfFiscalYear": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsAmortizationExpenseRemainderOfFiscalYear",
+          "crdr": "debit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsAmortizationExpenseYearFour": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsAmortizationExpenseYearFour",
+          "crdr": "debit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsAmortizationExpenseYearThree": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsAmortizationExpenseYearThree",
+          "crdr": "debit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsAmortizationExpenseYearTwo": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsAmortizationExpenseYearTwo",
+          "crdr": "debit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsGross": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsGross",
+          "crdr": "debit"
+        },
+        "us-gaap_FiniteLivedIntangibleAssetsNet": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "FiniteLivedIntangibleAssetsNet",
+          "crdr": "debit"
+        },
+        "us-gaap_GoodwillGross": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "GoodwillGross",
+          "crdr": "debit"
+        },
+        "us-gaap_IntangibleAssetsNetExcludingGoodwill": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "IntangibleAssetsNetExcludingGoodwill",
+          "crdr": "debit"
+        },
+        "us-gaap_InventoryFinishedGoods": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "InventoryFinishedGoods",
+          "crdr": "debit"
+        },
+        "us-gaap_InventoryGross": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "InventoryGross",
+          "crdr": "debit"
+        },
+        "us-gaap_InventoryNet": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "InventoryNet",
+          "crdr": "debit"
+        },
+        "us-gaap_InventoryRawMaterials": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "InventoryRawMaterials",
+          "crdr": "debit"
+        },
+        "us-gaap_InventoryValuationReserves": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "InventoryValuationReserves",
+          "crdr": "credit"
+        },
+        "us-gaap_InventoryWorkInProcess": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "InventoryWorkInProcess",
+          "crdr": "debit"
+        },
+        "us-gaap_LesseeOperatingLeaseLiabilityPaymentsDue": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LesseeOperatingLeaseLiabilityPaymentsDue",
+          "crdr": "credit"
+        },
+        "us-gaap_LesseeOperatingLeaseLiabilityPaymentsDueNextTwelveMonths": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LesseeOperatingLeaseLiabilityPaymentsDueNextTwelveMonths",
+          "crdr": "credit"
+        },
+        "us-gaap_LesseeOperatingLeaseLiabilityPaymentsDueYearFour": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LesseeOperatingLeaseLiabilityPaymentsDueYearFour",
+          "crdr": "credit"
+        },
+        "us-gaap_LesseeOperatingLeaseLiabilityPaymentsDueYearThree": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LesseeOperatingLeaseLiabilityPaymentsDueYearThree",
+          "crdr": "credit"
+        },
+        "us-gaap_LesseeOperatingLeaseLiabilityPaymentsDueYearTwo": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LesseeOperatingLeaseLiabilityPaymentsDueYearTwo",
+          "crdr": "credit"
+        },
+        "us-gaap_LesseeOperatingLeaseLiabilityPaymentsRemainderOfFiscalYear": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LesseeOperatingLeaseLiabilityPaymentsRemainderOfFiscalYear",
+          "crdr": "credit"
+        },
+        "clfd_LesseeOperatingLeaseLiabilityToBePaidAfterYearFour": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://www.clearfieldconnection.com/20260331",
+          "localname": "LesseeOperatingLeaseLiabilityToBePaidAfterYearFour",
+          "crdr": "credit"
+        },
+        "us-gaap_LesseeOperatingLeaseLiabilityUndiscountedExcessAmount": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LesseeOperatingLeaseLiabilityUndiscountedExcessAmount",
+          "crdr": "credit"
+        },
+        "us-gaap_Liabilities": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "Liabilities",
+          "crdr": "credit"
+        },
+        "us-gaap_LiabilitiesAndStockholdersEquity": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LiabilitiesAndStockholdersEquity",
+          "crdr": "credit"
+        },
+        "us-gaap_LiabilitiesCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LiabilitiesCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationNoncurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_LineOfCredit": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LineOfCredit",
+          "crdr": "credit"
+        },
+        "us-gaap_LongTermInvestments": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "LongTermInvestments",
+          "crdr": "debit"
+        },
+        "us-gaap_MoneyMarketFundsAtCarryingValue": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "MoneyMarketFundsAtCarryingValue",
+          "crdr": "debit"
+        },
+        "us-gaap_OperatingLeaseLiability": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "OperatingLeaseLiability",
+          "crdr": "credit"
+        },
+        "us-gaap_OperatingLeaseLiabilityCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "OperatingLeaseLiabilityCurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_OperatingLeaseLiabilityNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "OperatingLeaseLiabilityNoncurrent",
+          "crdr": "credit"
+        },
+        "us-gaap_OperatingLeaseRightOfUseAsset": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "OperatingLeaseRightOfUseAsset",
+          "crdr": "debit"
+        },
+        "us-gaap_OtherAssetsCurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "OtherAssetsCurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_OtherAssetsNoncurrent": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "OtherAssetsNoncurrent",
+          "crdr": "debit"
+        },
+        "us-gaap_PreferredStockValue": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "PreferredStockValue",
+          "crdr": "credit"
+        },
+        "us-gaap_PropertyPlantAndEquipmentNet": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "PropertyPlantAndEquipmentNet",
+          "crdr": "debit"
+        },
+        "us-gaap_RetainedEarningsAccumulatedDeficit": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "RetainedEarningsAccumulatedDeficit",
+          "crdr": "credit"
+        },
+        "us-gaap_ShareBasedCompensationArrangementByShareBasedPaymentAwardOptionsOutstandingIntrinsicValue": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "ShareBasedCompensationArrangementByShareBasedPaymentAwardOptionsOutstandingIntrinsicValue",
+          "crdr": "debit"
+        },
+        "us-gaap_ShortTermInvestments": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "ShortTermInvestments",
+          "crdr": "debit"
+        },
+        "us-gaap_StockholdersEquity": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "StockholdersEquity",
+          "crdr": "credit"
+        },
+        "us-gaap_UnrecognizedTaxBenefits": {
+          "xbrltype": "monetaryItemType",
+          "nsuri": "http://fasb.org/us-gaap/2026",
+          "localname": "UnrecognizedTaxBenefits",
+          "crdr": "credit"
+        }
+      }
+    }
+  }
+}

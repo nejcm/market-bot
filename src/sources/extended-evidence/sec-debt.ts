@@ -1,7 +1,12 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX, PRIOR_FACE_LINE_PREFIX } from "../sec-segment-facts";
-import { ZERO_BORROWINGS_REJECT_KEY, ZERO_BORROWINGS_TEXT_KEY } from "../sec-zero-borrowings-text";
+import {
+  UNTAGGED_ZERO,
+  ZERO_BORROWINGS_CURRENCY_KEY,
+  ZERO_BORROWINGS_PROOF_KEY,
+  ZERO_BORROWINGS_REJECT_KEY,
+} from "../sec-zero-borrowings-proof";
 import { isDebtBasisGap, leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
@@ -361,6 +366,8 @@ export function factsForDebt(
 
 const ZERO_BORROWINGS_REASON =
   "liabilities are filed with no debt line, and zero borrowings needs that filing's footed balance-sheet face with no debt row";
+const UNTAGGED_ZERO_REASON =
+  "liabilities are filed with no debt line on a footed face, but the filing's XBRL instance tags no borrowing concept as 0 at that date, so any zero it states rests on untagged prose";
 
 // Liabilities filed after the last debt instant with no debt tag publish 0 only on their own filing's face (CLFD 10-Qs).
 function zeroBorrowingInstants(
@@ -409,7 +416,9 @@ function zeroBorrowingInstants(
           periodEnd,
           proof === undefined
             ? ZERO_BORROWINGS_REASON
-            : `${ZERO_BORROWINGS_REASON}; its text proof was rejected (${proof})`,
+            : proof === UNTAGGED_ZERO
+              ? UNTAGGED_ZERO_REASON
+              : `${ZERO_BORROWINGS_REASON}; its tagged-zero proof was rejected (${proof})`,
           liabilities.filedAt,
         ),
         ...(liabilities.accessionNumber === null || fetched
@@ -423,7 +432,14 @@ function zeroBorrowingInstants(
       ...composite([zeroLine("DebtCurrent"), zeroLine("LongTermDebtNoncurrent")], new Set(), []),
       concept: ZERO_BORROWINGS_CONCEPT,
       proofSourceIds: proof.sourceIds,
-      zeroBorrowingsQuote: proof.quote,
+      zeroBorrowingsProof: proof.proof,
+    });
+    notes.push({
+      code: "tagged-zero-debt",
+      seriesKey: "debt",
+      periodKey: `instant|${periodEnd}`,
+      publicAt: liabilities.filedAt,
+      message: `Debt 0 for ${periodEnd}: ${proof.filing} tags ${proof.proof}; its footed balance sheet has no borrowing row, and every nonzero credit or unclassified monetary fact it tags at that date, in any dimension, is a listed us-gaap non-debt concept or an extension concept its calculation linkbase places, weight 1, only under operating-lease totals.`,
     });
   }
   return { facts, notes };
@@ -438,39 +454,56 @@ const BORROWING_WORDS =
 const BORROWING_WORDS_BUT_PORTION =
   /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible|overdraft/iu;
 
-// The instant's own footed face (nonzero liability rows allowlisted) plus its own sentence stating zero borrowings;
-// A string is the text proof's rejection codes.
+// Every nonzero liability row of a footed face is allowlisted, so no borrowing line sits on it.
+export function faceHasNoBorrowingRow(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): boolean {
+  const rows = Object.entries(metrics ?? {}).filter(([key]) => key.startsWith(FACE_LINE_PREFIX));
+  return (
+    rows.length > 0 &&
+    rows.every(([key, value]) => {
+      const concept = key.split("|").at(-1) ?? "";
+      const label = String(metrics?.[`${FACE_LABEL_PREFIX}${concept}`] ?? "");
+      const words = concept.includes("OperatingLeaseLiability")
+        ? BORROWING_WORDS_BUT_PORTION
+        : BORROWING_WORDS;
+      return (
+        value === 0 ||
+        (NON_BORROWING_LIABILITY.test(concept) && /\p{L}/u.test(label) && !words.test(label))
+      );
+    })
+  );
+}
+
+// The instant's own footed face with no borrowing row plus its own tagged-zero proof; a string is the proof's rejection.
 function zeroDebtFace(
   filings: readonly ExtendedEvidenceItem[],
   liabilities: ParsedFact,
-): { readonly sourceIds: readonly string[]; readonly quote: string } | string | undefined {
+):
+  | { readonly sourceIds: readonly string[]; readonly proof: string; readonly filing: string }
+  | string
+  | undefined {
   const own = filings.filter(
     ({ metrics }) =>
       metrics?.reportDate === liabilities.periodEnd &&
       metrics.accessionNumber === liabilities.accessionNumber,
   );
   const [filing] = own;
-  const rows = Object.entries(filing?.metrics ?? {}).filter(([key]) =>
-    key.startsWith(FACE_LINE_PREFIX),
-  );
-  const unproven = rows.some(([key, value]) => {
-    const concept = key.split("|").at(-1) ?? "";
-    const label = String(filing?.metrics?.[`${FACE_LABEL_PREFIX}${concept}`] ?? "");
-    const words = concept.includes("OperatingLeaseLiability")
-      ? BORROWING_WORDS_BUT_PORTION
-      : BORROWING_WORDS;
-    return (
-      value !== 0 &&
-      (!NON_BORROWING_LIABILITY.test(concept) || !/\p{L}/u.test(label) || words.test(label))
-    );
-  });
-  if (filing === undefined || own.length !== 1 || rows.length === 0 || unproven) {
+  if (filing === undefined || own.length !== 1 || !faceHasNoBorrowingRow(filing.metrics)) {
     return undefined;
   }
-  const quote = filing.metrics?.[ZERO_BORROWINGS_TEXT_KEY];
-  return typeof quote === "string"
-    ? { sourceIds: filing.sourceIds, quote }
-    : String(filing.metrics?.[ZERO_BORROWINGS_REJECT_KEY] ?? "no-text");
+  const proof = filing.metrics?.[ZERO_BORROWINGS_PROOF_KEY];
+  const currency = filing.metrics?.[ZERO_BORROWINGS_CURRENCY_KEY];
+  if (typeof proof !== "string") {
+    return String(filing.metrics?.[ZERO_BORROWINGS_REJECT_KEY] ?? "no-proof");
+  }
+  return currency === liabilities.unit
+    ? {
+        sourceIds: filing.sourceIds,
+        proof,
+        filing: `${String(filing.metrics?.form)} ${String(filing.metrics?.accessionNumber)}`,
+      }
+    : `currency-mismatch:${String(currency)}`;
 }
 
 const DISPOSAL_GROUP_LIABILITY_CONCEPTS: Readonly<
@@ -941,7 +974,7 @@ export function financialStatementsDebtBasisGaps(
           (concept) => !faceSides.has(concepts?.leaseInclusive?.[concept] ?? ""),
         );
   return latest === undefined ||
-    latest.zeroBorrowingsQuote !== undefined ||
+    latest.zeroBorrowingsProof !== undefined ||
     leaseInclusive.length === 0
     ? []
     : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];

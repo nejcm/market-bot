@@ -1,0 +1,1310 @@
+{
+  "values": {
+    "cache:26e09ae1cbe434d845f0efa57d8505d24513ba710de589386f4ce629750a0af5:2026-11-03": [{}],
+    "host-circuit:query1.finance.yahoo.com": [
+      {
+        "value": false,
+        "count": 6
+      }
+    ],
+    "cache:b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce:2026-11-03": [{}],
+    "cache:67c9f995e4bd68cf1766ff1d2849d44db1ca3f7ec5d77060d8dd39643aeae7e2:2026-11-03": [{}],
+    "host-circuit:api.marketaux.com": [
+      {
+        "value": false
+      }
+    ],
+    "cache:1981eabeceb3893a1ee82f8ca9d721dcba6722d77bb044e217f63ca45601d873:2026-11-03": [{}],
+    "host-circuit:finnhub.io": [
+      {
+        "value": false,
+        "count": 4
+      }
+    ],
+    "cache:fcf2cb0750f7cd499e5f7337e16605ca7ae3f3aa9e457ea6f72e60685f038d9e:2026-11-03": [{}],
+    "cache:ec360efb8a2ea63a1f3e4944da57fa9dffb4abc5fdf7319784669fe8477d8f20:2026-11-03": [
+      {},
+      {
+        "bodyFile": "bodies/c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38.json",
+        "sha256": "c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38"
+      },
+      {
+        "bodyFile": "bodies/c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38.json",
+        "sha256": "c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38"
+      },
+      {
+        "bodyFile": "bodies/c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38.json",
+        "sha256": "c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38"
+      }
+    ],
+    "host-circuit:www.sec.gov": [
+      {
+        "value": false,
+        "count": 11
+      }
+    ],
+    "cache:3a48ef260a8c4c4c5ff66153ae39db54ddd1be93cb5d07feb1edc3c2f471f1a7:2026-11-03": [{}],
+    "host-circuit:api.massive.com": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:70007bec7bbc4fd0d6398f43db2b87571aa966d375522b1d7370b25fa3f97211:2026-11-03": [{}],
+    "cache:cbbbc9bcfd97abdbf86f84da5a81b0e52526bac664923785c3ea02b498cc6510:2026-11-03": [{}],
+    "cache:6543555a913d1d423f4cbb710e97af151dc8d2907e9bcf267e15b0d3cd34e0b9:2026-11-03": [{}],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-03": [{}],
+    "host-circuit:api.stlouisfed.org": [
+      {
+        "value": false,
+        "count": 7
+      }
+    ],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-03": [{}],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-03": [{}],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-03": [{}],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-03": [{}],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-03": [{}],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-03": [{}],
+    "cache:c04188641a0e257a4a4c27fe215887ea8d20844c0390859d447a8a33f0d1c1b5:2026-11-03": [{}],
+    "cache:be854c0b1000c4351477427ff47b1110d979e413d939285b3a36db3d78ef1d3c:2026-11-03": [{}],
+    "cache:2228cd953b9ab2ae7512b3c75d6e27920742c2f720b2654655a602d0817f0856:2026-11-03": [
+      {},
+      {
+        "bodyFile": "bodies/adec8a27e584709eb26dc759420c1223d077fe7733d909c2eddb89e20a32fab9.json",
+        "sha256": "adec8a27e584709eb26dc759420c1223d077fe7733d909c2eddb89e20a32fab9"
+      },
+      {
+        "bodyFile": "bodies/adec8a27e584709eb26dc759420c1223d077fe7733d909c2eddb89e20a32fab9.json",
+        "sha256": "adec8a27e584709eb26dc759420c1223d077fe7733d909c2eddb89e20a32fab9"
+      },
+      {
+        "bodyFile": "bodies/adec8a27e584709eb26dc759420c1223d077fe7733d909c2eddb89e20a32fab9.json",
+        "sha256": "adec8a27e584709eb26dc759420c1223d077fe7733d909c2eddb89e20a32fab9"
+      }
+    ],
+    "host-circuit:data.sec.gov": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:4b2842f439cbad3e01589b6ce4ca37129c1b85e3ee1c1fe68e090bef877f62ea:2026-11-03": [
+      {},
+      {
+        "bodyFile": "bodies/90ff9547030a425e483062eb2c04d209a6c5f7eaea0f62ad81122e0bf70d279b.json",
+        "sha256": "90ff9547030a425e483062eb2c04d209a6c5f7eaea0f62ad81122e0bf70d279b"
+      },
+      {
+        "bodyFile": "bodies/90ff9547030a425e483062eb2c04d209a6c5f7eaea0f62ad81122e0bf70d279b.json",
+        "sha256": "90ff9547030a425e483062eb2c04d209a6c5f7eaea0f62ad81122e0bf70d279b"
+      },
+      {
+        "bodyFile": "bodies/90ff9547030a425e483062eb2c04d209a6c5f7eaea0f62ad81122e0bf70d279b.json",
+        "sha256": "90ff9547030a425e483062eb2c04d209a6c5f7eaea0f62ad81122e0bf70d279b"
+      }
+    ],
+    "news-seen": [
+      {
+        "bodyFile": "bodies/283e90072ec68fec341450a1aa8955735063e0586758bf4447d82dedcb498e0c.json",
+        "sha256": "283e90072ec68fec341450a1aa8955735063e0586758bf4447d82dedcb498e0c"
+      },
+      {
+        "bodyFile": "bodies/283e90072ec68fec341450a1aa8955735063e0586758bf4447d82dedcb498e0c.json",
+        "sha256": "283e90072ec68fec341450a1aa8955735063e0586758bf4447d82dedcb498e0c"
+      }
+    ],
+    "cache-stale:cbbbc9bcfd97abdbf86f84da5a81b0e52526bac664923785c3ea02b498cc6510": [{}],
+    "cache:b6bfa5256bcd7278547c33b87941aeca2729c39bf3bdcbfbaef5aa809f9eb291:2026-11-03": [{}],
+    "cache-stale:6543555a913d1d423f4cbb710e97af151dc8d2907e9bcf267e15b0d3cd34e0b9": [{}],
+    "cache:9ffcc37869d6dac68379918e528f4fdc1b9555439f87187512138d88c46eb3d7:2026-11-03": [{}],
+    "cache-stale:9ffcc37869d6dac68379918e528f4fdc1b9555439f87187512138d88c46eb3d7": [{}],
+    "cache:6a3183e7df9a3dde03edec38a7669dc1775af0e1493e091d9c31d9662ddde30b:accession": [
+      {
+        "bodyFile": "bodies/e7abd253e41789101dfa17b6d542d32f51ca9e74ee72ae5a1b9020f7d6daf241.json",
+        "sha256": "e7abd253e41789101dfa17b6d542d32f51ca9e74ee72ae5a1b9020f7d6daf241"
+      }
+    ],
+    "cache:7040da99f8b28caa408efc6ef309666daa1f1e37439e29d46015c996ca4f91c3:accession": [
+      {
+        "bodyFile": "bodies/209eea440551a7c0dc26576a41903ba78f726429e5ad60f7477070953e75fc11.json",
+        "sha256": "209eea440551a7c0dc26576a41903ba78f726429e5ad60f7477070953e75fc11"
+      }
+    ],
+    "cache:9c00eb32ce551e26dc110350b9c3faa10abca9c0b559e6085d030018ed1c4b7a:accession": [
+      {
+        "bodyFile": "bodies/d2ff4ed895717eaa4480d0fbab3eb8de53c060e0ab634e9874e4dbf619b98ac6.json",
+        "sha256": "d2ff4ed895717eaa4480d0fbab3eb8de53c060e0ab634e9874e4dbf619b98ac6"
+      }
+    ],
+    "cache:a70d0d0a0b2936b37318947bef8bb099f355f4136ab2dd7108a91aa29f4456c0:accession": [{}],
+    "cache:88b2268cc6cdfea6c814672832b91a9ef1ee3a1cfe29f08bf175909305c75625:accession": [
+      {
+        "bodyFile": "bodies/87068e56750dce546a11ae7e78bb17c8cef8145a7a95c9b01aae682fbb6f8d79.json",
+        "sha256": "87068e56750dce546a11ae7e78bb17c8cef8145a7a95c9b01aae682fbb6f8d79"
+      }
+    ],
+    "cache:17af8b40ea79d62ad59018bdd04517b141f653c7a0336337f08edf6c232926aa:accession": [{}],
+    "cache:023507cefe01ad80eb0a216aa2bec47df13338af05eb8359b764a98bd46d5022:accession": [{}],
+    "cache:a1a2029fc3c354d61f9275d0207c214555156df08de12fb206c5a9c089d83446:accession": [{}],
+    "cache:707e58330f0a8c84dfbf39e8d5c555280ca3e6ba4224034bec85c5d235690c42:accession": [
+      {
+        "bodyFile": "bodies/95af1021b5eb3c9b09a2ac4edb4140362c07bd9d1fc35889d1c6e0267e341467.json",
+        "sha256": "95af1021b5eb3c9b09a2ac4edb4140362c07bd9d1fc35889d1c6e0267e341467"
+      }
+    ],
+    "cache:dd0b27014289a11267cc343b5d9e3bd51e7dcc75217aca882069f79e0601df29:accession": [
+      {
+        "bodyFile": "bodies/de0e93d0c6d0fdede129fa8a6bcd74cf4c48bd2b76c580d6e338592d4f118f34.json",
+        "sha256": "de0e93d0c6d0fdede129fa8a6bcd74cf4c48bd2b76c580d6e338592d4f118f34"
+      }
+    ],
+    "cache:702a7406a7684cae2bf30ceb1d8b9e99d3f91c5a96b54a80aa4a5a21973c4289:accession": [{}],
+    "cache:3d333e910b5f491672a776dfef4d194da8f41102bed8f5b76d3c1e9b073b1a76:accession": [{}],
+    "cache:a710bf149450cc1ff5b834d93a8f083ec9f7ddbcfd021ea9caf2b5b5f7bcc4f8:accession": [{}],
+    "cache:2fde918afa42fd604adfa3c3de11afd8d975d22756af787168767b029e35efc9:accession": [{}],
+    "cache:238c8349513f7eff413c31b1feff31fb68e72221fa0dbcd6da7a57a62e9d8680:accession": [{}],
+    "cache:306bfb367d63ae3165dc4fa52c319e6dba61831865da1966b72570b39d71bb2c:accession": [{}],
+    "calibration": [
+      {
+        "value": {
+          "generatedAt": "2026-11-03T10:18:21.868Z",
+          "resolvedCount": 103,
+          "duplicateForecastCount": 75,
+          "missAutopsyCount": 22,
+          "brierScore": 0.21312038834951463,
+          "hitRate": 0.42718446601941745,
+          "bins": [
+            {
+              "pLow": 0.1,
+              "pHigh": 0.2,
+              "label": "0.1-0.2",
+              "hitCount": 1,
+              "totalCount": 8,
+              "hitRate": 0.125
+            },
+            {
+              "pLow": 0.2,
+              "pHigh": 0.3,
+              "label": "0.2-0.3",
+              "hitCount": 3,
+              "totalCount": 14,
+              "hitRate": 0.21428571428571427
+            },
+            {
+              "pLow": 0.3,
+              "pHigh": 0.4,
+              "label": "0.3-0.4",
+              "hitCount": 16,
+              "totalCount": 48,
+              "hitRate": 0.3333333333333333
+            },
+            {
+              "pLow": 0.4,
+              "pHigh": 0.5,
+              "label": "0.4-0.5",
+              "hitCount": 11,
+              "totalCount": 16,
+              "hitRate": 0.6875
+            },
+            {
+              "pLow": 0.5,
+              "pHigh": 0.6,
+              "label": "0.5-0.6",
+              "hitCount": 5,
+              "totalCount": 7,
+              "hitRate": 0.7142857142857143
+            },
+            {
+              "pLow": 0.6,
+              "pHigh": 0.7,
+              "label": "0.6-0.7",
+              "hitCount": 8,
+              "totalCount": 10,
+              "hitRate": 0.8
+            }
+          ],
+          "byKind": {
+            "range": {
+              "brierScore": 0.20088714285714301,
+              "count": 70,
+              "runCount": 47,
+              "brierStandardError": 0.01835471242899106
+            },
+            "relative": {
+              "brierScore": 0.22200799999999993,
+              "count": 25,
+              "runCount": 24,
+              "brierStandardError": 0.02089260647035235
+            },
+            "direction": {
+              "brierScore": 0.2711166666666667,
+              "count": 6,
+              "runCount": 6,
+              "brierStandardError": 0.04288707199663372
+            },
+            "conditional": {
+              "brierScore": 0.4624000000000001,
+              "count": 1,
+              "runCount": 1
+            },
+            "earnings-direction": {
+              "brierScore": 0.25,
+              "count": 1,
+              "runCount": 1
+            }
+          },
+          "byAssetClass": {
+            "equity": {
+              "brierScore": 0.21312038834951463,
+              "count": 103,
+              "runCount": 53,
+              "brierStandardError": 0.01246208386183066
+            }
+          },
+          "byJobType": {
+            "equity": {
+              "brierScore": 0.21253737373737383,
+              "count": 99,
+              "runCount": 52,
+              "brierStandardError": 0.012948954801042212
+            },
+            "forecast-grid": {
+              "brierScore": 0.22754999999999997,
+              "count": 4,
+              "runCount": 1
+            }
+          },
+          "byMarketUpdateHorizonBucket": {},
+          "byHorizonBucket": {
+            "1d": {
+              "brierScore": 0.20839310344827594,
+              "count": 29,
+              "runCount": 27,
+              "brierStandardError": 0.026825980670956946
+            },
+            "2-5d": {
+              "brierScore": 0.22618571428571438,
+              "count": 56,
+              "runCount": 34,
+              "brierStandardError": 0.018425689795589405
+            },
+            "6-10d": {
+              "brierScore": 0.20818181818181822,
+              "count": 11,
+              "runCount": 11,
+              "brierStandardError": 0.05867761198924452
+            },
+            "11-15d": {
+              "brierScore": 0.1296,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0
+            },
+            "16-20d": {
+              "brierScore": 0.13848000000000002,
+              "count": 5,
+              "runCount": 5,
+              "brierStandardError": 0.003686787219246593
+            }
+          },
+          "byMarketRegime": {
+            "risk-on": {
+              "brierScore": 0.2133884615384615,
+              "count": 26,
+              "runCount": 16,
+              "brierStandardError": 0.026284497635700767
+            },
+            "risk-off": {
+              "brierScore": 0.20838333333333336,
+              "count": 48,
+              "runCount": 23,
+              "brierStandardError": 0.021597791703056136
+            },
+            "mixed": {
+              "brierScore": 0.21962800000000002,
+              "count": 25,
+              "runCount": 13,
+              "brierStandardError": 0.015913910956275538
+            }
+          },
+          "marketRegimeCoverage": {
+            "risk-on": 26,
+            "risk-off": 48,
+            "mixed": 25,
+            "unknown": 4
+          },
+          "byMissAutopsyCause": {
+            "insufficient_evidence": 20,
+            "model_overconfidence": 2
+          },
+          "conditionalPredictions": {
+            "activatedCount": 1,
+            "voidedCount": 2
+          }
+        }
+      }
+    ],
+    "alpha-watchlist": [
+      {
+        "value": {
+          "watchlist": {
+            "generatedAt": "2026-08-17T04:02:33.492Z",
+            "candidates": [
+              {
+                "symbol": "ATR",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 24,
+                  "socialMomentumScore": 16.7,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "BILL",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 25,
+                  "socialMomentumScore": 15.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DRTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 13,
+                  "socialMomentumScore": 20.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DSGX",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "sec-only",
+                  "discoverySources": ["sec-filings"],
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "EOSE",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 14,
+                  "socialMomentumScore": 19.98,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "FA",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 17,
+                  "socialMomentumScore": 18.73,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "GETY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 11,
+                  "socialMomentumScore": 20.34,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 22,
+                  "socialMomentumScore": 16.99,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 20,
+                  "socialMomentumScore": 17.67,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NEXT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 15,
+                  "socialMomentumScore": 19.54,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NVTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 18,
+                  "socialMomentumScore": 18.39,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "OUT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 19,
+                  "socialMomentumScore": 18.31,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "PUMP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 21,
+                  "socialMomentumScore": 17.12,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "TMC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 10,
+                  "socialMomentumScore": 20.44,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "WAY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 4,
+                  "socialMomentumScore": 24.18,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "history:null": [
+      {
+        "value": {
+          "generatedAt": "2026-11-03T10:18:21.868Z",
+          "recentDays": 90,
+          "anchorMonths": [3, 6, 12],
+          "runs": [
+            {
+              "runId": "2026-11-01T06-34-09-871Z-573ffea2",
+              "sourceId": "history-report-2026-11-01T06-34-09-871Z-573ffea2",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "generatedAt": "2026-11-01T06:34:09.871Z",
+              "selectionReasons": ["recent", "same-symbol"],
+              "summary": "Clearfield presents a mixed operating picture: modest revenue growth has not translated into stronger operating performance, while continuing-operations income and cash generation have weakened. A scheduled results release and an expected hyperscale order shipment provide potential near-term information catalysts. Liquidity indicators are strong, but the debt figure has a filing qualification, and valuation evidence has scope and date limitations.",
+              "confidence": "high",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "For the nine months ended June 30, 2026, revenue grew +3.2% YoY (9-month period ending 2026-06-30) and gross profit grew +0.5% YoY (9-month period ending 2026-06-30), while operating income declined -213.6% YoY (9-month period ending 2026-06-30) and moved from positive to negative.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "For the same nine-month period, income from continuing operations, including NCI, fell -51.5% YoY (9-month period ending 2026-06-30) and continuing-operations operating cash flow fell -67.2% YoY (9-month period ending 2026-06-30). Parent-attributed net income from total operations rose +80.7% YoY (9-month period ending 2026-06-30); these figures have different accounting scopes.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "At June 30, 2026, the reported current ratio was 12.53x (as of 2026-06-30) and net debt was $-101.2M (as of 2026-06-30). The filing notes that reported debt may include finance leases because a matching lease amount to remove is unavailable.",
+                  "sourceIds": [
+                    "extended-sec-edgar-clfd-fundamentals",
+                    "extended-sec-edgar-clfd-10q"
+                  ]
+                },
+                {
+                  "text": "Valuation evidence includes Yahoo trailing P/E of 59.31x and forward P/E of 35.79x, plus EV/TTM revenue of 2.17x (as of 2026-06-30). The EV calculation combines a market-cap quote from October 30 with balance-sheet figures from June 30; peer valuation support is unavailable.",
+                  "sourceIds": ["market-yahoo-equity-clfd", "extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "Yahoo reports provider trailing EPS of $0.54 with undisclosed accounting scope and period basis; SEC diluted EPS TTM approximations through June 30, 2026 are -$0.51 for total operations and $0.29 for continuing operations. The supplied evidence does not reconcile the differing values and bases.",
+                  "sourceIds": ["market-yahoo-equity-clfd", "extended-sec-edgar-clfd-fundamentals"]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Clearfield identifies reliance on third-party suppliers, including single- or limited-source suppliers for some critical components, as an exposure to shortages, delays, and cost increases.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10k", "extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "The CEO announced retirement effective March 31, 2027, or earlier upon appointment of a successor. The supplied evidence does not identify a successor or establish the operational impact.",
+                  "sourceIds": ["news-equity-2"]
+                },
+                {
+                  "text": "The reported debt figure at June 30, 2026 may include finance leases, and the supplied filing evidence does not provide a matching finance-lease amount to remove.",
+                  "sourceIds": [
+                    "extended-sec-edgar-clfd-fundamentals",
+                    "extended-sec-edgar-clfd-10q"
+                  ]
+                },
+                {
+                  "text": "CLFD declined in the October 30 session as the supplied broad-market proxies also declined. These observations do not establish the cause of the share-price move.",
+                  "sourceIds": [
+                    "market-yahoo-equity-clfd",
+                    "market-yahoo-equity-spy",
+                    "market-yahoo-equity-qqq",
+                    "market-yahoo-equity-iwm",
+                    "market-yahoo-equity-dia"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Clearfield announced that fiscal Q4 and FY2026 results will be released after market close on November 10, 2026.",
+                  "sourceIds": ["news-equity-1"]
+                },
+                {
+                  "text": "The company stated that fiscal Q4 and FY2026 results were expected to be in line with prior guidance from its fiscal Q3 call.",
+                  "sourceIds": ["news-equity-5"]
+                },
+                {
+                  "text": "The previously disclosed $22 million hyperscale data-center order was expected to begin shipping in early fiscal 2027; supplied evidence does not establish shipment progress or realized revenue.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "Clearfield announced the NOVA Velocity Panel for data-center fiber deployment; the announcement does not quantify adoption or revenue contribution.",
+                  "sourceIds": ["news-equity-6"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: SEC debt as of 2026-06-30 may include finance leases: DebtCurrent is tagged without a matching finance-lease amount to remove [CLFD]",
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+                "The supplied evidence does not reconcile Yahoo provider trailing EPS of $0.54 (accounting scope and period basis undisclosed) with SEC diluted EPS TTM approximations through June 30, 2026 of -$0.51 for total operations and $0.29 for continuing operations.",
+                "The supplied evidence does not establish progress or realized revenue from the $22 million hyperscale order expected to begin shipping in early fiscal 2027.",
+                "Peer valuation supportability is unavailable; no peer comparison evidence is supplied.",
+                "The supplied evidence does not identify the CEO’s successor or establish the business impact of the announced transition."
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "CLFD outperforms SPY over 10 trading days",
+                  "kind": "relative",
+                  "subject": "CLFD:SPY",
+                  "measurableAs": "close(CLFD, +10) / close(CLFD, 0) > close(SPY, +10) / close(SPY, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.39,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "CLFD closes above its origin close over 5 trading days",
+                  "kind": "direction",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +5) > close(CLFD, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.46,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-1",
+                  "claim": "CLFD closes outside 30.98-33.12 over 1 trading day",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +1) outside [30.98, 33.12]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.48,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-5",
+                  "claim": "CLFD closes outside 29.72-34.52 over 5 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +5) outside [29.72, 34.52]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.36,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-20",
+                  "claim": "CLFD closes outside 27.58-37.2 over 20 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +20) outside [27.58, 37.2]",
+                  "horizonTradingDays": 20,
+                  "probability": 0.33,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-relative-5",
+                  "claim": "CLFD outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "CLFD:SPY",
+                  "measurableAs": "close(CLFD, +5)/close(CLFD, 0) > close(SPY, +5)/close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.44,
+                  "scoreStatus": "unresolved"
+                }
+              ],
+              "scoreSummary": {
+                "total": 6,
+                "resolved": 0,
+                "hit": 0,
+                "miss": 0,
+                "unresolved": 6
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "CLFD",
+                  "price": 32.03,
+                  "changePercent24h": -3.69813,
+                  "volume": 107953,
+                  "observedAt": "2026-11-01T06:34:09.871Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "brief",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies negative: 4/4",
+                    "trend negative: 4/4 proxies below 50-day average",
+                    "VIX term structure contango: VIX 19.42 vs VIX3M 20.78"
+                  ]
+                }
+              }
+            },
+            {
+              "runId": "2026-10-31T11-27-31-420Z-78c01ac5",
+              "sourceId": "history-report-2026-10-31T11-27-31-420Z-78c01ac5",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "generatedAt": "2026-10-31T11:27:31.420Z",
+              "selectionReasons": ["recent", "same-symbol"],
+              "summary": "Clearfield’s recent results present a mixed operating picture: quarterly sales improved, while year-to-date profitability and continuing-operations cash generation weakened. A large hyperscale order and the upcoming results release are potential information catalysts, but order conversion and broader demand remain uncertain.",
+              "confidence": "medium",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Clearfield designs, manufactures, and distributes fiber protection, management, and delivery products for broadband networks. Since the Nestor Cables sale, continuing operations are reported as one segment, which does not isolate data-center results.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10k", "extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "For the nine months ended June 30, 2026, revenue grew +3.2% YoY (9-month period ending 2026-06-30) year over year, while gross profit grew +0.5% YoY (9-month period ending 2026-06-30). Operating income was negative after a positive result in the comparable period.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "For the nine months ended June 30, 2026, income from continuing operations, including NCI, fell -51.5% YoY (9-month period ending 2026-06-30) year over year, and diluted EPS from continuing operations fell -50.0% YoY (9-month period ending 2026-06-30). Parent-attributed net income from total operations rose +80.7% YoY (9-month period ending 2026-06-30); the figures have different accounting scopes.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "For the nine months ended June 30, 2026, operating cash flow from continuing operations fell -67.2% YoY (9-month period ending 2026-06-30) year over year. That decline is consistent in scope with the decline in continuing-operations income, including NCI.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "In fiscal Q3 2026, continuing-operations sales grew 13% year over year and operating income grew 68%; gross margin declined to 31.8% from 35.3%. The filing cites product mix and higher inventory charges among the reasons for the margin decline.",
+                  "sourceIds": [
+                    "extended-sec-edgar-clfd-8k-0001171843-26-005241",
+                    "extended-sec-edgar-clfd-10q"
+                  ]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Clearfield identifies reliance on third-party suppliers for critical components, including some single- or limited-source items, as an exposure to shortages, delays, and cost increases. The latest supplied 10-Q reports no material changes to previously disclosed risk factors.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10k", "extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "The CEO transition agreement provides for Cheri Beranek to remain CEO until a successor is appointed or March 31, 2027, whichever comes first. The supplied evidence does not identify a successor or establish the transition’s operational impact.",
+                  "sourceIds": ["extended-sec-edgar-clfd-8k-0001171843-26-006713"]
+                },
+                {
+                  "text": "The October 30 market snapshot showed CLFD down 3.7%; the supplied broad-market proxies were also down. These observations do not establish the cause of CLFD’s move.",
+                  "sourceIds": [
+                    "market-yahoo-equity-clfd",
+                    "market-yahoo-equity-spy",
+                    "market-yahoo-equity-qqq",
+                    "market-yahoo-equity-iwm",
+                    "market-yahoo-equity-dia"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Clearfield announced that fiscal Q4 and FY2026 results are scheduled for release after market close on November 10, 2026.",
+                  "sourceIds": ["news-equity-1"]
+                },
+                {
+                  "text": "The company reported a $22 million hyperscale data-center order after Q3 close and expected shipments to begin in early fiscal 2027.",
+                  "sourceIds": ["extended-sec-edgar-clfd-8k-0001171843-26-005241"]
+                },
+                {
+                  "text": "Clearfield announced the NOVA Velocity Panel for data-center fiber deployment. The announcement does not quantify adoption or revenue contribution.",
+                  "sourceIds": ["news-equity-6"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: SEC debt withheld: the newest debt instant 2025-09-30 is incomplete (LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent (0001171843-25-007594) files liabilities held for sale and no standard us-gaap debt concept is tagged for that date, so continuing-operations debt is unproven), and no older amount stands in as current debt [CLFD]",
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
+                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint is unavailable for the configured token (status 403)"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "CLFD outperforms SPY over 10 trading days",
+                  "kind": "relative",
+                  "subject": "CLFD:SPY",
+                  "measurableAs": "close(CLFD, +10) / close(CLFD, 0) > close(SPY, +10) / close(SPY, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.43,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "CLFD closes outside 28.82-35.6 over 10 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +10) outside [28.82, 35.6]",
+                  "horizonTradingDays": 10,
+                  "probability": 0.34,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-1",
+                  "claim": "CLFD closes outside 30.98-33.12 over 1 trading day",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +1) outside [30.98, 33.12]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.48,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-5",
+                  "claim": "CLFD closes outside 29.72-34.52 over 5 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +5) outside [29.72, 34.52]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.36,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-20",
+                  "claim": "CLFD closes outside 27.58-37.2 over 20 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +20) outside [27.58, 37.2]",
+                  "horizonTradingDays": 20,
+                  "probability": 0.33,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-relative-5",
+                  "claim": "CLFD outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "CLFD:SPY",
+                  "measurableAs": "close(CLFD, +5)/close(CLFD, 0) > close(SPY, +5)/close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.44,
+                  "scoreStatus": "unresolved"
+                }
+              ],
+              "scoreSummary": {
+                "total": 6,
+                "resolved": 0,
+                "hit": 0,
+                "miss": 0,
+                "unresolved": 6
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "CLFD",
+                  "price": 32.03,
+                  "changePercent24h": -3.69813,
+                  "volume": 107953,
+                  "observedAt": "2026-10-31T11:27:31.420Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies negative: 4/4",
+                    "trend negative: 4/4 proxies below 50-day average",
+                    "VIX term structure contango: VIX 19.42 vs VIX3M 20.78"
+                  ]
+                }
+              }
+            },
+            {
+              "runId": "2026-10-09T08-41-33-009Z-1e554633",
+              "sourceId": "history-report-2026-10-09T08-41-33-009Z-1e554633",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "generatedAt": "2026-10-09T08:41:33.009Z",
+              "selectionReasons": ["recent", "miss-correction", "same-symbol"],
+              "summary": "Clearfield’s latest reported quarter improved in sales and operating income, while broader operating results, cash flow and backlog remained weaker. A disclosed data-center order offers a possible growth path, but its financial contribution is unconfirmed. Recent share-price strength does not resolve the mixed operating evidence.",
+              "confidence": "medium",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: Clearfield designs and sells fiber protection, management and delivery products. Continuing operations comprise one reportable segment, so reported results do not isolate data-center activity.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10k", "extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "Observed fact: Fiscal Q3 2026 continuing-operations sales rose 13% year over year to $43.9 million and operating income rose 68% to $2.6 million. Gross margin fell to 31.8% from 35.3%; the filing attributed the decline to product mix and higher inventory charges.",
+                  "sourceIds": [
+                    "extended-sec-edgar-clfd-8k-0001171843-26-005241",
+                    "extended-sec-edgar-clfd-10q"
+                  ]
+                },
+                {
+                  "text": "Observed fact: For the nine months ended June 30, 2026, revenue rose 3.2% to $112.6 million, while operating income shifted from a $1.2 million profit to a $1.3 million loss.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: Over those nine months, continuing-operations income including noncontrolling interests fell 51.5% to $2.2 million, and continuing-operations operating cash flow fell 67.2% to $7.3 million. Net income attributable to the parent from total operations rose 80.7% to $1.9 million; it has a different accounting scope.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: Backlog was $20.988 million at June 30, 2026, down 32% year over year. Clearfield cited slower demand and removed a $4.624 million order it no longer expected to fulfill.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10q"]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Issuer claim: Some cabling, optical components and connectors have single or limited suppliers, exposing deliveries and costs to shortages or delays. The supplied filings do not establish a current disruption.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10k", "extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "Observed fact: Cash of $20.4 million is dated June 30, 2026, while the available debt figure of $2.4 million is dated June 30, 2025. These inputs do not establish current net debt.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "Model inference: One-segment reporting limits attribution of future results to data-center products or the hyperscale order.",
+                  "sourceIds": [
+                    "extended-sec-edgar-clfd-10q",
+                    "extended-sec-edgar-clfd-8k-0001171843-26-005241"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Issuer claim: Shipments for the $22 million hyperscale order were expected to begin in early fiscal 2027; subsequent company disclosures can establish progress.",
+                  "sourceIds": ["extended-sec-edgar-clfd-8k-0001171843-26-005241"]
+                },
+                {
+                  "text": "Issuer claim: Clearfield announced the NOVA Velocity Panel on September 24, 2026. The announcement describes its intended data-center use but gives no adoption or revenue figure.",
+                  "sourceIds": ["web-clfd-b1925fc8"]
+                },
+                {
+                  "text": "Observed fact: A provider estimates an after-market earnings event on November 5, 2026. The date is unconfirmed.",
+                  "sourceIds": ["extended-finnhub-events-clfd"]
+                }
+              ],
+              "dataGaps": [
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
+                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint is unavailable for the configured token (status 403)",
+                "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "CLFD closes outside 29-37 over 5 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +5) outside [29, 37]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.27,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 29.469999313354492,
+                    "lo": 29,
+                    "hi": 37
+                  }
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "CLFD closes outside 31-35 over 1 trading day",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +1) outside [31, 35]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.24,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 33.13999938964844,
+                    "lo": 31,
+                    "hi": 35
+                  }
+                },
+                {
+                  "id": "pred-3",
+                  "claim": "CLFD closes outside 28-38 over 10 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +10) outside [28, 38]",
+                  "horizonTradingDays": 10,
+                  "probability": 0.18,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "hit"
+                }
+              ],
+              "scoreSummary": {
+                "total": 3,
+                "resolved": 3,
+                "hit": 1,
+                "miss": 2,
+                "unresolved": 0
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "CLFD",
+                  "price": 33.14,
+                  "changePercent24h": 0.729477,
+                  "volume": 184418,
+                  "observedAt": "2026-10-09T08:41:33.009Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": []
+                }
+              }
+            },
+            {
+              "runId": "2026-10-09T00-48-46-225Z-e00db6b5",
+              "sourceId": "history-report-2026-10-09T00-48-46-225Z-e00db6b5",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "generatedAt": "2026-10-09T00:48:46.225Z",
+              "selectionReasons": ["miss-correction", "same-symbol"],
+              "summary": "Clearfield’s fiscal Q3 2026 continuing operations showed higher sales and operating income, but lower gross margin. Nine-month operating income turned negative, continuing-operations cash flow weakened, and backlog contracted.",
+              "confidence": "medium",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: Clearfield designs, manufactures, and distributes fiber protection, management, and delivery products. Continuing operations comprise one reportable segment, which does not isolate data-center results.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10k", "extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "Observed fact: Fiscal Q3 2026 continuing-operations sales rose 13% year over year to $43.9 million and operating income rose 68% to $2.6 million. Gross margin fell to 31.8% from 35.3%; the filing attributes the decline to product mix and higher inventory charges.",
+                  "sourceIds": [
+                    "extended-sec-edgar-clfd-8k-0001171843-26-005241",
+                    "extended-sec-edgar-clfd-10q"
+                  ]
+                },
+                {
+                  "text": "Observed fact: For the nine months ended June 30, 2026, revenue rose 3.2% to $112.6 million, while operating income shifted from a $1.2 million profit to a $1.3 million loss.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: Nine-month continuing-operations income including NCI fell 51.5% to $2.2 million, and continuing-operations operating cash flow fell 67.2% to $7.3 million. Net income attributable to the parent from total operations rose 80.7% to $1.9 million; that different scope does not establish improvement in the continuing business.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: Backlog was $21.0 million at June 30, 2026, down 32% year over year. Clearfield cited slower demand and removed a $4.6 million order it no longer expected to fulfill.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10q"]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Issuer claim: Some cabling, optical components, and connectors have single or limited suppliers, exposing deliveries and costs to shortages or delays. The supplied filings do not establish a current disruption.",
+                  "sourceIds": ["extended-sec-edgar-clfd-10k", "extended-sec-edgar-clfd-10q"]
+                },
+                {
+                  "text": "Observed fact: Cash of $20.4 million is dated June 30, 2026, while the available $2.4 million debt figure is dated June 30, 2025. Those inputs do not establish current net debt.",
+                  "sourceIds": ["extended-sec-edgar-clfd-fundamentals"]
+                },
+                {
+                  "text": "Model inference: One-segment reporting and the absence of disclosed shipment progress limit attribution of future company results to the hyperscale order.",
+                  "sourceIds": [
+                    "extended-sec-edgar-clfd-10q",
+                    "extended-sec-edgar-clfd-8k-0001171843-26-005241"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Issuer claim: Shipments for the $22 million hyperscale order were expected to begin in early fiscal 2027; subsequent disclosures can establish progress and financial contribution.",
+                  "sourceIds": ["extended-sec-edgar-clfd-8k-0001171843-26-005241"]
+                },
+                {
+                  "text": "Issuer claim: The September NOVA Velocity Panel announcement describes a data-center fiber product, but does not quantify adoption or revenue.",
+                  "sourceIds": ["news-equity-4"]
+                },
+                {
+                  "text": "Observed fact: A provider estimates an after-market earnings event on November 5, 2026. The date is unconfirmed.",
+                  "sourceIds": ["extended-finnhub-events-clfd"]
+                }
+              ],
+              "dataGaps": [
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
+                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint is unavailable for the configured token (status 403)",
+                "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-1",
+                  "claim": "CLFD closes outside 29-37 over 5 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +5) outside [29, 37]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.35,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 29.469999313354492,
+                    "lo": 29,
+                    "hi": 37
+                  }
+                },
+                {
+                  "id": "pred-2",
+                  "claim": "CLFD closes outside 31-35 over 1 trading day",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +1) outside [31, 35]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.34,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 33.13999938964844,
+                    "lo": 31,
+                    "hi": 35
+                  }
+                },
+                {
+                  "id": "pred-3",
+                  "claim": "If CLFD closes above its origin close over 1 trading day, then CLFD closes above its origin close over 5 trading days",
+                  "kind": "conditional",
+                  "subject": "CLFD",
+                  "measurableAs": "if (close(CLFD, +1) > close(CLFD, 0)) then (close(CLFD, +5) > close(CLFD, 0))",
+                  "horizonTradingDays": 5,
+                  "probability": 0.63,
+                  "scoreStatus": "resolved"
+                },
+                {
+                  "id": "pred-4",
+                  "claim": "CLFD closes outside 27-39 over 10 trading days",
+                  "kind": "range",
+                  "subject": "CLFD",
+                  "measurableAs": "close(CLFD, +10) outside [27, 39]",
+                  "horizonTradingDays": 10,
+                  "probability": 0.25,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "closeN": 27.700000762939453,
+                    "lo": 27,
+                    "hi": 39
+                  }
+                }
+              ],
+              "scoreSummary": {
+                "total": 4,
+                "resolved": 4,
+                "hit": 0,
+                "miss": 3,
+                "unresolved": 0
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "CLFD",
+                  "price": 33.14,
+                  "changePercent24h": 0.729477,
+                  "volume": 184418,
+                  "observedAt": "2026-10-09T00:48:46.225Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": []
+                }
+              }
+            }
+          ],
+          "sources": [
+            {
+              "id": "history-report-2026-11-01T06-34-09-871Z-573ffea2",
+              "title": "equity CLFD prior report",
+              "fetchedAt": "2026-11-01T06:34:09.871Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "provider": "market-bot",
+              "rawRef": "2026-11-01T06-34-09-871Z-573ffea2/report.json",
+              "summary": "Clearfield presents a mixed operating picture: modest revenue growth has not translated into stronger operating performance, while continuing-operations income and cash generation have weakened. A scheduled results release and an expected hyperscale order shipment provide potential near-term information catalysts. Liquidity indicators are strong, but the debt figure has a filing qualification, and valuation evidence has scope and date limitations."
+            },
+            {
+              "id": "history-report-2026-10-31T11-27-31-420Z-78c01ac5",
+              "title": "equity CLFD prior report",
+              "fetchedAt": "2026-10-31T11:27:31.420Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "provider": "market-bot",
+              "rawRef": "2026-10-31T11-27-31-420Z-78c01ac5/report.json",
+              "summary": "Clearfield’s recent results present a mixed operating picture: quarterly sales improved, while year-to-date profitability and continuing-operations cash generation weakened. A large hyperscale order and the upcoming results release are potential information catalysts, but order conversion and broader demand remain uncertain."
+            },
+            {
+              "id": "history-report-2026-10-09T08-41-33-009Z-1e554633",
+              "title": "equity CLFD prior report",
+              "fetchedAt": "2026-10-09T08:41:33.009Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "provider": "market-bot",
+              "rawRef": "2026-10-09T08-41-33-009Z-1e554633/report.json",
+              "summary": "Clearfield’s latest reported quarter improved in sales and operating income, while broader operating results, cash flow and backlog remained weaker. A disclosed data-center order offers a possible growth path, but its financial contribution is unconfirmed. Recent share-price strength does not resolve the mixed operating evidence."
+            },
+            {
+              "id": "history-report-2026-10-09T00-48-46-225Z-e00db6b5",
+              "title": "equity CLFD prior report",
+              "fetchedAt": "2026-10-09T00:48:46.225Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "CLFD",
+              "provider": "market-bot",
+              "rawRef": "2026-10-09T00-48-46-225Z-e00db6b5/report.json",
+              "summary": "Clearfield’s fiscal Q3 2026 continuing operations showed higher sales and operating income, but lower gross margin. Nine-month operating income turned negative, continuing-operations cash flow weakened, and backlog contracted."
+            }
+          ],
+          "gaps": ["No prior equity market-update runs found"],
+          "audit": {
+            "scannedRunCount": 96,
+            "malformedRunCount": 0,
+            "malformedScoreCount": 0,
+            "candidateRunCount": 9,
+            "selectedRunCount": 4,
+            "recentSelectedCount": 3,
+            "anchorSelectedCount": 0,
+            "sameSymbolSelectedCount": 4,
+            "spotlightSymbolSelectedCount": 0,
+            "sameSubjectSelectedCount": 0,
+            "sameHorizonSelectedCount": 0,
+            "crossHorizonSelectedCount": 0,
+            "resolvedMissRunCount": 2,
+            "missCorrectionSelectedCount": 2,
+            "gapCount": 1
+          },
+          "artifactDeltas": []
+        }
+      }
+    ],
+    "forecast-persistence-baseline": [
+      {
+        "value": {
+          "runId": "2026-11-01T06-34-09-871Z-573ffea2",
+          "depth": "brief",
+          "predictions": [
+            {
+              "measurableAs": "close(CLFD, +10) / close(CLFD, 0) > close(SPY, +10) / close(SPY, 0)",
+              "probability": 0.39
+            },
+            {
+              "measurableAs": "close(CLFD, +5) > close(CLFD, 0)",
+              "probability": 0.46
+            },
+            {
+              "measurableAs": "close(CLFD, +1) outside [30.98, 33.12]",
+              "probability": 0.48
+            },
+            {
+              "measurableAs": "close(CLFD, +5) outside [29.72, 34.52]",
+              "probability": 0.36
+            },
+            {
+              "measurableAs": "close(CLFD, +20) outside [27.58, 37.2]",
+              "probability": 0.33
+            },
+            {
+              "measurableAs": "close(CLFD, +5)/close(CLFD, 0) > close(SPY, +5)/close(SPY, 0)",
+              "probability": 0.44
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

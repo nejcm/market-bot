@@ -515,6 +515,7 @@ async function runStandardResearch(input: {
           ...(input.resolvedSubject !== undefined
             ? { resolvedSubject: input.resolvedSubject }
             : {}),
+          ...(input.config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
           peerUniverse: {
             provider: runtime.provider,
             model: input.config.quickModel,

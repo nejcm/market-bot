@@ -44,9 +44,9 @@
     </table>
   </div>
   {#each history.rows as row}
-    {#if row.debtQuote !== undefined}
+    {#if row.debtProof !== undefined}
       <p class="mt-2 text-[11px] text-muted-foreground">
-        Debt for {row.period} is 0 per the filing: <q>{row.debtQuote}</q>
+        Debt for {row.period} is 0 per the filing's tagged fact: {row.debtProof}
       </p>
     {/if}
   {/each}

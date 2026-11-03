@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
-  calculationLinkbaseHref,
+  schemaCalculation,
   secDepreciationCalcMetrics,
   xbrlSchemaHref,
 } from "../src/sources/sec-calculation-linkbase";
@@ -24,6 +24,9 @@ const role = (body: string, name = "r") =>
   `<link:calculationLink xlink:role="${name}">${body}</link:calculationLink>`;
 const ADJ = "AdjustmentsToReconcileNetIncomeLossToCashProvidedByUsedInOperatingActivities";
 const OCF = "NetCashProvidedByUsedInOperatingActivities";
+
+const schemaWithRefs = (refs: string) =>
+  `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><xs:annotation><xs:appinfo>${refs}</xs:appinfo></xs:annotation></xs:schema>`;
 
 describe("secDepreciationCalcMetrics", () => {
   test("ABBV FY2025 10-K 0001551152-26-000008 adds Depreciation and intangible amortization into OCF", async () => {
@@ -186,13 +189,27 @@ describe("secDepreciationCalcMetrics", () => {
       xbrlSchemaHref('<link:schemaRef xlink:type="simple" xlink:href="amd-20251227.xsd"/>'),
     ).toBe("amd-20251227.xsd");
     expect(xbrlSchemaHref("<html></html>")).toBeUndefined();
-    const schema =
-      '<link:linkbaseRef xlink:href="amd-20251227_pre.xml" xlink:role="http://www.xbrl.org/2003/role/presentationLinkbaseRef"/>' +
-      '<link:linkbaseRef xlink:href="amd-20251227_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/>';
-    expect(calculationLinkbaseHref(schema)).toBe("amd-20251227_cal.xml");
-    expect(calculationLinkbaseHref(schema.slice(0, schema.indexOf("<link:linkbaseRef", 10)))).toBe(
-      undefined,
+    const pre =
+      '<link:linkbaseRef xlink:href="amd-20251227_pre.xml" xlink:role="http://www.xbrl.org/2003/role/presentationLinkbaseRef"/>';
+    const cal =
+      "<link:linkbaseRef xlink:href='amd-20251227_cal.xml' xlink:role='http://www.xbrl.org/2003/role/calculationLinkbaseRef'/>";
+    expect(schemaCalculation(schemaWithRefs(pre + cal))).toEqual({
+      hrefs: ["amd-20251227_cal.xml"],
+      embedded: false,
+    });
+    expect(schemaCalculation(schemaWithRefs(pre))).toEqual({ hrefs: [], embedded: false });
+    expect(schemaCalculation(pre + cal)).toEqual({ hrefs: [], embedded: false });
+    expect(schemaCalculation(schemaWithRefs(cal + cal.replace("_cal", "_cal2")))).toEqual({
+      hrefs: ["amd-20251227_cal.xml", "amd-20251227_cal2.xml"],
+      embedded: false,
+    });
+    expect(
+      schemaCalculation(schemaWithRefs(`${cal}<link:linkbase>${role("")}</link:linkbase>`)),
+    ).toEqual({ hrefs: ["amd-20251227_cal.xml"], embedded: true });
+    expect(xbrlSchemaHref("<link:schemaRef xlink:type='simple' xlink:href='q.xsd'/>")).toBe(
+      "q.xsd",
     );
+    expect(xbrlSchemaHref('<link:schemaRef title="a>b" xlink:href="q.xsd"/>')).toBe("q.xsd");
   });
 });
 

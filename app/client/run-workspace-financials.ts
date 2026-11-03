@@ -86,7 +86,7 @@ interface RunWorkspaceBalanceSheetHistoryRow {
   readonly period: string;
   readonly cash: string;
   readonly debt: string;
-  readonly debtQuote?: string;
+  readonly debtProof?: string;
   readonly dilutedShares: string;
 }
 
@@ -101,7 +101,7 @@ interface RunWorkspaceFinancialPositionMetric {
   readonly label: "Cash" | "Debt" | "Diluted shares";
   readonly value: string;
   readonly dateBasis: string;
-  readonly quote?: string;
+  readonly proof?: string;
   readonly sourceIds: readonly string[];
 }
 
@@ -330,9 +330,9 @@ export function balanceSheetHistoryFromProjection(
       period: row.period,
       cash: statementAmount(row.cash?.value, history.reportingCurrency),
       debt: statementAmount(row.debt?.value, history.reportingCurrency),
-      ...(row.debt?.zeroBorrowingsQuote === undefined
+      ...(row.debt?.zeroBorrowingsProof === undefined
         ? {}
-        : { debtQuote: row.debt.zeroBorrowingsQuote }),
+        : { debtProof: row.debt.zeroBorrowingsProof }),
       dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
     })),
   };
@@ -360,7 +360,7 @@ export function financialPositionFromProjection(
           ? scaleCurrency(item.value)
           : statementAmount(item.value, position.reportingCurrency),
       dateBasis: `period ${item.periodEnd} · latest filed ${item.filedAt}`,
-      ...(item.zeroBorrowingsQuote === undefined ? {} : { quote: item.zeroBorrowingsQuote }),
+      ...(item.zeroBorrowingsProof === undefined ? {} : { proof: item.zeroBorrowingsProof }),
       sourceIds: item.sourceIds,
     });
   }

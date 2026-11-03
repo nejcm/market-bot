@@ -1,5 +1,4 @@
 // Dimensional ASC 280 segment facts and extension capex lines read from a 10-K/10-Q inline XBRL primary document.
-import { zeroBorrowingsTextProof } from "./sec-zero-borrowings-text";
 
 export const SEGMENT_FACT_PREFIX = "segment|";
 export const SEGMENT_UNIT_KEY = "segmentUnit";
@@ -475,6 +474,5 @@ export function secBalanceSheetFaceMetrics(
           ];
     }),
     ...face.lines.map(({ concept, label }) => [`${FACE_LABEL_PREFIX}${concept}`, label] as const),
-    ...Object.entries(zeroBorrowingsTextProof(html, periodEnd)),
   ]);
 }

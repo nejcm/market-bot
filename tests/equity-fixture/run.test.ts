@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { ModelRequest } from "../../src/model/types";
 import {
   assertComprehensiveAnalysisPath,
+  assertClfdTaggedZeroDebt,
   assertCurrencyConvertedValuation,
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
@@ -51,6 +52,7 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-depository-deep": ["partial", "limited"],
   "equity-iren-deep": ["complete", "substantial"],
   "equity-iren-brief": ["complete", "limited"],
+  "clfd-zero-debt": ["complete", "limited"],
 } as const;
 
 // Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
@@ -109,6 +111,12 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-1", 0.5327],
     ["grid-range-5", 0.42],
     ["grid-range-20", 0.3887],
+    ["grid-relative-5", 0.5],
+  ],
+  "clfd-zero-debt": [
+    ["grid-range-1", 0.4952],
+    ["grid-range-5", 0.3785],
+    ["grid-range-20", 0.3461],
     ["grid-relative-5", 0.5],
   ],
 };
@@ -445,6 +453,9 @@ describe("static equity run fixtures", () => {
         expect(result.markdown).toContain(
           "is not assessed at brief depth; filing prose and Web Subject Profile are excluded",
         );
+      }
+      if (name === "clfd-zero-debt") {
+        assertClfdTaggedZeroDebt(result);
       }
       if (name === "equity-iren-brief") {
         assertIrenExtensionCapexWithheld(result);

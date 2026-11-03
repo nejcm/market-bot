@@ -438,6 +438,7 @@ export async function runFixture(
               }
             : {}),
           ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
+          ...(config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
           peerUniverse: {
             provider: runtime.provider,
             model: config.quickModel,
@@ -501,4 +502,5 @@ export const EQUITY_RUN_FIXTURES = [
   "equity-depository-deep",
   "equity-iren-deep",
   "equity-iren-brief",
+  "clfd-zero-debt",
 ] as const;

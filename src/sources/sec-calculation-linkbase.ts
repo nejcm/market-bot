@@ -18,23 +18,36 @@ const SUMMATION_ITEM = new Set([
 ]);
 
 function attribute(tag: string, name: string): string | undefined {
-  return new RegExp(`\\s(?:[\\w.-]+:)?${name}="([^"]*)"`, "u").exec(tag)?.[1];
+  const match = new RegExp(`\\s(?:[\\w.-]+:)?${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "u").exec(
+    tag,
+  );
+  return match?.[1] ?? match?.[2];
 }
 
 function elements(xml: string, name: string): string[] {
-  return [...xml.matchAll(new RegExp(`<(?:[\\w.-]+:)?${name}\\b[^>]*>`, "gu"))].map(([tag]) => tag);
+  return [
+    ...xml.matchAll(new RegExp(`<(?:[\\w.-]+:)?${name}\\b(?:[^>"']|"[^"]*"|'[^']*')*>`, "gu")),
+  ].map(([tag]) => tag);
 }
 
+// Inline XBRL is HTML, not XML, so its schemaRef is read lexically with either quote.
 export function xbrlSchemaHref(html: string): string | undefined {
   const tag = elements(html, "schemaRef")[0];
   return tag === undefined ? undefined : attribute(tag, "href");
 }
 
+// Undefined, so the schema itself is read as the linkbase, when it names none or is not well-formed XML.
 export function calculationLinkbaseHref(schema: string): string | undefined {
-  const tag = elements(schema, "linkbaseRef").find((match) =>
-    attribute(match, "role")?.endsWith("/calculationLinkbaseRef"),
+  let root: XmlElement;
+  try {
+    root = parseXml(schema);
+  } catch {
+    return undefined;
+  }
+  const ref = descendants(root, LINKBASE, "linkbaseRef").find((element) =>
+    attributeOf(element, XLINK, "role")?.endsWith("/calculationLinkbaseRef"),
   );
-  return tag === undefined ? undefined : attribute(tag, "href");
+  return ref === undefined ? undefined : attributeOf(ref, XLINK, "href");
 }
 
 // `us-gaap_Depreciation` -> `Depreciation`; extension concepts keep their prefix so they never match a us-gaap fact.
@@ -167,27 +180,56 @@ const descendants = (
   ]);
 
 export interface ExtensionSchema {
-  // The schema's own file name, as the filing's linkbases reference it.
-  readonly href: string;
+  // The schema's absolute URL, against which the filing's locators resolve.
+  readonly url: string;
   readonly namespace: string;
   readonly localById: ReadonlyMap<string, string>;
 }
 
-export function extensionSchema(href: string, xsd: string): ExtensionSchema {
+const STANDARD_TAXONOMY_HOST = /^(?:[\w-]+\.)*(?:fasb\.org|xbrl\.org|sec\.gov|ifrs\.org|w3\.org)$/u;
+
+// A namespace a standard-setter or the SEC publishes; an issuer extension never claims one.
+export function isStandardTaxonomyNamespace(namespace: string): boolean {
+  try {
+    return STANDARD_TAXONOMY_HOST.test(new URL(namespace).hostname);
+  } catch {
+    return false;
+  }
+}
+
+const allIds = (element: XmlElement): readonly string[] => {
+  const id = attributeOf(element, "", "id");
+  return [...(id === undefined ? [] : [id]), ...element.children.flatMap(allIds)];
+};
+
+// Concepts are the schema's top-level element declarations; a duplicate id or standard targetNamespace throws.
+export function extensionSchema(url: string, xsd: string): ExtensionSchema {
   const root = parseXml(xsd);
   const namespace = attributeOf(root, "", "targetNamespace");
   if (root.namespace !== XSD || root.local !== "schema" || namespace === undefined) {
     throw new Error("extension schema without targetNamespace");
   }
+  if (isStandardTaxonomyNamespace(namespace)) {
+    throw new Error(`extension schema claims standard namespace ${namespace}`);
+  }
+  const ids = allIds(root);
+  if (new Set(ids).size !== ids.length) {
+    throw new Error("extension schema with a duplicate id");
+  }
   const localById = new Map<string, string>();
-  for (const element of descendants(root, XSD, "element")) {
+  for (const element of root.children) {
     const id = attributeOf(element, "", "id");
     const name = attributeOf(element, "", "name");
-    if (id !== undefined && name !== undefined) {
+    if (
+      element.namespace === XSD &&
+      element.local === "element" &&
+      id !== undefined &&
+      name !== undefined
+    ) {
       localById.set(id, name);
     }
   }
-  return { href, namespace, localById };
+  return { url: new URL(url).href, namespace, localById };
 }
 
 const US_GAAP_SCHEMA =
@@ -196,35 +238,55 @@ const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u;
 
 // `<namespace URI>#<local>` of a locator: us-gaap only from the official FASB taxonomy, the filing's own concepts
 // Only from its extension schema; any other target stays `unresolved:` and so never matches a fact or an allowlist.
-function locatorConcept(href: string, schema: ExtensionSchema): string {
+function locatorConcept(href: string, linkbaseUrl: string, schema: ExtensionSchema): string {
   const gaap = US_GAAP_SCHEMA.exec(href);
   if (gaap !== null) {
     return `http://fasb.org/us-gaap/${gaap[1]}#${gaap[2]}`;
   }
-  const [document, fragment = ""] = href.split("#");
-  if (document !== schema.href) {
+  const target = URL.parse(href, linkbaseUrl);
+  const fragment = target?.hash.slice(1) ?? "";
+  if (target !== null) {
+    target.hash = "";
+  }
+  if (target?.href !== schema.url) {
     return `unresolved:${href}`;
   }
   const local = schema.localById.get(fragment);
   if (local === undefined) {
-    throw new Error(`locator ${href} names no element of ${schema.href}`);
+    throw new Error(`locator ${href} names no element of ${schema.url}`);
   }
   return `${schema.namespace}#${local}`;
 }
 
+// Canonical lexical xs:decimal (`+01.50` -> `1.5`), so weights compare exactly with no binary rounding.
+function canonicalDecimal(raw: string): string | undefined {
+  const match = /^([+-]?)(\d*)(?:\.(\d*))?$/u.exec(raw);
+  if (match === null || !DECIMAL.test(raw)) {
+    return undefined;
+  }
+  const whole = (match[2] ?? "").replace(/^0+/u, "");
+  const fraction = (match[3] ?? "").replace(/0+$/u, "");
+  if (whole === "" && fraction === "") {
+    return "0";
+  }
+  return `${match[1] === "-" ? "-" : ""}${whole === "" ? "0" : whole}${fraction === "" ? "" : `.${fraction}`}`;
+}
+
 export interface SummationParent {
   readonly parent: string;
-  readonly weight: number;
+  // Canonical decimal string; exactly "1" for a weight of one.
+  readonly weight: string;
 }
 
 // Summation parents of each `<namespace URI>#<local>` child across every network; throws on a prohibited or
 // Prioritized arc, a missing or zero weight, or one relationship weighted two ways.
 export function summationParents(
   xml: string,
+  linkbaseUrl: string,
   schema: ExtensionSchema,
 ): ReadonlyMap<string, readonly SummationParent[]> {
   const parents = new Map<string, SummationParent[]>();
-  const weights = new Map<string, number>();
+  const weights = new Map<string, string>();
   for (const link of descendants(parseXml(xml), LINKBASE, "calculationLink")) {
     const role = attributeOf(link, XLINK, "role") ?? "";
     const locators = new Map<string, string[]>();
@@ -234,7 +296,10 @@ export function summationParents(
       if (label === undefined || href === undefined) {
         throw new Error("unreadable calculation locator");
       }
-      locators.set(label, [...(locators.get(label) ?? []), locatorConcept(href, schema)]);
+      locators.set(label, [
+        ...(locators.get(label) ?? []),
+        locatorConcept(href, linkbaseUrl, schema),
+      ]);
     }
     for (const arc of descendants(link, LINKBASE, "calculationArc")) {
       if (!SUMMATION_ITEM.has(attributeOf(arc, XLINK, "arcrole") ?? "")) {
@@ -250,11 +315,11 @@ export function summationParents(
       const from = locators.get(attributeOf(arc, XLINK, "from") ?? "");
       const to = locators.get(attributeOf(arc, XLINK, "to") ?? "");
       const rawWeight = attributeOf(arc, "", "weight")?.trim() ?? "";
-      const weight = Number(rawWeight);
+      const weight = canonicalDecimal(rawWeight);
       if (from === undefined || to === undefined) {
         throw new Error("calculation arc to an unknown locator");
       }
-      if (!DECIMAL.test(rawWeight) || weight === 0) {
+      if (weight === undefined || weight === "0") {
         throw new Error(`unreadable calculation weight ${rawWeight}`);
       }
       for (const parent of from) {

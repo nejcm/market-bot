@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { extensionSchema, summationParents } from "../src/sources/sec-calculation-linkbase";
+import {
+  calculationLinkbaseHref,
+  extensionSchema,
+  summationParents,
+} from "../src/sources/sec-calculation-linkbase";
 import { parseXbrlInstance } from "../src/sources/sec-xbrl-instance";
 import {
   metaLinksTags,
@@ -89,8 +93,10 @@ const rejectOf = (
 };
 
 const FASB = "https://xbrl.fasb.org/us-gaap/2025/elts/us-gaap-2025.xsd";
+const FOLDER = "https://www.sec.gov/Archives/edgar/data/1/000000000125000001";
+const CAL_URL = `${FOLDER}/issuer-20251231_cal.xml`;
 const SCHEMA = extensionSchema(
-  "issuer-20251231.xsd",
+  `${FOLDER}/issuer-20251231.xsd`,
   `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="${ISSUER}">${[
     "LeasePaymentsAfterYearFour",
     "FixedRateNotesOutstanding",
@@ -119,7 +125,7 @@ const placedUnder = (
   );
 const placementOf = (xml: string): CalculationPlacement => ({
   extensionNamespace: SCHEMA.namespace,
-  parents: summationParents(xml, SCHEMA),
+  parents: summationParents(xml, CAL_URL, SCHEMA),
 });
 
 describe("zero borrowings from the XBRL instance", () => {
@@ -140,13 +146,18 @@ describe("zero borrowings from the XBRL instance", () => {
       JSON.parse(await Bun.file(join(dir, "MetaLinks.json")).text()),
       "clfd20260331_10q.htm",
     )!;
+    const folder = "https://www.sec.gov/Archives/edgar/data/796505/000117184326003126";
     const schema = extensionSchema(
-      "clfd-20260331.xsd",
+      `${folder}/clfd-20260331.xsd`,
       await Bun.file(join(dir, "clfd-20260331.xsd")).text(),
     );
     const placement = {
       extensionNamespace: schema.namespace,
-      parents: summationParents(await Bun.file(join(dir, "clfd-20260331_cal.xml")).text(), schema),
+      parents: summationParents(
+        await Bun.file(join(dir, "clfd-20260331_cal.xml")).text(),
+        `${folder}/clfd-20260331_cal.xml`,
+        schema,
+      ),
     };
     const scope = { periodEnd: "2026-03-31", file: "clfd20260331_10q_htm.xml", cik: "796505" };
     expect(zeroBorrowingsInstanceProof(instance, tags, undefined, scope)).toEqual({
@@ -567,8 +578,223 @@ describe("calculation placement proves identity, weight and every parent", () =>
 
   test("an extension schema without a target namespace is unreadable", () => {
     expect(() =>
-      extensionSchema("x.xsd", '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"/>'),
+      extensionSchema(
+        `${FOLDER}/x.xsd`,
+        '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"/>',
+      ),
     ).toThrow();
+  });
+});
+
+describe("a fact leaves the census only by a known nonmonetary type in a fitting unit", () => {
+  const typed = (concept: string, xbrltype: string) =>
+    new Map(TAGS).set(`${ISSUER}#${concept}`, { xbrltype });
+  test.each([
+    ["shares in a shares unit", "sharesItemType", 'unitRef="shares"', "published"],
+    [
+      "per-share in a currency-per-share unit",
+      "perShareItemType",
+      'unitRef="usdPerShare"',
+      "published",
+    ],
+    ["per-share in a shares unit", "perShareItemType", 'unitRef="shares"', "unit-unreadable"],
+    ["shares in a divide unit", "sharesItemType", 'unitRef="usdPerShare"', "unit-unreadable"],
+    ["shares in a USD unit", "sharesItemType", 'unitRef="usd"', "unclassified-credit"],
+    ["text with no unit", "stringItemType", "", "published"],
+    ["text with a unit", "stringItemType", 'unitRef="shares"', "unit-unreadable"],
+    ["an issuer type with no unit", "issuerMoneyItemType", "", "unit-unreadable"],
+    ["an empty type with no unit", "", "", "unit-unreadable"],
+    [
+      "a prefixed shares type in a shares unit",
+      "xbrli:sharesItemType",
+      'unitRef="shares"',
+      "unit-unreadable",
+    ],
+  ])("%s: %s", (_name, xbrltype, unit, outcome) => {
+    const xml = instanceXml(
+      `<issuer:AmountDueToLender contextRef="i" ${unit}>730001</issuer:AmountDueToLender>`,
+    );
+    const result = rejectOf(xml, undefined, typed("AmountDueToLender", xbrltype));
+    expect(result).toBe(outcome === "published" ? outcome : `${outcome}:issuer:AmountDueToLender`);
+  });
+
+  test.each([
+    ["shares in a shares unit", "sharesItemType", ' unitRef="shares"', "published"],
+    ["shares in a USD unit", "sharesItemType", ' unitRef="usd"', "nil-fact"],
+    ["an issuer type with no unit", "issuerMoneyItemType", "", "nil-fact"],
+  ])("a nil fact typed %s: %s", (_name, xbrltype, unit, outcome) => {
+    const xml = instanceXml(`<issuer:AmountDueToLender contextRef="i"${unit} xsi:nil="true"/>`);
+    const result = rejectOf(xml, undefined, typed("AmountDueToLender", xbrltype));
+    expect(result).toBe(outcome === "published" ? outcome : `${outcome}:issuer:AmountDueToLender`);
+  });
+
+  test("a zero with an unknown type and no unit cannot hide a balance", () => {
+    const xml = instanceXml(
+      '<issuer:AmountDueToLender contextRef="i">0</issuer:AmountDueToLender>',
+    );
+    expect(rejectOf(xml, undefined, typed("AmountDueToLender", "issuerMoneyItemType"))).toBe(
+      "published",
+    );
+  });
+});
+
+describe("placement never pardons a standard concept", () => {
+  test("a placement claiming the us-gaap namespace still leaves notes payable unclassified", () => {
+    const placement: CalculationPlacement = {
+      extensionNamespace: US_GAAP,
+      parents: new Map([
+        [
+          `${US_GAAP}#NotesPayable`,
+          [{ parent: `${US_GAAP}#OperatingLeaseLiability`, weight: "1" }],
+        ],
+      ]),
+    };
+    expect(rejectOf(instanceXml(fact("us-gaap:NotesPayable", 500_000)), placement)).toBe(
+      "unclassified-credit:us-gaap:NotesPayable",
+    );
+  });
+
+  test.each([
+    ["us-gaap", "http://fasb.org/us-gaap/2025"],
+    ["dei", "http://xbrl.sec.gov/dei/2025"],
+    ["the XBRL instance", "http://www.xbrl.org/2003/instance"],
+    ["IFRS", "https://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full"],
+  ])("an extension schema claiming the %s namespace is unreadable", (_name, namespace) => {
+    expect(() =>
+      extensionSchema(
+        `${FOLDER}/x.xsd`,
+        `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="${namespace}"><xs:element id="n" name="NotesPayable"/></xs:schema>`,
+      ),
+    ).toThrow();
+  });
+});
+
+describe("schema identity is the top-level declaration", () => {
+  const schemaOf = (elements: string) =>
+    extensionSchema(
+      `${FOLDER}/issuer-20251231.xsd`,
+      `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="${ISSUER}">${elements}</xs:schema>`,
+    );
+
+  test("a nested local declaration is not a concept", () => {
+    const schema = schemaOf(
+      '<xs:element id="holder" name="Holder"><xs:complexType><xs:sequence><xs:element id="local" name="FixedRateNotesOutstanding"/></xs:sequence></xs:complexType></xs:element>',
+    );
+    expect([...schema.localById]).toEqual([["holder", "Holder"]]);
+  });
+
+  test.each([
+    ["two elements", '<xs:element id="a" name="One"/><xs:element id="a" name="Two"/>'],
+    [
+      "an element and a nested type",
+      '<xs:element id="a" name="One"/><xs:complexType name="T"><xs:sequence><xs:element id="a" name="Two"/></xs:sequence></xs:complexType>',
+    ],
+  ])("a duplicate id across %s is unreadable", (_name, elements) => {
+    expect(() => schemaOf(elements)).toThrow();
+  });
+});
+
+describe("calculation weights are compared as lexical decimals", () => {
+  const lease = "OperatingLeaseLiability";
+  const extension = instanceXml(fact("issuer:FixedRateNotesOutstanding", 500_000));
+  const weighed = (weight: string) =>
+    placementOf(linkbase(placedUnder(lease, "FixedRateNotesOutstanding", { weight })));
+
+  test.each([["+1"], ["01.000"], ["1."], ["1"]])("weight %p is exactly one", (weight) => {
+    expect(rejectOf(extension, weighed(weight))).toBe("published");
+  });
+
+  test.each([["1.0000000000000000001"], ["0.999999999999999999999"], ["-1.0"]])(
+    "weight %p is not one",
+    (weight) => {
+      expect(rejectOf(extension, weighed(weight))).toBe(
+        "unclassified-credit:issuer:FixedRateNotesOutstanding",
+      );
+    },
+  );
+
+  test("the same weight in two spellings is one relationship; a rounding-close one conflicts", () => {
+    const twice = (a: string, b: string) =>
+      placementOf(
+        linkbase(
+          network(
+            locator(`${FASB}#us-gaap_${lease}`, "p") +
+              locator("issuer-20251231.xsd#issuer_FixedRateNotesOutstanding", "c") +
+              arc("p", "c", a) +
+              arc("p", "c", b),
+          ),
+        ),
+      );
+    expect(() => twice("1", "+01.00")).not.toThrow();
+    expect(() => twice("1", "1.0000000000000000001")).toThrow();
+  });
+});
+
+describe("CLFD 10-Q 0001171843-26-003126 spellings that keep its placement", () => {
+  const dir = join(import.meta.dir, "fixtures/sec-xbrl-instance");
+  const folder = "https://www.sec.gov/Archives/edgar/data/796505/000117184326003126";
+  const read = (file: string) => Bun.file(join(dir, file)).text();
+  const proveClfd = async ({
+    instance = (xml: string) => xml,
+    calc = (xml: string) => xml,
+  } = {}) => {
+    const schema = extensionSchema(`${folder}/clfd-20260331.xsd`, await read("clfd-20260331.xsd"));
+    return zeroBorrowingsInstanceProof(
+      parseXbrlInstance(instance(await read("clfd20260331_10q_htm.xml"))),
+      metaLinksTags(JSON.parse(await read("MetaLinks.json")), "clfd20260331_10q.htm")!,
+      {
+        extensionNamespace: schema.namespace,
+        parents: summationParents(
+          calc(await read("clfd-20260331_cal.xml")),
+          `${folder}/clfd-20260331_cal.xml`,
+          schema,
+        ),
+      },
+      { periodEnd: "2026-03-31", file: "clfd20260331_10q_htm.xml", cik: "796505" },
+    );
+  };
+
+  test.each([
+    [
+      "dot-relative locators",
+      { calc: (xml: string) => xml.replaceAll("clfd-20260331.xsd#", "./clfd-20260331.xsd#") },
+    ],
+    [
+      "absolute same-accession locators",
+      {
+        calc: (xml: string) =>
+          xml.replaceAll('"clfd-20260331.xsd#', `"${folder}/clfd-20260331.xsd#`),
+      },
+    ],
+    [
+      "a second prefix for its namespace",
+      {
+        instance: (xml: string) =>
+          xml.replace(
+            "xmlns:clfd=",
+            'xmlns:alias="http://www.clearfieldconnection.com/20260331" xmlns:clfd=',
+          ),
+      },
+    ],
+  ])("%s still prove c1613", async (_name, mutate) => {
+    expect(await proveClfd(mutate)).toEqual({
+      proof: expect.stringContaining("fact c1613"),
+      currency: "USD",
+    });
+  });
+
+  test("a single-quoted schema still names its calculation linkbase", async () => {
+    const xsd = (await read("clfd-20260331.xsd")).replace(
+      "</xsd:schema>",
+      "<xsd:annotation><xsd:appinfo><link:linkbaseRef xlink:type='simple' xlink:href='clfd-20260331_cal.xml' xlink:role='http://www.xbrl.org/2003/role/calculationLinkbaseRef'/></xsd:appinfo></xsd:annotation></xsd:schema>",
+    );
+    expect(calculationLinkbaseHref(xsd.replaceAll('"', "'"))).toBe("clfd-20260331_cal.xml");
+  });
+
+  test("the instance names its schema", async () => {
+    expect(parseXbrlInstance(await read("clfd20260331_10q_htm.xml")).schemaRefs).toEqual([
+      "clfd-20260331.xsd",
+    ]);
   });
 });
 

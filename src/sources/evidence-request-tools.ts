@@ -169,51 +169,62 @@ interface FetchedDocument {
 
 interface CalculationLinkbaseFetch {
   readonly xml?: string;
-  readonly schema?: { readonly href: string; readonly xml: string };
+  readonly xmlUrl?: string;
+  readonly schema?: { readonly url: string; readonly xml: string };
   readonly documents: readonly FetchedDocument[];
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
 }
 
+// `href` resolved against the document that names it, only when it stays a file of the filing's accession folder.
+function accessionDocumentUrl(href: string, documentUrl: string): string | undefined {
+  const url = URL.parse(href, documentUrl);
+  const folder = documentUrl.slice(0, documentUrl.lastIndexOf("/") + 1);
+  const name = url?.href.startsWith(folder) === true ? url.href.slice(folder.length) : "";
+  return url !== null && url.username === "" && url.password === "" && /^[^/?#]+$/u.test(name)
+    ? url.href
+    : undefined;
+}
+
 // A calculation linkbase sits in the filing's schema (inline DTS) or a `_cal.xml` the schema references.
 async function fetchCalculationLinkbase(
   ctx: CollectContext,
-  filing: SecFiling,
-  cik: string,
-  html: string,
+  schemaHref: string | undefined,
+  documentUrl: string,
 ): Promise<CalculationLinkbaseFetch> {
-  const schemaHref = xbrlSchemaHref(html);
-  if (schemaHref === undefined || schemaHref.includes("/")) {
+  const schemaUrl =
+    schemaHref === undefined ? undefined : accessionDocumentUrl(schemaHref, documentUrl);
+  if (schemaUrl === undefined) {
     return { documents: [], rawSnapshots: [], gaps: [] };
   }
-  const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
   const init = secTextRequestInit(ctx.secUserAgent);
-  const schemaUrl = `${baseUrl}/${schemaHref}`;
   const schema = await ctx.request.text({ url: schemaUrl, adapter: "sec-xbrl-schema", init });
   if (!isFetchTextResult(schema)) {
     return { documents: [], rawSnapshots: [], gaps: [schema] };
   }
-  const schemaRead = { href: schemaHref, xml: schema.payload };
+  const schemaRead = { url: schemaUrl, xml: schema.payload };
   const schemaDocument = {
     url: schemaUrl,
     adapter: "sec-xbrl-schema",
     rawSnapshot: schema.rawSnapshot,
   };
   const calcHref = calculationLinkbaseHref(schema.payload);
-  if (calcHref === undefined || calcHref.includes("/")) {
+  const calcUrl = calcHref === undefined ? undefined : accessionDocumentUrl(calcHref, schemaUrl);
+  if (calcUrl === undefined) {
     return {
       xml: schema.payload,
+      xmlUrl: schemaUrl,
       schema: schemaRead,
       documents: [schemaDocument],
       rawSnapshots: [schema.rawSnapshot],
       gaps: [],
     };
   }
-  const calcUrl = `${baseUrl}/${calcHref}`;
   const calc = await ctx.request.text({ url: calcUrl, adapter: "sec-calculation-linkbase", init });
   return isFetchTextResult(calc)
     ? {
         xml: calc.payload,
+        xmlUrl: calcUrl,
         schema: schemaRead,
         documents: [
           schemaDocument,
@@ -238,7 +249,11 @@ async function fetchDepreciationCalc(
   if (filing.form !== "10-K") {
     return { metrics: {}, rawSnapshots: [], gaps: [] };
   }
-  const { xml, rawSnapshots, gaps } = await fetchCalculationLinkbase(ctx, filing, cik, html);
+  const { xml, rawSnapshots, gaps } = await fetchCalculationLinkbase(
+    ctx,
+    xbrlSchemaHref(html),
+    `${filingBaseUrl(String(Number(cik)), filing.accessionNumber)}/${filing.primaryDocument}`,
+  );
   return {
     metrics:
       gaps.length > 0
@@ -282,7 +297,6 @@ async function fetchZeroBorrowingsProof(
   ctx: CollectContext,
   filing: SecFiling,
   cik: string,
-  html: string,
   item: { readonly source: Source; readonly metrics: ExtendedEvidenceItem["metrics"] },
 ): Promise<ZeroBorrowingsFetch> {
   const instanceFile = filing.primaryDocument.replace(/\.htm$/u, "_htm.xml");
@@ -337,9 +351,18 @@ async function fetchZeroBorrowingsProof(
   const scope = { periodEnd: filing.reportDate, file: instanceFile, cik };
   let proof = zeroBorrowingsInstanceProof(parsed, tags, undefined, scope);
   if ("reject" in proof && proof.reject.startsWith(UNCLASSIFIED_CREDIT)) {
-    const calc = await fetchCalculationLinkbase(ctx, filing, cik, html);
+    const calc = await fetchCalculationLinkbase(
+      ctx,
+      parsed.schemaRefs.length === 1 ? parsed.schemaRefs[0] : undefined,
+      url,
+    );
     const calcSnapshots = [...rawSnapshots, ...calc.rawSnapshots];
-    if (calc.gaps.length > 0 || calc.xml === undefined || calc.schema === undefined) {
+    if (
+      calc.gaps.length > 0 ||
+      calc.xml === undefined ||
+      calc.xmlUrl === undefined ||
+      calc.schema === undefined
+    ) {
       return rejectZeroBorrowings(
         `instance-fetch-failed:${calc.gaps[0]?.source ?? "sec-xbrl-schema"}`,
         calcSnapshots,
@@ -347,11 +370,14 @@ async function fetchZeroBorrowingsProof(
       );
     }
     try {
-      const schema = extensionSchema(calc.schema.href, calc.schema.xml);
+      const schema = extensionSchema(calc.schema.url, calc.schema.xml);
       proof = zeroBorrowingsInstanceProof(
         parsed,
         tags,
-        { extensionNamespace: schema.namespace, parents: summationParents(calc.xml, schema) },
+        {
+          extensionNamespace: schema.namespace,
+          parents: summationParents(calc.xml, calc.xmlUrl, schema),
+        },
         scope,
       );
     } catch {
@@ -679,7 +705,7 @@ async function collectSecFiling(
           ),
         ];
   const calc = await fetchDepreciationCalc(ctx, filing, match.cik, selected.payload);
-  const zero = await fetchZeroBorrowingsProof(ctx, filing, match.cik, selected.payload, {
+  const zero = await fetchZeroBorrowingsProof(ctx, filing, match.cik, {
     source: built.source,
     metrics: built.item.metrics,
   });
@@ -776,7 +802,7 @@ export async function collectSecDebtFaceFilings(
       const id = `${source.id}-face-${filing.accessionNumber}`;
       const summary = `${filing.form} filed ${filing.filingDate} for period ${instant.periodEnd}: balance-sheet face read for debt proof.`;
       const faceSource = { ...source, id, summary };
-      const zero = await fetchZeroBorrowingsProof(ctx, filing, cik, result.payload, {
+      const zero = await fetchZeroBorrowingsProof(ctx, filing, cik, {
         source: faceSource,
         metrics: face,
       });

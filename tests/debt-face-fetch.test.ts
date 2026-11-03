@@ -368,7 +368,8 @@ const US_GAAP = "http://fasb.org/us-gaap/2025";
 const CLFD = "http://www.clearfieldconnection.com/20251231";
 // CLFD 10-Q 0001171843-26-000700 shape: a hidden LineOfCredit 0 on the revolver member (fact c1292).
 const clfdInstance = (extra = "", unit = "iso4217:USD") =>
-  `<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="${US_GAAP}" xmlns:clfd="${CLFD}" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+  `<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="${US_GAAP}" xmlns:clfd="${CLFD}" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <link:schemaRef xlink:href="q.xsd" xlink:type="simple"/>
   <context id="i"><entity><identifier scheme="http://www.sec.gov/CIK">0000796505</identifier></entity><period><instant>2025-12-31</instant></period></context>
   <context id="r"><entity><identifier scheme="http://www.sec.gov/CIK">0000796505</identifier><segment><xbrldi:explicitMember dimension="us-gaap:CreditFacilityAxis">us-gaap:RevolvingCreditFacilityMember</xbrldi:explicitMember></segment></entity><period><instant>2025-12-31</instant></period></context>
   <unit id="USD"><measure>${unit}</measure></unit>
@@ -885,5 +886,239 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       metrics: { accessionNumber: Q_ACCN, reportDate: "2026-03-31", ...prior },
     } as unknown as ExtendedEvidenceItem;
     expect(decDebt(deriveItems(ZERO_GAAP, [later]))).toBeUndefined();
+  });
+});
+
+const LEASE_NAME = "LesseeOperatingLeaseLiabilityToBePaidAfterYearFour";
+const CLFD_FOLDER = "https://www.sec.gov/Archives/edgar/data/796505/000117184326000700";
+const notesPayable = (attributes = 'unitRef="USD"', body = ">730001</us-gaap:NotesPayable>") =>
+  `<us-gaap:NotesPayable contextRef="i" ${attributes}${body}`;
+const typedMeta = (key: string, nsuri: string, localname: string, xbrltype: string) => ({
+  instance: {
+    "q.htm": {
+      tag: {
+        ...CLFD_META_LINKS.instance["q.htm"].tag,
+        [key]: { ...tag(nsuri, localname, "credit"), xbrltype },
+      },
+    },
+  },
+});
+const leaseInstance = (extra = "") => clfdInstance(LEASE_EXTENSION + extra);
+const unitlessLease = (xbrltype: string) => ({
+  "sec-xbrl-instance": leaseInstance().replace(' unitRef="USD" decimals="-3">1447000', ">730001"),
+  "sec-metalinks": typedMeta(`clfd_${LEASE_NAME}`, CLFD, LEASE_NAME, xbrltype),
+});
+const calcWith = (from: string, to: string) => ({
+  "sec-xbrl-instance": leaseInstance(),
+  "sec-calculation-linkbase": LEASE_CAL.replace(from, to),
+});
+
+describe("tagged-zero proof boundaries", () => {
+  test.each(
+    ["footnoteLink", "schemaRef", "linkbaseRef", "roleRef", "arcroleRef"].map(
+      (link) => [`a notes payable fact inside link:${link}`, link] as const,
+    ),
+  )("%s makes the instance unreadable", async (_name, link) => {
+    const served = clfdServed(ZERO_ROWS, {
+      "sec-xbrl-instance": clfdInstance(`<link:${link}>${notesPayable()}</link:${link}>`),
+    });
+    expect(decDebt(await clfdDerive(served))).toBeUndefined();
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining("tagged-zero proof was rejected (instance-unreadable)"),
+    ]);
+  });
+
+  test.each([
+    [
+      "a footnote holding a non-XHTML element",
+      `<link:footnoteLink><link:footnote>${notesPayable()}</link:footnote></link:footnoteLink>`,
+      "instance-unreadable",
+    ],
+    [
+      "a footnote link holding a locator with content",
+      `<link:footnoteLink><link:loc>${notesPayable()}</link:loc></link:footnoteLink>`,
+      "instance-unreadable",
+    ],
+  ] as const)("%s withholds", async (_name, extra, code) => {
+    const served = clfdServed(ZERO_ROWS, { "sec-xbrl-instance": clfdInstance(extra) });
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining(`tagged-zero proof was rejected (${code})`),
+    ]);
+  });
+
+  test("a footnote of XHTML text beside its locator and arc still publishes", async () => {
+    const footnote =
+      '<link:footnoteLink xlink:type="extended" xlink:role="http://www.xbrl.org/2003/role/link"><link:loc xlink:type="locator" xlink:href="#c1292" xlink:label="f"/><link:footnote xlink:type="resource" xlink:label="n"><xhtml:span xmlns:xhtml="http://www.w3.org/1999/xhtml">Revolver <xhtml:b>undrawn</xhtml:b>.</xhtml:span></link:footnote><link:footnoteArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/fact-footnote" xlink:from="f" xlink:to="n"/></link:footnoteLink>';
+    const served = clfdServed(ZERO_ROWS, { "sec-xbrl-instance": clfdInstance(footnote) });
+    expect(decDebt(await clfdDerive(served))?.value).toBe(0);
+  });
+
+  test.each([
+    ["an issuer-defined money type", "issuerMoneyItemType"],
+    ["an empty type", ""],
+    ["a prefixed monetary type", "xbrli:monetaryItemType"],
+  ] as const)(
+    "a unitless nonzero extension credit with %s is unit-unreadable",
+    async (_name, xbrltype) => {
+      const adapters: string[] = [];
+      const served = clfdServed(ZERO_ROWS, unitlessLease(xbrltype));
+      expect(decDebt(deriveItems(ZERO_GAAP, (await clfdFaces(served, adapters)).items))).toBe(
+        undefined,
+      );
+      expect(adapters).not.toContain("sec-xbrl-schema");
+      expect(await withheldMessage(served)).toEqual([
+        expect.stringContaining(`rejected (unit-unreadable:clfd:${LEASE_NAME})`),
+      ]);
+    },
+  );
+
+  test.each([
+    ["typed shares with no unit", notesPayable(""), "sharesItemType", "unit-unreadable"],
+    [
+      "typed by the issuer with no unit",
+      notesPayable(""),
+      "issuerMoneyItemType",
+      "unit-unreadable",
+    ],
+    ["typed shares in a USD unit", notesPayable(), "sharesItemType", "unclassified-credit"],
+    [
+      "nil in a USD unit typed shares",
+      notesPayable(
+        'unitRef="USD" xsi:nil="true" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+        "/>",
+      ),
+      "sharesItemType",
+      "nil-fact",
+    ],
+  ] as const)("notes payable %s withholds", async (_name, notes, xbrltype, code) => {
+    const served = clfdServed(ZERO_ROWS, {
+      "sec-xbrl-instance": clfdInstance(notes),
+      "sec-metalinks": typedMeta("us-gaap_NotesPayable", US_GAAP, "NotesPayable", xbrltype),
+    });
+    expect(decDebt(await clfdDerive(served))).toBeUndefined();
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining(`rejected (${code}:us-gaap:NotesPayable)`),
+    ]);
+  });
+
+  test("a shares fact in a shares unit stays outside the census", async () => {
+    const shares =
+      '<unit id="shares"><measure>xbrli:shares</measure></unit><us-gaap:NotesPayable contextRef="i" unitRef="shares">730001</us-gaap:NotesPayable>';
+    const served = clfdServed(ZERO_ROWS, {
+      "sec-xbrl-instance": clfdInstance(shares).replace(
+        'xmlns:xbrldi="',
+        'xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:xbrldi="',
+      ),
+      "sec-metalinks": typedMeta("us-gaap_NotesPayable", US_GAAP, "NotesPayable", "sharesItemType"),
+    });
+    expect(decDebt(await clfdDerive(served))?.value).toBe(0);
+  });
+
+  const placedSchema = (elements: string, namespace = CLFD) =>
+    SCHEMA.replace(`targetNamespace="${CLFD}"`, `targetNamespace="${namespace}"`).replace(
+      /<xs:element[^>]*\/>/u,
+      elements,
+    );
+  test.each([
+    [
+      "an extension schema claiming the us-gaap namespace",
+      placedSchema(`<xs:element id="clfd_${LEASE_NAME}" name="NotesPayable"/>`, US_GAAP),
+    ],
+    [
+      "a schema giving one id two declarations",
+      placedSchema(
+        `<xs:element id="clfd_${LEASE_NAME}" name="Other"/><xs:element id="clfd_${LEASE_NAME}" name="${LEASE_NAME}"/>`,
+      ),
+    ],
+    [
+      "a locator naming a nested local declaration",
+      placedSchema(
+        `<xs:element id="real" name="${LEASE_NAME}"/><xs:element id="holder" name="Holder"><xs:complexType><xs:sequence><xs:element id="clfd_${LEASE_NAME}" name="${LEASE_NAME}"/></xs:sequence></xs:complexType></xs:element>`,
+      ),
+    ],
+  ] as const)("%s is calculation-linkbase-unreadable", async (_name, schema) => {
+    const served = clfdServed(ZERO_ROWS, {
+      "sec-xbrl-instance": leaseInstance(),
+      "sec-xbrl-schema": schema,
+    });
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining("rejected (calculation-linkbase-unreadable)"),
+    ]);
+  });
+
+  test.each([
+    ["1.0000000000000000001", "withheld"],
+    ["0.999999999999999999999", "withheld"],
+    ["+01.000", 0],
+    ["1", 0],
+  ] as const)("a lease placement weighted %s is %s", async (weight, expected) => {
+    const served = clfdServed(ZERO_ROWS, calcWith('weight="1.0"', `weight="${weight}"`));
+    expect(decDebt(await clfdDerive(served))?.value ?? "withheld").toBe(expected);
+  });
+
+  test.each([
+    ["a dot-relative locator", calcWith('xlink:href="q.xsd#', 'xlink:href="./q.xsd#')],
+    [
+      "an absolute same-accession locator",
+      calcWith('xlink:href="q.xsd#', `xlink:href="${CLFD_FOLDER}/q.xsd#`),
+    ],
+    [
+      "a single-quoted schema",
+      { "sec-xbrl-instance": leaseInstance(), "sec-xbrl-schema": SCHEMA.replaceAll('"', "'") },
+    ],
+    [
+      "a single-quoted, dot-relative instance schemaRef",
+      {
+        "sec-xbrl-instance": leaseInstance().replace('xlink:href="q.xsd"', "xlink:href='./q.xsd'"),
+      },
+    ],
+    [
+      "an absolute same-accession schemaRef",
+      { "sec-xbrl-instance": leaseInstance().replace('"q.xsd"', `"${CLFD_FOLDER}/q.xsd"`) },
+    ],
+    [
+      "a second prefix for the extension namespace on the fact",
+      {
+        "sec-xbrl-instance": leaseInstance()
+          .replace(`xmlns:clfd="${CLFD}"`, `xmlns:clfd="${CLFD}" xmlns:alias="${CLFD}"`)
+          .replaceAll(`clfd:${LEASE_NAME}`, `alias:${LEASE_NAME}`),
+      },
+    ],
+  ] as const)("%s still places the lease extension", async (_name, overrides) => {
+    const faces = await clfdFaces(clfdServed(ZERO_ROWS, overrides));
+    expect(decDebt(deriveItems(ZERO_GAAP, faces.items))?.value).toBe(0);
+    expect(faces.sources.map(({ url }) => url)).toEqual(
+      expect.arrayContaining([`${CLFD_FOLDER}/q.xsd`, `${CLFD_FOLDER}/q_cal.xml`]),
+    );
+  });
+
+  test.each([
+    [
+      "a locator into another accession",
+      calcWith(
+        'xlink:href="q.xsd#',
+        'xlink:href="https://www.sec.gov/Archives/edgar/data/796505/000117184326003126/q.xsd#',
+      ),
+      `unclassified-credit:clfd:${LEASE_NAME}`,
+    ],
+    [
+      "a schemaRef into another accession",
+      {
+        "sec-xbrl-instance": leaseInstance().replace(
+          '"q.xsd"',
+          '"https://www.sec.gov/Archives/edgar/data/796505/000117184326003126/q.xsd"',
+        ),
+      },
+      "instance-fetch-failed:sec-xbrl-schema",
+    ],
+    [
+      "a schemaRef climbing out of the accession",
+      { "sec-xbrl-instance": leaseInstance().replace('"q.xsd"', '"../000117184326003126/q.xsd"') },
+      "instance-fetch-failed:sec-xbrl-schema",
+    ],
+  ] as const)("%s withholds", async (_name, overrides, code) => {
+    expect(await withheldMessage(clfdServed(ZERO_ROWS, overrides))).toEqual([
+      expect.stringContaining(`rejected (${code})`),
+    ]);
   });
 });

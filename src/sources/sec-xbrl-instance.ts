@@ -228,18 +228,21 @@ export function attributeOf(
   return element.attributes.get(`${namespace}|${local}`);
 }
 
-// `prefix:Local` with the canonical prefix for standard namespaces, so an issuer's own prefix spelling never matters.
+// `prefix:Local`: the canonical prefix for standard namespaces, else the first declared alias; identity stays the
+// Expanded name, and a reserved standard prefix bound to another namespace is unreadable.
 function canonicalName(namespace: string, local: string, namespaces: ReadonlyMap<string, string>) {
   const canonical = CANONICAL_PREFIXES.find(([pattern]) => pattern.test(namespace))?.[1];
   if (canonical !== undefined) {
     return `${canonical}:${local}`;
   }
-  const declared = [...namespaces].filter(([prefix, uri]) => uri === namespace && prefix !== "");
-  const prefix = declared[0]?.[0];
-  if (prefix === undefined || declared.length > 1 || RESERVED_PREFIXES.has(prefix)) {
-    throw new Error(`no unique prefix for ${namespace}`);
+  const declared = [...namespaces]
+    .filter(([name, uri]) => uri === namespace && name !== "")
+    .map(([name]) => name)
+    .toSorted();
+  if (declared.length === 0 || declared.some((name) => RESERVED_PREFIXES.has(name))) {
+    throw new Error(`no readable prefix for ${namespace}`);
   }
-  return `${prefix}:${local}`;
+  return `${declared[0]}:${local}`;
 }
 
 // Text of an element that may hold no child elements.
@@ -263,7 +266,7 @@ interface XbrlContext {
   readonly members: readonly (readonly [axis: string, member: string])[];
 }
 
-type XbrlUnit =
+export type XbrlUnit =
   | { readonly measures: readonly string[] }
   | { readonly numerator: readonly string[]; readonly denominator: readonly string[] };
 
@@ -282,6 +285,7 @@ export interface XbrlInstance {
   readonly contexts: ReadonlyMap<string, XbrlContext>;
   readonly units: ReadonlyMap<string, XbrlUnit>;
   readonly facts: readonly XbrlFact[];
+  readonly schemaRefs: readonly string[];
 }
 
 const is = (element: XmlElement, namespace: string, local: string) =>
@@ -402,8 +406,27 @@ function addUnique<T>(map: Map<string, T>, id: string | undefined, value: T): vo
   map.set(id, value);
 }
 
-// Root linkbase elements an instance may carry; footnote links hold no facts.
-const ROOT_LINKS = new Set(["schemaRef", "linkbaseRef", "roleRef", "arcroleRef", "footnoteLink"]);
+const SIMPLE_LINKS = new Set(["schemaRef", "linkbaseRef", "roleRef", "arcroleRef"]);
+const FOOTNOTE_PARTS = new Set(["loc", "footnote", "footnoteArc"]);
+const XHTML = "http://www.w3.org/1999/xhtml";
+const onlyXhtml = (element: XmlElement): boolean =>
+  element.children.every((child) => child.namespace === XHTML && onlyXhtml(child));
+
+// Footnote links hold locators, arcs and XHTML footnote text, never facts.
+function checkRootLink(element: XmlElement): void {
+  const readable = SIMPLE_LINKS.has(element.local)
+    ? element.children.length === 0 && element.text.trim() === ""
+    : element.local === "footnoteLink" &&
+      element.children.every(
+        (part) =>
+          part.namespace === LINK &&
+          FOOTNOTE_PARTS.has(part.local) &&
+          (part.local === "footnote" ? onlyXhtml(part) : part.children.length === 0),
+      );
+  if (!readable) {
+    throw new Error(`unreadable ${element.local} in xbrl`);
+  }
+}
 const NOT_CONCEPT_NAMESPACES = new Set([XBRLI, LINK, XBRLDI, XSI, XLINK]);
 
 export function parseXbrlInstance(xml: string): XbrlInstance {
@@ -414,14 +437,19 @@ export function parseXbrlInstance(xml: string): XbrlInstance {
   const contexts = new Map<string, XbrlContext>();
   const units = new Map<string, XbrlUnit>();
   const facts: XbrlFact[] = [];
+  const schemaRefs: string[] = [];
   for (const element of root.children) {
     const id = attributeOf(element, "", "id");
     if (is(element, XBRLI, "context")) {
       addUnique(contexts, id, context(element));
     } else if (is(element, XBRLI, "unit")) {
       addUnique(units, id, unit(element));
-    } else if (element.namespace === LINK && ROOT_LINKS.has(element.local)) {
-      continue;
+    } else if (element.namespace === LINK) {
+      checkRootLink(element);
+      const href = attributeOf(element, XLINK, "href");
+      if (element.local === "schemaRef" && href !== undefined) {
+        schemaRefs.push(href);
+      }
     } else if (NOT_CONCEPT_NAMESPACES.has(element.namespace)) {
       throw new Error(`unexpected ${element.local} in xbrl`);
     } else {
@@ -446,5 +474,5 @@ export function parseXbrlInstance(xml: string): XbrlInstance {
       });
     }
   }
-  return { contexts, units, facts };
+  return { contexts, units, facts, schemaRefs };
 }

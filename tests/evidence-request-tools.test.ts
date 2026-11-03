@@ -654,7 +654,7 @@ describe("SEC latest filing evidence tool", () => {
                 : adapter === "sec-xbrl-schema"
                   ? textResult(
                       adapter,
-                      '<link:linkbaseRef xlink:href="aapl_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/>',
+                      '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:linkbaseRef xlink:href="aapl_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/></xs:schema>',
                     )
                   : textResult(
                       adapter,

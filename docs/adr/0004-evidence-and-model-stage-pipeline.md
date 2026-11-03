@@ -411,18 +411,28 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   footed face with no borrowing row publishes only from the same 10-K/10-Q's SEC-extracted XBRL instance, read as
   XML by a strict namespace-aware reader with a closed XBRL 2.1 grammar (DTDs and custom entities are refused;
   only the predefined and XML-legal numeric character references decode; unknown root subtrees, element children
-  in simple values, non-calendar dates, and contexts without exactly one entity and one period throw), plus its
-  `MetaLinks.json` balance and item types (an entry with a bad `crdr`, no `xbrltype`, or a conflicting duplicate
-  makes MetaLinks unreadable). Every context must name the issuer's CIK under the SEC scheme; every fact at the
-  instant must be in MetaLinks; a monetary fact (by item type or currency unit, or a numeric fact of unknown type)
-  needs exactly one `iso4217` measure in the issuer-wide `Liabilities` currency and a lexical decimal value
-  (zero means no nonzero digit, never a number coercion); a nil fact rejects unless debit or non-monetary. The
+  in simple values, non-calendar dates, and contexts without exactly one entity and one period throw; schemaRef,
+  linkbaseRef, roleRef and arcroleRef must be empty, and a footnoteLink holds only locators, arcs and footnotes of
+  XHTML markup; a concept is its expanded name, so any number of non-reserved prefixes may alias one namespace),
+  plus its `MetaLinks.json` balance and item types (an entry with a bad `crdr`, no `xbrltype`, or a conflicting
+  duplicate makes MetaLinks unreadable). Every context must name the issuer's CIK under the SEC scheme; every fact
+  at the instant must be in MetaLinks. A fact leaves the census only when its MetaLinks type is a known
+  nonmonetary one and its unit fits that type (shares in `xbrli:shares`, per-share in currency over shares, pure
+  and percent in `xbrli:pure`, other numeric types in a unit with no currency, non-numeric types with no unit); an
+  empty or unknown type never does. Every other fact typed monetary, in a currency unit, or nonzero or nil and not
+  debit needs exactly one `iso4217` measure in the issuer-wide `Liabilities` currency and a lexical decimal value
+  (zero means no nonzero digit, never a number coercion); such a nil fact rejects unless debit. The
   instance must tag an allowlisted borrowing concept 0 at the instant, issuer-wide or on facility axes only, and a
   fail-closed census requires every nonzero non-debit monetary fact there, in any context, to be a closed us-gaap
   non-debt credit concept (liability totals only issuer-wide) or an extension-namespace concept the calculation
-  linkbase places, with weight exactly 1 in every network, only under us-gaap operating-lease parents. Calc
-  locators resolve by schema: extension hrefs through the filing's xsd ids and `targetNamespace`, us-gaap only from
-  the `xbrl.fasb.org` schema; a us-gaap concept is never pardoned by placement, and conflicting, prohibited or
+  linkbase places, with weight exactly 1 in every network (decided on the lexical decimal, so `+01.000` is one and
+  `1.0000000000000000001` is not), only under us-gaap operating-lease parents. The schema is the instance's own
+  single schemaRef and the linkbase the schema's calculation linkbaseRef, both read as XML and resolved as URLs
+  against the document naming them; either outside the filing's accession folder is not fetched. Calc locators
+  resolve as URLs against the linkbase: extension hrefs through the xsd's top-level element ids (a duplicate id
+  makes it unreadable) and `targetNamespace`, us-gaap only from the `xbrl.fasb.org` schema. A schema whose
+  `targetNamespace` is a standard taxonomy's (fasb.org, xbrl.org, sec.gov, ifrs.org, w3.org hosts) is unreadable,
+  and placement never pardons a fact in such a namespace, whatever the schema says; conflicting, prohibited or
   non-decimal weights make the linkbase unreadable. The instance, MetaLinks, schema and linkbase are each a cited
   Source on the zero. Prose matching is gone: a regex sentence link and facility-word match were shown to publish
   unsupported zeros and to reject real ones. Residual reliance, not closed by these checks: a borrowing balance

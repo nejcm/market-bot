@@ -25,6 +25,9 @@ const role = (body: string, name = "r") =>
 const ADJ = "AdjustmentsToReconcileNetIncomeLossToCashProvidedByUsedInOperatingActivities";
 const OCF = "NetCashProvidedByUsedInOperatingActivities";
 
+const schemaWithRefs = (refs: string) =>
+  `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><xs:annotation><xs:appinfo>${refs}</xs:appinfo></xs:annotation></xs:schema>`;
+
 describe("secDepreciationCalcMetrics", () => {
   test("ABBV FY2025 10-K 0001551152-26-000008 adds Depreciation and intangible amortization into OCF", async () => {
     expect(await calc("abbv-10k-0001551152-26-000008")).toEqual({
@@ -186,13 +189,17 @@ describe("secDepreciationCalcMetrics", () => {
       xbrlSchemaHref('<link:schemaRef xlink:type="simple" xlink:href="amd-20251227.xsd"/>'),
     ).toBe("amd-20251227.xsd");
     expect(xbrlSchemaHref("<html></html>")).toBeUndefined();
-    const schema =
-      '<link:linkbaseRef xlink:href="amd-20251227_pre.xml" xlink:role="http://www.xbrl.org/2003/role/presentationLinkbaseRef"/>' +
-      '<link:linkbaseRef xlink:href="amd-20251227_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/>';
-    expect(calculationLinkbaseHref(schema)).toBe("amd-20251227_cal.xml");
-    expect(calculationLinkbaseHref(schema.slice(0, schema.indexOf("<link:linkbaseRef", 10)))).toBe(
-      undefined,
+    const pre =
+      '<link:linkbaseRef xlink:href="amd-20251227_pre.xml" xlink:role="http://www.xbrl.org/2003/role/presentationLinkbaseRef"/>';
+    const cal =
+      "<link:linkbaseRef xlink:href='amd-20251227_cal.xml' xlink:role='http://www.xbrl.org/2003/role/calculationLinkbaseRef'/>";
+    expect(calculationLinkbaseHref(schemaWithRefs(pre + cal))).toBe("amd-20251227_cal.xml");
+    expect(calculationLinkbaseHref(schemaWithRefs(pre))).toBeUndefined();
+    expect(calculationLinkbaseHref(pre + cal)).toBeUndefined();
+    expect(xbrlSchemaHref("<link:schemaRef xlink:type='simple' xlink:href='q.xsd'/>")).toBe(
+      "q.xsd",
     );
+    expect(xbrlSchemaHref('<link:schemaRef title="a>b" xlink:href="q.xsd"/>')).toBe("q.xsd");
   });
 });
 

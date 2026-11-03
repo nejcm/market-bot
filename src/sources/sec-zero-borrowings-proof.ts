@@ -1,7 +1,7 @@
 import type { ExtendedEvidenceItem } from "../domain/evidence";
 import { isRecord } from "../guards";
-import type { SummationParent } from "./sec-calculation-linkbase";
-import type { XbrlFact, XbrlInstance } from "./sec-xbrl-instance";
+import { isStandardTaxonomyNamespace, type SummationParent } from "./sec-calculation-linkbase";
+import type { XbrlFact, XbrlInstance, XbrlUnit } from "./sec-xbrl-instance";
 
 export const ZERO_BORROWINGS_PROOF_KEY = "zeroBorrowingProof";
 export const ZERO_BORROWINGS_CURRENCY_KEY = "zeroBorrowingCurrency";
@@ -89,30 +89,74 @@ const NON_DEBT_CREDIT = new Set([
   "LineOfCreditFacilityRemainingBorrowingCapacity",
 ]);
 
-// MetaLinks types that carry no currency; any other type with a unit, or any fact in a currency unit, is monetary.
-const NONMONETARY_TYPES = new Set([
-  "sharesItemType",
-  "perShareItemType",
-  "pureItemType",
-  "percentItemType",
-  "integerItemType",
-  "nonNegativeIntegerItemType",
-  "positiveIntegerItemType",
-  "decimalItemType",
-  "areaItemType",
-  "volumeItemType",
-  "massItemType",
-  "energyItemType",
-  "powerItemType",
-  "lengthItemType",
-  "durationItemType",
+const shares = (unit: XbrlUnit) => "measures" in unit && unit.measures.join(",") === "xbrli:shares";
+const pure = (unit: XbrlUnit) => "measures" in unit && unit.measures.join(",") === "xbrli:pure";
+const perShare = (unit: XbrlUnit) =>
+  "numerator" in unit &&
+  unit.numerator.length === 1 &&
+  unit.numerator[0]!.startsWith("iso4217:") &&
+  unit.denominator.join(",") === "xbrli:shares";
+const noCurrency = (unit: XbrlUnit) =>
+  ("measures" in unit ? unit.measures : [...unit.numerator, ...unit.denominator]).every(
+    (measure) => !measure.startsWith("iso4217:"),
+  );
+const NUMERIC_NONMONETARY: Readonly<Record<string, (unit: XbrlUnit) => boolean>> = {
+  sharesItemType: shares,
+  perShareItemType: perShare,
+  pureItemType: pure,
+  percentItemType: pure,
+  ...Object.fromEntries(
+    [
+      "integerItemType",
+      "nonNegativeIntegerItemType",
+      "positiveIntegerItemType",
+      "decimalItemType",
+      "areaItemType",
+      "volumeItemType",
+      "massItemType",
+      "energyItemType",
+      "powerItemType",
+      "lengthItemType",
+    ].map((type) => [type, noCurrency]),
+  ),
+};
+// Non-numeric MetaLinks types, whose facts carry no unit.
+const NON_NUMERIC = new Set([
   "stringItemType",
   "normalizedStringItemType",
   "textBlockItemType",
   "dateItemType",
   "gYearItemType",
+  "gMonthDayItemType",
   "booleanItemType",
+  "durationItemType",
+  "domainItemType",
+  "enumerationItemType",
+  "enumerationSetItemType",
+  "yesNoItemType",
+  "tradingSymbolItemType",
+  "submissionTypeItemType",
+  "stateOrProvinceItemType",
+  "securityTitleItemType",
+  "fiscalPeriodItemType",
+  "filerCategoryItemType",
+  "fileNumberItemType",
+  "employerIdItemType",
+  "edgarStateCountryItemType",
+  "edgarExchangeCodeItemType",
+  "centralIndexKeyItemType",
 ]);
+
+// A fact is nonmonetary only when its MetaLinks type is a known nonmonetary one and its unit fits that type.
+function nonmonetary(xbrltype: string, unit: XbrlUnit | undefined): boolean {
+  if (NON_NUMERIC.has(xbrltype)) {
+    return unit === undefined;
+  }
+  const fits = Object.hasOwn(NUMERIC_NONMONETARY, xbrltype)
+    ? NUMERIC_NONMONETARY[xbrltype]
+    : undefined;
+  return fits !== undefined && unit !== undefined && fits(unit);
+}
 
 export interface ConceptTag {
   readonly crdr?: "credit" | "debit";
@@ -217,27 +261,30 @@ export function zeroBorrowingsInstanceProof(
     return reject(`metalinks-missing:${untyped.concept}`);
   }
   const tagOf = (fact: XbrlFact) => tags.get(expanded(fact))!;
-  const nilFact = instantFacts.find(
-    (fact) =>
-      fact.nil && tagOf(fact).crdr !== "debit" && !NONMONETARY_TYPES.has(tagOf(fact).xbrltype),
-  );
-  if (nilFact !== undefined) {
-    return reject(`nil-fact:${nilFact.concept}`);
-  }
-  const currencyOf = ({ unitRef }: XbrlFact) => {
-    const read = unitRef === undefined ? undefined : units.get(unitRef);
+  const unitOf = ({ unitRef }: XbrlFact) =>
+    unitRef === undefined ? undefined : units.get(unitRef);
+  const currencyOf = (fact: XbrlFact) => {
+    const read = unitOf(fact);
     const [measure, ...more] = read !== undefined && "measures" in read ? read.measures : [];
     return measure?.startsWith("iso4217:") === true && more.length === 0
       ? measure.slice(8)
       : undefined;
   };
-  const monetary = instantFacts.filter(
-    (fact) =>
-      !fact.nil &&
-      (tagOf(fact).xbrltype === "monetaryItemType" ||
+  const lexicalZero = (value: string | undefined) => DECIMAL.test(value ?? "") && isZero(value);
+  const census = instantFacts.filter((fact) => {
+    const { crdr, xbrltype } = tagOf(fact);
+    return (
+      !nonmonetary(xbrltype, unitOf(fact)) &&
+      (xbrltype === "monetaryItemType" ||
         currencyOf(fact) !== undefined ||
-        (fact.unitRef !== undefined && !NONMONETARY_TYPES.has(tagOf(fact).xbrltype))),
-  );
+        (crdr !== "debit" && (fact.nil || !lexicalZero(fact.value))))
+    );
+  });
+  const nilFact = census.find((fact) => fact.nil && tagOf(fact).crdr !== "debit");
+  if (nilFact !== undefined) {
+    return reject(`nil-fact:${nilFact.concept}`);
+  }
+  const monetary = census.filter((fact) => !fact.nil);
   const unitless = monetary.find((fact) => currencyOf(fact) === undefined);
   if (unitless !== undefined) {
     return reject(`unit-unreadable:${unitless.concept}`);
@@ -276,12 +323,13 @@ export function zeroBorrowingsInstanceProof(
   };
   const placed = (fact: XbrlFact) => {
     const parents =
-      fact.namespace === placement?.extensionNamespace
+      fact.namespace === placement?.extensionNamespace &&
+      !isStandardTaxonomyNamespace(fact.namespace)
         ? (placement.parents.get(expanded(fact)) ?? [])
         : [];
     return (
       parents.length > 0 &&
-      parents.every(({ parent, weight }) => weight === 1 && nonDebtParent(parent))
+      parents.every(({ parent, weight }) => weight === "1" && nonDebtParent(parent))
     );
   };
   const unclassified = atInstant.find(

@@ -93,6 +93,7 @@ function statementSurfaceNotes(
   const notes = [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
+      note.code === "verified-quote" ||
       (note.code === "debt-held-for-sale" &&
         (note.periodKey === withheldDebtKey || recastPeriodKeys.includes(note.periodKey ?? ""))) ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||

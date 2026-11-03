@@ -1,7 +1,12 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX, PRIOR_FACE_LINE_PREFIX } from "../sec-segment-facts";
-import { ZERO_BORROWINGS_REJECT_KEY, ZERO_BORROWINGS_TEXT_KEY } from "../sec-zero-borrowings-text";
+import {
+  UNTAGGED_ZERO,
+  ZERO_BORROWINGS_FACT_KEY,
+  ZERO_BORROWINGS_REJECT_KEY,
+  ZERO_BORROWINGS_TEXT_KEY,
+} from "../sec-zero-borrowings-text";
 import { isDebtBasisGap, leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
@@ -361,6 +366,8 @@ export function factsForDebt(
 
 const ZERO_BORROWINGS_REASON =
   "liabilities are filed with no debt line, and zero borrowings needs that filing's footed balance-sheet face with no debt row";
+const UNTAGGED_ZERO_REASON =
+  "liabilities are filed with no debt line on a footed face, but the filing tags no borrowing concept as 0 at that date, so any zero it states rests on untagged prose";
 
 // Liabilities filed after the last debt instant with no debt tag publish 0 only on their own filing's face (CLFD 10-Qs).
 function zeroBorrowingInstants(
@@ -409,7 +416,9 @@ function zeroBorrowingInstants(
           periodEnd,
           proof === undefined
             ? ZERO_BORROWINGS_REASON
-            : `${ZERO_BORROWINGS_REASON}; its text proof was rejected (${proof})`,
+            : proof === UNTAGGED_ZERO
+              ? UNTAGGED_ZERO_REASON
+              : `${ZERO_BORROWINGS_REASON}; its tagged-zero proof was rejected (${proof})`,
           liabilities.filedAt,
         ),
         ...(liabilities.accessionNumber === null || fetched
@@ -425,6 +434,13 @@ function zeroBorrowingInstants(
       proofSourceIds: proof.sourceIds,
       zeroBorrowingsQuote: proof.quote,
     });
+    notes.push({
+      code: "verified-quote",
+      seriesKey: "debt",
+      periodKey: `instant|${periodEnd}`,
+      publicAt: liabilities.filedAt,
+      message: `Debt 0 for ${periodEnd}: ${proof.filing} tags ${proof.fact} at that date, and code found no nonzero, nil or unresolved borrowing fact it recognizes there, matched each facility the prose names to that tag, and linked the quoted sentence to it.`,
+    });
   }
   return { facts, notes };
 }
@@ -438,12 +454,20 @@ const BORROWING_WORDS =
 const BORROWING_WORDS_BUT_PORTION =
   /debt|borrow|notes? ?payable|loan|credit ?facility|line ?of ?credit|revolv|financing|convertible|overdraft/iu;
 
-// The instant's own footed face (nonzero liability rows allowlisted) plus its own sentence stating zero borrowings;
-// A string is the text proof's rejection codes.
+// The instant's own footed face (nonzero liability rows allowlisted) plus its own tagged-zero proof;
+// A string is that proof's rejection code.
 function zeroDebtFace(
   filings: readonly ExtendedEvidenceItem[],
   liabilities: ParsedFact,
-): { readonly sourceIds: readonly string[]; readonly quote: string } | string | undefined {
+):
+  | {
+      readonly sourceIds: readonly string[];
+      readonly quote: string;
+      readonly fact: string;
+      readonly filing: string;
+    }
+  | string
+  | undefined {
   const own = filings.filter(
     ({ metrics }) =>
       metrics?.reportDate === liabilities.periodEnd &&
@@ -468,8 +492,14 @@ function zeroDebtFace(
     return undefined;
   }
   const quote = filing.metrics?.[ZERO_BORROWINGS_TEXT_KEY];
-  return typeof quote === "string"
-    ? { sourceIds: filing.sourceIds, quote }
+  const fact = filing.metrics?.[ZERO_BORROWINGS_FACT_KEY];
+  return typeof quote === "string" && typeof fact === "string"
+    ? {
+        sourceIds: filing.sourceIds,
+        quote,
+        fact,
+        filing: `${String(filing.metrics?.form)} ${String(filing.metrics?.accessionNumber)}`,
+      }
     : String(filing.metrics?.[ZERO_BORROWINGS_REJECT_KEY] ?? "no-text");
 }
 

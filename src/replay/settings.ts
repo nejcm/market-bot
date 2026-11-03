@@ -24,6 +24,7 @@ type CapturedConfigKey =
   | "evidenceRequestOptions"
   | "webGatherOptions"
   | "webGatherDisabled"
+  | "taggedZeroDebtDisabled"
   | "webProfileReuseDaysBySubjectKind"
   | "alphaSearchOptions"
   | "marketSpotlightOptions"
@@ -86,6 +87,9 @@ export function captureSettings(config: AppConfig): CaptureSettings {
     evidenceRequestOptions: config.evidenceRequestOptions,
     webGatherOptions: config.webGatherOptions,
     webGatherDisabled: config.webGatherDisabled,
+    ...(config.taggedZeroDebtDisabled === undefined
+      ? {}
+      : { taggedZeroDebtDisabled: config.taggedZeroDebtDisabled }),
     webProfileReuseDaysBySubjectKind: config.webProfileReuseDaysBySubjectKind,
     alphaSearchOptions: config.alphaSearchOptions,
     ...(config.marketSpotlightOptions === undefined
@@ -113,6 +117,7 @@ export function assertCaptureSettings(value: unknown): asserts value is CaptureS
     "evidenceRequestOptions",
     "webGatherOptions",
     "webGatherDisabled",
+    "taggedZeroDebtDisabled",
     "webProfileReuseDaysBySubjectKind",
     "alphaSearchOptions",
     "marketSpotlightOptions",
@@ -150,7 +155,9 @@ export function assertCaptureSettings(value: unknown): asserts value is CaptureS
     !isRecord(value.webGatherOptions) ||
     !isRecord(value.alphaSearchOptions) ||
     !isRecord(value.webProfileReuseDaysBySubjectKind) ||
-    typeof value.webGatherDisabled !== "boolean"
+    typeof value.webGatherDisabled !== "boolean" ||
+    (value.taggedZeroDebtDisabled !== undefined &&
+      typeof value.taggedZeroDebtDisabled !== "boolean")
   ) {
     throw new Error("Invalid captured settings");
   }

@@ -1,5 +1,6 @@
 // Dimensional ASC 280 segment facts and extension capex lines read from a 10-K/10-Q inline XBRL primary document.
-import { zeroBorrowingsTextProof } from "./sec-zero-borrowings-text";
+import { attribute, factValue } from "./sec-ixbrl-fact";
+import { zeroBorrowingsTagProof } from "./sec-zero-borrowings-text";
 
 export const SEGMENT_FACT_PREFIX = "segment|";
 export const SEGMENT_UNIT_KEY = "segmentUnit";
@@ -39,10 +40,6 @@ interface SegmentContext {
   readonly member: string;
   readonly start: string;
   readonly end: string;
-}
-
-function attribute(attrs: string, name: string): string | undefined {
-  return new RegExp(`\\b${name}="([^"]*)"`, "u").exec(attrs)?.[1];
 }
 
 // `totalMember` keeps dimensionless contexts under that name, as the consolidated denominator.
@@ -95,33 +92,6 @@ function units(html: string): ReadonlyMap<string, string> {
       ),
     ].map(([, id, measure]) => [id!, measure!.trim()]),
   );
-}
-
-const ZERO_FORMATS = new Set(["ixt:fixed-zero", "ixt:zerodash", "ixt:numdash"]);
-const DOT_DECIMAL_FORMATS = new Set(["", "ixt:num-dot-decimal", "ixt:numdotdecimal"]);
-const COMMA_DECIMAL_FORMATS = new Set([
-  "ixt:num-comma-decimal",
-  "ixt:numcommadecimal",
-  "ixt:numdotcomma",
-]);
-
-// Unknown display formats are skipped rather than guessed.
-function factValue(attrs: string, content: string): number | undefined {
-  const format = (attribute(attrs, "format") ?? "").replace(/^ixt\d*:/u, "ixt:");
-  const text = content.replaceAll(/<[^>]*>/gu, "").trim();
-  if (ZERO_FORMATS.has(format)) {
-    return 0;
-  }
-  const digits = DOT_DECIMAL_FORMATS.has(format)
-    ? text.replaceAll(/[,\s]/gu, "")
-    : COMMA_DECIMAL_FORMATS.has(format)
-      ? text.replaceAll(/[.\s\u00A0]/gu, "").replace(",", ".")
-      : undefined;
-  if (digits === undefined || !/^\d+(\.\d+)?$/u.test(digits)) {
-    return undefined;
-  }
-  const value = Number(digits) * 10 ** Number(attribute(attrs, "scale") ?? "0");
-  return attribute(attrs, "sign") === "-" ? -value : value;
 }
 
 // Flat `segment|<member>|<measure>|<start>|<end>` metrics for periods ending on or before `periodEnd`;
@@ -475,6 +445,6 @@ export function secBalanceSheetFaceMetrics(
           ];
     }),
     ...face.lines.map(({ concept, label }) => [`${FACE_LABEL_PREFIX}${concept}`, label] as const),
-    ...Object.entries(zeroBorrowingsTextProof(html, periodEnd)),
+    ...Object.entries(zeroBorrowingsTagProof(html, periodEnd)),
   ]);
 }

@@ -434,7 +434,7 @@ export function assertCompositeFactIntegrity(
           (fact.extractionMethod === ZERO_BORROWINGS_EXTRACTION_METHOD &&
             series.key === "debt" &&
             fact.value === 0 &&
-            fact.zeroBorrowingsQuote !== undefined),
+            fact.zeroBorrowingsProof !== undefined),
         "A8",
         `${series.key} ${fact.periodKey} carries composite contributors on a direct fact`,
         fact.periodEnd,

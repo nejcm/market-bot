@@ -66,7 +66,7 @@ import {
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import { buildReverseDcf, type ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
-import { withoutTaggedZero } from "./sec-zero-borrowings-text";
+import { withoutTaggedZero } from "./sec-zero-borrowings-proof";
 import {
   makePeerUniverseCacheReader,
   makePeerUniverseCacheWriter,

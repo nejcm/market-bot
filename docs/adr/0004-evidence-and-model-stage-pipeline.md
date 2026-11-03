@@ -407,20 +407,21 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   only when comps exist and a clause mentions a peer median) labels each clause's compared metric; code still
   decides the prune, and an omitted or unknown label, provider error, or malformed reply falls back to the clause regex. Negation is also judged per clause. Peer ids are never appended: the figure may not come
   from those peers.
-- Verified Quote (collection, amended 2026-11-03): debt 0 on a footed face with no borrowing row publishes only
-  when the same 10-K/10-Q tags an allowlisted borrowing concept 0 at the instant, issuer-wide or on facility axes
-  only (`ix:hidden` facts count; a disposal-group, entity or segment axis does not), tags no nonzero, nil or
-  unreadable borrowing fact there in any parsed context (debt-selection concepts, finance leases, borrowing-noun
-  names, and any monetary issuer extension naming a borrowing word), leaves no borrowing fact with an unresolved
-  context, and every continuing facility its prose names matches a tagged zero by kind and by each qualifying word
-  before it ("foreign", "equipment"); a promissory note or loan agreement counts only when a tagged member names
-  one. Code then links the zero to a prose sentence: the style-linked element must read as zero ("no", "none", a
-  dash) and the sentence is read within its own block. Code alone does this; there is no model stage. Withholding
-  is the default where identity cannot be proven: CLFD's 10-Qs name a promissory note issued under the revolver's
-  loan agreement, which no tag links, so they stay withheld. A quick-model sentence picker was built and dropped: across
-  every cached filing, each tagged zero that sits in prose was linked by code (11 of 11), and the rest are table
-  cells. Untagged prose zeros withhold with their own Source Gap reason, since no sentence grammar can tell a zero
-  from its many near-misses. `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero.
+- Tagged Zero Debt (collection, amended 2026-11-03; replaces the Verified Quote prose link): debt 0 on a
+  footed face with no borrowing row publishes only from the same 10-K/10-Q's SEC-extracted XBRL instance, read as
+  XML by a strict namespace-aware reader (no DTD or entities, prefixes resolved by URI, malformed contexts, units
+  or nil values throw), plus its `MetaLinks.json` balance types. The instance must tag an allowlisted borrowing
+  concept 0 at the instant, issuer-wide or on facility axes only; every monetary fact there must share the
+  issuer-wide `Liabilities` currency, read cleanly and not be nil unless MetaLinks marks it debit; and a fail-closed
+  census requires every nonzero non-debit fact at the instant, in any context, to be a closed us-gaap non-debt
+  credit concept (liability totals only issuer-wide) or to sit, per the filing's calculation linkbase, only under
+  operating-lease parents. Prose matching is gone: a regex sentence link and facility-word match were shown to
+  publish unsupported zeros and to reject real ones. Residual reliance: an issuer that leaves a borrowing
+  balance untagged, tags one debit, or places a borrowing extension under a lease total in its own linkbase would
+  pass; facility identity is the tag's own members, not a prose reading. CLFD's 10-Qs 2025-12-31 through
+  2026-06-30 publish 0 (`LineOfCredit` = 0 on the revolver and Bremer Bank loan agreement members). A rejection
+  or a failed instance, MetaLinks or linkbase read withholds with its code and Source Gap.
+  `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
   `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,

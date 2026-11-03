@@ -161,8 +161,8 @@ export interface FinancialStatementFact {
   readonly lineScope?: true;
   // Debt only: finance-lease tags a same-filing face presents beside the debt lines.
   readonly faceLeases?: readonly string[];
-  // Debt only: the filing's own sentence proving a zero instant.
-  readonly zeroBorrowingsQuote?: string;
+  // Debt only: the filing's tagged zero borrowing fact (concept, members, fact id, instance file).
+  readonly zeroBorrowingsProof?: string;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -285,7 +285,7 @@ export interface FinancialStatementNote {
     | "earlier-share-basis"
     | "declaration-span"
     | "debt-held-for-sale"
-    | "verified-quote";
+    | "tagged-zero-debt";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
@@ -512,11 +512,11 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
         hasCompositeFactShape(value.composite)) ||
       (value.extractionMethod === ZERO_BORROWINGS_EXTRACTION_METHOD &&
         value.value === 0 &&
-        typeof value.zeroBorrowingsQuote === "string" &&
+        typeof value.zeroBorrowingsProof === "string" &&
         hasCompositeFactShape(value.composite))) &&
     (value.lineScope === undefined || value.lineScope === true) &&
     (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&
-    (value.zeroBorrowingsQuote === undefined || typeof value.zeroBorrowingsQuote === "string") &&
+    (value.zeroBorrowingsProof === undefined || typeof value.zeroBorrowingsProof === "string") &&
     stringArrayField(value, "sourceIds") !== undefined
   );
 }

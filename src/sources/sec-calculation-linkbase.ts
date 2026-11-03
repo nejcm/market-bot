@@ -1,3 +1,5 @@
+import { XLINK, attributeOf, parseXml, type XmlElement } from "./sec-xbrl-instance";
+
 export const DA_CALC_PREFIX = "daCalc|";
 export const DA_CALC_READ_KEY = "daCalcRead";
 
@@ -150,4 +152,49 @@ export function secDepreciationCalcMetrics(xml: string): Record<string, number |
     ),
     [DA_CALC_READ_KEY]: "true",
   };
+}
+
+const LINKBASE = "http://www.xbrl.org/2003/linkbase";
+const descendants = (element: XmlElement, local: string): readonly XmlElement[] =>
+  element.children.flatMap((child) => [
+    ...(child.namespace === LINKBASE && child.local === local ? [child] : []),
+    ...descendants(child, local),
+  ]);
+
+// Summation parents of each `prefix:Local` child across every role; throws on a prohibited or prioritized arc,
+// Whose override this reader does not resolve.
+export function summationParents(xml: string): ReadonlyMap<string, ReadonlySet<string>> {
+  const parents = new Map<string, Set<string>>();
+  for (const link of descendants(parseXml(xml), "calculationLink")) {
+    const locators = new Map<string, string[]>();
+    for (const loc of descendants(link, "loc")) {
+      const label = attributeOf(loc, XLINK, "label");
+      const id = /#([^_#]+)_(.+)$/u.exec(attributeOf(loc, XLINK, "href") ?? "");
+      if (label === undefined || id === null) {
+        throw new Error("unreadable calculation locator");
+      }
+      locators.set(label, [...(locators.get(label) ?? []), `${id[1]}:${id[2]}`]);
+    }
+    for (const arc of descendants(link, "calculationArc")) {
+      if (!SUMMATION_ITEM.has(attributeOf(arc, XLINK, "arcrole") ?? "")) {
+        continue;
+      }
+      const priority = attributeOf(arc, "", "priority");
+      if (
+        attributeOf(arc, "", "use") === "prohibited" ||
+        (priority !== undefined && Number(priority) !== 0)
+      ) {
+        throw new Error("prohibited or prioritized calculation arc");
+      }
+      const from = locators.get(attributeOf(arc, XLINK, "from") ?? "");
+      const to = locators.get(attributeOf(arc, XLINK, "to") ?? "");
+      if (from === undefined || to === undefined) {
+        throw new Error("calculation arc to an unknown locator");
+      }
+      for (const child of to) {
+        parents.set(child, new Set([...(parents.get(child) ?? []), ...from]));
+      }
+    }
+  }
+  return parents;
 }

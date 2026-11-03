@@ -72,29 +72,33 @@ const GAAP = {
   DebtLongtermAndShorttermCombinedAmount: [fy(129_541_000_000)],
 };
 
-// CLFD 10-Q 0001171843-26-000700, Debt note: its LineOfCredit 0 is an ix:hidden fact linked to "no".
-const CLFD_TEXT =
-  'The Company has a $ 40,000,000 revolving line of credit. As of December 31, 2025 and September 30, 2025, the Company had <span style="-sec-ix-hidden:z">no</span> borrowings against this line of credit.';
-const zeroTag = (reportDate: string, concept = "us-gaap:LineOfCredit", shown = "0") =>
-  `<xbrli:context id="r"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:CreditFacilityAxis">us-gaap:RevolvingCreditFacilityMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>${reportDate}</xbrli:instant></xbrli:period></xbrli:context><ix:hidden><ix:nonFraction id="z" contextRef="r" unitRef="usd" name="${concept}" format="ixt:num-dot-decimal" scale="0">${shown}</ix:nonFraction></ix:hidden>`;
-
-function faceItem(
-  accessionNumber: string,
-  reportDate: string,
-  rows: readonly Row[],
-  text = CLFD_TEXT,
-  tag = zeroTag(reportDate),
-) {
+function faceItem(accessionNumber: string, reportDate: string, rows: readonly Row[]) {
   return {
     sourceIds: [`sec-filing-${accessionNumber}`],
     metrics: { accessionNumber, reportDate },
-    html: `${tag}${balanceSheet(reportDate, rows)}<p>${text}</p>`,
+    html: balanceSheet(reportDate, rows),
   };
 }
 
 async function derive(
   gaap: Readonly<Record<string, readonly Record<string, unknown>[]>>,
   faces: readonly ReturnType<typeof faceItem>[] = [],
+) {
+  return deriveItems(
+    gaap,
+    faces.map(
+      ({ sourceIds, metrics, html }) =>
+        ({
+          sourceIds,
+          metrics: { ...metrics, ...secBalanceSheetFaceMetrics(html, metrics.reportDate) },
+        }) as unknown as ExtendedEvidenceItem,
+    ),
+  );
+}
+
+function deriveItems(
+  gaap: Readonly<Record<string, readonly Record<string, unknown>[]>>,
+  secFilings: readonly ExtendedEvidenceItem[],
 ) {
   return deriveFinancialStatements(
     {
@@ -109,13 +113,7 @@ async function derive(
       generatedAt: AS_OF,
       analysisAsOf: AS_OF,
       sourceId: "sec",
-      secFilings: faces.map(
-        ({ sourceIds, metrics, html }) =>
-          ({
-            sourceIds,
-            metrics: { ...metrics, ...secBalanceSheetFaceMetrics(html, metrics.reportDate) },
-          }) as unknown as ExtendedEvidenceItem,
-      ),
+      secFilings,
     },
   );
 }
@@ -366,6 +364,101 @@ const withRow = (rows: readonly Row[], at: string, row: Row, add = 0): readonly 
     existing[1] === at ? [row, [existing[0], existing[1], existing[2] + add]] : [existing],
   );
 
+const US_GAAP = "http://fasb.org/us-gaap/2025";
+// CLFD 10-Q 0001171843-26-000700 shape: a hidden LineOfCredit 0 on the revolver member (fact c1292).
+const clfdInstance = (extra = "", unit = "iso4217:USD") =>
+  `<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="${US_GAAP}" xmlns:clfd="http://www.clearfieldconnection.com/20251231" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+  <context id="i"><entity><identifier scheme="http://www.sec.gov/CIK">0000796505</identifier></entity><period><instant>2025-12-31</instant></period></context>
+  <context id="r"><entity><identifier scheme="http://www.sec.gov/CIK">0000796505</identifier><segment><xbrldi:explicitMember dimension="us-gaap:CreditFacilityAxis">us-gaap:RevolvingCreditFacilityMember</xbrldi:explicitMember></segment></entity><period><instant>2025-12-31</instant></period></context>
+  <unit id="USD"><measure>${unit}</measure></unit>
+  <us-gaap:Liabilities contextRef="i" unitRef="USD" decimals="-3">18398000</us-gaap:Liabilities>
+  <us-gaap:AccountsPayableCurrent contextRef="i" unitRef="USD" decimals="-3">10000000</us-gaap:AccountsPayableCurrent>
+  <us-gaap:LineOfCredit contextRef="r" unitRef="USD" decimals="-3" id="c1292">0</us-gaap:LineOfCredit>${extra}
+</xbrl>`;
+const tag = (nsuri: string, localname: string, crdr?: string) => ({
+  nsuri,
+  localname,
+  xbrltype: "monetaryItemType",
+  ...(crdr === undefined ? {} : { crdr }),
+});
+const CLFD_META_LINKS = {
+  instance: {
+    "q.htm": {
+      tag: Object.fromEntries(
+        ["Liabilities", "AccountsPayableCurrent", "LineOfCredit", "NotesPayable"].map((name) => [
+          `us-gaap_${name}`,
+          tag(US_GAAP, name, "credit"),
+        ]),
+      ),
+    },
+  },
+};
+const LEASE_EXTENSION =
+  '<clfd:LesseeOperatingLeaseLiabilityToBePaidAfterYearFour contextRef="i" unitRef="USD" decimals="-3">1447000</clfd:LesseeOperatingLeaseLiabilityToBePaidAfterYearFour>';
+const LEASE_CAL = `<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:calculationLink xlink:role="r" xlink:type="extended"><link:loc xlink:href="https://xbrl.fasb.org/us-gaap/2025/elts/us-gaap-2025.xsd#us-gaap_LesseeOperatingLeaseLiabilityPaymentsDue" xlink:label="p" xlink:type="locator"/><link:loc xlink:href="q.xsd#clfd_LesseeOperatingLeaseLiabilityToBePaidAfterYearFour" xlink:label="c" xlink:type="locator"/><link:calculationArc xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" xlink:from="p" xlink:to="c" weight="1.0" xlink:type="arc"/></link:calculationLink></link:linkbase>`;
+const SCHEMA =
+  '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><link:linkbaseRef xlink:href="q_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/></xs:schema>';
+
+type Served = Readonly<Record<string, unknown>>;
+const CLFD_SUBMISSIONS = {
+  cik: "0000796505",
+  filings: {
+    recent: {
+      form: ["10-Q", "10-K"],
+      filingDate: ["2026-02-05", "2025-08-10"],
+      reportDate: ["2025-12-31", "2025-06-30"],
+      accessionNumber: [Q_ACCN, K_ACCN],
+      primaryDocument: ["q.htm", "k.htm"],
+    },
+  },
+};
+
+function clfdContext(served: Served, adapters: string[] = []): CollectContext {
+  const respond = (adapter: string, url: string) => {
+    adapters.push(adapter);
+    const payload = served[adapter];
+    return payload === undefined
+      ? { source: adapter, message: `${adapter} fetch failed` }
+      : { rawSnapshot: { id: `raw-${url}`, adapter, fetchedAt: "", payload }, payload };
+  };
+  return {
+    command: { jobType: "equity", assetClass: "equity", symbol: "CLFD", depth: "deep" },
+    fetchedAt: AS_OF,
+    newsLimit: 0,
+    cryptoMoverLimit: 0,
+    secUserAgent: "test-agent",
+    request: {
+      json: async ({ adapter, url }) => respond(adapter, url) as never,
+      text: async ({ adapter, url }) => respond(adapter, url) as never,
+    },
+  };
+}
+
+const clfdServed = (rows: readonly Row[] = ZERO_ROWS, overrides: Served = {}): Served => ({
+  "sec-filing-text": `<link:schemaRef xlink:href="q.xsd"/>${balanceSheet("2025-12-31", rows)}`,
+  "sec-xbrl-instance": clfdInstance(),
+  "sec-metalinks": CLFD_META_LINKS,
+  "sec-xbrl-schema": SCHEMA,
+  "sec-calculation-linkbase": LEASE_CAL,
+  ...overrides,
+});
+
+async function clfdFaces(served: Served, adapters: string[] = []) {
+  return collectSecDebtFaceFilings(
+    clfdContext(served, adapters),
+    { cik: "796505", symbol: "CLFD", submissionsPayload: CLFD_SUBMISSIONS },
+    [{ periodEnd: "2025-12-31", accessionNumber: Q_ACCN }],
+  );
+}
+
+const clfdDerive = async (served: Served) =>
+  deriveItems(ZERO_GAAP, (await clfdFaces(served)).items);
+const withheldMessage = async (served: Served) =>
+  financialStatementsDebtBasisGaps(await clfdDerive(served)).map(({ message }) => message);
+
+const PROOF =
+  "us-gaap:LineOfCredit = 0 at 2025-12-31 [us-gaap:CreditFacilityAxis=us-gaap:RevolvingCreditFacilityMember]; fact c1292, q_htm.xml";
+
 describe("CLFD-shaped zero borrowings after the last debt instant", () => {
   test("liabilities with no debt tag after prior debt ask for their own 10-Q face", async () => {
     const artifact = await derive(ZERO_GAAP);
@@ -381,34 +474,49 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     expect(debtInstantsNeedingFace(artifact)).toEqual([]);
   });
 
-  test("its footed face with no debt row publishes 0 cited to the face", async () => {
-    const face = faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS);
-    const debt = decDebt(await derive(ZERO_GAAP, [face]));
+  test("its footed face and tagged zero publish 0 cited to the face and the XBRL instance", async () => {
+    const adapters: string[] = [];
+    const faces = await clfdFaces(clfdServed(), adapters);
+    const debt = decDebt(deriveItems(ZERO_GAAP, faces.items));
+    expect(adapters).toEqual(["sec-filing-text", "sec-xbrl-instance", "sec-metalinks"]);
     expect(debt).toMatchObject({
       value: 0,
       concept: "NoBorrowingsOnFootedFace",
       extractionMethod: "sec-filing-face-text",
+      zeroBorrowingsProof: PROOF,
     });
-    expect(debt?.sourceIds).toContain(face.sourceIds[0]);
-    expect(debt?.zeroBorrowingsQuote).toBe(
-      "As of December 31, 2025 and September 30, 2025, the Company had no borrowings against this line of credit.",
+    const instanceSource = faces.sources.find(({ url }) => url?.endsWith("/q_htm.xml"));
+    expect(instanceSource?.url).toBe(
+      "https://www.sec.gov/Archives/edgar/data/796505/000117184326000700/q_htm.xml",
     );
+    expect(debt?.sourceIds).toEqual(expect.arrayContaining(faces.items[0]!.sourceIds));
+    expect(debt?.sourceIds).toContain(instanceSource?.id);
+    expect(faces.gaps).toEqual([]);
   });
 
   test("the synthetic zero passes composite-fact integrity", async () => {
-    const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS)]);
+    const artifact = await clfdDerive(clfdServed());
     expect(decDebt(artifact)?.value).toBe(0);
     expect(() => assertCompositeFactIntegrity(artifact)).not.toThrow();
   });
 
-  test("the reader carries the zero-borrowings quote beside the zero debt", async () => {
-    const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS)]);
-    const quote = decDebt(artifact)?.zeroBorrowingsQuote;
-    expect(quote).toBeString();
-    expect(financialPosition(artifact, "2026-06-30")?.debt?.zeroBorrowingsQuote).toBe(quote);
+  test("the reader carries the zero-borrowings proof beside the zero debt", async () => {
+    const artifact = await clfdDerive(clfdServed());
+    expect(financialPosition(artifact, "2026-06-30")?.debt?.zeroBorrowingsProof).toBe(PROOF);
     const rows = balanceSheetHistory(artifact, "2026-06-30")?.rows ?? [];
-    expect(rows.find((row) => row.debt?.value === 0)?.debt?.zeroBorrowingsQuote).toBe(quote);
-    expect(rows.filter((row) => row.debt?.zeroBorrowingsQuote !== undefined)).toHaveLength(1);
+    expect(rows.find((row) => row.debt?.value === 0)?.debt?.zeroBorrowingsProof).toBe(PROOF);
+    expect(rows.filter((row) => row.debt?.zeroBorrowingsProof !== undefined)).toHaveLength(1);
+  });
+
+  test("the published zero carries its structural provenance note", async () => {
+    const artifact = await clfdDerive(clfdServed());
+    expect(artifact.omissionNotes ?? []).toContainEqual(
+      expect.objectContaining({
+        code: "tagged-zero-debt",
+        periodKey: "instant|2025-12-31",
+        message: expect.stringContaining(`10-Q ${Q_ACCN} tags ${PROOF}`),
+      }),
+    );
   });
 
   test("an operating-lease current-portion row still proves 0", async () => {
@@ -416,7 +524,104 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       "Current portion of lease liability",
       "us-gaap:OperatingLeaseLiabilityCurrent",
     );
-    expect(decDebt(await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", rows)]))?.value).toBe(0);
+    expect(decDebt(await clfdDerive(clfdServed(rows)))?.value).toBe(0);
+  });
+
+  test("an unlisted lease extension fetches the calculation linkbase and publishes once placed", async () => {
+    const adapters: string[] = [];
+    const served = clfdServed(ZERO_ROWS, { "sec-xbrl-instance": clfdInstance(LEASE_EXTENSION) });
+    const faces = await clfdFaces(served, adapters);
+    expect(adapters.slice(-2)).toEqual(["sec-xbrl-schema", "sec-calculation-linkbase"]);
+    expect(decDebt(deriveItems(ZERO_GAAP, faces.items))?.value).toBe(0);
+  });
+
+  test("a face with a borrowing row never asks for the instance", async () => {
+    const adapters: string[] = [];
+    const rows = withRow(
+      ZERO_ROWS,
+      "us-gaap:LiabilitiesCurrent",
+      ["Line of credit", "us-gaap:LineOfCredit", 500],
+      500,
+    ).map((row): Row => (row[1] === "us-gaap:Liabilities" ? [row[0], row[1], 18_898] : row));
+    await clfdFaces(clfdServed(rows), adapters);
+    expect(adapters).toEqual(["sec-filing-text"]);
+  });
+
+  test.each([
+    [
+      "instance",
+      { "sec-xbrl-instance": undefined },
+      "instance-fetch-failed:sec-xbrl-instance",
+      "sec-xbrl-instance",
+    ],
+    [
+      "MetaLinks",
+      { "sec-metalinks": undefined },
+      "instance-fetch-failed:sec-metalinks",
+      "sec-metalinks",
+    ],
+    [
+      "calculation linkbase",
+      { "sec-xbrl-instance": clfdInstance(LEASE_EXTENSION), "sec-calculation-linkbase": undefined },
+      "instance-fetch-failed:sec-calculation-linkbase",
+      "sec-calculation-linkbase",
+    ],
+  ] as const)(
+    "a failed %s fetch withholds with its code and gap",
+    async (_name, overrides, code, source) => {
+      const served = clfdServed(ZERO_ROWS, overrides);
+      const faces = await clfdFaces(served);
+      expect(faces.gaps).toContainEqual(expect.objectContaining({ source }));
+      expect(decDebt(deriveItems(ZERO_GAAP, faces.items))).toBeUndefined();
+      expect(await withheldMessage(served)).toEqual([
+        expect.stringContaining(`tagged-zero proof was rejected (${code})`),
+      ]);
+    },
+  );
+
+  test.each([
+    [
+      "an unreadable instance",
+      { "sec-xbrl-instance": `<!DOCTYPE x>${clfdInstance()}` },
+      "instance-unreadable",
+    ],
+    [
+      "MetaLinks for another document",
+      { "sec-metalinks": { instance: {} } },
+      "metalinks-unreadable",
+    ],
+    [
+      "an unreadable calculation linkbase",
+      { "sec-xbrl-instance": clfdInstance(LEASE_EXTENSION), "sec-calculation-linkbase": "<x>" },
+      "calculation-linkbase-unreadable",
+    ],
+    [
+      "a nonzero notes payable fact",
+      {
+        "sec-xbrl-instance": clfdInstance(
+          '<us-gaap:NotesPayable contextRef="i" unitRef="USD">500000</us-gaap:NotesPayable>',
+        ),
+      },
+      "unclassified-credit:us-gaap:NotesPayable",
+    ],
+    [
+      "an instance reported in euros",
+      { "sec-xbrl-instance": clfdInstance("", "iso4217:EUR") },
+      "currency-mismatch:EUR",
+    ],
+  ] as const)("%s withholds with its code", async (_name, overrides, code) => {
+    const served = clfdServed(ZERO_ROWS, overrides);
+    expect(decDebt(await clfdDerive(served))).toBeUndefined();
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining(`tagged-zero proof was rejected (${code})`),
+    ]);
+  });
+
+  test("a zero stated only in untagged prose is withheld with its own gap", async () => {
+    const instance = clfdInstance().replace(/<us-gaap:LineOfCredit[^\n]*\n/u, "");
+    expect(await withheldMessage(clfdServed(ZERO_ROWS, { "sec-xbrl-instance": instance }))).toEqual(
+      [expect.stringContaining("rests on untagged prose")],
+    );
   });
 
   test("a held-for-sale fact filed after the cutoff still withholds with its gap", async () => {
@@ -431,169 +636,93 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     ]);
   });
 
+  const withLiabilities = (rows: readonly Row[], add: number) =>
+    rows.map(
+      (row): Row => (row[1] === "us-gaap:Liabilities" ? [row[0], row[1], 18_398 + add] : row),
+    );
   test.each([
     [
       "a held-for-sale row",
-      [
-        faceItem(
-          Q_ACCN,
-          "2025-12-31",
-          withRow(
-            ZERO_ROWS,
-            "us-gaap:LiabilitiesCurrent",
-            [
-              "Liabilities held for sale",
-              "us-gaap:LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent",
-              500,
-            ],
+      withLiabilities(
+        withRow(
+          ZERO_ROWS,
+          "us-gaap:LiabilitiesCurrent",
+          [
+            "Liabilities held for sale",
+            "us-gaap:LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent",
             500,
-          ).map((row): Row => (row[1] === "us-gaap:Liabilities" ? [row[0], row[1], 18_898] : row)),
+          ],
+          500,
         ),
-      ],
+        500,
+      ),
     ],
     [
       "a debt row",
-      [
-        faceItem(
-          Q_ACCN,
-          "2025-12-31",
-          withRow(
-            ZERO_ROWS,
-            "us-gaap:LiabilitiesCurrent",
-            ["Line of credit", "us-gaap:LineOfCredit", 500],
-            500,
-          ).map((row): Row => (row[1] === "us-gaap:Liabilities" ? [row[0], row[1], 18_898] : row)),
-        ),
-      ],
-    ],
-    [
-      "a face whose filing states no zero borrowings",
-      [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, "")],
-    ],
-    [
-      "a face whose zero is stated only in untagged prose",
-      [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, CLFD_TEXT, "")],
-    ],
-    [
-      "a face whose filing tags a nonzero line of credit",
-      [
-        faceItem(
-          Q_ACCN,
-          "2025-12-31",
+      withLiabilities(
+        withRow(
           ZERO_ROWS,
-          CLFD_TEXT,
-          zeroTag("2025-12-31", "us-gaap:LineOfCredit", "500"),
+          "us-gaap:LiabilitiesCurrent",
+          ["Line of credit", "us-gaap:LineOfCredit", 500],
+          500,
         ),
-      ],
+        500,
+      ),
     ],
-    [
-      "a face whose filing names an uncovered term loan",
-      [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, `${CLFD_TEXT} The Company also has a term loan.`)],
-    ],
-    ["another filing's face", [faceItem("0001171843-26-000001", "2025-12-31", ZERO_ROWS)]],
     [
       "an unfooted face",
-      [
-        faceItem(
-          Q_ACCN,
-          "2025-12-31",
-          ZERO_ROWS.map(
-            (row): Row =>
-              row[1] === "us-gaap:LiabilitiesCurrent" ? [row[0], row[1], 15_001] : row,
-          ),
-        ),
-      ],
+      ZERO_ROWS.map(
+        (row): Row => (row[1] === "us-gaap:LiabilitiesCurrent" ? [row[0], row[1], 15_001] : row),
+      ),
     ],
     [
       "an aggregate row that embeds debt",
-      [
-        faceItem(
-          Q_ACCN,
-          "2025-12-31",
-          relabel(
-            "Accrued liabilities and current portion of long-term debt",
-            "us-gaap:AccruedLiabilitiesCurrent",
-          ),
-        ),
-      ],
+      relabel(
+        "Accrued liabilities and current portion of long-term debt",
+        "us-gaap:AccruedLiabilitiesCurrent",
+      ),
     ],
     [
       "an aggregate row that embeds bank overdrafts",
-      [
-        faceItem(
-          Q_ACCN,
-          "2025-12-31",
-          relabel("Accrued liabilities and bank overdrafts", "us-gaap:AccruedLiabilitiesCurrent"),
-        ),
-      ],
+      relabel("Accrued liabilities and bank overdrafts", "us-gaap:AccruedLiabilitiesCurrent"),
     ],
-    [
-      "an untagged drawn revolver",
-      [faceItem(Q_ACCN, "2025-12-31", relabel("Revolving credit facility", "clfd:RevolverDrawn"))],
-    ],
+    ["an untagged drawn revolver", relabel("Revolving credit facility", "clfd:RevolverDrawn")],
     [
       "an aggregate row whose label is unreadable",
-      [faceItem(Q_ACCN, "2025-12-31", relabel("", "us-gaap:AccruedLiabilitiesCurrent"))],
+      relabel("", "us-gaap:AccruedLiabilitiesCurrent"),
     ],
     [
       "an aggregate row whose label is only numbers",
-      [faceItem(Q_ACCN, "2025-12-31", relabel("4,197 $", "us-gaap:AccruedLiabilitiesCurrent"))],
+      relabel("4,197 $", "us-gaap:AccruedLiabilitiesCurrent"),
     ],
-    [
-      "an extension bonds-payable row",
-      [faceItem(Q_ACCN, "2025-12-31", relabel("Bonds payable", "clfd:BondsPayable"))],
-    ],
-    [
-      "an unlisted us-gaap row",
-      [
-        faceItem(
-          Q_ACCN,
-          "2025-12-31",
-          relabel("Customer deposits", "us-gaap:CustomerDepositsCurrent"),
-        ),
-      ],
-    ],
-  ] as const)("%s stays withheld", async (_name, faces) => {
-    expect(decDebt(await derive(ZERO_GAAP, faces))).toBeUndefined();
+    ["an extension bonds-payable row", relabel("Bonds payable", "clfd:BondsPayable")],
+    ["an unlisted us-gaap row", relabel("Customer deposits", "us-gaap:CustomerDepositsCurrent")],
+  ] as const)("%s stays withheld even beside a valid tagged zero", async (_name, rows) => {
+    expect(decDebt(await clfdDerive(clfdServed(rows)))).toBeUndefined();
   });
 
-  test("a rejected tagged-zero proof names its code in the withheld note", async () => {
-    const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, "")]);
-    expect(financialStatementsDebtBasisGaps(artifact)).toEqual([
-      expect.objectContaining({
-        message: expect.stringContaining("tagged-zero proof was rejected (zero-not-cited)"),
-      }),
-    ]);
+  test("another filing's face stays withheld", async () => {
+    const other = { ...faceItem("0001171843-26-000001", "2025-12-31", ZERO_ROWS) };
+    expect(decDebt(await derive(ZERO_GAAP, [other]))).toBeUndefined();
   });
 
-  test("a zero stated only in untagged prose is withheld with its own gap", async () => {
-    const artifact = await derive(ZERO_GAAP, [
-      faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, CLFD_TEXT, ""),
-    ]);
-    expect(financialStatementsDebtBasisGaps(artifact)).toEqual([
-      expect.objectContaining({ message: expect.stringContaining("rests on untagged prose") }),
-    ]);
-  });
-
-  test("the published zero carries its tagged-fact provenance note", async () => {
+  test("a footed face read without a proof names that in the withheld note", async () => {
     const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS)]);
-    expect(artifact.omissionNotes ?? []).toContainEqual(
+    expect(decDebt(artifact)).toBeUndefined();
+    expect(financialStatementsDebtBasisGaps(artifact)).toEqual([
       expect.objectContaining({
-        code: "verified-quote",
-        periodKey: "instant|2025-12-31",
-        message: expect.stringContaining(
-          "tags us-gaap:LineOfCredit = 0 [us-gaap:CreditFacilityAxis=us-gaap:RevolvingCreditFacilityMember]",
-        ),
+        message: expect.stringContaining("tagged-zero proof was rejected (no-proof)"),
       }),
-    );
+    ]);
   });
 
   test.each([
     [false, 0],
     [true, undefined],
   ])("collection with the tagged-zero switch off=%s publishes debt %s", async (disabled, value) => {
-    const face = faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS);
-    const json: Readonly<Record<string, unknown>> = {
+    const served: Served = {
+      ...clfdServed(),
+      "sec-filing-text": `ITEM 2. MANAGEMENT'S DISCUSSION ${"Revenue grew on stronger demand. ".repeat(12)} ${String(clfdServed()["sec-filing-text"])}`,
       "sec-tickers": { "0": { cik_str: 796_505, ticker: "CLFD", title: "Clearfield Inc" } },
       "sec-companyfacts": {
         cik: 796_505,
@@ -603,44 +732,27 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
           ),
         },
       },
-      "sec-submissions": {
-        cik: "0000796505",
-        filings: {
-          recent: {
-            form: ["10-Q", "10-K"],
-            filingDate: ["2026-02-05", "2025-08-10"],
-            reportDate: ["2025-12-31", "2025-06-30"],
-            accessionNumber: [Q_ACCN, K_ACCN],
-            primaryDocument: ["q.htm", "k.htm"],
-          },
-        },
-      },
+      "sec-submissions": CLFD_SUBMISSIONS,
     };
-    const context: CollectContext = {
-      command: { jobType: "equity", assetClass: "equity", symbol: "CLFD", depth: "deep" },
-      fetchedAt: AS_OF,
-      newsLimit: 0,
-      cryptoMoverLimit: 0,
-      secUserAgent: "test-agent",
+    const context = clfdContext(served);
+    const { request } = context;
+    const scoped: CollectContext = {
+      ...context,
       request: {
-        json: async ({ adapter }) => ({
-          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt: "", payload: json[adapter] },
-          payload: json[adapter],
-        }),
-        text: async ({ url, adapter }) => ({
-          rawSnapshot: { id: `raw-${url}`, adapter, fetchedAt: "", payload: "" },
-          payload: `ITEM 2. MANAGEMENT'S DISCUSSION ${"Revenue grew on stronger demand. ".repeat(12)} ${
-            url.includes(Q_ACCN.replaceAll("-", "")) ? face.html : ""
-          }`,
-        }),
+        json: request.json,
+        // The 10-K's primary document is not this 10-Q's face.
+        text: async (input) =>
+          input.adapter === "sec-filing-text" && input.url.endsWith("/k.htm")
+            ? { source: "sec-filing-text", message: "not served" }
+            : request.text(input),
       },
     };
-    const { statements } = await collectFinancialStatements(context, "CLFD", disabled);
+    const { statements } = await collectFinancialStatements(scoped, "CLFD", disabled);
     expect(statements === undefined ? "none" : decDebt(statements)?.value).toBe(value);
   });
 
   test("a published zero raises no finance-lease basis gap", async () => {
-    const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS)]);
+    const artifact = await clfdDerive(clfdServed());
     expect(decDebt(artifact)?.value).toBe(0);
     expect(financialStatementsDebtBasisGaps(artifact)).toEqual([]);
   });
@@ -663,22 +775,6 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       sourceIds: ["sec-filing-later"],
       metrics: { accessionNumber: Q_ACCN, reportDate: "2026-03-31", ...prior },
     } as unknown as ExtendedEvidenceItem;
-    const artifact = deriveFinancialStatements(
-      {
-        facts: {
-          "us-gaap": Object.fromEntries(
-            Object.entries(ZERO_GAAP).map(([concept, usd]) => [concept, { units: { USD: usd } }]),
-          ),
-        },
-      },
-      {
-        symbol: "CLFD",
-        generatedAt: AS_OF,
-        analysisAsOf: AS_OF,
-        sourceId: "sec",
-        secFilings: [later],
-      },
-    );
-    expect(decDebt(artifact)).toBeUndefined();
+    expect(decDebt(deriveItems(ZERO_GAAP, [later]))).toBeUndefined();
   });
 });

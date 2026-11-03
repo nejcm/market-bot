@@ -23,7 +23,7 @@ interface EquityReaderStatementValue {
   readonly unit: string;
   readonly unitScale: number;
   readonly sourceIds: readonly string[];
-  readonly zeroBorrowingsQuote?: string;
+  readonly zeroBorrowingsProof?: string;
 }
 
 interface EquityReaderBalanceSheetRow {
@@ -75,9 +75,9 @@ function statementValue(fact: FinancialStatementFact): EquityReaderStatementValu
     unit: fact.unit,
     unitScale: fact.unitScale,
     sourceIds: fact.sourceIds,
-    ...(fact.zeroBorrowingsQuote === undefined
+    ...(fact.zeroBorrowingsProof === undefined
       ? {}
-      : { zeroBorrowingsQuote: fact.zeroBorrowingsQuote }),
+      : { zeroBorrowingsProof: fact.zeroBorrowingsProof }),
   };
 }
 
@@ -93,7 +93,7 @@ function statementSurfaceNotes(
   const notes = [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
-      note.code === "verified-quote" ||
+      note.code === "tagged-zero-debt" ||
       (note.code === "debt-held-for-sale" &&
         (note.periodKey === withheldDebtKey || recastPeriodKeys.includes(note.periodKey ?? ""))) ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||

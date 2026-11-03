@@ -333,8 +333,8 @@
                 <div class="mt-1.5 text-[10px] leading-snug text-[#a09a8d]">
                   {metric.dateBasis}
                 </div>
-                {#if metric.quote !== undefined}
-                  <q class="mt-1.5 block font-sans text-[10px] leading-snug text-muted-foreground">{metric.quote}</q>
+                {#if metric.proof !== undefined}
+                  <p class="mt-1.5 block font-sans text-[10px] leading-snug text-muted-foreground">0 per the filing's tagged fact: {metric.proof}</p>
                 {/if}
                 {@render citeChips(metric.sourceIds)}
               </div>

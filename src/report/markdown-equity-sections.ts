@@ -197,9 +197,11 @@ export function renderBalanceSheetAndShareCount(
     "--- | ---: | ---: | ---:",
     ...rows,
     ...history.rows.flatMap(({ period, debt }) =>
-      debt?.zeroBorrowingsQuote === undefined
+      debt?.zeroBorrowingsProof === undefined
         ? []
-        : [`- Debt for ${period} is 0 per the filing: "${markdownText(debt.zeroBorrowingsQuote)}"`],
+        : [
+            `- Debt for ${period} is 0 per the filing's tagged fact: ${markdownText(debt.zeroBorrowingsProof)}`,
+          ],
     ),
     ...statementSurfaceNoteLines(history.notes),
   ].join("\n");

@@ -79,11 +79,11 @@ const summary = {
     statements === undefined
       ? []
       : financialStatementFacts(statements.statements.balanceSheet.debt).map(
-          ({ periodEnd, value, concept, zeroBorrowingsQuote }) => ({
+          ({ periodEnd, value, concept, zeroBorrowingsProof }) => ({
             periodEnd,
             value,
             concept,
-            ...(zeroBorrowingsQuote === undefined ? {} : { zeroBorrowingsQuote }),
+            ...(zeroBorrowingsProof === undefined ? {} : { zeroBorrowingsProof }),
           }),
         ),
   debtNotes: [...(statements?.omissionNotes ?? []), ...(statements?.validationNotes ?? [])].filter(

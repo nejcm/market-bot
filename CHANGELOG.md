@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.11.0](https://github.com/nejcm/market-bot/compare/v1.10.1...v1.11.0) (2026-11-03)
+
+### Features
+
+- **sec:** prove zero debt from the filing's xbrl instance (#122) ([98c2cbf](https://github.com/nejcm/market-bot/commit/98c2cbf5e896143949936cc453d6231f68086ce5))
+
 ## [1.10.1](https://github.com/nejcm/market-bot/compare/v1.10.0...v1.10.1) (2026-11-03)
 
 ### Bug Fixes

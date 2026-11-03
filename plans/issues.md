@@ -42,8 +42,8 @@ Current behavior short of the Financial data best practices in AGENTS.md. Close 
 
 ## Forecasts and evaluation
 
-- After AMD earnings (2026-11-03) resolve the 10-20 runs' forecasts, rerun calibration and compare live range Brier with the 0.131/0.138 pre-change figures.
-- Paired Skill excludes v1 range baselines (bc9fc853); check the v2 range cohort size before the 2027-01-15 review.
+- Resume 2026-11-18: the only open 10-20 AMD forecasts spanning the 2026-11-03 earnings are the +20 range rows (`grid-range-20-AMD` in 144ec654, `grid-range-20` in 7912637b; same claim and origin, so one Forecast Event, on the v1 baseline), resolving on the 2026-11-17 close. After the next score pass, rerun calibration and compare live range Brier with the 0.138 model / 0.131 Gaussian-reference figures (n=54 raw, run review of 6b4aa8ab). As of 2026-11-04 calibration: range Brier 0.2075, n=78 deduped Forecast Events.
+- Paired Skill excludes v1 range baselines (bc9fc853). Score pass + calibration at 2026-11-03T20:32Z (before that session's close) left the v2 range cohort at 21 events in 12 blocks, ΔBrier -0.0050 [-0.0200, 0.0122], not-yet-decidable: below the 30-event floor (`PAIRED_SKILL_POLICY.minPairedCount`; the 5-block floor is met), so no skill claim. About 7 more v2 range Forecast Events resolve on the 2026-11-03 close and 9 on 2026-11-04, so a score pass after the 2026-11-04 close (21:00Z) should put it near 37 and over the floor. Recheck then and before the 2027-01-15 review; statuses stay provisional far below the 784-block powered count.
 - Recapture the nbis, depository and earnings-release fixtures with an authorized live capture; their QQQ history entries are synthetic 503s.
 
 ## Run cost and citations

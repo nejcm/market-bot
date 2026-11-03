@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.11.1](https://github.com/nejcm/market-bot/compare/v1.11.0...v1.11.1) (2026-11-03)
+
+### Bug Fixes
+
+- **sec:** withhold conflicting or cross-filing debt (#123) ([df1324b](https://github.com/nejcm/market-bot/commit/df1324b0df35526b77f61b20214f86661fcba657))
+
 ## [1.11.0](https://github.com/nejcm/market-bot/compare/v1.10.1...v1.11.0) (2026-11-03)
 
 ### Features

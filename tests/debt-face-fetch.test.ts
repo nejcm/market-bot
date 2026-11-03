@@ -9,6 +9,7 @@ import { financialStatementFacts } from "../src/sources/extended-evidence/financ
 import {
   debtInstantsNeedingFace,
   financialStatementsDebtBasisGaps,
+  withheldDebt,
 } from "../src/sources/extended-evidence/sec-debt";
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
 import { assertCompositeFactIntegrity } from "./support/run-fixtures/financial-invariants";
@@ -483,6 +484,39 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     const { LongTermDebtNoncurrent: _debt, ...neverDebt } = ZERO_GAAP;
     const artifact = await derive(neverDebt);
     expect(debtInstantsNeedingFace(artifact)).toEqual([]);
+  });
+
+  test("an issuer that never tagged debt withholds its newest instant, not an old held-for-sale date (NTGR)", async () => {
+    const { LongTermDebtNoncurrent: _debt, ...neverDebt } = ZERO_GAAP;
+    const old = fact(5_000_000, "2018-01-01", "2019-02-22", "0001122904-19-000060", "10-K");
+    const artifact = await derive({
+      ...neverDebt,
+      Liabilities: [old, ...neverDebt.Liabilities],
+      LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: [old],
+    });
+    expect(withheldDebt(artifact)).toEqual({
+      periodEnd: "2025-12-31",
+      reason: expect.stringContaining("no debt concept is tagged at any date"),
+    });
+  });
+
+  test("an issuer that never tagged debt still proves 0 from a face it already read", async () => {
+    const { LongTermDebtNoncurrent: _debt, ...neverDebt } = ZERO_GAAP;
+    expect(decDebt(deriveItems(neverDebt, (await clfdFaces(clfdServed())).items))?.value).toBe(0);
+  });
+
+  test("a face row off the non-borrowing list names itself and asks for nothing more (CALX, NTGR)", async () => {
+    const adapters: string[] = [];
+    const rows = relabel("Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent");
+    const faces = await clfdFaces(clfdServed(rows), adapters);
+    expect(adapters).toEqual(["sec-filing-text"]);
+    expect(financialStatementsDebtBasisGaps(deriveItems(ZERO_GAAP, faces.items))).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "tagged-zero proof was rejected (face-row:us-gaap:OtherLiabilitiesNoncurrent)",
+        ),
+      }),
+    ]);
   });
 
   test("its footed face and tagged zero publish 0 cited to the face and the XBRL instance", async () => {

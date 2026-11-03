@@ -462,6 +462,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `AccruedLiabilitiesCurrent` would pass; facility identity is the tag's own members, not a prose reading. CLFD's 10-Qs 2025-12-31 through
   2026-06-30 publish 0 (`LineOfCredit` = 0 on the revolver and Bremer Bank loan agreement members). A rejection
   or a failed instance, MetaLinks or linkbase read withholds with its code and Source Gap.
+  A face row off the non-borrowing list withholds as `face-row:<concept>` without requesting the instance. An
+  issuer that never tagged debt is checked only at its newest Liabilities instant, from a face already fetched.
   `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero without requesting the instance, MetaLinks or linkbase.
   With the flag set, the withhold reason is always `tagged-zero debt disabled`, since the filing is never inspected.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain

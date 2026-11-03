@@ -410,6 +410,8 @@ export function factsForDebt(
 
 const ZERO_BORROWINGS_REASON =
   "liabilities are filed with no debt line, and zero borrowings needs that filing's footed balance-sheet face with no debt row";
+const NEVER_TAGGED_REASON =
+  "liabilities are filed and no debt concept is tagged at any date, and zero borrowings needs that filing's footed balance-sheet face with no debt row";
 const UNTAGGED_ZERO_REASON =
   "liabilities are filed with no debt line on a footed face, but the filing's XBRL instance tags no borrowing concept as 0 at that date, so any zero it states rests on untagged prose";
 
@@ -426,13 +428,18 @@ function zeroBorrowingInstants(
     .map(({ periodEnd }) => periodEnd)
     .toSorted()
     .at(-1);
-  if (taxonomy !== "us-gaap" || root === undefined || lastDebt === undefined) {
+  if (taxonomy !== "us-gaap" || root === undefined) {
     return { facts: [], notes: [] };
   }
   const original = new Map<string, ParsedFact>();
   for (const fact of ["Liabilities", "LiabilitiesCurrent"]
     .flatMap((concept) => unitFacts(taxonomy, root, concept))
-    .filter((row) => row.periodStart === undefined && row.periodEnd > lastDebt && eligible(row))
+    .filter(
+      (row) =>
+        row.periodStart === undefined &&
+        (lastDebt === undefined || row.periodEnd > lastDebt) &&
+        eligible(row),
+    )
     .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))) {
     if (!original.has(fact.periodEnd)) {
       original.set(fact.periodEnd, fact);
@@ -446,8 +453,10 @@ function zeroBorrowingInstants(
   );
   const facts: ParsedFact[] = [];
   const notes: FinancialStatementNote[] = [];
+  // Never-tagged debt declares only the newest instant, and asks for no face (NTGR).
+  const newest = [...original.keys()].toSorted().at(-1);
   for (const [periodEnd, liabilities] of original) {
-    if (heldForSale.has(periodEnd)) {
+    if (heldForSale.has(periodEnd) || (lastDebt === undefined && periodEnd !== newest)) {
       continue;
     }
     const proof = zeroDebtFace(filings, liabilities);
@@ -455,17 +464,18 @@ function zeroBorrowingInstants(
       const fetched = filings.some(
         ({ metrics }) => metrics?.accessionNumber === liabilities.accessionNumber,
       );
+      const reason = lastDebt === undefined ? NEVER_TAGGED_REASON : ZERO_BORROWINGS_REASON;
       notes.push({
         ...incompleteDebtNote(
           periodEnd,
           proof === undefined
-            ? ZERO_BORROWINGS_REASON
+            ? reason
             : proof === UNTAGGED_ZERO
               ? UNTAGGED_ZERO_REASON
-              : `${ZERO_BORROWINGS_REASON}; its tagged-zero proof was rejected (${proof})`,
+              : `${reason}; its tagged-zero proof was rejected (${proof})`,
           liabilities.filedAt,
         ),
-        ...(liabilities.accessionNumber === null || fetched
+        ...(liabilities.accessionNumber === null || fetched || lastDebt === undefined
           ? {}
           : { faceAccession: liabilities.accessionNumber }),
       });
@@ -502,21 +512,28 @@ const BORROWING_WORDS_BUT_PORTION =
 export function faceHasNoBorrowingRow(
   metrics: Readonly<Record<string, number | string>> | undefined,
 ): boolean {
-  const rows = Object.entries(metrics ?? {}).filter(([key]) => key.startsWith(FACE_LINE_PREFIX));
-  return (
-    rows.length > 0 &&
-    rows.every(([key, value]) => {
-      const concept = key.split("|").at(-1) ?? "";
+  return hasFace(metrics) && faceBorrowingRow(metrics) === undefined;
+}
+
+const hasFace = (metrics: Readonly<Record<string, number | string>> | undefined) =>
+  Object.keys(metrics ?? {}).some((key) => key.startsWith(FACE_LINE_PREFIX));
+
+function faceBorrowingRow(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): string | undefined {
+  return Object.entries(metrics ?? {})
+    .filter(([key]) => key.startsWith(FACE_LINE_PREFIX))
+    .map(([key, value]) => ({ concept: key.split("|").at(-1) ?? "", value }))
+    .find(({ concept, value }) => {
       const label = String(metrics?.[`${FACE_LABEL_PREFIX}${concept}`] ?? "");
       const words = concept.includes("OperatingLeaseLiability")
         ? BORROWING_WORDS_BUT_PORTION
         : BORROWING_WORDS;
-      return (
+      return !(
         value === 0 ||
         (NON_BORROWING_LIABILITY.test(concept) && /\p{L}/u.test(label) && !words.test(label))
       );
-    })
-  );
+    })?.concept;
 }
 
 // The instant's own footed face with no borrowing row plus its own tagged-zero proof; a string is the proof's rejection.
@@ -533,8 +550,12 @@ function zeroDebtFace(
       metrics.accessionNumber === liabilities.accessionNumber,
   );
   const [filing] = own;
-  if (filing === undefined || own.length !== 1 || !faceHasNoBorrowingRow(filing.metrics)) {
+  if (filing === undefined || own.length !== 1 || !hasFace(filing.metrics)) {
     return undefined;
+  }
+  const row = faceBorrowingRow(filing.metrics);
+  if (row !== undefined) {
+    return `face-row:${row}`;
   }
   const proof = filing.metrics?.[ZERO_BORROWINGS_PROOF_KEY];
   const currency = filing.metrics?.[ZERO_BORROWINGS_CURRENCY_KEY];

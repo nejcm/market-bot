@@ -84,7 +84,7 @@ type FinancialStatementExtractionMethod =
   | typeof ZERO_BORROWINGS_EXTRACTION_METHOD;
 
 // A zero proved by a footed filing face plus a borrowing concept the filing's XBRL instance tags 0.
-export const ZERO_BORROWINGS_EXTRACTION_METHOD = "sec-filing-face-text";
+export const ZERO_BORROWINGS_EXTRACTION_METHOD = "sec-xbrl-instance";
 export const ZERO_BORROWINGS_CONCEPT = "NoBorrowingsOnFootedFace";
 
 export const COMPOSITE_STATEMENT_FACT_FORMULA = "sum";

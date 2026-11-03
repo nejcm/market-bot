@@ -495,7 +495,7 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     expect(debt).toMatchObject({
       value: 0,
       concept: "NoBorrowingsOnFootedFace",
-      extractionMethod: "sec-filing-face-text",
+      extractionMethod: "sec-xbrl-instance",
       zeroBorrowingsProof: PROOF,
     });
     const instanceSource = faces.sources.find(({ url }) => url?.endsWith("/q_htm.xml"));

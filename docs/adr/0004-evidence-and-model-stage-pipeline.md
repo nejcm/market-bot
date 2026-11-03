@@ -180,8 +180,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   debt lines, liability subtotals or principal inputs carry nonzero values from two filings, one filing's own
   values plus other filings' tagged zeros must resolve complete to the same debt, which then publishes
   attributed to that filing; otherwise the instant withholds with a note naming the filings (GOOGL, IBM, AVGO).
-  Other filings' history stays in that resolution as continuity obligations (prior nonzero lines still need
-  coverage); only their same-instant support is removed. An older filing's nonzero line is not proven to hold
+  Other filings' facts stay in that resolution as obligations (prior nonzero lines still need coverage,
+  principal due within a year still needs a current line); they only stop vouching for its lines. An older filing's nonzero line is not proven to hold
   in a newer presentation, so it may neither add to nor prove another filing's result. A filing
   is its accession, else form and filing date; cached companyfacts always carry one (0 of 162,124 debt facts
   and 3,117 run facts lack it, 2026-11-03). Restated components need one filing date (same-day accessions count together) and

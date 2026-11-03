@@ -81,6 +81,7 @@ interface DebtHistoryFact {
   readonly filedAt: string;
   readonly value: number;
   readonly accessionNumber?: string | null;
+  readonly form?: string;
 }
 
 interface DebtInstant {
@@ -416,6 +417,8 @@ export function resolveDebtAtInstant<T>(
   } = {},
   liabilities: readonly DebtHistoryFact[] = [],
   faceRow: (concept: string, side: DebtFaceSide) => boolean = () => false,
+  // Facts another filing reported stay obligations but may not vouch for this resolution's lines.
+  vouches: (fact: DebtHistoryFact) => boolean = () => true,
 ): DebtResolution<T> {
   const concepts = DEBT_CONCEPTS[taxonomy];
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
@@ -433,6 +436,7 @@ export function resolveDebtAtInstant<T>(
         fact.periodEnd === instant.periodEnd &&
         fact.filedAt <= instant.filedAt &&
         fact.value !== 0 &&
+        vouches(fact) &&
         (taggedValue(ambiguous?.currentTotal) ?? 0) > maturitiesValue,
     );
   const sidesOf = (has: (concept: string) => boolean) => {
@@ -501,6 +505,7 @@ export function resolveDebtAtInstant<T>(
     if (
       fact.periodEnd === instant.periodEnd &&
       fact.filedAt === longTermDebtFiledAt &&
+      vouches(fact) &&
       !longTermDebtFiling.has(fact.concept)
     ) {
       longTermDebtFiling.set(fact.concept, fact.value);
@@ -596,7 +601,8 @@ export function resolveDebtAtInstant<T>(
         (fact) =>
           fact.concept === concept &&
           fact.periodEnd === instant.periodEnd &&
-          fact.filedAt === filedAt,
+          fact.filedAt === filedAt &&
+          vouches(fact),
       )?.value;
     const currentTotal = filed(identity.currentTotal);
     const liabilitiesTotal = filed(identity.total);

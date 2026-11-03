@@ -2300,6 +2300,41 @@ describe("debt composites drawn from more than one filing", () => {
     ).toEqual([]);
   });
 
+  test("a same-day filing's umbrella stays an obligation when the other filing is isolated", () => {
+    expect(
+      debtAt({
+        ConvertibleNotesPayable: [tenKDebtFact(100_000_000, "2024-02-20", "B", 2023)],
+        ConvertibleLongTermNotesPayable: [
+          tenKDebtFact(100_000_000, "2024-02-20", "A", 2023),
+          newer(100_000_000),
+        ],
+      }).values,
+    ).toEqual([]);
+  });
+
+  test("another filing's principal due within a year stays an obligation", () => {
+    expect(
+      debtAt({
+        LongTermDebtNoncurrent: [newer(100_000_000)],
+        LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: [older(20_000_000)],
+        DebtInstrumentCarryingAmount: [older(110_000_000)],
+        DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [older(10_000_000)],
+      }).values,
+    ).toEqual([]);
+  });
+
+  test("another filing's current capital lease cannot steer a filing's current debt line", () => {
+    const filing = (value: number, accn: string) => tenKDebtFact(value, "2024-02-20", accn, 2023);
+    expect(
+      debtAt({
+        DebtCurrent: [filing(30_000_000, "A")],
+        LongTermDebtCurrent: [filing(20_000_000, "A")],
+        LongTermDebtNoncurrent: [filing(80_000_000, "A")],
+        CapitalLeaseObligationsCurrent: [filing(10_000_000, "B")],
+      }).values,
+    ).toEqual([]);
+  });
+
   test("an older filing's unused umbrella does not withhold the newer filing's lines", () => {
     expect(
       debtAt({

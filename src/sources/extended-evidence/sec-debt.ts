@@ -236,13 +236,11 @@ export function factsForDebt(
         fact.periodEnd !== instant.periodEnd ||
         fact.value === 0 ||
         filingOf(fact) === filing.id;
-      // Other filings' history stays as continuity obligations; only same-day facts would vouch for this filing's lines.
-      const prior = (fact: Filed) => seen(fact) || fact.filedAt !== filing?.filedAt;
       return resolveDebtAtInstant(
         taxonomy,
         instant,
         lines,
-        history.filter((fact) => prior(fact)),
+        history,
         (fact) => fact.value,
         (fact) => fact.filedAt,
         Object.fromEntries(
@@ -253,18 +251,20 @@ export function factsForDebt(
                 (fact) =>
                   fact.periodEnd === instant.periodEnd &&
                   fact.filedAt <= instant.filedAt &&
-                  seen(fact),
+                  // Principal due within a year obliges a current line; the other inputs prove one.
+                  (key === "dueWithinYear" || seen(fact)),
               )
               .toSorted(compareFinancialStatementFacts)
               .at(0)?.value,
           ]),
         ),
-        liabilities.filter((fact) => seen(fact)),
+        liabilities,
         (concept, side) =>
           face !== undefined &&
           face.sides.get(concept) === side &&
           lines.get(concept)?.accessionNumber === face.accessionNumber &&
           lines.get(concept)?.value === face.standard.get(concept),
+        (fact) => seen(fact),
       );
     };
     const faces = faceDebtLines(filings, instant.periodEnd, recognized, taxonomy);
@@ -713,7 +713,7 @@ function faceDebtLines(
 interface Filed {
   readonly periodEnd: string;
   readonly value: number;
-  readonly form: string;
+  readonly form?: string;
   readonly filedAt: string;
   readonly accessionNumber?: string | null;
 }

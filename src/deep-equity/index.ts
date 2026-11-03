@@ -47,6 +47,9 @@ export async function runDeepEquity(
           : {}),
         collectTradierTermStructure: termStructureConfigured,
         ...(input.config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+        ...(input.config.extensionShortTermInvestmentsDisabled === true
+          ? { extensionShortTermInvestmentsDisabled: true }
+          : {}),
         peerUniverse: {
           provider: capturedDependencies.provider,
           model: input.config.quickModel,

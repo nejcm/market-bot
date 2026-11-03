@@ -144,6 +144,9 @@ export async function runEvidenceRequestLoop(
   const toolContext = {
     ...collectContext.context,
     ...(input.config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+    ...(input.config.extensionShortTermInvestmentsDisabled === true
+      ? { extensionShortTermInvestmentsDisabled: true }
+      : {}),
     ...(input.collectedSources.resolvedInstrumentIdentity !== undefined
       ? { instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity }
       : {}),

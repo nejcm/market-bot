@@ -116,6 +116,9 @@ async function main(): Promise<void> {
       fetchImpl: fetchRecorder.fetch,
       ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
       ...(config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+      ...(config.extensionShortTermInvestmentsDisabled === true
+        ? { extensionShortTermInvestmentsDisabled: true }
+        : {}),
       peerUniverse: {
         provider: providerRecorder.provider,
         model: config.quickModel,

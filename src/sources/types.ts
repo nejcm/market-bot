@@ -75,6 +75,7 @@ export interface CollectContext {
   readonly firecrawlApiKey?: string;
   readonly secUserAgent?: string;
   readonly taggedZeroDebtDisabled?: boolean;
+  readonly extensionShortTermInvestmentsDisabled?: boolean;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
   readonly earningsEventDate?: string;

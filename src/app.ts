@@ -516,6 +516,9 @@ async function runStandardResearch(input: {
             ? { resolvedSubject: input.resolvedSubject }
             : {}),
           ...(input.config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+          ...(input.config.extensionShortTermInvestmentsDisabled === true
+            ? { extensionShortTermInvestmentsDisabled: true }
+            : {}),
           peerUniverse: {
             provider: runtime.provider,
             model: input.config.quickModel,

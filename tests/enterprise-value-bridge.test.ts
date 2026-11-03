@@ -4,6 +4,7 @@ import { renderMetricSections } from "../src/report/markdown-metric-sections";
 import {
   CURRENT_EQUITY_NOTE,
   ENTERPRISE_VALUE_BASIS,
+  isCurrentEquityConcept,
 } from "../src/sources/extended-evidence/enterprise-value-bridge";
 import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -985,4 +986,159 @@ test("EV basis declares carrying-amount preferred, NCI and temporary equity", ()
   expect(ENTERPRISE_VALUE_BASIS).toContain(
     "preferred stock, noncontrolling interest and temporary equity at balance-sheet carrying amount, not market, liquidation or redemption value",
   );
+});
+
+describe("extension short-term investments proven from the filing's XBRL instance", () => {
+  // EBAY 10-Q for the quarter ended 2026-09-30 (filed 2026-10-29, accn 0001065088-26-000212).
+  const accn = "0001065088-26-000212";
+  const asOf = "2026-11-04T00:00:00.000Z";
+  const sep = (value: number) => fact(value * M, "2026-09-30", "2026-10-29", accn);
+  const line = "ebay:ShortTermInvestmentsExcludingEquitySecuritiesAccountedForUnderFairValueOption";
+  const proofItem = (metrics: Record<string, number | string> = {}, total = "4786000000") => ({
+    category: "sec-edgar" as const,
+    title: "EBAY 10-Q",
+    summary: "EBAY 10-Q.",
+    sourceIds: ["extended-sec-edgar-ebay-10q", "extended-sec-edgar-ebay-10q-investments-instance"],
+    observedAt: asOf,
+    metrics: {
+      accessionNumber: accn,
+      [`extensionShortTermInvestments|2026-09-30|USD|${line}|${total}`]: 809 * M,
+      "extensionShortTermInvestmentsProof|2026-09-30": `${line} = 809000000 USD at 2026-09-30`,
+      ...metrics,
+    },
+  });
+  const ebay: Facts = {
+    CashAndCashEquivalentsAtCarryingValue: [sep(1166)],
+    AssetsCurrent: [sep(4786)],
+    LongTermDebt: [sep(6500)],
+    ShortTermInvestments: [fact(2500 * M, "2024-12-31", "2025-02-20", "ebay-fy24", "10-K")],
+  };
+  const bridgeAt = (gaap: Facts, secFilings: readonly ReturnType<typeof proofItem>[]) => {
+    const payload = companyFacts(gaap);
+    const artifact = deriveFinancialStatements(payload, {
+      symbol: "EBAY",
+      generatedAt: asOf,
+      analysisAsOf: asOf,
+      sourceId: "extended-sec-edgar-ebay-fundamentals",
+      secFilings,
+    });
+    const sti = artifact.enterpriseValueBridge!.shortTermInvestments.find(
+      ({ periodEnd }) => periodEnd === "2026-09-30",
+    );
+    return { artifact, sti };
+  };
+
+  const valuationAt = (artifact: ReturnType<typeof bridgeAt>["artifact"]) =>
+    valuationOf(
+      addValuationEvidence(
+        { jobType: "equity", assetClass: "equity", symbol: "EBAY", depth: "deep" },
+        [marketSnapshot({ symbol: "EBAY", marketCap: 40_000 * M, observedAt: asOf })],
+        withCanonicalFinancialLensInputs(secEvidence({}), artifact),
+        asOf,
+      ),
+    );
+
+  test("eBay's extension line enters the bridge as 809M, cited to the 10-Q and its instance", () => {
+    const { sti, artifact } = bridgeAt(ebay, [proofItem()]);
+    const { metrics, summary } = valuationAt(artifact);
+    expect(metrics).toMatchObject({
+      shortTermInvestments: 809 * M,
+      netDebt: (6500 - 1166 - 809) * M,
+    });
+    expect(summary).not.toContain("sale-restricted");
+    expect(sti).toMatchObject({
+      value: 809 * M,
+      concept: line,
+      accessionNumber: accn,
+      filedAt: "2026-10-29",
+      shortTermInvestmentsProof: expect.stringContaining("809000000 USD at 2026-09-30"),
+    });
+    expect(sti?.sourceIds).toEqual(
+      expect.arrayContaining(["extended-sec-edgar-ebay-10q-investments-instance"]),
+    );
+  });
+
+  test.each([
+    ["without the proof item", []],
+    ["without its proof text", [proofItem({ "extensionShortTermInvestmentsProof|2026-09-30": 0 })]],
+  ] as const)("nothing enters %s", (_label, items) => {
+    expect(bridgeAt(ebay, items).sti?.value).not.toBe(809 * M);
+  });
+
+  test.each([
+    ["with an AssetsCurrent total the companyfacts do not carry", [proofItem({}, "4800000000")]],
+    ["from another accession", [proofItem({ accessionNumber: "0001065088-26-000999" })]],
+    [
+      "in another currency",
+      [
+        {
+          ...proofItem(),
+          metrics: {
+            accessionNumber: accn,
+            [`extensionShortTermInvestments|2026-09-30|EUR|${line}|4786000000`]: 809 * M,
+            "extensionShortTermInvestmentsProof|2026-09-30": `${line} = 809000000 EUR at 2026-09-30`,
+          },
+        },
+      ],
+    ],
+  ] as const)("a proven line %s withholds the bridge instead of reading 0", (_label, items) => {
+    const { sti, artifact } = bridgeAt(ebay, items);
+    expect(sti?.shortTermInvestmentsWithheld).toContain("withheld");
+    const { metrics, gaps } = valuationAt(artifact);
+    expect(metrics?.shortTermInvestments).toBeUndefined();
+    expect(metrics?.netDebt).toBeUndefined();
+    expect(gaps.map(({ message }) => message)).toEqual(
+      expect.arrayContaining([expect.stringContaining("SEC EV bridge incomplete for EBAY")]),
+    );
+  });
+
+  test("a proof whose 10-Q companyfacts does not carry yet still withholds its instant", () => {
+    const { sti } = bridgeAt({ ShortTermInvestments: ebay.ShortTermInvestments! }, [
+      proofItem({ form: "10-Q", filingDate: "2026-10-29" }),
+    ]);
+    expect(sti).toMatchObject({
+      accessionNumber: accn,
+      filedAt: "2026-10-29",
+      firstPublicAt: "2026-10-29",
+      shortTermInvestmentsWithheld: expect.stringContaining("companyfacts carry no AssetsCurrent"),
+    });
+  });
+
+  test("a later filing's value for the instant wins, dated from when that value first held", () => {
+    const filing = (accessionNumber: string, filingDate: string, value: number) => ({
+      ...proofItem(),
+      metrics: {
+        accessionNumber,
+        filingDate,
+        [`extensionShortTermInvestments|2026-09-30|USD|${line}|4786000000`]: value * M,
+        "extensionShortTermInvestmentsProof|2026-09-30": `${line} = ${value * M} USD at 2026-09-30`,
+      },
+    });
+    const restated = {
+      ...ebay,
+      AssetsCurrent: [
+        sep(4786),
+        fact(4786 * M, "2026-09-30", "2026-10-31", "amend-1", "10-Q/A"),
+        fact(4786 * M, "2026-09-30", "2026-11-02", "amend-2", "10-Q/A"),
+      ],
+    };
+    const { sti } = bridgeAt(restated, [
+      filing(accn, "2026-10-29", 809),
+      filing("amend-1", "2026-10-31", 815),
+      filing("amend-2", "2026-11-02", 815),
+    ]);
+    expect(sti).toMatchObject({ value: 815 * M, firstPublicAt: "2026-10-31" });
+  });
+
+  test("only us-gaap equity-security concepts carry the sale-restricted caveat", () => {
+    expect(isCurrentEquityConcept(line)).toBe(false);
+    expect(isCurrentEquityConcept("ShortTermInvestments + EquitySecuritiesFvNiCurrent")).toBe(true);
+    expect(isCurrentEquityConcept("EquitySecuritiesFvNi")).toBe(true);
+    expect(isCurrentEquityConcept(undefined)).toBe(false);
+  });
+
+  test("a standard ShortTermInvestments tag at the instant stays the bridge value", () => {
+    const { sti } = bridgeAt({ ...ebay, ShortTermInvestments: [sep(700)] }, [proofItem()]);
+    expect(sti).toMatchObject({ value: 700 * M, concept: "ShortTermInvestments" });
+  });
 });

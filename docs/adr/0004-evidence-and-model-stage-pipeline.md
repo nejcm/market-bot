@@ -470,6 +470,25 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   issuer that never tagged debt is checked only at its newest Liabilities instant, from a face already fetched.
   `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero without requesting the instance, MetaLinks or linkbase.
   With the flag set, the withhold reason is always `tagged-zero debt disabled`, since the filing is never inspected.
+- Extension short-term investments (collection, amended 2026-11-04): a 10-K/10-Q whose primary document names an issuer-extension
+  concept as a typed `StatementOfFinancialPositionLocationBalanceAxis` member gets its XBRL instance, schema and
+  calculation linkbase through the same strict readers and accession-scoped requests as Tagged Zero Debt
+  (`src/sources/sec-extension-investments-proof.ts`, code only). That line counts as short-term investments at an
+  instant only when it adds into `us-gaap:AssetsCurrent` at lexical weight exactly 1, the `AssetsCurrent` children
+  (weights ±1) foot exactly to the filed total, and the closed list of us-gaap investment facts located on that line
+  (`AvailableForSaleSecuritiesDebtSecurities`) sums exactly to its value, every amount an integer in one currency
+  under the issuer's CIK. A located line outside current assets is not a candidate; two proven lines at one instant
+  reject both. The proven value enters the EV Bridge only at an instant with no standard short-term investments tag
+  and only beside a companyfacts `AssetsCurrent` fact of the same accession, date and value, whose filing date dates
+  it; it carries extraction method `sec-xbrl-instance`, the proof text as `shortTermInvestmentsProof`, and one
+  cited Source each for the instance, schema and linkbase. A proven line companyfacts cannot confirm (no such
+  `AssetsCurrent` fact, a different total, or a currency other than the reporting currency) withholds the EV
+  Bridge at that instant with its reason as `shortTermInvestmentsWithheld`, never reading as untagged 0. Proofs of
+  one instant from several filings keep the latest filing's value, dated from the earliest filing in its trailing run
+  of the same value. A rejection or failed read is a `sec-edgar` Source Gap
+  and the bridge keeps its standard reading (eBay 10-Q 0001065088-26-000212: 809M at 2026-09-30 and 1,052M at
+  2025-12-31). `MARKET_BOT_EXTENSION_SHORT_TERM_INVESTMENTS_DISABLE` skips the requests and declares
+  `extension short-term investments disabled`. Residual reliance: the issuer's own calculation and location tagging.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
   `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,

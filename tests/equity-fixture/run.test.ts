@@ -5,6 +5,7 @@ import type { ModelRequest } from "../../src/model/types";
 import {
   assertComprehensiveAnalysisPath,
   assertClfdTaggedZeroDebt,
+  assertEbayExtensionShortTermInvestments,
   assertCurrencyConvertedValuation,
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
@@ -53,6 +54,7 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-iren-deep": ["complete", "substantial"],
   "equity-iren-brief": ["complete", "limited"],
   "clfd-zero-debt": ["complete", "limited"],
+  "ebay-extension-investments": ["complete", "substantial"],
 } as const;
 
 // Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
@@ -117,6 +119,12 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-1", 0.4952],
     ["grid-range-5", 0.3785],
     ["grid-range-20", 0.3461],
+    ["grid-relative-5", 0.5],
+  ],
+  "ebay-extension-investments": [
+    ["grid-range-1", 0.4997],
+    ["grid-range-5", 0.3827],
+    ["grid-range-20", 0.351],
     ["grid-relative-5", 0.5],
   ],
 };
@@ -456,6 +464,9 @@ describe("static equity run fixtures", () => {
       }
       if (name === "clfd-zero-debt") {
         assertClfdTaggedZeroDebt(result);
+      }
+      if (name === "ebay-extension-investments") {
+        assertEbayExtensionShortTermInvestments(result);
       }
       if (name === "equity-iren-brief") {
         assertIrenExtensionCapexWithheld(result);

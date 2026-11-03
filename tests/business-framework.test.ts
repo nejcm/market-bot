@@ -813,7 +813,7 @@ describe("business framework evidence", () => {
       )?.basis;
     };
 
-    expect(basisWith("EquitySecuritiesFvNiCurrentAndNoncurrent")).toEndWith(
+    expect(basisWith("ShortTermInvestments + EquitySecuritiesFvNiCurrent")).toEndWith(
       `; ${CURRENT_EQUITY_NOTE}`,
     );
     expect(basisWith("ShortTermInvestments")).not.toContain(CURRENT_EQUITY_NOTE);

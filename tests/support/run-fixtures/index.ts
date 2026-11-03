@@ -439,6 +439,9 @@ export async function runFixture(
             : {}),
           ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
           ...(config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+          ...(config.extensionShortTermInvestmentsDisabled === true
+            ? { extensionShortTermInvestmentsDisabled: true }
+            : {}),
           peerUniverse: {
             provider: runtime.provider,
             model: config.quickModel,
@@ -503,4 +506,5 @@ export const EQUITY_RUN_FIXTURES = [
   "equity-iren-deep",
   "equity-iren-brief",
   "clfd-zero-debt",
+  "ebay-extension-investments",
 ] as const;

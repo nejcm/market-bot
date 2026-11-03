@@ -14,6 +14,11 @@ import {
 } from "../sec-segment-facts";
 import { DA_CALC_PREFIX, DA_CALC_READ_KEY } from "../sec-calculation-linkbase";
 import {
+  EXTENSION_INVESTMENTS_SOURCE_INFIX,
+  EXTENSION_SHORT_TERM_INVESTMENTS_PREFIX,
+  EXTENSION_SHORT_TERM_INVESTMENTS_PROOF_PREFIX,
+} from "../sec-extension-investments-proof";
+import {
   CAP_FOLLOWER_SERIES,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
@@ -1949,6 +1954,122 @@ function selectInstantComponent(
     .map((fact) => toSelectedFact(fact, instantDefinition, reportingCurrency, input.sourceId));
 }
 
+// A short-term investments line the filing's own instance proves, dated by that filing's companyfacts AssetsCurrent.
+// A proof companyfacts cannot confirm withholds its instant rather than letting it read as untagged 0.
+function extensionShortTermInvestments(
+  root: Record<string, unknown>,
+  reportingCurrency: string,
+  input: FinancialStatementsDeriveInput,
+  tagged: readonly FinancialStatementFact[],
+): readonly FinancialStatementFact[] {
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (candidate) => candidate.key === "stockholdersEquity",
+  );
+  if (definition === undefined) {
+    return [];
+  }
+  const taggedPeriods = new Set(tagged.map(({ periodEnd }) => periodEnd));
+  const observable = (concept: string) =>
+    unitFacts("us-gaap", root, concept).filter(
+      (fact) => fact.periodStart === undefined && isObservable(fact, input.analysisAsOf),
+    );
+  const assetsCurrent = observable("AssetsCurrent");
+  const proved = (input.secFilings ?? []).flatMap(({ metrics, sourceIds }) =>
+    Object.entries(metrics ?? {}).flatMap<FinancialStatementFact>(([key, value]) => {
+      const [periodEnd = "", currency, concept = "", total] = key
+        .slice(EXTENSION_SHORT_TERM_INVESTMENTS_PREFIX.length)
+        .split("|");
+      const proof = metrics?.[`${EXTENSION_SHORT_TERM_INVESTMENTS_PROOF_PREFIX}${periodEnd}`];
+      if (
+        !key.startsWith(EXTENSION_SHORT_TERM_INVESTMENTS_PREFIX) ||
+        typeof value !== "number" ||
+        typeof proof !== "string" ||
+        taggedPeriods.has(periodEnd)
+      ) {
+        return [];
+      }
+      const accession = metrics?.accessionNumber;
+      const filed = assetsCurrent.find(
+        (fact) => fact.periodEnd === periodEnd && fact.accessionNumber === accession,
+      );
+      const withheld =
+        currency !== reportingCurrency
+          ? `the proof is in ${String(currency)}, not reporting currency ${reportingCurrency}`
+          : filed === undefined
+            ? `companyfacts carry no AssetsCurrent from ${String(accession)} at ${periodEnd} to confirm it`
+            : filed.unit !== reportingCurrency || String(filed.value) !== total
+              ? `companyfacts AssetsCurrent ${String(filed.value)} ${filed.unit} from ${String(accession)} does not match the instance total ${String(total)}`
+              : undefined;
+      const form = String(metrics?.form ?? "");
+      const template =
+        filed ??
+        Object.keys(root)
+          .flatMap(observable)
+          .find((fact) => fact.periodEnd === periodEnd) ??
+        parseFact(
+          {
+            val: value,
+            form,
+            accn: accession,
+            filed: metrics?.filingDate,
+            end: periodEnd,
+            fp: form.startsWith("10-K") ? "FY" : "Q",
+          },
+          "us-gaap",
+          concept,
+          reportingCurrency,
+        );
+      if (template === undefined) {
+        return [];
+      }
+      const filedAt =
+        withheld === undefined || typeof metrics?.filingDate !== "string"
+          ? template.filedAt
+          : metrics.filingDate;
+      return [
+        {
+          ...toSelectedFact(
+            {
+              ...template,
+              ...(typeof accession === "string" ? { accessionNumber: accession } : {}),
+              filedAt,
+              firstPublicAt: filedAt,
+              concept,
+              value,
+              unit: reportingCurrency,
+              proofSourceIds: sourceIds.filter(
+                (id, index) => index === 0 || id.includes(EXTENSION_INVESTMENTS_SOURCE_INFIX),
+              ),
+            },
+            definition,
+            reportingCurrency,
+            input.sourceId,
+          ),
+          extractionMethod: ZERO_BORROWINGS_EXTRACTION_METHOD,
+          ...(withheld === undefined
+            ? { shortTermInvestmentsProof: proof }
+            : {
+                shortTermInvestmentsWithheld: `${concept} proven from the XBRL instance but withheld: ${withheld}`,
+              }),
+        },
+      ];
+    }),
+  );
+  // The latest filing wins an instant, dated from when its value first held (as compareFinancialStatementRevisions).
+  const periods = new Map<string, FinancialStatementFact[]>();
+  for (const fact of proved.toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))) {
+    periods.set(fact.periodEnd, [...(periods.get(fact.periodEnd) ?? []), fact]);
+  }
+  return [...periods.values()].map((facts) => {
+    const latest = facts.at(-1)!;
+    const same = (fact: FinancialStatementFact) =>
+      fact.value === latest.value &&
+      fact.shortTermInvestmentsWithheld === latest.shortTermInvestmentsWithheld;
+    const changed = facts.findLastIndex((fact) => !same(fact));
+    return { ...latest, firstPublicAt: facts[changed + 1]!.filedAt };
+  });
+}
+
 function selectEnterpriseValueBridge(
   payload: unknown,
   reportingCurrency: string,
@@ -1963,11 +2084,21 @@ function selectEnterpriseValueBridge(
       new Map(),
       input,
     );
-  return trimToMezzaninePeriods(
-    Object.fromEntries(
-      ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [key, select(key)]),
-    ) as unknown as FinancialStatementEnterpriseValueBridge,
-  );
+  const selected = Object.fromEntries(
+    ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [key, select(key)]),
+  ) as unknown as FinancialStatementEnterpriseValueBridge;
+  return trimToMezzaninePeriods({
+    ...selected,
+    shortTermInvestments: [
+      ...selected.shortTermInvestments,
+      ...extensionShortTermInvestments(
+        taxonomyRoot(payload, "us-gaap") ?? {},
+        reportingCurrency,
+        input,
+        selected.shortTermInvestments,
+      ),
+    ].toSorted(chronological),
+  });
 }
 
 function selectStatutoryTaxRate(

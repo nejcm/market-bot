@@ -1292,6 +1292,7 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
   "equity-iren-deep": {},
   "equity-iren-brief": {},
   "clfd-zero-debt": {},
+  "ebay-extension-investments": {},
 };
 
 export function assertFinancialLensMetricInvariants(
@@ -2444,6 +2445,69 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
   );
 }
 
+const EBAY_10Q = "https://www.sec.gov/Archives/edgar/data/1065088/000106508826000212";
+const EBAY_STI_LINE =
+  "ebay:ShortTermInvestmentsExcludingEquitySecuritiesAccountedForUnderFairValueOption";
+
+// EBAY 10-Q 0001065088-26-000212: AvailableForSaleSecuritiesDebtSecurities located on the extension line.
+export function assertEbayExtensionShortTermInvestments(result: RunFixtureResult): void {
+  const { financialStatements, sourceGaps } = result.collectedSources;
+  const sources = new Map(result.report.sources.map((source) => [source.id, source.url]));
+  const proofSources = {
+    "extended-sec-edgar-ebay-10q-investments-xbrl-instance": `${EBAY_10Q}/ebay-20260930_htm.xml`,
+    "extended-sec-edgar-ebay-10q-investments-xbrl-schema": `${EBAY_10Q}/ebay-20260930.xsd`,
+    "extended-sec-edgar-ebay-10q-investments-calculation-linkbase": `${EBAY_10Q}/ebay-20260930_cal.xml`,
+  };
+  for (const [id, url] of Object.entries(proofSources)) {
+    expect(sources.get(id)).toBe(url);
+  }
+  const proven = (financialStatements?.enterpriseValueBridge?.shortTermInvestments ?? []).filter(
+    ({ extractionMethod }) => extractionMethod === "sec-xbrl-instance",
+  );
+  expect(proven.map(({ periodEnd, value }) => [periodEnd, value])).toEqual([
+    ["2025-12-31", 1_052_000_000],
+    ["2026-09-30", 809_000_000],
+  ]);
+  for (const fact of proven) {
+    expect(fact).toMatchObject({
+      concept: EBAY_STI_LINE,
+      accessionNumber: "0001065088-26-000212",
+      filedAt: "2026-10-29",
+      shortTermInvestmentsProof: expect.stringContaining(
+        "us-gaap:AvailableForSaleSecuritiesDebtSecurities located on it sum to",
+      ),
+    });
+    expect(fact.sourceIds).toEqual(
+      expect.arrayContaining(["extended-sec-edgar-ebay-10q", ...Object.keys(proofSources)]),
+    );
+  }
+  const valuation = result.report.extendedEvidence?.items.find(
+    ({ category }) => category === "valuation",
+  )?.metrics;
+  expect(valuation).toMatchObject({
+    shortTermInvestments: 809_000_000,
+    shortTermInvestmentsConcept: EBAY_STI_LINE,
+    cash: 1_166_000_000,
+    debt: 6_733_000_000,
+    netDebt: 4_758_000_000,
+  });
+  expect(sourceGaps.filter(({ message }) => message.includes("issuer-extension"))).toEqual([]);
+  // The 2025-12-31 comparative became public with the 10-Q, so the FY2025 observation stays withheld.
+  const annual = result.collectedSources.valuationWorkbench?.historicalMultiples.observations.find(
+    ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2025-12-31",
+  );
+  expect(annual?.metrics.enterpriseValueToRevenue).toMatchObject({ status: "missing" });
+  expect(result.markdown).toContain("Net debt: $4.8B (As of 2026-09-30;");
+  // Recorded synthesis prose predates the concept fix, so pin the deterministic surfaces only.
+  const valuationItem = result.report.extendedEvidence?.items.find(
+    ({ category }) => category === "valuation",
+  );
+  expect(valuationItem?.summary).not.toContain("sale-restricted");
+  const sections = JSON.stringify(result.report.extras?.metricSections);
+  expect(sections).toContain("Net debt");
+  expect(sections).not.toContain("sale-restricted");
+}
+
 export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult): void {
   const sic = depositoryIssuerSic(result.report.extendedEvidence);
   expect(sic, "fixture issuer must classify as a depository institution").toMatch(/^60\d{2}$/u);
@@ -3140,16 +3204,17 @@ function assertValuationWorkbenchInvariants(
         key === "priceToFreeCashFlow" && inputs.freeCashFlow === undefined
           ? (["operatingCashFlow", "capitalExpenditure"] as const).flatMap((seriesKey) => {
               const series = statements?.statements.cashFlowStatement[seriesKey];
-              return [...(series?.annual ?? []), ...(series?.interim ?? [])]
-                .filter(
-                  (fact) =>
-                    inputs.revenue?.lineage?.some(
-                      (anchor) =>
-                        anchor.periodKey === fact.periodKey &&
-                        anchor.periodType === fact.periodType,
-                    ) && fact.firstPublicAt <= publicAt,
-                )
-                .flatMap(({ sourceIds }) => sourceIds);
+              const parts = [...(series?.annual ?? []), ...(series?.interim ?? [])].filter(
+                (fact) =>
+                  inputs.revenue?.lineage?.some(
+                    (anchor) =>
+                      anchor.periodKey === fact.periodKey && anchor.periodType === fact.periodType,
+                  ) && fact.firstPublicAt <= publicAt,
+              );
+              // A part cites only when every revenue period is public for it (EBAY TTM 2025-09-30 is not).
+              return parts.length === (inputs.revenue?.lineage?.length ?? 0)
+                ? parts.flatMap(({ sourceIds }) => sourceIds)
+                : [];
             })
           : [];
       expect(
@@ -3397,6 +3462,81 @@ const AAPL_WORKBENCH_VALUES: WorkbenchValues = {
     28.499_999_999_999_996, 7.760_563_380_281_689, 7.854_460_093_896_712, 28.016_949_152_542_37,
   ],
 };
+const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
+  "annual|2016-12-31|2019-01-30": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2017-12-31|2019-01-30": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2018-12-31|2021-02-04": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2019-12-31|2022-02-24": [
+    26.526_315_132_396_643,
+    6.388_025_147_996_082,
+    MISSING_WORKBENCH_DEBT,
+    24.872_452_214_079_082,
+  ],
+  "annual|2020-12-31|2022-02-24": [
+    7.026_615_795_527_121, 4.475_592_423_428_947, 4.953_779_965_592_203, 15.665_454_157_409_307,
+  ],
+  "annual|2021-12-31|2022-02-24": [
+    2.699_123_594_289_629_2, 3.527_516_227_400_005_4, 3.696_326_208_206_147_4,
+    13.875_696_145_529_655,
+  ],
+  "annual|2022-12-31|2023-02-23": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    2.583_491_490_409_348_7,
+    3.001_255_655_799_854,
+    11.618_594_650_394_66,
+  ],
+  "annual|2023-12-31|2024-02-28": [
+    9.227_360_190_683_706,
+    2.524_265_197_258_961_4,
+    IFRS_WORKBENCH_EV,
+    12.924_237_809_965_883,
+  ],
+  "annual|2024-12-31|2025-02-27": [
+    16.111_675_010_719_882, 3.092_821_138_836_954, 3.578_282_580_050_607_7, 16.259_447_735_511_45,
+  ],
+  "ttm|2025-09-30|2025-10-30": [
+    { status: "missing", reason: "earnings-unavailable" },
+    MISSING_WORKBENCH_SHARES,
+    IFRS_WORKBENCH_EV,
+    MISSING_WORKBENCH_SHARES,
+  ],
+  "annual|2025-12-31|2026-02-19": [
+    19.527_649_769_585_253,
+    3.573_243_243_243_243,
+    IFRS_WORKBENCH_EV,
+    26.727_088_948_787_063,
+  ],
+  "ttm|2026-03-31|2026-04-29": [
+    23.535_147_599_892_82,
+    4.145_625_792_328_587,
+    IFRS_WORKBENCH_EV,
+    27.678_850_226_801_45,
+  ],
+  "ttm|2026-06-30|2026-08-06": [
+    22.709_278_224_669_78,
+    4.217_329_317_206_33,
+    IFRS_WORKBENCH_EV,
+    20.216_243_689_027_39,
+  ],
+  "ttm|2026-09-30|2026-10-29": [
+    26.345_652_704_653_535, 4.461_798_049_626_252, 4.845_693_482_900_417, 22.562_025_714_837_933,
+  ],
+};
 const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-aapl-brief": {},
   "equity-aapl-deep": AAPL_WORKBENCH_VALUES,
@@ -3580,6 +3720,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-iren-deep": IREN_WORKBENCH_VALUES,
   "equity-iren-brief": IREN_WORKBENCH_VALUES,
   "clfd-zero-debt": CLFD_WORKBENCH_VALUES,
+  "ebay-extension-investments": EBAY_WORKBENCH_VALUES,
   "equity-depository-deep": {
     "annual|2016-10-31|2018-11-27": [
       MISSING_WORKBENCH_PRICE,

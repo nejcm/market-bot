@@ -2,7 +2,7 @@ import { isInstrumentCommand, type InstrumentCommand } from "../cli/args";
 import type { ExtendedEvidenceItem } from "../domain/evidence";
 import type { EvidenceRequestToolName } from "../domain/gather-audit";
 import type { InstrumentIdentity } from "../domain/instrument";
-import type { Source, SourceGap } from "../domain/sources";
+import type { Source, SourceGap, SourceGapCause } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import { isUsListing } from "./instrument-capability";
 import {
@@ -77,6 +77,12 @@ import {
   metaLinksTags,
   zeroBorrowingsInstanceProof,
 } from "./sec-zero-borrowings-proof";
+import {
+  EXTENSION_INVESTMENTS_SOURCE_INFIX,
+  EXTENSION_SHORT_TERM_INVESTMENTS_PREFIX,
+  EXTENSION_SHORT_TERM_INVESTMENTS_PROOF_PREFIX,
+  extensionShortTermInvestmentsProof,
+} from "./sec-extension-investments-proof";
 import { collectTradierIvTermStructure } from "./tradier-iv-term-structure";
 
 export type { EvidenceRequestToolOutput } from "./evidence-request-output";
@@ -303,6 +309,22 @@ const ZERO_PROOF_DOCUMENTS: Readonly<Record<string, readonly [suffix: string, ti
   "sec-calculation-linkbase": ["calculation-linkbase", "calculation linkbase"],
 };
 
+async function fetchXbrlInstance(
+  ctx: CollectContext,
+  filing: SecFiling,
+  cik: string,
+  instanceFile: string,
+): Promise<{ readonly url: string; readonly instance: FetchTextResult | SourceGap }> {
+  const url = `${filingBaseUrl(String(Number(cik)), filing.accessionNumber)}/${instanceFile}`;
+  const instance = await ctx.request.text({
+    url,
+    adapter: "sec-xbrl-instance",
+    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
+    init: secTextRequestInit(ctx.secUserAgent),
+  });
+  return { url, instance };
+}
+
 // Only a footed face with no borrowing row asks for the XBRL instance, MetaLinks and, for an unlisted credit
 // Fact, the calculation linkbase; every failure is a rejection code beside its adapter's Source Gap.
 async function fetchZeroBorrowingsProof(
@@ -324,13 +346,7 @@ async function fetchZeroBorrowingsProof(
   }
   const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
   const init = secTextRequestInit(ctx.secUserAgent);
-  const url = `${baseUrl}/${instanceFile}`;
-  const instance = await ctx.request.text({
-    url,
-    adapter: "sec-xbrl-instance",
-    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
-    init,
-  });
+  const { url, instance } = await fetchXbrlInstance(ctx, filing, cik, instanceFile);
   if (!isFetchTextResult(instance)) {
     return rejectZeroBorrowings("instance-fetch-failed:sec-xbrl-instance", [], [instance]);
   }
@@ -429,6 +445,155 @@ async function fetchZeroBorrowingsProof(
       };
     }),
     gaps: [],
+  };
+}
+
+// A typed balance-sheet location member naming an issuer concept; the strict instance read decides the rest.
+const LOCATED_EXTENSION_LINE =
+  /typedMember\s+dimension="us-gaap:StatementOfFinancialPositionLocationBalanceAxis"\s*>\s*<[\w-]+:QName\.domain>\s*(?!us-gaap:|srt:|dei:)[\w-]+:\w+/u;
+
+interface ExtensionInvestmentsFetch {
+  readonly metrics: Record<string, number | string>;
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly sources: readonly Source[];
+  readonly gaps: readonly SourceGap[];
+}
+
+function extensionInvestmentsGap(
+  symbol: string,
+  filing: SecFiling,
+  rejects: readonly string[],
+  cause: SourceGapCause,
+): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `${symbol} short-term investments on an issuer-extension balance-sheet line in ${filing.form} ${filing.accessionNumber} not proven from its XBRL instance (${rejects.join("; ")})`,
+    provider: "sec-edgar",
+    capability: "evidence-request",
+    cause,
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
+// Only a filing that locates investments on an extension line asks for its XBRL instance and calculation linkbase.
+async function fetchExtensionInvestmentsProof(
+  ctx: CollectContext,
+  filing: SecFiling,
+  cik: string,
+  html: string,
+  source: Source,
+): Promise<ExtensionInvestmentsFetch> {
+  const instanceFile = filing.primaryDocument.replace(/\.htm$/u, "_htm.xml");
+  const none = { metrics: {}, rawSnapshots: [], sources: [], gaps: [] };
+  if (
+    !isInstrumentCommand(ctx.command) ||
+    (filing.form !== "10-K" && filing.form !== "10-Q") ||
+    instanceFile === filing.primaryDocument ||
+    !LOCATED_EXTENSION_LINE.test(html)
+  ) {
+    return none;
+  }
+  const { symbol } = ctx.command;
+  const fail = (
+    reject: string,
+    cause: SourceGapCause,
+    rawSnapshots: readonly RawSourceSnapshot[] = [],
+    gaps: readonly SourceGap[] = [],
+  ): ExtensionInvestmentsFetch => ({
+    ...none,
+    rawSnapshots,
+    gaps: [...gaps, extensionInvestmentsGap(symbol, filing, [reject], cause)],
+  });
+  if (ctx.extensionShortTermInvestmentsDisabled === true) {
+    return fail("extension short-term investments disabled", "suppressed-by-design");
+  }
+  const { url, instance } = await fetchXbrlInstance(ctx, filing, cik, instanceFile);
+  if (!isFetchTextResult(instance)) {
+    return fail("instance-fetch-failed:sec-xbrl-instance", "fetch-failed", [], [instance]);
+  }
+  let parsed: XbrlInstance;
+  try {
+    parsed = parseXbrlInstance(instance.payload);
+  } catch {
+    return fail("instance-unreadable", "malformed-response", [instance.rawSnapshot]);
+  }
+  if (parsed.calculationLinkbaseRefs.length > 0 || parsed.schemaRefs.length !== 1) {
+    return fail("calculation-linkbase-ambiguous", "provider-data-missing", [instance.rawSnapshot]);
+  }
+  const calc = await fetchCalculationLinkbase(ctx, parsed.schemaRefs[0], url);
+  const rawSnapshots = [instance.rawSnapshot, ...calc.rawSnapshots];
+  if (calc.ambiguous === true) {
+    return fail("calculation-linkbase-ambiguous", "provider-data-missing", rawSnapshots);
+  }
+  if (calc.xml === undefined || calc.xmlUrl === undefined || calc.schema === undefined) {
+    return fail(
+      `instance-fetch-failed:${calc.gaps[0]?.source ?? "sec-calculation-linkbase"}`,
+      calc.gaps.length > 0 ? "fetch-failed" : "provider-data-missing",
+      rawSnapshots,
+      calc.gaps,
+    );
+  }
+  let proof: ReturnType<typeof extensionShortTermInvestmentsProof>;
+  try {
+    const schema = extensionSchema(calc.schema.url, calc.schema.xml);
+    proof = extensionShortTermInvestmentsProof(
+      parsed,
+      {
+        extensionNamespace: schema.namespace,
+        parents: summationParents(calc.xml, calc.xmlUrl, schema),
+      },
+      { file: instanceFile, cik },
+    );
+  } catch {
+    return fail("calculation-linkbase-unreadable", "malformed-response", rawSnapshots);
+  }
+  if ("reject" in proof) {
+    return fail(proof.reject, "provider-data-missing", rawSnapshots);
+  }
+  const documents: readonly FetchedDocument[] = [
+    { url, adapter: "sec-xbrl-instance", rawSnapshot: instance.rawSnapshot },
+    ...calc.documents,
+  ];
+  const { snippet: _snippet, ...filingSource } = source;
+  const sources =
+    proof.proved.length === 0
+      ? []
+      : documents.map(({ url: documentUrl, adapter, rawSnapshot }) => {
+          const [suffix, title] = ZERO_PROOF_DOCUMENTS[adapter]!;
+          return {
+            ...filingSource,
+            id: `${source.id}${EXTENSION_INVESTMENTS_SOURCE_INFIX}${suffix}`,
+            title: `${source.title} ${title}`,
+            url: documentUrl,
+            rawRef: rawSnapshot.id,
+            summary: `${filing.form} ${filing.accessionNumber} ${title} ${documentUrl.slice(documentUrl.lastIndexOf("/") + 1)}: evidence for short-term investments on an issuer-extension balance-sheet line.`,
+          };
+        });
+  return {
+    metrics: Object.fromEntries(
+      proof.proved.flatMap(
+        ({ periodEnd, concept, value, currency, assetsCurrent, proof: text }) => [
+          [
+            `${EXTENSION_SHORT_TERM_INVESTMENTS_PREFIX}${periodEnd}|${currency}|${concept}|${String(assetsCurrent)}`,
+            value,
+          ],
+          [`${EXTENSION_SHORT_TERM_INVESTMENTS_PROOF_PREFIX}${periodEnd}`, text],
+        ],
+      ),
+    ),
+    rawSnapshots,
+    sources,
+    gaps:
+      proof.rejected.length === 0
+        ? []
+        : [
+            extensionInvestmentsGap(
+              symbol,
+              filing,
+              proof.rejected.map(({ periodEnd, reject }) => `${periodEnd}: ${reject}`),
+              "provider-data-missing",
+            ),
+          ],
   };
 }
 
@@ -594,6 +759,7 @@ async function collectSecFiling(
   readonly sources: readonly Source[];
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
+  readonly investmentGaps?: readonly SourceGap[];
   readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
   readonly droppedItemCount: number;
 }> {
@@ -730,17 +896,46 @@ async function collectSecFiling(
     source: built.source,
     metrics: built.item.metrics,
   });
+  const investments = await fetchExtensionInvestmentsProof(
+    ctx,
+    filing,
+    match.cik,
+    selected.payload,
+    built.source,
+  );
   return {
-    rawSnapshots: [...rawSnapshots, ...calc.rawSnapshots, ...zero.rawSnapshots],
-    sources: [built.source, ...zero.sources],
+    rawSnapshots: [
+      ...rawSnapshots,
+      ...calc.rawSnapshots,
+      ...zero.rawSnapshots,
+      ...investments.rawSnapshots,
+    ],
+    sources: [built.source, ...zero.sources, ...investments.sources],
     items: [
       {
         ...built.item,
-        sourceIds: [...built.item.sourceIds, ...zero.sources.map(({ id }) => id)],
-        metrics: { ...built.item.metrics, ...calc.metrics, ...zero.metrics },
+        sourceIds: [
+          ...built.item.sourceIds,
+          ...zero.sources.map(({ id }) => id),
+          ...investments.sources.map(({ id }) => id),
+        ],
+        metrics: {
+          ...built.item.metrics,
+          ...calc.metrics,
+          ...zero.metrics,
+          ...investments.metrics,
+        },
       },
     ],
-    gaps: [...primaryFetchGaps, ...exhibitGaps, ...omissionGaps, ...calc.gaps, ...zero.gaps],
+    gaps: [
+      ...primaryFetchGaps,
+      ...exhibitGaps,
+      ...omissionGaps,
+      ...calc.gaps,
+      ...zero.gaps,
+      ...investments.gaps,
+    ],
+    investmentGaps: investments.gaps,
     sanitizationEntries: built.sanitizationEntries,
     droppedItemCount: 0,
   };
@@ -775,7 +970,9 @@ export async function collectSecPeriodicFilingItems(
     items: results.flatMap((result) => result.items),
     gaps: results.flatMap((result) =>
       result.items.some(({ metrics }) => metrics?.[EXTENSION_CAPEX_CHECKED_KEY] === "true")
-        ? result.gaps.filter(({ source }) => DA_CALC_ADAPTERS.has(source))
+        ? result.gaps.filter(
+            (gap) => DA_CALC_ADAPTERS.has(gap.source) || result.investmentGaps?.includes(gap),
+          )
         : result.gaps,
     ),
   };

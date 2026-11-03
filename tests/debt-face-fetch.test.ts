@@ -253,6 +253,7 @@ function ctx(text: SourceRequestExecutor["text"]): CollectContext {
     newsLimit: 2,
     cryptoMoverLimit: 2,
     request: {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async () => {
         throw new Error("unexpected json fetch");
       },
@@ -437,6 +438,7 @@ function clfdContext(served: Served, adapters: string[] = []): CollectContext {
     cryptoMoverLimit: 0,
     secUserAgent: "test-agent",
     request: {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async ({ adapter, url }) => respond(adapter, url) as never,
       text: async ({ adapter, url }) => respond(adapter, url) as never,
     },
@@ -904,6 +906,7 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       ...context,
       ...(disabled ? { taggedZeroDebtDisabled: true } : {}),
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: request.json,
         // The 10-K's primary document is not this 10-Q's face.
         text: async (input) =>

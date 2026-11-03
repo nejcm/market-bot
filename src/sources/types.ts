@@ -55,6 +55,8 @@ export type FetchTextRequestFn = (request: SourceRequest) => Promise<FetchTextRe
 export interface SourceRequestExecutor {
   readonly json: FetchJsonRequestFn;
   readonly text: FetchTextRequestFn;
+  // The base fetch, for follow-up calls that must stay inside capture and replay.
+  readonly fetch: FetchLike;
 }
 
 export interface CollectContext {

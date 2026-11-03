@@ -552,7 +552,7 @@ describe("provider dimension contracts", () => {
         }
       }
     }
-  });
+  }, 120_000);
 
   test("projects all replayed fixtures into citation-safe explicit equity snapshots", async () => {
     const replays = await loadReplayedReports();

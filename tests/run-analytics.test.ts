@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readRecordedBody } from "../src/replay/body-file";
 import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
 import { loadFixture } from "./support/run-fixtures";
 import { readPredictions } from "../src/research/report-assembly";
@@ -131,6 +132,7 @@ async function firecrawlFallbackFromProducer(options: {
 }): Promise<WebGatherFallbackAudit> {
   const fetchedAt = "2026-05-01T00:00:00.000Z";
   const request: SourceRequestExecutor = {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async ({ adapter }) => {
       if (adapter === "exa-search") {
         return { source: "exa-search", message: "status 500", cause: "fetch-failed" };
@@ -891,12 +893,14 @@ describe("forecast quality telemetry (3.2)", () => {
   });
   const referenceSources = collectedSourceBundle({ verifiedMarketSnapshot: referenceSnapshot });
 
-  test("equity-amd-deep has one near-base-rate Prediction on its recorded ±1σ band", async () => {
+  test("equity-amd-deep reads its recorded p=0.46 ±1σ band Prediction as informative", async () => {
     const fixture = await loadFixture("equity-amd-deep");
     const [, chart] = Object.entries(fixture.dataCassette.entries).find(([request]) =>
       request.includes("/chart/AMD?"),
     )!;
-    const payload: unknown = JSON.parse(chart.body);
+    const payload: unknown = JSON.parse(
+      await readRecordedBody(fixture.dir, chart.bodyFile!, chart.sha256),
+    );
     const { snapshot } = verifiedMarketSnapshotFromChart(
       {
         payload,
@@ -912,15 +916,20 @@ describe("forecast quality telemetry (3.2)", () => {
     );
     expect(snapshot).toBeDefined();
     const output = JSON.parse(
-      fixture.llmCassette.entries["final-synthesis|gpt-6.1-sol"]![0]!.content,
+      fixture.llmCassette.entries["final-synthesis|gpt-6-luna"]![0]!.content,
     );
     const { predictions, errors } = readPredictions(
       output.predictions,
-      new Set(["verified-snapshot-AMD"]),
+      new Set([
+        "verified-snapshot-AMD",
+        "market-yahoo-equity-amd",
+        "extended-finnhub-events-amd",
+        "web-amd-5df62913",
+      ]),
     );
     expect(errors).toEqual([]);
     expect(predictions.map(({ measurableAs }) => measurableAs)).toEqual([
-      "close(AMD, +5) outside [566.13, 653.18]",
+      "close(AMD, +10) outside [447.77, 569.1]",
     ]);
     const { predictions: analytics } = buildRunAnalytics({
       report: researchReport({ symbol: "AMD", predictions }),
@@ -931,8 +940,8 @@ describe("forecast quality telemetry (3.2)", () => {
       targetPredictions: 1,
       outcomes: [],
     });
-    expect(analytics.nearBaseRateCount).toBe(1);
-    expect(analytics.informativeCount).toBe(0);
+    expect(analytics.nearBaseRateCount).toBe(0);
+    expect(analytics.informativeCount).toBe(1);
   });
 
   test("matched range telemetry uses the inclusive 0.22–0.42 band", () => {

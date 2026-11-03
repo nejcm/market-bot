@@ -514,6 +514,7 @@ describe("peer universe refresh policy", () => {
         },
         model: "test-model",
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async () => ({
             source: "sec-edgar",
             message: "SEC tickers timeout",

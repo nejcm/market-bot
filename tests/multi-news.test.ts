@@ -49,6 +49,7 @@ function context(): CollectContext {
     newsLimit: 4,
     cryptoMoverLimit: 0,
     request: {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async () => {
         throw new Error("not used");
       },
@@ -382,6 +383,7 @@ describe("multi-news", () => {
         { symbol: "AVGO", name: "Broadcom" },
       ],
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async () => {
           throw new Error("not used");
         },
@@ -443,6 +445,7 @@ describe("multi-news", () => {
         { symbol: "VTWO", name: "Vanguard Russell 2000 ETF" },
       ],
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async () => {
           throw new Error("not used");
         },

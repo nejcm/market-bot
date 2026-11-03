@@ -177,6 +177,7 @@ describe("listed universe", () => {
 
   test("emits source gaps for listed-universe fetch and malformed failures", async () => {
     const request: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async () => {
         throw new Error("unexpected json fetch");
       },

@@ -80,6 +80,7 @@ function rawJson(adapter: string, payload: unknown, rawFetchedAt = fetchedAt): F
 
 function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async () => {
       throw new Error("unexpected json fetch");
     },
@@ -381,13 +382,15 @@ describe("source normalization", () => {
       join(import.meta.dir, "fixtures", "runs", "equity-nbis-deep", "data-cassette.json"),
     ).json()) as { readonly entries: Record<string, { readonly body: string }> };
     const body =
-      cassette.entries["GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=NBIS"]?.body;
+      cassette.entries[
+        "GET  https://query1.finance.yahoo.com/v7/finance/quote?crumb=fixture-crumb&symbols=NBIS"
+      ]?.body;
     expect(body).toBeDefined();
 
     const [snapshot] = normalizeYahooQuotePayload(JSON.parse(body!), "equity", fetchedAt);
 
-    // The captured body carries regularMarketTime as 1784736964 epoch seconds.
-    expect(snapshot?.quoteTimeUtc).toBe("2026-07-22T16:16:04.000Z");
+    // The captured body carries regularMarketTime as 1793739601 epoch seconds.
+    expect(snapshot?.quoteTimeUtc).toBe("2026-11-03T21:00:01.000Z");
     // The quote's own time must not collapse onto the fetch time; that collapse is the bug.
     expect(snapshot?.observedAt).toBe(fetchedAt);
     expect(snapshot?.quoteTimeUtc).not.toBe(snapshot?.observedAt);

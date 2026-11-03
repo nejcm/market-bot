@@ -394,6 +394,7 @@ function requestExecutor(
     "0000000004": "VRT",
   };
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async ({ adapter, url }) => {
       if (adapter === "yahoo-valuation-peers") {
         return rawJson(adapter, yahooPayload(options.quoteOverrides), options.quoteFetchedAt);
@@ -447,6 +448,7 @@ function astsRequestExecutor(
   } = {},
 ): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async ({ adapter, url }) => {
       if (adapter === "yahoo-valuation-peers") {
         return rawJson(adapter, {
@@ -760,6 +762,7 @@ describe("collectValuationComps", () => {
     // Gaps carry their owning symbol.
     const base = requestExecutor();
     const failingQuotes: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async (request) =>
         request.adapter === "yahoo-valuation-peers"
           ? sourceGap({
@@ -2536,6 +2539,7 @@ describe("collectValuationComps", () => {
       "0000000014": "DELL",
     };
     const aaplExecutor: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async ({ adapter, url }) => {
         if (adapter === "yahoo-valuation-peers") {
           return rawJson(adapter, {

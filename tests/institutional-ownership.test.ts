@@ -40,6 +40,7 @@ function context(input: {
     cryptoMoverLimit: 1,
     ...(input.token !== undefined ? { finnhubApiToken: input.token } : {}),
     request: input.request ?? {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async () => {
         throw new Error("unexpected request");
       },
@@ -85,6 +86,7 @@ describe("institutional ownership", () => {
       context({
         token: "fixture-token",
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async ({ adapter }) =>
             adapter === "finnhub-institutional-ownership"
               ? rawJson(adapter, {
@@ -173,6 +175,7 @@ describe("institutional ownership", () => {
       context({
         token: "fixture-token",
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async ({ adapter }) =>
             sourceGap({
               source: adapter,

@@ -15,12 +15,18 @@ export interface ReplaySession {
   readonly offline: boolean;
   readonly checkpoint?: (input: unknown) => void;
   readonly redact?: (text: string) => string;
+  readonly source?: ReplaySession;
 }
 
 const sessions = new AsyncLocalStorage<ReplaySession>();
 
 export function withReplaySession<T>(session: ReplaySession, run: () => T): T {
-  return sessions.run(session, run);
+  const outer = sessions.getStore();
+  // A capture nested in a replay records the state that replay serves instead of reading live stores.
+  return sessions.run(
+    session.mode === "record" && outer?.mode === "replay" ? { ...session, source: outer } : session,
+    run,
+  );
 }
 
 export function isOfflineReplay(): boolean {
@@ -89,7 +95,8 @@ export function replayValueSync<T>(key: string, read: () => T): T {
   if (session.mode === "replay") {
     return recordedValue<T>(session, key);
   }
-  const value = read();
+  const { source } = session;
+  const value = source === undefined ? read() : recordedValue<T>(source, key);
   try {
     const recorded = JSON.parse(
       session.redact?.(JSON.stringify({ value })) ?? JSON.stringify({ value }),
@@ -122,7 +129,9 @@ export async function replayValue<T>(key: string, read: () => Promise<T>): Promi
   const entries = (session.state.values[key] ??= []);
   const index = entries.length;
   entries.push({});
-  const value = await read().catch((error: unknown) => {
+  const { source } = session;
+  const reading = source === undefined ? read() : Promise.try(() => recordedValue<T>(source, key));
+  const value = await reading.catch((error: unknown) => {
     entries[index] = {
       error:
         session.redact?.(error instanceof Error ? error.message : String(error)) ??

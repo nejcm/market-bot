@@ -6,6 +6,7 @@ const fetchedAt = "2026-06-23T00:00:00.000Z";
 
 function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async () => {
       throw new Error("must not fetch for a non-US listing");
     },

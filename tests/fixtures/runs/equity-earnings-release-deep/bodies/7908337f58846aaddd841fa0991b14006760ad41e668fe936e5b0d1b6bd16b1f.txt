@@ -1,0 +1,600 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--XBRL Document Created with the Workiva Platform-->
+<!--Copyright 2026 Workiva-->
+<!--r:01a05f0c-3a73-7e5d-aed9-9f10051a33f2,g:3f00c57d-e212-416f-a7c8-98ca7fe1bcf6-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:aapl="http://www.apple.com/20260926" xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:dtr-types="http://www.xbrl.org/dtr/type/2024-01-31" xmlns:xbrldt="http://xbrl.org/2005/xbrldt" attributeFormDefault="unqualified" elementFormDefault="qualified" targetNamespace="http://www.apple.com/20260926">
+  <xs:import namespace="http://fasb.org/srt/2026" schemaLocation="https://xbrl.fasb.org/srt/2026/elts/srt-2026.xsd"/>
+  <xs:import namespace="http://fasb.org/us-gaap/2026" schemaLocation="https://xbrl.fasb.org/us-gaap/2026/elts/us-gaap-2026.xsd"/>
+  <xs:import namespace="http://www.xbrl.org/2003/instance" schemaLocation="http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd"/>
+  <xs:import namespace="http://www.xbrl.org/2003/linkbase" schemaLocation="http://www.xbrl.org/2003/xbrl-linkbase-2003-12-31.xsd"/>
+  <xs:import namespace="http://www.xbrl.org/dtr/type/2024-01-31" schemaLocation="https://www.xbrl.org/dtr/type/2024-01-31/types.xsd"/>
+  <xs:import namespace="http://xbrl.org/2005/xbrldt" schemaLocation="http://www.xbrl.org/2005/xbrldt-2005.xsd"/>
+  <xs:import namespace="http://xbrl.sec.gov/country/2026" schemaLocation="https://xbrl.sec.gov/country/2026/country-2026.xsd"/>
+  <xs:import namespace="http://xbrl.sec.gov/cyd-af-sub/2026" schemaLocation="https://xbrl.sec.gov/cyd/2026/cyd-af-sub-2026.xsd"/>
+  <xs:import namespace="http://xbrl.sec.gov/dei/2026" schemaLocation="https://xbrl.sec.gov/dei/2026/dei-2026.xsd"/>
+  <xs:import namespace="http://xbrl.sec.gov/ecd/2026" schemaLocation="https://xbrl.sec.gov/ecd/2026/ecd-2026.xsd"/>
+  <xs:annotation>
+    <xs:appinfo>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="aapl-20260926_pre.xml" xlink:role="http://www.xbrl.org/2003/role/presentationLinkbaseRef" xlink:type="simple"/>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="aapl-20260926_def.xml" xlink:role="http://www.xbrl.org/2003/role/definitionLinkbaseRef" xlink:type="simple"/>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="aapl-20260926_lab.xml" xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef" xlink:type="simple"/>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="aapl-20260926_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef" xlink:type="simple"/>
+      <link:roleType id="CoverPage" roleURI="http://www.apple.com/role/CoverPage">
+        <link:definition>0000001 - Document - Cover Page</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AuditorInformation" roleURI="http://www.apple.com/role/AuditorInformation">
+        <link:definition>0000002 - Document - Auditor Information</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CONSOLIDATEDSTATEMENTSOFOPERATIONS" roleURI="http://www.apple.com/role/CONSOLIDATEDSTATEMENTSOFOPERATIONS">
+        <link:definition>9952151 - Statement - CONSOLIDATED STATEMENTS OF OPERATIONS</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CONSOLIDATEDSTATEMENTSOFCOMPREHENSIVEINCOME" roleURI="http://www.apple.com/role/CONSOLIDATEDSTATEMENTSOFCOMPREHENSIVEINCOME">
+        <link:definition>9952152 - Statement - CONSOLIDATED STATEMENTS OF COMPREHENSIVE INCOME</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CONSOLIDATEDBALANCESHEETS" roleURI="http://www.apple.com/role/CONSOLIDATEDBALANCESHEETS">
+        <link:definition>9952153 - Statement - CONSOLIDATED BALANCE SHEETS</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CONSOLIDATEDBALANCESHEETSParenthetical" roleURI="http://www.apple.com/role/CONSOLIDATEDBALANCESHEETSParenthetical">
+        <link:definition>9952154 - Statement - CONSOLIDATED BALANCE SHEETS (Parenthetical)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CONSOLIDATEDSTATEMENTSOFSHAREHOLDERSEQUITY" roleURI="http://www.apple.com/role/CONSOLIDATEDSTATEMENTSOFSHAREHOLDERSEQUITY">
+        <link:definition>9952155 - Statement - CONSOLIDATED STATEMENTS OF SHAREHOLDERS' EQUITY</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CONSOLIDATEDSTATEMENTSOFCASHFLOWS" roleURI="http://www.apple.com/role/CONSOLIDATEDSTATEMENTSOFCASHFLOWS">
+        <link:definition>9952156 - Statement - CONSOLIDATED STATEMENTS OF CASH FLOWS</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SummaryofSignificantAccountingPolicies" roleURI="http://www.apple.com/role/SummaryofSignificantAccountingPolicies">
+        <link:definition>9952157 - Disclosure - Summary of Significant Accounting Policies</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="Revenue" roleURI="http://www.apple.com/role/Revenue">
+        <link:definition>9952158 - Disclosure - Revenue</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="EarningsPerShare" roleURI="http://www.apple.com/role/EarningsPerShare">
+        <link:definition>9952159 - Disclosure - Earnings Per Share</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstruments" roleURI="http://www.apple.com/role/FinancialInstruments">
+        <link:definition>9952160 - Disclosure - Financial Instruments</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="PropertyPlantandEquipment" roleURI="http://www.apple.com/role/PropertyPlantandEquipment">
+        <link:definition>9952161 - Disclosure - Property, Plant and Equipment</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IntangibleAssets" roleURI="http://www.apple.com/role/IntangibleAssets">
+        <link:definition>9952162 - Disclosure - Intangible Assets</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ConsolidatedFinancialStatementDetails" roleURI="http://www.apple.com/role/ConsolidatedFinancialStatementDetails">
+        <link:definition>9952163 - Disclosure - Consolidated Financial Statement Details</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxes" roleURI="http://www.apple.com/role/IncomeTaxes">
+        <link:definition>9952164 - Disclosure - Income Taxes</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="Leases" roleURI="http://www.apple.com/role/Leases">
+        <link:definition>9952165 - Disclosure - Leases</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="Debt" roleURI="http://www.apple.com/role/Debt">
+        <link:definition>9952166 - Disclosure - Debt</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareholdersEquity" roleURI="http://www.apple.com/role/ShareholdersEquity">
+        <link:definition>9952167 - Disclosure - Shareholders' Equity</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareBasedCompensation" roleURI="http://www.apple.com/role/ShareBasedCompensation">
+        <link:definition>9952168 - Disclosure - Share-Based Compensation</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommitmentsContingenciesandSupplyConcentrations" roleURI="http://www.apple.com/role/CommitmentsContingenciesandSupplyConcentrations">
+        <link:definition>9952169 - Disclosure - Commitments, Contingencies and Supply Concentrations</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentInformationandGeographicData" roleURI="http://www.apple.com/role/SegmentInformationandGeographicData">
+        <link:definition>9952170 - Disclosure - Segment Information and Geographic Data</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SummaryofSignificantAccountingPoliciesPolicies" roleURI="http://www.apple.com/role/SummaryofSignificantAccountingPoliciesPolicies">
+        <link:definition>9955511 - Disclosure - Summary of Significant Accounting Policies (Policies)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="RevenueTables" roleURI="http://www.apple.com/role/RevenueTables">
+        <link:definition>9955512 - Disclosure - Revenue (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="EarningsPerShareTables" roleURI="http://www.apple.com/role/EarningsPerShareTables">
+        <link:definition>9955513 - Disclosure - Earnings Per Share (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsTables" roleURI="http://www.apple.com/role/FinancialInstrumentsTables">
+        <link:definition>9955514 - Disclosure - Financial Instruments (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="PropertyPlantandEquipmentTables" roleURI="http://www.apple.com/role/PropertyPlantandEquipmentTables">
+        <link:definition>9955515 - Disclosure - Property, Plant and Equipment (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IntangibleAssetsTables" roleURI="http://www.apple.com/role/IntangibleAssetsTables">
+        <link:definition>9955516 - Disclosure - Intangible Assets (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ConsolidatedFinancialStatementDetailsTables" roleURI="http://www.apple.com/role/ConsolidatedFinancialStatementDetailsTables">
+        <link:definition>9955517 - Disclosure - Consolidated Financial Statement Details (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesTables" roleURI="http://www.apple.com/role/IncomeTaxesTables">
+        <link:definition>9955518 - Disclosure - Income Taxes (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesTables" roleURI="http://www.apple.com/role/LeasesTables">
+        <link:definition>9955519 - Disclosure - Leases (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtTables" roleURI="http://www.apple.com/role/DebtTables">
+        <link:definition>9955520 - Disclosure - Debt (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareholdersEquityTables" roleURI="http://www.apple.com/role/ShareholdersEquityTables">
+        <link:definition>9955521 - Disclosure - Shareholders' Equity (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareBasedCompensationTables" roleURI="http://www.apple.com/role/ShareBasedCompensationTables">
+        <link:definition>9955522 - Disclosure - Share-Based Compensation (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommitmentsContingenciesandSupplyConcentrationsTables" roleURI="http://www.apple.com/role/CommitmentsContingenciesandSupplyConcentrationsTables">
+        <link:definition>9955523 - Disclosure - Commitments, Contingencies and Supply Concentrations (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentInformationandGeographicDataTables" roleURI="http://www.apple.com/role/SegmentInformationandGeographicDataTables">
+        <link:definition>9955524 - Disclosure - Segment Information and Geographic Data (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="RevenueDisaggregatedNetSalesandPortionofNetSalesThatWasPreviouslyDeferredDetails" roleURI="http://www.apple.com/role/RevenueDisaggregatedNetSalesandPortionofNetSalesThatWasPreviouslyDeferredDetails">
+        <link:definition>9955525 - Disclosure - Revenue - Disaggregated Net Sales and Portion of Net Sales That Was Previously Deferred (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="RevenueAdditionalInformationDetails" roleURI="http://www.apple.com/role/RevenueAdditionalInformationDetails">
+        <link:definition>9955526 - Disclosure - Revenue - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="RevenueDeferredRevenueExpectedTimingofRealizationDetails" roleURI="http://www.apple.com/role/RevenueDeferredRevenueExpectedTimingofRealizationDetails">
+        <link:definition>9955527 - Disclosure - Revenue - Deferred Revenue, Expected Timing of Realization (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="RevenueDeferredRevenueExpectedTimingofRealizationDetails_1" roleURI="http://www.apple.com/role/RevenueDeferredRevenueExpectedTimingofRealizationDetails_1">
+        <link:definition>9955527 - Disclosure - Revenue - Deferred Revenue, Expected Timing of Realization (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="EarningsPerShareComputationofBasicandDilutedEarningsPerShareDetails" roleURI="http://www.apple.com/role/EarningsPerShareComputationofBasicandDilutedEarningsPerShareDetails">
+        <link:definition>9955528 - Disclosure - Earnings Per Share - Computation of Basic and Diluted Earnings Per Share (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsCashCashEquivalentsandMarketableSecuritiesDetails" roleURI="http://www.apple.com/role/FinancialInstrumentsCashCashEquivalentsandMarketableSecuritiesDetails">
+        <link:definition>9955529 - Disclosure - Financial Instruments - Cash, Cash Equivalents and Marketable Securities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsCashCashEquivalentsandMarketableSecuritiesDetails_1" roleURI="http://www.apple.com/role/FinancialInstrumentsCashCashEquivalentsandMarketableSecuritiesDetails_1">
+        <link:definition>9955529 - Disclosure - Financial Instruments - Cash, Cash Equivalents and Marketable Securities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsAdditionalInformationDetails" roleURI="http://www.apple.com/role/FinancialInstrumentsAdditionalInformationDetails">
+        <link:definition>9955530 - Disclosure - Financial Instruments - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsNotionalAmountsAssociatedwithDerivativeInstrumentsDetails" roleURI="http://www.apple.com/role/FinancialInstrumentsNotionalAmountsAssociatedwithDerivativeInstrumentsDetails">
+        <link:definition>9955531 - Disclosure - Financial Instruments - Notional Amounts Associated with Derivative Instruments (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="PropertyPlantandEquipmentGrossPropertyPlantandEquipmentbyMajorAssetClassandAccumulatedDepreciationDetails" roleURI="http://www.apple.com/role/PropertyPlantandEquipmentGrossPropertyPlantandEquipmentbyMajorAssetClassandAccumulatedDepreciationDetails">
+        <link:definition>9955532 - Disclosure - Property, Plant and Equipment - Gross Property, Plant and Equipment by Major Asset Class and Accumulated Depreciation (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="PropertyPlantandEquipmentAdditionalInformationDetails" roleURI="http://www.apple.com/role/PropertyPlantandEquipmentAdditionalInformationDetails">
+        <link:definition>9955533 - Disclosure - Property, Plant, and Equipment - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IntangibleAssetsComponentsofIntangibleAssetBalancesDetails" roleURI="http://www.apple.com/role/IntangibleAssetsComponentsofIntangibleAssetBalancesDetails">
+        <link:definition>9955534 - Disclosure - Intangible Assets - Components of Intangible Asset Balances (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IntangibleAssetsComponentsofIntangibleAssetBalancesDetails_1" roleURI="http://www.apple.com/role/IntangibleAssetsComponentsofIntangibleAssetBalancesDetails_1">
+        <link:definition>9955534 - Disclosure - Intangible Assets - Components of Intangible Asset Balances (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IntangibleAssetsAdditionalInformationDetails" roleURI="http://www.apple.com/role/IntangibleAssetsAdditionalInformationDetails">
+        <link:definition>9955535 - Disclosure - Intangible Assets - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IntangibleAssetsExpectedAnnualAmortizationExpenseDetails" roleURI="http://www.apple.com/role/IntangibleAssetsExpectedAnnualAmortizationExpenseDetails">
+        <link:definition>9955536 - Disclosure - Intangible Assets - Expected Annual Amortization Expense (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ConsolidatedFinancialStatementDetailsInventoriesDetails" roleURI="http://www.apple.com/role/ConsolidatedFinancialStatementDetailsInventoriesDetails">
+        <link:definition>9955537 - Disclosure - Consolidated Financial Statement Details - Inventories (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ConsolidatedFinancialStatementDetailsOtherNonCurrentAssetsDetails" roleURI="http://www.apple.com/role/ConsolidatedFinancialStatementDetailsOtherNonCurrentAssetsDetails">
+        <link:definition>9955538 - Disclosure - Consolidated Financial Statement Details - Other Non-Current Assets (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ConsolidatedFinancialStatementDetailsOtherCurrentLiabilitiesDetails" roleURI="http://www.apple.com/role/ConsolidatedFinancialStatementDetailsOtherCurrentLiabilitiesDetails">
+        <link:definition>9955539 - Disclosure - Consolidated Financial Statement Details - Other Current Liabilities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesAdditionalInformationDetails" roleURI="http://www.apple.com/role/IncomeTaxesAdditionalInformationDetails">
+        <link:definition>9955540 - Disclosure - Income Taxes - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesIncomeBeforeProvisionforIncomeTaxesDetails" roleURI="http://www.apple.com/role/IncomeTaxesIncomeBeforeProvisionforIncomeTaxesDetails">
+        <link:definition>9955541 - Disclosure - Income Taxes - Income Before Provision for Income Taxes (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesProvisionforIncomeTaxesDetails" roleURI="http://www.apple.com/role/IncomeTaxesProvisionforIncomeTaxesDetails">
+        <link:definition>9955542 - Disclosure - Income Taxes - Provision for Income Taxes (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesReconciliationofProvisionforIncomeTaxestoAmountComputedbyApplyingtheStatutoryFederalIncomeTaxRatetoIncomeBeforeProvisionforIncomeTaxesCurrentYearDetails" roleURI="http://www.apple.com/role/IncomeTaxesReconciliationofProvisionforIncomeTaxestoAmountComputedbyApplyingtheStatutoryFederalIncomeTaxRatetoIncomeBeforeProvisionforIncomeTaxesCurrentYearDetails">
+        <link:definition>9955543 - Disclosure - Income Taxes - Reconciliation of Provision for Income Taxes to Amount Computed by Applying the Statutory Federal Income Tax Rate to Income Before Provision for Income Taxes, Current Year (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesReconciliationofProvisionforIncomeTaxestoAmountComputedbyApplyingtheStatutoryFederalIncomeTaxRatetoIncomeBeforeProvisionforIncomeTaxesPriorYearsDetails" roleURI="http://www.apple.com/role/IncomeTaxesReconciliationofProvisionforIncomeTaxestoAmountComputedbyApplyingtheStatutoryFederalIncomeTaxRatetoIncomeBeforeProvisionforIncomeTaxesPriorYearsDetails">
+        <link:definition>9955544 - Disclosure - Income Taxes - Reconciliation of Provision for Income Taxes to Amount Computed by Applying the Statutory Federal Income Tax Rate to Income Before Provision for Income Taxes, Prior Years (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesSignificantComponentsofDeferredTaxAssetsandLiabilitiesDetails" roleURI="http://www.apple.com/role/IncomeTaxesSignificantComponentsofDeferredTaxAssetsandLiabilitiesDetails">
+        <link:definition>9955545 - Disclosure - Income Taxes - Significant Components of Deferred Tax Assets and Liabilities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesAggregateChangesinGrossUnrecognizedTaxBenefitsDetails" roleURI="http://www.apple.com/role/IncomeTaxesAggregateChangesinGrossUnrecognizedTaxBenefitsDetails">
+        <link:definition>9955546 - Disclosure - Income Taxes - Aggregate Changes in Gross Unrecognized Tax Benefits (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesCashPaidforIncomeTaxesDetails" roleURI="http://www.apple.com/role/IncomeTaxesCashPaidforIncomeTaxesDetails">
+        <link:definition>9955547 - Disclosure - Income Taxes - Cash Paid for Income Taxes (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesAdditionalInformationDetails" roleURI="http://www.apple.com/role/LeasesAdditionalInformationDetails">
+        <link:definition>9955548 - Disclosure - Leases - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesROUAssetsandLeaseLiabilitiesDetails" roleURI="http://www.apple.com/role/LeasesROUAssetsandLeaseLiabilitiesDetails">
+        <link:definition>9955549 - Disclosure - Leases - ROU Assets and Lease Liabilities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesLeaseLiabilityMaturitiesDetails" roleURI="http://www.apple.com/role/LeasesLeaseLiabilityMaturitiesDetails">
+        <link:definition>9955550 - Disclosure - Leases - Lease Liability Maturities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesLeaseLiabilityMaturitiesDetails_1" roleURI="http://www.apple.com/role/LeasesLeaseLiabilityMaturitiesDetails_1">
+        <link:definition>9955550 - Disclosure - Leases - Lease Liability Maturities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesLeaseLiabilityMaturitiesDetails_2" roleURI="http://www.apple.com/role/LeasesLeaseLiabilityMaturitiesDetails_2">
+        <link:definition>9955550 - Disclosure - Leases - Lease Liability Maturities (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtAdditionalInformationDetails" roleURI="http://www.apple.com/role/DebtAdditionalInformationDetails">
+        <link:definition>9955551 - Disclosure - Debt - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtSummaryofCashFlowsAssociatedwithCommercialPaperDetails" roleURI="http://www.apple.com/role/DebtSummaryofCashFlowsAssociatedwithCommercialPaperDetails">
+        <link:definition>9955552 - Disclosure - Debt - Summary of Cash Flows Associated with Commercial Paper (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtSummaryofTermDebtDetails" roleURI="http://www.apple.com/role/DebtSummaryofTermDebtDetails">
+        <link:definition>9955553 - Disclosure - Debt - Summary of Term Debt (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtSummaryofTermDebtDetails_1" roleURI="http://www.apple.com/role/DebtSummaryofTermDebtDetails_1">
+        <link:definition>9955553 - Disclosure - Debt - Summary of Term Debt (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtFuturePrincipalPaymentsforTermDebtDetails" roleURI="http://www.apple.com/role/DebtFuturePrincipalPaymentsforTermDebtDetails">
+        <link:definition>9955554 - Disclosure - Debt - Future Principal Payments for Term Debt (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareholdersEquityAdditionalInformationDetails" roleURI="http://www.apple.com/role/ShareholdersEquityAdditionalInformationDetails">
+        <link:definition>9955555 - Disclosure - Shareholders' Equity - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareholdersEquitySharesofCommonStockDetails" roleURI="http://www.apple.com/role/ShareholdersEquitySharesofCommonStockDetails">
+        <link:definition>9955556 - Disclosure - Shareholders' Equity - Shares of Common Stock (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareBasedCompensationAdditionalInformationDetails" roleURI="http://www.apple.com/role/ShareBasedCompensationAdditionalInformationDetails">
+        <link:definition>9955557 - Disclosure - Share-Based Compensation - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareBasedCompensationRestrictedStockUnitActivityandRelatedInformationDetails" roleURI="http://www.apple.com/role/ShareBasedCompensationRestrictedStockUnitActivityandRelatedInformationDetails">
+        <link:definition>9955558 - Disclosure - Share-Based Compensation - Restricted Stock Unit Activity and Related Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ShareBasedCompensationSummaryofShareBasedCompensationExpenseandtheRelatedIncomeTaxBenefitDetails" roleURI="http://www.apple.com/role/ShareBasedCompensationSummaryofShareBasedCompensationExpenseandtheRelatedIncomeTaxBenefitDetails">
+        <link:definition>9955559 - Disclosure - Share-Based Compensation - Summary of Share-Based Compensation Expense and the Related Income Tax Benefit (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommitmentsContingenciesandSupplyConcentrationsFuturePaymentsUnderUnconditionalPurchaseObligationsDetails" roleURI="http://www.apple.com/role/CommitmentsContingenciesandSupplyConcentrationsFuturePaymentsUnderUnconditionalPurchaseObligationsDetails">
+        <link:definition>9955560 - Disclosure - Commitments, Contingencies and Supply Concentrations - Future Payments Under Unconditional Purchase Obligations (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentInformationandGeographicDataAdditionalInformationDetails" roleURI="http://www.apple.com/role/SegmentInformationandGeographicDataAdditionalInformationDetails">
+        <link:definition>9955561 - Disclosure - Segment Information and Geographic Data - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentInformationandGeographicDataInformationbyReportableSegmentDetails" roleURI="http://www.apple.com/role/SegmentInformationandGeographicDataInformationbyReportableSegmentDetails">
+        <link:definition>9955562 - Disclosure - Segment Information and Geographic Data - Information by Reportable Segment (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentInformationandGeographicDataNetSalesforCountriesthatIndividuallyAccountedforMorethan10oftheTotalDetails" roleURI="http://www.apple.com/role/SegmentInformationandGeographicDataNetSalesforCountriesthatIndividuallyAccountedforMorethan10oftheTotalDetails">
+        <link:definition>9955563 - Disclosure - Segment Information and Geographic Data - Net Sales for Countries that Individually Accounted for More than 10% of the Total (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentInformationandGeographicDataLongLivedAssetsforCountriesthatIndividuallyAccountedforMorethan10oftheTotalDetails" roleURI="http://www.apple.com/role/SegmentInformationandGeographicDataLongLivedAssetsforCountriesthatIndividuallyAccountedforMorethan10oftheTotalDetails">
+        <link:definition>9955564 - Disclosure - Segment Information and Geographic Data - Long-Lived Assets for Countries that Individually Accounted for More than 10% of the Total (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element id="aapl_A1.625NotesDue2026Member" abstract="true" name="A1.625NotesDue2026Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_A2.000NotesDue2027Member" abstract="true" name="A2.000NotesDue2027Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_A1.375NotesDue2029Member" abstract="true" name="A1.375NotesDue2029Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_A3.050NotesDue2029Member" abstract="true" name="A3.050NotesDue2029Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_A0.500Notesdue2031Member" abstract="true" name="A0.500Notesdue2031Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_A3.600NotesDue2042Member" abstract="true" name="A3.600NotesDue2042Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_AuditorInformationAbstract" abstract="true" name="AuditorInformationAbstract" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:stringItemType"/>
+  <xs:element id="aapl_OtherComprehensiveIncomeLossDerivativeInstrumentGainLossbeforeReclassificationafterTax" abstract="false" name="OtherComprehensiveIncomeLossDerivativeInstrumentGainLossbeforeReclassificationafterTax" nillable="true" xbrli:periodType="duration" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_OtherComprehensiveIncomeLossDerivativeInstrumentGainLossReclassificationAfterTax" abstract="false" name="OtherComprehensiveIncomeLossDerivativeInstrumentGainLossReclassificationAfterTax" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_OtherComprehensiveIncomeLossDerivativeInstrumentGainLossafterReclassificationandTax" abstract="false" name="OtherComprehensiveIncomeLossDerivativeInstrumentGainLossafterReclassificationandTax" nillable="true" xbrli:periodType="duration" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_IntangibleAssetExcludingGoodwillAfterAccumulatedAmortizationNoncurrent" abstract="false" name="IntangibleAssetExcludingGoodwillAfterAccumulatedAmortizationNoncurrent" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_FinancialInstrumentsAbstract" abstract="true" name="FinancialInstrumentsAbstract" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:stringItemType"/>
+  <xs:element id="aapl_DisaggregatedNetSalesAndPortionOfNetSalesThatWasPreviouslyDeferredTableTextBlock" abstract="false" name="DisaggregatedNetSalesAndPortionOfNetSalesThatWasPreviouslyDeferredTableTextBlock" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:textBlockItemType"/>
+  <xs:element id="aapl_OperatingandFinanceLeaseRightofUseAssetsandLeaseLiabilitiesTableTextBlock" abstract="false" name="OperatingandFinanceLeaseRightofUseAssetsandLeaseLiabilitiesTableTextBlock" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:textBlockItemType"/>
+  <xs:element id="aapl_CommercialPaperCashFlowSummaryTableTextBlock" abstract="false" name="CommercialPaperCashFlowSummaryTableTextBlock" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:textBlockItemType"/>
+  <xs:element id="aapl_IPhoneMember" abstract="true" name="IPhoneMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_MacMember" abstract="true" name="MacMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_IPadMember" abstract="true" name="IPadMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_WearablesHomeandAccessoriesMember" abstract="true" name="WearablesHomeandAccessoriesMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_EquitySecuritiesFVNIAccumulatedGrossUnrealizedGainBeforeTax" abstract="false" name="EquitySecuritiesFVNIAccumulatedGrossUnrealizedGainBeforeTax" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_EquitySecuritiesFVNIAccumulatedGrossUnrealizedLossBeforeTax" abstract="false" name="EquitySecuritiesFVNIAccumulatedGrossUnrealizedLossBeforeTax" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_CashCashEquivalentsAndMarketableSecuritiesCost" abstract="false" name="CashCashEquivalentsAndMarketableSecuritiesCost" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_CashEquivalentsAndMarketableSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" abstract="false" name="CashEquivalentsAndMarketableSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_CashEquivalentsAndMarketableSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" abstract="false" name="CashEquivalentsAndMarketableSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_CashCashEquivalentsAndMarketableSecurities" abstract="false" name="CashCashEquivalentsAndMarketableSecurities" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_FinancialInstrumentsTable" abstract="true" name="FinancialInstrumentsTable" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrldt:hypercubeItem" type="xbrli:stringItemType"/>
+  <xs:element id="aapl_MarketableDebtSecuritiesOtherThanAssetBackedSecuritiesMember" abstract="true" name="MarketableDebtSecuritiesOtherThanAssetBackedSecuritiesMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_NonTradeReceivableMember" abstract="true" name="NonTradeReceivableMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_CustomerOneMember" abstract="true" name="CustomerOneMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_CellularNetworkCarriersMember" abstract="true" name="CellularNetworkCarriersMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_VendorOneMember" abstract="true" name="VendorOneMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_VendorTwoMember" abstract="true" name="VendorTwoMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_FinancialInstrumentsLineItems" abstract="true" name="FinancialInstrumentsLineItems" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:stringItemType"/>
+  <xs:element id="aapl_DebtSecuritiesAvailableForSaleMaturityAllocatedAndSingleMaturityDateRollingAfterOneThroughFiveYearsPercentage" abstract="false" name="DebtSecuritiesAvailableForSaleMaturityAllocatedAndSingleMaturityDateRollingAfterOneThroughFiveYearsPercentage" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="dtr-types:percentItemType"/>
+  <xs:element id="aapl_DebtSecuritiesAvailableForSaleMaturityAllocatedAndSingleMaturityDateRollingAfterFiveThroughTenYearsPercentage" abstract="false" name="DebtSecuritiesAvailableForSaleMaturityAllocatedAndSingleMaturityDateRollingAfterFiveThroughTenYearsPercentage" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="dtr-types:percentItemType"/>
+  <xs:element id="aapl_DebtSecuritiesAvailableForSaleMaturityAllocatedAndSingleMaturityDateRollingAfterTenYearsPercentage" abstract="false" name="DebtSecuritiesAvailableForSaleMaturityAllocatedAndSingleMaturityDateRollingAfterTenYearsPercentage" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="dtr-types:percentItemType"/>
+  <xs:element id="aapl_NumberOfCustomersWithSignificantAccountsReceivableBalance" abstract="false" name="NumberOfCustomersWithSignificantAccountsReceivableBalance" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="xbrli:integerItemType"/>
+  <xs:element id="aapl_NumberOfSignificantVendors" abstract="false" name="NumberOfSignificantVendors" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="xbrli:integerItemType"/>
+  <xs:element id="aapl_MachineryEquipmentAndInternalUseSoftwareMember" abstract="true" name="MachineryEquipmentAndInternalUseSoftwareMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_OwnedIntangibleAssetsMember" abstract="true" name="OwnedIntangibleAssetsMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_IntangibleAssetsLineItems" abstract="true" name="IntangibleAssetsLineItems" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:stringItemType"/>
+  <xs:element id="aapl_IntangibleAssetExcludingGoodwillAfterAccumulatedAmortizationCurrent" abstract="false" name="IntangibleAssetExcludingGoodwillAfterAccumulatedAmortizationCurrent" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_AccruedDistributionAndMarketingCurrent" abstract="false" name="AccruedDistributionAndMarketingCurrent" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_UnfavorableInvestigationOutcomeEUStateAidRulesMember" abstract="true" name="UnfavorableInvestigationOutcomeEUStateAidRulesMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_IncomeTaxContingencyNumberOfSubsidiaries" abstract="false" name="IncomeTaxContingencyNumberOfSubsidiaries" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:integerItemType"/>
+  <xs:element id="aapl_EffectiveIncomeTaxRateReconciliationQualifiedDomesticMinimumTopUpTaxAmount" abstract="false" name="EffectiveIncomeTaxRateReconciliationQualifiedDomesticMinimumTopUpTaxAmount" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_EffectiveIncomeTaxRateReconciliationQualifiedDomesticMinimumTopUpTaxPercent" abstract="false" name="EffectiveIncomeTaxRateReconciliationQualifiedDomesticMinimumTopUpTaxPercent" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:percentItemType"/>
+  <xs:element id="aapl_EffectiveIncomeTaxRateReconciliationImpactOfTheStateAidDecisionAmount" abstract="false" name="EffectiveIncomeTaxRateReconciliationImpactOfTheStateAidDecisionAmount" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_DeferredTaxAssetsCapitalizedResearchAndDevelopment" abstract="false" name="DeferredTaxAssetsCapitalizedResearchAndDevelopment" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_DeferredTaxAssetsLeaseLiabilities" abstract="false" name="DeferredTaxAssetsLeaseLiabilities" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_DeferredTaxLiabilitiesMinimumTaxonForeignEarnings" abstract="false" name="DeferredTaxLiabilitiesMinimumTaxonForeignEarnings" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingandFinanceLeaseTermofContract" abstract="false" name="LesseeOperatingandFinanceLeaseTermofContract" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:durationItemType"/>
+  <xs:element id="aapl_RightofUseAssetsObtainedinExchangeforOperatingandFinanceLeaseLiabilities" abstract="false" name="RightofUseAssetsObtainedinExchangeforOperatingandFinanceLeaseLiabilities" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_OperatingandFinanceLeaseWeightedAverageRemainingLeaseTerm" abstract="false" name="OperatingandFinanceLeaseWeightedAverageRemainingLeaseTerm" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:durationItemType"/>
+  <xs:element id="aapl_OperatingandFinanceLeaseWeightedAverageDiscountRatePercent" abstract="false" name="OperatingandFinanceLeaseWeightedAverageDiscountRatePercent" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="dtr-types:percentItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLeaseNotYetCommencedTermOfContract" abstract="false" name="LesseeOperatingAndFinanceLeaseLeaseNotYetCommencedTermOfContract" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="xbrli:durationItemType"/>
+  <xs:element id="aapl_OperatingandFinanceLeaseRightofUseAsset" abstract="false" name="OperatingandFinanceLeaseRightofUseAsset" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_OperatingandFinanceLeaseLiability" abstract="false" name="OperatingandFinanceLeaseLiability" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingandFinanceLeaseLiabilityPaymentDueAbstract" abstract="true" name="LesseeOperatingandFinanceLeaseLiabilityPaymentDueAbstract" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:stringItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearOne" abstract="false" name="LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearOne" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearTwo" abstract="false" name="LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearTwo" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearThree" abstract="false" name="LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearThree" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearFour" abstract="false" name="LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearFour" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearFive" abstract="false" name="LesseeOperatingAndFinanceLeaseLiabilityToBePaidYearFive" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLiabilityToBePaidAfterYearFive" abstract="false" name="LesseeOperatingAndFinanceLeaseLiabilityToBePaidAfterYearFive" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingAndFinanceLeaseLiabilityToBePaid" abstract="false" name="LesseeOperatingAndFinanceLeaseLiabilityToBePaid" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_LesseeOperatingandFinanceLeaseLiabilityUndiscountedExcessAmount" abstract="false" name="LesseeOperatingandFinanceLeaseLiabilityUndiscountedExcessAmount" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_A20132025DebtIssuancesMember" abstract="true" name="A20132025DebtIssuancesMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_FixedRateNotesMember" abstract="true" name="FixedRateNotesMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_HedgeAccountingAdjustmentsRelatedToLongTermDebt" abstract="false" name="HedgeAccountingAdjustmentsRelatedToLongTermDebt" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="aapl_DebtInstrumentMaturityYearRangeStart" abstract="false" name="DebtInstrumentMaturityYearRangeStart" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:gYearItemType"/>
+  <xs:element id="aapl_DebtInstrumentMaturityYearRangeEnd" abstract="false" name="DebtInstrumentMaturityYearRangeEnd" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:gYearItemType"/>
+  <xs:element id="aapl_StockIssuedDuringPeriodSharesSharebasedPaymentArrangementNetofSharesWithheldforTaxes" abstract="false" name="StockIssuedDuringPeriodSharesSharebasedPaymentArrangementNetofSharesWithheldforTaxes" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:sharesItemType"/>
+  <xs:element id="aapl_EmployeeStockPlan2022PlanMember" abstract="true" name="EmployeeStockPlan2022PlanMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_ShareBasedCompensationArrangementByShareBasedPaymentAwardEquityInstrumentsOtherThanOptionsNumberOfSharesOfCommonStockIssuedPerUnitUponVesting" abstract="false" name="ShareBasedCompensationArrangementByShareBasedPaymentAwardEquityInstrumentsOtherThanOptionsNumberOfSharesOfCommonStockIssuedPerUnitUponVesting" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:pureItemType"/>
+  <xs:element id="aapl_NumberOfReportableSegmentsNotDisclosedFlag" abstract="false" name="NumberOfReportableSegmentsNotDisclosedFlag" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:booleanItemType"/>
+  <xs:element id="aapl_AmericasSegmentMember" abstract="true" name="AmericasSegmentMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_EuropeSegmentMember" abstract="true" name="EuropeSegmentMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_GreaterChinaSegmentMember" abstract="true" name="GreaterChinaSegmentMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_JapanSegmentMember" abstract="true" name="JapanSegmentMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_RestOfAsiaPacificSegmentMember" abstract="true" name="RestOfAsiaPacificSegmentMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_OtherCountriesMember" abstract="true" name="OtherCountriesMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="aapl_DeirdreOBrienMember" abstract="true" name="DeirdreOBrienMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+</xs:schema>

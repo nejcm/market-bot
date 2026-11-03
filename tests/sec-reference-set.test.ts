@@ -746,6 +746,7 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
         cryptoMoverLimit: 0,
         ...(options.secUserAgent !== undefined ? { secUserAgent: options.secUserAgent } : {}),
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async ({ adapter }) => {
             const payload = json[adapter];
             return {

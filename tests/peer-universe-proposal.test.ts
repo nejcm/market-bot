@@ -61,6 +61,7 @@ function secTickersExecutor(
   listedSymbols = ["AAPL", "MSFT", "GOOGL", "AMZN"],
 ): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async ({ adapter }) => {
       if (adapter === "sec-tickers") {
         if (!available) {
@@ -306,6 +307,7 @@ describe("createPeerUniverseProposer", () => {
       costEstimateUsd: 0,
     }));
     const request: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async ({ adapter }) =>
         adapter === "sec-tickers"
           ? rawJson(adapter, SEC_TICKERS)
@@ -553,6 +555,7 @@ describe("createPeerUniverseProposer", () => {
       peers.push({ symbol: ticker, name: `Peer ${String(i)}`, role: "secondary", rationale: "p" });
     }
     const request: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async ({ adapter }) =>
         adapter === "sec-tickers"
           ? rawJson(adapter, directory)

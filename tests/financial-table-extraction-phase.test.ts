@@ -65,6 +65,7 @@ function textResult(adapter: string, url: string, payload: string): FetchTextRes
 
 function requestExecutor(): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async () => {
       throw new Error("unexpected JSON request");
     },
@@ -232,6 +233,7 @@ function indexRecorder(): {
   return {
     indexUrls,
     request: {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async () => {
         throw new Error("unexpected JSON request");
       },

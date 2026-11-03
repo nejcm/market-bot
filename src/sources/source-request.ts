@@ -526,12 +526,13 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
   };
 
   if (options.cacheOptions === undefined) {
-    return { json, text };
+    return { json, text, fetch: options.fetchImpl };
   }
 
   return {
     json: cachedJsonFetch(json, options.cacheOptions),
     text: cachedTextFetch(text, options.cacheOptions),
+    fetch: options.fetchImpl,
   };
 }
 

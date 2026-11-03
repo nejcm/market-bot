@@ -128,7 +128,7 @@ test("report rerun rejects a saved report with leaked placeholder text", async (
 
 test("production deep capture round-trips HTTP failures, state, synthesis repairs, projections and markdown offline", async () => {
   const dir = await createRoot();
-  const fixture = await loadFixture("equity-depository-deep");
+  const fixture = await loadFixture("equity-analysis-comprehensive");
   const command = parseArgs(fixture.meta.argv);
   if (command.jobType !== "equity") {
     throw new Error("expected equity fixture");
@@ -168,11 +168,15 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
                 input,
                 init,
               );
-              return response.status === 503
-                ? new Response(
-                    `unavailable ${secret} ${email} ${config.dataDir} ${config.baseUrl} ${config.indexOptions.dbPath}`,
-                    { status: 503 },
-                  )
+              if (response.status === 503 || String(input).includes("/chart/QQQ")) {
+                return new Response(
+                  `unavailable ${secret} ${email} ${config.dataDir} ${config.baseUrl} ${config.indexOptions.dbPath}`,
+                  { status: 503 },
+                );
+              }
+              // An unread field pushes companyfacts past the 32 KiB inline limit into bodies/.
+              return String(input).includes("/companyfacts/")
+                ? Response.json({ ...(await response.json()), padding: "x".repeat(400_000) })
                 : response;
             },
             retryDelaysMs: [],
@@ -902,6 +906,34 @@ test("circuit capture stays compact across distinct requests while preserving tr
   expect(failures).toEqual([`Invalid replay state count: ${key}`]);
 });
 
+test("a capture nested in a replay records the replayed state without reading live stores", async () => {
+  const replayed = {
+    values: { "sync-key": [{ value: "sync" }], "async-key": [{ value: "async" }] },
+  };
+  const captured: ReplayState = { values: {} };
+  let reads = 0;
+  const read = () => {
+    reads += 1;
+    return "live";
+  };
+  await withReplaySession(
+    { mode: "replay", offline: true, state: replayed, indexes: new Map(), failures: [] },
+    () =>
+      withReplaySession(
+        { mode: "record", offline: false, state: captured, indexes: new Map(), failures: [] },
+        async () => {
+          expect(replayValueSync("sync-key", read)).toBe("sync");
+          expect(await replayValue("async-key", async () => read())).toBe("async");
+          expect(() => replayValueSync("sync-key", read)).toThrow();
+          await expect(replayValue("async-key", async () => read())).rejects.toThrow();
+        },
+      ),
+  );
+  expect(reads).toBe(0);
+  expect(captured.values["sync-key"]?.[0]).toEqual({ value: "sync" });
+  expect(captured.values["async-key"]?.[0]).toEqual({ value: "async" });
+});
+
 // Stage replay must run the same peer-median audit as a live run through finalizeSynthesis.
 async function expectStageReplayRunsPeerMedianAudit(
   saved: Awaited<ReturnType<typeof loadSynthesisReplayInput>>,
@@ -910,18 +942,18 @@ async function expectStageReplayRunsPeerMedianAudit(
   const key = Object.keys(probe.responses.entries).find((row) =>
     row.startsWith("final-synthesis|"),
   );
-  const first = probe.responses.entries[key!]![0]!;
+  // The fixture's first synthesis attempt is repaired; probe the accepted one alone.
+  const first = probe.responses.entries[key!]!.at(-1)!;
+  Object.assign(probe.responses.entries, { [key!]: [first] });
   // The capture drops a few cited ids; remap them so the report survives validation.
   const known = new Set(probe.input.knownSourceIds);
-  Object.assign(first, {
-    content: JSON.stringify(
-      JSON.parse(first.content, (field, value: unknown) =>
-        field === "sourceIds" && Array.isArray(value)
-          ? value.map((id) => (known.has(id as string) ? id : probe.input.knownSourceIds[0]))
-          : value,
-      ),
-    ),
-  });
+  const report = JSON.parse(first.content, (field, value: unknown) =>
+    field === "sourceIds" && Array.isArray(value)
+      ? value.map((id) => (known.has(id as string) ? id : probe.input.knownSourceIds[0]))
+      : value,
+  );
+  report.bearCase[1].text = "AAPL's EV/TTM revenue multiple screens above the peer median.";
+  Object.assign(first, { content: JSON.stringify(report) });
   Object.assign(probe.input.collectedSources, {
     valuationComps: {
       version: 1,
@@ -973,7 +1005,7 @@ async function expectStageReplayRunsPeerMedianAudit(
   expect(audited).toHaveLength(1);
   expect(metered).toEqual(["final-synthesis", "peer-median-audit"]);
   expect(kept.calls).toBe(2);
-  expect(audited[0]!.map((clause) => clause.location)).toContain("bearCase[2]");
+  expect(audited[0]!.map((clause) => clause.location)).toContain("bearCase[1]");
   expect(kept.peerMedianAuditOutput?.stage).toBe("peer-median-audit");
   expect(kept.postSynthesisWarnings.map((row) => row.code)).not.toContain("peer-median-uncited");
   const dir = await createRoot();
@@ -1008,7 +1040,7 @@ async function expectStageReplayRunsPeerMedianAudit(
   expect(timedOut.summary.completedCalls).toBe(1);
   expect(timedOut.summary.attemptedCalls).toBe(2);
   const pruned = await run("ev-revenue");
-  expect(pruned.integrityAudit.pruned.map((row) => row.location)).toContain("bearCase[2]");
+  expect(pruned.integrityAudit.pruned.map((row) => row.location)).toContain("bearCase[1]");
 }
 
 test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(

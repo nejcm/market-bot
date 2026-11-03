@@ -1,0 +1,1232 @@
+{
+  "values": {
+    "cache:3ed41d93f9cee2586ccb7e6874f2976ff60e3d01fa10d13bcebcaf6b01b09cca:2026-11-03": [{}],
+    "host-circuit:query1.finance.yahoo.com": [
+      {
+        "value": false,
+        "count": 6
+      }
+    ],
+    "cache:b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce",
+          "adapter": "yahoo-regime",
+          "fetchedAt": "2026-11-03T20:49:25.844Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793738964,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_6160262",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "trailingAnnualDividendRate": 5.662,
+                  "trailingPE": 23.961216,
+                  "trailingAnnualDividendYield": 0.0075282548,
+                  "dividendYield": 0.99,
+                  "ytdReturn": 12.67538,
+                  "trailingThreeMonthReturns": 2.27941,
+                  "trailingThreeMonthNavReturns": 2.27941,
+                  "netAssets": 809216110000,
+                  "epsTrailingTwelveMonths": 31.49715,
+                  "sharesOutstanding": 917782016,
+                  "bookValue": 429.22,
+                  "fiftyDayAverage": 767.222,
+                  "fiftyDayAverageChange": -12.511963,
+                  "fiftyDayAverageChangePercent": -0.01630814,
+                  "twoHundredDayAverage": 729.1534,
+                  "twoHundredDayAverageChange": 25.55664,
+                  "twoHundredDayAverageChangePercent": 0.035049744,
+                  "netExpenseRatio": 0.0945,
+                  "priceToBook": 1.7583292,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "marketState": "REGULAR",
+                  "shortName": "State Street SPDR S&P 500 ETF T",
+                  "longName": "State Street SPDR S&P 500 ETF Trust",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 728317800000,
+                  "priceHint": 2,
+                  "regularMarketChange": 2.6100464,
+                  "regularMarketChangePercent": 0.3470345,
+                  "fulldayChange": 2.6100464,
+                  "fulldayChangePercent": 0.3470345,
+                  "fulldayPrice": 754.71,
+                  "regularMarketPrice": 754.71,
+                  "regularMarketDayHigh": 757.07,
+                  "regularMarketDayRange": "752.41 - 757.07",
+                  "regularMarketDayLow": 752.41,
+                  "regularMarketVolume": 26252592,
+                  "regularMarketPreviousClose": 752.1,
+                  "bid": 754.15,
+                  "ask": 754.17,
+                  "bidSize": 200,
+                  "askSize": 640,
+                  "fullExchangeName": "NYSEArca",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 752.73,
+                  "averageDailyVolume3Month": 41318957,
+                  "averageDailyVolume10Day": 41370070,
+                  "fiftyTwoWeekLowChange": 125.42999,
+                  "fiftyTwoWeekLowChangePercent": 0.19932301,
+                  "fiftyTwoWeekRange": "629.28 - 781.62",
+                  "fiftyTwoWeekHighChange": -26.909973,
+                  "fiftyTwoWeekHighChangePercent": -0.03442846,
+                  "fiftyTwoWeekLow": 629.28,
+                  "fiftyTwoWeekHigh": 781.62,
+                  "fiftyTwoWeekChangePercent": 11.382616,
+                  "displayName": "S&P 500 ETF Trust",
+                  "symbol": "SPY"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793738965,
+                  "exchange": "NGM",
+                  "messageBoardId": "finmb_8108558",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "trailingAnnualDividendRate": 1.77,
+                  "trailingPE": 26.277779,
+                  "trailingAnnualDividendYield": 0.0025987753,
+                  "dividendYield": 0.42,
+                  "ytdReturn": 20.8292,
+                  "trailingThreeMonthReturns": 0.5336,
+                  "trailingThreeMonthNavReturns": 0.5336,
+                  "netAssets": 498945982000,
+                  "epsTrailingTwelveMonths": 26.115982,
+                  "sharesOutstanding": 393100000,
+                  "bookValue": 357.774,
+                  "fiftyDayAverage": 724.3538,
+                  "fiftyDayAverageChange": -38.0838,
+                  "fiftyDayAverageChangePercent": -0.05257624,
+                  "twoHundredDayAverage": 679.81586,
+                  "twoHundredDayAverageChange": 6.4541626,
+                  "twoHundredDayAverageChangePercent": 0.009493986,
+                  "netExpenseRatio": 0.18,
+                  "priceToBook": 1.9181664,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "marketState": "REGULAR",
+                  "shortName": "Invesco QQQ Trust, Series 1",
+                  "longName": "Invesco QQQ Trust",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 921076200000,
+                  "priceHint": 2,
+                  "regularMarketChange": 5.1799927,
+                  "regularMarketChangePercent": 0.7605445,
+                  "fulldayChange": 5.1799927,
+                  "fulldayChangePercent": 0.7605445,
+                  "fulldayPrice": 686.27,
+                  "regularMarketPrice": 686.27,
+                  "regularMarketDayHigh": 688.69,
+                  "regularMarketDayRange": "683.18 - 688.69",
+                  "regularMarketDayLow": 683.18,
+                  "regularMarketVolume": 29673673,
+                  "regularMarketPreviousClose": 681.09,
+                  "bid": 717.24,
+                  "ask": 717.49,
+                  "bidSize": 1,
+                  "askSize": 1,
+                  "fullExchangeName": "NasdaqGM",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 684.2,
+                  "averageDailyVolume3Month": 35264140,
+                  "averageDailyVolume10Day": 43031170,
+                  "fiftyTwoWeekLowChange": 130.67004,
+                  "fiftyTwoWeekLowChangePercent": 0.23518728,
+                  "fiftyTwoWeekRange": "555.6 - 762.86",
+                  "fiftyTwoWeekHighChange": -76.589966,
+                  "fiftyTwoWeekHighChangePercent": -0.10039846,
+                  "fiftyTwoWeekLow": 555.6,
+                  "fiftyTwoWeekHigh": 762.86,
+                  "fiftyTwoWeekChangePercent": 9.986269,
+                  "symbol": "QQQ"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793738966,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_8797658",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "trailingAnnualDividendRate": 2.017,
+                  "trailingPE": 16.475729,
+                  "trailingAnnualDividendYield": 0.0072257644,
+                  "dividendYield": 0.98,
+                  "ytdReturn": 13.61976,
+                  "trailingThreeMonthReturns": -7.23716,
+                  "trailingThreeMonthNavReturns": -7.23716,
+                  "netAssets": 78041727000,
+                  "epsTrailingTwelveMonths": 16.99773,
+                  "sharesOutstanding": 281049984,
+                  "bookValue": 218.694,
+                  "fiftyDayAverage": 283.8584,
+                  "fiftyDayAverageChange": -3.8084106,
+                  "fiftyDayAverageChangePercent": -0.013416586,
+                  "twoHundredDayAverage": 278.7885,
+                  "twoHundredDayAverageChange": 1.2614746,
+                  "twoHundredDayAverageChangePercent": 0.0045248442,
+                  "netExpenseRatio": 0.19,
+                  "priceToBook": 1.2805563,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "marketState": "REGULAR",
+                  "shortName": "iShares Russell 2000 Index Fund",
+                  "longName": "iShares Russell 2000 ETF",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 959347800000,
+                  "priceHint": 2,
+                  "regularMarketChange": 0.90997314,
+                  "regularMarketChangePercent": 0.32596827,
+                  "fulldayChange": 0.90997314,
+                  "fulldayChangePercent": 0.32596827,
+                  "fulldayPrice": 280.05,
+                  "regularMarketPrice": 280.05,
+                  "regularMarketDayHigh": 281.995,
+                  "regularMarketDayRange": "279.34 - 281.995",
+                  "regularMarketDayLow": 279.34,
+                  "regularMarketVolume": 12620876,
+                  "regularMarketPreviousClose": 279.14,
+                  "bid": 280.06,
+                  "ask": 280.07,
+                  "bidSize": 760,
+                  "askSize": 680,
+                  "fullExchangeName": "NYSEArca",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 279.84,
+                  "averageDailyVolume3Month": 21620650,
+                  "averageDailyVolume10Day": 21144900,
+                  "fiftyTwoWeekLowChange": 51.149994,
+                  "fiftyTwoWeekLowChangePercent": 0.22346,
+                  "fiftyTwoWeekRange": "228.9 - 305.18",
+                  "fiftyTwoWeekHighChange": -25.130005,
+                  "fiftyTwoWeekHighChangePercent": -0.08234487,
+                  "fiftyTwoWeekLow": 228.9,
+                  "fiftyTwoWeekHigh": 305.18,
+                  "fiftyTwoWeekChangePercent": 15.72969,
+                  "symbol": "IWM"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793738966,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_6184218",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "trailingAnnualDividendRate": 5.62,
+                  "trailingPE": 21.024616,
+                  "trailingAnnualDividendYield": 0.010821426,
+                  "dividendYield": 1.42,
+                  "ytdReturn": 6.94214,
+                  "trailingThreeMonthReturns": -2.37615,
+                  "trailingThreeMonthNavReturns": -2.37615,
+                  "netAssets": 43860341000,
+                  "epsTrailingTwelveMonths": 24.575003,
+                  "sharesOutstanding": 81242896,
+                  "bookValue": 358.194,
+                  "fiftyDayAverage": 521.4286,
+                  "fiftyDayAverageChange": -4.748596,
+                  "fiftyDayAverageChangePercent": -0.009106897,
+                  "twoHundredDayAverage": 506.07626,
+                  "twoHundredDayAverageChange": 10.603729,
+                  "twoHundredDayAverageChangePercent": 0.020952828,
+                  "netExpenseRatio": 0.16,
+                  "priceToBook": 1.4424585,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "marketState": "REGULAR",
+                  "shortName": "State Street SPDR Dow Jones Ind",
+                  "longName": "State Street SPDR Dow Jones Industrial Average ETF Trust",
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 885306600000,
+                  "priceHint": 2,
+                  "regularMarketChange": -2.6600342,
+                  "regularMarketChangePercent": -0.5121951,
+                  "fulldayChange": -2.6600342,
+                  "fulldayChangePercent": -0.5121951,
+                  "fulldayPrice": 516.68,
+                  "regularMarketPrice": 516.68,
+                  "regularMarketDayHigh": 518.36,
+                  "regularMarketDayRange": "515.19 - 518.36",
+                  "regularMarketDayLow": 515.19,
+                  "regularMarketVolume": 2582470,
+                  "regularMarketPreviousClose": 519.34,
+                  "bid": 516.59,
+                  "ask": 516.62,
+                  "bidSize": 80,
+                  "askSize": 600,
+                  "fullExchangeName": "NYSEArca",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 517.06,
+                  "averageDailyVolume3Month": 3317893,
+                  "averageDailyVolume10Day": 3112950,
+                  "fiftyTwoWeekLowChange": 66.23999,
+                  "fiftyTwoWeekLowChangePercent": 0.14705619,
+                  "fiftyTwoWeekRange": "450.44 - 546.75",
+                  "fiftyTwoWeekHighChange": -30.070007,
+                  "fiftyTwoWeekHighChangePercent": -0.054997727,
+                  "fiftyTwoWeekLow": 450.44,
+                  "fiftyTwoWeekHigh": 546.75,
+                  "fiftyTwoWeekChangePercent": 10.286689,
+                  "displayName": "Dow Jones Indl Average ETF",
+                  "symbol": "DIA"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "triggerable": false,
+                  "customPriceAlertConfidence": "LOW",
+                  "currency": "USD",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793738056,
+                  "exchange": "CXI",
+                  "messageBoardId": "finmb_INDEXVIX",
+                  "exchangeTimezoneName": "America/Chicago",
+                  "exchangeTimezoneShortName": "CST",
+                  "gmtOffSetMilliseconds": -21600000,
+                  "market": "cboe_market",
+                  "esgPopulated": false,
+                  "fiftyDayAverage": 16.2888,
+                  "fiftyDayAverageChange": 4.5712013,
+                  "fiftyDayAverageChangePercent": 0.28063464,
+                  "twoHundredDayAverage": 18.2635,
+                  "twoHundredDayAverageChange": 2.5965004,
+                  "twoHundredDayAverageChangePercent": 0.14216882,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "marketState": "REGULAR",
+                  "shortName": "CBOE Volatility Index",
+                  "longName": "CBOE Volatility Index",
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 631267200000,
+                  "priceHint": 2,
+                  "regularMarketChange": -0.289999,
+                  "regularMarketChangePercent": -1.3718023,
+                  "fulldayChange": -0.289999,
+                  "fulldayChangePercent": -1.3718023,
+                  "fulldayPrice": 20.86,
+                  "regularMarketPrice": 20.86,
+                  "regularMarketDayHigh": 21.91,
+                  "regularMarketDayRange": "20.29 - 21.91",
+                  "regularMarketDayLow": 20.29,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 21.15,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Cboe Indices",
+                  "regularMarketOpen": 21.66,
+                  "averageDailyVolume3Month": 0,
+                  "averageDailyVolume10Day": 0,
+                  "fiftyTwoWeekLowChange": 7.4800005,
+                  "fiftyTwoWeekLowChangePercent": 0.5590434,
+                  "fiftyTwoWeekRange": "13.38 - 35.3",
+                  "fiftyTwoWeekHighChange": -14.439999,
+                  "fiftyTwoWeekHighChangePercent": -0.40906513,
+                  "fiftyTwoWeekLow": 13.38,
+                  "fiftyTwoWeekHigh": 35.3,
+                  "fiftyTwoWeekChangePercent": 11.315786,
+                  "symbol": "^VIX"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793738056,
+                  "exchange": "WCB",
+                  "messageBoardId": "finmb_INDEXVIX3M",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "fiftyDayAverage": 18.6376,
+                  "fiftyDayAverageChange": 2.6823997,
+                  "fiftyDayAverageChangePercent": 0.1439241,
+                  "twoHundredDayAverage": 20.52185,
+                  "twoHundredDayAverageChange": 0.7981491,
+                  "twoHundredDayAverageChangePercent": 0.03889265,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "marketState": "REGULAR",
+                  "shortName": "CBOE S&P 500 3-Month Volatility",
+                  "longName": "CBOE S&P 500 3-Month Volatility",
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 1153143000000,
+                  "priceHint": 2,
+                  "regularMarketChange": -0.2800007,
+                  "regularMarketChangePercent": -1.2962995,
+                  "fulldayChange": -0.2800007,
+                  "fulldayChangePercent": -1.2962995,
+                  "fulldayPrice": 21.32,
+                  "regularMarketPrice": 21.32,
+                  "regularMarketDayHigh": 21.55,
+                  "regularMarketDayRange": "21.01 - 21.55",
+                  "regularMarketDayLow": 21.01,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 21.6,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Chicago Options",
+                  "regularMarketOpen": 21.47,
+                  "averageDailyVolume3Month": 0,
+                  "averageDailyVolume10Day": 0,
+                  "fiftyTwoWeekLowChange": 11.259999,
+                  "fiftyTwoWeekLowChangePercent": 1.1192842,
+                  "fiftyTwoWeekRange": "10.06 - 29.46",
+                  "fiftyTwoWeekHighChange": -8.139999,
+                  "fiftyTwoWeekHighChangePercent": -0.27630684,
+                  "fiftyTwoWeekLow": 10.06,
+                  "fiftyTwoWeekHigh": 29.46,
+                  "fiftyTwoWeekChangePercent": 1.4560819,
+                  "symbol": "^VIX3M"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    ],
+    "cache:93559115fc1e359f91d4396226ef9ea7b324e18cf0cb0dbd29abe55d73670caa:2026-11-03": [{}],
+    "host-circuit:api.marketaux.com": [
+      {
+        "value": false
+      }
+    ],
+    "cache:7b7dbf2d26a3c6080be0f2bc99f979878105e71265cdc492e84b15eae13a744a:2026-11-03": [{}],
+    "host-circuit:finnhub.io": [
+      {
+        "value": false,
+        "count": 10
+      }
+    ],
+    "cache:becb7923418382c43231bc6f96318c4251f7c9c43edb2ba906ae3f1761666c4a:2026-11-03": [{}],
+    "cache:de6a5f9d3694e2dd59cdad0d93a802a27fd3a7313cd25d8ec03feb99bcd2aea9:2026-11-03": [{}],
+    "host-circuit:api.massive.com": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:c06622584aeef40a2b02d44b04b52766d189b53a2c3210d19080245c3eae48c7:2026-11-03": [{}],
+    "cache:b3d14840d98c4f7d2660af3434848e7e176a7675bace755fb1fc5b69138960cf:2026-11-03": [{}],
+    "cache:ade62d0bdecc5fd86f21efe88c9ad90dbfc666f26b401e3f180c58ef79952900:2026-11-03": [{}],
+    "cache:24d61ee4b7ea4e6462e5c92fcf81155008a6dd3c0f4cfabe61eed6f09ff4433e:2026-11-03": [{}],
+    "cache:d59ff2a3b623fe92b263574b8d0462b02faa761cc3701cd2cb59eabd22c7a3fe:2026-11-03": [{}],
+    "cache:020f874adcf7c9696e64ee666b5d77ca78b61d138b73c942d4d40eda7195f097:2026-11-03": [{}],
+    "cache:163c76ee7fcef7719326c175e6bf84114d32b5a0f051376b3e84156fd415d463:2026-11-03": [{}],
+    "cache:03fad08ef110b8859599949ceadfb6e97cd2a5620be52c1f6bbbc405c9bde1c9:2026-11-03": [{}],
+    "cache:5e5bc82cda4cd011d9766f092d0735b561f2691531a19216990e4eb3bb843062:2026-11-03": [{}],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba",
+          "adapter": "fred-DGS10",
+          "fetchedAt": "2026-11-03T10:18:21.868Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 16914,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-30",
+                "value": "4.94"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-29",
+                "value": "4.98"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47",
+          "adapter": "fred-DGS2",
+          "fetchedAt": "2026-11-03T10:18:21.868Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13154,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-30",
+                "value": "4.56"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-29",
+                "value": "4.61"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d",
+          "adapter": "fred-T10Y2Y",
+          "fetchedAt": "2026-11-03T10:18:21.868Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13155,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-11-02",
+                "value": "0.32"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-30",
+                "value": "0.38"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1",
+          "adapter": "fred-CPIAUCSL",
+          "fetchedAt": "2026-11-03T10:18:21.868Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 957,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-09-01",
+                "value": "336.298"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-08-01",
+                "value": "334.131"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed",
+          "adapter": "fred-UNRATE",
+          "fetchedAt": "2026-11-03T10:18:21.868Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "realtime_start": "2026-10-21",
+            "realtime_end": "2026-10-21",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 945,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-09-01",
+                "value": "4.2"
+              },
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-08-01",
+                "value": "4.1"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8",
+          "adapter": "fred-DTWEXBGS",
+          "fetchedAt": "2026-11-03T10:18:21.868Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 5435,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-30",
+                "value": "121.6656"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-29",
+                "value": "121.7361"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-03": [
+      {
+        "value": {
+          "cacheKey": "a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8",
+          "adapter": "fred-FEDFUNDS",
+          "fetchedAt": "2026-11-03T10:18:21.868Z",
+          "cachedDate": "2026-11-03",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 868,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-01",
+                "value": "3.88"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-09-01",
+                "value": "3.75"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:6a93400f25b8249db88374b8060aa95dd52ca4f36ed63f5958ce2e768f2d1381:2026-11-03": [{}],
+    "cache:be854c0b1000c4351477427ff47b1110d979e413d939285b3a36db3d78ef1d3c:2026-11-03": [
+      {
+        "bodyFile": "bodies/285c6b45f4e42ff4d1a308cb8c69c04439b0a32c5fd8d02f2e8bdae05217c88e.json",
+        "sha256": "285c6b45f4e42ff4d1a308cb8c69c04439b0a32c5fd8d02f2e8bdae05217c88e"
+      }
+    ],
+    "cache:ec360efb8a2ea63a1f3e4944da57fa9dffb4abc5fdf7319784669fe8477d8f20:2026-11-03": [
+      {
+        "bodyFile": "bodies/c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38.json",
+        "sha256": "c4c3577ea1978a7c4a702c4a010fa11d309fad571973c05bda67c6431c738a38"
+      }
+    ],
+    "cache:615a892452d1469ef8cc94053d63e3399fc7e41fa64a20df9480ac9e02704024:2026-11-03": [{}],
+    "cache:00cd59f429d5e169963fcdea9cd26dcf48c0eae3722f07e5f8b06c126cde868e:2026-11-03": [{}],
+    "host-circuit:data.sec.gov": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:2e0324e9a1e45ec928269dd2001d1d460ae0823d9919fe89e6f079f4ce38e7b0:2026-11-03": [{}],
+    "cache-stale:615a892452d1469ef8cc94053d63e3399fc7e41fa64a20df9480ac9e02704024": [{}],
+    "news-seen": [
+      {
+        "bodyFile": "bodies/965e8d873216529892b8f8d2e585dec77e710c3bba4b9e85184a87f6f42f2acc.json",
+        "sha256": "965e8d873216529892b8f8d2e585dec77e710c3bba4b9e85184a87f6f42f2acc"
+      },
+      {
+        "bodyFile": "bodies/965e8d873216529892b8f8d2e585dec77e710c3bba4b9e85184a87f6f42f2acc.json",
+        "sha256": "965e8d873216529892b8f8d2e585dec77e710c3bba4b9e85184a87f6f42f2acc"
+      }
+    ],
+    "cache-stale:b3d14840d98c4f7d2660af3434848e7e176a7675bace755fb1fc5b69138960cf": [{}],
+    "cache:b6bfa5256bcd7278547c33b87941aeca2729c39bf3bdcbfbaef5aa809f9eb291:2026-11-03": [
+      {
+        "bodyFile": "bodies/3a68b12c74e8d0e68520aed4c1db3de04880a0cd81d26ef5065d4739630ab677.json",
+        "sha256": "3a68b12c74e8d0e68520aed4c1db3de04880a0cd81d26ef5065d4739630ab677"
+      }
+    ],
+    "cache-stale:ade62d0bdecc5fd86f21efe88c9ad90dbfc666f26b401e3f180c58ef79952900": [{}],
+    "cache-stale:24d61ee4b7ea4e6462e5c92fcf81155008a6dd3c0f4cfabe61eed6f09ff4433e": [{}],
+    "cache-stale:d59ff2a3b623fe92b263574b8d0462b02faa761cc3701cd2cb59eabd22c7a3fe": [{}],
+    "cache-stale:020f874adcf7c9696e64ee666b5d77ca78b61d138b73c942d4d40eda7195f097": [{}],
+    "cache-stale:163c76ee7fcef7719326c175e6bf84114d32b5a0f051376b3e84156fd415d463": [{}],
+    "cache-stale:5e5bc82cda4cd011d9766f092d0735b561f2691531a19216990e4eb3bb843062": [{}],
+    "cache:68d6b0498b9b28ce785e1c6909aa0960d3c5596dcef4396cafdd4aebbdc1714d:accession": [{}],
+    "host-circuit:www.sec.gov": [
+      {
+        "value": false,
+        "count": 12
+      }
+    ],
+    "cache:6d26244f1f7da261403b40f164c4357a28fe2525956635bb2667e293fa21b175:accession": [{}],
+    "cache:160af79e43c4019c5d53bfd5b932e37eddca8e193d84bc017c8ec89916a84f53:accession": [{}],
+    "cache:913eed99d88d0f68ab0c888f71262c5861690898e8ef915bfaa24ce3ba8ce347:accession": [{}],
+    "cache:90449041f1436ee8b28826720e4ba654f4a813a2da20acffa5edf1a7a715a940:accession": [{}],
+    "cache:0af25f90750a51da1c37b382217bc1f385be8da90e14900ace4472a3138146d4:accession": [{}],
+    "cache:6e661083038713ac470309a06448d42e5f6201d8588441d6c0b1731334be1f1d:accession": [{}],
+    "cache:3e5d867e2bada7350581f08764ae70a17704ee42a5e44c930ed81a5cf97cfe1f:accession": [{}],
+    "cache:90cfa53463231e1b746f6d8ee0f3f74b1040c4afc918a6729fd616e846d47756:accession": [{}],
+    "cache:5daa6bb8eb15d151db52f370633a0951461c80d03c2be7761c57055d63edd9c3:accession": [{}],
+    "cache:7a58aca5bf60eb1a33bb187b8d7b38da3509863d71574df479d9b4439c39965f:accession": [{}],
+    "cache:ace86efd160d2dbe18fd949ed08678aaf479df9f0363b55ebe81a301e1fbca32:accession": [{}],
+    "calibration": [
+      {
+        "value": {
+          "generatedAt": "2026-11-03T21:32:33.360Z",
+          "resolvedCount": 131,
+          "duplicateForecastCount": 99,
+          "missAutopsyCount": 25,
+          "brierScore": 0.21705267175572515,
+          "hitRate": 0.4198473282442748,
+          "bins": [
+            {
+              "pLow": 0.1,
+              "pHigh": 0.2,
+              "label": "0.1-0.2",
+              "hitCount": 1,
+              "totalCount": 8,
+              "hitRate": 0.125
+            },
+            {
+              "pLow": 0.2,
+              "pHigh": 0.3,
+              "label": "0.2-0.3",
+              "hitCount": 3,
+              "totalCount": 14,
+              "hitRate": 0.21428571428571427
+            },
+            {
+              "pLow": 0.3,
+              "pHigh": 0.4,
+              "label": "0.3-0.4",
+              "hitCount": 19,
+              "totalCount": 57,
+              "hitRate": 0.3333333333333333
+            },
+            {
+              "pLow": 0.4,
+              "pHigh": 0.5,
+              "label": "0.4-0.5",
+              "hitCount": 18,
+              "totalCount": 33,
+              "hitRate": 0.5454545454545454
+            },
+            {
+              "pLow": 0.5,
+              "pHigh": 0.6,
+              "label": "0.5-0.6",
+              "hitCount": 6,
+              "totalCount": 9,
+              "hitRate": 0.6666666666666666
+            },
+            {
+              "pLow": 0.6,
+              "pHigh": 0.7,
+              "label": "0.6-0.7",
+              "hitCount": 8,
+              "totalCount": 10,
+              "hitRate": 0.8
+            }
+          ],
+          "byKind": {
+            "range": {
+              "brierScore": 0.20887045454545472,
+              "count": 88,
+              "runCount": 56,
+              "brierStandardError": 0.015323702964279389
+            },
+            "relative": {
+              "brierScore": 0.2172242424242424,
+              "count": 33,
+              "runCount": 32,
+              "brierStandardError": 0.016534363962644467
+            },
+            "direction": {
+              "brierScore": 0.26394285714285715,
+              "count": 7,
+              "runCount": 7,
+              "brierStandardError": 0.036949288653136333
+            },
+            "conditional": {
+              "brierScore": 0.4624000000000001,
+              "count": 1,
+              "runCount": 1
+            },
+            "earnings-direction": {
+              "brierScore": 0.25,
+              "count": 1,
+              "runCount": 1
+            },
+            "earnings-move": {
+              "brierScore": 0.32489999999999997,
+              "count": 1,
+              "runCount": 1
+            }
+          },
+          "byAssetClass": {
+            "equity": {
+              "brierScore": 0.21705267175572515,
+              "count": 131,
+              "runCount": 62,
+              "brierStandardError": 0.010425068200389737
+            }
+          },
+          "byJobType": {
+            "equity": {
+              "brierScore": 0.2167220472440945,
+              "count": 127,
+              "runCount": 61,
+              "brierStandardError": 0.010748977076667221
+            },
+            "forecast-grid": {
+              "brierScore": 0.22754999999999997,
+              "count": 4,
+              "runCount": 1
+            }
+          },
+          "byMarketUpdateHorizonBucket": {},
+          "byHorizonBucket": {
+            "1d": {
+              "brierScore": 0.22261282051282058,
+              "count": 39,
+              "runCount": 36,
+              "brierStandardError": 0.021082053914739936
+            },
+            "2-5d": {
+              "brierScore": 0.22311351351351358,
+              "count": 74,
+              "runCount": 43,
+              "brierStandardError": 0.015067280031394346
+            },
+            "6-10d": {
+              "brierScore": 0.20818181818181822,
+              "count": 11,
+              "runCount": 11,
+              "brierStandardError": 0.05867761198924452
+            },
+            "11-15d": {
+              "brierScore": 0.1296,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0
+            },
+            "16-20d": {
+              "brierScore": 0.13848000000000002,
+              "count": 5,
+              "runCount": 5,
+              "brierStandardError": 0.003686787219246593
+            }
+          },
+          "byMarketRegime": {
+            "risk-on": {
+              "brierScore": 0.2089172413793103,
+              "count": 29,
+              "runCount": 16,
+              "brierStandardError": 0.02349544080051338
+            },
+            "risk-off": {
+              "brierScore": 0.22096290322580658,
+              "count": 62,
+              "runCount": 31,
+              "brierStandardError": 0.017500030089958166
+            },
+            "mixed": {
+              "brierScore": 0.2157055555555556,
+              "count": 36,
+              "runCount": 14,
+              "brierStandardError": 0.014348599979803537
+            }
+          },
+          "marketRegimeCoverage": {
+            "risk-on": 29,
+            "risk-off": 62,
+            "mixed": 36,
+            "unknown": 4
+          },
+          "byMissAutopsyCause": {
+            "insufficient_evidence": 23,
+            "model_overconfidence": 2
+          },
+          "conditionalPredictions": {
+            "activatedCount": 1,
+            "voidedCount": 3
+          }
+        }
+      }
+    ],
+    "alpha-watchlist": [
+      {
+        "value": {
+          "watchlist": {
+            "generatedAt": "2026-08-17T04:02:33.492Z",
+            "candidates": [
+              {
+                "symbol": "ATR",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 24,
+                  "socialMomentumScore": 16.7,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "BILL",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 25,
+                  "socialMomentumScore": 15.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DRTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 13,
+                  "socialMomentumScore": 20.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DSGX",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "sec-only",
+                  "discoverySources": ["sec-filings"],
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "EOSE",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 14,
+                  "socialMomentumScore": 19.98,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "FA",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 17,
+                  "socialMomentumScore": 18.73,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "GETY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 11,
+                  "socialMomentumScore": 20.34,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 22,
+                  "socialMomentumScore": 16.99,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 20,
+                  "socialMomentumScore": 17.67,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NEXT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 15,
+                  "socialMomentumScore": 19.54,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NVTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 18,
+                  "socialMomentumScore": 18.39,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "OUT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 19,
+                  "socialMomentumScore": 18.31,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "PUMP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 21,
+                  "socialMomentumScore": 17.12,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "TMC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 10,
+                  "socialMomentumScore": 20.44,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "WAY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 4,
+                  "socialMomentumScore": 24.18,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "history:null": [
+      {
+        "value": {
+          "generatedAt": "2026-11-03T21:32:33.360Z",
+          "recentDays": 90,
+          "anchorMonths": [3, 6, 12],
+          "runs": [],
+          "sources": [],
+          "gaps": [
+            "No prior ticker runs found for BNS",
+            "No prior equity market-update runs found"
+          ],
+          "audit": {
+            "scannedRunCount": 102,
+            "malformedRunCount": 0,
+            "malformedScoreCount": 0,
+            "candidateRunCount": 0,
+            "selectedRunCount": 0,
+            "recentSelectedCount": 0,
+            "anchorSelectedCount": 0,
+            "sameSymbolSelectedCount": 0,
+            "spotlightSymbolSelectedCount": 0,
+            "sameSubjectSelectedCount": 0,
+            "sameHorizonSelectedCount": 0,
+            "crossHorizonSelectedCount": 0,
+            "resolvedMissRunCount": 0,
+            "missCorrectionSelectedCount": 0,
+            "gapCount": 2
+          },
+          "artifactDeltas": []
+        }
+      }
+    ],
+    "reused-profile": [{}],
+    "forecast-persistence-baseline": [{}]
+  }
+}

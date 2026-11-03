@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/nejcm/market-bot/compare/v1.10.0...v1.10.1) (2026-11-03)
+
+### Bug Fixes
+
+- **sec:** withhold debt when a later comparative recasts liabilities ([8ee60e3](https://github.com/nejcm/market-bot/commit/8ee60e3f4ad33968d44008fcc5a8f4bc90ffeaca))
+- **sec:** keep derived pretax income within one scope ([9fa8b97](https://github.com/nejcm/market-bot/commit/9fa8b977b9b09b36b28fcaa3872d199dbe52bbf2))
+
 ## [1.10.0](https://github.com/nejcm/market-bot/compare/v1.9.0...v1.10.0) (2026-11-02)
 
 ### Features

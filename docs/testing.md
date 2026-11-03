@@ -158,6 +158,7 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-depository-deep/`
 - `tests/fixtures/runs/equity-iren-deep/` (captured live replay: issuer-extension capex withheld)
 - `tests/fixtures/runs/equity-iren-brief/` (captured live replay: brief-run extension-capex check)
+- `tests/fixtures/runs/clfd-zero-debt/` (captured live replay: Tagged Zero Debt at three CLFD 10-Q instants)
 - `tests/fixtures/runs/equity-amd-deep/`
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay

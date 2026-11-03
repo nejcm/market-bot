@@ -1291,6 +1291,7 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
   },
   "equity-iren-deep": {},
   "equity-iren-brief": {},
+  "clfd-zero-debt": {},
 };
 
 export function assertFinancialLensMetricInvariants(
@@ -2358,6 +2359,90 @@ export function assertIrenExtensionCapexWithheld(result: RunFixtureResult): void
   ]);
 }
 
+const CLFD_ARCHIVE = "https://www.sec.gov/Archives/edgar/data/796505";
+const CLFD_LINE_OF_CREDIT_MEMBERS =
+  "us-gaap:CreditFacilityAxis=us-gaap:RevolvingCreditFacilityMember, us-gaap:DebtInstrumentAxis=clfd:LoanAndSecurityAgreementWithBremerBankNationalAssociationMember";
+
+// CLFD 10-Qs tag no debt after FY2025; each instant's zero rests on its own LineOfCredit = 0 fact.
+export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
+  const { financialStatements, sourceGaps, valuationWorkbench } = result.collectedSources;
+  const debt = financialStatements?.statements.balanceSheet.debt.interim ?? [];
+  const sources = new Map(result.report.sources.map((source) => [source.id, source.url]));
+  for (const [periodEnd, accession, sourceId, file, factId, schema, evToRevenue] of [
+    [
+      "2025-12-31",
+      "000117184326000700",
+      "extended-sec-edgar-clfd-10q-face-0001171843-26-000700",
+      "clfd20251231_10q",
+      "c1292",
+      undefined,
+      2.2738,
+    ],
+    [
+      "2026-03-31",
+      "000117184326003126",
+      "extended-sec-edgar-clfd-10q-face-0001171843-26-003126",
+      "clfd20260331_10q",
+      "c1613",
+      "clfd-20260331",
+      2.893,
+    ],
+    [
+      "2026-06-30",
+      "000117184326005329",
+      "extended-sec-edgar-clfd-10q",
+      "clfd20260630_10q",
+      "c1651",
+      "clfd-20260630",
+      1.7975,
+    ],
+  ] as const) {
+    const fact = debt.find((row) => row.periodEnd === periodEnd);
+    expect(fact).toMatchObject({
+      value: 0,
+      concept: "NoBorrowingsOnFootedFace",
+      zeroBorrowingsProof: `us-gaap:LineOfCredit = 0 at ${periodEnd} [${CLFD_LINE_OF_CREDIT_MEMBERS}]; fact ${factId}, ${file}_htm.xml`,
+    });
+    const base = `${CLFD_ARCHIVE}/${accession}`;
+    const proofSources = {
+      [sourceId]: `${base}/${file}.htm`,
+      [`${sourceId}-xbrl-instance`]: `${base}/${file}_htm.xml`,
+      [`${sourceId}-metalinks`]: `${base}/MetaLinks.json`,
+      ...(schema === undefined
+        ? {}
+        : {
+            [`${sourceId}-xbrl-schema`]: `${base}/${schema}.xsd`,
+            [`${sourceId}-calculation-linkbase`]: `${base}/${schema}_cal.xml`,
+          }),
+    };
+    expect(fact?.sourceIds).toEqual(expect.arrayContaining(Object.keys(proofSources)));
+    expect(fact?.sourceIds.filter((id) => id.startsWith(`${sourceId}-`)).toSorted()).toEqual(
+      Object.keys(proofSources)
+        .filter((id) => id !== sourceId)
+        .toSorted(),
+    );
+    for (const [id, url] of Object.entries(proofSources)) {
+      expect(sources.get(id)).toBe(url);
+    }
+    expect(financialStatements?.omissionNotes ?? []).toContainEqual(
+      expect.objectContaining({ code: "tagged-zero-debt", periodKey: `instant|${periodEnd}` }),
+    );
+    expect(
+      sourceGaps.filter(
+        ({ message }) => message.startsWith("SEC debt withheld") && message.includes(periodEnd),
+      ),
+    ).toEqual([]);
+    const ttm = valuationWorkbench?.historicalMultiples.observations.find(
+      (observation) => observation.basis === "ttm" && observation.periodEnd === periodEnd,
+    );
+    expect(ttm?.metrics.enterpriseValueToRevenue).toMatchObject({ status: "value" });
+    expect(ttm?.metrics.enterpriseValueToRevenue?.value).toBeCloseTo(evToRevenue, 3);
+  }
+  expect(result.markdown).toContain(
+    "Interim ending 2026-06-30 (latest filed 2026-08-06) | 20.4M | 0 | 13.7M",
+  );
+}
+
 export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult): void {
   const sic = depositoryIssuerSic(result.report.extendedEvidence);
   expect(sic, "fixture issuer must classify as a depository institution").toMatch(/^60\d{2}$/u);
@@ -3193,6 +3278,75 @@ const MISSING_WORKBENCH_SHARES = {
   reason: "diluted-shares-unavailable",
 } as const;
 const MISSING_WORKBENCH_FX = { status: "missing", reason: "fx-rate-unavailable" } as const;
+const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
+  "annual|2017-09-30|2017-11-15": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2018-09-30|2018-11-14": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2019-09-30|2019-11-15": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2020-09-30|2022-11-23": [
+    244.339_622_641_509_4,
+    18.982_696_454_472_2,
+    MISSING_WORKBENCH_DEBT,
+    364.291_643_814_433,
+  ],
+  "annual|2021-09-30|2022-11-23": [
+    88.095_238_095_238_1, 12.682_079_308_017_476, 12.514_483_130_261_802, 201.542_968_612_396_98,
+  ],
+  "annual|2022-09-30|2024-11-15": [
+    7.960_563_444_755_447,
+    1.450_748_518_817_449_4,
+    1.436_772_004_971_988_5,
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+  ],
+  "annual|2023-09-30|2025-11-25": [
+    12.917_051_007_670_741, 1.864_245_142_778_658, 1.128_822_809_111_580_8, 24.526_498_928_617_137,
+  ],
+  "annual|2024-09-30|2025-11-25": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    3.255_177_143_165_247_4,
+    { status: "missing", reason: "mixed-scope-debt" },
+    41.772_721_871_535_39,
+  ],
+  "annual|2025-09-30|2025-11-25": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    2.611_836_001_677_300_3,
+    MISSING_WORKBENCH_DEBT,
+    17.979_155_721_037_127,
+  ],
+  "ttm|2025-12-31|2026-02-09": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    2.896_894_170_941_147,
+    2.273_836_481_491_164,
+    34.242_598_831_201_92,
+  ],
+  "ttm|2026-03-31|2026-05-07": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    3.506_019_539_993_908_5,
+    2.892_954_314_846_312,
+    65.800_212_837_331_03,
+  ],
+  "ttm|2026-06-30|2026-08-06": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    2.456_278_691_519_679_5,
+    1.797_514_959_546_961_3,
+    51.391_878_897_623_63,
+  ],
+};
+
 const IREN_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2023-06-30|2025-08-28": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
@@ -3424,6 +3578,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-web-fallback-deep": AAPL_WORKBENCH_VALUES,
   "equity-iren-deep": IREN_WORKBENCH_VALUES,
   "equity-iren-brief": IREN_WORKBENCH_VALUES,
+  "clfd-zero-debt": CLFD_WORKBENCH_VALUES,
   "equity-depository-deep": {
     "annual|2016-10-31|2018-11-27": [
       MISSING_WORKBENCH_PRICE,

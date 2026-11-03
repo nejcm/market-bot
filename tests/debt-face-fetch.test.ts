@@ -365,9 +365,10 @@ const withRow = (rows: readonly Row[], at: string, row: Row, add = 0): readonly 
   );
 
 const US_GAAP = "http://fasb.org/us-gaap/2025";
+const CLFD = "http://www.clearfieldconnection.com/20251231";
 // CLFD 10-Q 0001171843-26-000700 shape: a hidden LineOfCredit 0 on the revolver member (fact c1292).
 const clfdInstance = (extra = "", unit = "iso4217:USD") =>
-  `<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="${US_GAAP}" xmlns:clfd="http://www.clearfieldconnection.com/20251231" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+  `<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="${US_GAAP}" xmlns:clfd="${CLFD}" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
   <context id="i"><entity><identifier scheme="http://www.sec.gov/CIK">0000796505</identifier></entity><period><instant>2025-12-31</instant></period></context>
   <context id="r"><entity><identifier scheme="http://www.sec.gov/CIK">0000796505</identifier><segment><xbrldi:explicitMember dimension="us-gaap:CreditFacilityAxis">us-gaap:RevolvingCreditFacilityMember</xbrldi:explicitMember></segment></entity><period><instant>2025-12-31</instant></period></context>
   <unit id="USD"><measure>${unit}</measure></unit>
@@ -384,20 +385,26 @@ const tag = (nsuri: string, localname: string, crdr?: string) => ({
 const CLFD_META_LINKS = {
   instance: {
     "q.htm": {
-      tag: Object.fromEntries(
-        ["Liabilities", "AccountsPayableCurrent", "LineOfCredit", "NotesPayable"].map((name) => [
-          `us-gaap_${name}`,
-          tag(US_GAAP, name, "credit"),
-        ]),
-      ),
+      tag: {
+        ...Object.fromEntries(
+          ["Liabilities", "AccountsPayableCurrent", "LineOfCredit", "NotesPayable"].map((name) => [
+            `us-gaap_${name}`,
+            tag(US_GAAP, name, "credit"),
+          ]),
+        ),
+        clfd_LesseeOperatingLeaseLiabilityToBePaidAfterYearFour: tag(
+          CLFD,
+          "LesseeOperatingLeaseLiabilityToBePaidAfterYearFour",
+          "credit",
+        ),
+      },
     },
   },
 };
 const LEASE_EXTENSION =
   '<clfd:LesseeOperatingLeaseLiabilityToBePaidAfterYearFour contextRef="i" unitRef="USD" decimals="-3">1447000</clfd:LesseeOperatingLeaseLiabilityToBePaidAfterYearFour>';
 const LEASE_CAL = `<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:calculationLink xlink:role="r" xlink:type="extended"><link:loc xlink:href="https://xbrl.fasb.org/us-gaap/2025/elts/us-gaap-2025.xsd#us-gaap_LesseeOperatingLeaseLiabilityPaymentsDue" xlink:label="p" xlink:type="locator"/><link:loc xlink:href="q.xsd#clfd_LesseeOperatingLeaseLiabilityToBePaidAfterYearFour" xlink:label="c" xlink:type="locator"/><link:calculationArc xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" xlink:from="p" xlink:to="c" weight="1.0" xlink:type="arc"/></link:calculationLink></link:linkbase>`;
-const SCHEMA =
-  '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><link:linkbaseRef xlink:href="q_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/></xs:schema>';
+const SCHEMA = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" targetNamespace="${CLFD}"><xs:annotation><xs:appinfo><link:linkbaseRef xlink:href="q_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/></xs:appinfo></xs:annotation><xs:element id="clfd_LesseeOperatingLeaseLiabilityToBePaidAfterYearFour" name="LesseeOperatingLeaseLiabilityToBePaidAfterYearFour"/></xs:schema>`;
 
 type Served = Readonly<Record<string, unknown>>;
 const CLFD_SUBMISSIONS = {
@@ -456,6 +463,9 @@ const clfdDerive = async (served: Served) =>
 const withheldMessage = async (served: Served) =>
   financialStatementsDebtBasisGaps(await clfdDerive(served)).map(({ message }) => message);
 
+const taggedZeroNoted = (notes: readonly { code: string }[] | undefined) =>
+  (notes ?? []).some(({ code }) => code === "tagged-zero-debt");
+
 const PROOF =
   "us-gaap:LineOfCredit = 0 at 2025-12-31 [us-gaap:CreditFacilityAxis=us-gaap:RevolvingCreditFacilityMember]; fact c1292, q_htm.xml";
 
@@ -479,6 +489,8 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     const faces = await clfdFaces(clfdServed(), adapters);
     const debt = decDebt(deriveItems(ZERO_GAAP, faces.items));
     expect(adapters).toEqual(["sec-filing-text", "sec-xbrl-instance", "sec-metalinks"]);
+    const metaLinksSource = faces.sources.find(({ url }) => url?.endsWith("/MetaLinks.json"));
+    expect(debt?.sourceIds).toContain(metaLinksSource?.id);
     expect(debt).toMatchObject({
       value: 0,
       concept: "NoBorrowingsOnFootedFace",
@@ -609,6 +621,63 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       { "sec-xbrl-instance": clfdInstance("", "iso4217:EUR") },
       "currency-mismatch:EUR",
     ],
+    [
+      "a notes payable fact with no unit",
+      {
+        "sec-xbrl-instance": clfdInstance(
+          '<us-gaap:NotesPayable contextRef="i">500000</us-gaap:NotesPayable>',
+        ),
+      },
+      "unit-unreadable:us-gaap:NotesPayable",
+    ],
+    [
+      "us-gaap notes payable placed under a lease total",
+      {
+        "sec-xbrl-instance": clfdInstance(
+          `${LEASE_EXTENSION}<us-gaap:NotesPayable contextRef="i" unitRef="USD">500000</us-gaap:NotesPayable>`,
+        ),
+        "sec-calculation-linkbase": LEASE_CAL.replace(
+          "</link:calculationLink>",
+          '<link:loc xlink:href="https://xbrl.fasb.org/us-gaap/2025/elts/us-gaap-2025.xsd#us-gaap_NotesPayable" xlink:label="n" xlink:type="locator"/><link:calculationArc xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" xlink:from="p" xlink:to="n" weight="1" xlink:type="arc"/></link:calculationLink>',
+        ),
+      },
+      "unclassified-credit:us-gaap:NotesPayable",
+    ],
+    [
+      "an anchor tagged for another entity",
+      {
+        "sec-xbrl-instance": clfdInstance().replace(
+          '<context id="r"><entity><identifier scheme="http://www.sec.gov/CIK">0000796505',
+          '<context id="r"><entity><identifier scheme="http://www.sec.gov/CIK">0000000002',
+        ),
+      },
+      "entity-mismatch:0000000002",
+    ],
+    [
+      "a notes payable fact inside an unrecognized subtree",
+      {
+        "sec-xbrl-instance": clfdInstance(
+          '<link:unrecognised xmlns:link="http://www.xbrl.org/2003/linkbase"><us-gaap:NotesPayable contextRef="i" unitRef="USD">500000</us-gaap:NotesPayable></link:unrecognised>',
+        ),
+      },
+      "instance-unreadable",
+    ],
+    [
+      "MetaLinks aliasing one concept two ways",
+      {
+        "sec-metalinks": {
+          instance: {
+            "q.htm": {
+              tag: {
+                ...CLFD_META_LINKS.instance["q.htm"].tag,
+                alias_NotesPayable: tag(US_GAAP, "NotesPayable", "debit"),
+              },
+            },
+          },
+        },
+      },
+      "metalinks-unreadable",
+    ],
   ] as const)("%s withholds with its code", async (_name, overrides, code) => {
     const served = clfdServed(ZERO_ROWS, overrides);
     expect(decDebt(await clfdDerive(served))).toBeUndefined();
@@ -616,6 +685,46 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       expect.stringContaining(`tagged-zero proof was rejected (${code})`),
     ]);
   });
+
+  test("an anchor whose decimal only underflows to zero is not a tagged zero", async () => {
+    const instance = clfdInstance().replace(
+      ">0</us-gaap:LineOfCredit>",
+      `>0.${"0".repeat(400)}1</us-gaap:LineOfCredit>`,
+    );
+    const served = clfdServed(ZERO_ROWS, { "sec-xbrl-instance": instance });
+    expect(decDebt(await clfdDerive(served))).toBeUndefined();
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining("rests on untagged prose"),
+    ]);
+  });
+
+  test("a placed publish cites the instance, MetaLinks, schema and calculation linkbase", async () => {
+    const served = clfdServed(ZERO_ROWS, { "sec-xbrl-instance": clfdInstance(LEASE_EXTENSION) });
+    const faces = await clfdFaces(served);
+    const debt = decDebt(deriveItems(ZERO_GAAP, faces.items));
+    const base = "https://www.sec.gov/Archives/edgar/data/796505/000117184326000700/";
+    const cited = ["q_htm.xml", "MetaLinks.json", "q.xsd", "q_cal.xml"].map((file) =>
+      faces.sources.find(({ url }) => url === `${base}${file}`),
+    );
+    expect(cited.every((source) => source !== undefined)).toBe(true);
+    expect(debt?.sourceIds).toEqual(expect.arrayContaining(cited.map((source) => source!.id)));
+  });
+
+  test.each([
+    ["2025-12-30", false],
+    ["2026-02-04", false],
+    ["2026-02-05", true],
+  ] as const)(
+    "the tagged-zero note follows the published proof at cutoff %s",
+    async (cutoff, shown) => {
+      const artifact = await clfdDerive(clfdServed());
+      expect(taggedZeroNoted(financialPosition(artifact, cutoff)?.notes)).toBe(shown);
+      expect(taggedZeroNoted(balanceSheetHistory(artifact, cutoff)?.notes)).toBe(shown);
+      expect(financialPosition(artifact, cutoff)?.debt?.zeroBorrowingsProof !== undefined).toBe(
+        shown,
+      );
+    },
+  );
 
   test("a zero stated only in untagged prose is withheld with its own gap", async () => {
     const instance = clfdInstance().replace(/<us-gaap:LineOfCredit[^\n]*\n/u, "");

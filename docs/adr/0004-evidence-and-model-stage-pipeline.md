@@ -409,16 +409,25 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   from those peers.
 - Tagged Zero Debt (collection, amended 2026-11-03; replaces the Verified Quote prose link): debt 0 on a
   footed face with no borrowing row publishes only from the same 10-K/10-Q's SEC-extracted XBRL instance, read as
-  XML by a strict namespace-aware reader (no DTD or entities, prefixes resolved by URI, malformed contexts, units
-  or nil values throw), plus its `MetaLinks.json` balance types. The instance must tag an allowlisted borrowing
-  concept 0 at the instant, issuer-wide or on facility axes only; every monetary fact there must share the
-  issuer-wide `Liabilities` currency, read cleanly and not be nil unless MetaLinks marks it debit; and a fail-closed
-  census requires every nonzero non-debit fact at the instant, in any context, to be a closed us-gaap non-debt
-  credit concept (liability totals only issuer-wide) or to sit, per the filing's calculation linkbase, only under
-  operating-lease parents. Prose matching is gone: a regex sentence link and facility-word match were shown to
-  publish unsupported zeros and to reject real ones. Residual reliance: an issuer that leaves a borrowing
-  balance untagged, tags one debit, or places a borrowing extension under a lease total in its own linkbase would
-  pass; facility identity is the tag's own members, not a prose reading. CLFD's 10-Qs 2025-12-31 through
+  XML by a strict namespace-aware reader with a closed XBRL 2.1 grammar (DTDs and custom entities are refused;
+  only the predefined and XML-legal numeric character references decode; unknown root subtrees, element children
+  in simple values, non-calendar dates, and contexts without exactly one entity and one period throw), plus its
+  `MetaLinks.json` balance and item types (an entry with a bad `crdr`, no `xbrltype`, or a conflicting duplicate
+  makes MetaLinks unreadable). Every context must name the issuer's CIK under the SEC scheme; every fact at the
+  instant must be in MetaLinks; a monetary fact (by item type or currency unit, or a numeric fact of unknown type)
+  needs exactly one `iso4217` measure in the issuer-wide `Liabilities` currency and a lexical decimal value
+  (zero means no nonzero digit, never a number coercion); a nil fact rejects unless debit or non-monetary. The
+  instance must tag an allowlisted borrowing concept 0 at the instant, issuer-wide or on facility axes only, and a
+  fail-closed census requires every nonzero non-debit monetary fact there, in any context, to be a closed us-gaap
+  non-debt credit concept (liability totals only issuer-wide) or an extension-namespace concept the calculation
+  linkbase places, with weight exactly 1 in every network, only under us-gaap operating-lease parents. Calc
+  locators resolve by schema: extension hrefs through the filing's xsd ids and `targetNamespace`, us-gaap only from
+  the `xbrl.fasb.org` schema; a us-gaap concept is never pardoned by placement, and conflicting, prohibited or
+  non-decimal weights make the linkbase unreadable. The instance, MetaLinks, schema and linkbase are each a cited
+  Source on the zero. Prose matching is gone: a regex sentence link and facility-word match were shown to publish
+  unsupported zeros and to reject real ones. Residual reliance, not closed by these checks: a borrowing balance
+  the issuer leaves untagged, tags as a debit, or folds into an allowlisted aggregate such as
+  `AccruedLiabilitiesCurrent` would pass; facility identity is the tag's own members, not a prose reading. CLFD's 10-Qs 2025-12-31 through
   2026-06-30 publish 0 (`LineOfCredit` = 0 on the revolver and Bremer Bank loan agreement members). A rejection
   or a failed instance, MetaLinks or linkbase read withholds with its code and Source Gap.
   `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero.

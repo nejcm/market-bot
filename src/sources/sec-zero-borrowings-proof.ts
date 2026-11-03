@@ -1,5 +1,6 @@
 import type { ExtendedEvidenceItem } from "../domain/evidence";
 import { isRecord } from "../guards";
+import type { SummationParent } from "./sec-calculation-linkbase";
 import type { XbrlFact, XbrlInstance } from "./sec-xbrl-instance";
 
 export const ZERO_BORROWINGS_PROOF_KEY = "zeroBorrowingProof";
@@ -88,11 +89,38 @@ const NON_DEBT_CREDIT = new Set([
   "LineOfCreditFacilityRemainingBorrowingCapacity",
 ]);
 
+// MetaLinks types that carry no currency; any other type with a unit, or any fact in a currency unit, is monetary.
+const NONMONETARY_TYPES = new Set([
+  "sharesItemType",
+  "perShareItemType",
+  "pureItemType",
+  "percentItemType",
+  "integerItemType",
+  "nonNegativeIntegerItemType",
+  "positiveIntegerItemType",
+  "decimalItemType",
+  "areaItemType",
+  "volumeItemType",
+  "massItemType",
+  "energyItemType",
+  "powerItemType",
+  "lengthItemType",
+  "durationItemType",
+  "stringItemType",
+  "normalizedStringItemType",
+  "textBlockItemType",
+  "dateItemType",
+  "gYearItemType",
+  "booleanItemType",
+]);
+
 export interface ConceptTag {
-  readonly crdr?: string;
+  readonly crdr?: "credit" | "debit";
+  readonly xbrltype: string;
 }
 
-// MetaLinks.json `instance[<primary document>].tag`, keyed `<namespace URI>#<local name>`.
+// MetaLinks.json `instance[<primary document>].tag`, keyed `<namespace URI>#<local name>`; undefined when an entry
+// Is unreadable or two entries give one concept different balance or type.
 export function metaLinksTags(
   payload: unknown,
   primaryDocument: string,
@@ -102,18 +130,35 @@ export function metaLinksTags(
   if (!isRecord(entry) || !isRecord(entry.tag)) {
     return undefined;
   }
-  return new Map(
-    Object.values(entry.tag).flatMap((tag) =>
-      isRecord(tag) && typeof tag.nsuri === "string" && typeof tag.localname === "string"
-        ? [
-            [
-              `${tag.nsuri}#${tag.localname}`,
-              typeof tag.crdr === "string" ? { crdr: tag.crdr } : {},
-            ] as const,
-          ]
-        : [],
-    ),
-  );
+  const tags = new Map<string, ConceptTag>();
+  for (const tag of Object.values(entry.tag)) {
+    if (
+      !isRecord(tag) ||
+      typeof tag.nsuri !== "string" ||
+      typeof tag.localname !== "string" ||
+      typeof tag.xbrltype !== "string" ||
+      (tag.crdr !== undefined && tag.crdr !== "credit" && tag.crdr !== "debit")
+    ) {
+      return undefined;
+    }
+    const key = `${tag.nsuri}#${tag.localname}`;
+    const read: ConceptTag = {
+      xbrltype: tag.xbrltype,
+      ...(tag.crdr === undefined ? {} : { crdr: tag.crdr }),
+    };
+    const seen = tags.get(key);
+    if (seen !== undefined && (seen.crdr !== read.crdr || seen.xbrltype !== read.xbrltype)) {
+      return undefined;
+    }
+    tags.set(key, read);
+  }
+  return tags;
+}
+
+// A filing's calculation placements, read against its extension schema; only that namespace's concepts are placed.
+export interface CalculationPlacement {
+  readonly extensionNamespace: string;
+  readonly parents: ReadonlyMap<string, readonly SummationParent[]>;
 }
 
 export type ZeroBorrowingsProof =
@@ -122,18 +167,34 @@ export type ZeroBorrowingsProof =
 
 const local = (concept: string) => concept.slice(concept.indexOf(":") + 1);
 const isUsGaap = (concept: string) => concept.startsWith("us-gaap:");
+const US_GAAP_NAMESPACE = /^http:\/\/fasb\.org\/us-gaap\/\d{4}$/u;
 const reject = (code: string) => ({ reject: code });
-const DECIMAL = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/u;
+// Lexical xs:decimal; a value is zero when no digit is nonzero, never via binary floating point.
+const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u;
+const isZero = (value: string | undefined) => value !== undefined && !/[1-9]/u.test(value);
+const expanded = ({ namespace, local: name }: XbrlFact) => `${namespace}#${name}`;
+const cikNumber = (identifier: string) =>
+  /^\d{1,10}$/u.test(identifier) ? String(Number(identifier)) : undefined;
 
-// Borrowings are 0 at `periodEnd` when the filing tags a borrowing concept 0 there and every nonzero credit (or
-// Unclassified) monetary fact at that instant, in any dimension, is a listed non-debt concept or sits under one.
+// Borrowings are 0 at `periodEnd` when the issuer's filing tags a borrowing concept 0 there and every nonzero
+// Non-debit monetary fact at that instant, in any dimension, is a listed non-debt concept or an extension placed under one.
 export function zeroBorrowingsInstanceProof(
   { contexts, units, facts }: XbrlInstance,
   tags: ReadonlyMap<string, ConceptTag>,
-  calcParents: ReadonlyMap<string, ReadonlySet<string>> | undefined,
-  periodEnd: string,
-  file: string,
+  placement: CalculationPlacement | undefined,
+  {
+    periodEnd,
+    file,
+    cik,
+  }: { readonly periodEnd: string; readonly file: string; readonly cik: string },
 ): ZeroBorrowingsProof {
+  const foreignEntity = [...contexts.values()].find(
+    ({ entity }) =>
+      entity.scheme !== "http://www.sec.gov/CIK" || cikNumber(entity.identifier) !== cikNumber(cik),
+  );
+  if (foreignEntity !== undefined) {
+    return reject(`entity-mismatch:${foreignEntity.entity.identifier}`);
+  }
   const unread = facts.find(
     ({ contextRef, unitRef }) =>
       contextRef === undefined ||
@@ -147,19 +208,41 @@ export function zeroBorrowingsInstanceProof(
         : `unit-unreadable:${String(unread.unitRef)}`,
     );
   }
+  const instantFacts = facts.flatMap((fact) => {
+    const context = contexts.get(fact.contextRef!)!;
+    return context.instant === periodEnd ? [{ ...fact, members: context.members }] : [];
+  });
+  const untyped = instantFacts.find((fact) => !tags.has(expanded(fact)));
+  if (untyped !== undefined) {
+    return reject(`metalinks-missing:${untyped.concept}`);
+  }
+  const tagOf = (fact: XbrlFact) => tags.get(expanded(fact))!;
+  const nilFact = instantFacts.find(
+    (fact) =>
+      fact.nil && tagOf(fact).crdr !== "debit" && !NONMONETARY_TYPES.has(tagOf(fact).xbrltype),
+  );
+  if (nilFact !== undefined) {
+    return reject(`nil-fact:${nilFact.concept}`);
+  }
   const currencyOf = ({ unitRef }: XbrlFact) => {
-    const measures = unitRef === undefined ? undefined : units.get(unitRef);
-    return Array.isArray(measures) && measures.length === 1 && measures[0]!.startsWith("iso4217:")
-      ? measures[0]!.slice(8)
+    const read = unitRef === undefined ? undefined : units.get(unitRef);
+    const [measure, ...more] = read !== undefined && "measures" in read ? read.measures : [];
+    return measure?.startsWith("iso4217:") === true && more.length === 0
+      ? measure.slice(8)
       : undefined;
   };
-  const atInstant = facts.flatMap((fact) => {
-    const context = contexts.get(fact.contextRef!)!;
-    const currency = currencyOf(fact);
-    return context.instant === periodEnd && currency !== undefined
-      ? [{ ...fact, currency, members: context.members }]
-      : [];
-  });
+  const monetary = instantFacts.filter(
+    (fact) =>
+      !fact.nil &&
+      (tagOf(fact).xbrltype === "monetaryItemType" ||
+        currencyOf(fact) !== undefined ||
+        (fact.unitRef !== undefined && !NONMONETARY_TYPES.has(tagOf(fact).xbrltype))),
+  );
+  const unitless = monetary.find((fact) => currencyOf(fact) === undefined);
+  if (unitless !== undefined) {
+    return reject(`unit-unreadable:${unitless.concept}`);
+  }
+  const atInstant = monetary.map((fact) => ({ ...fact, currency: currencyOf(fact)! }));
   const faceCurrency = atInstant.find(
     ({ concept, members }) => concept === "us-gaap:Liabilities" && members.length === 0,
   )?.currency;
@@ -170,44 +253,43 @@ export function zeroBorrowingsInstanceProof(
   if (foreign !== undefined) {
     return reject(`currency-mismatch:${foreign.concept}:${foreign.currency}`);
   }
-  const malformed = atInstant.find(({ nil, value }) => !nil && !DECIMAL.test(value ?? ""));
+  const malformed = atInstant.find(({ value }) => !DECIMAL.test(value ?? ""));
   if (malformed !== undefined) {
     return reject(`value-unreadable:${malformed.concept}`);
   }
   const tagged = atInstant.filter(
-    ({ concept, nil, value }) =>
-      isUsGaap(concept) &&
-      ZERO_BORROWING_CONCEPTS.has(local(concept)) &&
-      !nil &&
-      Number(value) === 0,
+    ({ concept, value }) =>
+      isUsGaap(concept) && ZERO_BORROWING_CONCEPTS.has(local(concept)) && isZero(value),
   );
   const anchor = tagged.find(({ members }) => members.every(([axis]) => FACILITY_AXES.has(axis)));
   if (anchor === undefined) {
     const scope = tagged[0]?.members.find(([axis]) => !FACILITY_AXES.has(axis))?.[0];
     return reject(scope === undefined ? UNTAGGED_ZERO : `scoped-zero:${scope}`);
   }
-  const crdr = ({ namespace, local: name }: XbrlFact) => tags.get(`${namespace}#${name}`)?.crdr;
-  const nilFact = atInstant.find((fact) => fact.nil && crdr(fact) !== "debit");
-  if (nilFact !== undefined) {
-    return reject(`nil-fact:${nilFact.concept}`);
-  }
   const listed = (concept: string, issuerWide: boolean) =>
     isUsGaap(concept) &&
     NON_DEBT_CREDIT.has(local(concept)) &&
     (issuerWide || !TOTALS.has(local(concept)));
-  const placed = (concept: string) => {
-    const parents = [...(calcParents?.get(concept) ?? [])];
+  const nonDebtParent = (parent: string) => {
+    const [namespace = "", name = ""] = parent.split("#");
+    return US_GAAP_NAMESPACE.test(namespace) && NON_DEBT_PARENTS.has(name);
+  };
+  const placed = (fact: XbrlFact) => {
+    const parents =
+      fact.namespace === placement?.extensionNamespace
+        ? (placement.parents.get(expanded(fact)) ?? [])
+        : [];
     return (
       parents.length > 0 &&
-      parents.every((parent) => isUsGaap(parent) && NON_DEBT_PARENTS.has(local(parent)))
+      parents.every(({ parent, weight }) => weight === 1 && nonDebtParent(parent))
     );
   };
   const unclassified = atInstant.find(
     (fact) =>
-      Number(fact.value) !== 0 &&
-      crdr(fact) !== "debit" &&
+      !isZero(fact.value) &&
+      tagOf(fact).crdr !== "debit" &&
       !listed(fact.concept, fact.members.length === 0) &&
-      !placed(fact.concept),
+      !placed(fact),
   );
   if (unclassified !== undefined) {
     return reject(`${UNCLASSIFIED_CREDIT}:${unclassified.concept}`);

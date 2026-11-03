@@ -1,5 +1,4 @@
 // Offline source-collection replay of a fixture or `<run>/replay`: no model synthesis, prints debt facts and notes.
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { withRunCapture } from "../src/replay/capture";
 import { countCassetteMisses, makeReplayFetch } from "../src/replay/data-cassette";
@@ -11,7 +10,7 @@ import {
 } from "../src/research/research-subject-identity";
 import { collectSources } from "../src/sources/collector";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
-import { EVALS_ROOT } from "../tests/support/run-fixtures/eval";
+import { freshEvalDir } from "../src/replay/eval-output";
 import {
   createFixtureConfig,
   fixtureCommand,
@@ -23,13 +22,18 @@ const positional = args.filter((argument) => !argument.startsWith("--"));
 const fixtureName = positional.length === 1 ? positional[0] : undefined;
 const labelFlag = args.find((argument) => argument.startsWith("--label="));
 const disabled = args.includes("--tagged-zero-debt-disable");
-if (fixtureName === undefined || labelFlag === undefined) {
+const unknownFlags = args.filter(
+  (argument) =>
+    argument.startsWith("--") &&
+    argument !== "--tagged-zero-debt-disable" &&
+    !argument.startsWith("--label="),
+);
+if (fixtureName === undefined || labelFlag === undefined || unknownFlags.length > 0) {
   throw new Error(
     "Usage: bun run scripts/replay-collection.ts <fixture-name | <run>/replay> --label=<fresh> [--tagged-zero-debt-disable]",
   );
 }
-const outDir = join(EVALS_ROOT, labelFlag.slice("--label=".length));
-await mkdir(outDir);
+const outDir = await freshEvalDir(labelFlag.slice("--label=".length));
 const fixture = await loadFixture(fixtureName);
 const config = createFixtureConfig(fixture.meta, join(outDir, "runs"));
 const httpMisses: string[] = [];

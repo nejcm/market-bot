@@ -155,27 +155,88 @@ export function secDepreciationCalcMetrics(xml: string): Record<string, number |
 }
 
 const LINKBASE = "http://www.xbrl.org/2003/linkbase";
-const descendants = (element: XmlElement, local: string): readonly XmlElement[] =>
+const XSD = "http://www.w3.org/2001/XMLSchema";
+const descendants = (
+  element: XmlElement,
+  namespace: string,
+  local: string,
+): readonly XmlElement[] =>
   element.children.flatMap((child) => [
-    ...(child.namespace === LINKBASE && child.local === local ? [child] : []),
-    ...descendants(child, local),
+    ...(child.namespace === namespace && child.local === local ? [child] : []),
+    ...descendants(child, namespace, local),
   ]);
 
-// Summation parents of each `prefix:Local` child across every role; throws on a prohibited or prioritized arc,
-// Whose override this reader does not resolve.
-export function summationParents(xml: string): ReadonlyMap<string, ReadonlySet<string>> {
-  const parents = new Map<string, Set<string>>();
-  for (const link of descendants(parseXml(xml), "calculationLink")) {
+export interface ExtensionSchema {
+  // The schema's own file name, as the filing's linkbases reference it.
+  readonly href: string;
+  readonly namespace: string;
+  readonly localById: ReadonlyMap<string, string>;
+}
+
+export function extensionSchema(href: string, xsd: string): ExtensionSchema {
+  const root = parseXml(xsd);
+  const namespace = attributeOf(root, "", "targetNamespace");
+  if (root.namespace !== XSD || root.local !== "schema" || namespace === undefined) {
+    throw new Error("extension schema without targetNamespace");
+  }
+  const localById = new Map<string, string>();
+  for (const element of descendants(root, XSD, "element")) {
+    const id = attributeOf(element, "", "id");
+    const name = attributeOf(element, "", "name");
+    if (id !== undefined && name !== undefined) {
+      localById.set(id, name);
+    }
+  }
+  return { href, namespace, localById };
+}
+
+const US_GAAP_SCHEMA =
+  /^https?:\/\/xbrl\.fasb\.org\/us-gaap\/(\d{4})\/elts\/us-gaap-\1\.xsd#us-gaap_(\w+)$/u;
+const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u;
+
+// `<namespace URI>#<local>` of a locator: us-gaap only from the official FASB taxonomy, the filing's own concepts
+// Only from its extension schema; any other target stays `unresolved:` and so never matches a fact or an allowlist.
+function locatorConcept(href: string, schema: ExtensionSchema): string {
+  const gaap = US_GAAP_SCHEMA.exec(href);
+  if (gaap !== null) {
+    return `http://fasb.org/us-gaap/${gaap[1]}#${gaap[2]}`;
+  }
+  const [document, fragment = ""] = href.split("#");
+  if (document !== schema.href) {
+    return `unresolved:${href}`;
+  }
+  const local = schema.localById.get(fragment);
+  if (local === undefined) {
+    throw new Error(`locator ${href} names no element of ${schema.href}`);
+  }
+  return `${schema.namespace}#${local}`;
+}
+
+export interface SummationParent {
+  readonly parent: string;
+  readonly weight: number;
+}
+
+// Summation parents of each `<namespace URI>#<local>` child across every network; throws on a prohibited or
+// Prioritized arc, a missing or zero weight, or one relationship weighted two ways.
+export function summationParents(
+  xml: string,
+  schema: ExtensionSchema,
+): ReadonlyMap<string, readonly SummationParent[]> {
+  const parents = new Map<string, SummationParent[]>();
+  const weights = new Map<string, number>();
+  for (const link of descendants(parseXml(xml), LINKBASE, "calculationLink")) {
+    const role = attributeOf(link, XLINK, "role") ?? "";
     const locators = new Map<string, string[]>();
-    for (const loc of descendants(link, "loc")) {
+    for (const loc of descendants(link, LINKBASE, "loc")) {
       const label = attributeOf(loc, XLINK, "label");
-      const id = /#([^_#]+)_(.+)$/u.exec(attributeOf(loc, XLINK, "href") ?? "");
-      if (label === undefined || id === null) {
+      const href = attributeOf(loc, XLINK, "href");
+      if (label === undefined || href === undefined) {
         throw new Error("unreadable calculation locator");
       }
-      locators.set(label, [...(locators.get(label) ?? []), `${id[1]}:${id[2]}`]);
+      locators.set(label, [...(locators.get(label) ?? []), locatorConcept(href, schema)]);
     }
-    for (const arc of descendants(link, "calculationArc")) {
+    for (const arc of descendants(link, LINKBASE, "calculationArc")) {
       if (!SUMMATION_ITEM.has(attributeOf(arc, XLINK, "arcrole") ?? "")) {
         continue;
       }
@@ -188,11 +249,23 @@ export function summationParents(xml: string): ReadonlyMap<string, ReadonlySet<s
       }
       const from = locators.get(attributeOf(arc, XLINK, "from") ?? "");
       const to = locators.get(attributeOf(arc, XLINK, "to") ?? "");
+      const rawWeight = attributeOf(arc, "", "weight")?.trim() ?? "";
+      const weight = Number(rawWeight);
       if (from === undefined || to === undefined) {
         throw new Error("calculation arc to an unknown locator");
       }
-      for (const child of to) {
-        parents.set(child, new Set([...(parents.get(child) ?? []), ...from]));
+      if (!DECIMAL.test(rawWeight) || weight === 0) {
+        throw new Error(`unreadable calculation weight ${rawWeight}`);
+      }
+      for (const parent of from) {
+        for (const child of to) {
+          const key = `${role} ${parent} ${child}`;
+          if ((weights.get(key) ?? weight) !== weight) {
+            throw new Error(`calculation arc ${key} weighted two ways`);
+          }
+          weights.set(key, weight);
+          parents.set(child, [...(parents.get(child) ?? []), { parent, weight }]);
+        }
       }
     }
   }

@@ -85,6 +85,7 @@ function statementSurfaceNotes(
   artifact: FinancialStatementsArtifact,
   cutoff: string,
   recastPeriodKeys: readonly string[] = [],
+  zeroProofPeriodKeys: readonly string[] = [],
 ): readonly FinancialStatementNote[] | undefined {
   if (artifact.omissionNotes === undefined && artifact.validationNotes === undefined) {
     return undefined;
@@ -93,7 +94,9 @@ function statementSurfaceNotes(
   const notes = [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
-      note.code === "tagged-zero-debt" ||
+      (note.code === "tagged-zero-debt" &&
+        zeroProofPeriodKeys.includes(note.periodKey ?? "") &&
+        (note.publicAt ?? "") <= cutoff) ||
       (note.code === "debt-held-for-sale" &&
         (note.periodKey === withheldDebtKey || recastPeriodKeys.includes(note.periodKey ?? ""))) ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||
@@ -240,7 +243,12 @@ export function financialPosition(
   if (cash === undefined && debt === undefined && dilutedShares === undefined) {
     return undefined;
   }
-  const notes = statementSurfaceNotes(artifact, cutoff);
+  const notes = statementSurfaceNotes(
+    artifact,
+    cutoff,
+    [],
+    debt?.zeroBorrowingsProof === undefined ? [] : [`instant|${debt.periodEnd}`],
+  );
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}
@@ -272,6 +280,7 @@ export function balanceSheetHistory(
     .filter((fact) => observableStatementFact(fact, cutoff));
   const periods = [...new Set(facts.map((fact) => fact.periodEnd))].toSorted().slice(-5);
   const recastPeriodKeys: string[] = [];
+  const zeroProofPeriodKeys: string[] = [];
   const rows = periods.flatMap((periodEnd): readonly EquityReaderBalanceSheetRow[] => {
     const cashFact = latestFinancialStatementFact(
       financialStatementFacts(cash).filter(
@@ -289,6 +298,9 @@ export function balanceSheetHistory(
       recastPeriodKeys.push(`instant|${periodEnd}`);
     }
     const debtFact = recast ? undefined : publishedDebt;
+    if (debtFact?.zeroBorrowingsProof !== undefined) {
+      zeroProofPeriodKeys.push(`instant|${periodEnd}`);
+    }
     const dilutedSharesFact = latestFinancialStatementFact(
       financialStatementFacts(dilutedShares).filter(
         (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
@@ -317,7 +329,7 @@ export function balanceSheetHistory(
   if (rows.length === 0) {
     return undefined;
   }
-  const notes = statementSurfaceNotes(artifact, cutoff, recastPeriodKeys);
+  const notes = statementSurfaceNotes(artifact, cutoff, recastPeriodKeys, zeroProofPeriodKeys);
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}

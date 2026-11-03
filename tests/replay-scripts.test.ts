@@ -110,3 +110,23 @@ await writeFile(${JSON.stringify(join(root, "results.json"))}, JSON.stringify(re
     [0, 0],
   );
 });
+
+test.each([
+  ["--label=../escape", "Unsafe eval label"],
+  ["--label=fresh --tagged-zero-debt-disabled", "Usage"],
+])("collection replay refuses %s before writing", async (flags, message) => {
+  const root = await mkdtemp(join(tmpdir(), "market-bot-replay-collection-"));
+  roots.push(root);
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      "--no-env-file",
+      join(import.meta.dir, "../scripts/replay-collection.ts"),
+      "no-such-fixture",
+      ...flags.split(" "),
+    ],
+    { cwd: root, stdout: "ignore", stderr: "pipe" },
+  );
+  expect(await child.exited).not.toBe(0);
+  expect(await new Response(child.stderr).text()).toContain(message);
+});

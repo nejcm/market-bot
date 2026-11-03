@@ -83,7 +83,7 @@ type FinancialStatementExtractionMethod =
   | "derived-sec-companyfacts"
   | typeof ZERO_BORROWINGS_EXTRACTION_METHOD;
 
-// A zero proved by a footed filing face plus the filing's own zero-borrowings sentence, not by tagged debt.
+// A zero proved by a footed filing face plus a borrowing concept the filing's XBRL instance tags 0.
 export const ZERO_BORROWINGS_EXTRACTION_METHOD = "sec-filing-face-text";
 export const ZERO_BORROWINGS_CONCEPT = "NoBorrowingsOnFootedFace";
 

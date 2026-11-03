@@ -63,6 +63,7 @@ import {
   DA_CALC_READ_KEY,
   calculationLinkbaseHref,
   secDepreciationCalcMetrics,
+  extensionSchema,
   summationParents,
   xbrlSchemaHref,
 } from "./sec-calculation-linkbase";
@@ -160,8 +161,16 @@ function secEarningsExhibitGap(
 
 const DA_CALC_ADAPTERS = new Set(["sec-xbrl-schema", "sec-calculation-linkbase"]);
 
+interface FetchedDocument {
+  readonly url: string;
+  readonly adapter: string;
+  readonly rawSnapshot: RawSourceSnapshot;
+}
+
 interface CalculationLinkbaseFetch {
   readonly xml?: string;
+  readonly schema?: { readonly href: string; readonly xml: string };
+  readonly documents: readonly FetchedDocument[];
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
 }
@@ -175,30 +184,45 @@ async function fetchCalculationLinkbase(
 ): Promise<CalculationLinkbaseFetch> {
   const schemaHref = xbrlSchemaHref(html);
   if (schemaHref === undefined || schemaHref.includes("/")) {
-    return { rawSnapshots: [], gaps: [] };
+    return { documents: [], rawSnapshots: [], gaps: [] };
   }
   const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
   const init = secTextRequestInit(ctx.secUserAgent);
-  const schema = await ctx.request.text({
-    url: `${baseUrl}/${schemaHref}`,
-    adapter: "sec-xbrl-schema",
-    init,
-  });
+  const schemaUrl = `${baseUrl}/${schemaHref}`;
+  const schema = await ctx.request.text({ url: schemaUrl, adapter: "sec-xbrl-schema", init });
   if (!isFetchTextResult(schema)) {
-    return { rawSnapshots: [], gaps: [schema] };
+    return { documents: [], rawSnapshots: [], gaps: [schema] };
   }
+  const schemaRead = { href: schemaHref, xml: schema.payload };
+  const schemaDocument = {
+    url: schemaUrl,
+    adapter: "sec-xbrl-schema",
+    rawSnapshot: schema.rawSnapshot,
+  };
   const calcHref = calculationLinkbaseHref(schema.payload);
   if (calcHref === undefined || calcHref.includes("/")) {
-    return { xml: schema.payload, rawSnapshots: [schema.rawSnapshot], gaps: [] };
+    return {
+      xml: schema.payload,
+      schema: schemaRead,
+      documents: [schemaDocument],
+      rawSnapshots: [schema.rawSnapshot],
+      gaps: [],
+    };
   }
-  const calc = await ctx.request.text({
-    url: `${baseUrl}/${calcHref}`,
-    adapter: "sec-calculation-linkbase",
-    init,
-  });
+  const calcUrl = `${baseUrl}/${calcHref}`;
+  const calc = await ctx.request.text({ url: calcUrl, adapter: "sec-calculation-linkbase", init });
   return isFetchTextResult(calc)
-    ? { xml: calc.payload, rawSnapshots: [schema.rawSnapshot, calc.rawSnapshot], gaps: [] }
-    : { rawSnapshots: [schema.rawSnapshot], gaps: [calc] };
+    ? {
+        xml: calc.payload,
+        schema: schemaRead,
+        documents: [
+          schemaDocument,
+          { url: calcUrl, adapter: "sec-calculation-linkbase", rawSnapshot: calc.rawSnapshot },
+        ],
+        rawSnapshots: [schema.rawSnapshot, calc.rawSnapshot],
+        gaps: [],
+      }
+    : { documents: [schemaDocument], rawSnapshots: [schema.rawSnapshot], gaps: [calc] };
 }
 
 async function fetchDepreciationCalc(
@@ -230,7 +254,7 @@ async function fetchDepreciationCalc(
 interface ZeroBorrowingsFetch {
   readonly metrics: Record<string, string>;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
-  readonly source?: Source;
+  readonly sources: readonly Source[];
   readonly gaps: readonly SourceGap[];
 }
 
@@ -241,8 +265,16 @@ const rejectZeroBorrowings = (
 ): ZeroBorrowingsFetch => ({
   metrics: { [ZERO_BORROWINGS_REJECT_KEY]: code },
   rawSnapshots,
+  sources: [],
   gaps,
 });
+
+const ZERO_PROOF_DOCUMENTS: Readonly<Record<string, readonly [suffix: string, title: string]>> = {
+  "sec-xbrl-instance": ["xbrl-instance", "XBRL instance"],
+  "sec-metalinks": ["metalinks", "MetaLinks"],
+  "sec-xbrl-schema": ["xbrl-schema", "XBRL extension schema"],
+  "sec-calculation-linkbase": ["calculation-linkbase", "calculation linkbase"],
+};
 
 // Only a footed face with no borrowing row asks for the XBRL instance, MetaLinks and, for an unlisted credit
 // Fact, the calculation linkbase; every failure is a rejection code beside its adapter's Source Gap.
@@ -259,7 +291,7 @@ async function fetchZeroBorrowingsProof(
     !faceHasNoBorrowingRow(item.metrics) ||
     instanceFile === filing.primaryDocument
   ) {
-    return { metrics: {}, rawSnapshots: [], gaps: [] };
+    return { metrics: {}, rawSnapshots: [], sources: [], gaps: [] };
   }
   const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
   const init = secTextRequestInit(ctx.secUserAgent);
@@ -273,8 +305,9 @@ async function fetchZeroBorrowingsProof(
   if (!isFetchTextResult(instance)) {
     return rejectZeroBorrowings("instance-fetch-failed:sec-xbrl-instance", [], [instance]);
   }
+  const metaLinksUrl = `${baseUrl}/MetaLinks.json`;
   const metaLinks = await ctx.request.json({
-    url: `${baseUrl}/MetaLinks.json`,
+    url: metaLinksUrl,
     adapter: "sec-metalinks",
     maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
     init,
@@ -286,7 +319,11 @@ async function fetchZeroBorrowingsProof(
       [metaLinks],
     );
   }
-  const rawSnapshots = [instance.rawSnapshot, metaLinks.rawSnapshot];
+  const documents: FetchedDocument[] = [
+    { url, adapter: "sec-xbrl-instance", rawSnapshot: instance.rawSnapshot },
+    { url: metaLinksUrl, adapter: "sec-metalinks", rawSnapshot: metaLinks.rawSnapshot },
+  ];
+  const rawSnapshots = documents.map(({ rawSnapshot }) => rawSnapshot);
   const tags = metaLinksTags(metaLinks.payload, filing.primaryDocument);
   if (tags === undefined) {
     return rejectZeroBorrowings("metalinks-unreadable", rawSnapshots);
@@ -297,11 +334,12 @@ async function fetchZeroBorrowingsProof(
   } catch {
     return rejectZeroBorrowings("instance-unreadable", rawSnapshots);
   }
-  let proof = zeroBorrowingsInstanceProof(parsed, tags, undefined, filing.reportDate, instanceFile);
+  const scope = { periodEnd: filing.reportDate, file: instanceFile, cik };
+  let proof = zeroBorrowingsInstanceProof(parsed, tags, undefined, scope);
   if ("reject" in proof && proof.reject.startsWith(UNCLASSIFIED_CREDIT)) {
     const calc = await fetchCalculationLinkbase(ctx, filing, cik, html);
     const calcSnapshots = [...rawSnapshots, ...calc.rawSnapshots];
-    if (calc.gaps.length > 0 || calc.xml === undefined) {
+    if (calc.gaps.length > 0 || calc.xml === undefined || calc.schema === undefined) {
       return rejectZeroBorrowings(
         `instance-fetch-failed:${calc.gaps[0]?.source ?? "sec-xbrl-schema"}`,
         calcSnapshots,
@@ -309,16 +347,17 @@ async function fetchZeroBorrowingsProof(
       );
     }
     try {
+      const schema = extensionSchema(calc.schema.href, calc.schema.xml);
       proof = zeroBorrowingsInstanceProof(
         parsed,
         tags,
-        summationParents(calc.xml),
-        filing.reportDate,
-        instanceFile,
+        { extensionNamespace: schema.namespace, parents: summationParents(calc.xml, schema) },
+        scope,
       );
     } catch {
       return rejectZeroBorrowings("calculation-linkbase-unreadable", calcSnapshots);
     }
+    documents.push(...calc.documents);
     rawSnapshots.push(...calc.rawSnapshots);
   }
   if ("reject" in proof) {
@@ -331,14 +370,17 @@ async function fetchZeroBorrowingsProof(
       [ZERO_BORROWINGS_CURRENCY_KEY]: proof.currency,
     },
     rawSnapshots,
-    source: {
-      ...filingSource,
-      id: `${item.source.id}-xbrl-instance`,
-      title: `${item.source.title} XBRL instance`,
-      url,
-      rawRef: instance.rawSnapshot.id,
-      summary: `${filing.form} ${filing.accessionNumber} XBRL instance ${instanceFile}: tagged zero borrowings at ${filing.reportDate}.`,
-    },
+    sources: documents.map(({ url: documentUrl, adapter, rawSnapshot }) => {
+      const [suffix, title] = ZERO_PROOF_DOCUMENTS[adapter]!;
+      return {
+        ...filingSource,
+        id: `${item.source.id}-${suffix}`,
+        title: `${item.source.title} ${title}`,
+        url: documentUrl,
+        rawRef: rawSnapshot.id,
+        summary: `${filing.form} ${filing.accessionNumber} ${title} ${documentUrl.slice(documentUrl.lastIndexOf("/") + 1)}: evidence for tagged zero borrowings at ${filing.reportDate}.`,
+      };
+    }),
     gaps: [],
   };
 }
@@ -643,14 +685,11 @@ async function collectSecFiling(
   });
   return {
     rawSnapshots: [...rawSnapshots, ...calc.rawSnapshots, ...zero.rawSnapshots],
-    sources: [built.source, ...(zero.source === undefined ? [] : [zero.source])],
+    sources: [built.source, ...zero.sources],
     items: [
       {
         ...built.item,
-        sourceIds: [
-          ...built.item.sourceIds,
-          ...(zero.source === undefined ? [] : [zero.source.id]),
-        ],
+        sourceIds: [...built.item.sourceIds, ...zero.sources.map(({ id }) => id)],
         metrics: { ...built.item.metrics, ...calc.metrics, ...zero.metrics },
       },
     ],
@@ -749,7 +788,7 @@ export async function collectSecDebtFaceFilings(
         item: {
           ...item,
           summary,
-          sourceIds: [id, ...(zero.source === undefined ? [] : [zero.source.id])],
+          sourceIds: [id, ...zero.sources.map(({ id: proofId }) => proofId)],
           metrics: { ...item.metrics, ...face, ...zero.metrics },
         },
       } as const;
@@ -772,7 +811,7 @@ export async function collectSecDebtFaceFilings(
     ]),
     sources: reads.flatMap((entry) => [
       ...(entry.source === undefined ? [] : [entry.source]),
-      ...("zero" in entry && entry.zero.source !== undefined ? [entry.zero.source] : []),
+      ...("zero" in entry ? entry.zero.sources : []),
     ]),
     items: reads.flatMap((entry) => (entry.item === undefined ? [] : [entry.item])),
     gaps: [

@@ -32,13 +32,25 @@ const ENTITIES: Readonly<Record<string, string>> = {
 };
 const NAME = /^[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?$/u;
 
+// XML 1.0 `Char`: tab, newline, carriage return and the non-surrogate planes, minus U+FFFE/U+FFFF.
+const xmlChar = (code: number) =>
+  code === 0x9 ||
+  code === 0xa ||
+  code === 0xd ||
+  (code >= 0x20 && code <= 0xd7_ff) ||
+  (code >= 0xe0_00 && code <= 0xff_fd) ||
+  (code >= 0x1_00_00 && code <= 0x10_ff_ff);
+
 function decode(raw: string): string {
   return raw.replaceAll(/&([^;&]*);?/gu, (whole, ref: string) => {
-    const code = /^#x([\da-fA-F]+)$/u.exec(ref)?.[1] ?? /^#(\d+)$/u.exec(ref)?.[1];
-    const decoded =
-      code === undefined
-        ? ENTITIES[ref]
-        : String.fromCodePoint(Number.parseInt(code, ref.startsWith("#x") ? 16 : 10));
+    const hex = /^#x([\da-fA-F]+)$/u.exec(ref)?.[1];
+    const digits = hex ?? /^#(\d+)$/u.exec(ref)?.[1];
+    const code =
+      digits === undefined ? undefined : Number.parseInt(digits, hex === undefined ? 10 : 16);
+    if (code !== undefined && !xmlChar(code)) {
+      throw new Error(`illegal character reference &${ref};`);
+    }
+    const decoded = code === undefined ? ENTITIES[ref] : String.fromCodePoint(code);
     if (!whole.endsWith(";") || decoded === undefined) {
       throw new Error(`unreadable entity &${ref}`);
     }
@@ -110,7 +122,26 @@ function startTag(source: string, parent: ReadonlyMap<string, string>) {
   };
 }
 
+// Index of the `>` closing the start tag at `from`, skipping quoted attribute values.
+function startTagEnd(xml: string, from: number): number {
+  let quote = "";
+  for (let at = from; at < xml.length; at += 1) {
+    const char = xml[at]!;
+    if (quote !== "") {
+      quote = char === quote ? "" : quote;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === ">") {
+      return at;
+    }
+  }
+  throw new Error("unterminated <");
+}
+
 export function parseXml(xml: string): XmlElement {
+  if (![...xml].every((char) => xmlChar(char.codePointAt(0)!))) {
+    throw new Error("character outside XML 1.0");
+  }
   const stack: OpenElement[] = [];
   let root: XmlElement | undefined = undefined;
   let at = xml.startsWith("﻿") ? 1 : 0;
@@ -164,7 +195,9 @@ export function parseXml(xml: string): XmlElement {
         parent.children.push(closed);
       }
     } else {
-      const tag = startTag(delimited("<", ">"), stack.at(-1)?.element.namespaces ?? new Map());
+      const end = startTagEnd(xml, lt + 1);
+      at = end + 1;
+      const tag = startTag(xml.slice(lt + 1, end), stack.at(-1)?.element.namespaces ?? new Map());
       if (stack.length === 0 && root !== undefined) {
         throw new Error("second root element");
       }
@@ -209,17 +242,30 @@ function canonicalName(namespace: string, local: string, namespaces: ReadonlyMap
   return `${prefix}:${local}`;
 }
 
+// Text of an element that may hold no child elements.
+function simpleText(element: XmlElement): string {
+  if (element.children.length > 0) {
+    throw new Error(`element inside simple value ${element.local}`);
+  }
+  return element.text.trim();
+}
+
 function qnameText(element: XmlElement): string {
-  const { namespace, local } = resolve(element.text.trim(), element.namespaces, false);
+  const { namespace, local } = resolve(simpleText(element), element.namespaces, false);
   return canonicalName(namespace, local, element.namespaces);
 }
 
 interface XbrlContext {
+  readonly entity: { readonly scheme: string; readonly identifier: string };
   readonly instant?: string;
   readonly start?: string;
   readonly end?: string;
   readonly members: readonly (readonly [axis: string, member: string])[];
 }
+
+type XbrlUnit =
+  | { readonly measures: readonly string[] }
+  | { readonly numerator: readonly string[]; readonly denominator: readonly string[] };
 
 export interface XbrlFact {
   readonly concept: string;
@@ -234,40 +280,68 @@ export interface XbrlFact {
 
 export interface XbrlInstance {
   readonly contexts: ReadonlyMap<string, XbrlContext>;
-  readonly units: ReadonlyMap<string, readonly string[] | "divide">;
+  readonly units: ReadonlyMap<string, XbrlUnit>;
   readonly facts: readonly XbrlFact[];
 }
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 const is = (element: XmlElement, namespace: string, local: string) =>
   element.namespace === namespace && element.local === local;
-const childrenOf = (element: XmlElement | undefined, namespace: string, local: string) =>
-  (element?.children ?? []).filter((child) => is(child, namespace, local));
+
+// Children of `element` by xbrli local name, each within [min, max]; any other child throws.
+function grammar(
+  element: XmlElement,
+  allowed: Readonly<Record<string, readonly [min: number, max: number]>>,
+): Readonly<Record<string, readonly XmlElement[]>> {
+  const found: Record<string, XmlElement[]> = Object.fromEntries(
+    Object.keys(allowed).map((local) => [local, []]),
+  );
+  for (const child of element.children) {
+    const slot = child.namespace === XBRLI ? found[child.local] : undefined;
+    if (slot === undefined) {
+      throw new Error(`unexpected ${child.local} in ${element.local}`);
+    }
+    slot.push(child);
+  }
+  for (const [local, [min, max]] of Object.entries(allowed)) {
+    const count = found[local]!.length;
+    if (count < min || count > max) {
+      throw new Error(`${element.local} needs ${String(min)}-${String(max)} ${local}`);
+    }
+  }
+  return found;
+}
 
 function date(element: XmlElement | undefined): string | undefined {
-  const text = element?.text.trim();
-  if (text !== undefined && !DATE.test(text)) {
+  if (element === undefined) {
+    return undefined;
+  }
+  const text = simpleText(element);
+  const parsed = /^\d{4}-\d{2}-\d{2}$/u.test(text) ? new Date(`${text}T00:00:00Z`) : undefined;
+  if (
+    parsed === undefined ||
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== text
+  ) {
     throw new Error(`unreadable date ${text}`);
   }
   return text;
 }
 
 function context(element: XmlElement): XbrlContext {
-  const [period] = childrenOf(element, XBRLI, "period");
-  const [instant] = childrenOf(period, XBRLI, "instant");
-  const [start] = childrenOf(period, XBRLI, "startDate");
-  const [end] = childrenOf(period, XBRLI, "endDate");
-  const periodParts = instant === undefined ? [start, end] : [instant];
-  if (periodParts.includes(undefined) || period?.children.length !== periodParts.length) {
-    throw new Error("context without instant or start/end");
+  const parts = grammar(element, { entity: [1, 1], period: [1, 1], scenario: [0, 1] });
+  const entity = grammar(parts.entity![0]!, { identifier: [1, 1], segment: [0, 1] });
+  const identifier = entity.identifier![0]!;
+  const scheme = attributeOf(identifier, "", "scheme");
+  if (scheme === undefined) {
+    throw new Error("entity identifier without scheme");
   }
-  const containers = [
-    ...childrenOf(element, XBRLI, "entity").flatMap((entity) =>
-      childrenOf(entity, XBRLI, "segment"),
-    ),
-    ...childrenOf(element, XBRLI, "scenario"),
-  ];
-  const members = containers.flatMap((container) =>
+  const period = parts.period![0]!;
+  const instantPeriod = period.children.some((child) => is(child, XBRLI, "instant"));
+  const dates = grammar(
+    period,
+    instantPeriod ? { instant: [1, 1] } : { startDate: [1, 1], endDate: [1, 1] },
+  );
+  const members = [...(entity.segment ?? []), ...(parts.scenario ?? [])].flatMap((container) =>
     container.children.map((member): readonly [string, string] => {
       const dimension = attributeOf(member, "", "dimension");
       if (dimension === undefined || member.namespace !== XBRLDI) {
@@ -284,26 +358,33 @@ function context(element: XmlElement): XbrlContext {
       throw new Error(`unreadable dimension member ${member.local}`);
     }),
   );
-  const instantDate = date(instant);
-  const startDate = date(start);
-  const endDate = date(end);
+  const instant = date(dates.instant?.[0]);
+  const start = date(dates.startDate?.[0]);
+  const end = date(dates.endDate?.[0]);
   return {
-    ...(instantDate === undefined ? {} : { instant: instantDate }),
-    ...(startDate === undefined ? {} : { start: startDate }),
-    ...(endDate === undefined ? {} : { end: endDate }),
+    entity: { scheme, identifier: simpleText(identifier) },
+    ...(instant === undefined ? {} : { instant }),
+    ...(start === undefined ? {} : { start }),
+    ...(end === undefined ? {} : { end }),
     members,
   };
 }
 
-function unit(element: XmlElement): readonly string[] | "divide" {
-  if (childrenOf(element, XBRLI, "divide").length > 0) {
-    return "divide";
+const measures = (element: XmlElement) =>
+  grammar(element, { measure: [1, Infinity] }).measure!.map(qnameText);
+
+function unit(element: XmlElement): XbrlUnit {
+  if (!element.children.some((child) => is(child, XBRLI, "divide"))) {
+    return { measures: measures(element) };
   }
-  const measures = childrenOf(element, XBRLI, "measure").map(qnameText);
-  if (measures.length === 0) {
-    throw new Error("unit without measure");
-  }
-  return measures;
+  const divide = grammar(grammar(element, { divide: [1, 1] }).divide![0]!, {
+    unitNumerator: [1, 1],
+    unitDenominator: [1, 1],
+  });
+  return {
+    numerator: measures(divide.unitNumerator![0]!),
+    denominator: measures(divide.unitDenominator![0]!),
+  };
 }
 
 function nilOf(element: XmlElement): boolean {
@@ -321,13 +402,17 @@ function addUnique<T>(map: Map<string, T>, id: string | undefined, value: T): vo
   map.set(id, value);
 }
 
+// Root linkbase elements an instance may carry; footnote links hold no facts.
+const ROOT_LINKS = new Set(["schemaRef", "linkbaseRef", "roleRef", "arcroleRef", "footnoteLink"]);
+const NOT_CONCEPT_NAMESPACES = new Set([XBRLI, LINK, XBRLDI, XSI, XLINK]);
+
 export function parseXbrlInstance(xml: string): XbrlInstance {
   const root = parseXml(xml);
   if (!is(root, XBRLI, "xbrl")) {
     throw new Error("not an XBRL instance");
   }
   const contexts = new Map<string, XbrlContext>();
-  const units = new Map<string, readonly string[] | "divide">();
+  const units = new Map<string, XbrlUnit>();
   const facts: XbrlFact[] = [];
   for (const element of root.children) {
     const id = attributeOf(element, "", "id");
@@ -335,15 +420,20 @@ export function parseXbrlInstance(xml: string): XbrlInstance {
       addUnique(contexts, id, context(element));
     } else if (is(element, XBRLI, "unit")) {
       addUnique(units, id, unit(element));
-    } else if (element.namespace === XBRLI) {
-      throw new Error(`unexpected xbrli:${element.local}`);
-    } else if (element.namespace !== LINK) {
+    } else if (element.namespace === LINK && ROOT_LINKS.has(element.local)) {
+      continue;
+    } else if (NOT_CONCEPT_NAMESPACES.has(element.namespace)) {
+      throw new Error(`unexpected ${element.local} in xbrl`);
+    } else {
       if (element.children.length > 0) {
         throw new Error(`tuple or nested fact ${element.local}`);
       }
       const contextRef = attributeOf(element, "", "contextRef");
       const unitRef = attributeOf(element, "", "unitRef");
       const nil = nilOf(element);
+      if (nil && element.text.trim() !== "") {
+        throw new Error(`nil fact with content ${element.local}`);
+      }
       facts.push({
         concept: canonicalName(element.namespace, element.local, element.namespaces),
         namespace: element.namespace,

@@ -439,7 +439,7 @@ function zeroBorrowingInstants(
       seriesKey: "debt",
       periodKey: `instant|${periodEnd}`,
       publicAt: liabilities.filedAt,
-      message: `Debt 0 for ${periodEnd}: ${proof.filing} tags ${proof.proof}; its footed balance sheet has no borrowing row, and every nonzero credit or unclassified monetary fact it tags at that date, in any dimension, is a listed non-debt concept or sits under an operating-lease total in its calculation linkbase.`,
+      message: `Debt 0 for ${periodEnd}: ${proof.filing} tags ${proof.proof}; its footed balance sheet has no borrowing row, and every nonzero credit or unclassified monetary fact it tags at that date, in any dimension, is a listed us-gaap non-debt concept or an extension concept its calculation linkbase places, weight 1, only under operating-lease totals.`,
     });
   }
   return { facts, notes };

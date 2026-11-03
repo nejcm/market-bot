@@ -687,6 +687,25 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     ]);
   });
 
+  test("the disable switch reports its own reason without requesting the instance", async () => {
+    const adapters: string[] = [];
+    const served = clfdServed(ZERO_ROWS, { "sec-metalinks": { instance: {} } });
+    const faces = await collectSecDebtFaceFilings(
+      { ...clfdContext(served, adapters), taggedZeroDebtDisabled: true },
+      { cik: "796505", symbol: "CLFD", submissionsPayload: CLFD_SUBMISSIONS },
+      [{ periodEnd: "2025-12-31", accessionNumber: Q_ACCN }],
+    );
+    expect(adapters).not.toContain("sec-xbrl-instance");
+    expect(adapters).not.toContain("sec-metalinks");
+    expect(
+      financialStatementsDebtBasisGaps(deriveItems(ZERO_GAAP, faces.items)).map(
+        ({ message }) => message,
+      ),
+    ).toEqual([
+      expect.stringContaining("tagged-zero proof was rejected (tagged-zero debt disabled)"),
+    ]);
+  });
+
   test("an anchor whose decimal only underflows to zero is not a tagged zero", async () => {
     const instance = clfdInstance().replace(
       ">0</us-gaap:LineOfCredit>",
@@ -844,10 +863,12 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       },
       "sec-submissions": CLFD_SUBMISSIONS,
     };
-    const context = clfdContext(served);
+    const adapters: string[] = [];
+    const context = clfdContext(served, adapters);
     const { request } = context;
     const scoped: CollectContext = {
       ...context,
+      ...(disabled ? { taggedZeroDebtDisabled: true } : {}),
       request: {
         json: request.json,
         // The 10-K's primary document is not this 10-Q's face.
@@ -857,8 +878,18 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
             : request.text(input),
       },
     };
-    const { statements } = await collectFinancialStatements(scoped, "CLFD", disabled);
+    const { statements } = await collectFinancialStatements(scoped, "CLFD");
     expect(statements === undefined ? "none" : decDebt(statements)?.value).toBe(value);
+    expect(adapters.includes("sec-xbrl-instance")).toBe(!disabled);
+    if (disabled && statements !== undefined) {
+      expect(financialStatementsDebtBasisGaps(statements)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining("tagged-zero debt disabled"),
+          }),
+        ]),
+      );
+    }
   });
 
   test("a published zero raises no finance-lease basis gap", async () => {

@@ -66,7 +66,6 @@ import {
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import { buildReverseDcf, type ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
-import { withoutTaggedZero } from "./sec-zero-borrowings-proof";
 import {
   makePeerUniverseCacheReader,
   makePeerUniverseCacheWriter,
@@ -166,7 +165,6 @@ interface EquityEnrichmentInput {
   readonly preliminaryIdentityResult: InstrumentIdentityResult | undefined;
   readonly now: Date;
   readonly peerUniverse: PeerUniverseSeam | undefined;
-  readonly taggedZeroDebtDisabled: boolean | undefined;
   readonly secTargetPacket: SecTargetPacket | undefined;
   readonly tradierPacket: TradierPacket | undefined;
   readonly fetchImpl: FetchLike;
@@ -252,10 +250,7 @@ export async function collectEquityEnrichment(
               submissionsSourceId: input.secTargetPacket.submissions.sourceId,
             }
           : {}),
-        secFilings: withZeroProofs(input.taggedZeroDebtDisabled, [
-          ...(input.secTargetPacket?.filingEvidence?.items ?? []),
-          ...faces,
-        ]),
+        secFilings: [...(input.secTargetPacket?.filingEvidence?.items ?? []), ...faces],
       });
     const withFaces = await withDebtFaces(
       input.identityContext,
@@ -269,11 +264,7 @@ export async function collectEquityEnrichment(
     financialStatements = withFaces.statements;
     periodicFilings = withFaces.faces;
   } else if (collectStructuredSec) {
-    const collected = await collectFinancialStatements(
-      input.identityContext,
-      input.command.symbol,
-      input.taggedZeroDebtDisabled,
-    );
+    const collected = await collectFinancialStatements(input.identityContext, input.command.symbol);
     financialStatements = collected.statements;
     ({ periodicFilings } = collected);
   }
@@ -701,7 +692,6 @@ export function financialStatementGapsOf(
 export async function collectFinancialStatements(
   context: CollectContext,
   symbol: string,
-  taggedZeroDebtDisabled?: boolean,
 ): Promise<CollectedFinancialStatements> {
   const facts = await fetchSecCompanyFactsForSymbol(context, symbol);
   if (facts.factsPayload === undefined || facts.sourceId === undefined) {
@@ -725,10 +715,7 @@ export async function collectFinancialStatements(
       ...(facts.submissionsSourceId !== undefined
         ? { submissionsSourceId: facts.submissionsSourceId }
         : {}),
-      secFilings: withZeroProofs(taggedZeroDebtDisabled, [
-        ...(periodicFilings?.items ?? []),
-        ...faces,
-      ]),
+      secFilings: [...(periodicFilings?.items ?? []), ...faces],
     });
   const { statements, faces } = await withDebtFaces(context, facts, derive);
   const filings =
@@ -745,9 +732,6 @@ export async function collectFinancialStatements(
     ...(filings !== undefined ? { periodicFilings: filings } : {}),
   };
 }
-
-const withZeroProofs = (disabled: boolean | undefined, items: readonly ExtendedEvidenceItem[]) =>
-  disabled === true ? items.map(withoutTaggedZero) : items;
 
 async function withDebtFaces(
   context: CollectContext,

@@ -8,12 +8,10 @@ import {
 import { parseXbrlInstance } from "../src/sources/sec-xbrl-instance";
 import {
   metaLinksTags,
-  withoutTaggedZero,
   zeroBorrowingsInstanceProof,
   type CalculationPlacement,
   type ConceptTag,
 } from "../src/sources/sec-zero-borrowings-proof";
-import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 
 const US_GAAP = "http://fasb.org/us-gaap/2025";
 const ISSUER = "http://issuer.example/20251231";
@@ -416,17 +414,6 @@ describe("MetaLinks and the disable switch", () => {
   test("MetaLinks for another primary document is unreadable", () => {
     expect(metaLinksTags({ instance: { "a.htm": { tag: {} } } }, "b.htm")).toBeUndefined();
     expect(metaLinksTags("not json", "b.htm")).toBeUndefined();
-  });
-
-  test("the disable switch drops the proof with its reason", () => {
-    const item = {
-      sourceIds: ["s"],
-      metrics: { zeroBorrowingProof: "p", zeroBorrowingCurrency: "USD", form: "10-Q" },
-    } as unknown as ExtendedEvidenceItem;
-    expect(withoutTaggedZero(item).metrics).toEqual({
-      form: "10-Q",
-      zeroBorrowingReject: "tagged-zero debt disabled",
-    });
   });
 });
 

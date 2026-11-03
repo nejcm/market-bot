@@ -2211,3 +2211,172 @@ describe("same-day filings that present an instant differently", () => {
     });
   });
 });
+
+const tenKDebtFact = (value: number, filed: string, accn: string, fy: number) => ({
+  val: value,
+  form: "10-K",
+  fy,
+  fp: "FY",
+  filed,
+  end: "2023-12-31",
+  accn,
+});
+
+describe("debt composites drawn from more than one filing", () => {
+  const older = (value: number) => tenKDebtFact(value, "2024-02-20", "older", 2023);
+  const newer = (value: number) => tenKDebtFact(value, "2025-02-20", "newer", 2024);
+  const debtAt = (gaap: Parameters<typeof resolve>[0], periodEnd = "2023-12-31") => {
+    const { artifact } = resolve(gaap);
+    return {
+      values: financialStatementFacts(artifact.statements.balanceSheet.debt)
+        .filter((fact) => fact.periodEnd === periodEnd)
+        .map(({ value }) => value),
+      reasons: [...artifact.validationNotes, ...artifact.omissionNotes]
+        .filter(
+          ({ seriesKey, periodKey }) =>
+            seriesKey === "debt" && periodKey === `instant|${periodEnd}`,
+        )
+        .map(({ reason }) => reason),
+    };
+  };
+
+  test("nonzero lines from two filings withhold the instant with a note", () => {
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [older(20_000_000)],
+        LongTermDebtNoncurrent: [newer(80_000_000)],
+      }),
+    ).toEqual({
+      values: [],
+      reasons: [
+        "nonzero debt evidence from filings newer, older decide the instant, and no one of them alone gives the same debt",
+      ],
+    });
+  });
+
+  test("a later filing's restated line does not withhold what the older filing gives alone", () => {
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [older(20_000_000)],
+        LongTermDebtNoncurrent: [older(80_000_000), newer(80_000_000)],
+      }),
+    ).toEqual({ values: [100_000_000], reasons: [] });
+  });
+
+  test("a same-day filing's maturity line that reconciles another filing's total withholds", () => {
+    const filing = (value: number, accn: string) => tenKDebtFact(value, "2024-02-20", accn, 2023);
+    expect(
+      debtAt({
+        CommercialPaper: [filing(10_000_000, "A")],
+        LongTermDebt: [filing(100_000_000, "A")],
+        LongTermNotesPayable: [filing(80_000_000, "A")],
+        LongTermDebtCurrent: [filing(20_000_000, "B")],
+      }),
+    ).toEqual({
+      values: [],
+      reasons: [
+        "nonzero debt evidence from filings A, B decide the instant, and no one of them alone gives the same debt",
+      ],
+    });
+  });
+
+  test("an older filing's umbrella stays an obligation the newer filing's lone leg must cover", () => {
+    expect(
+      debtAt({
+        ConvertibleNotesPayable: [older(100_000_000)],
+        ConvertibleLongTermNotesPayable: [newer(100_000_000)],
+      }).values,
+    ).toEqual([]);
+  });
+
+  test("another filing's liability subtotal cannot prove a filing's LongTermDebt scope", () => {
+    const filing = (value: number, accn: string) => tenKDebtFact(value, "2024-02-20", accn, 2023);
+    expect(
+      debtAt({
+        LongTermDebt: [filing(100_000_000, "A")],
+        LongTermDebtCurrent: [filing(20_000_000, "A")],
+        LiabilitiesNoncurrent: [filing(100_000_000, "B")],
+      }).values,
+    ).toEqual([]);
+  });
+
+  test("an older filing's unused umbrella does not withhold the newer filing's lines", () => {
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [newer(20_000_000)],
+        LongTermDebtNoncurrent: [newer(80_000_000)],
+        LongTermLineOfCredit: [newer(50_000_000)],
+        LineOfCredit: [older(50_000_000)],
+      }),
+    ).toEqual({ values: [100_000_000], reasons: [] });
+  });
+
+  test("a nonzero line beside another filing's tagged zero publishes", () => {
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [older(0)],
+        LongTermDebtNoncurrent: [older(80_000_000), newer(80_000_000)],
+      }),
+    ).toEqual({ values: [80_000_000], reasons: [] });
+  });
+
+  test("one filing's lines publish unchanged", () => {
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [older(20_000_000)],
+        LongTermDebtNoncurrent: [older(80_000_000)],
+      }),
+    ).toEqual({ values: [100_000_000], reasons: [] });
+  });
+
+  test("nonzero lines without an accession cannot prove one filing", () => {
+    const { accn: _older, ...unidentifiedOlder } = older(20_000_000);
+    const { accn: _newer, ...unidentifiedNewer } = newer(80_000_000);
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [unidentifiedOlder],
+        LongTermDebtNoncurrent: [unidentifiedNewer],
+      }),
+    ).toEqual({
+      values: [],
+      reasons: [
+        "nonzero debt evidence from filings an unidentified 10-K filed 2024-02-20, an unidentified 10-K filed 2025-02-20 decide the instant, and no one of them alone gives the same debt",
+      ],
+    });
+  });
+
+  test("an instant already withheld keeps its own reason", () => {
+    expect(
+      debtAt({
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [older(100_000_000)],
+        FinanceLeaseLiability: [newer(200_000_000)],
+      }).reasons,
+    ).toEqual([
+      "finance-lease deduction FinanceLeaseLiability exceeds LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
+    ]);
+  });
+
+  test("Alphabet 2023-12-31 no longer nets the FY2023 lease-inclusive total against the FY2024 lease", () => {
+    // FY2024 10-K 0001652044-25-000014 restated the lease to 1,666M and dropped the 14,746M total, which published 13,080M.
+    const fy2023 = (value: number) =>
+      tenKDebtFact(value, "2024-01-31", "0001652044-24-000022", 2023);
+    const fy2024 = (value: number) =>
+      tenKDebtFact(value, "2025-02-05", "0001652044-25-000014", 2024);
+    expect(
+      debtAt({
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [fy2023(14_746_000_000)],
+        FinanceLeaseLiability: [fy2023(1_746_000_000), fy2024(1_666_000_000)],
+        FinanceLeaseLiabilityCurrent: [fy2023(363_000_000), fy2024(283_000_000)],
+        FinanceLeaseLiabilityNoncurrent: [fy2024(1_383_000_000)],
+        LongTermDebtCurrent: [fy2023(1_000_000_000), fy2024(1_000_000_000)],
+        LongTermDebtNoncurrent: [fy2024(11_870_000_000)],
+        LongTermDebt: [fy2023(14_862_000_000), fy2024(13_000_000_000)],
+      }),
+    ).toEqual({
+      values: [],
+      reasons: [
+        "nonzero debt evidence from filings 0001652044-24-000022, 0001652044-25-000014 decide the instant, and no one of them alone gives the same debt",
+      ],
+    });
+  });
+});

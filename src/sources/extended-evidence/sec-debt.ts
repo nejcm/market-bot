@@ -164,6 +164,7 @@ export function factsForDebt(
       (fact) => eligible(fact) && (fact.periodStart === undefined || recognized.has(fact.concept)),
     );
   const instants = new Map<string, Map<string, ParsedFact>>();
+  const instantFacts = new Map<string, ParsedFact[]>();
   for (const fact of candidates.toSorted(compareFinancialStatementFacts)) {
     const key = statementFiscalPeriodKey(fact);
     const tagged = instants.get(key) ?? new Map<string, ParsedFact>();
@@ -171,14 +172,21 @@ export function factsForDebt(
       tagged.set(fact.concept, fact);
     }
     instants.set(key, tagged);
+    const instantGroup = instantFacts.get(key) ?? [];
+    instantGroup.push(fact);
+    instantFacts.set(key, instantGroup);
   }
-  const history = candidates.map(({ concept, periodEnd, filedAt, value, amendment }) => ({
-    concept,
-    amendment,
-    periodEnd,
-    filedAt,
-    value,
-  }));
+  const history = candidates.map(
+    ({ concept, periodEnd, filedAt, value, amendment, accessionNumber, form }) => ({
+      concept,
+      amendment,
+      periodEnd,
+      filedAt,
+      value,
+      accessionNumber,
+      form,
+    }),
+  );
   const principalFacts = Object.fromEntries(
     (
       [
@@ -198,16 +206,17 @@ export function factsForDebt(
   const liabilities = debtIdentityConcepts(taxonomy).flatMap((concept) =>
     unitFacts(taxonomy, root, concept)
       .filter((fact) => fact.periodStart === undefined && eligible(fact))
-      .map(({ periodEnd, filedAt, value, amendment, accessionNumber }) => ({
+      .map(({ periodEnd, filedAt, value, amendment, accessionNumber, form }) => ({
         concept,
         amendment,
         periodEnd,
         filedAt,
         value,
         accessionNumber,
+        form,
       })),
   );
-  const resolved = [...instants.values()].map((tagged) => {
+  const resolved = [...instants].map(([instantKey, tagged]) => {
     const facts = [...tagged.values()];
     const instant = {
       periodEnd: facts[0]?.periodEnd ?? "",
@@ -217,12 +226,23 @@ export function factsForDebt(
           .toSorted()
           .at(-1) ?? "",
     };
-    const resolveAt = (lines: ReadonlyMap<string, ParsedFact>, face?: FaceDebtLines) =>
-      resolveDebtAtInstant(
+    const resolveAt = (
+      lines: ReadonlyMap<string, ParsedFact>,
+      face?: FaceDebtLines,
+      filing?: Filing,
+    ) => {
+      const seen = (fact: Filed) =>
+        filing === undefined ||
+        fact.periodEnd !== instant.periodEnd ||
+        fact.value === 0 ||
+        filingOf(fact) === filing.id;
+      // Other filings' history stays as continuity obligations; only same-day facts would vouch for this filing's lines.
+      const prior = (fact: Filed) => seen(fact) || fact.filedAt !== filing?.filedAt;
+      return resolveDebtAtInstant(
         taxonomy,
         instant,
         lines,
-        history,
+        history.filter((fact) => prior(fact)),
         (fact) => fact.value,
         (fact) => fact.filedAt,
         Object.fromEntries(
@@ -230,21 +250,41 @@ export function factsForDebt(
             key,
             values
               .filter(
-                (fact) => fact.periodEnd === instant.periodEnd && fact.filedAt <= instant.filedAt,
+                (fact) =>
+                  fact.periodEnd === instant.periodEnd &&
+                  fact.filedAt <= instant.filedAt &&
+                  seen(fact),
               )
               .toSorted(compareFinancialStatementFacts)
               .at(0)?.value,
           ]),
         ),
-        liabilities,
+        liabilities.filter((fact) => seen(fact)),
         (concept, side) =>
           face !== undefined &&
           face.sides.get(concept) === side &&
           lines.get(concept)?.accessionNumber === face.accessionNumber &&
           lines.get(concept)?.value === face.standard.get(concept),
       );
+    };
     const faces = faceDebtLines(filings, instant.periodEnd, recognized, taxonomy);
-    const resolution = withFaceStatementDebt(resolveAt(tagged), tagged, resolveAt, faces);
+    const resolveWith = (lines: ReadonlyMap<string, ParsedFact>, filing?: Filing) =>
+      withFaceStatementDebt(
+        resolveAt(lines, undefined, filing),
+        lines,
+        (own, face) => resolveAt(own, face, filing),
+        faces,
+      );
+    const support = [...liabilities, ...Object.values(principalFacts).flat()].filter(
+      (fact) => fact.periodEnd === instant.periodEnd && fact.filedAt <= instant.filedAt,
+    );
+    const resolution = fromOneFiling(
+      resolveWith(tagged),
+      tagged,
+      instantFacts.get(instantKey) ?? [],
+      support,
+      resolveWith,
+    );
     const [faceAccession, ...otherAccessions] = new Set(facts.map((fact) => fact.accessionNumber));
     // A real fetched face still has to prove the instant, so eligibility only rules out what no face settles.
     const faceFixable =
@@ -668,6 +708,71 @@ function faceDebtLines(
       ? []
       : [{ accessionNumber: metrics.accessionNumber, sourceIds, standard, sides, extensions }];
   });
+}
+
+interface Filed {
+  readonly periodEnd: string;
+  readonly value: number;
+  readonly form: string;
+  readonly filedAt: string;
+  readonly accessionNumber?: string | null;
+}
+
+interface Filing {
+  readonly id: string;
+  readonly filedAt: string;
+}
+
+const filingOf = (fact: Filed) =>
+  fact.accessionNumber ?? `an unidentified ${fact.form} filed ${fact.filedAt}`;
+
+const signedDebt = ({ contributors }: DebtResolution<ParsedFact>) =>
+  contributors.reduce(
+    (acc, { fact, subtract }) => acc + (subtract === true ? -1 : 1) * fact.value,
+    0,
+  );
+
+// The lines that decide an instant must come from one filing: it alone, plus other filings' tagged zeros, must give the same debt.
+function fromOneFiling(
+  resolution: DebtResolution<ParsedFact>,
+  tagged: ReadonlyMap<string, ParsedFact>,
+  facts: readonly ParsedFact[],
+  support: readonly Filed[],
+  resolve: (lines: ReadonlyMap<string, ParsedFact>, filing: Filing) => DebtResolution<ParsedFact>,
+): DebtResolution<ParsedFact> {
+  const filedAt = new Map(
+    [...facts, ...support].flatMap((fact) =>
+      fact.value === 0 ? [] : [[filingOf(fact), fact.filedAt] as const],
+    ),
+  );
+  const filings = [...filedAt.keys()];
+  if (resolution.incompleteReason !== undefined || filings.length < 2) {
+    return resolution;
+  }
+  const used = new Set(resolution.contributors.map(({ fact }) => filingOf(fact)));
+  for (const filing of filings.toSorted(
+    (left, right) => Number(used.has(right)) - Number(used.has(left)),
+  )) {
+    const lines = new Map<string, ParsedFact>();
+    for (const fact of facts) {
+      if (filingOf(fact) === filing && !lines.has(fact.concept)) {
+        lines.set(fact.concept, fact);
+      }
+    }
+    for (const [concept, fact] of tagged) {
+      if (fact.value === 0 && !lines.has(concept)) {
+        lines.set(concept, fact);
+      }
+    }
+    const alone = resolve(lines, { id: filing, filedAt: filedAt.get(filing) ?? "" });
+    if (alone.incompleteReason === undefined && signedDebt(alone) === signedDebt(resolution)) {
+      return used.size === 1 && used.has(filing) ? resolution : alone;
+    }
+  }
+  return {
+    ...resolution,
+    incompleteReason: `nonzero debt evidence from filings ${filings.toSorted().join(", ")} decide the instant, and no one of them alone gives the same debt`,
+  };
 }
 
 // A face statement that foots to its subtotals lists every debt line, so it settles omission and placement gaps.

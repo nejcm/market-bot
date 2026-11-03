@@ -176,7 +176,15 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   finance leases from lease-inclusive aggregates, else retain with a no-cap possible-lease gap.
 - Composite debt needs a borrowing line, no unrecognized standard borrowing tag, and coverage of every prior
   nonzero borrowing concept within 400 days or an earlier same-instant filing; generic sides cover prior
-  constituent details. Restated components need one filing date (same-day accessions count together) and
+  constituent details. The lines that decide a published composite come from one filing: when the instant's
+  debt lines, liability subtotals or principal inputs carry nonzero values from two filings, one filing's own
+  values plus other filings' tagged zeros must resolve complete to the same debt, which then publishes
+  attributed to that filing; otherwise the instant withholds with a note naming the filings (GOOGL, IBM, AVGO).
+  Other filings' history stays in that resolution as continuity obligations (prior nonzero lines still need
+  coverage); only their same-instant support is removed. An older filing's nonzero line is not proven to hold
+  in a newer presentation, so it may neither add to nor prove another filing's result. A filing
+  is its accession, else form and filing date; cached companyfacts always carry one (0 of 162,124 debt facts
+  and 3,117 run facts lack it, 2026-11-03). Restated components need one filing date (same-day accessions count together) and
   unchanged original total (reclassification), otherwise no composite. Later incomplete filings supersede
   earlier complete same-instant data. Another filing's same-day resolution counts as later evidence for
   partial-comparative recovery; same-day resolutions that still conflict (an unrecovered partial, different

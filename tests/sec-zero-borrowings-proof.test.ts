@@ -8,12 +8,10 @@ import {
 import { parseXbrlInstance } from "../src/sources/sec-xbrl-instance";
 import {
   metaLinksTags,
-  withoutTaggedZero,
   zeroBorrowingsInstanceProof,
   type CalculationPlacement,
   type ConceptTag,
 } from "../src/sources/sec-zero-borrowings-proof";
-import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 
 const US_GAAP = "http://fasb.org/us-gaap/2025";
 const ISSUER = "http://issuer.example/20251231";
@@ -61,6 +59,7 @@ const CREDIT = [
   "CapitalLeaseObligationsCurrent",
   "LesseeOperatingLeaseLiabilityPaymentsDue",
   "OtherLiabilitiesCurrent",
+  "CommitmentsAndContingencies",
 ];
 const MONETARY = "monetaryItemType";
 const TAGS: ReadonlyMap<string, ConceptTag> = new Map<string, ConceptTag>([
@@ -287,6 +286,33 @@ describe("nil facts are never zeros", () => {
     expect(rejectOf(xml)).toBe("nil-fact:us-gaap:NotesPayable");
   });
 
+  const nilCaption =
+    '<us-gaap:CommitmentsAndContingencies contextRef="i" unitRef="usd" xsi:nil="true"/>';
+  test("a nil commitments-and-contingencies caption is not a nil borrowing", () => {
+    expect(rejectOf(instanceXml(nilCaption))).toBe("published");
+  });
+
+  test("a nil caption with no tagged zero reaches untagged-zero (CALX 0001406666-26-000034)", () => {
+    const facts = [
+      fact("us-gaap:Liabilities", 18_398_000),
+      fact("us-gaap:AccountsPayableCurrent", 10_000_000),
+    ];
+    expect(rejectOf(instanceXml(nilCaption, { facts: facts.join("") }))).toBe("untagged-zero");
+  });
+
+  test("a non-nil commitments-and-contingencies amount still rejects as unclassified credit", () => {
+    expect(rejectOf(instanceXml(fact("us-gaap:CommitmentsAndContingencies", 5000)))).toBe(
+      "unclassified-credit:us-gaap:CommitmentsAndContingencies",
+    );
+  });
+
+  test("another nil credit caption still withholds", () => {
+    const xml = instanceXml(
+      '<us-gaap:OtherLiabilitiesCurrent contextRef="i" unitRef="usd" xsi:nil="true"/>',
+    );
+    expect(rejectOf(xml)).toBe("nil-fact:us-gaap:OtherLiabilitiesCurrent");
+  });
+
   test("an unreadable nil value makes the instance unreadable", () => {
     expect(() => parseXbrlInstance(nilZero('xsi:nil="yes"'))).toThrow();
   });
@@ -416,17 +442,6 @@ describe("MetaLinks and the disable switch", () => {
   test("MetaLinks for another primary document is unreadable", () => {
     expect(metaLinksTags({ instance: { "a.htm": { tag: {} } } }, "b.htm")).toBeUndefined();
     expect(metaLinksTags("not json", "b.htm")).toBeUndefined();
-  });
-
-  test("the disable switch drops the proof with its reason", () => {
-    const item = {
-      sourceIds: ["s"],
-      metrics: { zeroBorrowingProof: "p", zeroBorrowingCurrency: "USD", form: "10-Q" },
-    } as unknown as ExtendedEvidenceItem;
-    expect(withoutTaggedZero(item).metrics).toEqual({
-      form: "10-Q",
-      zeroBorrowingReject: "tagged-zero debt disabled",
-    });
   });
 });
 

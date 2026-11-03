@@ -283,13 +283,17 @@ export async function collectSources(
   const requestRetryDelaysMs = runtime.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
   const peerUniverseSeam = runtime.peerUniverse;
   const resolvedSubject = "resolvedSubject" in runtime ? runtime.resolvedSubject : undefined;
-  const { context: ctx, staleFallbackGaps } = createCollectContext(
+  const { context, staleFallbackGaps } = createCollectContext(
     command,
     sourceOptions,
     now,
     requestFetchImpl,
     requestRetryDelaysMs,
   );
+  const ctx: CollectContext =
+    runtime.taggedZeroDebtDisabled === true
+      ? { ...context, taggedZeroDebtDisabled: true }
+      : context;
 
   progress("collecting sources");
   const registry = createSourceRegistry();
@@ -471,7 +475,6 @@ export async function collectSources(
     preliminaryIdentityResult,
     now,
     peerUniverse: peerUniverseSeam,
-    taggedZeroDebtDisabled: runtime.taggedZeroDebtDisabled,
     secTargetPacket,
     tradierPacket,
     fetchImpl: requestFetchImpl,

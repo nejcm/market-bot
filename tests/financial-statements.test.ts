@@ -5105,7 +5105,7 @@ describe("canonical debt basis selection", () => {
     });
   });
 
-  test("canonical and legacy writers agree when same-end composites mix accessions", () => {
+  test("canonical and legacy writers both withhold when same-day composites disagree on a line", () => {
     const companyFacts = payload({
       "us-gaap": {
         Revenues: { USD: [annual(100, 2025)] },
@@ -5162,14 +5162,17 @@ describe("canonical debt basis selection", () => {
     ]);
     const legacy = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
 
-    expect(canonical).toMatchObject({
-      value: 100,
-      periodEnd: "2026-06-30",
-      accessionNumber: "050",
-      extractionMethod: "derived-sec-companyfacts",
-    });
-    expect(legacy?.metrics.debt).toBe(canonical?.value);
-    expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
+    expect(canonical).toBeUndefined();
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        seriesKey: "debt",
+        message: expect.stringContaining(
+          "filings 001, 050, 099, all filed 2026-08-01, present it differently",
+        ),
+      }),
+    );
   });
 
   test("history keeps the prior quarter and legacy withholds it when a current-debt alias omits fiscal period", () => {

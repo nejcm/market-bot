@@ -319,6 +319,9 @@ async function fetchZeroBorrowingsProof(
   ) {
     return { metrics: {}, rawSnapshots: [], sources: [], gaps: [] };
   }
+  if (ctx.taggedZeroDebtDisabled === true) {
+    return rejectZeroBorrowings("tagged-zero debt disabled");
+  }
   const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
   const init = secTextRequestInit(ctx.secUserAgent);
   const url = `${baseUrl}/${instanceFile}`;

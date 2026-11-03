@@ -80,6 +80,8 @@ interface DebtHistoryFact {
   readonly periodEnd: string;
   readonly filedAt: string;
   readonly value: number;
+  readonly accessionNumber?: string | null;
+  readonly form?: string;
 }
 
 interface DebtInstant {
@@ -415,6 +417,8 @@ export function resolveDebtAtInstant<T>(
   } = {},
   liabilities: readonly DebtHistoryFact[] = [],
   faceRow: (concept: string, side: DebtFaceSide) => boolean = () => false,
+  // Facts another filing reported stay obligations but may not vouch for this resolution's lines.
+  vouches: (fact: DebtHistoryFact) => boolean = () => true,
 ): DebtResolution<T> {
   const concepts = DEBT_CONCEPTS[taxonomy];
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
@@ -432,6 +436,7 @@ export function resolveDebtAtInstant<T>(
         fact.periodEnd === instant.periodEnd &&
         fact.filedAt <= instant.filedAt &&
         fact.value !== 0 &&
+        vouches(fact) &&
         (taggedValue(ambiguous?.currentTotal) ?? 0) > maturitiesValue,
     );
   const sidesOf = (has: (concept: string) => boolean) => {
@@ -500,6 +505,7 @@ export function resolveDebtAtInstant<T>(
     if (
       fact.periodEnd === instant.periodEnd &&
       fact.filedAt === longTermDebtFiledAt &&
+      vouches(fact) &&
       !longTermDebtFiling.has(fact.concept)
     ) {
       longTermDebtFiling.set(fact.concept, fact.value);
@@ -595,7 +601,8 @@ export function resolveDebtAtInstant<T>(
         (fact) =>
           fact.concept === concept &&
           fact.periodEnd === instant.periodEnd &&
-          fact.filedAt === filedAt,
+          fact.filedAt === filedAt &&
+          vouches(fact),
       )?.value;
     const currentTotal = filed(identity.currentTotal);
     const liabilitiesTotal = filed(identity.total);
@@ -761,19 +768,42 @@ export function resolveDebtAtInstant<T>(
   };
 }
 
+const dayKey = (entry: { readonly periodEnd: string; readonly filedAt: string }) =>
+  `${entry.periodEnd}|${entry.filedAt}`;
+
+// Same-day evidence from another filing counts as later than `latest`.
+const filedAfter = (
+  fact: { readonly filedAt: string; readonly accessionNumber?: string | null },
+  latest: { readonly filedAt: string; readonly accessions: readonly string[] },
+) =>
+  fact.filedAt > latest.filedAt ||
+  (fact.filedAt === latest.filedAt && !latest.accessions.includes(fact.accessionNumber ?? ""));
+
+interface ResolutionValues {
+  readonly fact: { readonly value: number } | undefined;
+  readonly lines: ReadonlyMap<string, number>;
+}
+
+const consistentResolutions = (left: ResolutionValues, right: ResolutionValues) =>
+  left.fact?.value === right.fact?.value &&
+  [...left.lines].every(([concept, value]) => (right.lines.get(concept) ?? value) === value);
+
 // A later filing's incomplete resolution of an instant supersedes earlier complete ones (partial amendments).
 export function unsupersededDebtResolutions<
-  R extends {
+  R extends ResolutionValues & {
     readonly periodEnd: string;
     readonly filedAt: string;
     readonly incomplete: boolean;
     readonly incompleteReason: string | undefined;
-    readonly fact: { readonly value: number } | undefined;
-    readonly lines: ReadonlyMap<string, number>;
+    readonly accessions: readonly string[];
   },
 >(
   all: readonly R[],
-  heldForSale: readonly { readonly periodEnd: string; readonly filedAt: string }[],
+  heldForSale: readonly {
+    readonly periodEnd: string;
+    readonly filedAt: string;
+    readonly accessionNumber?: string | null;
+  }[],
   liabilities: readonly DebtHistoryFact[],
 ): readonly R[] {
   // A partial re-tag of the latest uncontested complete instant at identical values proves nothing new.
@@ -783,7 +813,12 @@ export function unsupersededDebtResolutions<
       (other) => !other.incomplete && other.periodEnd === entry.periodEnd,
     );
     const latest = complete
-      .filter((other) => other.filedAt < entry.filedAt)
+      .filter(
+        (other) =>
+          other.filedAt < entry.filedAt ||
+          (other.filedAt === entry.filedAt &&
+            !other.accessions.some((accession) => entry.accessions.includes(accession))),
+      )
       .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))
       .at(-1);
     return latest !== undefined &&
@@ -792,7 +827,7 @@ export function unsupersededDebtResolutions<
       !heldForSale.some(
         (fact) =>
           fact.periodEnd === entry.periodEnd &&
-          fact.filedAt > latest.filedAt &&
+          filedAfter(fact, latest) &&
           fact.filedAt <= entry.filedAt,
       )
       ? latest
@@ -804,7 +839,7 @@ export function unsupersededDebtResolutions<
         .filter(
           (fact) =>
             fact.periodEnd === entry.periodEnd &&
-            fact.filedAt > latest.filedAt &&
+            filedAfter(fact, latest) &&
             fact.filedAt <= entry.filedAt &&
             fact.value !==
               (liabilities
@@ -812,9 +847,14 @@ export function unsupersededDebtResolutions<
                   (prior) =>
                     prior.concept === fact.concept &&
                     prior.periodEnd === fact.periodEnd &&
-                    prior.filedAt <= latest.filedAt,
+                    !filedAfter(prior, latest),
                 )
-                .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))
+                .toSorted(
+                  (left, right) =>
+                    left.filedAt.localeCompare(right.filedAt) ||
+                    Number(latest.accessions.includes(left.accessionNumber ?? "")) -
+                      Number(latest.accessions.includes(right.accessionNumber ?? "")),
+                )
                 .at(-1)?.value ?? 0),
         )
         .map(({ concept }) => concept),
@@ -837,9 +877,50 @@ export function unsupersededDebtResolutions<
           },
         ];
   });
-  return resolved.filter(
+  // Accession order is a filer-agent counter, not filing time, so a same-day disagreement withholds the instant.
+  const grouped = new Map<string, R[]>();
+  for (const entry of resolved) {
+    const day = grouped.get(dayKey(entry));
+    if (day === undefined) {
+      grouped.set(dayKey(entry), [entry]);
+    } else {
+      day.push(entry);
+    }
+  }
+  const days = new Map(
+    [...grouped].map(([key, day]) => {
+      const complete = day.filter((other) => !other.incomplete);
+      const conflict =
+        (complete.length > 0 && complete.length < day.length) ||
+        day.some((left) => day.some((right) => !consistentResolutions(left, right)));
+      return [key, { day, complete, conflict }] as const;
+    }),
+  );
+  const settled = resolved.flatMap((entry) => {
+    const { day, complete, conflict } = days.get(dayKey(entry))!;
+    if (!conflict) {
+      return [entry];
+    }
+    if (!entry.incomplete && (entry !== complete[0] || complete.length < day.length)) {
+      return [];
+    }
+    const accessions = [...new Set(day.flatMap((other) => other.accessions))].toSorted();
+    const disagreement = `filings ${accessions.join(", ")}, all filed ${entry.filedAt}, present it differently`;
+    return [
+      {
+        ...entry,
+        fact: undefined,
+        incomplete: true,
+        incompleteReason:
+          entry.incompleteReason === undefined
+            ? disagreement
+            : `${entry.incompleteReason}; ${disagreement}`,
+      },
+    ];
+  });
+  return settled.filter(
     (entry) =>
-      !resolved.some(
+      !settled.some(
         (other) =>
           other.incomplete && other.periodEnd === entry.periodEnd && other.filedAt > entry.filedAt,
       ),

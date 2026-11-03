@@ -1,4 +1,3 @@
-import type { ExtendedEvidenceItem } from "../domain/evidence";
 import { isRecord } from "../guards";
 import { isDebtPresenceConcept } from "./extended-evidence/financial-statement-definitions";
 import { isStandardTaxonomyNamespace, type SummationParent } from "./sec-calculation-linkbase";
@@ -296,7 +295,13 @@ export function zeroBorrowingsInstanceProof(
         (crdr !== "debit" && (fact.nil || !lexicalZero(fact.value))))
     );
   });
-  const nilFact = census.find((fact) => fact.nil && tagOf(fact).crdr !== "debit");
+  // The us-gaap taxonomy defines CommitmentsAndContingencies as a balance-sheet caption, so a nil one carries no amount.
+  const nilFact = census.find(
+    (fact) =>
+      fact.nil &&
+      tagOf(fact).crdr !== "debit" &&
+      fact.concept !== "us-gaap:CommitmentsAndContingencies",
+  );
   if (nilFact !== undefined) {
     return reject(`nil-fact:${nilFact.concept}`);
   }
@@ -362,21 +367,5 @@ export function zeroBorrowingsInstanceProof(
   return {
     proof: `${anchor.concept} = 0 at ${periodEnd}${members === "" ? "" : ` [${members}]`}; fact ${anchor.id ?? "(no id)"}, ${file}`,
     currency: faceCurrency,
-  };
-}
-
-// MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE: the proof is dropped, so the zero stays withheld.
-export function withoutTaggedZero(item: ExtendedEvidenceItem): ExtendedEvidenceItem {
-  if (item.metrics?.[ZERO_BORROWINGS_PROOF_KEY] === undefined) {
-    return item;
-  }
-  const {
-    [ZERO_BORROWINGS_PROOF_KEY]: _proof,
-    [ZERO_BORROWINGS_CURRENCY_KEY]: _currency,
-    ...metrics
-  } = item.metrics;
-  return {
-    ...item,
-    metrics: { ...metrics, [ZERO_BORROWINGS_REJECT_KEY]: "tagged-zero debt disabled" },
   };
 }

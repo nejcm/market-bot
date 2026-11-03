@@ -9,6 +9,7 @@ import { financialStatementFacts } from "../src/sources/extended-evidence/financ
 import {
   debtInstantsNeedingFace,
   financialStatementsDebtBasisGaps,
+  withheldDebt,
 } from "../src/sources/extended-evidence/sec-debt";
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
 import { assertCompositeFactIntegrity } from "./support/run-fixtures/financial-invariants";
@@ -485,6 +486,39 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     expect(debtInstantsNeedingFace(artifact)).toEqual([]);
   });
 
+  test("an issuer that never tagged debt withholds its newest instant, not an old held-for-sale date (NTGR)", async () => {
+    const { LongTermDebtNoncurrent: _debt, ...neverDebt } = ZERO_GAAP;
+    const old = fact(5_000_000, "2018-01-01", "2019-02-22", "0001122904-19-000060", "10-K");
+    const artifact = await derive({
+      ...neverDebt,
+      Liabilities: [old, ...neverDebt.Liabilities],
+      LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: [old],
+    });
+    expect(withheldDebt(artifact)).toEqual({
+      periodEnd: "2025-12-31",
+      reason: expect.stringContaining("no debt concept is tagged at any date"),
+    });
+  });
+
+  test("an issuer that never tagged debt still proves 0 from a face it already read", async () => {
+    const { LongTermDebtNoncurrent: _debt, ...neverDebt } = ZERO_GAAP;
+    expect(decDebt(deriveItems(neverDebt, (await clfdFaces(clfdServed())).items))?.value).toBe(0);
+  });
+
+  test("a face row off the non-borrowing list names itself and asks for nothing more (CALX, NTGR)", async () => {
+    const adapters: string[] = [];
+    const rows = relabel("Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent");
+    const faces = await clfdFaces(clfdServed(rows), adapters);
+    expect(adapters).toEqual(["sec-filing-text"]);
+    expect(financialStatementsDebtBasisGaps(deriveItems(ZERO_GAAP, faces.items))).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "tagged-zero proof was rejected (face-row:us-gaap:OtherLiabilitiesNoncurrent)",
+        ),
+      }),
+    ]);
+  });
+
   test("its footed face and tagged zero publish 0 cited to the face and the XBRL instance", async () => {
     const adapters: string[] = [];
     const faces = await clfdFaces(clfdServed(), adapters);
@@ -495,7 +529,7 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     expect(debt).toMatchObject({
       value: 0,
       concept: "NoBorrowingsOnFootedFace",
-      extractionMethod: "sec-filing-face-text",
+      extractionMethod: "sec-xbrl-instance",
       zeroBorrowingsProof: PROOF,
     });
     const instanceSource = faces.sources.find(({ url }) => url?.endsWith("/q_htm.xml"));
@@ -687,6 +721,25 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     ]);
   });
 
+  test("the disable switch reports its own reason without requesting the instance", async () => {
+    const adapters: string[] = [];
+    const served = clfdServed(ZERO_ROWS, { "sec-metalinks": { instance: {} } });
+    const faces = await collectSecDebtFaceFilings(
+      { ...clfdContext(served, adapters), taggedZeroDebtDisabled: true },
+      { cik: "796505", symbol: "CLFD", submissionsPayload: CLFD_SUBMISSIONS },
+      [{ periodEnd: "2025-12-31", accessionNumber: Q_ACCN }],
+    );
+    expect(adapters).not.toContain("sec-xbrl-instance");
+    expect(adapters).not.toContain("sec-metalinks");
+    expect(
+      financialStatementsDebtBasisGaps(deriveItems(ZERO_GAAP, faces.items)).map(
+        ({ message }) => message,
+      ),
+    ).toEqual([
+      expect.stringContaining("tagged-zero proof was rejected (tagged-zero debt disabled)"),
+    ]);
+  });
+
   test("an anchor whose decimal only underflows to zero is not a tagged zero", async () => {
     const instance = clfdInstance().replace(
       ">0</us-gaap:LineOfCredit>",
@@ -844,10 +897,12 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       },
       "sec-submissions": CLFD_SUBMISSIONS,
     };
-    const context = clfdContext(served);
+    const adapters: string[] = [];
+    const context = clfdContext(served, adapters);
     const { request } = context;
     const scoped: CollectContext = {
       ...context,
+      ...(disabled ? { taggedZeroDebtDisabled: true } : {}),
       request: {
         json: request.json,
         // The 10-K's primary document is not this 10-Q's face.
@@ -857,8 +912,18 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
             : request.text(input),
       },
     };
-    const { statements } = await collectFinancialStatements(scoped, "CLFD", disabled);
+    const { statements } = await collectFinancialStatements(scoped, "CLFD");
     expect(statements === undefined ? "none" : decDebt(statements)?.value).toBe(value);
+    expect(adapters.includes("sec-xbrl-instance")).toBe(!disabled);
+    if (disabled && statements !== undefined) {
+      expect(financialStatementsDebtBasisGaps(statements)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining("tagged-zero debt disabled"),
+          }),
+        ]),
+      );
+    }
   });
 
   test("a published zero raises no finance-lease basis gap", async () => {

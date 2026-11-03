@@ -2401,6 +2401,7 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
     expect(fact).toMatchObject({
       value: 0,
       concept: "NoBorrowingsOnFootedFace",
+      extractionMethod: "sec-xbrl-instance",
       zeroBorrowingsProof: `us-gaap:LineOfCredit = 0 at ${periodEnd} [${CLFD_LINE_OF_CREDIT_MEMBERS}]; fact ${factId}, ${file}_htm.xml`,
     });
     const base = `${CLFD_ARCHIVE}/${accession}`;

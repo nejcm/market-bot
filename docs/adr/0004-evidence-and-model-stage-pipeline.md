@@ -176,9 +176,20 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   finance leases from lease-inclusive aggregates, else retain with a no-cap possible-lease gap.
 - Composite debt needs a borrowing line, no unrecognized standard borrowing tag, and coverage of every prior
   nonzero borrowing concept within 400 days or an earlier same-instant filing; generic sides cover prior
-  constituent details. Restated components need one filing date (same-day accessions count together) and
+  constituent details. The lines that decide a published composite come from one filing: when the instant's
+  debt lines, liability subtotals or principal inputs carry nonzero values from two filings, one filing's own
+  values plus other filings' tagged zeros must resolve complete to the same debt, which then publishes
+  attributed to that filing; otherwise the instant withholds with a note naming the filings (GOOGL, IBM, AVGO).
+  Other filings' facts stay in that resolution as obligations (prior nonzero lines still need coverage,
+  principal due within a year still needs a current line); they only stop vouching for its lines. An older filing's nonzero line is not proven to hold
+  in a newer presentation, so it may neither add to nor prove another filing's result. A filing
+  is its accession, else form and filing date; cached companyfacts always carry one (0 of 162,124 debt facts
+  and 3,117 run facts lack it, 2026-11-03). Restated components need one filing date (same-day accessions count together) and
   unchanged original total (reclassification), otherwise no composite. Later incomplete filings supersede
-  earlier complete same-instant data. A debt series may mix recognized totals and
+  earlier complete same-instant data. Another filing's same-day resolution counts as later evidence for
+  partial-comparative recovery; same-day resolutions that still conflict (an unrecovered partial, different
+  totals, or a shared line at different values) withhold the instant with a note naming every same-day
+  accession, never broken by accession order (CORZ 2024-12-31 recast, filed 2026-03-02). A debt series may mix recognized totals and
   composites resolved under these rules; YoY priors keep one basis, except that classified carrying lines and a
   `LongTermDebt` total equal to its own filing's nonzero lines compare across bases (NVDA 2025-07-27 8,466M
   noncurrent vs 2026-07-26 33,366M total); a lone or unreconciled total does not. `OtherLongTermDebt` is a
@@ -426,7 +437,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   borrowing or listed credit concept, contradicts XBRL 2.1's balance-only-on-monetary rule and rejects as
   `metalinks-contradicts:<concept>`. Every other fact typed monetary, in a currency unit, or nonzero or nil and not
   debit needs exactly one `iso4217` measure in the issuer-wide `Liabilities` currency and a lexical decimal value
-  (zero means no nonzero digit, never a number coercion); such a nil fact rejects unless debit. The
+  (zero means no nonzero digit, never a number coercion); such a nil fact rejects unless debit or a nil `us-gaap:CommitmentsAndContingencies`, which the taxonomy defines as the balance-sheet caption. The
   instance must tag an allowlisted borrowing concept 0 at the instant, issuer-wide or on facility axes only, and a
   fail-closed census requires every nonzero non-debit monetary fact there, in any context, to be a closed us-gaap
   non-debt credit concept (liability totals only issuer-wide) or an extension-namespace concept the calculation
@@ -451,7 +462,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `AccruedLiabilitiesCurrent` would pass; facility identity is the tag's own members, not a prose reading. CLFD's 10-Qs 2025-12-31 through
   2026-06-30 publish 0 (`LineOfCredit` = 0 on the revolver and Bremer Bank loan agreement members). A rejection
   or a failed instance, MetaLinks or linkbase read withholds with its code and Source Gap.
-  `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero.
+  A face row off the non-borrowing list withholds as `face-row:<concept>` without requesting the instance. An
+  issuer that never tagged debt is checked only at its newest Liabilities instant, from a face already fetched.
+  `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero without requesting the instance, MetaLinks or linkbase.
+  With the flag set, the withhold reason is always `tagged-zero debt disabled`, since the filing is never inspected.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
   `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,

@@ -2065,3 +2065,149 @@ describe("a partial comparative recovers only an uncontested complete instant", 
     ).toEqual({ values: [], withheld: true });
   });
 });
+
+const decemberFact = (
+  value: number,
+  filed: string,
+  accn: string,
+  form: string,
+  fy: number,
+  fp: string,
+) => ({
+  val: value,
+  form,
+  fy,
+  fp,
+  filed,
+  end: "2024-12-31",
+  accn,
+});
+
+describe("same-day filings that present an instant differently", () => {
+  // Core Scientific 2024-12-31: FY2024 10-K/A and Q2 2025 10-Q/A, both filed 2026-03-02.
+  const original = (value: number) =>
+    decemberFact(value, "2025-02-27", "0001628280-25-008302", "10-K", 2024, "FY");
+  const amended = (value: number) =>
+    decemberFact(value, "2026-03-02", "0001628280-26-013232", "10-K/A", 2024, "FY");
+  const comparative = (value: number) =>
+    decemberFact(value, "2026-03-02", "0001628280-26-013294", "10-Q/A", 2025, "Q2");
+  const decemberDebt = (comparativeNotesCurrent: readonly Record<string, unknown>[]) => {
+    const { artifact } = resolve({
+      NotesPayableCurrent: [original(16_290_000), amended(16_290_000), ...comparativeNotesCurrent],
+      LongTermNotesPayable: [
+        original(1_073_990_000),
+        amended(1_073_990_000),
+        comparative(1_073_990_000),
+      ],
+      OtherLiabilitiesCurrent: [comparative(32_493_000)],
+    });
+    return {
+      values: financialStatementFacts(artifact.statements.balanceSheet.debt)
+        .filter(({ periodEnd }) => periodEnd === "2024-12-31")
+        .map(({ value }) => value),
+      reasons: [...artifact.validationNotes, ...artifact.omissionNotes]
+        .filter(
+          ({ seriesKey, periodKey }) => seriesKey === "debt" && periodKey === "instant|2024-12-31",
+        )
+        .map(({ reason }) => reason),
+    };
+  };
+
+  test("a 10-K/A and a 10-Q/A disagreeing on the same day withhold the instant", () => {
+    const { values, reasons } = decemberDebt([]);
+    expect(values).toEqual([]);
+    expect(reasons).toEqual([
+      "omits NotesPayableCurrent, reported nonzero within the prior year or earlier for this instant; OtherLiabilitiesCurrent recast since the last complete filing; filings 0001628280-26-013232, 0001628280-26-013294, all filed 2026-03-02, present it differently",
+    ]);
+  });
+
+  const sameDayDebt = (gaap: Parameters<typeof resolve>[0]) => {
+    const { artifact } = resolve(gaap);
+    return {
+      values: financialStatementFacts(artifact.statements.balanceSheet.debt)
+        .filter(({ periodEnd }) => periodEnd === "2024-12-31")
+        .map(({ value }) => value),
+      reasons: [...artifact.validationNotes, ...artifact.omissionNotes]
+        .filter(
+          ({ seriesKey, periodKey }) => seriesKey === "debt" && periodKey === "instant|2024-12-31",
+        )
+        .map(({ reason }) => reason),
+    };
+  };
+
+  test("two complete same-day filings with different totals withhold the instant", () => {
+    expect(
+      sameDayDebt({
+        NotesPayableCurrent: [amended(16_290_000), comparative(20_000_000)],
+        LongTermNotesPayable: [amended(1_073_990_000), comparative(1_073_990_000)],
+      }),
+    ).toEqual({
+      values: [],
+      reasons: [
+        "filings 0001628280-26-013232, 0001628280-26-013294, all filed 2026-03-02, present it differently",
+      ],
+    });
+  });
+
+  test("a same-day partial comparative matching the complete filing publishes it", () => {
+    expect(
+      sameDayDebt({
+        NotesPayableCurrent: [original(16_290_000), amended(16_290_000)],
+        LongTermNotesPayable: [
+          original(1_073_990_000),
+          amended(1_073_990_000),
+          comparative(1_073_990_000),
+        ],
+        FinanceLeaseLiabilityCurrent: [amended(1_669_000), comparative(1_669_000)],
+      }),
+    ).toEqual({ values: [1_090_280_000], reasons: [] });
+  });
+
+  const third = (value: number) =>
+    decemberFact(value, "2026-03-02", "0001628280-26-013301", "10-Q/A", 2025, "Q3");
+  const orders = [
+    [amended, comparative, third],
+    [amended, third, comparative],
+    [comparative, amended, third],
+    [comparative, third, amended],
+    [third, amended, comparative],
+    [third, comparative, amended],
+  ];
+
+  test.each(orders)(
+    "a same-day total and two component splits that disagree withhold in any order",
+    (total, low, high) => {
+      expect(
+        sameDayDebt({
+          DebtLongtermAndShorttermCombinedAmount: [total(100_000_000)],
+          LongTermDebtCurrent: [low(20_000_000), high(30_000_000)],
+          LongTermDebtNoncurrent: [low(80_000_000), high(70_000_000)],
+        }),
+      ).toEqual({
+        values: [],
+        reasons: [
+          "filings 0001628280-26-013232, 0001628280-26-013294, 0001628280-26-013301, all filed 2026-03-02, present it differently",
+        ],
+      });
+    },
+  );
+
+  test("two same-day partials that disagree on a line name the filings", () => {
+    const { values, reasons } = sameDayDebt({
+      NotesPayableCurrent: [original(10_000_000)],
+      LongTermNotesPayable: [original(50_000_000), amended(60_000_000), comparative(70_000_000)],
+    });
+    expect(values).toEqual([]);
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toEndWith(
+      "filings 0001628280-26-013232, 0001628280-26-013294, all filed 2026-03-02, present it differently",
+    );
+  });
+
+  test("same-day filings that agree publish the instant", () => {
+    expect(decemberDebt([comparative(16_290_000)])).toEqual({
+      values: [1_090_280_000, 1_090_280_000],
+      reasons: [],
+    });
+  });
+});

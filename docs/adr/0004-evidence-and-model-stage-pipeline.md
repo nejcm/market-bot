@@ -178,7 +178,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   nonzero borrowing concept within 400 days or an earlier same-instant filing; generic sides cover prior
   constituent details. Restated components need one filing date (same-day accessions count together) and
   unchanged original total (reclassification), otherwise no composite. Later incomplete filings supersede
-  earlier complete same-instant data. A debt series may mix recognized totals and
+  earlier complete same-instant data. Another filing's same-day resolution counts as later evidence for
+  partial-comparative recovery; same-day resolutions that still conflict (an unrecovered partial, different
+  totals, or a shared line at different values) withhold the instant with a note naming every same-day
+  accession, never broken by accession order (CORZ 2024-12-31 recast, filed 2026-03-02). A debt series may mix recognized totals and
   composites resolved under these rules; YoY priors keep one basis, except that classified carrying lines and a
   `LongTermDebt` total equal to its own filing's nonzero lines compare across bases (NVDA 2025-07-27 8,466M
   noncurrent vs 2026-07-26 33,366M total); a lone or unreconciled total does not. `OtherLongTermDebt` is a

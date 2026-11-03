@@ -198,12 +198,13 @@ export function factsForDebt(
   const liabilities = debtIdentityConcepts(taxonomy).flatMap((concept) =>
     unitFacts(taxonomy, root, concept)
       .filter((fact) => fact.periodStart === undefined && eligible(fact))
-      .map(({ periodEnd, filedAt, value, amendment }) => ({
+      .map(({ periodEnd, filedAt, value, amendment, accessionNumber }) => ({
         concept,
         amendment,
         periodEnd,
         filedAt,
         value,
+        accessionNumber,
       })),
   );
   const resolved = [...instants.values()].map((tagged) => {
@@ -274,6 +275,9 @@ export function factsForDebt(
       ...instant,
       fact,
       lines: new Map(facts.map(({ concept, value }) => [concept, value])),
+      accessions: facts.flatMap(({ accessionNumber, filedAt }) =>
+        accessionNumber === null || filedAt !== instant.filedAt ? [] : [accessionNumber],
+      ),
       restatements: debtRestatements(fact, resolution.basis, candidates),
       incomplete,
       incompleteReason: resolution.incompleteReason,

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import {
-  calculationLinkbaseHref,
+  schemaCalculation,
   extensionSchema,
   summationParents,
 } from "../src/sources/sec-calculation-linkbase";
@@ -788,13 +788,23 @@ describe("CLFD 10-Q 0001171843-26-003126 spellings that keep its placement", () 
       "</xsd:schema>",
       "<xsd:annotation><xsd:appinfo><link:linkbaseRef xlink:type='simple' xlink:href='clfd-20260331_cal.xml' xlink:role='http://www.xbrl.org/2003/role/calculationLinkbaseRef'/></xsd:appinfo></xsd:annotation></xsd:schema>",
     );
-    expect(calculationLinkbaseHref(xsd.replaceAll('"', "'"))).toBe("clfd-20260331_cal.xml");
+    expect(schemaCalculation(xsd.replaceAll('"', "'"))).toEqual({
+      hrefs: ["clfd-20260331_cal.xml"],
+      embedded: false,
+    });
   });
 
-  test("the instance names its schema", async () => {
-    expect(parseXbrlInstance(await read("clfd20260331_10q_htm.xml")).schemaRefs).toEqual([
-      "clfd-20260331.xsd",
-    ]);
+  test("the instance names its schema and no calculation linkbase", async () => {
+    const instance = parseXbrlInstance(await read("clfd20260331_10q_htm.xml"));
+    expect(instance.schemaRefs).toEqual(["clfd-20260331.xsd"]);
+    expect(instance.calculationLinkbaseRefs).toEqual([]);
+  });
+
+  test("xml:base anywhere makes the instance unreadable", async () => {
+    const xml = await read("clfd20260331_10q_htm.xml");
+    expect(() =>
+      parseXbrlInstance(xml.replace("<link:schemaRef ", '<link:schemaRef xml:base="../x/" ')),
+    ).toThrow("xml:base");
   });
 });
 

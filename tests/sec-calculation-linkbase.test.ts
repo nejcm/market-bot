@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
-  calculationLinkbaseHref,
+  schemaCalculation,
   secDepreciationCalcMetrics,
   xbrlSchemaHref,
 } from "../src/sources/sec-calculation-linkbase";
@@ -193,9 +193,19 @@ describe("secDepreciationCalcMetrics", () => {
       '<link:linkbaseRef xlink:href="amd-20251227_pre.xml" xlink:role="http://www.xbrl.org/2003/role/presentationLinkbaseRef"/>';
     const cal =
       "<link:linkbaseRef xlink:href='amd-20251227_cal.xml' xlink:role='http://www.xbrl.org/2003/role/calculationLinkbaseRef'/>";
-    expect(calculationLinkbaseHref(schemaWithRefs(pre + cal))).toBe("amd-20251227_cal.xml");
-    expect(calculationLinkbaseHref(schemaWithRefs(pre))).toBeUndefined();
-    expect(calculationLinkbaseHref(pre + cal)).toBeUndefined();
+    expect(schemaCalculation(schemaWithRefs(pre + cal))).toEqual({
+      hrefs: ["amd-20251227_cal.xml"],
+      embedded: false,
+    });
+    expect(schemaCalculation(schemaWithRefs(pre))).toEqual({ hrefs: [], embedded: false });
+    expect(schemaCalculation(pre + cal)).toEqual({ hrefs: [], embedded: false });
+    expect(schemaCalculation(schemaWithRefs(cal + cal.replace("_cal", "_cal2")))).toEqual({
+      hrefs: ["amd-20251227_cal.xml", "amd-20251227_cal2.xml"],
+      embedded: false,
+    });
+    expect(
+      schemaCalculation(schemaWithRefs(`${cal}<link:linkbase>${role("")}</link:linkbase>`)),
+    ).toEqual({ hrefs: ["amd-20251227_cal.xml"], embedded: true });
     expect(xbrlSchemaHref("<link:schemaRef xlink:type='simple' xlink:href='q.xsd'/>")).toBe(
       "q.xsd",
     );

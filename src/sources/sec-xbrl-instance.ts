@@ -109,6 +109,10 @@ function startTag(source: string, parent: ReadonlyMap<string, string>) {
     if (key !== "xmlns" && !key.startsWith("xmlns:")) {
       const { namespace, local } = resolve(key, namespaces, true);
       const id = `${namespace}|${local}`;
+      // SEC EFM forbids xml:base, and an unapplied base would misidentify every href beneath it.
+      if (namespace === XMLNS && local === "base") {
+        throw new Error("xml:base is not supported");
+      }
       if (attributes.has(id)) {
         throw new Error(`duplicate attribute ${key}`);
       }
@@ -286,6 +290,7 @@ export interface XbrlInstance {
   readonly units: ReadonlyMap<string, XbrlUnit>;
   readonly facts: readonly XbrlFact[];
   readonly schemaRefs: readonly string[];
+  readonly calculationLinkbaseRefs: readonly string[];
 }
 
 const is = (element: XmlElement, namespace: string, local: string) =>
@@ -438,6 +443,7 @@ export function parseXbrlInstance(xml: string): XbrlInstance {
   const units = new Map<string, XbrlUnit>();
   const facts: XbrlFact[] = [];
   const schemaRefs: string[] = [];
+  const calculationLinkbaseRefs: string[] = [];
   for (const element of root.children) {
     const id = attributeOf(element, "", "id");
     if (is(element, XBRLI, "context")) {
@@ -449,6 +455,12 @@ export function parseXbrlInstance(xml: string): XbrlInstance {
       const href = attributeOf(element, XLINK, "href");
       if (element.local === "schemaRef" && href !== undefined) {
         schemaRefs.push(href);
+      }
+      if (
+        element.local === "linkbaseRef" &&
+        attributeOf(element, XLINK, "role")?.endsWith("/calculationLinkbaseRef") === true
+      ) {
+        calculationLinkbaseRefs.push(href ?? "");
       }
     } else if (NOT_CONCEPT_NAMESPACES.has(element.namespace)) {
       throw new Error(`unexpected ${element.local} in xbrl`);
@@ -474,5 +486,5 @@ export function parseXbrlInstance(xml: string): XbrlInstance {
       });
     }
   }
-  return { contexts, units, facts, schemaRefs };
+  return { contexts, units, facts, schemaRefs, calculationLinkbaseRefs };
 }

@@ -639,7 +639,10 @@ describe("SEC latest filing evidence tool", () => {
         },
       },
     };
-    const run = (failing: string) =>
+    const calcRef =
+      '<link:linkbaseRef xlink:href="aapl_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/>';
+    const requested: string[] = [];
+    const run = (failing: string, refs = calcRef) =>
       executeEvidenceRequestTool(
         "sec_latest_filing",
         baseCtx({
@@ -649,12 +652,12 @@ describe("SEC latest filing evidence tool", () => {
                 ? jsonResult(adapter, secTickersPayload())
                 : jsonResult(adapter, submissions),
             text: async ({ adapter }) =>
-              adapter === failing
+              requested.push(adapter) && adapter === failing
                 ? gap(adapter, "circuit open")
                 : adapter === "sec-xbrl-schema"
                   ? textResult(
                       adapter,
-                      '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:linkbaseRef xlink:href="aapl_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/></xs:schema>',
+                      `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink">${refs}</xs:schema>`,
                     )
                   : textResult(
                       adapter,
@@ -669,6 +672,14 @@ describe("SEC latest filing evidence tool", () => {
       expect(result.gaps).toContainEqual({ source: failing, message: "circuit open" });
       expect(result.items[0]?.metrics?.daCalcRead).toBe("fetch-failed");
     }
+    requested.length = 0;
+    for (const refs of [
+      calcRef + calcRef.replace("aapl_cal", "aapl_cal2"),
+      `${calcRef}<link:linkbase><link:calculationLink xlink:type="extended"/></link:linkbase>`,
+    ]) {
+      expect((await run("none", refs)).items[0]?.metrics?.daCalcRead).toBe("conflict");
+    }
+    expect(requested).not.toContain("sec-calculation-linkbase");
   });
 
   test("drops a malformed SEC row without shifting following filing metadata", async () => {

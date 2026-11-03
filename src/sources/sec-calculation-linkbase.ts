@@ -36,18 +36,26 @@ export function xbrlSchemaHref(html: string): string | undefined {
   return tag === undefined ? undefined : attribute(tag, "href");
 }
 
-// Undefined, so the schema itself is read as the linkbase, when it names none or is not well-formed XML.
-export function calculationLinkbaseHref(schema: string): string | undefined {
+export interface SchemaCalculation {
+  readonly hrefs: readonly string[];
+  // The schema carries its own calculationLink.
+  readonly embedded: boolean;
+}
+
+// No hrefs and not embedded, so the schema itself is read as the linkbase, when it is not well-formed XML.
+export function schemaCalculation(schema: string): SchemaCalculation {
   let root: XmlElement;
   try {
     root = parseXml(schema);
   } catch {
-    return undefined;
+    return { hrefs: [], embedded: false };
   }
-  const ref = descendants(root, LINKBASE, "linkbaseRef").find((element) =>
-    attributeOf(element, XLINK, "role")?.endsWith("/calculationLinkbaseRef"),
-  );
-  return ref === undefined ? undefined : attributeOf(ref, XLINK, "href");
+  return {
+    hrefs: descendants(root, LINKBASE, "linkbaseRef")
+      .filter((element) => attributeOf(element, XLINK, "role")?.endsWith("/calculationLinkbaseRef"))
+      .map((element) => attributeOf(element, XLINK, "href") ?? ""),
+    embedded: descendants(root, LINKBASE, "calculationLink").length > 0,
+  };
 }
 
 // `us-gaap_Depreciation` -> `Depreciation`; extension concepts keep their prefix so they never match a us-gaap fact.
@@ -244,7 +252,12 @@ function locatorConcept(href: string, linkbaseUrl: string, schema: ExtensionSche
     return `http://fasb.org/us-gaap/${gaap[1]}#${gaap[2]}`;
   }
   const target = URL.parse(href, linkbaseUrl);
-  const fragment = target?.hash.slice(1) ?? "";
+  let fragment: string;
+  try {
+    fragment = decodeURIComponent(target?.hash.slice(1) ?? "");
+  } catch {
+    throw new Error(`malformed calculation locator fragment ${href}`);
+  }
   if (target !== null) {
     target.hash = "";
   }
@@ -280,6 +293,12 @@ export interface SummationParent {
 
 // Summation parents of each `<namespace URI>#<local>` child across every network; throws on a prohibited or
 // Prioritized arc, a missing or zero weight, or one relationship weighted two ways.
+function requireXlinkType(element: XmlElement, type: string): void {
+  if (attributeOf(element, XLINK, "type") !== type) {
+    throw new Error(`calculation ${element.local} is not xlink:type ${type}`);
+  }
+}
+
 export function summationParents(
   xml: string,
   linkbaseUrl: string,
@@ -288,9 +307,11 @@ export function summationParents(
   const parents = new Map<string, SummationParent[]>();
   const weights = new Map<string, string>();
   for (const link of descendants(parseXml(xml), LINKBASE, "calculationLink")) {
+    requireXlinkType(link, "extended");
     const role = attributeOf(link, XLINK, "role") ?? "";
     const locators = new Map<string, string[]>();
     for (const loc of descendants(link, LINKBASE, "loc")) {
+      requireXlinkType(loc, "locator");
       const label = attributeOf(loc, XLINK, "label");
       const href = attributeOf(loc, XLINK, "href");
       if (label === undefined || href === undefined) {
@@ -302,6 +323,7 @@ export function summationParents(
       ]);
     }
     for (const arc of descendants(link, LINKBASE, "calculationArc")) {
+      requireXlinkType(arc, "arc");
       if (!SUMMATION_ITEM.has(attributeOf(arc, XLINK, "arcrole") ?? "")) {
         continue;
       }

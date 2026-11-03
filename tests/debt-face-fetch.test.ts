@@ -893,12 +893,18 @@ const LEASE_NAME = "LesseeOperatingLeaseLiabilityToBePaidAfterYearFour";
 const CLFD_FOLDER = "https://www.sec.gov/Archives/edgar/data/796505/000117184326000700";
 const notesPayable = (attributes = 'unitRef="USD"', body = ">730001</us-gaap:NotesPayable>") =>
   `<us-gaap:NotesPayable contextRef="i" ${attributes}${body}`;
-const typedMeta = (key: string, nsuri: string, localname: string, xbrltype: string) => ({
+const typedMeta = (
+  key: string,
+  nsuri: string,
+  localname: string,
+  xbrltype: string,
+  crdr: string | null = "credit",
+) => ({
   instance: {
     "q.htm": {
       tag: {
         ...CLFD_META_LINKS.instance["q.htm"].tag,
-        [key]: { ...tag(nsuri, localname, "credit"), xbrltype },
+        [key]: { ...tag(nsuri, localname, crdr ?? undefined), xbrltype },
       },
     },
   },
@@ -1001,17 +1007,171 @@ describe("tagged-zero proof boundaries", () => {
     ]);
   });
 
-  test("a shares fact in a shares unit stays outside the census", async () => {
-    const shares =
-      '<unit id="shares"><measure>xbrli:shares</measure></unit><us-gaap:NotesPayable contextRef="i" unitRef="shares">730001</us-gaap:NotesPayable>';
+  const withUnit = (unit: string, body: string) =>
+    clfdInstance(`<unit id="u"><measure>${unit}</measure></unit>${body}`).replace(
+      'xmlns:xbrldi="',
+      'xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:xbrldi="',
+    );
+  test.each([
+    ["stringItemType", clfdInstance(notesPayable(""))],
+    ["sharesItemType", withUnit("xbrli:shares", notesPayable('unitRef="u"'))],
+    ["integerItemType", withUnit("xbrli:pure", notesPayable('unitRef="u"'))],
+  ] as const)(
+    "us-gaap notes payable typed %s contradicts MetaLinks",
+    async (xbrltype, instance) => {
+      const served = clfdServed(ZERO_ROWS, {
+        "sec-xbrl-instance": instance,
+        "sec-metalinks": typedMeta("us-gaap_NotesPayable", US_GAAP, "NotesPayable", xbrltype),
+      });
+      expect(decDebt(await clfdDerive(served))).toBeUndefined();
+      expect(await withheldMessage(served)).toEqual([
+        expect.stringContaining("rejected (metalinks-contradicts:us-gaap:NotesPayable)"),
+      ]);
+    },
+  );
+
+  test.each([
+    ["a us-gaap borrowing concept with no balance", "us-gaap", null],
+    ["an extension concept with a credit balance", "clfd", "credit"],
+  ] as const)("a shares fact for %s contradicts MetaLinks", async (_name, prefix, crdr) => {
+    const name = prefix === "us-gaap" ? "LongTermDebt" : "IssuerShares";
+    const nsuri = prefix === "us-gaap" ? US_GAAP : CLFD;
     const served = clfdServed(ZERO_ROWS, {
-      "sec-xbrl-instance": clfdInstance(shares).replace(
-        'xmlns:xbrldi="',
-        'xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:xbrldi="',
+      "sec-xbrl-instance": withUnit(
+        "xbrli:shares",
+        `<${prefix}:${name} contextRef="i" unitRef="u">730001</${prefix}:${name}>`,
       ),
-      "sec-metalinks": typedMeta("us-gaap_NotesPayable", US_GAAP, "NotesPayable", "sharesItemType"),
+      "sec-metalinks": typedMeta(`${prefix}_${name}`, nsuri, name, "sharesItemType", crdr),
+    });
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining(`rejected (metalinks-contradicts:${prefix}:${name})`),
+    ]);
+  });
+
+  test("a share count with no balance stays outside the census", async () => {
+    const name = "CommonStockSharesOutstanding";
+    const served = clfdServed(ZERO_ROWS, {
+      "sec-xbrl-instance": withUnit(
+        "xbrli:shares",
+        `<us-gaap:${name} contextRef="i" unitRef="u">730001</us-gaap:${name}>`,
+      ),
+      "sec-metalinks": typedMeta(`us-gaap_${name}`, US_GAAP, name, "sharesItemType", null),
     });
     expect(decDebt(await clfdDerive(served))?.value).toBe(0);
+  });
+
+  test.each([
+    [
+      "the instance root",
+      {
+        "sec-xbrl-instance": clfdInstance().replace(
+          "<xbrl ",
+          '<xbrl xml:base="https://other.test/" ',
+        ),
+      },
+      "instance-unreadable",
+    ],
+    [
+      "the instance schemaRef",
+      {
+        "sec-xbrl-instance": leaseInstance().replace(
+          "<link:schemaRef ",
+          '<link:schemaRef xml:base="../000117184326003126/" ',
+        ),
+      },
+      "instance-unreadable",
+    ],
+    [
+      "the schema linkbaseRef",
+      {
+        "sec-xbrl-instance": leaseInstance(),
+        "sec-xbrl-schema": SCHEMA.replace(
+          "<link:linkbaseRef ",
+          '<link:linkbaseRef xml:base="../000117184326003126/" ',
+        ),
+      },
+      "calculation-linkbase-unreadable",
+    ],
+    [
+      "the calculation linkbase root",
+      calcWith("<link:linkbase ", '<link:linkbase xml:base="https://other.test/" '),
+      "calculation-linkbase-unreadable",
+    ],
+    [
+      "a calculation link",
+      calcWith(
+        "<link:calculationLink ",
+        '<link:calculationLink xml:base="../000117184326003126/" ',
+      ),
+      "calculation-linkbase-unreadable",
+    ],
+    [
+      "a calculation locator",
+      calcWith('xlink:href="q.xsd#', 'xml:base="https://other.test/" xlink:href="q.xsd#'),
+      "calculation-linkbase-unreadable",
+    ],
+  ] as const)("xml:base on %s withholds", async (_name, overrides, code) => {
+    expect(await withheldMessage(clfdServed(ZERO_ROWS, overrides))).toEqual([
+      expect.stringContaining(`rejected (${code})`),
+    ]);
+  });
+
+  const secondCalcRef =
+    '<link:linkbaseRef xlink:type="simple" xlink:href="debt_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/>';
+  test.each([
+    [
+      "a schema naming two calculation linkbases",
+      SCHEMA.replace("</xs:appinfo>", `${secondCalcRef}</xs:appinfo>`),
+      leaseInstance(),
+    ],
+    [
+      "a schema embedding a calculation link beside its external one",
+      SCHEMA.replace(
+        "</xs:appinfo>",
+        `${LEASE_CAL.replace('xlink:role="r"', 'xlink:role="debt"')}</xs:appinfo>`,
+      ),
+      leaseInstance(),
+    ],
+    [
+      "an instance naming its own calculation linkbase",
+      SCHEMA,
+      leaseInstance().replace("</xbrl>", `${secondCalcRef}</xbrl>`),
+    ],
+  ] as const)("%s withholds", async (_name, schema, instance) => {
+    const adapters: string[] = [];
+    const served = clfdServed(ZERO_ROWS, {
+      "sec-xbrl-instance": instance,
+      "sec-xbrl-schema": schema,
+    });
+    expect(decDebt(deriveItems(ZERO_GAAP, (await clfdFaces(served, adapters)).items))).toBe(
+      undefined,
+    );
+    expect(adapters).not.toContain("sec-calculation-linkbase");
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining("rejected (calculation-linkbase-ambiguous)"),
+    ]);
+  });
+
+  test.each([
+    ["calculation link", ' xlink:type="extended"', ' xlink:type="simple"'],
+    ["calculation locator", 'xlink:label="c" xlink:type="locator"', 'xlink:label="c"'],
+    ["calculation arc", 'weight="1.0" xlink:type="arc"', 'weight="1.0" xlink:type="resource"'],
+  ] as const)("a %s with the wrong xlink:type withholds", async (_name, from, to) => {
+    expect(await withheldMessage(clfdServed(ZERO_ROWS, calcWith(from, to)))).toEqual([
+      expect.stringContaining("rejected (calculation-linkbase-unreadable)"),
+    ]);
+  });
+
+  test("a percent-encoded locator fragment still places the lease extension", async () => {
+    const served = clfdServed(ZERO_ROWS, calcWith("q.xsd#clfd_", "q.xsd#clfd%5F"));
+    expect(decDebt(await clfdDerive(served))?.value).toBe(0);
+  });
+
+  test("a malformed locator fragment escape withholds", async () => {
+    const served = clfdServed(ZERO_ROWS, calcWith("q.xsd#clfd_", "q.xsd#clfd%ZZ"));
+    expect(await withheldMessage(served)).toEqual([
+      expect.stringContaining("rejected (calculation-linkbase-unreadable)"),
+    ]);
   });
 
   const placedSchema = (elements: string, namespace = CLFD) =>

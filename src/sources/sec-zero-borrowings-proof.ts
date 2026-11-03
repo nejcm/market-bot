@@ -1,5 +1,6 @@
 import type { ExtendedEvidenceItem } from "../domain/evidence";
 import { isRecord } from "../guards";
+import { isDebtPresenceConcept } from "./extended-evidence/financial-statement-definitions";
 import { isStandardTaxonomyNamespace, type SummationParent } from "./sec-calculation-linkbase";
 import type { XbrlFact, XbrlInstance, XbrlUnit } from "./sec-xbrl-instance";
 
@@ -209,6 +210,10 @@ export type ZeroBorrowingsProof =
   | { readonly proof: string; readonly currency: string }
   | { readonly reject: string };
 
+const isBorrowingConcept = (concept: string) =>
+  ZERO_BORROWING_CONCEPTS.has(concept) ||
+  NON_DEBT_CREDIT.has(concept) ||
+  isDebtPresenceConcept("us-gaap", concept);
 const local = (concept: string) => concept.slice(concept.indexOf(":") + 1);
 const isUsGaap = (concept: string) => concept.startsWith("us-gaap:");
 const US_GAAP_NAMESPACE = /^http:\/\/fasb\.org\/us-gaap\/\d{4}$/u;
@@ -271,6 +276,17 @@ export function zeroBorrowingsInstanceProof(
       : undefined;
   };
   const lexicalZero = (value: string | undefined) => DECIMAL.test(value ?? "") && isZero(value);
+  // XBRL 2.1 §5.1.1.2 allows a balance only on monetary items, and a borrowing concept is monetary.
+  const contradicted = instantFacts.find((fact) => {
+    const { crdr, xbrltype } = tagOf(fact);
+    return (
+      nonmonetary(xbrltype, unitOf(fact)) &&
+      (crdr !== undefined || (isUsGaap(fact.concept) && isBorrowingConcept(local(fact.concept))))
+    );
+  });
+  if (contradicted !== undefined) {
+    return reject(`metalinks-contradicts:${contradicted.concept}`);
+  }
   const census = instantFacts.filter((fact) => {
     const { crdr, xbrltype } = tagOf(fact);
     return (

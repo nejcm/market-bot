@@ -61,7 +61,7 @@ import {
 } from "./sec-segment-facts";
 import {
   DA_CALC_READ_KEY,
-  calculationLinkbaseHref,
+  schemaCalculation,
   secDepreciationCalcMetrics,
   extensionSchema,
   summationParents,
@@ -171,6 +171,7 @@ interface CalculationLinkbaseFetch {
   readonly xml?: string;
   readonly xmlUrl?: string;
   readonly schema?: { readonly url: string; readonly xml: string };
+  readonly ambiguous?: true;
   readonly documents: readonly FetchedDocument[];
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
@@ -208,7 +209,16 @@ async function fetchCalculationLinkbase(
     adapter: "sec-xbrl-schema",
     rawSnapshot: schema.rawSnapshot,
   };
-  const calcHref = calculationLinkbaseHref(schema.payload);
+  const { hrefs, embedded } = schemaCalculation(schema.payload);
+  if (hrefs.length > 1 || (hrefs.length === 1 && embedded)) {
+    return {
+      ambiguous: true,
+      documents: [schemaDocument],
+      rawSnapshots: [schema.rawSnapshot],
+      gaps: [],
+    };
+  }
+  const calcHref = hrefs[0];
   const calcUrl = calcHref === undefined ? undefined : accessionDocumentUrl(calcHref, schemaUrl);
   if (calcUrl === undefined) {
     return {
@@ -249,7 +259,7 @@ async function fetchDepreciationCalc(
   if (filing.form !== "10-K") {
     return { metrics: {}, rawSnapshots: [], gaps: [] };
   }
-  const { xml, rawSnapshots, gaps } = await fetchCalculationLinkbase(
+  const { xml, ambiguous, rawSnapshots, gaps } = await fetchCalculationLinkbase(
     ctx,
     xbrlSchemaHref(html),
     `${filingBaseUrl(String(Number(cik)), filing.accessionNumber)}/${filing.primaryDocument}`,
@@ -258,9 +268,11 @@ async function fetchDepreciationCalc(
     metrics:
       gaps.length > 0
         ? { [DA_CALC_READ_KEY]: "fetch-failed" }
-        : xml === undefined
-          ? {}
-          : secDepreciationCalcMetrics(xml),
+        : ambiguous === true
+          ? { [DA_CALC_READ_KEY]: "conflict" }
+          : xml === undefined
+            ? {}
+            : secDepreciationCalcMetrics(xml),
     rawSnapshots,
     gaps,
   };
@@ -351,12 +363,18 @@ async function fetchZeroBorrowingsProof(
   const scope = { periodEnd: filing.reportDate, file: instanceFile, cik };
   let proof = zeroBorrowingsInstanceProof(parsed, tags, undefined, scope);
   if ("reject" in proof && proof.reject.startsWith(UNCLASSIFIED_CREDIT)) {
+    if (parsed.calculationLinkbaseRefs.length > 0) {
+      return rejectZeroBorrowings("calculation-linkbase-ambiguous", rawSnapshots);
+    }
     const calc = await fetchCalculationLinkbase(
       ctx,
       parsed.schemaRefs.length === 1 ? parsed.schemaRefs[0] : undefined,
       url,
     );
     const calcSnapshots = [...rawSnapshots, ...calc.rawSnapshots];
+    if (calc.ambiguous === true) {
+      return rejectZeroBorrowings("calculation-linkbase-ambiguous", calcSnapshots);
+    }
     if (
       calc.gaps.length > 0 ||
       calc.xml === undefined ||

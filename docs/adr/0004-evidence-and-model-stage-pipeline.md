@@ -437,7 +437,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   borrowing or listed credit concept, contradicts XBRL 2.1's balance-only-on-monetary rule and rejects as
   `metalinks-contradicts:<concept>`. Every other fact typed monetary, in a currency unit, or nonzero or nil and not
   debit needs exactly one `iso4217` measure in the issuer-wide `Liabilities` currency and a lexical decimal value
-  (zero means no nonzero digit, never a number coercion); such a nil fact rejects unless debit. The
+  (zero means no nonzero digit, never a number coercion); such a nil fact rejects unless debit or a nil `us-gaap:CommitmentsAndContingencies`, which the taxonomy defines as the balance-sheet caption. The
   instance must tag an allowlisted borrowing concept 0 at the instant, issuer-wide or on facility axes only, and a
   fail-closed census requires every nonzero non-debit monetary fact there, in any context, to be a closed us-gaap
   non-debt credit concept (liability totals only issuer-wide) or an extension-namespace concept the calculation

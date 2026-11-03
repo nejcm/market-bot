@@ -295,7 +295,13 @@ export function zeroBorrowingsInstanceProof(
         (crdr !== "debit" && (fact.nil || !lexicalZero(fact.value))))
     );
   });
-  const nilFact = census.find((fact) => fact.nil && tagOf(fact).crdr !== "debit");
+  // The us-gaap taxonomy defines CommitmentsAndContingencies as a balance-sheet caption, so a nil one carries no amount.
+  const nilFact = census.find(
+    (fact) =>
+      fact.nil &&
+      tagOf(fact).crdr !== "debit" &&
+      fact.concept !== "us-gaap:CommitmentsAndContingencies",
+  );
   if (nilFact !== undefined) {
     return reject(`nil-fact:${nilFact.concept}`);
   }

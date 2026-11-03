@@ -59,6 +59,7 @@ const CREDIT = [
   "CapitalLeaseObligationsCurrent",
   "LesseeOperatingLeaseLiabilityPaymentsDue",
   "OtherLiabilitiesCurrent",
+  "CommitmentsAndContingencies",
 ];
 const MONETARY = "monetaryItemType";
 const TAGS: ReadonlyMap<string, ConceptTag> = new Map<string, ConceptTag>([
@@ -283,6 +284,33 @@ describe("nil facts are never zeros", () => {
   test("a nil borrowing beside a real zero withholds", () => {
     const xml = instanceXml('<us-gaap:NotesPayable contextRef="i" unitRef="usd" xsi:nil="1"/>');
     expect(rejectOf(xml)).toBe("nil-fact:us-gaap:NotesPayable");
+  });
+
+  const nilCaption =
+    '<us-gaap:CommitmentsAndContingencies contextRef="i" unitRef="usd" xsi:nil="true"/>';
+  test("a nil commitments-and-contingencies caption is not a nil borrowing", () => {
+    expect(rejectOf(instanceXml(nilCaption))).toBe("published");
+  });
+
+  test("a nil caption with no tagged zero reaches untagged-zero (CALX 0001406666-26-000034)", () => {
+    const facts = [
+      fact("us-gaap:Liabilities", 18_398_000),
+      fact("us-gaap:AccountsPayableCurrent", 10_000_000),
+    ];
+    expect(rejectOf(instanceXml(nilCaption, { facts: facts.join("") }))).toBe("untagged-zero");
+  });
+
+  test("a non-nil commitments-and-contingencies amount still rejects as unclassified credit", () => {
+    expect(rejectOf(instanceXml(fact("us-gaap:CommitmentsAndContingencies", 5000)))).toBe(
+      "unclassified-credit:us-gaap:CommitmentsAndContingencies",
+    );
+  });
+
+  test("another nil credit caption still withholds", () => {
+    const xml = instanceXml(
+      '<us-gaap:OtherLiabilitiesCurrent contextRef="i" unitRef="usd" xsi:nil="true"/>',
+    );
+    expect(rejectOf(xml)).toBe("nil-fact:us-gaap:OtherLiabilitiesCurrent");
   });
 
   test("an unreadable nil value makes the instance unreadable", () => {

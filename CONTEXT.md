@@ -193,6 +193,8 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 ## Equity evidence
 
+**Verified Quote** — A filing sentence code links to the filing's own inline-XBRL tag for a claim (today: zero borrowings at a balance-sheet instant, where a borrowing concept is tagged 0): the sentence enclosing the visible fact, or the sentence around an element whose `-sec-ix-hidden` style names an `ix:hidden` fact and whose text reads as zero, read within that element's block. Code owns the value, period, concept, scope and facility match; the quote only shows the reader where the filing says it. `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero. Prose with no tag behind it is never a Verified Quote and stays a Source Gap. See ADR 0004.
+
 **Extended Evidence** — Optional higher-specificity provider evidence for instrument Research Views. **Fundamental Evidence** — sourced issuer operating and financial facts used as Extended Evidence.
 
 **Verified Market Snapshot** — Analysis-date-anchored, citeable OHLCV and technical-indicator block (Yahoo daily bars, ≥400-day lookback). A latest session provider metadata cannot prove closed is retained but marked `latestSessionStatus: "unverified"` and no longer called verified. Supplemental evidence, not a scoring Observation. `latestSessionStatus` is a closed set: a new value must update both the strict deep-equity bundle validator and the tolerant sidecar reader. See ADR 0004.

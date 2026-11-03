@@ -284,7 +284,8 @@ export interface FinancialStatementNote {
     | "mixed-share-basis"
     | "earlier-share-basis"
     | "declaration-span"
-    | "debt-held-for-sale";
+    | "debt-held-for-sale"
+    | "verified-quote";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;

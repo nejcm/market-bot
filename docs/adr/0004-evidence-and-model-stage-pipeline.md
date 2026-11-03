@@ -407,6 +407,20 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   only when comps exist and a clause mentions a peer median) labels each clause's compared metric; code still
   decides the prune, and an omitted or unknown label, provider error, or malformed reply falls back to the clause regex. Negation is also judged per clause. Peer ids are never appended: the figure may not come
   from those peers.
+- Verified Quote (collection, amended 2026-11-03): debt 0 on a footed face with no borrowing row publishes only
+  when the same 10-K/10-Q tags an allowlisted borrowing concept 0 at the instant, issuer-wide or on facility axes
+  only (`ix:hidden` facts count; a disposal-group, entity or segment axis does not), tags no nonzero, nil or
+  unreadable borrowing fact there in any parsed context (debt-selection concepts, finance leases, borrowing-noun
+  names, and any monetary issuer extension naming a borrowing word), leaves no borrowing fact with an unresolved
+  context, and every continuing facility its prose names matches a tagged zero by kind and by each qualifying word
+  before it ("foreign", "equipment"); a promissory note or loan agreement counts only when a tagged member names
+  one. Code then links the zero to a prose sentence: the style-linked element must read as zero ("no", "none", a
+  dash) and the sentence is read within its own block. Code alone does this; there is no model stage. Withholding
+  is the default where identity cannot be proven: CLFD's 10-Qs name a promissory note issued under the revolver's
+  loan agreement, which no tag links, so they stay withheld. A quick-model sentence picker was built and dropped: across
+  every cached filing, each tagged zero that sits in prose was linked by code (11 of 11), and the rest are table
+  cells. Untagged prose zeros withhold with their own Source Gap reason, since no sentence grammar can tell a zero
+  from its many near-misses. `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
   `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,

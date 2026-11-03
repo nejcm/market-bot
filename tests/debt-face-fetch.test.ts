@@ -13,6 +13,7 @@ import {
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
 import { assertCompositeFactIntegrity } from "./support/run-fixtures/financial-invariants";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
+import { collectFinancialStatements } from "../src/sources/collector-equity-enrichment";
 import type { CollectContext, SourceRequestExecutor } from "../src/sources/types";
 
 type Row = readonly [label: string, concept: string, value: number];
@@ -71,20 +72,23 @@ const GAAP = {
   DebtLongtermAndShorttermCombinedAmount: [fy(129_541_000_000)],
 };
 
-// CLFD 10-Q 0001171843-26-000700, Debt note.
+// CLFD 10-Q 0001171843-26-000700, Debt note: its LineOfCredit 0 is an ix:hidden fact linked to "no".
 const CLFD_TEXT =
-  "The Company has a $ 40,000,000 revolving line of credit. As of December 31, 2025 and September 30, 2025, the Company had no borrowings against this line of credit.";
+  'The Company has a $ 40,000,000 revolving line of credit. As of December 31, 2025 and September 30, 2025, the Company had <span style="-sec-ix-hidden:z">no</span> borrowings against this line of credit.';
+const zeroTag = (reportDate: string, concept = "us-gaap:LineOfCredit", shown = "0") =>
+  `<xbrli:context id="r"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:CreditFacilityAxis">us-gaap:RevolvingCreditFacilityMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>${reportDate}</xbrli:instant></xbrli:period></xbrli:context><ix:hidden><ix:nonFraction id="z" contextRef="r" unitRef="usd" name="${concept}" format="ixt:num-dot-decimal" scale="0">${shown}</ix:nonFraction></ix:hidden>`;
 
 function faceItem(
   accessionNumber: string,
   reportDate: string,
   rows: readonly Row[],
   text = CLFD_TEXT,
+  tag = zeroTag(reportDate),
 ) {
   return {
     sourceIds: [`sec-filing-${accessionNumber}`],
     metrics: { accessionNumber, reportDate },
-    html: `${balanceSheet(reportDate, rows)}<p>${text}</p>`,
+    html: `${tag}${balanceSheet(reportDate, rows)}<p>${text}</p>`,
   };
 }
 
@@ -467,6 +471,22 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
       [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, "")],
     ],
     [
+      "a face whose zero is stated only in untagged prose",
+      [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, CLFD_TEXT, "")],
+    ],
+    [
+      "a face whose filing tags a nonzero line of credit",
+      [
+        faceItem(
+          Q_ACCN,
+          "2025-12-31",
+          ZERO_ROWS,
+          CLFD_TEXT,
+          zeroTag("2025-12-31", "us-gaap:LineOfCredit", "500"),
+        ),
+      ],
+    ],
+    [
       "a face whose filing names an uncovered term loan",
       [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, `${CLFD_TEXT} The Company also has a term loan.`)],
     ],
@@ -537,13 +557,86 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     expect(decDebt(await derive(ZERO_GAAP, faces))).toBeUndefined();
   });
 
-  test("a rejected text proof names its codes in the withheld note", async () => {
+  test("a rejected tagged-zero proof names its code in the withheld note", async () => {
     const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, "")]);
     expect(financialStatementsDebtBasisGaps(artifact)).toEqual([
       expect.objectContaining({
-        message: expect.stringContaining("text proof was rejected (no-sentence)"),
+        message: expect.stringContaining("tagged-zero proof was rejected (zero-not-cited)"),
       }),
     ]);
+  });
+
+  test("a zero stated only in untagged prose is withheld with its own gap", async () => {
+    const artifact = await derive(ZERO_GAAP, [
+      faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS, CLFD_TEXT, ""),
+    ]);
+    expect(financialStatementsDebtBasisGaps(artifact)).toEqual([
+      expect.objectContaining({ message: expect.stringContaining("rests on untagged prose") }),
+    ]);
+  });
+
+  test("the published zero carries its tagged-fact provenance note", async () => {
+    const artifact = await derive(ZERO_GAAP, [faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS)]);
+    expect(artifact.omissionNotes ?? []).toContainEqual(
+      expect.objectContaining({
+        code: "verified-quote",
+        periodKey: "instant|2025-12-31",
+        message: expect.stringContaining(
+          "tags us-gaap:LineOfCredit = 0 [us-gaap:CreditFacilityAxis=us-gaap:RevolvingCreditFacilityMember]",
+        ),
+      }),
+    );
+  });
+
+  test.each([
+    [false, 0],
+    [true, undefined],
+  ])("collection with the tagged-zero switch off=%s publishes debt %s", async (disabled, value) => {
+    const face = faceItem(Q_ACCN, "2025-12-31", ZERO_ROWS);
+    const json: Readonly<Record<string, unknown>> = {
+      "sec-tickers": { "0": { cik_str: 796_505, ticker: "CLFD", title: "Clearfield Inc" } },
+      "sec-companyfacts": {
+        cik: 796_505,
+        facts: {
+          "us-gaap": Object.fromEntries(
+            Object.entries(ZERO_GAAP).map(([concept, usd]) => [concept, { units: { USD: usd } }]),
+          ),
+        },
+      },
+      "sec-submissions": {
+        cik: "0000796505",
+        filings: {
+          recent: {
+            form: ["10-Q", "10-K"],
+            filingDate: ["2026-02-05", "2025-08-10"],
+            reportDate: ["2025-12-31", "2025-06-30"],
+            accessionNumber: [Q_ACCN, K_ACCN],
+            primaryDocument: ["q.htm", "k.htm"],
+          },
+        },
+      },
+    };
+    const context: CollectContext = {
+      command: { jobType: "equity", assetClass: "equity", symbol: "CLFD", depth: "deep" },
+      fetchedAt: AS_OF,
+      newsLimit: 0,
+      cryptoMoverLimit: 0,
+      secUserAgent: "test-agent",
+      request: {
+        json: async ({ adapter }) => ({
+          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt: "", payload: json[adapter] },
+          payload: json[adapter],
+        }),
+        text: async ({ url, adapter }) => ({
+          rawSnapshot: { id: `raw-${url}`, adapter, fetchedAt: "", payload: "" },
+          payload: `ITEM 2. MANAGEMENT'S DISCUSSION ${"Revenue grew on stronger demand. ".repeat(12)} ${
+            url.includes(Q_ACCN.replaceAll("-", "")) ? face.html : ""
+          }`,
+        }),
+      },
+    };
+    const { statements } = await collectFinancialStatements(context, "CLFD", disabled);
+    expect(statements === undefined ? "none" : decDebt(statements)?.value).toBe(value);
   });
 
   test("a published zero raises no finance-lease basis gap", async () => {

@@ -255,7 +255,7 @@ function filedIssuerDomains(
   return domains;
 }
 
-export function dateLabels(date: string): readonly string[] {
+function dateLabels(date: string): readonly string[] {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   if (!Number.isFinite(parsed.getTime())) {
     return [date];

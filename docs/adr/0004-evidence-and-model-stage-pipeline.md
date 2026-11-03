@@ -178,8 +178,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   nonzero borrowing concept within 400 days or an earlier same-instant filing; generic sides cover prior
   constituent details. The lines that decide a published composite come from one filing: when the instant's
   debt lines, liability subtotals or principal inputs carry nonzero values from two filings, one filing's own
-  values plus other filings' tagged zeros must resolve complete to the same debt, which then publishes
-  attributed to that filing; otherwise the instant withholds with a note naming the filings (GOOGL, IBM, AVGO).
+  values plus other filings' tagged zeros must resolve complete, either through the same nonzero lines as the
+  mixed composite (an equal sum through other lines is not enough) or with every other same-form filing at
+  the instant repeating its values (absent lines only if zero or a named non-borrowing row). That filing's own
+  resolution then publishes attributed to it; otherwise the instant withholds with a note naming the filings
+  (GOOGL 2023-12-31, IBM, AVGO FY2020). Other forms' filings resolve in their own groups. A mixed composite
+  that resolves complete but is withheld still contests partial-comparative recovery with its value.
   Other filings' facts stay in that resolution as obligations (prior nonzero lines still need coverage,
   principal due within a year still needs a current line); they only stop vouching for its lines. An older filing's nonzero line is not proven to hold
   in a newer presentation, so it may neither add to nor prove another filing's result. A filing

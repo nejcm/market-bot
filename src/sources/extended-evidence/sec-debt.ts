@@ -278,8 +278,9 @@ export function factsForDebt(
     const support = [...liabilities, ...Object.values(principalFacts).flat()].filter(
       (fact) => fact.periodEnd === instant.periodEnd && fact.filedAt <= instant.filedAt,
     );
+    const mixed = resolveWith(tagged);
     const resolution = fromOneFiling(
-      resolveWith(tagged),
+      mixed,
       tagged,
       instantFacts.get(instantKey) ?? [],
       support,
@@ -326,6 +327,9 @@ export function factsForDebt(
       proofSourceIds: resolution.proofSourceIds,
       faceLeases: resolution.faceLeases,
       faceAccession: faceFixable ? faceAccession : undefined,
+      ...(mixed.incompleteReason === undefined && resolution.incompleteReason !== undefined
+        ? { unprovenDebt: signedDebt(mixed) }
+        : {}),
     };
   });
   const current = unsupersededDebtResolutions(
@@ -753,25 +757,56 @@ const signedDebt = ({ contributors }: DebtResolution<ParsedFact>) =>
     0,
   );
 
-// The lines that decide an instant must come from one filing: it alone, plus other filings' tagged zeros, must give the same debt.
+const debtLines = ({ contributors }: DebtResolution<ParsedFact>) =>
+  contributors
+    .filter(({ fact }) => fact.value !== 0)
+    .map(
+      ({ concept, fact, subtract }) =>
+        `${subtract === true ? "-" : "+"}${concept}=${String(fact.value)}`,
+    )
+    .toSorted()
+    .join(" ");
+
+// Named non-borrowing lines another filing newly tags contradict no debt; leases and catch-all lines might.
+const NON_DEBT_LIABILITY_LINES: ReadonlySet<string> = new Set(
+  [...KNOWN_NON_BORROWING_ROWS].filter(
+    (concept) => !/FinanceLease|^Other|AssetRetirement/u.test(concept),
+  ),
+);
+
+// The lines that decide an instant must come from one filing: alone, plus other filings' tagged zeros, it resolves
+// Complete with the composite's own lines, or every other same-form filing repeats values it tags.
 function fromOneFiling(
   resolution: DebtResolution<ParsedFact>,
   tagged: ReadonlyMap<string, ParsedFact>,
   facts: readonly ParsedFact[],
-  support: readonly Filed[],
+  support: readonly (Filed & { readonly concept: string })[],
   resolve: (lines: ReadonlyMap<string, ParsedFact>, filing: Filing) => DebtResolution<ParsedFact>,
 ): DebtResolution<ParsedFact> {
-  const filedAt = new Map(
-    [...facts, ...support].flatMap((fact) =>
-      fact.value === 0 ? [] : [[filingOf(fact), fact.filedAt] as const],
-    ),
-  );
-  const filings = [...filedAt.keys()];
-  if (resolution.incompleteReason !== undefined || filings.length < 2) {
+  const evidence = [...facts, ...support];
+  const nonzero = [
+    ...new Set(evidence.flatMap((fact) => (fact.value === 0 ? [] : [filingOf(fact)]))),
+  ].toSorted();
+  if (nonzero.length < 2) {
     return resolution;
   }
+  const filedAt = new Map(evidence.map((fact) => [filingOf(fact), fact.filedAt] as const));
+  const valuesOf = (filing: string) => evidence.filter((fact) => filingOf(fact) === filing);
+  const repeats = (filing: string, of: string) =>
+    valuesOf(filing).every((fact) => {
+      const own = valuesOf(of).filter(({ concept }) => concept === fact.concept);
+      return own.length === 0
+        ? fact.value === 0 || NON_DEBT_LIABILITY_LINES.has(fact.concept)
+        : own.every(({ value }) => value === fact.value);
+    });
+  // Other forms' filings resolve in their own groups and only stop vouching here.
+  const members = [...filedAt.keys()].filter((filing) =>
+    valuesOf(filing).some(
+      (fact) => facts.includes(fact as ParsedFact) || fact.form === facts[0]?.form,
+    ),
+  );
   const used = new Set(resolution.contributors.map(({ fact }) => filingOf(fact)));
-  for (const filing of filings.toSorted(
+  for (const filing of nonzero.toSorted(
     (left, right) => Number(used.has(right)) - Number(used.has(left)),
   )) {
     const lines = new Map<string, ParsedFact>();
@@ -786,13 +821,19 @@ function fromOneFiling(
       }
     }
     const alone = resolve(lines, { id: filing, filedAt: filedAt.get(filing) ?? "" });
-    if (alone.incompleteReason === undefined && signedDebt(alone) === signedDebt(resolution)) {
-      return used.size === 1 && used.has(filing) ? resolution : alone;
+    if (
+      alone.incompleteReason === undefined &&
+      ((resolution.incompleteReason === undefined && debtLines(alone) === debtLines(resolution)) ||
+        members.every((other) => other === filing || repeats(other, filing)))
+    ) {
+      return alone;
     }
   }
   return {
     ...resolution,
-    incompleteReason: `nonzero debt evidence from filings ${filings.toSorted().join(", ")} decide the instant, and no one of them alone gives the same debt`,
+    incompleteReason:
+      resolution.incompleteReason ??
+      `nonzero debt evidence from filings ${nonzero.join(", ")} decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values`,
   };
 }
 

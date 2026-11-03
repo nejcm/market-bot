@@ -2249,7 +2249,7 @@ describe("debt composites drawn from more than one filing", () => {
     ).toEqual({
       values: [],
       reasons: [
-        "nonzero debt evidence from filings newer, older decide the instant, and no one of them alone gives the same debt",
+        "nonzero debt evidence from filings newer, older decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values",
       ],
     });
   });
@@ -2275,7 +2275,7 @@ describe("debt composites drawn from more than one filing", () => {
     ).toEqual({
       values: [],
       reasons: [
-        "nonzero debt evidence from filings A, B decide the instant, and no one of them alone gives the same debt",
+        "nonzero debt evidence from filings A, B decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values",
       ],
     });
   });
@@ -2375,7 +2375,7 @@ describe("debt composites drawn from more than one filing", () => {
     ).toEqual({
       values: [],
       reasons: [
-        "nonzero debt evidence from filings an unidentified 10-K filed 2024-02-20, an unidentified 10-K filed 2025-02-20 decide the instant, and no one of them alone gives the same debt",
+        "nonzero debt evidence from filings an unidentified 10-K filed 2024-02-20, an unidentified 10-K filed 2025-02-20 decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values",
       ],
     });
   });
@@ -2389,6 +2389,87 @@ describe("debt composites drawn from more than one filing", () => {
     ).toEqual([
       "finance-lease deduction FinanceLeaseLiability exceeds LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
     ]);
+  });
+
+  test("a filing alone reaching the composite's debt through other lines withholds", () => {
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [older(20_000_000)],
+        LongTermDebtNoncurrent: [older(80_000_000)],
+        CommercialPaper: [newer(0)],
+        DebtCurrent: [newer(20_000_000)],
+      }),
+    ).toEqual({
+      values: [],
+      reasons: [
+        "nonzero debt evidence from filings newer, older decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values",
+      ],
+    });
+  });
+
+  test("a filing every other filing repeats publishes an instant the composite leaves incomplete", () => {
+    expect(
+      debtAt({
+        LongTermDebt: [older(100_000_000), newer(100_000_000)],
+        LongTermDebtCurrent: [older(20_000_000)],
+        LongTermDebtNoncurrent: [older(80_000_000)],
+      }),
+    ).toEqual({ values: [100_000_000], reasons: [] });
+  });
+
+  test("a filing with two values for one line is not repeated by a filing tagging the other", () => {
+    expect(
+      debtAt({
+        LongTermDebt: [older(100_000_000), older(180_000_000), newer(180_000_000)],
+        LongTermDebtCurrent: [older(20_000_000)],
+        LongTermDebtNoncurrent: [older(80_000_000)],
+      }).values,
+    ).toEqual([]);
+  });
+
+  test("another form's recast liability line does not withhold the filing its group repeats", () => {
+    // Broadcom 2018-11-04: the FY2019 10-Qs recast accrued liabilities, the FY2018 and FY2019 10-Ks agree on 17,493M.
+    const tenQ = (value: number, filed: string, accn: string) => ({
+      ...tenKDebtFact(value, filed, accn, 2024),
+      form: "10-Q",
+      fp: "Q1",
+    });
+    expect(
+      debtAt({
+        LongTermDebtCurrent: [older(0), newer(0), tenQ(0, "2024-05-01", "quarter")],
+        LongTermDebtNoncurrent: [
+          older(17_493_000_000),
+          newer(17_493_000_000),
+          tenQ(17_493_000_000, "2024-05-01", "quarter"),
+        ],
+        DebtLongtermAndShorttermCombinedAmount: [older(17_609_000_000)],
+        DeferredIncomeTaxLiabilitiesNet: [newer(115_000_000)],
+        AccruedLiabilitiesCurrent: [
+          older(160_000_000),
+          newer(160_000_000),
+          tenQ(486_000_000, "2024-05-01", "quarter"),
+        ],
+      }),
+    ).toEqual({ values: [17_493_000_000, 17_493_000_000], reasons: [] });
+  });
+
+  test("a mixed composite no filing proves still contests a later filing's partial repeat", () => {
+    const tenQ = (value: number, filed: string, accn: string, fp: string) => ({
+      ...tenKDebtFact(value, filed, accn, 2024),
+      form: "10-Q",
+      fp,
+    });
+    const { values, reasons } = debtAt({
+      LongTermDebtCurrent: [tenKDebtFact(20, "2024-02-01", "early-a", 2023)],
+      LongTermDebtNoncurrent: [tenKDebtFact(80, "2024-03-01", "early-b", 2023)],
+      DebtLongtermAndShorttermCombinedAmount: [tenQ(140, "2024-05-01", "quarter-full", "Q1")],
+      NotesPayableCurrent: [
+        tenQ(40, "2024-05-01", "quarter-full", "Q1"),
+        tenQ(40, "2024-08-01", "quarter-partial", "Q2"),
+      ],
+    });
+    expect(values).toEqual([]);
+    expect(reasons).not.toEqual([]);
   });
 
   test("Alphabet 2023-12-31 no longer nets the FY2023 lease-inclusive total against the FY2024 lease", () => {
@@ -2410,7 +2491,7 @@ describe("debt composites drawn from more than one filing", () => {
     ).toEqual({
       values: [],
       reasons: [
-        "nonzero debt evidence from filings 0001652044-24-000022, 0001652044-25-000014 decide the instant, and no one of them alone gives the same debt",
+        "nonzero debt evidence from filings 0001652044-24-000022, 0001652044-25-000014 decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values",
       ],
     });
   });

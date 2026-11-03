@@ -796,6 +796,8 @@ export function unsupersededDebtResolutions<
     readonly incomplete: boolean;
     readonly incompleteReason: string | undefined;
     readonly accessions: readonly string[];
+    // A mixed-filing composite no one filing proves still contests partial-comparative recovery.
+    readonly unprovenDebt?: number;
   },
 >(
   all: readonly R[],
@@ -822,7 +824,11 @@ export function unsupersededDebtResolutions<
       .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))
       .at(-1);
     return latest !== undefined &&
-      complete.every((other) => other.fact?.value === latest.fact?.value) &&
+      all.every(
+        (other) =>
+          other.periodEnd !== entry.periodEnd ||
+          (other.fact?.value ?? other.unprovenDebt ?? latest.fact?.value) === latest.fact?.value,
+      ) &&
       [...entry.lines].every(([concept, value]) => latest.lines.get(concept) === value) &&
       !heldForSale.some(
         (fact) =>

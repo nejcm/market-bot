@@ -675,6 +675,7 @@ describe("SEC latest filing evidence tool", () => {
     requested.length = 0;
     for (const refs of [
       calcRef + calcRef.replace("aapl_cal", "aapl_cal2"),
+      `${calcRef}<link:linkbaseRef xlink:href="aapl_other.xml"/>`,
       `${calcRef}<link:linkbase><link:calculationLink xlink:type="extended"/></link:linkbase>`,
     ]) {
       expect((await run("none", refs)).items[0]?.metrics?.daCalcRead).toBe("conflict");

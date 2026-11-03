@@ -232,6 +232,16 @@ export function attributeOf(
   return element.attributes.get(`${namespace}|${local}`);
 }
 
+const NON_CALCULATION_LINKBASE_ROLES = new Set(
+  ["presentation", "label", "definition", "reference"].map(
+    (kind) => `http://www.xbrl.org/2003/role/${kind}LinkbaseRef`,
+  ),
+);
+
+// XBRL 2.1 §4.3.4: a linkbaseRef with no role, or any role but the four non-calculation ones, may hold calculations.
+export const mayHoldCalculations = (linkbaseRef: XmlElement): boolean =>
+  !NON_CALCULATION_LINKBASE_ROLES.has(attributeOf(linkbaseRef, XLINK, "role") ?? "");
+
 // `prefix:Local`: the canonical prefix for standard namespaces, else the first declared alias; identity stays the
 // Expanded name, and a reserved standard prefix bound to another namespace is unreadable.
 function canonicalName(namespace: string, local: string, namespaces: ReadonlyMap<string, string>) {
@@ -456,10 +466,7 @@ export function parseXbrlInstance(xml: string): XbrlInstance {
       if (element.local === "schemaRef" && href !== undefined) {
         schemaRefs.push(href);
       }
-      if (
-        element.local === "linkbaseRef" &&
-        attributeOf(element, XLINK, "role")?.endsWith("/calculationLinkbaseRef") === true
-      ) {
+      if (element.local === "linkbaseRef" && mayHoldCalculations(element)) {
         calculationLinkbaseRefs.push(href ?? "");
       }
     } else if (NOT_CONCEPT_NAMESPACES.has(element.namespace)) {

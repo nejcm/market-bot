@@ -434,10 +434,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `1.0000000000000000001` is not), only under us-gaap operating-lease parents. The schema is the instance's own
   single schemaRef and the linkbase the schema's calculation linkbaseRef, both read as XML and resolved as URLs
   against the document naming them; either outside the filing's accession folder is not fetched. Placement needs
-  exactly one calculation source, with no DTS discovery: a second calculation linkbaseRef, a calculationLink embedded
+  exactly one calculation source, with no DTS discovery: a second possible calculation linkbaseRef, a calculationLink embedded
   beside it, or a calculation linkbaseRef on the instance is `calculation-linkbase-ambiguous`. Links, locators and
   arcs must carry their XLink types (`extended`, `locator`, `arc`), and locator fragments are percent-decoded
-  (a malformed escape is unreadable). Calc locators
+  (a malformed escape is unreadable). A linkbaseRef counts as a calculation source unless its role is the standard
+  presentation, label, definition or reference role, because an unspecified role may hold any extended link (XBRL 2.1
+  §4.3.4); the same rule applies to the D&A read's conflict. Calc locators
   resolve as URLs against the linkbase: extension hrefs through the xsd's top-level element ids (a duplicate id
   makes it unreadable) and `targetNamespace`, us-gaap only from the `xbrl.fasb.org` schema. A schema whose
   `targetNamespace` is a standard taxonomy's (fasb.org, xbrl.org, sec.gov, ifrs.org, w3.org hosts) is unreadable,

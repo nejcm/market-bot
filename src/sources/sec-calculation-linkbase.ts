@@ -1,4 +1,10 @@
-import { XLINK, attributeOf, parseXml, type XmlElement } from "./sec-xbrl-instance";
+import {
+  XLINK,
+  attributeOf,
+  mayHoldCalculations,
+  parseXml,
+  type XmlElement,
+} from "./sec-xbrl-instance";
 
 export const DA_CALC_PREFIX = "daCalc|";
 export const DA_CALC_READ_KEY = "daCalcRead";
@@ -52,7 +58,7 @@ export function schemaCalculation(schema: string): SchemaCalculation {
   }
   return {
     hrefs: descendants(root, LINKBASE, "linkbaseRef")
-      .filter((element) => attributeOf(element, XLINK, "role")?.endsWith("/calculationLinkbaseRef"))
+      .filter(mayHoldCalculations)
       .map((element) => attributeOf(element, XLINK, "href") ?? ""),
     embedded: descendants(root, LINKBASE, "calculationLink").length > 0,
   };
@@ -247,17 +253,18 @@ const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u;
 // `<namespace URI>#<local>` of a locator: us-gaap only from the official FASB taxonomy, the filing's own concepts
 // Only from its extension schema; any other target stays `unresolved:` and so never matches a fact or an allowlist.
 function locatorConcept(href: string, linkbaseUrl: string, schema: ExtensionSchema): string {
-  const gaap = US_GAAP_SCHEMA.exec(href);
+  const hash = href.indexOf("#");
+  let fragment: string;
+  try {
+    fragment = decodeURIComponent(hash === -1 ? "" : href.slice(hash + 1));
+  } catch {
+    throw new Error(`malformed calculation locator fragment ${href}`);
+  }
+  const gaap = US_GAAP_SCHEMA.exec(`${hash === -1 ? href : href.slice(0, hash)}#${fragment}`);
   if (gaap !== null) {
     return `http://fasb.org/us-gaap/${gaap[1]}#${gaap[2]}`;
   }
   const target = URL.parse(href, linkbaseUrl);
-  let fragment: string;
-  try {
-    fragment = decodeURIComponent(target?.hash.slice(1) ?? "");
-  } catch {
-    throw new Error(`malformed calculation locator fragment ${href}`);
-  }
   if (target !== null) {
     target.hash = "";
   }

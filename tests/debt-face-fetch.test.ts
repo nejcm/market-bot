@@ -1118,7 +1118,24 @@ describe("tagged-zero proof boundaries", () => {
 
   const secondCalcRef =
     '<link:linkbaseRef xlink:type="simple" xlink:href="debt_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/>';
+  const rolelessRef = '<link:linkbaseRef xlink:type="simple" xlink:href="debt_cal.xml"/>';
+  const embeddedLease = LEASE_CAL.replace('xlink:role="r"', 'xlink:role="debt"');
   test.each([
+    [
+      "a schema naming a roleless linkbase beside its calculation linkbase",
+      SCHEMA.replace("</xs:appinfo>", `${rolelessRef}</xs:appinfo>`),
+      leaseInstance(),
+    ],
+    [
+      "a schema naming a roleless linkbase beside an embedded calculation link",
+      SCHEMA.replace(/<link:linkbaseRef[^>]*\/>/u, `${rolelessRef}${embeddedLease}`),
+      leaseInstance(),
+    ],
+    [
+      "an instance naming a roleless linkbase",
+      SCHEMA,
+      leaseInstance().replace('xlink:type="simple"/>', `xlink:type="simple"/>${rolelessRef}`),
+    ],
     [
       "a schema naming two calculation linkbases",
       SCHEMA.replace("</xs:appinfo>", `${secondCalcRef}</xs:appinfo>`),
@@ -1162,8 +1179,28 @@ describe("tagged-zero proof boundaries", () => {
     ]);
   });
 
-  test("a percent-encoded locator fragment still places the lease extension", async () => {
-    const served = clfdServed(ZERO_ROWS, calcWith("q.xsd#clfd_", "q.xsd#clfd%5F"));
+  test.each([
+    ["extension", "q.xsd#clfd_", "q.xsd#clfd%5F"],
+    ["us-gaap parent", "us-gaap-2025.xsd#us-gaap_", "us-gaap-2025.xsd#us-gaap%5F"],
+  ] as const)(
+    "a percent-encoded %s locator fragment still places the lease extension",
+    async (_name, from, to) => {
+      const served = clfdServed(ZERO_ROWS, calcWith(from, to));
+      expect(decDebt(await clfdDerive(served))?.value).toBe(0);
+    },
+  );
+
+  test("presentation, label, definition and reference linkbases beside the calculation linkbase still publish", async () => {
+    const refs = ["presentation", "label", "definition", "reference"]
+      .map(
+        (kind) =>
+          `<link:linkbaseRef xlink:type="simple" xlink:href="q_${kind}.xml" xlink:role="http://www.xbrl.org/2003/role/${kind}LinkbaseRef"/>`,
+      )
+      .join("");
+    const served = clfdServed(ZERO_ROWS, {
+      "sec-xbrl-instance": leaseInstance(),
+      "sec-xbrl-schema": SCHEMA.replace("</xs:appinfo>", `${refs}</xs:appinfo>`),
+    });
     expect(decDebt(await clfdDerive(served))?.value).toBe(0);
   });
 

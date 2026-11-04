@@ -151,8 +151,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   IFRS investing concept. It can also be an inline-XBRL fact, under any prefix and in any context, in a fetched
   filing of any form with a report date. That includes discontinued investing or capex concepts, and capex on a
   `Discontinued…Member`. Otherwise capex publishes as filed with a `capex-scope-unproven` note. Tag co-occurrence,
-  equal values, and net-investing equality are not proofs. Only 10-K linkbases are fetched, so interim and 20-F
-  periods are never proven. Evidence is read only from filings the run fetches, so a 6-K without a report date, or
+  equal values, and net-investing equality are not proofs. Only the latest 10-K's and current 10-Q's linkbases are
+  fetched, so 20-F periods and interim periods supplied by an older filing are never proven. Evidence is read only from filings the run fetches, so a 6-K without a report date, or
   a filing outside the selected set, is not scanned. IFRS OCF takes the tagged
   `CashFlowsFromUsedInOperatingActivitiesContinuingOperations` in a period with a nonzero discontinued profit,
   discontinued OCF or discontinued investing fact, or where it differs from total. It does so only when the
@@ -265,7 +265,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   cash-flow statement. Same-filing face verification was tried and dropped, because name-pattern iXBRL scanning
   cannot prove the row set (extension names, nesting, units): MSFT FY2025 face `msft:DepreciationAmortizationAndOther`
   34,153M vs 28.0B components; INTC face rows match companyfacts. The filing's XBRL calculation linkbase proves the row
-  set instead: the latest 10-K's schema (or the `_cal.xml` it references) is read once, and a component sum from that
+  set instead: the latest 10-K's and current 10-Q's schema (or the `_cal.xml` it references) is read once per filing, and a component sum from that
   accession publishes without the note only when operating cash flow's D&A-like summation children are exactly its two
   concepts, each weight +1 (ORCL, ABBV, GLW). Amount equality is never the proof. Any other child set (MSFT's extension
   line), another accession, or no linkbase keeps the note and names the reason; a schema naming more than one

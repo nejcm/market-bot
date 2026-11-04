@@ -916,7 +916,7 @@ describe("forecast quality telemetry (3.2)", () => {
     );
     expect(snapshot).toBeDefined();
     const output = JSON.parse(
-      fixture.llmCassette.entries["final-synthesis|gpt-6-luna"]![0]!.content,
+      fixture.llmCassette.entries["final-synthesis|gpt-6-luna"]!.at(-1)!.content,
     );
     const { predictions, errors } = readPredictions(
       output.predictions.filter(({ kind }: { kind: string }) => kind === "range"),

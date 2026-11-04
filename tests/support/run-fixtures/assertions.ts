@@ -2455,6 +2455,30 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
   );
 }
 
+// The current 10-Q's own calc linkbase proves both 9-month capex columns it supplies.
+export function assertQuarterlyCapexProof(
+  result: RunFixtureResult,
+  accessionNumber: string,
+  columns: readonly (readonly [periodEnd: string, value: number])[],
+  ttm: readonly [periodEnd: string, capex: number, freeCashFlow: number],
+): void {
+  const { financialStatements, fundamentalHistory } = result.collectedSources;
+  const capex = financialStatements?.statements.cashFlowStatement.capitalExpenditure;
+  for (const [periodEnd, value] of columns) {
+    expect(
+      capex?.interim.find((fact) => fact.periodKey === `duration:9|${periodEnd}`),
+    ).toMatchObject({ value, accessionNumber });
+    expect(financialStatements?.omissionNotes ?? []).not.toContainEqual(
+      expect.objectContaining({
+        code: "capex-scope-unproven",
+        periodKey: `duration:9|${periodEnd}`,
+      }),
+    );
+  }
+  expect(capex?.ttm).toMatchObject({ value: ttm[1], periodEnd: ttm[0] });
+  expect(fundamentalHistory?.series.freeCashFlowProxy.ttm?.value).toBe(ttm[2]);
+}
+
 const EBAY_10Q = "https://www.sec.gov/Archives/edgar/data/1065088/000106508826000212";
 const EBAY_STI_LINE =
   "ebay:ShortTermInvestmentsExcludingEquitySecuritiesAccountedForUnderFairValueOption";
@@ -3413,7 +3437,7 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
     NEGATIVE_WORKBENCH_DENOMINATOR,
     2.456_278_691_519_679_5,
     1.797_514_959_546_961_3,
-    MISSING_WORKBENCH_FCF,
+    51.391_878_897_623_63,
   ],
 };
 

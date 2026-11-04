@@ -163,7 +163,7 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-iren-brief/` (captured live replay: brief-run extension-capex check)
 - `tests/fixtures/runs/clfd-zero-debt/` (captured live replay: Tagged Zero Debt at three CLFD 10-Q instants)
 - `tests/fixtures/runs/ebay-extension-investments/` (captured live replay: Extension Short-Term Investments, EBAY 10-Q 809M at 2026-09-30)
-- `tests/fixtures/runs/equity-amd-deep/` (captured live replay: AMD deep, FY2025 10-K calculation linkbase)
+- `tests/fixtures/runs/equity-amd-deep/` (captured live replay: AMD deep, FY2025 10-K and Q3 2026 10-Q calculation linkbases)
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
 rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source
@@ -337,10 +337,10 @@ for that batch, then use the same invocation with `--yes`. No additional spendin
 introduced. Selected offline tests require an injected fake provider and cannot construct an
 ambient live provider.
 
-`equity-amd-deep` is the captured replay of AMD deep run `2026-11-02T12-47-02-362Z-b57f22b6`
-(`MARKET_BOT_CAPTURE_REPLAY=1`), copied from its `replay/` directory; it records the FY2025 10-K
-`sec-xbrl-schema` and `sec-calculation-linkbase` requests and is replayed by `bun run check` like the
-other captured fixtures. `equity-depository-deep` (BNS, `2026-11-03T21-32-33-360Z-f3c778db`),
+`equity-amd-deep` is the captured replay of AMD deep run `2026-11-04T18-32-50-208Z-77c5a218`
+(`MARKET_BOT_CAPTURE_REPLAY=1`), copied from its `replay/` directory; it records the FY2025 10-K and
+Q3 2026 10-Q `sec-xbrl-schema` and `sec-calculation-linkbase` requests and is replayed by
+`bun run check` like the other captured fixtures. `equity-depository-deep` (BNS, `2026-11-03T21-32-33-360Z-f3c778db`),
 `equity-nbis-deep` (`2026-11-03T21-35-57-812Z-b0ffa72b`) and `equity-earnings-release-deep` (AAPL,
 `2026-11-03T21-41-11-499Z-319ed4c4`) are captured the same way; the production-capture test in
 `tests/replay-capture.test.ts` injects its 503s into `equity-analysis-comprehensive` instead.

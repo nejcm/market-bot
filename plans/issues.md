@@ -8,8 +8,8 @@ A recovery for a withheld value is built only after `bun run sweep:sec --diff` s
 
 These publish today but may be wrong, mixed-scope, or unproven. They also cover the cases where code falls short of the AGENTS.md data rules.
 
-- **Capex scope beside continuing OCF.** Unproven periods publish with a `capex-scope-unproven` note (35 of 89 in the 2026-11-04 sweep); periods with nonzero discontinued investing/capex are withheld (50), with no materiality floor (NBIS FY2025 on −0.1M). Only 10-K calc linkbases are fetched, so interim/TTM periods are never proven (AMD YTD and lens TTM FCF, CLFD quarters); 20-F filers and filings a run does not fetch are never scanned for evidence. GPN FY2022 pairs total OCF with total capex beside continuing revenue.
-- **D&A `unchecked-component-sum`.** 18 issuers and 126 annual periods (2026-10-30 cache) publish Depreciation + AmortizationOfIntangibleAssets with only a note. The proof reads only the latest 10-K's calc linkbase (ORCL, ABBV, GLW FY2025 and AMD FY2023–25 pass). Without that proof, the D&A cash-flow pair also publishes with a note, which is an overstatement risk.
+- **Capex scope beside continuing OCF.** Unproven periods publish with a `capex-scope-unproven` note (35 of 89 in the 2026-11-04 sweep); periods with nonzero discontinued investing/capex are withheld (50), with no materiality floor (NBIS FY2025 on −0.1M). Only the latest 10-K's and current 10-Q's calc linkbases are fetched, so periods an older filing supplied are never proven (CLFD 6m-2025/6m-2026); 20-F filers and filings a run does not fetch are never scanned for evidence. GPN FY2022 pairs total OCF with total capex beside continuing revenue.
+- **D&A `unchecked-component-sum`.** 18 issuers and 126 annual periods (2026-10-30 cache) publish Depreciation + AmortizationOfIntangibleAssets with only a note. The proof reads only the latest 10-K's and current 10-Q's calc linkbases (ORCL, ABBV, GLW FY2025 and AMD FY2023–25 pass). Without that proof, the D&A cash-flow pair also publishes with a note, which is an overstatement risk.
 - **D&A withheld but unproven elsewhere.** AMD FY2020–22, DDOG FY2022, and DDA-below-DA at DDOG, CRM, EBAY, RIOT. Each needs the linkbase of the older 10-K that supplied the period; MSFT FY2025's calc tree has one unsplit extension line.
 - **ROIC statutory-rate fallback.** Without `EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate`, ROIC uses the US federal rate plus the state of incorporation. A REIT outside SIC 6798, or a pass-through with a corporate-looking name, gets the wrong rate.
 - **ROIC short-term investments.** Subtracted only where the EV bridge resolves; otherwise ROIC is withheld with the bridge reason.
@@ -22,7 +22,7 @@ These publish today but may be wrong, mixed-scope, or unproven. They also cover 
 
 ## Time-boxed
 
-- **2026-11-04 close (21:00Z):** score pass, then calibration. The v2 range Paired Skill cohort should reach ~37 events, past the 30-event floor (last: 21 events, ΔBrier −0.0050 [−0.0200, 0.0122]). No skill claim below the floor. Recheck before the 2027-01-15 review.
+- **Range Paired Skill:** after the 2026-11-04 close the v2 range cohort has 31 events, ΔBrier −0.0029 [−0.0134, +0.0092]: not yet decidable, so no skill claim. Recheck before the 2027-01-15 review.
 - **2026-11-18:** the AMD +20 range rows (`grid-range-20-AMD` 144ec654, `grid-range-20` 7912637b; one Forecast Event) resolve on the 11-17 close. Compare live range Brier with 0.138 model / 0.131 Gaussian reference (2026-11-04: 0.2075, n=78).
 
 ## Run cost and citations

@@ -779,6 +779,73 @@ describe("continuing-operations basis for cash flow and margins", () => {
     });
   });
 
+  test("AMD H1 2026 10-Q's own calc linkbase proves both YTD capex columns and the TTM", () => {
+    const tenK = capexCalc("0000002488-26-000018");
+    const tenQ = capexCalc("0000002488-26-000123");
+    const proofFree = { ...tenQ, metrics: { accessionNumber: "0000002488-26-000123" } };
+    const h1Keys = new Set(["duration:6|2025-06-28", "duration:6|2026-06-27"]);
+    const unprovenH1 = (artifact: FinancialStatementsArtifact) =>
+      unprovenNotes(artifact).filter(({ periodKey }) => h1Keys.has(periodKey ?? ""));
+
+    for (const filings of [
+      [tenK, tenQ],
+      [tenK, tenQ, proofFree],
+      [tenK, proofFree, tenQ],
+    ]) {
+      const artifact = statements(amd(), undefined, filings);
+      expect(unprovenH1(artifact)).toEqual([]);
+      expect(artifact.statements.cashFlowStatement.capitalExpenditure.ttm?.value).toBe(
+        (974 + 1197 - 494) * 1_000_000,
+      );
+    }
+    // Q1's linkbase is another filing's proof, so the H1 columns stay noted.
+    expect(
+      unprovenH1(statements(amd(), undefined, [tenK, capexCalc("0000002488-26-000076")])),
+    ).toHaveLength(2);
+  });
+
+  test("a TTM over a withheld YTD column stays absent until that column's filing proves it", () => {
+    const h1Prior = amd()[CAPEX]!.find(({ end }) => end === "2025-06-28")!;
+    const mixed = { ...amd(), [DISCONTINUED_INVESTING]: [{ ...h1Prior, val: -14_000_000 }] };
+    const ttm = (filings: readonly ExtendedEvidenceItem[]) =>
+      statements(mixed, undefined, filings).statements.cashFlowStatement.capitalExpenditure.ttm;
+
+    expect(ttm([capexCalc("0000002488-26-000018")])).toBeUndefined();
+    expect(ttm([capexCalc("0000002488-26-000018"), capexCalc("0000002488-26-000123")])?.value).toBe(
+      (974 + 1197 - 494) * 1_000_000,
+    );
+  });
+
+  test.each([
+    ["no FY proof", "duration:12|2025-12-27", false],
+    ["a prior YTD filed by another accession", "duration:6|2025-06-28", true],
+  ])("a TTM over %s keeps that component's unproven disclosure", (_label, unproven, olderPrior) => {
+    const concepts = olderPrior
+      ? {
+          ...amd(),
+          [CAPEX]: amd()[CAPEX]!.map((fact) =>
+            fact.end === "2025-06-28" ? { ...fact, accn: "0000002488-25-000082" } : fact,
+          ),
+        }
+      : amd();
+    const tenQ = capexCalc("0000002488-26-000123");
+    const artifact = statements(
+      concepts,
+      undefined,
+      olderPrior ? [capexCalc("0000002488-26-000018"), tenQ] : [tenQ],
+    );
+    const ttm = valuationPeriodInputs(artifact).periods.find(({ basis }) => basis === "ttm");
+
+    expect(unprovenNotes(artifact).map(({ periodKey }) => periodKey)).toEqual([unproven]);
+    expect(artifact.statements.cashFlowStatement.capitalExpenditure.ttm?.value).toBe(
+      (974 + 1197 - 494) * 1_000_000,
+    );
+    expect(ttm?.freeCashFlow?.derivation).toContain(CAPEX_SCOPE_CAVEAT);
+    expect(
+      deriveFundamentalHistoryFromFinancialStatements(artifact).series.freeCashFlowProxy.notes,
+    ).toContain(`scope:capex-continuing: ${CAPEX_SCOPE_CAVEAT}`);
+  });
+
   test("withholds a total-only OCF period that reports discontinued operations, with a gap", () => {
     const artifact = statements(amd());
     const ocf = artifact.statements.cashFlowStatement.operatingCashFlow;

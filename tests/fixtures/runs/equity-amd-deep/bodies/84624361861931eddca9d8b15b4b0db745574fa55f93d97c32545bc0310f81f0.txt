@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--XBRL Document Created with the Workiva Platform-->
+<!--Copyright 2026 Workiva-->
+<!--r:019ff6f3-7b1e-7fec-a7d2-e7af51183f05,g:3032ef02-5797-49f3-83a2-4d7066f12655-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:amd="http://www.amd.com/20260926" xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:dtr-types="http://www.xbrl.org/dtr/type/2024-01-31" attributeFormDefault="unqualified" elementFormDefault="qualified" targetNamespace="http://www.amd.com/20260926">
+  <xs:import namespace="http://fasb.org/srt/2026" schemaLocation="https://xbrl.fasb.org/srt/2026/elts/srt-2026.xsd"/>
+  <xs:import namespace="http://fasb.org/us-gaap/2026" schemaLocation="https://xbrl.fasb.org/us-gaap/2026/elts/us-gaap-2026.xsd"/>
+  <xs:import namespace="http://www.xbrl.org/2003/instance" schemaLocation="http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd"/>
+  <xs:import namespace="http://www.xbrl.org/2003/linkbase" schemaLocation="http://www.xbrl.org/2003/xbrl-linkbase-2003-12-31.xsd"/>
+  <xs:import namespace="http://www.xbrl.org/dtr/type/2024-01-31" schemaLocation="https://www.xbrl.org/dtr/type/2024-01-31/types.xsd"/>
+  <xs:import namespace="http://xbrl.sec.gov/dei/2026" schemaLocation="https://xbrl.sec.gov/dei/2026/dei-2026.xsd"/>
+  <xs:import namespace="http://xbrl.sec.gov/ecd/2026" schemaLocation="https://xbrl.sec.gov/ecd/2026/ecd-2026.xsd"/>
+  <xs:annotation>
+    <xs:appinfo>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="amd-20260926_pre.xml" xlink:role="http://www.xbrl.org/2003/role/presentationLinkbaseRef" xlink:type="simple"/>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="amd-20260926_def.xml" xlink:role="http://www.xbrl.org/2003/role/definitionLinkbaseRef" xlink:type="simple"/>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="amd-20260926_lab.xml" xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef" xlink:type="simple"/>
+      <link:linkbaseRef xmlns:xlink="http://www.w3.org/1999/xlink" xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase" xlink:href="amd-20260926_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef" xlink:type="simple"/>
+      <link:roleType id="CoverPage" roleURI="http://www.amd.com/role/CoverPage">
+        <link:definition>0000001 - Document - Cover Page</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CondensedConsolidatedStatementsofOperations" roleURI="http://www.amd.com/role/CondensedConsolidatedStatementsofOperations">
+        <link:definition>9952151 - Statement - Condensed Consolidated Statements of Operations</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CondensedConsolidatedStatementsofComprehensiveIncome" roleURI="http://www.amd.com/role/CondensedConsolidatedStatementsofComprehensiveIncome">
+        <link:definition>9952152 - Statement - Condensed Consolidated Statements of Comprehensive Income</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CondensedConsolidatedBalanceSheets" roleURI="http://www.amd.com/role/CondensedConsolidatedBalanceSheets">
+        <link:definition>9952153 - Statement - Condensed Consolidated Balance Sheets</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CondensedConsolidatedBalanceSheetParenthetical" roleURI="http://www.amd.com/role/CondensedConsolidatedBalanceSheetParenthetical">
+        <link:definition>9952154 - Statement - Condensed Consolidated Balance Sheet (Parenthetical)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CondensedConsolidatedStatementsofCashFlows" roleURI="http://www.amd.com/role/CondensedConsolidatedStatementsofCashFlows">
+        <link:definition>9952155 - Statement - Condensed Consolidated Statements of Cash Flows</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CondensedConsolidatedStatementsofStockholdersEquity" roleURI="http://www.amd.com/role/CondensedConsolidatedStatementsofStockholdersEquity">
+        <link:definition>9952156 - Statement - Condensed Consolidated Statements of Stockholders' Equity</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="TheCompany" roleURI="http://www.amd.com/role/TheCompany">
+        <link:definition>9952157 - Disclosure - The Company</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="BasisofPresentationandSignificantAccountingPolicies" roleURI="http://www.amd.com/role/BasisofPresentationandSignificantAccountingPolicies">
+        <link:definition>9952158 - Disclosure - Basis of Presentation and Significant Accounting Policies</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SupplementalFinancialStatementInformation" roleURI="http://www.amd.com/role/SupplementalFinancialStatementInformation">
+        <link:definition>9952159 - Disclosure - Supplemental Financial Statement Information</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentReporting" roleURI="http://www.amd.com/role/SegmentReporting">
+        <link:definition>9952160 - Disclosure - Segment Reporting</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AcquisitionsandDivestitures" roleURI="http://www.amd.com/role/AcquisitionsandDivestitures">
+        <link:definition>9952161 - Disclosure - Acquisitions and Divestitures</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="GoodwillandAcquisitionrelatedIntangiblesnet" roleURI="http://www.amd.com/role/GoodwillandAcquisitionrelatedIntangiblesnet">
+        <link:definition>9952162 - Disclosure - Goodwill and Acquisition-related Intangibles, net</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="RelatedPartyEquityJointVentures" roleURI="http://www.amd.com/role/RelatedPartyEquityJointVentures">
+        <link:definition>9952163 - Disclosure - Related Party - Equity Joint Ventures</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstruments" roleURI="http://www.amd.com/role/FinancialInstruments">
+        <link:definition>9952164 - Disclosure - Financial Instruments</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtRevolvingCreditFacilityandCommercialPaperProgram" roleURI="http://www.amd.com/role/DebtRevolvingCreditFacilityandCommercialPaperProgram">
+        <link:definition>9952165 - Disclosure - Debt, Revolving Credit Facility and Commercial Paper Program</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesCodificationTopic842" roleURI="http://www.amd.com/role/LeasesCodificationTopic842">
+        <link:definition>9952166 - Disclosure - Leases, Codification Topic 842</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommitmentsandContingencies" roleURI="http://www.amd.com/role/CommitmentsandContingencies">
+        <link:definition>9952167 - Disclosure - Commitments and Contingencies</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="OrganizationConsolidationandPresentationofFinancialStatements" roleURI="http://www.amd.com/role/OrganizationConsolidationandPresentationofFinancialStatements">
+        <link:definition>9952168 - Disclosure - Organization, Consolidation and Presentation of Financial Statements</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ComprehensiveTextBlockList" roleURI="http://www.amd.com/role/ComprehensiveTextBlockList">
+        <link:definition>9952169 - Disclosure - Comprehensive Text Block List</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="EarningsPerShare" roleURI="http://www.amd.com/role/EarningsPerShare">
+        <link:definition>9952170 - Disclosure - Earnings Per Share</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommonStockandStockbasedCompensation" roleURI="http://www.amd.com/role/CommonStockandStockbasedCompensation">
+        <link:definition>9952171 - Disclosure - Common Stock and Stock-based Compensation</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxes" roleURI="http://www.amd.com/role/IncomeTaxes">
+        <link:definition>9952172 - Disclosure - Income Taxes</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="BasisofPresentationandSignificantAccountingPoliciesPolicies" roleURI="http://www.amd.com/role/BasisofPresentationandSignificantAccountingPoliciesPolicies">
+        <link:definition>9955511 - Disclosure - Basis of Presentation and Significant Accounting Policies (Policies)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SupplementalBalanceSheetInformationTables" roleURI="http://www.amd.com/role/SupplementalBalanceSheetInformationTables">
+        <link:definition>9955512 - Disclosure - Supplemental Balance Sheet Information (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentReportingTables" roleURI="http://www.amd.com/role/SegmentReportingTables">
+        <link:definition>9955513 - Disclosure - Segment Reporting (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AcquisitionsandDivestituresTables" roleURI="http://www.amd.com/role/AcquisitionsandDivestituresTables">
+        <link:definition>9955514 - Disclosure - Acquisitions and Divestitures (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="GoodwillandAcquisitionrelatedIntangiblesnetTables" roleURI="http://www.amd.com/role/GoodwillandAcquisitionrelatedIntangiblesnetTables">
+        <link:definition>9955515 - Disclosure - Goodwill and Acquisition-related Intangibles, net (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsTables" roleURI="http://www.amd.com/role/FinancialInstrumentsTables">
+        <link:definition>9955516 - Disclosure - Financial Instruments (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtRevolvingCreditFacilityandCommercialPaperProgramTables" roleURI="http://www.amd.com/role/DebtRevolvingCreditFacilityandCommercialPaperProgramTables">
+        <link:definition>9955517 - Disclosure - Debt, Revolving Credit Facility and Commercial Paper Program (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesCodificationTopic842Tables" roleURI="http://www.amd.com/role/LeasesCodificationTopic842Tables">
+        <link:definition>9955518 - Disclosure - Leases, Codification Topic 842 (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommitmentsandContingenciesTables" roleURI="http://www.amd.com/role/CommitmentsandContingenciesTables">
+        <link:definition>9955519 - Disclosure - Commitments and Contingencies (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="OrganizationConsolidationandPresentationofFinancialStatementsTables" roleURI="http://www.amd.com/role/OrganizationConsolidationandPresentationofFinancialStatementsTables">
+        <link:definition>9955520 - Disclosure - Organization, Consolidation and Presentation of Financial Statements (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ComprehensiveTextBlockListTables" roleURI="http://www.amd.com/role/ComprehensiveTextBlockListTables">
+        <link:definition>9955521 - Disclosure - Comprehensive Text Block List (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="EarningsPerShareTables" roleURI="http://www.amd.com/role/EarningsPerShareTables">
+        <link:definition>9955522 - Disclosure - Earnings Per Share (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommonStockandStockbasedCompensationTables" roleURI="http://www.amd.com/role/CommonStockandStockbasedCompensationTables">
+        <link:definition>9955523 - Disclosure - Common Stock and Stock-based Compensation (Tables)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="BasisofPresentationandSignificantAccountingPoliciesDetails" roleURI="http://www.amd.com/role/BasisofPresentationandSignificantAccountingPoliciesDetails">
+        <link:definition>9955524 - Disclosure - Basis of Presentation and Significant Accounting Policies (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SupplementalBalanceSheetInformationSchedulesDetails" roleURI="http://www.amd.com/role/SupplementalBalanceSheetInformationSchedulesDetails">
+        <link:definition>9955525 - Disclosure - Supplemental Balance Sheet Information - Schedules (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SupplementalBalanceSheetInformationNarrativeDetails" roleURI="http://www.amd.com/role/SupplementalBalanceSheetInformationNarrativeDetails">
+        <link:definition>9955526 - Disclosure - Supplemental Balance Sheet Information - Narrative (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SupplementalBalanceSheetInformationNarrativeDetails_1" roleURI="http://www.amd.com/role/SupplementalBalanceSheetInformationNarrativeDetails_1">
+        <link:definition>9955526 - Disclosure - Supplemental Balance Sheet Information - Narrative (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="SegmentReportingDetails" roleURI="http://www.amd.com/role/SegmentReportingDetails">
+        <link:definition>9955527 - Disclosure - Segment Reporting (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AcquisitionsandDivestituresPurchaseConsiderationDetails" roleURI="http://www.amd.com/role/AcquisitionsandDivestituresPurchaseConsiderationDetails">
+        <link:definition>9955528 - Disclosure - Acquisitions and Divestitures - Purchase Consideration (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AcquisitionsandDivestituresAdditionalInformationDetails" roleURI="http://www.amd.com/role/AcquisitionsandDivestituresAdditionalInformationDetails">
+        <link:definition>9955529 - Disclosure - Acquisitions and Divestitures - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AcquisitionsandDivestituresAssetsandLiabilitiesHeldforSaleDetails" roleURI="http://www.amd.com/role/AcquisitionsandDivestituresAssetsandLiabilitiesHeldforSaleDetails">
+        <link:definition>9955530 - Disclosure - Acquisitions and Divestitures - Assets and Liabilities Held for Sale (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AcquisitionsandDivestituresDivestitureDetails" roleURI="http://www.amd.com/role/AcquisitionsandDivestituresDivestitureDetails">
+        <link:definition>9955531 - Disclosure - Acquisitions and Divestitures - Divestiture (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="AcquisitionsandDivestituresOtherAcquisitionsDetails" roleURI="http://www.amd.com/role/AcquisitionsandDivestituresOtherAcquisitionsDetails">
+        <link:definition>9955532 - Disclosure - Acquisitions and Divestitures - Other Acquisitions (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="GoodwillandAcquisitionrelatedIntangiblesnetDetails" roleURI="http://www.amd.com/role/GoodwillandAcquisitionrelatedIntangiblesnetDetails">
+        <link:definition>9955533 - Disclosure - Goodwill and Acquisition-related Intangibles, net (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="RelatedPartyEquityJointVenturesDetails" roleURI="http://www.amd.com/role/RelatedPartyEquityJointVenturesDetails">
+        <link:definition>9955534 - Disclosure - Related Party - Equity Joint Ventures (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsNarrativeDetails" roleURI="http://www.amd.com/role/FinancialInstrumentsNarrativeDetails">
+        <link:definition>9955535 - Disclosure - Financial Instruments - Narrative (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsScheduleofCarryingAmountsandEstimatedFairValuesofFinancialInstrumentsnotRecordedatFairValueDetails" roleURI="http://www.amd.com/role/FinancialInstrumentsScheduleofCarryingAmountsandEstimatedFairValuesofFinancialInstrumentsnotRecordedatFairValueDetails">
+        <link:definition>9955536 - Disclosure - Financial Instruments - Schedule of Carrying Amounts and Estimated Fair Values of Financial Instruments not Recorded at Fair Value (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsScheduleofCarryingAmountsandEstimatedFairValuesofFinancialInstrumentsnotRecordedatFairValueDetails_1" roleURI="http://www.amd.com/role/FinancialInstrumentsScheduleofCarryingAmountsandEstimatedFairValuesofFinancialInstrumentsnotRecordedatFairValueDetails_1">
+        <link:definition>9955536 - Disclosure - Financial Instruments - Schedule of Carrying Amounts and Estimated Fair Values of Financial Instruments not Recorded at Fair Value (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="FinancialInstrumentsCashCashEquivalentsandMarketableSecuritiesFairValueMeasurementsDetails" roleURI="http://www.amd.com/role/FinancialInstrumentsCashCashEquivalentsandMarketableSecuritiesFairValueMeasurementsDetails">
+        <link:definition>9955537 - Disclosure - Financial Instruments - Cash, Cash Equivalents, and Marketable Securities Fair Value Measurements (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtRevolvingCreditFacilityandCommercialPaperProgramScheduleofDebtDetails" roleURI="http://www.amd.com/role/DebtRevolvingCreditFacilityandCommercialPaperProgramScheduleofDebtDetails">
+        <link:definition>9955538 - Disclosure - Debt, Revolving Credit Facility and Commercial Paper Program - Schedule of Debt (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtRevolvingCreditFacilityandCommercialPaperProgramNarrativeDetails" roleURI="http://www.amd.com/role/DebtRevolvingCreditFacilityandCommercialPaperProgramNarrativeDetails">
+        <link:definition>9955539 - Disclosure - Debt, Revolving Credit Facility and Commercial Paper Program - Narrative (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="DebtRevolvingCreditFacilityandCommercialPaperProgramDebtandRevolvingFacilityDetails" roleURI="http://www.amd.com/role/DebtRevolvingCreditFacilityandCommercialPaperProgramDebtandRevolvingFacilityDetails">
+        <link:definition>9955540 - Disclosure - Debt, Revolving Credit Facility and Commercial Paper Program - Debt and Revolving Facility (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="LeasesCodificationTopic842Details" roleURI="http://www.amd.com/role/LeasesCodificationTopic842Details">
+        <link:definition>9955541 - Disclosure - Leases, Codification Topic 842 (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommitmentsandContingenciesDetails" roleURI="http://www.amd.com/role/CommitmentsandContingenciesDetails">
+        <link:definition>9955542 - Disclosure - Commitments and Contingencies (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="OrganizationConsolidationandPresentationofFinancialStatementsDetails" roleURI="http://www.amd.com/role/OrganizationConsolidationandPresentationofFinancialStatementsDetails">
+        <link:definition>9955543 - Disclosure - Organization, Consolidation and Presentation of Financial Statements (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="ComprehensiveTextBlockListDetails" roleURI="http://www.amd.com/role/ComprehensiveTextBlockListDetails">
+        <link:definition>9955544 - Disclosure - Comprehensive Text Block List (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="EarningsPerShareDetails" roleURI="http://www.amd.com/role/EarningsPerShareDetails">
+        <link:definition>9955545 - Disclosure - Earnings Per Share (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommonStockandStockbasedCompensationCommonStockActivityDetails" roleURI="http://www.amd.com/role/CommonStockandStockbasedCompensationCommonStockActivityDetails">
+        <link:definition>9955546 - Disclosure - Common Stock and Stock-based Compensation - Common Stock Activity (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommonStockandStockbasedCompensationScheduleofStockbasedCompensationExpenseDetails" roleURI="http://www.amd.com/role/CommonStockandStockbasedCompensationScheduleofStockbasedCompensationExpenseDetails">
+        <link:definition>9955547 - Disclosure - Common Stock and Stock-based Compensation - Schedule of Stock-based Compensation Expense (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommonStockandStockbasedCompensationScheduleofStockbasedCompensationExpenseDetails_1" roleURI="http://www.amd.com/role/CommonStockandStockbasedCompensationScheduleofStockbasedCompensationExpenseDetails_1">
+        <link:definition>9955547 - Disclosure - Common Stock and Stock-based Compensation - Schedule of Stock-based Compensation Expense (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="CommonStockandStockbasedCompensationAdditionalInformationDetails" roleURI="http://www.amd.com/role/CommonStockandStockbasedCompensationAdditionalInformationDetails">
+        <link:definition>9955548 - Disclosure - Common Stock and Stock-based Compensation - Additional Information (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+      <link:roleType id="IncomeTaxesDetails" roleURI="http://www.amd.com/role/IncomeTaxesDetails">
+        <link:definition>9955549 - Disclosure - Income Taxes (Details)</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+      </link:roleType>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element id="amd_AmortizationOfAcquisitionRelatedIntangiblesCOGS" abstract="false" name="AmortizationOfAcquisitionRelatedIntangiblesCOGS" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_AmortizationOfAcquisitionRelatedIntangiblesOpex" abstract="false" name="AmortizationOfAcquisitionRelatedIntangiblesOpex" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_GainsLossesOnLongTermInvestmetnsNet" abstract="false" name="GainsLossesOnLongTermInvestmetnsNet" nillable="true" xbrli:periodType="duration" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_RecoveryOfInventoryLossAtContractManufacturer" abstract="false" name="RecoveryOfInventoryLossAtContractManufacturer" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_PaymentsToAcquirePropertyPlantAndEquipmentFromDiscontinuedOperation" abstract="false" name="PaymentsToAcquirePropertyPlantAndEquipmentFromDiscontinuedOperation" nillable="true" xbrli:periodType="duration" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_FinancialInstrumentsNotRecordedAtFairValueOnRecurringBasisTableTextBlock" abstract="false" name="FinancialInstrumentsNotRecordedAtFairValueOnRecurringBasisTableTextBlock" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:textBlockItemType"/>
+  <xs:element id="amd_CustomerProgramAccruals" abstract="false" name="CustomerProgramAccruals" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_PercentageOfRevenueToTotalRevenue" abstract="false" name="PercentageOfRevenueToTotalRevenue" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:percentItemType"/>
+  <xs:element id="amd_DataCenterMember" abstract="true" name="DataCenterMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_ClientMember" abstract="true" name="ClientMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_GamingMember" abstract="true" name="GamingMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_ClientAndGamingMember" abstract="true" name="ClientAndGamingMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_EmbeddedMember" abstract="true" name="EmbeddedMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_AllOtherMember" abstract="true" name="AllOtherMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_ZTSystemsMember" abstract="true" name="ZTSystemsMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentAssetHeldForSale" abstract="false" name="BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentAssetHeldForSale" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentTotalAssetAcquired" abstract="false" name="BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentTotalAssetAcquired" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_PaymentRelatedToCustomaryPostClosingNetWorkingCapitalAdjustment" abstract="false" name="PaymentRelatedToCustomaryPostClosingNetWorkingCapitalAdjustment" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentLiabilitiesHeldForSale" abstract="false" name="BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentLiabilitiesHeldForSale" nillable="true" xbrli:periodType="duration" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentFairValueOfNetAssetsAcquired" abstract="false" name="BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentFairValueOfNetAssetsAcquired" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentGoodwill" abstract="false" name="BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentGoodwill" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentTotalLiabilitiesAssumed" abstract="false" name="BusinessCombinationProvisionalInformationInitialAccountingIncompleteAdjustmentTotalLiabilitiesAssumed" nillable="true" xbrli:periodType="duration" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_ZTManufacturingMember" abstract="true" name="ZTManufacturingMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_BusinessAcquisitionSharesIssuableContingent" abstract="false" name="BusinessAcquisitionSharesIssuableContingent" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="xbrli:sharesItemType"/>
+  <xs:element id="amd_DisposalGroupIncludingDiscontinuedOperationConsiderationShares" abstract="false" name="DisposalGroupIncludingDiscontinuedOperationConsiderationShares" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="xbrli:sharesItemType"/>
+  <xs:element id="amd_OtherAcquisitionsMember" abstract="true" name="OtherAcquisitionsMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_TaalasMember" abstract="true" name="TaalasMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_WorldLabsMember" abstract="true" name="WorldLabsMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_ATMPJVMember" abstract="true" name="ATMPJVMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_EnterpriseEmbeddedandSemiCustomMember" abstract="false" name="EnterpriseEmbeddedandSemiCustomMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_LicensingGainMember" abstract="true" name="LicensingGainMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_THATICJVMember" abstract="true" name="THATICJVMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_NumberofJointVentures" abstract="false" name="NumberofJointVentures" nillable="true" xbrli:periodType="instant" substitutionGroup="xbrli:item" type="xbrli:integerItemType"/>
+  <xs:element id="amd_ResaleToATMPJV" abstract="false" name="ResaleToATMPJV" nillable="true" xbrli:periodType="duration" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_EstimatedLicenseFeesEarnedOverTime" abstract="false" name="EstimatedLicenseFeesEarnedOverTime" nillable="true" xbrli:periodType="duration" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_DebtGuaranteesMember" abstract="true" name="DebtGuaranteesMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_AvailableForSaleSecuritiesMaturingInFiveYearsAndLaterMember" abstract="true" name="AvailableForSaleSecuritiesMaturingInFiveYearsAndLaterMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_UsGaap_FairValueMeasurementsRecurringDefCompMember" abstract="true" name="UsGaap_FairValueMeasurementsRecurringDefCompMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A295SeniorNotesDue2024Member" abstract="true" name="A295SeniorNotesDue2024Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A2.125ConvertibleSeniorNotesDue2026Member" abstract="true" name="A2.125ConvertibleSeniorNotesDue2026Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_InterestDueMember" abstract="true" name="InterestDueMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A4.212SeniorNoteDue2026Member" abstract="true" name="A4.212SeniorNoteDue2026Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A4.319SeniorNoteDue2028Member" abstract="true" name="A4.319SeniorNoteDue2028Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A2.375SeniorNoteDue2030Member" abstract="true" name="A2.375SeniorNoteDue2030Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A3924SeniorNoteDue2032Member" abstract="true" name="A3924SeniorNoteDue2032Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A4393SeniorNotesDue2052Member" abstract="true" name="A4393SeniorNotesDue2052Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_PrincipalBalanceDueMember" abstract="true" name="PrincipalBalanceDueMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A4.600SeniorNoteDue2029Member" abstract="true" name="A4.600SeniorNoteDue2029Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A5.000SeniorNotesDue2031Member" abstract="true" name="A5.000SeniorNotesDue2031Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A5.250SeniorNotesDue2033Member" abstract="true" name="A5.250SeniorNotesDue2033Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A5.500SeniorNotesDue2036Member" abstract="true" name="A5.500SeniorNotesDue2036Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_RevolvingCreditFacilityNOTUSEDMember" abstract="true" name="RevolvingCreditFacilityNOTUSEDMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_SecuredRevolvingCreditFacilityMember" abstract="true" name="SecuredRevolvingCreditFacilityMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A3924And4393SeniorNotesDue2032And2052Member" abstract="true" name="A3924And4393SeniorNotesDue2032And2052Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_A4.319SeniorNoteDue2028And4.212SeniorNoteDue2026Member" abstract="true" name="A4.319SeniorNoteDue2028And4.212SeniorNoteDue2026Member" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_PrincipalBalanceOfNotesAssumedMember" abstract="true" name="PrincipalBalanceOfNotesAssumedMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_CSPArrangementsMember" abstract="true" name="CSPArrangementsMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_ManufacturingAndSupplyMember" abstract="true" name="ManufacturingAndSupplyMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_DataCenterForThirdPartyLeaseNotYetCommencedMember" abstract="true" name="DataCenterForThirdPartyLeaseNotYetCommencedMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_AICloudComputeMember" abstract="true" name="AICloudComputeMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_UnrecordedUnconditionalPurchaseObligationToBePaidAfterYearFour" abstract="false" name="UnrecordedUnconditionalPurchaseObligationToBePaidAfterYearFour" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_WarrantIssuedToCustomerMember" abstract="true" name="WarrantIssuedToCustomerMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_MeasurementInputExpectedVolatilityMinimumMember" abstract="true" name="MeasurementInputExpectedVolatilityMinimumMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_MeasurementInputExpectedVolatilityMaximumMember" abstract="true" name="MeasurementInputExpectedVolatilityMaximumMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_MeasurementInputRiskFreeInterestRateMinimumMember" abstract="true" name="MeasurementInputRiskFreeInterestRateMinimumMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_MeasurementInputRiskFreeInterestRateMaximumMember" abstract="true" name="MeasurementInputRiskFreeInterestRateMaximumMember" nillable="true" xbrli:periodType="duration" substitutionGroup="xbrli:item" type="dtr-types:domainItemType"/>
+  <xs:element id="amd_OtherCommitmentToBePaidAfterYearFour" abstract="false" name="OtherCommitmentToBePaidAfterYearFour" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_LesseeOperatingLeaseLeaseNotYetCommencedLeaseCommitments" abstract="false" name="LesseeOperatingLeaseLeaseNotYetCommencedLeaseCommitments" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_SubleaseIncomeRemainderOfFiscalYear" abstract="false" name="SubleaseIncomeRemainderOfFiscalYear" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_SubleaseIncomeYearOne" abstract="false" name="SubleaseIncomeYearOne" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_SubleaseIncomeYearTwo" abstract="false" name="SubleaseIncomeYearTwo" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_SubleaseIncomeYearThree" abstract="false" name="SubleaseIncomeYearThree" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_SubleaseIncomeYearFour" abstract="false" name="SubleaseIncomeYearFour" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_SubleaseIncomeYearFiveAndAfter" abstract="false" name="SubleaseIncomeYearFiveAndAfter" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_SubleaseIncomeTotal" abstract="false" name="SubleaseIncomeTotal" nillable="true" xbrli:periodType="instant" xbrli:balance="credit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+  <xs:element id="amd_UnrecognizedGrantDateFairValue" abstract="false" name="UnrecognizedGrantDateFairValue" nillable="true" xbrli:periodType="instant" xbrli:balance="debit" substitutionGroup="xbrli:item" type="xbrli:monetaryItemType"/>
+</xs:schema>

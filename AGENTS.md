@@ -188,7 +188,7 @@ Never ship these, whatever a reference app does: a composite score, a grade or s
 
 ## Financial data best practices
 
-These rules apply when adding or fixing a metric, parser, or projection. They describe the target. Where current code falls short, the metric's `label` or `basis` says so, and if `plans/issues.md` exists its "Known gaps vs AGENTS.md data rules" section lists the gap. Close a gap deliberately, as its own change with its own tests, never as a side effect of an unrelated fix.
+These rules apply when adding or fixing a metric, parser, or projection. They describe the target. Where current code falls short, the metric's `label` or `basis` says so, and if `plans/issues.md` exists its "Wrong-value risk" section lists the gap. Close a gap deliberately, as its own change with its own tests, never as a side effect of an unrelated fix.
 
 - **Use standard definitions.** Follow the textbook formula. Where the code deviates, its `label` or `basis` string says how (`freeCashFlowProxy`, `ebitdaProxy`, "period-end invested capital", "latest FY"). A new deviation needs the same.
   - FCF = operating cash flow − capex. FCF margin = FCF / revenue.

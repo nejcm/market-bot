@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.11.2](https://github.com/nejcm/market-bot/compare/v1.11.1...v1.11.2) (2026-11-04)
+
+### Bug Fixes
+
+- **sec:** prove cross-filing debt and eBay short-term investments (#124) ([00566b4](https://github.com/nejcm/market-bot/commit/00566b420fdab0e8db47b04dbeefef75abfbde40))
+
 ## [1.11.1](https://github.com/nejcm/market-bot/compare/v1.11.0...v1.11.1) (2026-11-03)
 
 ### Bug Fixes

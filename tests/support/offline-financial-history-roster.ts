@@ -151,7 +151,11 @@ function verifyCanonicalRaw(
       reason: `canonical.${definition.key} emitted concept ${series.concept} but selection policy yields ${String(expectedConcept)}`,
     };
   }
-  const eligible = scoped?.points ?? canonicalEligiblePoints(execution, series.concept, unit);
+  const eligible =
+    scoped?.points ??
+    (definition.key === "capex"
+      ? scopeMatchedCapex(execution, series.concept, unit)
+      : canonicalEligiblePoints(execution, series.concept, unit));
   if (eligible.length === 0 && series.annual.length === 0) {
     return { kind: "vacuous-empty" };
   }
@@ -222,6 +226,50 @@ function scopedOperatingCashFlow(
   );
   const concept = continuing.size > 0 ? CONTINUING_OCF : points.length > 0 ? TOTAL_OCF : undefined;
   return { concept, points };
+}
+
+// Corpus inputs carry no calculation linkbase, so capex beside continuing-scope OCF is withheld wherever discontinued investing is reported.
+function scopeMatchedCapex(
+  execution: OfflineCorpusExecution,
+  concept: string,
+  unit: string,
+): readonly EligibleCanonicalPoint[] {
+  if (execution.artifact.taxonomy !== "us-gaap") {
+    return canonicalEligiblePoints(execution, concept, unit);
+  }
+  const totalOcf = new Map(
+    canonicalEligiblePoints(execution, TOTAL_OCF, unit).map((point) => [point.periodKey, point]),
+  );
+  const discontinued = new Set(
+    NET_MARGIN_CONCEPTS.discontinued.flatMap((discontinuedConcept) =>
+      canonicalEligiblePoints(execution, discontinuedConcept, unit)
+        .filter((point) => point.point.value !== 0)
+        .map((point) => point.periodKey),
+    ),
+  );
+  // An equal total with no discontinued operations keeps OCF on total scope.
+  const continuingOcf = new Set(
+    canonicalEligiblePoints(execution, CONTINUING_OCF, unit)
+      .filter(
+        (point) =>
+          discontinued.has(point.periodKey) ||
+          totalOcf.get(point.periodKey)?.point.value !== point.point.value,
+      )
+      .map((point) => point.periodKey),
+  );
+  const mixed = new Set(
+    [
+      "CapitalExpenditureDiscontinuedOperations",
+      "CashProvidedByUsedInInvestingActivitiesDiscontinuedOperations",
+    ].flatMap((discontinuedConcept) =>
+      canonicalEligiblePoints(execution, discontinuedConcept, unit)
+        .filter((point) => point.point.value !== 0)
+        .map((point) => point.periodKey),
+    ),
+  );
+  return canonicalEligiblePoints(execution, concept, unit).filter(
+    (point) => !continuingOcf.has(point.periodKey) || !mixed.has(point.periodKey),
+  );
 }
 
 function ratioValue(numerator: number, denominator: number): number | undefined {

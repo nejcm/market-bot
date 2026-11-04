@@ -3,6 +3,7 @@ import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import {
+  CAPEX_SCOPE_CAVEAT,
   conceptScope,
   isContinuingScope,
   NEGATIVE_CAPEX_REASON,
@@ -739,8 +740,7 @@ function freeCashFlowDefinition(context: MetricContext): MetricDefinition {
     id: "freeCashFlowProxy",
     label: scopedLabel("FCF proxy", operatingCashFlowScope(context)),
     unit: "currency",
-    basis:
-      "operating cash flow less capital expenditure for the latest operating cash flow period; capital expenditure carries no operations-scope tag and is used as reported",
+    basis: `operating cash flow less capital expenditure for the latest operating cash flow period; ${CAPEX_SCOPE_CAVEAT}`,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");

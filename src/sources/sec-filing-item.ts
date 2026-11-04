@@ -13,6 +13,7 @@ import { secFilingKey, type SecFiling } from "./sec-filing-selection";
 import {
   secBalanceSheetFaceMetrics,
   secDepreciationSiblingMetrics,
+  secDiscontinuedInvestingFactMetrics,
   secExtensionCapexFactMetrics,
   secGeographyFactMetrics,
   secSegmentFactMetrics,
@@ -278,6 +279,7 @@ export function buildSecFilingSourceItem(
       ...(filing.items === undefined ? {} : { items: filing.items.join(",") }),
       ...(earningsRelease === undefined ? {} : earningsRelease),
       cik: match.cik,
+      ...secDiscontinuedInvestingFactMetrics(filingText.payload, filing.reportDate),
       ...(filing.form === "10-K" || filing.form === "10-Q"
         ? {
             ...secSegmentFactMetrics(filingText.payload, filing.reportDate),

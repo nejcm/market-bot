@@ -6,6 +6,7 @@ export const GEOGRAPHY_FACT_PREFIX = "geography|";
 export const GEOGRAPHY_UNIT_KEY = "geographyUnit";
 export const GEOGRAPHY_TOTAL_MEMBER = "total";
 export const EXTENSION_CAPEX_FACT_PREFIX = "extensionCapex|";
+export const EXTENSION_DISCONTINUED_INVESTING_PREFIX = "extensionDiscontinuedInvesting|";
 export const EXTENSION_CAPEX_CHECKED_KEY = "extensionCapexChecked";
 
 export type SegmentMeasure = "revenue" | "operatingIncome";
@@ -248,7 +249,7 @@ const NON_PPE_WORDS = new Set([
   "Investments",
   "Lease",
   "Leases",
-  // Accounting Scope, not a missing PP&E line (AMD 2025 10-Q).
+  // Accounting Scope, not a missing PP&E line (AMD 2025 10-Q); scopeMatchedCapexFacts reads it as mixed-scope evidence.
   "Discontinued",
 ]);
 
@@ -261,6 +262,67 @@ function isExtensionCapexConcept(concept: string): boolean {
     words.some((word) => PPE_ASSET_WORDS.has(word)) &&
     !words.some((word) => NON_PPE_WORDS.has(word))
   );
+}
+
+const CAPEX_CONCEPTS = new Set([
+  "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+  "us-gaap:PaymentsToAcquireProductiveAssets",
+  "ifrs-full:PurchaseOfPropertyPlantAndEquipment",
+  "ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+]);
+
+// Discontinued-operations capex or investing cash flow, under any prefix: evidence that a period's capex mixes scopes.
+function isDiscontinuedInvestingConcept(concept: string): boolean {
+  const words: readonly string[] = (concept.split(":")[1] ?? "").match(/[A-Z][a-z]*/gu) ?? [];
+  return (
+    words.includes("Discontinued") &&
+    (words.includes("Investing") ||
+      (words.includes("Capital") && words.some((word) => word.startsWith("Expenditure"))) ||
+      ((words[0] === "Payments" || words[0] === "Purchase") &&
+        words.some((word) => PPE_ASSET_WORDS.has(word))))
+  );
+}
+
+// `extensionDiscontinuedInvesting|<concept>|<start>|<end>`: nonzero discontinued investing or capex facts in any context,
+// And capex facts on a discontinued-operations member, which companyfacts drops as dimensional.
+export function secDiscontinuedInvestingFactMetrics(
+  html: string,
+  periodEnd: string | undefined,
+): Record<string, number> {
+  if (periodEnd === undefined) {
+    return {};
+  }
+  const contexts = new Map<string, { start: string; end: string; discontinued: boolean }>();
+  for (const [, id, body = ""] of html.matchAll(
+    /<xbrli:context id="([^"]+)">([\s\S]*?)<\/xbrli:context>/gu,
+  )) {
+    const start = /<xbrli:startDate>([^<]+)</u.exec(body)?.[1]?.trim();
+    const end = /<xbrli:endDate>([^<]+)</u.exec(body)?.[1]?.trim();
+    if (start !== undefined && end !== undefined && end <= periodEnd) {
+      contexts.set(id!, { start, end, discontinued: /Discontinued\w*Member/u.test(body) });
+    }
+  }
+  const metrics: Record<string, number> = {};
+  for (const [, attrs, content] of html.matchAll(
+    /<ix:nonFraction\b[^>]*\/>|<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu,
+  )) {
+    const concept = attrs === undefined ? undefined : attribute(attrs, "name");
+    const context = contexts.get(attribute(attrs ?? "", "contextRef") ?? "");
+    const value = concept === undefined ? undefined : factValue(attrs!, content!);
+    if (
+      concept !== undefined &&
+      context !== undefined &&
+      value !== undefined &&
+      value !== 0 &&
+      (isDiscontinuedInvestingConcept(concept) ||
+        (context.discontinued && (CAPEX_CONCEPTS.has(concept) || isExtensionCapexConcept(concept))))
+    ) {
+      metrics[
+        `${EXTENSION_DISCONTINUED_INVESTING_PREFIX}${concept}|${context.start}|${context.end}`
+      ] = value;
+    }
+  }
+  return metrics;
 }
 
 // Flat `extensionCapex|<concept>|<start>|<end>|<unit>` metrics for issuer-extension PP&E-like payments.

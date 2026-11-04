@@ -16,6 +16,7 @@ import type {
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
+import { CAPEX_CALC_PREFIX } from "../src/sources/sec-calculation-linkbase";
 import { geographicRevenueSection } from "../src/sources/extended-evidence/geographic-revenue";
 import {
   depositoryIssuerSic,
@@ -25,6 +26,7 @@ import { operatingRatiosSection } from "../src/sources/extended-evidence/operati
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
 import { heldForSaleRecast, withheldDebt } from "../src/sources/extended-evidence/sec-debt";
 import {
+  secDiscontinuedInvestingFactMetrics,
   secExtensionCapexFactMetrics,
   secGeographyFactMetrics,
 } from "../src/sources/sec-segment-facts";
@@ -47,6 +49,19 @@ interface ReferenceCase {
   readonly absent?: readonly FinancialStatementSeriesKey[];
   readonly metrics: Readonly<Record<string, MetricExpectation>>;
   readonly depreciationAndAmortization?: Readonly<Record<string, Expected | { omitted: string }>>;
+  readonly secFilings?: readonly ExtendedEvidenceItem[];
+}
+
+// The 10-K calculation linkbase's capex weight inside continuing investing cash flow.
+function capexCalc(accessionNumber: string, concept: string): ExtendedEvidenceItem {
+  return {
+    category: "sec-edgar",
+    title: "SEC 10-K",
+    summary: "",
+    sourceIds: [accessionNumber],
+    observedAt: "2026-10-26T00:00:00.000Z",
+    metrics: { accessionNumber, [`${CAPEX_CALC_PREFIX}${concept}`]: -1 },
+  };
 }
 
 function load(symbol: string, secFilings?: readonly ExtendedEvidenceItem[]) {
@@ -241,6 +256,7 @@ const CASES: readonly ReferenceCase[] = [
     symbol: "amd",
     fiscalYearEnd: "2025-12-27",
     accession: "0000002488-26-000018",
+    secFilings: [capexCalc("0000002488-26-000018", "PaymentsToAcquirePropertyPlantAndEquipment")],
     statements: {
       revenue: statement(34_639_000_000, "R3 Net revenue"),
       operatingIncome: statement(3_694_000_000, "R3 Operating income"),
@@ -351,12 +367,16 @@ const CASES: readonly ReferenceCase[] = [
         105_434_000,
         "R7 Net cash provided by operating activities 107,966 less discontinued 2,532",
       ),
-      capitalExpenditure: statement(11_080_000, "R7 Purchases of property and equipment"),
       debt: statement(112_084_000, "R2 Current portion of long-term debt 2,944 + 109,140"),
       cash: statement(124_105_000, "R2 Cash and cash equivalents"),
     },
+    // R7 capex 11,080 sits beside discontinued investing −801, and no calculation linkbase proves its scope.
+    absent: ["capitalExpenditure"],
     metrics: {
-      freeCashFlowMargin: ratio(0.261_71, "(105,434 - 11,080) / R4 360,523"),
+      freeCashFlowMargin: {
+        status: "missing",
+        reason: "no same-period capital expenditure for the fiscal year ending 2025-12-31",
+      },
       roic: ratio(0.0052, "R4 14,080 x (1 - 7,645 / 8,861) / R2 (383,246 + 112,084 - 124,105)"),
     },
   },
@@ -364,6 +384,7 @@ const CASES: readonly ReferenceCase[] = [
     symbol: "clfd",
     fiscalYearEnd: "2025-09-30",
     accession: "0001171843-25-007594",
+    secFilings: [capexCalc("0001171843-25-007594", "PaymentsToAcquireProductiveAssets")],
     statements: {
       revenue: statement(150_134_000, "R4 Net sales"),
       operatingIncome: statement(2_118_000, "R4 Income from operations"),
@@ -519,7 +540,7 @@ const CASES: readonly ReferenceCase[] = [
 describe("SEC reference set (hand-checked against filed statements)", () => {
   for (const reference of CASES) {
     describe(`${reference.symbol.toUpperCase()} FY ending ${reference.fiscalYearEnd} (${reference.accession})`, () => {
-      const { statements, series, metrics } = load(reference.symbol);
+      const { statements, series, metrics } = load(reference.symbol, reference.secFilings);
       const annual = (key: FinancialStatementSeriesKey, periodEnd = reference.fiscalYearEnd) =>
         series[key]?.annual.find((fact) => fact.periodEnd === periodEnd);
 
@@ -670,6 +691,47 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       "extensionCapex|iren:PaymentsForAcquisitionOfComputerHardware|2025-07-01|2026-06-30|iso4217:USD",
       "extensionCapex|iren:PaymentsForAcquisitionOfComputerHardware|2024-07-01|2025-06-30|iso4217:USD",
       "extensionCapex|iren:PaymentsForAcquisitionOfComputerHardware|2023-07-01|2024-06-30|iso4217:USD",
+    ]);
+  });
+
+  test("a discontinued-operations extension payment is mixed-scope evidence, not extension capex", () => {
+    const html = irenHtml().replaceAll(
+      "iren:PaymentsRelatedToComputerHardware",
+      "iren:PaymentsForComputerHardwareDiscontinuedOperations",
+    );
+    expect(
+      Object.keys(secExtensionCapexFactMetrics(html, "2026-06-30")).filter((key) =>
+        key.startsWith("extensionCapex|"),
+      ),
+    ).toEqual([]);
+    expect(Object.keys(secDiscontinuedInvestingFactMetrics(html, "2026-06-30"))).toEqual([
+      "extensionDiscontinuedInvesting|iren:PaymentsForComputerHardwareDiscontinuedOperations|2025-07-01|2026-06-30",
+      "extensionDiscontinuedInvesting|iren:PaymentsForComputerHardwareDiscontinuedOperations|2024-07-01|2025-06-30",
+      "extensionDiscontinuedInvesting|iren:PaymentsForComputerHardwareDiscontinuedOperations|2023-07-01|2024-06-30",
+    ]);
+  });
+
+  test("an issuer discontinued-capex tag or a capex fact on a discontinued member is evidence", () => {
+    const issuer = irenHtml().replaceAll(
+      "iren:PaymentsRelatedToComputerHardware",
+      "iren:CapitalExpenditureDiscontinuedOperations",
+    );
+    expect(Object.keys(secDiscontinuedInvestingFactMetrics(issuer, "2026-06-30"))).toContain(
+      "extensionDiscontinuedInvesting|iren:CapitalExpenditureDiscontinuedOperations|2025-07-01|2026-06-30",
+    );
+    const member = `<xbrli:context id="d"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:DisposalGroupNameAxis">us-gaap:DiscontinuedOperationsDisposedOfBySaleMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:startDate>2025-07-01</xbrli:startDate><xbrli:endDate>2026-06-30</xbrli:endDate></xbrli:period></xbrli:context><ix:nonFraction name="us-gaap:PaymentsToAcquirePropertyPlantAndEquipment" contextRef="d" unitRef="usd" decimals="-3" scale="3">40</ix:nonFraction>`;
+    expect(secDiscontinuedInvestingFactMetrics(member, "2026-06-30")).toEqual({
+      "extensionDiscontinuedInvesting|us-gaap:PaymentsToAcquirePropertyPlantAndEquipment|2025-07-01|2026-06-30": 40_000,
+    });
+    expect(
+      secDiscontinuedInvestingFactMetrics(member.replace("Discontinued", "Retained"), "2026-06-30"),
+    ).toEqual({});
+    const ifrs = member.replace(
+      "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+      "ifrs-full:PurchaseOfPropertyPlantAndEquipment",
+    );
+    expect(Object.keys(secDiscontinuedInvestingFactMetrics(ifrs, "2026-06-30"))).toEqual([
+      "extensionDiscontinuedInvesting|ifrs-full:PurchaseOfPropertyPlantAndEquipment|2025-07-01|2026-06-30",
     ]);
   });
 

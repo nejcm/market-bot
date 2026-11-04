@@ -389,8 +389,8 @@ describe("source normalization", () => {
 
     const [snapshot] = normalizeYahooQuotePayload(JSON.parse(body!), "equity", fetchedAt);
 
-    // The captured body carries regularMarketTime as 1793739601 epoch seconds.
-    expect(snapshot?.quoteTimeUtc).toBe("2026-11-03T21:00:01.000Z");
+    // The captured body carries regularMarketTime as 1793811633 epoch seconds.
+    expect(snapshot?.quoteTimeUtc).toBe("2026-11-04T17:00:33.000Z");
     // The quote's own time must not collapse onto the fetch time; that collapse is the bug.
     expect(snapshot?.observedAt).toBe(fetchedAt);
     expect(snapshot?.quoteTimeUtc).not.toBe(snapshot?.observedAt);

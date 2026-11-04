@@ -8,6 +8,7 @@ import {
 
 export const DA_CALC_PREFIX = "daCalc|";
 export const DA_CALC_READ_KEY = "daCalcRead";
+export const CAPEX_CALC_PREFIX = "capexCalc|";
 
 const OPERATING_CASH_FLOW = new Set([
   "NetCashProvidedByUsedInOperatingActivities",
@@ -296,6 +297,8 @@ export interface SummationParent {
   readonly parent: string;
   // Canonical decimal string; exactly "1" for a weight of one.
   readonly weight: string;
+  // `<role> <arcrole>` of the network holding the arc.
+  readonly network: string;
 }
 
 // Summation parents of each `<namespace URI>#<local>` child across every network; throws on a prohibited or
@@ -358,10 +361,85 @@ export function summationParents(
             throw new Error(`calculation arc ${key} weighted two ways`);
           }
           weights.set(key, weight);
-          parents.set(child, [...(parents.get(child) ?? []), { parent, weight }]);
+          parents.set(child, [
+            ...(parents.get(child) ?? []),
+            { parent, weight, network: `${role} ${attributeOf(arc, XLINK, "arcrole") ?? ""}` },
+          ]);
         }
       }
     }
   }
   return parents;
+}
+
+const CONTINUING_INVESTING_CASH_FLOW =
+  "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations";
+const CAPITAL_EXPENDITURE = new Set([
+  "PaymentsToAcquirePropertyPlantAndEquipment",
+  "PaymentsToAcquireProductiveAssets",
+]);
+const US_GAAP_CONCEPT = /^http:\/\/fasb\.org\/us-gaap\/\d{4}#(\w+)$/u;
+const usGaapLocal = (concept: string) => US_GAAP_CONCEPT.exec(concept)?.[1];
+
+const EXACT_WEIGHT: Readonly<Record<string, number>> = { "1": 1, "-1": -1 };
+
+// Weight along the only path to continuing investing cash flow inside one network; every network holding the
+// Concept must agree, and a second parent, a cycle, a dead end or a non-unit weight proves nothing.
+function continuingInvestingWeight(
+  parents: ReadonlyMap<string, readonly SummationParent[]>,
+  concept: string,
+): number | undefined {
+  const inNetwork = (network: string): number | undefined => {
+    const seen = new Set([concept]);
+    let [node, weight] = [concept, 1];
+    for (;;) {
+      const up = [
+        ...new Map(
+          (parents.get(node) ?? [])
+            .filter((edge) => edge.network === network)
+            .map((edge) => [`${edge.parent} ${edge.weight}`, edge]),
+        ).values(),
+      ];
+      const [edge] = up;
+      const step = edge === undefined ? undefined : EXACT_WEIGHT[edge.weight];
+      if (edge === undefined || step === undefined || up.length !== 1 || seen.has(edge.parent)) {
+        return undefined;
+      }
+      weight *= step;
+      if (usGaapLocal(edge.parent) === CONTINUING_INVESTING_CASH_FLOW) {
+        return weight;
+      }
+      seen.add(edge.parent);
+      node = edge.parent;
+    }
+  };
+  const weights = [...new Set((parents.get(concept) ?? []).map((edge) => edge.network))].map(
+    inNetwork,
+  );
+  const [first] = weights;
+  return first !== undefined && weights.every((weight) => weight === first) ? first : undefined;
+}
+
+// `capexCalc|<concept>`: composed weight of each us-gaap capex concept on a unique path under continuing investing cash flow.
+export function secContinuingInvestingCalcMetrics(
+  xml: string,
+  linkbaseUrl: string,
+  schema: { readonly url: string; readonly xml: string },
+): Record<string, number> {
+  let parents: ReadonlyMap<string, readonly SummationParent[]>;
+  try {
+    parents = summationParents(xml, linkbaseUrl, extensionSchema(schema.url, schema.xml));
+  } catch {
+    return {};
+  }
+  return Object.fromEntries(
+    [...parents.keys()].flatMap((concept) => {
+      const local = usGaapLocal(concept);
+      const weight =
+        local === undefined || !CAPITAL_EXPENDITURE.has(local)
+          ? undefined
+          : continuingInvestingWeight(parents, concept);
+      return weight === undefined ? [] : [[`${CAPEX_CALC_PREFIX}${local}`, weight]];
+    }),
+  );
 }

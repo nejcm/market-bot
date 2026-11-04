@@ -10,6 +10,7 @@ import { evidenceSource, type CollectedItem, type ProviderResult } from "./commo
 import {
   conceptScope,
   DISCONTINUED_OPERATIONS_CONCEPTS,
+  isContinuingScope,
   NONCONTROLLING_INCOME_CONCEPTS,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
@@ -598,6 +599,14 @@ export function summarizeSecFundamentals(
     reportsDiscontinuedOperations(gaap, cashFlow, analysisAsOf)
   ) {
     metrics.operatingCashFlowScope = TOTAL_OPERATIONS_SCOPE;
+  }
+  // Capex beside continuing OCF needs its filing's calculation linkbase, which only the canonical series reads.
+  if (isContinuingScope(String(metrics.operatingCashFlowScope))) {
+    for (const key of Object.keys(metrics).filter((candidate) =>
+      /^capex(?:[A-Z]|$)/u.test(candidate),
+    )) {
+      delete metrics[key];
+    }
   }
   const income = metricSelections.find(({ definition }) => definition.key === "netIncome")
     ?.selection?.latest;

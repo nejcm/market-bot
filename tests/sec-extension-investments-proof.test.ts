@@ -43,13 +43,22 @@ const instanceXml = (facts = BASE_FACTS) =>
 const ASSETS_CURRENT = `${US_GAAP}#AssetsCurrent`;
 const parents = (lineWeight = "1") =>
   new Map([
-    [`${US_GAAP}#CashAndCashEquivalentsAtCarryingValue`, [{ parent: ASSETS_CURRENT, weight: "1" }]],
+    [
+      `${US_GAAP}#CashAndCashEquivalentsAtCarryingValue`,
+      [{ parent: ASSETS_CURRENT, weight: "1", network: "r" }],
+    ],
     [
       `${ISSUER}#ShortTermInvestmentsExcludingFvo`,
-      [{ parent: ASSETS_CURRENT, weight: lineWeight }],
+      [{ parent: ASSETS_CURRENT, weight: lineWeight, network: "r" }],
     ],
-    [`${US_GAAP}#AccountsReceivableNetCurrent`, [{ parent: ASSETS_CURRENT, weight: "1" }]],
-    [`${ISSUER}#LongTermInvestmentsExcludingFvo`, [{ parent: `${US_GAAP}#Assets`, weight: "1" }]],
+    [
+      `${US_GAAP}#AccountsReceivableNetCurrent`,
+      [{ parent: ASSETS_CURRENT, weight: "1", network: "r" }],
+    ],
+    [
+      `${ISSUER}#LongTermInvestmentsExcludingFvo`,
+      [{ parent: `${US_GAAP}#Assets`, weight: "1", network: "r" }],
+    ],
   ]);
 
 const prove = (instance = instanceXml(), placementParents = parents()) =>

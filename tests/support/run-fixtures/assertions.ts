@@ -41,6 +41,7 @@ import {
   type FinancialStatementTaxonomy,
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import {
+  CAPEX_SCOPE_CAVEAT,
   conceptScope,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
@@ -96,6 +97,9 @@ export function assertMetricPromptCatalog(
     throw new Error("Metric catalog invariant requires an equity fixture");
   }
   for (const request of requests) {
+    if (request.stage === "peer-universe-proposal") {
+      continue;
+    }
     const user = request.messages.findLast(({ role }) => role === "user")!.content;
     const prompt = JSON.parse(user);
     if (
@@ -1155,7 +1159,10 @@ const AAPL_LENS_VALUES = {
   pcfRatio: 23.076_923_076_923_077,
 };
 
-const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, number | string>>>> = {
+// A null pin asserts the metric is withheld.
+const EXPECTED_LENS_VALUES: Readonly<
+  Record<string, Readonly<Record<string, number | string | null>>>
+> = {
   "equity-aapl-brief": {},
   "equity-aapl-deep": AAPL_LENS_VALUES,
   "equity-earnings-release-deep": {
@@ -1185,8 +1192,8 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     operatingMargin: -1.154_586_636_466_591,
     // FY2025 20-F (0001104659-26-052948): continuing income 9.8M / revenue 529.8M; total 82.5M adds 72.7M discontinued.
     netMargin: 0.018_497_546_243_865_61,
-    // Continuing OCF 401.9M less capex 4,066.0M; the 384.8M total OCF nets 17.1M discontinued outflow.
-    freeCashFlowProxy: -3_664_100_000,
+    // FY2025 20-F reports -0.1M discontinued investing beside continuing OCF, so capex scope is unproven.
+    freeCashFlowProxy: null,
     cashConversion: 41.010_204_081_632_65,
     roe: 0.017_958_206_356_116_675,
     roa: 0.006_636_847_778_868_277,
@@ -1197,23 +1204,23 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     continuingIncomeDeltaPercent: 102.784_090_909_090_9,
     continuingDilutedEpsDeltaPercent: 103.2,
     operatingCashFlowDeltaPercent: 248.907_002_593_553_2,
-    capexDeltaPercent: 403.529_411_764_705_86,
+    capexDeltaPercent: null,
     cash: 3_678_100_000,
     payoutRatio: 0,
     valuationCaveat:
       "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
-    evDateBasis: "EV mixes market cap (quote 2026-11-03) with cash/debt (balance sheet 2025-12-31)",
-    enterpriseValue: 41_673_726_464,
+    evDateBasis: "EV mixes market cap (quote 2026-11-04) with cash/debt (balance sheet 2025-12-31)",
+    enterpriseValue: 39_595_391_488,
     annualizedRevenue: 529_800_000,
-    evToAnnualizedRevenue: 78.659_355_349_188_37,
-    marketCapToAnnualizedRevenue: 77.810_733_227_633_07,
+    evToAnnualizedRevenue: 74.736_488_274_820_69,
+    marketCapToAnnualizedRevenue: 73.887_866_153_265_38,
     valuationSupportability: "not-meaningful",
-    // Yahoo quote 2026-11-03: price 151.64, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 41.22B.
-    peRatio: 118.468_75,
-    forwardPe: "-42.15x (negative earnings)",
+    // Yahoo quote 2026-11-04: price 143.995, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 39.15B.
+    peRatio: 112.496_09,
+    forwardPe: "-40.02x (negative earnings)",
     epsForward: -3.597_83,
-    priceToBook: 4.019_935,
-    pcfRatio: 102.573_093_963_672_56,
+    priceToBook: 3.817_268_4,
+    pcfRatio: 97.401_820_074_645_43,
   },
   "equity-fpi-quarterly": {
     grossMargin: 0.85,
@@ -1312,7 +1319,7 @@ export function assertFinancialLensMetricInvariants(
     expect(
       sections.flatMap((section) => section.metrics).find((row) => row.id === id),
       `${fixtureName}.${id} retains its replayed value`,
-    ).toMatchObject({ status: "value", value });
+    ).toMatchObject(value === null ? { status: "missing" } : { status: "value", value });
   }
   const statements = run.collectedSources.financialStatements;
   const filedFacts =
@@ -3091,8 +3098,8 @@ function assertValuationWorkbenchInvariants(
     const inputSeries = [...new Set(lineage.map(({ series }) => series!))];
     if (input.derivation?.startsWith("operating cash flow") === true) {
       expect(
-        input.derivation.includes("capital expenditure carries no operations-scope tag"),
-        "scoped FCF states that capex is unscoped",
+        input.derivation.includes(CAPEX_SCOPE_CAVEAT),
+        "scoped FCF states how capex matches its scope",
       ).toBe(input.scope !== undefined);
       expect(valueOf("capitalExpenditure"), "FCF capex is a filed outflow").toBeGreaterThanOrEqual(
         0,
@@ -3394,19 +3401,19 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
     NEGATIVE_WORKBENCH_DENOMINATOR,
     2.896_894_170_941_147,
     2.273_836_481_491_164,
-    34.242_598_831_201_92,
+    MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-03-31|2026-05-07": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
     3.506_019_539_993_908_5,
     2.892_954_314_846_312,
-    65.800_212_837_331_03,
+    MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-06-30|2026-08-06": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
     2.456_278_691_519_679_5,
     1.797_514_959_546_961_3,
-    51.391_878_897_623_63,
+    MISSING_WORKBENCH_FCF,
   ],
 };
 
@@ -3502,11 +3509,11 @@ const AMD_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2024-12-28|2025-02-05": [
     112.010_002_136_230_47, 7.111_125_596_160_918, 6.978_839_383_246_433_5, 76.241_319_541_376,
   ],
-  "ttm|2025-06-28|2025-08-06": [
-    94.289_014_518_605_5, 9.027_536_052_220_539, 8.938_042_808_977_297, 76.478_267_643_310_82,
-  ],
   "ttm|2025-09-27|2025-11-05": [
-    126.896_032_956_567_14, 13.098_894_212_833_263, 12.973_281_448_603_084, 92.649_797_913_960_01,
+    126.896_032_956_567_14,
+    13.098_894_212_833_263,
+    12.973_281_448_603_084,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2025-12-27|2026-02-04": [
     75.543_397_147_700_47, 9.454_973_988_687_335, 9.243_362_798_987_864, 59.342_425_075_945_03,
@@ -3518,7 +3525,16 @@ const AMD_WORKBENCH_VALUES: WorkbenchValues = {
     MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-06-27|2026-08-05": [
-    123.602_560_972_556_08, 19.253_331_976_695_94, 19.014_014_702_758_16, 102.799_751_460_370_44,
+    123.602_560_972_556_08,
+    19.253_331_976_695_94,
+    19.014_014_702_758_16,
+    MISSING_WORKBENCH_FCF,
+  ],
+  "ttm|2026-09-26|2026-11-04": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
   ],
 };
 
@@ -3545,20 +3561,25 @@ const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
     26.526_315_132_396_643,
     6.388_025_147_996_082,
     MISSING_WORKBENCH_DEBT,
-    24.872_452_214_079_082,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2020-12-31|2022-02-24": [
-    7.026_615_795_527_121, 4.475_592_423_428_947, 4.953_779_965_592_203, 15.665_454_157_409_307,
+    7.026_615_795_527_121,
+    4.475_592_423_428_947,
+    4.953_779_965_592_203,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2021-12-31|2022-02-24": [
-    2.699_123_594_289_629_2, 3.527_516_227_400_005_4, 3.696_326_208_206_147_4,
-    13.875_696_145_529_655,
+    2.699_123_594_289_629_2,
+    3.527_516_227_400_005_4,
+    3.696_326_208_206_147_4,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2022-12-31|2023-02-23": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
     2.583_491_490_409_348_7,
     3.001_255_655_799_854,
-    11.618_594_650_394_66,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2023-12-31|2024-02-28": [
     9.227_360_190_683_706,
@@ -3699,26 +3720,26 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       14.295_597_196_375_049,
       619.637_052_218_792_4,
       MISSING_WORKBENCH_DEBT,
-      NEGATIVE_WORKBENCH_DENOMINATOR,
+      MISSING_WORKBENCH_FCF,
     ],
     // FY2023 20-F (0001104659-26-052948): continuing OCF -222.0M; the 829.8M total includes divested Yandex.
     "annual|2023-12-31|2026-04-30": [
       212.661_531_888_521_64,
       5230.731_450_141_013,
       MISSING_WORKBENCH_DEBT,
-      NEGATIVE_WORKBENCH_DENOMINATOR,
+      MISSING_WORKBENCH_FCF,
     ],
     "annual|2024-12-31|2026-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,
       424.517_499_337_662_85,
       MISSING_WORKBENCH_DEBT,
-      NEGATIVE_WORKBENCH_DENOMINATOR,
+      MISSING_WORKBENCH_FCF,
     ],
     "ttm|2025-12-31|2026-04-30": [
       418.878_774_931_936_56,
       64.622_117_548_843_16,
       65.470_739_670_398_46,
-      NEGATIVE_WORKBENCH_DENOMINATOR,
+      MISSING_WORKBENCH_FCF,
     ],
   },
   "equity-fpi-quarterly": {

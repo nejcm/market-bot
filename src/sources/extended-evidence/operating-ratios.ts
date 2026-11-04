@@ -6,7 +6,7 @@ import {
   SERIES_LABELS,
   statementInput,
 } from "./capital-return";
-import { NEGATIVE_CAPEX_REASON } from "./financial-statement-definitions";
+import { CAPEX_SCOPE_CAVEAT, NEGATIVE_CAPEX_REASON } from "./financial-statement-definitions";
 import { shortTermInvestmentsAt } from "./financial-lens-sections";
 import type { SecIssuerRegistration } from "./industry-classification";
 import type { FinancialStatementFact } from "./financial-statements-contract";
@@ -388,7 +388,7 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
         : {
             ...outcome,
             label: `Free cash flow margin${operatingCashFlow.label.slice(SERIES_LABELS.operatingCashFlow.length)}`,
-            basis: `(${operatingCashFlow.label} - capital expenditure) / revenue, ${FISCAL_YEAR}; capital expenditure carries no operations-scope tag and is used as reported; revenue at or below zero or negative-filed capex is not meaningful`,
+            basis: `(${operatingCashFlow.label} - capital expenditure) / revenue, ${FISCAL_YEAR}; ${CAPEX_SCOPE_CAVEAT}; revenue at or below zero or negative-filed capex is not meaningful`,
           };
     },
   },

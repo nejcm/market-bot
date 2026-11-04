@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
@@ -22,7 +23,10 @@ import {
   cashConversionScopeGaps,
   withCanonicalFinancialLensInputs,
 } from "../src/sources/extended-evidence/financial-lens-canonical";
-import { conceptScope } from "../src/sources/extended-evidence/financial-statement-definitions";
+import {
+  CAPEX_SCOPE_CAVEAT,
+  conceptScope,
+} from "../src/sources/extended-evidence/financial-statement-definitions";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
 import {
   deriveFinancialStatements,
@@ -36,7 +40,13 @@ import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { config, contextWithHistory } from "./support/research-context-helpers";
 import type { ResearchCommand } from "../src/cli/args";
+import {
+  CAPEX_CALC_PREFIX,
+  secContinuingInvestingCalcMetrics,
+} from "../src/sources/sec-calculation-linkbase";
+import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { operatingRatioNotes } from "../src/report/equity-reader-statements";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
@@ -50,6 +60,10 @@ const CONTINUING_NCI =
   "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest";
 const CONTINUING_PARENT = "IncomeLossFromContinuingOperations";
 const CONTINUING_EPS = "IncomeLossFromContinuingOperationsPerDilutedShare";
+const CONTINUING_INVESTING = "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations";
+const TOTAL_INVESTING = "NetCashProvidedByUsedInInvestingActivities";
+const DISCONTINUED_INVESTING = "CashProvidedByUsedInInvestingActivitiesDiscontinuedOperations";
+const CAPEX = "PaymentsToAcquirePropertyPlantAndEquipment";
 
 type Row = Record<string, unknown>;
 type Concepts = Record<string, readonly Row[]>;
@@ -96,8 +110,25 @@ function payload(concepts: Concepts, units: Readonly<Record<string, string>> = {
   };
 }
 
-function statements(concepts: Concepts, units?: Readonly<Record<string, string>>) {
+// A fetched 10-K whose calculation linkbase subtracts `concept` inside continuing investing cash flow.
+function capexCalc(accessionNumber: string, weight = -1, concept = CAPEX): ExtendedEvidenceItem {
+  return {
+    category: "sec-edgar",
+    title: "10-K",
+    summary: "",
+    sourceIds: ["sec-filing"],
+    observedAt: AS_OF,
+    metrics: { accessionNumber, [`${CAPEX_CALC_PREFIX}${concept}`]: weight },
+  };
+}
+
+function statements(
+  concepts: Concepts,
+  units?: Readonly<Record<string, string>>,
+  secFilings?: readonly ExtendedEvidenceItem[],
+) {
   return deriveFinancialStatements(payload(concepts, units), {
+    ...(secFilings === undefined ? {} : { secFilings }),
     symbol: "CLFD",
     generatedAt: AS_OF,
     analysisAsOf: AS_OF,
@@ -694,12 +725,14 @@ function amd(): Concepts {
       h1(0),
     ],
     PaymentsToAcquirePropertyPlantAndEquipment: [fy2025(974), q1(389), h1Prior(494), h1(1197)],
+    // The face splits investing, so its PP&E line is continuing capex.
+    [CONTINUING_INVESTING]: [fy2025(-6851), h1Prior(-2633), h1(-5172)],
   };
 }
 
 describe("continuing-operations basis for cash flow and margins", () => {
   test("pairs continuing OCF with capex and revenue for AMD", () => {
-    const artifact = statements(amd());
+    const artifact = statements(amd(), undefined, [capexCalc("0000002488-26-000018")]);
     const ocf = artifact.statements.cashFlowStatement.operatingCashFlow;
     const history = deriveFundamentalHistoryFromFinancialStatements(artifact);
     const fy2025 = (key: "freeCashFlowProxy" | "netMargin") =>
@@ -708,29 +741,31 @@ describe("continuing-operations basis for cash flow and margins", () => {
     expect(ocf.annual.find((fact) => fact.periodEnd === "2025-12-27")?.value).toBe(6_493_000_000);
     expect(ocf.ttm?.value).toBe(9_413_000_000);
     expect(fy2025("freeCashFlowProxy")).toBe(5_519_000_000);
+    expect(artifact.statements.cashFlowStatement.capitalExpenditure.ttm).toBeDefined();
     expect(fy2025("netMargin")).toBeCloseTo(4269 / 34_639, 12);
     expect(history.series.freeCashFlowProxy.label).toBe(
       "Free cash flow proxy (continuing operations)",
     );
     expect(history.series.freeCashFlowProxy.notes).toContain(
-      "scope:capex-unscoped: capital expenditure carries no operations-scope tag and is used as reported",
+      `scope:capex-continuing: ${CAPEX_SCOPE_CAVEAT}`,
     );
     // AMD reports no NCI, so parent continuing income is its consolidated amount.
     expect(lensMetric(artifact, "netMargin")).toMatchObject({
       label: "Net margin (continuing operations)",
       value: 3677 / 21_789,
     });
-    expect(lensMetric(artifact, "freeCashFlowProxy")).toMatchObject({
-      label: "FCF proxy (continuing operations)",
-      value: 4_124_000_000,
-    });
+    // The H1 2026 10-Q has no fetched calculation linkbase or discontinued investing, so its capex is noted.
+    expect(lensMetric(artifact, "freeCashFlowProxy")?.value).toBeDefined();
+    expect(unprovenNotes(artifact).map(({ periodKey }) => periodKey)).toContain(
+      "duration:6|2026-06-27",
+    );
     const { periods } = valuationPeriodInputs(artifact);
     const annual = periods.find(
       (period) => period.basis === "annual" && period.periodEnd === "2025-12-27",
     );
     expect(annual?.freeCashFlow).toMatchObject({
       value: 5_519_000_000,
-      derivation: expect.stringContaining("capital expenditure carries no operations-scope tag"),
+      derivation: expect.stringContaining(CAPEX_SCOPE_CAVEAT),
     });
     expect(annual?.capitalExpenditure?.label).toBe("Capital expenditure");
     expect(
@@ -740,7 +775,7 @@ describe("continuing-operations basis for cash flow and margins", () => {
     ).toMatchObject({
       label: "Free cash flow margin (continuing operations)",
       value: 5519 / 34_639,
-      basis: expect.stringContaining("capital expenditure carries no operations-scope tag"),
+      basis: expect.stringContaining(CAPEX_SCOPE_CAVEAT),
     });
   });
 
@@ -799,7 +834,10 @@ describe("continuing-operations basis for cash flow and margins", () => {
     const artifact = statements(concepts);
 
     expect(artifact.statements.cashFlowStatement.operatingCashFlow.ttm?.value).toBe(10_080_000_000);
-    expect(lensMetric(artifact, "freeCashFlowProxy")?.label).toBe("FCF proxy");
+    expect(lensMetric(artifact, "freeCashFlowProxy")).toMatchObject({
+      label: "FCF proxy",
+      value: (5321 - 1197) * 1_000_000,
+    });
     expect(lensMetric(artifact, "netMargin")?.label).toBe("Net margin");
     expect(
       summarizeSecFundamentals(payload(concepts), AS_OF)!.metrics.operatingCashFlowScope,
@@ -1107,7 +1145,413 @@ describe("continuing OCF from a filed total and its discontinued component", () 
   });
 });
 
-// HLIT 10-Ks 0000851310-18-000017 (2018-03-05), -20-000006 (2020-03-02), -22-000012 (2022-02-28).
+const ebayFy = (val: number): Row => ({
+  val: val * 1_000_000,
+  start: "2025-01-01",
+  end: "2025-12-31",
+  form: "10-K",
+  fy: 2025,
+  fp: "FY",
+  filed: "2026-02-19",
+  accn: "0001065088-26-000027",
+});
+
+// EBAY FY2025 10-K (0001065088-26-000027): continuing OCF, unsplit investing, no discontinued capex tag.
+function ebay(): Concepts {
+  return {
+    RevenueFromContractWithCustomerExcludingAssessedTax: [ebayFy(11_100)],
+    [TOTAL_OCF]: [ebayFy(1959)],
+    [CONTINUING_OCF]: [ebayFy(2009)],
+    CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: [ebayFy(-50)],
+    [CAPEX]: [ebayFy(525)],
+    [TOTAL_INVESTING]: [ebayFy(1420)],
+    [CONTINUING_INVESTING]: [ebayFy(1450)],
+  };
+}
+
+const capex = (artifact: FinancialStatementsArtifact) =>
+  artifact.statements.cashFlowStatement.capitalExpenditure.annual;
+const fcfMargin = (artifact: FinancialStatementsArtifact) =>
+  operatingRatiosSection({ symbol: "TEST", statements: artifact }).section.metrics.find(
+    ({ id }) => id === "freeCashFlowMargin",
+  );
+
+const EBAY_10K = "0001065088-26-000027";
+const CAPEX_GAP =
+  "SEC capital expenditure is not derived for 2025-01-01 to 2025-12-31: operating cash flow is continuing operations, discontinued-operations investing cash flow is reported for the period, and no calculation linkbase places capital expenditure inside the continuing-operations investing subtotal";
+const CAPEX_NOTE =
+  "SEC capital expenditure for 2025-01-01 to 2025-12-31 is the filed line beside continuing-operations operating cash flow; no calculation linkbase proves it is continuing-operations only, and no discontinued-operations investing is reported for the period";
+const unprovenNotes = (artifact: FinancialStatementsArtifact) =>
+  artifact.omissionNotes.filter(({ code }) => code === "capex-scope-unproven");
+const mixedEbay = (): Concepts => ({ ...ebay(), [DISCONTINUED_INVESTING]: [ebayFy(-30)] });
+
+describe("capital expenditure on the operating cash flow's scope", () => {
+  // HLIT FY2025 10-K (0001193125-26-067506): continuing OCF 105,434K, capex 11,080K unsplit beside discontinued investing −801K.
+  test("withholds HLIT FY2025 capex instead of subtracting 11,080K from continuing OCF", () => {
+    const artifact = statements({
+      RevenueFromContractWithCustomerExcludingAssessedTax: [hlitFy(360_523_000)],
+      [TOTAL_OCF]: [hlitFy(107_966_000)],
+      CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: [hlitFy(2_532_000)],
+      IncomeLossFromDiscontinuedOperationsNetOfTax: [hlitFy(-44_526_000)],
+      [CAPEX]: [hlitFy(11_080_000)],
+      [TOTAL_INVESTING]: [hlitFy(-11_080_000)],
+      [DISCONTINUED_INVESTING]: [hlitFy(-801_000)],
+    });
+
+    expect(capex(artifact)).toEqual([]);
+    expect(lensMetric(artifact, "freeCashFlowProxy")?.value).toBeUndefined();
+    expect(fcfMargin(artifact)?.value).toBeUndefined();
+  });
+
+  test("withholds capex beside discontinued investing, with a gap", () => {
+    const artifact = statements(mixedEbay());
+
+    expect(capex(artifact)).toEqual([]);
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(CAPEX_GAP);
+    expect(lensMetric(artifact, "freeCashFlowProxy")?.value).toBeUndefined();
+    expect(valuationPeriodInputs(artifact).periods[0]?.freeCashFlow).toBeUndefined();
+  });
+
+  test("publishes EBAY FY2025 capex without mixed-scope evidence, with a disclosed note", () => {
+    const artifact = statements(ebay());
+
+    expect(capex(artifact)).toEqual([expect.objectContaining({ value: 525_000_000 })]);
+    expect(unprovenNotes(artifact).map(({ message }) => message)).toEqual([CAPEX_NOTE]);
+    expect(operatingRatioNotes(artifact)?.map(({ message }) => message)).toContain(CAPEX_NOTE);
+    expect(lensMetric(artifact, "freeCashFlowProxy")?.value).toBe((2009 - 525) * 1_000_000);
+    expect(fcfMargin(artifact)?.value).toBeCloseTo((2009 - 525) / 11_100, 12);
+  });
+
+  test("ignores a zero discontinued investing fact", () => {
+    const artifact = statements({ ...ebay(), [DISCONTINUED_INVESTING]: [ebayFy(0)] });
+
+    expect(capex(artifact)).toHaveLength(1);
+    expect(unprovenNotes(artifact)).toHaveLength(1);
+  });
+
+  test("publishes linkbase-proven capex unqualified, even beside discontinued investing", () => {
+    const artifact = statements(mixedEbay(), undefined, [capexCalc(EBAY_10K)]);
+
+    expect(capex(artifact)).toEqual([expect.objectContaining({ value: 525_000_000 })]);
+    expect(unprovenNotes(artifact)).toEqual([]);
+    expect(lensMetric(artifact, "freeCashFlowProxy")?.value).toBe((2009 - 525) * 1_000_000);
+  });
+
+  test("reads tagged discontinued capex, another filing's evidence, and issuer extensions", () => {
+    const later = (val: number): Row => ({ ...ebayFy(val), filed: "2026-05-01", accn: "later" });
+    const extension: ExtendedEvidenceItem = {
+      ...capexCalc("0001065088-26-000099"),
+      metrics: {
+        "extensionDiscontinuedInvesting|ebay:PaymentsToAcquirePropertyAndEquipmentDiscontinuedOperations|2025-01-01|2025-12-31": 12,
+      },
+    };
+
+    expect(
+      capex(statements({ ...ebay(), CapitalExpenditureDiscontinuedOperations: [ebayFy(20)] })),
+    ).toEqual([]);
+    expect(capex(statements({ ...ebay(), [DISCONTINUED_INVESTING]: [later(-30)] }))).toEqual([]);
+    expect(capex(statements(ebay(), undefined, [extension]))).toEqual([]);
+  });
+
+  test("withholds mixed-scope capex the linkbase adds, places elsewhere, or proves for another filing", () => {
+    const withProof = (filing: ExtendedEvidenceItem) =>
+      capex(statements(mixedEbay(), undefined, [filing]));
+    const { [CONTINUING_INVESTING]: _subtotal, ...untagged } = mixedEbay();
+
+    expect(capex(statements(untagged, undefined, [capexCalc(EBAY_10K)]))).toEqual([]);
+    expect(withProof(capexCalc(EBAY_10K, 1))).toEqual([]);
+    expect(withProof(capexCalc(EBAY_10K, -1, "PaymentsToAcquireProductiveAssets"))).toEqual([]);
+    expect(withProof(capexCalc("0001065088-26-000099"))).toEqual([]);
+  });
+
+  test("withholds mixed-scope capex filed outside the OCF's filing even at the same value", () => {
+    const later = (val: number): Row => ({ ...ebayFy(val), filed: "2026-05-01", accn: "later" });
+    const artifact = statements({ ...mixedEbay(), [CAPEX]: [later(525)] }, undefined, [
+      capexCalc("later"),
+    ]);
+
+    expect(capex(artifact)).toEqual([]);
+  });
+
+  test("drops the legacy summary capex beside continuing OCF", () => {
+    expect(summarizeSecFundamentals(payload(ebay()), AS_OF)?.metrics.capex).toBeUndefined();
+  });
+
+  test("binds the proof only to a subtotal in the capex fact's unit", () => {
+    const filed = payload(mixedEbay()) as {
+      facts: { "us-gaap": Record<string, { units: Record<string, readonly Row[]> }> };
+    };
+    filed.facts["us-gaap"][CONTINUING_INVESTING] = { units: { EUR: [ebayFy(1450)] } };
+    const artifact = deriveFinancialStatements(filed, {
+      symbol: "EBAY",
+      generatedAt: AS_OF,
+      analysisAsOf: AS_OF,
+      sourceId: "sec-ebay",
+      secFilings: [capexCalc(EBAY_10K)],
+    });
+
+    expect(capex(artifact)).toEqual([]);
+  });
+
+  test("reads discontinued investing evidence in another currency", () => {
+    const filed = payload(ebay()) as {
+      facts: { "us-gaap": Record<string, { units: Record<string, readonly Row[]> }> };
+    };
+    filed.facts["us-gaap"][DISCONTINUED_INVESTING] = { units: { EUR: [ebayFy(-30)] } };
+    const artifact = deriveFinancialStatements(filed, {
+      symbol: "EBAY",
+      generatedAt: AS_OF,
+      analysisAsOf: AS_OF,
+      sourceId: "sec-ebay",
+    });
+
+    expect(capex(artifact)).toEqual([]);
+  });
+
+  // NBIS 2016: a later 20-F restates capex in RUB beside the USD series the linkbase proves.
+  test("ignores a later capex revision in another unit", () => {
+    const filed = payload(ebay()) as {
+      facts: { "us-gaap": Record<string, { units: Record<string, readonly Row[]> }> };
+    };
+    filed.facts["us-gaap"][CAPEX]!.units.RUB = [
+      { ...ebayFy(40_000), filed: "2026-03-01", accn: "later" },
+    ];
+    const artifact = deriveFinancialStatements(filed, {
+      symbol: "EBAY",
+      generatedAt: AS_OF,
+      analysisAsOf: AS_OF,
+      sourceId: "sec-ebay",
+      secFilings: [capexCalc(EBAY_10K)],
+    });
+
+    expect(capex(artifact)).toEqual([expect.objectContaining({ value: 525_000_000 })]);
+  });
+});
+
+function arc(from: string, to: string, weight: number) {
+  return `<link:calculationArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" xlink:from="${from}" xlink:to="${to}" weight="${weight}"/>`;
+}
+
+describe("continuing investing capex in a calculation linkbase", () => {
+  const linkbaseUrl = "https://www.sec.gov/Archives/edgar/data/1/0001/issuer_cal.xml";
+  const schema = {
+    url: "https://www.sec.gov/Archives/edgar/data/1/0001/issuer.xsd",
+    xml: `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://issuer.example/2025"><xs:element id="iss_Other" name="Other"/></xs:schema>`,
+  };
+  const calc = (xml: string) => secContinuingInvestingCalcMetrics(xml, linkbaseUrl, schema);
+  const fasb = "https://xbrl.fasb.org/us-gaap/2025/elts/us-gaap-2025.xsd";
+  const link = (arcs: string, href = fasb) =>
+    `<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:calculationLink xlink:type="extended" xlink:role="r">${[
+      "NetCashProvidedByUsedInInvestingActivities",
+      "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+      "PaymentsForProceedsFromOtherInvestingActivities",
+      CAPEX,
+    ]
+      .map(
+        (concept) =>
+          `<link:loc xlink:type="locator" xlink:label="${concept}" xlink:href="${href}#us-gaap_${concept}"/>`,
+      )
+      .join("")}${arcs}</link:calculationLink></link:linkbase>`;
+
+  test("reads AMD's FY2025 10-K PP&E line inside continuing investing", () => {
+    const xml = readFileSync(
+      new URL("fixtures/sec-reference-set/amd-10k-0000002488-26-000018.cal.xml", import.meta.url),
+      "utf8",
+    );
+
+    expect(calc(xml)).toEqual({
+      [`${CAPEX_CALC_PREFIX}${CAPEX}`]: -1,
+    });
+  });
+
+  test("composes nested weights and ignores capex outside the continuing subtotal", () => {
+    expect(
+      calc(
+        link(
+          arc(
+            "NetCashProvidedByUsedInInvestingActivities",
+            "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+            1,
+          ) + arc("NetCashProvidedByUsedInInvestingActivities", CAPEX, -1),
+        ),
+      ),
+    ).toEqual({});
+    expect(
+      calc(
+        link(
+          arc(
+            "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+            "PaymentsForProceedsFromOtherInvestingActivities",
+            -1,
+          ) + arc("PaymentsForProceedsFromOtherInvestingActivities", CAPEX, 1),
+        ),
+      ),
+    ).toEqual({ [`${CAPEX_CALC_PREFIX}${CAPEX}`]: -1 });
+  });
+
+  test("a second path, a cycle or an unverified locator proves nothing", () => {
+    const direct = arc("NetCashProvidedByUsedInInvestingActivitiesContinuingOperations", CAPEX, -1);
+    expect(calc(link(direct))).toEqual({ [`${CAPEX_CALC_PREFIX}${CAPEX}`]: -1 });
+    expect(
+      calc(
+        link(
+          direct +
+            arc(
+              "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+              "PaymentsForProceedsFromOtherInvestingActivities",
+              1,
+            ) +
+            arc("PaymentsForProceedsFromOtherInvestingActivities", CAPEX, 1),
+        ),
+      ),
+    ).toEqual({});
+    expect(
+      calc(
+        link(
+          arc("PaymentsForProceedsFromOtherInvestingActivities", CAPEX, -1) +
+            arc(
+              "NetCashProvidedByUsedInInvestingActivities",
+              "PaymentsForProceedsFromOtherInvestingActivities",
+              1,
+            ) +
+            arc(
+              "PaymentsForProceedsFromOtherInvestingActivities",
+              "NetCashProvidedByUsedInInvestingActivities",
+              1,
+            ),
+        ),
+      ),
+    ).toEqual({});
+    expect(calc(link(direct, "issuer.xsd"))).toEqual({});
+    expect(
+      calc(
+        link(
+          arc("NetCashProvidedByUsedInInvestingActivitiesContinuingOperations", CAPEX, -1).replace(
+            'weight="-1"',
+            'weight="-1.00000000000000001"',
+          ),
+        ),
+      ),
+    ).toEqual({});
+  });
+
+  test("a path split across calculation roles proves nothing", () => {
+    const role = (name: string, arcs: string) =>
+      link(arcs).replace('xlink:role="r"', `xlink:role="${name}"`);
+    const [a, b] = [
+      role("a", arc("PaymentsForProceedsFromOtherInvestingActivities", CAPEX, 1)),
+      role(
+        "b",
+        arc(
+          "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+          "PaymentsForProceedsFromOtherInvestingActivities",
+          -1,
+        ),
+      ),
+    ];
+    const merged = a.replace("</link:linkbase>", "") + b.slice(b.indexOf("<link:calculationLink"));
+    expect(calc(merged)).toEqual({});
+    expect(calc(merged.replace(`xlink:role="b"`, `xlink:role="a"`))).toEqual({
+      [`${CAPEX_CALC_PREFIX}${CAPEX}`]: -1,
+    });
+  });
+});
+
+function annualOcf(artifact: FinancialStatementsArtifact) {
+  return artifact.statements.cashFlowStatement.operatingCashFlow.annual;
+}
+
+describe("IFRS operating cash flow in a period with discontinued operations", () => {
+  const ifrs = (extra: Concepts) =>
+    scoped(
+      "ifrs-full",
+      filings(
+        {
+          Revenue: flows(1000),
+          CashFlowsFromUsedInOperatingActivities: flows(300),
+          PurchaseOfPropertyPlantAndEquipment: flows(100),
+          ...extra,
+        },
+        (fp) => (fp === "FY" ? "20-F" : "6-K"),
+      ),
+    );
+
+  test("withholds the total-operations amount with a gap", () => {
+    const artifact = ifrs({ ProfitLossFromDiscontinuedOperations: [fy25(-7)] });
+
+    expect(annualOcf(artifact)).toEqual([]);
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
+      "SEC operating cash flow is not derived for 2024-10-01 to 2025-09-30: discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged",
+    );
+  });
+
+  test("withholds it on discontinued cash flow even when the discontinued result is zero", () => {
+    const artifact = ifrs({
+      ProfitLossFromDiscontinuedOperations: [fy25(0)],
+      CashFlowsFromUsedInOperatingActivitiesDiscontinuedOperations: [fy25(12)],
+    });
+
+    expect(annualOcf(artifact)).toEqual([]);
+  });
+
+  test("takes the tagged continuing amount, and notes or withholds capex beside it", () => {
+    const continuing = {
+      ProfitLossFromDiscontinuedOperations: [fy25(-7)],
+      CashFlowsFromUsedInOperatingActivitiesContinuingOperations: [fy25(280)],
+    };
+    const artifact = ifrs(continuing);
+
+    expect(annualOcf(artifact)).toEqual([expect.objectContaining({ value: 280 })]);
+    expect(conceptScope(annualOcf(artifact)[0]!.concept)).toBe("continuing operations");
+    expect(capex(artifact)).toEqual([expect.objectContaining({ value: 100 })]);
+    expect(unprovenNotes(artifact)).toHaveLength(1);
+    expect(
+      capex(
+        ifrs({
+          ...continuing,
+          CashFlowsFromUsedInInvestingActivitiesDiscontinuedOperations: [fy25(-15)],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  test("takes a differing continuing amount without discontinued markers, and gates capex on discontinued investing", () => {
+    const continuing = { CashFlowsFromUsedInOperatingActivitiesContinuingOperations: [fy25(280)] };
+
+    expect(annualOcf(ifrs(continuing))).toEqual([expect.objectContaining({ value: 280 })]);
+    expect(unprovenNotes(ifrs(continuing))).toHaveLength(1);
+    const mixed = ifrs({
+      ...continuing,
+      ProfitLossFromDiscontinuedOperations: [fy25(0)],
+      CashFlowsFromUsedInInvestingActivitiesDiscontinuedOperations: [fy25(-20)],
+    });
+    expect(annualOcf(mixed)).toEqual([expect.objectContaining({ value: 280 })]);
+    expect(capex(mixed)).toEqual([]);
+  });
+
+  test("withholds a continuing amount older than the newest total", () => {
+    const artifact = ifrs({
+      ProfitLossFromDiscontinuedOperations: [fy25(-7)],
+      CashFlowsFromUsedInOperatingActivitiesContinuingOperations: [fy25(280)],
+      CashFlowsFromUsedInOperatingActivities: [
+        ...flows(300),
+        { ...fy25(330), form: "20-F", filed: "2026-01-15", accn: "recast" },
+      ],
+    });
+
+    expect(annualOcf(artifact)).toEqual([]);
+    expect(financialStatementsHistoryGaps(artifact).map((gap) => gap.message)).toContain(
+      "SEC operating cash flow is not derived for 2024-10-01 to 2025-09-30: continuing-operations operating cash flow is older than the newest total for the period",
+    );
+  });
+
+  test("keeps it when no discontinued result or cash flow is reported", () => {
+    expect(annualOcf(ifrs({ ProfitLossFromDiscontinuedOperations: [fy25(0)] }))).toEqual([
+      expect.objectContaining({ value: 300 }),
+    ]);
+  });
+});
+
 describe("first-public dating across equivalent HLIT concepts", () => {
   const fy = (start: string, end: string, accn: string, filed: string) => (val: number) =>
     ({ val, start, end, form: "10-K", fy: 2020, fp: "FY", filed, accn }) satisfies Row;

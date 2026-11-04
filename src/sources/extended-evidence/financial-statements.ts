@@ -11,8 +11,9 @@ import {
   DA_CASH_FLOW_FACT_PREFIX,
   EXTENSION_CAPEX_CHECKED_KEY,
   EXTENSION_CAPEX_FACT_PREFIX,
+  EXTENSION_DISCONTINUED_INVESTING_PREFIX,
 } from "../sec-segment-facts";
-import { DA_CALC_PREFIX, DA_CALC_READ_KEY } from "../sec-calculation-linkbase";
+import { CAPEX_CALC_PREFIX, DA_CALC_PREFIX, DA_CALC_READ_KEY } from "../sec-calculation-linkbase";
 import {
   EXTENSION_INVESTMENTS_SOURCE_INFIX,
   EXTENSION_SHORT_TERM_INVESTMENTS_PREFIX,
@@ -27,8 +28,11 @@ import {
   TOTAL_NONCONTROLLING_INCOME_CONCEPTS,
   DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  IFRS_DISCONTINUED_OPERATIONS_CONCEPTS,
   MIN_ANNUAL_DURATION_MONTHS,
   MAX_ANNUAL_DURATION_MONTHS,
+  conceptScope,
+  isContinuingScope,
   isDebtPresenceConcept,
   isRevenueConceptInRecencyBucket,
   type FinancialStatementSeriesDefinition,
@@ -854,6 +858,7 @@ interface DerivedSeriesFacts {
   readonly facts: readonly ParsedFact[];
   readonly withheld: readonly WithheldDerivation[];
   readonly superseded?: ReadonlySet<string>;
+  readonly notes?: readonly FinancialStatementNote[];
 }
 
 const NO_DERIVED_FACTS: DerivedSeriesFacts = { facts: [], withheld: [] };
@@ -1064,6 +1069,8 @@ const CONTINUING_OPERATING_CASH_FLOW_CONCEPT =
   "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";
 const DISCONTINUED_OPERATING_CASH_FLOW_CONCEPT =
   "CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations";
+const DISCONTINUED_OPERATIONS_CASH_FLOW_REASON =
+  "discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged";
 
 // ASC 205-20: continuing OCF where tagged; a total amount stands in only for a period with no discontinued operations.
 function scopeAlignedOperatingCashFlow(
@@ -1140,12 +1147,7 @@ function scopeAlignedOperatingCashFlow(
     }
     if (discontinued.has(key)) {
       if (!withheld.some((period) => period.periodKey === key)) {
-        withheld.push(
-          withheldPeriod(
-            fact,
-            "discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged",
-          ),
-        );
+        withheld.push(withheldPeriod(fact, DISCONTINUED_OPERATIONS_CASH_FLOW_REASON));
       }
       continue;
     }
@@ -1157,6 +1159,213 @@ function scopeAlignedOperatingCashFlow(
     withheld: withheld.filter((period) => !derived.has(period.periodKey)),
     datingAliases: continuing.filter((fact) => !discontinued.has(periodKey(fact))),
   };
+}
+
+const IFRS_CONTINUING_OPERATING_CASH_FLOW_CONCEPT =
+  "CashFlowsFromUsedInOperatingActivitiesContinuingOperations";
+
+// IFRS 5.33(c): a period with discontinued operations, or a tagged continuing OCF that differs from total, takes
+// That continuing OCF when it is as current as the total, else is withheld.
+function discontinuedIfrsOperatingCashFlow(
+  payload: unknown,
+  definition: FinancialStatementSeriesDefinition,
+  reported: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+): DerivedSeriesFacts | undefined {
+  const root = taxonomyRoot(payload, "ifrs-full");
+  if (definition.key !== "operatingCashFlow" || root === undefined) {
+    return undefined;
+  }
+  const discontinued = new Set(
+    [...IFRS_DISCONTINUED_OPERATIONS_CONCEPTS, ...DISCONTINUED_INVESTING_CONCEPTS["ifrs-full"]]
+      .flatMap((concept) => unitFacts("ifrs-full", root, concept))
+      .filter((fact) => eligible(fact) && fact.value !== 0)
+      .map((fact) => periodKey(fact)),
+  );
+  const continuing = latestByPeriod(
+    unitFacts("ifrs-full", root, IFRS_CONTINUING_OPERATING_CASH_FLOW_CONCEPT).filter(eligible),
+  );
+  const totals = latestByPeriod(reported.filter(eligible));
+  const scoped = [...new Set([...totals.keys(), ...continuing.keys()])].filter(
+    (key) =>
+      discontinued.has(key) ||
+      (continuing.has(key) &&
+        totals.has(key) &&
+        continuing.get(key)!.value !== totals.get(key)!.value),
+  );
+  const current = (key: string) => {
+    const [flow, total] = [continuing.get(key), totals.get(key)];
+    return flow !== undefined && (total === undefined || flow.filedAt >= total.filedAt);
+  };
+  return {
+    facts: scoped.filter(current).map((key) => continuing.get(key)!),
+    withheld: scoped
+      .filter((key) => !current(key))
+      .map((key) =>
+        withheldPeriod(
+          totals.get(key)!,
+          continuing.has(key)
+            ? "continuing-operations operating cash flow is older than the newest total for the period"
+            : DISCONTINUED_OPERATIONS_CASH_FLOW_REASON,
+        ),
+      ),
+    superseded: new Set(scoped),
+  };
+}
+
+function latestByPeriod(facts: readonly ParsedFact[]): Map<string, ParsedFact> {
+  const latest = new Map<string, ParsedFact>();
+  for (const fact of facts) {
+    const current = latest.get(periodKey(fact));
+    if (current === undefined || compareFinancialStatementRevisions(fact, current) < 0) {
+      latest.set(periodKey(fact), fact);
+    }
+  }
+  return latest;
+}
+
+// Accession -> capex concepts its calculation linkbase subtracts inside the continuing-operations investing subtotal.
+function continuingInvestingCapex(
+  filings: readonly ExtendedEvidenceItem[],
+): ReadonlyMap<string, ReadonlySet<string>> {
+  return new Map(
+    filings.flatMap(({ metrics }) =>
+      metrics === undefined
+        ? []
+        : [
+            [
+              String(metrics.accessionNumber),
+              new Set(
+                Object.entries(metrics).flatMap(([key, weight]) =>
+                  key.startsWith(CAPEX_CALC_PREFIX) && weight === -1
+                    ? [key.slice(CAPEX_CALC_PREFIX.length)]
+                    : [],
+                ),
+              ),
+            ] as const,
+          ],
+    ),
+  );
+}
+
+const DISCONTINUED_INVESTING_CONCEPTS: Readonly<
+  Record<FinancialStatementTaxonomy, readonly string[]>
+> = {
+  "us-gaap": [
+    "CapitalExpenditureDiscontinuedOperations",
+    "CashProvidedByUsedInInvestingActivitiesDiscontinuedOperations",
+  ],
+  "ifrs-full": ["CashFlowsFromUsedInInvestingActivitiesDiscontinuedOperations"],
+};
+
+// Periods with a nonzero discontinued-operations capex or investing fact, tagged or issuer-extension, from any filing.
+function discontinuedInvestingPeriods(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  observable: (fact: ParsedFact) => boolean,
+  filings: readonly ExtendedEvidenceItem[],
+): ReadonlySet<string> {
+  const root = taxonomyRoot(payload, taxonomy);
+  const tagged = (root === undefined ? [] : DISCONTINUED_INVESTING_CONCEPTS[taxonomy])
+    .flatMap((concept) => unitFacts(taxonomy, root!, concept))
+    .filter((fact) => observable(fact) && fact.value !== 0)
+    .map((fact) => `${String(fact.periodStart)}|${fact.periodEnd}`);
+  const extensions = filings.flatMap(({ metrics }) =>
+    Object.entries(metrics ?? {}).flatMap(([key, value]) => {
+      if (!key.startsWith(EXTENSION_DISCONTINUED_INVESTING_PREFIX) || value === 0) {
+        return [];
+      }
+      const [, start, end] = key.slice(EXTENSION_DISCONTINUED_INVESTING_PREFIX.length).split("|");
+      return [`${String(start)}|${String(end)}`];
+    }),
+  );
+  return new Set([...tagged, ...extensions]);
+}
+
+// Beside continuing OCF: a linkbase-proven same-filing capex line is unqualified, discontinued investing evidence without that proof withholds, else the filed line carries a `capex-scope-unproven` note.
+function scopeMatchedCapexFacts(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  reported: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+  observable: (fact: ParsedFact) => boolean,
+  filings: readonly ExtendedEvidenceItem[],
+): DerivedSeriesFacts {
+  const operatingCashFlow = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    ({ key }) => key === "operatingCashFlow",
+  );
+  if (operatingCashFlow === undefined) {
+    return NO_DERIVED_FACTS;
+  }
+  const flows =
+    taxonomy === "us-gaap"
+      ? scopeAlignedOperatingCashFlow(payload, operatingCashFlow, eligible).facts
+      : (discontinuedIfrsOperatingCashFlow(
+          payload,
+          operatingCashFlow,
+          factsForDefinition(payload, taxonomy, operatingCashFlow, eligible),
+          eligible,
+        )?.facts ?? []);
+  const continuing = latestByPeriod(
+    flows.filter((fact) => isContinuingScope(conceptScope(fact.concept))),
+  );
+  const proven = continuingInvestingCapex(filings);
+  const gaapRoot = taxonomyRoot(payload, "us-gaap");
+  // The linkbase arc binds only where the filing also tags the continuing subtotal for the same period.
+  const subtotals = new Set(
+    (gaapRoot === undefined
+      ? []
+      : unitFacts(
+          "us-gaap",
+          gaapRoot,
+          "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+        )
+    )
+      .filter(eligible)
+      .map((fact) => `${String(fact.accessionNumber)}|${periodKey(fact)}|${fact.unit}`),
+  );
+  const mixed = discontinuedInvestingPeriods(payload, taxonomy, observable, filings);
+  const filed = latestByPeriod(
+    reported.filter((fact) => eligible(fact) && continuing.has(periodKey(fact))),
+  );
+  const facts: ParsedFact[] = [];
+  const withheld: WithheldDerivation[] = [];
+  const notes: FinancialStatementNote[] = [];
+  const superseded = new Set<string>();
+  for (const [key, flow] of continuing) {
+    const capex = reported.find(
+      (fact) =>
+        eligible(fact) &&
+        periodKey(fact) === key &&
+        fact.accessionNumber !== null &&
+        fact.accessionNumber === flow.accessionNumber &&
+        subtotals.has(`${fact.accessionNumber}|${key}|${fact.unit}`) &&
+        proven.get(fact.accessionNumber)?.has(fact.concept) === true,
+    );
+    const latest = filed.get(key);
+    if (capex !== undefined) {
+      facts.push(capex);
+      superseded.add(key);
+    } else if (latest === undefined) {
+      continue;
+    } else if (mixed.has(`${String(latest.periodStart)}|${latest.periodEnd}`)) {
+      superseded.add(key);
+      withheld.push(
+        withheldPeriod(
+          latest,
+          "operating cash flow is continuing operations, discontinued-operations investing cash flow is reported for the period, and no calculation linkbase places capital expenditure inside the continuing-operations investing subtotal",
+        ),
+      );
+    } else {
+      notes.push({
+        code: "capex-scope-unproven",
+        seriesKey: "capitalExpenditure",
+        periodKey: key,
+        message: `SEC capital expenditure for ${String(latest.periodStart)} to ${latest.periodEnd} is the filed line beside continuing-operations operating cash flow; no calculation linkbase proves it is continuing-operations only, and no discontinued-operations investing is reported for the period`,
+      });
+    }
+  }
+  return { facts, withheld, superseded, notes };
 }
 
 // A same-filing pair fills a period with no total, or restates one when its filing tags no total and is newer than every total.
@@ -2443,11 +2652,20 @@ function selectSeries(
   const derived =
     operatingCashFlow !== undefined
       ? { facts: [], withheld: operatingCashFlow.withheld }
-      : taxonomy === "us-gaap"
-        ? derivedSeriesFacts(payload, definition, reported, eligible, (fact) =>
-            isObservable(fact, input.analysisAsOf),
+      : definition.key === "capitalExpenditure"
+        ? scopeMatchedCapexFacts(
+            payload,
+            taxonomy,
+            reported,
+            eligible,
+            (fact) => isObservable(fact, input.analysisAsOf),
+            input.secFilings ?? [],
           )
-        : undefined;
+        : taxonomy === "us-gaap"
+          ? derivedSeriesFacts(payload, definition, reported, eligible, (fact) =>
+              isObservable(fact, input.analysisAsOf),
+            )
+          : discontinuedIfrsOperatingCashFlow(payload, definition, reported, eligible);
   const basis = [
     ...reported.filter((fact) => derived?.superseded?.has(periodKey(fact)) !== true),
     ...(derived?.facts ?? []),
@@ -2477,6 +2695,7 @@ function selectSeries(
       omissionNotes: [
         ...selected.omissionNotes,
         ...(depreciationAndAmortization?.notes ?? []),
+        ...(derived?.notes ?? []),
         ...revenueConceptSwitchNotes(payload, taxonomy, definition, eligible),
         ...(operatingCashFlow === undefined
           ? staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible)

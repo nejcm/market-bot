@@ -282,6 +282,7 @@ export interface FinancialStatementNote {
     | "unchecked-extension-capex"
     | "unreconciled-component"
     | "unchecked-component-sum"
+    | "capex-scope-unproven"
     | "stale-instant-series"
     | "stale-concept-history"
     | "withheld-derivation"

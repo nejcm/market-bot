@@ -62,6 +62,7 @@ import {
 import {
   DA_CALC_READ_KEY,
   schemaCalculation,
+  secContinuingInvestingCalcMetrics,
   secDepreciationCalcMetrics,
   extensionSchema,
   summationParents,
@@ -265,7 +266,7 @@ async function fetchDepreciationCalc(
   if (filing.form !== "10-K") {
     return { metrics: {}, rawSnapshots: [], gaps: [] };
   }
-  const { xml, ambiguous, rawSnapshots, gaps } = await fetchCalculationLinkbase(
+  const { xml, xmlUrl, schema, ambiguous, rawSnapshots, gaps } = await fetchCalculationLinkbase(
     ctx,
     xbrlSchemaHref(html),
     `${filingBaseUrl(String(Number(cik)), filing.accessionNumber)}/${filing.primaryDocument}`,
@@ -278,7 +279,12 @@ async function fetchDepreciationCalc(
           ? { [DA_CALC_READ_KEY]: "conflict" }
           : xml === undefined
             ? {}
-            : secDepreciationCalcMetrics(xml),
+            : {
+                ...secDepreciationCalcMetrics(xml),
+                ...(xmlUrl === undefined || schema === undefined
+                  ? {}
+                  : secContinuingInvestingCalcMetrics(xml, xmlUrl, schema)),
+              },
     rawSnapshots,
     gaps,
   };

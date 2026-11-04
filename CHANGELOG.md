@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.1](https://github.com/nejcm/market-bot/compare/v1.12.0...v1.12.1) (2026-11-04)
+
+### Bug Fixes
+
+- **sec:** withhold FCF when capex scope can't match continuing cash flow (#127) ([806a14a](https://github.com/nejcm/market-bot/commit/806a14ae623e8ebd1f2eb01392f8033b99d79236))
+
 ## [1.12.0](https://github.com/nejcm/market-bot/compare/v1.11.2...v1.12.0) (2026-11-04)
 
 ### Features

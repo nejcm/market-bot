@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.0](https://github.com/nejcm/market-bot/compare/v1.11.2...v1.12.0) (2026-11-04)
+
+### Features
+
+- **sec:** add value-level ledger and diff to sweep:sec (#125) ([c3afc11](https://github.com/nejcm/market-bot/commit/c3afc11fa8610aed4b305821f19a5b3f7432c3c7))
+
 ## [1.11.2](https://github.com/nejcm/market-bot/compare/v1.11.1...v1.11.2) (2026-11-04)
 
 ### Bug Fixes

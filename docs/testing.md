@@ -159,7 +159,8 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-iren-deep/` (captured live replay: issuer-extension capex withheld)
 - `tests/fixtures/runs/equity-iren-brief/` (captured live replay: brief-run extension-capex check)
 - `tests/fixtures/runs/clfd-zero-debt/` (captured live replay: Tagged Zero Debt at three CLFD 10-Q instants)
-- `tests/fixtures/runs/equity-amd-deep/`
+- `tests/fixtures/runs/ebay-extension-investments/` (captured live replay: Extension Short-Term Investments, EBAY 10-Q 809M at 2026-09-30)
+- `tests/fixtures/runs/equity-amd-deep/` (captured live replay: AMD deep, FY2025 10-K calculation linkbase)
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
 rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source
@@ -324,33 +325,22 @@ recorded selected output, with another 25% headroom. The plan also prints an exp
 the sum over observed preflight calls of measured input plus recorded output (or the recorded
 token estimate when larger), without headroom. A whole-run plan prints no expected figure. This is a planning estimate, not a
 provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
-differ from preflight. A zero-call preflight is disclosed. Only recorded fixtures
-(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real upstream
-outputs; AMD remains incomplete as described below, and `eval-deep` rejects `incomplete` fixtures
-before any replay.
+differ from preflight. A zero-call preflight is disclosed. Only captured fixtures
+(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`, `equity-nbis-deep`)
+carry real upstream outputs, and `eval-deep` rejects `incomplete` fixtures before any replay.
 
 The existing estimate-first workflow still applies: inspect the estimate, obtain explicit approval
 for that batch, then use the same invocation with `--yes`. No additional spending entry point was
 introduced. Selected offline tests require an injected fake provider and cannot construct an
 ambient live provider.
 
-`equity-amd-deep` is an eval-only fixture. Unlike the fixtures listed above, it is not replayed by
-`bun run check` and carries no invariant assertions because it fails invariant C15. Since
-`bd4d4aa2` the replay requests the Q2 8-K EX-99.1 (`q22026991.htm`), which the source run never
-fetched, so the cassette misses it and the Item 2.02 evidence falls back to the EX-99.2 slide-deck
-snippet, which stops before any results content. The AMD peer roster has since grown past the
-recorded `NVDA,AVGO,INTC`, so the batched Yahoo peer-quote request and the new peers' SEC requests
-also miss and replay leaves no usable valuation peers. Rebuild it with `scripts/fixture-from-cache.ts` from
-a later AMD deep run that has cached the EX-99.1; the converter keeps same-day cache entries fetched
-at or before the run's start (latest per request), but it reproduces neither historical context nor a
-reused profile's sources, so a source run whose recorded final synthesis cites either will not
-convert.
-`scripts/fixture-from-cache.ts` converted it offline from that run's `data/cache` entries and
-`stages.json`, throwing on any request without a cache hit. It is not a faithful replay: the
-web-subject-profile output is borrowed from an earlier run, history and news-seen state are empty,
-Yahoo news requests 8 items where the run cached 15, FRED, Marketaux, and Massive are unconfigured
-(Evidence Quality medium instead of high), and Finnhub endpoints that returned 403 replay as cassette
-misses. Its `meta.json` `note` records the same.
+`equity-amd-deep` is the captured replay of AMD deep run `2026-11-02T12-47-02-362Z-b57f22b6`
+(`MARKET_BOT_CAPTURE_REPLAY=1`), copied from its `replay/` directory; it records the FY2025 10-K
+`sec-xbrl-schema` and `sec-calculation-linkbase` requests and is replayed by `bun run check` like the
+other captured fixtures. `equity-depository-deep` (BNS, `2026-11-03T21-32-33-360Z-f3c778db`),
+`equity-nbis-deep` (`2026-11-03T21-35-57-812Z-b0ffa72b`) and `equity-earnings-release-deep` (AAPL,
+`2026-11-03T21-41-11-499Z-319ed4c4`) are captured the same way; the production-capture test in
+`tests/replay-capture.test.ts` injects its 503s into `equity-analysis-comprehensive` instead.
 
 Without `--yes` it prints the planned run count and token estimate and stops. An existing label or
 sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, `threw`,
@@ -620,8 +610,6 @@ and distinct SPY and QQQ benchmark bodies (`BENCHMARK_SEED = 18`, `QQQ_SEED = 19
 `equity-fpi-ifrs-semiannual`, and `equity-web-fallback-deep`. Do not re-record these chart entries
 independently: preserve the existing chart bodies when updating unrelated cassette data, and use the generator only for an
 intentional shared price-path change before replaying all seven fixtures.
-
-Injected faults, pending recapture: the QQQ chart entries in `equity-nbis-deep`, `equity-depository-deep` and `equity-earnings-release-deep` are hand-added synthetic `503 Fixture provider unavailable` responses, not observed Yahoo output.
 
 ## Fixture maintenance rules
 

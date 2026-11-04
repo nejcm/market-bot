@@ -29,6 +29,7 @@ function captureCtx(captured: {
   readonly ctx: CollectContext;
 } {
   const executor: SourceRequestExecutor = {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async ({ url, adapter, init }) => {
       captured.adapter = adapter;
       captured.url = url;

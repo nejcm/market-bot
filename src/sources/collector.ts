@@ -270,6 +270,7 @@ export interface CollectSourcesRuntimeOptions {
   readonly retryDelaysMs?: readonly number[];
   readonly peerUniverse?: PeerUniverseSeam;
   readonly taggedZeroDebtDisabled?: boolean;
+  readonly extensionShortTermInvestmentsDisabled?: boolean;
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly collectTradierTermStructure?: boolean;
 }
@@ -290,10 +291,13 @@ export async function collectSources(
     requestFetchImpl,
     requestRetryDelaysMs,
   );
-  const ctx: CollectContext =
-    runtime.taggedZeroDebtDisabled === true
-      ? { ...context, taggedZeroDebtDisabled: true }
-      : context;
+  const ctx: CollectContext = {
+    ...context,
+    ...(runtime.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+    ...(runtime.extensionShortTermInvestmentsDisabled === true
+      ? { extensionShortTermInvestmentsDisabled: true }
+      : {}),
+  };
 
   progress("collecting sources");
   const registry = createSourceRegistry();

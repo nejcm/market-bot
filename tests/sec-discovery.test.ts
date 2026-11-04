@@ -54,6 +54,7 @@ function entry(input: {
 
 function requestExecutor(): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async ({ adapter }) => jsonResult(adapter, tickersPayload()),
     text: async ({ adapter, url }) => {
       if (url.includes("type=S-1")) {
@@ -194,6 +195,7 @@ describe("SEC alpha-search discovery", () => {
       formTypes: ["8-K"],
       candidateLimit: 10,
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async ({ adapter }) => jsonResult(adapter, tickersPayload()),
         text: async () => ({
           source: "sec-alpha-search-current-8-k",
@@ -214,6 +216,7 @@ describe("SEC alpha-search discovery", () => {
       formTypes: ["8-K"],
       candidateLimit: 10,
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async ({ adapter }) => jsonResult(adapter, { bad: "shape" }),
         text: async () => {
           throw new Error("unexpected text fetch");
@@ -224,6 +227,7 @@ describe("SEC alpha-search discovery", () => {
       formTypes: ["8-K"],
       candidateLimit: 10,
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async ({ adapter }) => jsonResult(adapter, tickersPayload()),
         text: async ({ adapter }) => textResult(adapter, "<html>not atom</html>"),
       },

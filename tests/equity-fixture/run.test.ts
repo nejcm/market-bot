@@ -5,6 +5,7 @@ import type { ModelRequest } from "../../src/model/types";
 import {
   assertComprehensiveAnalysisPath,
   assertClfdTaggedZeroDebt,
+  assertEbayExtensionShortTermInvestments,
   assertCurrencyConvertedValuation,
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
@@ -53,6 +54,8 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-iren-deep": ["complete", "substantial"],
   "equity-iren-brief": ["complete", "limited"],
   "clfd-zero-debt": ["complete", "limited"],
+  "ebay-extension-investments": ["complete", "substantial"],
+  "equity-amd-deep": ["complete", "substantial"],
 } as const;
 
 // Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
@@ -69,16 +72,16 @@ const EXPECTED_EVENT_GRID: Record<
   ],
   "equity-aapl-deep": [],
   "equity-earnings-release-deep": [
-    ["grid-range-1", 0.4911],
-    ["grid-range-5", 0.374],
-    ["grid-range-20", 0.3419],
-    ["grid-relative-5", null],
+    ["grid-range-1", 0.3393],
+    ["grid-range-5", 0.3395],
+    ["grid-range-20", 0.3395],
+    ["grid-relative-5", 0.5],
   ],
   "equity-nbis-deep": [
-    ["grid-range-1", 0.5108],
-    ["grid-range-5", 0.3958],
-    ["grid-range-20", 0.3641],
-    ["grid-relative-5", null],
+    ["grid-range-1", 0.3542],
+    ["grid-range-5", 0.3543],
+    ["grid-range-20", 0.3544],
+    ["grid-relative-5", 0.5],
   ],
   "equity-fpi-quarterly": [],
   "equity-fpi-ifrs-semiannual": [],
@@ -96,10 +99,10 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-relative-5", 0.5],
   ],
   "equity-depository-deep": [
-    ["grid-range-1", 0.4547],
-    ["grid-range-5", 0.3333],
-    ["grid-range-20", 0.3012],
-    ["grid-relative-5", null],
+    ["grid-range-1", 0.3241],
+    ["grid-range-5", 0.3235],
+    ["grid-range-20", 0.3241],
+    ["grid-relative-5", 0.5],
   ],
   "equity-iren-deep": [
     ["grid-range-1", 0.5327],
@@ -117,6 +120,18 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-1", 0.4952],
     ["grid-range-5", 0.3785],
     ["grid-range-20", 0.3461],
+    ["grid-relative-5", 0.5],
+  ],
+  "ebay-extension-investments": [
+    ["grid-range-1", 0.4997],
+    ["grid-range-5", 0.3827],
+    ["grid-range-20", 0.351],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-amd-deep": [
+    ["grid-range-1", 0.5527],
+    ["grid-range-5", 0.4435],
+    ["grid-range-20", 0.4127],
     ["grid-relative-5", 0.5],
   ],
 };
@@ -224,12 +239,6 @@ test("fixture invariants preserve quoted metric tokens and escape them in markdo
 });
 
 describe("static equity run fixtures", () => {
-  test("keeps the incomplete AMD recording outside the regression fixture roster", async () => {
-    const fixture = await loadFixture("equity-amd-deep");
-    expect(fixture.meta.replayClassification).toBe("incomplete");
-    expect(EQUITY_RUN_FIXTURES.some((name) => name === fixture.name)).toBe(false);
-  });
-
   for (const name of EQUITY_RUN_FIXTURES) {
     test(`${name} replays through the real equity pipeline`, async () => {
       const fixture = await loadFixture(name);
@@ -262,10 +271,11 @@ describe("static equity run fixtures", () => {
               ).find(({ id }) => id === "segment-results");
               expect(segments?.metrics).toContainEqual(
                 expect.objectContaining({
+                  // FY2026 10-K 0000320193-26-000026: Americas operating income 86,008 / net sales 198,083.
                   reference:
-                    "<<metric:segment-results.aapl_AmericasSegmentMember-2026-03-29-2026-06-27-margin>>",
+                    "<<metric:segment-results.aapl_AmericasSegmentMember-2025-09-28-2026-09-26-margin>>",
                   status: "value",
-                  value: "47.4%",
+                  value: "43.4%",
                 }),
               );
               const geography = (
@@ -457,6 +467,9 @@ describe("static equity run fixtures", () => {
       if (name === "clfd-zero-debt") {
         assertClfdTaggedZeroDebt(result);
       }
+      if (name === "ebay-extension-investments") {
+        assertEbayExtensionShortTermInvestments(result);
+      }
       if (name === "equity-iren-brief") {
         assertIrenExtensionCapexWithheld(result);
         const filing = result.report.sources.find(({ id }) => id === "extended-sec-edgar-iren-10k");
@@ -489,20 +502,6 @@ describe("static equity run fixtures", () => {
         assertDepositoryEnterpriseValueAbsent(result);
         assertCurrencyConvertedValuation(result);
         assertMarketRegimeRendered(result);
-      }
-      if (
-        ["equity-depository-deep", "equity-earnings-release-deep", "equity-nbis-deep"].includes(
-          name,
-        )
-      ) {
-        expect(result.collectedSources.sourceGaps).toContainEqual(
-          expect.objectContaining({
-            source: "yahoo-price-history",
-            symbol: "SPY",
-            cause: "fetch-failed",
-            message: expect.stringContaining("503"),
-          }),
-        );
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);

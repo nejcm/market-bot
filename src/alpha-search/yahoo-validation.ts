@@ -299,7 +299,7 @@ export async function crossCheckAlphaSearchCandidatesWithYahoo(input: {
   const fallback = await fetchMassiveQuoteFallback(
     symbols,
     input.massiveApiKey,
-    fetch,
+    input.request.fetch,
     input.fetchedAt,
     { enrichTickerDetails: true },
   );

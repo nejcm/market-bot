@@ -1159,26 +1159,27 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
   "equity-aapl-brief": {},
   "equity-aapl-deep": AAPL_LENS_VALUES,
   "equity-earnings-release-deep": {
-    grossMargin: 0.490_678_098_677_945,
-    operatingMargin: 0.336_022_088_226_656_8,
-    netMargin: 0.278_474_133_885_173_06,
-    freeCashFlowProxy: 110_197_000_000,
-    cashConversion: 1.153_078_924_544_666,
-    roe: 1.258_234_126_984_126_8,
-    roa: 0.352_980_262_620_042_8,
-    revenueDeltaPercent: 16.150_082_086_102_742,
-    grossProfitDeltaPercent: 21.736_347_541_876_615,
-    operatingIncomeDeltaPercent: 21.673_971_159_675_222,
-    netIncomeDeltaPercent: 20.013_247_539_742_62,
-    dilutedEpsDeltaPercent: 22.419_928_825_622_77,
-    operatingCashFlowDeltaPercent: 43.107_370_893_167_31,
-    capexDeltaPercent: -28.227_594_215_137_756,
-    cash: 39_544_000_000,
-    debt: 84_344_000_000,
-    netDebt: 21_945_000_000,
-    currentRatio: 1.003_294_804_655_585_8,
-    debtToEquity: 0.784_449_404_761_904_7,
-    payoutRatio: 0.116_080_580_304_344_4,
+    // FY2026 10-K 0000320193-26-000026 (filed 2026-11-03): revenue 478,834M, net income 132,175M, diluted EPS 8.98.
+    grossMargin: 0.487_855_916_664_230_17,
+    operatingMargin: 0.330_099_784_058_776_1,
+    netMargin: 0.276_035_118_642_368_74,
+    freeCashFlowProxy: 136_056_000_000,
+    cashConversion: 1.097_764_327_595_99,
+    roe: 1.179_154_808_953_28,
+    roa: 0.326_722_663_318_073_5,
+    revenueDeltaPercent: 15.059_796_569_116_28,
+    grossProfitDeltaPercent: 19.672_542_661_154_4,
+    operatingIncomeDeltaPercent: 18.799_699_361_142_427,
+    netIncomeDeltaPercent: 18.002_856_887_777_877,
+    dilutedEpsDeltaPercent: 20.375_335_120_643_438,
+    operatingCashFlowDeltaPercent: 30.152_849_787_409_625,
+    capexDeltaPercent: -28.895_005_898_545_023,
+    cash: 36_305_000_000,
+    debt: 80_111_000_000,
+    netDebt: 23_389_000_000,
+    currentRatio: 1.023_199_835_211_723_5,
+    debtToEquity: 0.714_683_343_295_299_5,
+    payoutRatio: 0.118_940_798_184_225_45,
   },
   "equity-nbis-deep": {
     operatingMargin: -1.154_586_636_466_591,
@@ -1201,17 +1202,18 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     payoutRatio: 0,
     valuationCaveat:
       "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
-    evDateBasis: "EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31)",
-    enterpriseValue: 57_652_861_440,
+    evDateBasis: "EV mixes market cap (quote 2026-11-03) with cash/debt (balance sheet 2025-12-31)",
+    enterpriseValue: 41_673_726_464,
     annualizedRevenue: 529_800_000,
-    evToAnnualizedRevenue: 108.820_048_018_120_05,
-    marketCapToAnnualizedRevenue: 107.971_425_896_564_74,
+    evToAnnualizedRevenue: 78.659_355_349_188_37,
+    marketCapToAnnualizedRevenue: 77.810_733_227_633_07,
     valuationSupportability: "not-meaningful",
-    peRatio: 87.325_584,
-    forwardPe: "-139.64x (negative earnings)",
-    epsForward: -1.613_41,
-    priceToBook: 7.968_733_3,
-    pcfRatio: 142.332_076_237_870_13,
+    // Yahoo quote 2026-11-03: price 151.64, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 41.22B.
+    peRatio: 118.468_75,
+    forwardPe: "-42.15x (negative earnings)",
+    epsForward: -3.597_83,
+    priceToBook: 4.019_935,
+    pcfRatio: 102.573_093_963_672_56,
   },
   "equity-fpi-quarterly": {
     grossMargin: 0.85,
@@ -1282,16 +1284,18 @@ const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, numb
     dilutedEpsDeltaPercent: 162.121_212_121_212_1,
     operatingCashFlowDeltaPercent: 171.968_736_797_634_14,
     cash: 8_732_000_000,
-    payoutRatio: 0.846_153_846_153_846_1,
-    dividendYield: 3.57,
-    peRatio: 17.603_848,
-    forwardPe: 13.759_627,
-    priceToBook: 1.805_705_2,
-    pcfRatio: 2.166_909_186_485_437,
+    payoutRatio: 0.804_347_826_086_956_7,
+    dividendYield: 3.45,
+    peRatio: 16.967_392,
+    forwardPe: 13.832_41,
+    priceToBook: 1.798_186_8,
+    pcfRatio: 2.216_613_947_650_485_4,
   },
   "equity-iren-deep": {},
   "equity-iren-brief": {},
   "clfd-zero-debt": {},
+  "ebay-extension-investments": {},
+  "equity-amd-deep": {},
 };
 
 export function assertFinancialLensMetricInvariants(
@@ -2444,6 +2448,69 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
   );
 }
 
+const EBAY_10Q = "https://www.sec.gov/Archives/edgar/data/1065088/000106508826000212";
+const EBAY_STI_LINE =
+  "ebay:ShortTermInvestmentsExcludingEquitySecuritiesAccountedForUnderFairValueOption";
+
+// EBAY 10-Q 0001065088-26-000212: AvailableForSaleSecuritiesDebtSecurities located on the extension line.
+export function assertEbayExtensionShortTermInvestments(result: RunFixtureResult): void {
+  const { financialStatements, sourceGaps } = result.collectedSources;
+  const sources = new Map(result.report.sources.map((source) => [source.id, source.url]));
+  const proofSources = {
+    "extended-sec-edgar-ebay-10q-investments-xbrl-instance": `${EBAY_10Q}/ebay-20260930_htm.xml`,
+    "extended-sec-edgar-ebay-10q-investments-xbrl-schema": `${EBAY_10Q}/ebay-20260930.xsd`,
+    "extended-sec-edgar-ebay-10q-investments-calculation-linkbase": `${EBAY_10Q}/ebay-20260930_cal.xml`,
+  };
+  for (const [id, url] of Object.entries(proofSources)) {
+    expect(sources.get(id)).toBe(url);
+  }
+  const proven = (financialStatements?.enterpriseValueBridge?.shortTermInvestments ?? []).filter(
+    ({ extractionMethod }) => extractionMethod === "sec-xbrl-instance",
+  );
+  expect(proven.map(({ periodEnd, value }) => [periodEnd, value])).toEqual([
+    ["2025-12-31", 1_052_000_000],
+    ["2026-09-30", 809_000_000],
+  ]);
+  for (const fact of proven) {
+    expect(fact).toMatchObject({
+      concept: EBAY_STI_LINE,
+      accessionNumber: "0001065088-26-000212",
+      filedAt: "2026-10-29",
+      shortTermInvestmentsProof: expect.stringContaining(
+        "us-gaap:AvailableForSaleSecuritiesDebtSecurities located on it sum to",
+      ),
+    });
+    expect(fact.sourceIds).toEqual(
+      expect.arrayContaining(["extended-sec-edgar-ebay-10q", ...Object.keys(proofSources)]),
+    );
+  }
+  const valuation = result.report.extendedEvidence?.items.find(
+    ({ category }) => category === "valuation",
+  )?.metrics;
+  expect(valuation).toMatchObject({
+    shortTermInvestments: 809_000_000,
+    shortTermInvestmentsConcept: EBAY_STI_LINE,
+    cash: 1_166_000_000,
+    debt: 6_733_000_000,
+    netDebt: 4_758_000_000,
+  });
+  expect(sourceGaps.filter(({ message }) => message.includes("issuer-extension"))).toEqual([]);
+  // The 2025-12-31 comparative became public with the 10-Q, so the FY2025 observation stays withheld.
+  const annual = result.collectedSources.valuationWorkbench?.historicalMultiples.observations.find(
+    ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2025-12-31",
+  );
+  expect(annual?.metrics.enterpriseValueToRevenue).toMatchObject({ status: "missing" });
+  expect(result.markdown).toContain("Net debt: $4.8B (As of 2026-09-30;");
+  // Recorded synthesis prose predates the concept fix, so pin the deterministic surfaces only.
+  const valuationItem = result.report.extendedEvidence?.items.find(
+    ({ category }) => category === "valuation",
+  );
+  expect(valuationItem?.summary).not.toContain("sale-restricted");
+  const sections = JSON.stringify(result.report.extras?.metricSections);
+  expect(sections).toContain("Net debt");
+  expect(sections).not.toContain("sale-restricted");
+}
+
 export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult): void {
   const sic = depositoryIssuerSic(result.report.extendedEvidence);
   expect(sic, "fixture issuer must classify as a depository institution").toMatch(/^60\d{2}$/u);
@@ -2650,15 +2717,10 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
     (observation) => observation.basis === "annual" && observation.periodEnd === "2024-10-31",
   );
   expect(fy2024?.publicAt, "FY2024 dates to its first filing").toBe("2024-12-03");
-  expect(fy2024?.metrics.priceToEarnings).toMatchObject({
-    status: "missing",
-    reason: "price-history-unavailable",
-  });
-
-  // The synthetic USDCAD cassette entry has no closes before 2025-11-25.
-  expect(result.report.dataGaps).toContain(
-    "market-yahoo-fx-usdcad: Yahoo FX close unavailable for USDCAD=X on or before 2025-08-26",
-  );
+  // BNS FY2024 diluted EPS C$5.87 (40-F), priced at the 2024-12-03 close converted at USDCAD 1.4043.
+  expect(fy2024?.fxConversion?.rate).toBeCloseTo(1.4043, 4);
+  expect(fy2024?.metrics.priceToEarnings).toMatchObject({ status: "value" });
+  expect(fy2024?.inputs.dilutedEps?.value).toBe(5.87);
 
   for (const pinned of PINNED_CONVERSIONS) {
     const match = converted.find(({ observation }) => observation.periodEnd === pinned.periodEnd);
@@ -3140,16 +3202,17 @@ function assertValuationWorkbenchInvariants(
         key === "priceToFreeCashFlow" && inputs.freeCashFlow === undefined
           ? (["operatingCashFlow", "capitalExpenditure"] as const).flatMap((seriesKey) => {
               const series = statements?.statements.cashFlowStatement[seriesKey];
-              return [...(series?.annual ?? []), ...(series?.interim ?? [])]
-                .filter(
-                  (fact) =>
-                    inputs.revenue?.lineage?.some(
-                      (anchor) =>
-                        anchor.periodKey === fact.periodKey &&
-                        anchor.periodType === fact.periodType,
-                    ) && fact.firstPublicAt <= publicAt,
-                )
-                .flatMap(({ sourceIds }) => sourceIds);
+              const parts = [...(series?.annual ?? []), ...(series?.interim ?? [])].filter(
+                (fact) =>
+                  inputs.revenue?.lineage?.some(
+                    (anchor) =>
+                      anchor.periodKey === fact.periodKey && anchor.periodType === fact.periodType,
+                  ) && fact.firstPublicAt <= publicAt,
+              );
+              // A part cites only when every revenue period is public for it (EBAY TTM 2025-09-30 is not).
+              return parts.length === (inputs.revenue?.lineage?.length ?? 0)
+                ? parts.flatMap(({ sourceIds }) => sourceIds)
+                : [];
             })
           : [];
       expect(
@@ -3278,7 +3341,6 @@ const MISSING_WORKBENCH_SHARES = {
   status: "missing",
   reason: "diluted-shares-unavailable",
 } as const;
-const MISSING_WORKBENCH_FX = { status: "missing", reason: "fx-rate-unavailable" } as const;
 const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2017-09-30|2017-11-15": [
     MISSING_WORKBENCH_PRICE,
@@ -3397,6 +3459,144 @@ const AAPL_WORKBENCH_VALUES: WorkbenchValues = {
     28.499_999_999_999_996, 7.760_563_380_281_689, 7.854_460_093_896_712, 28.016_949_152_542_37,
   ],
 };
+const AMD_WORKBENCH_VALUES: WorkbenchValues = {
+  "annual|2016-12-31|2019-02-08": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2017-12-30|2019-02-08": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2018-12-29|2019-02-08": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2019-12-28|2020-02-04": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2020-12-26|2021-01-29": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MIXED_WORKBENCH_BALANCE_SHEET,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2021-12-25|2022-02-03": [
+    46.723_736_121_032_96, 8.980_060_986_392_004, 8.779_562_020_832_799, 45.831_777_096_387_02,
+  ],
+  "annual|2022-12-31|2023-02-27": [
+    93.773_805_527_460_01, 5.243_322_940_818_496, 5.099_769_701_548_974, 39.726_377_119_183_73,
+  ],
+  "annual|2023-12-30|2024-01-31": [
+    316.396_231_021_521_2, 12.014_826_012_666_894, 11.869_102_908_610_456, 243.083_188_195_615_66,
+  ],
+  "annual|2024-12-28|2025-02-05": [
+    112.010_002_136_230_47, 7.111_125_596_160_918, 6.978_839_383_246_433_5, 76.241_319_541_376,
+  ],
+  "ttm|2025-06-28|2025-08-06": [
+    94.289_014_518_605_5, 9.027_536_052_220_539, 8.938_042_808_977_297, 76.478_267_643_310_82,
+  ],
+  "ttm|2025-09-27|2025-11-05": [
+    126.896_032_956_567_14, 13.098_894_212_833_263, 12.973_281_448_603_084, 92.649_797_913_960_01,
+  ],
+  "annual|2025-12-27|2026-02-04": [
+    75.543_397_147_700_47, 9.454_973_988_687_335, 9.243_362_798_987_864, 59.342_425_075_945_03,
+  ],
+  "ttm|2026-03-28|2026-05-06": [
+    138.160_660_540_471_33,
+    18.477_245_384_931_404,
+    18.233_666_594_949_025,
+    MISSING_WORKBENCH_FCF,
+  ],
+  "ttm|2026-06-27|2026-08-05": [
+    123.602_560_972_556_08, 19.253_331_976_695_94, 19.014_014_702_758_16, 102.799_751_460_370_44,
+  ],
+};
+
+const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
+  "annual|2016-12-31|2019-01-30": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2017-12-31|2019-01-30": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2018-12-31|2021-02-04": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2019-12-31|2022-02-24": [
+    26.526_315_132_396_643,
+    6.388_025_147_996_082,
+    MISSING_WORKBENCH_DEBT,
+    24.872_452_214_079_082,
+  ],
+  "annual|2020-12-31|2022-02-24": [
+    7.026_615_795_527_121, 4.475_592_423_428_947, 4.953_779_965_592_203, 15.665_454_157_409_307,
+  ],
+  "annual|2021-12-31|2022-02-24": [
+    2.699_123_594_289_629_2, 3.527_516_227_400_005_4, 3.696_326_208_206_147_4,
+    13.875_696_145_529_655,
+  ],
+  "annual|2022-12-31|2023-02-23": [
+    NEGATIVE_WORKBENCH_DENOMINATOR,
+    2.583_491_490_409_348_7,
+    3.001_255_655_799_854,
+    11.618_594_650_394_66,
+  ],
+  "annual|2023-12-31|2024-02-28": [
+    9.227_360_190_683_706,
+    2.524_265_197_258_961_4,
+    IFRS_WORKBENCH_EV,
+    12.924_237_809_965_883,
+  ],
+  "annual|2024-12-31|2025-02-27": [
+    16.111_675_010_719_882, 3.092_821_138_836_954, 3.578_282_580_050_607_7, 16.259_447_735_511_45,
+  ],
+  "ttm|2025-09-30|2025-10-30": [
+    { status: "missing", reason: "earnings-unavailable" },
+    MISSING_WORKBENCH_SHARES,
+    IFRS_WORKBENCH_EV,
+    MISSING_WORKBENCH_SHARES,
+  ],
+  "annual|2025-12-31|2026-02-19": [
+    19.527_649_769_585_253,
+    3.573_243_243_243_243,
+    IFRS_WORKBENCH_EV,
+    26.727_088_948_787_063,
+  ],
+  "ttm|2026-03-31|2026-04-29": [
+    23.535_147_599_892_82,
+    4.145_625_792_328_587,
+    IFRS_WORKBENCH_EV,
+    27.678_850_226_801_45,
+  ],
+  "ttm|2026-06-30|2026-08-06": [
+    22.709_278_224_669_78,
+    4.217_329_317_206_33,
+    IFRS_WORKBENCH_EV,
+    20.216_243_689_027_39,
+  ],
+  "ttm|2026-09-30|2026-10-29": [
+    26.345_652_704_653_535, 4.461_798_049_626_252, 4.845_693_482_900_417, 22.562_025_714_837_933,
+  ],
+};
 const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-aapl-brief": {},
   "equity-aapl-deep": AAPL_WORKBENCH_VALUES,
@@ -3426,28 +3626,17 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2021-09-25|2021-10-29": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      26.702_317_834_537_933, 6.906_089_431_785_971, 7.075_791_769_293_522, 27.178_949_766_738_55,
     ],
     "annual|2022-09-24|2022-10-28": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      25.489_362_601_172_513, 6.447_888_916_689_665, 6.629_882_079_741_744, 22.815_099_564_265_16,
     ],
     "annual|2023-09-30|2023-11-03": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      28.817_291_010_845_74, 7.287_752_797_625_454, 7.416_985_613_937_076, 28.049_549_436_032_617,
     ],
+    // FY2024 diluted EPS $6.08 at the 2024-11-01 close $222.91; FY2026 10-K TTM EPS $8.98 at $331.90.
     "annual|2024-09-28|2024-11-01": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      36.662_829_549_689_04, 8.783_404_331_776_257, 8.889_425_531_924_582, 31.566_153_950_353_645,
     ],
     "ttm|2025-06-28|2025-08-01": [
       30.710_167_660_517_836, 7.461_377_657_598_557_5, 7.574_748_107_277_358, 31.698_675_926_725_97,
@@ -3463,6 +3652,9 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
     "ttm|2026-06-27|2026-07-31": [
       35.425_459_135_563_01, 9.784_017_596_279_83, 9.831_026_848_180_443, 33.416_038_910_092_25,
+    ],
+    "ttm|2026-09-26|2026-11-03": [
+      36.959_910_233_461_51, 10.203_263_493_307_457, 10.252_109_231_078_792, 35.909_254_068_577_52,
     ],
   },
   "equity-nbis-deep": {
@@ -3502,11 +3694,12 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MIXED_WORKBENCH_BALANCE_SHEET,
       MISSING_WORKBENCH_PRICE,
     ],
+    // FY2024 20-F comparative (diluted EPS $1.59, revenue 13.5M) at the 2025-04-30 close $22.73.
     "annual|2022-12-31|2025-04-30": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      14.295_597_196_375_049,
+      619.637_052_218_792_4,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_PRICE,
+      NEGATIVE_WORKBENCH_DENOMINATOR,
     ],
     // FY2023 20-F (0001104659-26-052948): continuing OCF -222.0M; the 829.8M total includes divested Yandex.
     "annual|2023-12-31|2026-04-30": [
@@ -3580,6 +3773,8 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-iren-deep": IREN_WORKBENCH_VALUES,
   "equity-iren-brief": IREN_WORKBENCH_VALUES,
   "clfd-zero-debt": CLFD_WORKBENCH_VALUES,
+  "ebay-extension-investments": EBAY_WORKBENCH_VALUES,
+  "equity-amd-deep": AMD_WORKBENCH_VALUES,
   "equity-depository-deep": {
     "annual|2016-10-31|2018-11-27": [
       MISSING_WORKBENCH_PRICE,
@@ -3612,37 +3807,37 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       DEPOSITORY_WORKBENCH_FCF,
     ],
     "annual|2021-10-31|2021-11-30": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      10.327_705_890_032_037,
+      3.117_115_250_471_240_3,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
     "annual|2022-10-31|2022-11-29": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      8.628_825_947_626_93,
+      2.660_983_142_117_434_6,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
     "annual|2023-10-31|2024-12-03": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      13.448_872_532_460_411,
+      2.875_171_393_380_236_8,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
     "annual|2024-10-31|2024-12-03": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      13.105_204_580_182_889,
+      2.814_812_672_739_822_4,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
     "ttm|2025-04-30|2025-05-27": [
-      MISSING_WORKBENCH_PRICE,
+      15.266_274_964_458_535,
       MISSING_WORKBENCH_SHARES,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
     "ttm|2025-07-31|2025-08-26": [
-      MISSING_WORKBENCH_FX,
+      16.243_003_681_998_97,
       MISSING_WORKBENCH_SHARES,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,

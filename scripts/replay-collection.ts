@@ -66,6 +66,9 @@ const { collected } = await withReplaySession(
           ...(disabled || config.taggedZeroDebtDisabled === true
             ? { taggedZeroDebtDisabled: true }
             : {}),
+          ...(config.extensionShortTermInvestmentsDisabled === true
+            ? { extensionShortTermInvestmentsDisabled: true }
+            : {}),
           peerUniverse: {
             provider: runtime.provider,
             model: config.quickModel,

@@ -246,6 +246,7 @@ function analystCollectContext(input: {
     cryptoMoverLimit: 1,
     ...(input.token !== undefined ? { finnhubApiToken: input.token } : {}),
     request: input.request ?? {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async () => {
         throw new Error("unexpected request");
       },
@@ -778,6 +779,7 @@ describe("Web Gather Source Gap view", () => {
       analystCollectContext({
         token: "fixture-token",
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async ({ adapter }) =>
             sourceGap({
               source: adapter,

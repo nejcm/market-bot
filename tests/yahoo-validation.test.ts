@@ -56,6 +56,7 @@ function requestExecutor(
   payloadValue: unknown,
 ): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async (request) => {
       onUrl(request.url);
       return fetched(payloadValue);
@@ -239,6 +240,7 @@ describe("Yahoo alpha-search validation", () => {
         candidateLimit,
         fetchedAt: FETCHED_AT,
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async () => {
             throw new Error("unexpected json fetch");
           },
@@ -263,6 +265,7 @@ describe("Yahoo alpha-search validation", () => {
       candidateLimit: 15,
       fetchedAt: FETCHED_AT,
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async () => ({
           source: "yahoo-alpha-search",
           message: "source request failed with status 429",
@@ -298,14 +301,13 @@ describe("Yahoo alpha-search validation", () => {
   });
 
   test("falls back to Massive quote payload when Yahoo request fails", async () => {
-    globalThis.fetch = massiveFallbackFetchImpl as typeof fetch;
-
     const result = await crossCheckAlphaSearchCandidatesWithYahoo({
       candidates: [candidate("AAPL")],
       candidateLimit: 1,
       fetchedAt: FETCHED_AT,
       massiveApiKey: "massive-key",
       request: {
+        fetch: massiveFallbackFetchImpl,
         json: async () => ({
           source: "yahoo-alpha-search",
           message: "source request failed with status 401",

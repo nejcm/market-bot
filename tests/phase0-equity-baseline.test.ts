@@ -23,14 +23,15 @@ test("Phase 4 reports confirmed and suppressed earnings paths against Phase 0", 
       calibrationEligiblePredictionCount: 4,
     },
     phase4: {
-      earningsSetupCount: 2,
+      // The NBIS recapture's Yahoo quote carries a 2026-11-12 earnings date.
+      earningsSetupCount: 3,
       earningsPredictionCount: 2,
       calibrationEligiblePredictionCount: 2,
       eligiblePredictionCount: 2,
       suppressedPredictionCount: 2,
     },
     delta: {
-      earningsSetupCount: 0,
+      earningsSetupCount: 1,
       earningsPredictionCount: -2,
       calibrationEligiblePredictionCount: -2,
     },

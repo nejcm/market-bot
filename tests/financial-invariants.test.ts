@@ -363,9 +363,9 @@ describe("composite statement fact integrity", () => {
 
 describe("C15 earnings-release exhibit provenance", () => {
   let result: RunFixtureResult | undefined = undefined;
-  const filingDir = "https://www.sec.gov/Archives/edgar/data/320193/000032019326000018";
-  const pressRelease = `${filingDir}/a8-kex991q3202606272026.htm`;
-  const ex10Row = `<tr><td>3</td><td>EX-10.1</td><td><a href="/Archives/edgar/data/320193/000032019326000018/contract-ex10.htm">contract-ex10.htm</a></td><td>EX-10.1</td><td>1</td></tr>`;
+  const filingDir = "https://www.sec.gov/Archives/edgar/data/320193/000032019326000024";
+  const pressRelease = `${filingDir}/a8-kex991q4202609262026.htm`;
+  const ex10Row = `<tr><td>3</td><td>EX-10.1</td><td><a href="/Archives/edgar/data/320193/000032019326000024/contract-ex10.htm">contract-ex10.htm</a></td><td>EX-10.1</td><td>1</td></tr>`;
 
   beforeAll(async () => {
     result = await runFixture("equity-earnings-release-deep", { llm: "replay" });
@@ -412,15 +412,15 @@ describe("C15 earnings-release exhibit provenance", () => {
 
   test.each([
     ["an unrelated", "0000320193-26-000099"],
-    ["a superstring", "0000320193-26-0000180"],
+    ["a superstring", "0000320193-26-0000240"],
   ])(
     "ignores a foreign filing index with %s accession listing the same filename as EX-99",
     (_, foreignAccession) => {
       const foreignIndex = {
         id: "foreign-index",
         adapter: "sec-filing-index",
-        fetchedAt: "2026-07-31T00:00:00.000Z",
-        payload: `<title>EDGAR Filing Documents for ${foreignAccession}</title><a href="/Archives/edgar/data/320193/000032019326000018/aapl-20260730.htm">target</a><tr><td>2</td><td>EX-99.1</td><td><a href="/Archives/edgar/data/320193/000032019326000099/contract-ex10.htm">contract-ex10.htm</a></td><td>EX-99.1</td><td>1</td></tr>`,
+        fetchedAt: "2026-11-03T00:00:00.000Z",
+        payload: `<title>EDGAR Filing Documents for ${foreignAccession}</title><a href="/Archives/edgar/data/320193/000032019326000024/aapl-20261102.htm">target</a><tr><td>2</td><td>EX-99.1</td><td><a href="/Archives/edgar/data/320193/000032019326000099/contract-ex10.htm">contract-ex10.htm</a></td><td>EX-99.1</td><td>1</td></tr>`,
       };
       const injected = citing(`${filingDir}/contract-ex10.htm`, undefined, ex10Row);
       expect(() =>
@@ -436,7 +436,7 @@ describe("C15 earnings-release exhibit provenance", () => {
   );
 
   test("rejects the primary 8-K mislabeled as an exhibit", () => {
-    expect(() => assertEarningsReleaseEvidence(citing(`${filingDir}/aapl-20260730.htm`))).toThrow(
+    expect(() => assertEarningsReleaseEvidence(citing(`${filingDir}/aapl-20261102.htm`))).toThrow(
       /\[C15\].*claims exhibit provenance but cites the primary document/u,
     );
   });

@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { parseArgs } from "../src/cli/args";
 import { loadStagePrompt } from "../src/research/prompt-loader";
 import { resolveConfig } from "../src/config";
@@ -249,7 +249,7 @@ describe("final-synthesis-only live provider", () => {
         expect(result.status).toBe("completed");
         expect(result.modelCalls.live).toBe(liveRequests.length);
         expect(result.modelCalls.replayed).toBe(
-          fixtureName === "equity-earnings-release-deep" ? 5 : 4,
+          fixtureName === "equity-earnings-release-deep" ? 6 : 5,
         );
         expect(result.modelReplayMisses.count).toBe(0);
         expect(liveRequests.length).toBeGreaterThan(0);
@@ -269,7 +269,7 @@ describe("final-synthesis-only live provider", () => {
       const estimate = await liveTokenEstimate(fixtureName, "final-synthesis");
       const perCall = Math.max(
         50_000,
-        ...(fixture.llmCassette.entries["final-synthesis|gpt-5.6-sol"] ?? []).map(
+        ...(fixture.llmCassette.entries["final-synthesis|gpt-6-luna"] ?? []).map(
           (entry) => entry.tokenEstimate,
         ),
       );
@@ -280,7 +280,7 @@ describe("final-synthesis-only live provider", () => {
       expect(estimate.expectedPerRun).toBeGreaterThan(estimate.maxInputTokens!);
       expect(estimate.expectedPerRun).toBeLessThan(estimate.perRun);
     }
-    const synthetic = await liveTokenEstimate("equity-nbis-deep", "final-synthesis");
+    const synthetic = await liveTokenEstimate("equity-web-fallback-deep", "final-synthesis");
     expect(synthetic.perRun).toBeGreaterThanOrEqual(437_500);
     expect(synthetic.expectedPerRun).toBeLessThan(synthetic.perRun);
   }, 60_000);
@@ -288,7 +288,7 @@ describe("final-synthesis-only live provider", () => {
   test("fails the run without a live call when an upstream stage swallows a replay miss", async () => {
     const root = await tempRoot();
     const fixture = await loadFixture("equity-earnings-release-deep");
-    const { "web-subject-profile|gpt-5.6-luna": missing, ...entries } = fixture.llmCassette.entries;
+    const { "web-subject-profile|gpt-6-luna": missing, ...entries } = fixture.llmCassette.entries;
     expect(missing).toBeDefined();
     let liveCalls = 0;
     await expect(
@@ -780,7 +780,7 @@ describe("frozen-input eval replay", () => {
         expect(sample.error).toContain("Fixture replay incomplete");
       }
       expect(sample.cassetteMisses.count).toBe(0);
-      expect(sample.modelReplayMisses.keys).toEqual(["web-subject-profile|gpt-5.6-luna"]);
+      expect(sample.modelReplayMisses.keys).toEqual(["web-subject-profile|gpt-6-luna"]);
       expect(sample.modelReplayMisses.errors[0]).toContain("0 recorded models");
       expect(liveCalls).toBe(0);
       const persisted = JSON.parse(
@@ -1317,24 +1317,33 @@ describe("frozen-input eval replay", () => {
   });
 
   test.each([
-    {
-      script: "eval-deep.ts",
-      args: ["--fixtures", "equity-amd-deep", "--label", `incomplete-${String(process.pid)}`],
-    },
-    { script: "replay-fixture-run.ts", args: ["equity-amd-deep", "--live"] },
+    { script: "eval-deep.ts", args: (dir: string) => ["--fixtures", dir, "--label", "incomplete"] },
+    { script: "replay-fixture-run.ts", args: (dir: string) => [dir, "--live"] },
   ])(
     "$script rejects an incomplete fixture before any replay or output",
     async ({ script, args }) => {
-      const child = Bun.spawn([process.execPath, "run", `scripts/${script}`, ...args], {
+      const dir = join(await mkdtemp(join(tmpdir(), "market-bot-incomplete-")), "fixture");
+      const source = join(import.meta.dir, "fixtures/runs/equity-aapl-brief");
+      await mkdir(dir);
+      for (const file of ["data-cassette.json", "llm-cassette.json"]) {
+        await writeFile(join(dir, file), await readFile(join(source, file)));
+      }
+      const meta = JSON.parse(await readFile(join(source, "meta.json"), "utf8"));
+      await writeFile(
+        join(dir, "meta.json"),
+        JSON.stringify({ ...meta, replayClassification: "incomplete" }),
+      );
+      const child = Bun.spawn([process.execPath, "run", `scripts/${script}`, ...args(dir)], {
         cwd: join(import.meta.dir, ".."),
         stdout: "pipe",
         stderr: "pipe",
       });
       expect(await child.exited).toBe(1);
       expect(await new Response(child.stderr).text()).toBe(
-        'Fixture equity-amd-deep is not replayable: replayClassification "incomplete"\n',
+        `Fixture ${dir} is not replayable: replayClassification "incomplete"\n`,
       );
       expect(await new Response(child.stdout).text()).toBe("");
+      await rm(dirname(dir), { recursive: true, force: true });
     },
   );
 });

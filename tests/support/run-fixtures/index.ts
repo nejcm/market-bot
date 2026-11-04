@@ -248,6 +248,10 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
         ...config.sourceOptions,
         ...settings.sourceOptions,
         ...Object.fromEntries(settings.configuredProviders.map((key) => [key, "fixture-token"])),
+        // The capture's redaction placeholder would read as a leaked secret if this replay is re-captured.
+        ...(settings.sourceOptions.secUserAgent === undefined
+          ? {}
+          : { secUserAgent: "market-bot fixture replay" }),
         cacheDir: join(dataDir, "..", "cache"),
         newsSeenPath: join(dataDir, "..", "news-seen.json"),
         peerUniverseLearnedPath: join(dataDir, "..", "peer-universe-learned.json"),
@@ -439,6 +443,9 @@ export async function runFixture(
             : {}),
           ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
           ...(config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+          ...(config.extensionShortTermInvestmentsDisabled === true
+            ? { extensionShortTermInvestmentsDisabled: true }
+            : {}),
           peerUniverse: {
             provider: runtime.provider,
             model: config.quickModel,
@@ -503,4 +510,6 @@ export const EQUITY_RUN_FIXTURES = [
   "equity-iren-deep",
   "equity-iren-brief",
   "clfd-zero-debt",
+  "ebay-extension-investments",
+  "equity-amd-deep",
 ] as const;

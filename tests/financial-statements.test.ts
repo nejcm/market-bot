@@ -4450,6 +4450,7 @@ describe("canonical debt basis selection", () => {
         newsLimit: 10,
         cryptoMoverLimit: 10,
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async () => {
             throw new Error("AMD-shaped valuation comps must not fetch");
           },

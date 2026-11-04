@@ -33,6 +33,7 @@ function fetched(payload: unknown): FetchJsonResult {
 describe("collectAlphaSearchFundamentals", () => {
   test("stamps symbols on per-company SEC fetch gaps", async () => {
     const request: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async ({ adapter }) => {
         if (adapter === "sec-alpha-fundamentals-tickers") {
           return fetched({
@@ -65,6 +66,7 @@ describe("collectAlphaSearchFundamentals", () => {
 
   test("words foreign-filer facts as unsupported coverage, not absence", async () => {
     const request: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async ({ adapter }) =>
         adapter === "sec-alpha-fundamentals-tickers"
           ? fetched({ "0": { cik_str: 1_513_845, ticker: "NBIS", title: "Nebius Group N.V." } })
@@ -101,6 +103,7 @@ function at(val: number, end: string, filed: string) {
 describe("alpha-search debt", () => {
   const debtOf = async (gaap: Record<string, unknown[]>) => {
     const request: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async ({ adapter }) =>
         adapter === "sec-alpha-fundamentals-tickers"
           ? fetched({ "0": { cik_str: 875_320, ticker: "VRTX", title: "Vertex" } })

@@ -5,7 +5,9 @@ import {
   fetchMassiveQuoteFallback,
   massiveSnapshotsFromQuoteFallback,
 } from "../src/sources/massive-fallback";
-import type { FetchLike } from "../src/sources/types";
+import { createSourceRequestContext } from "../src/sources/source-request";
+import { isFetchJsonResult, type CollectContext, type FetchLike } from "../src/sources/types";
+import { requestJsonWithQuoteFallback, yahooQuoteSourceRequest } from "../src/sources/yahoo";
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return Response.json(payload, { status });
@@ -158,4 +160,56 @@ describe("massive-fallback", () => {
       { subject: "AAPL", date: "2026-05-20", value: 192 },
     ]);
   });
+});
+
+test("the Yahoo quote fallback reaches Massive through the injected fetch, not global fetch", async () => {
+  const urls: string[] = [];
+  const fetchImpl: FetchLike = async (input) => {
+    const url = String(input);
+    urls.push(url);
+    return url.includes("/v2/snapshot/")
+      ? jsonResponse({
+          tickers: [
+            {
+              ticker: "AAPL",
+              todaysChangePerc: 1.2,
+              day: { c: 190, v: 80_000_000 },
+              lastTrade: { p: 190 },
+            },
+          ],
+        })
+      : new Response("down", { status: 503 });
+  };
+  const now = new Date("2026-06-01T00:00:00.000Z");
+  const { request } = createSourceRequestContext(
+    {
+      equityMoverLimit: 1,
+      cryptoMoverLimit: 1,
+      newsLimit: 1,
+      sourceTimeoutMs: 1000,
+      cacheDisabled: true,
+    },
+    now,
+    fetchImpl,
+    [],
+  );
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    () => {
+      throw new Error("default network path touched");
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  try {
+    const result = await requestJsonWithQuoteFallback(
+      { fetchedAt: now.toISOString(), massiveApiKey: "massive-key", request } as CollectContext,
+      yahooQuoteSourceRequest(["AAPL"], "yahoo-ticker"),
+    );
+    expect(isFetchJsonResult(result) ? result.rawSnapshot.id : result).toBe(
+      "raw-yahoo-ticker-massive-fallback-2026-06-01T00:00:00.000Z",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  expect(urls.some((url) => url.includes("/v2/snapshot/"))).toBe(true);
 });

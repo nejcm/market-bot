@@ -62,6 +62,8 @@ export interface BridgeFact {
   readonly concept: string;
   readonly filedAt: string;
   readonly firstPublicAt?: string;
+  readonly shortTermInvestmentsProof?: string;
+  readonly shortTermInvestmentsWithheld?: string;
 }
 
 export type EnterpriseValueBridgeFacts<F extends BridgeFact = BridgeFact> = Readonly<
@@ -159,6 +161,9 @@ function component<F extends BridgeFact>(
   derived?: BridgeComponent<F>,
 ): BridgeComponent<F> {
   const tagged = facts.findLast((fact) => fact.periodEnd === instant);
+  if (tagged?.shortTermInvestmentsWithheld !== undefined) {
+    return { status: "incomplete", reason: tagged.shortTermInvestmentsWithheld };
+  }
   if (tagged !== undefined) {
     return { status: "tagged", value: tagged.value, concept: tagged.concept, fact: tagged };
   }
@@ -447,7 +452,15 @@ const CURRENT_EQUITY_DISCLOSURE =
 export const CURRENT_EQUITY_NOTE = `short-term investments include ${CURRENT_EQUITY_DISCLOSURE}`;
 
 export function isCurrentEquityConcept(concept: string | undefined): boolean {
-  return concept?.includes("EquitySecurities") === true;
+  return (
+    concept
+      ?.split(" + ")
+      .some((part) =>
+        (ENTERPRISE_VALUE_BRIDGE_CONCEPTS.currentEquitySecurities as readonly string[]).includes(
+          part,
+        ),
+      ) === true
+  );
 }
 
 // Lineage rows for a tagged component: the pick, then any added current equity securities.
@@ -455,7 +468,16 @@ export function bridgeContributors<F extends BridgeFact>(
   part: Extract<BridgeComponent<F>, { readonly status: "tagged" }>,
 ): readonly { readonly fact: F; readonly value: number; readonly label: string }[] {
   return part.addend === undefined
-    ? [{ fact: part.fact, value: part.value, label: part.concept }]
+    ? [
+        {
+          fact: part.fact,
+          value: part.value,
+          label:
+            part.fact.shortTermInvestmentsProof === undefined
+              ? part.concept
+              : `${part.concept}; XBRL instance proof: ${part.fact.shortTermInvestmentsProof}`,
+        },
+      ]
     : [
         { fact: part.fact, value: part.value - part.addend.value, label: part.fact.concept },
         {

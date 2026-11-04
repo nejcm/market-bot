@@ -518,6 +518,7 @@ describe("Web Subject Profile reuse", () => {
       newsLimit: 0,
       cryptoMoverLimit: 0,
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async ({ adapter }) => {
           const payload =
             adapter === "sec-tickers"
@@ -1115,6 +1116,7 @@ describe("Web Subject Profile reuse", () => {
       newsLimit: 0,
       cryptoMoverLimit: 0,
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async ({ adapter }) => {
           const payload =
             adapter === "sec-tickers"

@@ -74,6 +74,7 @@ function sectionOmissionGap(
 
 function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): SourceRequestExecutor {
   return {
+    fetch: () => Promise.reject(new Error("unexpected base fetch")),
     json: async () => {
       throw new Error("unexpected json fetch");
     },
@@ -2539,6 +2540,119 @@ describe("non-US listing capability gating", () => {
         cause: "unsupported-coverage",
         message: expect.stringContaining("RR.L"),
       }),
+    ]);
+  });
+});
+
+const US_GAAP = "http://fasb.org/us-gaap/2025";
+const ISSUER = "http://issuer.example/20260331";
+const LINE = "aapl:ShortTermInvestmentsExcludingFvo";
+const AXIS = "us-gaap:StatementOfFinancialPositionLocationBalanceAxis";
+const located = `<xbrldi:typedMember dimension="${AXIS}"><us-gaap:QName.domain>${LINE}</us-gaap:QName.domain></xbrldi:typedMember>`;
+const instant = (id: string, segment = "") =>
+  `<context id="${id}"><entity><identifier scheme="http://www.sec.gov/CIK">0000320193</identifier>${segment === "" ? "" : `<segment>${segment}</segment>`}</entity><period><instant>2026-03-31</instant></period></context>`;
+const fact = (concept: string, value: number, context = "i") =>
+  `<${concept} id="${concept}-${context}" contextRef="${context}" unitRef="usd" decimals="-6">${value}</${concept}>`;
+const INSTANCE = `<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="${US_GAAP}" xmlns:aapl="${ISSUER}" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink">
+<link:schemaRef xlink:href="aapl.xsd" xlink:type="simple"/>
+${instant("i")}${instant("s", located)}
+<unit id="usd"><measure>iso4217:USD</measure></unit>
+${fact("us-gaap:CashAndCashEquivalentsAtCarryingValue", 1000)}${fact(LINE, 809)}${fact("us-gaap:AssetsCurrent", 1809)}${fact("us-gaap:AvailableForSaleSecuritiesDebtSecurities", 809, "s")}
+</xbrl>`;
+const SCHEMA = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" targetNamespace="${ISSUER}"><xs:annotation><xs:appinfo><link:linkbaseRef xlink:href="aapl_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/></xs:appinfo></xs:annotation><xs:element id="aapl_ShortTermInvestmentsExcludingFvo" name="ShortTermInvestmentsExcludingFvo"/></xs:schema>`;
+const gaapLoc = (name: string, label: string) =>
+  `<link:loc xlink:href="https://xbrl.fasb.org/us-gaap/2025/elts/us-gaap-2025.xsd#us-gaap_${name}" xlink:label="${label}" xlink:type="locator"/>`;
+const arc = (to: string) =>
+  `<link:calculationArc xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" xlink:from="p" xlink:to="${to}" weight="1.0" xlink:type="arc"/>`;
+const CAL = `<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:calculationLink xlink:role="r" xlink:type="extended">${gaapLoc("AssetsCurrent", "p")}${gaapLoc("CashAndCashEquivalentsAtCarryingValue", "c")}<link:loc xlink:href="aapl.xsd#aapl_ShortTermInvestmentsExcludingFvo" xlink:label="s" xlink:type="locator"/>${arc("c")}${arc("s")}</link:calculationLink></link:linkbase>`;
+const html = (segment = located) =>
+  `<link:schemaRef xlink:href="aapl.xsd"/><ix:hidden>${segment}</ix:hidden>ITEM 2-MANAGEMENT ${repeatToMinAlpha("Quarterly discussion for the 10-Q filing text body continues here.")}`;
+describe("extension short-term investments proof fetch", () => {
+  const submissions = secSubmissionsPayload(["10-Q"]);
+  const run = async (served: Record<string, string>, overrides: Partial<CollectContext> = {}) => {
+    const requested: string[] = [];
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ adapter }) => {
+            requested.push(adapter);
+            const payload = {
+              "sec-xbrl-instance": INSTANCE,
+              "sec-xbrl-schema": SCHEMA,
+              "sec-calculation-linkbase": CAL,
+              ...served,
+            }[adapter];
+            return payload === undefined ? gap(adapter) : textResult(adapter, payload);
+          },
+        }),
+        ...overrides,
+      }),
+    );
+    const gaps = result.gaps.filter(({ message }) => message.includes("issuer-extension"));
+    return { result, requested, gaps, metrics: result.items[0]?.metrics ?? {} };
+  };
+
+  test("a located extension line under current assets publishes its proven value and cites the instance", async () => {
+    const { result, gaps, metrics } = await run({ "sec-filing-text": html() });
+    expect(gaps).toEqual([]);
+    expect(metrics[`extensionShortTermInvestments|2026-03-31|USD|${LINE}|1809`]).toBe(809);
+    expect(metrics["extensionShortTermInvestmentsProof|2026-03-31"]).toContain("sum to 809");
+    const cited = result.sources.filter(({ id }) => id.includes("-investments-"));
+    expect(cited.map(({ url }) => url?.split("/").at(-1))).toEqual([
+      "a10q_htm.xml",
+      "aapl.xsd",
+      "aapl_cal.xml",
+    ]);
+    expect(result.items[0]?.sourceIds).toEqual(expect.arrayContaining(cited.map(({ id }) => id)));
+  });
+
+  test("a filing that locates nothing on an extension line never asks for the instance", async () => {
+    const usGaapOnly = located.replace(LINE, "us-gaap:OtherAssetsCurrent");
+    const { requested, gaps } = await run({ "sec-filing-text": html(usGaapOnly) });
+    expect(requested).not.toContain("sec-xbrl-instance");
+    expect(gaps).toEqual([]);
+  });
+
+  test("the disable switch declares its own reason without requesting the instance", async () => {
+    const { requested, gaps, metrics } = await run(
+      { "sec-filing-text": html() },
+      { extensionShortTermInvestmentsDisabled: true },
+    );
+    expect(requested).not.toContain("sec-xbrl-instance");
+    expect(Object.keys(metrics).some((key) => key.startsWith("extensionShortTerm"))).toBe(false);
+    expect(gaps).toEqual([
+      expect.objectContaining({
+        cause: "suppressed-by-design",
+        message: expect.stringContaining("(extension short-term investments disabled)"),
+      }),
+    ]);
+  });
+
+  test.each([
+    ["an unreadable instance", { "sec-xbrl-instance": "<xbrl" }, "instance-unreadable"],
+    [
+      "a failed instance fetch",
+      { "sec-xbrl-instance": undefined },
+      "instance-fetch-failed:sec-xbrl-instance",
+    ],
+    [
+      "an unfooted current-asset total",
+      { "sec-xbrl-instance": INSTANCE.replace(">1809<", ">1900<") },
+      "2026-03-31: current-assets-do-not-foot:1809≠1900",
+    ],
+  ])("%s publishes nothing and declares why", async (_label, served, reason) => {
+    const { gaps, metrics } = await run({ "sec-filing-text": html(), ...served } as Record<
+      string,
+      string
+    >);
+    expect(Object.keys(metrics).some((key) => key.startsWith("extensionShortTerm"))).toBe(false);
+    expect(gaps).toEqual([
+      expect.objectContaining({ message: expect.stringContaining(`(${reason})`) }),
     ]);
   });
 });

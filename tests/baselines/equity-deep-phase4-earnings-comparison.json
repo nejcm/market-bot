@@ -21,9 +21,9 @@
     },
     {
       "fixture": "equity-nbis-deep",
-      "eventDateStatus": "not-present",
+      "eventDateStatus": "provider-estimated",
       "phase0EarningsSetupCount": 0,
-      "phase4EarningsSetupCount": 0,
+      "phase4EarningsSetupCount": 1,
       "phase0EarningsPredictionCount": 0,
       "phase4EarningsPredictionCount": 0,
       "predictionCountDelta": 0,
@@ -102,14 +102,14 @@
       "calibrationEligiblePredictionCount": 4
     },
     "phase4": {
-      "earningsSetupCount": 2,
+      "earningsSetupCount": 3,
       "earningsPredictionCount": 2,
       "calibrationEligiblePredictionCount": 2,
       "eligiblePredictionCount": 2,
       "suppressedPredictionCount": 2
     },
     "delta": {
-      "earningsSetupCount": 0,
+      "earningsSetupCount": 1,
       "earningsPredictionCount": -2,
       "calibrationEligiblePredictionCount": -2
     }

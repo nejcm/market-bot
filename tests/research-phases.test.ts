@@ -273,6 +273,7 @@ describe("research phase seams", () => {
       executionPolicy: { enabled: true },
       collect: {
         request: {
+          fetch: () => Promise.reject(new Error("unexpected base fetch")),
           json: async () => {
             throw new Error("unexpected JSON request");
           },

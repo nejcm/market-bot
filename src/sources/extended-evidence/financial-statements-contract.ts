@@ -83,7 +83,7 @@ type FinancialStatementExtractionMethod =
   | "derived-sec-companyfacts"
   | typeof ZERO_BORROWINGS_EXTRACTION_METHOD;
 
-// A zero proved by a footed filing face plus a borrowing concept the filing's XBRL instance tags 0.
+// Read from the filing's own XBRL instance: a proven zero borrowing or an extension short-term investments line.
 export const ZERO_BORROWINGS_EXTRACTION_METHOD = "sec-xbrl-instance";
 export const ZERO_BORROWINGS_CONCEPT = "NoBorrowingsOnFootedFace";
 
@@ -163,6 +163,10 @@ export interface FinancialStatementFact {
   readonly faceLeases?: readonly string[];
   // Debt only: the filing's tagged zero borrowing fact (concept, members, fact id, instance file).
   readonly zeroBorrowingsProof?: string;
+  // Short-term investments only: the extension line its filing's instance and calculation linkbase prove.
+  readonly shortTermInvestmentsProof?: string;
+  // Short-term investments only: why a proven extension line withholds its instant instead of publishing.
+  readonly shortTermInvestmentsWithheld?: string;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -513,7 +517,11 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
       (value.extractionMethod === ZERO_BORROWINGS_EXTRACTION_METHOD &&
         value.value === 0 &&
         typeof value.zeroBorrowingsProof === "string" &&
-        hasCompositeFactShape(value.composite))) &&
+        hasCompositeFactShape(value.composite)) ||
+      (value.extractionMethod === ZERO_BORROWINGS_EXTRACTION_METHOD &&
+        (typeof value.shortTermInvestmentsProof === "string" ||
+          typeof value.shortTermInvestmentsWithheld === "string") &&
+        value.composite === undefined)) &&
     (value.lineScope === undefined || value.lineScope === true) &&
     (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&
     (value.zeroBorrowingsProof === undefined || typeof value.zeroBorrowingsProof === "string") &&

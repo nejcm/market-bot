@@ -26,6 +26,7 @@ function requestExecutor(respond: (url: string) => FetchJsonResult): {
   return {
     calls,
     request: {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async (request) => {
         calls.push(request.url);
         return respond(request.url);
@@ -140,6 +141,7 @@ describe("ApeWisdom discovery client", () => {
   test("returns request source gaps without treating them as payloads", async () => {
     const gap = sourceGap({ source: "apewisdom", message: "timeout", cause: "fetch-failed" });
     const request: SourceRequestExecutor = {
+      fetch: () => Promise.reject(new Error("unexpected base fetch")),
       json: async () => gap,
       text: async () => {
         throw new Error("unexpected text fetch");

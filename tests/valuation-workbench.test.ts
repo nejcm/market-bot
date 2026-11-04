@@ -1432,6 +1432,7 @@ test("failed price-history requests keep workbench gaps material", async () => {
       newsLimit: 0,
       cryptoMoverLimit: 0,
       request: {
+        fetch: () => Promise.reject(new Error("unexpected base fetch")),
         json: async () => ({ source: "yahoo-price-history", message: "fetch failed" }),
         text: async () => {
           throw new Error("unexpected text request");

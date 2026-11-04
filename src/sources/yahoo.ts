@@ -393,7 +393,7 @@ export async function requestJsonWithQuoteFallback(
   const fallback = await fetchMassiveQuoteFallback(
     symbols,
     ctx.massiveApiKey,
-    fetch,
+    ctx.request.fetch,
     ctx.fetchedAt,
   );
   if (fallback === undefined) {

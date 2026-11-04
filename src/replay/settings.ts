@@ -25,6 +25,7 @@ type CapturedConfigKey =
   | "webGatherOptions"
   | "webGatherDisabled"
   | "taggedZeroDebtDisabled"
+  | "extensionShortTermInvestmentsDisabled"
   | "webProfileReuseDaysBySubjectKind"
   | "alphaSearchOptions"
   | "marketSpotlightOptions"
@@ -90,6 +91,9 @@ export function captureSettings(config: AppConfig): CaptureSettings {
     ...(config.taggedZeroDebtDisabled === undefined
       ? {}
       : { taggedZeroDebtDisabled: config.taggedZeroDebtDisabled }),
+    ...(config.extensionShortTermInvestmentsDisabled === undefined
+      ? {}
+      : { extensionShortTermInvestmentsDisabled: config.extensionShortTermInvestmentsDisabled }),
     webProfileReuseDaysBySubjectKind: config.webProfileReuseDaysBySubjectKind,
     alphaSearchOptions: config.alphaSearchOptions,
     ...(config.marketSpotlightOptions === undefined
@@ -118,6 +122,7 @@ export function assertCaptureSettings(value: unknown): asserts value is CaptureS
     "webGatherOptions",
     "webGatherDisabled",
     "taggedZeroDebtDisabled",
+    "extensionShortTermInvestmentsDisabled",
     "webProfileReuseDaysBySubjectKind",
     "alphaSearchOptions",
     "marketSpotlightOptions",
@@ -157,7 +162,9 @@ export function assertCaptureSettings(value: unknown): asserts value is CaptureS
     !isRecord(value.webProfileReuseDaysBySubjectKind) ||
     typeof value.webGatherDisabled !== "boolean" ||
     (value.taggedZeroDebtDisabled !== undefined &&
-      typeof value.taggedZeroDebtDisabled !== "boolean")
+      typeof value.taggedZeroDebtDisabled !== "boolean") ||
+    (value.extensionShortTermInvestmentsDisabled !== undefined &&
+      typeof value.extensionShortTermInvestmentsDisabled !== "boolean")
   ) {
     throw new Error("Invalid captured settings");
   }

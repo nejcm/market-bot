@@ -21,6 +21,9 @@ re-derived properties and targeted assertions, not approving large output snapsh
   with readable `report.json`, no `failure.json`, and persists exactly its generated report, Markdown,
   analytics, outcomes, and evidence bundle. Validate persisted schema/research language, resolve every bundle
   source ID, and require `reportIntegrity: high`. Each behavior-specific fixture needs its own assertion.
+- `bun run sweep:sec` writes a deterministic SEC value ledger (one row per CIK, metric and period, from the run
+  path's collector over `data/cache` only). It is a review aid, not a run-output snapshot: compare a before and
+  after ledger with `--diff`, explain every transition, and never approve, commit, or gate CI on its hash.
 - Prompt text remains pinned separately in `tests/support/prompt-baseline.golden.json`: it is input, not output.
 - Live correctness invariants derive statement/history/lens/provenance/completeness/gap-triage/numeric-hygiene
   relations from freshly replayed evidence using structural compatibility and conservative minimum depths,

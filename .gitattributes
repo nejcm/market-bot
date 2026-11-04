@@ -1,4 +1,6 @@
 * text=auto eol=lf
+# Recorded bodies are sha256-pinned, so line endings stay byte-exact.
+tests/fixtures/runs/**/bodies/** -text
 *.ts linguist-language=TypeScript
 
 # Machine-generated fixture data: collapsed by default in GitHub PR diffs.

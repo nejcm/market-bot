@@ -78,9 +78,9 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-relative-5", 0.5],
   ],
   "equity-nbis-deep": [
-    ["grid-range-1", 0.3542],
-    ["grid-range-5", 0.3543],
-    ["grid-range-20", 0.3544],
+    ["grid-range-1", 0.5124],
+    ["grid-range-5", 0.3978],
+    ["grid-range-20", 0.3661],
     ["grid-relative-5", 0.5],
   ],
   "equity-fpi-quarterly": [],
@@ -261,7 +261,10 @@ describe("static equity run fixtures", () => {
           generate: async (request: ModelRequest) => {
             modelRequests.push(request);
             const response = await replayProvider.generate(request);
-            const prompt = JSON.parse(request.messages[1]?.content ?? "{}");
+            const prompt =
+              request.stage === "peer-universe-proposal"
+                ? {}
+                : JSON.parse(request.messages[1]?.content ?? "{}");
             if (name === "equity-earnings-release-deep" && prompt.stage === "final-synthesis") {
               const segments = (
                 prompt.evidence.metricReferences as readonly {

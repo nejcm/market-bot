@@ -248,6 +248,12 @@ export const DISCONTINUED_OPERATIONS_CONCEPTS = [
   "IncomeLossFromDiscontinuedOperationsNetOfTaxIncludingPortionAttributableToNoncontrollingInterest",
 ] as const;
 
+export const IFRS_DISCONTINUED_OPERATIONS_CONCEPTS = [
+  "ProfitLossFromDiscontinuedOperations",
+  "ProfitLossFromDiscontinuedOperationsAttributableToOrdinaryEquityHoldersOfParentEntity",
+  "CashFlowsFromUsedInOperatingActivitiesDiscontinuedOperations",
+] as const;
+
 export const TOTAL_NONCONTROLLING_INCOME_CONCEPTS: ReadonlySet<string> = new Set([
   "NetIncomeLossAttributableToNoncontrollingInterest",
 ]);
@@ -282,7 +288,7 @@ export function netMarginNumerator<T>(period: {
 }
 
 export const CAPEX_SCOPE_CAVEAT =
-  "capital expenditure carries no operations-scope tag and is used as reported";
+  "beside continuing-operations cash flow, capital expenditure is the filed line; a period that reports discontinued-operations investing is withheld unless a calculation linkbase places the line inside the continuing-operations investing subtotal, and an unproven line is disclosed";
 
 // SEC payments-for-PP&E concepts are positive outflows; a negative filing is withheld, not sign-flipped.
 export const NEGATIVE_CAPEX_REASON =

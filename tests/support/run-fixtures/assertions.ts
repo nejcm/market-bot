@@ -41,6 +41,7 @@ import {
   type FinancialStatementTaxonomy,
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import {
+  CAPEX_SCOPE_CAVEAT,
   conceptScope,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
@@ -3091,8 +3092,8 @@ function assertValuationWorkbenchInvariants(
     const inputSeries = [...new Set(lineage.map(({ series }) => series!))];
     if (input.derivation?.startsWith("operating cash flow") === true) {
       expect(
-        input.derivation.includes("capital expenditure carries no operations-scope tag"),
-        "scoped FCF states that capex is unscoped",
+        input.derivation.includes(CAPEX_SCOPE_CAVEAT),
+        "scoped FCF states how capex matches its scope",
       ).toBe(input.scope !== undefined);
       expect(valueOf("capitalExpenditure"), "FCF capex is a filed outflow").toBeGreaterThanOrEqual(
         0,
@@ -3394,19 +3395,19 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
     NEGATIVE_WORKBENCH_DENOMINATOR,
     2.896_894_170_941_147,
     2.273_836_481_491_164,
-    34.242_598_831_201_92,
+    MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-03-31|2026-05-07": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
     3.506_019_539_993_908_5,
     2.892_954_314_846_312,
-    65.800_212_837_331_03,
+    MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-06-30|2026-08-06": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
     2.456_278_691_519_679_5,
     1.797_514_959_546_961_3,
-    51.391_878_897_623_63,
+    MISSING_WORKBENCH_FCF,
   ],
 };
 
@@ -3545,20 +3546,25 @@ const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
     26.526_315_132_396_643,
     6.388_025_147_996_082,
     MISSING_WORKBENCH_DEBT,
-    24.872_452_214_079_082,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2020-12-31|2022-02-24": [
-    7.026_615_795_527_121, 4.475_592_423_428_947, 4.953_779_965_592_203, 15.665_454_157_409_307,
+    7.026_615_795_527_121,
+    4.475_592_423_428_947,
+    4.953_779_965_592_203,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2021-12-31|2022-02-24": [
-    2.699_123_594_289_629_2, 3.527_516_227_400_005_4, 3.696_326_208_206_147_4,
-    13.875_696_145_529_655,
+    2.699_123_594_289_629_2,
+    3.527_516_227_400_005_4,
+    3.696_326_208_206_147_4,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2022-12-31|2023-02-23": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
     2.583_491_490_409_348_7,
     3.001_255_655_799_854,
-    11.618_594_650_394_66,
+    MISSING_WORKBENCH_FCF,
   ],
   "annual|2023-12-31|2024-02-28": [
     9.227_360_190_683_706,

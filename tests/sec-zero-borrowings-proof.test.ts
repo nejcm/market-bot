@@ -660,7 +660,7 @@ describe("placement never pardons a standard concept", () => {
       parents: new Map([
         [
           `${US_GAAP}#NotesPayable`,
-          [{ parent: `${US_GAAP}#OperatingLeaseLiability`, weight: "1" }],
+          [{ parent: `${US_GAAP}#OperatingLeaseLiability`, weight: "1", network: "r" }],
         ],
       ]),
     };

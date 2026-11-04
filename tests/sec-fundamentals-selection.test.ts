@@ -25,6 +25,7 @@ import { financialStatementFacts } from "../src/sources/extended-evidence/financ
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { CAPEX_CALC_PREFIX } from "../src/sources/sec-calculation-linkbase";
 
 const AS_OF = "2026-10-07T00:00:00.000Z";
 const TOTAL_OCF = "NetCashProvidedByUsedInOperatingActivities";
@@ -102,8 +103,24 @@ function clfdConcepts(): Record<string, readonly Row[]> {
   };
 }
 
+// CLFD's FY2025 10-K and Q3 FY2026 10-Q calculation linkbases subtract this capex inside continuing investing.
+const CLFD_CAPEX_CALC: readonly ExtendedEvidenceItem[] = ["0001171843-25-007594", CURRENT_ACCN].map(
+  (accessionNumber) => ({
+    category: "sec-edgar",
+    title: "CLFD SEC filing",
+    summary: "",
+    sourceIds: [accessionNumber],
+    observedAt: AS_OF,
+    metrics: {
+      accessionNumber,
+      [`${CAPEX_CALC_PREFIX}PaymentsToAcquireProductiveAssets`]: -1,
+    },
+  }),
+);
+
 function statementsFor(concepts: Readonly<Record<string, readonly Row[]>>, asOf = AS_OF) {
   return deriveFinancialStatements(payload(concepts), {
+    secFilings: CLFD_CAPEX_CALC,
     symbol: "CLFD",
     generatedAt: asOf,
     analysisAsOf: asOf,
@@ -141,15 +158,15 @@ describe("continuing-operations cash-flow aliases", () => {
     expect(summary.summary).toContain(
       "operating cash flow (continuing operations) 7345000 (-67.2% YoY)",
     );
-    expect(summary.summary).toContain("capex 2917000 (-17.3% YoY)");
     expect(summary.metrics).toMatchObject({
       operatingCashFlow: 7_345_000,
       operatingCashFlowPeriodEnd: "2026-06-30",
       operatingCashFlowPrior: 22_423_000,
       operatingCashFlowScope: "continuing operations",
-      capex: 2_917_000,
     });
-    expect(summary.metrics.capexScope).toBeUndefined();
+    // Capex beside continuing OCF needs the filing's calculation linkbase, which only the canonical series reads.
+    expect(summary.summary).not.toContain("capex");
+    expect(summary.metrics.capex).toBeUndefined();
     expect(summary.gaps.map((gap) => gap.message).join("\n")).not.toContain("operatingCashFlow");
   });
 
@@ -351,7 +368,8 @@ describe("legacy YoY comparatives", () => {
       summary.metrics.revenueDeltaPercent as number,
       10,
     );
-    expect(item.summary).toBe(summary.summary);
+    // The canonical series restores capex the linkbase proves on the continuing OCF's scope.
+    expect(item.summary).toBe(`${summary.summary.slice(0, -1)}, capex 2917000 (-17.3% YoY).`);
   });
 
   test("renders fundamentals prose from canonical metrics when legacy picks a different prior", () => {

@@ -141,8 +141,23 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   test-pinned, and whole-concept selection never splices tags, except operating cash flow: each period takes
   the continuing amount where it is tagged, differs from total, and is as current; else total when the period
   reports no discontinued operations; else total minus the discontinued component filed with the newest total (a recast supersedes it, APLD FY2023):
-  `CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations` (HLIT FY2025: 107,966K − 2,532K); else it is withheld with a gap. Capex has no scope tag; FCF bases say it
-  is used as reported. Narrower current concepts carry continuing-operation labels through every OCF/FCF consumer. Apply cutoff; keep up to ten 10–14-month 10-K
+  `CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations` (HLIT FY2025: 107,966K − 2,532K); else it is withheld with a gap. Beside continuing OCF, capex publishes unqualified when the OCF's own
+  filing's calculation linkbase, with locators resolved against the FASB taxonomy and the filing's extension schema,
+  reaches `NetCashProvidedByUsedInInvestingActivitiesContinuingOperations` from the capex concept on one path
+  (no second parent, no cycle) at composed weight −1, and that filing tags the subtotal for the same period
+  (AMD FY2025, CLFD FY2023–25). Without that proof, a period with a nonzero discontinued-operations investing or capex
+  fact in any unit withholds capex and FCF with a gap (HLIT FY2025, EBAY FY2019–22). The fact can be companyfacts
+  `CashProvidedByUsedInInvestingActivitiesDiscontinuedOperations`, `CapitalExpenditureDiscontinuedOperations` or the
+  IFRS investing concept. It can also be an inline-XBRL fact, under any prefix and in any context, in a fetched
+  filing of any form with a report date. That includes discontinued investing or capex concepts, and capex on a
+  `Discontinued…Member`. Otherwise capex publishes as filed with a `capex-scope-unproven` note. Tag co-occurrence,
+  equal values, and net-investing equality are not proofs. Only 10-K linkbases are fetched, so interim and 20-F
+  periods are never proven. Evidence is read only from filings the run fetches, so a 6-K without a report date, or
+  a filing outside the selected set, is not scanned. IFRS OCF takes the tagged
+  `CashFlowsFromUsedInOperatingActivitiesContinuingOperations` in a period with a nonzero discontinued profit,
+  discontinued OCF or discontinued investing fact, or where it differs from total. It does so only when the
+  continuing amount is filed no earlier than the newest total; otherwise the period is withheld. IFRS capex beside
+  it follows the same capex rule. Narrower current concepts carry continuing-operation labels through every OCF/FCF consumer. Apply cutoff; keep up to ten 10–14-month 10-K
   periods and latest-filed restatements. Derive TTM as FY + aligned current YTD − prior YTD; mismatches are
   omitted/audited. EPS TTM is approximate; FCF/margins/CAGR/margin change need matched periods/units and CAGR
   is annual-only.

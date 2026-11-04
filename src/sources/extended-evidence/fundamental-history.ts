@@ -428,7 +428,7 @@ export function buildFundamentalHistorySeries(
       ? freeCashFlowPairs
       : {
           ...freeCashFlowPairs,
-          notes: [...freeCashFlowPairs.notes, `scope:capex-unscoped: ${CAPEX_SCOPE_CAVEAT}`],
+          notes: [...freeCashFlowPairs.notes, `scope:capex-continuing: ${CAPEX_SCOPE_CAVEAT}`],
         };
   const grossMargin = pairSeries(
     "grossMargin",

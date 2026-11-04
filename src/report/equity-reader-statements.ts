@@ -177,6 +177,7 @@ export function operatingRatioNotes(
     (note) =>
       note.code === "unchecked-component-sum" && note.seriesKey === "depreciationAndAmortization",
   );
+  const unprovenCapex = notes.filter((note) => note.code === "capex-scope-unproven");
   return [
     ...kept,
     ...collapsed(
@@ -188,6 +189,11 @@ export function operatingRatioNotes(
       unchecked,
       (periods) =>
         `SEC depreciation and amortization for periods ending ${periods} is a sum of filed D&A components, not checked against the filed cash-flow statement`,
+    ),
+    ...collapsed(
+      unprovenCapex,
+      (periods) =>
+        `SEC capital expenditure for periods ending ${periods} is the filed line beside continuing-operations operating cash flow; no calculation linkbase proves it is continuing-operations only, and no discontinued-operations investing is reported`,
     ),
   ];
 }
@@ -203,7 +209,7 @@ function collapsed(
   return [
     {
       code: notes[0]!.code,
-      seriesKey: "depreciationAndAmortization",
+      seriesKey: notes[0]!.seriesKey ?? "depreciationAndAmortization",
       message: message(periods.join(", ")),
     },
   ];

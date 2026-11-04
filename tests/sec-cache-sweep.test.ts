@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { makeCacheKeyForTest } from "../src/sources/cache";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   collectFinancialStatementInvariants,
@@ -177,6 +178,11 @@ describe("SEC cache sweep", () => {
         startsInBoilerplate: null,
       });
       expect(report.summary.skippedInvalidCacheCount).toBe(2);
+      expect(report.summary.cacheMisses).toContainEqual({ reason: "sec-tickers", count: 2 });
+      expect(report.ledger.map(({ cik, metric, status }) => [cik, metric, status])).toEqual([
+        ["0000000001", "collector", "missing"],
+        ["0000000002", "collector", "missing"],
+      ]);
       expect(report.companies[0]?.series.dividendsPaid).toMatchObject({
         status: "missing",
         gapReasons: [],
@@ -205,7 +211,7 @@ describe("SEC cache sweep", () => {
       expect(text).not.toContain("canonical");
       expect(text).not.toContain(cacheDir);
       const timestamp = "2026-10-09T12:00:00.123Z";
-      const path = await writeSweepReport(report, cacheDir, timestamp);
+      const { path } = await writeSweepReport(report, cacheDir, timestamp);
       const before = await Bun.file(path).text();
       await expect(writeSweepReport(report, cacheDir, timestamp)).rejects.toMatchObject({
         code: "EEXIST",
@@ -246,6 +252,89 @@ describe("SEC cache sweep", () => {
       await rm(cacheDir, { recursive: true, force: true });
     }
   });
+
+  test.each([
+    ["2026-10-09", ["sec-companyfacts", "sec-submissions", "sec-tickers"], []],
+    ["2026-10-07", ["sec-companyfacts", "sec-tickers"], ["sec-submissions"]],
+  ])(
+    "ledgers the run-path collector's values from the cache alone (submissions cached %s)",
+    async (submissionsDate, hits, stale) => {
+      const cacheDir = await mkdtemp(join(tmpdir(), "sec-sweep-ledger-"));
+      const cache = async (url: string, adapter: string, payload: unknown, date = "2026-10-09") => {
+        const cacheKey = await makeCacheKeyForTest(url, adapter);
+        await Bun.write(
+          join(cacheDir, date, `${cacheKey}.json`),
+          JSON.stringify({
+            cacheKey,
+            adapter,
+            cachedDate: date,
+            fetchedAt: `${date}T12:00:00.000Z`,
+            payload,
+          }),
+        );
+      };
+      try {
+        await cache("https://www.sec.gov/files/company_tickers.json", "sec-tickers", {
+          0: { cik_str: 1, ticker: "TEST", title: "Test Co" },
+        });
+        await cache(
+          "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000001.json",
+          "sec-companyfacts",
+          {
+            cik: 1,
+            entityName: "Test Co",
+            facts: {
+              "us-gaap": {
+                Revenues: {
+                  units: { USD: [{ ...point(100, "2025-12-31"), start: "2025-01-01" }] },
+                },
+              },
+            },
+          },
+        );
+        await cache(
+          "https://data.sec.gov/submissions/CIK0000000001.json",
+          "sec-submissions",
+          {
+            cik: "0000000001",
+            tickers: ["TEST"],
+            filings: { recent: { form: [], filingDate: [] } },
+          },
+          submissionsDate,
+        );
+        const report = await sweepSecCache(cacheDir);
+        expect(report.summary.cacheMisses).toEqual([]);
+        expect(report.summary.cacheHits.map(({ reason }) => reason).toSorted()).toEqual(hits);
+        expect(report.summary.cacheStale.map(({ reason }) => reason)).toEqual(stale);
+        expect(report.ledger).toContainEqual({
+          cik: "0000000001",
+          symbol: "TEST",
+          metric: "statement.revenue",
+          period: "duration:12|2025-12-31",
+          status: "published",
+          value: 100,
+          unit: "USD",
+          currency: "USD",
+          reason: null,
+          accession: "test-accession",
+          firstPublicAt: "2026-02-01",
+          detail: "Revenues",
+        });
+        expect(report.ledger.find(({ metric }) => metric === "position.debt")?.status).toBe(
+          "missing",
+        );
+        expect(report.ledger.some(({ metric }) => metric.startsWith("valuation."))).toBe(true);
+        expect(report.ledger.some(({ metric }) => metric === "ratio.roic")).toBe(true);
+        expect(report.ledger).toEqual(
+          report.ledger.toSorted(
+            (a, b) => a.metric.localeCompare(b.metric) || a.period.localeCompare(b.period),
+          ),
+        );
+      } finally {
+        await rm(cacheDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   test("collects simultaneous invariants with period counts and latest failure", () => {
     const artifact = deriveFinancialStatements(

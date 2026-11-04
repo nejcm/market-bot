@@ -3,6 +3,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { isRecord } from "../src/guards";
+import { withReplaySession } from "../src/replay/session";
+import { collectFinancialStatements } from "../src/sources/collector-equity-enrichment";
+import {
+  fetchSecCompanyFactsForSymbol,
+  secProviderResultFromCompanyFacts,
+} from "../src/sources/extended-evidence/sec-edgar";
+import { createCollectContext } from "../src/sources/source-request";
+import type { CollectContext, FetchSourceResult, SourceRequest } from "../src/sources/types";
+import type { SourceGap } from "../src/domain/sources";
 import { filingDocuments } from "../src/sources/extended-evidence/sec-archive";
 import { financialStatementSeries } from "../src/sources/extended-evidence/financial-statement-selection";
 import {
@@ -20,6 +29,14 @@ import {
   collectFinancialStatementInvariants,
   type FinancialInvariantResult,
 } from "../tests/support/run-fixtures/financial-invariants";
+import {
+  diffLedgers,
+  formatLedgerDiff,
+  parseLedger,
+  secValueLedgerRows,
+  serializeLedger,
+  type LedgerRow,
+} from "./sec-value-ledger";
 
 interface CachedEntry {
   readonly path: string;
@@ -51,6 +68,9 @@ interface CompanySweep {
   readonly invariantViolations: readonly string[];
   readonly invariants: readonly FinancialInvariantResult[];
   readonly disagreements: readonly string[];
+  readonly cacheHits: readonly string[];
+  readonly cacheStale: readonly string[];
+  readonly cacheMisses: readonly string[];
 }
 
 interface FilingSweep {
@@ -81,6 +101,7 @@ interface ReasonCount {
 
 interface SecSweepReport {
   readonly companies: readonly CompanySweep[];
+  readonly ledger: readonly LedgerRow[];
   readonly filings: readonly FilingSweep[];
   readonly exhibitIndexes: readonly ExhibitIndexSweep[];
   readonly summary: {
@@ -127,6 +148,10 @@ interface SecSweepReport {
     readonly invariantViolations: readonly ReasonCount[];
     readonly sectionMisses: readonly ReasonCount[];
     readonly flaggedCiks: readonly string[];
+    readonly cacheHits: readonly ReasonCount[];
+    readonly cacheStale: readonly ReasonCount[];
+    readonly cacheMisses: readonly ReasonCount[];
+    readonly ledgerRowCount: number;
   };
 }
 
@@ -207,6 +232,86 @@ async function readCache(path: string): Promise<Record<string, unknown> | undefi
     }
     return undefined;
   }
+}
+
+// The run path's collector over the cache alone: a request the cache cannot serve becomes a gap, never a fetch.
+interface CacheUsage {
+  readonly hits: string[];
+  readonly stale: string[];
+  readonly misses: string[];
+}
+
+async function collectFromCache(
+  cacheDir: string,
+  symbol: string,
+  cachedDate: string,
+  usage: CacheUsage,
+) {
+  const { context } = createCollectContext(
+    { jobType: "equity", assetClass: "equity", symbol, depth: "deep" },
+    {
+      equityMoverLimit: 0,
+      cryptoMoverLimit: 0,
+      newsLimit: 0,
+      sourceTimeoutMs: 1,
+      secUserAgent: "market-bot offline sweep",
+      cacheDir,
+      cacheFallbackDays: 3650,
+    },
+    new Date(`${cachedDate}T23:59:59.999Z`),
+    () => Promise.reject(new Error("offline sweep: request not in cache")),
+    [],
+  );
+  const seen = new Map<string, Promise<unknown>>();
+  const counted =
+    <R extends FetchSourceResult<unknown> | SourceGap>(
+      fetch: (request: SourceRequest) => Promise<R>,
+    ) =>
+    (request: SourceRequest): Promise<R> => {
+      // The metric chain re-reads companyfacts after the collector; count each request once.
+      const key = `${request.adapter} ${request.url}`;
+      const cached = seen.get(key) ?? countedFetch(fetch, request, usage);
+      seen.set(key, cached);
+      return cached as Promise<R>;
+    };
+  const collectContext = {
+    ...context,
+    request: {
+      ...context.request,
+      json: counted(context.request.json),
+      text: counted(context.request.text),
+    },
+  };
+  return withReplaySession(
+    { mode: "offline", offline: true, state: { values: {} }, indexes: new Map(), failures: [] },
+    () => collectLedgerInputs(collectContext, symbol),
+  );
+}
+
+export async function collectLedgerInputs(context: CollectContext, symbol: string) {
+  const { statements } = await collectFinancialStatements(context, symbol);
+  const facts = await fetchSecCompanyFactsForSymbol(context, symbol);
+  return {
+    statements,
+    facts,
+    sec: secProviderResultFromCompanyFacts(context, facts),
+    asOf: context.fetchedAt,
+  };
+}
+
+async function countedFetch<R extends FetchSourceResult<unknown> | SourceGap>(
+  fetch: (request: SourceRequest) => Promise<R>,
+  request: SourceRequest,
+  usage: CacheUsage,
+): Promise<R> {
+  const result = await fetch(request);
+  let bucket = usage.misses;
+  if ("rawSnapshot" in result) {
+    // A stale fallback keeps the snapshot but blanks the payload, so it proves nothing.
+    bucket = result.rawSnapshot.cacheStatus === "stale-fallback" ? usage.stale : usage.hits;
+  }
+  bucket.push(request.adapter);
+  return result;
 }
 
 export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
@@ -324,6 +429,7 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
     }
   }
   const companyResults: CompanySweep[] = [];
+  const ledger: LedgerRow[] = [];
   for (const [cik, entry] of [...companies].toSorted(([a], [b]) => a.localeCompare(b))) {
     // oxlint-disable-next-line no-await-in-loop -- Sequential reads bound companyfacts memory.
     const companyEntry = await readCache(entry.path);
@@ -359,6 +465,40 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
       submissions: submissionPayload,
     });
     const { artifact } = execution;
+    const usage: CacheUsage = { hits: [], stale: [], misses: [] };
+    // oxlint-disable-next-line no-await-in-loop -- Sequential reads bound companyfacts memory.
+    const collected = await collectFromCache(cacheDir, symbol, entry.cachedDate, usage);
+    const { statements } = collected;
+    ledger.push(
+      ...(statements?.sourceUrl?.endsWith(`/CIK${cik}.json`) !== true
+        ? [
+            {
+              cik,
+              symbol,
+              metric: "collector",
+              period: "-",
+              status: "missing" as const,
+              value: null,
+              unit: null,
+              currency: null,
+              reason:
+                statements === undefined
+                  ? "run-path collector produced no statements from the cache"
+                  : `ticker ${symbol} resolved to ${statements.sourceUrl ?? "no companyfacts URL"}`,
+              accession: null,
+              firstPublicAt: null,
+              detail: null,
+            },
+          ]
+        : secValueLedgerRows({
+            cik,
+            symbol,
+            statements,
+            companyFacts: collected.facts.factsPayload,
+            sec: collected.sec,
+            asOf: collected.asOf,
+          })),
+    );
     const invariants = collectFinancialStatementInvariants(artifact);
     const invariantViolations = invariants
       .filter((result) => result.failingCount > 0)
@@ -413,6 +553,9 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
       invariantViolations,
       invariants,
       disagreements: execution.differences.map((difference) => difference.path),
+      cacheHits: usage.hits.toSorted(),
+      cacheStale: usage.stale.toSorted(),
+      cacheMisses: usage.misses.toSorted(),
     });
   }
   const seriesKeys = [
@@ -450,6 +593,7 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
   });
   return {
     companies: companyResults,
+    ledger,
     filings: filings.toSorted((a, b) => a.contentHash.localeCompare(b.contentHash)),
     exhibitIndexes,
     summary: {
@@ -505,11 +649,21 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
           (company) => company.disagreements.length > 0 || company.invariantViolations.length > 0,
         )
         .map((company) => company.cik),
+      cacheHits: rankedCounts(
+        companyResults.flatMap((company) => company.cacheHits.map((a) => [a])),
+      ),
+      cacheStale: rankedCounts(
+        companyResults.flatMap((company) => company.cacheStale.map((a) => [a])),
+      ),
+      cacheMisses: rankedCounts(
+        companyResults.flatMap((company) => company.cacheMisses.map((a) => [a])),
+      ),
+      ledgerRowCount: ledger.length,
     },
   };
 }
 
-function printSummary(report: SecSweepReport, path: string): void {
+function printSummary(report: SecSweepReport, path: string, ledgerPath: string): void {
   const { summary } = report;
   process.stdout.write(
     `SEC sweep: ${summary.cikCount} CIKs, ${summary.filingCount} unique filings\nCache copies: ${summary.copies.companyfacts} companyfacts, ${summary.copies.submissions} submissions, ${summary.copies.filingText} filing texts, ${summary.copies.filingIndex} filing indexes, ${summary.copies.earningsReleaseExhibit} exhibits\nFilings: ${summary.unknownFormCount} unknown forms, ${summary.emptyPacketCount} empty packets, ${summary.boilerplateCount} boilerplate flags\nExhibits: ${summary.filingIndexCount} filing indexes (${summary.exhibitPickDeltaCount} ranking-rule picks), ${summary.exhibitPayloadCount} retained exhibits (${summary.substantiveExhibitCount} substantive)\nSeries coverage (present/gap/missing):\n`,
@@ -524,6 +678,12 @@ function printSummary(report: SecSweepReport, path: string): void {
     ["Disagreements (CIKs)", summary.disagreements],
     ["Invariant violations (CIKs)", summary.invariantViolations],
     ["Section misses (filings)", summary.sectionMisses],
+    ["Run-path cache hits (requests)", summary.cacheHits],
+    [
+      "Run-path stale cache entries, payload withheld, not exercised (requests)",
+      summary.cacheStale,
+    ],
+    ["Run-path cache misses, not exercised (requests)", summary.cacheMisses],
   ] as const) {
     process.stdout.write(`${label}: ${counts.length === 0 ? "none" : ""}\n`);
     for (const item of counts.slice(0, 10)) {
@@ -537,7 +697,7 @@ function printSummary(report: SecSweepReport, path: string): void {
   }
   process.stdout.write(`Skipped invalid cache entries: ${summary.skippedInvalidCacheCount}\n`);
   process.stdout.write(
-    `Flagged CIKs (${summary.flaggedCiks.length}): ${summary.flaggedCiks.join(", ") || "none"}\nJSON: ${path}\n`,
+    `Flagged CIKs (${summary.flaggedCiks.length}): ${summary.flaggedCiks.join(", ") || "none"}\nJSON: ${path}\nLedger (${summary.ledgerRowCount} rows): ${ledgerPath}\n`,
   );
 }
 
@@ -545,11 +705,13 @@ export async function writeSweepReport(
   report: SecSweepReport,
   outDir: string,
   timestamp: string,
-): Promise<string> {
-  const path = join(outDir, `sec-${timestamp.replaceAll(":", "-")}.json`);
+): Promise<{ readonly path: string; readonly ledgerPath: string }> {
+  const stem = join(outDir, `sec-${timestamp.replaceAll(":", "-")}`);
+  const { ledger, ...json } = report;
   await mkdir(outDir, { recursive: true });
-  await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
-  return path;
+  await writeFile(`${stem}.json`, `${JSON.stringify(json, null, 2)}\n`, { flag: "wx" });
+  await writeFile(`${stem}.ledger.jsonl`, serializeLedger(ledger), { flag: "wx" });
+  return { path: `${stem}.json`, ledgerPath: `${stem}.ledger.jsonl` };
 }
 
 if (import.meta.main) {
@@ -558,6 +720,7 @@ if (import.meta.main) {
     options: {
       "cache-dir": { type: "string", default: "data/cache" },
       "out-dir": { type: "string", default: "data/sweeps" },
+      diff: { type: "string" },
     },
     strict: true,
     allowPositionals: false,
@@ -567,7 +730,14 @@ if (import.meta.main) {
   if (outDir === cacheDir || outDir.startsWith(`${cacheDir}/`)) {
     throw new Error("Sweep output must be outside the cache directory");
   }
+  const baseline =
+    values.diff === undefined ? undefined : parseLedger(await Bun.file(values.diff).text());
+  const startedAt = performance.now();
   const report = await sweepSecCache(cacheDir);
-  const path = await writeSweepReport(report, outDir, new Date().toISOString());
-  printSummary(report, path);
+  const { path, ledgerPath } = await writeSweepReport(report, outDir, new Date().toISOString());
+  printSummary(report, path, ledgerPath);
+  process.stdout.write(`Wall time: ${((performance.now() - startedAt) / 1000).toFixed(1)}s\n`);
+  if (baseline !== undefined) {
+    process.stdout.write(formatLedgerDiff(diffLedgers(baseline, report.ledger)));
+  }
 }

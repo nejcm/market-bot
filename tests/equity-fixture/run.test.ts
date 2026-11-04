@@ -129,9 +129,9 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-relative-5", 0.5],
   ],
   "equity-amd-deep": [
-    ["grid-range-1", 0.5527],
-    ["grid-range-5", 0.4435],
-    ["grid-range-20", 0.4127],
+    ["grid-range-1", 0.541],
+    ["grid-range-5", 0.4301],
+    ["grid-range-20", 0.3989],
     ["grid-relative-5", 0.5],
   ],
 };

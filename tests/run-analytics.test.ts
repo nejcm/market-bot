@@ -893,7 +893,7 @@ describe("forecast quality telemetry (3.2)", () => {
   });
   const referenceSources = collectedSourceBundle({ verifiedMarketSnapshot: referenceSnapshot });
 
-  test("equity-amd-deep reads its recorded p=0.46 ±1σ band Prediction as informative", async () => {
+  test("equity-amd-deep reads its recorded p=0.34 ±1σ band Prediction as near base rate", async () => {
     const fixture = await loadFixture("equity-amd-deep");
     const [, chart] = Object.entries(fixture.dataCassette.entries).find(([request]) =>
       request.includes("/chart/AMD?"),
@@ -919,17 +919,12 @@ describe("forecast quality telemetry (3.2)", () => {
       fixture.llmCassette.entries["final-synthesis|gpt-6-luna"]![0]!.content,
     );
     const { predictions, errors } = readPredictions(
-      output.predictions,
-      new Set([
-        "verified-snapshot-AMD",
-        "market-yahoo-equity-amd",
-        "extended-finnhub-events-amd",
-        "web-amd-5df62913",
-      ]),
+      output.predictions.filter(({ kind }: { kind: string }) => kind === "range"),
+      new Set(["verified-snapshot-AMD", "extended-sec-edgar-amd-8k-0000002488-26-000188"]),
     );
     expect(errors).toEqual([]);
     expect(predictions.map(({ measurableAs }) => measurableAs)).toEqual([
-      "close(AMD, +10) outside [447.77, 569.1]",
+      "close(AMD, +10) outside [425.31, 550.56]",
     ]);
     const { predictions: analytics } = buildRunAnalytics({
       report: researchReport({ symbol: "AMD", predictions }),
@@ -940,8 +935,8 @@ describe("forecast quality telemetry (3.2)", () => {
       targetPredictions: 1,
       outcomes: [],
     });
-    expect(analytics.nearBaseRateCount).toBe(0);
-    expect(analytics.informativeCount).toBe(1);
+    expect(analytics.nearBaseRateCount).toBe(1);
+    expect(analytics.informativeCount).toBe(0);
   });
 
   test("matched range telemetry uses the inclusive 0.22–0.42 band", () => {

@@ -1,160 +1,139 @@
 {
   "values": {
-    "cache:f53c6ef981dc983ee144790531784ab13766d31baf7627fe004a24d41f78ac37:2026-11-02": [{}],
+    "cache:f53c6ef981dc983ee144790531784ab13766d31baf7627fe004a24d41f78ac37:2026-11-04": [{}],
     "host-circuit:query1.finance.yahoo.com": [
       {
         "value": false,
         "count": 7
       }
     ],
-    "cache:b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce:2026-11-02": [{}],
-    "cache:24918a276f681775dbc68a6d0a4e77b4a8cc52b3a6077a906cc8369b08916aa2:2026-11-02": [{}],
+    "cache:b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce:2026-11-04": [{}],
+    "cache:29577e8312be6cbcd86729749956d4011f6624d25172f2d2452c472dd56402bf:2026-11-04": [{}],
     "host-circuit:api.marketaux.com": [
       {
         "value": false
       }
     ],
-    "cache:6321ea194171a0d29e6aa26644d8c6bb2db8a70aa346c378393d3f16207842e6:2026-11-02": [{}],
+    "cache:1ce0fa562667ca9c4ae5c2a3ea43c1b28cf9a6ac3f3c97c9d3008d95ee925297:2026-11-04": [{}],
     "host-circuit:finnhub.io": [
       {
         "value": false,
         "count": 10
       }
     ],
-    "cache:a01cf8c24e3a87f353822bf1c4ec3e0c4e6bb4c72817a43f74b44fffc641c295:2026-11-02": [{}],
-    "cache:c0703d117b40c6f622523a719e563308020badecdeeab7375eed996e8d87e09f:2026-11-02": [{}],
+    "cache:a01cf8c24e3a87f353822bf1c4ec3e0c4e6bb4c72817a43f74b44fffc641c295:2026-11-04": [{}],
+    "cache:c4fbb181e9fb577827bb7c1c5e2389161bdcad238329b3ce9275b3e9b871e09f:2026-11-04": [{}],
+    "cache:c5fb88c3a1107602cc44d400b09be849935464686236a9f091a6a0a1d9938024:2026-11-04": [{}],
     "host-circuit:api.massive.com": [
       {
         "value": false,
         "count": 2
       }
     ],
-    "cache:95df4fd8e80ac4beef591bd07a5f94b9177870986bbd9496654ad281e30b42ae:2026-11-02": [{}],
-    "cache:7e0039de42edc039fcfdf6e79436296e49c4936cbdbcd13759762feeba1e981f:2026-11-02": [{}],
-    "cache:1c5c4646266ca983ccaf14a86b394889bf4130e5ba93ae2a94b326b01495df69:2026-11-02": [{}],
-    "cache:6e9b4b54db04c989a48e92d54b4d703ea6d94b9150521b5c656cbda8d3e30c4e:2026-11-02": [{}],
-    "cache:f4340d0d5be0be409443951ec5e23b1bbb04f6b154932b0c8a20c54cd8b432d2:2026-11-02": [{}],
-    "cache:aa3d1e90b0f946c78b960a6263a27081f768a8c5e283aecf94a59570fba75f10:2026-11-02": [{}],
-    "cache:8af4ca54068bc90a151f2025167aa8b206e545b737d554341dc0978943f8b46f:2026-11-02": [{}],
-    "cache:80c187192282faef2572b72f13c9f5165ab0336c643b57ec732dee24bcd89b40:2026-11-02": [{}],
-    "cache:8e8f464b170b663514809fd1e040001809068d2519ac042d6730b05513d05fec:2026-11-02": [{}],
-    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-02": [{}],
+    "cache:9f4a47f91a08460bbf182b2bc1ceb04d56f55cd92feed42e2032db97b9673bc0:2026-11-04": [{}],
+    "cache:526ca532f903e3892ef0e9ace078998802b2b41c16fe931073682c42224a1d40:2026-11-04": [{}],
+    "cache:f4340d0d5be0be409443951ec5e23b1bbb04f6b154932b0c8a20c54cd8b432d2:2026-11-04": [{}],
+    "cache:6e9b4b54db04c989a48e92d54b4d703ea6d94b9150521b5c656cbda8d3e30c4e:2026-11-04": [{}],
+    "cache:aa3d1e90b0f946c78b960a6263a27081f768a8c5e283aecf94a59570fba75f10:2026-11-04": [{}],
+    "cache:8af4ca54068bc90a151f2025167aa8b206e545b737d554341dc0978943f8b46f:2026-11-04": [{}],
+    "cache:80c187192282faef2572b72f13c9f5165ab0336c643b57ec732dee24bcd89b40:2026-11-04": [{}],
+    "cache:8e8f464b170b663514809fd1e040001809068d2519ac042d6730b05513d05fec:2026-11-04": [{}],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-04": [{}],
     "host-circuit:api.stlouisfed.org": [
       {
         "value": false,
         "count": 7
       }
     ],
-    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-02": [{}],
-    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-02": [{}],
-    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-02": [{}],
-    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-02": [{}],
-    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-02": [{}],
-    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-02": [{}],
-    "cache:a64185bd1927a03e33ea104c2e00907111af1ef5cc7a963f1574a97e5195b337:2026-11-02": [{}],
-    "cache:4428e13846ddade5f7498cf099771a1d5fdc7bfd4dc1b3af229ee22530cce30c:2026-11-02": [{}],
-    "cache:ec360efb8a2ea63a1f3e4944da57fa9dffb4abc5fdf7319784669fe8477d8f20:2026-11-02": [{}],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-04": [{}],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-04": [{}],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-04": [{}],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-04": [{}],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-04": [{}],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-04": [{}],
+    "cache:2bb3ec90bc44fcd227f220b27b0ef7fbf712bd55bc8fced0370fc8cb5fcd229b:2026-11-04": [{}],
+    "cache:59a82c64b14549ed2689af34b800b43c9043393c3346786727ffac16b896bbbf:2026-11-04": [{}],
+    "cache:ec360efb8a2ea63a1f3e4944da57fa9dffb4abc5fdf7319784669fe8477d8f20:2026-11-04": [{}],
     "host-circuit:www.sec.gov": [
       {
         "value": false,
-        "count": 4
+        "count": 5
       }
     ],
-    "cache:ae546f2e7cea1ba240f3a24dc5caa7893b342d4629caf68968c5b0151b17a942:2026-11-02": [{}],
-    "cache:13ba5643b85aed74bcc816a3d6209b915642526245cd580a8ba94e461b4690f9:2026-11-02": [{}],
+    "cache:ae546f2e7cea1ba240f3a24dc5caa7893b342d4629caf68968c5b0151b17a942:2026-11-04": [{}],
+    "cache:13ba5643b85aed74bcc816a3d6209b915642526245cd580a8ba94e461b4690f9:2026-11-04": [{}],
     "host-circuit:data.sec.gov": [
       {
         "value": false,
         "count": 16
       }
     ],
-    "cache:fa723fac3d0f5e575584f67df736f3860b924bda3e8a88ed59d460bc5535fae8:2026-11-02": [{}],
+    "cache:fa723fac3d0f5e575584f67df736f3860b924bda3e8a88ed59d460bc5535fae8:2026-11-04": [{}],
     "cache-stale:ae546f2e7cea1ba240f3a24dc5caa7893b342d4629caf68968c5b0151b17a942": [{}],
     "news-seen": [
       {
-        "bodyFile": "bodies/7a28318b645e03cc8cf47b1513551373e92610e72a285412f6a0ce1d43f89c78.json",
-        "sha256": "7a28318b645e03cc8cf47b1513551373e92610e72a285412f6a0ce1d43f89c78"
+        "bodyFile": "bodies/cbaaab91ceed5ee10c56a1b996f0ca134f69860a56a329b14541b1890f8b863f.json",
+        "sha256": "cbaaab91ceed5ee10c56a1b996f0ca134f69860a56a329b14541b1890f8b863f"
       },
       {
-        "bodyFile": "bodies/7a28318b645e03cc8cf47b1513551373e92610e72a285412f6a0ce1d43f89c78.json",
-        "sha256": "7a28318b645e03cc8cf47b1513551373e92610e72a285412f6a0ce1d43f89c78"
+        "bodyFile": "bodies/cbaaab91ceed5ee10c56a1b996f0ca134f69860a56a329b14541b1890f8b863f.json",
+        "sha256": "cbaaab91ceed5ee10c56a1b996f0ca134f69860a56a329b14541b1890f8b863f"
       }
     ],
-    "cache-stale:7e0039de42edc039fcfdf6e79436296e49c4936cbdbcd13759762feeba1e981f": [{}],
-    "cache:89dd6e3beae38c3d1bb3e2cf041ed69e7612c5daa140357e79e85f2155580cb3:2026-11-02": [{}],
-    "cache-stale:1c5c4646266ca983ccaf14a86b394889bf4130e5ba93ae2a94b326b01495df69": [{}],
-    "cache-stale:6e9b4b54db04c989a48e92d54b4d703ea6d94b9150521b5c656cbda8d3e30c4e": [{}],
+    "cache-stale:9f4a47f91a08460bbf182b2bc1ceb04d56f55cd92feed42e2032db97b9673bc0": [{}],
+    "cache:688750fcb78b059cff36735617c5729dd9ea9e30e4c2e3aa0c2483f6734a407c:2026-11-04": [{}],
+    "cache-stale:526ca532f903e3892ef0e9ace078998802b2b41c16fe931073682c42224a1d40": [{}],
     "cache-stale:f4340d0d5be0be409443951ec5e23b1bbb04f6b154932b0c8a20c54cd8b432d2": [{}],
+    "cache-stale:6e9b4b54db04c989a48e92d54b4d703ea6d94b9150521b5c656cbda8d3e30c4e": [{}],
     "cache-stale:aa3d1e90b0f946c78b960a6263a27081f768a8c5e283aecf94a59570fba75f10": [{}],
     "cache-stale:8af4ca54068bc90a151f2025167aa8b206e545b737d554341dc0978943f8b46f": [{}],
     "cache-stale:80c187192282faef2572b72f13c9f5165ab0336c643b57ec732dee24bcd89b40": [{}],
-    "cache:665d2822b12d5398e8eb1c387f7f5ddb4fdb5206ff8a132b5eabd6fa93f5e838:accession": [
-      {
-        "bodyFile": "bodies/1e42eec242fa2ac88c2cb4bf2e368246f083fc2b4cf37a53559c9827f18df8cc.json",
-        "sha256": "1e42eec242fa2ac88c2cb4bf2e368246f083fc2b4cf37a53559c9827f18df8cc"
-      }
-    ],
     "cache:101dd5e73855fb241f04b93774b173076cedfb2d91e88f502b0f0385bd9e843d:accession": [
       {
         "bodyFile": "bodies/af2e8dcc16cba406fcc4e0c435e34d41ce3c39f3170cd1bee019b19cda464bfe.json",
         "sha256": "af2e8dcc16cba406fcc4e0c435e34d41ce3c39f3170cd1bee019b19cda464bfe"
       }
     ],
-    "cache:1165f9d338c496b742138fce5991440ac8242769d354c850a59bab4b24bed090:accession": [
+    "cache:7c3922ffeca44e4e2256b922a60290907e88735f6159d79d78b779c2c388b6ab:accession": [{}],
+    "cache:5724deb702443c2b65ca8f7b543a9ff437ce135d18361af60e96336fac127acb:accession": [{}],
+    "cache:59a793b30152230d67707b93736dee0c03d1b5898bb6a4b8cf2269833e759b06:accession": [
       {
-        "value": {
-          "cacheKey": "1165f9d338c496b742138fce5991440ac8242769d354c850a59bab4b24bed090",
-          "adapter": "sec-filing-text",
-          "fetchedAt": "2026-10-08T04:20:15.100Z",
-          "cachedDate": "2026-10-08",
-          "payload": "<?xml version='1.0' encoding='ASCII'?>\n<!--XBRL Document Created with the Workiva Platform-->\n<!--Copyright 2026 Workiva-->\n<!--r:01a0ca30-e2f0-729c-8a68-9fb9005f9d98,g:f1cfbcda-7723-4cf0-abd1-1afe6e525843,d:28326ed90a1049b4b765daadd2fca8b0-->\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:ixt-sec=\"http://www.sec.gov/inlineXBRL/transformation/2015-08-31\" xmlns:ix=\"http://www.xbrl.org/2013/inlineXBRL\" xmlns:ixt=\"http://www.xbrl.org/inlineXBRL/transformation/2020-02-12\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:dei=\"http://xbrl.sec.gov/dei/2025\" xmlns:xbrli=\"http://www.xbrl.org/2003/instance\" xmlns:link=\"http://www.xbrl.org/2003/linkbase\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xml:lang=\"en-US\"><head><meta http-equiv=\"Content-Type\" content=\"text/html\"/>\n\n\n<title>amd-20260926</title></head><body><div style=\"display:none\"><ix:header><ix:hidden><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityCentralIndexKey\" id=\"f-21\">0000002488</ix:nonNumeric><ix:nonNumeric contextRef=\"c-1\" name=\"dei:AmendmentFlag\" id=\"f-22\">false</ix:nonNumeric></ix:hidden><ix:references xml:lang=\"en-US\"><link:schemaRef xlink:type=\"simple\" xlink:href=\"amd-20260926.xsd\"/></ix:references><ix:resources><xbrli:context id=\"c-1\"><xbrli:entity><xbrli:identifier scheme=\"http://www.sec.gov/CIK\">0000002488</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-09-26</xbrli:startDate><xbrli:endDate>2026-09-26</xbrli:endDate></xbrli:period></xbrli:context></ix:resources></ix:header></div><div id=\"i28326ed90a1049b4b765daadd2fca8b0_1\"></div><div style=\"min-height:42.75pt;width:100%\"><div><span><br/></span></div></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">UNITED STATES</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">SECURITIES AND EXCHANGE COMMISSION</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">Washington, D.C. 20549</span></div><div style=\"text-align:center\"><span><br/></span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:18pt;font-weight:700;line-height:144%\">FORM <ix:nonNumeric contextRef=\"c-1\" name=\"dei:DocumentType\" id=\"f-1\">8-K</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:700;line-height:144%\">CURRENT REPORT</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:144%\">Pursuant to Section&#160;13 or 15(d) of the Securities Exchange Act of 1934</span></div><div style=\"text-align:center\"><span><br/></span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:DocumentPeriodEndDate\" format=\"ixt:date-monthname-day-year-en\" id=\"f-2\">September 26, 2026</ix:nonNumeric></span></div><div style=\"margin-bottom:7pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:120%\">Date of Report (Date of earliest event reported)</span></div><div style=\"margin-bottom:7pt;text-align:center\"><img src=\"amd-20260926_g1.jpg\" alt=\"amdlogo.jpg\" style=\"height:40px;margin-bottom:5pt;vertical-align:text-bottom;width:108px\" id=\"i-1\"/></div><div style=\"margin-bottom:7pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:24pt;font-weight:700;line-height:120%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityRegistrantName\" id=\"f-3\">ADVANCED MICRO DEVICES, INC.</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Exact name of registrant as specified in its charter)</span></div><div style=\"padding-left:2.25pt\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:99.853%\"><tr><td style=\"width:1.0%\"/><td style=\"width:29.793%\"/><td style=\"width:0.1%\"/><td style=\"width:0.1%\"/><td style=\"width:2.581%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:30.671%\"/><td style=\"width:0.1%\"/><td style=\"width:0.1%\"/><td style=\"width:2.581%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:30.674%\"/><td style=\"width:0.1%\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityIncorporationStateCountryCode\" format=\"ixt-sec:stateprovnameen\" id=\"f-4\">Delaware</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityFileNumber\" id=\"f-5\">001-07882</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityTaxIdentificationNumber\" id=\"f-6\">94-1692300</ix:nonNumeric></span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-top:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">(State or Other Jurisdiction of</span></div><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Incorporation)</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-top:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">(Commission</span></div><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">File Number)</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-top:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">(IRS Employer</span></div><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Identification Number)</span></div></td></tr></table></div><div style=\"text-align:center\"><span><br/></span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:120%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressAddressLine1\" id=\"f-7\">2485 Augustine Drive</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressCityOrTown\" id=\"f-8\">Santa Clara</ix:nonNumeric>, <ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressStateOrProvince\" format=\"ixt-sec:stateprovnameen\" id=\"f-9\">California</ix:nonNumeric> <ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressPostalZipCode\" id=\"f-10\">95054</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Address of principal executive offices) (Zip Code)</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">(<ix:nonNumeric contextRef=\"c-1\" name=\"dei:CityAreaCode\" id=\"f-11\">408</ix:nonNumeric>) <ix:nonNumeric contextRef=\"c-1\" name=\"dei:LocalPhoneNumber\" id=\"f-12\">749-4000</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Registrant&#8217;s telephone number, including area code)</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">N/A</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Former Name or Former Address, if Changed Since Last Report)</span></div><div style=\"margin-top:5pt;text-align:center\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:74.122%\"><tr><td style=\"width:1.0%\"/><td style=\"width:48.604%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:49.196%\"/><td style=\"width:0.1%\"/></tr><tr style=\"height:3pt\"><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/></tr></table></div><div style=\"text-align:center\"><span><br/></span></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:144%\">Check the appropriate box below if the Form 8-K filing is intended to simultaneously satisfy the filing obligation of the registrant under any of the following provisions:</span></div><div style=\"margin-top:5pt\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:100.000%\"><tr><td style=\"width:1.0%\"/><td style=\"width:3.432%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:94.368%\"/><td style=\"width:0.1%\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:WrittenCommunications\" format=\"ixt-sec:boolballotbox\" id=\"f-13\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Written communications pursuant to Rule 425 under the Securities Act (17 CFR 230.425)</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:SolicitingMaterial\" format=\"ixt-sec:boolballotbox\" id=\"f-14\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Soliciting material pursuant to Rule 14a-12 under the Exchange Act (17 CFR 240.14a-12)</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:PreCommencementTenderOffer\" format=\"ixt-sec:boolballotbox\" id=\"f-15\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Pre-commencement communications pursuant to Rule 14d-2(b) under the Exchange Act (17 CFR 240.14d-2(b))</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:PreCommencementIssuerTenderOffer\" format=\"ixt-sec:boolballotbox\" id=\"f-16\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Pre-commencement communications pursuant to Rule 13e-4(c) under the Exchange Act (17 CFR 240.13e-4(c))</span></div></td></tr></table></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:120%\">Securities registered pursuant to Section 12(b) of the Act:</span></div><div style=\"margin-top:5pt;text-align:center\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:90.497%\"><tr><td style=\"width:1.0%\"/><td style=\"width:31.371%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:19.416%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:45.913%\"/><td style=\"width:0.1%\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Title of each class</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Trading Symbol(s)</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">&#160;Name of each exchange on which registered</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:Security12bTitle\" id=\"f-17\">Common Stock, $0.01 par value</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:TradingSymbol\" id=\"f-18\">AMD</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:SecurityExchangeName\" format=\"ixt-sec:exchnameen\" id=\"f-19\">The Nasdaq Global Select Market</ix:nonNumeric></span></div></td></tr></table></div><div style=\"padding-left:2.25pt\"><span><br/></span></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Indicate by check mark whether the registrant is an emerging growth company as defined in Rule 405 of the Securities Act of 1933 (&#167;230.405 of this chapter) or Rule 12b-2 of the Securities Exchange Act of 1934 (&#167;240.12b-2 of this chapter). Emerging growth company     <ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityEmergingGrowthCompany\" format=\"ixt-sec:boolballotbox\" id=\"f-20\">&#9744;</ix:nonNumeric> </span></div><div style=\"margin-top:4.55pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">If an emerging growth company, indicate by check mark if the registrant has elected not to use the extended transition period for complying with any new or revised financial accounting standards provided pursuant to Section 13(a) of the Exchange Act. &#9744; </span></div><div style=\"height:42.75pt;position:relative;width:100%\"><div style=\"bottom:0;position:absolute;width:100%\"><div style=\"text-align:center\"><span><br/></span></div></div></div><div id=\"i28326ed90a1049b4b765daadd2fca8b0_7\"></div><hr style=\"page-break-after:always\"/><div style=\"min-height:42.75pt;width:100%\"><div><span><br/></span></div></div><div style=\"margin-bottom:12pt\"><span><br/></span></div><div style=\"-sec-extract:summary\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:11pt;font-weight:700;line-height:112%\">Item 3.02 Unregistered Sales of Equity Securities</span><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:11pt;font-weight:400;line-height:112%\"> </span></div><div><span><br/></span></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:11pt;font-weight:400;line-height:112%\">On September 26, 2026, Advanced Micro Devices, Inc. (the &#8220;Company&#8221;) entered into an Agreement and Plan of Merger (the &#8220;Merger Agreement&#8221;) to acquire all of the equity interests in World Labs Technologies, Inc. (&#8220;World Labs&#8221;) (the &#8220;Acquisition&#8221;) for a total purchase price of approximately $8.2 billion to be paid in shares of the Company&#8217;s common stock, par value $0.01 per share (&#8220;Common Stock&#8221;), to stockholders of World Labs, subject to customary adjustments.  At this time, the number of shares to be issued in connection with the Acquisition is not known and will be calculated based on the daily volume-weighted average price of a share of Common Stock on the Nasdaq Global Select Market over the ten (10) consecutive trading-day period ending on and including the second trading day immediately preceding the closing date of the Acquisition.  </span></div><div><span><br/></span></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:11pt;font-weight:400;line-height:112%\">The Company intends to issue the shares of Common Stock in reliance upon the exemptions from registration afforded by Section 4(a)(2) of the Securities Act of 1933, as amended (the &#8220;Securities Act&#8221;), and/or Rule 506 of Regulation D promulgated under the Securities Act. The issuance is not being conducted in connection with a public offering, and no public solicitation or advertisement will be made or relied upon in connection with the issuance of the shares. </span></div><div style=\"height:42.75pt;position:relative;width:100%\"><div style=\"bottom:0;position:absolute;width:100%\"><div style=\"text-align:center\"><span><br/></span></div></div></div><hr style=\"page-break-after:always\"/><div style=\"min-height:42.75pt;width:100%\"><div><span><br/></span></div></div><div style=\"text-align:center\"><span><br/></span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:120%\">SIGNATURES</span></div><div style=\"text-indent:24.75pt\"><span><br/></span></div><div style=\"margin-bottom:12pt;text-align:justify;text-indent:27pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned hereunto duly authorized.</span></div><div style=\"margin-bottom:7pt;text-align:justify;text-indent:27pt\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:96.198%\"><tr><td style=\"width:1.0%\"/><td style=\"width:26.103%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:9.082%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:9.082%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:9.082%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:32.790%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:7.261%\"/><td style=\"width:0.1%\"/></tr><tr style=\"height:14pt\"><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 3.25pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Date: September 28, 2026</span></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"6\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:100%\">ADVANCED MICRO DEVICES, INC.</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr style=\"height:14pt\"><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">By:</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:100%\">/s/ Ava Hahn</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Name:</span></div></td><td colspan=\"3\" style=\"border-top:1pt solid #000000;padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Ava Hahn</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Title:</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Senior Vice President, General Counsel and Corporate Secretary</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/></tr></table></div><div><span><br/></span></div><div style=\"height:42.75pt;position:relative;width:100%\"><div style=\"bottom:0;position:absolute;width:100%\"><div style=\"text-align:center\"><span><br/></span></div></div></div><script type=\"text/javascript\"  src=\"/NHfB/hR1N/z9/AfoF/hkPQ/D5VODVcwmV8VtphY/MBUmAQ/DVxoMFQ/ZWwQB\"></script></body></html>\n"
-        }
+        "bodyFile": "bodies/4ebe8370d79a277e5ccf91b55919e4d374abdf40e2b81e0be81c881e6c33dfe6.json",
+        "sha256": "4ebe8370d79a277e5ccf91b55919e4d374abdf40e2b81e0be81c881e6c33dfe6"
       }
     ],
-    "cache:6eb473329eaedbd396d4b9e094e5d0b16cdc305ddfff12d0c6f98320d2bbf530:accession": [
+    "cache:fae4b8c0f1bc9565b120bbe7560d05e7243bd1e66777912cf20fe585e8e8df3b:accession": [
       {
-        "value": {
-          "cacheKey": "6eb473329eaedbd396d4b9e094e5d0b16cdc305ddfff12d0c6f98320d2bbf530",
-          "adapter": "sec-filing-text",
-          "fetchedAt": "2026-10-08T04:20:15.100Z",
-          "cachedDate": "2026-10-08",
-          "payload": "<?xml version='1.0' encoding='ASCII'?>\n<!--XBRL Document Created with the Workiva Platform-->\n<!--Copyright 2026 Workiva-->\n<!--r:019dfa35-7422-78f1-9465-7774f881f0d4,g:48eca611-ee86-4af9-a7f8-595db6edb87c,d:eaae0f3a9cbb4c4b890219e0aacbecce-->\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:ixt-sec=\"http://www.sec.gov/inlineXBRL/transformation/2015-08-31\" xmlns:ix=\"http://www.xbrl.org/2013/inlineXBRL\" xmlns:ixt=\"http://www.xbrl.org/inlineXBRL/transformation/2020-02-12\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:dei=\"http://xbrl.sec.gov/dei/2026\" xmlns:xbrli=\"http://www.xbrl.org/2003/instance\" xmlns:link=\"http://www.xbrl.org/2003/linkbase\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xml:lang=\"en-US\"><head><meta http-equiv=\"Content-Type\" content=\"text/html\"/>\n\n\n<title>amd-20260804</title></head><body><div style=\"display:none\"><ix:header><ix:hidden><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityCentralIndexKey\" id=\"f-21\">0000002488</ix:nonNumeric><ix:nonNumeric contextRef=\"c-1\" name=\"dei:AmendmentFlag\" id=\"f-22\">false</ix:nonNumeric></ix:hidden><ix:references xml:lang=\"en-US\"><link:schemaRef xlink:type=\"simple\" xlink:href=\"amd-20260804.xsd\"/></ix:references><ix:resources><xbrli:context id=\"c-1\"><xbrli:entity><xbrli:identifier scheme=\"http://www.sec.gov/CIK\">0000002488</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-08-04</xbrli:startDate><xbrli:endDate>2026-08-04</xbrli:endDate></xbrli:period></xbrli:context></ix:resources></ix:header></div><div id=\"ieaae0f3a9cbb4c4b890219e0aacbecce_1\"></div><div style=\"min-height:42.75pt;width:100%\"><div><span><br/></span></div></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">UNITED STATES</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">SECURITIES AND EXCHANGE COMMISSION</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">Washington, D.C. 20549</span></div><div style=\"text-align:center\"><span><br/></span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:18pt;font-weight:700;line-height:144%\">FORM <ix:nonNumeric contextRef=\"c-1\" name=\"dei:DocumentType\" id=\"f-1\">8-K</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:700;line-height:144%\">CURRENT REPORT</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:144%\">Pursuant to Section&#160;13 or 15(d) of the Securities Exchange Act of 1934</span></div><div style=\"text-align:center\"><span><br/></span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:DocumentPeriodEndDate\" format=\"ixt:date-monthname-day-year-en\" id=\"f-2\">August&#160;4, 2026</ix:nonNumeric> </span></div><div style=\"margin-bottom:7pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:120%\">Date of Report (Date of earliest event reported)</span></div><div style=\"margin-bottom:7pt;text-align:center\"><img src=\"amd-20260804_g1.jpg\" alt=\"amdlogo.jpg\" style=\"height:40px;margin-bottom:5pt;vertical-align:text-bottom;width:108px\" id=\"i-1\"/></div><div style=\"margin-bottom:7pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:24pt;font-weight:700;line-height:120%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityRegistrantName\" id=\"f-3\">ADVANCED MICRO DEVICES, INC.</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Exact name of registrant as specified in its charter)</span></div><div style=\"padding-left:2.25pt\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:99.853%\"><tr><td style=\"width:1.0%\"/><td style=\"width:29.793%\"/><td style=\"width:0.1%\"/><td style=\"width:0.1%\"/><td style=\"width:2.581%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:30.671%\"/><td style=\"width:0.1%\"/><td style=\"width:0.1%\"/><td style=\"width:2.581%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:30.674%\"/><td style=\"width:0.1%\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityIncorporationStateCountryCode\" format=\"ixt-sec:stateprovnameen\" id=\"f-4\">Delaware</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityFileNumber\" id=\"f-5\">001-07882</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityTaxIdentificationNumber\" id=\"f-6\">94-1692300</ix:nonNumeric></span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-top:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">(State or Other Jurisdiction of</span></div><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Incorporation)</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-top:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">(Commission</span></div><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">File Number)</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-top:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">(IRS Employer</span></div><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Identification No.)</span></div></td></tr></table></div><div style=\"text-align:center\"><span><br/></span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:120%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressAddressLine1\" id=\"f-7\">2485 Augustine Drive</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressCityOrTown\" id=\"f-8\">Santa Clara</ix:nonNumeric>, <ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressStateOrProvince\" format=\"ixt-sec:stateprovnameen\" id=\"f-9\">California</ix:nonNumeric> <ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityAddressPostalZipCode\" id=\"f-10\">95054</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Address of principal executive offices) (Zip Code)</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">(<ix:nonNumeric contextRef=\"c-1\" name=\"dei:CityAreaCode\" id=\"f-11\">408</ix:nonNumeric>) <ix:nonNumeric contextRef=\"c-1\" name=\"dei:LocalPhoneNumber\" id=\"f-12\">749-4000</ix:nonNumeric> </span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Registrant&#8217;s telephone number, including area code)</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%\">N/A</span></div><div style=\"text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:144%\">(Former Name or Former Address, if Changed Since Last Report)</span></div><div style=\"margin-top:5pt;text-align:center\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:74.122%\"><tr><td style=\"width:1.0%\"/><td style=\"width:48.604%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:49.196%\"/><td style=\"width:0.1%\"/></tr><tr style=\"height:3pt\"><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/></tr></table></div><div style=\"text-align:center\"><span><br/></span></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:144%\">Check the appropriate box below if the Form 8-K filing is intended to simultaneously satisfy the filing obligation of the registrant under any of the following provisions:</span></div><div style=\"margin-top:5pt\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:100.000%\"><tr><td style=\"width:1.0%\"/><td style=\"width:3.432%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:94.368%\"/><td style=\"width:0.1%\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:WrittenCommunications\" format=\"ixt:fixed-false\" id=\"f-13\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Written communications pursuant to Rule 425 under the Securities Act (17 CFR 230.425)</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:SolicitingMaterial\" format=\"ixt:fixed-false\" id=\"f-14\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Soliciting material pursuant to Rule 14a-12 under the Exchange Act (17 CFR 240.14a-12)</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:PreCommencementTenderOffer\" format=\"ixt:fixed-false\" id=\"f-15\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Pre-commencement communications pursuant to Rule 14d-2(b) under the Exchange Act (17 CFR 240.14d-2(b))</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:1.12pt;padding-right:1.12pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:12pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:PreCommencementIssuerTenderOffer\" format=\"ixt:fixed-false\" id=\"f-16\">&#9744;</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Pre-commencement communications pursuant to Rule 13e-4(c) under the Exchange Act (17 CFR 240.13e-4(c))</span></div></td></tr></table></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:120%\">Securities registered pursuant to Section 12(b) of the Act:</span></div><div style=\"margin-top:5pt;text-align:center\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:90.497%\"><tr><td style=\"width:1.0%\"/><td style=\"width:31.371%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:19.416%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:45.913%\"/><td style=\"width:0.1%\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Title of each class</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">Trading Symbol(s)</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:700;line-height:100%\">&#160;Name of each exchange on which registered</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:Security12bTitle\" id=\"f-17\">Common Stock, $0.01 par value</ix:nonNumeric></span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:TradingSymbol\" id=\"f-18\">AMD</ix:nonNumeric>      </span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:9pt;font-weight:400;line-height:100%\"><ix:nonNumeric contextRef=\"c-1\" name=\"dei:SecurityExchangeName\" format=\"ixt-sec:exchnameen\" id=\"f-19\">The Nasdaq Global Select Market</ix:nonNumeric></span></div></td></tr></table></div><div style=\"padding-left:2.25pt\"><span><br/></span></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Indicate by check mark whether the registrant is an emerging growth company as defined in Rule 405 of the Securities Act of 1933 (&#167;230.405 of this chapter) or Rule 12b-2 of the Securities Exchange Act of 1934 (&#167;240.12b-2 of this chapter).   Emerging growth company  <ix:nonNumeric contextRef=\"c-1\" name=\"dei:EntityEmergingGrowthCompany\" format=\"ixt:fixed-false\" id=\"f-20\">&#9744;</ix:nonNumeric> </span></div><div style=\"margin-top:4.55pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">If an emerging growth company, indicate by check mark if the registrant has elected not to use the extended transition period for complying with any new or revised financial accounting standards provided pursuant to Section 13(a) of the Exchange Act. &#9744; </span></div><div style=\"height:42.75pt;position:relative;width:100%\"><div style=\"bottom:0;position:absolute;width:100%\"><div style=\"text-align:center\"><span><br/></span></div></div></div><div id=\"ieaae0f3a9cbb4c4b890219e0aacbecce_7\"></div><hr style=\"page-break-after:always\"/><div style=\"min-height:42.75pt;width:100%\"><div><span><br/></span></div></div><div style=\"margin-bottom:12pt\"><span><br/></span></div><div style=\"-sec-extract:summary;margin-bottom:12pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:120%;text-decoration:underline\">Item&#160;2.02 Results of Operations and Financial Condition.</span></div><div style=\"text-align:justify;text-indent:27pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:112%\">On August&#160;4, 2026, Advanced Micro Devices, Inc. (\"AMD\") announced its financial results for its second quarter of 2026 ended June 27, 2026 in a press release that is attached hereto as Exhibit 99.1. Attached hereto as Exhibit 99.2 is a presentation regarding AMD's second quarter of 2026. </span></div><div style=\"text-indent:27pt\"><span><br/></span></div><div style=\"text-align:justify;text-indent:27pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:109%\">The attached Exhibits 99.1 and 99.2, in addition to financial results presented on a U.S. Generally Accepted Accounting Principles (&#8220;GAAP&#8221;) basis, contains certain non-GAAP financial information and forward-looking financial guidance. Certain of these non-GAAP financial measures will be used in AMD&#8217;s earnings conference call. A reconciliation of these non-GAAP financial measures to their nearest GAAP equivalents is provided in the data tables at the end of the attached Exhibits 99.1 and 99.2. These non-GAAP financial measures should be viewed in addition to and not as a substitute for or superior to AMD&#8217;s reported results prepared in accordance with GAAP.</span></div><div style=\"text-align:justify;text-indent:27pt\"><span><br/></span></div><div style=\"margin-bottom:12pt;text-align:justify;text-indent:27pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:109%\">The information in this report furnished pursuant to Items 2.02 and 7.01, including Exhibits 99.1 and 99.2 attached hereto, shall not be deemed &#8220;filed&#8221; for the purposes of Section&#160;18 of the Securities Exchange Act of 1934, as amended (the &#8220;Exchange Act&#8221;), or otherwise subject to the liabilities of that section. It may only be incorporated by reference in another filing under the Exchange Act or the Securities Act of 1933, as amended, if such subsequent filing specifically references the information furnished pursuant to Items 2.02 and 7.01 of this report.</span></div><div style=\"margin-bottom:12pt;text-align:justify\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:109%;text-decoration:underline\">Item 7.01 Regulation FD Disclosure.</span></div><div style=\"margin-bottom:12pt;text-align:justify;text-indent:27pt\"><span style=\"background-color:#ffffff;color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:109%\">The information set forth under Item 2.02 &#8220;Results of Operations and Financial Condition&#8221; is incorporated into this Item 7.01 by reference.</span></div><div><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:144%;text-decoration:underline\">Item&#160;9.01 Financial Statements and Exhibits.</span></div><div style=\"text-indent:6.75pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-style:italic;font-weight:700;line-height:144%\">(d) Exhibits.</span></div><div style=\"margin-bottom:2pt;margin-top:6pt;text-indent:24.75pt\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:95.175%\"><tr><td style=\"width:1.0%\"/><td style=\"width:22.709%\"/><td style=\"width:0.1%\"/><td style=\"width:0.1%\"/><td style=\"width:0.568%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:74.323%\"/><td style=\"width:0.1%\"/></tr><tr><td colspan=\"9\" style=\"padding:2.62pt 1pt 1.5pt 3.25pt;text-align:left;vertical-align:bottom\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">EXHIBIT&#160;INDEX<br/></span></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:100%\">Exhibit&#160;No.</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:8pt;font-weight:700;line-height:100%\">Description</span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">99.1</span></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-right:2.25pt\"><span style=\"color:#0000ff;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%;text-decoration:underline\"><a style=\"-sec-extract:exhibit;color:#0000ff;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%;text-decoration:underline\" href=\"q22026991.htm\">Press Release dated </a><a style=\"-sec-extract:exhibit;color:#0000ff;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%;text-decoration:underline\" href=\"q22026991.htm\">Au</a><a style=\"-sec-extract:exhibit;color:#0000ff;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%;text-decoration:underline\" href=\"q22026991.htm\">gust 4</a><a style=\"-sec-extract:exhibit;color:#0000ff;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%;text-decoration:underline\" href=\"q22026991.htm\">, 2026</a></span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">99.2</span></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div><span style=\"color:#0000ff;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%;text-decoration:underline\"><a style=\"-sec-extract:exhibit;color:#0000ff;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%;text-decoration:underline\" href=\"amdq22026earningsslidesf.htm\">Second Quarter 2026 Financial Results Presentation</a></span></div></td></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">104</span></td><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Inline XBRL for the cover page of this Current Report on Form 8-K</span></td></tr></table></div><div style=\"text-align:justify\"><span><br/></span></div><div style=\"height:42.75pt;position:relative;width:100%\"><div style=\"bottom:0;position:absolute;width:100%\"><div style=\"text-align:center\"><span><br/></span></div></div></div><hr style=\"page-break-after:always\"/><div style=\"min-height:42.75pt;width:100%\"><div><span><br/></span></div></div><div style=\"margin-bottom:12pt;text-indent:24.75pt\"><span><br/></span></div><div style=\"margin-bottom:12pt;text-align:justify;text-indent:27pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned hereunto duly authorized.</span></div><div style=\"margin-bottom:7pt;text-align:justify;text-indent:27pt\"><table style=\"border-collapse:collapse;display:inline-table;margin-bottom:5pt;vertical-align:text-bottom;width:76.608%\"><tr><td style=\"width:1.0%\"/><td style=\"width:33.060%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:11.686%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:41.457%\"/><td style=\"width:0.1%\"/><td style=\"width:1.0%\"/><td style=\"width:9.397%\"/><td style=\"width:0.1%\"/></tr><tr style=\"height:14pt\"><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 3.25pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:400;line-height:100%\">Date: August 4, 2026</span></td><td colspan=\"6\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:100%\">ADVANCED MICRO DEVICES, INC.</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr style=\"height:14pt\"><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:100%\">By:</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:100%\">/s/ Jean Hu</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:100%\">Name:</span></div></td><td colspan=\"3\" style=\"border-top:1pt solid #000000;padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:100%\">Jean Hu</span></div></td><td colspan=\"3\" style=\"border-top:1pt solid #000000;padding:0 1pt\"/></tr><tr><td colspan=\"3\" style=\"padding:0 1pt\"/><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:top\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:100%\">Title:</span></div></td><td colspan=\"3\" style=\"padding:2.62pt 1pt 1.5pt 1pt;text-align:left;vertical-align:bottom\"><div style=\"margin-bottom:2pt;padding-left:2.25pt;padding-right:2.25pt;text-align:center\"><span style=\"color:#000000;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:100%\">Executive Vice President, Chief Financial Officer &amp; Treasurer</span></div></td><td colspan=\"3\" style=\"padding:0 1pt\"/></tr></table></div><div><span><br/></span></div><div style=\"height:42.75pt;position:relative;width:100%\"><div style=\"bottom:0;position:absolute;width:100%\"><div style=\"text-align:center\"><span><br/></span></div></div></div><script type=\"text/javascript\"  src=\"/NHfB/hR1N/z9/AfoF/hkPQ/D5VODVcwmV8VtphY/MBUmAQ/DVxoMFQ/ZWwQB\"></script></body></html>\n"
-        }
+        "bodyFile": "bodies/57406fcc9191c1110de11b92c7415f3b638e22eca8c9b9ba75808e552747738f.json",
+        "sha256": "57406fcc9191c1110de11b92c7415f3b638e22eca8c9b9ba75808e552747738f"
       }
     ],
-    "cache:38e84947aeb79314a8a598a106da9fa5e2930744c547db308b26668c066565e0:2026-11-02": [{}],
-    "cache:59a793b30152230d67707b93736dee0c03d1b5898bb6a4b8cf2269833e759b06:accession": [{}],
-    "cache:d9eaf1363d3ca2e373065a9aeb5c1cf110d919af6d9ce217034ad71867d07576:accession": [
-      {
-        "bodyFile": "bodies/f3ab6263b678691f5b6275d076afde18e7acd23dc264072db63109b5a987eeb8.json",
-        "sha256": "f3ab6263b678691f5b6275d076afde18e7acd23dc264072db63109b5a987eeb8"
-      }
-    ],
-    "cache:fae4b8c0f1bc9565b120bbe7560d05e7243bd1e66777912cf20fe585e8e8df3b:accession": [{}],
-    "cache:4ca0188fd3a3cf319c6084695b5c2002810de3ae1ea3329827853eb487862a40:2026-11-02": [{}],
-    "cache:0b96b4ef8d2d3dd61537b01eb095ece7167cf4ec9ef1ea0a74028389acfd10a6:2026-11-02": [{}],
-    "cache:ffb04250adc7c00fa63c6a0c59d77b7c316f4d6dc9a756f7b55a425fdbc040a9:2026-11-02": [{}],
-    "cache:733a388ac4ea167618abd860f6851fface1b5f5e02e51c260daf562b5f38dc39:2026-11-02": [{}],
-    "cache:1b273ef8fa7373fe609b9d6139ba2a803e91e44f14ec24d6d337a730552eed61:2026-11-02": [{}],
-    "cache:67b5302b99b2ead2bf15369cd3d72342ba628af5550bed77f70899ed34011598:2026-11-02": [{}],
-    "cache:47040a5518e457b68bfc6958c86477bcec4b4c077671ee1b60ced31b6d1b56cf:2026-11-02": [{}],
-    "cache:ddd054939437281e69e1516ce85613d9569303768141b0194aae8515fde2b40a:2026-11-02": [{}],
-    "cache:9c67b8ea5e574e6b85c49e456dd97f4081efa892164124ba62025af8c54bb9c8:2026-11-02": [{}],
-    "cache:7780a7969d9c37567ab563f1f3f01e2eae9d45a0eabf0ddfbdb4a7b60bf94b10:2026-11-02": [{}],
-    "cache:5d7427bb8ca7471844ddb094fa0b5d44154d7a7d426dbf9a9d6c3d75c2e3e28a:2026-11-02": [{}],
-    "cache:e853ce106b044f1e90fde1412be9e022d0021a8fe536e45ac2898f9a16a74609:2026-11-02": [{}],
-    "cache:3d552b7e5ed6878a18c93e090103722f441ea003d92dfb13f2d80e2957275905:2026-11-02": [{}],
-    "cache:c3ea1b14db63425b101053ff39ed1c03a32e139cb3e67efa64cf72605c549a04:2026-11-02": [{}],
-    "cache:2d9d0209f52d8ac1e72d133244f78cf17e736f056e0fabb9c00fba3eb16e5da2:2026-11-02": [{}],
+    "cache:b021a231a1bcbd5177f8f4267901eb9c222a3b5a911ca6b4190573c0b4cf31ab:2026-11-04": [{}],
+    "cache:9bf94b5fe7fbc9889a6b9e5f2e273ec9e24d03dd73a3ac0e8b7730d892b780c7:accession": [{}],
+    "cache:4ca0188fd3a3cf319c6084695b5c2002810de3ae1ea3329827853eb487862a40:2026-11-04": [{}],
+    "cache:0b96b4ef8d2d3dd61537b01eb095ece7167cf4ec9ef1ea0a74028389acfd10a6:2026-11-04": [{}],
+    "cache:47040a5518e457b68bfc6958c86477bcec4b4c077671ee1b60ced31b6d1b56cf:2026-11-04": [{}],
+    "cache:67b5302b99b2ead2bf15369cd3d72342ba628af5550bed77f70899ed34011598:2026-11-04": [{}],
+    "cache:1b273ef8fa7373fe609b9d6139ba2a803e91e44f14ec24d6d337a730552eed61:2026-11-04": [{}],
+    "cache:ffb04250adc7c00fa63c6a0c59d77b7c316f4d6dc9a756f7b55a425fdbc040a9:2026-11-04": [{}],
+    "cache:733a388ac4ea167618abd860f6851fface1b5f5e02e51c260daf562b5f38dc39:2026-11-04": [{}],
+    "cache:ddd054939437281e69e1516ce85613d9569303768141b0194aae8515fde2b40a:2026-11-04": [{}],
+    "cache:9c67b8ea5e574e6b85c49e456dd97f4081efa892164124ba62025af8c54bb9c8:2026-11-04": [{}],
+    "cache:c3ea1b14db63425b101053ff39ed1c03a32e139cb3e67efa64cf72605c549a04:2026-11-04": [{}],
+    "cache:3d552b7e5ed6878a18c93e090103722f441ea003d92dfb13f2d80e2957275905:2026-11-04": [{}],
+    "cache:e853ce106b044f1e90fde1412be9e022d0021a8fe536e45ac2898f9a16a74609:2026-11-04": [{}],
+    "cache:7780a7969d9c37567ab563f1f3f01e2eae9d45a0eabf0ddfbdb4a7b60bf94b10:2026-11-04": [{}],
+    "cache:5d7427bb8ca7471844ddb094fa0b5d44154d7a7d426dbf9a9d6c3d75c2e3e28a:2026-11-04": [{}],
+    "cache:2d9d0209f52d8ac1e72d133244f78cf17e736f056e0fabb9c00fba3eb16e5da2:2026-11-04": [{}],
     "calibration": [
       {
         "value": {
-          "generatedAt": "2026-11-02T12:47:02.362Z",
-          "resolvedCount": 103,
-          "duplicateForecastCount": 75,
-          "missAutopsyCount": 22,
-          "brierScore": 0.21312038834951463,
-          "hitRate": 0.42718446601941745,
+          "generatedAt": "2026-11-04T16:21:04.606Z",
+          "resolvedCount": 132,
+          "duplicateForecastCount": 103,
+          "missAutopsyCount": 25,
+          "brierScore": 0.21701136363636359,
+          "hitRate": 0.4166666666666667,
           "bins": [
             {
               "pLow": 0.1,
@@ -176,25 +155,25 @@
               "pLow": 0.3,
               "pHigh": 0.4,
               "label": "0.3-0.4",
-              "hitCount": 16,
-              "totalCount": 48,
+              "hitCount": 19,
+              "totalCount": 57,
               "hitRate": 0.3333333333333333
             },
             {
               "pLow": 0.4,
               "pHigh": 0.5,
               "label": "0.4-0.5",
-              "hitCount": 11,
-              "totalCount": 16,
-              "hitRate": 0.6875
+              "hitCount": 18,
+              "totalCount": 34,
+              "hitRate": 0.5294117647058824
             },
             {
               "pLow": 0.5,
               "pHigh": 0.6,
               "label": "0.5-0.6",
-              "hitCount": 5,
-              "totalCount": 7,
-              "hitRate": 0.7142857142857143
+              "hitCount": 6,
+              "totalCount": 9,
+              "hitRate": 0.6666666666666666
             },
             {
               "pLow": 0.6,
@@ -207,22 +186,22 @@
           ],
           "byKind": {
             "range": {
-              "brierScore": 0.20088714285714301,
-              "count": 70,
-              "runCount": 47,
-              "brierStandardError": 0.01835471242899106
+              "brierScore": 0.20887045454545472,
+              "count": 88,
+              "runCount": 56,
+              "brierStandardError": 0.015323702964279389
             },
             "relative": {
-              "brierScore": 0.22200799999999993,
-              "count": 25,
-              "runCount": 24,
-              "brierStandardError": 0.02089260647035235
+              "brierScore": 0.21705882352941175,
+              "count": 34,
+              "runCount": 33,
+              "brierStandardError": 0.01603984421721084
             },
             "direction": {
-              "brierScore": 0.2711166666666667,
-              "count": 6,
-              "runCount": 6,
-              "brierStandardError": 0.04288707199663372
+              "brierScore": 0.26394285714285715,
+              "count": 7,
+              "runCount": 7,
+              "brierStandardError": 0.036949288653136333
             },
             "conditional": {
               "brierScore": 0.4624000000000001,
@@ -233,22 +212,27 @@
               "brierScore": 0.25,
               "count": 1,
               "runCount": 1
+            },
+            "earnings-move": {
+              "brierScore": 0.32489999999999997,
+              "count": 1,
+              "runCount": 1
             }
           },
           "byAssetClass": {
             "equity": {
-              "brierScore": 0.21312038834951463,
-              "count": 103,
-              "runCount": 53,
-              "brierStandardError": 0.01246208386183066
+              "brierScore": 0.21701136363636359,
+              "count": 132,
+              "runCount": 63,
+              "brierStandardError": 0.010344769099029321
             }
           },
           "byJobType": {
             "equity": {
-              "brierScore": 0.21253737373737383,
-              "count": 99,
-              "runCount": 52,
-              "brierStandardError": 0.012948954801042212
+              "brierScore": 0.21668203125000002,
+              "count": 128,
+              "runCount": 62,
+              "brierStandardError": 0.01066357073579025
             },
             "forecast-grid": {
               "brierScore": 0.22754999999999997,
@@ -259,16 +243,16 @@
           "byMarketUpdateHorizonBucket": {},
           "byHorizonBucket": {
             "1d": {
-              "brierScore": 0.20839310344827594,
-              "count": 29,
-              "runCount": 27,
-              "brierStandardError": 0.026825980670956946
+              "brierScore": 0.22261282051282058,
+              "count": 39,
+              "runCount": 36,
+              "brierStandardError": 0.021082053914739936
             },
             "2-5d": {
-              "brierScore": 0.22618571428571438,
-              "count": 56,
-              "runCount": 34,
-              "brierStandardError": 0.018425689795589405
+              "brierScore": 0.22296000000000002,
+              "count": 75,
+              "runCount": 44,
+              "brierStandardError": 0.014862636446831955
             },
             "6-10d": {
               "brierScore": 0.20818181818181822,
@@ -291,37 +275,37 @@
           },
           "byMarketRegime": {
             "risk-on": {
-              "brierScore": 0.2133884615384615,
-              "count": 26,
+              "brierScore": 0.2089172413793103,
+              "count": 29,
               "runCount": 16,
-              "brierStandardError": 0.026284497635700767
+              "brierStandardError": 0.02349544080051338
             },
             "risk-off": {
-              "brierScore": 0.20838333333333336,
-              "count": 48,
-              "runCount": 23,
-              "brierStandardError": 0.021597791703056136
+              "brierScore": 0.22081428571428588,
+              "count": 63,
+              "runCount": 32,
+              "brierStandardError": 0.0172135744348079
             },
             "mixed": {
-              "brierScore": 0.21962800000000002,
-              "count": 25,
-              "runCount": 13,
-              "brierStandardError": 0.015913910956275538
+              "brierScore": 0.2157055555555556,
+              "count": 36,
+              "runCount": 14,
+              "brierStandardError": 0.014348599979803537
             }
           },
           "marketRegimeCoverage": {
-            "risk-on": 26,
-            "risk-off": 48,
-            "mixed": 25,
+            "risk-on": 29,
+            "risk-off": 63,
+            "mixed": 36,
             "unknown": 4
           },
           "byMissAutopsyCause": {
-            "insufficient_evidence": 20,
+            "insufficient_evidence": 23,
             "model_overconfidence": 2
           },
           "conditionalPredictions": {
             "activatedCount": 1,
-            "voidedCount": 2
+            "voidedCount": 3
           }
         }
       }
@@ -518,10 +502,178 @@
     "history:null": [
       {
         "value": {
-          "generatedAt": "2026-11-02T12:47:02.362Z",
+          "generatedAt": "2026-11-04T16:21:04.606Z",
           "recentDays": 90,
           "anchorMonths": [3, 6, 12],
           "runs": [
+            {
+              "runId": "2026-11-02T12-47-02-362Z-b57f22b6",
+              "sourceId": "history-report-2026-11-02T12-47-02-362Z-b57f22b6",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "AMD",
+              "generatedAt": "2026-11-02T12:47:02.362Z",
+              "selectionReasons": ["recent", "same-symbol"],
+              "summary": "AMD’s reported growth is led by Data Center, while results outside that segment are less uniform. A sharp decline and broad market weakness preceded the issuer-confirmed earnings report, leaving near-term price behavior sensitive to new operating evidence. The growth case is balanced by execution, cyclicality, and valuation-screen limitations.",
+              "confidence": "high",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "Observed fact: For the six months ended June 27, 2026, consolidated revenue grew +44.1% YoY (6-month period ending 2026-06-27) year over year; gross profit grew +71.0% YoY (6-month period ending 2026-06-27). Operating income grew +415.8% YoY (6-month period ending 2026-06-27), from a low prior-year base.",
+                  "sourceIds": ["extended-sec-edgar-amd-fundamentals"]
+                },
+                {
+                  "text": "Issuer claim: Data Center revenue for the six months ended June 27, 2026 grew 81% year over year, driven mainly by EPYC processors and Instinct MI350 Series GPUs. Second-quarter segment operating margin was 31.3% (3-month period ending 2026-06-27); the comparison with the prior year partly reflects the absence of MI308 export-control inventory charges.",
+                  "sourceIds": ["extended-sec-edgar-amd-10q"]
+                },
+                {
+                  "text": "Observed fact: First-half Client and Gaming revenue grew 13%, while its six-month segment operating margin was 15.5% (6-month period ending 2026-06-27), compared with 19.2% a year earlier. Embedded segment operating margin was 39.1% (6-month period ending 2026-06-27).",
+                  "sourceIds": ["extended-sec-edgar-amd-10q"]
+                },
+                {
+                  "text": "Derived calculation: Six-month operating cash flow from continuing operations was $5.321 billion and capex was $1.197 billion; the continuing-operations cash-flow-less-capex proxy was $4.1B (6-month period ending 2026-06-27). Continuing-operations operating cash flow grew +121.6% YoY (6-month period ending 2026-06-27) year over year, while capex outflow grew +142.3% YoY (6-month period ending 2026-06-27).",
+                  "sourceIds": ["extended-sec-edgar-amd-fundamentals"]
+                },
+                {
+                  "text": "Observed fact: At June 27, 2026, AMD reported cash and short-term investments of $13.111 billion against debt of $3.226 billion. The supplied net-debt measure was $-9.9B (as of 2026-06-27), and the current ratio was 2.61x (as of 2026-06-27).",
+                  "sourceIds": ["extended-sec-edgar-amd-fundamentals"]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Stale evidence: The latest supplied issuer financial results end June 27, 2026. They do not establish subsequent-quarter revenue, margins, shipments, or cash generation.",
+                  "sourceIds": ["extended-sec-edgar-amd-fundamentals", "extended-sec-edgar-amd-10q"]
+                },
+                {
+                  "text": "Observed fact: The prior-year Data Center margin comparison includes a period affected by MI308 export-control inventory charges. That comparison does not isolate underlying margin trends from the change in charges.",
+                  "sourceIds": [
+                    "extended-sec-edgar-amd-10q",
+                    "extended-sec-edgar-amd-8k-0000002488-26-000121"
+                  ]
+                },
+                {
+                  "text": "Missing required source: Supplied evidence does not quantify accelerator shipment economics, customer utilization, or Helios deployment scale.",
+                  "sourceIds": ["extended-sec-edgar-amd-10q", "web-amd-a763319f"]
+                },
+                {
+                  "text": "Observed fact: The World Labs agreement is an approximately $8.2 billion stock transaction. Closing status, final share issuance, integration costs, and operating contribution remain unresolved in supplied evidence.",
+                  "sourceIds": [
+                    "extended-sec-edgar-amd-8k-0000002488-26-000182",
+                    "web-amd-0453a8f8",
+                    "web-amd-b01a6e12"
+                  ]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Issuer-confirmed: AMD’s fiscal Q3 2026 results are scheduled for November 3 after market close. The report can provide operating evidence beyond the June reporting period; supplied EPS and revenue figures are provider estimates.",
+                  "sourceIds": ["web-amd-5df62913", "extended-finnhub-events-amd"]
+                },
+                {
+                  "text": "Observed fact: AMD and Meta announced an expanded strategic partnership on October 27 covering AI systems, processors, GPUs, networking, and software. The supplied announcement does not quantify future revenue or earnings contribution.",
+                  "sourceIds": ["web-amd-a763319f"]
+                },
+                {
+                  "text": "Observed fact: Further World Labs transaction disclosures could clarify closing status, share issuance, integration costs, and operating contribution.",
+                  "sourceIds": [
+                    "extended-sec-edgar-amd-8k-0000002488-26-000182",
+                    "web-amd-0453a8f8",
+                    "web-amd-b01a6e12"
+                  ]
+                }
+              ],
+              "dataGaps": [
+                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
+                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint is unavailable for the configured token (status 403)",
+                "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"
+              ],
+              "predictions": [
+                {
+                  "id": "amd-range-10",
+                  "claim": "AMD closes outside 447.77-569.1 over 10 trading days",
+                  "kind": "range",
+                  "subject": "AMD",
+                  "measurableAs": "close(AMD, +10) outside [447.77, 569.1]",
+                  "horizonTradingDays": 10,
+                  "probability": 0.46,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-1",
+                  "claim": "AMD closes outside 486.02-524.31 over 1 trading day",
+                  "kind": "range",
+                  "subject": "AMD",
+                  "measurableAs": "close(AMD, +1) outside [486.02, 524.31]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.48,
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "hit"
+                },
+                {
+                  "id": "grid-range-5",
+                  "claim": "AMD closes outside 463.77-549.46 over 5 trading days",
+                  "kind": "range",
+                  "subject": "AMD",
+                  "measurableAs": "close(AMD, +5) outside [463.77, 549.46]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.36,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-20",
+                  "claim": "AMD closes outside 426.07-598.07 over 20 trading days",
+                  "kind": "range",
+                  "subject": "AMD",
+                  "measurableAs": "close(AMD, +20) outside [426.07, 598.07]",
+                  "horizonTradingDays": 20,
+                  "probability": 0.33,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-relative-5",
+                  "claim": "AMD outperforms SPY over 5 trading days",
+                  "kind": "relative",
+                  "subject": "AMD:SPY",
+                  "measurableAs": "close(AMD, +5)/close(AMD, 0) > close(SPY, +5)/close(SPY, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.4,
+                  "scoreStatus": "unresolved"
+                }
+              ],
+              "scoreSummary": {
+                "total": 5,
+                "resolved": 1,
+                "hit": 1,
+                "miss": 0,
+                "unresolved": 4
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "AMD",
+                  "price": 504.8,
+                  "changePercent24h": -10.878853,
+                  "volume": 39697503,
+                  "observedAt": "2026-11-02T12:47:02.362Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 6,
+                  "drivers": [
+                    "equity breadth proxies negative: 4/4",
+                    "trend negative: 4/4 proxies below 50-day average",
+                    "VIX term structure contango: VIX 19.31 vs VIX3M 20.78"
+                  ]
+                }
+              }
+            },
             {
               "runId": "2026-10-28T15-00-19-942Z-3187f78d",
               "sourceId": "history-report-2026-10-28T15-00-19-942Z-3187f78d",
@@ -738,7 +890,7 @@
               "assetClass": "equity",
               "symbol": "AMD",
               "generatedAt": "2026-10-26T15:45:16.421Z",
-              "selectionReasons": ["recent", "same-symbol"],
+              "selectionReasons": ["recent", "miss-correction", "same-symbol"],
               "summary": "AMD’s operating evidence shows rapid growth led by Data Center, alongside uneven segment performance and higher capital spending. The next major update is the issuer-confirmed third-quarter report. Valuation comparisons and recent price behavior provide context, while limited peer coverage, unresolved acquisition details, and the gap in reported results leave key uncertainties.",
               "confidence": "high",
               "confidenceLegacy": false,
@@ -864,7 +1016,8 @@
                   "measurableAs": "close(AMD, +5) outside [476.2, 560.83]",
                   "horizonTradingDays": 5,
                   "probability": 0.38,
-                  "scoreStatus": "unresolved"
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "hit"
                 },
                 {
                   "id": "grid-range-20",
@@ -884,15 +1037,20 @@
                   "measurableAs": "close(AMD, +5)/close(AMD, 0) > close(SPY, +5)/close(SPY, 0)",
                   "horizonTradingDays": 5,
                   "probability": 0.5,
-                  "scoreStatus": "unresolved"
+                  "scoreStatus": "resolved",
+                  "scoreOutcome": "miss",
+                  "scoreEvidence": {
+                    "returnA": 0.878707970551297,
+                    "returnB": 0.9826619548507148
+                  }
                 }
               ],
               "scoreSummary": {
                 "total": 5,
-                "resolved": 1,
-                "hit": 1,
-                "miss": 0,
-                "unresolved": 4
+                "resolved": 3,
+                "hit": 2,
+                "miss": 1,
+                "unresolved": 2
               },
               "marketSnapshots": [
                 {
@@ -911,241 +1069,20 @@
                   "drivers": []
                 }
               }
-            },
-            {
-              "runId": "2026-10-23T19-26-29-811Z-0386ba54",
-              "sourceId": "history-report-2026-10-23T19-26-29-811Z-0386ba54",
-              "jobType": "equity",
-              "assetClass": "equity",
-              "symbol": "AMD",
-              "generatedAt": "2026-10-23T19:26:29.811Z",
-              "selectionReasons": ["miss-correction", "same-symbol"],
-              "summary": "AMD’s latest supplied issuer results show strong first-half growth, led by Data Center, alongside higher cash generation and capital spending. Whether that demand produces profitable deliveries remains unresolved. A sharp recent decline, risk-off market conditions, elevated valuation relative to a limited peer screen, and uncertainty around the World Labs acquisition temper the growth case. The issuer-confirmed earnings report is a near-term source of new operating evidence.",
-              "confidence": "high",
-              "confidenceLegacy": false,
-              "keyFindings": [
-                {
-                  "text": "For the six months ended June 27, 2026, revenue grew <<financial-lens-growth.revenueDeltaPercent|period>> year over year, gross profit grew <<financial-lens-growth.grossProfitDeltaPercent>>, and operating income grew <<financial-lens-growth.operatingIncomeDeltaPercent>>. The operating-income comparison starts from a low prior-year base; supplied issuer results do not establish performance after June.",
-                  "sourceIds": ["extended-sec-edgar-amd-fundamentals", "extended-sec-edgar-amd-10q"]
-                },
-                {
-                  "text": "Data Center revenue was $6.718 billion, or 58.2% of second-quarter 2026 revenue. AMD attributed first-half Data Center growth mainly to EPYC processors and Instinct MI350 Series GPUs; segment margins, accelerator shipment economics, and utilization are not quantified in the supplied evidence.",
-                  "sourceIds": ["extended-sec-edgar-amd-10q"]
-                },
-                {
-                  "text": "For the six months ended June 27, 2026, operating cash flow grew <<financial-lens-growth.operatingCashFlowDeltaPercent|period>> year over year and capital expenditure grew <<financial-lens-growth.operatingIncomeDeltaPercent|period>> year over year. The operating-cash-flow-less-capex proxy was <<financial-lens-quality.freeCashFlowProxy>>; it does not establish returns on investment or delivered capacity.",
-                  "sourceIds": ["extended-sec-edgar-amd-fundamentals"]
-                },
-                {
-                  "text": "At June 27, 2026, cash was <<financial-lens-financial-strength.cash>> and debt was <<financial-lens-financial-strength.debt>>, leaving net debt at <<financial-lens-financial-strength.netDebt>>. The current ratio was <<financial-lens-financial-strength.currentRatio>>.",
-                  "sourceIds": ["extended-sec-edgar-amd-fundamentals"]
-                },
-                {
-                  "text": "AMD’s EV/TTM revenue was <<financial-lens-value.evToAnnualizedRevenue|period>>, compared with a six-peer median of 9.20x. The screen included six usable peers but only one core peer, and excluded NVDA by market-cap criteria; the peer-derived context range is limited and does not establish a broader valuation conclusion.",
-                  "sourceIds": [
-                    "market-yahoo-equity-amd",
-                    "extended-sec-edgar-amd-fundamentals",
-                    "market-yahoo-equity-avgo",
-                    "extended-sec-edgar-avgo-filings",
-                    "extended-sec-edgar-avgo-fundamentals",
-                    "market-yahoo-equity-intc",
-                    "extended-sec-edgar-intc-filings",
-                    "extended-sec-edgar-intc-fundamentals",
-                    "market-yahoo-equity-mu",
-                    "extended-sec-edgar-mu-filings",
-                    "extended-sec-edgar-mu-fundamentals",
-                    "market-yahoo-equity-qcom",
-                    "extended-sec-edgar-qcom-filings",
-                    "extended-sec-edgar-qcom-fundamentals",
-                    "market-yahoo-equity-amat",
-                    "extended-sec-edgar-amat-filings",
-                    "extended-sec-edgar-amat-fundamentals",
-                    "market-yahoo-equity-lrcx",
-                    "extended-sec-edgar-lrcx-filings",
-                    "extended-sec-edgar-lrcx-fundamentals"
-                  ]
-                }
-              ],
-              "risks": [
-                {
-                  "text": "AMD identifies rapid competition, semiconductor cyclicality, dependence on customer-market conditions, timely product execution, and possible material harm from losing a significant customer. Customer concentration is not quantified in the supplied filing excerpts.",
-                  "sourceIds": ["extended-sec-edgar-amd-10q", "extended-sec-edgar-amd-10k"]
-                },
-                {
-                  "text": "The latest supplied issuer financial results end June 27, 2026; current-quarter revenue, margins, shipments, and cash generation after that date are not established by those results.",
-                  "sourceIds": ["extended-sec-edgar-amd-fundamentals", "extended-sec-edgar-amd-10q"]
-                },
-                {
-                  "text": "EV/revenue uses market capitalization from the October quote with cash and debt from the June balance sheet. Peer support is constrained by the screen and one core peer; the comparison is contextual.",
-                  "sourceIds": [
-                    "market-yahoo-equity-amd",
-                    "extended-sec-edgar-amd-fundamentals",
-                    "market-yahoo-equity-avgo",
-                    "extended-sec-edgar-avgo-filings",
-                    "extended-sec-edgar-avgo-fundamentals",
-                    "market-yahoo-equity-intc",
-                    "extended-sec-edgar-intc-filings",
-                    "extended-sec-edgar-intc-fundamentals",
-                    "market-yahoo-equity-mu",
-                    "extended-sec-edgar-mu-filings",
-                    "extended-sec-edgar-mu-fundamentals",
-                    "market-yahoo-equity-qcom",
-                    "extended-sec-edgar-qcom-filings",
-                    "extended-sec-edgar-qcom-fundamentals",
-                    "market-yahoo-equity-amat",
-                    "extended-sec-edgar-amat-filings",
-                    "extended-sec-edgar-amat-fundamentals",
-                    "market-yahoo-equity-lrcx",
-                    "extended-sec-edgar-lrcx-filings",
-                    "extended-sec-edgar-lrcx-fundamentals"
-                  ]
-                },
-                {
-                  "text": "The October 23 quote was captured intraday, whereas the supplied technical indicators use the October 22 completed session; the intraday move does not establish a completed-session reversal.",
-                  "sourceIds": ["market-yahoo-equity-amd", "verified-snapshot-AMD"]
-                }
-              ],
-              "catalysts": [
-                {
-                  "text": "AMD confirmed that it will report fiscal third-quarter 2026 results on November 3, 2026, after market close. The report can update post-June evidence on revenue, margins, cash generation, and Data Center performance.",
-                  "sourceIds": ["web-amd-5df62913"]
-                },
-                {
-                  "text": "Further disclosures on Data Center margins, accelerator shipments, Helios deployment volumes, and utilization would clarify whether segment demand is translating into profitable deliveries.",
-                  "sourceIds": [
-                    "extended-sec-edgar-amd-10q",
-                    "extended-sec-edgar-amd-8k-0000002488-26-000121"
-                  ]
-                },
-                {
-                  "text": "Further World Labs disclosures could clarify closing status, final share issuance, integration costs, and operating contribution.",
-                  "sourceIds": [
-                    "extended-sec-edgar-amd-8k-0000002488-26-000182",
-                    "web-amd-effcb195"
-                  ]
-                }
-              ],
-              "dataGaps": [
-                "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
-                "finnhub-events-3: Finnhub split endpoint is unavailable for the configured token (status 403)",
-                "finnhub-eps-estimate: Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
-                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
-                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint is unavailable for the configured token (status 403)",
-                "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
-                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint is unavailable for the configured token (status 403)",
-                "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"
-              ],
-              "predictions": [
-                {
-                  "id": "pred-relative-10-spy",
-                  "claim": "AMD outperforms SPY over 10 trading days",
-                  "kind": "relative",
-                  "subject": "AMD:SPY",
-                  "measurableAs": "close(AMD, +10) / close(AMD, 0) > close(SPY, +10) / close(SPY, 0)",
-                  "horizonTradingDays": 10,
-                  "probability": 0.42,
-                  "scoreStatus": "unresolved"
-                },
-                {
-                  "id": "pred-earnings-direction",
-                  "claim": "AMD closes higher than its pre-earnings close 1 trading day after the 2026-11-03 earnings event",
-                  "kind": "earnings-direction",
-                  "subject": "AMD",
-                  "measurableAs": "earningsReturn(AMD, 2026-11-03, +1) > 0",
-                  "horizonTradingDays": 1,
-                  "probability": 0.5,
-                  "scoreStatus": "unresolved"
-                },
-                {
-                  "id": "pred-range-10",
-                  "claim": "AMD closes outside 451.21-571.78 over 10 trading days",
-                  "kind": "range",
-                  "subject": "AMD",
-                  "measurableAs": "close(AMD, +10) outside [451.21, 571.78]",
-                  "horizonTradingDays": 10,
-                  "probability": 0.35,
-                  "scoreStatus": "unresolved"
-                },
-                {
-                  "id": "grid-range-1",
-                  "claim": "AMD closes outside 489.26-527.31 over 1 trading day",
-                  "kind": "range",
-                  "subject": "AMD",
-                  "measurableAs": "close(AMD, +1) outside [489.26, 527.31]",
-                  "horizonTradingDays": 1,
-                  "probability": 0.48,
-                  "scoreStatus": "resolved",
-                  "scoreOutcome": "hit"
-                },
-                {
-                  "id": "grid-range-5",
-                  "claim": "AMD closes outside 467.14-552.29 over 5 trading days",
-                  "kind": "range",
-                  "subject": "AMD",
-                  "measurableAs": "close(AMD, +5) outside [467.14, 552.29]",
-                  "horizonTradingDays": 5,
-                  "probability": 0.36,
-                  "scoreStatus": "resolved",
-                  "scoreOutcome": "miss",
-                  "scoreEvidence": {
-                    "closeN": 504.79998779296875,
-                    "lo": 467.14,
-                    "hi": 552.29
-                  }
-                },
-                {
-                  "id": "grid-range-20",
-                  "claim": "AMD closes outside 429.62-600.52 over 20 trading days",
-                  "kind": "range",
-                  "subject": "AMD",
-                  "measurableAs": "close(AMD, +20) outside [429.62, 600.52]",
-                  "horizonTradingDays": 20,
-                  "probability": 0.34,
-                  "scoreStatus": "unresolved"
-                },
-                {
-                  "id": "grid-relative-5",
-                  "claim": "AMD outperforms SPY over 5 trading days",
-                  "kind": "relative",
-                  "subject": "AMD:SPY",
-                  "measurableAs": "close(AMD, +5)/close(AMD, 0) > close(SPY, +5)/close(SPY, 0)",
-                  "horizonTradingDays": 5,
-                  "probability": 0.44,
-                  "scoreStatus": "resolved",
-                  "scoreOutcome": "miss",
-                  "scoreEvidence": {
-                    "returnA": 0.9767991045798868,
-                    "returnB": 0.9944076737715467
-                  }
-                }
-              ],
-              "scoreSummary": {
-                "total": 7,
-                "resolved": 3,
-                "hit": 1,
-                "miss": 2,
-                "unresolved": 4
-              },
-              "marketSnapshots": [
-                {
-                  "symbol": "AMD",
-                  "price": 516.465,
-                  "changePercent24h": 1.6803564,
-                  "volume": 11518627,
-                  "observedAt": "2026-10-23T19:26:29.811Z"
-                }
-              ],
-              "keyExtras": {
-                "depth": "deep",
-                "marketRegime": {
-                  "label": "risk-off",
-                  "proxyCount": 6,
-                  "drivers": []
-                }
-              }
             }
           ],
           "sources": [
+            {
+              "id": "history-report-2026-11-02T12-47-02-362Z-b57f22b6",
+              "title": "equity AMD prior report",
+              "fetchedAt": "2026-11-02T12:47:02.362Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "AMD",
+              "provider": "market-bot",
+              "rawRef": "2026-11-02T12-47-02-362Z-b57f22b6/report.json",
+              "summary": "AMD’s reported growth is led by Data Center, while results outside that segment are less uniform. A sharp decline and broad market weakness preceded the issuer-confirmed earnings report, leaving near-term price behavior sensitive to new operating evidence. The growth case is balanced by execution, cyclicality, and valuation-screen limitations."
+            },
             {
               "id": "history-report-2026-10-28T15-00-19-942Z-3187f78d",
               "title": "equity AMD prior report",
@@ -1167,27 +1104,16 @@
               "provider": "market-bot",
               "rawRef": "2026-10-26T15-45-16-421Z-0600df32/report.json",
               "summary": "AMD’s operating evidence shows rapid growth led by Data Center, alongside uneven segment performance and higher capital spending. The next major update is the issuer-confirmed third-quarter report. Valuation comparisons and recent price behavior provide context, while limited peer coverage, unresolved acquisition details, and the gap in reported results leave key uncertainties."
-            },
-            {
-              "id": "history-report-2026-10-23T19-26-29-811Z-0386ba54",
-              "title": "equity AMD prior report",
-              "fetchedAt": "2026-10-23T19:26:29.811Z",
-              "kind": "model",
-              "assetClass": "equity",
-              "symbol": "AMD",
-              "provider": "market-bot",
-              "rawRef": "2026-10-23T19-26-29-811Z-0386ba54/report.json",
-              "summary": "AMD’s latest supplied issuer results show strong first-half growth, led by Data Center, alongside higher cash generation and capital spending. Whether that demand produces profitable deliveries remains unresolved. A sharp recent decline, risk-off market conditions, elevated valuation relative to a limited peer screen, and uncertainty around the World Labs acquisition temper the growth case. The issuer-confirmed earnings report is a near-term source of new operating evidence."
             }
           ],
           "gaps": ["No prior equity market-update runs found"],
           "audit": {
-            "scannedRunCount": 94,
+            "scannedRunCount": 105,
             "malformedRunCount": 0,
             "malformedScoreCount": 0,
-            "candidateRunCount": 34,
+            "candidateRunCount": 35,
             "selectedRunCount": 3,
-            "recentSelectedCount": 2,
+            "recentSelectedCount": 3,
             "anchorSelectedCount": 0,
             "sameSymbolSelectedCount": 3,
             "spotlightSymbolSelectedCount": 0,
@@ -1202,53 +1128,38 @@
         }
       }
     ],
-    "reused-profile": [
-      {
-        "bodyFile": "bodies/93376ee3c11ebb788d804252bb61214626b2a48c35b82f5bdc3ec76100ff790f.json",
-        "sha256": "93376ee3c11ebb788d804252bb61214626b2a48c35b82f5bdc3ec76100ff790f"
-      }
-    ],
-    "cache:5b65025134e63067cb6695f1bd6a60ec9a732f6d99965f504b5b08b3a39274fe:2026-11-02": [{}],
+    "reused-profile": [{}],
+    "cache:82ef4da280fd74308223b5a44b629596b6f7edb4650ded01da1acd6248b23839:2026-11-04": [{}],
     "host-circuit:api.exa.ai": [
       {
-        "value": false,
-        "count": 2
+        "value": false
       }
     ],
-    "cache:4ca39bcd1b94148eb2374ed7d96a8f57f02ef00a4d5584404b043d04b26a1176:2026-11-02": [{}],
     "forecast-persistence-baseline": [
       {
         "value": {
-          "runId": "2026-10-28T15-00-19-942Z-3187f78d",
+          "runId": "2026-11-02T12-47-02-362Z-b57f22b6",
           "depth": "deep",
           "predictions": [
             {
-              "measurableAs": "close(AMD, +10) / close(AMD, 0) > close(QQQ, +10) / close(QQQ, 0)",
-              "probability": 0.56
+              "measurableAs": "close(AMD, +10) outside [447.77, 569.1]",
+              "probability": 0.46
             },
             {
-              "measurableAs": "close(AMD, +10) outside [497.06, 631.5]",
-              "probability": 0.34
-            },
-            {
-              "measurableAs": "earningsReturn(AMD, 2026-11-03, +1) > 0",
-              "probability": 0.52
-            },
-            {
-              "measurableAs": "close(AMD, +1) outside [539.45, 581.87]",
+              "measurableAs": "close(AMD, +1) outside [486.02, 524.31]",
               "probability": 0.48
             },
             {
-              "measurableAs": "close(AMD, +5) outside [514.79, 609.74]",
+              "measurableAs": "close(AMD, +5) outside [463.77, 549.46]",
               "probability": 0.36
             },
             {
-              "measurableAs": "close(AMD, +20) outside [473.02, 663.59]",
+              "measurableAs": "close(AMD, +20) outside [426.07, 598.07]",
               "probability": 0.33
             },
             {
               "measurableAs": "close(AMD, +5)/close(AMD, 0) > close(SPY, +5)/close(SPY, 0)",
-              "probability": 0.5
+              "probability": 0.4
             }
           ]
         }

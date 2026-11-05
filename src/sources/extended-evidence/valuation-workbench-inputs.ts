@@ -1,5 +1,5 @@
 import { statementInput } from "./metric-engine";
-import { isWithheldDebtNote } from "./sec-debt";
+import { debtScopeUnproven, isWithheldDebtNote } from "./sec-debt";
 import {
   ENTERPRISE_VALUE_BRIDGE_KEYS,
   bridgeContributors,
@@ -15,6 +15,7 @@ import type {
 import {
   CAPEX_SCOPE_CAVEAT,
   conceptScope,
+  DEBT_SCOPE_CAVEAT,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   hasNegativeCapex,
   scopedLabel,
@@ -50,6 +51,7 @@ export interface ValuationPeriodInputs {
   readonly enterpriseValueBridge?: ValuationFundamentalInput;
   readonly enterpriseValueBridgeIncomplete?: true;
   readonly debtScopeMismatch?: true;
+  readonly debtScopeUnproven?: true;
   // A newer incomplete debt instant sits between this debt and the cash instant, so they never pair.
   readonly debtBehindIncompleteInstant?: true;
 }
@@ -255,7 +257,11 @@ function debtInput(
   debtFact: FinancialStatementFact | undefined,
   cashFact: FinancialStatementFact | undefined,
   publicAt: string,
-): Pick<ValuationPeriodInputs, "debt" | "debtScopeMismatch" | "debtBehindIncompleteInstant"> {
+  revenue: ValuationFundamentalInput,
+): Pick<
+  ValuationPeriodInputs,
+  "debt" | "debtScopeMismatch" | "debtScopeUnproven" | "debtBehindIncompleteInstant"
+> {
   if (debtFact === undefined) {
     return {};
   }
@@ -282,8 +288,17 @@ function debtInput(
   if (newer.some((note) => note.periodKey === `instant|${cashFact?.periodEnd}`)) {
     return {};
   }
+  const unproven =
+    debtScopeUnproven(artifact, debtFact, {
+      periodEnd: revenue.periodEnd,
+      firstPublicAt: revenue.publicAt,
+    }) !== undefined;
   return {
-    debt: factInput("Debt", debtFact),
+    debt: {
+      ...factInput("Debt", debtFact),
+      ...(unproven ? { scope: DEBT_SCOPE_CAVEAT } : {}),
+    },
+    ...(unproven ? { debtScopeUnproven: true as const } : {}),
     ...(newer.length > 0 ? { debtBehindIncompleteInstant: true as const } : {}),
   };
 }
@@ -377,7 +392,7 @@ function annualInputs(
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...debtInput(artifact, debtFact, cashFact, publicAt),
+    ...debtInput(artifact, debtFact, cashFact, publicAt, revenue),
     ...bridgeInput(artifact, cashFact, publicAt),
   };
 }
@@ -489,7 +504,7 @@ function periodInputsFromTtm(
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...debtInput(artifact, debtFact, cashFact, publicAt),
+    ...debtInput(artifact, debtFact, cashFact, publicAt, revenue),
     ...bridgeInput(artifact, cashFact, publicAt),
   };
 }

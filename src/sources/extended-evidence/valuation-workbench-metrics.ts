@@ -1,5 +1,6 @@
 import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
 import { isYearAligned } from "./financial-statement-selection";
+import { DEBT_SCOPE_CAVEAT } from "./financial-statement-definitions";
 import {
   evaluateMetricSection,
   type MetricDefinition,
@@ -71,7 +72,7 @@ export function valuationMetricSection(input: {
       id,
       label,
       unit: "ratio",
-      basis: `${period.basis.toUpperCase()}; ${formula}; ${priceBasis}`,
+      basis: `${period.basis.toUpperCase()}; ${formula}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}`,
       ...(id === "enterpriseValueToRevenue" || id === "priceToFreeCashFlow"
         ? {
             applicable: () => {

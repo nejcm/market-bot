@@ -25,6 +25,7 @@ import {
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
 import { heldForSaleRecast, withheldDebt } from "../src/sources/extended-evidence/sec-debt";
+import { DEBT_SCOPE_CAVEAT } from "../src/sources/extended-evidence/financial-statement-definitions";
 import {
   secDiscontinuedInvestingFactMetrics,
   secExtensionCapexFactMetrics,
@@ -943,6 +944,53 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       true,
     ]);
   });
+  test("CLFD FY2023 EV publishes debt 2,112K (0001171843-24-006402) beside restated revenue with a debt-scope-unproven disclosure", () => {
+    const { statements } = load("clfd");
+    const fy2023 = valuationPeriodInputs(statements).periods.find(
+      ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2023-09-30",
+    );
+    expect([
+      fy2023?.revenue?.value,
+      fy2023?.revenue?.publicAt,
+      fy2023?.debt?.value,
+      fy2023?.debt?.scope,
+      fy2023?.debtScopeUnproven,
+      fy2023?.debtScopeMismatch,
+    ]).toEqual([225_722_000, "2025-11-25", 2_112_000, DEBT_SCOPE_CAVEAT, true, undefined]);
+    const scopeNotes = statements.omissionNotes.filter(
+      ({ code }) => code === "debt-scope-unproven",
+    );
+    // 2024-09-30 keeps its note beside held-for-sale, which withholds the pairing; 2025-09-30 has no debt fact.
+    expect(scopeNotes.map(({ periodKey }) => periodKey)).toEqual([
+      "instant|2023-09-30",
+      "instant|2024-09-30",
+      "instant|2024-12-31",
+      "instant|2025-03-31",
+      "instant|2025-06-30",
+    ]);
+    const note = scopeNotes[0];
+    expect([note?.publicAt, note?.message.includes("0001171843-25-007594")]).toEqual([
+      "2025-11-25",
+      true,
+    ]);
+  });
+  test("HLIT FY2025 debt filed in the 10-K that first reported discontinued operations carries no scope disclosure (0001193125-26-067506)", () => {
+    const { statements } = load("hlit");
+    const fy2025 = valuationPeriodInputs(statements).periods.find(
+      ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2025-12-31",
+    );
+    expect([fy2025?.debt?.value, fy2025?.debt?.scope, fy2025?.debtScopeUnproven]).toEqual([
+      112_084_000,
+      undefined,
+      undefined,
+    ]);
+    expect(
+      statements.omissionNotes.some(
+        ({ code, periodKey }) =>
+          code === "debt-scope-unproven" && periodKey === "instant|2025-12-31",
+      ),
+    ).toBe(false);
+  });
   test("CLFD as of FY2024: debt 2,228K filed before the recast 10-K (0001171843-25-007594) is withheld on every surface", () => {
     const { statements } = load("clfd");
     const asOf = "2024-09-30";
@@ -988,6 +1036,23 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       periodEnd: asOf,
       reason: expect.stringContaining("not separable from liabilities held for sale"),
     });
+  });
+  test("ROIC pairs pre-recast debt with restated operating income under the debt-scope caveat (constructed from CLFD FY2023)", () => {
+    const fy2023 = {
+      ...truncatedStatements(load("clfd").statements, "2023-09-30"),
+      analysisAsOf: "2025-01-15",
+    };
+    const withoutNote = {
+      ...fy2023,
+      omissionNotes: fy2023.omissionNotes.filter(({ code }) => code !== "debt-scope-unproven"),
+    };
+    expect(roicOf(fy2023)).toMatchObject({
+      status: "value",
+      periodEnd: "2023-09-30",
+      basis: expect.stringContaining(DEBT_SCOPE_CAVEAT),
+    });
+    expect(roicOf(withoutNote)?.basis ?? "").not.toContain(DEBT_SCOPE_CAVEAT);
+    expect(roicOf(withoutNote)?.value).toBe(roicOf(fy2023)?.value);
   });
   test("CLFD TTM rows after FY2025 pair no stale debt: their instants await a zero-borrowings face", () => {
     const ttm = valuationPeriodInputs(load("clfd").statements).periods.filter(

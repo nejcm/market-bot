@@ -290,6 +290,7 @@ export interface FinancialStatementNote {
     | "earlier-share-basis"
     | "declaration-span"
     | "debt-held-for-sale"
+    | "debt-scope-unproven"
     | "tagged-zero-debt";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
@@ -297,8 +298,20 @@ export interface FinancialStatementNote {
   readonly publicAt?: string;
   // Debt withheld only for want of this filing's balance-sheet face.
   readonly faceAccession?: string;
+  // Debt-scope notes only: the selected debt facts the note covers, by series and filing date.
+  readonly unprovenDebt?: readonly UnprovenDebtFact[];
   readonly periods?: readonly FinancialStatementNotePeriod[];
   readonly reason?: string;
+}
+
+type UnprovenDebtFact = Pick<FinancialStatementFact, "periodType" | "filedAt">;
+
+function isUnprovenDebtFact(value: unknown): value is UnprovenDebtFact {
+  return (
+    isRecord(value) &&
+    (value.periodType === "annual" || value.periodType === "interim") &&
+    typeof value.filedAt === "string"
+  );
 }
 
 export interface FinancialStatementNotePeriod {
@@ -890,9 +903,22 @@ export function readFinancialStatementsArtifact(
         series[key as FinancialStatementSeriesKey] ?? record[key],
       ]),
     );
+  const omissionNotes = value.omissionNotes.filter(
+    (note) =>
+      !isRecord(note) ||
+      note.unprovenDebt === undefined ||
+      (Array.isArray(note.unprovenDebt) && note.unprovenDebt.every(isUnprovenDebtFact)),
+  );
+  if (omissionNotes.length < value.omissionNotes.length) {
+    drops.push({
+      reason: "financialStatements.omissionNotes debt-scope note with malformed unprovenDebt",
+      count: value.omissionNotes.length - omissionNotes.length,
+    });
+  }
   const read = withArtifactReadDiagnostics(
     {
       ...value,
+      omissionNotes,
       ...(equityStack === undefined ? {} : { equityStack: equityStack.group }),
       enterpriseValueBridge: enterpriseValueBridge?.group,
       ...(statutoryTaxRate === undefined

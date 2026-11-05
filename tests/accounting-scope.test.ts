@@ -50,6 +50,7 @@ import { operatingRatioNotes } from "../src/report/equity-reader-statements";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
+import { debtScopeUnproven } from "../src/sources/extended-evidence/sec-debt";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 import { assertFinancialLensPeriodHygiene } from "./support/run-fixtures/financial-invariants";
 
@@ -1664,5 +1665,192 @@ describe("first-public dating across equivalent HLIT concepts", () => {
       value: -0.07,
       firstPublicAt: "2020-03-02",
     });
+  });
+});
+
+// Debt filed in a FY2024 10-K; a FY2025 10-K restates FY2024 revenue and first reports its discontinued operations.
+const recastOriginal = (val: number, start?: string): Row => ({
+  val,
+  ...(start === undefined ? {} : { start }),
+  end: "2024-09-30",
+  form: "10-K",
+  fy: 2024,
+  fp: "FY",
+  filed: "2024-11-15",
+  accn: "0000000001-24-000001",
+});
+const recastRefiled = (val: number, start?: string): Row => ({
+  ...recastOriginal(val, start),
+  fy: 2025,
+  filed: "2025-11-25",
+  accn: "0000000001-25-000001",
+});
+const recastFy2024 = (overrides: Concepts = {}) =>
+  deriveFinancialStatements(
+    payload({
+      RevenueFromContractWithCustomerExcludingAssessedTax: [
+        recastOriginal(300, "2023-10-01"),
+        recastRefiled(250, "2023-10-01"),
+      ],
+      CashAndCashEquivalentsAtCarryingValue: [recastOriginal(40), recastRefiled(40)],
+      LongTermDebt: [recastOriginal(20)],
+      CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: [
+        recastRefiled(-6, "2023-10-01"),
+      ],
+      ...overrides,
+    }),
+    { symbol: "X", generatedAt: "2026-02-01", analysisAsOf: "2026-02-01", sourceId: "sec-x" },
+  );
+const debtScopeNotes = (artifact: FinancialStatementsArtifact) =>
+  artifact.omissionNotes.filter(({ code }) => code === "debt-scope-unproven");
+const recastPeriod = (artifact: FinancialStatementsArtifact) =>
+  valuationPeriodInputs(artifact).periods.find(({ periodEnd }) => periodEnd === "2024-09-30");
+
+describe("debt filed before a later filing first reported discontinued operations", () => {
+  test("publishes the debt beside restated revenue with the disclosure", () => {
+    const artifact = recastFy2024();
+    expect(
+      debtScopeNotes(artifact).map(({ periodKey, publicAt }) => [periodKey, publicAt]),
+    ).toEqual([["instant|2024-09-30", "2025-11-25"]]);
+    expect([
+      recastPeriod(artifact)?.debt?.value,
+      recastPeriod(artifact)?.debtScopeUnproven,
+    ]).toEqual([20, true]);
+  });
+
+  test("revenue as originally filed predates the recast, so the pairing carries no disclosure", () => {
+    const artifact = recastFy2024({
+      RevenueFromContractWithCustomerExcludingAssessedTax: [recastOriginal(300, "2023-10-01")],
+    });
+    expect(debtScopeNotes(artifact)).toHaveLength(1);
+    expect([
+      recastPeriod(artifact)?.debt?.value,
+      recastPeriod(artifact)?.debtScopeUnproven,
+    ]).toEqual([20, undefined]);
+  });
+
+  test.each([
+    [
+      "zero discontinued operations",
+      {
+        CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: [
+          recastRefiled(0, "2023-10-01"),
+        ],
+      },
+    ],
+    [
+      "debt re-filed unchanged in the recast",
+      { LongTermDebt: [recastOriginal(20), recastRefiled(20)] },
+    ],
+    [
+      "discontinued operations reported with the debt",
+      {
+        CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations: [
+          recastOriginal(-6, "2023-10-01"),
+        ],
+      },
+    ],
+  ] as const)("no disclosure: %s", (_label, overrides) => {
+    const artifact = recastFy2024(overrides);
+    expect(debtScopeNotes(artifact)).toEqual([]);
+    expect(recastPeriod(artifact)?.debtScopeUnproven).toBeUndefined();
+  });
+
+  const comparative = (filed: string): Row => ({
+    ...recastOriginal(20),
+    form: "10-Q",
+    fy: Number(filed.slice(0, 4)),
+    fp: "Q1",
+    filed,
+    accn: `0000000001-${filed.slice(2, 4)}-000002`,
+  });
+  const restatedFlow = { periodEnd: "2024-09-30", firstPublicAt: "2025-11-25" };
+
+  test.each([
+    ["after", "2026-01-20", false],
+    ["before", "2025-02-10", true],
+  ] as const)(
+    "a 10-Q comparative under another concept filed %s the recast leaves the annual debt disclosed",
+    (_order, filed, interimUnproven) => {
+      const artifact = recastFy2024({
+        DebtLongtermAndShorttermCombinedAmount: [comparative(filed)],
+      });
+      const { annual, interim } = artifact.statements.balanceSheet.debt;
+      const annualDebt = annual.find(({ periodEnd }) => periodEnd === "2024-09-30")!;
+      const interimDebt = interim.find(({ periodEnd }) => periodEnd === "2024-09-30")!;
+      expect([annualDebt.concept, interimDebt.concept]).toEqual([
+        "LongTermDebt",
+        "DebtLongtermAndShorttermCombinedAmount",
+      ]);
+      expect(debtScopeUnproven(artifact, annualDebt, restatedFlow)?.publicAt).toBe("2025-11-25");
+      expect(debtScopeUnproven(artifact, interimDebt, restatedFlow) !== undefined).toBe(
+        interimUnproven,
+      );
+    },
+  );
+
+  test.each([
+    ["after the recast", "2026-01-15", 20, true],
+    ["with the recast", "2025-11-25", undefined, undefined],
+  ] as const)(
+    "held-for-sale evidence filed %s keeps the scope note; it withholds only pairings at or after its date",
+    (_label, filed, debt, flagged) => {
+      const artifact = recastFy2024({
+        LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: [
+          { ...recastOriginal(50), fy: 2026, filed, accn: "0000000001-26-000003" },
+        ],
+      });
+      expect(
+        artifact.omissionNotes
+          .filter(({ periodKey }) => periodKey === "instant|2024-09-30")
+          .map(({ code, publicAt }) => [code, publicAt])
+          .toSorted(),
+      ).toEqual(
+        [
+          ["debt-held-for-sale", filed],
+          ["debt-scope-unproven", "2025-11-25"],
+        ].toSorted(),
+      );
+      expect([
+        recastPeriod(artifact)?.debt?.value,
+        recastPeriod(artifact)?.debtScopeUnproven,
+      ]).toEqual([debt, flagged]);
+    },
+  );
+
+  test("composite debt with the same concepts and total keeps each filing's provenance", () => {
+    const artifact = recastFy2024({
+      LongTermDebt: [],
+      DebtCurrent: [recastOriginal(5), { ...comparative("2026-01-20"), val: 7 }],
+      LongTermDebtNoncurrent: [recastOriginal(15), { ...comparative("2026-01-20"), val: 13 }],
+    });
+    const { annual, interim } = artifact.statements.balanceSheet.debt;
+    const annualDebt = annual.find(({ periodEnd }) => periodEnd === "2024-09-30")!;
+    const interimDebt = interim.find(({ periodEnd }) => periodEnd === "2024-09-30")!;
+    expect([annualDebt.concept, annualDebt.value]).toEqual([
+      interimDebt.concept,
+      interimDebt.value,
+    ]);
+    expect(annualDebt.composite?.components.map(({ value }) => value)).toEqual([5, 15]);
+    expect(debtScopeUnproven(artifact, annualDebt, restatedFlow)?.publicAt).toBe("2025-11-25");
+    expect(debtScopeUnproven(artifact, interimDebt, restatedFlow)).toBeUndefined();
+  });
+
+  test("a serialized artifact keeps a well-formed scope note and drops a malformed one with a diagnostic", () => {
+    const artifact = recastFy2024();
+    const [note] = debtScopeNotes(artifact);
+    const read = (unprovenDebt: unknown) =>
+      readFinancialStatementsArtifact(
+        JSON.parse(JSON.stringify({ ...artifact, omissionNotes: [{ ...note, unprovenDebt }] })),
+      );
+    expect(recastPeriod(read(note?.unprovenDebt)!)?.debtScopeUnproven).toBe(true);
+    for (const malformed of ["not-an-array", [null], [{ periodType: "annual" }]]) {
+      const malformedRead = read(malformed)!;
+      expect(malformedRead.omissionNotes).toEqual([]);
+      expect(malformedRead.readDiagnostics?.drops).toContainEqual(
+        expect.objectContaining({ count: 1, reason: expect.stringContaining("unprovenDebt") }),
+      );
+      expect(recastPeriod(malformedRead)?.debtScopeUnproven).toBeUndefined();
+    }
   });
 });

@@ -10,6 +10,8 @@ import {
 import { isDebtBasisGap, leaseInclusiveDebtGap, withheldDebtGap } from "./sec-fundamentals-format";
 import {
   DEBT_CONCEPTS,
+  DISCONTINUED_OPERATIONS_CONCEPTS,
+  IFRS_DISCONTINUED_OPERATIONS_CONCEPTS,
   US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS,
   US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
 } from "./financial-statement-definitions";
@@ -26,6 +28,7 @@ import {
 import {
   GROSS_PRINCIPAL_DEBT_CONCEPT,
   ZERO_BORROWINGS_CONCEPT,
+  type FinancialStatementFact,
   type FinancialStatementNote,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
@@ -78,6 +81,100 @@ export function heldForSaleRecast(
       (note.publicAt ?? "") > fact.filedAt &&
       (note.publicAt ?? "") <= cutoff,
   );
+}
+
+// Debt filed before the recast that restated the paired flow; the pairing publishes with a disclosure.
+export function debtScopeUnproven(
+  artifact: FinancialStatementsArtifact,
+  debt: Pick<FinancialStatementFact, "periodType" | "filedAt" | "periodEnd">,
+  flow: { readonly periodEnd: string; readonly firstPublicAt: string },
+): FinancialStatementNote | undefined {
+  return flow.periodEnd !== debt.periodEnd
+    ? undefined
+    : (artifact.omissionNotes ?? []).find(
+        (note) => isUnprovenDebtNote(note, debt) && (note.publicAt ?? "") <= flow.firstPublicAt,
+      );
+}
+
+export function isUnprovenDebtNote(
+  note: FinancialStatementNote,
+  debt: Pick<FinancialStatementFact, "periodType" | "filedAt" | "periodEnd">,
+): boolean {
+  return (
+    note.code === "debt-scope-unproven" &&
+    note.periodKey === `instant|${debt.periodEnd}` &&
+    (note.unprovenDebt ?? []).some(
+      ({ periodType, filedAt }) => periodType === debt.periodType && filedAt === debt.filedAt,
+    )
+  );
+}
+
+// Selected debt last filed before any filing reported discontinued operations for the period ending at its instant.
+export function debtScopeUnprovenNotes(
+  reader: DebtFactReader,
+  taxonomy: FinancialStatementTaxonomy,
+  eligible: (fact: ParsedFact) => boolean,
+  selected: SelectedSeries,
+): readonly FinancialStatementNote[] {
+  const root = reader.root(taxonomy);
+  if (root === undefined) {
+    return [];
+  }
+  const firstDiscontinued = new Map<string, ParsedFact>();
+  for (const fact of (taxonomy === "us-gaap"
+    ? DISCONTINUED_OPERATIONS_CONCEPTS
+    : IFRS_DISCONTINUED_OPERATIONS_CONCEPTS
+  ).flatMap((concept) => reader.unitFacts(taxonomy, root, concept))) {
+    const first = firstDiscontinued.get(fact.periodEnd);
+    if (
+      fact.periodStart !== undefined &&
+      fact.value !== 0 &&
+      eligible(fact) &&
+      (first === undefined || fact.filedAt < first.filedAt)
+    ) {
+      firstDiscontinued.set(fact.periodEnd, fact);
+    }
+  }
+  // A selected value re-filed unchanged in or after the recast filing carries that filing's scope.
+  const lastFiled = (debt: FinancialStatementFact) =>
+    (debt.composite?.components ?? [debt])
+      .map(({ concept, value }) =>
+        reader
+          .unitFacts(taxonomy, root, concept)
+          .filter(
+            (fact) =>
+              fact.periodStart === undefined &&
+              fact.periodEnd === debt.periodEnd &&
+              Math.abs(fact.value) === Math.abs(value) &&
+              eligible(fact),
+          )
+          .reduce((latest, fact) => (fact.filedAt > latest ? fact.filedAt : latest), debt.filedAt),
+      )
+      .reduce((earliest, filedAt) => (filedAt < earliest ? filedAt : earliest));
+  // Annual and interim selections at one instant reach different consumers, so each is judged on its own.
+  const unproven = new Map<string, { debt: FinancialStatementFact; filedAt: string }[]>();
+  for (const debt of financialStatementFacts(selected.series)) {
+    const recast = firstDiscontinued.get(debt.periodEnd);
+    const filedAt = lastFiled(debt);
+    if (recast !== undefined && recast.filedAt > filedAt) {
+      unproven.set(debt.periodEnd, [...(unproven.get(debt.periodEnd) ?? []), { debt, filedAt }]);
+    }
+  }
+  return [...unproven].map(([periodEnd, facts]): FinancialStatementNote => {
+    const recast = firstDiscontinued.get(periodEnd)!;
+    const { debt, filedAt } = facts.toSorted((a, b) => a.filedAt.localeCompare(b.filedAt))[0]!;
+    return {
+      code: "debt-scope-unproven",
+      seriesKey: "debt",
+      periodKey: `instant|${periodEnd}`,
+      publicAt: recast.filedAt,
+      unprovenDebt: facts.map(({ debt: fact }) => ({
+        periodType: fact.periodType,
+        filedAt: fact.filedAt,
+      })),
+      message: `Debt for ${periodEnd} was last filed ${filedAt} (${debt.accessionNumber ?? "accession not filed"}), before ${recast.concept} (${recast.accessionNumber ?? "accession not filed"}, filed ${recast.filedAt}) first reported discontinued operations for the period ending then, so its continuing-operations scope is unproven.`,
+    };
+  });
 }
 
 // Face-fixable debt withholds at instants the revenue history joins, newest first.

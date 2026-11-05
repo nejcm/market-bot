@@ -73,6 +73,7 @@ const VALUATION_INPUTS = [
 const VALUATION_FLAGS = [
   "enterpriseValueBridgeIncomplete",
   "debtScopeMismatch",
+  "debtScopeUnproven",
   "debtBehindIncompleteInstant",
 ] as const;
 

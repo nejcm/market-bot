@@ -463,6 +463,11 @@ describe("instrumentsForMeasurableAs", () => {
         measurableAs: "close(RR.L, +5) / close(RR.L, 0) > close(QQQ, +5) / close(QQQ, 0)",
         expected: ["RR.L", "QQQ"],
       },
+      {
+        measurableAs: "close(BRK-B, +5) / close(BRK-B, 0) > close(SPY, +5) / close(SPY, 0)",
+        expected: ["BRK-B", "SPY"],
+      },
+      { measurableAs: "close(BRK-B, +1) outside [400, 500]", expected: ["BRK-B"] },
       { measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)", expected: ["FRED:DGS10"] },
       {
         measurableAs: "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",

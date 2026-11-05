@@ -9,7 +9,7 @@ import {
   type BaselineClose,
 } from "../src/forecast/baseline";
 import { parseObservableExpression } from "../src/forecast/observable";
-import { eventGrid, issueForecastBook } from "../src/research/event-grid";
+import { eventGrid, issuableGridEvents, issueForecastBook } from "../src/research/event-grid";
 import { rederivePredictionShortfallReportAfterPruning } from "../src/report/prediction-shortfall";
 import { validateResearchReport } from "../src/report/schema";
 import {
@@ -445,8 +445,75 @@ describe("Event Grid", () => {
     });
     expect(book.predictions.map(({ id, origin }) => [id, origin])).toEqual([["pred-1", "model"]]);
     expect(book.gaps.map(({ message }) => message)).toContain(
-      "Event Grid event grid-relative-5 not issued: none of its close sources were collected",
+      "Event Grid event grid-relative-5 not issued: no close source was collected for AAPL, SPY",
     );
+  });
+
+  test("issues a grid event only when every leg's close source was collected", () => {
+    const sources = gridSources();
+    const issued = (knownSourceIds: ReadonlySet<string>) =>
+      issueForecastBook({
+        command: EQUITY,
+        collectedSources: sources,
+        modelPredictions: [],
+        modelEventGrid: eventGrid(EQUITY, sources).events.map(({ id }) => ({
+          id,
+          probability: 0.5,
+        })),
+        knownSourceIds,
+        generatedAt: AFTER_CLOSE,
+      });
+    const benchmarkOnly = issued(new Set(["price-history-SPY"]));
+    expect(benchmarkOnly.predictions).toEqual([]);
+    expect(benchmarkOnly.gaps.map(({ message }) => message)).toContain(
+      "Event Grid event grid-relative-5 not issued: no close source was collected for AAPL",
+    );
+    const primaryOnly = issued(new Set(["verified-snapshot-AAPL", "price-history-AAPL"]));
+    expect(primaryOnly.predictions.map(({ id, sourceIds }) => [id, sourceIds])).toEqual([
+      ["grid-range-1", ["verified-snapshot-AAPL", "price-history-AAPL"]],
+      ["grid-range-5", ["verified-snapshot-AAPL", "price-history-AAPL"]],
+      ["grid-range-20", ["verified-snapshot-AAPL", "price-history-AAPL"]],
+    ]);
+    expect(primaryOnly.gaps.map(({ message }) => message)).toContain(
+      "Event Grid event grid-relative-5 not issued: no close source was collected for SPY",
+    );
+    expect(issued(KNOWN).predictions.find(({ id }) => id === "grid-relative-5")?.sourceIds).toEqual(
+      ["price-history-AAPL", "price-history-SPY"],
+    );
+  });
+
+  test("declares a grid event whose expression does not parse instead of issuing it", () => {
+    const command = { ...EQUITY, symbol: "BRK--B" };
+    const known = new Set(["price-history-BRK--B", "price-history-SPY"]);
+    const grid = eventGrid(command, collectedSources());
+    expect(issuableGridEvents(grid.events, known)).toEqual([]);
+    const book = issueForecastBook({
+      command,
+      collectedSources: collectedSources(),
+      modelPredictions: [],
+      modelEventGrid: [{ id: "grid-relative-5", probability: 0.5 }],
+      knownSourceIds: known,
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(book.predictions).toEqual([]);
+    expect(book.gaps.map(({ message }) => message)).toContain(
+      "Event Grid event grid-relative-5 not issued: its expression close(BRK--B, +5)/close(BRK--B, 0) > close(SPY, +5)/close(SPY, 0) does not parse",
+    );
+  });
+
+  test("issues the relative grid event for a hyphenated ticker", () => {
+    const command = { ...EQUITY, symbol: "BRK-B" };
+    const book = issueForecastBook({
+      command,
+      collectedSources: collectedSources(),
+      modelPredictions: [],
+      modelEventGrid: [{ id: "grid-relative-5", probability: 0.5 }],
+      knownSourceIds: new Set(["price-history-BRK-B", "price-history-SPY"]),
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(book.predictions.map(({ id, sourceIds }) => [id, sourceIds])).toEqual([
+      ["grid-relative-5", ["price-history-BRK-B", "price-history-SPY"]],
+    ]);
   });
 
   test("extends the baseline window to the snapshot's newer close so both share one spot", () => {
@@ -602,6 +669,18 @@ describe("Event Grid", () => {
     const noReference = eventGrid(EQUITY, collectedSources());
     expect(noReference.events.map(({ id }) => id)).toEqual(["grid-relative-5"]);
     expect(noReference.gaps[0]?.message).toContain("±1σ range reference");
+    const flat = eventGrid(
+      EQUITY,
+      collectedSources({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          recentCloses: alternatingCloses(30).map(({ date }) => ({ date, close: 100 })),
+        }),
+      }),
+    );
+    expect(flat.events.map(({ id }) => id)).toEqual(["grid-relative-5"]);
+    expect(flat.gaps[0]?.message).toBe(
+      "Event Grid events not issued: the ±1σ band rounds to zero width for grid-range-1, grid-range-5, grid-range-20",
+    );
   });
 
   test("schema rejects a baseline without its version and cutoff", () => {

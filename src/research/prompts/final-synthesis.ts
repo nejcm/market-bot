@@ -217,16 +217,23 @@ function buildRangeVolatilityReference(
   const { sigma, spot, returnCount } = reference;
   const snapshot = collectedSources.verifiedMarketSnapshot!;
   const bands = rangeAnchorHorizons(command, collectedSources)
-    .map((horizon) => {
-      const [lo, hi] = rangeReferenceBand(reference, horizon)!;
+    .flatMap((horizon) => {
+      const band = rangeReferenceBand(reference, horizon);
+      if (band === undefined) {
+        return [];
+      }
+      const [lo, hi] = band;
       const scored = rangeReferenceOutsideProbability(snapshot, reference, horizon);
       const baseRate =
         scored === undefined
           ? `base rate about ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} (Gaussian one-sigma)`
           : `base rate about ${scored.probability.toFixed(2)} (Gaussian, assuming complete US exchange sessions it scores the close ${sessions(scored.sessions)} after that close)`;
-      return `+${String(horizon)}: [${lo.toFixed(2)}, ${hi.toFixed(2)}], ${baseRate}`;
+      return [`+${String(horizon)}: [${lo.toFixed(2)}, ${hi.toFixed(2)}], ${baseRate}`];
     })
     .join("; ");
+  if (bands === "") {
+    return "";
+  }
   return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returnCount)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands with the base rate of a close outside each: ${bands}. A range forecast on one of these bands uses that band's base rate unless a catalyst inside its window, such as a confirmed earnings date or a provider-estimated earnings date explicitly labeled as estimated, is cited in that prediction's sourceIds; move off that base rate only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
 }
 

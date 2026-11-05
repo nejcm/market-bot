@@ -182,27 +182,35 @@ describe("range volatility reference", () => {
     );
   });
 
-  test.each([
-    [
-      "flat closes",
-      "AAPL",
-      Array.from({ length: 21 }, (_, index) => ({
-        date: `2026-05-${String(index + 1).padStart(2, "0")}`,
-        close: 100,
-      })),
-    ],
-    ["a non-US listing", "RY.TO", rangeReferenceCloses(21)],
-  ])("states the band without a base rate for %s", (_, symbol, recentCloses) => {
-    const instruction = kindMixSynthesisInstruction(
-      { ...command, symbol },
-      { verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol, recentCloses }) },
-    );
-    expect(instruction).toContain(
-      "the ±1σ band over 1 session around the 2026-05-21 reference close 100.00;",
-    );
-    expect(instruction).not.toContain("Gaussian base rate");
+  test("lists no zero-width grid band for flat closes", () => {
+    const instruction = kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({
+        recentCloses: Array.from({ length: 21 }, (_, index) => ({
+          date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+          close: 100,
+        })),
+      }),
+    });
+    expect(instruction).not.toContain("grid-range-");
+    expect(instruction).not.toContain("[100.00, 100.00]");
+    expect(instruction).not.toContain("Range reference for");
     expect(instruction).not.toContain("NaN");
   });
+
+  test.each([["a non-US listing", "RY.TO", rangeReferenceCloses(21)]])(
+    "states the band without a base rate for %s",
+    (_, symbol, recentCloses) => {
+      const instruction = kindMixSynthesisInstruction(
+        { ...command, symbol },
+        { verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol, recentCloses }) },
+      );
+      expect(instruction).toContain(
+        "the ±1σ band over 1 session around the 2026-05-21 reference close 100.00;",
+      );
+      expect(instruction).not.toContain("Gaussian base rate");
+      expect(instruction).not.toContain("NaN");
+    },
+  );
 
   test("states no grid band or base rate when the range reference is unavailable", () => {
     const split = reference(rangeReferenceCloses(21, 0.01, { at: 10, ratio: 0.5 }));

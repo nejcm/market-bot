@@ -8,6 +8,7 @@ A recovery for a withheld value is built only after `bun run sweep:sec --diff` s
 
 These publish today but may be wrong, mixed-scope, or unproven. They also cover the cases where code falls short of the AGENTS.md data rules.
 
+- **Unresolved Bursa ticker runs every model stage.** Yahoo returns a `quoteType: NONE` stub, yet both runs spent ~221–225k estimated tokens on web-only reports, and the availability classifier counts any raw `yahoo-ticker` payload as available (`provider-endpoint-availability.ts`). Bursa codes are likely numeric (`0097.KL`, `3867.KL`; unverified). Whether to stop before the model stages is undecided.
 - **Capex scope beside continuing OCF.** Unproven periods publish with a `capex-scope-unproven` note (35 of 89 in the 2026-11-04 sweep); periods with nonzero discontinued investing/capex are withheld (50), with no materiality floor (NBIS FY2025 on −0.1M). Proofs come from the latest 10-K's and current 10-Q's calc linkbases, plus any older 10-K/10-Q whose linkbase the debt-face path already reads (CLFD 6m-2025/6m-2026); other older-filing periods stay unproven or withheld (CLFD 3m-2024/3m-2025 from 0001171843-26-000700). 20-F filers and filings a run does not fetch are never scanned for evidence. GPN FY2022 pairs total OCF with total capex beside continuing revenue.
 - **D&A `unchecked-component-sum`.** 18 issuers and 126 annual periods (2026-10-30 cache) publish Depreciation + AmortizationOfIntangibleAssets with only a note. The proof reads the same calc linkbases as capex above (ORCL, ABBV, GLW FY2025 and AMD FY2023–25 pass). Without that proof, the D&A cash-flow pair also publishes with a note, which is an overstatement risk.
 - **D&A withheld but unproven elsewhere.** AMD FY2020–22, DDOG FY2022, and DDA-below-DA at DDOG, CRM, EBAY, RIOT. These lack a component or carry a partial total and exit before any linkbase check, so recovering them needs a new rule, not a fetch; mixed-accession sums stay unprovable by any one linkbase; MSFT FY2025's calc tree has one unsplit extension line.
@@ -28,6 +29,10 @@ These publish today but may be wrong, mixed-scope, or unproven. They also cover 
 
 ## Run cost and citations
 
+- **Malformed metric references force full regenerations.** The model drops the `metric:` prefix (`<<business-framework-moat.grossMargin|period>>`), and `transformClaims` (`src/research/metric-references.ts`) throws on the first bad token, so each repair names one. CRWV used all 3 repairs (~227k extra est. tokens); APLD ~79k; 6 of the newest 40 runs, 4 commits. Fix: canonicalize exact catalog ids in code, and collect every malformed token into one error.
+- **Digit-bearing names trip the uncited-figure prune.** `NUMERIC_CLAIM_PATTERN` (`post-synthesis-audit.ts`) matches the digits in "T1" and "Rev8", so TE and OUST lost their opening summary sentence; any uncited claim naming such an entity is at risk.
+- **KEEL conditional forecast rejected by the parser.** The second leg was anchored at +5 instead of 0, costing one repair call.
+- **Model forecasts restate the steering band (unproven defect).** 6 of 7 model range forecasts copy the +10 reference band at p 0.34–0.40 against a 0.34 base rate; 16 of 21 predictions are near base rate. Prompt guidance stays inside ADR 0003; dropping the anchor would amend it. Needs resolved Paired Skill, not a prompt change.
 - **SEC excerpts.** 8–9k chars each reach specialist, instrument-evidence, market-behavior, critique and synthesis in full; all of them cite the prose. A cut would have to drop sections no stage cites, and which sections those are is unchecked.
 - **AMD earnings date.** It stays provider-estimated. The issuer release was never gathered (runs 10-20, 10-23), and the ir.amd.com calendar fails the future-tense check.
 

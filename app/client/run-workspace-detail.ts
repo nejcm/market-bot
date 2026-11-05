@@ -87,7 +87,7 @@ export function uniqueSourceIds(sourceIds: readonly string[]): readonly string[]
 export function financialLensGroupViews(
   detail: RunDetail,
 ): readonly RunWorkspaceFinancialLensGroup[] {
-  const sectionTiles = financialLensSectionTiles(detail.report, detail.marketSnapshots ?? []);
+  const sectionTiles = financialLensSectionTiles(detail.report);
   const artifactTiles = financialLensStatTiles(
     detail.financialLenses,
     detail.marketSnapshots ?? [],

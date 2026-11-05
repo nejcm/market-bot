@@ -4,6 +4,7 @@ import {
   splitAdjustedObservationsFromYahooChart,
 } from "../../../src/sources/yahoo";
 import { ledgerTotals } from "../../../src/model/call-ledger";
+import { financialLensSectionTiles } from "../../../app/client/view-model-lens";
 import type {
   ValuationFundamentalInput,
   ValuationMetricKey,
@@ -1332,6 +1333,18 @@ export function assertFinancialLensMetricInvariants(
     }).some((series) => series.annual.length + series.interim.length > 0);
   if (filedFacts) {
     expect(sections.length, "filed statements imply lens Metric Sections").toBeGreaterThan(0);
+  }
+  const tiles = financialLensSectionTiles(report as unknown as Record<string, unknown>);
+  for (const section of sections) {
+    const lens = LENS_SECTION_TITLES[section.id!]!.replace("Financial Lens: ", "");
+    for (const row of section.metrics) {
+      if (row.priceAsOf !== undefined && row.status === "value") {
+        expect(
+          tiles.find((tile) => tile.lens === lens && tile.key === row.id)?.caption,
+          `${fixtureName}.${String(row.id)} lens tile caption carries its frozen price-as-of`,
+        ).toContain(row.priceAsOf);
+      }
+    }
   }
   for (const [id, title] of Object.entries(LENS_SECTION_TITLES)) {
     const section = sections.find((candidate) => candidate.id === id);

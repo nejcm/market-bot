@@ -12,6 +12,7 @@ import {
   type OriginalFiling,
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
+  type FinancialStatementSupersedingFact,
   type FinancialStatementTtm,
   type FinancialStatementsArtifact,
   type InterimCadence,
@@ -159,6 +160,19 @@ export function touchesEarlierShareBasis(
   earlier: ReadonlySet<string>,
 ): boolean {
   return facts.some((fact) => earlier.has(fact.periodKey));
+}
+
+// A FY stops being trailing once a later period is public by the cutoff.
+export function fiscalYearTtmSupersededAt(
+  ttm: FinancialStatementTtm | undefined,
+  supersedingFacts: readonly FinancialStatementSupersedingFact[],
+  cutoff: string,
+): readonly FinancialStatementSupersedingFact[] {
+  return ttm?.formula === "FY"
+    ? supersedingFacts.filter(
+        (fact) => fact.periodEnd > ttm.periodEnd && fact.firstPublicAt <= cutoff,
+      )
+    : [];
 }
 
 export function latestFinancialStatementFact(

@@ -310,11 +310,29 @@ function buildValuationWorkbenchResult(
           ),
         ];
   const sectionResults = [...results, ...unavailable];
+  const supersededGaps = (inputsForArtifact?.supersededTtm ?? []).map(
+    ({ periodEnd, publicAt, supersededBy }) =>
+      sourceGap({
+        source: `valuation-workbench-ttm-${periodEnd}-${publicAt}`,
+        message: `Valuation Workbench TTM ${periodEnd} for ${input.symbol.toUpperCase()} public ${publicAt} withheld (superseded-fiscal-year-ttm): ${supersededBy.concept} for ${supersededBy.periodStart} to ${supersededBy.periodEnd} was public ${supersededBy.firstPublicAt} (${supersededBy.form} accession ${supersededBy.accessionNumber ?? "undisclosed"}), so the fiscal year ending ${periodEnd} was no longer the trailing period`,
+        symbol: input.symbol.toUpperCase(),
+        provider: "market-bot",
+        capability: "extended-evidence",
+        cause: "suppressed-by-design",
+        evidenceQualityImpact: "no-cap",
+        triage: "diagnostic",
+      }),
+  );
   const suppressionReasons = [
     ...(artifact === undefined ? ["canonical financial statements unavailable"] : []),
     ...(observations.length === 0 ? ["no annual or reconciled TTM valuation basis available"] : []),
     ...(input.priceHistory.length === 0 ? ["verified historical closes unavailable"] : []),
     ...(input.quoteCurrency === undefined ? ["quote currency unavailable"] : []),
+    ...(inputsForArtifact?.uncheckedTtm === true
+      ? [
+          "fiscal-year TTM rows unchecked for later filed periods: financial statements predate supersedingFacts",
+        ]
+      : []),
   ];
   const sourceIds = unique([
     ...observations.flatMap((item) => item.sourceIds),
@@ -322,7 +340,10 @@ function buildValuationWorkbenchResult(
   ]);
   return {
     metricSections: sectionResults.map(({ section }) => section),
-    sourceGaps: collapseOutsidePriceHistoryGaps(input.symbol, sectionResults),
+    sourceGaps: [
+      ...collapseOutsidePriceHistoryGaps(input.symbol, sectionResults),
+      ...supersededGaps,
+    ],
     artifact: {
       version: 1,
       generatedAt: input.generatedAt,

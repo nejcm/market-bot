@@ -2249,3 +2249,209 @@ describe("latest fiscal year as the trailing basis", () => {
     ).toEndWith("No SEC diluted EPS TTM is available to compare.");
   });
 });
+
+const supersedingFact = (firstPublicAt: string) => ({
+  concept: "DepreciationDepletionAndAmortization",
+  periodStart: "2025-01-01",
+  periodEnd: "2025-03-31",
+  firstPublicAt,
+  form: "10-Q",
+  accessionNumber: "0000000000-25-000001",
+});
+const fiscalYearTtmArtifact = (
+  supersedingFacts?: readonly ReturnType<typeof supersedingFact>[],
+  interimPublicAt = "2025-02-15",
+): FinancialStatementsArtifact => {
+  const base = withoutTtm(statements());
+  const { revenue } = base.statements.incomeStatement;
+  const fourthQuarter = fact({
+    key: "revenue",
+    value: 30,
+    periodEnd: "2024-12-31",
+    filedAt: interimPublicAt,
+    periodType: "interim",
+  });
+  return {
+    ...base,
+    statements: {
+      ...base.statements,
+      incomeStatement: {
+        ...base.statements.incomeStatement,
+        revenue: {
+          ...revenue,
+          interim: [{ ...fourthQuarter, periodStart: "2024-10-01" }],
+          ...(supersedingFacts === undefined ? {} : { supersedingFacts }),
+        },
+      },
+    },
+  };
+};
+const buildFiscalYearTtm = (artifact: FinancialStatementsArtifact) =>
+  buildValuationWorkbench({
+    generatedAt: "2025-06-01T00:00:00.000Z",
+    symbol: "TEST",
+    financialStatements: artifact,
+    priceHistory: [],
+    priceSourceId: "verified-snapshot-TEST",
+    quoteCurrency: "USD",
+  });
+const rows = (artifact: FinancialStatementsArtifact) =>
+  buildFiscalYearTtm(artifact).historicalMultiples.observations.map(
+    ({ basis, periodEnd, publicAt }) => `${basis}|${periodEnd}|${publicAt}`,
+  );
+
+describe("historical fiscal-year TTM eligibility", () => {
+  test("withholds a fiscal-year TTM once a later period was public by the cutoff", async () => {
+    const artifact = fiscalYearTtmArtifact([supersedingFact("2025-02-15")]);
+    expect(rows(artifact)).not.toContain("ttm|2024-12-31|2025-02-15");
+    expect(rows(artifact)).toContain("annual|2024-12-31|2025-02-15");
+    const collected = await collectValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: artifact,
+      priceHistory: [],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const gaps = collected.sourceGaps.filter(({ message }) =>
+      message.includes("superseded-fiscal-year-ttm"),
+    );
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toMatchObject({
+      source: "valuation-workbench-ttm-2024-12-31-2025-02-15",
+      triage: "diagnostic",
+    });
+    expect(gaps[0]?.message).toContain("TTM 2024-12-31");
+    expect(gaps[0]?.message).toContain(
+      "DepreciationDepletionAndAmortization for 2025-01-01 to 2025-03-31 was public 2025-02-15",
+    );
+    expect(violatesResearchOnly(gaps[0]!.message)).toBeNull();
+  });
+
+  test("keeps the fiscal-year TTM when the later period became public after the cutoff", () => {
+    const artifact = fiscalYearTtmArtifact([supersedingFact("2025-05-01")]);
+    expect(rows(artifact)).toContain("ttm|2024-12-31|2025-02-15");
+    expect(buildFiscalYearTtm(artifact).historicalMultiples.suppressionReasons).toEqual(
+      buildFiscalYearTtm(fiscalYearTtmArtifact([])).historicalMultiples.suppressionReasons,
+    );
+  });
+
+  test("judges eligibility at the row's public date, not a later interim cutoff", () => {
+    const artifact = fiscalYearTtmArtifact([supersedingFact("2025-03-20")], "2025-04-01");
+    expect(rows(artifact)).toContain("ttm|2024-12-31|2025-02-15");
+  });
+
+  test("keeps today's row and records the check as unchecked for an artifact without the field", () => {
+    const artifact = fiscalYearTtmArtifact();
+    expect(rows(artifact)).toEqual(rows(fiscalYearTtmArtifact([])));
+    expect(rows(artifact)).toContain("ttm|2024-12-31|2025-02-15");
+    expect(
+      buildFiscalYearTtm(artifact).historicalMultiples.suppressionReasons.filter((reason) =>
+        reason.includes("unchecked"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      buildFiscalYearTtm(fiscalYearTtmArtifact([])).historicalMultiples.suppressionReasons.some(
+        (reason) => reason.includes("unchecked"),
+      ),
+    ).toBe(false);
+  });
+});
+
+const secFact = (
+  value: number,
+  form: string,
+  fp: string,
+  filed: string,
+  start: string,
+  end: string,
+) => ({
+  val: value,
+  form,
+  fy: Number(filed.slice(0, 4)),
+  fp,
+  filed,
+  start,
+  end,
+  accn: `${filed.replaceAll("-", "")}-${form}`,
+});
+// FY2023 arrives on a late 10-K after another concept already tagged Q1 2024.
+const lateFiscalYearFacts = (amortizationQ1Filed: string) => ({
+  facts: {
+    "us-gaap": {
+      Revenues: {
+        units: {
+          USD: [
+            secFact(100, "10-K", "FY", "2024-05-20", "2023-01-01", "2023-12-31"),
+            secFact(30, "10-K", "FY", "2024-05-20", "2023-10-01", "2023-12-31"),
+            secFact(120, "10-K", "FY", "2025-02-15", "2024-01-01", "2024-12-31"),
+          ],
+        },
+      },
+      DepreciationDepletionAndAmortization: {
+        units: {
+          USD: [
+            secFact(5, "10-Q", "Q1", amortizationQ1Filed, "2024-01-01", "2024-03-31"),
+            secFact(6, "10-Q", "Q1", "2025-05-08", "2025-01-01", "2025-03-31"),
+          ],
+        },
+      },
+    },
+  },
+});
+const refiledFiscalYearFacts = (comparativeStart: string) => ({
+  facts: {
+    "us-gaap": {
+      Revenues: {
+        units: {
+          USD: [
+            secFact(100, "10-K", "FY", "2024-02-15", "2023-01-01", "2023-12-31"),
+            secFact(30, "10-K", "FY", "2024-02-15", "2023-10-01", "2023-12-31"),
+            secFact(100, "10-K", "FY", "2025-02-15", comparativeStart, "2023-12-31"),
+            secFact(120, "10-K", "FY", "2025-02-15", "2024-01-01", "2024-12-31"),
+          ],
+        },
+      },
+      PaymentsForRepurchaseOfCommonStock: {
+        units: { USD: [secFact(4, "10-K", "FY", "2024-02-15", "2024-01-15", "2024-02-10")] },
+      },
+      DepreciationDepletionAndAmortization: {
+        units: { USD: [secFact(5, "10-Q", "Q1", "2024-05-08", "2024-01-01", "2024-03-31")] },
+      },
+    },
+  },
+});
+const secFactRows = (companyFacts: unknown) =>
+  buildValuationWorkbench({
+    generatedAt: "2025-06-01T00:00:00.000Z",
+    symbol: "TEST",
+    financialStatements: deriveFinancialStatements(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      analysisAsOf: "2025-06-01T00:00:00.000Z",
+      sourceId: SOURCE_ID,
+    }),
+    priceHistory: [],
+    priceSourceId: "verified-snapshot-TEST",
+    quoteCurrency: "USD",
+  }).historicalMultiples.observations.map(
+    ({ basis, periodEnd, publicAt }) => `${basis}|${periodEnd}|${publicAt}`,
+  );
+
+describe("historical fiscal-year TTM eligibility from SEC facts", () => {
+  test("withholds an older fiscal year once a later quarter was public before its row", () => {
+    expect(secFactRows(lateFiscalYearFacts("2025-05-08"))).toContain("ttm|2023-12-31|2024-05-20");
+    expect(secFactRows(lateFiscalYearFacts("2024-05-08"))).not.toContain(
+      "ttm|2023-12-31|2024-05-20",
+    );
+  });
+
+  test("exempts a subsequent event in the 10-K that first made a re-filed year public", () => {
+    expect(secFactRows(refiledFiscalYearFacts("2023-01-01"))).toContain(
+      "ttm|2023-12-31|2024-02-15",
+    );
+    expect(secFactRows(refiledFiscalYearFacts("2023-01-02"))).toContain(
+      "ttm|2023-12-31|2024-02-15",
+    );
+  });
+});

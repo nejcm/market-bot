@@ -49,6 +49,7 @@ import {
   isYearAligned,
   financialStatementFacts,
   incompleteFinancialStatementNotes,
+  fiscalYearTtmSupersededAt,
   latestFinancialStatementFact,
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
@@ -80,6 +81,7 @@ import {
   type FinancialStatementNotePeriod,
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
+  type FinancialStatementSupersedingFact,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
   type FirstAnnualReport,
@@ -3149,41 +3151,67 @@ function filedDurationFacts(
 
 const FISCAL_YEAR_BOUNDARY_DAYS = 10;
 
+type FiscalYearFiling = Pick<FinancialStatementFact, "periodEnd" | "accessionNumber" | "amendment">;
+
 // Only an original annual filing's own fact that cannot open the next fiscal year (a subsequent event) is exempt.
-function isSubsequentEventFact(fact: ParsedFact, fiscalYear: FinancialStatementFact): boolean {
-  const startGapDays =
-    (Date.parse(fact.periodStart!) - Date.parse(fiscalYear.periodEnd)) / 86_400_000;
+function isSubsequentEventFact(fact: ParsedFact, fiscalYear: FiscalYearFiling): boolean {
   return (
     fiscalYear.accessionNumber !== null &&
     fact.accessionNumber === fiscalYear.accessionNumber &&
     !fiscalYear.amendment &&
-    !(startGapDays <= FISCAL_YEAR_BOUNDARY_DAYS)
+    !(
+      (Date.parse(fact.periodStart!) - Date.parse(fiscalYear.periodEnd)) / 86_400_000 <=
+      FISCAL_YEAR_BOUNDARY_DAYS
+    )
   );
 }
 
 // A later period tagged under any concept (e.g. a newer revenue tag) means the FY is no longer trailing.
+function isSupersedingFact(fact: ParsedFact, fiscalYear: FiscalYearFiling): boolean {
+  return fact.periodEnd > fiscalYear.periodEnd && !isSubsequentEventFact(fact, fiscalYear);
+}
+
+function factPublicAt(fact: ParsedFact): string {
+  return fact.firstPublicAt ?? fact.filedAt;
+}
+
+function supersedingFact(fact: ParsedFact): FinancialStatementSupersedingFact {
+  return {
+    concept: fact.concept,
+    periodStart: fact.periodStart!,
+    periodEnd: fact.periodEnd,
+    firstPublicAt: factPublicAt(fact),
+    form: fact.form,
+    accessionNumber: fact.accessionNumber,
+  };
+}
+
+function supersedingDurationFacts(
+  fiscalYear: FiscalYearFiling,
+  durationFacts: readonly ParsedFact[],
+): readonly FinancialStatementSupersedingFact[] {
+  return durationFacts
+    .filter((fact) => isSupersedingFact(fact, fiscalYear))
+    .map((fact) => supersedingFact(fact));
+}
+
 function withoutSupersededFiscalYearTtm(
   series: FinancialStatementSeries,
-  durationFacts: readonly ParsedFact[],
+  supersedingFacts: readonly FinancialStatementSupersedingFact[],
+  analysisAsOf: string,
 ): { readonly series: FinancialStatementSeries; readonly note?: FinancialStatementNote } {
   const { ttm, ...rest } = series;
-  if (ttm?.formula !== "FY") {
-    return { series };
-  }
-  const blocking = durationFacts.filter(
-    (fact) =>
-      fact.periodEnd > ttm.periodEnd && !isSubsequentEventFact(fact, ttm.components.fiscalYear),
-  );
+  const blocking = fiscalYearTtmSupersededAt(ttm, supersedingFacts, analysisAsOf);
   const seriesConcepts = new Set([...series.annual, ...series.interim].map((fact) => fact.concept));
   const named = blocking.findLast((fact) => seriesConcepts.has(fact.concept)) ?? blocking.at(-1);
-  return named === undefined
+  return named === undefined || ttm === undefined
     ? { series }
     : {
         series: rest,
         note: {
           code: "unreconciled-ttm",
           seriesKey: series.key,
-          message: `The latest fiscal year ends ${ttm.periodEnd}, but ${named.concept} for ${named.periodStart!} to ${named.periodEnd} is filed outside this series (${named.form} accession ${named.accessionNumber ?? "undisclosed"})`,
+          message: `The latest fiscal year ends ${ttm.periodEnd}, but ${named.concept} for ${named.periodStart} to ${named.periodEnd} is filed outside this series (${named.form} accession ${named.accessionNumber ?? "undisclosed"})`,
         },
       };
 }
@@ -3357,11 +3385,58 @@ export function deriveFinancialStatements(
   const shareBasisNotes = mixedShareBasisNotes(uncapped, retained);
   const durationFacts =
     taxonomy === undefined ? [] : filedDurationFacts(payload, taxonomy, input.analysisAsOf);
+  const annualConcepts = new Set(
+    retained.flatMap(({ annual }) => annual.map(({ concept }) => concept)),
+  );
+  const filedFacts = new Map(
+    durationFacts
+      .filter((fact) => annualConcepts.has(fact.concept))
+      .map((fact) => [
+        `${fact.concept}|${periodKey(fact)}|${fact.filedAt}|${String(fact.value)}`,
+        fact,
+      ]),
+  );
+  // A re-filed year keeps a later comparative's accession; its subsequent events sit in the first filing.
+  const firstPublicFiling = (fiscalYear: FinancialStatementFact) =>
+    filedFacts.get(
+      `${fiscalYear.concept}|${financialStatementPeriodKey(fiscalYear)}|${fiscalYear.firstPublicAt}|${String(fiscalYear.value)}`,
+    ) ?? fiscalYear;
+  const byFirstPublic = durationFacts.toSorted((left, right) =>
+    factPublicAt(left) < factPublicAt(right)
+      ? -1
+      : Number(factPublicAt(left) > factPublicAt(right)),
+  );
+  // Per fiscal year only the earliest-public superseding fact decides eligibility at any cutoff.
+  const earliestByFiscalYear = new Map<string, FinancialStatementSupersedingFact | undefined>();
+  const earliestSupersedingFact = (fiscalYear: FinancialStatementFact) => {
+    const filing = firstPublicFiling(fiscalYear);
+    const key = `${filing.periodEnd}|${filing.accessionNumber}|${String(filing.amendment)}`;
+    if (!earliestByFiscalYear.has(key)) {
+      const first = byFirstPublic.find((fact) => isSupersedingFact(fact, filing));
+      earliestByFiscalYear.set(key, first === undefined ? undefined : supersedingFact(first));
+    }
+    return earliestByFiscalYear.get(key);
+  };
   const shareBasisTtm = retained.map((item) => {
     const shareBasis = withoutMixedShareBasisTtm(item, shareBasisNotes);
-    return shareBasis.note === undefined
-      ? withoutSupersededFiscalYearTtm(shareBasis.series, durationFacts)
-      : shareBasis;
+    const { ttm } = shareBasis.series;
+    const checked =
+      shareBasis.note === undefined && ttm?.formula === "FY"
+        ? withoutSupersededFiscalYearTtm(
+            shareBasis.series,
+            supersedingDurationFacts(firstPublicFiling(ttm.components.fiscalYear), durationFacts),
+            input.analysisAsOf,
+          )
+        : shareBasis;
+    const earliest = [
+      ...new Map(
+        item.annual.flatMap((fiscalYear) => {
+          const first = earliestSupersedingFact(fiscalYear);
+          return first === undefined ? [] : [[JSON.stringify(first), first] as const];
+        }),
+      ).values(),
+    ];
+    return { ...checked, series: { ...checked.series, supersedingFacts: earliest } };
   });
   const series = shareBasisTtm.map((item) => item.series);
   const statements = seriesRecord(series);

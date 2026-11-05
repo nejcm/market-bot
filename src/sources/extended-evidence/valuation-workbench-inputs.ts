@@ -9,6 +9,7 @@ import type {
   FinancialStatementSeriesKey,
   FinancialStatementFact,
   FinancialStatementSeries,
+  FinancialStatementSupersedingFact,
   FinancialStatementTtm,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
@@ -24,6 +25,7 @@ import {
 import {
   deriveFinancialStatementTtm,
   earlierShareBasisPeriods,
+  fiscalYearTtmSupersededAt,
   touchesEarlierShareBasis,
   financialStatementFactForPeriod,
   financialStatementPeriodKey,
@@ -608,6 +610,12 @@ function ttmInputs(artifact: FinancialStatementsArtifact): ValuationPeriodInputs
   });
 }
 
+interface SupersededTtm {
+  readonly periodEnd: string;
+  readonly publicAt: string;
+  readonly supersededBy: FinancialStatementSupersedingFact;
+}
+
 function derivedTtmAt(
   artifact: FinancialStatementsArtifact,
   series: FinancialStatementSeries,
@@ -634,36 +642,68 @@ function derivedTtmAt(
     : ttm;
 }
 
-function historicalTtmInputs(
-  artifact: FinancialStatementsArtifact,
-): readonly ValuationPeriodInputs[] {
+function supersededAt(
+  series: FinancialStatementSeries,
+  ttm: FinancialStatementTtm,
+  publicAt: string,
+): FinancialStatementSupersedingFact | undefined {
+  return fiscalYearTtmSupersededAt(ttm, series.supersedingFacts ?? [], publicAt)[0];
+}
+
+function historicalTtmInputs(artifact: FinancialStatementsArtifact): {
+  readonly periods: readonly ValuationPeriodInputs[];
+  readonly superseded: readonly SupersededTtm[];
+  readonly unchecked: boolean;
+} {
   const { incomeStatement, cashFlowStatement, perShare } = artifact.statements;
   const cutoffs = [
     ...new Set(incomeStatement.revenue.interim.map((fact) => fact.firstPublicAt)),
   ].toSorted();
-  return cutoffs.flatMap((cutoff) => {
+  const rows = cutoffs.flatMap((cutoff) => {
     const revenue = derivedTtmAt(artifact, incomeStatement.revenue, cutoff);
     if (revenue === undefined) {
       return [];
     }
-    const netIncome = derivedTtmAt(artifact, incomeStatement.netIncome, cutoff);
-    const dilutedEps = derivedTtmAt(artifact, perShare.dilutedEps, cutoff);
-    const continuingIncome = derivedTtmAt(artifact, incomeStatement.continuingIncome, cutoff);
-    const continuingDilutedEps = derivedTtmAt(artifact, perShare.continuingDilutedEps, cutoff);
-    const operatingCashFlow = derivedTtmAt(artifact, cashFlowStatement.operatingCashFlow, cutoff);
-    const capitalExpenditure = derivedTtmAt(artifact, cashFlowStatement.capitalExpenditure, cutoff);
+    const ttmAt = (series: FinancialStatementSeries) => {
+      const ttm = derivedTtmAt(artifact, series, cutoff);
+      return ttm === undefined || supersededAt(series, ttm, cutoff) !== undefined ? undefined : ttm;
+    };
+    const netIncome = ttmAt(incomeStatement.netIncome);
+    const dilutedEps = ttmAt(perShare.dilutedEps);
+    const continuingIncome = ttmAt(incomeStatement.continuingIncome);
+    const continuingDilutedEps = ttmAt(perShare.continuingDilutedEps);
+    const operatingCashFlow = ttmAt(cashFlowStatement.operatingCashFlow);
+    const capitalExpenditure = ttmAt(cashFlowStatement.capitalExpenditure);
+    const period = periodInputsFromTtm(artifact, {
+      revenue,
+      ...(netIncome !== undefined ? { netIncome } : {}),
+      ...(dilutedEps !== undefined ? { dilutedEps } : {}),
+      ...(continuingIncome !== undefined ? { continuingIncome } : {}),
+      ...(continuingDilutedEps !== undefined ? { continuingDilutedEps } : {}),
+      ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
+      ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
+    });
+    // Eligibility is judged when the row is priced, not at the later interim that surfaced it.
+    const publicAt = periodPublicAt(period);
     return [
-      periodInputsFromTtm(artifact, {
-        revenue,
-        ...(netIncome !== undefined ? { netIncome } : {}),
-        ...(dilutedEps !== undefined ? { dilutedEps } : {}),
-        ...(continuingIncome !== undefined ? { continuingIncome } : {}),
-        ...(continuingDilutedEps !== undefined ? { continuingDilutedEps } : {}),
-        ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
-        ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
-      }),
+      {
+        period,
+        publicAt,
+        supersededBy: supersededAt(incomeStatement.revenue, revenue, publicAt),
+        unchecked:
+          revenue.formula === "FY" && incomeStatement.revenue.supersedingFacts === undefined,
+      },
     ];
   });
+  return {
+    periods: rows.flatMap(({ period, supersededBy }) =>
+      supersededBy === undefined ? [period] : [],
+    ),
+    superseded: rows.flatMap(({ period, publicAt, supersededBy }) =>
+      supersededBy === undefined ? [] : [{ periodEnd: period.periodEnd, publicAt, supersededBy }],
+    ),
+    unchecked: rows.some(({ unchecked }) => unchecked),
+  };
 }
 
 function uniquePeriodInputs(
@@ -716,16 +756,27 @@ export function periodPublicAt(inputs: ValuationPeriodInputs): string {
 export function valuationPeriodInputs(artifact: FinancialStatementsArtifact): {
   readonly ttm: ValuationPeriodInputs | undefined;
   readonly periods: readonly ValuationPeriodInputs[];
+  // One per withheld fiscal-year TTM period whose row no earlier cutoff kept.
+  readonly supersededTtm: readonly SupersededTtm[];
+  readonly uncheckedTtm: boolean;
 } {
   const ttm = ttmInputs(artifact);
+  const historical = historicalTtmInputs(artifact);
+  const periods = uniquePeriodInputs([
+    ...artifact.statements.incomeStatement.revenue.annual.map((fact) =>
+      annualInputs(artifact, fact),
+    ),
+    ...historical.periods,
+    ...(ttm === undefined ? [] : [ttm]),
+  ]);
   return {
     ttm,
-    periods: uniquePeriodInputs([
-      ...artifact.statements.incomeStatement.revenue.annual.map((fact) =>
-        annualInputs(artifact, fact),
-      ),
-      ...historicalTtmInputs(artifact),
-      ...(ttm === undefined ? [] : [ttm]),
-    ]),
+    periods,
+    supersededTtm: historical.superseded.filter(
+      ({ periodEnd }, index, all) =>
+        all.findIndex((other) => other.periodEnd === periodEnd) === index &&
+        !periods.some((period) => period.basis === "ttm" && period.periodEnd === periodEnd),
+    ),
+    uncheckedTtm: historical.unchecked,
   };
 }

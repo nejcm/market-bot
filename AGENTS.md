@@ -51,7 +51,7 @@ ADRs document current decisions and should be followed by default, but they can 
 
 ## Blast radius
 
-Live runs cost real money and time — a deep equity run is ~12 minutes and ~438k live model tokens (a legacy estimate that double-counts Codex reasoning; correction size unknown).
+Live runs cost real money and time — a deep equity run is a median ≈214 s of summed stage time and ≈378k estimated model tokens (medians over n=48 saved `trace.json`; the token estimate may double-count Codex reasoning).
 
 - **Never run the CLI to "check something."** Read an existing artifact under `data/runs/` (newest first) or replay a fixture. Fixture replays are free.
 - **Live-LLM fixture runs only via `scripts/eval-deep.ts --yes`** (or `scripts/replay-fixture-run.ts --live --yes`), and only with my explicit approval per batch — run without `--yes` first; it prints the run count and token estimate and spends nothing. Both write only under `data/evals/<label>/`, never `data/runs/`. Never run the fixture _recorder_ — it hits every provider and can capture secrets into cassettes.
@@ -151,6 +151,7 @@ bun run check                            # the only thing you may report as pass
 
 Gotchas:
 
+- `bun run check` takes ~2.5–3.5 min (median 155 s); run it in the foreground with a 600000 ms timeout, not in the background — a subagent that backgrounds it ends its turn before the result.
 - `bun test` is not `bun run test:coverage`; only the latter enforces the coverage floor.
 - `bun run typecheck` is `tsc --noEmit` **and** `app:check` — a Svelte-only regression passes `tsc` and fails `check`.
 - `bun run knip` fails on any unused export, so an export you don't yet consume breaks the build.

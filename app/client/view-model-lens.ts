@@ -1,6 +1,7 @@
 import {
   formatLensValue,
   formatMetricValue,
+  metricPeriodLabel,
   scaleCurrency,
 } from "../../src/sources/extended-evidence/value-format";
 import type {
@@ -307,7 +308,6 @@ const BALANCE_SHEET_LENS_METRICS = new Set([
 function financialLensMetricCaption(
   metric: Pick<FinancialLensMetric, "key" | "sourceIds" | "periodEnd" | "periodMonths">,
   marketSnapshots: readonly MarketSnapshot[],
-  priced = true,
 ): string | undefined {
   const source = financialLensSourceLabel(metric.sourceIds);
   if (source === undefined) {
@@ -317,9 +317,9 @@ function financialLensMetricCaption(
     return source;
   }
   const date = metric.periodEnd.slice(0, 10);
-  const marketSnapshot = priced
-    ? marketSnapshots.find((snapshot) => metric.sourceIds.includes(snapshot.sourceId))
-    : undefined;
+  const marketSnapshot = marketSnapshots.find((snapshot) =>
+    metric.sourceIds.includes(snapshot.sourceId),
+  );
   const priceAsOf =
     marketSnapshot === undefined ? undefined : resolveMarketSnapshotPriceAsOf(marketSnapshot);
   const priceCaption =
@@ -379,7 +379,6 @@ export function financialLensStatTiles(
 // The tiles the report itself renders: the frozen Metric Sections, not the artifact's own rows.
 export function financialLensSectionTiles(
   report: Record<string, unknown> | undefined,
-  marketSnapshots: readonly MarketSnapshot[] = [],
 ): readonly FinancialLensStatTile[] {
   const sections = readMetricSectionsExtra(readRecord(report?.extras)?.metricSections) ?? [];
   return sections.flatMap((section) => {
@@ -395,21 +394,21 @@ export function financialLensSectionTiles(
       if (metric.id === undefined || metric.label === undefined || value === undefined) {
         return [];
       }
-      const sourceCaption = financialLensMetricCaption(
-        {
-          key: metric.id,
-          sourceIds: metric.sourceIds,
-          ...(metric.periodEnd !== undefined ? { periodEnd: metric.periodEnd } : {}),
-          ...(metric.periodMonths !== undefined ? { periodMonths: metric.periodMonths } : {}),
-        },
-        marketSnapshots,
-        metric.priceAsOf !== undefined,
-      );
-      const derivations = [...new Set(metric.inputs.flatMap((input) => input.derivation ?? []))];
-      const caption =
-        derivations.length === 0
-          ? sourceCaption
-          : [sourceCaption, ...derivations].filter((part) => part !== undefined).join(" · ");
+      const caption = [
+        financialLensSourceLabel(metric.sourceIds),
+        metric.periodEnd === undefined
+          ? undefined
+          : metricPeriodLabel(
+              metric.periodEnd,
+              metric.periodMonths,
+              section.id,
+              metric.inputs,
+              metric.priceAsOf,
+            ),
+        ...new Set(metric.inputs.flatMap((input) => input.derivation ?? [])),
+      ]
+        .filter((part) => part !== undefined)
+        .join(" · ");
       return [
         {
           key: metric.id,
@@ -417,7 +416,7 @@ export function financialLensSectionTiles(
           label: metric.label,
           value,
           ...assessFinancialLensMetric({ key: metric.id, value: metric.value ?? "" }),
-          ...(caption !== undefined ? { caption } : {}),
+          ...(caption === "" ? {} : { caption }),
         },
       ];
     });

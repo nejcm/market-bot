@@ -2489,7 +2489,7 @@ describe("report artifact parsers", () => {
         value: "42.0%",
         tone: "strong",
         assessment: "Strong",
-        caption: "SEC EDGAR · FY period ended 2025-12-31",
+        caption: "SEC EDGAR · 12-month period ending 2025-12-31",
       },
       {
         key: "cash",
@@ -2497,7 +2497,7 @@ describe("report artifact parsers", () => {
         label: "Cash",
         value: "CAD 8.7B",
         tone: "neutral",
-        caption: "SEC EDGAR · balance sheet 2026-01-31",
+        caption: "SEC EDGAR · As of 2026-01-31",
       },
     ]);
     expect(
@@ -2518,7 +2518,7 @@ describe("report artifact parsers", () => {
             value: "42.0%",
             tone: "strong",
             assessment: "Strong",
-            caption: "SEC EDGAR · FY period ended 2025-12-31",
+            caption: "SEC EDGAR · 12-month period ending 2025-12-31",
           },
           {
             key: "cash",
@@ -2526,7 +2526,7 @@ describe("report artifact parsers", () => {
             label: "Cash",
             value: "CAD 8.7B",
             tone: "neutral",
-            caption: "SEC EDGAR · balance sheet 2026-01-31",
+            caption: "SEC EDGAR · As of 2026-01-31",
           },
         ],
       },
@@ -3115,17 +3115,21 @@ describe("report artifact parsers", () => {
     );
   });
 
-  test("captions a report lens row with quote time only when it carries priceAsOf", () => {
+  test("captions a report lens row from its frozen period and price-as-of, never a live snapshot", () => {
     const yahoo = "market-yahoo-equity-orcl";
-    const row = (id: string, priceAsOf?: string) => ({
+    const sec = "extended-sec-edgar-orcl-fundamentals";
+    const row = (
+      id: string,
+      source: "sec" | "yahoo" | "both",
+      fields: Record<string, unknown>,
+    ) => ({
       id,
       label: id,
-      unit: id === "trailingPE" ? "ratio" : "currency",
+      unit: "ratio",
       status: "value",
       value: 5.1,
-      periodEnd: "2026-10-30T20:03:42.000Z",
-      sourceIds: [yahoo],
-      ...(priceAsOf === undefined ? {} : { priceAsOf }),
+      sourceIds: source === "both" ? [sec, yahoo] : [source === "sec" ? sec : yahoo],
+      ...fields,
     });
     const report = {
       extras: {
@@ -3133,18 +3137,50 @@ describe("report artifact parsers", () => {
           {
             id: "financial-lens-value",
             title: "Value",
-            metrics: [row("epsTrailingTwelveMonths"), row("trailingPE", "2026-10-30")],
+            metrics: [
+              row("pcfRatio", "both", {
+                periodEnd: "2025-02-28",
+                periodMonths: 12,
+                priceAsOf: "2025-03-01",
+              }),
+              row("trailingPE", "yahoo", {
+                periodEnd: "2025-03-01T20:03:42.000Z",
+                priceAsOf: "2025-03-01",
+              }),
+              row("epsTrailingTwelveMonths", "yahoo", { periodEnd: "2025-03-01T20:03:42.000Z" }),
+              row("cash", "sec", { periodEnd: "2025-01-31" }),
+              row("evToAnnualizedRevenue", "sec", { periodEnd: "2024-12-31", periodMonths: 3 }),
+              row("currentRatio", "sec", {}),
+            ],
           },
         ],
       },
     };
+    const captions = (marketSnapshots: readonly unknown[]) =>
+      financialLensGroupViews({
+        report,
+        marketSnapshots,
+        financialLenses: {
+          lenses: [{ name: "Value", posture: "neutral", sourceIds: [], metrics: [] }],
+        },
+      } as unknown as Parameters<typeof financialLensGroupViews>[0]).flatMap((group) =>
+        group.tiles.map((tile) => tile.caption),
+      );
 
-    const captions = financialLensSectionTiles(report, [
-      { ...marketSnapshotFixture(), sourceId: yahoo, quoteTimeUtc: "2026-10-30T20:03:42.000Z" },
-    ]).map((tile) => tile.caption);
-
-    expect(captions[0]).not.toContain("quote time");
-    expect(captions[1]).toContain("quote time 2026-10-30T20:03:42.000Z");
+    const expected = [
+      "SEC EDGAR + Yahoo quote · Price as of 2025-03-01; fundamentals 12-month period ending 2025-02-28",
+      "Yahoo quote · Price as of 2025-03-01",
+      "Yahoo quote · As of 2025-03-01",
+      "SEC EDGAR · As of 2025-01-31",
+      "SEC EDGAR · 3-month period ending 2024-12-31",
+      "SEC EDGAR",
+    ];
+    expect(
+      captions([
+        { ...marketSnapshotFixture(), sourceId: yahoo, quoteTimeUtc: "2025-06-02T20:00:00.000Z" },
+      ]),
+    ).toEqual(expected);
+    expect(captions([])).toEqual(expected);
   });
 
   test("formats sub-1 percent values by convention, not by magnitude", () => {

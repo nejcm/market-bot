@@ -92,6 +92,7 @@ async function runWebSubjectProfileExtraction(input: {
       runId: input.phaseInput.runId,
       modelContent: output.content,
       webSources: allowedSources,
+      rawSnapshots: input.collectedSources.rawSnapshots,
       extendedEvidence: input.collectedSources.extendedEvidence,
       ...(input.collectedSources.metricSections !== undefined
         ? { metricSections: input.collectedSources.metricSections }

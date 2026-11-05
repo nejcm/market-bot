@@ -28,6 +28,7 @@
 // ReadWebSubjectProfileFacts) are the strict artifact ones, moved here unchanged.
 
 import type { SubjectKind } from "../domain/evidence";
+import type { FigureQuote } from "../domain/report";
 import type {
   BusinessFrameworkArtifact,
   BusinessFrameworkMetric,
@@ -49,6 +50,7 @@ import {
   type WebSubjectProfileQuestionKey,
 } from "../web-evidence/contract";
 import { isRecord, readString, readStringArray, readStringVerbatim } from "../guards";
+import { readFigureQuotes } from "../research/web-figure-verification";
 
 // ---------------------------------------------------------------------------
 // Producer contract
@@ -58,6 +60,7 @@ import { isRecord, readString, readStringArray, readStringVerbatim } from "../gu
 // Deterministic artifact section verbatim.
 type BusinessFrameworkExtraSection = BusinessFrameworkSection & {
   readonly text?: string;
+  readonly figureQuotes?: readonly FigureQuote[];
 };
 
 export type BusinessFrameworkExtra = Omit<
@@ -462,7 +465,10 @@ export function readWebSubjectProfileAnswer(value: unknown): WebSubjectProfileAn
     return { answer: "", sourceIds };
   }
   const answer = readString(value, "answer");
-  return answer === undefined || sourceIds === undefined ? undefined : { answer, sourceIds };
+  const figureQuotes = readFigureQuotes(value.figureQuotes);
+  return answer === undefined || sourceIds === undefined
+    ? undefined
+    : { answer, sourceIds, ...(figureQuotes === undefined ? {} : { figureQuotes }) };
 }
 
 export function readWebSubjectProfileFacts(
@@ -483,7 +489,10 @@ export function readWebSubjectProfileFacts(
       malformed = true;
       return [];
     }
-    return sourceIds.length === 0 ? [] : [{ claim, sourceIds }];
+    const figureQuotes = readFigureQuotes(item.figureQuotes);
+    return sourceIds.length === 0
+      ? []
+      : [{ claim, sourceIds, ...(figureQuotes === undefined ? {} : { figureQuotes }) }];
   });
   return malformed ? undefined : facts;
 }

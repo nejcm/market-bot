@@ -135,6 +135,7 @@ function validateScenarios(
  * violation the model never wrote is unfixable by a repair reprompt. Deliberately not
  * scanned, with the producer that proves each classification:
  *   extendedEvidence         collector-derived filing/news text
+ *   *.figureQuotes[].quote   verbatim source spans checked against stored text (ADR 0006); never rendered as prose
  *   researchQualityDriver    deterministic (research/quality-driver.ts)
  *   extras.historicalContext code-built in research/report-assembly.ts:historicalContextExtra;
  *                            items[].text quotes a prior run summary already gated on its own run

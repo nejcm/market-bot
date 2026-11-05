@@ -59,6 +59,32 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-amd-deep": ["complete", "substantial"],
 } as const;
 
+// The recording predates figureQuotes; both spans are verbatim in the web-amd-a0601b8d (Reuters) snippet.
+const AMD_OUTLOOK_QUOTES = [
+  {
+    sourceId: "web-amd-a0601b8d",
+    quote: "fourth-quarter revenue of about $17 billion, plus or minus 3%",
+  },
+  { sourceId: "web-amd-a0601b8d", quote: "expects overall revenue to rise more than 80% in 2027" },
+];
+
+function withAmdOutlookQuotes(content: string): string {
+  let payload: { keyFindings: readonly { sourceIds: readonly string[] }[] };
+  try {
+    payload = JSON.parse(content);
+  } catch {
+    return content;
+  }
+  return JSON.stringify({
+    ...payload,
+    keyFindings: payload.keyFindings.map((finding) =>
+      finding.sourceIds.includes("web-amd-a0601b8d")
+        ? { ...finding, figureQuotes: AMD_OUTLOOK_QUOTES }
+        : finding,
+    ),
+  });
+}
+
 // Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
 const EXPECTED_EVENT_GRID: Record<
   keyof typeof EXPECTED_COMPLETENESS_GRADES,
@@ -380,8 +406,12 @@ describe("static equity run fixtures", () => {
                 }),
               };
             }
-            modelOutputs.push(response.content);
-            return response;
+            const content =
+              name === "equity-amd-deep" && prompt.stage === "final-synthesis"
+                ? withAmdOutlookQuotes(response.content)
+                : response.content;
+            modelOutputs.push(content);
+            return { ...response, content };
           },
         },
       });
@@ -496,6 +526,9 @@ describe("static equity run fixtures", () => {
           ],
           ["2026-09-26", 2_067_000_000, 6_760_000_000],
         );
+        expect(
+          result.report.keyFindings.find(({ sourceIds }) => sourceIds.includes("web-amd-a0601b8d")),
+        ).toMatchObject({ figureQuotes: AMD_OUTLOOK_QUOTES });
       }
       if (name === "ebay-extension-investments") {
         assertEbayExtensionShortTermInvestments(result);

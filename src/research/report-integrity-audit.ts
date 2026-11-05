@@ -7,8 +7,16 @@ import {
   type ReportIntegrity,
   type ResearchReport,
   type Scenario,
+  type WebFigureFailure,
 } from "../domain/report";
 import { deriveResearchQualityDriver } from "./quality-driver";
+import { isRecord } from "../guards";
+import {
+  readFigureQuotes,
+  unverifiedWebFigure,
+  webFigureGapText,
+  type WebSourceTexts,
+} from "./web-figure-verification";
 import {
   hasAttachedFinancialUnit,
   hasNoSupportingSource,
@@ -22,11 +30,13 @@ import {
 } from "./post-synthesis-audit";
 
 // ADR 0004: prune unsupported numeric/technical and uncited peer-median claims and grade; posture labels stay advisory.
+// ADR 0006: also prune claims whose web-sourced figures fail quote verification.
 
 interface ReportIntegrityPrunedItem {
   readonly location: string;
   readonly text: string;
   readonly sourceIds: readonly string[];
+  readonly webFigure?: WebFigureFailure;
 }
 
 interface ReportIntegrityAdvisory {
@@ -128,33 +138,33 @@ interface Partition<T> {
 
 // Pruned locations use pre-prune indices (matching the warn-only audit's
 // Location space); posture advisories below index the pruned report.
-function partitionItems<T>(
+function partitionItems<T extends { readonly sourceIds: readonly string[] }>(
   section: string,
   items: readonly T[],
   textOf: (item: T) => string,
-  sourceIdsOf: (item: T) => readonly string[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  webTexts?: WebSourceTexts,
 ): Partition<T> {
   const kept: T[] = [];
   const pruned: ReportIntegrityPrunedItem[] = [];
   items.forEach((item, index) => {
+    const text = textOf(item);
+    const { sourceIds } = item;
+    const location = `${section}[${String(index)}]`;
     if (
-      isBlockingViolation(textOf(item), sourceIdsOf(item)) ||
-      isUncitedPeerMedianClaim(
-        textOf(item),
-        sourceIdsOf(item),
-        usablePeerSourceIds,
-        peerMedianLabels,
-      )
+      isBlockingViolation(text, sourceIds) ||
+      isUncitedPeerMedianClaim(text, sourceIds, usablePeerSourceIds, peerMedianLabels)
     ) {
-      pruned.push({
-        location: `${section}[${String(index)}]`,
-        text: textOf(item),
-        sourceIds: sourceIdsOf(item),
-      });
-    } else {
+      pruned.push({ location, text, sourceIds });
+      return;
+    }
+    const webFigure =
+      webTexts === undefined ? undefined : unverifiedWebFigure({ ...item, text }, webTexts);
+    if (webFigure === undefined) {
       kept.push(item);
+    } else {
+      pruned.push({ location, text, sourceIds, webFigure });
     }
   });
   return { kept, pruned };
@@ -165,14 +175,15 @@ function partitionFindings(
   findings: readonly KeyFinding[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  webTexts: WebSourceTexts | undefined,
 ): Partition<KeyFinding> {
   return partitionItems(
     section,
     findings,
     (finding) => finding.text,
-    (finding) => finding.sourceIds,
     usablePeerSourceIds,
     peerMedianLabels,
+    webTexts,
   );
 }
 
@@ -180,6 +191,7 @@ function partitionScenarios(
   scenarios: readonly Scenario[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  webTexts: WebSourceTexts | undefined,
 ): Partition<Scenario> {
   return partitionItems(
     "scenarios",
@@ -188,9 +200,9 @@ function partitionScenarios(
     // Downside") while the description stays qualitative, so both fields feed
     // The blocking check.
     (scenario) => `${scenario.name}: ${scenario.description}`,
-    (scenario) => scenario.sourceIds,
     usablePeerSourceIds,
     peerMedianLabels,
+    webTexts,
   );
 }
 
@@ -203,10 +215,109 @@ function partitionPredictions(
     "predictions",
     predictions,
     (prediction) => prediction.claim,
-    (prediction) => prediction.sourceIds,
     usablePeerSourceIds,
     peerMedianLabels,
   );
+}
+
+const EARNINGS_SETUP_BULLET_KEYS = [
+  "expectationBar",
+  "qualityLandmines",
+  "guidanceCredibility",
+] as const;
+
+function stringArray(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function extraRowWebFigure(
+  row: unknown,
+  webTexts: WebSourceTexts,
+):
+  | {
+      readonly text: string;
+      readonly sourceIds: readonly string[];
+      readonly webFigure?: WebFigureFailure;
+    }
+  | undefined {
+  if (!isRecord(row) || typeof row.text !== "string") {
+    return undefined;
+  }
+  const sourceIds = stringArray(row.sourceIds);
+  const figureQuotes = readFigureQuotes(row.figureQuotes);
+  const webFigure = unverifiedWebFigure(
+    { text: row.text, sourceIds, ...(figureQuotes === undefined ? {} : { figureQuotes }) },
+    webTexts,
+  );
+  return { text: row.text, sourceIds, ...(webFigure === undefined ? {} : { webFigure }) };
+}
+
+// Model-authored Earnings Setup bullets drop whole; a Business Framework section keeps its code-owned fields.
+function partitionExtras(
+  extras: ResearchReport["extras"],
+  webTexts: WebSourceTexts | undefined,
+): {
+  readonly extras: ResearchReport["extras"];
+  readonly pruned: readonly ReportIntegrityPrunedItem[];
+} {
+  if (extras === undefined || webTexts === undefined) {
+    return { extras, pruned: [] };
+  }
+  const pruned: ReportIntegrityPrunedItem[] = [];
+  const failed = (location: string, row: unknown): boolean => {
+    const checked = extraRowWebFigure(row, webTexts);
+    if (checked?.webFigure === undefined) {
+      return false;
+    }
+    pruned.push({ location, ...checked });
+    return true;
+  };
+  const setup = extras.earningsSetup;
+  const earningsSetup = isRecord(setup)
+    ? Object.fromEntries(
+        Object.entries(setup).map(([key, value]) =>
+          (EARNINGS_SETUP_BULLET_KEYS as readonly string[]).includes(key) && Array.isArray(value)
+            ? [
+                key,
+                value.filter(
+                  (bullet, index) =>
+                    !failed(`extras.earningsSetup.${key}[${String(index)}]`, bullet),
+                ),
+              ]
+            : [key, value],
+        ),
+      )
+    : setup;
+  const framework = extras.businessFramework;
+  const businessFramework =
+    isRecord(framework) && Array.isArray(framework.sections)
+      ? {
+          ...framework,
+          sections: framework.sections.map((section: unknown, index) =>
+            isRecord(section) &&
+            failed(`extras.businessFramework.sections[${String(index)}]`, section)
+              ? Object.fromEntries(
+                  Object.entries(section).filter(
+                    ([key]) => key !== "text" && key !== "figureQuotes",
+                  ),
+                )
+              : section,
+          ),
+        }
+      : framework;
+  if (pruned.length === 0) {
+    return { extras, pruned };
+  }
+  return {
+    extras: {
+      ...extras,
+      ...(earningsSetup === undefined ? {} : { earningsSetup }),
+      ...(businessFramework === undefined ? {} : { businessFramework }),
+    },
+    pruned,
+  };
 }
 
 const SUMMARY_FALLBACK =
@@ -275,21 +386,13 @@ function lineBreakCount(separator: string): number {
   return separator.split("\n").length;
 }
 
-function partitionSummary(
-  summary: string,
-  usablePeerSourceIds: ReadonlySet<string> | undefined,
-  peerMedianLabels: PeerMedianLabels | undefined,
-): {
-  readonly summary: string;
-  readonly pruned: readonly ReportIntegrityPrunedItem[];
-} {
-  const pieces = splitSummarySentences(summary);
-  const blocking = pieces.map(
-    ({ text }) =>
-      text.trim() !== "" &&
-      (isBlockingViolation(text.trim(), []) ||
-        isUncitedPeerMedianClaim(text.trim(), [], usablePeerSourceIds, peerMedianLabels)),
-  );
+// Drops blocked sentences, keeping the surviving text's original separators.
+export function pruneSentences(
+  text: string,
+  isBlocked: (sentence: string) => boolean,
+): { readonly kept: string; readonly pruned: readonly { index: number; text: string }[] } {
+  const pieces = splitSummarySentences(text);
+  const blocking = pieces.map(({ text: piece }) => piece.trim() !== "" && isBlocked(piece.trim()));
   // Right to left so a chain of initials ("J. R. Smith ...") follows its pruned continuation.
   for (let index = pieces.length - 2; index >= 0; index -= 1) {
     const piece = pieces[index];
@@ -301,16 +404,12 @@ function partitionSummary(
       blocking[index] = true;
     }
   }
-  const pruned: ReportIntegrityPrunedItem[] = [];
+  const pruned: { index: number; text: string }[] = [];
   let kept = "";
   let separator = "";
   pieces.forEach((piece, index) => {
     if (blocking[index] === true) {
-      pruned.push({
-        location: `summary[${String(index)}]`,
-        text: piece.text.trim(),
-        sourceIds: [],
-      });
+      pruned.push({ index, text: piece.text.trim() });
       if (lineBreakCount(piece.separator) > lineBreakCount(separator)) {
         ({ separator } = piece);
       }
@@ -319,11 +418,34 @@ function partitionSummary(
       ({ separator } = piece);
     }
   });
+  return { kept: pruned.length === 0 ? text : kept.trim(), pruned };
+}
+
+function partitionSummary(
+  summary: string,
+  usablePeerSourceIds: ReadonlySet<string> | undefined,
+  peerMedianLabels: PeerMedianLabels | undefined,
+): {
+  readonly summary: string;
+  readonly pruned: readonly ReportIntegrityPrunedItem[];
+} {
+  const { kept, pruned } = pruneSentences(
+    summary,
+    (sentence) =>
+      isBlockingViolation(sentence, []) ||
+      isUncitedPeerMedianClaim(sentence, [], usablePeerSourceIds, peerMedianLabels),
+  );
   if (pruned.length === 0) {
-    return { summary, pruned };
+    return { summary, pruned: [] };
   }
-  const trimmed = kept.trim();
-  return { summary: trimmed === "" ? SUMMARY_FALLBACK : trimmed, pruned };
+  return {
+    summary: kept === "" ? SUMMARY_FALLBACK : kept,
+    pruned: pruned.map(({ index, text }) => ({
+      location: `summary[${String(index)}]`,
+      text,
+      sourceIds: [],
+    })),
+  };
 }
 
 function postureAdvisories(report: ResearchReport): readonly ReportIntegrityAdvisory[] {
@@ -394,38 +516,27 @@ export function auditReportIntegrity(
   evidenceQualityAssessment?: EvidenceQualityAssessment,
   usablePeerSourceIds?: ReadonlySet<string>,
   peerMedianLabels?: PeerMedianLabels,
+  webTexts?: WebSourceTexts,
 ): ReportIntegrityAuditResult {
-  const keyFindings = partitionFindings(
-    "keyFindings",
-    report.keyFindings,
+  const findings = (section: string, items: readonly KeyFinding[]) =>
+    partitionFindings(section, items, usablePeerSourceIds, peerMedianLabels, webTexts);
+  const keyFindings = findings("keyFindings", report.keyFindings);
+  const bullCase = findings("bullCase", report.bullCase);
+  const bearCase = findings("bearCase", report.bearCase);
+  const risks = findings("risks", report.risks);
+  const catalysts = findings("catalysts", report.catalysts);
+  const scenarios = partitionScenarios(
+    report.scenarios,
     usablePeerSourceIds,
     peerMedianLabels,
+    webTexts,
   );
-  const bullCase = partitionFindings(
-    "bullCase",
-    report.bullCase,
-    usablePeerSourceIds,
-    peerMedianLabels,
-  );
-  const bearCase = partitionFindings(
-    "bearCase",
-    report.bearCase,
-    usablePeerSourceIds,
-    peerMedianLabels,
-  );
-  const risks = partitionFindings("risks", report.risks, usablePeerSourceIds, peerMedianLabels);
-  const catalysts = partitionFindings(
-    "catalysts",
-    report.catalysts,
-    usablePeerSourceIds,
-    peerMedianLabels,
-  );
-  const scenarios = partitionScenarios(report.scenarios, usablePeerSourceIds, peerMedianLabels);
   const predictions = partitionPredictions(
     report.predictions,
     usablePeerSourceIds,
     peerMedianLabels,
   );
+  const extras = partitionExtras(report.extras, webTexts);
   const summary = partitionSummary(report.summary, usablePeerSourceIds, peerMedianLabels);
 
   const pruned = [
@@ -437,7 +548,11 @@ export function auditReportIntegrity(
     ...catalysts.pruned,
     ...scenarios.pruned,
     ...predictions.pruned,
+    ...extras.pruned,
   ];
+  const webFigureGaps = pruned.flatMap((item) =>
+    item.webFigure === undefined ? [] : [webFigureGapText(item.location, item.webFigure)],
+  );
 
   const sectionState: Readonly<
     Record<(typeof REQUIRED_SECTIONS)[number], { before: number; after: number }>
@@ -476,6 +591,8 @@ export function auditReportIntegrity(
     catalysts: catalysts.kept,
     scenarios: scenarios.kept,
     predictions: predictions.kept,
+    ...(extras.extras === undefined ? {} : { extras: extras.extras }),
+    ...(webFigureGaps.length === 0 ? {} : { dataGaps: [...report.dataGaps, ...webFigureGaps] }),
     reportIntegrity,
     researchQuality,
     ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),

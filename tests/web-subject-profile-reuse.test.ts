@@ -456,6 +456,40 @@ describe("Web Subject Profile reuse", () => {
     expect(reuse?.profile.subjectKind).toBe("company");
   });
 
+  test("regenerates instead of reusing a profile whose figures no longer verify", async () => {
+    const reuseWith = async (snippet: string | undefined, quote: string | undefined) => {
+      const dataDir = tempRunsDir();
+      const base = profile();
+      if (base.subjectKind !== "company") {
+        throw new Error("expected company profile");
+      }
+      const kpis = {
+        answer: "Services revenue reached $26.3 billion.",
+        sourceIds: [webSource.id],
+        ...(quote === undefined ? {} : { figureQuotes: [{ sourceId: webSource.id, quote }] }),
+      };
+      await writePriorRun({
+        dataDir,
+        runId: "prior-aapl",
+        symbol: "AAPL",
+        sources: [snippet === undefined ? webSource : { ...webSource, snippet }],
+        artifact: { ...base, questions: { ...base.questions, companyKpis: kpis } },
+      });
+      return findReusableWebSubjectProfile({
+        dataDir,
+        command,
+        now: new Date("2026-05-03T13:12:00.000Z"),
+        reuseDaysBySubjectKind,
+        currentSecFilingDate: "2026-04-25",
+      });
+    };
+    const quote = "Services revenue reached $26.3 billion";
+
+    expect(await reuseWith(undefined, undefined)).toBeUndefined();
+    expect(await reuseWith(`${quote} in the quarter.`, undefined)).toBeUndefined();
+    expect((await reuseWith(`${quote} in the quarter.`, quote))?.withheldGaps).toEqual([]);
+  });
+
   test("offers the normalizer's degraded FPI profile for reuse", async () => {
     const dataDir = tempRunsDir();
     const normalized = buildWebSubjectProfileEvidence({

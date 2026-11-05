@@ -197,7 +197,7 @@ const projectWebSources: EvidenceProjector = (options, command, collectedSources
     : collectedSources.extendedSources.filter((source) => source.kind === "web");
   // At final-synthesis, fresh web sources gathered this run are otherwise projected
   // As bare metadata, so the model can only cite the reused-profile digest. Surface
-  // Their sanitized summary here (snippet as a fallback) — but only for web sources
+  // Their sanitized snippet here (summary as a fallback) — but only for web sources
   // The attached profile does not already carry as a pre-cited fact, keeping the
   // Low-trust text surface bounded.
   const profileCoveredIds = substantiveProfileSourceIds(collectedSources.webSubjectProfile);
@@ -205,13 +205,13 @@ const projectWebSources: EvidenceProjector = (options, command, collectedSources
     webSources: sources.map((source) => {
       const includeFreshWebText =
         options.webSourceText === "fresh-only" && isFreshWebSource(source, profileCoveredIds);
-      const includeSummary =
-        (isProfileStage || includeFreshWebText) && source.summary !== undefined;
-      // Profile stage carries both fields; fresh final-synthesis text uses snippet
-      // Only when summary is absent, to keep the added token surface small.
+      // Profile stage carries both fields; fresh final-synthesis text carries the quotable
+      // Snippet (ADR 0006) and falls back to the provider summary only when it is absent.
       const includeSnippet =
-        source.snippet !== undefined &&
-        (isProfileStage || (includeFreshWebText && source.summary === undefined));
+        (isProfileStage || includeFreshWebText) && source.snippet !== undefined;
+      const includeSummary =
+        source.summary !== undefined &&
+        (isProfileStage || (includeFreshWebText && source.snippet === undefined));
       return {
         id: source.id,
         title: source.title,

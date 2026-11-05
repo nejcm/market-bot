@@ -29,6 +29,9 @@ import {
 } from "../../../src/research/metric-references";
 import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
+import { auditReportIntegrity } from "../../../src/research/report-integrity-audit";
+import { isWebFigureGapText, webSourceTexts } from "../../../src/research/web-figure-verification";
+import { screenReusedWebSubjectProfile } from "../../../src/web-evidence/web-subject-profile";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
 import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
@@ -386,6 +389,7 @@ export async function assertInvariants(
   assertPricePerformanceInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
+  assertVerifiedWebFigures(result, report);
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
   }
@@ -4105,5 +4109,20 @@ export function assertPricePerformanceInvariants(
         ).toBe(true);
       }
     }
+  }
+}
+
+function assertVerifiedWebFigures(result: RunFixtureResult, report: ResearchReport): void {
+  const texts = webSourceTexts(
+    [...result.collectedSources.extendedSources, ...report.sources],
+    result.collectedSources.rawSnapshots,
+  );
+  const reaudit = auditReportIntegrity(report, undefined, undefined, undefined, texts);
+  expect(reaudit.pruned.filter(({ webFigure }) => webFigure !== undefined)).toEqual([]);
+  const profile = result.collectedSources.webSubjectProfile;
+  // A reused profile is the replay-recorded lookup result, so only a fresh profile reflects this code.
+  if (profile !== undefined && result.collectedSources.webSubjectProfileReuse === undefined) {
+    const { withheldGaps } = screenReusedWebSubjectProfile(profile, texts);
+    expect(withheldGaps.filter(({ message }) => isWebFigureGapText(message))).toEqual([]);
   }
 }

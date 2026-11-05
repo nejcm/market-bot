@@ -993,11 +993,18 @@ describe("deterministic checks", () => {
               sourceIds: ["sec-10q-2026"],
             },
           ],
-          scenarios: [{ name: "Base", description: "Margin near 20%." }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Margin near 20%.",
+              sourceIds: ["web-a"],
+              figureQuotes: [{ sourceId: "web-a", quote: "margins of about 20% and 31.5%" }],
+            },
+          ],
           predictions: [{ measurableAs: "AAPL close outside [$100, $120] on 2026-06-01" }],
         }),
       ),
-    ).toEqual({ metricReferences: 2, typedFigures: 2 });
+    ).toEqual({ metricReferences: 2, typedFigures: 2, figureQuotes: 1 });
     expect(typed("RSI14 was 55.00 and close was 108.00.")).toBe(2);
     expect(typed("On 2026-10-16, the 3rd session of Q3 2026 after the 10-K, FY2025.")).toBe(0);
     expect(typed("Volume 20,153,700 vs 1.2M; 3 segments, -4% and 2x.")).toBe(5);

@@ -44,6 +44,14 @@ const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
 const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive near-base-rate band (within ${NEAR_BASE_RATE_BAND.toFixed(2)} of the stated base rate only for forecasts on a listed ±1σ range-reference band, ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} otherwise); choose claims the evidence can move clearly from their applicable base rates rather than shading a probability to just outside the band to clear it`;
 
+const CITED_CLAIM_SHAPE = {
+  text: "string",
+  sourceIds: ["source-id"],
+  figureQuotes: [
+    { sourceId: "web-source-id", quote: "verbatim web source text holding the figure" },
+  ],
+};
+
 function finalReportShape(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -67,9 +75,9 @@ function finalReportShape(
   const earningsSetupShape = hasEarningsSetup
     ? {
         earningsSetup: {
-          expectationBar: [{ text: "string", sourceIds: ["source-id"] }],
-          qualityLandmines: [{ text: "string", sourceIds: ["source-id"] }],
-          guidanceCredibility: [{ text: "string", sourceIds: ["source-id"] }],
+          expectationBar: [CITED_CLAIM_SHAPE],
+          qualityLandmines: [CITED_CLAIM_SHAPE],
+          guidanceCredibility: [CITED_CLAIM_SHAPE],
         },
       }
     : {};
@@ -79,8 +87,7 @@ function finalReportShape(
           sections: [
             {
               name: "Business|Phase|Moat|Growth|Management|Risk|Valuation",
-              text: "string",
-              sourceIds: ["source-id"],
+              ...CITED_CLAIM_SHAPE,
             },
           ],
         },
@@ -88,12 +95,19 @@ function finalReportShape(
     : {};
   return {
     summary: "string",
-    keyFindings: [{ text: "string", sourceIds: ["source-id"] }],
-    bullCase: [{ text: "string", sourceIds: ["source-id"] }],
-    bearCase: [{ text: "string", sourceIds: ["source-id"] }],
-    risks: [{ text: "string", sourceIds: ["source-id"] }],
-    catalysts: [{ text: "string", sourceIds: ["source-id"] }],
-    scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
+    keyFindings: [CITED_CLAIM_SHAPE],
+    bullCase: [CITED_CLAIM_SHAPE],
+    bearCase: [CITED_CLAIM_SHAPE],
+    risks: [CITED_CLAIM_SHAPE],
+    catalysts: [CITED_CLAIM_SHAPE],
+    scenarios: [
+      {
+        name: "string",
+        description: "string",
+        sourceIds: ["source-id"],
+        figureQuotes: CITED_CLAIM_SHAPE.figureQuotes,
+      },
+    ],
     dataGaps: ["string"],
     ...(promptGridEvents(command, collectedSources).length > 0
       ? { eventGrid: [{ id: "grid-event-id", probability: "number 0-1" }] }

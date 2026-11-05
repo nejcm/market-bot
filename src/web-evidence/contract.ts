@@ -1,4 +1,5 @@
 import type { SubjectKind } from "../domain/evidence";
+import type { FigureQuote } from "../domain/report";
 
 const LEGACY_COMPANY_QUESTION_KEYS = [
   "whatItDoes",
@@ -60,11 +61,13 @@ export type WebSubjectProfileQuestionKey =
 export interface WebSubjectProfileAnswer {
   readonly answer: string;
   readonly sourceIds: readonly string[];
+  readonly figureQuotes?: readonly FigureQuote[];
 }
 
 export interface WebSubjectProfileFact {
   readonly claim: string;
   readonly sourceIds: readonly string[];
+  readonly figureQuotes?: readonly FigureQuote[];
 }
 
 // Detection keys off this marker, not the surrounding prose, so a later wording
@@ -76,6 +79,12 @@ export const WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE = `Web Subject 
 
 export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER =
   "withheld because a revenue share contradicts every filed geographic-revenue share";
+
+export const WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER =
+  "withheld because a figure failed the Verified Web Figure check";
+
+export const WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE = `Web Subject Profile: this answer ${WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER}; the original wording stays in the run's raw stage output.`;
+export const WEB_SUBJECT_PROFILE_WEB_FIGURE_SUBJECT_SUMMARY_NOTICE = `Web Subject Profile: subject summary ${WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER}; the original wording stays in the run's raw stage output.`;
 
 export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE = `Web Subject Profile: this answer ${WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER}; the original wording stays in the run's raw stage output.`;
 export const WEB_SUBJECT_PROFILE_SHARE_MISMATCH_SUBJECT_SUMMARY_NOTICE = `Web Subject Profile: subject summary ${WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER}; the original wording stays in the run's raw stage output.`;
@@ -131,7 +140,8 @@ export function readWebSubjectProfileOpenGap(value: unknown): WebSubjectProfileO
 export function isWebSubjectProfileWithheldAnswer(answer: string): boolean {
   return (
     answer.includes(WEB_SUBJECT_PROFILE_WITHHELD_MARKER) ||
-    answer.includes(WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER)
+    answer.includes(WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER) ||
+    answer.includes(WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER)
   );
 }
 

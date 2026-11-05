@@ -434,7 +434,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(sources[0]!.snippet).toBeUndefined();
   });
 
-  test("final-synthesis projects fresh web summary but keeps profile-covered sources bare", () => {
+  test("final-synthesis projects fresh web snippet but keeps profile-covered sources bare", () => {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
@@ -471,10 +471,10 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     // Source web-1 is in profile.sourceIds, so its facts already arrive via the digest.
     expect(covered!.summary).toBeUndefined();
     expect(covered!.snippet).toBeUndefined();
-    // Fresh source web-2 is not in the profile — surface its summary.
-    expect(fresh!.summary).toBe("Fresh summary");
-    // Summary present, so snippet is suppressed for token control.
-    expect(fresh!.snippet).toBeUndefined();
+    // Fresh source web-2 is not in the profile — surface its quotable snippet (ADR 0006).
+    expect(fresh!.snippet).toBe("Fresh snippet");
+    // Snippet present, so the provider summary is suppressed for token control.
+    expect(fresh!.summary).toBeUndefined();
   });
 
   test.each([
@@ -513,7 +513,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     ]);
   });
 
-  test("final-synthesis projects fresh web summary when no profile exists", () => {
+  test("final-synthesis projects fresh web snippet when no profile exists", () => {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
@@ -541,13 +541,12 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
       "final-synthesis",
     );
     const sources = evidence.webSources as readonly Record<string, unknown>[];
-    const summarized = sources.find((source) => source.id === "web-2");
-    const fallback = sources.find((source) => source.id === "web-3");
-    expect(summarized!.summary).toBe("Fresh summary");
-    expect(summarized!.snippet).toBeUndefined();
-    // No summary — snippet is the fallback model-visible text.
-    expect(fallback!.summary).toBeUndefined();
-    expect(fallback!.snippet).toBe("Only snippet");
+    const withBoth = sources.find((source) => source.id === "web-2");
+    const snippetOnlySource = sources.find((source) => source.id === "web-3");
+    expect(withBoth!.snippet).toBe("Fresh snippet");
+    expect(withBoth!.summary).toBeUndefined();
+    expect(snippetOnlySource!.summary).toBeUndefined();
+    expect(snippetOnlySource!.snippet).toBe("Only snippet");
   });
 
   test("final-synthesis surfaces fresh web summaries in evidence and steers citing them", () => {

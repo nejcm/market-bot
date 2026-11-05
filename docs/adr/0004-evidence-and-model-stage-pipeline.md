@@ -511,7 +511,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   low/pruning emptied previously populated required section; research quality is worse of evidence/integrity.
   Old fields are optional; counts persist, pruned Predictions never reach disagreement/scoring. Deterministic
   alpha-search stamps high without audit; only audited below-high reports may get deterministic quality
-  driver. Model repair for pruning remains deferred pending real-run need.
+  driver. Model repair for pruning remains deferred pending real-run need. The same audit prunes claims that
+  fail Verified Web Figure checks ([ADR 0006](./0006-non-sec-issuer-coverage.md)) and declares each as a
+  `report.dataGaps` entry.
 - Metric references use `<<metric:<section>.<id>>>`: add own-source citations before relocation/validation,
   screen authored tokens, substitute deterministic formatted unit/currency values, rescreen inside repair
   loop, persist resolved prose. Model-quoted prose may resolve with metric provenance, never modify source

@@ -175,7 +175,7 @@ function sectionName(location: string): string {
   if (section === "bearCase") {
     return "bear case";
   }
-  return section;
+  return section.startsWith("extras.") ? (section.split(".")[1] ?? section) : section;
 }
 
 function integrityDriverParts(integrity: QualityDriverIntegrityResult): {

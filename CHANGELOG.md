@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.2](https://github.com/nejcm/market-bot/compare/v1.12.1...v1.12.2) (2026-11-05)
+
+### Bug Fixes
+
+- **sec:** flag pre-recast debt paired with restated continuing revenue (#131) ([492fd2f](https://github.com/nejcm/market-bot/commit/492fd2f67b4f0c542e5c74835da8359a318ba559))
+- **sec:** reuse debt-face linkbases to prove older interim capex (#129) ([6ee5f4d](https://github.com/nejcm/market-bot/commit/6ee5f4d64f6d0142275368305953c266638c306d))
+- **sec:** prove interim capex scope from the quarterly calc linkbase (#128) ([4c12191](https://github.com/nejcm/market-bot/commit/4c121911ab07cc0ff4700621c206012dff0364bc))
+
 ## [1.12.1](https://github.com/nejcm/market-bot/compare/v1.12.0...v1.12.1) (2026-11-04)
 
 ### Bug Fixes

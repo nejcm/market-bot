@@ -1133,7 +1133,6 @@ export async function fetchYahooCloseWindow(
 
 interface YahooSplitEvent {
   readonly date: string;
-  readonly factor: number;
 }
 
 function splitEventsFromYahooChart(
@@ -1184,15 +1183,11 @@ function splitEventsFromYahooChart(
       return undefined;
     }
     const date = dateFromUnixSeconds(timestamp);
-    const factor = denominator / numerator;
-    if (date === undefined || !Number.isFinite(factor) || factor <= 0) {
-      return undefined;
-    }
-    if (dates.has(date)) {
+    if (date === undefined || dates.has(date)) {
       return undefined;
     }
     dates.add(date);
-    parsed.push({ date, factor });
+    parsed.push({ date });
   }
   return parsed.toSorted((left, right) => left.date.localeCompare(right.date));
 }
@@ -1204,6 +1199,7 @@ export function yahooChartSplitDates(payload: unknown): readonly string[] | unde
     : splitEventsFromYahooChart(chart.result)?.map(({ date }) => date);
 }
 
+// Yahoo chart `close` is already split-adjusted (not dividend-adjusted); split events are only validated.
 export function splitAdjustedObservationsFromYahooChart(
   symbol: string,
   payload: unknown,
@@ -1237,14 +1233,7 @@ export function splitAdjustedObservationsFromYahooChart(
     ) {
       return [];
     }
-    const factor = splits
-      .filter((split) => split.date > date)
-      .reduce((product, split) => product * split.factor, 1);
-    const value = close * factor;
-    if (!Number.isFinite(value) || value <= 0) {
-      return [];
-    }
-    observations.push({ subject: symbol, date, value });
+    observations.push({ subject: symbol, date, value: close });
     previousDate = date;
   }
   const observationDates = new Set(observations.map((observation) => observation.date));

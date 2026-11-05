@@ -529,14 +529,14 @@ describe("Price Performance Metric Section", () => {
     }
   });
 
-  test("adjusts both histories for a 10:1 split inside the window and pins adjusted lineage", async () => {
+  test("keeps Yahoo's split-adjusted closes across a 10:1 split inside the window and pins lineage", async () => {
     const splitDate = "2026-01-23";
     const timestamp = Date.parse(splitDate) / 1000;
     const collected = await collect((symbol) => {
       const payload = chart(
         symbol,
         [...DATES.slice(0, 3), splitDate, DATES[3]!],
-        [500, 750, 1000, 110, 120],
+        [50, 75, 100, 110, 120],
       );
       return {
         chart: {

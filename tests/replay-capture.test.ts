@@ -1044,7 +1044,7 @@ async function expectStageReplayRunsPeerMedianAudit(
 }
 
 test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
-  "%s captures its conditional stages and repairs through the real producer",
+  "%s captures its conditional stages and replays through the real producer",
   async (name) => {
     const dir = await createRoot();
     const produced = await runFixture(name, {
@@ -1059,7 +1059,7 @@ test.each(["equity-web-fallback-deep", "equity-earnings-release-deep"])(
       expect(replay.report.symbol).toBe(produced.report.symbol);
       expect(replay.report.extras?.webSubjectProfile).toBeDefined();
       const stage = await executeSynthesisInput(saved);
-      expect(stage.calls).toBe(name === "equity-earnings-release-deep" ? 2 : 1);
+      expect(stage.calls).toBe(1);
       expect(stage.report.extras?.webSubjectProfile).toBeDefined();
       if (name === "equity-earnings-release-deep") {
         await expectStageReplayRunsPeerMedianAudit(saved);

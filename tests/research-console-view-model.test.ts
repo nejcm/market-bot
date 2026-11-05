@@ -3142,6 +3142,9 @@ describe("report artifact parsers", () => {
                 periodEnd: "2025-02-28",
                 periodMonths: 12,
                 priceAsOf: "2025-03-01",
+                inputs: [
+                  { periodType: "annual", periodStart: "2024-03-01", periodEnd: "2025-02-28" },
+                ],
               }),
               row("trailingPE", "yahoo", {
                 periodEnd: "2025-03-01T20:03:42.000Z",
@@ -3168,7 +3171,7 @@ describe("report artifact parsers", () => {
       );
 
     const expected = [
-      "SEC EDGAR + Yahoo quote · Price as of 2025-03-01; fundamentals 12-month period ending 2025-02-28",
+      "SEC EDGAR + Yahoo quote · Price as of 2025-03-01; fundamentals FY ending 2025-02-28",
       "Yahoo quote · Price as of 2025-03-01",
       "Yahoo quote · As of 2025-03-01",
       "SEC EDGAR · As of 2025-01-31",

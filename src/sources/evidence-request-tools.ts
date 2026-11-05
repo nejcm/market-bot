@@ -280,33 +280,42 @@ async function fetchDepreciationCalc(
   if (filing.form !== "10-K" && filing.form !== "10-Q") {
     return { metrics: {}, rawSnapshots: [], gaps: [] };
   }
-  const { xml, xmlUrl, schema, ambiguous, rawSnapshots, gaps } = await fetchCalculationLinkbase(
+  const calc = await fetchCalculationLinkbase(
     ctx,
     xbrlSchemaHref(html),
     `${filingBaseUrl(String(Number(cik)), filing.accessionNumber)}/${filing.primaryDocument}`,
     reads,
   );
   return {
-    metrics:
-      gaps.length > 0
-        ? { [DA_CALC_READ_KEY]: "fetch-failed" }
-        : ambiguous === true
-          ? { [DA_CALC_READ_KEY]: "conflict" }
-          : xml === undefined
-            ? {}
-            : {
-                ...secDepreciationCalcMetrics(xml),
-                ...(xmlUrl === undefined || schema === undefined
-                  ? {}
-                  : secContinuingInvestingCalcMetrics(xml, xmlUrl, schema)),
-              },
-    rawSnapshots,
-    gaps,
+    metrics: calculationProofMetrics(calc),
+    rawSnapshots: calc.rawSnapshots,
+    gaps: calc.gaps,
   };
 }
 
+function calculationProofMetrics({
+  xml,
+  xmlUrl,
+  schema,
+  ambiguous,
+  gaps,
+}: CalculationLinkbaseFetch): Record<string, number | string> {
+  return gaps.length > 0
+    ? { [DA_CALC_READ_KEY]: "fetch-failed" }
+    : ambiguous === true
+      ? { [DA_CALC_READ_KEY]: "conflict" }
+      : xml === undefined
+        ? {}
+        : {
+            ...secDepreciationCalcMetrics(xml),
+            ...(xmlUrl === undefined || schema === undefined
+              ? {}
+              : secContinuingInvestingCalcMetrics(xml, xmlUrl, schema)),
+          };
+}
+
 interface ZeroBorrowingsFetch {
-  readonly metrics: Record<string, string>;
+  readonly metrics: Record<string, number | string>;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly sources: readonly Source[];
   readonly gaps: readonly SourceGap[];
@@ -316,8 +325,9 @@ const rejectZeroBorrowings = (
   code: string,
   rawSnapshots: readonly RawSourceSnapshot[] = [],
   gaps: readonly SourceGap[] = [],
+  calcMetrics: Record<string, number | string> = {},
 ): ZeroBorrowingsFetch => ({
-  metrics: { [ZERO_BORROWINGS_REJECT_KEY]: code },
+  metrics: { ...calcMetrics, [ZERO_BORROWINGS_REJECT_KEY]: code },
   rawSnapshots,
   sources: [],
   gaps,
@@ -403,6 +413,7 @@ async function fetchZeroBorrowingsProof(
   }
   const scope = { periodEnd: filing.reportDate, file: instanceFile, cik };
   let proof = zeroBorrowingsInstanceProof(parsed, tags, undefined, scope);
+  let calcMetrics: Record<string, number | string> = {};
   if ("reject" in proof && proof.reject.startsWith(UNCLASSIFIED_CREDIT)) {
     if (parsed.calculationLinkbaseRefs.length > 0) {
       return rejectZeroBorrowings("calculation-linkbase-ambiguous", rawSnapshots);
@@ -413,9 +424,11 @@ async function fetchZeroBorrowingsProof(
       url,
       reads,
     );
+    // An older filing's only linkbase read: its capex and D&A proofs ride along at no extra request.
+    calcMetrics = calculationProofMetrics(calc);
     const calcSnapshots = [...rawSnapshots, ...calc.rawSnapshots];
     if (calc.ambiguous === true) {
-      return rejectZeroBorrowings("calculation-linkbase-ambiguous", calcSnapshots);
+      return rejectZeroBorrowings("calculation-linkbase-ambiguous", calcSnapshots, [], calcMetrics);
     }
     if (
       calc.gaps.length > 0 ||
@@ -427,6 +440,7 @@ async function fetchZeroBorrowingsProof(
         `instance-fetch-failed:${calc.gaps[0]?.source ?? "sec-xbrl-schema"}`,
         calcSnapshots,
         calc.gaps,
+        calcMetrics,
       );
     }
     try {
@@ -441,17 +455,23 @@ async function fetchZeroBorrowingsProof(
         scope,
       );
     } catch {
-      return rejectZeroBorrowings("calculation-linkbase-unreadable", calcSnapshots);
+      return rejectZeroBorrowings(
+        "calculation-linkbase-unreadable",
+        calcSnapshots,
+        [],
+        calcMetrics,
+      );
     }
     documents.push(...calc.documents);
     rawSnapshots.push(...calc.rawSnapshots);
   }
   if ("reject" in proof) {
-    return rejectZeroBorrowings(proof.reject, rawSnapshots);
+    return rejectZeroBorrowings(proof.reject, rawSnapshots, [], calcMetrics);
   }
   const { snippet: _snippet, ...filingSource } = item.source;
   return {
     metrics: {
+      ...calcMetrics,
       [ZERO_BORROWINGS_PROOF_KEY]: proof.proof,
       [ZERO_BORROWINGS_CURRENCY_KEY]: proof.currency,
     },

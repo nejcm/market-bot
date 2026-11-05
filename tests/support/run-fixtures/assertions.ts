@@ -2455,28 +2455,28 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
   );
 }
 
-// The current 10-Q's own calc linkbase proves both 9-month capex columns it supplies.
+// A 10-Q's own calc linkbase proves the YTD capex columns it supplies.
 export function assertQuarterlyCapexProof(
   result: RunFixtureResult,
   accessionNumber: string,
-  columns: readonly (readonly [periodEnd: string, value: number])[],
-  ttm: readonly [periodEnd: string, capex: number, freeCashFlow: number],
+  columns: readonly (readonly [periodKey: string, value: number])[],
+  ttm?: readonly [periodEnd: string, capex: number, freeCashFlow: number],
 ): void {
   const { financialStatements, fundamentalHistory } = result.collectedSources;
   const capex = financialStatements?.statements.cashFlowStatement.capitalExpenditure;
-  for (const [periodEnd, value] of columns) {
-    expect(
-      capex?.interim.find((fact) => fact.periodKey === `duration:9|${periodEnd}`),
-    ).toMatchObject({ value, accessionNumber });
+  for (const [periodKey, value] of columns) {
+    expect(capex?.interim.find((fact) => fact.periodKey === periodKey)).toMatchObject({
+      value,
+      accessionNumber,
+    });
     expect(financialStatements?.omissionNotes ?? []).not.toContainEqual(
-      expect.objectContaining({
-        code: "capex-scope-unproven",
-        periodKey: `duration:9|${periodEnd}`,
-      }),
+      expect.objectContaining({ code: "capex-scope-unproven", periodKey }),
     );
   }
-  expect(capex?.ttm).toMatchObject({ value: ttm[1], periodEnd: ttm[0] });
-  expect(fundamentalHistory?.series.freeCashFlowProxy.ttm?.value).toBe(ttm[2]);
+  if (ttm !== undefined) {
+    expect(capex?.ttm).toMatchObject({ value: ttm[1], periodEnd: ttm[0] });
+    expect(fundamentalHistory?.series.freeCashFlowProxy.ttm?.value).toBe(ttm[2]);
+  }
 }
 
 const EBAY_10Q = "https://www.sec.gov/Archives/edgar/data/1065088/000106508826000212";
@@ -3431,7 +3431,7 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
     NEGATIVE_WORKBENCH_DENOMINATOR,
     3.506_019_539_993_908_5,
     2.892_954_314_846_312,
-    MISSING_WORKBENCH_FCF,
+    65.800_212_837_331_03,
   ],
   "ttm|2026-06-30|2026-08-06": [
     NEGATIVE_WORKBENCH_DENOMINATOR,

@@ -2994,7 +2994,19 @@ describe("canonical financial statements", () => {
       }),
     );
 
+    expect(withLater.statements.incomeStatement.revenue.supersedingFacts).toEqual([
+      {
+        concept: "RevenueFromContractWithCustomerExcludingAssessedTax",
+        periodStart: "2025-06-01",
+        periodEnd: "2025-08-31",
+        firstPublicAt: "2025-09-10",
+        form: "10-Q",
+        accessionNumber: "20250910-10-Q",
+      },
+    ]);
+
     const fyOnly = derive(payload({ "us-gaap": { Revenues: { USD: [fiscalYear] } } }));
+    expect(fyOnly.statements.incomeStatement.revenue.supersedingFacts).toEqual([]);
     expect(fyOnly.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
     expect(fyOnly.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
   });
@@ -3027,6 +3039,7 @@ describe("canonical financial statements", () => {
       }),
     );
     expect(artifact.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
+    expect(artifact.statements.incomeStatement.revenue.supersedingFacts).toEqual([]);
     expect(artifact.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
   });
 

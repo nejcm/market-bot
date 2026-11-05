@@ -89,6 +89,36 @@ describe("frozen historical artifacts", () => {
     }
   });
 
+  test("keeps well-formed superseding facts and leaves a malformed list unchecked", async () => {
+    const artifact = (await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json()) as FinancialStatementsArtifact;
+    const { revenue } = artifact.statements.incomeStatement;
+    const read = (supersedingFacts: unknown) =>
+      readFinancialStatementsArtifact({
+        ...artifact,
+        statements: {
+          ...artifact.statements,
+          incomeStatement: {
+            ...artifact.statements.incomeStatement,
+            revenue: { ...revenue, supersedingFacts },
+          },
+        },
+      })?.statements.incomeStatement.revenue;
+    const later = {
+      concept: "Revenues",
+      periodStart: "2025-01-01",
+      periodEnd: "2025-03-31",
+      firstPublicAt: "2025-05-10",
+      form: "10-Q",
+      accessionNumber: null,
+    };
+    expect(read([later])?.supersedingFacts).toEqual([later]);
+    expect(read([])?.supersedingFacts).toEqual([]);
+    expect(read(undefined)).not.toHaveProperty("supersedingFacts");
+    expect(read([{ ...later, firstPublicAt: 7 }])).not.toHaveProperty("supersedingFacts");
+  });
+
   test("reads a TTM equal to the latest FY and backfills its one component", async () => {
     const artifact = (await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),

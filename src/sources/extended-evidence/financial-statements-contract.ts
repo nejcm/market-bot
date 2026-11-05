@@ -237,6 +237,17 @@ export interface FinancialStatementSeries {
   readonly annual: readonly FinancialStatementFact[];
   readonly interim: readonly FinancialStatementFact[];
   readonly ttm?: FinancialStatementTtm;
+  // Earliest-public later duration fact (any concept) after the latest FY; undefined = not computed.
+  readonly supersedingFacts?: readonly FinancialStatementSupersedingFact[];
+}
+
+export interface FinancialStatementSupersedingFact {
+  readonly concept: string;
+  readonly periodStart: string;
+  readonly periodEnd: string;
+  readonly firstPublicAt: string;
+  readonly form: string;
+  readonly accessionNumber: string | null;
 }
 
 export interface FinancialStatementEquityStack {
@@ -611,6 +622,22 @@ function hasFinancialStatementTtmShape(value: unknown): boolean {
   );
 }
 
+function hasSupersedingFactsShape(
+  value: unknown,
+): value is readonly FinancialStatementSupersedingFact[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (fact) =>
+        isRecord(fact) &&
+        ["concept", "periodStart", "periodEnd", "firstPublicAt", "form"].every(
+          (key) => stringField(fact, key) !== undefined,
+        ) &&
+        (fact.accessionNumber === null || typeof fact.accessionNumber === "string"),
+    )
+  );
+}
+
 function matchesFiscalYear(
   ttm: Record<string, unknown>,
   fiscalYear: Record<string, unknown>,
@@ -700,7 +727,7 @@ function readFinancialStatementSeries(
               : undefined,
         );
   const [readTtm] = ttm?.observations ?? [];
-  const { ttm: _ttm, ...rest } = value;
+  const { ttm: _ttm, supersedingFacts, ...rest } = value;
   return {
     series: {
       ...rest,
@@ -709,6 +736,7 @@ function readFinancialStatementSeries(
       statement: value.statement,
       annual: annual.observations,
       interim: interim.observations,
+      ...(hasSupersedingFactsShape(supersedingFacts) ? { supersedingFacts } : {}),
       ...(readTtm === undefined
         ? {}
         : {

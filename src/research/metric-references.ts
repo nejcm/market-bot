@@ -173,7 +173,11 @@ function hasMetricReference(value: unknown): boolean {
 }
 
 // Exact catalog ids missing only the `metric:` prefix; anything else stays malformed.
-function withMetricPrefix(text: string, sections: readonly MetricSection[]): string {
+function withMetricPrefix(
+  text: string,
+  sections: readonly MetricSection[],
+  written: Map<string, string>,
+): string {
   return text.replaceAll(UNPREFIXED, (token, inner: string) => {
     const bar = inner.indexOf("|");
     const reference = (bar === -1 ? inner : inner.slice(0, bar)).trim();
@@ -185,7 +189,12 @@ function withMetricPrefix(text: string, sections: readonly MetricSection[]): str
           id === reference.slice(0, dot) &&
           metrics.some((metric) => metric.id === reference.slice(dot + 1)),
       );
-    return known ? `<<metric:${reference}${bar === -1 ? "" : inner.slice(bar)}>>` : token;
+    if (!known) {
+      return token;
+    }
+    const prefixed = `<<metric:${reference}${bar === -1 ? "" : inner.slice(bar)}>>`;
+    written.set(prefixed, token);
+    return prefixed;
   });
 }
 
@@ -211,14 +220,16 @@ function transformClaims(
       errors.push(`Metric reference is not allowed in ${key}; use a cited narrative claim`);
       return [key, item];
     }
-    const text = withMetricPrefix(item, sections).replaceAll(
+    const written = new Map<string, string>();
+    const text = withMetricPrefix(item, sections, written).replaceAll(
       REFERENCE,
-      (token, captured: string) => {
+      (prefixed, captured: string) => {
+        const token = written.get(prefixed) ?? prefixed;
         const [reference = "", format, ...extra] = captured.split("|").map((part) => part.trim());
         const dot = reference.lastIndexOf(".");
         if (dot <= 0 || dot === reference.length - 1 || extra.length > 0 || format === "") {
           errors.push(`Malformed metric reference ${token}`);
-          return token;
+          return prefixed;
         }
         const sectionId = reference.slice(0, dot);
         const metric = sections
@@ -232,7 +243,7 @@ function transformClaims(
           errors.push(
             `Metric reference ${token} is unknown, unavailable, or unciteable; remove it or use an available metric reference`,
           );
-          return token;
+          return prefixed;
         }
         const formatted =
           format === undefined
@@ -242,11 +253,11 @@ function transformClaims(
           errors.push(
             `Metric reference ${token} has an unsupported format; use |period only on a metric with a period, or the bare reference`,
           );
-          return token;
+          return prefixed;
         }
         referenced = true;
         metric.sourceIds.forEach((id) => sourceIds.add(id));
-        return resolve ? formatted : token;
+        return resolve ? formatted : prefixed;
       },
     );
     const rest = text.replaceAll(REFERENCE, " ");
@@ -272,14 +283,12 @@ function transformNarrative<T extends ModelReportPayload>(
 ): T {
   const extras = isRecord(payload.extras) ? payload.extras : {};
   const narrative = {
-    summary: payload.summary,
     keyFindings: payload.keyFindings,
     bullCase: payload.bullCase,
     bearCase: payload.bearCase,
     risks: payload.risks,
     catalysts: payload.catalysts,
     scenarios: payload.scenarios,
-    dataGaps: payload.dataGaps,
     extras: {
       businessFramework: extras.businessFramework,
       earningsSetup: extras.earningsSetup,

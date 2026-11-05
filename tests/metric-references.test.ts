@@ -610,10 +610,30 @@ test("names summary residue and every claim token in the same error", () => {
     "summary, dataGaps and predictions cannot contain them",
     "Malformed metric reference <<unknown.a>> in text",
     "Metric reference <<metric:unknown.b>> is unknown",
-    "Metric reference <<metric:operating-ratios.margin|abs>> has an unsupported format",
+    "Metric reference <<operating-ratios.margin|abs>> has an unsupported format",
   ]) {
     expect(run).toThrow(part);
   }
+});
+
+test("names the model's own token, not its prefixed form, and a summary reference once", () => {
+  const message = (payload: ModelReportPayload) => {
+    try {
+      assembleResearchReport(input(payload));
+    } catch (error) {
+      return String(error);
+    }
+    throw new Error("expected a rejection");
+  };
+  expect(
+    message({ keyFindings: [{ text: "<<operating-ratios.margin|abs>>", sourceIds: [] }] }),
+  ).not.toContain("<<metric:operating-ratios.margin|abs>>");
+  const summary = message({
+    summary: "Margin <<metric:operating-ratios.margin>>",
+    keyFindings: [{ text: "<<unknown.a>>", sourceIds: [] }],
+  });
+  expect(summary.match(/summary/gu)).toHaveLength(1);
+  expect(summary).toContain("Malformed metric reference <<unknown.a>> in text");
 });
 
 test("names every invalid metric reference in one error", () => {
@@ -633,7 +653,7 @@ test("names every invalid metric reference in one error", () => {
   for (const part of [
     "Malformed metric reference <<financial-lens-growth.revenueDeltaPercent|period>> in text",
     "Metric reference <<metric:unknown.x>> is unknown",
-    "Metric reference <<metric:operating-ratios.margin|abs>> has an unsupported format",
+    "Metric reference <<operating-ratios.margin|abs>> has an unsupported format",
     "Malformed metric reference >> in text",
     "Malformed metric reference <<business framework growth>> in text",
   ]) {

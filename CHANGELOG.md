@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.5](https://github.com/nejcm/market-bot/compare/v1.12.4...v1.12.5) (2026-11-05)
+
+### Bug Fixes
+
+- **console:** show the frozen price date on financial lens tiles (#140) ([00b23f0](https://github.com/nejcm/market-bot/commit/00b23f0f5bb584467ff12dffddb102e268e6ec97))
+- **valuation:** stop publishing stale fy-as-ttm workbench multiples (#139) ([8089d46](https://github.com/nejcm/market-bot/commit/8089d46893cee238e8b6f336211334c2cd05b2e3))
+
 ## [1.12.4](https://github.com/nejcm/market-bot/compare/v1.12.3...v1.12.4) (2026-11-05)
 
 ### Bug Fixes

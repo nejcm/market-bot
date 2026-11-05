@@ -36,6 +36,7 @@ export type ValuationMetricSuppressionReason =
   | "debt-unavailable"
   | "mixed-period-balance-sheet"
   | "mixed-scope-debt"
+  | "earlier-share-basis"
   | "ev-bridge-incomplete";
 
 type ValuationMetricNotMeaningfulReason =
@@ -150,6 +151,7 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "debt-unavailable",
   "mixed-period-balance-sheet",
   "mixed-scope-debt",
+  "earlier-share-basis",
   "ev-bridge-incomplete",
 ]);
 const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mismatch"] as const);

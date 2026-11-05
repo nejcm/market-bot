@@ -167,7 +167,11 @@ export function valuationMetricSection(input: {
             return missing("mixed-period-balance-sheet");
           }
         }
-        if (needsShares && period.dilutedShares === undefined) {
+        const sharesOnEarlierBasis =
+          needsShares &&
+          period.dilutedShares === undefined &&
+          period.earlierShareBasis?.includes("dilutedShares") === true;
+        if (needsShares && period.dilutedShares === undefined && !sharesOnEarlierBasis) {
           const unfiledPartner = ["netIncome", "dilutedEps"].find((key) =>
             input.statements?.unfiledSeries?.includes(key as FinancialStatementSeriesKey),
           );
@@ -195,8 +199,14 @@ export function valuationMetricSection(input: {
         if (price.currency !== reportingCurrency && fx === undefined) {
           return missing("fx-rate-unavailable");
         }
+        if (sharesOnEarlierBasis) {
+          return missing("earlier-share-basis");
+        }
         const denominator = period[denominatorKey];
         if (denominator === undefined) {
+          if (denominatorKey === "dilutedEps" && period.earlierShareBasis?.includes("dilutedEps")) {
+            return missing("earlier-share-basis");
+          }
           const keys: readonly FinancialStatementSeriesKey[] =
             denominatorKey === "freeCashFlow"
               ? ["operatingCashFlow", "capitalExpenditure"]

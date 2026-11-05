@@ -37,6 +37,10 @@ import { buildReverseDcf } from "../src/sources/extended-evidence/reverse-dcf";
 import { collectPriceHistory } from "../src/sources/yahoo-price-history";
 import { renderMarkdownReport } from "../src/report/markdown";
 import {
+  periodPublicAt,
+  valuationPeriodInputs,
+} from "../src/sources/extended-evidence/valuation-workbench-inputs";
+import {
   EMPTY_EV_BRIDGE_FACTS,
   marketSnapshot,
   collectedSources,
@@ -275,6 +279,137 @@ function refiledWithUnchangedValues(
   };
 }
 
+function withEarlierShareBasis(
+  artifact: FinancialStatementsArtifact,
+  periodEnd: string,
+  keys: readonly FinancialStatementSeriesKey[],
+): FinancialStatementsArtifact {
+  return {
+    ...artifact,
+    omissionNotes: keys.map((seriesKey) => ({
+      code: "earlier-share-basis",
+      seriesKey,
+      periodKey: `annual|${periodEnd}`,
+      message: "test split",
+    })),
+  };
+}
+
+function workbenchMetrics(artifact: FinancialStatementsArtifact) {
+  return buildValuationWorkbench({
+    generatedAt: "2025-06-01T00:00:00.000Z",
+    symbol: "TEST",
+    financialStatements: artifact,
+    priceHistory: [
+      { date: "2024-02-15", close: 20 },
+      { date: "2025-02-18", close: 24 },
+      { date: "2025-05-01", close: 26 },
+    ],
+    priceSourceId: "verified-snapshot-TEST",
+    quoteCurrency: "USD",
+  }).historicalMultiples.observations.map(
+    (item) => [`${item.basis}|${item.periodEnd}`, item.metrics] as const,
+  );
+}
+
+const LATE_SHARE_BASIS_CASES = [
+  {
+    symbol: "NVDA",
+    periodEnd: "2020-01-26",
+    publicAt: "2020-02-20",
+    revenue: 10_918_000_000,
+    netIncome: 2_796_000_000,
+    cash: 10_896_000_000,
+    dilutedEps: { value: 1.13, firstPublicAt: "2022-03-18" },
+    dilutedShares: { value: 2_472_000_000, firstPublicAt: "2022-03-18" },
+    debt: { value: 1_991_000_000, firstPublicAt: "2021-02-26" },
+    priorDebt: { periodEnd: "2019-01-27", value: 1_988_000_000, firstPublicAt: "2019-02-21" },
+  },
+  {
+    symbol: "PANW",
+    periodEnd: "2020-07-31",
+    publicAt: "2020-09-04",
+    revenue: 3_408_400_000,
+    netIncome: -267_000_000,
+    cash: 2_958_000_000,
+    dilutedEps: { value: -2.76, firstPublicAt: "2020-09-04" },
+    dilutedShares: { value: 96_900_000, firstPublicAt: "2021-09-03" },
+    debt: { value: 3_084_100_000, firstPublicAt: "2021-09-03" },
+    priorDebt: { periodEnd: "2019-07-31", value: 1_430_000_000, firstPublicAt: "2019-09-09" },
+  },
+] as const;
+
+function lateShareBasisArtifact(
+  item: (typeof LATE_SHARE_BASIS_CASES)[number],
+): FinancialStatementsArtifact {
+  const base = withoutTtm(statements());
+  const { incomeStatement, balanceSheet, perShare } = base.statements;
+  const row = (
+    key: FinancialStatementSeriesKey,
+    value: number,
+    firstPublicAt: string = item.publicAt,
+    unit = "USD",
+  ) =>
+    fact({
+      key,
+      value,
+      periodEnd: item.periodEnd,
+      filedAt: firstPublicAt,
+      unit,
+      ...(unit === "shares" ? { currency: null } : {}),
+    });
+  const priorDebt = fact({
+    key: "debt",
+    value: item.priorDebt.value,
+    periodEnd: item.priorDebt.periodEnd,
+    filedAt: item.priorDebt.firstPublicAt,
+  });
+  return withEarlierShareBasis(
+    {
+      ...base,
+      symbol: item.symbol,
+      statements: {
+        ...base.statements,
+        incomeStatement: {
+          ...incomeStatement,
+          revenue: { ...incomeStatement.revenue, annual: [row("revenue", item.revenue)] },
+          netIncome: { ...incomeStatement.netIncome, annual: [row("netIncome", item.netIncome)] },
+        },
+        balanceSheet: {
+          ...balanceSheet,
+          cash: { ...balanceSheet.cash, annual: [row("cash", item.cash)] },
+          debt: {
+            ...balanceSheet.debt,
+            annual: [priorDebt, row("debt", item.debt.value, item.debt.firstPublicAt)],
+          },
+        },
+        perShare: {
+          ...perShare,
+          dilutedEps: {
+            ...perShare.dilutedEps,
+            annual: [
+              row("dilutedEps", item.dilutedEps.value, item.dilutedEps.firstPublicAt, "USD/shares"),
+            ],
+          },
+          dilutedShares: {
+            ...perShare.dilutedShares,
+            annual: [
+              row(
+                "dilutedShares",
+                item.dilutedShares.value,
+                item.dilutedShares.firstPublicAt,
+                "shares",
+              ),
+            ],
+          },
+        },
+      },
+    },
+    item.periodEnd,
+    ["dilutedEps", "dilutedShares"],
+  );
+}
+
 describe("valuation workbench", () => {
   test("dates rows and balance-sheet joins to the first filing of each selected value", () => {
     const artifact = buildValuationWorkbench({
@@ -358,6 +493,115 @@ describe("valuation workbench", () => {
       priceToFreeCashFlow: { status: "value", value: 20 },
     });
   });
+
+  describe("per-share inputs on an earlier share basis", () => {
+    test("withholds flagged EPS and shares, leaving clean-basis rows unchanged", () => {
+      const clean = workbenchMetrics(statements());
+      const flagged = workbenchMetrics(
+        withEarlierShareBasis(statements(), "2023-12-31", ["dilutedEps", "dilutedShares"]),
+      );
+      const withheld = { status: "missing", reason: "earlier-share-basis" };
+
+      expect(flagged[0]?.[1]).toMatchObject({
+        priceToEarnings: withheld,
+        priceToSales: withheld,
+        enterpriseValueToRevenue: withheld,
+        priceToFreeCashFlow: withheld,
+      });
+      expect(flagged.slice(1)).toEqual(clean.slice(1));
+    });
+
+    test("derives shares from clean EPS when only the filed share count is flagged", () => {
+      const base = statements();
+      const { dilutedShares } = base.statements.perShare;
+      const preSplitShares: FinancialStatementsArtifact = {
+        ...base,
+        statements: {
+          ...base.statements,
+          perShare: {
+            ...base.statements.perShare,
+            dilutedShares: {
+              ...dilutedShares,
+              annual: dilutedShares.annual.map((item, index) =>
+                index === 0 ? { ...item, value: 40 } : item,
+              ),
+            },
+          },
+        },
+      };
+      const [first] = workbenchMetrics(
+        withEarlierShareBasis(preSplitShares, "2023-12-31", ["dilutedShares"]),
+      );
+
+      expect(first?.[1]).toMatchObject({
+        priceToEarnings: { status: "value", value: 20 },
+        priceToSales: { status: "value", value: 2 },
+      });
+    });
+
+    test("withholds a fiscal-year TTM row through the shared annual inputs", () => {
+      const base = withoutTtm(statements());
+      const fiscalYearTtm: FinancialStatementsArtifact = {
+        ...base,
+        statements: {
+          ...base.statements,
+          incomeStatement: {
+            ...base.statements.incomeStatement,
+            revenue: withDerivedTtm(base.statements.incomeStatement.revenue),
+          },
+        },
+      };
+      expect(fiscalYearTtm.statements.incomeStatement.revenue.ttm?.formula).toBe("FY");
+
+      const rows = new Map(
+        workbenchMetrics(withEarlierShareBasis(fiscalYearTtm, "2024-12-31", ["dilutedEps"])),
+      );
+
+      expect(rows.get("ttm|2024-12-31")).toMatchObject({
+        priceToEarnings: { status: "missing", reason: "earlier-share-basis" },
+        priceToSales: { status: "value", value: 2 },
+      });
+    });
+  });
+
+  test.each([...LATE_SHARE_BASIS_CASES])(
+    "$symbol: withheld late per-share facts retreat the row and its debt join",
+    async (item) => {
+      const artifact = lateShareBasisArtifact(item);
+      const period = valuationPeriodInputs(artifact).periods.find(
+        ({ basis, periodEnd }) => basis === "annual" && periodEnd === item.periodEnd,
+      )!;
+      expect(period.earlierShareBasis).toEqual(["dilutedEps", "dilutedShares"]);
+      expect(periodPublicAt(period)).toBe(item.publicAt);
+      expect(period.cash?.periodEnd).toBe(item.periodEnd);
+      expect(period.debt).toMatchObject({
+        value: item.priorDebt.value,
+        periodEnd: item.priorDebt.periodEnd,
+        publicAt: item.priorDebt.firstPublicAt,
+      });
+
+      const result = await evaluateWorkbench({
+        generatedAt: "2025-06-01T00:00:00.000Z",
+        symbol: item.symbol,
+        financialStatements: artifact,
+        priceHistory: [{ date: item.publicAt, close: 50 }],
+        priceSourceId: `verified-snapshot-${item.symbol}`,
+        quoteCurrency: "USD",
+      });
+      const observation = result.artifact.historicalMultiples.observations.find(
+        ({ basis, periodEnd }) => basis === "annual" && periodEnd === item.periodEnd,
+      )!;
+      expect(observation.publicAt).toBe(item.publicAt);
+      expect(observation.metrics).toMatchObject({
+        priceToEarnings: { status: "missing", reason: "earlier-share-basis" },
+        priceToSales: { status: "missing", reason: "earlier-share-basis" },
+        enterpriseValueToRevenue: { status: "missing", reason: "mixed-period-balance-sheet" },
+      });
+      expect(result.sourceGaps.map(({ triage, message }) => ({ triage, message }))).toEqual([
+        { triage: "material", message: expect.stringContaining("earlier-share-basis") },
+      ]);
+    },
+  );
 
   test("bridges EV/revenue through short-term investments and NCI known at each publicAt", () => {
     const bridgeFact = (value: number, concept: string, periodEnd: string, filedAt: string) => {

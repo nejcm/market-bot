@@ -54,6 +54,7 @@ export interface ValuationPeriodInputs {
   readonly debtScopeUnproven?: true;
   // A newer incomplete debt instant sits between this debt and the cash instant, so they never pair.
   readonly debtBehindIncompleteInstant?: true;
+  readonly earlierShareBasis?: readonly ("dilutedEps" | "dilutedShares")[];
 }
 
 export function unique(values: readonly string[]): readonly string[] {
@@ -342,12 +343,15 @@ function annualInputs(
     netIncomeFact === undefined
       ? undefined
       : factInput("Net income", netIncomeFact, hasContinuing(incomeStatement.continuingIncome));
+  const earlierShareBasis = (["dilutedEps", "dilutedShares"] as const).filter((key) =>
+    earlierShareBasisPeriods(artifact.omissionNotes, key).has(periodKey),
+  );
   const dilutedEps =
-    dilutedEpsFact === undefined
+    dilutedEpsFact === undefined || earlierShareBasis.includes("dilutedEps")
       ? undefined
       : factInput("Diluted EPS", dilutedEpsFact, hasContinuing(perShare.continuingDilutedEps));
   const directShares =
-    dilutedSharesFact === undefined
+    dilutedSharesFact === undefined || earlierShareBasis.includes("dilutedShares")
       ? undefined
       : factInput("Diluted weighted-average shares", dilutedSharesFact);
   const operatingCashFlow =
@@ -391,6 +395,7 @@ function annualInputs(
     ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
+    ...(earlierShareBasis.length > 0 ? { earlierShareBasis } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
     ...debtInput(artifact, debtFact, cashFact, publicAt, revenue),
     ...bridgeInput(artifact, cashFact, publicAt),

@@ -474,11 +474,16 @@ describe("static equity run fixtures", () => {
           result,
           "0001171843-26-005329",
           [
-            ["2025-06-30", 3_529_000],
-            ["2026-06-30", 2_917_000],
+            ["duration:9|2025-06-30", 3_529_000],
+            ["duration:9|2026-06-30", 2_917_000],
           ],
           ["2026-06-30", 4_131_000, 7_344_000],
         );
+        // Q2 FY2026 10-Q: read for the debt face, its linkbase also proves both 6-month capex columns.
+        assertQuarterlyCapexProof(result, "0001171843-26-003126", [
+          ["duration:6|2025-03-31", 3_074_000],
+          ["duration:6|2026-03-31", 2_007_000],
+        ]);
       }
       if (name === "equity-amd-deep") {
         // AMD Q3 2026 10-Q: TTM capex 974 + 1,845 − 752 = 2,067M; FCF = OCF 8,827M − 2,067M.
@@ -486,8 +491,8 @@ describe("static equity run fixtures", () => {
           result,
           "0000002488-26-000191",
           [
-            ["2025-09-27", 752_000_000],
-            ["2026-09-26", 1_845_000_000],
+            ["duration:9|2025-09-27", 752_000_000],
+            ["duration:9|2026-09-26", 1_845_000_000],
           ],
           ["2026-09-26", 2_067_000_000, 6_760_000_000],
         );

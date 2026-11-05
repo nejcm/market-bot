@@ -124,6 +124,12 @@ const augustDebt = (artifact: Awaited<ReturnType<typeof derive>>) =>
     ({ periodEnd }) => periodEnd === "2026-08-31",
   );
 
+const gaapLoc = (name: string, label: string) =>
+  `<link:loc xlink:href="https://xbrl.fasb.org/us-gaap/2025/elts/us-gaap-2025.xsd#us-gaap_${name}" xlink:label="${label}" xlink:type="locator"/>`;
+const sumArc = (from: string, to: string, weight: string) =>
+  `<link:calculationArc xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" xlink:from="${from}" xlink:to="${to}" weight="${weight}" xlink:type="arc"/>`;
+const CASH_FLOW_CAL = `<link:calculationLink xlink:role="cf" xlink:type="extended">${gaapLoc("NetCashProvidedByUsedInInvestingActivitiesContinuingOperations", "i")}${gaapLoc("PaymentsToAcquireProductiveAssets", "x")}${gaapLoc("NetCashProvidedByUsedInOperatingActivities", "o")}${gaapLoc("DepreciationDepletionAndAmortization", "d")}${sumArc("i", "x", "-1.0")}${sumArc("o", "d", "1.0")}</link:calculationLink>`;
+
 describe("debt instants withheld for want of a face", () => {
   test("ORCL 2026-08-31 without its 10-Q face asks for accession 0001193125-26-389274", async () => {
     const artifact = await derive(GAAP);
@@ -582,6 +588,32 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
     const faces = await clfdFaces(served, adapters);
     expect(adapters.slice(-2)).toEqual(["sec-xbrl-schema", "sec-calculation-linkbase"]);
     expect(decDebt(deriveItems(ZERO_GAAP, faces.items))?.value).toBe(0);
+  });
+
+  test("the linkbase read for the face also carries its capex and D&A proofs, with no extra request", async () => {
+    const leaseOnly: string[] = [];
+    await clfdFaces(
+      clfdServed(ZERO_ROWS, { "sec-xbrl-instance": clfdInstance(LEASE_EXTENSION) }),
+      leaseOnly,
+    );
+    const adapters: string[] = [];
+    const faces = await clfdFaces(
+      clfdServed(ZERO_ROWS, {
+        "sec-xbrl-instance": clfdInstance(LEASE_EXTENSION),
+        "sec-calculation-linkbase": LEASE_CAL.replace(
+          "</link:linkbase>",
+          `${CASH_FLOW_CAL}</link:linkbase>`,
+        ),
+      }),
+      adapters,
+    );
+    expect(adapters).toEqual(leaseOnly);
+    expect(faces.items[0]?.metrics).toMatchObject({
+      accessionNumber: Q_ACCN,
+      "capexCalc|PaymentsToAcquireProductiveAssets": -1,
+      "daCalc|DepreciationDepletionAndAmortization": 1,
+      daCalcRead: "true",
+    });
   });
 
   test("a face with a borrowing row never asks for the instance", async () => {

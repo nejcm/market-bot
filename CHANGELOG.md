@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.3](https://github.com/nejcm/market-bot/compare/v1.12.2...v1.12.3) (2026-11-05)
+
+### Bug Fixes
+
+- **valuation:** price annual rows at the period's first annual report (#134) ([d4ce103](https://github.com/nejcm/market-bot/commit/d4ce1031e47a85b2aef5eb43a2a12313ba8f5349))
+- **valuation:** withhold annual per-share inputs on an older share basis (#133) ([8c5442b](https://github.com/nejcm/market-bot/commit/8c5442b58d48da8527b430f10092ec934bb7855d))
+- **prices:** stop re-applying splits to already adjusted yahoo closes (#132) ([bb731ce](https://github.com/nejcm/market-bot/commit/bb731ced2a36398ca268783cf3035d6c4288d8ec))
+
 ## [1.12.2](https://github.com/nejcm/market-bot/compare/v1.12.1...v1.12.2) (2026-11-05)
 
 ### Bug Fixes

@@ -69,6 +69,7 @@ import {
   SEC_COMPANYFACTS_UNIT_SCALE,
   canonicalizeSecForm,
   isAnnualReportForm,
+  isCalendarDate,
   readSecFactPeriodMetadata,
   type CanonicalSecForm,
   type FinancialStatementFact,
@@ -81,6 +82,7 @@ import {
   type FinancialStatementSeriesKey,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
+  type FirstAnnualReport,
   type InterimCadence,
   type OriginalFiling,
   type StructuredFinancialGap,
@@ -1726,15 +1728,6 @@ function allFactsForDefinition(
     : definition.concepts[taxonomy].flatMap((concept) => unitFacts(taxonomy, root, concept));
 }
 
-function isCalendarDate(value: string): boolean {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return (
-    /^\d{4}-\d{2}-\d{2}$/u.test(value) &&
-    !Number.isNaN(date.getTime()) &&
-    date.toISOString().slice(0, 10) === value
-  );
-}
-
 // Raw, pre-selection rows: only point-in-time observability, never form, fp, span or value shape.
 function rawConceptRows(
   root: Record<string, unknown> | undefined,
@@ -1749,6 +1742,43 @@ function rawConceptRows(
       const filed = isRecord(fact) ? readString(fact, "filed") : undefined;
       return filed === undefined || !isCalendarDate(filed) || filed <= cutoff;
     });
+}
+
+// Taxonomy switches and restatements re-file a period later, so no selected fact can date its first report;
+// A duration ending after its filing date is forward-looking (CLSK, LLY), not that period's report.
+function firstAnnualReports(payload: unknown, analysisAsOf: string): readonly FirstAnnualReport[] {
+  const earliest = new Map<string, FirstAnnualReport>();
+  for (const taxonomy of TAXONOMIES) {
+    const root = taxonomyRoot(payload, taxonomy) ?? {};
+    for (const fact of Object.keys(root).flatMap((concept) => unitFacts(taxonomy, root, concept))) {
+      const months = financialStatementPeriodMonths(fact);
+      const key = periodKey(fact);
+      const current = earliest.get(key);
+      if (
+        isAnnualReportForm(fact.canonicalForm) &&
+        isObservable(fact, analysisAsOf) &&
+        [fact.periodStart ?? "", fact.periodEnd, fact.filedAt].every(isCalendarDate) &&
+        fact.periodEnd < fact.filedAt &&
+        months !== undefined &&
+        months >= MIN_ANNUAL_DURATION_MONTHS &&
+        months <= MAX_ANNUAL_DURATION_MONTHS &&
+        (current === undefined || fact.filedAt < current.filedAt)
+      ) {
+        earliest.set(key, {
+          periodStart: fact.periodStart!,
+          periodEnd: fact.periodEnd,
+          filedAt: fact.filedAt,
+          accessionNumber: fact.accessionNumber,
+          form: fact.form,
+        });
+      }
+    }
+  }
+  return [...earliest.values()].toSorted(
+    (left, right) =>
+      left.periodEnd.localeCompare(right.periodEnd) ||
+      left.periodStart.localeCompare(right.periodStart),
+  );
 }
 
 // Span filtering, alias ranking and caps must not manufacture a non-payer.
@@ -3386,6 +3416,7 @@ export function deriveFinancialStatements(
       ? {
           dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
           unfiledSeries: unfiledSeries(payload, input.analysisAsOf),
+          firstAnnualReports: firstAnnualReports(payload, input.analysisAsOf),
         }
       : {}),
     statements,

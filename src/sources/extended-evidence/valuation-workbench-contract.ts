@@ -37,6 +37,8 @@ export type ValuationMetricSuppressionReason =
   | "mixed-period-balance-sheet"
   | "mixed-scope-debt"
   | "earlier-share-basis"
+  | "restated-after-first-filing"
+  | "first-annual-report-unavailable"
   | "ev-bridge-incomplete";
 
 type ValuationMetricNotMeaningfulReason =
@@ -74,6 +76,8 @@ interface ValuationFxConversion {
 export interface HistoricalValuationObservation {
   readonly basis: ValuationObservationBasis;
   readonly periodEnd: string;
+  // Fiscal-year transition spans only; a full year omits it.
+  readonly periodMonths?: number;
   readonly publicAt: string;
   readonly price: ValuationPriceInput | null;
   readonly fxConversion?: ValuationFxConversion;
@@ -152,6 +156,8 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "mixed-period-balance-sheet",
   "mixed-scope-debt",
   "earlier-share-basis",
+  "restated-after-first-filing",
+  "first-annual-report-unavailable",
   "ev-bridge-incomplete",
 ]);
 const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mismatch"] as const);
@@ -332,6 +338,8 @@ function hasObservationShape(value: unknown): boolean {
     !isRecord(value) ||
     (value.basis !== "annual" && value.basis !== "ttm") ||
     readString(value, "periodEnd") === undefined ||
+    (value.periodMonths !== undefined &&
+      !(Number.isInteger(value.periodMonths) && (value.periodMonths as number) > 0)) ||
     readString(value, "publicAt") === undefined ||
     (value.price !== null && !hasPriceInputShape(value.price)) ||
     (value.fxConversion !== undefined && !hasFxConversionShape(value.fxConversion)) ||

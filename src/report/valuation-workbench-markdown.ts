@@ -41,6 +41,13 @@ function fxNote(observation: HistoricalValuationObservation): string {
   return `; converted at ${pair} ${observation.fxConversion.rate.toFixed(4)} on ${observation.fxConversion.rateDate}`;
 }
 
+export function observationBasisLabel(observation: HistoricalValuationObservation): string {
+  const basis = observation.basis.toUpperCase();
+  return observation.periodMonths === undefined
+    ? basis
+    : `${basis} (${String(observation.periodMonths)} months)`;
+}
+
 // A null price can also mean a missing quote currency; trust the metric reason, not price alone.
 export function hasNoPriceHistory(observation: HistoricalValuationObservation): boolean {
   return (
@@ -59,7 +66,7 @@ function unpricedPeriodsLine(
     return undefined;
   }
   const periods = unpriced
-    .map((observation) => `${observation.basis.toUpperCase()} ${observation.periodEnd}`)
+    .map((observation) => `${observationBasisLabel(observation)} ${observation.periodEnd}`)
     .join(", ");
   return `- ${String(unpriced.length)} period${unpriced.length === 1 ? "" : "s"} without price history: ${periods}.`;
 }
@@ -73,7 +80,7 @@ function historicalRow(
       ? "—"
       : `${observation.price.close.toFixed(2)} ${observation.price.currency} (${observation.price.sessionDate}${fxNote(observation)})`;
   return `${[
-    observation.basis.toUpperCase(),
+    observationBasisLabel(observation),
     observation.periodEnd,
     observation.publicAt,
     price,
@@ -281,7 +288,7 @@ export function renderValuationWorkbenchMarkdown(
     "",
     "## Valuation Workbench",
     "",
-    `Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
+    `Annual rows are priced at the period's first annual report (the earliest 10-K, 20-F or 40-F filing a fiscal-year figure for it) and withhold any input first filed after it; TTM rows use the selected fundamentals, with publicAt the first filing that reported each selected value. Both are priced at the ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
     "",
     ...trailing,
     ...(scopeDisclosure === undefined ? [] : [`- ${scopeDisclosure}.`, ""]),

@@ -26,6 +26,7 @@ import {
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
   financialStatementFactForPeriod,
+  financialStatementPeriodKey,
   financialStatementFacts,
   financialStatementTtmsAreCompatible,
   financialStatementTtmsSharePeriod,
@@ -39,6 +40,8 @@ import type {
 export interface ValuationPeriodInputs {
   readonly basis: ValuationObservationBasis;
   readonly periodEnd: string;
+  // Annual rows only: the fiscal span, which keeps a transition period apart from a full year.
+  readonly periodKey?: string;
   readonly revenue?: ValuationFundamentalInput;
   readonly netIncome?: ValuationFundamentalInput;
   readonly dilutedEps?: ValuationFundamentalInput;
@@ -55,6 +58,11 @@ export interface ValuationPeriodInputs {
   // A newer incomplete debt instant sits between this debt and the cash instant, so they never pair.
   readonly debtBehindIncompleteInstant?: true;
   readonly earlierShareBasis?: readonly ("dilutedEps" | "dilutedShares")[];
+  // Annual rows only: the date pricing the row, its first annual report unless that is unavailable.
+  readonly rowPublicAt?: string;
+  readonly restatedAfterFirstFiling?: readonly FinancialStatementSeriesKey[];
+  // The artifact records first annual reports but none for this span, so every flow input is withheld.
+  readonly firstAnnualReportUnavailable?: true;
 }
 
 export function unique(values: readonly string[]): readonly string[] {
@@ -258,7 +266,7 @@ function debtInput(
   debtFact: FinancialStatementFact | undefined,
   cashFact: FinancialStatementFact | undefined,
   publicAt: string,
-  revenue: ValuationFundamentalInput,
+  flow: { readonly periodEnd: string; readonly firstPublicAt: string },
 ): Pick<
   ValuationPeriodInputs,
   "debt" | "debtScopeMismatch" | "debtScopeUnproven" | "debtBehindIncompleteInstant"
@@ -289,11 +297,7 @@ function debtInput(
   if (newer.some((note) => note.periodKey === `instant|${cashFact?.periodEnd}`)) {
     return {};
   }
-  const unproven =
-    debtScopeUnproven(artifact, debtFact, {
-      periodEnd: revenue.periodEnd,
-      firstPublicAt: revenue.publicAt,
-    }) !== undefined;
+  const unproven = debtScopeUnproven(artifact, debtFact, flow) !== undefined;
   return {
     debt: {
       ...factInput("Debt", debtFact),
@@ -307,10 +311,10 @@ function debtInput(
 function annualInputs(
   artifact: FinancialStatementsArtifact,
   revenueFact: FinancialStatementFact,
+  anchored = true,
 ): ValuationPeriodInputs {
   const { incomeStatement, balanceSheet, cashFlowStatement, perShare } = artifact.statements;
   const { periodEnd, periodKey, periodType } = revenueFact;
-  const revenue = factInput("Revenue", revenueFact);
   const netIncomeFact = financialStatementFactForPeriod(
     financialStatementFacts(incomeStatement.netIncome),
     periodKey,
@@ -339,34 +343,84 @@ function annualInputs(
   const hasContinuing = (series: FinancialStatementSeries) =>
     financialStatementFactForPeriod(financialStatementFacts(series), periodKey, periodType) !==
     undefined;
-  const netIncome =
-    netIncomeFact === undefined
-      ? undefined
-      : factInput("Net income", netIncomeFact, hasContinuing(incomeStatement.continuingIncome));
   const earlierShareBasis = (["dilutedEps", "dilutedShares"] as const).filter((key) =>
     earlierShareBasisPeriods(artifact.omissionNotes, key).has(periodKey),
   );
-  const dilutedEps =
-    dilutedEpsFact === undefined || earlierShareBasis.includes("dilutedEps")
-      ? undefined
-      : factInput("Diluted EPS", dilutedEpsFact, hasContinuing(perShare.continuingDilutedEps));
-  const directShares =
-    dilutedSharesFact === undefined || earlierShareBasis.includes("dilutedShares")
-      ? undefined
-      : factInput("Diluted weighted-average shares", dilutedSharesFact);
-  const operatingCashFlow =
-    operatingCashFlowFact === undefined
-      ? undefined
-      : factInput("Operating cash flow", operatingCashFlowFact);
-  const capitalExpenditure =
-    capitalExpenditureFact === undefined
-      ? undefined
-      : factInput("Capital expenditure", capitalExpenditureFact);
-  const publicAt = latest(
-    [revenue, netIncome, dilutedEps, directShares, operatingCashFlow, capitalExpenditure].flatMap(
-      (input) => (input === undefined ? [] : [input.publicAt]),
-    ),
+  const flowFacts = {
+    revenue: revenueFact,
+    netIncome: netIncomeFact,
+    dilutedEps: dilutedEpsFact,
+    dilutedShares: dilutedSharesFact,
+    operatingCashFlow: operatingCashFlowFact,
+    capitalExpenditure: capitalExpenditureFact,
+  };
+  const census = anchored ? artifact.firstAnnualReports : undefined;
+  const firstFiledAt = anchored
+    ? census === undefined
+      ? // Pre-census artifacts only: a restated fact dates its period from the filing it restated.
+        Object.values(flowFacts)
+          .flatMap((fact) =>
+            fact === undefined ? [] : [fact.restatedFrom?.filedAt ?? fact.firstPublicAt],
+          )
+          .toSorted()[0]
+      : census.find((report) => financialStatementPeriodKey(report) === periodKey)?.filedAt
+    : undefined;
+  const firstAnnualReportUnavailable = census !== undefined && firstFiledAt === undefined;
+  const restatedAfterFirstFiling = (Object.keys(flowFacts) as (keyof typeof flowFacts)[]).filter(
+    (key) =>
+      firstFiledAt !== undefined &&
+      (flowFacts[key]?.firstPublicAt ?? "") > firstFiledAt &&
+      !(earlierShareBasis as readonly string[]).includes(key),
   );
+  const usable = <Key extends keyof typeof flowFacts>(key: Key) =>
+    firstAnnualReportUnavailable ||
+    restatedAfterFirstFiling.includes(key) ||
+    (earlierShareBasis as readonly string[]).includes(key)
+      ? undefined
+      : flowFacts[key];
+  const revenueInput = usable("revenue");
+  const revenue = revenueInput === undefined ? undefined : factInput("Revenue", revenueInput);
+  const netIncomeInput = usable("netIncome");
+  const netIncome =
+    netIncomeInput === undefined
+      ? undefined
+      : factInput("Net income", netIncomeInput, hasContinuing(incomeStatement.continuingIncome));
+  const dilutedEpsInput = usable("dilutedEps");
+  const dilutedEps =
+    dilutedEpsInput === undefined
+      ? undefined
+      : factInput("Diluted EPS", dilutedEpsInput, hasContinuing(perShare.continuingDilutedEps));
+  const directSharesInput = usable("dilutedShares");
+  const directShares =
+    directSharesInput === undefined
+      ? undefined
+      : factInput("Diluted weighted-average shares", directSharesInput);
+  const operatingCashFlowInput = usable("operatingCashFlow");
+  const operatingCashFlow =
+    operatingCashFlowInput === undefined
+      ? undefined
+      : factInput("Operating cash flow", operatingCashFlowInput);
+  const capitalExpenditureInput = usable("capitalExpenditure");
+  const capitalExpenditure =
+    capitalExpenditureInput === undefined
+      ? undefined
+      : factInput("Capital expenditure", capitalExpenditureInput);
+  const publicAt =
+    firstFiledAt ??
+    latest(
+      firstAnnualReportUnavailable
+        ? Object.values(flowFacts).flatMap((fact) =>
+            fact === undefined ? [] : [fact.firstPublicAt],
+          )
+        : [
+            revenue,
+            netIncome,
+            dilutedEps,
+            directShares,
+            operatingCashFlow,
+            capitalExpenditure,
+          ].flatMap((input) => (input === undefined ? [] : [input.publicAt])),
+    );
   const cashFact = latestFinancialStatementFact(
     financialStatementFacts(balanceSheet.cash).filter(
       (fact) => fact.periodEnd <= periodEnd && fact.firstPublicAt <= publicAt,
@@ -377,18 +431,22 @@ function annualInputs(
       (fact) => fact.periodEnd <= periodEnd && fact.firstPublicAt <= publicAt,
     ),
   );
+  // NI / rounded EPS never replaces a filed count withheld for restatement (JPM preferred, LTRX rounding).
   const dilutedShares =
     directShares ??
-    deriveShares(
-      netIncome,
-      dilutedEps,
-      netIncomeFact !== undefined && isParentIncome(netIncomeFact),
-    );
+    (restatedAfterFirstFiling.includes("dilutedShares")
+      ? undefined
+      : deriveShares(
+          netIncome,
+          dilutedEps,
+          netIncomeInput !== undefined && isParentIncome(netIncomeInput),
+        ));
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   return {
     basis: "annual",
     periodEnd,
-    revenue,
+    periodKey,
+    ...(revenue !== undefined ? { revenue } : {}),
     ...(netIncome !== undefined ? { netIncome } : {}),
     ...(dilutedEps !== undefined ? { dilutedEps } : {}),
     ...(dilutedShares !== undefined ? { dilutedShares } : {}),
@@ -396,8 +454,14 @@ function annualInputs(
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(earlierShareBasis.length > 0 ? { earlierShareBasis } : {}),
+    ...(anchored ? { rowPublicAt: publicAt } : {}),
+    ...(restatedAfterFirstFiling.length > 0 ? { restatedAfterFirstFiling } : {}),
+    ...(firstAnnualReportUnavailable ? { firstAnnualReportUnavailable } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...debtInput(artifact, debtFact, cashFact, publicAt, revenue),
+    ...debtInput(artifact, debtFact, cashFact, publicAt, {
+      periodEnd,
+      firstPublicAt: revenue?.publicAt ?? publicAt,
+    }),
     ...bridgeInput(artifact, cashFact, publicAt),
   };
 }
@@ -425,7 +489,7 @@ function periodInputsFromTtm(
 ): ValuationPeriodInputs {
   if (values.revenue.formula === "FY") {
     // The fiscal year's own facts, including filed diluted shares rather than NI / rounded EPS.
-    const annual = annualInputs(artifact, values.revenue.components.fiscalYear);
+    const annual = annualInputs(artifact, values.revenue.components.fiscalYear, false);
     return { ...annual, basis: "ttm", revenue: { ...annual.revenue!, derivation: "FY" } };
   }
   const { balanceSheet } = artifact.statements;
@@ -509,7 +573,10 @@ function periodInputsFromTtm(
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...debtInput(artifact, debtFact, cashFact, publicAt, revenue),
+    ...debtInput(artifact, debtFact, cashFact, publicAt, {
+      periodEnd: revenue.periodEnd,
+      firstPublicAt: revenue.publicAt,
+    }),
     ...bridgeInput(artifact, cashFact, publicAt),
   };
 }
@@ -607,9 +674,13 @@ function uniquePeriodInputs(
     // A TTM ending at a fiscal-year end is that FY (formula "FY"); the TTM row stands for both.
     const coveredByTtm =
       value.basis === "annual" &&
+      transitionMonths(value) === undefined &&
       values.some((other) => other.basis === "ttm" && other.periodEnd === value.periodEnd);
     if (!coveredByTtm) {
-      byKey.set(`${value.basis}|${value.periodEnd}|${periodPublicAt(value)}`, value);
+      byKey.set(
+        `${value.basis}|${value.periodKey ?? value.periodEnd}|${periodPublicAt(value)}`,
+        value,
+      );
     }
   }
   return [...byKey.values()].toSorted(
@@ -619,15 +690,24 @@ function uniquePeriodInputs(
   );
 }
 
+// A fiscal-year transition span shares its end date with the full year beside it.
+export function transitionMonths(inputs: ValuationPeriodInputs): string | undefined {
+  const months = /^duration:(\d+)\|/u.exec(inputs.periodKey ?? "")?.[1];
+  return months === undefined || months === "12" ? undefined : months;
+}
+
 export function periodPublicAt(inputs: ValuationPeriodInputs): string {
-  return latest(
-    Object.entries(inputs)
-      .filter(([key]) => key !== "operatingCashFlow" && key !== "capitalExpenditure")
-      .flatMap(([, input]) =>
-        typeof input === "object" && input !== null && "publicAt" in input
-          ? [input.publicAt as string]
-          : [],
-      ),
+  return (
+    inputs.rowPublicAt ??
+    latest(
+      Object.entries(inputs)
+        .filter(([key]) => key !== "operatingCashFlow" && key !== "capitalExpenditure")
+        .flatMap(([, input]) =>
+          typeof input === "object" && input !== null && "publicAt" in input
+            ? [input.publicAt as string]
+            : [],
+        ),
+    )
   );
 }
 

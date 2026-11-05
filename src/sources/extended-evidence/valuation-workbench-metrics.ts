@@ -11,7 +11,11 @@ import type {
   FinancialStatementsArtifact,
   FinancialStatementSeriesKey,
 } from "./financial-statements-contract";
-import { periodPublicAt, type ValuationPeriodInputs } from "./valuation-workbench-inputs";
+import {
+  periodPublicAt,
+  transitionMonths,
+  type ValuationPeriodInputs,
+} from "./valuation-workbench-inputs";
 import type {
   ValuationFundamentalInput,
   ValuationMetricKey,
@@ -23,6 +27,27 @@ const DENOMINATOR_LABELS = {
   freeCashFlow: "free-cash-flow",
   revenue: "revenue",
 } as const;
+
+function withheldReason(
+  period: ValuationPeriodInputs,
+  keys: readonly FinancialStatementSeriesKey[],
+):
+  | "earlier-share-basis"
+  | "restated-after-first-filing"
+  | "first-annual-report-unavailable"
+  | undefined {
+  if (
+    keys.some((key) => (period.earlierShareBasis as readonly string[] | undefined)?.includes(key))
+  ) {
+    return "earlier-share-basis";
+  }
+  if (period.firstAnnualReportUnavailable === true) {
+    return "first-annual-report-unavailable";
+  }
+  return keys.some((key) => period.restatedAfterFirstFiling?.includes(key))
+    ? "restated-after-first-filing"
+    : undefined;
+}
 
 function notMeaningfulReason(value: number) {
   if (!Number.isFinite(value)) {
@@ -167,11 +192,11 @@ export function valuationMetricSection(input: {
             return missing("mixed-period-balance-sheet");
           }
         }
-        const sharesOnEarlierBasis =
-          needsShares &&
-          period.dilutedShares === undefined &&
-          period.earlierShareBasis?.includes("dilutedShares") === true;
-        if (needsShares && period.dilutedShares === undefined && !sharesOnEarlierBasis) {
+        const sharesWithheld =
+          needsShares && period.dilutedShares === undefined
+            ? withheldReason(period, ["dilutedShares"])
+            : undefined;
+        if (needsShares && period.dilutedShares === undefined && sharesWithheld === undefined) {
           const unfiledPartner = ["netIncome", "dilutedEps"].find((key) =>
             input.statements?.unfiledSeries?.includes(key as FinancialStatementSeriesKey),
           );
@@ -199,18 +224,19 @@ export function valuationMetricSection(input: {
         if (price.currency !== reportingCurrency && fx === undefined) {
           return missing("fx-rate-unavailable");
         }
-        if (sharesOnEarlierBasis) {
-          return missing("earlier-share-basis");
+        if (sharesWithheld !== undefined) {
+          return missing(sharesWithheld);
         }
         const denominator = period[denominatorKey];
         if (denominator === undefined) {
-          if (denominatorKey === "dilutedEps" && period.earlierShareBasis?.includes("dilutedEps")) {
-            return missing("earlier-share-basis");
-          }
           const keys: readonly FinancialStatementSeriesKey[] =
             denominatorKey === "freeCashFlow"
               ? ["operatingCashFlow", "capitalExpenditure"]
               : [denominatorKey];
+          const withheld = withheldReason(period, keys);
+          if (withheld !== undefined) {
+            return missing(withheld);
+          }
           const absent = keys.filter((key) => !lineage.some((row) => row.series === key));
           return missing(`${DENOMINATOR_LABELS[denominatorKey]}-unavailable`, absent);
         }
@@ -260,9 +286,10 @@ export function valuationMetricSection(input: {
       },
     }),
   );
+  const span = transitionMonths(period);
   return evaluateMetricSection(
-    `valuation-workbench-${period.basis}-${period.periodEnd}-${publicAt}`,
-    `Valuation Workbench ${period.basis.toUpperCase()} ${period.periodEnd} public ${publicAt}`,
+    `valuation-workbench-${period.basis}-${period.periodEnd}-${publicAt}${span === undefined ? "" : `-${span}m`}`,
+    `Valuation Workbench ${period.basis.toUpperCase()} ${period.periodEnd}${span === undefined ? "" : ` (${span} months)`} public ${publicAt}`,
     definitions,
     { symbol: input.symbol },
   );

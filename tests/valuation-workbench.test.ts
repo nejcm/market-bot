@@ -410,6 +410,44 @@ function lateShareBasisArtifact(
   );
 }
 
+function restatedFy2023(
+  artifact: FinancialStatementsArtifact,
+  restated: Partial<Record<"revenue" | "dilutedEps" | "dilutedShares", number>>,
+): FinancialStatementsArtifact {
+  const restate = (original: FinancialStatementSeries): FinancialStatementSeries => {
+    const value = restated[original.key as keyof typeof restated];
+    return value === undefined
+      ? original
+      : {
+          ...original,
+          annual: original.annual.map((item, index) =>
+            index === 0
+              ? {
+                  ...item,
+                  value,
+                  filedAt: "2025-02-15",
+                  firstPublicAt: "2025-02-15",
+                  restatedFrom: { value: item.value, filedAt: item.firstPublicAt },
+                }
+              : item,
+          ),
+        };
+  };
+  const { incomeStatement, perShare } = artifact.statements;
+  return {
+    ...artifact,
+    statements: {
+      ...artifact.statements,
+      incomeStatement: { ...incomeStatement, revenue: restate(incomeStatement.revenue) },
+      perShare: {
+        ...perShare,
+        dilutedEps: restate(perShare.dilutedEps),
+        dilutedShares: restate(perShare.dilutedShares),
+      },
+    },
+  };
+}
+
 describe("valuation workbench", () => {
   test("dates rows and balance-sheet joins to the first filing of each selected value", () => {
     const artifact = buildValuationWorkbench({
@@ -491,6 +529,74 @@ describe("valuation workbench", () => {
       priceToSales: { status: "value", value: 2 },
       enterpriseValueToRevenue: { status: "value", value: 2.05 },
       priceToFreeCashFlow: { status: "value", value: 20 },
+    });
+  });
+
+  describe("annual rows priced at the period's first filing", () => {
+    test("withholds revenue restated later and prices EPS at the first filing's close", async () => {
+      const result = await evaluateWorkbench({
+        generatedAt: "2025-06-01T00:00:00.000Z",
+        symbol: "TEST",
+        financialStatements: restatedFy2023(statements(), { revenue: 90 }),
+        priceHistory: [
+          { date: "2024-02-15", close: 20 },
+          { date: "2025-02-18", close: 24 },
+          { date: "2025-05-01", close: 26 },
+        ],
+        priceSourceId: "verified-snapshot-TEST",
+        quoteCurrency: "USD",
+      });
+      const [first] = result.artifact.historicalMultiples.observations;
+      const withheld = { status: "missing", reason: "restated-after-first-filing" };
+
+      expect([first?.publicAt, first?.price?.sessionDate, first?.inputs.revenue]).toEqual([
+        "2024-02-15",
+        "2024-02-15",
+        undefined,
+      ]);
+      expect(first?.metrics).toMatchObject({
+        priceToEarnings: { status: "value", value: 20 },
+        priceToSales: withheld,
+        enterpriseValueToRevenue: withheld,
+        priceToFreeCashFlow: { status: "value", value: 20 },
+      });
+      expect(result.sourceGaps.map(({ source, triage }) => ({ source, triage }))).toEqual([
+        { source: "valuation-workbench-annual-2023-12-31-2024-02-15", triage: "material" },
+      ]);
+    });
+
+    test("withholds split-restated per-share values rather than pricing them late", () => {
+      const [first, ...rest] = workbenchMetrics(
+        restatedFy2023(statements(), { dilutedEps: 0.25, dilutedShares: 40 }),
+      );
+      const withheld = { status: "missing", reason: "restated-after-first-filing" };
+
+      expect(first?.[1]).toMatchObject({
+        priceToEarnings: withheld,
+        priceToSales: withheld,
+        enterpriseValueToRevenue: withheld,
+        priceToFreeCashFlow: withheld,
+      });
+      expect(rest).toEqual(workbenchMetrics(statements()).slice(1));
+    });
+
+    test("withholds a restated share count with clean NI and EPS instead of deriving one", () => {
+      const restated = restatedFy2023(statements(), { dilutedShares: 40 });
+      const [first] = workbenchMetrics(restated);
+      const withheld = { status: "missing", reason: "restated-after-first-filing" };
+
+      expect(valuationPeriodInputs(restated).periods[0]).toMatchObject({
+        restatedAfterFirstFiling: ["dilutedShares"],
+        netIncome: { value: expect.any(Number) },
+        dilutedEps: { value: expect.any(Number) },
+      });
+      expect(valuationPeriodInputs(restated).periods[0]?.dilutedShares).toBeUndefined();
+      expect(first?.[1]).toMatchObject({
+        priceToEarnings: { status: "value" },
+        priceToSales: withheld,
+        enterpriseValueToRevenue: withheld,
+        priceToFreeCashFlow: withheld,
+      });
     });
   });
 

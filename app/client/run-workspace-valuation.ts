@@ -1,6 +1,7 @@
 import type { MetricResult } from "../../src/sources/extended-evidence/metric-engine";
 import {
   hasNoPriceHistory,
+  observationBasisLabel,
   valuationMetricDisplay,
   valuationScopeDisclosure,
 } from "../../src/report/valuation-workbench-markdown";
@@ -276,7 +277,7 @@ export function valuationWorkbenchView(
   return {
     reportingCurrency: artifact.reportingCurrency ?? "unavailable",
     quoteCurrency: artifact.quoteCurrency ?? "unavailable",
-    priceSelectionRule: `Selected (possibly restated) fundamentals, publicAt the first filing that reported each value, priced at the ${artifact.historicalMultiples.priceSelectionRule}`,
+    priceSelectionRule: `Annual rows at the period's first annual report (earliest 10-K, 20-F or 40-F filing a fiscal-year figure for it), inputs first filed after it withheld; TTM rows at the first filing of each selected value; priced at the ${artifact.historicalMultiples.priceSelectionRule}`,
     trailingDisclosure:
       trailingBasis.status === "available"
         ? `${trailingBasis.fiscalYearLabel ?? "Reconciled TTM"} through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
@@ -285,7 +286,7 @@ export function valuationWorkbenchView(
     rows: observations
       .filter((observation) => !hasNoPriceHistory(observation))
       .map((observation) => ({
-        basis: observation.basis.toUpperCase(),
+        basis: observationBasisLabel(observation),
         periodEnd: observation.periodEnd,
         publicAt: observation.publicAt,
         price:
@@ -306,7 +307,7 @@ export function valuationWorkbenchView(
       })),
     unpricedPeriods: observations
       .filter((observation) => hasNoPriceHistory(observation))
-      .map((observation) => `${observation.basis.toUpperCase()} ${observation.periodEnd}`),
+      .map((observation) => `${observationBasisLabel(observation)} ${observation.periodEnd}`),
     suppressionReasons: artifact.historicalMultiples.suppressionReasons,
     peerSupportability,
     ...(artifact.peerComparison.status === "suppressed"

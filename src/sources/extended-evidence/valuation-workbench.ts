@@ -10,6 +10,7 @@ import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import {
   periodPublicAt,
+  transitionMonths,
   unique,
   valuationPeriodInputs,
   type ValuationPeriodInputs,
@@ -86,6 +87,7 @@ function observation(
   readonly sourceGaps: readonly SourceGap[];
 } {
   const publicAt = periodPublicAt(periodInputs);
+  const periodMonths = transitionMonths(periodInputs);
   const price = selectedPrice(input, publicAt);
   const reportingCurrency = input.financialStatements?.reportingCurrency;
   const fxCandidate = price === null ? undefined : fxClosesByPriceDate[price.sessionDate];
@@ -145,6 +147,7 @@ function observation(
     observation: {
       basis: periodInputs.basis,
       periodEnd: periodInputs.periodEnd,
+      ...(periodMonths === undefined ? {} : { periodMonths: Number(periodMonths) }),
       publicAt,
       price,
       ...(fxClose !== undefined

@@ -6,11 +6,15 @@ import {
   SERIES_LABELS,
   statementInput,
 } from "./capital-return";
-import { CAPEX_SCOPE_CAVEAT, NEGATIVE_CAPEX_REASON } from "./financial-statement-definitions";
+import {
+  CAPEX_SCOPE_CAVEAT,
+  DEBT_SCOPE_CAVEAT,
+  NEGATIVE_CAPEX_REASON,
+} from "./financial-statement-definitions";
 import { shortTermInvestmentsAt } from "./financial-lens-sections";
 import type { SecIssuerRegistration } from "./industry-classification";
 import type { FinancialStatementFact } from "./financial-statements-contract";
-import { heldForSaleRecast } from "./sec-debt";
+import { debtScopeUnproven, heldForSaleRecast } from "./sec-debt";
 import {
   financialStatementFactForPeriod,
   financialStatementFacts,
@@ -321,11 +325,17 @@ function roic(ctx: MetricContext): MetricOutcome {
     const statutory =
       effective < 0 || effective > 1 ? usStatutoryRateOf(ctx, operatingIncome!) : undefined;
     const taxRate = statutory !== undefined && "rate" in statutory ? statutory.rate : effective;
+    const basis = [
+      ROIC_BASIS,
+      ...(statutory !== undefined && "basis" in statutory ? [statutory.basis] : []),
+      ...(ctx.statements !== undefined &&
+      debtScopeUnproven(ctx.statements, debt!, operatingIncome!) !== undefined
+        ? [DEBT_SCOPE_CAVEAT]
+        : []),
+    ];
     return {
       status: "value",
-      ...(statutory !== undefined && "basis" in statutory
-        ? { basis: `${ROIC_BASIS}; ${statutory.basis}` }
-        : {}),
+      ...(basis.length > 1 ? { basis: basis.join("; ") } : {}),
       value:
         (operatingIncome!.value * (1 - taxRate)) /
         (equity!.value + debt!.value - cash!.value - shortTermInvestments.value!),

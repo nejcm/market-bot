@@ -207,7 +207,7 @@ function peerReferenceRangeLine(
 
 function inputScopeDisclosure(
   observations: readonly HistoricalValuationObservation[],
-  key: "freeCashFlow" | "dilutedEps",
+  key: "freeCashFlow" | "dilutedEps" | "debt",
   prefix: string,
 ): string | undefined {
   const scoped = observations.flatMap((observation) => {
@@ -239,6 +239,7 @@ export function valuationScopeDisclosure(
   const parts = [
     inputScopeDisclosure(observations, "dilutedEps", "P/E uses diluted EPS"),
     freeCashFlowScopeDisclosure(observations),
+    inputScopeDisclosure(observations, "debt", "EV/revenue uses debt"),
   ].filter((part) => part !== undefined);
   return parts.length === 0 ? undefined : parts.join("; ");
 }

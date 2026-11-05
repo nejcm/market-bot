@@ -58,6 +58,8 @@ import {
 import {
   type DebtFactReader,
   debtAliasesTagged,
+  debtScopeUnprovenNotes,
+  isUnprovenDebtNote,
   factsForDebt,
   withheldGrossPrincipalDebt,
 } from "./sec-debt";
@@ -2705,7 +2707,14 @@ function selectSeries(
   }
   const withGross =
     taxonomy === "us-gaap" ? withheldGrossPrincipalDebt(debtReader, selected, eligible) : selected;
-  return { ...withGross, omissionNotes: [...withGross.omissionNotes, ...debt.notes] };
+  const withNotes = { ...withGross, omissionNotes: [...withGross.omissionNotes, ...debt.notes] };
+  return {
+    ...withNotes,
+    omissionNotes: [
+      ...withNotes.omissionNotes,
+      ...debtScopeUnprovenNotes(debtReader, taxonomy, eligible, withNotes),
+    ],
+  };
 }
 
 function recentSubmissionSixKFilings(
@@ -3387,25 +3396,28 @@ export function deriveFinancialStatements(
       ...shareBasisTtm.flatMap((item) => (item.note === undefined ? [] : [item.note])),
       ...incompleteFinancialStatementNotes(series),
     ],
-    omissionNotes: withinRetainedWindow(series, [
-      ...selected.flatMap((item) => item.omissionNotes),
-      ...capNotes,
-      ...withheldDerivationNotes(selected, statements.incomeStatement),
-      ...untaggedContinuingIncomeNotes(
-        payload,
-        taxonomy,
-        input.analysisAsOf,
-        statements.incomeStatement,
-      ),
-      ...untaggedConsolidatedIncomeNotes(
-        payload,
-        taxonomy,
-        input.analysisAsOf,
-        statements.incomeStatement,
-      ),
-      ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
-      ...shareBasisNotes,
-    ]),
+    omissionNotes: withRetainedDebtScopeNotes(
+      statements.balanceSheet.debt,
+      withinRetainedWindow(series, [
+        ...selected.flatMap((item) => item.omissionNotes),
+        ...capNotes,
+        ...withheldDerivationNotes(selected, statements.incomeStatement),
+        ...untaggedContinuingIncomeNotes(
+          payload,
+          taxonomy,
+          input.analysisAsOf,
+          statements.incomeStatement,
+        ),
+        ...untaggedConsolidatedIncomeNotes(
+          payload,
+          taxonomy,
+          input.analysisAsOf,
+          statements.incomeStatement,
+        ),
+        ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
+        ...shareBasisNotes,
+      ]),
+    ),
     structuredFinancialGaps: structuredFinancialGaps(
       taxonomy,
       reportingCurrency,
@@ -3414,6 +3426,18 @@ export function deriveFinancialStatements(
       input,
     ),
   };
+}
+
+// A scope note stands only on a published debt fact filed before the recast.
+function withRetainedDebtScopeNotes(
+  debt: FinancialStatementSeries,
+  notes: readonly FinancialStatementNote[],
+): readonly FinancialStatementNote[] {
+  const facts = financialStatementFacts(debt);
+  return notes.filter(
+    (note) =>
+      note.code !== "debt-scope-unproven" || facts.some((fact) => isUnprovenDebtNote(note, fact)),
+  );
 }
 
 function noteShape(key: string): "instant" | "duration" {

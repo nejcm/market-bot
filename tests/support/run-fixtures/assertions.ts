@@ -43,6 +43,7 @@ import {
 import {
   CAPEX_SCOPE_CAVEAT,
   conceptScope,
+  DEBT_SCOPE_CAVEAT,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
@@ -2452,6 +2453,17 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
   }
   expect(result.markdown).toContain(
     "Interim ending 2026-06-30 (latest filed 2026-08-06) | 20.4M | 0 | 13.7M",
+  );
+  // FY2023 debt 2,112K predates the recast 10-K (0001171843-25-007594) that restated its revenue.
+  const scoped = (valuationWorkbench?.historicalMultiples.observations ?? []).filter(
+    ({ metrics }) => metrics.enterpriseValueToRevenue?.basis?.includes(DEBT_SCOPE_CAVEAT),
+  );
+  expect(scoped.map(({ basis, periodEnd }) => `${basis}|${periodEnd}`)).toEqual([
+    "annual|2023-09-30",
+  ]);
+  expect(scoped[0]?.metrics.enterpriseValueToRevenue?.status).toBe("value");
+  expect(result.markdown).toContain(
+    `EV/revenue uses debt (${DEBT_SCOPE_CAVEAT}) for annual 2023-09-30`,
   );
 }
 

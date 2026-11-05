@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.4](https://github.com/nejcm/market-bot/compare/v1.12.3...v1.12.4) (2026-11-05)
+
+### Bug Fixes
+
+- **synthesis:** fix every malformed metric reference in one repair (#137) ([6c9b209](https://github.com/nejcm/market-bot/commit/6c9b209d8379f8a3e696b4871ead9e82c3c9e9e0))
+- **grid:** issue events only when each leg's closes were collected (#136) ([19e4cd2](https://github.com/nejcm/market-bot/commit/19e4cd2d2f7b5cdb5364a2b35c06a71f846fa6e7))
+
 ## [1.12.3](https://github.com/nejcm/market-bot/compare/v1.12.2...v1.12.3) (2026-11-05)
 
 ### Bug Fixes

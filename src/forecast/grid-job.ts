@@ -15,7 +15,12 @@ import { withUntrustedModelInputRule } from "../model/trust-guard";
 import type { ModelParams, ModelProvider, ModelRequest } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
-import { eventGrid, issueForecastBook, plannedEventGridIds } from "../research/event-grid";
+import {
+  eventGrid,
+  issuableGridEvents,
+  issueForecastBook,
+  plannedEventGridIds,
+} from "../research/event-grid";
 import { loadStagePrompt, type LoadedPrompt } from "../research/prompt-loader";
 import { verifiedSnapshotSource } from "../research/verified-snapshot-contract";
 import { readJsonFile } from "../run-artifact-json-reader";
@@ -458,7 +463,12 @@ async function gridForSymbol(input: {
     ...collected.sources,
     ...(snapshot !== undefined ? [verifiedSnapshotSource(snapshot)] : []),
   ];
-  const { events } = eventGrid(command, gridSources);
+  const knownSourceIds = new Set(sources.map((source) => source.id));
+  const events = issuableGridEvents(
+    eventGrid(command, gridSources).events,
+    knownSourceIds,
+    gridSources,
+  );
   const priced: PricedGrid =
     events.length > 0
       ? await priceModelGrid({ ...input, command, priceHistory: collected.priceHistory, events })
@@ -468,7 +478,7 @@ async function gridForSymbol(input: {
     collectedSources: gridSources,
     modelPredictions: [],
     modelEventGrid: priced.eventGrid,
-    knownSourceIds: new Set(sources.map((source) => source.id)),
+    knownSourceIds,
     generatedAt: now.toISOString(),
     pricedBy: "the forecast-grid model",
   });

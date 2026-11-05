@@ -113,7 +113,7 @@ const priorAmdReportGapTexts = [
   compoundHistoricalGap,
   ...priorAmdGapTexts,
   "event-grid: Event Grid range events not issued: the ±1σ range reference that defines their bounds is unavailable [AMD]",
-  "event-grid: Event Grid event grid-relative-5 not issued: none of its close sources were collected [AMD]",
+  "event-grid: Event Grid event grid-relative-5 not issued: no close source was collected for AMD, SPY",
 ];
 const historicalDataGapLimit = 8;
 

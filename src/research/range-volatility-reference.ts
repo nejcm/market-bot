@@ -51,10 +51,10 @@ export function rangeReferenceBand(
     return undefined;
   }
   const move = reference.sigma * Math.sqrt(horizon);
-  return [
-    Number((reference.spot * Math.exp(-move)).toFixed(2)),
-    Number((reference.spot * Math.exp(move)).toFixed(2)),
-  ];
+  const lo = Number((reference.spot * Math.exp(-move)).toFixed(2));
+  const hi = Number((reference.spot * Math.exp(move)).toFixed(2));
+  // A band that rounds to zero width cannot be stated: the range grammar requires lo < hi.
+  return lo < hi ? [lo, hi] : undefined;
 }
 
 const ymd = (time: number) => new Date(time).toISOString().slice(0, 10);

@@ -144,7 +144,7 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   the first session on or after the run date, so a premarket or weekend run adds one; about 0.48 at +1),
   stated as a base rate, not a default, assuming complete US exchange sessions, and omitted when the
   latest session is unverified, the listing is non-US or volatility is zero. A repair attempt
-  that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, uncollected close sources,
+  that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, a leg (each symbol in the expression) with none of the event's close sources for it collected,
   crypto runs and SPY's own relative event each leave the event unissued and declare an `event-grid` data
   gap. A model Prediction identical to an issuable grid event (same id or `claimKey`) is folded into the
   grid: the event is issued as `origin: "grid"` under its grid id with the model's `eventGrid` probability

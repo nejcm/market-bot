@@ -9,7 +9,12 @@ import {
   type BaselineClose,
   type ForecastBaselineUnavailableReason,
 } from "../forecast/baseline";
-import { claimKey, parseObservableExpression, renderClaim } from "../forecast/observable";
+import {
+  claimKey,
+  instrumentsForMeasurableAs,
+  parseObservableExpression,
+  renderClaim,
+} from "../forecast/observable";
 import type { CollectedSources } from "../sources/types";
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 import { isRecord } from "../guards";
@@ -89,8 +94,14 @@ export function eventGrid(
       ),
     );
   } else {
+    const degenerate: string[] = [];
     for (const horizon of GRID_RANGE_HORIZONS) {
-      const [lo, hi] = rangeReferenceBand(reference, horizon)!;
+      const band = rangeReferenceBand(reference, horizon);
+      if (band === undefined) {
+        degenerate.push(`grid-range-${String(horizon)}`);
+        continue;
+      }
+      const [lo, hi] = band;
       events.push({
         id: `grid-range-${String(horizon)}`,
         kind: "range",
@@ -99,6 +110,14 @@ export function eventGrid(
         horizonTradingDays: horizon,
         sourceIds: [verifiedMarketSnapshotSourceId(symbol), priceHistorySourceId(symbol)],
       });
+    }
+    if (degenerate.length > 0) {
+      gaps.push(
+        gridGap(
+          symbol,
+          `Event Grid events not issued: the ±1σ band rounds to zero width for ${degenerate.join(", ")}`,
+        ),
+      );
     }
   }
   if (symbol === GRID_BENCHMARK) {
@@ -125,8 +144,43 @@ export function eventGrid(
 export function issuableGridEvents(
   events: readonly EventGridEvent[],
   knownSourceIds: ReadonlySet<string>,
+  collectedSources: GridSources,
 ): readonly EventGridEvent[] {
-  return events.filter((event) => event.sourceIds.some((id) => knownSourceIds.has(id)));
+  const closeSourceIds = collectedCloseSourceIds(knownSourceIds, collectedSources);
+  return events.filter((event) => unissuableReason(event, closeSourceIds) === undefined);
+}
+
+// A price-history Source is published even when it returned no bars.
+function collectedCloseSourceIds(
+  knownSourceIds: ReadonlySet<string>,
+  collectedSources: GridSources,
+): ReadonlySet<string> {
+  const empty = new Set(
+    (collectedSources.priceHistory ?? [])
+      .filter(({ bars }) => !bars.some((bar) => bar.completed))
+      .map(({ sourceId }) => sourceId),
+  );
+  return new Set([...knownSourceIds].filter((id) => !empty.has(id)));
+}
+
+// Fails closed: an expression whose symbols do not parse cannot be resolved by the scorer.
+function unissuableReason(
+  event: EventGridEvent,
+  knownSourceIds: ReadonlySet<string>,
+): string | undefined {
+  const legs = instrumentsForMeasurableAs(event.measurableAs);
+  if (legs.length === 0) {
+    return `its expression ${event.measurableAs} does not parse`;
+  }
+  const uncollected = legs.filter(
+    (symbol) =>
+      ![verifiedMarketSnapshotSourceId(symbol), priceHistorySourceId(symbol)].some(
+        (id) => event.sourceIds.includes(id) && knownSourceIds.has(id),
+      ),
+  );
+  return uncollected.length > 0
+    ? `no close source was collected for ${uncollected.join(", ")}`
+    : undefined;
 }
 
 function primarySymbol(event: EventGridEvent): string {
@@ -198,7 +252,8 @@ export function issueForecastBook(input: {
   const gaps: SourceGap[] = [...grid.gaps];
   const pModel = modelGridProbabilities(input.modelEventGrid);
   const restated = new Map<string, Prediction>();
-  const issuable = issuableGridEvents(grid.events, input.knownSourceIds);
+  const closeSourceIds = collectedCloseSourceIds(input.knownSourceIds, input.collectedSources);
+  const issuable = issuableGridEvents(grid.events, input.knownSourceIds, input.collectedSources);
   const modelPredictions = input.modelPredictions.filter((prediction) => {
     const event = issuable.find(
       (candidate) =>
@@ -216,14 +271,12 @@ export function issueForecastBook(input: {
   const unpriced: string[] = [];
   const gridPredictions: Prediction[] = [];
   for (const event of grid.events) {
-    const sourceIds = event.sourceIds.filter((id) => input.knownSourceIds.has(id));
+    const sourceIds = event.sourceIds.filter((id) => closeSourceIds.has(id));
     const probability = pModel.get(event.id) ?? restated.get(event.id)?.probability;
-    if (sourceIds.length === 0) {
+    const unissuable = unissuableReason(event, closeSourceIds);
+    if (unissuable !== undefined) {
       gaps.push(
-        gridGap(
-          primarySymbol(event),
-          `Event Grid event ${event.id} not issued: none of its close sources were collected`,
-        ),
+        gridGap(primarySymbol(event), `Event Grid event ${event.id} not issued: ${unissuable}`),
       );
     } else if (probability === undefined) {
       unpriced.push(event.id);

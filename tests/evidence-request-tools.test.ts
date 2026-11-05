@@ -684,6 +684,59 @@ describe("SEC latest filing evidence tool", () => {
     expect(requested).not.toContain("sec-calculation-linkbase");
   });
 
+  test("reads the current 10-Q's own calculation linkbase", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-Q"],
+          filingDate: ["2026-05-01"],
+          reportDate: ["2026-03-31"],
+          accessionNumber: ["0000320193-26-000077"],
+          primaryDocument: ["a10q.htm"],
+        },
+      },
+    };
+    const cal = `<link:calculationLink xlink:role="cf"><link:loc xlink:label="NetCashProvidedByUsedInOperatingActivities" xlink:href="aapl.xsd#us-gaap_NetCashProvidedByUsedInOperatingActivities"/><link:loc xlink:label="DepreciationDepletionAndAmortization" xlink:href="aapl.xsd#us-gaap_DepreciationDepletionAndAmortization"/><link:calculationArc xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" xlink:from="NetCashProvidedByUsedInOperatingActivities" xlink:to="DepreciationDepletionAndAmortization" weight="1"/></link:calculationLink>`;
+    const requested: string[] = [];
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ url, adapter }) => {
+            requested.push(url);
+            if (adapter === "sec-xbrl-schema") {
+              return textResult(
+                adapter,
+                `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:linkbaseRef xlink:href="aapl_cal.xml" xlink:role="http://www.xbrl.org/2003/role/calculationLinkbaseRef"/></xs:schema>`,
+              );
+            }
+            return adapter === "sec-calculation-linkbase"
+              ? textResult(adapter, cal)
+              : textResult(
+                  adapter,
+                  `<link:schemaRef xlink:href="aapl.xsd"/>ITEM 2-MANAGEMENT ${repeatToMinAlpha("Quarterly discussion for the 10-Q filing text body continues here.")}`,
+                );
+          },
+        }),
+      }),
+    );
+
+    expect(requested.map((url) => url.slice(url.lastIndexOf("/") + 1))).toEqual([
+      "a10q.htm",
+      "aapl.xsd",
+      "aapl_cal.xml",
+    ]);
+    expect(result.items[0]?.metrics).toMatchObject({
+      form: "10-Q",
+      "daCalc|DepreciationDepletionAndAmortization": 1,
+      daCalcRead: "true",
+    });
+  });
+
   test("drops a malformed SEC row without shifting following filing metadata", async () => {
     const submissions = {
       filings: {
@@ -2609,6 +2662,14 @@ describe("extension short-term investments proof fetch", () => {
       "aapl_cal.xml",
     ]);
     expect(result.items[0]?.sourceIds).toEqual(expect.arrayContaining(cited.map(({ id }) => id)));
+  });
+
+  test("the D&A, capex and investments proofs share one schema and calculation-linkbase read", async () => {
+    const { result, requested } = await run({ "sec-filing-text": html() });
+    expect(requested.filter((adapter) => adapter.startsWith("sec-xbrl-schema"))).toHaveLength(1);
+    expect(requested.filter((adapter) => adapter === "sec-calculation-linkbase")).toHaveLength(1);
+    const ids = result.rawSnapshots.map(({ id }) => id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   test("a filing that locates nothing on an extension line never asks for the instance", async () => {

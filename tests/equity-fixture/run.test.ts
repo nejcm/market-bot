@@ -10,6 +10,7 @@ import {
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
+  assertQuarterlyCapexProof,
   assertIrenExtensionCapexWithheld,
   assertMarketRegimeRendered,
   assertMetricPromptCatalog,
@@ -469,6 +470,27 @@ describe("static equity run fixtures", () => {
       }
       if (name === "clfd-zero-debt") {
         assertClfdTaggedZeroDebt(result);
+        assertQuarterlyCapexProof(
+          result,
+          "0001171843-26-005329",
+          [
+            ["2025-06-30", 3_529_000],
+            ["2026-06-30", 2_917_000],
+          ],
+          ["2026-06-30", 4_131_000, 7_344_000],
+        );
+      }
+      if (name === "equity-amd-deep") {
+        // AMD Q3 2026 10-Q: TTM capex 974 + 1,845 − 752 = 2,067M; FCF = OCF 8,827M − 2,067M.
+        assertQuarterlyCapexProof(
+          result,
+          "0000002488-26-000191",
+          [
+            ["2025-09-27", 752_000_000],
+            ["2026-09-26", 1_845_000_000],
+          ],
+          ["2026-09-26", 2_067_000_000, 6_760_000_000],
+        );
       }
       if (name === "ebay-extension-investments") {
         assertEbayExtensionShortTermInvestments(result);

@@ -308,6 +308,79 @@ describe("D&A component sum checked by the calculation linkbase", () => {
   });
 });
 
+const ABBV_10Q = "0001551152-26-000060";
+
+function deriveAbbvH1(calcMetrics: Record<string, number | string> | undefined) {
+  const column = (val: number) => ({
+    start: "2026-01-01",
+    end: "2026-06-30",
+    val,
+    accn: ABBV_10Q,
+    fy: 2026,
+    fp: "Q2",
+    form: "10-Q",
+    filed: "2026-08-01",
+  });
+  const concepts = Object.fromEntries(
+    (
+      [
+        ["Revenues", 1e9],
+        ["Depreciation", 390_000_000],
+        ["AmortizationOfIntangibleAssets", 3_600_000_000],
+      ] as const
+    ).map(([concept, val]) => [concept, { units: { USD: [column(val)] } }]),
+  );
+  const statements = deriveFinancialStatements(
+    { facts: { "us-gaap": concepts } },
+    {
+      symbol: "ABBV",
+      generatedAt: "2026-10-31T00:00:00.000Z",
+      analysisAsOf: "2026-10-31T00:00:00.000Z",
+      sourceId: "sec",
+      secFilings:
+        calcMetrics === undefined
+          ? []
+          : [
+              {
+                category: "sec-edgar",
+                title: "ABBV SEC 10-Q",
+                summary: "",
+                sourceIds: [],
+                observedAt: "2026-10-31T00:00:00.000Z",
+                metrics: { form: "10-Q", accessionNumber: ABBV_10Q, ...calcMetrics },
+              },
+            ],
+    },
+  );
+  return {
+    value: statements.statements.cashFlowStatement.depreciationAndAmortization.interim[0]?.value,
+    note: statements.omissionNotes.find((note) => note.code === "unchecked-component-sum")?.message,
+  };
+}
+
+describe("10-Q D&A component sum checked by the 10-Q's own calculation linkbase", () => {
+  const proof = secDepreciationCalcMetrics(
+    role(arc(OCF, "Depreciation") + arc(OCF, "AmortizationOfIntangibleAssets")),
+  );
+
+  test("a 10-Q calc tree adding both components into OCF drops the note", () => {
+    expect(deriveAbbvH1(proof)).toEqual({ value: 3_990_000_000, note: undefined });
+  });
+
+  test("conflicting roles, no read, or another filing's tree keep the value with the note", () => {
+    expect(deriveAbbvH1({ daCalcRead: "conflict" }).note).toContain(
+      "operating cash-flow calculation roles disagree",
+    );
+    expect(deriveAbbvH1(undefined)).toMatchObject({
+      value: 3_990_000_000,
+      note: expect.stringContaining("no same-filing calculation linkbase was read"),
+    });
+    expect(deriveAbbvH1({ ...proof, accessionNumber: ABBV_ACCN }).note).toContain(
+      "no same-filing calculation linkbase was read",
+    );
+  });
+});
+
 const AMD_ACCN = "0000002488-26-000018";
 
 const AMD_VALUES: readonly (readonly [string, number])[] = [

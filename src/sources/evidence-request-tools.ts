@@ -195,16 +195,29 @@ function accessionDocumentUrl(href: string, documentUrl: string): string | undef
 }
 
 // A calculation linkbase sits in the filing's schema (inline DTS) or a `_cal.xml` the schema references.
+// Shares one read per resolved schema URL across a filing's D&A, capex, zero-debt and investments proofs.
+type LinkbaseReads = Map<string, Promise<CalculationLinkbaseFetch>>;
+
 async function fetchCalculationLinkbase(
   ctx: CollectContext,
   schemaHref: string | undefined,
   documentUrl: string,
+  reads: LinkbaseReads = new Map(),
 ): Promise<CalculationLinkbaseFetch> {
   const schemaUrl =
     schemaHref === undefined ? undefined : accessionDocumentUrl(schemaHref, documentUrl);
   if (schemaUrl === undefined) {
     return { documents: [], rawSnapshots: [], gaps: [] };
   }
+  const read = reads.get(schemaUrl) ?? readCalculationLinkbase(ctx, schemaUrl);
+  reads.set(schemaUrl, read);
+  return read;
+}
+
+async function readCalculationLinkbase(
+  ctx: CollectContext,
+  schemaUrl: string,
+): Promise<CalculationLinkbaseFetch> {
   const init = secTextRequestInit(ctx.secUserAgent);
   const schema = await ctx.request.text({ url: schemaUrl, adapter: "sec-xbrl-schema", init });
   if (!isFetchTextResult(schema)) {
@@ -258,18 +271,20 @@ async function fetchDepreciationCalc(
   filing: SecFiling,
   cik: string,
   html: string,
+  reads: LinkbaseReads,
 ): Promise<{
   readonly metrics: Record<string, number | string>;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
 }> {
-  if (filing.form !== "10-K") {
+  if (filing.form !== "10-K" && filing.form !== "10-Q") {
     return { metrics: {}, rawSnapshots: [], gaps: [] };
   }
   const { xml, xmlUrl, schema, ambiguous, rawSnapshots, gaps } = await fetchCalculationLinkbase(
     ctx,
     xbrlSchemaHref(html),
     `${filingBaseUrl(String(Number(cik)), filing.accessionNumber)}/${filing.primaryDocument}`,
+    reads,
   );
   return {
     metrics:
@@ -338,6 +353,7 @@ async function fetchZeroBorrowingsProof(
   filing: SecFiling,
   cik: string,
   item: { readonly source: Source; readonly metrics: ExtendedEvidenceItem["metrics"] },
+  reads?: LinkbaseReads,
 ): Promise<ZeroBorrowingsFetch> {
   const instanceFile = filing.primaryDocument.replace(/\.htm$/u, "_htm.xml");
   if (
@@ -395,6 +411,7 @@ async function fetchZeroBorrowingsProof(
       ctx,
       parsed.schemaRefs.length === 1 ? parsed.schemaRefs[0] : undefined,
       url,
+      reads,
     );
     const calcSnapshots = [...rawSnapshots, ...calc.rawSnapshots];
     if (calc.ambiguous === true) {
@@ -488,6 +505,7 @@ async function fetchExtensionInvestmentsProof(
   cik: string,
   html: string,
   source: Source,
+  reads: LinkbaseReads,
 ): Promise<ExtensionInvestmentsFetch> {
   const instanceFile = filing.primaryDocument.replace(/\.htm$/u, "_htm.xml");
   const none = { metrics: {}, rawSnapshots: [], sources: [], gaps: [] };
@@ -526,7 +544,7 @@ async function fetchExtensionInvestmentsProof(
   if (parsed.calculationLinkbaseRefs.length > 0 || parsed.schemaRefs.length !== 1) {
     return fail("calculation-linkbase-ambiguous", "provider-data-missing", [instance.rawSnapshot]);
   }
-  const calc = await fetchCalculationLinkbase(ctx, parsed.schemaRefs[0], url);
+  const calc = await fetchCalculationLinkbase(ctx, parsed.schemaRefs[0], url, reads);
   const rawSnapshots = [instance.rawSnapshot, ...calc.rawSnapshots];
   if (calc.ambiguous === true) {
     return fail("calculation-linkbase-ambiguous", "provider-data-missing", rawSnapshots);
@@ -897,24 +915,31 @@ async function collectSecFiling(
             built.responseBytes,
           ),
         ];
-  const calc = await fetchDepreciationCalc(ctx, filing, match.cik, selected.payload);
-  const zero = await fetchZeroBorrowingsProof(ctx, filing, match.cik, {
-    source: built.source,
-    metrics: built.item.metrics,
-  });
+  const reads: LinkbaseReads = new Map();
+  const calc = await fetchDepreciationCalc(ctx, filing, match.cik, selected.payload, reads);
+  const zero = await fetchZeroBorrowingsProof(
+    ctx,
+    filing,
+    match.cik,
+    { source: built.source, metrics: built.item.metrics },
+    reads,
+  );
   const investments = await fetchExtensionInvestmentsProof(
     ctx,
     filing,
     match.cik,
     selected.payload,
     built.source,
+    reads,
   );
   return {
     rawSnapshots: [
-      ...rawSnapshots,
-      ...calc.rawSnapshots,
-      ...zero.rawSnapshots,
-      ...investments.rawSnapshots,
+      ...new Set([
+        ...rawSnapshots,
+        ...calc.rawSnapshots,
+        ...zero.rawSnapshots,
+        ...investments.rawSnapshots,
+      ]),
     ],
     sources: [built.source, ...zero.sources, ...investments.sources],
     items: [
@@ -937,9 +962,7 @@ async function collectSecFiling(
       ...primaryFetchGaps,
       ...exhibitGaps,
       ...omissionGaps,
-      ...calc.gaps,
-      ...zero.gaps,
-      ...investments.gaps,
+      ...new Set([...calc.gaps, ...zero.gaps, ...investments.gaps]),
     ],
     investmentGaps: investments.gaps,
     sanitizationEntries: built.sanitizationEntries,

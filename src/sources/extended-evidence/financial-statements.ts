@@ -1225,27 +1225,23 @@ function latestByPeriod(facts: readonly ParsedFact[]): Map<string, ParsedFact> {
 }
 
 // Accession -> capex concepts its calculation linkbase subtracts inside the continuing-operations investing subtotal.
+// Unioned per accession, so a proof-free item for the same filing (a debt face, say) never erases a proof.
 function continuingInvestingCapex(
   filings: readonly ExtendedEvidenceItem[],
 ): ReadonlyMap<string, ReadonlySet<string>> {
-  return new Map(
-    filings.flatMap(({ metrics }) =>
-      metrics === undefined
-        ? []
-        : [
-            [
-              String(metrics.accessionNumber),
-              new Set(
-                Object.entries(metrics).flatMap(([key, weight]) =>
-                  key.startsWith(CAPEX_CALC_PREFIX) && weight === -1
-                    ? [key.slice(CAPEX_CALC_PREFIX.length)]
-                    : [],
-                ),
-              ),
-            ] as const,
-          ],
-    ),
-  );
+  const proven = new Map<string, Set<string>>();
+  for (const { metrics } of filings) {
+    for (const [key, weight] of Object.entries(metrics ?? {})) {
+      if (key.startsWith(CAPEX_CALC_PREFIX) && weight === -1) {
+        const accession = String(metrics!.accessionNumber);
+        proven.set(
+          accession,
+          (proven.get(accession) ?? new Set()).add(key.slice(CAPEX_CALC_PREFIX.length)),
+        );
+      }
+    }
+  }
+  return proven;
 }
 
 const DISCONTINUED_INVESTING_CONCEPTS: Readonly<

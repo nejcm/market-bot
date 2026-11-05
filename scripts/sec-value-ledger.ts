@@ -262,7 +262,10 @@ function valuationRows(
 ): void {
   for (const inputs of periods) {
     const period = `${inputs.basis}|${inputs.periodEnd}`;
-    const flags = joined(VALUATION_FLAGS.filter((flag) => inputs[flag] === true));
+    const flags = joined([
+      ...VALUATION_FLAGS.filter((flag) => inputs[flag] === true),
+      ...(inputs.earlierShareBasis ?? []).map((key) => `earlierShareBasis:${key}`),
+    ]);
     for (const key of VALUATION_INPUTS) {
       const input = inputs[key];
       if (input === undefined) {

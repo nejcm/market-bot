@@ -7,6 +7,7 @@ import type { ResearchReport } from "../src/domain/report";
 import {
   fetchYahooCloseWindow,
   fetchYahooSplitAdjustedCloseWindow,
+  splitAdjustedObservationsFromYahooChart,
   type YahooCloseWindowResult,
 } from "../src/sources/yahoo";
 import type { FetchLike } from "../src/sources/types";
@@ -45,6 +46,42 @@ function yahooChartPayload(closes: readonly unknown[], events?: Record<string, u
       ],
     },
   };
+}
+
+function cachedCloses(
+  symbol: string,
+  rows: readonly (readonly [number, number])[],
+  split?: readonly [number, number],
+): unknown[] {
+  const [splitDate] = rows.at(-1)!;
+  const payload = {
+    chart: {
+      result: [
+        {
+          timestamp: rows.map(([timestamp]) => timestamp),
+          indicators: { quote: [{ close: rows.map(([, close]) => close) }] },
+          ...(split === undefined
+            ? {}
+            : {
+                events: {
+                  splits: {
+                    [String(splitDate)]: {
+                      date: splitDate,
+                      numerator: split[0],
+                      denominator: split[1],
+                      splitRatio: `${split[0]}:${split[1]}`,
+                    },
+                  },
+                },
+              }),
+        },
+      ],
+    },
+  };
+  return splitAdjustedObservationsFromYahooChart(symbol, payload).map(({ date, value }) => [
+    date,
+    value,
+  ]);
 }
 
 function fetchPayload(payload: unknown): FetchLike {
@@ -302,7 +339,7 @@ describe("ObservationRepository window routing", () => {
     });
   });
 
-  test("reconstructs dividend-exclusive split-adjusted equity closes from one Yahoo response", async () => {
+  test("keeps Yahoo's already split-adjusted, dividend-exclusive closes from one Yahoo response", async () => {
     const splitTimestamp = Date.parse("2026-05-20T00:00:00.000Z") / 1000;
     const requestedUrls: string[] = [];
     const fetchImpl: FetchLike = async (input) => {
@@ -332,7 +369,7 @@ describe("ObservationRepository window routing", () => {
     );
 
     expect(result).toEqual([
-      { subject: "AAPL", date: "2026-05-19", value: 50 },
+      { subject: "AAPL", date: "2026-05-19", value: 100 },
       { subject: "AAPL", date: "2026-05-20", value: 51 },
       { subject: "AAPL", date: "2026-05-21", value: 52 },
     ]);
@@ -464,7 +501,7 @@ describe("ObservationRepository window routing", () => {
       });
     }
 
-    test("adjusts for a split on the withheld session before withholding it", async () => {
+    test("leaves earlier closes unscaled when the withheld session carries a split", async () => {
       const splitOpen = sessionOpen("2026-10-08T13:30:00.000Z");
       const result = await window(
         chart(clfdOpens, oct8, {
@@ -481,10 +518,49 @@ describe("ObservationRepository window routing", () => {
       );
 
       expect([...result]).toEqual([
-        { subject: "CLFD", date: "2026-10-06", value: 16 },
-        { subject: "CLFD", date: "2026-10-07", value: 16.5 },
+        { subject: "CLFD", date: "2026-10-06", value: 32 },
+        { subject: "CLFD", date: "2026-10-07", value: 33 },
       ]);
     });
+  });
+
+  test("does not rescale cached Yahoo closes across forward and reverse splits", () => {
+    // Values from cached yahoo-price-history payloads (data/cache, fetched 2026-10-27/30).
+    expect(
+      cachedCloses(
+        "NVDA",
+        [
+          [1_717_767_000, 120.888_000_488_281_25],
+          [1_718_026_200, 121.790_000_915_527_34],
+        ],
+        [10, 1],
+      ),
+    ).toEqual([
+      ["2024-06-07", 120.888_000_488_281_25],
+      ["2024-06-10", 121.790_000_915_527_34],
+    ]);
+    expect(
+      cachedCloses(
+        "HIVE",
+        [
+          [1_653_312_600, 4.25],
+          [1_653_399_000, 3.819_999_933_242_798],
+        ],
+        [1, 5],
+      ),
+    ).toEqual([
+      ["2022-05-23", 4.25],
+      ["2022-05-24", 3.819_999_933_242_798],
+    ]);
+    expect(
+      cachedCloses("SPY", [
+        [1_718_890_200, 547],
+        [1_718_976_600, 544.510_009_765_625],
+      ]),
+    ).toEqual([
+      ["2024-06-20", 547],
+      ["2024-06-21", 544.510_009_765_625],
+    ]);
   });
 
   test("rejects malformed or inconsistent Yahoo split metadata and incomplete close arrays", async () => {

@@ -47,14 +47,15 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
 - V3 crypto resolves on the exact target UTC date only after that date fully elapses, retaining the entire
   origin-through-target window. Macro/IV use calendar days, the first publication on/after target within a
   bounded search window, and the last publication on/before origin within that bound; never read future data.
-- V3 equity uses one Yahoo raw-close/split-event request and reconstructs dividend-exclusive split-adjusted
-  closes. Failed requests, malformed/inconsistent splits, out-of-tolerance initial anchors, or incomplete
-  windows remain unresolved. No other provider may fill any part. V2 retains raw-close/Massive behavior and
+- V3 equity uses one Yahoo close/split-event request; Yahoo's chart `close` is already split-adjusted and
+  dividend-exclusive, so it is used unscaled and split events are only validated. Failed requests,
+  malformed/inconsistent splits, out-of-tolerance initial anchors, or incomplete windows remain unresolved.
+  No other provider may fill any part. V2 retains its Yahoo-then-Massive routing (both split-adjusted) and
   its US-calendar due-date clock, including for crypto/macro/IV.
 - Both v2/v3 equity grade completed sessions only. Withhold Yahoo's current regular-session bar until its
   supplied end. Without a usable schedule accept only bars before the previous UTC day. A later schedule
   certifies a recent earlier bar only after the later session opens; before that, withhold as awaiting-open
-  if it opens within 10 days, otherwise unverified. Filter after split adjustment, before caching/selection.
+  if it opens within 10 days, otherwise unverified. Filter after split validation, before caching/selection.
 - Withheld in-progress/awaiting-open or scheduled-unopened sessions cause a horizon wait only if filling exactly
   those sessions resolves the one unresolved base expression. For conditionals consider only the antecedent
   until resolved; placeholder prices never activate it. Other missing observations consume an attempt.
@@ -185,7 +186,7 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
 ## Consequences
 
 - Fewer supported Predictions beat artificial Calibration volume; shortfalls ship with explicit disclosure.
-- Legacy claims/scores retain their semantics. V2 raw closes remain corporate-action-sensitive; changing
+- Legacy claims/scores retain their semantics. V2 closes keep their provider routing and calendar; changing
   baseline, adjustment, or calendar semantics requires a new scoring policy version.
 - The fixed 0.25 Calibration guidance reference is an underperformance gate, not empirical baseline skill.
   Thin slices remain visible and unreliable; reporting does not grant synthesis authority.

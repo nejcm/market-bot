@@ -14,6 +14,8 @@ import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections
 const REFERENCE = /<<\s*metric\s*:\s*([^<>{}]+)>>/giu;
 // Any << or >> left in authored prose is placeholder residue (unprefixed, nested, unclosed).
 const REFERENCE_START = /(?:<<|\{\{)\s*metric\s*:|<<|>>/iu;
+const RESIDUE_START = new RegExp(REFERENCE_START.source, "giu");
+const UNPREFIXED = /<<([^<>{}]*)>>/gu;
 const CLAIM_FIELDS = new Set(["text", "name", "description", "rationale"]);
 const SESSION_SECTION = "market-session";
 const PRICE_INDICATORS = new Set([
@@ -170,13 +172,40 @@ function hasMetricReference(value: unknown): boolean {
     : isRecord(value) && Object.values(value).some((item) => hasMetricReference(item));
 }
 
+// Exact catalog ids missing only the `metric:` prefix; anything else stays malformed.
+function withMetricPrefix(
+  text: string,
+  sections: readonly MetricSection[],
+  written: Map<string, string>,
+): string {
+  return text.replaceAll(UNPREFIXED, (token, inner: string) => {
+    const bar = inner.indexOf("|");
+    const reference = (bar === -1 ? inner : inner.slice(0, bar)).trim();
+    const dot = reference.lastIndexOf(".");
+    const known =
+      dot > 0 &&
+      sections.some(
+        ({ id, metrics }) =>
+          id === reference.slice(0, dot) &&
+          metrics.some((metric) => metric.id === reference.slice(dot + 1)),
+      );
+    if (!known) {
+      return token;
+    }
+    const prefixed = `<<metric:${reference}${bar === -1 ? "" : inner.slice(bar)}>>`;
+    written.set(prefixed, token);
+    return prefixed;
+  });
+}
+
 function transformClaims(
   value: unknown,
   sections: readonly MetricSection[],
   resolve: boolean,
+  errors: string[],
 ): unknown {
   if (Array.isArray(value)) {
-    return value.map((item) => transformClaims(item, sections, resolve));
+    return value.map((item) => transformClaims(item, sections, resolve, errors));
   }
   if (!isRecord(value)) {
     return value;
@@ -185,50 +214,62 @@ function transformClaims(
   let referenced = false;
   const entries = Object.entries(value).map(([key, item]) => {
     if (typeof item !== "string" || !REFERENCE_START.test(item)) {
-      return [key, transformClaims(item, sections, resolve)];
+      return [key, transformClaims(item, sections, resolve, errors)];
     }
     if (!CLAIM_FIELDS.has(key)) {
-      throw new Error(`Metric reference is not allowed in ${key}; use a cited narrative claim`);
+      errors.push(`Metric reference is not allowed in ${key}; use a cited narrative claim`);
+      return [key, item];
     }
-    const text = item.replaceAll(REFERENCE, (token, captured: string) => {
-      const [reference = "", format, ...extra] = captured.split("|").map((part) => part.trim());
-      const dot = reference.lastIndexOf(".");
-      if (dot <= 0 || dot === reference.length - 1 || extra.length > 0 || format === "") {
-        throw new Error(`Malformed metric reference ${token}`);
-      }
-      const sectionId = reference.slice(0, dot);
-      const metric = sections
-        .find(({ id }) => id === sectionId)
-        ?.metrics.find(({ id }) => id === reference.slice(dot + 1));
-      const rendered =
-        metric?.status === "value"
-          ? withChange(formatMetricValue(metric.value, metric.unit, metric.currency), metric)
-          : undefined;
-      if (rendered === undefined || metric === undefined || metric.sourceIds.length === 0) {
-        throw new Error(
-          `Metric reference ${token} is unknown, unavailable, or unciteable; remove it or use an available metric reference`,
-        );
-      }
-      const formatted =
-        format === undefined
-          ? rendered
-          : withFormat(rendered, metric, sectionId, format.toLowerCase());
-      if (formatted === undefined) {
-        throw new Error(
-          `Metric reference ${token} has an unsupported format; use |period only on a metric with a period, or the bare reference`,
-        );
-      }
-      referenced = true;
-      metric.sourceIds.forEach((id) => sourceIds.add(id));
-      return resolve ? formatted : token;
-    });
+    const written = new Map<string, string>();
+    const text = withMetricPrefix(item, sections, written).replaceAll(
+      REFERENCE,
+      (prefixed, captured: string) => {
+        const token = written.get(prefixed) ?? prefixed;
+        const [reference = "", format, ...extra] = captured.split("|").map((part) => part.trim());
+        const dot = reference.lastIndexOf(".");
+        if (dot <= 0 || dot === reference.length - 1 || extra.length > 0 || format === "") {
+          errors.push(`Malformed metric reference ${token}`);
+          return prefixed;
+        }
+        const sectionId = reference.slice(0, dot);
+        const metric = sections
+          .find(({ id }) => id === sectionId)
+          ?.metrics.find(({ id }) => id === reference.slice(dot + 1));
+        const rendered =
+          metric?.status === "value"
+            ? withChange(formatMetricValue(metric.value, metric.unit, metric.currency), metric)
+            : undefined;
+        if (rendered === undefined || metric === undefined || metric.sourceIds.length === 0) {
+          errors.push(
+            `Metric reference ${token} is unknown, unavailable, or unciteable; remove it or use an available metric reference`,
+          );
+          return prefixed;
+        }
+        const formatted =
+          format === undefined
+            ? rendered
+            : withFormat(rendered, metric, sectionId, format.toLowerCase());
+        if (formatted === undefined) {
+          errors.push(
+            `Metric reference ${token} has an unsupported format; use |period only on a metric with a period, or the bare reference`,
+          );
+          return prefixed;
+        }
+        referenced = true;
+        metric.sourceIds.forEach((id) => sourceIds.add(id));
+        return resolve ? formatted : prefixed;
+      },
+    );
     const rest = text.replaceAll(REFERENCE, " ");
-    const at = rest.search(REFERENCE_START);
-    if (at >= 0) {
-      const leftover = /^\S*?>>|^\S*/u.exec(rest.slice(at))?.[0];
-      throw new Error(
-        `Malformed metric reference ${leftover} in ${key}; write it as <<metric:section.metric>> or <<metric:section.metric|period>> from the catalog, or remove it`,
-      );
+    let end = 0;
+    for (const { index } of rest.matchAll(RESIDUE_START)) {
+      if (index >= end) {
+        const leftover = /^<<[^<>]*>>|^\S*?>>|^\S*/u.exec(rest.slice(index))?.[0] ?? "";
+        end = index + leftover.length;
+        errors.push(
+          `Malformed metric reference ${leftover} in ${key}; write it as <<metric:section.metric>> or <<metric:section.metric|period>> from the catalog, or remove it`,
+        );
+      }
     }
     return [key, text];
   });
@@ -242,29 +283,33 @@ function transformNarrative<T extends ModelReportPayload>(
 ): T {
   const extras = isRecord(payload.extras) ? payload.extras : {};
   const narrative = {
-    summary: payload.summary,
     keyFindings: payload.keyFindings,
     bullCase: payload.bullCase,
     bearCase: payload.bearCase,
     risks: payload.risks,
     catalysts: payload.catalysts,
     scenarios: payload.scenarios,
-    dataGaps: payload.dataGaps,
     extras: {
       businessFramework: extras.businessFramework,
       earningsSetup: extras.earningsSetup,
       spotlights: extras.spotlights,
     },
   };
-  if (hasMetricReference([payload.summary, payload.dataGaps, payload.predictions])) {
-    throw new Error(
-      "Metric references require a cited narrative claim; summary, dataGaps and predictions cannot contain them",
-    );
-  }
+  const errors = hasMetricReference([payload.summary, payload.dataGaps, payload.predictions])
+    ? [
+        "Metric references require a cited narrative claim; summary, dataGaps and predictions cannot contain them",
+      ]
+    : [];
   if (!hasMetricReference(narrative)) {
+    if (errors.length > 0) {
+      throw new Error(errors[0]);
+    }
     return payload;
   }
-  const transformed = transformClaims(narrative, sections, resolve) as typeof narrative;
+  const transformed = transformClaims(narrative, sections, resolve, errors) as typeof narrative;
+  if (errors.length > 0) {
+    throw new Error([...new Set(errors)].join("; "));
+  }
   return { ...payload, ...transformed, extras: { ...extras, ...transformed.extras } };
 }
 

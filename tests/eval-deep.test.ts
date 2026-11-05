@@ -274,7 +274,7 @@ describe("final-synthesis-only live provider", () => {
         ),
       );
       expect(estimate.boundedCalls).toBe(7);
-      expect(estimate.observedCalls).toBe(fixtureName === "equity-earnings-release-deep" ? 2 : 1);
+      expect(estimate.observedCalls).toBe(1);
       expect(estimate.maxInputTokens).toBeGreaterThan(1000);
       expect(estimate.perRun).toBeGreaterThanOrEqual(7 * perCall * 1.25);
       expect(estimate.expectedPerRun).toBeGreaterThan(estimate.maxInputTokens!);

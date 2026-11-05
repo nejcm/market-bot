@@ -270,8 +270,8 @@ test.each([
   "{{metric:operating-ratios.margin}}",
   "{{ METRIC : operating-ratios.margin }}",
   "{{\nMeTrIc\t:operating-ratios.margin}",
-  "<<operating-ratios.margin>>",
-  "<<operating-ratios.margin|period>>",
+  "<<operating-ratios.unknown>>",
+  "<<business framework growth>>",
   "FY <<financial-lens-growth.revenueDeltaPercent|period>> growth",
   "<<operating-ratios.<margin>>",
   "<<financial-lens-growth.<revenueDeltaPercent>|period>>",
@@ -535,7 +535,133 @@ test.each(["notes", "webSubjectProfile"])(
   },
 );
 
-test("repairs an unprefixed placeholder instead of publishing or auto-prefixing it", async () => {
+test("prefixes an exact catalog id missing only metric: and validates it like any reference (CRWV run 44ca936f)", () => {
+  const dated = {
+    ...section,
+    metrics: section.metrics.map((metric, index) =>
+      index === 0 ? { ...metric, periodEnd: "2026-03-31", periodMonths: 6 } : metric,
+    ),
+  };
+  const report = assembleResearchReport(
+    input(
+      {
+        keyFindings: [
+          {
+            text: "Margin <<operating-ratios.margin|period>>; cash << operating-ratios.cash >>.",
+            sourceIds: [],
+          },
+        ],
+      },
+      [dated],
+    ),
+  );
+  expect(report.keyFindings[0]).toEqual({
+    text: "Margin 12.5% (6-month period ending 2026-03-31); cash €1.0M.",
+    sourceIds: ["metric-source"],
+  });
+  for (const [token, error] of [
+    ["<<operating-ratios.missing>>", "unknown, unavailable, or unciteable"],
+    ["<<operating-ratios.cash|period>>", "unsupported format"],
+    ["<<Operating-Ratios.margin>>", "Malformed metric reference <<Operating-Ratios.margin>>"],
+    ["<<ratios.margin>>", "Malformed metric reference <<ratios.margin>>"],
+  ] as const) {
+    expect(() =>
+      assembleResearchReport(input({ keyFindings: [{ text: token, sourceIds: [] }] }, [dated])),
+    ).toThrow(error);
+  }
+  expect(() => assembleResearchReport(input({ summary: "<<operating-ratios.margin>>" }))).toThrow(
+    "require a cited narrative claim",
+  );
+});
+
+test("prefixes an exact Valuation Workbench id whose section embeds a timestamp", () => {
+  const workbench = {
+    ...section,
+    id: "valuation-workbench-fy-2025-12-31-2026-02-01T00:00:00.000Z",
+  };
+  const report = assembleResearchReport(
+    input({ keyFindings: [{ text: `Margin <<${workbench.id}.margin>>.`, sourceIds: [] }] }, [
+      workbench,
+    ]),
+  );
+  expect(report.keyFindings[0]?.text).toBe("Margin 12.5%.");
+  expect(() =>
+    assembleResearchReport(
+      input(
+        { keyFindings: [{ text: `<<valuation-workbench-fy-2025-12-31.margin>>`, sourceIds: [] }] },
+        [workbench],
+      ),
+    ),
+  ).toThrow("Malformed metric reference <<valuation-workbench-fy-2025-12-31.margin>>");
+});
+
+test("names summary residue and every claim token in the same error", () => {
+  const run = () =>
+    assembleResearchReport(
+      input({
+        summary: "Stray >> in summary.",
+        keyFindings: [
+          { text: "<<unknown.a>> and <<metric:unknown.b>>", sourceIds: [] },
+          { text: "<<operating-ratios.margin|abs>>", sourceIds: [] },
+        ],
+      }),
+    );
+  for (const part of [
+    "summary, dataGaps and predictions cannot contain them",
+    "Malformed metric reference <<unknown.a>> in text",
+    "Metric reference <<metric:unknown.b>> is unknown",
+    "Metric reference <<operating-ratios.margin|abs>> has an unsupported format",
+  ]) {
+    expect(run).toThrow(part);
+  }
+});
+
+test("names the model's own token, not its prefixed form, and a summary reference once", () => {
+  const message = (payload: ModelReportPayload) => {
+    try {
+      assembleResearchReport(input(payload));
+    } catch (error) {
+      return String(error);
+    }
+    throw new Error("expected a rejection");
+  };
+  expect(
+    message({ keyFindings: [{ text: "<<operating-ratios.margin|abs>>", sourceIds: [] }] }),
+  ).not.toContain("<<metric:operating-ratios.margin|abs>>");
+  const summary = message({
+    summary: "Margin <<metric:operating-ratios.margin>>",
+    keyFindings: [{ text: "<<unknown.a>>", sourceIds: [] }],
+  });
+  expect(summary.match(/summary/gu)).toHaveLength(1);
+  expect(summary).toContain("Malformed metric reference <<unknown.a>> in text");
+});
+
+test("names every invalid metric reference in one error", () => {
+  const run = () =>
+    assembleResearchReport(
+      input({
+        keyFindings: [
+          {
+            text: "<<financial-lens-growth.revenueDeltaPercent|period>> and <<metric:unknown.x>>",
+            sourceIds: [],
+          },
+          { text: "Margin <<operating-ratios.margin|abs>> and stray >>", sourceIds: [] },
+        ],
+        risks: [{ text: "<<business framework growth>>", sourceIds: [] }],
+      }),
+    );
+  for (const part of [
+    "Malformed metric reference <<financial-lens-growth.revenueDeltaPercent|period>> in text",
+    "Metric reference <<metric:unknown.x>> is unknown",
+    "Metric reference <<operating-ratios.margin|abs>> has an unsupported format",
+    "Malformed metric reference >> in text",
+    "Malformed metric reference <<business framework growth>> in text",
+  ]) {
+    expect(run).toThrow(part);
+  }
+});
+
+test("repairs a non-catalog unprefixed placeholder instead of publishing or guessing it", async () => {
   const assembly = input({});
   const reprompts: string[] = [];
   const result = await synthesizeReportUntilValid({
@@ -547,7 +673,7 @@ test("repairs an unprefixed placeholder instead of publishing or auto-prefixing 
       reprompts.push(reprompt?.reportValidationErrors?.join(" ") ?? "");
       const text =
         reprompts.length === 1
-          ? "Margin <<operating-ratios.margin|period>>."
+          ? "Margin <<operating-ratios.marginal|period>>."
           : "Margin <<metric:operating-ratios.margin>>.";
       return {
         stage: "final-synthesis",
@@ -557,7 +683,7 @@ test("repairs an unprefixed placeholder instead of publishing or auto-prefixing 
     },
   });
   expect(reprompts[1]).toContain(
-    "Malformed metric reference <<operating-ratios.margin|period>> in text; write it as <<metric:section.metric>>",
+    "Malformed metric reference <<operating-ratios.marginal|period>> in text; write it as <<metric:section.metric>>",
   );
   expect(result.report.keyFindings[0]?.text).toBe("Margin 12.5%.");
 });

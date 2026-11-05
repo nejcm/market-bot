@@ -464,7 +464,11 @@ async function gridForSymbol(input: {
     ...(snapshot !== undefined ? [verifiedSnapshotSource(snapshot)] : []),
   ];
   const knownSourceIds = new Set(sources.map((source) => source.id));
-  const events = issuableGridEvents(eventGrid(command, gridSources).events, knownSourceIds);
+  const events = issuableGridEvents(
+    eventGrid(command, gridSources).events,
+    knownSourceIds,
+    gridSources,
+  );
   const priced: PricedGrid =
     events.length > 0
       ? await priceModelGrid({ ...input, command, priceHistory: collected.priceHistory, events })

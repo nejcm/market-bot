@@ -183,6 +183,7 @@ function promptGridEvents(
     ? issuableGridEvents(
         eventGrid(command, collectedSources).events,
         new Set(buildSourceList(command, collectedSources).map((source) => source.id)),
+        collectedSources,
       )
     : [];
 }

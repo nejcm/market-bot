@@ -144,8 +144,23 @@ export function eventGrid(
 export function issuableGridEvents(
   events: readonly EventGridEvent[],
   knownSourceIds: ReadonlySet<string>,
+  collectedSources: GridSources,
 ): readonly EventGridEvent[] {
-  return events.filter((event) => unissuableReason(event, knownSourceIds) === undefined);
+  const closeSourceIds = collectedCloseSourceIds(knownSourceIds, collectedSources);
+  return events.filter((event) => unissuableReason(event, closeSourceIds) === undefined);
+}
+
+// A price-history Source is published even when it returned no bars.
+function collectedCloseSourceIds(
+  knownSourceIds: ReadonlySet<string>,
+  collectedSources: GridSources,
+): ReadonlySet<string> {
+  const empty = new Set(
+    (collectedSources.priceHistory ?? [])
+      .filter(({ bars }) => !bars.some((bar) => bar.completed))
+      .map(({ sourceId }) => sourceId),
+  );
+  return new Set([...knownSourceIds].filter((id) => !empty.has(id)));
 }
 
 // Fails closed: an expression whose symbols do not parse cannot be resolved by the scorer.
@@ -237,7 +252,8 @@ export function issueForecastBook(input: {
   const gaps: SourceGap[] = [...grid.gaps];
   const pModel = modelGridProbabilities(input.modelEventGrid);
   const restated = new Map<string, Prediction>();
-  const issuable = issuableGridEvents(grid.events, input.knownSourceIds);
+  const closeSourceIds = collectedCloseSourceIds(input.knownSourceIds, input.collectedSources);
+  const issuable = issuableGridEvents(grid.events, input.knownSourceIds, input.collectedSources);
   const modelPredictions = input.modelPredictions.filter((prediction) => {
     const event = issuable.find(
       (candidate) =>
@@ -255,9 +271,9 @@ export function issueForecastBook(input: {
   const unpriced: string[] = [];
   const gridPredictions: Prediction[] = [];
   for (const event of grid.events) {
-    const sourceIds = event.sourceIds.filter((id) => input.knownSourceIds.has(id));
+    const sourceIds = event.sourceIds.filter((id) => closeSourceIds.has(id));
     const probability = pModel.get(event.id) ?? restated.get(event.id)?.probability;
-    const unissuable = unissuableReason(event, input.knownSourceIds);
+    const unissuable = unissuableReason(event, closeSourceIds);
     if (unissuable !== undefined) {
       gaps.push(
         gridGap(primarySymbol(event), `Event Grid event ${event.id} not issued: ${unissuable}`),

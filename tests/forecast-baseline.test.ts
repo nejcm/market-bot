@@ -482,11 +482,33 @@ describe("Event Grid", () => {
     );
   });
 
-  test("declares a grid event whose expression does not parse instead of issuing it", () => {
+  test("does not count a price history with no completed bars as a collected leg", () => {
+    const full = gridSources();
+    const sources = {
+      ...full,
+      priceHistory: full.priceHistory!.map((history) =>
+        history.symbol === "SPY" ? { ...history, bars: [] } : history,
+      ),
+    };
+    const book = issueForecastBook({
+      command: EQUITY,
+      collectedSources: sources,
+      modelPredictions: [],
+      modelEventGrid: [{ id: "grid-relative-5", probability: 0.5 }],
+      knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(book.predictions.map(({ id }) => id)).not.toContain("grid-relative-5");
+    expect(book.gaps.map(({ message }) => message)).toContain(
+      "Event Grid event grid-relative-5 not issued: no close source was collected for SPY",
+    );
+  });
+
+  test("declares a grid event with a hand-built unparseable symbol instead of throwing", () => {
     const command = { ...EQUITY, symbol: "BRK--B" };
     const known = new Set(["price-history-BRK--B", "price-history-SPY"]);
     const grid = eventGrid(command, collectedSources());
-    expect(issuableGridEvents(grid.events, known)).toEqual([]);
+    expect(issuableGridEvents(grid.events, known, collectedSources())).toEqual([]);
     const book = issueForecastBook({
       command,
       collectedSources: collectedSources(),

@@ -3004,9 +3004,29 @@ function assertValuationWorkbenchInvariants(
       id?.startsWith("valuation-workbench-"),
     ),
   ).toEqual(sections);
-  const gaps = run.collectedSources.sourceGaps.filter(({ source }) =>
+  const workbenchGaps = run.collectedSources.sourceGaps.filter(({ source }) =>
     source.startsWith("valuation-workbench-"),
   );
+  const supersededGaps = workbenchGaps.filter(({ message }) =>
+    message.includes("(superseded-fiscal-year-ttm)"),
+  );
+  const gaps = workbenchGaps.filter((gap) => !supersededGaps.includes(gap));
+  expect(
+    supersededGaps.filter(({ source }) => sections.some(({ id }) => id.startsWith(source))),
+    "a withheld fiscal-year TTM row publishes no section",
+  ).toEqual([]);
+  const revenueSupersedingFacts = statements?.statements.incomeStatement.revenue.supersedingFacts;
+  for (const { basis, periodEnd, publicAt, inputs } of observations) {
+    if (basis === "ttm" && inputs.revenue?.derivation === "FY") {
+      expect(revenueSupersedingFacts, `${fixtureName} checks FY TTM ${periodEnd}`).toBeDefined();
+      expect(
+        revenueSupersedingFacts!.filter(
+          (fact) => fact.periodEnd > periodEnd && fact.firstPublicAt <= publicAt,
+        ),
+        `${fixtureName} FY TTM ${periodEnd} public ${publicAt} was still the trailing period`,
+      ).toEqual([]);
+    }
+  }
   const outsideSections = sections.filter((section) => outsideOnly(section));
   expect(gaps).toHaveLength(
     sections.filter(

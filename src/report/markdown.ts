@@ -137,6 +137,7 @@ export function renderMarkdownReport(
     ...(report.researchQualityDriver !== undefined
       ? [`Research Quality Driver: ${report.researchQualityDriver}`]
       : []),
+    ...(report.coverageLabel !== undefined ? [`Coverage: ${report.coverageLabel}`] : []),
     ...renderEquityCompletenessChips(report),
     "",
     "## Summary",

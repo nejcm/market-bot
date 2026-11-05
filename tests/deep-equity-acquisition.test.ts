@@ -407,7 +407,7 @@ describe("deep-equity packet acquisition", () => {
 
     const result = await collectSources(
       command,
-      sourceOptions({ tradierApiToken: "fixture-token" }),
+      sourceOptions({ tradierApiToken: "fixture-token", exaApiKey: "fixture-key" }),
       { now: NOW, fetchImpl: adapter.fetch, retryDelaysMs: [] },
     );
 
@@ -422,6 +422,139 @@ describe("deep-equity packet acquisition", () => {
     expect(
       result.sourceGaps.filter((gap) => gap.cause === "unsupported-coverage").length,
     ).toBeGreaterThanOrEqual(2);
+  });
+
+  test("stops a non-SEC listing without an Exa key before the parallel batch", async () => {
+    const command: InstrumentCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "SAP.DE",
+      depth: "deep",
+    };
+    const adapter = recordingRequestAdapter((url) =>
+      url.includes("/v7/finance/quote")
+        ? json({
+            quoteResponse: {
+              result: [
+                {
+                  symbol: "SAP.DE",
+                  fullExchangeName: "XETRA",
+                  currency: "EUR",
+                  regularMarketPrice: 200,
+                  regularMarketChangePercent: 0.5,
+                  regularMarketVolume: 500_000,
+                },
+              ],
+            },
+          })
+        : json({}),
+    );
+
+    await expect(
+      collectSources(command, sourceOptions(), {
+        now: NOW,
+        fetchImpl: adapter.fetch,
+        retryDelaysMs: [],
+      }),
+    ).rejects.toMatchObject({ name: "IdentityGateStopError", reason: "missing-web-credential" });
+    expect(adapter.urls.some((url) => url.includes("finance/search"))).toBe(false);
+  });
+
+  test("re-collects under the single exact Bursa match and records the typed code", async () => {
+    const command: InstrumentCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "VITROX.KL",
+      depth: "brief",
+    };
+    const adapter = recordingRequestAdapter((url) => {
+      if (url.includes("/v7/finance/quote") && url.includes("VITROX.KL")) {
+        return json({ quoteResponse: { result: [{ symbol: "VITROX.KL", quoteType: "NONE" }] } });
+      }
+      if (url.includes("finance/search") && url.includes("quotesCount=10")) {
+        return json({
+          quotes: [
+            {
+              symbol: "0097.KL",
+              shortname: "VITROX CORPORATION BHD",
+              quoteType: "EQUITY",
+              exchange: "KLS",
+              exchDisp: "Kuala Lumpur",
+            },
+          ],
+        });
+      }
+      return json({});
+    });
+
+    const result = await collectSources(command, sourceOptions({ exaApiKey: "fixture-key" }), {
+      now: NOW,
+      fetchImpl: adapter.fetch,
+      retryDelaysMs: [],
+    });
+
+    expect(result.listingResolution).toEqual({ inputSymbol: "VITROX.KL", symbol: "0097.KL" });
+    expect(adapter.urls.some((url) => url.includes("sec.gov"))).toBe(false);
+    expect(adapter.urls.some((url) => url.includes("%5EKLSE") || url.includes("^KLSE"))).toBe(true);
+  });
+
+  test("stops a second redirect instead of re-collecting again", async () => {
+    const adapter = recordingRequestAdapter((url) => {
+      if (url.includes("/v7/finance/quote")) {
+        return json({ quoteResponse: { result: [] } });
+      }
+      if (url.includes("finance/search") && url.includes("q=VITROX&")) {
+        return json({
+          quotes: [
+            { symbol: "0097.KL", shortname: "VITROX CORP", quoteType: "EQUITY", exchange: "KLS" },
+          ],
+        });
+      }
+      if (url.includes("finance/search") && url.includes("q=0097&")) {
+        return json({
+          quotes: [
+            { symbol: "9999.KL", shortname: "0097 Holdings", quoteType: "EQUITY", exchange: "KLS" },
+          ],
+        });
+      }
+      return json({});
+    });
+
+    await expect(
+      collectSources(
+        { jobType: "equity", assetClass: "equity", symbol: "VITROX.KL", depth: "brief" },
+        sourceOptions({ exaApiKey: "fixture-key" }),
+        { now: NOW, fetchImpl: adapter.fetch, retryDelaysMs: [] },
+      ),
+    ).rejects.toMatchObject({ reason: "unresolved", inputSymbol: "VITROX.KL" });
+  });
+
+  test("stops a non-SEC listing when Web Gather is disabled", async () => {
+    const adapter = recordingRequestAdapter((url) =>
+      url.includes("/v7/finance/quote")
+        ? json({
+            quoteResponse: {
+              result: [
+                {
+                  symbol: "0097.KL",
+                  quoteType: "EQUITY",
+                  exchange: "KLS",
+                  fullExchangeName: "Kuala Lumpur",
+                  currency: "MYR",
+                },
+              ],
+            },
+          })
+        : json({}),
+    );
+
+    await expect(
+      collectSources(
+        { jobType: "equity", assetClass: "equity", symbol: "0097.KL", depth: "deep" },
+        sourceOptions({ exaApiKey: "fixture-key" }),
+        { now: NOW, fetchImpl: adapter.fetch, retryDelaysMs: [], webGatherDisabled: true },
+      ),
+    ).rejects.toMatchObject({ reason: "web-gather-disabled" });
   });
 
   test("replays web gather through Exa search and Firecrawl fallback once", async () => {

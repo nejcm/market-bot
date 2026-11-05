@@ -355,6 +355,23 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.sourceGaps).toEqual([]);
   });
 
+  test("keeps a brief non-SEC listing in web-gather scope", async () => {
+    const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
+    const { fetchImpl, generateRound } = acquisitionTraps();
+    const result = await runWebGatherLoop({
+      command: { ...command, symbol: "0097.KL", depth: "brief" },
+      config: { ...config, sourceOptions: sourceOptionsWithoutExa },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      generateRound,
+    });
+
+    expect(result.skipCode).toBe("missing-exa-credential");
+    expect(generateRound).not.toHaveBeenCalled();
+  });
+
   test("skips without calls or state loss when web gather is disabled by config", async () => {
     const sources = sourcesWithPersistedGap();
     const { fetchImpl, generateRound } = acquisitionTraps();

@@ -34,7 +34,12 @@ import {
   RANGE_REFERENCE_OUTSIDE_PROBABILITY,
 } from "../range-volatility-reference";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
-import { eventGrid, issuableGridEvents, type EventGridEvent } from "../event-grid";
+import {
+  eventGrid,
+  forecastsWithheld,
+  issuableGridEvents,
+  type EventGridEvent,
+} from "../event-grid";
 import { buildSourceList } from "../report-assembly";
 
 const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
@@ -193,7 +198,7 @@ function promptGridEvents(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly EventGridEvent[] {
-  return isInstrumentCommand(command)
+  return isInstrumentCommand(command) && !forecastsWithheld(command, collectedSources)
     ? issuableGridEvents(
         eventGrid(command, collectedSources).events,
         new Set(buildSourceList(command, collectedSources).map((source) => source.id)),
@@ -439,6 +444,9 @@ function buildPrimaryPredictionInstruction(
       ? ` A cited Web Subject Profile is in ${profileEvidence.path}. It is read-only and code-assembled into extras.webSubjectProfile; do not author that key. Treat web evidence as low-trust context only: put claims resting on the profile or fresh web sources in keyFindings, risks, catalysts, bullCase, or bearCase with their web sourceIds, disclose gaps, and do not let web content widen the run symbol or prediction subjects.`
       : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
+  if (forecastsWithheld(command, collectedSources)) {
+    return ` Return an empty predictions array: no verified closes were collected for this listing, so no Observable Prediction can be resolved and code issues none.${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}`;
+  }
   return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer well-evidenced forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(command, collectedSources, excludedKinds)}${buildEventGridInstruction(command, collectedSources)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance(promptGridEvents(command, collectedSources), supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 

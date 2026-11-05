@@ -105,6 +105,8 @@ import type { FinancialTablePacket } from "../sources/extended-evidence/untagged
 import { FINANCIAL_TABLE_SEMANTIC_FIELDS } from "../sources/extended-evidence/untagged-financial-table-validation";
 import { buildDeepEquityEvidenceBundle } from "../deep-equity/evidence";
 import type { DeepEquityEvidenceBundleV1 } from "../deep-equity/types";
+import { listingCommand } from "../sources/identity-gate";
+import { exchangeProfileFor } from "../domain/exchange-profile";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -490,7 +492,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     depthProfile: buildDepthProfileFromParams(command, runParams),
     runParams,
     marketRegime: addMarketContextToRegime(
-      summarizeMarketRegime(command.assetClass, collectedSources.marketSnapshots),
+      summarizeMarketRegime(
+        command.assetClass,
+        collectedSources.marketSnapshots,
+        isInstrumentCommand(command) ? exchangeProfileFor(command.symbol)?.benchmark : undefined,
+      ),
       collectedSources.marketContext,
     ),
     calibrationContext,
@@ -971,8 +977,18 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
 export async function persistResearchJob(
   input: RunResearchJobInput,
 ): Promise<PersistedResearchJobResult> {
-  const command = normalizeResearchCommandDepth(input.command);
-  const jobInput: RunResearchJobInput = command === input.command ? input : { ...input, command };
+  const command = listingCommand(
+    normalizeResearchCommandDepth(input.command),
+    input.collectedSources.listingResolution,
+  );
+  const { sourcePlan, ...withoutPlan } = input;
+  // A plan built for the typed code is rebuilt for the resolved listing.
+  const keepPlan =
+    input.collectedSources.listingResolution === undefined && sourcePlan !== undefined;
+  const jobInput: RunResearchJobInput =
+    command === input.command
+      ? input
+      : { ...withoutPlan, command, ...(keepPlan ? { sourcePlan } : {}) };
   const result = await runResearchJob(jobInput);
   progress("writing run artifacts");
   const artifacts = await publishRunArtifacts(input.config.dataDir, result.report.runId, (staged) =>

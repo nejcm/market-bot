@@ -183,7 +183,11 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
   };
   let webSubjectProfile: Awaited<ReturnType<typeof runWebSubjectProfileExtraction>> | undefined =
     undefined;
-  const webGatherEnabled = isWebGatherLoopEnabled(input.command, input.config);
+  const webGatherEnabled = isWebGatherLoopEnabled(
+    input.command,
+    input.config,
+    collectedSources.resolvedInstrumentIdentity,
+  );
   const secOnlyCompanyProfile =
     !webGatherEnabled &&
     isInstrumentCommand(input.command) &&

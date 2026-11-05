@@ -48,6 +48,18 @@ describe("summarizeMarketRegime", () => {
     expect(driverSourceIds(summary, "VIX elevated")).toEqual(["market-^vix"]);
   });
 
+  test("reads only the Exchange Profile benchmark when one is given", () => {
+    const summary = summarizeMarketRegime(
+      "equity",
+      [snapshot("^KLSE", -1.4, 1500, 1600), snapshot("SPY", 2), snapshot("^VIX", 0, 30)],
+      "^KLSE",
+    );
+
+    expect(summary.sourceIds).toEqual(["market-^klse"]);
+    expect(driverSourceIds(summary, "local benchmark ^KLSE")).toEqual(["market-^klse"]);
+    expect(driverTexts(summary).some((text) => text.startsWith("VIX"))).toBe(false);
+  });
+
   test("omits the term structure driver when VIX3M is missing", () => {
     const summary = summarizeMarketRegime("equity", [snapshot("SPY", 1), snapshot("^VIX", 0, 16)]);
 

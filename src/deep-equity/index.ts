@@ -47,6 +47,7 @@ export async function runDeepEquity(
           : {}),
         collectTradierTermStructure: termStructureConfigured,
         ...(input.config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+        ...(input.config.webGatherDisabled ? { webGatherDisabled: true } : {}),
         ...(input.config.extensionShortTermInvestmentsDisabled === true
           ? { extensionShortTermInvestmentsDisabled: true }
           : {}),

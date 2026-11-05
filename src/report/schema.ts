@@ -137,6 +137,7 @@ function validateScenarios(
  *   extendedEvidence         collector-derived filing/news text
  *   *.figureQuotes[].quote   verbatim source spans checked against stored text (ADR 0006); never rendered as prose
  *   researchQualityDriver    deterministic (research/quality-driver.ts)
+ *   coverageLabel            deterministic constant (sources/identity-gate.ts:NON_SEC_COVERAGE_LABEL)
  *   extras.historicalContext code-built in research/report-assembly.ts:historicalContextExtra;
  *                            items[].text quotes a prior run summary already gated on its own run
  *   extras.catalystCalendar  research/report-assembly.ts:catalystCalendarExtra; catalyst labels
@@ -809,6 +810,9 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   }
   if (report.researchQualityDriver !== undefined && report.researchQualityDriver.trim() === "") {
     throw new Error("Research report researchQualityDriver must be non-empty when set");
+  }
+  if (report.coverageLabel !== undefined && report.coverageLabel.trim() === "") {
+    throw new Error("Research report coverageLabel must be non-empty when set");
   }
   if (report.predictionShortfall !== undefined) {
     validatePredictionShortfall(report.predictionShortfall);

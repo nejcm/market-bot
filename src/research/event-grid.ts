@@ -18,6 +18,8 @@ import {
 import type { CollectedSources } from "../sources/types";
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 import { isRecord } from "../guards";
+import { exchangeProfileFor } from "../domain/exchange-profile";
+import { isNonSecEquityListing } from "../sources/identity-gate";
 import {
   rangeReferenceBand,
   rangeVolatilityReference,
@@ -26,9 +28,16 @@ import {
 
 const GRID_RANGE_HORIZONS = [1, 5, 20] as const;
 const GRID_RELATIVE_HORIZON = 5;
-const GRID_BENCHMARK = "SPY";
+const US_GRID_BENCHMARK = "SPY";
 
-type GridSources = Pick<CollectedSources, "verifiedMarketSnapshot" | "priceHistory">;
+function gridBenchmark(symbol: string): string {
+  return exchangeProfileFor(symbol)?.benchmark ?? US_GRID_BENCHMARK;
+}
+
+type GridSources = Pick<
+  CollectedSources,
+  "verifiedMarketSnapshot" | "priceHistory" | "resolvedInstrumentIdentity"
+>;
 
 export interface EventGridEvent {
   readonly id: string;
@@ -43,7 +52,7 @@ export interface EventGridEvent {
 export function plannedEventGridIds(symbol: string): readonly string[] {
   return [
     ...GRID_RANGE_HORIZONS.map((horizon) => `grid-range-${String(horizon)}`),
-    ...(symbol === GRID_BENCHMARK ? [] : [`grid-relative-${String(GRID_RELATIVE_HORIZON)}`]),
+    ...(symbol === gridBenchmark(symbol) ? [] : [`grid-relative-${String(GRID_RELATIVE_HORIZON)}`]),
   ];
 }
 
@@ -120,22 +129,20 @@ export function eventGrid(
       );
     }
   }
-  if (symbol === GRID_BENCHMARK) {
+  const benchmark = gridBenchmark(symbol);
+  if (symbol === benchmark) {
     gaps.push(
-      gridGap(
-        symbol,
-        `Event Grid relative event not issued: ${GRID_BENCHMARK} is its own benchmark`,
-      ),
+      gridGap(symbol, `Event Grid relative event not issued: ${benchmark} is its own benchmark`),
     );
   } else {
     const horizon = String(GRID_RELATIVE_HORIZON);
     events.push({
       id: `grid-relative-${horizon}`,
       kind: "relative",
-      subject: `${symbol}:${GRID_BENCHMARK}`,
-      measurableAs: `close(${symbol}, +${horizon})/close(${symbol}, 0) > close(${GRID_BENCHMARK}, +${horizon})/close(${GRID_BENCHMARK}, 0)`,
+      subject: `${symbol}:${benchmark}`,
+      measurableAs: `close(${symbol}, +${horizon})/close(${symbol}, 0) > close(${benchmark}, +${horizon})/close(${benchmark}, 0)`,
       horizonTradingDays: GRID_RELATIVE_HORIZON,
-      sourceIds: [priceHistorySourceId(symbol), priceHistorySourceId(GRID_BENCHMARK)],
+      sourceIds: [priceHistorySourceId(symbol), priceHistorySourceId(benchmark)],
     });
   }
   return { events, gaps };
@@ -237,6 +244,33 @@ function closesBySymbol(
   return closes;
 }
 
+// A non-SEC listing without verified closes has no price to resolve an Observable Prediction against (ADR 0006).
+export function forecastsWithheld(command: ResearchCommand, sources: GridSources): boolean {
+  return (
+    sources.verifiedMarketSnapshot === undefined &&
+    isNonSecEquityListing(command, sources.resolvedInstrumentIdentity)
+  );
+}
+
+function withheldForecastGap(
+  command: ResearchCommand,
+  sources: GridSources,
+  droppedCount: number,
+): SourceGap | undefined {
+  if (!forecastsWithheld(command, sources) || !isInstrumentCommand(command)) {
+    return undefined;
+  }
+  return sourceGap({
+    source: "forecast-book",
+    symbol: command.symbol,
+    message: `No Observable Predictions issued for ${command.symbol}: no verified closes were collected for this non-SEC listing, so no prediction could be resolved from public price data${droppedCount > 0 ? ` (${String(droppedCount)} model prediction(s) dropped)` : ""}`,
+    provider: "market-bot",
+    capability: "forecast-book",
+    cause: "suppressed-by-design",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
 // Stamps origin and Forecast Baseline and appends priced Event Grid events; every omission is a gap.
 // A model prediction restating a grid event is folded into that event (ADR 0003, amended 2026-10-23).
 export function issueForecastBook(input: {
@@ -247,7 +281,19 @@ export function issueForecastBook(input: {
   readonly knownSourceIds: ReadonlySet<string>;
   readonly generatedAt: string;
   readonly pricedBy?: string;
-}): { readonly predictions: readonly Prediction[]; readonly gaps: readonly SourceGap[] } {
+}): {
+  readonly predictions: readonly Prediction[];
+  readonly gaps: readonly SourceGap[];
+  readonly withheld?: true;
+} {
+  const withheld = withheldForecastGap(
+    input.command,
+    input.collectedSources,
+    input.modelPredictions.length,
+  );
+  if (withheld !== undefined) {
+    return { predictions: [], gaps: [withheld], withheld: true };
+  }
   const grid = eventGrid(input.command, input.collectedSources);
   const gaps: SourceGap[] = [...grid.gaps];
   const pModel = modelGridProbabilities(input.modelEventGrid);

@@ -122,6 +122,8 @@ export interface RunTrace {
   readonly depth: Depth;
   readonly provider: string;
   readonly codeVersion?: CodeVersion;
+  // Set when the Identity Gate redirected the typed code to the resolved listing (ADR 0006).
+  readonly listingResolution?: { readonly inputSymbol: string; readonly symbol: string };
   readonly reproducibility?: {
     readonly effectiveConfigHash: string;
     readonly dirtySourceHash?: string;

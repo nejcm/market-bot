@@ -74,7 +74,13 @@ import {
 import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
 import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrument-identity";
 import { isNewsRelevantByTitleOrSymbol } from "../../../src/sources/news-relevance";
-import { isResearchCommand } from "../../../src/cli/args";
+import { isInstrumentCommand, isResearchCommand } from "../../../src/cli/args";
+import { exchangeProfileFor } from "../../../src/domain/exchange-profile";
+import {
+  isNonSecEquityListing,
+  listingCommand,
+  NON_SEC_COVERAGE_LABEL,
+} from "../../../src/sources/identity-gate";
 import { FORECAST_BASELINE_VERSION } from "../../../src/forecast/baseline";
 import { eventGrid } from "../../../src/research/event-grid";
 import { fixtureCommand, isDeepFixture, type FixtureMeta, type RunFixtureResult } from ".";
@@ -182,6 +188,32 @@ export function assertProviderGapRestatementsDropped(result: RunFixtureResult): 
     "Analyst estimates are not supplied, but the methodology behind the forward P/E is unspecified.",
   );
   expect(gaps).toContain("Issuer transcript unavailable.");
+}
+
+// Non-SEC listings (ADR 0006): coverage label, no SEC requests, local benchmark, withheld forecasts.
+function assertListingCoverageInvariants(result: RunFixtureResult, meta: FixtureMeta): boolean {
+  const command = listingCommand(fixtureCommand(meta), result.collectedSources.listingResolution);
+  const identity = result.collectedSources.resolvedInstrumentIdentity;
+  const nonSec = isNonSecEquityListing(command, identity);
+  expect(result.trace.listingResolution).toEqual(result.collectedSources.listingResolution);
+  expect(result.report.coverageLabel).toBe(nonSec ? NON_SEC_COVERAGE_LABEL : undefined);
+  if (!nonSec || !isInstrumentCommand(command)) {
+    return false;
+  }
+  expect(
+    result.collectedSources.rawSnapshots.filter(({ adapter }) => adapter.startsWith("sec-")),
+  ).toEqual([]);
+  const benchmark = exchangeProfileFor(command.symbol)?.benchmark;
+  if (benchmark !== undefined) {
+    expect(result.collectedSources.marketSnapshots.map(({ symbol }) => symbol)).not.toContain(
+      "QQQ",
+    );
+  }
+  const withheld = result.collectedSources.verifiedMarketSnapshot === undefined;
+  if (withheld) {
+    expect(result.report.predictions).toEqual([]);
+  }
+  return withheld;
 }
 
 function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMeta): void {
@@ -394,8 +426,9 @@ export async function assertInvariants(
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
   }
   const { targetCount } = result.analytics.predictions;
+  const forecastsWithheld = assertListingCoverageInvariants(result, meta);
   expect(report.predictionShortfall).toEqual(
-    modelPredictions.length < targetCount
+    !forecastsWithheld && modelPredictions.length < targetCount
       ? {
           emittedCount: modelPredictions.length,
           targetCount,

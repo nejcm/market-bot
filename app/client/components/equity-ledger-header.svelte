@@ -40,6 +40,7 @@
       summary.symbol,
       defaultView.financialTrends?.rows.at(-1)?.period,
       defaultView.financialTrends?.reportingCurrency ?? price.quoteCurrency,
+      defaultView.coverageLabel,
     ]
       .filter((part): part is string => part !== undefined && part !== "")
       .join(" · "),

@@ -126,6 +126,7 @@ export interface ResearchReport {
   readonly reportIntegrity?: ReportIntegrity;
   readonly researchQuality?: ReportIntegrity;
   readonly researchQualityDriver?: string;
+  readonly coverageLabel?: string;
   readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
   readonly predictionShortfall?: PredictionShortfall;
   readonly dataGaps: readonly string[];

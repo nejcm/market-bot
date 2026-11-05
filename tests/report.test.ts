@@ -109,6 +109,21 @@ function observedMetricsRow(markdown: string): string | undefined {
   return markdown.split("\n").find((line) => line.startsWith("- **Observed metrics:**"));
 }
 
+test("renders the non-SEC coverage label in the equity and generic headers", () => {
+  const coverageLabel = "non-SEC issuer: web and issuer sources";
+  for (const jobType of ["equity", "research"] as const) {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType,
+      assetClass: "equity",
+      symbol: "0097.KL",
+      coverageLabel,
+    });
+    expect(markdown).toContain(`Coverage: ${coverageLabel}`);
+  }
+  expect(renderMarkdownReport(report)).not.toContain("Coverage:");
+});
+
 test("renders not-assessed completeness as a non-success status chip", () => {
   const asOf = "2026-05-19T00:00:00.000Z";
   const dimension = {

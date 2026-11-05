@@ -9,6 +9,7 @@ import {
 } from "../domain/market-data";
 import { type SourceGap } from "../domain/sources";
 import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-symbols";
+import { exchangeProfileFor } from "../domain/exchange-profile";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";
 import { dedupeMoversBySymbol } from "../movers/dedupe";
@@ -326,9 +327,13 @@ function equityRequestsFor(
 ): readonly { readonly role: EquityRole; readonly url: string }[] {
   const { command } = ctx;
   if (isInstrumentCommand(command)) {
+    const localBenchmark = exchangeProfileFor(command.symbol)?.benchmark;
     return [
       { role: "ticker", url: yahooQuoteUrl(command.symbol ?? "") },
-      { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
+      {
+        role: "regime",
+        url: yahooQuoteUrl(localBenchmark ?? EQUITY_REGIME_SYMBOLS.join(",")),
+      },
     ];
   }
 

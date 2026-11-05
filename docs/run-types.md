@@ -274,7 +274,10 @@ When Tradier and the retained evidence-request compatibility limits are
 configured, one Tradier packet fetches expirations once, fetches each unique
 event/7/30/60/90-day chain once, and derives 30-day IV, event implied move, and
 term structure without a model decision. One Yahoo/SEC packet is collected per
-valuation peer. US-only packets short-circuit for international listings.
+valuation peer. US-only packets short-circuit for international listings. Equity
+runs pass the Identity Gate first: an unresolved or ambiguous code, or a non-SEC
+listing without an Exa key or with Web Gather disabled, stops before any model stage; a non-SEC listing runs
+Web Gather at brief depth too.
 
 ### Web-Gather Loop
 

@@ -42,6 +42,40 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - Quotes persist on report claims and profile rows. `figureQuotes[].quote` is quoted source text, exempt from
   the research-only scan ([ADR 0001](./0001-research-only-boundary.md)).
 
+### Non-SEC foundation (amended 2026-11-06)
+
+- **Identity Gate.** Every equity instrument run resolves its listing after market collection and before the
+  parallel collection batch, which holds the first model call (peer universe). A priced quote or a typed Yahoo
+  quote (`quoteType` other than `NONE`) resolves. Otherwise Yahoo search (`q=<code without suffix>`) runs once:
+  a single listed-stock match (on the same suffix when the code has a non-US one), exact on code, full name, or first name word, redirects the run
+  to that code and records `listingResolution` plus a `user-input` identity alias. Several exact matches stop
+  as ambiguous, none stops as unresolved; both list candidates and spend no model tokens. A search failure
+  stops a non-US-suffixed symbol and keeps a US-looking one on the old path. The redirect is recorded in
+  `trace.json` as `listingResolution`. The listed-stock check is the one
+  alpha-search uses (`sources/yahoo-quote-info.ts`).
+- **US classification is identity-driven.** `isUsListing` reads the resolved exchange and quote currency first,
+  then the suffix list, which now includes `KL`, `JK`, `BK`, and `TWO`. SEC, Tradier, and Finnhub company
+  packets take `unsupported` for those listings.
+- **Web Gather is the evidence base.** A non-SEC equity listing runs Web Gather at every depth, and the Identity
+  Gate stops the run before any model stage when `MARKET_BOT_EXA_API_KEY` is unset or
+  `MARKET_BOT_WEB_GATHER_DISABLE` is set: either removes the evidence base the coverage label names.
+- **Exchange Profile.** A checked-in row per exchange (suffix, local benchmark, currency; Bursa: `^KLSE`, MYR)
+  drives market regime and the Event Grid relative event. An exchange without a row keeps the US proxies and
+  declares an `exchange-profile` Source Gap.
+- **Forecasts.** A non-SEC listing without verified closes issues no Observable Predictions and declares a
+  `forecast-book` gap; final synthesis is asked for no predictions or Event Grid, and no Prediction Shortfall
+  is reported. With closes, [ADR 0003](./0003-forecasts-scoring-and-calibration.md) applies unchanged: a range
+  Prediction whose scored sessions are unknown (non-US listing) omits its baseline with a `forecast-baseline`
+  gap, direction and relative keep their 0.5 baseline, and range references fall back to 0.5.
+- **Currency.** Valuation Evidence divides on a USD basis; a quote currency other than USD withholds it with a
+  gap instead of dividing across currencies. Yahoo per-share values (EPS, dividend rate) name a non-USD quote
+  currency.
+- **Coverage label.** `report.coverageLabel` is "non-SEC issuer: web and issuer sources" on those runs, rendered
+  in the Markdown header and the Console equity header. It is a deterministic constant, outside the
+  research-only scan.
+- **Endpoint availability is content-based.** `yahooQuote` counts only when the quote normalizes for the run
+  symbol, and `secCompanyTickers` only when the ticker map holds it.
+
 ## Consequences
 
 - Web-sourced figures without a quote, including every recorded pre-change model output, prune into gaps.
@@ -52,3 +86,5 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - A web figure in a claim that also cites a deterministic source is not checked.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.
+- A redirected run collects market data twice (typed code, then the resolved code).
+- Price performance stays SPY-relative for every listing until it reads the Exchange Profile.

@@ -85,6 +85,9 @@ export function buildRunTrace(input: {
     depth: command.depth,
     provider: provider.name,
     codeVersion: input.codeVersion,
+    ...(input.collectedSources.listingResolution !== undefined
+      ? { listingResolution: input.collectedSources.listingResolution }
+      : {}),
     reproducibility: {
       effectiveConfigHash: effectiveConfigHash(config),
       ...(input.sourceStateHash !== undefined ? { dirtySourceHash: input.sourceStateHash } : {}),

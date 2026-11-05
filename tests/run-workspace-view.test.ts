@@ -1235,6 +1235,15 @@ describe("run workspace view", () => {
     ]);
   });
 
+  test("carries the non-SEC coverage label into the equity header view", () => {
+    const coverageLabel = "non-SEC issuer: web and issuer sources";
+    const labelled = buildRunWorkspaceView({ summary: summary(), report: { coverageLabel } });
+    const unlabelled = buildRunWorkspaceView({ summary: summary(), report: { summary: "US" } });
+
+    expect(labelled.equityPresentation?.defaultView.coverageLabel).toBe(coverageLabel);
+    expect(unlabelled.equityPresentation?.defaultView.coverageLabel).toBeUndefined();
+  });
+
   test("suppresses completeness for historical reports without the field", () => {
     const detail: RunDetail = { summary: summary(), report: { summary: "Historical" } };
 

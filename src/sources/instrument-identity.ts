@@ -42,3 +42,20 @@ export function deriveCanonicalInstrumentIdentity(
     }),
   };
 }
+
+// Records the code the user typed when the identity gate resolved it to another listing.
+export function withListingAlias(
+  identity: InstrumentIdentity | undefined,
+  inputSymbol: string | undefined,
+): InstrumentIdentity | undefined {
+  if (inputSymbol === undefined) {
+    return identity;
+  }
+  return {
+    ...identity,
+    aliases: [
+      ...(identity?.aliases ?? []),
+      { provider: "user-input", idKind: "symbol", value: inputSymbol },
+    ],
+  };
+}

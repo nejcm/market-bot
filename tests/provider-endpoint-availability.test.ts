@@ -23,6 +23,27 @@ function gap(
 }
 
 describe("provider endpoint availability", () => {
+  test("counts a reached quote or ticker map only when it holds the run subject", () => {
+    const quote: RawSourceSnapshot = {
+      ...snapshot("yahoo-ticker"),
+      payload: { quoteResponse: { result: [{ symbol: "VITROX.KL", quoteType: "NONE" }] } },
+    };
+    const tickers: RawSourceSnapshot = {
+      ...snapshot("sec-tickers"),
+      payload: { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } },
+    };
+    const kl = deriveProviderEndpointAvailability(
+      [quote, tickers],
+      [gap("sec-edgar", "unsupported-coverage", "No SEC CIK match for VITROX.KL")],
+      { symbol: "VITROX.KL" },
+    );
+    expect(kl.yahooQuote).toMatchObject({ status: "degraded", evidence: ["yahoo-ticker"] });
+    expect(kl.secCompanyTickers).toMatchObject({ status: "unsupported" });
+
+    const aapl = deriveProviderEndpointAvailability([tickers], [], { symbol: "AAPL" });
+    expect(aapl.secCompanyTickers).toEqual({ status: "available", evidence: ["sec-tickers"] });
+  });
+
   test("derives available endpoints from sorted unique adapter evidence", () => {
     const result = deriveProviderEndpointAvailability(
       [

@@ -1,6 +1,8 @@
 import type { AppConfig } from "../config";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { runTypeSupportsWebGather } from "../domain/run-types";
+import type { InstrumentIdentity } from "../domain/instrument";
+import { isNonSecEquityListing } from "../sources/identity-gate";
 import type {
   WebGatherLoopAudit,
   WebGatherToolName,
@@ -49,9 +51,10 @@ import {
 export type { WebGatherLoopResult, WebGatherStageOutput } from "./web-gather-types";
 
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
-  const skipCode = webGatherSkipCode(input.command, input.config);
+  const identity = input.collectedSources.resolvedInstrumentIdentity;
+  const skipCode = webGatherSkipCode(input.command, input.config, identity);
   if (skipCode !== undefined) {
-    const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config);
+    const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config, identity);
     return {
       collectedSources:
         unavailableGap === undefined
@@ -388,16 +391,21 @@ function withWebGatherFailureCode(
   return { ...audit, failureCode: "parse-retries-exhausted" };
 }
 
-export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {
-  return webGatherSkipCode(command, config) === undefined;
+export function isWebGatherLoopEnabled(
+  command: ResearchCommand,
+  config: AppConfig,
+  identity?: InstrumentIdentity,
+): boolean {
+  return webGatherSkipCode(command, config, identity) === undefined;
 }
 
 function webGatherSkipCode(
   command: ResearchCommand,
   config: AppConfig,
+  identity: InstrumentIdentity | undefined,
 ): WebGatherSkipCode | undefined {
   const webGatherOptions = effectiveWebGatherOptions(command, config);
-  if (!isWebGatherScope(command)) {
+  if (!isWebGatherScope(command, identity)) {
     return "run-not-applicable";
   }
   if (config.sourceOptions.exaApiKey === undefined) {
@@ -435,20 +443,26 @@ function webGatherBudgetDisabled(options: AppConfig["webGatherOptions"]): boolea
   return options.maxRounds <= 0 || options.maxToolCalls <= 0 || options.sourceBudget <= 0;
 }
 
-function isWebGatherScope(command: ResearchCommand): boolean {
+// Non-SEC equity listings gather at every depth: web and issuer sources are their evidence base.
+function isWebGatherScope(
+  command: ResearchCommand,
+  identity: InstrumentIdentity | undefined,
+): boolean {
   return (
     command.jobType === "research" ||
-    (runTypeSupportsWebGather(command.jobType) && command.depth === "deep")
+    (runTypeSupportsWebGather(command.jobType) && command.depth === "deep") ||
+    isNonSecEquityListing(command, identity)
   );
 }
 
 function webGatherSearchUnavailableGap(
   command: ResearchCommand,
   config: AppConfig,
+  identity: InstrumentIdentity | undefined,
 ): SourceGap | undefined {
   const webGatherOptions = effectiveWebGatherOptions(command, config);
   if (
-    !isWebGatherScope(command) ||
+    !isWebGatherScope(command, identity) ||
     config.webGatherDisabled ||
     config.sourceOptions.exaApiKey !== undefined ||
     webGatherBudgetDisabled(webGatherOptions)

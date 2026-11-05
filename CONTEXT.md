@@ -51,6 +51,10 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Research Subject Registry** — Checked-in registry for `research` runs: aliases → `subjectKey`, representative instruments, provenance, optional ETF prediction proxy. Never restricts user subjects; a missing proxy permits zero scored Predictions with a disclosed gap.
 
+**Identity Gate** — Pre-model check on every equity instrument run: the listing resolves from its Yahoo quote or a single exact Yahoo search match (the run then continues under that code), or the run stops with candidates before any model stage. Also stops a non-SEC listing without an Exa key or with Web Gather disabled. See [ADR 0006](./docs/adr/0006-non-sec-issuer-coverage.md).
+
+**Exchange Profile** — Checked-in row per non-US exchange (Yahoo suffix, local benchmark, currency) that market regime and the Event Grid relative event read instead of US proxies. An exchange without a row keeps the US proxies with a declared gap. See ADR 0006.
+
 **Peer Universe** — Auditable comparable-Instrument set for peer valuation, resolved from checked-in ticker mapping, Subject Registry, or model-proposed candidates that code validates and caches. The model never authors the set. Candidates face tier-scoped comparability gates; too few valid peers yield a valuation Source Gap. A learned set's evaluation feedback (usable-peer count, each excluded peer's cause) is recorded per cache generation and shown to the next re-proposal; a transient fetch failure or stale fallback withholds it. See [ADR 0004](./docs/adr/0004-evidence-and-model-stage-pipeline.md).
 
 ## Predictions, forecasting, scoring
@@ -71,7 +75,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Forecast-Shape Diversity Guidance** — Soft prompt guidance for varied Prediction shapes on deep instrument runs. Never a gate.
 
-**Event Grid** — Fixed set of events code issues on every equity instrument run (±1σ range outside-events at +1/+5/+20, relative vs SPY at +5), priced by the primary synthesis or a Forecast Grid Job and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into it. An unpriced event is a declared gap, never dropped or defaulted. See ADR 0003.
+**Event Grid** — Fixed set of events code issues on every equity instrument run (±1σ range outside-events at +1/+5/+20, relative vs SPY, or the Exchange Profile benchmark, at +5), priced by the primary synthesis or a Forecast Grid Job and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into it. An unpriced event is a declared gap, never dropped or defaulted. See ADR 0003.
 
 **Forecast Grid Job** — `forecast-grid --watchlist <name>`: issues the Event Grid with Baselines for every equity on a watchlist, one quick-model call per symbol from a compact fact sheet. No synthesis or Web Gather. Dry run unless `--yes`. Publishes one symbol-less run (`jobType: "forecast-grid"`) scored and calibrated like any other.
 

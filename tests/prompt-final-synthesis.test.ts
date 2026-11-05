@@ -842,6 +842,37 @@ describe("StageInput assembly", () => {
     expect(specialistPrompt.sourceIdGuidance).toBeUndefined();
   });
 
+  test("asks for no predictions or Event Grid when the forecast book is withheld", () => {
+    const bursa: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "0097.KL",
+      depth: "brief",
+    };
+    const withheld = JSON.parse(
+      buildStagePrompt(
+        "final-synthesis",
+        baseStageInput({
+          command: bursa,
+          collectedSources: collectedSources({ marketSnapshots: [], sourceGaps: [] }),
+        }),
+      ),
+    ) as { readonly instruction: string; readonly requiredShape: Record<string, unknown> };
+    expect(withheld.instruction).toContain("Return an empty predictions array");
+    expect(withheld.instruction).not.toContain("Emit up to");
+    expect(withheld.requiredShape).not.toHaveProperty("eventGrid");
+
+    const us = JSON.parse(
+      buildStagePrompt(
+        "final-synthesis",
+        baseStageInput({ command: { ...bursa, symbol: "AAPL" } }),
+      ),
+    ) as {
+      readonly instruction: string;
+    };
+    expect(us.instruction).toContain("Emit up to");
+  });
+
   test("omits reportValidationErrors unless provided", () => {
     const without = JSON.parse(buildStagePrompt("final-synthesis", baseStageInput())) as {
       readonly reportValidationErrors?: readonly string[];

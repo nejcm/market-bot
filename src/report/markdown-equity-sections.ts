@@ -1,3 +1,4 @@
+import { perShareCurrency } from "../sources/extended-evidence/yahoo-fundamentals";
 import { type ExtendedEvidenceItem } from "../domain/evidence";
 import {
   marketCapAsOfPhrase,
@@ -372,7 +373,9 @@ function renderCompactValuationMetrics(
     ...(!includePriceToBook || priceToBook === undefined
       ? []
       : [`price/book ${priceToBook.value.toFixed(2)}x`]),
-    ...(epsTtm === undefined ? [] : [`EPS TTM ${epsTtm.value.toFixed(2)}`]),
+    ...(epsTtm === undefined
+      ? []
+      : [`EPS TTM ${epsTtm.value.toFixed(2)}${perShareCurrency(epsTtm.item.identity)}`]),
   ];
   if (values.length === 0) {
     return [];

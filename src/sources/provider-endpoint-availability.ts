@@ -1,5 +1,7 @@
 import type { SourceGap } from "../domain/sources";
+import { findSecTicker } from "./extended-evidence/sec-edgar";
 import type { RawSourceSnapshot } from "./types";
+import { normalizeYahooQuotePayload } from "./yahoo";
 import type { WebGatherProviderCounts } from "./web-search-telemetry";
 
 // Status `degraded` means the endpoint was reached and the run continued, but not on the
@@ -24,12 +26,25 @@ interface EndpointDefinition {
   readonly adapters: readonly string[];
   readonly gapSources: readonly string[];
   readonly availableEvidence?: readonly string[];
+  // A reached endpoint counts as available only when its payload holds the run's subject.
+  readonly usable?: (snapshot: RawSourceSnapshot, symbol: string) => boolean;
 }
 
 const ENDPOINTS: Readonly<Record<string, EndpointDefinition>> = {
-  yahooQuote: { adapters: ["yahoo-ticker"], gapSources: ["yahoo-ticker"] },
+  yahooQuote: {
+    adapters: ["yahoo-ticker"],
+    gapSources: ["yahoo-ticker"],
+    usable: (snapshot, symbol) =>
+      normalizeYahooQuotePayload(snapshot.payload, "equity", snapshot.fetchedAt).some(
+        (quote) => quote.symbol === symbol.toUpperCase(),
+      ),
+  },
   yahooNews: { adapters: ["yahoo-news"], gapSources: ["yahoo-news"] },
-  secCompanyTickers: { adapters: ["sec-tickers"], gapSources: ["sec-edgar"] },
+  secCompanyTickers: {
+    adapters: ["sec-tickers"],
+    gapSources: ["sec-edgar"],
+    usable: (snapshot, symbol) => findSecTicker(snapshot.payload, symbol) !== undefined,
+  },
   secCompanyFacts: { adapters: ["sec-companyfacts"], gapSources: ["sec-edgar"] },
   secSubmissions: { adapters: ["sec-submissions"], gapSources: ["sec-edgar"] },
   finnhubNews: { adapters: ["finnhub-news"], gapSources: ["finnhub-news"] },
@@ -98,9 +113,16 @@ function deriveEndpoint(
   rawSnapshots: readonly RawSourceSnapshot[],
   sourceGaps: readonly SourceGap[],
   definition: EndpointDefinition,
+  symbol: string | undefined,
 ): ProviderEndpointAvailability {
   const observed = observedAdapters(rawSnapshots, definition.adapters);
-  if (observed.length > 0) {
+  const usable =
+    definition.usable === undefined ||
+    symbol === undefined ||
+    rawSnapshots.some(
+      (snapshot) => observed.includes(snapshot.adapter) && definition.usable!(snapshot, symbol),
+    );
+  if (observed.length > 0 && usable) {
     return availableEndpoint(observed);
   }
 
@@ -117,6 +139,13 @@ function deriveEndpoint(
   if (unsupported !== undefined) {
     return unavailableEndpoint("unsupported", unsupported.message, definition.gapSources);
   }
+  if (observed.length > 0) {
+    return unavailableEndpoint(
+      "degraded",
+      `${observed.join(", ")} returned no usable payload for ${symbol ?? "the run subject"}`,
+      observed,
+    );
+  }
   return unavailableEndpoint(
     "unmeasured",
     `No request or normalized availability gap for ${definition.gapSources.join(", ")}`,
@@ -125,6 +154,7 @@ function deriveEndpoint(
 
 export interface ProviderEndpointAvailabilityOptions {
   readonly hasTradierEarningsImpliedMove?: boolean;
+  readonly symbol?: string;
   /** `web_search` counts only. Omitted when the Web Gather stage never executed. */
   readonly webSearch?: WebGatherProviderCounts;
 }
@@ -227,7 +257,7 @@ export function deriveProviderEndpointAvailability(
         endpoint,
         endpoint === "tradierEarningsImpliedMove" && options.hasTradierEarningsImpliedMove === true
           ? availableEndpoint(definition.availableEvidence ?? [])
-          : deriveEndpoint(rawSnapshots, sourceGaps, definition),
+          : deriveEndpoint(rawSnapshots, sourceGaps, definition, options.symbol),
       ]),
     ),
     ...deriveWebSearchEndpointAvailability(rawSnapshots, sourceGaps, options.webSearch),

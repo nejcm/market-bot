@@ -516,6 +516,7 @@ async function runStandardResearch(input: {
             ? { resolvedSubject: input.resolvedSubject }
             : {}),
           ...(input.config.taggedZeroDebtDisabled === true ? { taggedZeroDebtDisabled: true } : {}),
+          ...(input.config.webGatherDisabled ? { webGatherDisabled: true } : {}),
           ...(input.config.extensionShortTermInvestmentsDisabled === true
             ? { extensionShortTermInvestmentsDisabled: true }
             : {}),

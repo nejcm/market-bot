@@ -3,6 +3,7 @@ import {
   type VerifiedSnapshotResult,
 } from "./verified-market-snapshot";
 import { sourceGapWithContext } from "../domain/source-gaps";
+import { exchangeProfileFor } from "../domain/exchange-profile";
 import type { Source, SourceGap } from "../domain/sources";
 import { isRecord, readString } from "../guards";
 import type { MetricContext } from "./extended-evidence/metric-engine";
@@ -146,7 +147,14 @@ export async function collectPriceHistory(
       },
     };
   };
-  const coreTickers = [...new Set([symbol.toUpperCase(), "SPY"])];
+  const localBenchmark = exchangeProfileFor(symbol)?.benchmark;
+  const coreTickers = [
+    ...new Set([
+      symbol.toUpperCase(),
+      "SPY",
+      ...(localBenchmark === undefined ? [] : [localBenchmark]),
+    ]),
+  ];
   const core = await Promise.all(coreTickers.map((ticker) => collectTicker(ticker)));
   // Optional benchmarks wait for issuer and SPY retries, so their failures cannot open the shared Yahoo circuit first.
   const optional = await Promise.all(

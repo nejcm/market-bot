@@ -5724,3 +5724,187 @@ test("notes IFRS liabilities held for sale with no tagged debt as unproven debt"
     ],
   ]);
 });
+
+describe("annual Workbench rows anchor at the period's first annual report", () => {
+  const usGaap10K = (value: number, year: number) =>
+    fact({
+      value,
+      form: "10-K",
+      fiscalYear: 2024,
+      fiscalPeriod: "FY",
+      filedAt: "2025-02-15",
+      periodStart: `${String(year)}-01-01`,
+      periodEnd: `${String(year)}-12-31`,
+    });
+
+  test("a taxonomy switch keeps the original 20-F date and withholds the re-filed inputs", () => {
+    const artifact = derive(
+      payload({
+        "ifrs-full": { Revenue: { USD: [annual(100, 2023, "20-F")] } },
+        "us-gaap": {
+          Revenues: { USD: [usGaap10K(90, 2023), usGaap10K(120, 2024)] },
+          NetIncomeLoss: { USD: [usGaap10K(9, 2023), usGaap10K(12, 2024)] },
+          // A forward-looking duration ends after its filing, so it reports no period.
+          OperatingLeasePayments: {
+            USD: [
+              fact({
+                value: 5,
+                form: "10-K",
+                fiscalPeriod: "FY",
+                filedAt: "2025-02-15",
+                periodStart: "2027-01-01",
+                periodEnd: "2027-12-31",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+    expect(artifact.firstAnnualReports).toEqual([
+      {
+        periodStart: "2023-01-01",
+        periodEnd: "2023-12-31",
+        filedAt: "2024-02-15",
+        accessionNumber: "20240215-20-F",
+        form: "20-F",
+      },
+      {
+        periodStart: "2024-01-01",
+        periodEnd: "2024-12-31",
+        filedAt: "2025-02-15",
+        accessionNumber: "20250215-10-K",
+        form: "10-K",
+      },
+    ]);
+    const { periods, ttm } = valuationPeriodInputs(artifact);
+    const [fy2023] = periods;
+    expect(periods.map(({ basis }) => basis)).toEqual(["annual", "ttm"]);
+    expect(fy2023).toMatchObject({
+      rowPublicAt: "2024-02-15",
+      restatedAfterFirstFiling: ["revenue", "netIncome"],
+    });
+    expect(fy2023?.revenue).toBeUndefined();
+    expect(ttm).toMatchObject({ basis: "ttm", revenue: { value: 120, publicAt: "2025-02-15" } });
+    expect(ttm?.rowPublicAt).toBeUndefined();
+  });
+
+  test("an equal 10-Q alias filed before the 10-K neither dates the row nor withholds the 10-K inputs", () => {
+    const tenQAlias = fact({
+      value: 90,
+      form: "10-Q",
+      fiscalPeriod: "Q3",
+      filedAt: "2024-01-15",
+      periodStart: "2023-01-01",
+      periodEnd: "2023-12-31",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(90, 2023), annual(120, 2024)] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: { USD: [tenQAlias] },
+          NetIncomeLoss: { USD: [annual(9, 2023), annual(12, 2024)] },
+        },
+      }),
+    );
+    const [fy2023] = valuationPeriodInputs(artifact).periods;
+    expect(fy2023?.rowPublicAt).toBe("2024-02-15");
+    expect(fy2023?.restatedAfterFirstFiling).toBeUndefined();
+    expect(fy2023?.revenue?.value).toBe(90);
+    expect(fy2023?.netIncome?.value).toBe(9);
+  });
+
+  test("a span with no first annual report withholds every flow input instead of guessing a date", () => {
+    const misdated = (value: number) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalPeriod: "FY",
+        filedAt: "2012-03-01",
+        periodStart: "2023-01-01",
+        periodEnd: "2023-12-31",
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [misdated(90), annual(120, 2024)] },
+          NetIncomeLoss: { USD: [misdated(9), annual(12, 2024)] },
+        },
+      }),
+    );
+    const workbench = buildValuationWorkbench({
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: artifact,
+      priceHistory: [{ date: "2012-03-01", close: 180 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const [fy2023] = workbench.historicalMultiples.observations;
+
+    expect(artifact.firstAnnualReports?.map(({ periodEnd }) => periodEnd)).toEqual(["2024-12-31"]);
+    expect(fy2023).toMatchObject({ basis: "annual", periodEnd: "2023-12-31" });
+    expect(fy2023?.inputs.revenue).toBeUndefined();
+    expect(fy2023?.metrics.priceToEarnings).toMatchObject({
+      status: "missing",
+      reason: "first-annual-report-unavailable",
+    });
+  });
+
+  test("a fiscal-year transition keeps the 10-month and 12-month spans apart", () => {
+    const span = (value: number, filedAt: string, periodStart: string) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalPeriod: "FY",
+        filedAt,
+        periodStart,
+        periodEnd: "2023-12-31",
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [
+              span(80, "2024-02-15", "2023-03-01"),
+              span(95, "2024-03-15", "2023-01-01"),
+              annual(120, 2024),
+            ],
+          },
+          NetIncomeLoss: {
+            USD: [
+              span(8, "2024-02-15", "2023-03-01"),
+              span(9, "2024-03-15", "2023-01-01"),
+              annual(12, 2024),
+            ],
+          },
+        },
+      }),
+    );
+    const annualRows = valuationPeriodInputs(artifact).periods.filter(
+      ({ basis }) => basis === "annual",
+    );
+
+    expect(
+      annualRows.map(({ periodKey, rowPublicAt, revenue }) => [
+        periodKey,
+        rowPublicAt,
+        revenue?.value,
+      ]),
+    ).toEqual([
+      ["duration:10|2023-12-31", "2024-02-15", 80],
+      ["duration:12|2023-12-31", "2024-03-15", 95],
+    ]);
+    const workbench = buildValuationWorkbench({
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: artifact,
+      priceHistory: [],
+      quoteCurrency: "USD",
+    });
+    expect(
+      workbench.historicalMultiples.observations
+        .filter(({ basis }) => basis === "annual")
+        .map(({ publicAt }) => publicAt),
+    ).toEqual(["2024-02-15", "2024-03-15"]);
+  });
+});

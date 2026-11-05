@@ -131,8 +131,11 @@ legacy SEC summary still feeds Financial Lenses, and the test-only offline corpu
 equivalence at this boundary.
 
 Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual
-or reconciled-TTM fundamentals to a verified close no earlier than the latest filing date among its
-inputs and no more than seven calendar days later. It reports historical P/E, P/S, EV/revenue, and
+or reconciled-TTM fundamentals to a verified close no more than seven calendar days after the row's
+public date: an annual row's first annual report (the earliest 10-K, 20-F or 40-F with a
+fiscal-year span of the same duration identity, in any taxonomy or concept; recorded as
+`firstAnnualReports`), withholding any input first filed after it, or every flow input when that
+record has no entry for the span, or for TTM the latest filing date among its inputs. It reports historical P/E, P/S, EV/revenue, and
 P/FCF as engine `MetricResult`s (`value`, `missing`, `not-meaningful`, `not-applicable`), embeds the existing peer comparison contract, and
 renders through report markdown and the Console. A complete quarterly financial core without
 canonical TTM remains explicitly suppressed rather than producing an unreconciled trailing value. Each historical observation has a `valuation-workbench-<basis>-<periodEnd>-<publicAt>` Metric Section; P/FCF is a proxy whose basis records the selected filing-date close, currency and any dated FX conversion. Definitions read statement facts and verified price/FX inputs directly (R5), never another metric or enricher result. Each unresolved observation emits one section Source Gap. An unavailable close before the requested Yahoo history start retains `missing` / `price-history-unavailable` with structural cause `outside-price-history-window` only when usable closes were returned; the first returned bar never defines the boundary. Observations whose only unresolved metrics carry that cause collapse into one `valuation-workbench-outside-price-history-window` Source Gap listing the affected periods; their sections stay per period. Missing bars inside the requested window and provider failures remain material, as do independent missing inputs in the same section. Absent statements or periods emit a missing `valuation-workbench-unavailable` section. The sections persist through the existing report extra and deep-bundle path; the dedicated workbench table renders them instead of duplicating generic tiles. Its added Source Gaps reach model inputs, and its values reach the metric reference catalog.

@@ -314,6 +314,50 @@ function isUnprovenDebtFact(value: unknown): value is UnprovenDebtFact {
   );
 }
 
+export interface FirstAnnualReport {
+  readonly periodStart: string;
+  readonly periodEnd: string;
+  readonly filedAt: string;
+  readonly accessionNumber: string | null;
+  readonly form: SupportedSecForm;
+}
+
+export function isCalendarDate(value: string): boolean {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    /^\d{4}-\d{2}-\d{2}$/u.test(value) &&
+    !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
+  );
+}
+
+function isFirstAnnualReport(value: unknown, analysisAsOf: string): value is FirstAnnualReport {
+  const form =
+    isRecord(value) && typeof value.form === "string" ? canonicalizeSecForm(value.form) : undefined;
+  return (
+    isRecord(value) &&
+    form !== undefined &&
+    isAnnualReportForm(form.canonicalForm) &&
+    [value.periodStart, value.periodEnd, value.filedAt].every(
+      (date) => typeof date === "string" && isCalendarDate(date),
+    ) &&
+    (value.periodStart as string) < (value.periodEnd as string) &&
+    (value.periodEnd as string) < (value.filedAt as string) &&
+    (value.filedAt as string) <= analysisAsOf.slice(0, 10) &&
+    (value.accessionNumber === null || typeof value.accessionNumber === "string")
+  );
+}
+
+function areFirstAnnualReports(value: unknown, analysisAsOf: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    typeof analysisAsOf === "string" &&
+    value.every((report) => isFirstAnnualReport(report, analysisAsOf)) &&
+    new Set(value.map((report: FirstAnnualReport) => `${report.periodStart}|${report.periodEnd}`))
+      .size === value.length
+  );
+}
+
 export interface FinancialStatementNotePeriod {
   readonly start?: string;
   readonly end: string;
@@ -391,6 +435,8 @@ export interface FinancialStatementsArtifact {
   readonly dividendPaymentFiled?: boolean;
   // Series with no observable raw fact under any alias in any taxonomy; absent on pre-flag artifacts.
   readonly unfiledSeries?: readonly FinancialStatementSeriesKey[];
+  // Earliest annual report (any taxonomy or concept) filing each fiscal-year duration identity.
+  readonly firstAnnualReports?: readonly FirstAnnualReport[];
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
   readonly structuredFinancialGaps: readonly StructuredFinancialGap[];
@@ -797,6 +843,8 @@ export function readFinancialStatementsArtifact(
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||
     (value.dividendPaymentFiled !== undefined && typeof value.dividendPaymentFiled !== "boolean") ||
+    (value.firstAnnualReports !== undefined &&
+      !areFirstAnnualReports(value.firstAnnualReports, value.analysisAsOf)) ||
     (value.unfiledSeries !== undefined &&
       (!Array.isArray(value.unfiledSeries) ||
         !value.unfiledSeries.every((key) =>

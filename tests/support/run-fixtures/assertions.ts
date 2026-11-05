@@ -2356,8 +2356,13 @@ export function assertIrenExtensionCapexWithheld(result: RunFixtureResult): void
     const workbench = result.collectedSources.valuationWorkbench?.historicalMultiples.observations
       .filter(({ periodEnd }) => periodEnd === end)
       .map(({ metrics }) => metrics.priceToFreeCashFlow);
+    // FY2024 OCF was first filed by the 10-K that switched from IFRS, after the row's 20-F anchor.
     expect(workbench).toEqual([
-      expect.objectContaining({ status: "missing", reason: "free-cash-flow-unavailable" }),
+      expect.objectContaining(
+        end === "2024-06-30"
+          ? RESTATED_WORKBENCH_INPUT
+          : { status: "missing", reason: "free-cash-flow-unavailable" },
+      ),
     ]);
   }
   const fcfMetrics = (
@@ -2454,17 +2459,30 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
   expect(result.markdown).toContain(
     "Interim ending 2026-06-30 (latest filed 2026-08-06) | 20.4M | 0 | 13.7M",
   );
-  // FY2023 debt 2,112K predates the recast 10-K (0001171843-25-007594) that restated its revenue.
-  const scoped = (valuationWorkbench?.historicalMultiples.observations ?? []).filter(
-    ({ metrics }) => metrics.enterpriseValueToRevenue?.basis?.includes(DEBT_SCOPE_CAVEAT),
+  // The recast 10-K (0001171843-25-007594) restated FY2023 revenue, so the row prices at its
+  // 2023-11-29 first filing, withholds the restated inputs, and never pairs pre-recast debt.
+  const observations = valuationWorkbench?.historicalMultiples.observations ?? [];
+  expect(
+    observations.filter(({ metrics }) =>
+      metrics.enterpriseValueToRevenue?.basis?.includes(DEBT_SCOPE_CAVEAT),
+    ),
+  ).toEqual([]);
+  expect(result.markdown).not.toContain(DEBT_SCOPE_CAVEAT);
+  const fy2023 = observations.find(
+    ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2023-09-30",
   );
-  expect(scoped.map(({ basis, periodEnd }) => `${basis}|${periodEnd}`)).toEqual([
-    "annual|2023-09-30",
-  ]);
-  expect(scoped[0]?.metrics.enterpriseValueToRevenue?.status).toBe("value");
-  expect(result.markdown).toContain(
-    `EV/revenue uses debt (${DEBT_SCOPE_CAVEAT}) for annual 2023-09-30`,
-  );
+  expect(fy2023?.publicAt).toBe("2023-11-29");
+  expect(fy2023?.price?.sessionDate).toBe("2023-11-29");
+  expect(fy2023?.inputs.revenue).toBeUndefined();
+  expect(fy2023?.inputs.dilutedEps).toMatchObject({ value: 2.17, publicAt: "2023-11-29" });
+  expect(fy2023?.metrics.priceToEarnings?.status).toBe("value");
+  for (const metric of [
+    "priceToSales",
+    "enterpriseValueToRevenue",
+    "priceToFreeCashFlow",
+  ] as const) {
+    expect(fy2023?.metrics[metric], `FY2023 ${metric}`).toMatchObject(RESTATED_WORKBENCH_INPUT);
+  }
 }
 
 // A 10-Q's own calc linkbase proves the YTD capex columns it supplies.
@@ -2740,19 +2758,28 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
     // P/S. An unconverted close would suppress both, and a wrong rate would miss both numbers.
     const convertedClose = (price?.close ?? 0) * fx.rate;
     const dilutedShares = observation.inputs.dilutedShares?.value;
-    expect(observation.metrics.priceToEarnings, `${label} P/E`).toMatchObject({
-      status: "value",
-      value: convertedClose / (observation.inputs.dilutedEps?.value ?? Number.NaN),
-    });
-    // IFRS TTM has no filed share count, and consolidated ProfitLoss cannot derive one.
-    expect(observation.metrics.priceToSales, `${label} P/S`).toMatchObject(
-      dilutedShares === undefined
-        ? { status: "missing", reason: "diluted-shares-unavailable" }
+    // IFRS 17 restated FY2023 EPS and revenue after the first filing, so that annual row withholds both.
+    const withheld = observation.basis === "annual" && observation.periodEnd === "2023-10-31";
+    expect(observation.metrics.priceToEarnings, `${label} P/E`).toMatchObject(
+      withheld
+        ? RESTATED_WORKBENCH_INPUT
         : {
             status: "value",
-            value:
-              (convertedClose * dilutedShares) / (observation.inputs.revenue?.value ?? Number.NaN),
+            value: convertedClose / (observation.inputs.dilutedEps?.value ?? Number.NaN),
           },
+    );
+    // IFRS TTM has no filed share count, and consolidated ProfitLoss cannot derive one.
+    expect(observation.metrics.priceToSales, `${label} P/S`).toMatchObject(
+      withheld
+        ? RESTATED_WORKBENCH_INPUT
+        : dilutedShares === undefined
+          ? { status: "missing", reason: "diluted-shares-unavailable" }
+          : {
+              status: "value",
+              value:
+                (convertedClose * dilutedShares) /
+                (observation.inputs.revenue?.value ?? Number.NaN),
+            },
     );
   }
 
@@ -2968,8 +2995,8 @@ function assertValuationWorkbenchInvariants(
     observations.length === 0
       ? ["valuation-workbench-unavailable"]
       : observations.map(
-          ({ basis, periodEnd, publicAt }) =>
-            `valuation-workbench-${basis}-${periodEnd}-${publicAt}`,
+          ({ basis, periodEnd, publicAt, periodMonths }) =>
+            `valuation-workbench-${basis}-${periodEnd}-${publicAt}${periodMonths === undefined ? "" : `-${String(periodMonths)}m`}`,
         ),
   );
   expect(
@@ -3245,15 +3272,22 @@ function assertValuationWorkbenchInvariants(
         key === "priceToFreeCashFlow" && inputs.freeCashFlow === undefined
           ? (["operatingCashFlow", "capitalExpenditure"] as const).flatMap((seriesKey) => {
               const series = statements?.statements.cashFlowStatement[seriesKey];
+              // An annual row whose revenue was withheld as restated anchors on its own period.
+              const revenueLineage = inputs.revenue?.lineage;
               const parts = [...(series?.annual ?? []), ...(series?.interim ?? [])].filter(
                 (fact) =>
-                  inputs.revenue?.lineage?.some(
-                    (anchor) =>
-                      anchor.periodKey === fact.periodKey && anchor.periodType === fact.periodType,
-                  ) && fact.firstPublicAt <= publicAt,
+                  (revenueLineage === undefined
+                    ? observation.basis === "annual" &&
+                      fact.periodType === "annual" &&
+                      fact.periodEnd === periodEnd
+                    : revenueLineage.some(
+                        (anchor) =>
+                          anchor.periodKey === fact.periodKey &&
+                          anchor.periodType === fact.periodType,
+                      )) && fact.firstPublicAt <= publicAt,
               );
               // A part cites only when every revenue period is public for it (EBAY TTM 2025-09-30 is not).
-              return parts.length === (inputs.revenue?.lineage?.length ?? 0)
+              return parts.length === (revenueLineage?.length ?? 1)
                 ? parts.flatMap(({ sourceIds }) => sourceIds)
                 : [];
             })
@@ -3380,6 +3414,10 @@ const DEPOSITORY_WORKBENCH_FCF = {
   status: "not-applicable",
   reason: "depository issuer; capex-based free cash flow is not defined (SIC 6022)",
 } as const;
+const RESTATED_WORKBENCH_INPUT = {
+  status: "missing",
+  reason: "restated-after-first-filing",
+} as const;
 const MISSING_WORKBENCH_SHARES = {
   status: "missing",
   reason: "diluted-shares-unavailable",
@@ -3403,29 +3441,35 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
     MISSING_WORKBENCH_DEBT,
     MISSING_WORKBENCH_PRICE,
   ],
-  "annual|2020-09-30|2022-11-23": [
-    244.339_622_641_509_4,
-    18.982_696_454_472_2,
+  "annual|2020-09-30|2020-11-12": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_DEBT,
-    364.291_643_814_433,
+    MISSING_WORKBENCH_PRICE,
   ],
-  "annual|2021-09-30|2022-11-23": [
-    88.095_238_095_238_1, 12.682_079_308_017_476, 12.514_483_130_261_802, 201.542_968_612_396_98,
+  "annual|2021-09-30|2021-11-10": [
+    43.952_381_367_586_1,
+    RESTATED_WORKBENCH_INPUT,
+    MISSING_WORKBENCH_DEBT,
+    RESTATED_WORKBENCH_INPUT,
   ],
-  "annual|2022-09-30|2024-11-15": [
-    7.960_563_444_755_447,
-    1.450_748_518_817_449_4,
-    1.436_772_004_971_988_5,
+  "annual|2022-09-30|2022-11-23": [
+    36.478_873_239_436_62,
+    6.647_980_596_789_019_5,
+    MIXED_WORKBENCH_BALANCE_SHEET,
+    RESTATED_WORKBENCH_INPUT,
+  ],
+  "annual|2023-09-30|2023-11-29": [
+    12.009_216_343_752_25,
+    RESTATED_WORKBENCH_INPUT,
+    RESTATED_WORKBENCH_INPUT,
+    RESTATED_WORKBENCH_INPUT,
+  ],
+  "annual|2024-09-30|2024-11-15": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
-  ],
-  "annual|2023-09-30|2025-11-25": [
-    12.917_051_007_670_741, 1.864_245_142_778_658, 1.128_822_809_111_580_8, 24.526_498_928_617_137,
-  ],
-  "annual|2024-09-30|2025-11-25": [
-    NEGATIVE_WORKBENCH_DENOMINATOR,
-    3.255_177_143_165_247_4,
-    { status: "missing", reason: "mixed-scope-debt" },
-    41.772_721_871_535_39,
+    RESTATED_WORKBENCH_INPUT,
+    RESTATED_WORKBENCH_INPUT,
+    RESTATED_WORKBENCH_INPUT,
   ],
   "annual|2025-09-30|2025-11-25": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
@@ -3454,17 +3498,18 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
 };
 
 const IREN_WORKBENCH_VALUES: WorkbenchValues = {
-  "annual|2023-06-30|2025-08-28": [
-    NEGATIVE_WORKBENCH_DENOMINATOR,
-    16.713_687_295_404_736,
+  // Original IFRS 20-F (2023-09-13); every input comes from the 2025-08-28 US-GAAP 10-K.
+  "annual|2023-06-30|2023-09-13": [
+    RESTATED_WORKBENCH_INPUT,
+    RESTATED_WORKBENCH_INPUT,
     MISSING_WORKBENCH_CASH,
-    NEGATIVE_WORKBENCH_DENOMINATOR,
+    RESTATED_WORKBENCH_INPUT,
   ],
-  "annual|2024-06-30|2025-08-28": [
-    NEGATIVE_WORKBENCH_DENOMINATOR,
-    12.264_022_436_984_416,
-    10.067_715_970_896_122,
-    MISSING_WORKBENCH_FCF,
+  "annual|2024-06-30|2024-08-28": [
+    RESTATED_WORKBENCH_INPUT,
+    RESTATED_WORKBENCH_INPUT,
+    MISSING_WORKBENCH_CASH,
+    RESTATED_WORKBENCH_INPUT,
   ],
   "annual|2025-06-30|2025-08-28": [
     59.076_925_424_429_085,
@@ -3503,16 +3548,16 @@ const AAPL_WORKBENCH_VALUES: WorkbenchValues = {
   ],
 };
 const AMD_WORKBENCH_VALUES: WorkbenchValues = {
-  "annual|2016-12-31|2019-02-08": [
+  "annual|2016-12-31|2017-02-21": [
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
   ],
-  "annual|2017-12-30|2019-02-08": [
+  "annual|2017-12-30|2018-02-27": [
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
-    MISSING_WORKBENCH_PRICE,
+    IFRS_WORKBENCH_EV,
     MISSING_WORKBENCH_PRICE,
   ],
   "annual|2018-12-29|2019-02-08": [
@@ -3575,35 +3620,35 @@ const AMD_WORKBENCH_VALUES: WorkbenchValues = {
 };
 
 const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
-  "annual|2016-12-31|2019-01-30": [
+  "annual|2016-12-31|2017-02-06": [
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_DEBT,
     MISSING_WORKBENCH_PRICE,
   ],
-  "annual|2017-12-31|2019-01-30": [
+  "annual|2017-12-31|2018-02-05": [
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_DEBT,
     MISSING_WORKBENCH_PRICE,
   ],
-  "annual|2018-12-31|2021-02-04": [
+  "annual|2018-12-31|2019-01-30": [
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_DEBT,
     MISSING_WORKBENCH_PRICE,
   ],
-  "annual|2019-12-31|2022-02-24": [
-    26.526_315_132_396_643,
-    6.388_025_147_996_082,
+  "annual|2019-12-31|2020-01-31": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_DEBT,
-    MISSING_WORKBENCH_FCF,
+    MISSING_WORKBENCH_PRICE,
   ],
-  "annual|2020-12-31|2022-02-24": [
-    7.026_615_795_527_121,
-    4.475_592_423_428_947,
-    4.953_779_965_592_203,
-    MISSING_WORKBENCH_FCF,
+  "annual|2020-12-31|2021-02-04": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_DEBT,
+    MISSING_WORKBENCH_PRICE,
   ],
   "annual|2021-12-31|2022-02-24": [
     2.699_123_594_289_629_2,
@@ -3658,19 +3703,19 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-aapl-brief": {},
   "equity-aapl-deep": AAPL_WORKBENCH_VALUES,
   "equity-earnings-release-deep": {
-    "annual|2017-09-30|2018-11-05": [
+    "annual|2017-09-30|2017-11-03": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
-    "annual|2018-09-29|2020-10-30": [
+    "annual|2018-09-29|2018-11-05": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
     ],
-    "annual|2019-09-28|2020-10-30": [
+    "annual|2019-09-28|2019-10-31": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
@@ -3751,25 +3796,24 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MIXED_WORKBENCH_BALANCE_SHEET,
       MISSING_WORKBENCH_PRICE,
     ],
-    // FY2024 20-F comparative (diluted EPS $1.59, revenue 13.5M) at the 2025-04-30 close $22.73.
-    "annual|2022-12-31|2025-04-30": [
-      14.295_597_196_375_049,
-      619.637_052_218_792_4,
-      MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_FCF,
+    // Anchored at the period's first annual report (2023-04-20); the fixture has no close that early.
+    "annual|2022-12-31|2023-04-20": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_PRICE,
     ],
-    // FY2023 20-F (0001104659-26-052948): continuing OCF -222.0M; the 829.8M total includes divested Yandex.
-    "annual|2023-12-31|2026-04-30": [
-      212.661_531_888_521_64,
-      5230.731_450_141_013,
-      MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_FCF,
+    "annual|2023-12-31|2024-04-26": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_PRICE,
     ],
-    "annual|2024-12-31|2026-04-30": [
+    "annual|2024-12-31|2025-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,
-      424.517_499_337_662_85,
+      RESTATED_WORKBENCH_INPUT,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_FCF,
+      RESTATED_WORKBENCH_INPUT,
     ],
     "ttm|2025-12-31|2026-04-30": [
       418.878_774_931_936_56,
@@ -3875,9 +3919,9 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],
-    "annual|2023-10-31|2024-12-03": [
-      13.448_872_532_460_411,
-      2.875_171_393_380_236_8,
+    "annual|2023-10-31|2023-11-28": [
+      RESTATED_WORKBENCH_INPUT,
+      RESTATED_WORKBENCH_INPUT,
       DEPOSITORY_WORKBENCH_EV,
       DEPOSITORY_WORKBENCH_FCF,
     ],

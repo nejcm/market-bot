@@ -16,7 +16,10 @@ import { withReplaySession } from "../src/replay/session";
 import {
   fetchSecCompanyFactsForSymbol,
   secProviderResultFromCompanyFacts,
+  type SecProviderResult,
 } from "../src/sources/extended-evidence/sec-edgar";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { collectValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import type { MetricSection } from "../src/sources/extended-evidence/metric-engine";
 import { createCollectContext } from "../src/sources/source-request";
 import {
@@ -205,6 +208,32 @@ function ledgerRow(rows: readonly LedgerRow[], id: string, period: string): Ledg
   );
 }
 
+// Every Workbench section, transition spans included, is dated by its ledger row.
+function expectWorkbenchSectionsInLedger(
+  rows: readonly LedgerRow[],
+  sections: readonly MetricSection[],
+): readonly string[] {
+  const workbenchDates = sections.flatMap(({ id }) => {
+    const match =
+      /^valuation-workbench-(annual|ttm)-(\d{4}-\d{2}-\d{2})-(\d{4}-\d{2}-\d{2})(?:-(\d+m))?$/u.exec(
+        id,
+      );
+    return match === null
+      ? []
+      : [`${match[1]}|${match[2]}${match[4] === undefined ? "" : `|${match[4]}`} ${match[3]}`];
+  });
+  expect(workbenchDates).toHaveLength(
+    sections.filter(({ id }) => /^valuation-workbench-(annual|ttm)-/u.test(id)).length,
+  );
+  expect(workbenchDates.length).toBeGreaterThan(0);
+  expect(
+    rows
+      .filter(({ metric }) => metric === "valuation.publicAt")
+      .map(({ period, firstPublicAt }) => `${period} ${firstPublicAt}`),
+  ).toEqual(expect.arrayContaining(workbenchDates));
+  return workbenchDates;
+}
+
 type Pinned = Readonly<Record<string, number>>;
 
 function expectLedgerMatchesRun(
@@ -232,6 +261,7 @@ function expectLedgerMatchesRun(
     return run === recorded ? [] : [{ id: metric.id, run, ledger: recorded }];
   });
   expect(disagreements).toEqual([]);
+  expectWorkbenchSectionsInLedger(rows, sections);
   for (const [metric, value] of Object.entries(pinned)) {
     const published = rows.find(
       (candidate) => candidate.metric === metric && candidate.status === "published",
@@ -326,5 +356,60 @@ describe("SEC sweep collection matches a replayed brief run", () => {
       expectLedgerMatchesRun(rows, extras?.metricSections ?? [], pinned);
     },
     60_000,
+  );
+});
+
+function annualFact(val: number, filed: string, start: string, end = "2023-12-31") {
+  return {
+    val,
+    form: "10-K",
+    fp: "FY",
+    filed,
+    start,
+    end,
+    accn: `${filed}-10-K`,
+  };
+}
+
+test("a fiscal-year transition section matches its own ledger row", async () => {
+  const facts = {
+    facts: {
+      "us-gaap": {
+        Revenues: {
+          units: {
+            USD: [
+              annualFact(80, "2024-02-15", "2023-03-01"),
+              annualFact(95, "2024-03-15", "2023-01-01"),
+              annualFact(120, "2025-02-15", "2024-01-01", "2024-12-31"),
+            ],
+          },
+        },
+      },
+    },
+  };
+  const statements = deriveFinancialStatements(facts, {
+    symbol: "TEST",
+    generatedAt: "2026-06-15T00:00:00.000Z",
+    analysisAsOf: "2026-06-15T00:00:00.000Z",
+    sourceId: "extended-sec-edgar-test-fundamentals",
+  });
+  const { metricSections } = await collectValuationWorkbench({
+    generatedAt: "2026-06-15T00:00:00.000Z",
+    symbol: "TEST",
+    financialStatements: statements,
+    priceHistory: [],
+    quoteCurrency: "USD",
+  });
+  const rows = secValueLedgerRows({
+    cik: "0000000000",
+    symbol: "TEST",
+    statements,
+    companyFacts: facts,
+    sec: { items: [], gaps: [], rawSnapshots: [] } as unknown as SecProviderResult,
+    asOf: "2026-06-15",
+  });
+
+  expect(expectWorkbenchSectionsInLedger(rows, metricSections)).toEqual(
+    expect.arrayContaining(["annual|2023-12-31|10m 2024-02-15", "annual|2023-12-31 2024-03-15"]),
   );
 });

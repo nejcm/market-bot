@@ -8,7 +8,10 @@ import {
   financialStatementsHistoryGaps,
 } from "../src/sources/extended-evidence/financial-statements";
 import type { CollectContext } from "../src/sources/types";
-import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
+import {
+  periodPublicAt,
+  valuationPeriodInputs,
+} from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { buildSecFilingSourceItem } from "../src/sources/sec-filing-item";
 import { classifyGap } from "../src/report/gap-triage";
 import type {
@@ -933,30 +936,43 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       position?.notes?.filter(({ seriesKey }) => seriesKey === "debt").map(({ code }) => code),
     ).toEqual(["incomplete-composite-series", "stale-instant-series"]);
   });
-  test("CLFD FY2024 EV withholds pre-recast debt 2,228K (0001171843-24-006402) beside restated revenue (0001171843-25-007594)", () => {
+  test("CLFD FY2024 prices at its first 10-K (0001171843-24-006402) and withholds revenue restated by the recast (0001171843-25-007594)", () => {
     const { periods } = valuationPeriodInputs(load("clfd").statements);
     const fy2024 = periods.find(
       ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2024-09-30",
     );
-    expect([fy2024?.revenue?.value, fy2024?.debt, fy2024?.debtScopeMismatch]).toEqual([
-      125_568_000,
-      undefined,
-      true,
-    ]);
+    expect([
+      fy2024 && periodPublicAt(fy2024),
+      fy2024?.restatedAfterFirstFiling,
+      fy2024?.revenue,
+      fy2024?.debt?.value,
+      fy2024?.debtScopeMismatch,
+    ]).toEqual(["2024-11-15", ["revenue", "operatingCashFlow"], undefined, 2_228_000, undefined]);
   });
-  test("CLFD FY2023 EV publishes debt 2,112K (0001171843-24-006402) beside restated revenue with a debt-scope-unproven disclosure", () => {
+  test("CLFD FY2023 prices EPS 2.17 at its first 10-K (2023-11-29) and withholds continuing revenue restated 2025-11-25", () => {
     const { statements } = load("clfd");
     const fy2023 = valuationPeriodInputs(statements).periods.find(
       ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2023-09-30",
     );
     expect([
-      fy2023?.revenue?.value,
-      fy2023?.revenue?.publicAt,
+      fy2023 && periodPublicAt(fy2023),
+      fy2023?.restatedAfterFirstFiling,
+      fy2023?.revenue,
+      fy2023?.dilutedEps?.value,
+      fy2023?.dilutedEps?.publicAt,
       fy2023?.debt?.value,
-      fy2023?.debt?.scope,
       fy2023?.debtScopeUnproven,
       fy2023?.debtScopeMismatch,
-    ]).toEqual([225_722_000, "2025-11-25", 2_112_000, DEBT_SCOPE_CAVEAT, true, undefined]);
+    ]).toEqual([
+      "2023-11-29",
+      ["revenue", "operatingCashFlow"],
+      undefined,
+      2.17,
+      "2023-11-29",
+      2_112_000,
+      undefined,
+      undefined,
+    ]);
     const scopeNotes = statements.omissionNotes.filter(
       ({ code }) => code === "debt-scope-unproven",
     );

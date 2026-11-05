@@ -1856,6 +1856,32 @@ describe("run workspace view", () => {
     ]);
   });
 
+  test("labels a fiscal-year transition row with its span in the console and Markdown", () => {
+    const base = valuationWorkbench();
+    const [fullYear] = base.historicalMultiples.observations;
+    if (fullYear === undefined) {
+      throw new Error("valuation workbench fixture observation missing");
+    }
+    const workbench = valuationWorkbench({
+      historicalMultiples: {
+        ...base.historicalMultiples,
+        observations: [{ ...fullYear, publicAt: "2026-01-15", periodMonths: 10 }, fullYear],
+      },
+    });
+
+    expect(
+      valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench }),
+    ).toMatchObject({
+      rows: [
+        { basis: "ANNUAL (10 months)", periodEnd: "2025-12-31", publicAt: "2026-01-15" },
+        { basis: "ANNUAL", periodEnd: "2025-12-31", publicAt: "2026-02-01" },
+      ],
+    });
+    const markdown = renderValuationWorkbenchMarkdown(workbench, researchReport());
+    expect(markdown).toContain("ANNUAL (10 months) | 2025-12-31 | 2026-01-15");
+    expect(markdown).toContain("\nANNUAL | 2025-12-31 | 2026-02-01");
+  });
+
   test("projects historical multiples and the peer table from the valuation workbench", () => {
     const workbench = valuationWorkbench({
       peerComparison: {
@@ -1926,7 +1952,7 @@ describe("run workspace view", () => {
       reportingCurrency: "USD",
       quoteCurrency: "USD",
       priceSelectionRule: expect.stringContaining(
-        "possibly restated) fundamentals, publicAt the first filing that reported each value",
+        "inputs first filed after it withheld; TTM rows at the first filing of each selected value",
       ),
       trailingDisclosure: expect.stringContaining("Canonical reconciled TTM is unavailable"),
       rows: [

@@ -61,6 +61,34 @@ describe("frozen historical artifacts", () => {
     });
   });
 
+  test("reads only well-formed, unique first annual reports filed after their period", async () => {
+    const artifact = (await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json()) as FinancialStatementsArtifact;
+    const report = {
+      periodStart: "2024-01-01",
+      periodEnd: "2024-12-31",
+      filedAt: "2025-03-03",
+      accessionNumber: "0001780312-25-000010",
+      form: "10-K/A" as const,
+    };
+    const withReports = (firstAnnualReports: readonly unknown[]) =>
+      readFinancialStatementsArtifact({ ...artifact, firstAnnualReports });
+
+    expect(withReports([report])?.firstAnnualReports).toEqual([report]);
+    for (const malformed of [
+      [{ ...report, form: "10-Q" }],
+      [{ ...report, form: "6-K" }],
+      [{ ...report, filedAt: "1900-01-01" }],
+      [{ ...report, filedAt: "2025-02-30" }],
+      [{ ...report, filedAt: "2099-01-01" }],
+      [{ ...report, periodStart: "2025-01-01" }],
+      [report, { ...report, filedAt: "2025-04-01" }],
+    ]) {
+      expect(withReports(malformed), JSON.stringify(malformed)).toBeUndefined();
+    }
+  });
+
   test("reads a TTM equal to the latest FY and backfills its one component", async () => {
     const artifact = (await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),

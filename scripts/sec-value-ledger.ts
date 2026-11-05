@@ -23,6 +23,8 @@ import type { MetricContext, MetricResult } from "../src/sources/extended-eviden
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { withheldDebt } from "../src/sources/extended-evidence/sec-debt";
 import {
+  periodPublicAt,
+  transitionMonths,
   valuationPeriodInputs,
   type ValuationPeriodInputs,
 } from "../src/sources/extended-evidence/valuation-workbench-inputs";
@@ -75,6 +77,7 @@ const VALUATION_FLAGS = [
   "debtScopeMismatch",
   "debtScopeUnproven",
   "debtBehindIncompleteInstant",
+  "firstAnnualReportUnavailable",
 ] as const;
 
 function joined(values: readonly (string | undefined)[]): string | null {
@@ -261,11 +264,19 @@ function valuationRows(
   push: (metric: string, period: string, fields: RowFields) => void,
 ): void {
   for (const inputs of periods) {
-    const period = `${inputs.basis}|${inputs.periodEnd}`;
+    const months = transitionMonths(inputs);
+    const period = `${inputs.basis}|${inputs.periodEnd}${months === undefined ? "" : `|${months}m`}`;
     const flags = joined([
       ...VALUATION_FLAGS.filter((flag) => inputs[flag] === true),
       ...(inputs.earlierShareBasis ?? []).map((key) => `earlierShareBasis:${key}`),
+      ...(inputs.restatedAfterFirstFiling ?? []).map((key) => `restatedAfterFirstFiling:${key}`),
     ]);
+    push("valuation.publicAt", period, {
+      ...EMPTY,
+      status: "published",
+      reason: flags,
+      firstPublicAt: periodPublicAt(inputs),
+    });
     for (const key of VALUATION_INPUTS) {
       const input = inputs[key];
       if (input === undefined) {

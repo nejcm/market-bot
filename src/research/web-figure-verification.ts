@@ -36,8 +36,23 @@ const DETERMINISTIC_KINDS: ReadonlySet<Source["kind"]> = new Set([
 const MIN_QUOTE_CONTEXT_WORDS = 3;
 const GAP_PREFIX = "Verified Web Figure check withheld";
 
-const FIGURE_PATTERN =
-  /(?<![\p{L}\d.,'’]|[\p{L}\d][-/])(?<sign>[-−](?=\S))?(?<prefix>US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil)|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|per\s?cent|pct|percentage points?|pp|bps|basis points)|(?<multiple>x|×))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB))?(?![\p{L}\d]|[-.,]\p{L}|[.,]\d)/giu;
+const CURRENCY_PREFIX = String.raw`US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc}`;
+// A dash before a digit or currency prefix joins a range ("RM5m-RM6m").
+const RANGE_TAIL = String.raw`-(?:(?:${CURRENCY_PREFIX})\s?)?\d`;
+const SCALE_WORDS = "trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil";
+const UNIT_WORDS = String.raw`per\s?cent|pct|percentage points?|pp|bps|bp|basis points`;
+// Words a bare count may be glued to and still be no figure ("52-week", "10-K"); any other word may be a unit.
+const COUNT_WORD_AFTER =
+  /^-(?:[AC-JLN-Z]|(?:[Dd]ay|[Ww]eek|[Mm]onth|[Qq]uarter|[Yy]ear|[Yy]r|[Hh]our)s?|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?!\p{L})/u;
+// K, M and B may be scales, so only the SEC form codes keep them.
+const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
+const FIGURE_PATTERN = new RegExp(
+  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  "giu",
+);
+const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
+const CURRENCY_BEFORE = new RegExp(`(?:${CURRENCY_PREFIX})\\s*$`, "u");
+const SEC_ACCESSION_PATTERN = /[\p{L}\d-]*\d{10}-\d{2}-\d{6}/gu;
 const CALENDAR_TOKEN_PATTERN =
   /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?:,?\s+\d{4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b\.?(?:,?\s+\d{4})?|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m)?\b/gu;
 
@@ -107,6 +122,7 @@ const SCALES: Readonly<Record<string, number>> = {
 const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
   "figure-not-quoted": "has no verbatim quote from its cited web source",
   "figure-not-in-quote": "does not appear in any verified quote",
+  "figure-ambiguous": "has a sign or range structure that cannot be read reliably",
   "scale-mismatch": "is quoted at a different scale",
   "currency-mismatch": "is quoted in a different currency",
   "unit-mismatch": "is quoted with a different unit",
@@ -141,13 +157,132 @@ const SEPARATED_SIGN = /(?<!-)-\s+$/u;
 const OPEN_PAREN = /\(\s*$/u;
 const CLOSE_PAREN = /^\s*\)/u;
 
+interface ParsedRow {
+  readonly figure: Figure;
+  readonly num: string;
+  readonly scaled: boolean;
+  readonly rawStart: number;
+  readonly rawEnd: number;
+  readonly numStart: number;
+}
+
+function differ(left: string, right: string): boolean {
+  return left !== "" && right !== "" && left !== right;
+}
+
+function mixedRange(low: Figure, high: Figure): boolean {
+  return (
+    differ(low.currency, high.currency) ||
+    differ(low.unit, high.unit) ||
+    (low.currency !== "" && high.unit !== "") ||
+    (low.unit !== "" && high.currency !== "")
+  );
+}
+
+// Counts, ranks, years and model numbers ("iPhone 17", "top 10") are not figures.
+function isBare(row: ParsedRow, figure: Figure): boolean {
+  return (
+    figure.scale === 1 && figure.currency === "" && figure.unit === "" && !/[.,]/u.test(row.num)
+  );
+}
+
+function placedRow(row: ParsedRow, figure: Figure): PlacedFigure {
+  return { figure, numStart: row.numStart, numEnd: row.numStart + row.num.length };
+}
+
+function parenthesizedRange(low: ParsedRow, high: ParsedRow, blanked: string): boolean {
+  return (
+    OPEN_PAREN.test(blanked.slice(Math.max(0, low.rawStart - 8), low.rawStart)) &&
+    CLOSE_PAREN.test(blanked.slice(high.rawEnd, high.rawEnd + 8))
+  );
+}
+
+// The low endpoint takes the scale, unit and currency written once on the high ("$1.2-1.4 billion").
+// A pair is unverifiable when sharing cannot reconcile it or its dash may be a sign (parenthesized, descending, signed).
+function tightRange(low: ParsedRow, high: ParsedRow, blanked: string): readonly [Figure, Figure] {
+  const raw = blanked.slice(low.rawStart, high.rawEnd);
+  const bottom: Figure = {
+    ...low.figure,
+    raw,
+    scale: low.scaled ? low.figure.scale : high.figure.scale,
+    unit: low.figure.unit || high.figure.unit,
+    currency: low.figure.currency || high.figure.currency,
+  };
+  const top: Figure = {
+    ...high.figure,
+    raw,
+    currency: high.figure.currency || low.figure.currency,
+  };
+  const unverifiable =
+    parenthesizedRange(low, high, blanked) ||
+    mixedRange(low.figure, high.figure) ||
+    CURRENCY_BEFORE.test(blanked.slice(Math.max(0, low.rawStart - 8), low.rawStart)) ||
+    (low.scaled && !high.scaled) ||
+    (low.figure.unit !== "" && high.figure.unit === "") ||
+    Number.isNaN(low.figure.value) ||
+    Number.isNaN(high.figure.value) ||
+    (bottom.value < 0 && top.value > 0) ||
+    bottom.value * bottom.scale > top.value * top.scale;
+  return [
+    { ...bottom, value: unverifiable ? Number.NaN : bottom.value },
+    { ...top, value: unverifiable ? Number.NaN : top.value },
+  ];
+}
+
+// A spaced gap joins a range only through a dash, alone or as a bare next number's sign ("7% -15").
+function rangeGap(
+  blanked: string,
+  row: ParsedRow | undefined,
+  next: ParsedRow | undefined,
+): "tight" | "spaced" | undefined {
+  if (row === undefined || next === undefined) {
+    return undefined;
+  }
+  const gap = blanked.slice(row.rawEnd, next.rawStart);
+  if (gap === "-") {
+    return "tight";
+  }
+  const signedNext =
+    /^\s+$/u.test(gap) && blanked[next.rawStart] === "-" && isBare(next, next.figure);
+  return /^\s*-\s*$/u.test(gap) || signedNext ? "spaced" : undefined;
+}
+
+// A spaced range never shares, so endpoints written with different scale, unit or currency cannot verify.
+function spacedRange(low: ParsedRow, high: ParsedRow, blanked: string): readonly [Figure, Figure] {
+  const unshared =
+    parenthesizedRange(low, high, blanked) ||
+    low.scaled !== high.scaled ||
+    (low.figure.unit === "") !== (high.figure.unit === "") ||
+    (low.figure.currency === "") !== (high.figure.currency === "");
+  const value = (figure: Figure) => (unshared ? Number.NaN : figure.value);
+  return [
+    { ...low.figure, value: value(low.figure) },
+    { ...high.figure, value: value(high.figure) },
+  ];
+}
+
+// A range keeps both endpoints when either is a figure, and a bare one it keeps cannot verify.
+function rangeFigures(
+  low: ParsedRow,
+  high: ParsedRow,
+  [bottom, top]: readonly [Figure, Figure],
+): PlacedFigure[] {
+  if (isBare(low, bottom) && isBare(high, top)) {
+    return [];
+  }
+  const kept = (row: ParsedRow, figure: Figure) =>
+    placedRow(row, isBare(row, figure) ? { ...figure, value: Number.NaN } : figure);
+  return [kept(low, bottom), kept(high, top)];
+}
+
 // Accounting parentheses are negative only around a whole table cell; elsewhere a paren or spaced dash is ambiguous.
 function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
   const blanked = text
     .normalize("NFKC")
     .replaceAll(DASHES, "-")
-    .replaceAll(CALENDAR_TOKEN_PATTERN, (token) => " ".repeat(token.length));
-  return [...blanked.matchAll(FIGURE_PATTERN)].flatMap((match) => {
+    .replaceAll(CALENDAR_TOKEN_PATTERN, (token) => " ".repeat(token.length))
+    .replaceAll(SEC_ACCESSION_PATTERN, (token) => " ".repeat(token.length));
+  const rows = [...blanked.matchAll(FIGURE_PATTERN)].map((match) => {
     const groups = match.groups ?? {};
     const num = groups.num ?? "";
     const scaleKey = (groups.scaleWord ?? groups.scaleLetter)?.toLowerCase();
@@ -177,12 +312,60 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       currency: currencyKey === undefined ? "" : (CURRENCIES[currencyKey] ?? currencyKey),
       unit: unitOf(groups),
     };
-    // Counts, ranks, years and model numbers ("iPhone 17", "top 10") are not figures.
-    const bareInteger =
-      figure.scale === 1 && figure.currency === "" && figure.unit === "" && !/[.,]/u.test(num);
     const numStart = match.index + match[0].indexOf(num);
-    return bareInteger ? [] : [{ figure, numStart, numEnd: numStart + num.length }];
+    return {
+      figure,
+      num,
+      scaled: scaleKey !== undefined,
+      rawStart,
+      rawEnd: rawStart + raw.length,
+      numStart,
+    };
   });
+  const gluedBefore = (row: ParsedRow) =>
+    /[\p{L}\d]-$/u.test(blanked.slice(Math.max(0, row.rawStart - 2), row.rawStart));
+  const gluedAfter = (row: ParsedRow) =>
+    /^-\p{L}/u.test(blanked.slice(row.rawEnd)) && !RANGE_TAIL_START.test(blanked.slice(row.rawEnd));
+  const countWordAfter = (row: ParsedRow) =>
+    COUNT_WORD_AFTER.test(blanked.slice(row.rawEnd)) ||
+    SEC_K_FORM.test(blanked.slice(row.rawStart));
+  const placed: PlacedFigure[] = [];
+  for (let index = 0; index < rows.length; ) {
+    let end = index + 1;
+    const compound = (link: ParsedRow | undefined) =>
+      link !== undefined && isBare(link, link.figure) && countWordAfter(link);
+    // A count glued to a word ("52-week") ends a range rather than extending it.
+    while (rangeGap(blanked, rows[end - 1], rows[end]) !== undefined && !compound(rows[end])) {
+      end += 1;
+    }
+    const chain = rows.slice(index, end);
+    index = end;
+    const [row, next] = chain;
+    if (row === undefined) {
+      break;
+    }
+    const last = chain.at(-1) ?? row;
+    // A word-glued dash may be a sign before a figure ("profit-5m") or hide a scale after one ("$5-million").
+    const glued = gluedBefore(row) || (gluedAfter(last) && !last.scaled && last.figure.unit === "");
+    // A dash chain ("1-2-3%") is not a range, so none of it verifies.
+    if (glued || chain.length > 2) {
+      const unitAfter = gluedAfter(last) && !countWordAfter(last);
+      if (unitAfter || !chain.every((link) => isBare(link, link.figure))) {
+        placed.push(...chain.map((link) => placedRow(link, { ...link.figure, value: Number.NaN })));
+      }
+    } else if (next !== undefined) {
+      const pair: readonly [Figure, Figure] =
+        rangeGap(blanked, row, next) === "tight"
+          ? tightRange(row, next, blanked)
+          : spacedRange(row, next, blanked);
+      placed.push(...rangeFigures(row, next, pair));
+    } else if (RANGE_TAIL_START.test(blanked.slice(row.rawEnd))) {
+      placed.push(placedRow(row, { ...row.figure, value: Number.NaN }));
+    } else if (!isBare(row, row.figure)) {
+      placed.push(placedRow(row, row.figure));
+    }
+  }
+  return placed;
 }
 
 export function figuresIn(text: string): readonly Figure[] {
@@ -469,7 +652,9 @@ export function unverifiedWebFigure(
     }
     const near = quotedFigures.find((quoted) => quoted.value === figure.value);
     let reason: WebFigureFailureReason = "figure-not-quoted";
-    if (near !== undefined) {
+    if (Number.isNaN(figure.value)) {
+      reason = "figure-ambiguous";
+    } else if (near !== undefined) {
       reason = mismatchReason(figure, near);
     } else if (quotes.length > 0) {
       reason = "figure-not-in-quote";

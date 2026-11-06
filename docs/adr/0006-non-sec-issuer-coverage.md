@@ -183,16 +183,31 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - Web-sourced figures without a quote, including every recorded pre-change model output, prune into gaps.
   Reports lose figures they published before; each loss is declared.
 - Verification is lexical: it proves a cited span holds the number, not that the span is about the claim. Each
-  quoted figure is read whole from its own source table cell. A row with no closing `|` withholds the figures
-  beside the line break, because the next line may wrap the cell or start a new row; a cell wrapped across lines
-  never verifies. An attached minus makes a figure negative, and so do accounting parentheses that wrap a whole
-  table cell (`| (125.5) |`); a sign mismatch fails. A figure in parentheses anywhere else ("revenue (RM5m)") or
-  after a spaced single dash ("- RM5m", including a Markdown bullet) has an ambiguous sign and never verifies, in
-  claim or source; a double dash ("Revenue -- $5m") is punctuation. Sign words are not parsed ("fell 4%"
-  matches "4%"). Percentage points and percent are distinct units. A range carries its scale only on the last
-  number ("$1.2-1.4 billion" parses as $1.2), and "9M" reads as nine million; each is symmetric between claim
-  and quote. A range whose dash precedes a currency prefix ("RM5m–RM6m") parses no figure at all, so a claim
-  with a wrong endpoint ("RM5m–RM9m") is not checked.
+  quoted figure is read whole from its own source table cell. A row with no closing `|` withholds the figures beside
+  the line break, because the next line may wrap the cell or start a new row; a cell wrapped across lines never
+  verifies. An attached minus makes a figure negative, and so do accounting parentheses that wrap a whole table cell
+  (`| (125.5) |`); a sign mismatch fails. A figure in parentheses anywhere else ("revenue (RM5m)") or after a spaced
+  single dash ("- RM5m", including a Markdown bullet) has an ambiguous sign and never verifies, in claim or source;
+  a double dash ("Revenue -- $5m") is punctuation. Sign words are not parsed ("fell 4%" matches "4%"). Percentage
+  points and percent are distinct units. A tight dash before a digit or currency prefix joins a range, and both
+  endpoints are checked as separate figures, not as a pair (`$1.2-1.4 billion` matches a quote stating $1.2 billion
+  and $1.4 billion apart). The low endpoint takes the scale, unit and currency written once on the high ("$1.2-1.4
+  billion", "RM5–6m", "5–6%"); the high takes only a missing currency. Neither endpoint of a range, tight or spaced,
+  verifies when the range is parenthesized ("(5% - 7%)"). Neither endpoint of a tight range verifies when it mixes
+  currencies or units ("$739.69-0.30%"), follows a currency glued to a word ("Corp$4.50-6%", "CorpRM 4.50-6%"),
+  descends ("5%-3%", "RM500,000-RM1m"), runs from a negative or ambiguous low to an unsigned high ("-2%-8%"), keeps
+  a scale or unit only on the low ("1.2bn-1.4", "7%-15"), has a high endpoint that does not parse, or chains three
+  or more numbers ("1-2-3%"). An endpoint still bare after sharing withholds the claim when its partner is a figure,
+  across a tight dash, a spaced dash, or a signed spaced number ("7% -15"). A spaced range shares nothing, so it
+  withholds when one endpoint carries a scale, unit or currency the other lacks ("$1.2 - 1.4 billion"). A claim
+  figure with an unreadable sign or range fails as `figure-ambiguous`. A dash glued to a word before a figure may be
+  its sign, so the figure and any range it starts withhold ("Revenue—$574.9 million", "profit-5m-9"); a bare count
+  there is dropped ("COVID-19"). A dash glued to a word after a figure keeps a scaled or unit figure whole ("$574.9
+  million—up") and withholds one whose scale may follow ("$5-million"). A bare number there withholds, since the
+  word may be a unit ("5-per-cent", "25-basis-point", "5-fold"), unless the word is a time noun, a month
+  abbreviation, a single capital letter other than the scale letters K, M and B, or an SEC form code ("52-week",
+  "30-Jun", "20-F", "10-K"; "5-M" withholds); such a count is dropped and ends any range. SEC accession ids
+  ("sec-8k-0001193125-26-337999") are not figures. "9M" reads as nine million, symmetric between claim and quote.
 - A web figure in a claim that also cites a deterministic source is not checked.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.

@@ -47,6 +47,10 @@ function check(text: string, quote?: string, sourceIds: readonly string[] = ["we
   );
 }
 
+function parsed(text: string) {
+  return figuresIn(text).map(({ value, scale, currency, unit }) => [value, scale, currency, unit]);
+}
+
 describe("figure parsing", () => {
   test("reads value, scale, currency and unit", () => {
     expect(
@@ -79,6 +83,66 @@ describe("figure parsing", () => {
     ).toEqual([
       [5, 1e6, "USD", ""],
       [22.8, 1, "", "%"],
+    ]);
+  });
+
+  test("reads a range's endpoints, sharing its scale, unit and currency", () => {
+    expect(parsed("$1.2-1.4 billion")).toEqual([
+      [1.2, 1e9, "USD", ""],
+      [1.4, 1e9, "USD", ""],
+    ]);
+    expect(parsed("RM5m–RM6m and RM5–6m")).toEqual([
+      [5, 1e6, "MYR", ""],
+      [6, 1e6, "MYR", ""],
+      [5, 1e6, "MYR", ""],
+      [6, 1e6, "MYR", ""],
+    ]);
+    expect(parsed("5—6%")).toEqual([
+      [5, 1, "", "%"],
+      [6, 1, "", "%"],
+    ]);
+    expect(parsed("7%–10% and $505–$525 million")).toEqual([
+      [7, 1, "", "%"],
+      [10, 1, "", "%"],
+      [505, 1e6, "USD", ""],
+      [525, 1e6, "USD", ""],
+    ]);
+    expect(parsed("COVID-19 and FY2024-25, 5-6 years, [sec-8k-0001193125-26-337999]")).toEqual([]);
+    expect(parsed("$739.69-0.30%")).toEqual([
+      [Number.NaN, 1, "USD", "%"],
+      [Number.NaN, 1, "USD", "%"],
+    ]);
+    expect(parsed("RM5m-RM6.5.1")).toEqual([[Number.NaN, 1e6, "MYR", ""]]);
+  });
+
+  test("keeps a figure whole before a word-joined dash, and withholds one a dash may sign", () => {
+    expect(parsed("$574.9 million—up, 22.8%—up, 120% dollar-based, 5%-to 9%")).toEqual([
+      [574.9, 1e6, "USD", ""],
+      [22.8, 1, "", "%"],
+      [120, 1, "", "%"],
+      [5, 1, "", "%"],
+      [9, 1, "", "%"],
+    ]);
+    expect(parsed("a 5-percent stake, 5-6-million, 5-per-cent, 25-basis-point, 14-ppts")).toEqual(
+      Array.from({ length: 6 }, () => [Number.NaN, 1, "", ""]),
+    );
+    expect(parsed("a 5-Year plan, 30-Jun, 10-Q, 20-F, 8-K, 6-K, 11-K, 12-months, 3-day")).toEqual(
+      [],
+    );
+    expect(parsed("5-M, 5-K, 5-B")).toEqual(
+      Array.from({ length: 3 }, () => [Number.NaN, 1, "", ""]),
+    );
+    expect(parsed("Day's range 298.02 - 307.48 - 52-week range")).toEqual([
+      [298.02, 1, "", ""],
+      [Number.NaN, 1, "", ""],
+    ]);
+    expect(parsed("Revenue—7%, $5-million, results-5m-6-7, 10-K, 3-for-1")).toEqual([
+      [Number.NaN, 1, "", "%"],
+      [Number.NaN, 1, "USD", ""],
+      [Number.NaN, 1e6, "", ""],
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", ""],
     ]);
   });
 
@@ -523,8 +587,104 @@ describe("Verified Web Figure", () => {
       ),
     ).toBeUndefined();
     expect(claim("Reported revenue was RM5m.", "Revenue was (RM5m) on the year.")).toMatchObject({
-      reason: "figure-not-in-quote",
+      reason: "figure-ambiguous",
     });
+  });
+
+  test("checks both endpoints of a range, whatever its dash", () => {
+    const claim = (snippet: string, text: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: snippet }],
+        },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    for (const dash of ["-", "–", "—"]) {
+      for (const [quoted, wrong] of [
+        ["RM5m-RM6m", "RM5m-RM9m"],
+        ["$1.2-1.4 billion", "$1.2-1.9 billion"],
+        ["5-6%", "5-9%"],
+        ["1.2-1.4", "1.2-1.9"],
+      ] as const) {
+        const snippet = `Management guided revenue of ${quoted.replace("-", dash)} for the year.`;
+        expect(claim(snippet, `Guidance is ${quoted.replace("-", dash)}.`)).toBeUndefined();
+        expect(claim(snippet, `Guidance is ${quoted}.`)).toBeUndefined();
+        expect(claim(snippet, `Guidance is ${wrong.replace("-", dash)}.`)).toMatchObject({
+          reason: "figure-not-in-quote",
+        });
+      }
+    }
+    expect(
+      claim("Management guided revenue of RM5m-RM6bnish for the year.", "Guidance is RM5m."),
+    ).toMatchObject({ reason: "figure-not-in-quote", figure: "RM5m" });
+  });
+
+  test("withholds a range it cannot read whole", () => {
+    const claim = (snippet: string, text: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: snippet }],
+        },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    for (const [snippet, text] of [
+      ["Annual guidance is 7%-12% for the year.", "Guidance is 7%-15."],
+      ["Annual guidance is 5x-6x for the year.", "Guidance is 5x-9."],
+      ["Annual guidance is 5m-6m for the year.", "Guidance is 5m-9."],
+      ["Annual guidance is 5bn-6 for the year.", "Guidance is 5bn-9."],
+      ["Annual guidance is 5-9bp for the year.", "Guidance is 5-6bp."],
+      ["Annual guidance is 7% - 12 for the year.", "Guidance is 7% - 15."],
+      ["Annual revenue was 1.2bn-1.4 in the year.", "The ratio was 1.4."],
+      ["Cash was RM500,000-RM1m in the quarter.", "Cash was RM500,000 million."],
+      ["Cash was $1,200-$1.4 billion in the quarter.", "Cash was $1,200 billion."],
+      ["The stock Corp$230.80-11.5% on the day.", "The move was 230.80%."],
+      ["The group revenue—$5m-$9m this year.", "Revenue—$7m-$9m."],
+      ["Management guided revenue of RM5m-RM6m for the year.", "Guidance is (RM5m-RM6m)."],
+      ["The net loss was (RM5m-RM6m) this year.", "The net loss was RM5m-RM6m."],
+      ["| Net loss for the year | ($1.2-1.4 billion) |", "The loss was $1.2-1.4 billion."],
+      ["The change was 5%+3% this year.", "The change was 5%-3%."],
+      ["Annual guidance is 1-2-3% for the year.", "Guidance is 9-8-3%."],
+      ["Annual guidance is $5-$6-$7 million for the year.", "Guidance is $7 million."],
+      ["The stock Corp$4.50-6% on the day.", "The move was 4.5%."],
+      ["Annual change was -2%-8% for the year.", "The change was 8%."],
+      ["Annual change was -5m-3m for the year.", "The change was 3m."],
+      ["Annual change was - 5%-3% for the year.", "The change was 3%."],
+      ["Annual guidance is 7% -12% for the year.", "Guidance is 7% -15."],
+      ["Annual guidance is $5m -9 for the year.", "Guidance is $5m -6."],
+      ["The annual Guidance—$5-6 for the year.", "Guidance—$5-8."],
+      ["The group revenue—$5m-9 this year.", "Revenue—$5m-7."],
+      ["Reported Revenue—$574.9 million this quarter.", "Revenue—$600 million."],
+      ["The stock Corp$ 4.50-6% on the day.", "The move was 4.5%."],
+      ["The stock CorpRM 4.50-6% on the day.", "The move was 4.5%."],
+      ["The group holds a 7-percent stake in the unit.", "It holds a 5-percent stake."],
+      ["Output rose 7-fold over the year.", "Output rose 5-fold."],
+      ["Annual guidance is $1.2 - 1.4 billion for the year.", "Guidance is $1.2."],
+      ["The group holds a 5 per cent stake in the unit.", "It holds a 7-per-cent stake."],
+      ["Margin guidance is (5% - 7%) for the year.", "Margin guidance is 5%."],
+      ["Annual revenue was 9-M for the year.", "Revenue was 5-M."],
+    ]) {
+      expect(["figure-not-in-quote", "figure-ambiguous"]).toContain(
+        claim(snippet ?? "", text ?? "")?.reason ?? "verified",
+      );
+    }
+    expect(claim("The change was 5%-3% this year.", "The change was 5%-3%.")).toMatchObject({
+      reason: "figure-ambiguous",
+    });
+    expect(claim("Annual change was -5%--3% for the year.", "Change was -5%--3%.")).toBeUndefined();
+    expect(claim("Annual change was 7% -12% for the year.", "Change 7% and -12%.")).toBeUndefined();
+    expect(
+      claim("Revenue was $574.9 million—up strongly this year.", "Revenue was $574.9 million."),
+    ).toBeUndefined();
+    expect(
+      claim(
+        "Management guided revenue of $1.2-1.4 billion for the year.",
+        "Guidance $1.2-1.9 billion.",
+      ),
+    ).toMatchObject({ figure: "$1.2-1.9 billion" });
   });
 
   test("tries overlapping matches of a quote", () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.6](https://github.com/nejcm/market-bot/compare/v1.13.5...v1.13.6) (2026-11-06)
+
+### Bug Fixes
+
+- date trailing revenue multiples and name dated ids for dateless metric references (#152) ([01fccc0](https://github.com/nejcm/market-bot/commit/01fccc028c4d2d65b552f9eb7a04386878e21865))
+
 ## [1.13.5](https://github.com/nejcm/market-bot/compare/v1.13.4...v1.13.5) (2026-11-06)
 
 ### Bug Fixes

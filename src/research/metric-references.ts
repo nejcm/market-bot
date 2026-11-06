@@ -232,16 +232,28 @@ function transformClaims(
           return prefixed;
         }
         const sectionId = reference.slice(0, dot);
-        const metric = sections
-          .find(({ id }) => id === sectionId)
-          ?.metrics.find(({ id }) => id === reference.slice(dot + 1));
+        const sectionMetrics = sections.find(({ id }) => id === sectionId)?.metrics ?? [];
+        const metric = sectionMetrics.find(({ id }) => id === reference.slice(dot + 1));
         const rendered =
           metric?.status === "value"
             ? withChange(formatMetricValue(metric.value, metric.unit, metric.currency), metric)
             : undefined;
         if (rendered === undefined || metric === undefined || metric.sourceIds.length === 0) {
+          const longer =
+            metric === undefined
+              ? sectionMetrics
+                  .filter(
+                    (row) =>
+                      row.id.startsWith(`${reference.slice(dot + 1)}-`) &&
+                      row.status === "value" &&
+                      row.sourceIds.length > 0,
+                  )
+                  .map((row) => `<<metric:${sectionId}.${row.id}>>`)
+              : [];
           errors.push(
-            `Metric reference ${token} is unknown, unavailable, or unciteable; remove it or use an available metric reference`,
+            longer.length === 0
+              ? `Metric reference ${token} is unknown, unavailable, or unciteable; remove it or use an available metric reference`
+              : `Metric reference ${token} is unknown, unavailable, or unciteable; it names no metric, but these do: ${longer.join(", ")}`,
           );
           return prefixed;
         }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.2](https://github.com/nejcm/market-bot/compare/v1.13.1...v1.13.2) (2026-11-06)
+
+### Bug Fixes
+
+- **issuer:** withhold issuer report figures of unproven accounting scope (#147) ([353c488](https://github.com/nejcm/market-bot/commit/353c488d4a88d9bac0b1d48dbd7824adbbd504b9))
+- **issuer:** withhold provider eps that the issuer report contradicts (#146) ([edd0c17](https://github.com/nejcm/market-bot/commit/edd0c17012eebb655f36bc2f150976f796ed4c45))
+
 ## [1.13.1](https://github.com/nejcm/market-bot/compare/v1.13.0...v1.13.1) (2026-11-06)
 
 ### Bug Fixes

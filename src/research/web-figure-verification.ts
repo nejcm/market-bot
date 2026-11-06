@@ -136,9 +136,16 @@ interface PlacedFigure {
   readonly numEnd: number;
 }
 
-function placedFiguresIn(text: string): readonly PlacedFigure[] {
+const DASHES = /[‐‑‒–—―−]/gu;
+const SEPARATED_SIGN = /(?<!-)-\s+$/u;
+const OPEN_PAREN = /\(\s*$/u;
+const CLOSE_PAREN = /^\s*\)/u;
+
+// Accounting parentheses are negative only around a whole table cell; elsewhere a paren or spaced dash is ambiguous.
+function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
   const blanked = text
     .normalize("NFKC")
+    .replaceAll(DASHES, "-")
     .replaceAll(CALENDAR_TOKEN_PATTERN, (token) => " ".repeat(token.length));
   return [...blanked.matchAll(FIGURE_PATTERN)].flatMap((match) => {
     const groups = match.groups ?? {};
@@ -147,13 +154,25 @@ function placedFiguresIn(text: string): readonly PlacedFigure[] {
     const currencyKey = (groups.prefix ?? groups.suffix)?.toLowerCase();
     const raw = match[0].trim();
     const rawStart = match.index + match[0].indexOf(raw);
-    // Accounting parentheses: only an amount wrapped whole in "( )" is negative.
-    const parenthesized = blanked[rawStart - 1] === "(" && blanked[rawStart + raw.length] === ")";
-    const negative = (groups.sign ?? groups.innerSign) !== undefined || parenthesized;
+    const before = blanked.slice(Math.max(0, rawStart - 8), rawStart);
+    const after = blanked.slice(rawStart + raw.length, rawStart + raw.length + 8);
+    const parenthesized = OPEN_PAREN.test(before) && CLOSE_PAREN.test(after);
+    const accounting =
+      parenthesized &&
+      cell &&
+      blanked.slice(0, rawStart).trim() === "(" &&
+      blanked.slice(rawStart + raw.length).trim() === ")";
+    const explicitSign = (groups.sign ?? groups.innerSign) !== undefined;
+    const ambiguousSign =
+      (parenthesized && !accounting && !explicitSign) ||
+      (groups.sign === undefined && SEPARATED_SIGN.test(before));
+    const negative = explicitSign || accounting;
     const magnitude = Number(num.replaceAll(",", ""));
+    const signed = negative ? -magnitude : magnitude;
     const figure: Figure = {
       raw,
-      value: negative ? -magnitude : magnitude,
+      // NaN never equals a figure, so an ambiguous sign cannot verify either reading.
+      value: ambiguousSign ? Number.NaN : signed,
       scale: scaleKey === undefined ? 1 : (SCALES[scaleKey] ?? 1),
       currency: currencyKey === undefined ? "" : (CURRENCIES[currencyKey] ?? currencyKey),
       unit: unitOf(groups),
@@ -172,13 +191,12 @@ export function figuresIn(text: string): readonly Figure[] {
 
 // Table cell edges survive normalization so a quoted figure is read whole from its own cell.
 const CELL_EDGE = "\u0000";
-// Edge after a row with no closing "|" whose next line may start a new row; figures beside it are withheld.
+// Edge after a row with no closing "|": the next line may wrap the cell or start a row, so its figures are withheld.
 const AMBIGUOUS_EDGE = "\u0001";
-const EDGES = new RegExp(`[${CELL_EDGE}${AMBIGUOUS_EDGE}]`, "gu");
-
-function closesWrappedCell(trimmed: string): boolean {
-  return trimmed.endsWith("|") && !trimmed.slice(0, -1).includes("|");
-}
+// Outer edge of a row, so a pipe-free line between two rows is never read as a cell.
+const ROW_EDGE = "\u0002";
+const EDGE_CHARS = `${CELL_EDGE}${AMBIGUOUS_EDGE}${ROW_EDGE}`;
+const EDGES = new RegExp(`[${EDGE_CHARS}]`, "gu");
 
 function withCellEdges(lines: readonly string[]): string {
   let open = false;
@@ -186,20 +204,16 @@ function withCellEdges(lines: readonly string[]): string {
     .map((line) => {
       const trimmed = line.trim();
       if (trimmed === "") {
-        const closing = open ? CELL_EDGE : "";
+        const closing = open ? AMBIGUOUS_EDGE : "";
         open = false;
         return closing;
-      }
-      if (open && closesWrappedCell(trimmed)) {
-        open = false;
-        return line.replaceAll("|", ` ${CELL_EDGE} `);
       }
       if (!open && !trimmed.includes("|")) {
         return line;
       }
-      const opening = open ? AMBIGUOUS_EDGE : CELL_EDGE;
+      const opening = open ? AMBIGUOUS_EDGE : ROW_EDGE;
       open = trimmed.startsWith("|") && !trimmed.endsWith("|");
-      return `${opening} ${line.replaceAll("|", ` ${CELL_EDGE} `)} ${open ? "" : CELL_EDGE}`;
+      return `${opening} ${line.replaceAll("|", ` ${CELL_EDGE} `)} ${open ? "" : ROW_EDGE}`;
     })
     .join("\n");
 }
@@ -231,7 +245,11 @@ function placedSourceFigures(text: string): readonly PlacedFigure[] {
     const end = offset + cell.length;
     const ambiguousAfter = text[end] === AMBIGUOUS_EDGE;
     if (!ambiguousBefore && !ambiguousAfter) {
-      for (const figure of placedFiguresIn(cell)) {
+      const tableCell =
+        offset > 0 &&
+        text[end] !== undefined &&
+        (text[offset - 1] === CELL_EDGE || text[end] === CELL_EDGE);
+      for (const figure of placedFiguresIn(cell, tableCell)) {
         placed.push({
           figure: figure.figure,
           numStart: offset + figure.numStart,
@@ -273,7 +291,7 @@ function quotedSourceFigures(needle: string, stored: readonly string[]): readonl
     needle
       .split(" ")
       .map((word) => word.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, String.raw`\$&`))
-      .join(`[\\s${CELL_EDGE}${AMBIGUOUS_EDGE}]+`),
+      .join(`[\\s${EDGE_CHARS}]+`),
     "giu",
   );
   return stored.flatMap((text) => {

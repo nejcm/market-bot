@@ -39,7 +39,7 @@ const GAP_PREFIX = "Verified Web Figure check withheld";
 const CURRENCY_PREFIX = String.raw`US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc}`;
 // A dash before a digit or currency prefix joins a range ("RM5m-RM6m").
 const RANGE_TAIL = String.raw`-(?:(?:${CURRENCY_PREFIX})\s?)?\d`;
-const SCALE_WORDS = "trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil";
+export const SCALE_WORDS = "trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil";
 const UNIT_WORDS = String.raw`per\s?cent|pct|percentage points?|pp|bps|bp|basis points`;
 // Words a bare count may be glued to and still be no figure ("52-week", "10-K"); any other word may be a unit.
 const COUNT_WORD_AFTER =

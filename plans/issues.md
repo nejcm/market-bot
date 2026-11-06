@@ -47,8 +47,8 @@ These publish today but may be wrong, mixed-scope, or unproven. They also cover 
 
 ## Run cost and citations
 
+- **Compact currency amounts read as entity names, so an uncited figure can pass the prune.** `ALPHANUMERIC_NAME_PATTERN` (`post-synthesis-audit.ts`) treats "R500", "Dhs500", "Ksh500", "Ghs500" and "N500" as names unless a scale word or unit follows.
 - **Eval reference counts miss unprefixed catalog ids.** `synthesisFigureCounts` (`src/replay/eval-cases.ts`) counts only `<<metric:…>>` via `splitMetricReferences`, and has no catalog, so an unprefixed exact id that assembly now prefixes is not counted as a reference. Needs the run's `referenceMetricSections` passed in.
-- **Digit-bearing names trip the uncited-figure prune.** `NUMERIC_CLAIM_PATTERN` (`post-synthesis-audit.ts`) matches the digits in "T1" and "Rev8", so TE and OUST lost their opening summary sentence; any uncited claim naming such an entity is at risk.
 - **KEEL conditional forecast rejected by the parser.** The second leg was anchored at +5 instead of 0, costing one repair call.
 - **Model forecasts restate the steering band (unproven defect).** 6 of 7 model range forecasts copy the +10 reference band at p 0.34–0.40 against a 0.34 base rate; 16 of 21 predictions are near base rate. Prompt guidance stays inside ADR 0003; dropping the anchor would amend it. Needs resolved Paired Skill, not a prompt change.
 - **SEC excerpts.** 8–9k chars each reach specialist, instrument-evidence, market-behavior, critique and synthesis in full; all of them cite the prose. A cut would have to drop sections no stage cites, and which sections those are is unchecked.

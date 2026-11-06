@@ -82,6 +82,13 @@ const FINANCIAL_LENS_INPUTS: Readonly<Record<string, readonly FinancialStatement
   pcfRatio: ["operatingCashFlow"],
 };
 
+// TTM is derived (FY + YTD - prior YTD), so no filed fact spans its 12 months; it anchors on a revenue fact's end.
+const TTM_LENS_METRICS = new Set([
+  "annualizedRevenue",
+  "evToAnnualizedRevenue",
+  "marketCapToAnnualizedRevenue",
+]);
+
 const FLOW_OVER_INSTANT_INPUTS: Readonly<
   Record<string, readonly [FinancialStatementSeriesKey, FinancialStatementSeriesKey]>
 > = {
@@ -705,6 +712,17 @@ export function assertFinancialLensPeriodHygiene(
   lenses: FinancialLensArtifact,
 ): void {
   for (const metric of lenses.lenses.flatMap((lens) => lens.metrics)) {
+    if (metric.periodEnd !== undefined && TTM_LENS_METRICS.has(metric.key)) {
+      const revenue = financialStatementSeriesByKey(artifact, "revenue");
+      invariant(
+        metric.periodMonths === 12 &&
+          revenue !== undefined &&
+          financialStatementFacts(revenue).some((fact) => fact.periodEnd === metric.periodEnd),
+        "B8",
+        `${metric.key} is not a 12-month span ending at a filed revenue period`,
+      );
+      continue;
+    }
     if (metric.periodEnd === undefined || metric.periodMonths === undefined) {
       continue;
     }

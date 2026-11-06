@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.4](https://github.com/nejcm/market-bot/compare/v1.13.3...v1.13.4) (2026-11-06)
+
+### Bug Fixes
+
+- **issuer:** render per-share subunit asides without parentheses (#150) ([951331e](https://github.com/nejcm/market-bot/commit/951331e81c45a0997079f250e89ea504eced9049))
+
 ## [1.13.3](https://github.com/nejcm/market-bot/compare/v1.13.2...v1.13.3) (2026-11-06)
 
 ### Bug Fixes

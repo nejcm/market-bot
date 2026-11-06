@@ -357,16 +357,19 @@ function annualInputs(
     capitalExpenditure: capitalExpenditureFact,
   };
   const census = anchored ? artifact.firstAnnualReports : undefined;
-  const firstFiledAt = anchored
-    ? census === undefined
-      ? // Pre-census artifacts only: a restated fact dates its period from the filing it restated.
-        Object.values(flowFacts)
-          .flatMap((fact) =>
-            fact === undefined ? [] : [fact.restatedFrom?.filedAt ?? fact.firstPublicAt],
-          )
-          .toSorted()[0]
-      : census.find((report) => financialStatementPeriodKey(report) === periodKey)?.filedAt
+  // Pre-census artifacts only: a restated fact dates its period from the filing it restated.
+  const preCensusFiledAt = anchored
+    ? Object.values(flowFacts)
+        .flatMap((fact) =>
+          fact === undefined ? [] : [fact.restatedFrom?.filedAt ?? fact.firstPublicAt],
+        )
+        .toSorted()
+        .at(0)
     : undefined;
+  const firstFiledAt =
+    census === undefined
+      ? preCensusFiledAt
+      : census.find((report) => financialStatementPeriodKey(report) === periodKey)?.filedAt;
   const firstAnnualReportUnavailable = census !== undefined && firstFiledAt === undefined;
   const restatedAfterFirstFiling = (Object.keys(flowFacts) as (keyof typeof flowFacts)[]).filter(
     (key) =>

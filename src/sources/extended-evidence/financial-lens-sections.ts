@@ -629,9 +629,7 @@ function netMarginLabel(ctx: MetricContext): string {
   const income =
     ctx.statements === undefined
       ? legacyNetMarginIncome(ctx)
-      : anchor === undefined
-        ? undefined
-        : netMarginIncome(ctx, anchor);
+      : anchor && netMarginIncome(ctx, anchor);
   return income !== undefined && "key" in income && CONTINUING_INCOME_KEYS.has(income.key)
     ? "Net margin (continuing operations)"
     : "Net margin";
@@ -1640,17 +1638,25 @@ function payoutRatioDefinition(): MetricDefinition {
                 yahooPeriod,
               ),
             ];
-      const yahooOutcome: MetricOutcome | undefined =
-        yahooInputs === undefined || yahooRate === undefined || yahooEps === undefined
-          ? undefined
-          : yahooEps <= 0
-            ? {
-                status: "not-meaningful",
-                reason: "Yahoo trailing EPS is zero or negative",
-                inputs: yahooInputs,
-                ...yahooPeriod,
-              }
-            : { status: "value", value: yahooRate / yahooEps, inputs: yahooInputs, ...yahooPeriod };
+      const yahooOutcome = ((): MetricOutcome | undefined => {
+        if (yahooInputs === undefined || yahooRate === undefined || yahooEps === undefined) {
+          return undefined;
+        }
+        if (yahooEps <= 0) {
+          return {
+            status: "not-meaningful",
+            reason: "Yahoo trailing EPS is zero or negative",
+            inputs: yahooInputs,
+            ...yahooPeriod,
+          };
+        }
+        return {
+          status: "value",
+          value: yahooRate / yahooEps,
+          inputs: yahooInputs,
+          ...yahooPeriod,
+        };
+      })();
       if (ctx.statements === undefined) {
         const item = secItem(ctx);
         const dividendsPaid = readNumberMetric(item?.metrics, "dividendsPaid");

@@ -69,7 +69,7 @@ import {
   xbrlSchemaHref,
 } from "./sec-calculation-linkbase";
 import { faceHasNoBorrowingRow } from "./extended-evidence/sec-debt";
-import { parseXbrlInstance, type XbrlInstance } from "./sec-xbrl-instance";
+import { parseXbrlInstance } from "./sec-xbrl-instance";
 import {
   UNCLASSIFIED_CREDIT,
   ZERO_BORROWINGS_CURRENCY_KEY,
@@ -405,10 +405,8 @@ async function fetchZeroBorrowingsProof(
   if (tags === undefined) {
     return rejectZeroBorrowings("metalinks-unreadable", rawSnapshots);
   }
-  let parsed: XbrlInstance;
-  try {
-    parsed = parseXbrlInstance(instance.payload);
-  } catch {
+  const parsed = attempt(() => parseXbrlInstance(instance.payload));
+  if (parsed === undefined) {
     return rejectZeroBorrowings("instance-unreadable", rawSnapshots);
   }
   const scope = { periodEnd: filing.reportDate, file: instanceFile, cik };
@@ -555,10 +553,8 @@ async function fetchExtensionInvestmentsProof(
   if (!isFetchTextResult(instance)) {
     return fail("instance-fetch-failed:sec-xbrl-instance", "fetch-failed", [], [instance]);
   }
-  let parsed: XbrlInstance;
-  try {
-    parsed = parseXbrlInstance(instance.payload);
-  } catch {
+  const parsed = attempt(() => parseXbrlInstance(instance.payload));
+  if (parsed === undefined) {
     return fail("instance-unreadable", "malformed-response", [instance.rawSnapshot]);
   }
   if (parsed.calculationLinkbaseRefs.length > 0 || parsed.schemaRefs.length !== 1) {
@@ -577,18 +573,19 @@ async function fetchExtensionInvestmentsProof(
       calc.gaps,
     );
   }
-  let proof: ReturnType<typeof extensionShortTermInvestmentsProof>;
-  try {
-    const schema = extensionSchema(calc.schema.url, calc.schema.xml);
-    proof = extensionShortTermInvestmentsProof(
+  const { schema: calcSchema, xml: calcXml, xmlUrl: calcXmlUrl } = calc;
+  const proof = attempt(() => {
+    const schema = extensionSchema(calcSchema.url, calcSchema.xml);
+    return extensionShortTermInvestmentsProof(
       parsed,
       {
         extensionNamespace: schema.namespace,
-        parents: summationParents(calc.xml, calc.xmlUrl, schema),
+        parents: summationParents(calcXml, calcXmlUrl, schema),
       },
       { file: instanceFile, cik },
     );
-  } catch {
+  });
+  if (proof === undefined) {
     return fail("calculation-linkbase-unreadable", "malformed-response", rawSnapshots);
   }
   if ("reject" in proof) {
@@ -1351,4 +1348,12 @@ export async function collectSecFilingEvidence(
       ? { resultsCoverAccessions: sixKScan.matchedAccessions }
       : {}),
   };
+}
+
+function attempt<T>(fn: () => T): T | undefined {
+  try {
+    return fn();
+  } catch {
+    return undefined;
+  }
 }

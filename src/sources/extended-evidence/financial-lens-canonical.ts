@@ -322,12 +322,11 @@ export function canonicalFinancialMetrics(
     }
   }
   const income = artifact.statements.incomeStatement;
-  const revenueTtm =
-    metrics.revenuePeriodMonths === 12
-      ? metrics.revenue
-      : income.revenue.ttm?.periodEnd === metrics.revenuePeriodEnd
-        ? income.revenue.ttm?.value
-        : undefined;
+  const revenueTtmFallback =
+    income.revenue.ttm?.periodEnd === metrics.revenuePeriodEnd
+      ? income.revenue.ttm?.value
+      : undefined;
+  const revenueTtm = metrics.revenuePeriodMonths === 12 ? metrics.revenue : revenueTtmFallback;
   if (revenueTtm !== undefined) {
     metrics.revenueTtm = revenueTtm;
   }

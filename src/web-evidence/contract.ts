@@ -114,7 +114,7 @@ export function unreadableOpenGapsNotice(count: number): string {
 }
 
 export function isUnreadableOpenGapsNotice(text: string): boolean {
-  return /^Web Subject Profile: \d+ open-gap entr(?:y was|ies were) unreadable/.test(text);
+  return /^Web Subject Profile: \d+ open-gap entr(?:y was|ies were) unreadable/u.test(text);
 }
 
 // Legacy string gaps and unknown topics read as "other", which never reconciles.

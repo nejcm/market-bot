@@ -206,7 +206,7 @@ export function staleSeriesReason(
   label: string,
 ): string | undefined {
   const newest = financialStatementSeries(artifact)
-    .flatMap(financialStatementFacts)
+    .flatMap((series) => financialStatementFacts(series))
     .map((candidate) => candidate.periodEnd)
     .toSorted()
     .at(-1);

@@ -11,7 +11,10 @@ import {
   runIssuerReportPhase,
 } from "../src/research/issuer-report-figures";
 import { issuerReportGatherContext } from "../src/web-evidence/web-gather-coverage";
-import { collectedSources } from "./support/fixtures";
+import { resolveMetricReferences } from "../src/research/metric-references";
+import { auditReportIntegrity } from "../src/research/report-integrity-audit";
+import { webSourceTexts } from "../src/research/web-figure-verification";
+import { collectedSources, researchReport } from "./support/fixtures";
 
 // Shape of the KLSE Screener copy of ViTrox (0097.KL) Q3 2026 results, fixture equity-bursa-deep.
 const KLSE_TEXT = `VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026
@@ -47,6 +50,8 @@ const BALANCE_TEXT = `ViTrox condensed statement of financial position
 | Cash and cash equivalents | 412,380 | 301,114 |
 | Total current assets | 1,201,553 | 1,004,220 |
 | Total current liabilities | 312,004 | 250,118 |
+| Total equity attributable to owners of the parent | 900,000 | 800,000 |
+| Total equity | 950,000 | 840,000 |
 
 | | 9 months ended 30 Sep 2026 | 9 months ended 30 Sep 2025 |
 | --- | --- | --- |
@@ -61,6 +66,9 @@ const BALANCE_TEXT = `ViTrox condensed statement of financial position
 | Profit for the period | | |
 | attributable to: | | |
 | - Owners of the Company | 254,821 | 87,009 |
+| Share of profit of associates before tax | 1,200 | 900 |
+| Gross profit for the period | 400,000 | 200,000 |
+| Operating profit for the year | 300,000 | 120,000 |
 `;
 
 function source(overrides: Partial<Source>): Source {
@@ -285,9 +293,39 @@ describe("issuer report mapping check", () => {
     expect(reasons("operating-cash-flow", "t3:r6:c1")).toEqual(["label-mismatch"]);
     expect(reasons("revenue", "t3:r7:c1")).toEqual(["label-mismatch"]);
     expect(reasons("profit-attributable-to-owners", "t3:r8:c1")).toEqual(["label-mismatch"]);
+    expect(reasons("profit-before-tax", "t3:r12:c1")).toEqual(["label-mismatch"]);
+    expect(reasons("profit-for-period", "t3:r13:c1")).toEqual(["label-mismatch"]);
+    expect(reasons("profit-for-period", "t3:r14:c1")).toEqual(["label-mismatch"]);
+    expect(reasons("total-equity", "t2:r5:c1")).toEqual(["label-mismatch"]);
+    expect(read(mapping(["total-equity", "t2:r6:c1"]))?.figures[0]?.value).toBe(950_000_000);
     expect(read(mapping(["profit-attributable-to-owners", "t3:r11:c1"]))?.figures).toMatchObject([
       { value: 254_821_000, periodMonths: 9, unitText: "RM'000" },
     ]);
+  });
+
+  test("reads a scale from a separate header cell and withholds conflicting scales", () => {
+    const split = (units: string) =>
+      source({
+        snippet: KLSE_TEXT.replace(
+          "| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |",
+          `| | | RM | RM | RM | RM |\n| | | ${units} | ${units} | ${units} | ${units} |`,
+        ),
+      });
+    const first = (units: string) => read(mapping(["revenue", "t1:r5:c2"]), [split(units)]);
+
+    expect(first("'000")?.figures[0]).toMatchObject({ value: 485_101_000, unitText: "RM '000" });
+    expect(first("000")?.figures[0]).toMatchObject({ value: 485_101_000, unitText: "RM 000" });
+    expect(first("million")?.figures[0]?.value).toBe(485_101_000_000);
+    expect(
+      read(mapping(["revenue", "t1:r5:c2"]), [
+        source({
+          snippet: KLSE_TEXT.replace(
+            "| | | MYR'000 | MYR'000 |",
+            "| | | MYR'000 | MYR'000 |\n| | | million | million |",
+          ),
+        }),
+      ])?.failures.map((failure) => failure.reason),
+    ).toEqual(["unit-ambiguous"]);
   });
 
   test("withholds every figure the table does not prove", () => {
@@ -522,6 +560,40 @@ describe("issuer report phase", () => {
     expect(metric("issuer-report-basic-eps-quarter-2026-09-30")?.value).toBe(
       "USD 0.0626 (6.26 cents)",
     );
+  });
+
+  test("a substituted issuer metric reference passes the Verified Web Figure audit", async () => {
+    const { collectedSources: collected } = await runIssuerReportPhase({
+      symbol,
+      collectedSources: collectedSources({ extendedSources: [KLSE] }),
+      generateMapping: async () =>
+        output(mapping(["revenue", "t1:r4:c2"], ["revenue", "t1:r4:c3"])),
+    });
+    const sections = collected.metricSections ?? [];
+    const report = resolveMetricReferences(
+      researchReport({
+        sources: [KLSE],
+        keyFindings: [
+          {
+            text: "Quarter revenue was <<metric:issuer-report.issuer-report-revenue-quarter-2026-09-30>>, a change of <<metric:issuer-report.issuer-report-revenue-yoy-quarter>>.",
+            sourceIds: [KLSE.id],
+          },
+          { text: "Quarter revenue was MYR 486M.", sourceIds: [KLSE.id] },
+        ],
+      }),
+      sections,
+    );
+    const audit = (withSections: boolean) =>
+      auditReportIntegrity(
+        report,
+        undefined,
+        undefined,
+        undefined,
+        webSourceTexts([KLSE], [], withSections ? sections : []),
+      ).report.keyFindings.map(({ text }) => text);
+
+    expect(audit(true)).toEqual(["Quarter revenue was MYR 485.1M, a change of 112.2%."]);
+    expect(audit(false)).toEqual([]);
   });
 
   test("leaves SEC listings untouched", async () => {

@@ -1,12 +1,16 @@
 import type { FigureQuote, WebFigureFailure, WebFigureFailureReason } from "../domain/report";
 import type { Source } from "../domain/sources";
 import { isRecord } from "../guards";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
+import { formatMetricValue } from "../sources/extended-evidence/value-format";
 import { canonicalizeUrl } from "../sources/news-utils";
 
 export interface WebSourceTexts {
   // Normalized stored text per web Source id; an empty list means the source kept nothing to check.
   readonly web: ReadonlyMap<string, readonly string[]>;
   readonly deterministic: ReadonlySet<string>;
+  // Figures code rendered from a web-sourced Metric Section, which a metric reference substitutes into a claim.
+  readonly codeFigures: ReadonlyMap<string, readonly Figure[]>;
 }
 
 interface WebFigureClaim {
@@ -200,6 +204,7 @@ export function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<str
 export function webSourceTexts(
   sources: readonly Source[],
   rawSnapshots: readonly unknown[] = [],
+  metricSections: readonly MetricSection[] = [],
 ): WebSourceTexts {
   const raw = rawTextsByUrl(rawSnapshots);
   const texts = new Map<string, string[]>();
@@ -214,7 +219,19 @@ export function webSourceTexts(
       .filter((text) => text !== "");
     texts.set(source.id, [...new Set([...(texts.get(source.id) ?? []), ...stored])]);
   }
-  return { web: texts, deterministic };
+  const codeFigures = new Map<string, Figure[]>();
+  for (const metric of metricSections.flatMap((section) => section.metrics)) {
+    const rendered =
+      metric.status === "value"
+        ? formatMetricValue(metric.value, metric.unit, metric.currency)
+        : undefined;
+    for (const id of rendered === undefined
+      ? []
+      : metric.sourceIds.filter((row) => texts.has(row))) {
+      codeFigures.set(id, [...(codeFigures.get(id) ?? []), ...figuresIn(rendered ?? "")]);
+    }
+  }
+  return { web: texts, deterministic, codeFigures };
 }
 
 export function readFigureQuotes(value: unknown): readonly FigureQuote[] | undefined {
@@ -287,7 +304,14 @@ export function unverifiedWebFigure(
   const quotedFigures = quotes.flatMap((quote) => quote.figures);
   const deterministicSupport = claim.sourceIds.some((id) => texts.deterministic.has(id));
   for (const figure of figures) {
-    if (deterministicSupport || quotedFigures.some((quoted) => sameFigure(quoted, figure))) {
+    const codeRendered = citedWeb.some((id) =>
+      texts.codeFigures.get(id)?.some((rendered) => sameFigure(rendered, figure)),
+    );
+    if (
+      deterministicSupport ||
+      codeRendered ||
+      quotedFigures.some((quoted) => sameFigure(quoted, figure))
+    ) {
       continue;
     }
     const near = quotedFigures.find((quoted) => quoted.value === figure.value);

@@ -720,6 +720,19 @@ describe("static equity run fixtures", () => {
       value: 1_127_067_000,
       periodMonths: 9,
     });
+    expect(metric("issuer-report-profit-attributable-to-owners-quarter-2026-09-30")).toMatchObject({
+      value: 118_580_000,
+      currency: "MYR",
+      periodMonths: 3,
+    });
+    expect(metric("issuer-report-basic-eps-quarter-2026-09-30")).toMatchObject({
+      value: "MYR 0.0626 (6.26 sen)",
+      currency: "MYR",
+    });
+    expect(metric("issuer-report-revenue-yoy-quarter")?.value).toBeCloseTo(
+      (485_101 - 228_567) / 228_567,
+      6,
+    );
     expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_580 / 485_101, 6);
     expect(result.markdown).toContain("### Issuer report figures");
   });

@@ -231,8 +231,24 @@ export function exchangeProfileGaps(
   symbol: string,
   identity: InstrumentIdentity | undefined,
 ): readonly SourceGap[] {
-  if (isUsListing(symbol, identity) || exchangeProfileFor(symbol) !== undefined) {
+  if (isUsListing(symbol, identity)) {
     return [];
+  }
+  const profile = exchangeProfileFor(symbol);
+  if (profile !== undefined) {
+    const quoteCurrency = identity?.quoteCurrency?.toUpperCase();
+    return quoteCurrency === undefined || quoteCurrency === profile.currency
+      ? []
+      : [
+          sourceGap({
+            source: "exchange-profile",
+            symbol,
+            message: `Quote currency ${quoteCurrency} differs from the ${profile.exchange} trading currency ${profile.currency}: prices stay in ${quoteCurrency} and issuer report figures in their reported currency, and the two are not compared`,
+            capability: "market-data",
+            cause: "validation-failed",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ];
   }
   return [
     sourceGap({

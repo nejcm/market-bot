@@ -30,6 +30,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   - A claim that also cites a deterministic source (`market-data`, `market-context`, `extended-evidence`,
     which includes metric-reference sources) may carry figures without quotes, because code cannot tell which
     cited source a figure came from. News, prior-report, reference, and unknown IDs do not exempt.
+  - A metric reference to a web-sourced Metric Section (`issuer-report`) substitutes a value code rendered from
+    a checked cell (`MYR 485.1M`, `112.2%`). That rendered figure passes when the claim cites the section's web
+    source; a figure the model typed beside it still needs a quote.
 - **Failure prunes and declares.** Final-synthesis findings, cases, risks, catalysts, scenarios, and Earnings
   Setup bullets drop whole; a Business Framework section loses its model text; each prune adds a
   `report.dataGaps` entry naming the figure, reason, and source, and is traced in `reportIntegrityAudit.pruned`
@@ -60,8 +63,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   Gate stops the run before any model stage when `MARKET_BOT_EXA_API_KEY` is unset or
   `MARKET_BOT_WEB_GATHER_DISABLE` is set: either removes the evidence base the coverage label names.
 - **Exchange Profile.** A checked-in row per exchange (suffix, local benchmark, currency; Bursa: `^KLSE`, MYR)
-  drives market regime and the Event Grid relative event. An exchange without a row keeps the US proxies and
-  declares an `exchange-profile` Source Gap.
+  drives market regime and the Event Grid relative event. Its benchmark is never served by the US Massive
+  fallback. An exchange without a row keeps the US proxies and declares an `exchange-profile` Source Gap, and a
+  quote currency that differs from the row's currency declares one too; the two are never compared.
 - **Forecasts.** A non-SEC listing without verified closes issues no Observable Predictions and declares a
   `forecast-book` gap; final synthesis is asked for no predictions or Event Grid, and no Prediction Shortfall
   is reported. With closes, [ADR 0003](./0003-forecasts-scoring-and-calibration.md) applies unchanged: a range
@@ -91,15 +95,18 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   returns only `{concept, cell}` pairs from a fixed concept list. Code reads the value from the cell and accepts
   it only when all of these hold:
   - the cell is numeric;
-  - the row label, with the caption row above it, matches the concept's label pattern (revenue needs "revenue"
-    or "turnover", attributable profit needs "attributable to … owners/equity holders", capex needs a purchase
-    of property, plant and equipment);
+  - the row label matches the concept's label pattern; a sub-item row (a leading dash or bullet, or "Basic"/"Diluted") is
+    read with its caption row above it, other rows alone. Revenue needs "revenue" or "turnover", attributable
+    profit needs "attributable to … owners/equity holders", profit before tax excludes a share of associates or
+    joint ventures, profit for the period excludes gross, operating and comprehensive lines, total equity
+    excludes the attributable-to-owners subtotal, and capex needs a purchase of property, plant and equipment;
   - no other concept in the same mapping claims the cell;
   - the header rows directly above its data block hold exactly one date, which is the period end;
   - the header text states the basis: "as at" for a stock, a month count, "quarter", "year ended", or "to date"
     with the Financial Year End;
   - the concept kind matches that basis: a flow needs a period length, a stock needs "as at";
-  - one unit cell gives the currency and scale (`MYR'000`, `RM`, `USD mil`);
+  - the unit header gives the currency and scale, in one cell (`MYR'000`, `USD mil`) or as a currency cell plus a
+    scale cell (`RM` | `'000`); two different scales in one column are ambiguous and not read;
   - a per-share concept needs a subunit label (`(Subunit)`, `sen`, `cents`), which scales by 0.01;
   - the column currency matches the document's "Currency: … (XXX)" line;
   - the period end is not after the announcement date. An all-numeric date whose day and month are both 12 or

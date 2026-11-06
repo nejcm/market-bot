@@ -4198,6 +4198,7 @@ function assertVerifiedWebFigures(result: RunFixtureResult, report: ResearchRepo
   const texts = webSourceTexts(
     [...result.collectedSources.extendedSources, ...report.sources],
     result.collectedSources.rawSnapshots,
+    result.collectedSources.metricSections,
   );
   const reaudit = auditReportIntegrity(report, undefined, undefined, undefined, texts);
   expect(reaudit.pruned.filter(({ webFigure }) => webFigure !== undefined)).toEqual([]);

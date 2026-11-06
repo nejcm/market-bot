@@ -266,11 +266,23 @@ describe("exchange profile", () => {
     expect(exchangeProfileGaps("AAPL", undefined)).toEqual([]);
   });
 
+  test("a quote currency that disagrees with the Exchange Profile declares a gap", () => {
+    expect(exchangeProfileGaps("0097.KL", { quoteCurrency: "USD" })).toEqual([
+      expect.objectContaining({ source: "exchange-profile", cause: "validation-failed" }),
+    ]);
+    expect(exchangeProfileGaps("0097.KL", { quoteCurrency: "MYR" })).toEqual([]);
+  });
+
   test("KL, JK, BK and TWO suffixes are non-US listings", () => {
     for (const symbol of ["0097.KL", "BBCA.JK", "PTT.BK", "6488.TWO"]) {
       expect(isUsListing(symbol)).toBe(false);
       expect(isNonSecEquityListing(command(symbol), undefined)).toBe(true);
     }
     expect(isNonSecEquityListing(command("AAPL"), undefined)).toBe(false);
+  });
+
+  test("an Exchange Profile benchmark is not a US listing, so no Massive fallback serves it", () => {
+    expect(isUsListing("^KLSE")).toBe(false);
+    expect(isUsListing("^VIX")).toBe(true);
   });
 });

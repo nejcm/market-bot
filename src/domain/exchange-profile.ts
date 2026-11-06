@@ -33,6 +33,10 @@ export function exchangeProfileFor(symbol: string): ExchangeProfile | undefined 
   return EXCHANGE_PROFILES.find((profile) => profile.suffix === suffix);
 }
 
+export function isExchangeBenchmark(symbol: string): boolean {
+  return EXCHANGE_PROFILES.some((profile) => profile.benchmark === symbol.toUpperCase());
+}
+
 export function issuerReportHostKind(
   profile: ExchangeProfile,
   url: string | undefined,

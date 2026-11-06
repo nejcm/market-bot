@@ -21,11 +21,15 @@ type ConceptKind = "flow" | "stock" | "per-share";
 
 const CONCEPTS = {
   revenue: { label: "Revenue", kind: "flow", row: /^(?!.*\bcost\b).*\b(?:revenue|turnover)\b/iu },
-  "profit-before-tax": { label: "Profit before tax", kind: "flow", row: /\bbefore tax/iu },
+  "profit-before-tax": {
+    label: "Profit before tax",
+    kind: "flow",
+    row: /^(?!.*\b(?:share of|associates?|joint ventures?)\b).*\b(?:profit|loss)\b.*\bbefore tax/iu,
+  },
   "profit-for-period": {
     label: "Profit for the period",
     kind: "flow",
-    row: /^(?!.*(?:attributable|before tax)).*\bprofit\b.*\b(?:period|year)\b/iu,
+    row: /^(?!.*(?:attributable|before tax|\bgross\b|\boperating\b|comprehensive)).*\bprofit\b.*\bfor the (?:financial )?(?:period|year)\b/iu,
   },
   "profit-attributable-to-owners": {
     label: "Profit attributable to owners of the parent",
@@ -63,7 +67,11 @@ const CONCEPTS = {
     kind: "stock",
     row: /\btotal current liabilities\b/iu,
   },
-  "total-equity": { label: "Total equity", kind: "stock", row: /\btotal equity\b(?! and)/iu },
+  "total-equity": {
+    label: "Total equity",
+    kind: "stock",
+    row: /^(?!.*attributable)total equity\b(?! and)/iu,
+  },
 } as const satisfies Record<
   string,
   { readonly label: string; readonly kind: ConceptKind; readonly row: RegExp }
@@ -83,6 +91,7 @@ const DATE_PATTERN = /\b(\d{1,2})[\s\-/.]+([A-Za-z]{3,9}|\d{1,2})[\s\-/.,]+(\d{4
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const UNIT_CELL =
   /^(?<currency>RM|MYR|USD|SGD|HKD|EUR|GBP|CNY|RMB)\s*(?:['’‘]\s*(?<scale>000|mil|million|m|bil|billion|b))?$/iu;
+const SCALE_CELL = /^['’‘]?\s*(?<scale>000|mil|million|m|bil|billion|b)$/iu;
 const UNIT_SCALES: Readonly<Record<string, number>> = {
   "000": 1e3,
   mil: 1e6,
@@ -342,7 +351,7 @@ function columnHeaders(
   let collecting = false;
   for (let index = rowIndex - 1; index >= 0; index -= 1) {
     const row = rows[index] ?? [];
-    const isData = row.some((cell) => cellNumber(cell) !== undefined);
+    const isData = row.some((cell) => cellNumber(cell) !== undefined && !SCALE_CELL.test(cell));
     const isHeader =
       !isData && row.some((cell, cellIndex) => columns.has(cellIndex) && cell !== "");
     if (isData && collecting) {
@@ -474,6 +483,15 @@ function readFigure(
     return "unit-not-declared";
   }
   const groups = unitText?.match(UNIT_CELL)?.groups;
+  const scaleCells = headers.raw.flatMap((text) => (SCALE_CELL.test(text) ? [text] : []));
+  const scales = new Set(
+    [groups?.scale, ...scaleCells.map((text) => text.match(SCALE_CELL)?.groups?.scale)].flatMap(
+      (token) => (token === undefined ? [] : [UNIT_SCALES[token.toLowerCase()] ?? 1]),
+    ),
+  );
+  if (!perShare && scales.size > 1) {
+    return "unit-ambiguous";
+  }
   const columnCurrency =
     groups?.currency === undefined
       ? undefined
@@ -492,13 +510,13 @@ function readFigure(
   if (periodEnd > document.announcedAt) {
     return "period-after-announcement";
   }
-  const scale = perShare ? 0.01 : (UNIT_SCALES[groups?.scale?.toLowerCase() ?? ""] ?? 1);
+  const scale = perShare ? 0.01 : ([...scales][0] ?? 1);
   return {
     concept: known,
     sourceId: document.sourceId,
     rowLabel: label,
     cellText,
-    unitText: perShare ? declared : (unitText ?? ""),
+    unitText: perShare ? declared : [unitText ?? "", ...scaleCells].join(" "),
     value: Number((number * scale).toPrecision(12)),
     currency,
     periodEnd,

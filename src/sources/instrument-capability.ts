@@ -1,3 +1,4 @@
+import { isExchangeBenchmark } from "../domain/exchange-profile";
 import type { InstrumentIdentity } from "../domain/instrument";
 
 // Single source of truth for US-vs-international equity classification. Two consumers with
@@ -178,7 +179,7 @@ export function isUsListing(symbol: string, identity?: InstrumentIdentity): bool
   if (hasNonUsExchangeName(identity?.exchange)) {
     return false;
   }
-  if (hasNonUsSuffix(symbol)) {
+  if (hasNonUsSuffix(symbol) || isExchangeBenchmark(symbol)) {
     return false;
   }
   return true;

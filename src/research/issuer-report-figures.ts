@@ -80,6 +80,8 @@ const CONCEPTS = {
 
 type IssuerReportConcept = keyof typeof CONCEPTS;
 type PeriodBasis = "quarter" | "ytd" | "annual" | "instant";
+type FigureScope = "total" | "continuing";
+type StatedScope = FigureScope | "discontinued" | "unproven";
 
 const ISSUER_REPORT_CONCEPTS = Object.keys(CONCEPTS) as readonly IssuerReportConcept[];
 const ISSUER_REPORT_SECTION_ID = "issuer-report";
@@ -117,6 +119,30 @@ const PERIOD_TYPES = {
   instant: "instant",
 } as const satisfies Record<PeriodBasis, MetricInput["periodType"]>;
 const MONTHS_WORDS: Readonly<Record<string, number>> = { three: 3, six: 6, nine: 9, twelve: 12 };
+const SCOPE_CUE =
+  /continu|held[\s-]+for[\s-]+(?:sale|distribution)|\b(?:nca)?hfs\b|disposal\s+group|\b(?:cont|disc)\.?\s*ops?\b|berterusan|diteruskan|dihentikan/iu;
+const PROSE_SCOPE_CUE =
+  /continu\w*\s+(?:operations?|activities|business(?:es)?|segments?)|held[\s-]+for[\s-]+(?:sale|distribution)|\b(?:nca)?hfs\b|disposal\s+group|\b(?:cont|disc)\.\s*ops?\b|operasi\s+(?:yang\s+)?(?:berterusan|tidak\s+diteruskan|dihentikan)/iu;
+const INCLUSIVE_SCOPE =
+  /\bcontinuing\s+and\s+discontinued\s+operations?\b|\bincluding\s+discontinued\s+operations?\b/iu;
+const CONTINUING_SCOPE = /\bcontinuing\s+operations?\b/iu;
+const NEGATION =
+  /\b(?:not|no|non|excluding|except|without|exclusive\s+of|other\s+than)\b|\bnon(?=continu)/iu;
+const DASHES = /[\u2010-\u2015\u2212]/gu;
+const TOTAL_LABEL = /\btotal\b/iu;
+const MENTIONS_DISCONTINUED =
+  /discontinu|held[\s-]+for[\s-]+(?:sale|distribution)|\b(?:nca)?hfs\b|disposal\s+group|\bdisc\.?\s*ops?\b|tidak\s+diteruskan|dihentikan/iu;
+const DISCONTINUED_SCOPE =
+  /\bdiscontinued\s+(?:operations?|business(?:es)?|segments?)\b|held[\s-]+for[\s-]+(?:sale|distribution)|\b(?:nca)?hfs\b|disposal\s+group|\bdisc\.?\s*ops?\b|tidak\s+diteruskan|dihentikan/iu;
+const SCOPE_ORDER: readonly FigureScope[] = ["total", "continuing"];
+const SCOPE_OUTCOMES = {
+  total: "total",
+  continuing: "continuing",
+  discontinued: "discontinued-operations",
+  unproven: "unproven-scope",
+} as const satisfies Record<StatedScope, FigureScope | IssuerReportFailureReason>;
+const MIXED_SCOPE_REASON =
+  "inputs are of different Accounting Scope (continuing vs total operations)";
 
 type IssuerReportFailureReason =
   | "unknown-concept"
@@ -133,6 +159,8 @@ type IssuerReportFailureReason =
   | "currency-mismatch"
   | "period-after-announcement"
   | "label-mismatch"
+  | "discontinued-operations"
+  | "unproven-scope"
   | "cell-reused"
   | "conflicting-figures";
 
@@ -155,6 +183,7 @@ interface IssuerReportDocument {
   readonly announcedAtBasis: "announcement" | "source-date";
   readonly fiscalYearEndMonth?: number;
   readonly declaredCurrency?: string;
+  readonly proseScopeCue: boolean;
   readonly tables: readonly IssuerReportTable[];
 }
 
@@ -174,6 +203,7 @@ interface IssuerReportFigure {
   readonly basis: PeriodBasis;
   readonly periodMonths?: number;
   readonly restated: boolean;
+  readonly scope: FigureScope;
   readonly document: IssuerReportDocument;
 }
 
@@ -281,6 +311,9 @@ function issuerReportDocument(
       ? {}
       : { fiscalYearEndMonth: Number(fiscalYearEnd.slice(5, 7)) }),
     ...(declaredCurrency === undefined ? {} : { declaredCurrency }),
+    proseScopeCue: text
+      .split(/\r?\n/u)
+      .some((line) => !line.trim().startsWith("|") && PROSE_SCOPE_CUE.test(scopeText(line))),
     tables: tables.map((rows, index) => ({ id: `t${String(tableOffset + index + 1)}`, rows })),
   };
 }
@@ -424,6 +457,102 @@ function declaredLabel(rows: readonly (readonly string[])[], rowIndex: number): 
   return [...captions, own].join(" ");
 }
 
+function scopeText(text: string): string {
+  return text.replace(DASHES, "-");
+}
+
+function statedScope(label: string): StatedScope | undefined {
+  const text = scopeText(label);
+  if (!SCOPE_CUE.test(text)) {
+    return undefined;
+  }
+  if (NEGATION.test(text)) {
+    return "unproven";
+  }
+  if (CONTINUING_SCOPE.test(text)) {
+    return MENTIONS_DISCONTINUED.test(text) ? "unproven" : "continuing";
+  }
+  if (INCLUSIVE_SCOPE.test(text)) {
+    return "total";
+  }
+  return DISCONTINUED_SCOPE.test(text) ? "discontinued" : "unproven";
+}
+
+function closesSection(label: string): boolean {
+  const stated = statedScope(label);
+  return (stated !== undefined && stated !== "continuing") || TOTAL_LABEL.test(label);
+}
+
+// The closest caption row (no amounts right of its label) above the row, past unit rows, within its
+// Header block; a flow also stops at a total or non-continuing data row, which closes the section.
+function captionScope(
+  rows: readonly (readonly string[])[],
+  rowIndex: number,
+  stopAtClosingRow: boolean,
+): StatedScope | "unstated" | undefined {
+  const columns = valueColumns(rows);
+  for (let index = rowIndex - 1; index >= 0; index -= 1) {
+    const row = rows[index] ?? [];
+    const labelAt = row.findIndex((cell) => cell !== "" && cellNumber(cell) === undefined);
+    const amounts = row.filter(
+      (cell, cellIndex) =>
+        cell !== "" && columns.has(cellIndex) && (columns.has(labelAt) || cellIndex > labelAt),
+    );
+    const isData = amounts.some((cell) => cellNumber(cell) !== undefined && !SCALE_CELL.test(cell));
+    const label = rowLabel(row);
+    if (isData) {
+      if (stopAtClosingRow && closesSection(label)) {
+        return "unproven";
+      }
+      const stated = statedScope(label);
+      if (!stopAtClosingRow && stated !== undefined) {
+        return stated === "total" ? "unproven" : stated;
+      }
+      continue;
+    }
+    if (amounts.some((cell) => !UNIT_CELL.test(cell) && !SCALE_CELL.test(cell))) {
+      return undefined;
+    }
+    if (amounts.length === 0 && label !== "") {
+      return statedScope(label) ?? "unstated";
+    }
+  }
+  return undefined;
+}
+
+// Fails closed: a flow is total only in a table and page with no scope cue, else it needs a stated scope.
+function figureScope(
+  kind: ConceptKind,
+  document: IssuerReportDocument,
+  rows: readonly (readonly string[])[],
+  rowIndex: number,
+): FigureScope | IssuerReportFailureReason {
+  const label = rowLabel(rows[rowIndex] ?? []);
+  const own = statedScope(label);
+  if (own !== undefined) {
+    return kind === "stock" ? "unproven-scope" : SCOPE_OUTCOMES[own];
+  }
+  const cued =
+    document.proseScopeCue ||
+    rows.some((row) => row.some((cell) => SCOPE_CUE.test(scopeText(cell))));
+  if (!cued) {
+    return "total";
+  }
+  const caption = captionScope(rows, rowIndex, kind !== "stock");
+  if (kind === "stock") {
+    if (caption === "total") {
+      return "total";
+    }
+    return caption === "discontinued" ? "discontinued-operations" : "unproven-scope";
+  }
+  if (caption === undefined || caption === "unstated") {
+    return "unproven-scope";
+  }
+  return caption === "continuing" && TOTAL_LABEL.test(label)
+    ? "unproven-scope"
+    : SCOPE_OUTCOMES[caption];
+}
+
 function readFigure(
   concept: string,
   cell: string,
@@ -473,6 +602,10 @@ function readFigure(
   const declared = declaredLabel(rows, rowIndex);
   if (!CONCEPTS[known].row.test(declared)) {
     return "label-mismatch";
+  }
+  const scope = figureScope(kind, document, rows, rowIndex);
+  if (scope !== "total" && scope !== "continuing") {
+    return scope;
   }
   const perShare = SUBUNIT_LABEL.test(declared);
   const [unitText] = units;
@@ -526,12 +659,13 @@ function readFigure(
     basis: period.basis,
     ...(period.months === undefined ? {} : { periodMonths: period.months }),
     restated: RESTATED_HEADER.test(headers.filled.join(" ")),
+    scope,
     document,
   };
 }
 
 function figureKey(figure: IssuerReportFigure): string {
-  return `${figure.concept}|${figure.basis}|${figure.periodEnd}|${String(figure.periodMonths)}`;
+  return `${figure.concept}|${figure.scope}|${figure.basis}|${figure.periodEnd}|${String(figure.periodMonths)}`;
 }
 
 export function readIssuerReportMapping(
@@ -615,11 +749,16 @@ function subunitWord(figure: IssuerReportFigure): string {
   return /\bcents?\b/iu.test(figure.unitText) ? "cents" : "subunits";
 }
 
+function scopeSuffix(figures: readonly IssuerReportFigure[]): string {
+  return figures.every((figure) => figure.scope === "continuing") ? ", continuing operations" : "";
+}
+
 function figureMetric(figure: IssuerReportFigure): MetricResult {
   const { label, kind } = CONCEPTS[figure.concept];
+  const scopeId = figure.scope === "total" ? "" : `-${figure.scope}`;
   return {
-    id: `issuer-report-${figure.concept}-${figure.basis}-${figure.periodEnd}`,
-    label: `${label}, ${BASIS_LABELS[figure.basis]}`,
+    id: `issuer-report-${figure.concept}${scopeId}-${figure.basis}-${figure.periodEnd}`,
+    label: `${label}, ${BASIS_LABELS[figure.basis]}${scopeSuffix([figure])}`,
     unit: kind === "per-share" ? "currency-per-share" : "currency",
     basis: `Declared unit "${figure.unitText}"; ${documentBasis(figure.document)}${figure.restated ? RESTATED_NOTE : ""}`,
     status: "value",
@@ -639,65 +778,101 @@ function priorYearEnd(periodEnd: string): string {
   return `${String(Number(periodEnd.slice(0, 4)) - 1)}${periodEnd.slice(4)}`;
 }
 
+type FigurePair = readonly [IssuerReportFigure, IssuerReportFigure];
+
 function derivedMetric(
   id: string,
   label: string,
   basis: string,
-  inputs: readonly IssuerReportFigure[],
-  compute: () => number | string,
+  found: FigurePair | "unpaired",
+  compute: (inputs: FigurePair) => number | string,
 ): MetricResult {
-  const [first] = inputs;
-  const currencies = new Set(inputs.map((input) => input.currency));
+  if (found === "unpaired") {
+    return {
+      id,
+      label,
+      unit: "ratio-percent",
+      basis,
+      status: "missing",
+      reason: "no checked figures share the period this row needs",
+      inputs: [],
+      sourceIds: [],
+    };
+  }
+  const [first] = found;
+  const currencies = new Set(found.map((input) => input.currency));
+  const scopes = new Set(found.map((input) => input.scope));
   const common = {
     id,
-    label,
+    label: `${label}${scopeSuffix(found)}`,
     unit: "ratio-percent" as const,
-    basis: inputs.some((input) => input.restated) ? `${basis}${RESTATED_NOTE}` : basis,
-    ...(first === undefined ? {} : { periodEnd: first.periodEnd }),
-    ...(first?.periodMonths === undefined ? {} : { periodMonths: first.periodMonths }),
-    inputs: inputs.map((input) => figureInput(input)),
-    sourceIds: [...new Set(inputs.map((input) => input.sourceId))],
+    basis: found.some((input) => input.restated) ? `${basis}${RESTATED_NOTE}` : basis,
+    periodEnd: first.periodEnd,
+    ...(first.periodMonths === undefined ? {} : { periodMonths: first.periodMonths }),
+    inputs: found.map((input) => figureInput(input)),
+    sourceIds: [...new Set(found.map((input) => input.sourceId))],
   };
+  if (scopes.size > 1) {
+    return { ...common, status: "missing", reason: MIXED_SCOPE_REASON };
+  }
   if (currencies.size > 1) {
     return { ...common, status: "missing", reason: "inputs are reported in different currencies" };
   }
-  const value = compute();
+  const value = compute(found);
   return typeof value === "string"
     ? { ...common, status: "not-meaningful", reason: value }
     : { ...common, status: "value", value };
 }
 
+const ofScope = (figure: IssuerReportFigure, scope?: FigureScope) =>
+  scope === undefined || figure.scope === scope;
+
+const newestFirst = (left: FigurePair, right: FigurePair) =>
+  right[0].periodEnd.localeCompare(left[0].periodEnd) ||
+  SCOPE_ORDER.indexOf(left[0].scope) - SCOPE_ORDER.indexOf(right[0].scope);
+
 function derivedMetrics(figures: readonly IssuerReportFigure[]): readonly MetricResult[] {
-  const find = (
-    concept: IssuerReportConcept,
-    like: IssuerReportFigure,
-    periodEnd = like.periodEnd,
-  ): IssuerReportFigure | undefined =>
-    figures.find(
-      (figure) =>
-        figure.concept === concept &&
-        figure.basis === like.basis &&
-        figure.periodMonths === like.periodMonths &&
-        figure.periodEnd === periodEnd,
-    );
-  const latest = (concept: IssuerReportConcept, basis: PeriodBasis) =>
-    figures
-      .filter((figure) => figure.concept === concept && figure.basis === basis)
-      .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd))[0];
+  // The newest same-scope pair; else a mixed pair, so the derived row is withheld; else "unpaired".
+  const pair = (
+    first: IssuerReportConcept,
+    basis: PeriodBasis,
+    second: IssuerReportConcept,
+    periodEnd: (like: IssuerReportFigure) => string = (like) => like.periodEnd,
+  ): FigurePair | "unpaired" | undefined => {
+    const firsts = figures.filter((figure) => figure.concept === first && figure.basis === basis);
+    const pairs = (scope?: FigureScope): readonly FigurePair[] =>
+      firsts.flatMap((like) => {
+        const partner = figures.find(
+          (figure) =>
+            figure.concept === second &&
+            figure.basis === like.basis &&
+            figure.periodMonths === like.periodMonths &&
+            figure.periodEnd === periodEnd(like) &&
+            ofScope(like, scope) &&
+            ofScope(figure, scope),
+        );
+        return partner === undefined ? [] : [[like, partner] as const];
+      });
+    const [shared] = SCOPE_ORDER.flatMap((scope) => pairs(scope)).toSorted(newestFirst);
+    const [mixed] = pairs().toSorted(newestFirst);
+    const hasSecond = figures.some((figure) => figure.concept === second && figure.basis === basis);
+    if (shared !== undefined || mixed !== undefined) {
+      return shared ?? mixed;
+    }
+    return first !== second && firsts.length > 0 && hasSecond ? "unpaired" : undefined;
+  };
   const metrics: MetricResult[] = [];
   for (const basis of ["quarter", "ytd", "annual"] as const) {
     for (const concept of ["revenue", "profit-attributable-to-owners"] as const) {
-      const current = latest(concept, basis);
-      const prior =
-        current === undefined ? undefined : find(concept, current, priorYearEnd(current.periodEnd));
-      if (current !== undefined && prior !== undefined) {
+      const yoy = pair(concept, basis, concept, (like) => priorYearEnd(like.periodEnd));
+      if (yoy !== undefined) {
         metrics.push(
           derivedMetric(
             `issuer-report-${concept}-yoy-${basis}`,
             `${CONCEPTS[concept].label} change vs prior-year ${BASIS_LABELS[basis]}`,
             "(current − prior-year same period) / |prior-year same period|",
-            [current, prior],
-            () =>
+            yoy,
+            ([current, prior]) =>
               prior.value <= 0
                 ? "prior-year figure is zero or negative"
                 : (current.value - prior.value) / Math.abs(prior.value),
@@ -705,46 +880,44 @@ function derivedMetrics(figures: readonly IssuerReportFigure[]): readonly Metric
         );
       }
     }
-    const revenue = latest("revenue", basis);
-    const profit =
-      revenue === undefined ? undefined : find("profit-attributable-to-owners", revenue);
-    if (revenue !== undefined && profit !== undefined) {
+    const margin = pair("profit-attributable-to-owners", basis, "revenue");
+    if (margin !== undefined) {
       metrics.push(
         derivedMetric(
           `issuer-report-net-margin-${basis}`,
           `Net margin, ${BASIS_LABELS[basis]}`,
           "profit attributable to owners of the parent / revenue, same period",
-          [profit, revenue],
-          () => (revenue.value <= 0 ? "revenue is zero or negative" : profit.value / revenue.value),
+          margin,
+          ([profit, revenue]) =>
+            revenue.value <= 0 ? "revenue is zero or negative" : profit.value / revenue.value,
         ),
       );
     }
-    const cashFlow = latest("operating-cash-flow", basis);
-    const capex = cashFlow === undefined ? undefined : find("capital-expenditure", cashFlow);
-    if (cashFlow !== undefined && capex !== undefined) {
+    const freeCashFlow = pair("operating-cash-flow", basis, "capital-expenditure");
+    if (freeCashFlow !== undefined) {
+      const metric = derivedMetric(
+        `issuer-report-free-cash-flow-${basis}`,
+        `Free cash flow, ${BASIS_LABELS[basis]}`,
+        "net cash from operating activities − purchases of property, plant and equipment",
+        freeCashFlow,
+        ([cashFlow, capex]) => cashFlow.value - Math.abs(capex.value),
+      );
       metrics.push({
-        ...derivedMetric(
-          `issuer-report-free-cash-flow-${basis}`,
-          `Free cash flow, ${BASIS_LABELS[basis]}`,
-          "net cash from operating activities − purchases of property, plant and equipment",
-          [cashFlow, capex],
-          () => cashFlow.value - Math.abs(capex.value),
-        ),
+        ...metric,
         unit: "currency",
-        currency: cashFlow.currency,
+        ...(freeCashFlow === "unpaired" ? {} : { currency: freeCashFlow[0].currency }),
       });
     }
   }
-  const assets = latest("current-assets", "instant");
-  const liabilities = assets === undefined ? undefined : find("current-liabilities", assets);
-  if (assets !== undefined && liabilities !== undefined) {
+  const balance = pair("current-assets", "instant", "current-liabilities");
+  if (balance !== undefined) {
     metrics.push({
       ...derivedMetric(
         "issuer-report-current-ratio",
         "Current ratio",
         "total current assets / total current liabilities, same balance-sheet date",
-        [assets, liabilities],
-        () =>
+        balance,
+        ([assets, liabilities]) =>
           liabilities.value <= 0
             ? "current liabilities are zero or negative"
             : assets.value / liabilities.value,
@@ -785,7 +958,8 @@ function issuerReportSection(figures: readonly IssuerReportFigure[]): MetricSect
             ISSUER_REPORT_CONCEPTS.indexOf(left.concept) -
               ISSUER_REPORT_CONCEPTS.indexOf(right.concept) ||
             right.periodEnd.localeCompare(left.periodEnd) ||
-            left.basis.localeCompare(right.basis),
+            left.basis.localeCompare(right.basis) ||
+            SCOPE_ORDER.indexOf(left.scope) - SCOPE_ORDER.indexOf(right.scope),
         )
         .map((figure) => figureMetric(figure)),
       ...derivedMetrics(figures),
@@ -824,7 +998,10 @@ function providerEpsCrossCheckGap(
   }
   const flows = figures.filter(
     (figure) =>
-      figure.concept === "basic-eps" && figure.basis !== "instant" && figure.currency === currency,
+      figure.concept === "basic-eps" &&
+      figure.scope === "total" &&
+      figure.basis !== "instant" &&
+      figure.currency === currency,
   );
   const newestEnd = flows
     .map(({ periodEnd }) => periodEnd)
@@ -976,13 +1153,27 @@ export async function runIssuerReportPhase(
           ),
         ];
   const epsGaps = providerEpsCrossCheckGap(symbol, collectedSources, reading.figures);
+  const section = reading.figures.length === 0 ? undefined : issuerReportSection(reading.figures);
+  const withheld = section?.metrics.filter((metric) => metric.status === "missing") ?? [];
+  const withheldGap =
+    withheld.length === 0
+      ? []
+      : [
+          issuerReportGap(
+            symbol,
+            `${String(withheld.length)} issuer report derived metric(s) for ${symbol} withheld: ${withheld
+              .map((metric) => `${metric.label} (${metric.reason ?? "no reason"})`)
+              .join("; ")}`,
+            "validation-failed",
+          ),
+        ];
   return {
     collectedSources: withIssuerReport(
       epsGaps.length === 0
         ? collectedSources
         : withholdProviderEps(collectedSources, symbol, PROVIDER_EPS_WITHHELD),
-      [...failureGaps, ...emptyGap, ...unpublishedGap, ...epsGaps],
-      reading.figures.length === 0 ? undefined : issuerReportSection(reading.figures),
+      [...failureGaps, ...emptyGap, ...unpublishedGap, ...withheldGap, ...epsGaps],
+      section,
     ),
     stageOutputs: [output],
   };

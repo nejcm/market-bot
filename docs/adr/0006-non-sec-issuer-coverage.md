@@ -125,6 +125,34 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   A comparative column headed "restated" or "re-presented" publishes with that note on its row and on any
   derived row that uses it.
 
+  Accounting Scope fails closed (amended 2026-11-06). A flow or per-share figure is total only when its table
+  and the page's non-table lines carry no scope cue (in the table any "continu…", "held for sale/distribution",
+  "disposal group", "HFS"/"NCAHFS", "cont./disc. ops", or the Malay "berterusan"/"diteruskan"/"dihentikan"; in page prose a
+  continuing, continued or discontinued operations, activities, business or segment phrase, "cont./disc. ops",
+  held for sale/distribution, "HFS"/"NCAHFS", disposal group, or the Malay "operasi berterusan"/"tidak diteruskan"/"dihentikan"; dashes are read as
+  hyphens). Otherwise its row label, else the caption the walk upward reaches, must state the scope. The walk
+  ignores row-number cells left of a label, skips unit and scale rows, skips data rows (a flow stops at a
+  "total" or non-continuing one, which closes the section; a stock takes the scope of the first one that states
+  one, except that a total-scope data row withholds it, since only a caption proves total), takes the first row with a label and nothing right
+  of it as the caption (one stating no scope proves none), and stops at any other text row, such as a period
+  header, a nil placeholder or a note reference; a flow whose walk stops without a caption is withheld. Any negation in a cued label
+  ("not", "no", "non", "excluding", "except", "without", "exclusive of", "other than") withholds it.
+  Otherwise "continuing operations" with no discontinued mention makes it continuing, labelled so on its row
+  and keyed apart from the total, unless the row is a "total" row inheriting the scope from a caption.
+  "continuing and discontinued" or "including discontinued operations" makes it total; other inclusive
+  wordings are withheld. A discontinued,
+  held-for-sale or disposal-group slice is withheld as `discontinued-operations`; anything else is withheld as
+  `unproven-scope`. A balance-sheet figure in a cued table or page publishes only under a caption that states
+  total scope ("continuing and discontinued", "including discontinued operations"); under a discontinued
+  caption it is `discontinued-operations`, and otherwise (own scope label, no caption, an unstated or
+  continuing caption) `unproven-scope`. That withholds a bare "Total current assets" beside a held-for-sale
+  line: IFRS 5.38 presents disposal-group assets on their own line and does not fix whether a current total
+  includes them. Derived rows pair inputs on the newest period the two share within one scope (total
+  first on a tie); with no shared-scope pair, a mixed pair is `missing`; with both concepts of a cross-concept row read on the same basis but no shared period, the row is `missing`. Each `missing` derived row is named in an `issuer-report` Source Gap. The
+  provider EPS cross-check reads only a total EPS. Parent vs NCI scope is carried by the concept (profit for
+  the period vs profit attributable to owners); net margin's use of parent profit and a parent-scope profit
+  before tax row are open in `plans/issues.md`.
+
   A figure that fails any check is withheld and named in an `issuer-report` Source Gap. So are two documents
   giving different values for one concept and period.
 
@@ -135,7 +163,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   Source's `fetchedAt` is the provider's `publishedDate` when it sends one, which is page metadata and can
   precede real publication. Derived rows reuse only checked
   figures with standard formulas: same-basis YoY, net margin, FCF as operating cash flow − |capex|, and current
-  ratio. Mixed currencies make a derived row `missing`; a zero or negative denominator makes it `not meaningful`.
+  ratio. Mixed currencies or scopes make a derived row `missing`, named in an `issuer-report` Source Gap; a
+  zero or negative denominator makes it `not meaningful`.
 - **Absence.** A profiled listing with no report text, an invalid mapping, or no checked figure declares an
   `issuer-report` Source Gap. An unprofiled or SEC listing skips the phase and makes no model call.
 - **Provider EPS cross-check.** A TTM to the newest report date contains that report's quarter and

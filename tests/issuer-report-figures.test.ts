@@ -1192,7 +1192,7 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
     expect(metric("issuer-report-revenue-quarter-2026-09-30")?.basis).not.toContain(restated);
     expect(metric("issuer-report-revenue-yoy-quarter")?.basis).toContain(restated);
     expect(metric("issuer-report-basic-eps-quarter-2026-09-30")?.value).toBe(
-      "USD 0.0626 (6.26 cents)",
+      "USD 0.0626 or 6.26 cents",
     );
   });
 
@@ -1201,7 +1201,9 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
       symbol,
       collectedSources: collectedSources({ extendedSources: [KLSE] }),
       generateMapping: async () =>
-        output(mapping(["revenue", "t1:r4:c2"], ["revenue", "t1:r4:c3"])),
+        output(
+          mapping(["revenue", "t1:r4:c2"], ["revenue", "t1:r4:c3"], ["basic-eps", "t1:r6:c2"]),
+        ),
     });
     const sections = collected.metricSections ?? [];
     const report = resolveMetricReferences(
@@ -1210,6 +1212,10 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
         keyFindings: [
           {
             text: "Quarter revenue was <<metric:issuer-report.issuer-report-revenue-quarter-2026-09-30>>, a change of <<metric:issuer-report.issuer-report-revenue-yoy-quarter>>.",
+            sourceIds: [KLSE.id],
+          },
+          {
+            text: "Quarter basic EPS was <<metric:issuer-report.issuer-report-basic-eps-quarter-2026-09-30>> through 2026-09-30.",
             sourceIds: [KLSE.id],
           },
           { text: "Quarter revenue was MYR 486M.", sourceIds: [KLSE.id] },
@@ -1226,7 +1232,10 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
         webSourceTexts([KLSE], [], withSections ? sections : []),
       ).report.keyFindings.map(({ text }) => text);
 
-    expect(audit(true)).toEqual(["Quarter revenue was MYR 485.1M, a change of 112.2%."]);
+    expect(audit(true)).toEqual([
+      "Quarter revenue was MYR 485.1M, a change of 112.2%.",
+      "Quarter basic EPS was MYR 0.0626 or 6.26 sen through 2026-09-30.",
+    ]);
     expect(audit(false)).toEqual([]);
   });
 

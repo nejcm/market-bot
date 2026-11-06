@@ -764,7 +764,7 @@ function figureMetric(figure: IssuerReportFigure): MetricResult {
     status: "value",
     value:
       kind === "per-share"
-        ? `${figure.currency} ${String(figure.value)} (${figure.cellText} ${subunitWord(figure)})`
+        ? `${figure.currency} ${String(figure.value)} or ${figure.cellText} ${subunitWord(figure)}`
         : figure.value,
     currency: figure.currency,
     periodEnd: figure.periodEnd,

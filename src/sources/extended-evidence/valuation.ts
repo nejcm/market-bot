@@ -61,6 +61,19 @@ function valuationGap(command: InstrumentCommand, missing: readonly string[]): S
   });
 }
 
+// The valuation divides on a USD basis; a non-USD market cap would mix currencies.
+function currencyMismatchGap(command: InstrumentCommand, quoteCurrency: string): SourceGap {
+  return sourceGap({
+    source: "valuation",
+    symbol: command.symbol.toUpperCase(),
+    message: `Valuation Evidence withheld for ${command.symbol}: quote currency ${quoteCurrency} is not USD, the only basis Valuation Evidence supports, and no declared FX conversion is applied`,
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "unsupported-coverage",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
 function ratio(numerator: number, denominator: number): number | undefined {
   return denominator > 0 ? numerator / denominator : undefined;
 }
@@ -153,6 +166,21 @@ export function addValuationEvidence(
   }
 
   const snapshot = tickerSnapshot(command, marketSnapshots);
+  const quoteCurrency = snapshot?.identity?.quoteCurrency?.toUpperCase();
+  if (quoteCurrency !== undefined && quoteCurrency !== "USD") {
+    const gaps = [currencyMismatchGap(command, quoteCurrency)];
+    return {
+      extendedEvidence: {
+        instrument: extendedEvidence?.instrument ?? {
+          symbol: command.symbol,
+          assetClass: command.assetClass,
+        },
+        items: extendedEvidence?.items ?? [],
+        gaps: [...(extendedEvidence?.gaps ?? []), ...gaps],
+      },
+      sourceGaps: gaps,
+    };
+  }
   // Prefer a sec-edgar item that actually carries fundamentals; multiple sec-edgar
   // Items can coexist (e.g. a filing-excerpt item alongside the fundamentals item),
   // So picking the first unconditionally could miss the metrics-bearing one.

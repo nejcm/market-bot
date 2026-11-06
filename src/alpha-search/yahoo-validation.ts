@@ -1,7 +1,12 @@
 import type { SourceGap } from "../domain/sources";
-import { isRecord, optionalString, readNumber, readString } from "../guards";
 import { fetchMassiveQuoteFallback } from "../sources/massive-fallback";
 import { yahooQuoteSourceRequest } from "../sources/yahoo";
+import {
+  listedStockRejection,
+  readQuoteInfo,
+  readYahooQuoteResults,
+  type YahooQuoteInfo,
+} from "../sources/yahoo-quote-info";
 import {
   isFetchJsonResult,
   type RawSourceSnapshot,
@@ -16,18 +21,6 @@ const DEFAULT_ALPHA_SEARCH_ELIGIBILITY: AlphaSearchEligibilityOptions = {
   minMarketCap: 50_000_000,
   maxMarketCap: 10_000_000_000,
 };
-const OTC_EXCHANGE_CODES = new Set([
-  "GREY",
-  "OTC",
-  "OTCBB",
-  "OTCQB",
-  "OTCQX",
-  "PINX",
-  "PINK",
-  "PNK",
-]);
-const OTC_EXCHANGE_NAMES = new Set(["OTHER OTC", "OTC MARKETS", "OTCBB", "PINK SHEETS"]);
-
 export type AlphaSearchEligibilityOptions = Pick<
   AlphaSearchOptions,
   "minPrice" | "minVolume" | "minMarketCap" | "maxMarketCap"
@@ -58,17 +51,6 @@ export interface YahooCandidateValidationResult extends YahooCandidateValidation
   readonly sourceGaps: readonly SourceGap[];
 }
 
-interface YahooQuoteInfo {
-  readonly symbol: string;
-  readonly name?: string;
-  readonly exchange?: string;
-  readonly fullExchangeName?: string;
-  readonly quoteType?: string;
-  readonly price?: number;
-  readonly volume?: number;
-  readonly marketCap?: number;
-}
-
 interface ValidatedYahooQuoteInfo extends YahooQuoteInfo {
   readonly exchange: string;
   readonly price: number;
@@ -96,67 +78,17 @@ type CandidateQuoteValidation =
       readonly rejectedCandidate: YahooRejectedCandidate;
     };
 
-function readYahooQuoteResults(payload: unknown): readonly unknown[] {
-  if (!isRecord(payload) || !isRecord(payload.quoteResponse)) {
-    return [];
-  }
-
-  return Array.isArray(payload.quoteResponse.result) ? payload.quoteResponse.result : [];
-}
-
-function normalizeQuoteType(value: string | undefined): string | undefined {
-  return value?.trim().toUpperCase();
-}
-
-function isOtcExchange(value: string | undefined): boolean {
-  const normalized = value?.trim().toUpperCase();
-  return (
-    normalized !== undefined &&
-    (OTC_EXCHANGE_CODES.has(normalized) || OTC_EXCHANGE_NAMES.has(normalized))
-  );
-}
-
-function readQuoteInfo(value: unknown): YahooQuoteInfo | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const symbol = readString(value, "symbol")?.trim().toUpperCase();
-  if (symbol === undefined) {
-    return undefined;
-  }
-  const name = optionalString(value, "shortName") ?? optionalString(value, "longName");
-  const exchange = optionalString(value, "exchange");
-  const fullExchangeName = optionalString(value, "fullExchangeName");
-  const quoteType = normalizeQuoteType(optionalString(value, "quoteType"));
-  const price = readNumber(value, "regularMarketPrice");
-  const volume = readNumber(value, "regularMarketVolume");
-  const marketCap = readNumber(value, "marketCap");
-
-  return {
-    symbol,
-    ...(name !== undefined ? { name } : {}),
-    ...(exchange !== undefined ? { exchange } : {}),
-    ...(fullExchangeName !== undefined ? { fullExchangeName } : {}),
-    ...(quoteType !== undefined ? { quoteType } : {}),
-    ...(price !== undefined ? { price } : {}),
-    ...(volume !== undefined ? { volume } : {}),
-    ...(marketCap !== undefined ? { marketCap } : {}),
-  };
-}
-
 function validateQuoteInfo(
   quote: YahooQuoteInfo,
   eligibility: AlphaSearchEligibilityOptions,
 ): YahooQuoteValidation {
-  if (quote.quoteType !== "EQUITY") {
-    return { status: "rejected", reason: "Yahoo quote type is not listed stock" };
-  }
-  if (isOtcExchange(quote.exchange) || isOtcExchange(quote.fullExchangeName)) {
-    return { status: "rejected", reason: "OTC or pink-sheet instrument" };
-  }
-  if (quote.exchange === undefined) {
-    return { status: "rejected", reason: "Yahoo quote is missing listed exchange" };
+  const listedRejection = listedStockRejection(quote);
+  // The exchange check repeats listedStockRejection's so TypeScript narrows `quote.exchange`.
+  if (listedRejection !== undefined || quote.exchange === undefined) {
+    return {
+      status: "rejected",
+      reason: listedRejection ?? "Yahoo quote is missing listed exchange",
+    };
   }
   if (quote.price === undefined || quote.volume === undefined) {
     return { status: "rejected", reason: "Yahoo quote is missing price or volume" };

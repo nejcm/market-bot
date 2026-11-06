@@ -44,11 +44,13 @@ import { projectExtendedEvidenceReportExtras } from "./extended-evidence-project
 import type { HistoricalResearchContext } from "./historical-context";
 import { deterministicSourceGapEntries } from "./deterministic-gaps";
 import { issueForecastBook } from "./event-grid";
+import { isNonSecEquityListing, NON_SEC_COVERAGE_LABEL } from "../sources/identity-gate";
 import type { DepthProfile, ResearchContext } from "./research-context-types";
 import { researchIdentityExtras } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { isGapShapedClaimForRelocation } from "./gap-shaped-claims";
+import { readFigureQuotes } from "./web-figure-verification";
 import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 import {
   assertNoUnresolvedMetricReferences,
@@ -104,9 +106,11 @@ function readFindings(value: unknown): readonly KeyFinding[] {
         return undefined;
       }
 
+      const figureQuotes = readFigureQuotes(item.figureQuotes);
       return {
         text: item.text,
         sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+        ...(figureQuotes === undefined ? {} : { figureQuotes }),
       };
     })
     .filter((item): item is KeyFinding => item !== undefined);
@@ -240,10 +244,12 @@ function readScenarios(value: unknown): readonly Scenario[] {
         return undefined;
       }
 
+      const figureQuotes = readFigureQuotes(item.figureQuotes);
       return {
         name: item.name,
         description: item.description,
         sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+        ...(figureQuotes === undefined ? {} : { figureQuotes }),
       };
     })
     .filter((item): item is Scenario => item !== undefined);
@@ -824,10 +830,13 @@ export function assembleResearchReportWithRelocations(
       })),
     ]),
   ).map((gap) => gap.text);
-  const predictionShortfall = derivePredictionShortfall(
-    forecastBook.predictions.filter((prediction) => prediction.origin !== "grid").length,
-    depthProfile.targetPredictions,
-  );
+  const predictionShortfall =
+    forecastBook.withheld === true
+      ? undefined
+      : derivePredictionShortfall(
+          forecastBook.predictions.filter((prediction) => prediction.origin !== "grid").length,
+          depthProfile.targetPredictions,
+        );
 
   // The orchestrator assesses evidence quality once, before synthesis, and stamps the
   // Result onto context.evidenceQualityAssessment, so the real flow always takes the
@@ -890,6 +899,9 @@ export function assembleResearchReportWithRelocations(
     catalysts,
     scenarios,
     evidenceQuality,
+    ...(isNonSecEquityListing(command, collectedSources.resolvedInstrumentIdentity)
+      ? { coverageLabel: NON_SEC_COVERAGE_LABEL }
+      : {}),
     ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
     ...(predictionShortfall !== undefined ? { predictionShortfall } : {}),
     dataGaps: dataGapsRaw,

@@ -25,6 +25,11 @@ export interface MetricSectionView {
   readonly notes?: readonly string[];
 }
 
+const SECTION_SOURCE_LABELS: Readonly<Record<string, string>> = {
+  "price-performance": "Yahoo price history",
+  "issuer-report": "issuer report tables, code-checked",
+};
+
 // Undefined when the report carries no Metric Sections; `[]` is kept apart for a bare header.
 export function metricSectionsView(
   report: Record<string, unknown> | undefined,
@@ -39,7 +44,7 @@ export function metricSectionsView(
           {
             ...(id !== undefined ? { id } : {}),
             title,
-            sourceLabel: id === "price-performance" ? "Yahoo price history" : "sourced inputs",
+            sourceLabel: SECTION_SOURCE_LABELS[id ?? ""] ?? "sourced inputs",
             ...(id === "operating-ratios" && notes !== undefined ? { notes } : {}),
             metrics: metrics.flatMap((metric): readonly MetricTileView[] => {
               if (metric.label === undefined || metric.label.trim() === "") {

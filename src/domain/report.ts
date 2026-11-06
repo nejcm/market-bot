@@ -27,15 +27,40 @@ export interface MarketRegimeSummary {
   readonly sourceIds: readonly string[];
 }
 
+// A verbatim span of a cited web source that carries a figure the claim states (Verified Web Figure).
+export interface FigureQuote {
+  readonly sourceId: string;
+  readonly quote: string;
+}
+
+export type WebFigureFailureReason =
+  | "figure-not-quoted"
+  | "figure-not-in-quote"
+  | "scale-mismatch"
+  | "currency-mismatch"
+  | "unit-mismatch"
+  | "quote-not-in-source"
+  | "quote-source-not-cited"
+  | "no-stored-text"
+  | "quote-too-short";
+
+export interface WebFigureFailure {
+  readonly reason: WebFigureFailureReason;
+  readonly figure: string;
+  readonly sourceIds: readonly string[];
+}
+
 export interface KeyFinding {
   readonly text: string;
   readonly sourceIds: readonly string[];
+  readonly figureQuotes?: readonly FigureQuote[];
 }
 
 export interface Scenario {
   readonly name: string;
   readonly description: string;
   readonly sourceIds: readonly string[];
+  readonly figureQuotes?: readonly FigureQuote[];
 }
 
 export type EquityAnalysisDimensionStatus =
@@ -101,6 +126,7 @@ export interface ResearchReport {
   readonly reportIntegrity?: ReportIntegrity;
   readonly researchQuality?: ReportIntegrity;
   readonly researchQualityDriver?: string;
+  readonly coverageLabel?: string;
   readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
   readonly predictionShortfall?: PredictionShortfall;
   readonly dataGaps: readonly string[];

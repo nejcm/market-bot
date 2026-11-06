@@ -15,7 +15,10 @@ import {
   WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
   WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
   WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER,
+  WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE,
+  WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER,
 } from "../src/web-evidence/contract";
+import { webSourceTexts } from "../src/research/web-figure-verification";
 import {
   assertSafeReportLanguage,
   ReportLanguageViolationError,
@@ -31,6 +34,12 @@ import { sourceGap } from "../src/domain/source-gaps";
 import { researchReport } from "./support/fixtures";
 import type { Source } from "../src/domain/sources";
 import { violatesResearchOnly } from "../src/domain/research-language";
+
+const NO_WEB_TEXTS = webSourceTexts([]);
+
+function disclosure(answer: string): string {
+  return `Company disclosure: ${answer}`;
+}
 
 const command = {
   jobType: "equity",
@@ -1132,7 +1141,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(legacy),
+      reused: screenReusedWebSubjectProfile(legacy, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap,
     });
@@ -1162,7 +1171,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap,
     });
@@ -1529,7 +1538,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(legacy),
+      reused: screenReusedWebSubjectProfile(legacy, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1569,7 +1578,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1620,7 +1629,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(mixed),
+      reused: screenReusedWebSubjectProfile(mixed, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1650,7 +1659,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(legacy),
+      reused: screenReusedWebSubjectProfile(legacy, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1671,7 +1680,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1847,7 +1856,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(legacy),
+      reused: screenReusedWebSubjectProfile(legacy, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -2048,10 +2057,13 @@ describe("Web Subject Profile inline source-id markers", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile({
-        ...origin,
-        subjectSummary: { answer: " \n ", sourceIds: [webSource.id] },
-      }),
+      reused: screenReusedWebSubjectProfile(
+        {
+          ...origin,
+          subjectSummary: { answer: " \n ", sourceIds: [webSource.id] },
+        },
+        NO_WEB_TEXTS,
+      ),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -2096,7 +2108,7 @@ describe("Web Subject Profile inline source-id markers", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      reused: screenReusedWebSubjectProfile(legacy),
+      reused: screenReusedWebSubjectProfile(legacy, NO_WEB_TEXTS),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -2157,9 +2169,13 @@ describe("geography share screen", () => {
     edit: (payload: Record<string, unknown>) => void = () => undefined,
   ) => {
     const payload = JSON.parse(profilePayload()) as Record<string, unknown> & {
-      questions: Record<string, { answer: string }>;
+      questions: Record<string, { answer: string; figureQuotes?: unknown }>;
     };
-    payload.questions.geography = { ...payload.questions.geography, answer: geographyAnswer };
+    payload.questions.geography = {
+      ...payload.questions.geography,
+      answer: geographyAnswer,
+      figureQuotes: [{ sourceId: webSource.id, quote: disclosure(geographyAnswer) }],
+    };
     edit(payload);
     return buildWebSubjectProfileEvidence({
       command,
@@ -2167,7 +2183,7 @@ describe("geography share screen", () => {
       generatedAt: "2026-05-19T00:00:00.000Z",
       runId: "test-run",
       modelContent: JSON.stringify(payload),
-      webSources: [webSource],
+      webSources: [{ ...webSource, snippet: disclosure(geographyAnswer) }],
       extendedEvidence: undefined,
       ...(metricSections !== undefined ? { metricSections } : {}),
     });
@@ -2261,21 +2277,24 @@ describe("geography share screen", () => {
   test("screens a reused profile against the current run's section", () => {
     const reused = produce(invented).artifact;
     expect(geographyOf(reused).answer).toBe(invented);
-    const screened = screenReusedWebSubjectProfile(reused, [geography]);
+    const texts = webSourceTexts([{ ...webSource, snippet: disclosure(invented) }]);
+    const screened = screenReusedWebSubjectProfile(reused, texts, [geography]);
     expect(geographyOf(screened.artifact).answer).toBe(
       WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
     );
     expect(screened.withheldGaps.map(({ message }) => message).join("\n")).toContain(
       WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER,
     );
-    const again = screenReusedWebSubjectProfile(screened.artifact);
+    const again = screenReusedWebSubjectProfile(screened.artifact, texts);
     expect(geographyOf(again.artifact).answer).toBe(
       WEB_SUBJECT_PROFILE_SHARE_MISMATCH_ANSWER_NOTICE,
     );
     expect(again.withheldGaps.map(({ message }) => message).join("\n")).not.toContain(
       WEB_SUBJECT_PROFILE_WITHHELD_MARKER,
     );
-    expect(geographyOf(screenReusedWebSubjectProfile(reused).artifact).answer).toBe(invented);
+    expect(geographyOf(screenReusedWebSubjectProfile(reused, texts).artifact).answer).toBe(
+      invented,
+    );
   });
 
   test("drops a raw metric reference from openGaps", () => {
@@ -2283,5 +2302,127 @@ describe("geography share screen", () => {
       payload.openGaps = ["Mix <<metric:geographic-revenue.a-share>> unclear.", "Kept gap."];
     });
     expect(result.artifact.openGaps.map((gap) => gap.text)).toEqual(["Kept gap."]);
+  });
+});
+
+const questionsOf = (payload: Record<string, unknown>) =>
+  payload.questions as Record<string, unknown>;
+
+describe("Verified Web Figure profile screen", () => {
+  const snippet = "Services revenue reached $26.3 billion, up 14% year over year.";
+  const quoted = [{ sourceId: webSource.id, quote: "Services revenue reached $26.3 billion" }];
+  const produce = (edit: (payload: Record<string, unknown>) => void, source = webSource) => {
+    const payload = JSON.parse(profilePayload()) as Record<string, unknown>;
+    edit(payload);
+    return buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
+      modelContent: JSON.stringify(payload),
+      webSources: [source],
+      extendedEvidence: undefined,
+    });
+  };
+  const withSnippet = { ...webSource, snippet };
+
+  test("keeps a quoted figure and prunes the unquoted sentence with a gap", () => {
+    const result = produce((payload) => {
+      questionsOf(payload).companyKpis = {
+        answer:
+          "Services revenue reached $26.3 billion. Services margin was 74%. Apple sells devices.",
+        sourceIds: [webSource.id],
+        figureQuotes: quoted,
+      };
+    }, withSnippet);
+    const answer = (result.artifact.questions as Record<string, WebSubjectProfileAnswer>)
+      .companyKpis!;
+    expect(answer.answer).toBe("Services revenue reached $26.3 billion. Apple sells devices.");
+    expect(answer.figureQuotes).toEqual(quoted);
+    expect(result.sourceGaps.map(({ message }) => message)).toContain(
+      `Verified Web Figure check withheld webSubjectProfile.questions.companyKpis: 74% does not appear in any verified quote (${webSource.id}).`,
+    );
+  });
+
+  test("replaces a fully failed answer with a notice and drops failed facts with a count", () => {
+    const result = produce((payload) => {
+      questionsOf(payload).companyKpis = {
+        answer: "Services revenue reached $26.3 million.",
+        sourceIds: [webSource.id],
+        figureQuotes: quoted,
+      };
+      payload.factLedger = [
+        {
+          claim: "Services revenue reached $26.3 billion.",
+          sourceIds: [webSource.id],
+          figureQuotes: quoted,
+        },
+        { claim: "Services grew 15%.", sourceIds: [webSource.id] },
+        { claim: "Apple sells iPhone, Mac, and services.", sourceIds: [webSource.id] },
+      ];
+    }, withSnippet);
+    const questions = result.artifact.questions as Record<string, WebSubjectProfileAnswer>;
+    expect(questions.companyKpis!.answer).toBe(WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE);
+    expect(isWebSubjectProfileWithheldAnswer(questions.companyKpis!.answer)).toBe(true);
+    expect(result.artifact.factLedger.map(({ claim }) => claim)).toEqual([
+      "Services revenue reached $26.3 billion.",
+      "Apple sells iPhone, Mac, and services.",
+      `Web Subject Profile: 1 of 3 fact-ledger claims ${WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER}; the original wording stays in the run's raw stage output.`,
+    ]);
+    const messages = result.sourceGaps.map(({ message }) => message);
+    expect(messages).toContain(
+      `Verified Web Figure check withheld webSubjectProfile.questions.companyKpis: $26.3 million is quoted at a different scale (${webSource.id}).`,
+    );
+    expect(messages).toContain(
+      `Verified Web Figure check withheld webSubjectProfile.factLedger[1]: 15% has no verbatim quote from its cited web source (${webSource.id}).`,
+    );
+  });
+
+  test("fails every figure from a web source with no stored text", () => {
+    const result = produce((payload) => {
+      payload.recentMaterialEvents = [
+        {
+          claim: "Apple reported $26.3 billion services revenue.",
+          sourceIds: [webSource.id],
+          figureQuotes: quoted,
+        },
+      ];
+    });
+    expect(result.artifact.recentMaterialEvents.map(({ claim }) => claim)).toEqual([
+      expect.stringContaining(WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER),
+    ]);
+    expect(result.sourceGaps.map(({ message }) => message)).toContain(
+      `Verified Web Figure check withheld webSubjectProfile.recentMaterialEvents[0]: $26.3 billion rests on a source with no stored text to check (${webSource.id}).`,
+    );
+  });
+
+  test("re-verifies on reuse and re-emits a persisted notice's gap", () => {
+    const fresh = produce((payload) => {
+      questionsOf(payload).companyKpis = {
+        answer: "Services revenue reached $26.3 billion.",
+        sourceIds: [webSource.id],
+        figureQuotes: quoted,
+      };
+    }, withSnippet).artifact;
+    expect(
+      screenReusedWebSubjectProfile(fresh, webSourceTexts([withSnippet])).withheldGaps,
+    ).toEqual([]);
+    const reused = screenReusedWebSubjectProfile(fresh, webSourceTexts([webSource]));
+    expect(
+      (reused.artifact.questions as Record<string, WebSubjectProfileAnswer>).companyKpis!.answer,
+    ).toBe(WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE);
+    const again = screenReusedWebSubjectProfile(reused.artifact, webSourceTexts([webSource]));
+    expect(again.withheldGaps.map(({ message }) => message)).toContain(
+      WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE,
+    );
+  });
+
+  test("persists figureQuotes through the artifact readers", () => {
+    expect(
+      readWebSubjectProfileAnswer({ answer: "a", sourceIds: [webSource.id], figureQuotes: quoted }),
+    ).toEqual({ answer: "a", sourceIds: [webSource.id], figureQuotes: quoted });
+    expect(
+      readWebSubjectProfileFacts([{ claim: "c", sourceIds: [webSource.id], figureQuotes: quoted }]),
+    ).toEqual([{ claim: "c", sourceIds: [webSource.id], figureQuotes: quoted }]);
   });
 });

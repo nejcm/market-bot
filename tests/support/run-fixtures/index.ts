@@ -42,6 +42,8 @@ export interface FixtureMeta {
   readonly settings?: CaptureSettings;
   readonly retryDelaysMs?: readonly number[];
   readonly replayClassification: "clean" | "missing-source" | "incomplete";
+  // LLM Cassette keys written by hand, not recorded; "clean" covers HTTP replay only.
+  readonly syntheticLlmEntries?: readonly string[];
   readonly now: string;
   readonly argv: readonly string[];
   readonly quickModel?: string;
@@ -512,4 +514,6 @@ export const EQUITY_RUN_FIXTURES = [
   "clfd-zero-debt",
   "ebay-extension-investments",
   "equity-amd-deep",
+  "equity-bursa-deep",
+  "equity-bursa-brief",
 ] as const;

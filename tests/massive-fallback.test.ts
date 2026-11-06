@@ -213,3 +213,30 @@ test("the Yahoo quote fallback reaches Massive through the injected fetch, not g
   }
   expect(urls.some((url) => url.includes("/v2/snapshot/"))).toBe(true);
 });
+
+test("the Yahoo quote fallback skips Massive for a non-US listing", async () => {
+  const urls: string[] = [];
+  const fetchImpl: FetchLike = async (input) => {
+    urls.push(String(input));
+    return new Response("down", { status: 503 });
+  };
+  const now = new Date("2026-06-01T00:00:00.000Z");
+  const { request } = createSourceRequestContext(
+    {
+      equityMoverLimit: 1,
+      cryptoMoverLimit: 1,
+      newsLimit: 1,
+      sourceTimeoutMs: 1000,
+      cacheDisabled: true,
+    },
+    now,
+    fetchImpl,
+    [],
+  );
+  const result = await requestJsonWithQuoteFallback(
+    { fetchedAt: now.toISOString(), massiveApiKey: "massive-key", request } as CollectContext,
+    yahooQuoteSourceRequest(["0097.KL"], "yahoo-ticker"),
+  );
+  expect(isFetchJsonResult(result)).toBe(false);
+  expect(urls.some((url) => url.includes("massive.com"))).toBe(false);
+});

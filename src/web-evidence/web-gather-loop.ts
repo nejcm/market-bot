@@ -1,6 +1,8 @@
 import type { AppConfig } from "../config";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { runTypeSupportsWebGather } from "../domain/run-types";
+import type { InstrumentIdentity } from "../domain/instrument";
+import { isNonSecEquityListing } from "../sources/identity-gate";
 import type {
   WebGatherLoopAudit,
   WebGatherToolName,
@@ -13,6 +15,8 @@ import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
 import { createCollectContext } from "../sources/source-request";
 import type { CollectedSources } from "../sources/types";
 import { executeWebGatherTool, WEB_GATHER_TOOL_UNITS } from "../sources/web-gather-tools";
+import { canonicalizeUrl } from "../sources/news-utils";
+import { issuerReportPacket } from "../research/issuer-report-figures";
 import {
   aggregateSanitizerAudit,
   type WebGatherSubject,
@@ -36,7 +40,7 @@ import {
   type WebGatherSkipCode,
   type WebGatherStageOutput,
 } from "./web-gather-types";
-import { secFilingCoverageFromSources } from "./web-gather-coverage";
+import { issuerReportGatherContext, secFilingCoverageFromSources } from "./web-gather-coverage";
 import { subjectLabelForRun, subjectTermsForRun } from "./web-gather-validation";
 import { createWebGatherAcceptance, type WebGatherAcceptance } from "./web-gather-acceptance";
 import {
@@ -49,9 +53,10 @@ import {
 export type { WebGatherLoopResult, WebGatherStageOutput } from "./web-gather-types";
 
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
-  const skipCode = webGatherSkipCode(input.command, input.config);
+  const identity = input.collectedSources.resolvedInstrumentIdentity;
+  const skipCode = webGatherSkipCode(input.command, input.config, identity);
   if (skipCode !== undefined) {
-    const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config);
+    const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config, identity);
     return {
       collectedSources:
         unavailableGap === undefined
@@ -76,6 +81,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     subject,
     input.collectedSources.extendedSources,
   );
+  const issuerReports = issuerReportGatherContext(command);
   const acceptance = createWebGatherAcceptance({
     subject,
     subjectTerms,
@@ -190,6 +196,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           ...(input.reusedProfileCoverage !== undefined
             ? { reusedProfileCoverage: input.reusedProfileCoverage }
             : {}),
+          ...(issuerReports !== undefined ? { issuerReports } : {}),
         }),
         roundState.priorStages,
       ),
@@ -250,6 +257,9 @@ async function runDeepEquityWebGatherBatch(input: {
     readonly attempts?: SourceGapAttempts;
   }[];
 }): Promise<WebGatherLoopResult> {
+  const issuerReports = issuerReportGatherContext(input.command);
+  const reserved =
+    issuerReports === undefined ? 0 : issuerReportFetchReserve(input.webGatherOptions);
   const generateRound = (
     round: number,
     priorStages: readonly WebGatherStageOutput[],
@@ -263,10 +273,14 @@ async function runDeepEquityWebGatherBatch(input: {
         sourceUnitsUsed: 0,
         toolCallsUsed: 0,
         maxRounds: 1,
-        maxToolCalls: input.webGatherOptions.maxToolCalls,
-        sourceBudget: input.webGatherOptions.sourceBudget,
+        maxToolCalls: Math.max(0, input.webGatherOptions.maxToolCalls - reserved),
+        sourceBudget: Math.max(
+          0,
+          input.webGatherOptions.sourceBudget - reserved * WEB_GATHER_TOOL_UNITS.web_fetch,
+        ),
         surfacedUrls: [],
         subjectTerms: input.subjectTerms,
+        ...(issuerReports !== undefined ? { issuerReports } : {}),
         ...(input.secFilingCoverage !== undefined
           ? { secFilingCoverage: input.secFilingCoverage }
           : {}),
@@ -323,7 +337,7 @@ async function runDeepEquityWebGatherBatch(input: {
   const fetchRequests = parsed.filter(
     (request) => isRecord(request) && request.tool === "web_fetch",
   );
-  const searchValidation = input.acceptance.validate(searchRequests, round);
+  const searchValidation = input.acceptance.validate(searchRequests, round, reserved);
   const searchOutputs = await Promise.all(
     searchValidation.requests.map((request) => input.acquireRequest(request.request)),
   );
@@ -337,7 +351,7 @@ async function runDeepEquityWebGatherBatch(input: {
     collectedSources = merged.state;
     emittedGaps.push(...merged.gaps);
   }
-  const fetchValidation = input.acceptance.validate(fetchRequests, round);
+  const fetchValidation = input.acceptance.validate(fetchRequests, round, reserved);
   const fetchOutputs = await Promise.all(
     fetchValidation.requests.map((request) => input.acquireRequest(request.request)),
   );
@@ -350,7 +364,33 @@ async function runDeepEquityWebGatherBatch(input: {
     collectedSources = merged.state;
     emittedGaps.push(...merged.gaps);
   }
-  const acceptedRequests = [...searchValidation.requests, ...fetchValidation.requests];
+  const issuerFetches = issuerReportFetchRequests(
+    input.command,
+    collectedSources,
+    fetchValidation.requests.map(({ request }) => request),
+    reserved,
+  );
+  const issuerValidation =
+    issuerFetches.length === 0
+      ? { requests: [], rejected: [], gaps: [] }
+      : input.acceptance.validate(issuerFetches, round);
+  const issuerOutputs = await Promise.all(
+    issuerValidation.requests.map((request) => input.acquireRequest(request.request)),
+  );
+  if (issuerValidation.gaps.length > 0) {
+    collectedSources = mergeGaps(input.command, collectedSources, issuerValidation.gaps);
+    emittedGaps.push(...issuerValidation.gaps);
+  }
+  for (const output of issuerOutputs) {
+    const merged = input.mergeRequestOutput(collectedSources, output);
+    collectedSources = merged.state;
+    emittedGaps.push(...merged.gaps);
+  }
+  const acceptedRequests = [
+    ...searchValidation.requests,
+    ...fetchValidation.requests,
+    ...issuerValidation.requests,
+  ];
   return {
     collectedSources,
     stageOutputs,
@@ -363,6 +403,7 @@ async function runDeepEquityWebGatherBatch(input: {
       rejectedRequests: [
         ...searchValidation.rejected,
         ...fetchValidation.rejected,
+        ...issuerValidation.rejected,
         ...input.executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
           executionRejectedEntry(acceptedRequests[acceptedRequestIndex]!.audit, reason, attempts),
         ),
@@ -378,6 +419,57 @@ async function runDeepEquityWebGatherBatch(input: {
   };
 }
 
+const MAX_ISSUER_REPORT_FETCHES = 2;
+
+// The model keeps at least one search, since code fetches only report pages a search surfaced.
+function issuerReportFetchReserve(options: AppConfig["webGatherOptions"]): number {
+  return Math.max(
+    0,
+    Math.min(
+      MAX_ISSUER_REPORT_FETCHES,
+      options.maxToolCalls - 1,
+      Math.floor(
+        (options.sourceBudget - WEB_GATHER_TOOL_UNITS.web_search) / WEB_GATHER_TOOL_UNITS.web_fetch,
+      ),
+    ),
+  );
+}
+
+// Deep runs gather in one batch, so code fetches the report pages that batch's searches surfaced (ADR 0006).
+function issuerReportFetchRequests(
+  command: ResearchCommand,
+  sources: CollectedSources,
+  modelFetches: readonly ModelWebGatherRequest[],
+  limit: number,
+): readonly ModelWebGatherRequest[] {
+  if (!isInstrumentCommand(command) || issuerReportGatherContext(command) === undefined) {
+    return [];
+  }
+  const fetched = new Set(
+    modelFetches.flatMap(({ args }) =>
+      "url" in args ? [canonicalizeUrl(args.url) ?? args.url] : [],
+    ),
+  );
+  const urls = issuerReportPacket(command.symbol, sources.extendedSources, sources.rawSnapshots)
+    .documents.flatMap(
+      ({ sourceId }) => sources.extendedSources.find(({ id }) => id === sourceId)?.url ?? [],
+    )
+    .filter((url) => {
+      const key = canonicalizeUrl(url) ?? url;
+      if (fetched.has(key)) {
+        return false;
+      }
+      fetched.add(key);
+      return true;
+    });
+  return urls.slice(0, limit).map((url) => ({
+    tool: "web_fetch",
+    args: { url },
+    rationale:
+      "Issuer report page surfaced on an Exchange Profile report host; fetched by code for its full statements",
+  }));
+}
+
 function withWebGatherFailureCode(
   audit: WebGatherLoopAudit,
   parseRetriesExhausted: boolean,
@@ -388,16 +480,21 @@ function withWebGatherFailureCode(
   return { ...audit, failureCode: "parse-retries-exhausted" };
 }
 
-export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {
-  return webGatherSkipCode(command, config) === undefined;
+export function isWebGatherLoopEnabled(
+  command: ResearchCommand,
+  config: AppConfig,
+  identity?: InstrumentIdentity,
+): boolean {
+  return webGatherSkipCode(command, config, identity) === undefined;
 }
 
 function webGatherSkipCode(
   command: ResearchCommand,
   config: AppConfig,
+  identity: InstrumentIdentity | undefined,
 ): WebGatherSkipCode | undefined {
   const webGatherOptions = effectiveWebGatherOptions(command, config);
-  if (!isWebGatherScope(command)) {
+  if (!isWebGatherScope(command, identity)) {
     return "run-not-applicable";
   }
   if (config.sourceOptions.exaApiKey === undefined) {
@@ -435,20 +532,26 @@ function webGatherBudgetDisabled(options: AppConfig["webGatherOptions"]): boolea
   return options.maxRounds <= 0 || options.maxToolCalls <= 0 || options.sourceBudget <= 0;
 }
 
-function isWebGatherScope(command: ResearchCommand): boolean {
+// Non-SEC equity listings gather at every depth: web and issuer sources are their evidence base.
+function isWebGatherScope(
+  command: ResearchCommand,
+  identity: InstrumentIdentity | undefined,
+): boolean {
   return (
     command.jobType === "research" ||
-    (runTypeSupportsWebGather(command.jobType) && command.depth === "deep")
+    (runTypeSupportsWebGather(command.jobType) && command.depth === "deep") ||
+    isNonSecEquityListing(command, identity)
   );
 }
 
 function webGatherSearchUnavailableGap(
   command: ResearchCommand,
   config: AppConfig,
+  identity: InstrumentIdentity | undefined,
 ): SourceGap | undefined {
   const webGatherOptions = effectiveWebGatherOptions(command, config);
   if (
-    !isWebGatherScope(command) ||
+    !isWebGatherScope(command, identity) ||
     config.webGatherDisabled ||
     config.sourceOptions.exaApiKey !== undefined ||
     webGatherBudgetDisabled(webGatherOptions)

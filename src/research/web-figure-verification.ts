@@ -1,0 +1,472 @@
+import type { FigureQuote, WebFigureFailure, WebFigureFailureReason } from "../domain/report";
+import type { Source } from "../domain/sources";
+import { isRecord } from "../guards";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
+import { formatMetricValue } from "../sources/extended-evidence/value-format";
+import { canonicalizeUrl } from "../sources/news-utils";
+
+export interface WebSourceTexts {
+  // Normalized stored text per web Source id; an empty list means the source kept nothing to check.
+  readonly web: ReadonlyMap<string, readonly string[]>;
+  readonly deterministic: ReadonlySet<string>;
+  // Figures code rendered from a web-sourced Metric Section, which a metric reference substitutes into a claim.
+  readonly codeFigures: ReadonlyMap<string, readonly Figure[]>;
+}
+
+interface WebFigureClaim {
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+  readonly figureQuotes?: readonly FigureQuote[];
+}
+
+interface Figure {
+  readonly raw: string;
+  readonly value: number;
+  readonly scale: number;
+  readonly currency: string;
+  readonly unit: string;
+}
+
+const RAW_TEXT_ADAPTER_PATTERN = /^(?:exa|firecrawl)-/u;
+const DETERMINISTIC_KINDS: ReadonlySet<Source["kind"]> = new Set([
+  "market-data",
+  "market-context",
+  "extended-evidence",
+]);
+const MIN_QUOTE_CONTEXT_WORDS = 3;
+const GAP_PREFIX = "Verified Web Figure check withheld";
+
+const FIGURE_PATTERN =
+  /(?<![\p{L}\d.,'’]|[\p{L}\d][-/])(?<sign>[-−](?=\S))?(?<prefix>US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil)|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|per\s?cent|pct|percentage points?|pp|bps|basis points)|(?<multiple>x|×))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB))?(?![\p{L}\d]|[-.,]\p{L}|[.,]\d)/giu;
+const CALENDAR_TOKEN_PATTERN =
+  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?:,?\s+\d{4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b\.?(?:,?\s+\d{4})?|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m)?\b/gu;
+
+const CURRENCIES: Readonly<Record<string, string>> = {
+  us$: "USD",
+  usd: "USD",
+  $: "USD",
+  dollar: "USD",
+  dollars: "USD",
+  s$: "SGD",
+  sgd: "SGD",
+  hk$: "HKD",
+  hkd: "HKD",
+  a$: "AUD",
+  aud: "AUD",
+  c$: "CAD",
+  cad: "CAD",
+  nt$: "TWD",
+  twd: "TWD",
+  rm: "MYR",
+  myr: "MYR",
+  ringgit: "MYR",
+  rmb: "CNY",
+  cny: "CNY",
+  yuan: "CNY",
+  "€": "EUR",
+  eur: "EUR",
+  euro: "EUR",
+  euros: "EUR",
+  "£": "GBP",
+  gbp: "GBP",
+  jpy: "JPY",
+  yen: "JPY",
+  "₹": "INR",
+  inr: "INR",
+  rs: "INR",
+  "rs.": "INR",
+  rp: "IDR",
+  idr: "IDR",
+  "฿": "THB",
+  thb: "THB",
+  baht: "THB",
+  "₩": "KRW",
+  krw: "KRW",
+  won: "KRW",
+  sen: "MYR-sen",
+  cent: "cent",
+  cents: "cent",
+};
+
+const SCALES: Readonly<Record<string, number>> = {
+  thousand: 1e3,
+  k: 1e3,
+  million: 1e6,
+  m: 1e6,
+  mn: 1e6,
+  mln: 1e6,
+  mil: 1e6,
+  billion: 1e9,
+  b: 1e9,
+  bn: 1e9,
+  bil: 1e9,
+  trillion: 1e12,
+  tn: 1e12,
+};
+
+const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
+  "figure-not-quoted": "has no verbatim quote from its cited web source",
+  "figure-not-in-quote": "does not appear in any verified quote",
+  "scale-mismatch": "is quoted at a different scale",
+  "currency-mismatch": "is quoted in a different currency",
+  "unit-mismatch": "is quoted with a different unit",
+  "quote-not-in-source": "rests on a quote not found in the stored source text",
+  "quote-source-not-cited": "rests on a quote from a source the claim does not cite",
+  "no-stored-text": "rests on a source with no stored text to check",
+  "quote-too-short": "rests on a quote with too little text around the figure",
+};
+
+function unitOf(groups: Readonly<Record<string, string | undefined>>): string {
+  if (groups.multiple !== undefined) {
+    return "x";
+  }
+  const unit = groups.unit?.toLowerCase().replaceAll(/\s+/gu, " ");
+  if (unit === undefined) {
+    return "";
+  }
+  if (unit === "pp" || unit.startsWith("percentage")) {
+    return "pp";
+  }
+  return unit === "%" || unit === "pct" || unit.startsWith("per") ? "%" : "bps";
+}
+
+interface PlacedFigure {
+  readonly figure: Figure;
+  readonly numStart: number;
+  readonly numEnd: number;
+}
+
+function placedFiguresIn(text: string): readonly PlacedFigure[] {
+  const blanked = text
+    .normalize("NFKC")
+    .replaceAll(CALENDAR_TOKEN_PATTERN, (token) => " ".repeat(token.length));
+  return [...blanked.matchAll(FIGURE_PATTERN)].flatMap((match) => {
+    const groups = match.groups ?? {};
+    const num = groups.num ?? "";
+    const scaleKey = (groups.scaleWord ?? groups.scaleLetter)?.toLowerCase();
+    const currencyKey = (groups.prefix ?? groups.suffix)?.toLowerCase();
+    const raw = match[0].trim();
+    const rawStart = match.index + match[0].indexOf(raw);
+    // Accounting parentheses: only an amount wrapped whole in "( )" is negative.
+    const parenthesized = blanked[rawStart - 1] === "(" && blanked[rawStart + raw.length] === ")";
+    const negative = (groups.sign ?? groups.innerSign) !== undefined || parenthesized;
+    const magnitude = Number(num.replaceAll(",", ""));
+    const figure: Figure = {
+      raw,
+      value: negative ? -magnitude : magnitude,
+      scale: scaleKey === undefined ? 1 : (SCALES[scaleKey] ?? 1),
+      currency: currencyKey === undefined ? "" : (CURRENCIES[currencyKey] ?? currencyKey),
+      unit: unitOf(groups),
+    };
+    // Counts, ranks, years and model numbers ("iPhone 17", "top 10") are not figures.
+    const bareInteger =
+      figure.scale === 1 && figure.currency === "" && figure.unit === "" && !/[.,]/u.test(num);
+    const numStart = match.index + match[0].indexOf(num);
+    return bareInteger ? [] : [{ figure, numStart, numEnd: numStart + num.length }];
+  });
+}
+
+export function figuresIn(text: string): readonly Figure[] {
+  return placedFiguresIn(text).map(({ figure }) => figure);
+}
+
+// Table cell edges survive normalization so a quoted figure is read whole from its own cell.
+const CELL_EDGE = "\u0000";
+// Edge after a row with no closing "|" whose next line may start a new row; figures beside it are withheld.
+const AMBIGUOUS_EDGE = "\u0001";
+const EDGES = new RegExp(`[${CELL_EDGE}${AMBIGUOUS_EDGE}]`, "gu");
+
+function closesWrappedCell(trimmed: string): boolean {
+  return trimmed.endsWith("|") && !trimmed.slice(0, -1).includes("|");
+}
+
+function withCellEdges(lines: readonly string[]): string {
+  let open = false;
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        const closing = open ? CELL_EDGE : "";
+        open = false;
+        return closing;
+      }
+      if (open && closesWrappedCell(trimmed)) {
+        open = false;
+        return line.replaceAll("|", ` ${CELL_EDGE} `);
+      }
+      if (!open && !trimmed.includes("|")) {
+        return line;
+      }
+      const opening = open ? AMBIGUOUS_EDGE : CELL_EDGE;
+      open = trimmed.startsWith("|") && !trimmed.endsWith("|");
+      return `${opening} ${line.replaceAll("|", ` ${CELL_EDGE} `)} ${open ? "" : CELL_EDGE}`;
+    })
+    .join("\n");
+}
+
+function normalizedSourceText(text: string): string {
+  return withCellEdges(
+    text
+      .normalize("NFKC")
+      .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+      .replaceAll(/[‘’‚‛′`]/gu, "'")
+      .replaceAll(/[“”„‟″]/gu, '"')
+      .replaceAll(/[‐‑‒–—―−]/gu, "-")
+      .replaceAll(/[*_#]/gu, "")
+      .split(/\r?\n/u),
+  )
+    .replaceAll(/\s+/gu, " ")
+    .trim();
+}
+
+function normalizedQuoteText(text: string): string {
+  return normalizedSourceText(text).replaceAll(EDGES, " ").replaceAll(/\s+/gu, " ").trim();
+}
+
+function placedSourceFigures(text: string): readonly PlacedFigure[] {
+  const placed: PlacedFigure[] = [];
+  let offset = 0;
+  let ambiguousBefore = false;
+  for (const cell of text.split(EDGES)) {
+    const end = offset + cell.length;
+    const ambiguousAfter = text[end] === AMBIGUOUS_EDGE;
+    if (!ambiguousBefore && !ambiguousAfter) {
+      for (const figure of placedFiguresIn(cell)) {
+        placed.push({
+          figure: figure.figure,
+          numStart: offset + figure.numStart,
+          numEnd: offset + figure.numEnd,
+        });
+      }
+    }
+    ambiguousBefore = ambiguousAfter;
+    offset = end + 1;
+  }
+  return placed;
+}
+
+function figuresTouching(placed: readonly PlacedFigure[], start: number, end: number): Figure[] {
+  let low = 0;
+  let high = placed.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if ((placed[middle]?.numEnd ?? 0) > start) {
+      high = middle;
+    } else {
+      low = middle + 1;
+    }
+  }
+  const figures: Figure[] = [];
+  for (let index = low; index < placed.length; index += 1) {
+    const row = placed[index];
+    if (row === undefined || row.numStart >= end) {
+      break;
+    }
+    figures.push(row.figure);
+  }
+  return figures;
+}
+
+// Every match, overlapping ones included, yields the source figures whose number it touches.
+function quotedSourceFigures(needle: string, stored: readonly string[]): readonly Figure[][] {
+  const pattern = new RegExp(
+    needle
+      .split(" ")
+      .map((word) => word.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, String.raw`\$&`))
+      .join(`[\\s${CELL_EDGE}${AMBIGUOUS_EDGE}]+`),
+    "giu",
+  );
+  return stored.flatMap((text) => {
+    const placed = placedSourceFigures(text);
+    const spans: Figure[][] = [];
+    for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
+      spans.push(figuresTouching(placed, match.index, match.index + match[0].length));
+      pattern.lastIndex = match.index + 1;
+    }
+    return spans;
+  });
+}
+
+export function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<string, string[]> {
+  const texts = new Map<string, string[]>();
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach((child) => visit(child));
+      return;
+    }
+    if (!isRecord(node)) {
+      return;
+    }
+    const metadata = isRecord(node.metadata) ? node.metadata : {};
+    const url = [node.url, metadata.sourceURL, metadata.url].find(
+      (value): value is string => typeof value === "string",
+    );
+    const text = [node.text, node.markdown].find(
+      (value): value is string => typeof value === "string",
+    );
+    const key = canonicalizeUrl(url);
+    if (key !== undefined && text !== undefined) {
+      texts.set(key, [...(texts.get(key) ?? []), text]);
+    }
+    Object.values(node).forEach((child) => visit(child));
+  };
+  for (const snapshot of rawSnapshots) {
+    if (
+      isRecord(snapshot) &&
+      typeof snapshot.adapter === "string" &&
+      RAW_TEXT_ADAPTER_PATTERN.test(snapshot.adapter)
+    ) {
+      visit(snapshot.payload);
+    }
+  }
+  return texts;
+}
+
+// Provider summaries are model-written abstracts, not source text, so only the snippet and page text count.
+export function webSourceTexts(
+  sources: readonly Source[],
+  rawSnapshots: readonly unknown[] = [],
+  metricSections: readonly MetricSection[] = [],
+): WebSourceTexts {
+  const raw = rawTextsByUrl(rawSnapshots);
+  const texts = new Map<string, string[]>();
+  const deterministic = new Set(
+    sources.filter((row) => DETERMINISTIC_KINDS.has(row.kind)).map((row) => row.id),
+  );
+  for (const source of sources.filter((row) => row.kind === "web")) {
+    const url = canonicalizeUrl(source.url);
+    const stored = [source.snippet, ...(url === undefined ? [] : (raw.get(url) ?? []))]
+      .filter((text): text is string => text !== undefined)
+      .map((text) => normalizedSourceText(text))
+      .filter((text) => text !== "");
+    texts.set(source.id, [...new Set([...(texts.get(source.id) ?? []), ...stored])]);
+  }
+  const codeFigures = new Map<string, Figure[]>();
+  for (const metric of metricSections.flatMap((section) => section.metrics)) {
+    const rendered =
+      metric.status === "value"
+        ? formatMetricValue(metric.value, metric.unit, metric.currency)
+        : undefined;
+    for (const id of rendered === undefined
+      ? []
+      : metric.sourceIds.filter((row) => texts.has(row))) {
+      codeFigures.set(id, [...(codeFigures.get(id) ?? []), ...figuresIn(rendered ?? "")]);
+    }
+  }
+  return { web: texts, deterministic, codeFigures };
+}
+
+export function readFigureQuotes(value: unknown): readonly FigureQuote[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value.flatMap((item) =>
+    isRecord(item) &&
+    typeof item.sourceId === "string" &&
+    typeof item.quote === "string" &&
+    item.quote.trim() !== ""
+      ? [{ sourceId: item.sourceId, quote: item.quote }]
+      : [],
+  );
+}
+
+function sameFigure(left: Figure, right: Figure): boolean {
+  return (
+    left.value === right.value &&
+    left.scale === right.scale &&
+    left.currency === right.currency &&
+    left.unit === right.unit
+  );
+}
+
+interface QuoteCheck {
+  readonly failure?: WebFigureFailureReason;
+  readonly figures: readonly Figure[];
+}
+
+function checkedQuote(
+  quote: FigureQuote,
+  sourceIds: readonly string[],
+  texts: WebSourceTexts,
+  claimFigures: readonly Figure[],
+): QuoteCheck {
+  const failed = (failure: WebFigureFailureReason): QuoteCheck => ({
+    failure,
+    figures: figuresIn(quote.quote),
+  });
+  if (!sourceIds.includes(quote.sourceId)) {
+    return failed("quote-source-not-cited");
+  }
+  const stored = texts.web.get(quote.sourceId) ?? [];
+  if (stored.length === 0) {
+    return failed("no-stored-text");
+  }
+  const needle = normalizedQuoteText(quote.quote);
+  const contextWords = needle.replaceAll(FIGURE_PATTERN, " ").match(/\p{L}{2,}/gu) ?? [];
+  if (contextWords.length < MIN_QUOTE_CONTEXT_WORDS) {
+    return failed("quote-too-short");
+  }
+  const spans = quotedSourceFigures(needle, stored);
+  const covered = (figures: readonly Figure[]) =>
+    claimFigures.filter((claimed) => figures.some((quoted) => sameFigure(quoted, claimed))).length;
+  const [best] = spans.toSorted((left, right) => covered(right) - covered(left));
+  return best === undefined ? failed("quote-not-in-source") : { figures: best };
+}
+
+function mismatchReason(figure: Figure, near: Figure): WebFigureFailureReason {
+  if (near.scale !== figure.scale) {
+    return "scale-mismatch";
+  }
+  return near.currency === figure.currency ? "unit-mismatch" : "currency-mismatch";
+}
+
+// Every persisted quote must verify. Uncovered figures pass only when a deterministic source is also cited.
+export function unverifiedWebFigure(
+  claim: WebFigureClaim,
+  texts: WebSourceTexts,
+): WebFigureFailure | undefined {
+  const citedWeb = claim.sourceIds.filter((id) => texts.web.has(id));
+  const figures = citedWeb.length === 0 ? [] : figuresIn(claim.text);
+  const quotes = (claim.figureQuotes ?? []).map((quote) => ({
+    sourceId: quote.sourceId,
+    ...checkedQuote(quote, claim.sourceIds, texts, figures),
+  }));
+  const failed = quotes.find((quote) => quote.failure !== undefined);
+  if (failed?.failure !== undefined) {
+    const figure = failed.figures[0]?.raw ?? figures[0]?.raw ?? "a quoted figure";
+    return { reason: failed.failure, figure, sourceIds: [failed.sourceId] };
+  }
+  const quotedFigures = quotes.flatMap((quote) => quote.figures);
+  const deterministicSupport = claim.sourceIds.some((id) => texts.deterministic.has(id));
+  for (const figure of figures) {
+    const codeRendered = citedWeb.some((id) =>
+      texts.codeFigures.get(id)?.some((rendered) => sameFigure(rendered, figure)),
+    );
+    if (
+      deterministicSupport ||
+      codeRendered ||
+      quotedFigures.some((quoted) => sameFigure(quoted, figure))
+    ) {
+      continue;
+    }
+    const near = quotedFigures.find((quoted) => quoted.value === figure.value);
+    let reason: WebFigureFailureReason = "figure-not-quoted";
+    if (near !== undefined) {
+      reason = mismatchReason(figure, near);
+    } else if (quotes.length > 0) {
+      reason = "figure-not-in-quote";
+    } else if (citedWeb.every((id) => texts.web.get(id)?.length === 0)) {
+      reason = "no-stored-text";
+    }
+    return { reason, figure: figure.raw, sourceIds: citedWeb };
+  }
+  return undefined;
+}
+
+export function isWebFigureGapText(text: string): boolean {
+  return text.startsWith(GAP_PREFIX);
+}
+
+export function webFigureGapText(location: string, failure: WebFigureFailure): string {
+  return `${GAP_PREFIX} ${location}: ${failure.figure} ${REASON_TEXT[failure.reason]} (${failure.sourceIds.join(", ")}).`;
+}

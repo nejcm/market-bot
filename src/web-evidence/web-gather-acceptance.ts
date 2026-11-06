@@ -56,7 +56,11 @@ export function surfacedUrlGate(surfacedUrls: Set<string>): WebGatherSurfacedUrl
 
 export interface WebGatherAcceptance extends WebGatherSurfacedUrls {
   readonly snapshot: () => readonly string[];
-  readonly validate: (requests: readonly unknown[], round: number) => ValidationResult;
+  readonly validate: (
+    requests: readonly unknown[],
+    round: number,
+    reserved?: number,
+  ) => ValidationResult;
 }
 
 export function createWebGatherAcceptance(init: WebGatherAcceptanceInit): WebGatherAcceptance {
@@ -74,10 +78,17 @@ export function createWebGatherAcceptance(init: WebGatherAcceptanceInit): WebGat
     ...gate,
     snapshot: () => [...surfacedUrls].toSorted(),
     // Budget spent by earlier calls carries over, so the batch path's fetches see searches' spend.
-    validate: (requests, round) => {
+    validate: (requests, round, reserved = 0) => {
+      const budget = {
+        maxToolCalls: Math.max(0, fixed.budget.maxToolCalls - reserved),
+        sourceBudget: Math.max(
+          0,
+          fixed.budget.sourceBudget - reserved * WEB_GATHER_TOOL_UNITS.web_fetch,
+        ),
+      };
       const result = validateRequests(
         requests,
-        { ...fixed, round },
+        { ...fixed, round, budget },
         { sourceUnitsUsed, toolCallsUsed },
       );
       for (const request of result.requests) {

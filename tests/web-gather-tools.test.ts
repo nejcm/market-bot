@@ -479,6 +479,35 @@ describe("web gather tools", () => {
     });
   });
 
+  test("raises the fetch text cap only for report hosts of a non-SEC listing", async () => {
+    const fetchCap = async (symbol: string, url: string) => {
+      let body: unknown = undefined;
+      await executeWebGatherTool(
+        "web_fetch",
+        { url },
+        baseCtx({
+          command: { jobType: "equity", assetClass: "equity", symbol, depth: "brief" },
+          request: requestExecutor({
+            json: async ({ adapter, init }) => {
+              body = JSON.parse(String(init?.body));
+              return jsonResult(adapter, { results: [{ url, title: "Report", text: "Text." }] });
+            },
+          }),
+        }),
+        surfacedUrlGate(new Set([url])),
+      );
+      return (body as { text: { maxCharacters: number } }).text.maxCharacters;
+    };
+    const report = "https://www.klsescreener.com/v2/announcements/view/11698017";
+
+    expect(await fetchCap("0097.KL", report)).toBe(32_000);
+    expect(await fetchCap("0097.KL", "https://www.bursamalaysia.com/market_information/x")).toBe(
+      32_000,
+    );
+    expect(await fetchCap("0097.KL", "https://www.thestar.com.my/business/vitrox")).toBe(5000);
+    expect(await fetchCap("AAPL", report)).toBe(5000);
+  });
+
   test("sanitizes model-visible search text while retaining raw snapshots", async () => {
     const result = await executeWebGatherTool(
       "web_search",

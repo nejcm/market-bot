@@ -443,6 +443,10 @@ function prunedMetrics(trace: unknown, metrics: Record<string, number>): void {
   for (const item of pruned) {
     const location = isRecord(item) && typeof item.location === "string" ? item.location : "";
     addCount(metrics, `integrity.pruned.${location.replace(/\[\d+\]$/u, "") || "unknown"}`);
+    const webFigure = isRecord(item) && isRecord(item.webFigure) ? item.webFigure : undefined;
+    if (typeof webFigure?.reason === "string") {
+      addCount(metrics, `integrity.webFigure.${webFigure.reason}`);
+    }
   }
 }
 
@@ -677,6 +681,7 @@ async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetr
     const counts = synthesisFigureCounts(accepted.content);
     metrics["synthesis.metricReferences"] = counts.metricReferences;
     metrics["synthesis.typedFigures"] = counts.typedFigures;
+    metrics["synthesis.figureQuotes"] = counts.figureQuotes;
   }
   const { defects } = file.value as { readonly defects?: unknown };
   if (isRecord(defects) && Array.isArray(defects.unmatchedFigures)) {

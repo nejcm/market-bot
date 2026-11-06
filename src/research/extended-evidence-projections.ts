@@ -14,6 +14,8 @@ import type {
 } from "../report/report-extras-contract";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
+import type { FigureQuote } from "../domain/report";
+import { readFigureQuotes } from "./web-figure-verification";
 
 interface ExtraProjector {
   readonly key: string;
@@ -24,16 +26,19 @@ interface ExtraProjector {
   ) => unknown;
 }
 
+interface ModelBusinessFrameworkSection {
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+  readonly figureQuotes?: readonly FigureQuote[];
+}
+
 function modelBusinessFrameworkSections(
   extra: unknown,
-): ReadonlyMap<string, { readonly text: string; readonly sourceIds: readonly string[] }> {
+): ReadonlyMap<string, ModelBusinessFrameworkSection> {
   if (!isRecord(extra) || !Array.isArray(extra.sections)) {
     return new Map();
   }
-  const sections = new Map<
-    string,
-    { readonly text: string; readonly sourceIds: readonly string[] }
-  >();
+  const sections = new Map<string, ModelBusinessFrameworkSection>();
   for (const item of extra.sections) {
     if (!isRecord(item) || typeof item.name !== "string" || typeof item.text !== "string") {
       continue;
@@ -41,9 +46,11 @@ function modelBusinessFrameworkSections(
     if (!isBusinessFrameworkSectionName(item.name)) {
       continue;
     }
+    const figureQuotes = readFigureQuotes(item.figureQuotes);
     sections.set(item.name, {
       text: item.text,
       sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+      ...(figureQuotes === undefined ? {} : { figureQuotes }),
     });
   }
   return sections;
@@ -60,7 +67,7 @@ function businessFrameworkExtra(
   const modelSections = modelBusinessFrameworkSections(modelExtra);
   return {
     version: artifact.version,
-    phase: artifact.phase,
+    ...(artifact.phase === undefined ? {} : { phase: artifact.phase }),
     sourceIds: artifact.sourceIds,
     gaps: artifact.gaps,
     sections: artifact.sections.map((section) => {
@@ -76,6 +83,9 @@ function businessFrameworkExtra(
             : section.sourceIds,
         gaps: section.gaps,
         ...(modelSection !== undefined ? { text: modelSection.text } : {}),
+        ...(modelSection?.figureQuotes === undefined
+          ? {}
+          : { figureQuotes: modelSection.figureQuotes }),
       };
     }),
     ...(artifact.reconciliation !== undefined ? { reconciliation: artifact.reconciliation } : {}),

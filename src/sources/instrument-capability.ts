@@ -1,3 +1,4 @@
+import { isExchangeBenchmark } from "../domain/exchange-profile";
 import type { InstrumentIdentity } from "../domain/instrument";
 
 // Single source of truth for US-vs-international equity classification. Two consumers with
@@ -14,6 +15,7 @@ const NON_US_SUFFIXES: ReadonlySet<string> = new Set([
   "AS",
   "AX",
   "BA",
+  "BK",
   "BO",
   "BR",
   "CO",
@@ -24,7 +26,9 @@ const NON_US_SUFFIXES: ReadonlySet<string> = new Set([
   "HK",
   "IR",
   "IS",
+  "JK",
   "JO",
+  "KL",
   "KQ",
   "KS",
   "L",
@@ -47,6 +51,7 @@ const NON_US_SUFFIXES: ReadonlySet<string> = new Set([
   "TA",
   "TO",
   "TW",
+  "TWO",
   "V",
   "VI",
   "VX",
@@ -108,6 +113,11 @@ const NON_US_EXCHANGE_KEYWORDS: readonly string[] = [
   "bombay",
   "national stock",
   "singapore",
+  "kuala lumpur",
+  "bursa",
+  "jakarta",
+  "indonesia",
+  "thailand",
   "johannesburg",
   "sao paulo",
   "b3",
@@ -169,7 +179,7 @@ export function isUsListing(symbol: string, identity?: InstrumentIdentity): bool
   if (hasNonUsExchangeName(identity?.exchange)) {
     return false;
   }
-  if (hasNonUsSuffix(symbol)) {
+  if (hasNonUsSuffix(symbol) || isExchangeBenchmark(symbol)) {
     return false;
   }
   return true;

@@ -78,6 +78,7 @@ export interface CollectContext {
   readonly secUserAgent?: string;
   readonly taggedZeroDebtDisabled?: boolean;
   readonly extensionShortTermInvestmentsDisabled?: boolean;
+  readonly webGatherDisabled?: boolean;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
   readonly earningsEventDate?: string;
@@ -191,6 +192,8 @@ export interface CollectedSources {
   readonly priceHistory?: MetricContext["priceHistory"];
   readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
+  // Set when the identity gate resolved the typed code to another listing (ADR 0006).
+  readonly listingResolution?: { readonly inputSymbol: string; readonly symbol: string };
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly earningsSetup?: EarningsSetupCollected;
   readonly analystExpectations?: AnalystExpectationsArtifact;

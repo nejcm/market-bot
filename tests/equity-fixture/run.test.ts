@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ModelRequest } from "../../src/model/types";
 import {
@@ -57,9 +57,37 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "clfd-zero-debt": ["complete", "limited"],
   "ebay-extension-investments": ["complete", "substantial"],
   "equity-amd-deep": ["complete", "substantial"],
+  "equity-bursa-deep": ["blocked", "limited"],
+  "equity-bursa-brief": ["blocked", "limited"],
 } as const;
 
-// Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
+// The recording predates figureQuotes; both spans are verbatim in the web-amd-a0601b8d (Reuters) snippet.
+const AMD_OUTLOOK_QUOTES = [
+  {
+    sourceId: "web-amd-a0601b8d",
+    quote: "fourth-quarter revenue of about $17 billion, plus or minus 3%",
+  },
+  { sourceId: "web-amd-a0601b8d", quote: "expects overall revenue to rise more than 80% in 2027" },
+];
+
+function withAmdOutlookQuotes(content: string): string {
+  let payload: { keyFindings: readonly { sourceIds: readonly string[] }[] };
+  try {
+    payload = JSON.parse(content);
+  } catch {
+    return content;
+  }
+  return JSON.stringify({
+    ...payload,
+    keyFindings: payload.keyFindings.map((finding) =>
+      finding.sourceIds.includes("web-amd-a0601b8d")
+        ? { ...finding, figureQuotes: AMD_OUTLOOK_QUOTES }
+        : finding,
+    ),
+  });
+}
+
+// Issued Event Grid ids with Forecast Baseline (null = declared forecast-baseline gap); [] = unpriced.
 const EXPECTED_EVENT_GRID: Record<
   keyof typeof EXPECTED_COMPLETENESS_GRADES,
   readonly (readonly [string, number | null])[]
@@ -133,6 +161,18 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-1", 0.541],
     ["grid-range-5", 0.4301],
     ["grid-range-20", 0.3989],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-bursa-deep": [
+    ["grid-range-1", null],
+    ["grid-range-5", null],
+    ["grid-range-20", null],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-bursa-brief": [
+    ["grid-range-1", null],
+    ["grid-range-5", null],
+    ["grid-range-20", null],
     ["grid-relative-5", 0.5],
   ],
 };
@@ -244,6 +284,9 @@ describe("static equity run fixtures", () => {
     test(`${name} replays through the real equity pipeline`, async () => {
       const fixture = await loadFixture(name);
       expect(fixture.meta.replayClassification).toMatch(/^(?:clean|missing-source)$/u);
+      for (const key of fixture.meta.syntheticLlmEntries ?? []) {
+        expect(Object.keys(fixture.llmCassette.entries)).toContain(key);
+      }
       const modelRequests: ModelRequest[] = [];
       const modelOutputs: string[] = [];
       const cassetteMisses: string[] = [];
@@ -380,8 +423,12 @@ describe("static equity run fixtures", () => {
                 }),
               };
             }
-            modelOutputs.push(response.content);
-            return response;
+            const content =
+              name === "equity-amd-deep" && prompt.stage === "final-synthesis"
+                ? withAmdOutlookQuotes(response.content)
+                : response.content;
+            modelOutputs.push(content);
+            return { ...response, content };
           },
         },
       });
@@ -430,7 +477,7 @@ describe("static equity run fixtures", () => {
           expect.stringMatching(/^event-grid: .*no valid eventGrid probability.*grid-relative-5/u),
         );
       }
-      if (expectedGrid.some(([, baseline]) => baseline === null)) {
+      if (expectedGrid.some(([id, baseline]) => id === "grid-relative-5" && baseline === null)) {
         expect(result.report.dataGaps).toContain(
           "forecast-baseline: Forecast Baseline omitted for grid-relative-5: no split-adjusted close history was collected for SPY",
         );
@@ -496,6 +543,9 @@ describe("static equity run fixtures", () => {
           ],
           ["2026-09-26", 2_067_000_000, 6_760_000_000],
         );
+        expect(
+          result.report.keyFindings.find(({ sourceIds }) => sourceIds.includes("web-amd-a0601b8d")),
+        ).toMatchObject({ figureQuotes: AMD_OUTLOOK_QUOTES });
       }
       if (name === "ebay-extension-investments") {
         assertEbayExtensionShortTermInvestments(result);
@@ -657,6 +707,105 @@ describe("static equity run fixtures", () => {
     });
     const history = deriveFundamentalHistoryFromFinancialStatements(statements);
     expect(history.series.revenue?.ttm?.value).toBe(1_620_000_000);
+  });
+
+  // Values checked against the KLSE Screener copy of ViTrox's Q3 2026 report, announced 2026-11-05.
+  test.each(["equity-bursa-deep", "equity-bursa-brief"])(
+    "%s publishes code-checked issuer report figures",
+    async (name) => {
+      const result = await runFixture(name, { llm: "replay" });
+      runResults.push(result);
+      const metrics =
+        result.collectedSources.metricSections?.find(({ id }) => id === "issuer-report")?.metrics ??
+        [];
+      const metric = (id: string) => metrics.find((row) => row.id === id);
+      expect(metric("issuer-report-revenue-quarter-2026-09-30")).toMatchObject({
+        value: 485_101_000,
+        currency: "MYR",
+        periodMonths: 3,
+        basis: expect.stringMatching(
+          /mirror copy of the issuer document .* announced 2026-11-05$/u,
+        ),
+      });
+      expect(metric("issuer-report-revenue-ytd-2026-09-30")).toMatchObject({
+        value: 1_127_067_000,
+        periodMonths: 9,
+      });
+      expect(
+        metric("issuer-report-profit-attributable-to-owners-quarter-2026-09-30"),
+      ).toMatchObject({
+        value: 118_580_000,
+        currency: "MYR",
+        periodMonths: 3,
+      });
+      expect(metric("issuer-report-basic-eps-quarter-2026-09-30")).toMatchObject({
+        value: "MYR 0.0626 (6.26 sen)",
+        currency: "MYR",
+      });
+      expect(metric("issuer-report-revenue-yoy-quarter")?.value).toBeCloseTo(
+        (485_101 - 228_567) / 228_567,
+        6,
+      );
+      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_580 / 485_101, 6);
+      expect(result.markdown).toContain("### Issuer report figures");
+      const dps = metric("issuer-report-dividend-per-share-ytd-2026-09-30");
+      if (name === "equity-bursa-brief") {
+        expect(dps).toMatchObject({ value: "MYR 0.0118 (1.18 sen)", periodMonths: 9 });
+      } else {
+        // The deep mapping did not read the dividend row.
+        expect(dps).toBeUndefined();
+      }
+    },
+  );
+
+  test.each([
+    ["equity-bursa-deep", "Dividend per share, Net cash from operating activities"],
+    ["equity-bursa-brief", "published no checked figure for: Net cash from operating activities"],
+  ])("%s declares the issuer report concepts it could not publish", async (name, expected) => {
+    const result = await runFixture(name, { llm: "replay" });
+    runResults.push(result);
+    const messages = result.collectedSources.sourceGaps.map(({ message }) => message);
+    expect(messages.find((message) => message.includes("published no checked figure"))).toContain(
+      expected,
+    );
+    expect(result.report.sources.map(({ url }) => url)).toContain(
+      "https://www.klsescreener.com/v2/announcements/view/11698017",
+    );
+    expect(messages.find((message) => message.startsWith("Yahoo trailing EPS"))).toContain(
+      "Yahoo trailing EPS 0.11 MYR",
+    );
+  });
+
+  test("bursa brief keeps a claim whose quote spans Markdown table cells", async () => {
+    const result = await runFixture("equity-bursa-brief", { llm: "replay" });
+    runResults.push(result);
+    expect(result.report.catalysts?.[0]?.text).toMatch(
+      /^Observed fact: The reported third-quarter/u,
+    );
+    // The model quoted 34,720 for prior-quarter attributable profit; the table says 34,716.
+    expect(JSON.stringify(result.report)).not.toContain("34,720");
+  });
+
+  test("bursa deep fetches the newest issuer report page in code", async () => {
+    const result = await runFixture("equity-bursa-deep", { llm: "replay" });
+    runResults.push(result);
+    const audit = JSON.parse(
+      await readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.webGatherAudit), "utf8"),
+    ) as { acceptedRequests: { tool: string; args: { url?: string }; rationale: string }[] };
+    expect(
+      audit.acceptedRequests
+        .filter(({ tool }) => tool === "web_fetch")
+        .map(({ args, rationale }) => [args.url, rationale.startsWith("Issuer report page")]),
+    ).toEqual([
+      ["https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30", true],
+      ["https://www.klsescreener.com/v2/announcements/view/11698017", true],
+    ]);
+    expect(result.report.extras).not.toHaveProperty("businessFramework.phase");
+    expect(result.markdown).toContain("Phase: not classified");
+    expect(result.report.predictions.map(({ id }) => id)).not.toContain("pred-1");
+    expect(result.report.dataGaps.join("\n")).toContain(
+      "Model prediction(s) pred-1 for 0097.KL withheld: they compare against SPY",
+    );
   });
 
   test("deep equity markdown partitions the reader block from preserved appendix detail", async () => {

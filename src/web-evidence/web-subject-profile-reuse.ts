@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { type ResearchCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
@@ -9,6 +10,9 @@ import type {
 import type { Source, SourceGap } from "../domain/sources";
 import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
+import { readJsonFile } from "../run-artifact-json-reader";
+import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import { isWebFigureGapText, webSourceTexts } from "../research/web-figure-verification";
 import type { SecFilingForm } from "../sources/evidence-request-tools";
 import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements-contract";
 import type { MetricSection } from "../sources/extended-evidence/metric-engine";
@@ -106,20 +110,34 @@ export async function findReusableWebSubjectProfile(input: {
     right.report.generatedAt.localeCompare(left.report.generatedAt),
   );
 
+  const reuseWindow = {
+    subjectId: subject.subjectId,
+    now: input.now,
+    reuseDays: input.reuseDaysBySubjectKind[subject.subjectKind],
+    ...(input.currentSecFilingDate !== undefined
+      ? { currentSecFilingDate: input.currentSecFilingDate }
+      : {}),
+  };
   for (const artifact of candidates) {
+    if (!isReusableProfile(artifact.webSubjectProfile, reuseWindow)) {
+      continue;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- Newest first; the loop stops at the first reusable candidate.
+    const rawSnapshots = await readJsonFile(
+      join(input.dataDir, artifact.runDirName, RUN_ARTIFACT_FILES.rawSnapshots),
+    );
     const { artifact: profile, withheldGaps } = screenReusedWebSubjectProfile(
       artifact.webSubjectProfile,
+      webSourceTexts(
+        artifact.report.sources,
+        rawSnapshots.status === "ok" && Array.isArray(rawSnapshots.value) ? rawSnapshots.value : [],
+      ),
       input.metricSections,
     );
+    // A profile whose published figures no longer verify is regenerated, not reused degraded.
     if (
-      !isReusableProfile(profile, {
-        subjectId: subject.subjectId,
-        now: input.now,
-        reuseDays: input.reuseDaysBySubjectKind[subject.subjectKind],
-        ...(input.currentSecFilingDate !== undefined
-          ? { currentSecFilingDate: input.currentSecFilingDate }
-          : {}),
-      })
+      withheldGaps.some((gap) => isWebFigureGapText(gap.message)) ||
+      !isReusableProfile(profile, reuseWindow)
     ) {
       continue;
     }

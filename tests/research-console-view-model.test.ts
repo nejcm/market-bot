@@ -2228,6 +2228,14 @@ describe("report artifact parsers", () => {
     ).toBeUndefined();
   });
 
+  test("keeps the framework card when no lifecycle phase is classified", () => {
+    expect(
+      businessFrameworkView({
+        extras: { businessFramework: { sections: [], sourceIds: [], gaps: [] } },
+      }),
+    ).toEqual({ sections: [], sourceIds: [], gaps: [] });
+  });
+
   test("framework tiles come from referenced Metric Sections, value rows only", () => {
     const view = businessFrameworkView({
       extras: {

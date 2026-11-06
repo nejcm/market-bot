@@ -274,10 +274,12 @@ function narrativeNumbers(text: string): number {
 export function synthesisFigureCounts(content: string): {
   readonly metricReferences: number;
   readonly typedFigures: number;
+  readonly figureQuotes: number;
 } {
   const { predictions: _predictions, ...payload } = JSON.parse(content) as Record<string, unknown>;
   let metricReferences = 0;
   let typedFigures = 0;
+  let figureQuotes = 0;
   const walk = (node: unknown): void => {
     if (typeof node === "string") {
       const { prose, references } = splitMetricReferences(node);
@@ -286,11 +288,17 @@ export function synthesisFigureCounts(content: string): {
     } else if (Array.isArray(node)) {
       node.forEach((child) => walk(child));
     } else if (isRecord(node)) {
-      Object.entries(node).forEach(([key, child]) => key !== "sourceIds" && walk(child));
+      for (const [key, child] of Object.entries(node)) {
+        if (key === "figureQuotes") {
+          figureQuotes += Array.isArray(child) ? child.length : 0;
+        } else if (key !== "sourceIds") {
+          walk(child);
+        }
+      }
     }
   };
   walk(payload);
-  return { metricReferences, typedFigures };
+  return { metricReferences, typedFigures, figureQuotes };
 }
 
 const METADATA_KEY =

@@ -5,6 +5,7 @@ import type { AssetClass } from "../domain/job-type";
 import type { MarketSnapshot } from "../domain/market-data";
 import type { Source, SourceGap, SourceGapCapability } from "../domain/sources";
 import { isRecord, optionalString, readNumber, readString } from "../guards";
+import { isUsListing } from "./instrument-capability";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, recencyDays } from "./news-utils";
 import {
   isFetchJsonResult,
@@ -169,12 +170,34 @@ function massiveSupplementalMarketGap(gap: SourceGap): SourceGap {
   return massiveGap(gap, "market-data");
 }
 
+function nonUsListingGap(
+  ctx: CollectContext,
+  capability: SourceGapCapability,
+): SourceGap | undefined {
+  const { command } = ctx;
+  if (!isInstrumentCommand(command) || isUsListing(command.symbol, ctx.instrumentIdentity)) {
+    return undefined;
+  }
+  return massiveGap(
+    sourceGap({
+      source: capability === "news" ? "massive-news" : "massive-supplemental-market",
+      message: `massive ${capability === "news" ? "news does" : "US stock snapshots do"} not support ${command.symbol} (non-US listing)`,
+      cause: "unsupported-coverage",
+    }),
+    capability,
+  );
+}
+
 async function collectSupplementalMarket(
   ctx: CollectContext,
   primarySnapshots: readonly MarketSnapshot[],
 ): Promise<SupplementalMarketCollectionResult> {
   if (ctx.command.assetClass !== "equity" || ctx.massiveApiKey === undefined) {
     return { rawSnapshots: [], supplementalMarketSnapshots: [], sourceGaps: [] };
+  }
+  const unsupported = nonUsListingGap(ctx, "market-data");
+  if (unsupported !== undefined) {
+    return { rawSnapshots: [], supplementalMarketSnapshots: [], sourceGaps: [unsupported] };
   }
 
   const primarySymbols = new Set(
@@ -321,6 +344,10 @@ function normalizeNews(
 async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   if (ctx.command.assetClass !== "equity" || ctx.massiveApiKey === undefined) {
     return { rawSnapshots: [], newsSources: [], sourceGaps: [] };
+  }
+  const unsupported = nonUsListingGap(ctx, "news");
+  if (unsupported !== undefined) {
+    return { rawSnapshots: [], newsSources: [], sourceGaps: [unsupported] };
   }
 
   const fetched = await ctx.request.json({

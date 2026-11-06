@@ -90,7 +90,7 @@ export interface BusinessFrameworkArtifact {
   readonly version: 1 | 2 | 3;
   readonly generatedAt: string;
   readonly symbol: string;
-  readonly phase: BusinessLifecyclePhase;
+  readonly phase?: BusinessLifecyclePhase;
   readonly sections: readonly BusinessFrameworkSection[];
   readonly sourceIds: readonly string[];
   readonly gaps: readonly BusinessFrameworkGapValue[];
@@ -361,7 +361,7 @@ export function addBusinessFrameworkEvidence(
         .toSorted()
         .at(-1) ?? generatedAt,
     metrics: Object.fromEntries([
-      ["phase", phase],
+      ...(phase === undefined ? [] : [["phase", phase] as const]),
       ...sections.map(
         (frameworkSection) =>
           [`${frameworkSection.name.toLowerCase()}Posture`, frameworkSection.posture] as const,
@@ -373,7 +373,7 @@ export function addBusinessFrameworkEvidence(
     version: 3,
     generatedAt,
     symbol: command.symbol.toUpperCase(),
-    phase,
+    ...(phase === undefined ? {} : { phase }),
     sections,
     sourceIds,
     gaps,

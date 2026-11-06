@@ -38,8 +38,8 @@ export function buildWebSourceSynthesisInputs(
   });
 }
 
-// Which text field the final-synthesis projection surfaces for a fresh web source: summary first,
-// Snippet as the fallback (mirrors the includeSummary/includeSnippet gates in projectWebSources).
+// Which text field the final-synthesis projection surfaces for a fresh web source: snippet first,
+// Summary as the fallback (mirrors the includeSnippet/includeSummary gates in projectWebSources).
 function webSourceModelVisibleText(
   source: Source,
   textIncluded: boolean,
@@ -47,8 +47,8 @@ function webSourceModelVisibleText(
   if (!textIncluded) {
     return "none";
   }
-  if (source.summary !== undefined) {
-    return "summary";
+  if (source.snippet !== undefined) {
+    return "snippet";
   }
-  return source.snippet !== undefined ? "snippet" : "none";
+  return source.summary !== undefined ? "summary" : "none";
 }

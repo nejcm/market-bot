@@ -92,6 +92,7 @@ async function runWebSubjectProfileExtraction(input: {
       runId: input.phaseInput.runId,
       modelContent: output.content,
       webSources: allowedSources,
+      rawSnapshots: input.collectedSources.rawSnapshots,
       extendedEvidence: input.collectedSources.extendedEvidence,
       ...(input.collectedSources.metricSections !== undefined
         ? { metricSections: input.collectedSources.metricSections }
@@ -182,7 +183,11 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
   };
   let webSubjectProfile: Awaited<ReturnType<typeof runWebSubjectProfileExtraction>> | undefined =
     undefined;
-  const webGatherEnabled = isWebGatherLoopEnabled(input.command, input.config);
+  const webGatherEnabled = isWebGatherLoopEnabled(
+    input.command,
+    input.config,
+    collectedSources.resolvedInstrumentIdentity,
+  );
   const secOnlyCompanyProfile =
     !webGatherEnabled &&
     isInstrumentCommand(input.command) &&

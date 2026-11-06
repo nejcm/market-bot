@@ -21,7 +21,8 @@ import { createSourceRegistry } from "./registry";
 import { DEFAULT_RETRY_DELAYS_MS } from "./retry-utils";
 import { createCollectContext } from "./source-request";
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
-import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
+import { deriveCanonicalInstrumentIdentity, withListingAlias } from "./instrument-identity";
+import { exchangeProfileGaps, IdentityGateStopError, runIdentityGate } from "./identity-gate";
 import { deriveAnalystExpectations } from "./extended-evidence/analyst-expectations";
 import { deriveInstitutionalOwnership } from "./extended-evidence/institutional-ownership";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
@@ -273,6 +274,8 @@ export interface CollectSourcesRuntimeOptions {
   readonly extensionShortTermInvestmentsDisabled?: boolean;
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly collectTradierTermStructure?: boolean;
+  readonly listingInputSymbol?: string;
+  readonly webGatherDisabled?: boolean;
 }
 export async function collectSources(
   command: ResearchCommand,
@@ -297,6 +300,7 @@ export async function collectSources(
     ...(runtime.extensionShortTermInvestmentsDisabled === true
       ? { extensionShortTermInvestmentsDisabled: true }
       : {}),
+    ...(runtime.webGatherDisabled === true ? { webGatherDisabled: true } : {}),
   };
 
   progress("collecting sources");
@@ -332,16 +336,46 @@ export async function collectSources(
   const marketResult = shouldCollectMarketBeforeNews
     ? await marketAdapter.collect(marketCtx)
     : undefined;
-  const preliminaryIdentityResult =
+  const gate =
+    isInstrumentCommand(command) && command.assetClass === "equity" && marketResult !== undefined
+      ? await runIdentityGate(ctx, command, marketResult)
+      : undefined;
+  if (gate?.status === "redirect" && isInstrumentCommand(command)) {
+    if (runtime.listingInputSymbol !== undefined) {
+      throw new IdentityGateStopError(
+        "unresolved",
+        runtime.listingInputSymbol,
+        `the resolved code ${command.symbol} did not resolve by quote`,
+      );
+    }
+    progress(
+      `identity gate: ${command.symbol} resolved to ${gate.symbol} (${[gate.candidate.name, gate.candidate.exchange].filter(Boolean).join(", ")}) by a single exact Yahoo search match`,
+    );
+    return collectSources({ ...command, symbol: gate.symbol }, sourceOptions, {
+      ...runtime,
+      listingInputSymbol: command.symbol,
+    });
+  }
+  const derivedIdentityResult =
     isTicker && marketResult !== undefined
       ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
       : undefined;
+  const gatedIdentity = withListingAlias(
+    derivedIdentityResult?.identity ?? (gate?.status === "resolved" ? gate.identity : undefined),
+    runtime.listingInputSymbol,
+  );
+  const preliminaryIdentityResult =
+    gatedIdentity === undefined ? derivedIdentityResult : { identity: gatedIdentity };
   // Thread resolved identity (exchange/quoteCurrency) into the source-collection context so
   // US-only collectors can gate on the primary instrument-capability signal, not just the suffix.
   const identityCtx: CollectContext =
     preliminaryIdentityResult?.identity !== undefined
       ? { ...ctx, instrumentIdentity: preliminaryIdentityResult.identity }
       : ctx;
+  const supplementalCtx: CollectContext =
+    identityCtx.instrumentIdentity === undefined
+      ? marketCtx
+      : { ...marketCtx, instrumentIdentity: identityCtx.instrumentIdentity };
   let newsContext: CollectContext = identityCtx;
   if (marketResult !== undefined) {
     const targets = isMarketUpdateJobType(command.jobType)
@@ -392,7 +426,7 @@ export async function collectSources(
     isDeepEquity && deepEquityParallelExecutors.has("supplemental-market")
       ? Promise.all(
           supplementalMarketAdapters.map((adapter) =>
-            adapter.collect(marketCtx, marketResult?.marketSnapshots ?? []),
+            adapter.collect(supplementalCtx, marketResult?.marketSnapshots ?? []),
           ),
         )
       : undefined,
@@ -427,7 +461,7 @@ export async function collectSources(
     deepSupplementalMarketResults ??
     (await Promise.all(
       supplementalMarketAdapters.map((adapter) =>
-        adapter.collect(marketCtx, resolvedMarketResult.marketSnapshots),
+        adapter.collect(supplementalCtx, resolvedMarketResult.marketSnapshots),
       ),
     ));
   const promotedMarket = promoteRequiredMarketSnapshots(
@@ -573,6 +607,9 @@ export async function collectSources(
     ...(priceHistoryResult !== undefined ? { priceHistory: priceHistoryResult.priceHistory } : {}),
     ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
     ...(resolvedInstrumentIdentity !== undefined ? { resolvedInstrumentIdentity } : {}),
+    ...(runtime.listingInputSymbol !== undefined && isTicker
+      ? { listingResolution: { inputSymbol: runtime.listingInputSymbol, symbol: command.symbol } }
+      : {}),
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
     ...(secTargetPacket !== undefined ? { secTargetPacket } : {}),
     ...(tradierPacket !== undefined ? { tradierPacket } : {}),
@@ -656,6 +693,7 @@ export async function collectSources(
         ? [enrichmentResult.identityResult.gap]
         : []),
       ...staleFallbackGaps,
+      ...(isTicker ? exchangeProfileGaps(command.symbol, resolvedInstrumentIdentity) : []),
     ],
   };
   progress(

@@ -6,6 +6,7 @@ import type { ModelParams } from "../src/model/types";
 import type { WebSearchType } from "../src/domain/gather-audit";
 import type { Source } from "../src/domain/sources";
 import { runWebGatherLoop, type WebGatherStageOutput } from "../src/web-evidence/web-gather-loop";
+import { runIssuerReportPhase } from "../src/research/issuer-report-figures";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { FetchLike } from "../src/sources/types";
 import { resetSourceResilienceForTests } from "../src/sources/source-request";
@@ -196,6 +197,82 @@ const exaFetch: FetchLike = async (input) => {
   });
 };
 
+const reportUrl = "https://www.klsescreener.com/v2/announcements/view/1";
+const reportText = [
+  "Currency: Malaysian Ringgit (MYR)",
+  "| | 30 Sep 2026 |",
+  "| --- | --- |",
+  "| Revenue | 485,101 |",
+].join("\n");
+const reportResult = (id: string, url: string, publishedDate: string) => ({
+  id,
+  url,
+  title: `VITROX report ${id}`,
+  text: reportText,
+  publishedDate,
+});
+const defaultResults = [
+  reportResult("r1", reportUrl, "2026-11-05T00:00:00.000Z"),
+  {
+    id: "r2",
+    url: "https://www.klsescreener.com/v2/news/view/2",
+    title: "VITROX posts record quarter",
+    text: "ViTrox posted a record quarter.",
+  },
+];
+const contents = () =>
+  Response.json({ results: [{ id: "c1", url: reportUrl, title: "report", text: reportText }] });
+const bursaFetch =
+  (fetchContents: () => Response = contents, results: unknown[] = defaultResults): FetchLike =>
+  async (input) =>
+    String(input).includes("/contents") ? fetchContents() : Response.json({ results });
+const search = (query: string) => ({
+  tool: "web_search",
+  args: { query, searchType: "current-subject" },
+  rationale: "find the latest report",
+});
+const runBursa = (
+  fetchImpl: FetchLike,
+  options: {
+    readonly symbol?: string;
+    readonly extraRequests?: readonly unknown[];
+    readonly maxToolCalls?: number;
+    readonly sourceBudget?: number;
+    readonly contexts?: ResearchContext[];
+  } = {},
+) => {
+  const symbol = options.symbol ?? "0097.KL";
+  return runWebGatherLoop({
+    command: { ...command, symbol },
+    config: {
+      ...config,
+      webGatherOptions: {
+        ...config.webGatherOptions,
+        maxToolCalls: options.maxToolCalls ?? config.webGatherOptions.maxToolCalls,
+        sourceBudget: options.sourceBudget ?? config.webGatherOptions.sourceBudget,
+      },
+    },
+    collectedSources: collectedSources({
+      marketSnapshots: [marketSnapshot({ symbol, name: "ViTrox Corporation Berhad" })],
+    }),
+    context,
+    now: new Date("2026-11-06T00:00:00.000Z"),
+    fetchImpl,
+    retryDelaysMs: [],
+    generateRound: async (_sources, roundContext) => {
+      options.contexts?.push(roundContext);
+      return stage({
+        requests: [search(`${symbol} ViTrox quarterly report`), ...(options.extraRequests ?? [])],
+      });
+    },
+  });
+};
+const accepted = (result: Awaited<ReturnType<typeof runWebGatherLoop>>) =>
+  result.audit?.acceptedRequests.map((entry) => [entry.tool, entry.args]);
+
+const announcementUrl = (n: number) =>
+  `https://www.klsescreener.com/v2/announcements/view/${String(n)}`;
+
 // Captures the effective numResults each Exa search executed with, read from the request body because the query string is stripped before it reaches fetch. Two results are returned so non-background searches do not trigger the thin-result widening path.
 function recordingExaFetch(): { readonly fetch: FetchLike; readonly searchNumResults: number[] } {
   const searchNumResults: number[] = [];
@@ -353,6 +430,23 @@ describe("runWebGatherLoop", () => {
     expect(result.skipCode).toBe("run-not-applicable");
     expect(result.audit).toBeUndefined();
     expect(result.collectedSources.sourceGaps).toEqual([]);
+  });
+
+  test("keeps a brief non-SEC listing in web-gather scope", async () => {
+    const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
+    const { fetchImpl, generateRound } = acquisitionTraps();
+    const result = await runWebGatherLoop({
+      command: { ...command, symbol: "0097.KL", depth: "brief" },
+      config: { ...config, sourceOptions: sourceOptionsWithoutExa },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      generateRound,
+    });
+
+    expect(result.skipCode).toBe("missing-exa-credential");
+    expect(generateRound).not.toHaveBeenCalled();
   });
 
   test("skips without calls or state loss when web gather is disabled by config", async () => {
@@ -1478,6 +1572,139 @@ describe("runWebGatherLoop", () => {
       "exa-search",
       "exa-contents",
     ]);
+  });
+
+  describe("deep issuer report fetch", () => {
+    test("fetches a surfaced report-host page that holds a table, once", async () => {
+      expect(accepted(await runBursa(bursaFetch()))).toEqual([
+        ["web_search", expect.anything()],
+        ["web_fetch", { url: reportUrl }],
+      ]);
+      const modelFetched = await runBursa(bursaFetch(), {
+        extraRequests: [{ tool: "web_fetch", args: { url: reportUrl }, rationale: "read it" }],
+      });
+      expect(accepted(modelFetched)).toEqual([
+        ["web_search", expect.anything()],
+        ["web_fetch", { url: reportUrl }],
+      ]);
+    });
+
+    test("fetches at most the two newest report pages", async () => {
+      const results = [
+        reportResult("a", announcementUrl(1), "2026-05-20T00:00:00.000Z"),
+        reportResult("b", announcementUrl(2), "2026-11-05T00:00:00.000Z"),
+        reportResult("c", `${announcementUrl(2)}?ref=search`, "2026-11-05T00:00:00.000Z"),
+        reportResult("d", announcementUrl(3), "2026-08-15T00:00:00.000Z"),
+      ];
+      const result = await runBursa(bursaFetch(contents, results));
+      expect(accepted(result)?.slice(1)).toEqual([
+        ["web_fetch", { url: announcementUrl(2) }],
+        ["web_fetch", { url: announcementUrl(3) }],
+      ]);
+    });
+
+    test("reserves its fetches from the model's budget and asks the deep model for the report search", async () => {
+      const contexts: ResearchContext[] = [];
+      const result = await runBursa(bursaFetch(), {
+        maxToolCalls: 3,
+        contexts,
+        extraRequests: [search("0097.KL ViTrox annual report")],
+      });
+      expect(contexts[0]?.webGather).toMatchObject({ maxToolCalls: 1, sourceBudget: 6 });
+      expect(contexts[0]?.webGather?.issuerReports?.request).toContain("code fetches");
+      expect(result.audit?.rejectedRequests).toEqual([
+        expect.objectContaining({ tool: "web_search" }),
+      ]);
+      expect(accepted(result)).toEqual([
+        ["web_search", expect.anything()],
+        ["web_fetch", { url: reportUrl }],
+      ]);
+    });
+
+    test.each([
+      [{ maxToolCalls: 2 }, { maxToolCalls: 1, sourceBudget: 7 }],
+      [{ sourceBudget: 3 }, { maxToolCalls: 3, sourceBudget: 2 }],
+    ])("a small budget %o keeps one model search and one code fetch", async (budget, shown) => {
+      const contexts: ResearchContext[] = [];
+      const result = await runBursa(bursaFetch(), { ...budget, contexts });
+      expect(contexts[0]?.webGather).toMatchObject(shown);
+      expect(accepted(result)).toEqual([
+        ["web_search", expect.anything()],
+        ["web_fetch", { url: reportUrl }],
+      ]);
+    });
+
+    test("a rejected model fetch of the report page leaves the code fetch in place", async () => {
+      const result = await runBursa(bursaFetch(), {
+        extraRequests: [
+          search("0097.KL ViTrox annual report"),
+          { tool: "web_fetch", args: { url: reportUrl }, rationale: "read it" },
+        ],
+      });
+      expect(result.audit?.rejectedRequests).toEqual([
+        expect.objectContaining({ tool: "web_fetch" }),
+      ]);
+      expect(accepted(result)).toEqual([
+        ["web_search", expect.anything()],
+        ["web_search", expect.anything()],
+        ["web_fetch", { url: reportUrl }],
+      ]);
+    });
+
+    test("a report table past 5,000 characters of the fetched page reaches the Issuer Report Figures", async () => {
+      const table = [
+        "Currency: Malaysian Ringgit (MYR)",
+        "| | 3 months ended 30 Sep 2026 |",
+        "| --- | --- |",
+        "| | RM'000 |",
+        "| Revenue | 485,101 |",
+      ].join("\n");
+      const page = `${"Notes to the interim financial report. ".repeat(160)}\n\n${table}`;
+      const capped: FetchLike = async (input, init) => {
+        if (!String(input).includes("/contents")) {
+          return Response.json({ results: defaultResults });
+        }
+        const body = JSON.parse(String(init?.body)) as { text: { maxCharacters: number } };
+        const text = page.slice(0, body.text.maxCharacters);
+        return Response.json({ results: [{ id: "c1", url: reportUrl, title: "report", text }] });
+      };
+      const gathered = await runBursa(capped);
+      const phase = await runIssuerReportPhase({
+        symbol: "0097.KL",
+        collectedSources: gathered.collectedSources,
+        generateMapping: async () => ({
+          stage: "issuer-report-mapping",
+          content: JSON.stringify({ figures: [{ concept: "revenue", cell: "t1:r2:c1" }] }),
+          tokenEstimate: 1,
+        }),
+      });
+      expect(page.indexOf("485,101")).toBeGreaterThan(5000);
+      expect(phase.collectedSources.metricSections?.[0]?.metrics).toEqual([
+        expect.objectContaining({
+          id: "issuer-report-revenue-quarter-2026-09-30",
+          status: "value",
+          value: 485_101_000,
+          currency: "MYR",
+        }),
+      ]);
+    });
+
+    test("a failed report fetch is a declared gap, not a dropped page", async () => {
+      const result = await runBursa(bursaFetch(() => new Response("down", { status: 500 })));
+      expect(accepted(result)?.map(([tool]) => tool)).toEqual(["web_search", "web_fetch"]);
+      expect(result.collectedSources.sourceGaps).toEqual([
+        expect.objectContaining({ source: "exa-contents", cause: "fetch-failed" }),
+      ]);
+      expect(result.collectedSources.extendedSources.map(({ url }) => url)).toContain(reportUrl);
+    });
+
+    test("a listing without an Exchange Profile keeps the full budget and gets no code fetch", async () => {
+      const contexts: ResearchContext[] = [];
+      const result = await runBursa(bursaFetch(), { symbol: "AAPL", contexts });
+      expect(contexts[0]?.webGather).toMatchObject({ maxToolCalls: 4, sourceBudget: 8 });
+      expect(contexts[0]?.webGather?.issuerReports).toBeUndefined();
+      expect(accepted(result)?.map(([tool]) => tool)).toEqual(["web_search"]);
+    });
   });
 
   test("rejects duplicate web gather requests after normalization", async () => {

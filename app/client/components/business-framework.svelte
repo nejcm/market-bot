@@ -18,7 +18,7 @@
       Business framework
     </span>
     <span class="font-mono text-[10px] text-[#8a8f96]">
-      phase · {framework.phase}
+      phase · {framework.phase ?? "not classified"}
     </span>
   </div>
   <div class="mt-3.5 grid gap-3 sm:grid-cols-2">

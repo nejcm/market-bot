@@ -1,3 +1,4 @@
+import type { InstrumentIdentity } from "../../domain/instrument";
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { MarketFundamentals, MarketSnapshot } from "../../domain/market-data";
@@ -29,7 +30,13 @@ function formatPercent(value: number | undefined): string {
   return value === undefined ? "" : `${value.toFixed(2)}%`;
 }
 
-function summarize(fundamentals: MarketFundamentals): string {
+// Per-share values carry a non-USD quote currency; USD stays bare as before.
+export function perShareCurrency(identity: InstrumentIdentity | undefined): string {
+  const currency = identity?.quoteCurrency;
+  return currency === undefined || currency.toUpperCase() === "USD" ? "" : ` ${currency}`;
+}
+
+function summarize(fundamentals: MarketFundamentals, currency: string): string {
   const parts: string[] = [];
   if (fundamentals.trailingPE !== undefined) {
     parts.push(
@@ -49,13 +56,15 @@ function summarize(fundamentals: MarketFundamentals): string {
     parts.push(`dividend yield ${yieldText}`);
   }
   if (fundamentals.epsTrailingTwelveMonths !== undefined) {
-    parts.push(`EPS TTM ${fundamentals.epsTrailingTwelveMonths.toFixed(2)}`);
+    parts.push(`EPS TTM ${fundamentals.epsTrailingTwelveMonths.toFixed(2)}${currency}`);
   }
   if (fundamentals.epsForward !== undefined) {
-    parts.push(`forward EPS ${fundamentals.epsForward.toFixed(2)}`);
+    parts.push(`forward EPS ${fundamentals.epsForward.toFixed(2)}${currency}`);
   }
   if (fundamentals.trailingAnnualDividendRate !== undefined) {
-    parts.push(`annual dividend rate ${fundamentals.trailingAnnualDividendRate.toFixed(3)}`);
+    parts.push(
+      `annual dividend rate ${fundamentals.trailingAnnualDividendRate.toFixed(3)}${currency}`,
+    );
   }
   return parts.length > 0 ? `Yahoo Fundamentals: ${parts.join(", ")}.` : "Yahoo Fundamentals.";
 }
@@ -104,7 +113,7 @@ export function buildYahooFundamentals(
   return {
     category: "yahoo-fundamentals",
     title: `${command.symbol} Yahoo Fundamentals Evidence`,
-    summary: summarize(fundamentals),
+    summary: summarize(fundamentals, perShareCurrency(snapshot.identity)),
     sourceIds: [snapshot.sourceId],
     observedAt: snapshot.observedAt ?? fetchedAt,
     metrics,

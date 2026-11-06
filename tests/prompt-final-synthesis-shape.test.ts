@@ -423,6 +423,9 @@ describe("buildStagePrompt final-synthesis shape", () => {
       name: "Business|Phase|Moat|Growth|Management|Risk|Valuation",
       text: "string",
       sourceIds: ["source-id"],
+      figureQuotes: [
+        { sourceId: "web-source-id", quote: "verbatim web source text holding the figure" },
+      ],
     });
   });
 

@@ -33,13 +33,11 @@ function isCryptoRegimeSnapshot(snapshot: MarketSnapshot): boolean {
 }
 
 function buildBreadthDriver(
-  assetClass: AssetClass,
+  prefix: string,
   positive: number,
   negative: number,
   total: number,
 ): string {
-  const prefix = assetClass === "equity" ? "equity breadth proxies" : "major crypto proxies";
-
   if (total === 0) {
     return `${prefix} unavailable`;
   }
@@ -55,12 +53,12 @@ function buildBreadthDriver(
   return `${prefix} ${direction}: ${directionalCount}/${total}`;
 }
 
-function breadthSignal(assetClass: AssetClass, breadth: readonly MarketSnapshot[]): RegimeSignal {
+function breadthSignal(prefix: string, breadth: readonly MarketSnapshot[]): RegimeSignal {
   const positive = breadth.filter((snapshot) => snapshot.changePercent24h > 0).length;
   const negative = breadth.filter((snapshot) => snapshot.changePercent24h < 0).length;
   const total = breadth.length;
   const driver = {
-    text: buildBreadthDriver(assetClass, positive, negative, total),
+    text: buildBreadthDriver(prefix, positive, negative, total),
     sourceIds: sourceIdsOf(breadth),
   };
   if (total === 0) {
@@ -160,19 +158,41 @@ function resolveLabel(signals: readonly RegimeSignal[], isVixElevated: boolean):
   return "mixed";
 }
 
+function regimeProxies(
+  assetClass: AssetClass,
+  snapshots: readonly MarketSnapshot[],
+  localBenchmark: string | undefined,
+): { readonly selected: readonly MarketSnapshot[]; readonly prefix: string } {
+  if (assetClass === "crypto") {
+    return {
+      selected: snapshots.filter((snapshot) => isCryptoRegimeSnapshot(snapshot)),
+      prefix: "major crypto proxies",
+    };
+  }
+  if (localBenchmark === undefined) {
+    return {
+      selected: snapshots.filter((snapshot) => isEquityRegimeSnapshot(snapshot)),
+      prefix: "equity breadth proxies",
+    };
+  }
+  return {
+    selected: snapshots.filter((snapshot) => snapshot.symbol === localBenchmark),
+    prefix: `local benchmark ${localBenchmark}`,
+  };
+}
+
+// A local benchmark (Exchange Profile) replaces the US breadth proxies and VIX gauges.
 export function summarizeMarketRegime(
   assetClass: AssetClass,
   snapshots: readonly MarketSnapshot[],
+  localBenchmark?: string,
 ): MarketRegimeSummary {
-  const selected =
-    assetClass === "equity"
-      ? snapshots.filter((snapshot) => isEquityRegimeSnapshot(snapshot))
-      : snapshots.filter((snapshot) => isCryptoRegimeSnapshot(snapshot));
+  const { selected, prefix } = regimeProxies(assetClass, snapshots, localBenchmark);
   const breadth = selected.filter((snapshot) => !isEquityVolatilitySymbol(snapshot.symbol));
   const vix = selected.find((snapshot) => snapshot.symbol === VIX_SYMBOL);
   const vix3m = selected.find((snapshot) => snapshot.symbol === VIX_TERM_SYMBOL);
 
-  const signals: RegimeSignal[] = [breadthSignal(assetClass, breadth)];
+  const signals: RegimeSignal[] = [breadthSignal(prefix, breadth)];
   if (assetClass === "equity") {
     signals.push(trendSignal(breadth), termStructureSignal(vix, vix3m));
   }

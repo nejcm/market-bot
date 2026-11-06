@@ -9,6 +9,7 @@ import {
 } from "../domain/market-data";
 import { type SourceGap } from "../domain/sources";
 import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-symbols";
+import { exchangeProfileFor } from "../domain/exchange-profile";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";
 import { dedupeMoversBySymbol } from "../movers/dedupe";
@@ -23,6 +24,7 @@ import {
   type SourceRequest,
 } from "./types";
 import { isRecord, optionalString, readNumber, readString } from "../guards";
+import { isUsListing } from "./instrument-capability";
 import { fetchMassiveCloseWindow, fetchMassiveQuoteFallback } from "./massive-fallback";
 import {
   fetchYahooJsonWithResilience,
@@ -326,9 +328,13 @@ function equityRequestsFor(
 ): readonly { readonly role: EquityRole; readonly url: string }[] {
   const { command } = ctx;
   if (isInstrumentCommand(command)) {
+    const localBenchmark = exchangeProfileFor(command.symbol)?.benchmark;
     return [
       { role: "ticker", url: yahooQuoteUrl(command.symbol ?? "") },
-      { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
+      {
+        role: "regime",
+        url: yahooQuoteUrl(localBenchmark ?? EQUITY_REGIME_SYMBOLS.join(",")),
+      },
     ];
   }
 
@@ -385,7 +391,7 @@ export async function requestJsonWithQuoteFallback(
     return result;
   }
 
-  const symbols = symbolsFromQuoteUrl(request.url);
+  const symbols = symbolsFromQuoteUrl(request.url).filter((symbol) => isUsListing(symbol));
   if (symbols.length === 0) {
     return result;
   }
@@ -1110,13 +1116,9 @@ export async function fetchYahooCloseWindow(
     }
   }
 
-  const massiveObservations = await fetchMassiveCloseWindow(
-    symbol,
-    from,
-    to,
-    massiveApiKey,
-    fetchImpl,
-  );
+  const massiveObservations = isUsListing(symbol)
+    ? await fetchMassiveCloseWindow(symbol, from, to, massiveApiKey, fetchImpl)
+    : undefined;
   if (massiveObservations !== undefined) {
     return { ok: true, observations: completed(massiveObservations, { status: "absent" }) };
   }

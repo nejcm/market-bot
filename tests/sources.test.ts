@@ -667,6 +667,39 @@ describe("source normalization", () => {
     ]);
   });
 
+  test("skips Massive US snapshots and news for a non-US listing with a declared gap", async () => {
+    const ctx = collectContext({
+      command: { jobType: "equity", assetClass: "equity", symbol: "0097.KL", depth: "deep" },
+      instrumentIdentity: { exchange: "Kuala Lumpur", quoteCurrency: "MYR" },
+      massiveApiKey: "massive-key",
+      request: requestExecutor({
+        json: async () => {
+          throw new Error("must not fetch for a non-US listing");
+        },
+      }),
+    });
+
+    const market = await massiveSupplementalMarketDataAdapter.collect(ctx, []);
+    const news = await massiveNewsAdapter.collect(ctx);
+
+    expect([...market.sourceGaps, ...news.sourceGaps]).toEqual([
+      expect.objectContaining({
+        source: "massive-supplemental-market",
+        capability: "market-data",
+        cause: "unsupported-coverage",
+        message: "massive US stock snapshots do not support 0097.KL (non-US listing)",
+      }),
+      expect.objectContaining({
+        source: "massive-news",
+        capability: "news",
+        cause: "unsupported-coverage",
+        message: "massive news does not support 0097.KL (non-US listing)",
+      }),
+    ]);
+    expect(market.rawSnapshots).toEqual([]);
+    expect(news.rawSnapshots).toEqual([]);
+  });
+
   test("normalizes Massive news with canonical URLs and provider metadata", () => {
     const sources = massiveNewsAdapter.normalizeNews(
       {

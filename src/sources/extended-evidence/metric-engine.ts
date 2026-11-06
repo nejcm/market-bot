@@ -33,7 +33,8 @@ export interface MetricInput {
     | "quote"
     | "evidence"
     | "verifiedSnapshot"
-    | "subsequentFinancing";
+    | "subsequentFinancing"
+    | "issuerReport";
   readonly series?: FinancialStatementSeriesKey | "stockBasedCompensation" | "marketCap";
   // Evidence inputs: the Extended Evidence item category and its metric key.
   readonly category?: ExtendedEvidenceCategory;

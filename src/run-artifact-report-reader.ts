@@ -394,6 +394,7 @@ export function readReport(value: unknown): ResearchReport | undefined {
     value.verifiedRepresentativeSnapshots,
   );
   const researchQualityDriver = readString(value, "researchQualityDriver");
+  const coverageLabel = readString(value, "coverageLabel");
   const equityAnalysisCompleteness = readEquityAnalysisCompleteness(
     value.equityAnalysisCompleteness,
   );
@@ -423,6 +424,7 @@ export function readReport(value: unknown): ResearchReport | undefined {
     ...(isReportIntegrity(value.reportIntegrity) ? { reportIntegrity: value.reportIntegrity } : {}),
     ...(isReportIntegrity(value.researchQuality) ? { researchQuality: value.researchQuality } : {}),
     ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
+    ...(coverageLabel !== undefined ? { coverageLabel } : {}),
     ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
     ...(normalizedShortfall.predictionShortfall === undefined
       ? {}

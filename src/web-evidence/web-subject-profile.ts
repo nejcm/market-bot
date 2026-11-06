@@ -14,6 +14,9 @@ import {
   WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER,
   WEB_SUBJECT_PROFILE_SHARE_MISMATCH_SUBJECT_SUMMARY_NOTICE,
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
+  WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE,
+  WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER,
+  WEB_SUBJECT_PROFILE_WEB_FIGURE_SUBJECT_SUMMARY_NOTICE,
   WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
   WEB_SUBJECT_PROFILE_WITHHELD_MARKER,
   WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
@@ -28,6 +31,15 @@ import {
   readWebSubjectProfileOpenGap,
   unreadableOpenGapsNotice,
 } from "./contract";
+import { pruneSentences } from "../research/report-integrity-audit";
+import {
+  readFigureQuotes,
+  unverifiedWebFigure,
+  webFigureGapText,
+  webSourceTexts,
+  type WebSourceTexts,
+} from "../research/web-figure-verification";
+import type { WebFigureFailure } from "../domain/report";
 
 export { type WebSubjectProfileArtifact } from "./contract";
 
@@ -177,18 +189,26 @@ export function webSubjectProfileSubjectForCommand(
   };
 }
 
+const FIGURE_QUOTE = { sourceId: "web-source-id", quote: "verbatim source text" };
+
 export function webSubjectProfileRequiredShape(subjectKind: SubjectKind): Record<string, unknown> {
   return {
     subjectLabel: "string",
-    subjectSummary: { answer: "string", sourceIds: ["web-source-id"] },
+    subjectSummary: {
+      answer: "string",
+      sourceIds: ["web-source-id"],
+      figureQuotes: [FIGURE_QUOTE],
+    },
     questions: Object.fromEntries(
       WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind].map((key) => [
         key,
-        { answer: "string", sourceIds: ["web-source-id"] },
+        { answer: "string", sourceIds: ["web-source-id"], figureQuotes: [FIGURE_QUOTE] },
       ]),
     ),
-    recentMaterialEvents: [{ claim: "string", sourceIds: ["web-source-id"] }],
-    factLedger: [{ claim: "string", sourceIds: ["web-source-id"] }],
+    recentMaterialEvents: [
+      { claim: "string", sourceIds: ["web-source-id"], figureQuotes: [FIGURE_QUOTE] },
+    ],
+    factLedger: [{ claim: "string", sourceIds: ["web-source-id"], figureQuotes: [FIGURE_QUOTE] }],
     openGaps: [{ text: "string", topic: "other" }],
   };
 }
@@ -286,6 +306,9 @@ function screenRequiredAnswer(
   }
   if (answer.answer.includes(WEB_SUBJECT_PROFILE_SHARE_MISMATCH_MARKER)) {
     return { answer, withheld: true, shareMismatch: true };
+  }
+  if (answer.answer.includes(WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER)) {
+    return { answer, withheld: false };
   }
   if (
     violatesResearchOnly(answer.answer) === null &&
@@ -445,6 +468,7 @@ function screenModelOpenGaps(gaps: readonly WebSubjectProfileOpenGap[]): {
 function screenProfileFields(
   profile: ScreenableProfileFields,
   shares: RevenueShares,
+  webTexts: WebSourceTexts,
 ): ScreenedProfileFields {
   const subjectSummary = screenRequiredAnswer(
     profile.subjectSummary,
@@ -540,15 +564,124 @@ function screenProfileFields(
       ),
     );
   }
+  const figures = screenWebFigures(
+    {
+      subjectSummary: subjectSummary.answer,
+      questions: questions.questions,
+      recentMaterialEvents: events.facts,
+      factLedger: ledger.facts,
+    },
+    webTexts,
+  );
+  withheldGaps.push(...figures.withheldGaps);
   return {
-    subjectSummary: subjectSummary.answer,
-    questions: questions.questions,
-    recentMaterialEvents: events.facts,
-    factLedger: ledger.facts,
+    subjectSummary: figures.subjectSummary,
+    questions: figures.questions,
+    recentMaterialEvents: figures.recentMaterialEvents,
+    factLedger: figures.factLedger,
     openGaps:
       withheldOpenGapsNotice === undefined
         ? profile.openGaps
         : [...openGaps.kept, ...openGaps.preexistingNotices, otherGap(withheldOpenGapsNotice)],
+    withheldGaps,
+  };
+}
+
+type WebFigureFields = Omit<ScreenableProfileFields, "openGaps">;
+
+// ADR 0006: answers lose failing sentences (all of them → notice); facts drop with a count notice.
+function screenWebFigures(
+  fields: WebFigureFields,
+  webTexts: WebSourceTexts,
+): WebFigureFields & { readonly withheldGaps: readonly SourceGap[] } {
+  const withheldGaps: SourceGap[] = [];
+  const failureGap = (location: string, failure: WebFigureFailure): void => {
+    withheldGaps.push(profileGap(webFigureGapText(location, failure), "validation-failed"));
+  };
+  const answer = (
+    value: WebSubjectProfileAnswer,
+    location: string,
+    notice: string,
+  ): WebSubjectProfileAnswer => {
+    if (value.answer.includes(WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER)) {
+      withheldGaps.push(profileGap(value.answer, "validation-failed"));
+      return value;
+    }
+    if (value.answer === "" || isWebSubjectProfileWithheldAnswer(value.answer)) {
+      return value;
+    }
+    const { kept, pruned } = pruneSentences(value.answer, (sentence) => {
+      const failure = unverifiedWebFigure({ ...value, text: sentence }, webTexts);
+      if (failure !== undefined) {
+        failureGap(location, failure);
+      }
+      return failure !== undefined;
+    });
+    if (pruned.length === 0) {
+      return value;
+    }
+    return kept === ""
+      ? { answer: assertCodeAssembledProfileText(notice, location), sourceIds: value.sourceIds }
+      : { ...value, answer: kept };
+  };
+  const facts = (
+    rows: readonly WebSubjectProfileFact[],
+    location: string,
+    fieldLabel: string,
+  ): readonly WebSubjectProfileFact[] => {
+    const failed: WebSubjectProfileFact[] = [];
+    const kept = rows.filter((fact, index) => {
+      const failure = isWebSubjectProfileWithheldAnswer(fact.claim)
+        ? undefined
+        : unverifiedWebFigure({ ...fact, text: fact.claim }, webTexts);
+      if (failure !== undefined) {
+        failureGap(`${location}[${String(index)}]`, failure);
+        failed.push(fact);
+      }
+      return failure === undefined;
+    });
+    if (failed.length === 0) {
+      return rows;
+    }
+    const considered = rows.filter((fact) => !isWebSubjectProfileWithheldAnswer(fact.claim)).length;
+    return [
+      ...kept,
+      {
+        claim: assertCodeAssembledProfileText(
+          withheldCountSummary(
+            fieldLabel,
+            failed.length,
+            considered,
+            WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER,
+          ),
+          `${location} web-figure summary`,
+        ),
+        sourceIds: [...new Set(failed.flatMap((fact) => fact.sourceIds))].toSorted(),
+      },
+    ];
+  };
+  return {
+    subjectSummary: answer(
+      fields.subjectSummary,
+      "webSubjectProfile.subjectSummary",
+      WEB_SUBJECT_PROFILE_WEB_FIGURE_SUBJECT_SUMMARY_NOTICE,
+    ),
+    questions: Object.fromEntries(
+      Object.entries(fields.questions).map(([key, value]) => [
+        key,
+        answer(
+          value,
+          `webSubjectProfile.questions.${key}`,
+          WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE,
+        ),
+      ]),
+    ),
+    recentMaterialEvents: facts(
+      fields.recentMaterialEvents,
+      "webSubjectProfile.recentMaterialEvents",
+      "recent material events",
+    ),
+    factLedger: facts(fields.factLedger, "webSubjectProfile.factLedger", "fact-ledger claims"),
     withheldGaps,
   };
 }
@@ -608,10 +741,11 @@ export interface ScreenedReusedWebSubjectProfile {
 
 export function screenReusedWebSubjectProfile(
   reused: WebSubjectProfileArtifact,
+  webTexts: WebSourceTexts,
   metricSections?: readonly MetricSection[],
 ): ScreenedReusedWebSubjectProfile {
   const artifact = withoutSourceIdMarkers(reused);
-  const screened = screenProfileFields(artifact, revenueShares(metricSections));
+  const screened = screenProfileFields(artifact, revenueShares(metricSections), webTexts);
   if (screened.withheldGaps.length === 0) {
     return { artifact, withheldGaps: [] };
   }
@@ -625,6 +759,7 @@ export function buildWebSubjectProfileEvidence(input: {
   readonly runId: string;
   readonly modelContent: string;
   readonly webSources: readonly Source[];
+  readonly rawSnapshots?: readonly unknown[];
   readonly extendedEvidence: ExtendedEvidence | undefined;
   readonly metricSections?: readonly MetricSection[];
   readonly secFilingBasisDate?: string;
@@ -657,7 +792,11 @@ export function buildWebSubjectProfileEvidence(input: {
     return profileResult(input.command, input.extendedEvidence, input.subject, artifact, [], [gap]);
   }
 
-  const screened = screenProfileFields(parsed.profile, revenueShares(input.metricSections));
+  const screened = screenProfileFields(
+    parsed.profile,
+    revenueShares(input.metricSections),
+    webSourceTexts(input.webSources, input.rawSnapshots),
+  );
   const rejectionSummary =
     parsed.rejections.length > 0
       ? assertCodeAssembledProfileText(
@@ -916,7 +1055,8 @@ function readAnswer(
       sourceIdFailure: { kind: "unknown", count: unknownSourceIdCount },
     };
   }
-  return { answer: { answer, sourceIds } };
+  const figureQuotes = readFigureQuotes(value.figureQuotes);
+  return { answer: { answer, sourceIds, ...(figureQuotes === undefined ? {} : { figureQuotes }) } };
 }
 
 function readFacts(
@@ -959,7 +1099,8 @@ function readFacts(
       });
       return;
     }
-    facts.push({ claim, sourceIds });
+    const figureQuotes = readFigureQuotes(item.figureQuotes);
+    facts.push({ claim, sourceIds, ...(figureQuotes === undefined ? {} : { figureQuotes }) });
   });
   return { facts, rejections };
 }

@@ -705,6 +705,7 @@ function providerEndpointAvailabilityBlock(
         gaps,
         {
           hasTradierEarningsImpliedMove: collectedSources.earningsSetup?.impliedMove !== undefined,
+          ...(report.symbol === undefined ? {} : { symbol: report.symbol }),
           ...(webSearch !== undefined ? { webSearch } : {}),
         },
       ),

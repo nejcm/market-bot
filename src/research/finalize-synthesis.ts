@@ -14,6 +14,7 @@ import { auditReportIntegrity, summarySentenceTexts } from "./report-integrity-a
 import { rederivePredictionShortfallReportAfterPruning } from "../report/prediction-shortfall";
 import { reconcileEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { validateResearchReport } from "../report/schema";
+import { webSourceTexts } from "./web-figure-verification";
 
 export async function finalizeSynthesis(
   synthesis: SynthesizeReportUntilValidResult,
@@ -50,6 +51,11 @@ export async function finalizeSynthesis(
     assessment,
     usablePeerSourceIds,
     peerMedian?.labels,
+    webSourceTexts(
+      [...collected.extendedSources, ...synthesis.report.sources],
+      collected.rawSnapshots,
+      collected.metricSections,
+    ),
   );
   const integrityAudit = {
     ...audit,

@@ -232,6 +232,7 @@ export interface RunWorkspaceEquityPresentationView {
   readonly defaultView: {
     readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
     readonly researchSummary: string;
+    readonly coverageLabel?: string;
     readonly companySummary: RunWorkspaceTextItem;
     readonly marketRegime?: RunWorkspaceMarketRegimeView;
     readonly financialTrends?: RunWorkspaceFinancialTrendView;
@@ -344,6 +345,10 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     ...(report === undefined ? {} : { report }),
   });
   const summary = typeof report?.summary === "string" ? report.summary : "";
+  const coverageLabel =
+    typeof report?.coverageLabel === "string" && report.coverageLabel !== ""
+      ? report.coverageLabel
+      : undefined;
   const financialLensGroups = financialLensGroupViews(detail);
   const findings = textItems(report, "keyFindings");
   const cases = reportCaseSections(report);
@@ -433,6 +438,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
           defaultView: {
             pricePerformance: equitySnapshot.pricePerformance,
             researchSummary: summary,
+            ...(coverageLabel === undefined ? {} : { coverageLabel }),
             companySummary: { text: description.text, sourceIds: description.sourceIds },
             ...(marketRegime === undefined ? {} : { marketRegime }),
             ...(financialTrends === undefined ? {} : { financialTrends }),

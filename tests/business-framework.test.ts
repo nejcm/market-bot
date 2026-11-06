@@ -356,6 +356,12 @@ describe("business framework evidence", () => {
     },
   ] as const;
 
+  test("leaves the phase unclassified when revenue YoY is missing", () => {
+    expect(
+      classifyBusinessLifecyclePhase({ operatingIncome: 20, netIncome: 15, dividendYield: 0.02 }),
+    ).toBeUndefined();
+  });
+
   for (const phaseCase of phaseCases) {
     test(`classifies ${phaseCase.name}`, () => {
       expect(classifyBusinessLifecyclePhase(phaseCase.input)).toBe(phaseCase.expected);
@@ -1055,6 +1061,23 @@ test("pass-through lens values cite the lens metric's inputs, never the lens bun
   expect(gapOf(uncited, "business-framework-risk")?.message).toContain(
     "no cited financial-lens current ratio",
   );
+});
+
+test("cited dividend yield without revenue YoY leaves the phase unclassified", () => {
+  const yahoo = {
+    category: "yahoo-fundamentals",
+    title: "AAPL Yahoo Fundamentals Evidence",
+    summary: "Yahoo Fundamentals.",
+    sourceIds: ["market-aapl"],
+    observedAt: "2026-06-20T00:00:00.000Z",
+    metrics: { dividendYield: 1.2 },
+  } as const;
+  const result = framework({ items: [yahoo], gaps: [] }, AS_OF, null);
+  expect(metricOf(result, "business-framework-phase", "phase")).toMatchObject({
+    status: "missing",
+    reason: "Revenue YoY missing, so no lifecycle phase is classified",
+  });
+  expect(result.artifact?.phase).toBeUndefined();
 });
 
 test("phase with no classification inputs is missing rather than an uncited value", () => {

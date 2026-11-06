@@ -2001,6 +2001,29 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
 });
 
 describe("buildYahooFundamentals", () => {
+  test("names a non-USD quote currency on per-share values only", () => {
+    const fundamentals = {
+      trailingPE: 20,
+      epsTrailingTwelveMonths: 0.33,
+      epsForward: 0.4,
+      trailingAnnualDividendRate: 0.1,
+    };
+    const myr = buildYahooFundamentals(
+      { ...command, symbol: "0097.KL" },
+      [marketSnapshot({ symbol: "0097.KL", identity: { quoteCurrency: "MYR" }, fundamentals })],
+      "2026-06-22T00:00:00.000Z",
+    );
+    expect(myr?.summary).toBe(
+      "Yahoo Fundamentals: trailing PE 20.00x, EPS TTM 0.33 MYR, forward EPS 0.40 MYR, annual dividend rate 0.100 MYR.",
+    );
+    const usd = buildYahooFundamentals(
+      command,
+      [marketSnapshot({ symbol: "AAPL", identity: { quoteCurrency: "USD" }, fundamentals })],
+      "2026-06-22T00:00:00.000Z",
+    );
+    expect(usd?.summary).toContain("EPS TTM 0.33,");
+  });
+
   test("derives the item from snapshot.fundamentals with the snapshot source id", () => {
     const item = buildYahooFundamentals(
       command,

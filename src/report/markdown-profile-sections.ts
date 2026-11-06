@@ -62,7 +62,7 @@ export function renderBusinessFramework(report: ResearchReport): string {
   return [
     "## Business Framework",
     "",
-    `Phase: ${markdownText(framework.phase ?? "insufficient-data")}`,
+    `Phase: ${markdownText(framework.phase ?? "not classified")}`,
     "",
     ...rows,
     ...(gaps.length > 0 ? ["", "### Framework Data Gaps", "", ...gaps] : []),

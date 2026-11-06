@@ -164,6 +164,7 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/clfd-zero-debt/` (captured live replay: Tagged Zero Debt at three CLFD 10-Q instants)
 - `tests/fixtures/runs/ebay-extension-investments/` (captured live replay: Extension Short-Term Investments, EBAY 10-Q 809M at 2026-09-30)
 - `tests/fixtures/runs/equity-amd-deep/` (captured live replay: AMD deep, FY2025 10-K and Q3 2026 10-Q calculation linkbases)
+- `tests/fixtures/runs/equity-bursa-deep/` (captured live replay: ViTrox `0097.KL` deep, `2026-11-06T03-07-03-043Z-4135821d`; non-SEC issuer, `^KLSE` benchmark, Exa Web Gather recorded)
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
 rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source
@@ -277,7 +278,7 @@ MARKET_BOT_SYNTHESIS_MODEL=<model> bun run scripts/eval-deep.ts --fixtures equit
 `--live-stages <stage>` selects exactly one audited stage per batch. Supported names:
 `specialist-analysis`, `instrument-evidence-analysis`, `market-behavior-analysis`,
 `regime-context-analysis`, `mover-theme-analysis`, `critique`, `final-synthesis`,
-`web-gather`, `web-subject-profile`, `evidence-request`, `financial-table-mapping`,
+`web-gather`, `web-subject-profile`, `evidence-request`, `financial-table-mapping`, `issuer-report-mapping`,
 `forecast-disagreement`, `spotlight-selection`, and `peer-median-audit`. Unknown names, comma-separated lists,
 and peer-universe proposal are rejected before provider creation. Omitting the selector keeps
 the existing whole-live evaluation. No selector was added to `replay-fixture-run.ts`.
@@ -286,7 +287,10 @@ A stage that a fixture or capture never recorded has no cassette entry, so the o
 estimate fails on a miss. Before `--live-stages <new-stage>`, copy the capture under
 `data/evals/` and add a reviewed synthetic `<stage>|<model>` entry to the copy's
 `llm-cassette.json`; never edit `data/runs/`. No checked-in fixture collects usable comps peers,
-so none calls `peer-median-audit` (pinned by the fixture invariants).
+so none calls `peer-median-audit` (pinned by the fixture invariants). The `issuer-report-mapping|gpt-6-luna` entry in
+`equity-bursa-deep/llm-cassette.json` is a reviewed synthetic entry (its capture predates the stage), listed in
+that fixture's `meta.json` `syntheticLlmEntries`; it
+proves the code checks, not model quality.
 
 For example, this invocation only plans a critique evaluation:
 
@@ -329,7 +333,7 @@ the sum over observed preflight calls of measured input plus recorded output (or
 token estimate when larger), without headroom. A whole-run plan prints no expected figure. This is a planning estimate, not a
 provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
 differ from preflight. A zero-call preflight is disclosed. Only captured fixtures
-(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`, `equity-nbis-deep`)
+(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`, `equity-nbis-deep`, `equity-bursa-deep`)
 carry real upstream outputs, and `eval-deep` rejects `incomplete` fixtures before any replay.
 
 The existing estimate-first workflow still applies: inspect the estimate, obtain explicit approval

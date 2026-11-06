@@ -40,6 +40,29 @@ const baseExtendedEvidence: ExtendedEvidence = secEvidence({
 });
 
 describe("addValuationEvidence", () => {
+  test("withholds Valuation Evidence when the quote currency is not the USD SEC basis", () => {
+    const result = addValuationEvidence(
+      command,
+      [
+        marketSnapshot({
+          symbol: "AAPL",
+          marketCap: 1000,
+          identity: { exchange: "Kuala Lumpur", quoteCurrency: "MYR" },
+        }),
+      ],
+      baseExtendedEvidence,
+      "2026-07-01T00:00:00.000Z",
+    );
+
+    expect(result.extendedEvidence?.items.some((item) => item.category === "valuation")).toBe(
+      false,
+    );
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({ source: "valuation", cause: "unsupported-coverage" }),
+    ]);
+    expect(result.sourceGaps[0]?.message).toContain("quote currency MYR");
+  });
+
   test("declares a Source Gap when cash and debt periods diverge", () => {
     const result = addValuationEvidence(
       command,

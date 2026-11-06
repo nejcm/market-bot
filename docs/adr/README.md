@@ -11,6 +11,7 @@ ADRs contain accepted decisions, binding constraints, and consequences maintaine
 | [0003](./0003-forecasts-scoring-and-calibration.md) | Forecasts, scoring and calibration |
 | [0004](./0004-evidence-and-model-stage-pipeline.md) | Evidence and model-stage pipeline  |
 | [0005](./0005-testing-and-replay.md)                | Testing and replay                 |
+| [0006](./0006-non-sec-issuer-coverage.md)           | Non-SEC issuer coverage            |
 
 ## Conventions
 

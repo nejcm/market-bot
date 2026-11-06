@@ -29,6 +29,13 @@ import {
 } from "../../../src/research/metric-references";
 import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
+import { auditReportIntegrity } from "../../../src/research/report-integrity-audit";
+import {
+  isWebFigureGapText,
+  rawTextsByUrl,
+  webSourceTexts,
+} from "../../../src/research/web-figure-verification";
+import { screenReusedWebSubjectProfile } from "../../../src/web-evidence/web-subject-profile";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
 import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
@@ -71,7 +78,14 @@ import {
 import { deterministicSourceGaps } from "../../../src/research/deterministic-gaps";
 import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrument-identity";
 import { isNewsRelevantByTitleOrSymbol } from "../../../src/sources/news-relevance";
-import { isResearchCommand } from "../../../src/cli/args";
+import { isInstrumentCommand, isResearchCommand } from "../../../src/cli/args";
+import { exchangeProfileFor } from "../../../src/domain/exchange-profile";
+import { canonicalizeUrl } from "../../../src/sources/news-utils";
+import {
+  isNonSecEquityListing,
+  listingCommand,
+  NON_SEC_COVERAGE_LABEL,
+} from "../../../src/sources/identity-gate";
 import { FORECAST_BASELINE_VERSION } from "../../../src/forecast/baseline";
 import { eventGrid } from "../../../src/research/event-grid";
 import { fixtureCommand, isDeepFixture, type FixtureMeta, type RunFixtureResult } from ".";
@@ -85,6 +99,7 @@ function asWritten(value: unknown): unknown {
 // Assembly adds these after synthesis, so the synthesis prompt never sees them.
 const FORECAST_BOOK_GAP_SOURCES = new Set([
   "event-grid",
+  "forecast-book",
   "forecast-baseline",
   "earnings-forecasts",
 ]);
@@ -181,6 +196,74 @@ export function assertProviderGapRestatementsDropped(result: RunFixtureResult): 
   expect(gaps).toContain("Issuer transcript unavailable.");
 }
 
+// Non-SEC listings (ADR 0006): coverage label, no SEC requests, local benchmark, withheld forecasts.
+function assertListingCoverageInvariants(result: RunFixtureResult, meta: FixtureMeta): boolean {
+  const command = listingCommand(fixtureCommand(meta), result.collectedSources.listingResolution);
+  const identity = result.collectedSources.resolvedInstrumentIdentity;
+  const nonSec = isNonSecEquityListing(command, identity);
+  expect(result.trace.listingResolution).toEqual(result.collectedSources.listingResolution);
+  expect(result.report.coverageLabel).toBe(nonSec ? NON_SEC_COVERAGE_LABEL : undefined);
+  if (!nonSec || !isInstrumentCommand(command)) {
+    return false;
+  }
+  const usOnly = /^(?:sec-|finnhub|tradier|massive)/u;
+  expect(
+    result.collectedSources.rawSnapshots.filter(({ adapter }) => usOnly.test(adapter)),
+  ).toEqual([]);
+  expect(
+    result.collectedSources.sourceGaps.filter(
+      ({ source, message }) => usOnly.test(source) && !/ not support /u.test(message),
+    ),
+  ).toEqual([]);
+  const benchmark = exchangeProfileFor(command.symbol)?.benchmark;
+  if (benchmark !== undefined) {
+    const marketSymbols = result.collectedSources.marketSnapshots.map(({ symbol }) => symbol);
+    expect(marketSymbols).toContain(benchmark);
+    expect(marketSymbols).not.toContain("QQQ");
+    for (const { measurableAs } of result.report.predictions.filter(
+      ({ id }) => id === "grid-relative-5",
+    )) {
+      expect(measurableAs).toContain(`close(${benchmark},`);
+    }
+  }
+  if (exchangeProfileFor(command.symbol) !== undefined) {
+    assertIssuerReportInvariants(result);
+  }
+  const withheld = result.collectedSources.verifiedMarketSnapshot === undefined;
+  if (withheld) {
+    expect(result.report.predictions).toEqual([]);
+  }
+  for (const { id } of result.report.predictions.filter(
+    ({ origin, baselineProbability }) => origin === "grid" && baselineProbability === undefined,
+  )) {
+    expect(result.report.dataGaps).toContainEqual(
+      expect.stringMatching(
+        new RegExp(`^forecast-baseline: .*\\b${id}\\b.*\\(non-US listing`, "u"),
+      ),
+    );
+  }
+  return withheld;
+}
+
+// A profiled non-SEC listing publishes issuer report figures or declares why not; every figure quotes its source text.
+function assertIssuerReportInvariants(result: RunFixtureResult): void {
+  const { collectedSources } = result;
+  const section = collectedSources.metricSections?.find(({ id }) => id === "issuer-report");
+  const gaps = collectedSources.sourceGaps.filter(({ source }) => source === "issuer-report");
+  expect(section !== undefined || gaps.length > 0).toBe(true);
+  const raw = rawTextsByUrl(collectedSources.rawSnapshots);
+  const sources = new Map(collectedSources.extendedSources.map((row) => [row.id, row]));
+  for (const input of section?.metrics.flatMap(({ inputs }) => inputs) ?? []) {
+    const [sourceId] = input.sourceIds;
+    const source = sourceId === undefined ? undefined : sources.get(sourceId);
+    const texts = [source?.snippet ?? "", ...(raw.get(canonicalizeUrl(source?.url) ?? "") ?? [])];
+    expect(input.artifact).toBe("issuerReport");
+    expect(
+      texts.some((text) => text.includes(input.label) && text.includes(String(input.value))),
+    ).toBe(true);
+  }
+}
+
 function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMeta): void {
   const { report } = result;
   const command = fixtureCommand(meta);
@@ -257,6 +340,16 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
     }
   }
 }
+
+// Recorded model output attached row quotes to metric references and misquoted one cell (34,720 vs 34,716).
+const EXPECTED_PRUNED_CLAIMS: Readonly<Record<string, [string, string][]>> = {
+  "equity-bursa-brief": [
+    ["keyFindings[0]", "quote-too-short"],
+    ["keyFindings[1]", "quote-not-in-source"],
+    ["bullCase[0]", "quote-too-short"],
+    ["extras.businessFramework.sections[3]", "quote-too-short"],
+  ],
+};
 
 export async function assertInvariants(
   result: RunFixtureResult,
@@ -385,13 +478,24 @@ export async function assertInvariants(
   assertOperatingRatioInvariants(result, report);
   assertPricePerformanceInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
-  expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
+  const expectedPrunes = EXPECTED_PRUNED_CLAIMS[fixtureName] ?? [];
+  expect(
+    (result.trace.reportIntegrityAudit?.pruned ?? []).map(({ location, webFigure }) => [
+      location,
+      webFigure?.reason,
+    ]),
+  ).toEqual(expectedPrunes);
+  expect(report.reportIntegrity, "integrity audit pruned report content").toBe(
+    expectedPrunes.length === 0 ? "high" : "medium",
+  );
+  assertVerifiedWebFigures(result, report);
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
   }
   const { targetCount } = result.analytics.predictions;
+  const forecastsWithheld = assertListingCoverageInvariants(result, meta);
   expect(report.predictionShortfall).toEqual(
-    modelPredictions.length < targetCount
+    !forecastsWithheld && modelPredictions.length < targetCount
       ? {
           emittedCount: modelPredictions.length,
           targetCount,
@@ -1305,6 +1409,8 @@ const EXPECTED_LENS_VALUES: Readonly<
   "clfd-zero-debt": {},
   "ebay-extension-investments": {},
   "equity-amd-deep": {},
+  "equity-bursa-deep": {},
+  "equity-bursa-brief": {},
 };
 
 export function assertFinancialLensMetricInvariants(
@@ -3909,6 +4015,8 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "clfd-zero-debt": CLFD_WORKBENCH_VALUES,
   "ebay-extension-investments": EBAY_WORKBENCH_VALUES,
   "equity-amd-deep": AMD_WORKBENCH_VALUES,
+  "equity-bursa-deep": {},
+  "equity-bursa-brief": {},
   "equity-depository-deep": {
     "annual|2016-10-31|2018-11-27": [
       MISSING_WORKBENCH_PRICE,
@@ -4105,5 +4213,21 @@ export function assertPricePerformanceInvariants(
         ).toBe(true);
       }
     }
+  }
+}
+
+function assertVerifiedWebFigures(result: RunFixtureResult, report: ResearchReport): void {
+  const texts = webSourceTexts(
+    [...result.collectedSources.extendedSources, ...report.sources],
+    result.collectedSources.rawSnapshots,
+    result.collectedSources.metricSections,
+  );
+  const reaudit = auditReportIntegrity(report, undefined, undefined, undefined, texts);
+  expect(reaudit.pruned.filter(({ webFigure }) => webFigure !== undefined)).toEqual([]);
+  const profile = result.collectedSources.webSubjectProfile;
+  // A reused profile is the replay-recorded lookup result, so only a fresh profile reflects this code.
+  if (profile !== undefined && result.collectedSources.webSubjectProfileReuse === undefined) {
+    const { withheldGaps } = screenReusedWebSubjectProfile(profile, texts);
+    expect(withheldGaps.filter(({ message }) => isWebFigureGapText(message))).toEqual([]);
   }
 }

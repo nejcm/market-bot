@@ -1506,6 +1506,18 @@ function marketCapInput(ctx: MetricContext): MetricInput | undefined {
   return undefined;
 }
 
+const CURRENCY_MISMATCH_REASON = "filed amounts and quote market cap have incompatible currency";
+
+function currencyMismatch(
+  marketCap: MetricInput,
+  facts: readonly (FinancialStatementFact | undefined)[],
+): boolean {
+  return (
+    typeof marketCap.currency === "string" &&
+    facts.some((fact) => typeof fact?.currency === "string" && fact.currency !== marketCap.currency)
+  );
+}
+
 function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"): MetricDefinition {
   return {
     id,
@@ -1578,15 +1590,10 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
           inputs,
         };
       }
-      if (
-        typeof marketCap.currency === "string" &&
-        [anchor, cash].some(
-          (fact) => typeof fact?.currency === "string" && fact.currency !== marketCap.currency,
-        )
-      ) {
+      if (currencyMismatch(marketCap, [anchor, cash])) {
         return {
           status: "missing",
-          reason: "filed amounts and quote market cap have incompatible currency",
+          reason: CURRENCY_MISMATCH_REASON,
           ...periodOf(anchor),
           inputs,
         };
@@ -2097,6 +2104,14 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
           return {
             status: "missing",
             reason: "no quote market cap",
+            ...periodOf(anchor),
+            inputs,
+          };
+        }
+        if (currencyMismatch(marketCap, [anchor])) {
+          return {
+            status: "missing",
+            reason: CURRENCY_MISMATCH_REASON,
             ...periodOf(anchor),
             inputs,
           };

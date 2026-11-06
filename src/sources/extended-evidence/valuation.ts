@@ -61,12 +61,12 @@ function valuationGap(command: InstrumentCommand, missing: readonly string[]): S
   });
 }
 
-// The valuation divides on a USD basis; a non-USD market cap would mix currencies.
-function currencyMismatchGap(command: InstrumentCommand, quoteCurrency: string): SourceGap {
+// The valuation divides on a USD basis; a non-USD market cap or filing would mix currencies.
+function currencyMismatchGap(command: InstrumentCommand, mismatch: string): SourceGap {
   return sourceGap({
     source: "valuation",
     symbol: command.symbol.toUpperCase(),
-    message: `Valuation Evidence withheld for ${command.symbol}: quote currency ${quoteCurrency} is not USD, the only basis Valuation Evidence supports, and no declared FX conversion is applied`,
+    message: `Valuation Evidence withheld for ${command.symbol}: ${mismatch}, and no declared FX conversion is applied`,
     provider: "market-bot",
     capability: "extended-evidence",
     cause: "unsupported-coverage",
@@ -160,6 +160,7 @@ export function addValuationEvidence(
   marketSnapshots: readonly MarketSnapshot[],
   extendedEvidence: ExtendedEvidence | undefined,
   analysisAsOf: string,
+  reportingCurrency?: string,
 ): ValuationEvidenceResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
@@ -167,8 +168,14 @@ export function addValuationEvidence(
 
   const snapshot = tickerSnapshot(command, marketSnapshots);
   const quoteCurrency = snapshot?.identity?.quoteCurrency?.toUpperCase();
-  if (quoteCurrency !== undefined && quoteCurrency !== "USD") {
-    const gaps = [currencyMismatchGap(command, quoteCurrency)];
+  const mismatch =
+    quoteCurrency !== undefined && quoteCurrency !== "USD"
+      ? `quote currency ${quoteCurrency} is not USD, the only basis Valuation Evidence supports`
+      : reportingCurrency !== undefined && reportingCurrency !== "USD"
+        ? `reporting currency ${reportingCurrency} differs from quote currency ${quoteCurrency ?? "undeclared (USD assumed)"}`
+        : undefined;
+  if (mismatch !== undefined) {
+    const gaps = [currencyMismatchGap(command, mismatch)];
     return {
       extendedEvidence: {
         instrument: extendedEvidence?.instrument ?? {

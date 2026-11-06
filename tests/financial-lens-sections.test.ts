@@ -192,6 +192,23 @@ test("market leverage withholds mismatched currencies and retains quote currency
   ).toContain("currency");
 });
 
+test("PCF withholds CAD operating cash flow beside a USD market cap", () => {
+  const pcf = (unit: string) =>
+    synthetic({
+      Revenues: { units: { [unit]: [annualFact(100, "2025-01-01", "2025-12-31")] } },
+      NetCashProvidedByUsedInOperatingActivities: {
+        units: { [unit]: [annualFact(50, "2025-01-01", "2025-12-31")] },
+      },
+    })
+      .input.metricSections?.flatMap((section) => section.metrics)
+      .find((metric) => metric.id === "pcfRatio");
+  expect(pcf("CAD")).toMatchObject({
+    status: "missing",
+    reason: "filed amounts and quote market cap have incompatible currency",
+  });
+  expect(pcf("USD")).toMatchObject({ status: "value", value: 20 });
+});
+
 test("market leverage permits unknown filed currencies", () => {
   const artifact = statements({
     ...REVENUE,

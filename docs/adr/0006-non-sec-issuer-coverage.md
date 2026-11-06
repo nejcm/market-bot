@@ -74,8 +74,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   with an Exchange Profile, a model Prediction with a leg outside that exchange other than its benchmark (SPY
   on a MYR listing) is withheld with a diagnostic `forecast-book` gap: its outcome would mix currencies and
   session calendars (amended 2026-11-06).
-- **Currency.** Valuation Evidence divides on a USD basis; a quote currency other than USD withholds it with a
-  gap instead of dividing across currencies. Yahoo per-share values (EPS, dividend rate) name a non-USD quote
+- **Currency.** Valuation Evidence divides on a USD basis; a quote currency other than USD, or a Reporting
+  Currency other than USD beside a USD quote (a CAD 40-F filer), withholds it with a gap instead of dividing
+  across currencies. Yahoo per-share values (EPS, dividend rate) name a non-USD quote
   currency.
 - **Coverage label.** `report.coverageLabel` is "non-SEC issuer: web and issuer sources" on those runs, rendered
   in the Markdown header and the Console equity header. It is a deterministic constant, outside the

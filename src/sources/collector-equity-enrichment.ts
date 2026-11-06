@@ -310,6 +310,7 @@ export async function collectEquityEnrichment(
             input.secTargetPacket?.providerResult.sicClassification,
           ),
           input.fetchedAt,
+          financialStatements.reportingCurrency,
         );
   const peerUniverseFallback =
     input.command.depth === "deep"

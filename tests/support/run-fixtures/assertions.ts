@@ -1402,7 +1402,7 @@ const EXPECTED_LENS_VALUES: Readonly<
     peRatio: 16.967_392,
     forwardPe: 13.832_41,
     priceToBook: 1.798_186_8,
-    pcfRatio: 2.216_613_947_650_485_4,
+    pcfRatio: null,
   },
   "equity-iren-deep": {},
   "equity-iren-brief": {},
@@ -2713,11 +2713,11 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
   ).toBeDefined();
   expect(
     evidenceGaps.find((gap) => gap.source === "valuation"),
-    "recorded valuation gap must preserve its missing-debt cause",
+    "CAD filings beside a USD quote must withhold Valuation Evidence",
   ).toMatchObject({
     source: "valuation",
-    cause: "provider-data-missing",
-    message: expect.stringContaining("missing debt"),
+    cause: "unsupported-coverage",
+    message: expect.stringContaining("reporting currency CAD differs from quote currency USD"),
   });
   expect(
     evidenceItems.find(

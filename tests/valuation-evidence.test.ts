@@ -28,6 +28,10 @@ function secEvidence(
   };
 }
 
+function valuationItem(result: ReturnType<typeof addValuationEvidence>) {
+  return result.extendedEvidence?.items.find((item) => item.category === "valuation");
+}
+
 const baseExtendedEvidence: ExtendedEvidence = secEvidence({
   revenue: 100,
   revenueTtm: 400,
@@ -61,6 +65,50 @@ describe("addValuationEvidence", () => {
       expect.objectContaining({ source: "valuation", cause: "unsupported-coverage" }),
     ]);
     expect(result.sourceGaps[0]?.message).toContain("quote currency MYR");
+  });
+
+  describe("reporting currency beside a USD quote", () => {
+    const valuationWith = (reportingCurrency: string | undefined, quoteCurrency = "USD") =>
+      addValuationEvidence(
+        command,
+        [marketSnapshot({ symbol: "AAPL", marketCap: 1000, identity: { quoteCurrency } })],
+        baseExtendedEvidence,
+        "2026-07-01T00:00:00.000Z",
+        reportingCurrency,
+      );
+    test("withholds Valuation Evidence for non-USD filings with a gap naming both currencies", () => {
+      const result = valuationWith("EUR");
+
+      expect(valuationItem(result)).toBeUndefined();
+      expect(result.sourceGaps).toEqual([
+        expect.objectContaining({
+          source: "valuation",
+          symbol: "AAPL",
+          cause: "unsupported-coverage",
+          message: expect.stringContaining(
+            "reporting currency EUR differs from quote currency USD",
+          ),
+        }),
+      ]);
+      expect(result.extendedEvidence?.gaps).toEqual(result.sourceGaps);
+    });
+
+    test.each([["USD"], [undefined]])(
+      "computes multiples for reporting currency %p",
+      (currency) => {
+        const result = valuationWith(currency);
+
+        expect(valuationItem(result)?.metrics?.marketCapToAnnualizedRevenue).toBe(2.5);
+        expect(result.sourceGaps).toEqual([]);
+      },
+    );
+
+    test("keeps the quote-currency gap when both currencies are non-USD", () => {
+      const result = valuationWith("EUR", "MYR");
+
+      expect(result.sourceGaps).toHaveLength(1);
+      expect(result.sourceGaps[0]?.message).toContain("quote currency MYR is not USD");
+    });
   });
 
   test("declares a Source Gap when cash and debt periods diverge", () => {

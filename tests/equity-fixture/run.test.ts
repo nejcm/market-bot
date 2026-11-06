@@ -739,7 +739,7 @@ describe("static equity run fixtures", () => {
         periodMonths: 3,
       });
       expect(metric("issuer-report-basic-eps-quarter-2026-09-30")).toMatchObject({
-        value: "MYR 0.0626 (6.26 sen)",
+        value: "MYR 0.0626 or 6.26 sen",
         currency: "MYR",
       });
       expect(metric("issuer-report-revenue-yoy-quarter")?.value).toBeCloseTo(
@@ -750,7 +750,7 @@ describe("static equity run fixtures", () => {
       expect(result.markdown).toContain("### Issuer report figures");
       const dps = metric("issuer-report-dividend-per-share-ytd-2026-09-30");
       if (name === "equity-bursa-brief") {
-        expect(dps).toMatchObject({ value: "MYR 0.0118 (1.18 sen)", periodMonths: 9 });
+        expect(dps).toMatchObject({ value: "MYR 0.0118 or 1.18 sen", periodMonths: 9 });
       } else {
         // The deep mapping did not read the dividend row.
         expect(dps).toBeUndefined();

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.0](https://github.com/nejcm/market-bot/compare/v1.12.5...v1.13.0) (2026-11-06)
+
+### Features
+
+- **equity:** research non-sec listings with quote-checked figures (#142) ([3c66b18](https://github.com/nejcm/market-bot/commit/3c66b184207a032d8934e55a7bd43dba08ad6d26))
+
 ## [1.12.5](https://github.com/nejcm/market-bot/compare/v1.12.4...v1.12.5) (2026-11-05)
 
 ### Bug Fixes

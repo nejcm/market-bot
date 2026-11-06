@@ -782,9 +782,9 @@ function sectionDefinitions(
           lensMetrics,
           "evToAnnualizedRevenue",
           evidenceValue("valuation", "evToAnnualizedRevenue", "EV/revenue", "ratio", (item) => {
-            // TTM revenue: date by its end only, as the financial lens does.
+            // TTM revenue spans 12 months whatever length the latest revenue fact has.
             const { periodEnd } = keyPeriod(item, "revenue");
-            return periodEnd === undefined ? {} : { periodEnd };
+            return periodEnd === undefined ? {} : { periodEnd, periodMonths: 12 };
           }),
         ),
       }),

@@ -1897,8 +1897,12 @@ function peDefinitionsFor(
 function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
   const valuation = valuationItem(ctx);
   const yahoo = yahooItem(ctx);
-  // TTM multiples date by revenue end only, matching the business framework.
   const valuationPeriod = periodEndInput(readStringMetric(valuation?.metrics, "revenuePeriodEnd"));
+  // Revenue multiples divide by TTM revenue, which SEC publishes only when it ends at revenuePeriodEnd.
+  const ttmPeriod =
+    valuationPeriod.periodEnd === undefined
+      ? EMPTY_PERIOD
+      : { ...valuationPeriod, periodMonths: 12 };
   const yahooPeriod = periodEndInput(yahoo?.observedAt);
   const supportability = valuation?.metrics?.valuationSupportability;
   const caveat: readonly MetricDefinition[] =
@@ -1989,7 +1993,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
       unit: "currency",
       basis: "valuation evidence trailing-twelve-month SEC revenue",
       compute: () =>
-        valuationOutcome(ctx, "annualizedRevenue", "TTM revenue", "currency", valuationPeriod),
+        valuationOutcome(ctx, "annualizedRevenue", "TTM revenue", "currency", ttmPeriod),
     },
     withNetDebtApplicability(
       withCurrentEquityNote({
@@ -1998,7 +2002,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
         unit: "ratio",
         basis: `valuation evidence enterprise value / TTM revenue; ${ENTERPRISE_VALUE_BASIS}`,
         compute: () =>
-          valuationOutcome(ctx, "evToAnnualizedRevenue", "EV/revenue", "ratio", valuationPeriod),
+          valuationOutcome(ctx, "evToAnnualizedRevenue", "EV/revenue", "ratio", ttmPeriod),
       }),
     ),
     {
@@ -2012,7 +2016,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
           "marketCapToAnnualizedRevenue",
           "market cap/revenue",
           "ratio",
-          valuationPeriod,
+          ttmPeriod,
         ),
     },
     {

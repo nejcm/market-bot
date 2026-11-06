@@ -168,9 +168,19 @@ describe("addFinancialLensEvidence", () => {
       periodEnd: "2025-06-28",
       periodMonths: 12,
     });
-    const evToRevenue = metricByKey(result, "Value", "evToAnnualizedRevenue");
-    expect(evToRevenue).toMatchObject({ periodEnd: "2025-06-28" });
-    expect(evToRevenue).not.toHaveProperty("periodMonths");
+    for (const key of [
+      "annualizedRevenue",
+      "evToAnnualizedRevenue",
+      "marketCapToAnnualizedRevenue",
+    ]) {
+      expect(metricByKey(result, "Value", key)).toMatchObject({
+        periodEnd: "2025-06-28",
+        periodMonths: 12,
+      });
+    }
+    const supportability = metricByKey(result, "Value", "valuationSupportability");
+    expect(supportability).toMatchObject({ periodEnd: "2025-06-28" });
+    expect(supportability).not.toHaveProperty("periodMonths");
   });
 
   test("dates enterprise value by the valuation quote, with or without a verified snapshot", () => {

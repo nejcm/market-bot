@@ -475,7 +475,7 @@ describe("business framework evidence", () => {
     expect(period(result, "business-framework-valuation", "evToAnnualizedRevenue")).toEqual([
       "value",
       "2026-02-28",
-      undefined,
+      12,
     ]);
     expect(period(result, "business-framework-valuation", "trailingPE")).toEqual([
       "value",

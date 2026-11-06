@@ -574,6 +574,25 @@ test("prefixes an exact catalog id missing only metric: and validates it like an
   );
 });
 
+test("names the dated ids a dateless reference stands for (0097.KL run 62ba6299)", () => {
+  const periods = ["2026-09-30", "2025-09-30"];
+  const dated = {
+    ...section,
+    metrics: section.metrics
+      .slice(0, 2)
+      .map((metric, index) => ({ ...metric, id: `margin-quarter-${periods[index]!}` })),
+  };
+  const run = (token: string) => () =>
+    assembleResearchReport(input({ keyFindings: [{ text: token, sourceIds: [] }] }, [dated]));
+
+  expect(run("<<metric:operating-ratios.margin-quarter|period>>")).toThrow(
+    "is unknown, unavailable, or unciteable; it names no metric, but these do: <<metric:operating-ratios.margin-quarter-2026-09-30>>, <<metric:operating-ratios.margin-quarter-2025-09-30>>",
+  );
+  expect(run("<<metric:operating-ratios.missing>>")).toThrow(
+    /unciteable; remove it or use an available metric reference$/u,
+  );
+});
+
 test("prefixes an exact Valuation Workbench id whose section embeds a timestamp", () => {
   const workbench = {
     ...section,

@@ -1,4 +1,5 @@
 import { isInstrumentCommand } from "../cli/args";
+import { exchangeProfileFor, issuerReportHostKind } from "../domain/exchange-profile";
 import type {
   WebGatherFallbackAudit,
   WebGatherToolName,
@@ -53,6 +54,8 @@ const RECENT_SEARCH_WINDOW_DAYS = 30;
 const CURRENT_SUBJECT_WINDOW_DAYS = 180;
 export const MAX_WEB_GATHER_SEARCH_RESULTS = 8;
 const MAX_TEXT_CHARS = 5000;
+// Holds an interim report's statements (income, financial position, equity, cash flows: ~27k chars).
+const ISSUER_REPORT_TEXT_CHARS = 32_000;
 
 export interface WebGatherSurfacedUrls {
   readonly admitSurfaced: (results: readonly WebGatherProviderResult[]) => void;
@@ -89,6 +92,13 @@ function webGatherSubjectFromContext(ctx: CollectContext): WebGatherSubject | un
     symbol: ctx.command.symbol,
     assetClass: ctx.command.assetClass,
   };
+}
+
+function fetchTextChars(symbol: string, url: string): number {
+  const profile = exchangeProfileFor(symbol);
+  return profile !== undefined && issuerReportHostKind(profile, url) !== undefined
+    ? ISSUER_REPORT_TEXT_CHARS
+    : MAX_TEXT_CHARS;
 }
 
 function exaRequestInit(apiKey: string, body: unknown): RequestInit {
@@ -278,7 +288,7 @@ async function executeWebFetch(
   const spec = fetchFallbackSpec(ctx, parsed.url);
   const body = {
     urls: [parsed.url],
-    text: { maxCharacters: MAX_TEXT_CHARS },
+    text: { maxCharacters: fetchTextChars(subject.symbol ?? "", parsed.url) },
     summary: true,
     highlights: { numSentences: 2, highlightsPerUrl: 2 },
   };

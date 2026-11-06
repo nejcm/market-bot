@@ -75,4 +75,11 @@ export interface WebGatherContext {
     readonly present: boolean;
     readonly topics: readonly string[];
   };
+  // Non-SEC listings on a round-based gather: hosts whose report pages count as issuer report text (ADR 0006).
+  readonly issuerReports?: {
+    readonly exchange: string;
+    readonly primaryHosts: readonly string[];
+    readonly mirrorHosts: readonly string[];
+    readonly request: string;
+  };
 }

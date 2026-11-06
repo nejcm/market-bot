@@ -38,7 +38,7 @@ import {
   type WebGatherSkipCode,
   type WebGatherStageOutput,
 } from "./web-gather-types";
-import { secFilingCoverageFromSources } from "./web-gather-coverage";
+import { issuerReportGatherContext, secFilingCoverageFromSources } from "./web-gather-coverage";
 import { subjectLabelForRun, subjectTermsForRun } from "./web-gather-validation";
 import { createWebGatherAcceptance, type WebGatherAcceptance } from "./web-gather-acceptance";
 import {
@@ -79,6 +79,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     subject,
     input.collectedSources.extendedSources,
   );
+  const issuerReports = issuerReportGatherContext(command);
   const acceptance = createWebGatherAcceptance({
     subject,
     subjectTerms,
@@ -193,6 +194,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           ...(input.reusedProfileCoverage !== undefined
             ? { reusedProfileCoverage: input.reusedProfileCoverage }
             : {}),
+          ...(issuerReports !== undefined ? { issuerReports } : {}),
         }),
         roundState.priorStages,
       ),

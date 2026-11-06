@@ -1,4 +1,5 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { exchangeProfileFor } from "../domain/exchange-profile";
 import type { WebGatherAcceptancePolicy, WebSearchType } from "../domain/gather-audit";
 import type { Source } from "../domain/sources";
 import {
@@ -222,4 +223,23 @@ export function normalizeTerm(value: string): string {
     .replaceAll(/[^a-z0-9]+/gu, " ")
     .trim()
     .replaceAll(/\s+/gu, " ");
+}
+
+export function issuerReportGatherContext(
+  command: ResearchCommand,
+): WebGatherContext["issuerReports"] {
+  const profile =
+    isInstrumentCommand(command) && command.assetClass === "equity"
+      ? exchangeProfileFor(command.symbol)
+      : undefined;
+  if (profile === undefined) {
+    return undefined;
+  }
+  return {
+    exchange: profile.exchange,
+    primaryHosts: profile.reportHosts.primary,
+    mirrorHosts: profile.reportHosts.mirror,
+    request:
+      "This listing files no SEC reports. Spend one current-subject web_search on the issuer's latest quarterly report and latest annual report, naming the company and the exchange. In the next round, web_fetch the newest surfaced report page on these hosts: fetched pages there keep up to 32000 characters, enough for the financial statements.",
+  };
 }

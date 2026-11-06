@@ -107,6 +107,12 @@ import { buildDeepEquityEvidenceBundle } from "../deep-equity/evidence";
 import type { DeepEquityEvidenceBundleV1 } from "../deep-equity/types";
 import { listingCommand } from "../sources/identity-gate";
 import { exchangeProfileFor } from "../domain/exchange-profile";
+import {
+  issuerReportMappingInput,
+  runIssuerReportPhase,
+  type IssuerReportPacket,
+  type IssuerReportPhaseResult,
+} from "./issuer-report-figures";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -305,6 +311,45 @@ async function runFinancialTableMappingStage(
   const endedAt = performance.now();
   return {
     stage: "financial-table-mapping",
+    content: response.content,
+    tokenEstimate: response.tokenEstimate,
+    usage: response.usage ?? "unknown",
+    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
+    ...(response.costEstimateUsd !== undefined
+      ? { costEstimateUsd: response.costEstimateUsd }
+      : {}),
+    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
+  };
+}
+
+async function runIssuerReportMappingStage(
+  packet: IssuerReportPacket,
+  symbol: string,
+  job: RunResearchJobInput,
+  runParams: ResolvedRunParams,
+): Promise<StageOutput & { readonly stage: "issuer-report-mapping" }> {
+  const loaded = await loadStagePrompt("issuer-report-mapping", job.command, job.config.promptDir);
+  const prompt = JSON.stringify({
+    stage: "issuer-report-mapping",
+    instruction: loaded.instruction,
+    goal: loaded.goal,
+    subject: symbol,
+    ...issuerReportMappingInput(packet),
+  });
+  const startedAt = performance.now();
+  const response = await job.provider.generate({
+    step: symbol,
+    model: runParams.quickModel,
+    ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
+    responseFormat: "json",
+    messages: [
+      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
+      { role: "user", content: prompt },
+    ],
+  });
+  const endedAt = performance.now();
+  return {
+    stage: "issuer-report-mapping",
     content: response.content,
     tokenEstimate: response.tokenEstimate,
     usage: response.usage ?? "unknown",
@@ -611,6 +656,21 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     analysisAsOf: generatedAt,
   });
   const { webGatherLoop, webSubjectProfile } = webEvidence;
+  let issuerReport: IssuerReportPhaseResult = { collectedSources, stageOutputs: [] };
+  if (
+    isInstrumentCommand(command) &&
+    command.assetClass === "equity" &&
+    exchangeProfileFor(command.symbol) !== undefined
+  ) {
+    progress("issuer-report phase");
+    issuerReport = await runIssuerReportPhase({
+      symbol: command.symbol,
+      collectedSources,
+      generateMapping: (packet) =>
+        runIssuerReportMappingStage(packet, command.symbol, jobInput, runParams),
+    });
+    ({ collectedSources } = issuerReport);
+  }
   progress("market-update phase");
   const marketUpdate = await runMarketUpdatePhase({
     command,
@@ -756,6 +816,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         ...financialTableExtraction.stageOutputs,
         ...webGatherLoop.stageOutputs,
         ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
+        ...issuerReport.stageOutputs,
         ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
         ...analysisOutputs,
         critiqueOutput,
@@ -866,6 +927,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...financialTableExtraction.stageOutputs,
     ...webGatherLoop.stageOutputs,
     ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
+    ...issuerReport.stageOutputs,
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
     ...analysisOutputs,
     critiqueOutput,

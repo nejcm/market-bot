@@ -30,7 +30,11 @@ import {
 import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { auditReportIntegrity } from "../../../src/research/report-integrity-audit";
-import { isWebFigureGapText, webSourceTexts } from "../../../src/research/web-figure-verification";
+import {
+  isWebFigureGapText,
+  rawTextsByUrl,
+  webSourceTexts,
+} from "../../../src/research/web-figure-verification";
 import { screenReusedWebSubjectProfile } from "../../../src/web-evidence/web-subject-profile";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
@@ -76,6 +80,7 @@ import { deriveCanonicalInstrumentIdentity } from "../../../src/sources/instrume
 import { isNewsRelevantByTitleOrSymbol } from "../../../src/sources/news-relevance";
 import { isInstrumentCommand, isResearchCommand } from "../../../src/cli/args";
 import { exchangeProfileFor } from "../../../src/domain/exchange-profile";
+import { canonicalizeUrl } from "../../../src/sources/news-utils";
 import {
   isNonSecEquityListing,
   listingCommand,
@@ -220,6 +225,9 @@ function assertListingCoverageInvariants(result: RunFixtureResult, meta: Fixture
       expect(measurableAs).toContain(`close(${benchmark},`);
     }
   }
+  if (exchangeProfileFor(command.symbol) !== undefined) {
+    assertIssuerReportInvariants(result);
+  }
   const withheld = result.collectedSources.verifiedMarketSnapshot === undefined;
   if (withheld) {
     expect(result.report.predictions).toEqual([]);
@@ -234,6 +242,25 @@ function assertListingCoverageInvariants(result: RunFixtureResult, meta: Fixture
     );
   }
   return withheld;
+}
+
+// A profiled non-SEC listing publishes issuer report figures or declares why not; every figure quotes its source text.
+function assertIssuerReportInvariants(result: RunFixtureResult): void {
+  const { collectedSources } = result;
+  const section = collectedSources.metricSections?.find(({ id }) => id === "issuer-report");
+  const gaps = collectedSources.sourceGaps.filter(({ source }) => source === "issuer-report");
+  expect(section !== undefined || gaps.length > 0).toBe(true);
+  const raw = rawTextsByUrl(collectedSources.rawSnapshots);
+  const sources = new Map(collectedSources.extendedSources.map((row) => [row.id, row]));
+  for (const input of section?.metrics.flatMap(({ inputs }) => inputs) ?? []) {
+    const [sourceId] = input.sourceIds;
+    const source = sourceId === undefined ? undefined : sources.get(sourceId);
+    const texts = [source?.snippet ?? "", ...(raw.get(canonicalizeUrl(source?.url) ?? "") ?? [])];
+    expect(input.artifact).toBe("issuerReport");
+    expect(
+      texts.some((text) => text.includes(input.label) && text.includes(String(input.value))),
+    ).toBe(true);
+  }
 }
 
 function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMeta): void {

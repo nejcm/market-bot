@@ -76,6 +76,52 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - **Endpoint availability is content-based.** `yahooQuote` counts only when the quote normalizes for the run
   symbol, and `secCompanyTickers` only when the ticker map holds it.
 
+### Issuer Report Figures (amended 2026-11-06)
+
+- **Report hosts.** The Exchange Profile lists report hosts. Primary hosts are the exchange's own pages (Bursa:
+  `bursamalaysia.com`). Mirror hosts are an allowlist of sites that republish the exchange filing as table text
+  (Bursa: `klsescreener.com`, `marketscreener.com`, the two the first capture reached). Any other host is not a
+  report source. The issuer's own IR domain is not yet recognised as primary, since non-SEC runs carry no
+  issuer website field.
+- **Fetch size.** `web_fetch` keeps 32,000 characters for a report host of a profiled listing, enough for an
+  interim report's four statements (about 27,000 characters). Every other fetch and every search keeps
+  `MAX_TEXT_CHARS` (5,000), so US runs send identical requests. The brief round loop asks for one report search
+  and then a fetch. The deep single-round batch cannot fetch, so deep runs read search text only.
+- **Model maps, code reads.** The `issuer-report-mapping` stage sees report tables as cell refs and text and
+  returns only `{concept, cell}` pairs from a fixed concept list. Code reads the value from the cell and accepts
+  it only when all of these hold:
+  - the cell is numeric;
+  - the row label, with the caption row above it, matches the concept's label pattern (revenue needs "revenue"
+    or "turnover", attributable profit needs "attributable to … owners/equity holders", capex needs a purchase
+    of property, plant and equipment);
+  - no other concept in the same mapping claims the cell;
+  - the header rows directly above its data block hold exactly one date, which is the period end;
+  - the header text states the basis: "as at" for a stock, a month count, "quarter", "year ended", or "to date"
+    with the Financial Year End;
+  - the concept kind matches that basis: a flow needs a period length, a stock needs "as at";
+  - one unit cell gives the currency and scale (`MYR'000`, `RM`, `USD mil`);
+  - a per-share concept needs a subunit label (`(Subunit)`, `sen`, `cents`), which scales by 0.01;
+  - the column currency matches the document's "Currency: … (XXX)" line;
+  - the period end is not after the announcement date. An all-numeric date whose day and month are both 12 or
+    less is ambiguous (day- or month-first) and is not read.
+
+  A comparative column headed "restated" or "re-presented" publishes with that note on its row and on any
+  derived row that uses it.
+
+  A figure that fails any check is withheld and named in an `issuer-report` Source Gap. So are two documents
+  giving different values for one concept and period.
+
+- **Labelled provenance.** Each Issuer Report Figure carries its source ID, verbatim row label and cell,
+  declared unit, currency, period end and length, and basis. The basis names the document and host; a mirror
+  reads "mirror copy of the issuer document … not the exchange's own page". It also gives the announcement date,
+  or, when the page shows none, the source's date marked "provider published date, else fetch date": a web
+  Source's `fetchedAt` is the provider's `publishedDate` when it sends one, which is page metadata and can
+  precede real publication. Derived rows reuse only checked
+  figures with standard formulas: same-basis YoY, net margin, FCF as operating cash flow − |capex|, and current
+  ratio. Mixed currencies make a derived row `missing`; a zero or negative denominator makes it `not meaningful`.
+- **Absence.** A profiled listing with no report text, an invalid mapping, or no checked figure declares an
+  `issuer-report` Source Gap. An unprofiled or SEC listing skips the phase and makes no model call.
+
 ## Consequences
 
 - Web-sourced figures without a quote, including every recorded pre-change model output, prune into gaps.
@@ -88,3 +134,6 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - News-kind sources and the qualitative summary are outside the check.
 - A redirected run collects market data twice (typed code, then the resolved code).
 - Price performance stays SPY-relative for every listing until it reads the Exchange Profile.
+- Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and the Business
+  Framework do not read them yet. The mapping call reads at most four documents, so four fetched 32k-character
+  pages bound its input at about 32k tokens (one fetched report adds about 8k). A mirror page that changes its table layout degrades to withheld figures, never to a guessed value.

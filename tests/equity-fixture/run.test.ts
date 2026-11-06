@@ -277,6 +277,9 @@ describe("static equity run fixtures", () => {
     test(`${name} replays through the real equity pipeline`, async () => {
       const fixture = await loadFixture(name);
       expect(fixture.meta.replayClassification).toMatch(/^(?:clean|missing-source)$/u);
+      for (const key of fixture.meta.syntheticLlmEntries ?? []) {
+        expect(Object.keys(fixture.llmCassette.entries)).toContain(key);
+      }
       const modelRequests: ModelRequest[] = [];
       const modelOutputs: string[] = [];
       const cassetteMisses: string[] = [];
@@ -697,6 +700,28 @@ describe("static equity run fixtures", () => {
     });
     const history = deriveFundamentalHistoryFromFinancialStatements(statements);
     expect(history.series.revenue?.ttm?.value).toBe(1_620_000_000);
+  });
+
+  // Values checked against the KLSE Screener copy of ViTrox's Q3 2026 report, announced 2026-11-05.
+  test("bursa fixture publishes code-checked issuer report figures", async () => {
+    const result = await runFixture("equity-bursa-deep", { llm: "replay" });
+    runResults.push(result);
+    const metrics =
+      result.collectedSources.metricSections?.find(({ id }) => id === "issuer-report")?.metrics ??
+      [];
+    const metric = (id: string) => metrics.find((row) => row.id === id);
+    expect(metric("issuer-report-revenue-quarter-2026-09-30")).toMatchObject({
+      value: 485_101_000,
+      currency: "MYR",
+      periodMonths: 3,
+      basis: expect.stringMatching(/mirror copy of the issuer document .* announced 2026-11-05$/u),
+    });
+    expect(metric("issuer-report-revenue-ytd-2026-09-30")).toMatchObject({
+      value: 1_127_067_000,
+      periodMonths: 9,
+    });
+    expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_580 / 485_101, 6);
+    expect(result.markdown).toContain("### Issuer report figures");
   });
 
   test("deep equity markdown partitions the reader block from preserved appendix detail", async () => {

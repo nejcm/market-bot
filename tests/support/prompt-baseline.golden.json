@@ -38,6 +38,7 @@
   "file:prompts/forecast-disagreement/base.md": "f80b0412a07ad1486e254772695b2a1200a2435c7ef5cebe9975111aabe6d8b9",
   "file:prompts/forecast-grid/base.md": "ca21f30adfcc57f3aaccee49baf04510d8faa54b3b2a517651559268a8bae2b9",
   "file:prompts/instrument-evidence-analysis/base.md": "3b4d783093695a5105cee36f85fd6745f6a6fbc969f59952811c28b04447f1cb",
+  "file:prompts/issuer-report-mapping/base.md": "d2704e870289d2fd04776525a165057ff95c7198a25ff3bb91f95fea2f65ae03",
   "file:prompts/market-behavior-analysis/base.md": "311217ef5f4ad8f1a0223f6cc05c449dab40644282c8068df6a488a67fec04c5",
   "file:prompts/mover-theme-analysis/base.md": "c9b0220e02050336702428bd6a24a02f09f707a5caa546a0efc31d0c59b769af",
   "file:prompts/peer-median-audit/base.md": "9715193359c980e7b13de6a9a1884e15ccd413bbb157304edddf36c68c109839",

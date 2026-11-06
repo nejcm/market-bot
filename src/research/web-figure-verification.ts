@@ -161,7 +161,7 @@ function normalizedQuoteText(text: string): string {
     .toLowerCase();
 }
 
-function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<string, string[]> {
+export function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<string, string[]> {
   const texts = new Map<string, string[]>();
   const visit = (node: unknown): void => {
     if (Array.isArray(node)) {

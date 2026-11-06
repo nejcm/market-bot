@@ -62,6 +62,7 @@ export const LIVE_STAGES = [
   "web-subject-profile",
   "evidence-request",
   "financial-table-mapping",
+  "issuer-report-mapping",
   "forecast-disagreement",
   "spotlight-selection",
   "peer-median-audit",

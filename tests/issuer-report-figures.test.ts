@@ -75,6 +75,20 @@ const BALANCE_TEXT = `ViTrox condensed statement of financial position
 | Operating profit for the year | 300,000 | 120,000 |
 `;
 
+const PFP_ROW = "| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |";
+const DISCONTINUED_TEXT = KLSE_TEXT.replace(
+  PFP_ROW,
+  `${PFP_ROW}\n| 8 | Profit/(loss) for the period from discontinued operations | (500) | 0 | (500) | 0 |`,
+);
+
+function annualTable(label: string, newer: string, older: string): string {
+  return `| | Financial year ended 31 Dec ${newer} | Financial year ended 31 Dec ${older} |
+| --- | --- | --- |
+| | RM'000 | RM'000 |
+| ${label} | 600 | 500 |
+`;
+}
+
 function source(overrides: Partial<Source>): Source {
   return {
     id: "web-0097.kl-klse",
@@ -518,6 +532,15 @@ describe("issuer report phase", () => {
       ).toBeUndefined();
     });
 
+    test("compares only a total-operations EPS", async () => {
+      const continuing = KLSE_TEXT.replace(
+        "Basic earnings/(loss) per share (Subunit)",
+        "Basic earnings/(loss) per share from continuing operations (Subunit)",
+      );
+      expect(await crossCheck(0.11, { text: continuing })).toBeUndefined();
+      expect(await crossCheck(0.11, { text: DISCONTINUED_TEXT })).toBeUndefined();
+    });
+
     test("an older comparative above the Yahoo value does not trigger it", async () => {
       expect(await crossCheck(0.11, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toBeUndefined();
       expect(await crossCheck(0.01, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toContain(
@@ -711,6 +734,396 @@ describe("issuer report phase", () => {
         ),
       }),
     ]);
+  });
+
+  describe("Accounting Scope", () => {
+    const QUARTER_HEAD = `| | 3 months ended 30 Sep 2026 | 3 months ended 30 Sep 2025 |
+| --- | --- | --- |
+| | RM'000 | RM'000 |
+`;
+    const SCOPED_TEXT = `Condensed income statement
+
+${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
+| Profit before tax from continuing operations | 120,000 | 90,000 |
+| Profit/(loss) before tax from discontinued operations | (30,000) | (5,000) |
+| Profit for the period from continuing operations | 100,000 | 80,000 |
+| Profit for the period | 70,000 | 75,000 |
+| Profit for the period from continuing and discontinued operations | 70,000 | 75,000 |
+| Profit attributable to owners of the parent from continuing operations | 95,000 | 76,000 |
+`;
+    const CAPTIONED_TEXT = `${QUARTER_HEAD}| Continuing operations | | |
+| Revenue | 500,000 | 400,000 |
+| Profit attributable to owners of the parent | 95,000 | 76,000 |
+| Discontinued operations | | |
+| Profit before tax | (30,000) | (5,000) |
+`;
+    const scoped = source({ id: "web-scoped", snippet: SCOPED_TEXT });
+    const phase = async (sources: readonly Source[], ...figures: (readonly [string, string])[]) => {
+      const result = await runIssuerReportPhase({
+        symbol,
+        collectedSources: collectedSources({ extendedSources: sources }),
+        generateMapping: async () => output(mapping(...figures)),
+      });
+      const metrics =
+        result.collectedSources.metricSections?.find(({ id }) => id === "issuer-report")?.metrics ??
+        [];
+      return {
+        metric: (id: string) => metrics.find((row) => row.id === id),
+        gaps: result.collectedSources.sourceGaps.map(({ message }) => message).join("\n"),
+      };
+    };
+    const readOne = (text: string, concept: string, cell = "t1:r2:c1") => {
+      const reading = read(mapping([concept, cell]), [source({ snippet: text })]);
+      return reading?.figures[0]?.scope ?? reading?.failures[0]?.reason;
+    };
+
+    test("labels continuing figures apart from the total and withholds discontinued or unstated rows", async () => {
+      const { metric, gaps } = await phase(
+        [scoped],
+        ["revenue", "t1:r2:c1"],
+        ["revenue", "t1:r2:c2"],
+        ["profit-before-tax", "t1:r3:c1"],
+        ["profit-before-tax", "t1:r4:c1"],
+        ["profit-for-period", "t1:r5:c1"],
+        ["profit-for-period", "t1:r6:c1"],
+        ["profit-for-period", "t1:r7:c1"],
+        ["profit-attributable-to-owners", "t1:r8:c1"],
+        ["profit-attributable-to-owners", "t1:r8:c2"],
+      );
+
+      expect(metric("issuer-report-profit-before-tax-continuing-quarter-2026-09-30")).toMatchObject(
+        { label: "Profit before tax, quarter, continuing operations", value: 120_000_000 },
+      );
+      expect(metric("issuer-report-profit-for-period-continuing-quarter-2026-09-30")?.value).toBe(
+        100_000_000,
+      );
+      expect(metric("issuer-report-profit-for-period-quarter-2026-09-30")).toMatchObject({
+        label: "Profit for the period, quarter",
+        value: 70_000_000,
+        inputs: [{ label: "Profit for the period from continuing and discontinued operations" }],
+      });
+      expect(metric("issuer-report-net-margin-quarter")).toMatchObject({
+        label: "Net margin, quarter, continuing operations",
+        status: "value",
+      });
+      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(0.19, 6);
+      expect(metric("issuer-report-revenue-yoy-quarter")?.value).toBeCloseTo(0.25, 6);
+      expect(gaps).toContain("profit-before-tax at t1:r4:c1 (discontinued-operations)");
+      expect(gaps).toContain("profit-for-period at t1:r6:c1 (unproven-scope)");
+      expect(gaps).not.toContain("derived metric");
+    });
+
+    test("reads a bare row by its nearest scope caption", () => {
+      expect(readOne(CAPTIONED_TEXT, "revenue", "t1:r3:c1")).toBe("continuing");
+      expect(readOne(CAPTIONED_TEXT, "profit-attributable-to-owners", "t1:r4:c1")).toBe(
+        "continuing",
+      );
+      expect(readOne(CAPTIONED_TEXT, "profit-before-tax", "t1:r6:c1")).toBe(
+        "discontinued-operations",
+      );
+    });
+
+    test.each([
+      ["Profit before tax from continuing activities", "unproven-scope"],
+      ["Profit before tax from continued operations", "unproven-scope"],
+      ["Profit before tax - cont. ops", "unproven-scope"],
+      ["Profit before tax (operasi berterusan)", "unproven-scope"],
+      ["Profit before tax from non-continuing operations", "unproven-scope"],
+      ["Profit before tax from discontinuing operations", "unproven-scope"],
+      ["Profit before tax excluding discontinued operations", "unproven-scope"],
+      ["Profit before tax of disposal group held for sale", "discontinued-operations"],
+      ["Profit before tax from continuing  operations", "continuing"],
+      ["Profit before tax including discontinued operations", "total"],
+      ["Profit before tax from continuing and discontinued operations", "total"],
+      ["Profit before tax not including discontinued operations", "unproven-scope"],
+      ["Profit before tax not inclusive of discontinued operations", "unproven-scope"],
+      ["Profit before tax of disposal group", "discontinued-operations"],
+      ["Profit before tax of assets held for distribution", "discontinued-operations"],
+      ["Profit before tax from discontinued business", "discontinued-operations"],
+      [
+        "Profit from continuing operations before tax including discontinued operations",
+        "unproven-scope",
+      ],
+      [
+        "Profit before tax from continuing operations excluding exceptional items",
+        "unproven-scope",
+      ],
+      ["Profit before tax excluding continuing operations", "unproven-scope"],
+      ["Profit before tax excluding the continuing operations", "unproven-scope"],
+      ["Profit before tax other than continuing operations", "unproven-scope"],
+      ["Profit before tax not from continuing operations", "unproven-scope"],
+      ["Profit before tax from non\u2013continuing operations", "unproven-scope"],
+      ["Profit before tax from noncontinuing operations", "unproven-scope"],
+      ["Profit before tax from HFS operations", "discontinued-operations"],
+      ["Profit before tax of NCAHFS", "discontinued-operations"],
+      ["Profit before tax of assets held\u2013for\u2013sale", "discontinued-operations"],
+      [
+        "Profit before tax from continuing operations (discontinued operations in note 12)",
+        "unproven-scope",
+      ],
+    ])("scope of %p is %p", (label, expected) => {
+      expect<string | undefined>(
+        readOne(`${QUARTER_HEAD}| ${label} | 1,000 | 900 |\n`, "profit-before-tax"),
+      ).toBe(expected);
+    });
+
+    test("fails closed on a scope cue outside the table, and ignores unrelated prose", () => {
+      const row = `${QUARTER_HEAD}| Profit before tax | (30,000) | (5,000) |\n`;
+      expect(readOne(`Discontinued operations\n\n${row}`, "profit-before-tax")).toBe(
+        "unproven-scope",
+      );
+      expect(readOne(`Results of the disposal group\n\n${row}`, "profit-before-tax")).toBe(
+        "unproven-scope",
+      );
+      expect(
+        readOne(
+          `The group will continue to exercise prudent cost management.\n\n${row}`,
+          "profit-before-tax",
+        ),
+      ).toBe("total");
+    });
+
+    test("withholds a cued stock unless its caption proves total scope", () => {
+      const balance = `| | As at 30 Sep 2026 |
+| --- | --- |
+| | RM'000 |
+| Assets of disposal group held for sale | 50 |
+| Total current assets | 1,000 |
+| Total current liabilities from continuing operations | 400 |
+`;
+      expect(readOne(balance, "current-assets", "t1:r3:c1")).toBe("discontinued-operations");
+      expect(readOne(balance, "current-liabilities", "t1:r4:c1")).toBe("unproven-scope");
+      const captioned = `| | As at 30 Sep 2026 |
+| --- | --- |
+| | RM'000 |
+| Current assets | |
+| Total current assets | 1,000 |
+| Discontinued operations | |
+| Total current liabilities | 400 |
+`;
+      expect(readOne(captioned, "current-assets", "t1:r3:c1")).toBe("unproven-scope");
+      expect(readOne(captioned, "current-liabilities", "t1:r5:c1")).toBe("discontinued-operations");
+      const inclusive = `| | As at 30 Sep 2026 |
+| --- | --- |
+| | RM'000 |
+| Continuing and discontinued operations | |
+| Total current assets | 1,000 |
+`;
+      expect(readOne(inclusive, "current-assets", "t1:r3:c1")).toBe("total");
+      const noteOnCaption = `| | Note | As at 30 Sep 2026 | As at 31 Dec 2025 |
+| --- | --- | --- | --- |
+| | | RM'000 | RM'000 |
+| Discontinued operations | 12 | | |
+| Cash and cash equivalents | 5 | 50 | 40 |
+`;
+      expect(readOne(noteOnCaption, "cash-and-equivalents", "t1:r3:c2")).toBe(
+        "discontinued-operations",
+      );
+      const noteUnderTotal = `| | Note | As at 30 Sep 2026 |
+| --- | --- | --- |
+| | | RM'000 |
+| Continuing and discontinued operations | | |
+| Discontinued operations | 12 | |
+| Cash and cash equivalents | 5 | 40 |
+`;
+      const totalDataRow = `| | As at 30 Sep 2026 |
+| --- | --- |
+| | RM'000 |
+| Continuing and discontinued operations | |
+| Profit from continuing and discontinued operations | 70 |
+| Cash and cash equivalents | 50 |
+`;
+      expect(readOne(totalDataRow, "cash-and-equivalents", "t1:r4:c1")).toBe("unproven-scope");
+      expect(readOne(noteUnderTotal, "cash-and-equivalents", "t1:r4:c2")).toBe(
+        "discontinued-operations",
+      );
+      const proseHeading = `Discontinued operations
+
+| | As at 30 Sep 2026 |
+| --- | --- |
+| | RM'000 |
+| Cash and cash equivalents | 50 |
+`;
+      expect(readOne(proseHeading, "cash-and-equivalents", "t1:r2:c1")).toBe("unproven-scope");
+    });
+
+    test("ends a caption's section at a total data row but not at a continuing one", () => {
+      const totalRow = `${QUARTER_HEAD}| Continuing operations | | |
+| Revenue | 500,000 | 400,000 |
+| Total profit before tax | 120,000 | 90,000 |
+| Profit for the period | 70,000 | 75,000 |
+`;
+      expect(readOne(totalRow, "profit-for-period", "t1:r5:c1")).toBe("unproven-scope");
+      const continuingRow = `${QUARTER_HEAD}| Continuing operations | | |
+| Revenue from continuing operations | 500,000 | 400,000 |
+| Profit before tax | 120,000 | 90,000 |
+`;
+      expect(readOne(continuingRow, "profit-before-tax", "t1:r4:c1")).toBe("continuing");
+      const negated = `${QUARTER_HEAD}| No continuing operations | | |
+| Profit before tax | 120,000 | 90,000 |
+`;
+      expect(readOne(negated, "profit-before-tax", "t1:r3:c1")).toBe("unproven-scope");
+    });
+
+    test("reads captions past a row-number column and a repeated unit row", () => {
+      const numbered = `| | | 3 months ended 30 Sep 2026 | 3 months ended 30 Sep 2025 |
+| --- | --- | --- | --- |
+| | | RM'000 | RM'000 |
+| | Continuing operations | | |
+| 1 | Revenue | 500 | 400 |
+| 2 | Total | | |
+| 3 | Profit for the period | 70 | 75 |
+`;
+      expect(readOne(numbered, "revenue", "t1:r3:c2")).toBe("continuing");
+      expect(readOne(numbered, "profit-for-period", "t1:r5:c2")).toBe("unproven-scope");
+      const numberedStock = `| | | As at 30 Sep 2026 |
+| --- | --- | --- |
+| | | RM'000 |
+| 8 | Continuing operations | |
+| | Total current assets | 1,000 |
+`;
+      expect(readOne(numberedStock, "current-assets", "t1:r3:c2")).toBe("unproven-scope");
+      const unitBetween = `| | As at 30 Sep 2026 |
+| --- | --- |
+| | RM'000 |
+| Continuing operations | |
+| | RM'000 |
+| Total current assets | 1,000 |
+`;
+      expect(readOne(unitBetween, "current-assets", "t1:r4:c1")).toBe("unproven-scope");
+    });
+
+    test("withholds a stock when a scope caption above is cut off from it", () => {
+      const captionInNumberColumn = `| | | As at 30 Sep 2026 |
+| --- | --- | --- |
+| | | RM'000 |
+| Discontinued operations | | |
+| 8 | Cash and cash equivalents | 50 |
+`;
+      expect(readOne(captionInNumberColumn, "cash-and-equivalents", "t1:r3:c2")).toBe(
+        "unproven-scope",
+      );
+      const textRowBetween = `| | As at 30 Sep 2026 |
+| --- | --- |
+| | RM'000 |
+| Discontinued operations | |
+| Cash and cash equivalents of the disposal group | — |
+| Cash and cash equivalents | 50 |
+`;
+      expect(readOne(textRowBetween, "cash-and-equivalents", "t1:r4:c1")).toBe("unproven-scope");
+    });
+
+    test("ends a caption's section at a total row or a data row that states a scope", () => {
+      const text = `${QUARTER_HEAD}| Continuing operations | | |
+| Revenue | 500,000 | 400,000 |
+| Total profit before tax | 120,000 | 90,000 |
+| Loss from discontinued operations | (30,000) | (5,000) |
+| Profit for the period | 70,000 | 75,000 |
+`;
+      expect(readOne(text, "revenue", "t1:r3:c1")).toBe("continuing");
+      expect(readOne(text, "profit-before-tax", "t1:r4:c1")).toBe("unproven-scope");
+      expect(readOne(text, "profit-for-period", "t1:r6:c1")).toBe("unproven-scope");
+    });
+
+    test("pairs a derived row on the newest period both inputs share", async () => {
+      const { metric } = await phase(
+        [KLSE],
+        ["revenue", "t1:r4:c2"],
+        ["revenue", "t1:r4:c3"],
+        ["profit-attributable-to-owners", "t1:r5:c3"],
+      );
+      expect(metric("issuer-report-net-margin-quarter")).toMatchObject({
+        status: "value",
+        periodEnd: "2025-09-30",
+      });
+      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(34_716 / 228_567, 6);
+
+      const unpaired = await phase(
+        [KLSE],
+        ["revenue", "t1:r4:c2"],
+        ["profit-attributable-to-owners", "t1:r5:c3"],
+      );
+      expect(unpaired.metric("issuer-report-net-margin-quarter")).toMatchObject({
+        status: "missing",
+        reason: "no checked figures share the period this row needs",
+      });
+      expect(unpaired.gaps).toContain("Net margin, quarter (no checked figures share the period");
+    });
+
+    test("withholds an unstated figure instead of setting it beside another document's total", async () => {
+      const unstated = source({
+        id: "web-unstated",
+        url: "https://www.marketscreener.com/quote/stock/VITROX/results",
+        snippet: DISCONTINUED_TEXT.replace("118,073", "117,000"),
+      });
+      const { metric, gaps } = await phase(
+        [KLSE, unstated],
+        ["profit-for-period", "t1:r8:c2"],
+        ["profit-for-period", "t2:r8:c2"],
+      );
+
+      expect(metric("issuer-report-profit-for-period-quarter-2026-09-30")?.value).toBe(118_073_000);
+      expect(gaps).toContain("profit-for-period at t2:r8:c2 (unproven-scope)");
+    });
+
+    test("stops at the nearest caption row even when it states no scope", () => {
+      for (const caption of ["Total", "Group", "Consolidated", "Total operations"]) {
+        const text = `${QUARTER_HEAD}| Continuing operations | | |
+| Revenue | 500,000 | 400,000 |
+| ${caption} | | |
+| Profit for the period | 70,000 | 75,000 |
+`;
+        expect(readOne(text, "profit-for-period", "t1:r5:c1")).toBe("unproven-scope");
+      }
+    });
+
+    test("prefers the newest same-scope pair over an older total pair", async () => {
+      const { metric } = await phase(
+        [
+          source({ id: "web-total", snippet: annualTable("Revenue", "2024", "2023") }),
+          source({
+            id: "web-continuing",
+            url: "https://www.marketscreener.com/quote/stock/VITROX/results",
+            snippet: annualTable("Revenue from continuing operations", "2025", "2024"),
+          }),
+        ],
+        ["revenue", "t1:r2:c1"],
+        ["revenue", "t1:r2:c2"],
+        ["revenue", "t2:r2:c1"],
+        ["revenue", "t2:r2:c2"],
+      );
+      expect(metric("issuer-report-revenue-yoy-annual")).toMatchObject({
+        label: "Revenue change vs prior-year financial year, continuing operations",
+        periodEnd: "2025-12-31",
+      });
+    });
+
+    test("pairs derived inputs on a shared scope and withholds a mixed pair", async () => {
+      const shared = await phase(
+        [KLSE, scoped],
+        ["revenue", "t1:r4:c2"],
+        ["revenue", "t2:r2:c1"],
+        ["profit-attributable-to-owners", "t2:r8:c1"],
+      );
+      expect(shared.metric("issuer-report-net-margin-quarter")).toMatchObject({
+        label: "Net margin, quarter, continuing operations",
+        value: 0.19,
+      });
+
+      const mixed = await phase(
+        [KLSE, scoped],
+        ["revenue", "t1:r4:c2"],
+        ["profit-attributable-to-owners", "t2:r8:c1"],
+      );
+      expect(mixed.metric("issuer-report-net-margin-quarter")).toMatchObject({
+        status: "missing",
+        label: "Net margin, quarter",
+        reason: "inputs are of different Accounting Scope (continuing vs total operations)",
+      });
+      expect(mixed.gaps).toContain(
+        "1 issuer report derived metric(s) for 0097.KL withheld: Net margin, quarter (inputs are of different",
+      );
+    });
   });
 
   test("declares a gap when no report text reached the run", async () => {

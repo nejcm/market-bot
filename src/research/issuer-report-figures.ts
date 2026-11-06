@@ -143,6 +143,8 @@ const SCOPE_OUTCOMES = {
 } as const satisfies Record<StatedScope, FigureScope | IssuerReportFailureReason>;
 const MIXED_SCOPE_REASON =
   "inputs are of different Accounting Scope (continuing vs total operations)";
+const PARENT_PROFIT_ONLY_REASON =
+  "no checked profit for the period; profit attributable to owners of the parent leaves out non-controlling interests, and no checked figure shows the period has none";
 
 type IssuerReportFailureReason =
   | "unknown-concept"
@@ -880,18 +882,19 @@ function derivedMetrics(figures: readonly IssuerReportFigure[]): readonly Metric
         );
       }
     }
-    const margin = pair("profit-attributable-to-owners", basis, "revenue");
-    if (margin !== undefined) {
-      metrics.push(
-        derivedMetric(
-          `issuer-report-net-margin-${basis}`,
-          `Net margin, ${BASIS_LABELS[basis]}`,
-          "profit attributable to owners of the parent / revenue, same period",
-          margin,
-          ([profit, revenue]) =>
-            revenue.value <= 0 ? "revenue is zero or negative" : profit.value / revenue.value,
-        ),
+    const margin = pair("profit-for-period", basis, "revenue");
+    const parentOnly =
+      margin === undefined && pair("profit-attributable-to-owners", basis, "revenue") !== undefined;
+    if (margin !== undefined || parentOnly) {
+      const metric = derivedMetric(
+        `issuer-report-net-margin-${basis}`,
+        `Net margin, ${BASIS_LABELS[basis]}`,
+        "profit for the period, including non-controlling interests / revenue, same period",
+        margin ?? "unpaired",
+        ([profit, revenue]) =>
+          revenue.value <= 0 ? "revenue is zero or negative" : profit.value / revenue.value,
       );
+      metrics.push(parentOnly ? { ...metric, reason: PARENT_PROFIT_ONLY_REASON } : metric);
     }
     const freeCashFlow = pair("operating-cash-flow", basis, "capital-expenditure");
     if (freeCashFlow !== undefined) {

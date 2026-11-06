@@ -676,6 +676,7 @@ describe("issuer report phase", () => {
             ["revenue", "t1:r4:c3"],
             ["profit-attributable-to-owners", "t1:r5:c2"],
             ["profit-attributable-to-owners", "t1:r5:c3"],
+            ["profit-for-period", "t1:r8:c2"],
             ["current-assets", "t2:r3:c1"],
             ["current-liabilities", "t2:r4:c1"],
             ["operating-cash-flow", "t3:r2:c1"],
@@ -714,7 +715,11 @@ describe("issuer report phase", () => {
       485_101 / 228_567 - 1,
       6,
     );
-    expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_580 / 485_101, 6);
+    expect(metric("issuer-report-net-margin-quarter")).toMatchObject({
+      basis: "profit for the period, including non-controlling interests / revenue, same period",
+      inputs: [{ label: "Profit/(loss) for the period", value: "118,073" }, { label: "Revenue" }],
+    });
+    expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_073 / 485_101, 6);
     expect(metric("issuer-report-free-cash-flow-ytd")).toMatchObject({
       unit: "currency",
       value: 261_100_000,
@@ -737,7 +742,7 @@ describe("issuer report phase", () => {
         source: "issuer-report",
         cause: "provider-data-missing",
         message: expect.stringContaining(
-          "published no checked figure for: Profit before tax, Profit for the period, Basic EPS",
+          "published no checked figure for: Profit before tax, Basic EPS",
         ),
       }),
     ]);
@@ -813,7 +818,7 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
         label: "Net margin, quarter, continuing operations",
         status: "value",
       });
-      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(0.19, 6);
+      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(0.2, 6);
       expect(metric("issuer-report-revenue-yoy-quarter")?.value).toBeCloseTo(0.25, 6);
       expect(gaps).toContain("profit-before-tax at t1:r4:c1 (discontinued-operations)");
       expect(gaps).toContain("profit-for-period at t1:r6:c1 (unproven-scope)");
@@ -1037,24 +1042,53 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
         [KLSE],
         ["revenue", "t1:r4:c2"],
         ["revenue", "t1:r4:c3"],
-        ["profit-attributable-to-owners", "t1:r5:c3"],
+        ["profit-for-period", "t1:r8:c3"],
       );
       expect(metric("issuer-report-net-margin-quarter")).toMatchObject({
         status: "value",
         periodEnd: "2025-09-30",
       });
-      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(34_716 / 228_567, 6);
+      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(34_311 / 228_567, 6);
 
       const unpaired = await phase(
         [KLSE],
         ["revenue", "t1:r4:c2"],
-        ["profit-attributable-to-owners", "t1:r5:c3"],
+        ["profit-for-period", "t1:r8:c3"],
       );
       expect(unpaired.metric("issuer-report-net-margin-quarter")).toMatchObject({
         status: "missing",
         reason: "no checked figures share the period this row needs",
       });
       expect(unpaired.gaps).toContain("Net margin, quarter (no checked figures share the period");
+    });
+
+    test("withholds net margin when only profit attributable to owners is checked", async () => {
+      const { metric, gaps } = await phase(
+        [KLSE],
+        ["revenue", "t1:r4:c2"],
+        ["profit-attributable-to-owners", "t1:r5:c2"],
+      );
+      expect(metric("issuer-report-net-margin-quarter")).toMatchObject({
+        status: "missing",
+        reason: expect.stringContaining("no checked profit for the period"),
+      });
+      expect(metric("issuer-report-net-margin-quarter")?.value).toBeUndefined();
+      expect(gaps).toContain("withheld: Net margin, quarter (no checked profit for the period;");
+
+      const none = await phase([KLSE], ["revenue", "t1:r4:c2"]);
+      expect(none.metric("issuer-report-net-margin-quarter")).toBeUndefined();
+    });
+
+    test("marks net margin not meaningful on zero revenue", async () => {
+      const { metric } = await phase(
+        [source({ snippet: KLSE_TEXT.replace("485,101", "0") })],
+        ["revenue", "t1:r4:c2"],
+        ["profit-for-period", "t1:r8:c2"],
+      );
+      expect(metric("issuer-report-net-margin-quarter")).toMatchObject({
+        status: "not-meaningful",
+        reason: "revenue is zero or negative",
+      });
     });
 
     test("withholds an unstated figure instead of setting it beside another document's total", async () => {
@@ -1110,17 +1144,17 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
         [KLSE, scoped],
         ["revenue", "t1:r4:c2"],
         ["revenue", "t2:r2:c1"],
-        ["profit-attributable-to-owners", "t2:r8:c1"],
+        ["profit-for-period", "t2:r5:c1"],
       );
       expect(shared.metric("issuer-report-net-margin-quarter")).toMatchObject({
         label: "Net margin, quarter, continuing operations",
-        value: 0.19,
+        value: 0.2,
       });
 
       const mixed = await phase(
         [KLSE, scoped],
         ["revenue", "t1:r4:c2"],
-        ["profit-attributable-to-owners", "t2:r8:c1"],
+        ["profit-for-period", "t2:r5:c1"],
       );
       expect(mixed.metric("issuer-report-net-margin-quarter")).toMatchObject({
         status: "missing",

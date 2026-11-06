@@ -151,7 +151,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   first on a tie); with no shared-scope pair, a mixed pair is `missing`; with both concepts of a cross-concept row read on the same basis but no shared period, the row is `missing`. Each `missing` derived row is named in an `issuer-report` Source Gap. The
   provider EPS cross-check reads only a total EPS. Parent vs NCI scope is carried by the concept (profit for
   the period vs profit attributable to owners); a parent-scope profit before tax row is withheld as a
-  label mismatch; net margin's use of parent profit is open in `plans/issues.md`.
+  label mismatch. Net margin divides profit for the period (including NCI; IAS 1.81A–B) by revenue, as the SEC
+  rule does; profit attributable to owners never stands in, since no checked figure can show a period has no
+  NCI income, so a run that reads only parent profit withholds the row as `missing`.
 
   A figure that fails any check is withheld and named in an `issuer-report` Source Gap. So are two documents
   giving different values for one concept and period.

@@ -405,6 +405,13 @@ describe("issuer report mapping check", () => {
       "cell-reused",
       "cell-reused",
     ]);
+    const parentPretax = source({
+      snippet: KLSE_TEXT.replace(
+        "Profit/(loss) before tax |",
+        "Profit/(loss) before tax attributable to owners of the parent |",
+      ),
+    });
+    expect(reasons([parentPretax], ["profit-before-tax", "t1:r7:c2"])).toEqual(["label-mismatch"]);
     expect(reasons([usd], ["revenue", "t1:r4:c2"])).toEqual(["currency-mismatch"]);
     expect(reasons([early], ["revenue", "t1:r4:c2"])).toEqual(["period-after-announcement"]);
   });

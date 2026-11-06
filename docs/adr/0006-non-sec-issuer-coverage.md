@@ -108,7 +108,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   - the row label matches the concept's label pattern; a sub-item row (a leading dash or bullet, or "Basic"/"Diluted") is
     read with its caption row above it, other rows alone. Revenue needs "revenue" or "turnover", attributable
     profit needs "attributable to … owners/equity holders", profit before tax excludes a share of associates or
-    joint ventures, profit for the period excludes gross, operating and comprehensive lines, total equity
+    joint ventures and any attributable line (IAS 1.81B splits profit only after tax), profit for the period excludes gross, operating and comprehensive lines, total equity
     excludes the attributable-to-owners subtotal, and capex needs a purchase of property, plant and equipment;
   - no other concept in the same mapping claims the cell;
   - the header rows directly above its data block hold exactly one date, which is the period end;
@@ -150,8 +150,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   includes them. Derived rows pair inputs on the newest period the two share within one scope (total
   first on a tie); with no shared-scope pair, a mixed pair is `missing`; with both concepts of a cross-concept row read on the same basis but no shared period, the row is `missing`. Each `missing` derived row is named in an `issuer-report` Source Gap. The
   provider EPS cross-check reads only a total EPS. Parent vs NCI scope is carried by the concept (profit for
-  the period vs profit attributable to owners); net margin's use of parent profit and a parent-scope profit
-  before tax row are open in `plans/issues.md`.
+  the period vs profit attributable to owners); a parent-scope profit before tax row is withheld as a
+  label mismatch; net margin's use of parent profit is open in `plans/issues.md`.
 
   A figure that fails any check is withheld and named in an `issuer-report` Source Gap. So are two documents
   giving different values for one concept and period.

@@ -25,7 +25,7 @@ const CONCEPTS = {
   "profit-before-tax": {
     label: "Profit before tax",
     kind: "flow",
-    row: /^(?!.*\b(?:share of|associates?|joint ventures?)\b).*\b(?:profit|loss)\b.*\bbefore tax/iu,
+    row: /^(?!.*\b(?:share of|associates?|joint ventures?|attributable)\b).*\b(?:profit|loss)\b.*\bbefore tax/iu,
   },
   "profit-for-period": {
     label: "Profit for the period",

@@ -287,10 +287,10 @@ A stage that a fixture or capture never recorded has no cassette entry, so the o
 estimate fails on a miss. Before `--live-stages <new-stage>`, copy the capture under
 `data/evals/` and add a reviewed synthetic `<stage>|<model>` entry to the copy's
 `llm-cassette.json`; never edit `data/runs/`. No checked-in fixture collects usable comps peers,
-so none calls `peer-median-audit` (pinned by the fixture invariants). The `issuer-report-mapping|gpt-6-luna` entry in
-`equity-bursa-deep/llm-cassette.json` is a reviewed synthetic entry (its capture predates the stage), listed in
-that fixture's `meta.json` `syntheticLlmEntries`; it
-proves the code checks, not model quality.
+so none calls `peer-median-audit` (pinned by the fixture invariants). The `final-synthesis|gpt-6-luna`
+repair responses after the first in `equity-bursa-deep` (two) and `equity-bursa-brief` (one) are reviewed
+synthetic entries, listed in each fixture's `meta.json` `syntheticLlmEntries`: each is the recorded output
+with only the claims on values code now withholds removed, so it proves the code checks, not model quality.
 
 For example, this invocation only plans a critique evaluation:
 

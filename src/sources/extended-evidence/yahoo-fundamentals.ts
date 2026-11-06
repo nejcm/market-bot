@@ -36,7 +36,10 @@ export function perShareCurrency(identity: InstrumentIdentity | undefined): stri
   return currency === undefined || currency.toUpperCase() === "USD" ? "" : ` ${currency}`;
 }
 
-function summarize(fundamentals: MarketFundamentals, currency: string): string {
+export function yahooFundamentalsSummary(
+  fundamentals: MarketFundamentals,
+  currency: string,
+): string {
   const parts: string[] = [];
   if (fundamentals.trailingPE !== undefined) {
     parts.push(
@@ -113,7 +116,7 @@ export function buildYahooFundamentals(
   return {
     category: "yahoo-fundamentals",
     title: `${command.symbol} Yahoo Fundamentals Evidence`,
-    summary: summarize(fundamentals, perShareCurrency(snapshot.identity)),
+    summary: yahooFundamentalsSummary(fundamentals, perShareCurrency(snapshot.identity)),
     sourceIds: [snapshot.sourceId],
     observedAt: snapshot.observedAt ?? fetchedAt,
     metrics,

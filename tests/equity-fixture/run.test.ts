@@ -27,7 +27,7 @@ import {
   runFixture,
   type RunFixtureResult,
 } from "../support/run-fixtures";
-import { makeReplayProvider } from "../../src/replay/llm-cassette";
+import { makeReplayProvider, requestStage } from "../../src/replay/llm-cassette";
 import { countCassetteMisses, makeReplayFetch } from "../../src/replay/data-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
@@ -762,7 +762,21 @@ describe("static equity run fixtures", () => {
     ["equity-bursa-deep", "Dividend per share, Net cash from operating activities"],
     ["equity-bursa-brief", "published no checked figure for: Net cash from operating activities"],
   ])("%s declares the issuer report concepts it could not publish", async (name, expected) => {
-    const result = await runFixture(name, { llm: "replay" });
+    const fixture = await loadFixture(name);
+    const replayProvider = makeReplayProvider(fixture.llmCassette);
+    const synthesisRequests: string[] = [];
+    const result = await runFixture(name, {
+      llm: "replay",
+      provider: {
+        name: replayProvider.name,
+        generate: async (request: ModelRequest) => {
+          if (requestStage(request) === "final-synthesis") {
+            synthesisRequests.push(JSON.stringify(request));
+          }
+          return replayProvider.generate(request);
+        },
+      },
+    });
     runResults.push(result);
     const messages = result.collectedSources.sourceGaps.map(({ message }) => message);
     expect(messages.find((message) => message.includes("published no checked figure"))).toContain(
@@ -774,6 +788,43 @@ describe("static equity run fixtures", () => {
     expect(messages.find((message) => message.startsWith("Yahoo trailing EPS"))).toContain(
       "Yahoo trailing EPS 0.11 MYR",
     );
+    // Yahoo's trailing PE of 92.36x prices the EPS the gap above contradicts.
+    expect(
+      result.collectedSources.metricSections
+        ?.find(({ id }) => id === "business-framework-valuation")
+        ?.metrics.find(({ id }) => id === "trailingPE")?.status,
+    ).toBe("not-meaningful");
+    expect(result.collectedSources.marketSnapshots[0]?.fundamentals).not.toHaveProperty(
+      "epsTrailingTwelveMonths",
+    );
+    expect(JSON.stringify(result.report)).not.toContain("92.36");
+    expect(result.markdown).not.toContain("EPS TTM 0.11");
+    expect(
+      result.collectedSources.financialLenses?.lenses.flatMap(({ metrics }) =>
+        metrics.map(({ key }) => key),
+      ),
+    ).not.toContainEqual(expect.stringMatching(/^(?:peRatio|payoutRatio)$/u));
+    expect(
+      result.collectedSources.businessFramework?.sections.find(
+        (section) => section.name === "Valuation",
+      )?.summary,
+    ).toBe("Valuation insufficient-data (Forward PE 48.30x)");
+    // The Console reads the subject quote from these artifacts.
+    const artifact =
+      name === "equity-bursa-deep"
+        ? RUN_ARTIFACT_FILES.evidenceBundle
+        : RUN_ARTIFACT_FILES.marketSnapshots;
+    expect(await readFile(join(result.artifacts.runDir, artifact), "utf8")).not.toContain("92.36");
+    // Replayed upstream stage outputs predate the withholding, so only code-built numbers are checked.
+    expect(synthesisRequests.length).toBeGreaterThan(0);
+    for (const request of synthesisRequests) {
+      expect(request).not.toContain("92.36");
+      expect(request).not.toContain("epsTrailingTwelveMonths");
+      expect(request).not.toContain("0.10909");
+      expect(request).toMatch(
+        /<<metric:business-framework-valuation\.trailingPE>>[^}]*\\"status\\":\\"not-meaningful\\"/u,
+      );
+    }
   });
 
   test("bursa brief keeps a claim whose quote spans Markdown table cells", async () => {

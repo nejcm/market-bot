@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.3](https://github.com/nejcm/market-bot/compare/v1.13.2...v1.13.3) (2026-11-06)
+
+### Bug Fixes
+
+- **web-figures:** check both endpoints of a dash range (#149) ([db1599c](https://github.com/nejcm/market-bot/commit/db1599c949c09bb0cf863e8bfe9598d6fca0a122))
+
 ## [1.13.2](https://github.com/nejcm/market-bot/compare/v1.13.1...v1.13.2) (2026-11-06)
 
 ### Bug Fixes

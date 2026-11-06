@@ -36,6 +36,7 @@ export interface FigureQuote {
 export type WebFigureFailureReason =
   | "figure-not-quoted"
   | "figure-not-in-quote"
+  | "figure-ambiguous"
   | "scale-mismatch"
   | "currency-mismatch"
   | "unit-mismatch"

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.5](https://github.com/nejcm/market-bot/compare/v1.13.4...v1.13.5) (2026-11-06)
+
+### Bug Fixes
+
+- **issuer:** withhold a parent-scope profit before tax row (#151) ([1a92db2](https://github.com/nejcm/market-bot/commit/1a92db26e548b929f2298b17024a0e31cb6215b8))
+
 ## [1.13.4](https://github.com/nejcm/market-bot/compare/v1.13.3...v1.13.4) (2026-11-06)
 
 ### Bug Fixes

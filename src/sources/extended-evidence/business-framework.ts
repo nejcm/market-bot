@@ -200,7 +200,7 @@ function tickerSnapshot(
   );
 }
 
-function sectionSummary(
+export function sectionSummary(
   name: BusinessFrameworkSectionName,
   posture: BusinessFrameworkPosture,
   metricSection: MetricSection | undefined,
@@ -219,6 +219,10 @@ function sectionSummary(
     return `Phase classification${metricText === "" ? "" : ` (${metricText})`}`;
   }
   return `${name} ${posture}${metricText === "" ? "" : ` (${metricText})`}`;
+}
+
+export function businessFrameworkSummary(sections: readonly BusinessFrameworkSection[]): string {
+  return `Business Framework: ${sections.map((section) => section.summary).join("; ")}.`;
 }
 
 const SECTION_GAPS: Readonly<
@@ -348,7 +352,7 @@ export function addBusinessFrameworkEvidence(
   const item: ExtendedEvidenceItem = {
     category: "business-framework",
     title: `${command.symbol} Business Framework Evidence`,
-    summary: `Business Framework: ${sections.map((frameworkSection) => frameworkSection.summary).join("; ")}.`,
+    summary: businessFrameworkSummary(sections),
     sourceIds,
     observedAt:
       [

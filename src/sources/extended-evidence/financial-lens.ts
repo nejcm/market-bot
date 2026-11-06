@@ -59,6 +59,10 @@ function summarizeLens(lens: FinancialLens): string {
   return `${lens.name} ${lens.posture}${metricText === "" ? "" : ` (${metricText})`}${currentness}`;
 }
 
+export function financialLensSummary(lenses: readonly FinancialLens[]): string {
+  return `Financial Lens Evidence: ${lenses.map((lens) => summarizeLens(lens)).join("; ")}.`;
+}
+
 function financialLensGap(symbol: string, missing: readonly string[]): SourceGap {
   return sourceGap({
     source: "financial-lens",
@@ -181,7 +185,7 @@ export function addFinancialLensEvidence(
   const item: ExtendedEvidenceItem = {
     category: "financial-lens",
     title: `${command.symbol} Financial Lens Evidence`,
-    summary: `Financial Lens Evidence: ${lenses.map((lens) => summarizeLens(lens)).join("; ")}.`,
+    summary: financialLensSummary(lenses),
     sourceIds,
     observedAt:
       [

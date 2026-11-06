@@ -274,7 +274,7 @@ count that points readers to the Console Advanced view or `report.json`. The mar
 omits raw Extended Evidence magnitude/citation dumps, financing/capital detail, Financial Lens
 posture dumps, duplicate Web Subject Profile summary/fact-ledger content, and Business Framework
 rows that only restate the financial trend table. Options IV and EPS TTM survive in a compact cited
-Valuation Context row; price/book is included there unless the section's market-multiple sentence
+Valuation Context row (EPS TTM unless withheld by the ADR 0006 provider EPS cross-check); price/book is included there unless the section's market-multiple sentence
 already displays it. Suppressed reverse-DCF and trailing-basis computations remain in normalized
 artifacts but do not render suppression notices in markdown.
 `src/report/equity-reader.ts` is the shared trend and gap projection used by markdown and the

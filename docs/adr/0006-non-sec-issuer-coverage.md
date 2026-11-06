@@ -138,6 +138,16 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   ratio. Mixed currencies make a derived row `missing`; a zero or negative denominator makes it `not meaningful`.
 - **Absence.** A profiled listing with no report text, an invalid mapping, or no checked figure declares an
   `issuer-report` Source Gap. An unprofiled or SEC listing skips the phase and makes no model call.
+- **Provider EPS cross-check.** A TTM to the newest report date contains that report's quarter and
+  year to date, and equals its financial year when one ends there. When Yahoo trailing EPS sits below the
+  largest positive same-currency basic EPS for that period end, the two cannot be shown to reconcile: a loss
+  quarter outside the issuer period (not for a financial year, which is the TTM), a larger diluted or TTM share
+  count and a stale print are among the explanations, and code cannot tell which without weighted share counts
+  and, short of a financial year, the prior-fiscal-year EPS. It declares an `issuer-report` Source
+  Gap and withholds the Yahoo EPS and every metric priced off it (trailing PE, Yahoo-fallback payout ratio) from
+  every surface and every model stage after the phase; a metric row reads `not meaningful` with the reason. A
+  loss or zero issuer EPS proves nothing about the TTM, so it is not checked. The web gather runs before the
+  check and still sees the Yahoo values (amended 2026-11-06).
 
 ## Consequences
 

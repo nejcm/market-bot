@@ -15,6 +15,9 @@ import { issuerReportGatherContext } from "../src/web-evidence/web-gather-covera
 import { resolveMetricReferences } from "../src/research/metric-references";
 import { auditReportIntegrity } from "../src/research/report-integrity-audit";
 import { webSourceTexts } from "../src/research/web-figure-verification";
+import { addBusinessFrameworkEvidence } from "../src/sources/extended-evidence/business-framework";
+import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 
 // Shape of the KLSE Screener copy of ViTrox (0097.KL) Q3 2026 results, fixture equity-bursa-deep.
@@ -425,12 +428,18 @@ describe("issuer report phase", () => {
   describe("Yahoo trailing EPS against the issuer's year-to-date EPS", () => {
     const crossCheck = async (
       epsTrailingTwelveMonths: number,
-      options: { readonly quoteCurrency?: string; readonly epsRow?: string } = {},
+      options: {
+        readonly quoteCurrency?: string;
+        readonly epsRow?: string;
+        readonly cells?: readonly string[];
+        readonly text?: string;
+      } = {},
     ) => {
+      const reportText = options.text ?? KLSE_TEXT;
       const text =
         options.epsRow === undefined
-          ? KLSE_TEXT
-          : KLSE_TEXT.replace("| 6.26 | 1.83 | 13.45 | 4.60 |", options.epsRow);
+          ? reportText
+          : reportText.replace("| 6.26 | 1.83 | 13.45 | 4.60 |", options.epsRow);
       const result = await runIssuerReportPhase({
         symbol,
         collectedSources: collectedSources({
@@ -446,7 +455,13 @@ describe("issuer report phase", () => {
           ],
         }),
         generateMapping: async () =>
-          output(mapping(["basic-eps", "t1:r6:c4"], ["basic-eps", "t1:r6:c5"])),
+          output(
+            mapping(
+              ...(options.cells ?? ["t1:r6:c4", "t1:r6:c5"]).map(
+                (cell) => ["basic-eps", cell] as const,
+              ),
+            ),
+          ),
       });
       return result.collectedSources.sourceGaps.find(({ message }) =>
         message.startsWith("Yahoo trailing EPS"),
@@ -455,12 +470,44 @@ describe("issuer report phase", () => {
 
     test("discloses an unreconciled comparison against the newest period", async () => {
       const message = await crossCheck(0.11);
-      expect(message).toContain(
-        "Yahoo trailing EPS 0.11 MYR (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported 9-month year-to-date basic EPS of 0.1345 MYR to 2026-09-30",
+      expect(message).toBe(
+        "Yahoo trailing EPS 0.11 MYR (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported 9-month year-to-date basic EPS of 0.1345 MYR to 2026-09-30, which a trailing twelve months to that date contains; this run reads no prior-fiscal-year EPS or weighted share counts, so the two cannot be shown to reconcile (a stale value, another share basis or a loss quarter outside the issuer period would each fit); it is withheld with the trailing PE and payout ratio derived from it",
       );
-      expect(message).toContain("no prior-year EPS or weighted share counts");
-      // A shrinking share count can put positive-profit TTM EPS below YTD EPS, so no loss is implied.
-      expect(message).not.toContain("loss");
+    });
+
+    const fullYearText = KLSE_TEXT.replace("| Quarter | 3 Qtr |", "| Quarter | 4 Qtr |")
+      .replace("| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\n", "")
+      .replace(
+        "| CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |",
+        "| 3 MONTHS ENDED | 3 MONTHS ENDED | FINANCIAL YEAR ENDED | FINANCIAL YEAR ENDED |",
+      )
+      .replaceAll("30 Sep", "31 Dec")
+      .replace("30/09/2026", "31/12/2026")
+      .replace("05 Nov 2026", "25 Feb 2027");
+
+    test("checks the financial year ending at the newest period end", async () => {
+      const fullYearMessage =
+        "Yahoo trailing EPS 0.4 MYR (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported financial-year basic EPS of 0.8 MYR to 2026-12-31, which a trailing twelve months to that date equals; this run reads no weighted share counts, so the two cannot be shown to reconcile (a stale value or another share basis would each fit); it is withheld with the trailing PE and payout ratio derived from it";
+      const annualOnly = {
+        text: fullYearText,
+        epsRow: "| 15.00 | 1.83 | 80.00 | 4.60 |",
+        cells: ["t1:r5:c4", "t1:r5:c5"],
+      };
+      expect(
+        await crossCheck(0.4, {
+          ...annualOnly,
+          cells: ["t1:r5:c2", "t1:r5:c3", "t1:r5:c4", "t1:r5:c5"],
+        }),
+      ).toBe(fullYearMessage);
+      expect(await crossCheck(0.4, annualOnly)).toBe(fullYearMessage);
+      expect(await crossCheck(0.8, annualOnly)).toBeUndefined();
+    });
+
+    test("checks a quarter-only mapping against the quarter, which any trailing twelve months contains", async () => {
+      expect(await crossCheck(0.05, { cells: ["t1:r6:c2", "t1:r6:c3"] })).toContain(
+        "is below the issuer-reported quarterly basic EPS of 0.0626 MYR to 2026-09-30",
+      );
+      expect(await crossCheck(0.11, { cells: ["t1:r6:c2", "t1:r6:c3"] })).toBeUndefined();
     });
 
     test("stays silent at or above the newest period, on a currency mismatch, or on a loss", async () => {
@@ -476,6 +523,115 @@ describe("issuer report phase", () => {
       expect(await crossCheck(0.01, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toContain(
         "basic EPS of 0.046 MYR to 2026-09-30",
       );
+    });
+
+    const pricedRun = async (
+      epsTrailingTwelveMonths: number,
+      fundamentals: MarketSnapshot["fundamentals"] = {
+        forwardPE: 48.3,
+        trailingAnnualDividendRate: 0.012,
+      },
+    ) => {
+      const command = { jobType: "equity", assetClass: "equity", symbol, depth: "brief" } as const;
+      const generatedAt = "2026-11-06T05:46:13.672Z";
+      const snapshots = [
+        marketSnapshot({
+          symbol,
+          sourceId: "market-yahoo-equity-0097.kl",
+          fundamentals: { ...fundamentals, trailingPE: 92.36, epsTrailingTwelveMonths },
+          identity: { quoteCurrency: "MYR" } as NonNullable<MarketSnapshot["identity"]>,
+        }),
+      ];
+      const yahoo = buildYahooFundamentals(command, snapshots, generatedAt);
+      const lens = addFinancialLensEvidence(
+        command,
+        snapshots,
+        { items: yahoo === undefined ? [] : [yahoo], gaps: [] },
+        undefined,
+        generatedAt,
+      );
+      const framework = addBusinessFrameworkEvidence(
+        command,
+        snapshots,
+        lens.extendedEvidence,
+        undefined,
+        generatedAt,
+        undefined,
+        lens.metricSections,
+      );
+      const input = collectedSources({
+        extendedSources: [source({ snippet: KLSE_TEXT })],
+        marketSnapshots: snapshots,
+        supplementalMarketSnapshots: snapshots,
+        ...(framework.extendedEvidence === undefined
+          ? {}
+          : { extendedEvidence: framework.extendedEvidence }),
+        ...(lens.artifact === undefined ? {} : { financialLenses: lens.artifact }),
+        ...(framework.artifact === undefined ? {} : { businessFramework: framework.artifact }),
+        metricSections: framework.metricSections ?? [],
+      });
+      const result = await runIssuerReportPhase({
+        symbol,
+        collectedSources: input,
+        generateMapping: async () => output(mapping(["basic-eps", "t1:r6:c4"])),
+      });
+      return { input, output: result.collectedSources };
+    };
+
+    test("withholds the Yahoo value and every metric priced off it", async () => {
+      const { output: sources } = await pricedRun(0.11);
+      expect(sources.marketSnapshots[0]?.fundamentals).toEqual({
+        forwardPE: 48.3,
+        trailingAnnualDividendRate: 0.012,
+      });
+      expect(sources.supplementalMarketSnapshots[0]?.fundamentals).toEqual(
+        sources.marketSnapshots[0]?.fundamentals,
+      );
+      expect(
+        sources.businessFramework?.sections.find(({ name }) => name === "Valuation")?.summary,
+      ).toBe("Valuation insufficient-data (Forward PE 48.30x)");
+      const item = (category: string) =>
+        sources.extendedEvidence?.items.find((row) => row.category === category);
+      expect(item("yahoo-fundamentals")?.summary).toBe(
+        "Yahoo Fundamentals: forward PE 48.30x, annual dividend rate 0.012 MYR. Trailing EPS and trailing PE withheld; see the issuer-report Source Gap.",
+      );
+      expect(item("financial-lens")?.metrics).not.toHaveProperty("peRatio");
+      expect(item("financial-lens")?.metrics).not.toHaveProperty("payoutRatio");
+      expect(
+        sources.financialLenses?.lenses.flatMap(({ metrics }) => metrics.map(({ key }) => key)),
+      ).toEqual(["forwardPe"]);
+      const trailingPe = sources.metricSections
+        ?.find(({ id }) => id === "business-framework-valuation")
+        ?.metrics.find(({ id }) => id === "trailingPE");
+      expect(trailingPe).toMatchObject({ status: "not-meaningful", inputs: [] });
+      expect(trailingPe).not.toHaveProperty("value");
+      expect(trailingPe?.reason).toContain("below an issuer-reported basic EPS");
+      const serialized = JSON.stringify(sources);
+      expect(serialized).not.toContain("92.36");
+      expect(serialized).not.toContain("0.109");
+      expect(
+        sources.sourceGaps.find(({ message }) => message.startsWith("Yahoo trailing EPS"))?.message,
+      ).toContain("it is withheld with the trailing PE and payout ratio derived from it");
+    });
+
+    test("omits fundamentals left empty and keeps the Yahoo row with a withheld summary", async () => {
+      const { output: sources } = await pricedRun(0.11, {});
+      expect(sources.marketSnapshots[0]).not.toHaveProperty("fundamentals");
+      expect(sources.supplementalMarketSnapshots[0]).not.toHaveProperty("fundamentals");
+      expect(
+        sources.extendedEvidence?.items.find((row) => row.category === "yahoo-fundamentals")
+          ?.summary,
+      ).toBe(
+        "Yahoo Fundamentals. Trailing EPS and trailing PE withheld; see the issuer-report Source Gap.",
+      );
+    });
+
+    test("keeps the Yahoo value when it is not below the issuer's year-to-date EPS", async () => {
+      const { input, output: sources } = await pricedRun(0.16);
+      expect(sources.marketSnapshots).toBe(input.marketSnapshots);
+      expect(sources.extendedEvidence).toBe(input.extendedEvidence);
+      expect(sources.financialLenses).toBe(input.financialLenses);
+      expect(JSON.stringify(sources)).toContain("92.36");
     });
   });
 

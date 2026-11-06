@@ -15,6 +15,7 @@ import type {
 import { canonicalizeUrl } from "../sources/news-utils";
 import type { CollectedSources, RawSourceSnapshot } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
+import { withholdProviderEps } from "./provider-eps-withholding";
 import { rawTextsByUrl } from "./web-figure-verification";
 
 type ConceptKind = "flow" | "stock" | "per-share";
@@ -85,6 +86,8 @@ const ISSUER_REPORT_SECTION_ID = "issuer-report";
 
 const MAX_DOCUMENTS = 4;
 const GAP_SOURCE = "issuer-report";
+const PROVIDER_EPS_WITHHELD =
+  "Yahoo trailing EPS is below an issuer-reported basic EPS for a period its trailing twelve months would contain, so it is withheld; see the issuer-report Source Gap";
 const CELL_REF = /^t(\d+):r(\d+):c(\d+)$/u;
 const NUMBER_CELL = /^(\()?(-)?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(\))?$/u;
 const DATE_PATTERN = /\b(\d{1,2})[\s\-/.]+([A-Za-z]{3,9}|\d{1,2})[\s\-/.,]+(\d{4}|\d{2})\b/gu;
@@ -819,21 +822,47 @@ function providerEpsCrossCheckGap(
   if (providerEps === undefined || currency === undefined) {
     return [];
   }
-  const [ytd] = figures
-    .filter(
-      (figure) =>
-        figure.concept === "basic-eps" && figure.basis === "ytd" && figure.currency === currency,
-    )
-    .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd));
-  return ytd === undefined || ytd.value <= 0 || providerEps >= ytd.value
+  const flows = figures.filter(
+    (figure) =>
+      figure.concept === "basic-eps" && figure.basis !== "instant" && figure.currency === currency,
+  );
+  const newestEnd = flows
+    .map(({ periodEnd }) => periodEnd)
+    .toSorted()
+    .at(-1);
+  const [issuer] = flows
+    .filter(({ periodEnd }) => periodEnd === newestEnd)
+    .toSorted((left, right) => right.value - left.value);
+  return issuer === undefined || issuer.value <= 0 || providerEps >= issuer.value
     ? []
     : [
         issuerReportGap(
           symbol,
-          `Yahoo trailing EPS ${String(providerEps)} ${currency} (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported ${ytd.periodMonths === undefined ? "year-to-date" : `${String(ytd.periodMonths)}-month year-to-date`} basic EPS of ${String(ytd.value)} ${currency} to ${ytd.periodEnd}; this run reads no prior-year EPS or weighted share counts to reconcile them, so the Yahoo value may be stale or on another basis`,
+          `Yahoo trailing EPS ${String(providerEps)} ${currency} (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported ${epsPeriodLabel(issuer)} basic EPS of ${String(issuer.value)} ${currency} to ${issuer.periodEnd}, ${unreconciledClause(issuer)}; it is withheld with the trailing PE and payout ratio derived from it`,
           "validation-failed",
         ),
       ];
+}
+
+const isFullYear = (figure: IssuerReportFigure) =>
+  figure.basis === "annual" || figure.periodMonths === 12;
+
+function unreconciledClause(figure: IssuerReportFigure): string {
+  return isFullYear(figure)
+    ? "which a trailing twelve months to that date equals; this run reads no weighted share counts, so the two cannot be shown to reconcile (a stale value or another share basis would each fit)"
+    : "which a trailing twelve months to that date contains; this run reads no prior-fiscal-year EPS or weighted share counts, so the two cannot be shown to reconcile (a stale value, another share basis or a loss quarter outside the issuer period would each fit)";
+}
+
+function epsPeriodLabel(figure: IssuerReportFigure): string {
+  if (figure.basis === "quarter") {
+    return "quarterly";
+  }
+  if (isFullYear(figure)) {
+    return "financial-year";
+  }
+  return figure.periodMonths === undefined
+    ? "year-to-date"
+    : `${String(figure.periodMonths)}-month year-to-date`;
 }
 
 export interface IssuerReportPhaseInput {
@@ -946,15 +975,13 @@ export async function runIssuerReportPhase(
             "provider-data-missing",
           ),
         ];
+  const epsGaps = providerEpsCrossCheckGap(symbol, collectedSources, reading.figures);
   return {
     collectedSources: withIssuerReport(
-      collectedSources,
-      [
-        ...failureGaps,
-        ...emptyGap,
-        ...unpublishedGap,
-        ...providerEpsCrossCheckGap(symbol, collectedSources, reading.figures),
-      ],
+      epsGaps.length === 0
+        ? collectedSources
+        : withholdProviderEps(collectedSources, symbol, PROVIDER_EPS_WITHHELD),
+      [...failureGaps, ...emptyGap, ...unpublishedGap, ...epsGaps],
       reading.figures.length === 0 ? undefined : issuerReportSection(reading.figures),
     ),
     stageOutputs: [output],

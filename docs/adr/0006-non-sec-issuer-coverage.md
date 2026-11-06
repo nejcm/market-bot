@@ -144,13 +144,16 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - Web-sourced figures without a quote, including every recorded pre-change model output, prune into gaps.
   Reports lose figures they published before; each loss is declared.
 - Verification is lexical: it proves a cited span holds the number, not that the span is about the claim. Each
-  quoted figure is read whole from its own source table cell. A row with no closing `|` followed by a line that
-  may start a new row withholds the figures beside that break. A leading minus, or accounting parentheses around
-  the amount itself, makes a figure negative, and a sign mismatch fails. A parenthesized aside in prose ("revenue
-  (RM5m)") also reads as negative, so it prunes unless the claim matches it. Sign words are not parsed ("fell 4%"
+  quoted figure is read whole from its own source table cell. A row with no closing `|` withholds the figures
+  beside the line break, because the next line may wrap the cell or start a new row; a cell wrapped across lines
+  never verifies. An attached minus makes a figure negative, and so do accounting parentheses that wrap a whole
+  table cell (`| (125.5) |`); a sign mismatch fails. A figure in parentheses anywhere else ("revenue (RM5m)") or
+  after a spaced single dash ("- RM5m", including a Markdown bullet) has an ambiguous sign and never verifies, in
+  claim or source; a double dash ("Revenue -- $5m") is punctuation. Sign words are not parsed ("fell 4%"
   matches "4%"). Percentage points and percent are distinct units. A range carries its scale only on the last
   number ("$1.2-1.4 billion" parses as $1.2), and "9M" reads as nine million; each is symmetric between claim
-  and quote.
+  and quote. A range whose dash precedes a currency prefix ("RM5m–RM6m") parses no figure at all, so a claim
+  with a wrong endpoint ("RM5m–RM9m") is not checked.
 - A web figure in a claim that also cites a deterministic source is not checked.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.

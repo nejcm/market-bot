@@ -256,24 +256,48 @@ describe("Verified Web Figure", () => {
     ).toBeUndefined();
   });
 
-  test("reads a figure whole from a table cell that wraps across lines", () => {
-    const snippet = "| Reported revenue for the quarter | MYR 125.5\nmillion |\n| Units | 2.0 |";
-    const claim = (text: string) =>
+  test("withholds a figure in a cell that wraps across lines, which may instead start a new row", () => {
+    const claim = (
+      snippet: string,
+      quote: string,
+      text = "Reported revenue was MYR 125.5 million.",
+    ) =>
       unverifiedWebFigure(
-        {
-          text,
-          sourceIds: ["web-vitrox"],
-          figureQuotes: [
-            {
-              sourceId: "web-vitrox",
-              quote: "Reported revenue for the quarter | MYR 125.5\nmillion",
-            },
-          ],
-        },
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
         webSourceTexts([webSource({ snippet })]),
       );
-    expect(claim("Reported revenue was MYR 125.5 million.")).toBeUndefined();
-    expect(claim("Reported revenue was MYR 125.5.")).toMatchObject({ reason: "scale-mismatch" });
+    const wrapped = "| Reported revenue for the quarter | MYR 125.5\nmillion |\n| Units | 2.0 |";
+    const quote = "Reported revenue for the quarter | MYR 125.5\nmillion";
+    expect(claim(wrapped, quote)).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(claim(wrapped, quote, "Reported revenue was MYR 125.5.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(
+      claim(
+        "| Reported revenue for the quarter | MYR 125.5\nmillion\nin the quarter |",
+        "Reported revenue for the quarter | MYR 125.5\nmillion",
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim(
+        "| Reported revenue for the quarter | MYR 125.5\n\nmillion |",
+        "Reported revenue for the quarter | MYR 125.5",
+        "Reported revenue was MYR 125.5.",
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    const unclosed = "| Reported revenue in MYR | 125.5\nMillion units sold |";
+    expect(
+      claim(unclosed, "Reported revenue in MYR | 125.5", "Reported revenue was 125.5 million."),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim(unclosed, "Reported revenue in MYR | 125.5", "Reported revenue was 125.5."),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim(
+        "| Reported revenue for the quarter | MYR 125.5 million |\n| Units | 2.0 |",
+        "Reported revenue for the quarter | MYR 125.5 million",
+      ),
+    ).toBeUndefined();
   });
 
   test("a quote that cuts a source figure short is checked against the whole figure", () => {
@@ -383,7 +407,7 @@ describe("Verified Web Figure", () => {
     ).toBeUndefined();
   });
 
-  test("keeps the sign of a negative or parenthesized amount", () => {
+  test("keeps the sign of a negative amount or an accounting-parenthesized table cell", () => {
     const claim = (snippet: string, text: string) =>
       unverifiedWebFigure(
         {
@@ -394,25 +418,45 @@ describe("Verified Web Figure", () => {
         webSourceTexts([webSource({ snippet })]),
       );
     const positive = "Operating cash flow was MYR 125.5 million.";
+    const negative = "Operating cash flow was -MYR 125.5 million.";
     expect(claim("Reported operating cash flow was -MYR 125.5 million.", positive)).toMatchObject({
       reason: "figure-not-in-quote",
     });
-    expect(claim("Reported operating cash flow was (MYR 125.5 million).", positive)).toMatchObject({
-      reason: "figure-not-in-quote",
-    });
+    expect(claim("Reported operating cash flow was -MYR 125.5 million.", negative)).toBeUndefined();
     expect(claim("Reported operating cash flow was MYR −125.5 million.", positive)).toMatchObject({
       reason: "figure-not-in-quote",
     });
     expect(
       claim(
-        "Reported operating cash flow was MYR 125.5 million.",
-        "Operating cash flow was -MYR 125.5 million.",
+        "Reported operating cash flow was MYR −125.5 million.",
+        "Cash flow was MYR −125.5 million.",
       ),
+    ).toBeUndefined();
+    const margin = "Reported margin in the quarter was 5.46%.";
+    for (const dash of ["–", "—", "‒"]) {
+      expect(claim(margin, `Margin was ${dash}5.46%.`)).toMatchObject({
+        reason: "figure-not-in-quote",
+      });
+      expect(
+        claim(`Reported margin in the quarter was ${dash}5.46%.`, `Margin was ${dash}5.46%.`),
+      ).toBeUndefined();
+    }
+    expect(claim("Reported operating cash flow was MYR 125.5 million.", negative)).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    const cell = "| Reported operating cash flow | (MYR 125.5 million) |";
+    expect(claim(cell, negative)).toBeUndefined();
+    expect(claim(cell, positive)).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim("| Reported operating cash flow | ( 125.5 ) |", "Cash flow was -125.5."),
+    ).toBeUndefined();
+    expect(
+      claim("| Reported operating cash flow | (125.5) |", "Operating cash flow was 125.5."),
     ).toMatchObject({ reason: "figure-not-in-quote" });
     expect(
       claim(
-        "Reported operating cash flow was (MYR 125.5 million).",
-        "Operating cash flow was -MYR 125.5 million.",
+        "Reported shares closed at 41.72, down 2.41 (-5.46%) on the day.",
+        "Shares fell -5.46%.",
       ),
     ).toBeUndefined();
     expect(
@@ -422,8 +466,65 @@ describe("Verified Web Figure", () => {
       ),
     ).toBeUndefined();
     expect(
-      claim("Reported margin was 12.5% - 2.5% lower on the year.", "Margin was 12.5%, 2.5% lower."),
+      claim("Revenue was 2,649,666 (RM'000) in the reported quarter.", "Revenue was 2,649,666."),
     ).toBeUndefined();
+  });
+
+  test("withholds a figure whose sign is ambiguous", () => {
+    const claim = (snippet: string, text: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: snippet }],
+        },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    const positive = "Operating cash flow was MYR 125.5 million.";
+    const negative = "Operating cash flow was -MYR 125.5 million.";
+    for (const prose of [
+      "Reported operating cash flow was (MYR 125.5 million).",
+      "Reported operating cash flow was ( MYR 125.5 million ).",
+      "Reported operating cash flow was - MYR 125.5 million.",
+      "Reported operating cash flow was − MYR 125.5 million.",
+      "Reported operating cash flow was MYR - 125.5 million.",
+      "| Reported operating cash flow | MYR (125.5) million |",
+    ]) {
+      expect(claim(prose, positive)).toMatchObject({ reason: "figure-not-in-quote" });
+      expect(claim(prose, negative)).toMatchObject({ reason: "figure-not-in-quote" });
+    }
+    const between = "| Metric | Value |\n| --- | --- |\n(12.5%)\n| Growth | 4.0% |";
+    const betweenQuote = "Metric | Value | --- | --- | (12.5%) | Growth";
+    const betweenClaim = (text: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: betweenQuote }],
+        },
+        webSourceTexts([webSource({ snippet: between })]),
+      );
+    expect(betweenClaim("The metric was -12.5% in the quarter.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(betweenClaim("The metric was 12.5% in the quarter.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    const aside = "Reported quarterly revenue (RM5m) rose on the year.";
+    expect(claim(aside, "Revenue was -RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(claim(aside, "Revenue was RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim("Reported margin was 12.5% - 2.5% lower on the year.", "Margin was 12.5%, 2.5% lower."),
+    ).toMatchObject({ reason: "figure-not-in-quote", figure: "2.5%" });
+    expect(
+      claim(
+        "Reported AI cloud revenue -- $574.9 million for the quarter.",
+        "Revenue was $574.9 million.",
+      ),
+    ).toBeUndefined();
+    expect(claim("Reported revenue was RM5m.", "Revenue was (RM5m) on the year.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
   });
 
   test("tries overlapping matches of a quote", () => {

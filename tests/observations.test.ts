@@ -337,6 +337,19 @@ describe("ObservationRepository window routing", () => {
         await fetchYahooCloseWindow("AAPL", from, to, yahooFailsAndMassiveThrows, "test-key"),
       ).toEqual({ ok: false, cause: "fetch-failed" });
     });
+
+    test("a non-US listing never falls back to Massive US closes", async () => {
+      const urls: string[] = [];
+      const fetchImpl: FetchLike = async (input) => {
+        urls.push(String(input));
+        return new Response("nope", { status: 404 });
+      };
+      expect(await fetchYahooCloseWindow("0097.KL", from, to, fetchImpl, "test-key")).toEqual({
+        ok: false,
+        cause: "fetch-failed",
+      });
+      expect(urls.some((url) => url.includes("massive.com"))).toBe(false);
+    });
   });
 
   test("keeps Yahoo's already split-adjusted, dividend-exclusive closes from one Yahoo response", async () => {

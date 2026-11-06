@@ -57,6 +57,7 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "clfd-zero-debt": ["complete", "limited"],
   "ebay-extension-investments": ["complete", "substantial"],
   "equity-amd-deep": ["complete", "substantial"],
+  "equity-bursa-deep": ["blocked", "limited"],
 } as const;
 
 // The recording predates figureQuotes; both spans are verbatim in the web-amd-a0601b8d (Reuters) snippet.
@@ -85,7 +86,7 @@ function withAmdOutlookQuotes(content: string): string {
   });
 }
 
-// Issued Event Grid ids with Forecast Baseline (null = declared missing-benchmark gap); [] = unpriced.
+// Issued Event Grid ids with Forecast Baseline (null = declared forecast-baseline gap); [] = unpriced.
 const EXPECTED_EVENT_GRID: Record<
   keyof typeof EXPECTED_COMPLETENESS_GRADES,
   readonly (readonly [string, number | null])[]
@@ -159,6 +160,12 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-1", 0.541],
     ["grid-range-5", 0.4301],
     ["grid-range-20", 0.3989],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-bursa-deep": [
+    ["grid-range-1", null],
+    ["grid-range-5", null],
+    ["grid-range-20", null],
     ["grid-relative-5", 0.5],
   ],
 };
@@ -460,7 +467,7 @@ describe("static equity run fixtures", () => {
           expect.stringMatching(/^event-grid: .*no valid eventGrid probability.*grid-relative-5/u),
         );
       }
-      if (expectedGrid.some(([, baseline]) => baseline === null)) {
+      if (expectedGrid.some(([id, baseline]) => id === "grid-relative-5" && baseline === null)) {
         expect(result.report.dataGaps).toContain(
           "forecast-baseline: Forecast Baseline omitted for grid-relative-5: no split-adjusted close history was collected for SPY",
         );

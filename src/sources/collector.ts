@@ -372,6 +372,10 @@ export async function collectSources(
     preliminaryIdentityResult?.identity !== undefined
       ? { ...ctx, instrumentIdentity: preliminaryIdentityResult.identity }
       : ctx;
+  const supplementalCtx: CollectContext =
+    identityCtx.instrumentIdentity === undefined
+      ? marketCtx
+      : { ...marketCtx, instrumentIdentity: identityCtx.instrumentIdentity };
   let newsContext: CollectContext = identityCtx;
   if (marketResult !== undefined) {
     const targets = isMarketUpdateJobType(command.jobType)
@@ -422,7 +426,7 @@ export async function collectSources(
     isDeepEquity && deepEquityParallelExecutors.has("supplemental-market")
       ? Promise.all(
           supplementalMarketAdapters.map((adapter) =>
-            adapter.collect(marketCtx, marketResult?.marketSnapshots ?? []),
+            adapter.collect(supplementalCtx, marketResult?.marketSnapshots ?? []),
           ),
         )
       : undefined,
@@ -457,7 +461,7 @@ export async function collectSources(
     deepSupplementalMarketResults ??
     (await Promise.all(
       supplementalMarketAdapters.map((adapter) =>
-        adapter.collect(marketCtx, resolvedMarketResult.marketSnapshots),
+        adapter.collect(supplementalCtx, resolvedMarketResult.marketSnapshots),
       ),
     ));
   const promotedMarket = promoteRequiredMarketSnapshots(

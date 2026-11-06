@@ -66,7 +66,7 @@ function currencyMismatchGap(command: InstrumentCommand, quoteCurrency: string):
   return sourceGap({
     source: "valuation",
     symbol: command.symbol.toUpperCase(),
-    message: `Valuation Evidence withheld for ${command.symbol}: quote currency ${quoteCurrency} differs from the USD SEC fundamentals basis, and no declared FX conversion is applied`,
+    message: `Valuation Evidence withheld for ${command.symbol}: quote currency ${quoteCurrency} is not USD, the only basis Valuation Evidence supports, and no declared FX conversion is applied`,
     provider: "market-bot",
     capability: "extended-evidence",
     cause: "unsupported-coverage",

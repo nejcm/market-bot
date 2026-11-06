@@ -106,7 +106,7 @@ Pipeline stages never use codex-native web search by design: web evidence enters
 
 ## International equities
 
-SEC EDGAR, Tradier IV, and Finnhub company/event endpoints are US-centric. Non-US listings (detected by resolved exchange and quote currency, then Yahoo symbol suffix such as `.L`, `.TO`, `.PA`, `.DE`, `.HK`, `.KL`, `.JK`, `.BK`, `.TWO`) short-circuit the affected provider packets before any network call, and each affected source emits a single `unsupported-coverage` Source Gap. Yahoo market data and Yahoo news still run. Valuation Evidence needs USD SEC fundamentals, so non-SEC issuers get a declared gap. Unclassifiable instruments default to attempting the fetch so coverage is never suppressed on weak signal.
+SEC EDGAR, Tradier IV, Finnhub company/event endpoints, and Massive stock snapshots and news are US-centric. Non-US listings (detected by resolved exchange and quote currency, then Yahoo symbol suffix such as `.L`, `.TO`, `.PA`, `.DE`, `.HK`, `.KL`, `.JK`, `.BK`, `.TWO`) short-circuit the affected provider packets before any network call, and each affected source emits a single `unsupported-coverage` Source Gap. Yahoo market data and Yahoo news still run. Valuation Evidence needs USD SEC fundamentals, so non-SEC issuers get a declared gap. Unclassifiable instruments default to attempting the fetch so coverage is never suppressed on weak signal.
 
 Equity runs pass the Identity Gate before any model stage ([ADR 0006](./adr/0006-non-sec-issuer-coverage.md)): an unresolved or ambiguous code stops with Yahoo candidates, and a non-SEC listing stops when `MARKET_BOT_EXA_API_KEY` is unset or `MARKET_BOT_WEB_GATHER_DISABLE` is set, because Web Gather is its evidence base at every depth.
 

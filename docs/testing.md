@@ -164,6 +164,7 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/clfd-zero-debt/` (captured live replay: Tagged Zero Debt at three CLFD 10-Q instants)
 - `tests/fixtures/runs/ebay-extension-investments/` (captured live replay: Extension Short-Term Investments, EBAY 10-Q 809M at 2026-09-30)
 - `tests/fixtures/runs/equity-amd-deep/` (captured live replay: AMD deep, FY2025 10-K and Q3 2026 10-Q calculation linkbases)
+- `tests/fixtures/runs/equity-bursa-deep/` (captured live replay: ViTrox `0097.KL` deep, `2026-11-06T03-07-03-043Z-4135821d`; non-SEC issuer, `^KLSE` benchmark, Exa Web Gather recorded)
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
 rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source
@@ -329,7 +330,7 @@ the sum over observed preflight calls of measured input plus recorded output (or
 token estimate when larger), without headroom. A whole-run plan prints no expected figure. This is a planning estimate, not a
 provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
 differ from preflight. A zero-call preflight is disclosed. Only captured fixtures
-(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`, `equity-nbis-deep`)
+(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`, `equity-nbis-deep`, `equity-bursa-deep`)
 carry real upstream outputs, and `eval-deep` rejects `incomplete` fixtures before any replay.
 
 The existing estimate-first workflow still applies: inspect the estimate, obtain explicit approval

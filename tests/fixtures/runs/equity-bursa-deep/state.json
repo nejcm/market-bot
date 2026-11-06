@@ -1,0 +1,473 @@
+{
+  "values": {
+    "cache:93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3:2026-11-06": [{}],
+    "host-circuit:query1.finance.yahoo.com": [
+      {
+        "value": false,
+        "count": 7
+      }
+    ],
+    "cache:13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6:2026-11-06": [{}],
+    "cache:736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474:2026-11-06": [{}],
+    "host-circuit:api.marketaux.com": [
+      {
+        "value": false
+      }
+    ],
+    "cache:ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88:2026-11-06": [{}],
+    "cache:fd38c94ed00ad5770b7348b01c8b83f2afed8d9911b5f1010b1112c60ac20ba2:2026-11-06": [{}],
+    "host-circuit:api.massive.com": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-06": [{}],
+    "host-circuit:api.stlouisfed.org": [
+      {
+        "value": false,
+        "count": 7
+      }
+    ],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-06": [{}],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-06": [{}],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-06": [{}],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-06": [{}],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-06": [{}],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-06": [{}],
+    "cache:f385be787fd3baf272616ad8e3656003fd02e286622b76534ae5d60df886e909:2026-11-06": [{}],
+    "cache:af1e7992cb38c0188d4b3fd8106c3a528d49aed404abe188054849c1968c73aa:2026-11-06": [{}],
+    "cache:0ccbdc1663d2ab55c44fdb144f12f3b9b9c68f0142bf07fe0cce2440f5778c73:2026-11-06": [{}],
+    "cache:14fe21ca9623291e5799182f412e9d185be6ec22f28154df49ce99528da02be9:2026-11-06": [{}],
+    "news-seen": [
+      {
+        "bodyFile": "bodies/1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0.json",
+        "sha256": "1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0"
+      },
+      {
+        "bodyFile": "bodies/1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0.json",
+        "sha256": "1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0"
+      }
+    ],
+    "cache-stale:14fe21ca9623291e5799182f412e9d185be6ec22f28154df49ce99528da02be9": [{}],
+    "cache:2f3aab0c645bd116849b2d7f1c6c86d1b6ad47d6659647169e7eba46f345327a:2026-11-06": [{}],
+    "calibration": [
+      {
+        "value": {
+          "generatedAt": "2026-11-06T03:07:03.043Z",
+          "resolvedCount": 134,
+          "duplicateForecastCount": 100,
+          "missAutopsyCount": 27,
+          "brierScore": 0.2368171641791044,
+          "hitRate": 0.44776119402985076,
+          "bins": [
+            {
+              "pLow": 0.1,
+              "pHigh": 0.2,
+              "label": "0.1-0.2",
+              "hitCount": 1,
+              "totalCount": 8,
+              "hitRate": 0.125
+            },
+            {
+              "pLow": 0.2,
+              "pHigh": 0.3,
+              "label": "0.2-0.3",
+              "hitCount": 3,
+              "totalCount": 10,
+              "hitRate": 0.3
+            },
+            {
+              "pLow": 0.3,
+              "pHigh": 0.4,
+              "label": "0.3-0.4",
+              "hitCount": 21,
+              "totalCount": 53,
+              "hitRate": 0.39622641509433965
+            },
+            {
+              "pLow": 0.4,
+              "pHigh": 0.5,
+              "label": "0.4-0.5",
+              "hitCount": 25,
+              "totalCount": 45,
+              "hitRate": 0.5555555555555556
+            },
+            {
+              "pLow": 0.5,
+              "pHigh": 0.6,
+              "label": "0.5-0.6",
+              "hitCount": 7,
+              "totalCount": 13,
+              "hitRate": 0.5384615384615384
+            },
+            {
+              "pLow": 0.6,
+              "pHigh": 0.7,
+              "label": "0.6-0.7",
+              "hitCount": 3,
+              "totalCount": 5,
+              "hitRate": 0.6
+            }
+          ],
+          "byKind": {
+            "relative": {
+              "brierScore": 0.20644516129032262,
+              "count": 31,
+              "runCount": 30,
+              "brierStandardError": 0.012480964906475857
+            },
+            "range": {
+              "brierScore": 0.2425571428571428,
+              "count": 91,
+              "runCount": 61,
+              "brierStandardError": 0.014993490441123969
+            },
+            "direction": {
+              "brierScore": 0.24765714285714285,
+              "count": 7,
+              "runCount": 7,
+              "brierStandardError": 0.03125002748298111
+            },
+            "earnings-direction": {
+              "brierScore": 0.24505,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0.00495000000000001
+            },
+            "conditional": {
+              "brierScore": 0.4624000000000001,
+              "count": 1,
+              "runCount": 1
+            },
+            "earnings-move": {
+              "brierScore": 0.28745,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0.03744999999999998
+            }
+          },
+          "byAssetClass": {
+            "equity": {
+              "brierScore": 0.2368171641791044,
+              "count": 134,
+              "runCount": 67,
+              "brierStandardError": 0.010634343565366433
+            }
+          },
+          "byJobType": {
+            "equity": {
+              "brierScore": 0.23710230769230764,
+              "count": 130,
+              "runCount": 66,
+              "brierStandardError": 0.010959088457076242
+            },
+            "forecast-grid": {
+              "brierScore": 0.22754999999999997,
+              "count": 4,
+              "runCount": 1
+            }
+          },
+          "byMarketUpdateHorizonBucket": {},
+          "byHorizonBucket": {
+            "1d": {
+              "brierScore": 0.24106923076923084,
+              "count": 52,
+              "runCount": 48,
+              "brierStandardError": 0.01731984311273737
+            },
+            "2-5d": {
+              "brierScore": 0.23856142857142865,
+              "count": 70,
+              "runCount": 41,
+              "brierStandardError": 0.015672205017090927
+            },
+            "6-10d": {
+              "brierScore": 0.23442222222222225,
+              "count": 9,
+              "runCount": 9,
+              "brierStandardError": 0.06917983564951444
+            },
+            "11-15d": {
+              "brierScore": 0.1296,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0
+            },
+            "16-20d": {
+              "brierScore": 0.1296,
+              "count": 1,
+              "runCount": 1
+            }
+          },
+          "byMarketRegime": {
+            "risk-on": {
+              "brierScore": 0.22636875,
+              "count": 32,
+              "runCount": 16,
+              "brierStandardError": 0.022623349184062832
+            },
+            "risk-off": {
+              "brierScore": 0.22481269841269855,
+              "count": 63,
+              "runCount": 32,
+              "brierStandardError": 0.01686842095286897
+            },
+            "mixed": {
+              "brierScore": 0.2690371428571428,
+              "count": 35,
+              "runCount": 18,
+              "brierStandardError": 0.017251368885856468
+            }
+          },
+          "marketRegimeCoverage": {
+            "risk-on": 32,
+            "risk-off": 63,
+            "mixed": 35,
+            "unknown": 4
+          },
+          "byMissAutopsyCause": {
+            "insufficient_evidence": 25,
+            "model_overconfidence": 2
+          },
+          "conditionalPredictions": {
+            "activatedCount": 1,
+            "voidedCount": 3
+          }
+        }
+      }
+    ],
+    "alpha-watchlist": [
+      {
+        "value": {
+          "watchlist": {
+            "generatedAt": "2026-08-17T04:02:33.492Z",
+            "candidates": [
+              {
+                "symbol": "ATR",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 24,
+                  "socialMomentumScore": 16.7,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "BILL",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 25,
+                  "socialMomentumScore": 15.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DRTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 13,
+                  "socialMomentumScore": 20.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DSGX",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "sec-only",
+                  "discoverySources": ["sec-filings"],
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "EOSE",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 14,
+                  "socialMomentumScore": 19.98,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "FA",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 17,
+                  "socialMomentumScore": 18.73,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "GETY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 11,
+                  "socialMomentumScore": 20.34,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 22,
+                  "socialMomentumScore": 16.99,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 20,
+                  "socialMomentumScore": 17.67,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NEXT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 15,
+                  "socialMomentumScore": 19.54,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NVTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 18,
+                  "socialMomentumScore": 18.39,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "OUT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 19,
+                  "socialMomentumScore": 18.31,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "PUMP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 21,
+                  "socialMomentumScore": 17.12,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "TMC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 10,
+                  "socialMomentumScore": 20.44,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "WAY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 4,
+                  "socialMomentumScore": 24.18,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "history:null": [
+      {
+        "value": {
+          "generatedAt": "2026-11-06T03:07:03.043Z",
+          "recentDays": 90,
+          "anchorMonths": [3, 6, 12],
+          "runs": [],
+          "sources": [],
+          "gaps": [
+            "No prior ticker runs found for 0097.KL",
+            "No prior equity market-update runs found"
+          ],
+          "audit": {
+            "scannedRunCount": 109,
+            "malformedRunCount": 0,
+            "malformedScoreCount": 0,
+            "candidateRunCount": 0,
+            "selectedRunCount": 0,
+            "recentSelectedCount": 0,
+            "anchorSelectedCount": 0,
+            "sameSymbolSelectedCount": 0,
+            "spotlightSymbolSelectedCount": 0,
+            "sameSubjectSelectedCount": 0,
+            "sameHorizonSelectedCount": 0,
+            "crossHorizonSelectedCount": 0,
+            "resolvedMissRunCount": 0,
+            "missCorrectionSelectedCount": 0,
+            "gapCount": 2
+          },
+          "artifactDeltas": []
+        }
+      }
+    ],
+    "reused-profile": [{}],
+    "cache:3516fdbaa140b25697ef9388611b2ab8089557cad497ec84ae35201202695d4d:2026-11-06": [{}],
+    "host-circuit:api.exa.ai": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:b973515825a597d364172f8f3490657452dc40d6d3a245124739eded468bbea0:2026-11-06": [{}],
+    "forecast-persistence-baseline": [{}]
+  }
+}

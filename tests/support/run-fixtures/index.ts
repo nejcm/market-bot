@@ -512,4 +512,5 @@ export const EQUITY_RUN_FIXTURES = [
   "clfd-zero-debt",
   "ebay-extension-investments",
   "equity-amd-deep",
+  "equity-bursa-deep",
 ] as const;

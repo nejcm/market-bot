@@ -55,7 +55,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   alpha-search uses (`sources/yahoo-quote-info.ts`).
 - **US classification is identity-driven.** `isUsListing` reads the resolved exchange and quote currency first,
   then the suffix list, which now includes `KL`, `JK`, `BK`, and `TWO`. SEC, Tradier, and Finnhub company
-  packets take `unsupported` for those listings.
+  packets and the Massive US snapshot and news calls take `unsupported` for those listings.
 - **Web Gather is the evidence base.** A non-SEC equity listing runs Web Gather at every depth, and the Identity
   Gate stops the run before any model stage when `MARKET_BOT_EXA_API_KEY` is unset or
   `MARKET_BOT_WEB_GATHER_DISABLE` is set: either removes the evidence base the coverage label names.

@@ -24,6 +24,7 @@ import {
   type SourceRequest,
 } from "./types";
 import { isRecord, optionalString, readNumber, readString } from "../guards";
+import { isUsListing } from "./instrument-capability";
 import { fetchMassiveCloseWindow, fetchMassiveQuoteFallback } from "./massive-fallback";
 import {
   fetchYahooJsonWithResilience,
@@ -390,7 +391,7 @@ export async function requestJsonWithQuoteFallback(
     return result;
   }
 
-  const symbols = symbolsFromQuoteUrl(request.url);
+  const symbols = symbolsFromQuoteUrl(request.url).filter((symbol) => isUsListing(symbol));
   if (symbols.length === 0) {
     return result;
   }
@@ -1115,13 +1116,9 @@ export async function fetchYahooCloseWindow(
     }
   }
 
-  const massiveObservations = await fetchMassiveCloseWindow(
-    symbol,
-    from,
-    to,
-    massiveApiKey,
-    fetchImpl,
-  );
+  const massiveObservations = isUsListing(symbol)
+    ? await fetchMassiveCloseWindow(symbol, from, to, massiveApiKey, fetchImpl)
+    : undefined;
   if (massiveObservations !== undefined) {
     return { ok: true, observations: completed(massiveObservations, { status: "absent" }) };
   }

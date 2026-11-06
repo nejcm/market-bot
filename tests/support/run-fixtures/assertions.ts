@@ -200,18 +200,38 @@ function assertListingCoverageInvariants(result: RunFixtureResult, meta: Fixture
   if (!nonSec || !isInstrumentCommand(command)) {
     return false;
   }
+  const usOnly = /^(?:sec-|finnhub|tradier|massive)/u;
   expect(
-    result.collectedSources.rawSnapshots.filter(({ adapter }) => adapter.startsWith("sec-")),
+    result.collectedSources.rawSnapshots.filter(({ adapter }) => usOnly.test(adapter)),
+  ).toEqual([]);
+  expect(
+    result.collectedSources.sourceGaps.filter(
+      ({ source, message }) => usOnly.test(source) && !/ not support /u.test(message),
+    ),
   ).toEqual([]);
   const benchmark = exchangeProfileFor(command.symbol)?.benchmark;
   if (benchmark !== undefined) {
-    expect(result.collectedSources.marketSnapshots.map(({ symbol }) => symbol)).not.toContain(
-      "QQQ",
-    );
+    const marketSymbols = result.collectedSources.marketSnapshots.map(({ symbol }) => symbol);
+    expect(marketSymbols).toContain(benchmark);
+    expect(marketSymbols).not.toContain("QQQ");
+    for (const { measurableAs } of result.report.predictions.filter(
+      ({ id }) => id === "grid-relative-5",
+    )) {
+      expect(measurableAs).toContain(`close(${benchmark},`);
+    }
   }
   const withheld = result.collectedSources.verifiedMarketSnapshot === undefined;
   if (withheld) {
     expect(result.report.predictions).toEqual([]);
+  }
+  for (const { id } of result.report.predictions.filter(
+    ({ origin, baselineProbability }) => origin === "grid" && baselineProbability === undefined,
+  )) {
+    expect(result.report.dataGaps).toContainEqual(
+      expect.stringMatching(
+        new RegExp(`^forecast-baseline: .*\\b${id}\\b.*\\(non-US listing`, "u"),
+      ),
+    );
   }
   return withheld;
 }
@@ -1342,6 +1362,7 @@ const EXPECTED_LENS_VALUES: Readonly<
   "clfd-zero-debt": {},
   "ebay-extension-investments": {},
   "equity-amd-deep": {},
+  "equity-bursa-deep": {},
 };
 
 export function assertFinancialLensMetricInvariants(
@@ -3946,6 +3967,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "clfd-zero-debt": CLFD_WORKBENCH_VALUES,
   "ebay-extension-investments": EBAY_WORKBENCH_VALUES,
   "equity-amd-deep": AMD_WORKBENCH_VALUES,
+  "equity-bursa-deep": {},
   "equity-depository-deep": {
     "annual|2016-10-31|2018-11-27": [
       MISSING_WORKBENCH_PRICE,

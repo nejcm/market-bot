@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1](https://github.com/nejcm/market-bot/compare/v1.13.0...v1.13.1) (2026-11-06)
+
+### Bug Fixes
+
+- **web-figures:** withhold ambiguous table structure and signs (#144) ([fff4c02](https://github.com/nejcm/market-bot/commit/fff4c02f56d67e2c2d69ce5248311af0f8065352))
+- **valuation:** withhold when reporting currency differs from quote (#143) ([0768c1b](https://github.com/nejcm/market-bot/commit/0768c1ba50c23e2f2a2d13d189a9489b84ccca66))
+
 ## [1.13.0](https://github.com/nejcm/market-bot/compare/v1.12.5...v1.13.0) (2026-11-06)
 
 ### Features

@@ -67,7 +67,7 @@ function businessFrameworkExtra(
   const modelSections = modelBusinessFrameworkSections(modelExtra);
   return {
     version: artifact.version,
-    phase: artifact.phase,
+    ...(artifact.phase === undefined ? {} : { phase: artifact.phase }),
     sourceIds: artifact.sourceIds,
     gaps: artifact.gaps,
     sections: artifact.sections.map((section) => {

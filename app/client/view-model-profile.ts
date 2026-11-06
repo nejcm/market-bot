@@ -75,7 +75,7 @@ interface BusinessFrameworkSectionView {
 }
 
 export interface BusinessFrameworkView {
-  readonly phase: BusinessLifecyclePhase;
+  readonly phase?: BusinessLifecyclePhase;
   readonly sections: readonly BusinessFrameworkSectionView[];
   readonly sourceIds: readonly string[];
   readonly gaps: readonly string[];
@@ -145,10 +145,9 @@ function businessFrameworkFromValue(
   if (framework === undefined) {
     return undefined;
   }
-  // View policy: the Console header is the phase, so an unknown or absent phase
-  // Suppresses the whole card. Absent `sections` renders as no sections.
+  // View policy: an unknown phase suppresses the whole card; an absent one renders as not classified.
   const { phase } = framework;
-  if (phase === undefined || !isBusinessLifecyclePhase(phase)) {
+  if (phase !== undefined && !isBusinessLifecyclePhase(phase)) {
     return undefined;
   }
   const sections = (framework.sections ?? []).flatMap(
@@ -180,7 +179,7 @@ function businessFrameworkFromValue(
     },
   );
   return {
-    phase,
+    ...(phase === undefined ? {} : { phase }),
     sections,
     sourceIds: framework.sourceIds,
     gaps: framework.gaps.map(businessFrameworkGapText),

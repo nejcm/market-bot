@@ -359,6 +359,65 @@ describe("Event Grid", () => {
     expect(relative?.measurableAs).not.toContain("SPY");
   });
 
+  test("withholds a Bursa model prediction measured against a US benchmark", () => {
+    const book = issueForecastBook({
+      command: { ...EQUITY, symbol: "0097.KL" },
+      collectedSources: collectedSources({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          symbol: "0097.KL",
+          recentCloses: alternatingCloses(30).map(({ date, close }) => ({ date, close })),
+        }),
+      }),
+      modelPredictions: [
+        prediction({
+          id: "pred-spy",
+          kind: "relative",
+          measurableAs: "close(0097.KL, +10) / close(0097.KL, 0) > close(SPY, +10) / close(SPY, 0)",
+        }),
+        prediction({
+          id: "pred-klse",
+          kind: "relative",
+          measurableAs:
+            "close(0097.KL, +10) / close(0097.KL, 0) > close(^KLSE, +10) / close(^KLSE, 0)",
+        }),
+        prediction({ id: "pred-peer", measurableAs: "close(3867.KL, +5) > close(3867.KL, 0)" }),
+        prediction({
+          id: "pred-macro",
+          kind: "conditional",
+          measurableAs:
+            "if (fred(DGS10, +1) > fred(DGS10, 0)) then (close(0097.KL, +5) > close(0097.KL, 0))",
+        }),
+      ],
+      modelEventGrid: [],
+      knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
+    });
+    const ids = book.predictions.map(({ id }) => id);
+    expect(ids).toContain("pred-klse");
+    expect(ids).toContain("pred-peer");
+    expect(ids).toContain("pred-macro");
+    expect(ids).not.toContain("pred-spy");
+    expect(book.gaps.find(({ message }) => message.includes("pred-spy"))?.message).toBe(
+      "Model prediction(s) pred-spy for 0097.KL withheld: they compare against SPY, which trades outside Bursa Malaysia in another currency or session calendar than the MYR listing; relative events use ^KLSE",
+    );
+
+    const us = issueForecastBook({
+      command: EQUITY,
+      collectedSources: gridSources(),
+      modelPredictions: [
+        prediction({
+          id: "pred-spy",
+          kind: "relative",
+          measurableAs: "close(AAPL, +10) / close(AAPL, 0) > close(SPY, +10) / close(SPY, 0)",
+        }),
+      ],
+      modelEventGrid: [],
+      knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(us.predictions.map(({ id }) => id)).toContain("pred-spy");
+  });
+
   test("withholds every prediction for a non-SEC listing without verified closes", () => {
     const book = issueForecastBook({
       command: { ...EQUITY, symbol: "0097.KL" },

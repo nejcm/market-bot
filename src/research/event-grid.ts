@@ -271,6 +271,43 @@ function withheldForecastGap(
   });
 }
 
+function offExchangePredictions(
+  command: ResearchCommand,
+  predictions: readonly Prediction[],
+): { readonly kept: readonly Prediction[]; readonly gaps: readonly SourceGap[] } {
+  const profile = isInstrumentCommand(command) ? exchangeProfileFor(command.symbol) : undefined;
+  if (!isInstrumentCommand(command) || profile === undefined) {
+    return { kept: predictions, gaps: [] };
+  }
+  const offExchangeLegs = (prediction: Prediction) =>
+    instrumentsForMeasurableAs(prediction.measurableAs)
+      .filter((leg) => !leg.startsWith("FRED:"))
+      .map((leg) => leg.replace(/^IV:/u, ""))
+      .filter(
+        (leg) => leg.toUpperCase() !== profile.benchmark && exchangeProfileFor(leg) !== profile,
+      );
+  const withheld = predictions.filter((prediction) => offExchangeLegs(prediction).length > 0);
+  if (withheld.length === 0) {
+    return { kept: predictions, gaps: [] };
+  }
+  const legs = [...new Set(withheld.flatMap(offExchangeLegs))].join(", ");
+  return {
+    kept: predictions.filter((prediction) => !withheld.includes(prediction)),
+    gaps: [
+      sourceGap({
+        source: "forecast-book",
+        symbol: command.symbol,
+        message: `Model prediction(s) ${withheld.map(({ id }) => id).join(", ")} for ${command.symbol} withheld: they compare against ${legs}, which trades outside ${profile.exchange} in another currency or session calendar than the ${profile.currency} listing; relative events use ${profile.benchmark}`,
+        provider: "market-bot",
+        capability: "forecast-book",
+        cause: "suppressed-by-design",
+        evidenceQualityImpact: "no-cap",
+        triage: "diagnostic",
+      }),
+    ],
+  };
+}
+
 // Stamps origin and Forecast Baseline and appends priced Event Grid events; every omission is a gap.
 // A model prediction restating a grid event is folded into that event (ADR 0003, amended 2026-10-23).
 export function issueForecastBook(input: {
@@ -294,13 +331,14 @@ export function issueForecastBook(input: {
   if (withheld !== undefined) {
     return { predictions: [], gaps: [withheld], withheld: true };
   }
+  const onExchange = offExchangePredictions(input.command, input.modelPredictions);
   const grid = eventGrid(input.command, input.collectedSources);
-  const gaps: SourceGap[] = [...grid.gaps];
+  const gaps: SourceGap[] = [...onExchange.gaps, ...grid.gaps];
   const pModel = modelGridProbabilities(input.modelEventGrid);
   const restated = new Map<string, Prediction>();
   const closeSourceIds = collectedCloseSourceIds(input.knownSourceIds, input.collectedSources);
   const issuable = issuableGridEvents(grid.events, input.knownSourceIds, input.collectedSources);
-  const modelPredictions = input.modelPredictions.filter((prediction) => {
+  const modelPredictions = onExchange.kept.filter((prediction) => {
     const event = issuable.find(
       (candidate) =>
         candidate.id === prediction.id ||

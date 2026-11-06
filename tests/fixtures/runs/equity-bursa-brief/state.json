@@ -1,0 +1,1153 @@
+{
+  "values": {
+    "cache:93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3",
+          "adapter": "yahoo-ticker",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "EQUITY",
+                  "typeDisp": "Equity",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": false,
+                  "customPriceAlertConfidence": "LOW",
+                  "currency": "MYR",
+                  "shortName": "VITROX",
+                  "longName": "ViTrox Corporation Berhad",
+                  "regularMarketTime": 1793933521,
+                  "exchange": "KLS",
+                  "exchangeTimezoneName": "Asia/Kuala_Lumpur",
+                  "exchangeTimezoneShortName": "MYT",
+                  "gmtOffSetMilliseconds": 28800000,
+                  "market": "my_market",
+                  "esgPopulated": false,
+                  "corporateActions": [],
+                  "regularMarketChange": -0.2800007,
+                  "regularMarketChangePercent": -2.6415157,
+                  "fulldayChange": -0.2800007,
+                  "fulldayChangePercent": -2.6415157,
+                  "fulldayPrice": 10.32,
+                  "regularMarketPrice": 10.32,
+                  "regularMarketDayHigh": 10.4,
+                  "regularMarketDayRange": "9.88 - 10.4",
+                  "regularMarketDayLow": 9.88,
+                  "regularMarketVolume": 4674900,
+                  "regularMarketPreviousClose": 10.6,
+                  "bid": 10.3,
+                  "ask": 10.32,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Kuala Lumpur",
+                  "financialCurrency": "MYR",
+                  "regularMarketOpen": 10.2,
+                  "averageDailyVolume3Month": 3553825,
+                  "averageDailyVolume10Day": 4012400,
+                  "fiftyTwoWeekLowChange": 6.3799996,
+                  "fiftyTwoWeekLowChangePercent": 1.6192893,
+                  "fiftyTwoWeekRange": "3.94 - 11.3",
+                  "fiftyTwoWeekHighChange": -0.9800005,
+                  "fiftyTwoWeekHighChangePercent": -0.086725704,
+                  "fiftyTwoWeekLow": 3.94,
+                  "fiftyTwoWeekHigh": 11.3,
+                  "fiftyTwoWeekChangePercent": 134.51328,
+                  "earningsTimestampStart": 1753268340,
+                  "earningsTimestampEnd": 1753704000,
+                  "isEarningsDateEstimate": true,
+                  "trailingAnnualDividendRate": 0.012,
+                  "trailingPE": 93.81818,
+                  "dividendRate": 0.02,
+                  "trailingAnnualDividendYield": 0.0011320754,
+                  "dividendYield": 0.17,
+                  "epsTrailingTwelveMonths": 0.11,
+                  "epsForward": 0.21035,
+                  "epsCurrentYear": 0.1723,
+                  "priceEpsCurrentYear": 59.89553,
+                  "sharesOutstanding": 1894902800,
+                  "impliedSharesOutstanding": 1894902800,
+                  "bookValue": 0.659,
+                  "fiftyDayAverage": 10.1182,
+                  "fiftyDayAverageChange": 0.2017994,
+                  "fiftyDayAverageChangePercent": 0.019944198,
+                  "twoHundredDayAverage": 7.14365,
+                  "twoHundredDayAverageChange": 3.1763496,
+                  "twoHundredDayAverageChangePercent": 0.4446396,
+                  "marketCap": 19555395584,
+                  "forwardPE": 49.061085,
+                  "priceToBook": 15.660091,
+                  "marketState": "REGULAR",
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "averageAnalystRating": "1.9 - Buy",
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 1126486800000,
+                  "priceHint": 2,
+                  "symbol": "0097.KL"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    ],
+    "cache:13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6",
+          "adapter": "yahoo-regime",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": false,
+                  "customPriceAlertConfidence": "LOW",
+                  "currency": "MYR",
+                  "marketState": "REGULAR",
+                  "shortName": "FTSE Bursa Malaysia KLCI",
+                  "longName": "FTSE Bursa Malaysia KLCI",
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 754880400000,
+                  "priceHint": 2,
+                  "regularMarketChange": -21.359985,
+                  "regularMarketChangePercent": -1.3058541,
+                  "fulldayChange": -21.359985,
+                  "fulldayChangePercent": -1.3058541,
+                  "fulldayPrice": 1614.5,
+                  "regularMarketPrice": 1614.5,
+                  "regularMarketDayHigh": 1620.55,
+                  "regularMarketDayRange": "1613.11 - 1620.55",
+                  "regularMarketDayLow": 1613.11,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 1635.86,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Kuala Lumpur",
+                  "regularMarketOpen": 1620.55,
+                  "averageDailyVolume3Month": 221953803,
+                  "averageDailyVolume10Day": 191175300,
+                  "fiftyTwoWeekLowChange": 21.930054,
+                  "fiftyTwoWeekLowChangePercent": 0.013770229,
+                  "fiftyTwoWeekRange": "1592.57 - 1771.25",
+                  "fiftyTwoWeekHighChange": -156.75,
+                  "fiftyTwoWeekHighChangePercent": -0.08849683,
+                  "fiftyTwoWeekLow": 1592.57,
+                  "fiftyTwoWeekHigh": 1771.25,
+                  "fiftyTwoWeekChangePercent": -0.1470089,
+                  "fiftyDayAverage": 1655.0883,
+                  "fiftyDayAverageChange": -40.588257,
+                  "fiftyDayAverageChangePercent": -0.024523318,
+                  "twoHundredDayAverage": 1698.9495,
+                  "twoHundredDayAverageChange": -84.44946,
+                  "twoHundredDayAverageChangePercent": -0.049706873,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "corporateActions": [],
+                  "regularMarketTime": 1793933490,
+                  "exchange": "KLS",
+                  "messageBoardId": "finmb_INDEXKLSE",
+                  "exchangeTimezoneName": "Asia/Kuala_Lumpur",
+                  "exchangeTimezoneShortName": "MYT",
+                  "gmtOffSetMilliseconds": 28800000,
+                  "market": "my_market",
+                  "esgPopulated": false,
+                  "symbol": "^KLSE"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    ],
+    "host-circuit:query1.finance.yahoo.com": [
+      {
+        "value": false,
+        "count": 7
+      }
+    ],
+    "cache:736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474",
+          "adapter": "marketaux-news",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "warnings": ["limit is higher than your plan allows"],
+            "meta": {
+              "found": 0,
+              "returned": 0,
+              "limit": 3,
+              "page": 1
+            },
+            "data": []
+          }
+        }
+      }
+    ],
+    "cache:ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88",
+          "adapter": "yahoo-news",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "explains": [],
+            "count": 1,
+            "quotes": [
+              {
+                "exchange": "KLS",
+                "shortname": "VITROX",
+                "quoteType": "EQUITY",
+                "symbol": "0097.KL",
+                "index": "quotes",
+                "score": 10047500,
+                "typeDisp": "Equity",
+                "longname": "ViTrox Corporation Berhad",
+                "exchDisp": "Kuala Lumpur Stock Exchange",
+                "sector": "Technology",
+                "sectorDisp": "Technology",
+                "industry": "Semiconductor Equipment & Materials",
+                "industryDisp": "Semiconductor Equipment & Materials",
+                "isYahooFinance": true
+              }
+            ],
+            "news": [],
+            "nav": [],
+            "lists": [],
+            "researchReports": [],
+            "screenerFieldResults": [],
+            "totalTime": 37,
+            "timeTakenForQuotes": 413,
+            "timeTakenForNews": 600,
+            "timeTakenForAlgowatchlist": 400,
+            "timeTakenForPredefinedScreener": 400,
+            "timeTakenForCrunchbase": 0,
+            "timeTakenForNav": 400,
+            "timeTakenForResearchReports": 0,
+            "timeTakenForQuestions": 0,
+            "timeTakenForScreenerField": 0,
+            "timeTakenForCulturalAssets": 0,
+            "timeTakenForSearchLists": 0
+          }
+        }
+      }
+    ],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba",
+          "adapter": "fred-DGS10",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-05",
+            "realtime_end": "2026-11-05",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 16917,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-04",
+                "value": "4.9"
+              },
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-03",
+                "value": "4.95"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47",
+          "adapter": "fred-DGS2",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-05",
+            "realtime_end": "2026-11-05",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13157,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-04",
+                "value": "4.58"
+              },
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-03",
+                "value": "4.61"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d",
+          "adapter": "fred-T10Y2Y",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-05",
+            "realtime_end": "2026-11-05",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13158,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-05",
+                "value": "0.38"
+              },
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-04",
+                "value": "0.32"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8",
+          "adapter": "fred-FEDFUNDS",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 868,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-01",
+                "value": "3.88"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-09-01",
+                "value": "3.75"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1",
+          "adapter": "fred-CPIAUCSL",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 957,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-09-01",
+                "value": "336.298"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-08-01",
+                "value": "334.131"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed",
+          "adapter": "fred-UNRATE",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-10-21",
+            "realtime_end": "2026-10-21",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 945,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-09-01",
+                "value": "4.2"
+              },
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-08-01",
+                "value": "4.1"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8",
+          "adapter": "fred-DTWEXBGS",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 5435,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-30",
+                "value": "121.6656"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-29",
+                "value": "121.7361"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:f385be787fd3baf272616ad8e3656003fd02e286622b76534ae5d60df886e909:2026-11-06": [
+      {
+        "bodyFile": "bodies/a841ef25575d6a559207963dadd21baac87ab9d67b439b324a39a54ce91d8cba.json",
+        "sha256": "a841ef25575d6a559207963dadd21baac87ab9d67b439b324a39a54ce91d8cba"
+      }
+    ],
+    "cache:af1e7992cb38c0188d4b3fd8106c3a528d49aed404abe188054849c1968c73aa:2026-11-06": [
+      {
+        "bodyFile": "bodies/f127ca745a4cbe2254d6953aa1d7b721c56eb56e3b6fba1105b769d785e52436.json",
+        "sha256": "f127ca745a4cbe2254d6953aa1d7b721c56eb56e3b6fba1105b769d785e52436"
+      }
+    ],
+    "cache:0ccbdc1663d2ab55c44fdb144f12f3b9b9c68f0142bf07fe0cce2440f5778c73:2026-11-06": [
+      {
+        "bodyFile": "bodies/390c709302035e926ed14417ec5089244d3375a2e99e35804f243e6e970e2f71.json",
+        "sha256": "390c709302035e926ed14417ec5089244d3375a2e99e35804f243e6e970e2f71"
+      }
+    ],
+    "host-circuit:api.marketaux.com": [
+      {
+        "value": false
+      }
+    ],
+    "news-seen": [
+      {
+        "bodyFile": "bodies/233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d.json",
+        "sha256": "233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d"
+      },
+      {
+        "bodyFile": "bodies/233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d.json",
+        "sha256": "233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d"
+      }
+    ],
+    "cache:2f3aab0c645bd116849b2d7f1c6c86d1b6ad47d6659647169e7eba46f345327a:2026-11-06": [
+      {
+        "bodyFile": "bodies/1d98df48a2e4afe50060009a3f8a5d7862ab40c66bc3ecbcddd2e0cfec11f28c.json",
+        "sha256": "1d98df48a2e4afe50060009a3f8a5d7862ab40c66bc3ecbcddd2e0cfec11f28c"
+      }
+    ],
+    "calibration": [
+      {
+        "value": {
+          "generatedAt": "2026-11-06T05:46:13.672Z",
+          "resolvedCount": 134,
+          "duplicateForecastCount": 100,
+          "missAutopsyCount": 27,
+          "brierScore": 0.2368171641791044,
+          "hitRate": 0.44776119402985076,
+          "bins": [
+            {
+              "pLow": 0.1,
+              "pHigh": 0.2,
+              "label": "0.1-0.2",
+              "hitCount": 1,
+              "totalCount": 8,
+              "hitRate": 0.125
+            },
+            {
+              "pLow": 0.2,
+              "pHigh": 0.3,
+              "label": "0.2-0.3",
+              "hitCount": 3,
+              "totalCount": 10,
+              "hitRate": 0.3
+            },
+            {
+              "pLow": 0.3,
+              "pHigh": 0.4,
+              "label": "0.3-0.4",
+              "hitCount": 21,
+              "totalCount": 53,
+              "hitRate": 0.39622641509433965
+            },
+            {
+              "pLow": 0.4,
+              "pHigh": 0.5,
+              "label": "0.4-0.5",
+              "hitCount": 25,
+              "totalCount": 45,
+              "hitRate": 0.5555555555555556
+            },
+            {
+              "pLow": 0.5,
+              "pHigh": 0.6,
+              "label": "0.5-0.6",
+              "hitCount": 7,
+              "totalCount": 13,
+              "hitRate": 0.5384615384615384
+            },
+            {
+              "pLow": 0.6,
+              "pHigh": 0.7,
+              "label": "0.6-0.7",
+              "hitCount": 3,
+              "totalCount": 5,
+              "hitRate": 0.6
+            }
+          ],
+          "byKind": {
+            "relative": {
+              "brierScore": 0.20644516129032262,
+              "count": 31,
+              "runCount": 30,
+              "brierStandardError": 0.012480964906475857
+            },
+            "range": {
+              "brierScore": 0.2425571428571428,
+              "count": 91,
+              "runCount": 61,
+              "brierStandardError": 0.014993490441123969
+            },
+            "direction": {
+              "brierScore": 0.24765714285714285,
+              "count": 7,
+              "runCount": 7,
+              "brierStandardError": 0.03125002748298111
+            },
+            "earnings-direction": {
+              "brierScore": 0.24505,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0.00495000000000001
+            },
+            "conditional": {
+              "brierScore": 0.4624000000000001,
+              "count": 1,
+              "runCount": 1
+            },
+            "earnings-move": {
+              "brierScore": 0.28745,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0.03744999999999998
+            }
+          },
+          "byAssetClass": {
+            "equity": {
+              "brierScore": 0.2368171641791044,
+              "count": 134,
+              "runCount": 67,
+              "brierStandardError": 0.010634343565366433
+            }
+          },
+          "byJobType": {
+            "equity": {
+              "brierScore": 0.23710230769230764,
+              "count": 130,
+              "runCount": 66,
+              "brierStandardError": 0.010959088457076242
+            },
+            "forecast-grid": {
+              "brierScore": 0.22754999999999997,
+              "count": 4,
+              "runCount": 1
+            }
+          },
+          "byMarketUpdateHorizonBucket": {},
+          "byHorizonBucket": {
+            "1d": {
+              "brierScore": 0.24106923076923084,
+              "count": 52,
+              "runCount": 48,
+              "brierStandardError": 0.01731984311273737
+            },
+            "2-5d": {
+              "brierScore": 0.23856142857142865,
+              "count": 70,
+              "runCount": 41,
+              "brierStandardError": 0.015672205017090927
+            },
+            "6-10d": {
+              "brierScore": 0.23442222222222225,
+              "count": 9,
+              "runCount": 9,
+              "brierStandardError": 0.06917983564951444
+            },
+            "11-15d": {
+              "brierScore": 0.1296,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0
+            },
+            "16-20d": {
+              "brierScore": 0.1296,
+              "count": 1,
+              "runCount": 1
+            }
+          },
+          "byMarketRegime": {
+            "risk-on": {
+              "brierScore": 0.22636875,
+              "count": 32,
+              "runCount": 16,
+              "brierStandardError": 0.022623349184062832
+            },
+            "risk-off": {
+              "brierScore": 0.22481269841269855,
+              "count": 63,
+              "runCount": 32,
+              "brierStandardError": 0.01686842095286897
+            },
+            "mixed": {
+              "brierScore": 0.2690371428571428,
+              "count": 35,
+              "runCount": 18,
+              "brierStandardError": 0.017251368885856468
+            }
+          },
+          "marketRegimeCoverage": {
+            "risk-on": 32,
+            "risk-off": 63,
+            "mixed": 35,
+            "unknown": 4
+          },
+          "byMissAutopsyCause": {
+            "insufficient_evidence": 25,
+            "model_overconfidence": 2
+          },
+          "conditionalPredictions": {
+            "activatedCount": 1,
+            "voidedCount": 3
+          }
+        }
+      }
+    ],
+    "alpha-watchlist": [
+      {
+        "value": {
+          "watchlist": {
+            "generatedAt": "2026-08-17T04:02:33.492Z",
+            "candidates": [
+              {
+                "symbol": "ATR",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 24,
+                  "socialMomentumScore": 16.7,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "BILL",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 25,
+                  "socialMomentumScore": 15.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DRTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 13,
+                  "socialMomentumScore": 20.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DSGX",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "sec-only",
+                  "discoverySources": ["sec-filings"],
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "EOSE",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 14,
+                  "socialMomentumScore": 19.98,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "FA",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 17,
+                  "socialMomentumScore": 18.73,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "GETY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 11,
+                  "socialMomentumScore": 20.34,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 22,
+                  "socialMomentumScore": 16.99,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 20,
+                  "socialMomentumScore": 17.67,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NEXT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 15,
+                  "socialMomentumScore": 19.54,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NVTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 18,
+                  "socialMomentumScore": 18.39,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "OUT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 19,
+                  "socialMomentumScore": 18.31,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "PUMP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 21,
+                  "socialMomentumScore": 17.12,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "TMC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 10,
+                  "socialMomentumScore": 20.44,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "WAY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 4,
+                  "socialMomentumScore": 24.18,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "history:null": [
+      {
+        "value": {
+          "generatedAt": "2026-11-06T05:46:13.672Z",
+          "recentDays": 90,
+          "anchorMonths": [3, 6, 12],
+          "runs": [
+            {
+              "runId": "2026-11-06T03-07-03-043Z-4135821d",
+              "sourceId": "history-report-2026-11-06T03-07-03-043Z-4135821d",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "generatedAt": "2026-11-06T03:07:03.043Z",
+              "selectionReasons": ["recent", "same-symbol"],
+              "summary": "ViTrox reported a sharply stronger third quarter amid semiconductor inspection demand and a favorable management outlook. The evidence supports a constructive operating narrative, but does not establish how durable or broad-based the growth is. Financial-statement coverage, segment detail, and independent forward estimates are limited; recent market behavior and technical indicators are mixed.",
+              "confidence": "medium",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "ViTrox makes automated inspection equipment for semiconductor components and printed circuit board assemblies. The supplied sources identify Automated Board Inspection and Machine Vision System segments but do not give revenue by segment.",
+                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "The Edge reported 3QFY2026 revenue of RM485.1 million, up more than 110% year over year. The cited web source states: “Revenue was up more than 110% year-on-year to RM485.1 million”.",
+                  "sourceIds": ["web-0097.kl-4225acb7"]
+                },
+                {
+                  "text": "The Star reported 3QFY2026 net profit of RM118.58 million compared with RM34.72 million in the same quarter a year earlier. The cited web source states: “coming in at RM118.58mil compared to RM34.72mil registered in the same quarter last year”.",
+                  "sourceIds": ["web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "A market report attributes demand across Automated Board Inspection and Machine Vision System to the quarterly results; supplied sources do not quantify each segment’s contribution or establish repeatability.",
+                  "sourceIds": ["web-0097.kl-2df06f20", "web-0097.kl-4225acb7"]
+                },
+                {
+                  "text": "The company’s favorable outlook through the remainder of FY2026 and into 2027 is reported alongside semiconductor-sector growth, data-center investment, and edge-AI demand. This is issuer outlook conveyed by a market report, not a verified future result.",
+                  "sourceIds": ["web-0097.kl-4225acb7"]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Missing required source: The reports do not establish whether quarterly growth is broad-based or repeatable; segment contributions, order trends, backlog, conversion timing, and customer corroboration are absent.",
+                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "Assumption: Weaker AI-infrastructure spending, a semiconductor downturn, component shortages, delayed capital spending, competition, or currency movements could weigh on results. A market report identifies these risks without quantifying issuer exposure.",
+                  "sourceIds": ["web-0097.kl-cd5a78ad"]
+                },
+                {
+                  "text": "Observed fact: Yahoo forward PE uses forward EPS without a provider as-of date. Target valuation and peer comparisons are unavailable, limiting interpretation against a normalized earnings base.",
+                  "sourceIds": ["market-yahoo-equity-0097.kl"]
+                },
+                {
+                  "text": "Observed fact: The 2026-11-06 quote was captured during an unfinished session; completed-session indicators are anchored to 2026-11-05.",
+                  "sourceIds": ["market-yahoo-equity-0097.kl", "verified-snapshot-0097.KL"]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Observed fact: The reported 3QFY2026 results provide evidence of stronger recent business activity: revenue was reported up more than 110% year over year and net profit was reported at RM118.58 million versus RM34.72 million a year earlier.",
+                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "Issuer claim: Management’s reported outlook through FY2026 and into 2027 cites semiconductor-sector growth, data-center investment, and edge-AI demand; the supplied evidence does not include a confirmed future event date.",
+                  "sourceIds": ["web-0097.kl-4225acb7"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: SEC EDGAR does not support 0097.KL (non-US listing)",
+                "finnhub-events: Finnhub event endpoints do not support 0097.KL (non-US listing)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint does not support 0097.KL",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint does not support 0097.KL",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint does not support 0097.KL",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint does not support 0097.KL",
+                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint does not support 0097.KL",
+                "finnhub-insider-transactions: Finnhub insider transactions endpoint does not support 0097.KL"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-relative-spy-20",
+                  "claim": "0097.KL outperforms SPY over 20 trading days",
+                  "kind": "relative",
+                  "subject": "0097.KL:SPY",
+                  "measurableAs": "close(0097.KL, +20) / close(0097.KL, 0) > close(SPY, +20) / close(SPY, 0)",
+                  "horizonTradingDays": 20,
+                  "probability": 0.42,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "pred-range-10",
+                  "claim": "0097.KL closes outside 9.82-11.44 over 10 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +10) outside [9.82, 11.44]",
+                  "horizonTradingDays": 10,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-1",
+                  "claim": "0097.KL closes outside 10.35-10.86 over 1 trading day",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +1) outside [10.35, 10.86]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-5",
+                  "claim": "0097.KL closes outside 10.04-11.19 over 5 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +5) outside [10.04, 11.19]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-20",
+                  "claim": "0097.KL closes outside 9.51-11.81 over 20 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +20) outside [9.51, 11.81]",
+                  "horizonTradingDays": 20,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-relative-5",
+                  "claim": "0097.KL outperforms ^KLSE over 5 trading days",
+                  "kind": "relative",
+                  "subject": "0097.KL:^KLSE",
+                  "measurableAs": "close(0097.KL, +5)/close(0097.KL, 0) > close(^KLSE, +5)/close(^KLSE, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.49,
+                  "scoreStatus": "unresolved"
+                }
+              ],
+              "scoreSummary": {
+                "total": 6,
+                "resolved": 0,
+                "hit": 0,
+                "miss": 0,
+                "unresolved": 6
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "0097.KL",
+                  "price": 10.32,
+                  "changePercent24h": -2.6415157,
+                  "volume": 4674900,
+                  "observedAt": "2026-11-06T03:07:03.043Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 1,
+                  "drivers": [
+                    "local benchmark ^KLSE negative: 1/1",
+                    "trend negative: 1/1 proxies below 50-day average"
+                  ]
+                }
+              }
+            }
+          ],
+          "sources": [
+            {
+              "id": "history-report-2026-11-06T03-07-03-043Z-4135821d",
+              "title": "equity 0097.KL prior report",
+              "fetchedAt": "2026-11-06T03:07:03.043Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "provider": "market-bot",
+              "rawRef": "2026-11-06T03-07-03-043Z-4135821d/report.json",
+              "summary": "ViTrox reported a sharply stronger third quarter amid semiconductor inspection demand and a favorable management outlook. The evidence supports a constructive operating narrative, but does not establish how durable or broad-based the growth is. Financial-statement coverage, segment detail, and independent forward estimates are limited; recent market behavior and technical indicators are mixed."
+            }
+          ],
+          "gaps": ["No prior equity market-update runs found"],
+          "audit": {
+            "scannedRunCount": 110,
+            "malformedRunCount": 0,
+            "malformedScoreCount": 0,
+            "candidateRunCount": 1,
+            "selectedRunCount": 1,
+            "recentSelectedCount": 1,
+            "anchorSelectedCount": 0,
+            "sameSymbolSelectedCount": 1,
+            "spotlightSymbolSelectedCount": 0,
+            "sameSubjectSelectedCount": 0,
+            "sameHorizonSelectedCount": 0,
+            "crossHorizonSelectedCount": 0,
+            "resolvedMissRunCount": 0,
+            "missCorrectionSelectedCount": 0,
+            "gapCount": 1
+          },
+          "artifactDeltas": []
+        }
+      }
+    ],
+    "reused-profile": [{}],
+    "cache:855d52da7e95cc593f047d639cc664389c6048b8be7131e2b53f7d62ce6b4e74:2026-11-06": [{}],
+    "host-circuit:api.exa.ai": [
+      {
+        "value": false,
+        "count": 3
+      }
+    ],
+    "cache:016bf5f3e5f68ddeb50e92e6d4963286155d5c42f8ec449a7118e3eb72b7c742:2026-11-06": [{}],
+    "cache:3cd223327c6080ce85f8caf02630b0fd40769f24fc4158b1f232b45dbab254fc:2026-11-06": [{}],
+    "forecast-persistence-baseline": [{}]
+  }
+}

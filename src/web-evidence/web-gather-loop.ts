@@ -15,6 +15,8 @@ import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
 import { createCollectContext } from "../sources/source-request";
 import type { CollectedSources } from "../sources/types";
 import { executeWebGatherTool, WEB_GATHER_TOOL_UNITS } from "../sources/web-gather-tools";
+import { canonicalizeUrl } from "../sources/news-utils";
+import { issuerReportPacket } from "../research/issuer-report-figures";
 import {
   aggregateSanitizerAudit,
   type WebGatherSubject,
@@ -255,6 +257,9 @@ async function runDeepEquityWebGatherBatch(input: {
     readonly attempts?: SourceGapAttempts;
   }[];
 }): Promise<WebGatherLoopResult> {
+  const issuerReports = issuerReportGatherContext(input.command);
+  const reserved =
+    issuerReports === undefined ? 0 : issuerReportFetchReserve(input.webGatherOptions);
   const generateRound = (
     round: number,
     priorStages: readonly WebGatherStageOutput[],
@@ -268,10 +273,14 @@ async function runDeepEquityWebGatherBatch(input: {
         sourceUnitsUsed: 0,
         toolCallsUsed: 0,
         maxRounds: 1,
-        maxToolCalls: input.webGatherOptions.maxToolCalls,
-        sourceBudget: input.webGatherOptions.sourceBudget,
+        maxToolCalls: Math.max(0, input.webGatherOptions.maxToolCalls - reserved),
+        sourceBudget: Math.max(
+          0,
+          input.webGatherOptions.sourceBudget - reserved * WEB_GATHER_TOOL_UNITS.web_fetch,
+        ),
         surfacedUrls: [],
         subjectTerms: input.subjectTerms,
+        ...(issuerReports !== undefined ? { issuerReports } : {}),
         ...(input.secFilingCoverage !== undefined
           ? { secFilingCoverage: input.secFilingCoverage }
           : {}),
@@ -328,7 +337,7 @@ async function runDeepEquityWebGatherBatch(input: {
   const fetchRequests = parsed.filter(
     (request) => isRecord(request) && request.tool === "web_fetch",
   );
-  const searchValidation = input.acceptance.validate(searchRequests, round);
+  const searchValidation = input.acceptance.validate(searchRequests, round, reserved);
   const searchOutputs = await Promise.all(
     searchValidation.requests.map((request) => input.acquireRequest(request.request)),
   );
@@ -342,7 +351,7 @@ async function runDeepEquityWebGatherBatch(input: {
     collectedSources = merged.state;
     emittedGaps.push(...merged.gaps);
   }
-  const fetchValidation = input.acceptance.validate(fetchRequests, round);
+  const fetchValidation = input.acceptance.validate(fetchRequests, round, reserved);
   const fetchOutputs = await Promise.all(
     fetchValidation.requests.map((request) => input.acquireRequest(request.request)),
   );
@@ -355,7 +364,33 @@ async function runDeepEquityWebGatherBatch(input: {
     collectedSources = merged.state;
     emittedGaps.push(...merged.gaps);
   }
-  const acceptedRequests = [...searchValidation.requests, ...fetchValidation.requests];
+  const issuerFetches = issuerReportFetchRequests(
+    input.command,
+    collectedSources,
+    fetchValidation.requests.map(({ request }) => request),
+    reserved,
+  );
+  const issuerValidation =
+    issuerFetches.length === 0
+      ? { requests: [], rejected: [], gaps: [] }
+      : input.acceptance.validate(issuerFetches, round);
+  const issuerOutputs = await Promise.all(
+    issuerValidation.requests.map((request) => input.acquireRequest(request.request)),
+  );
+  if (issuerValidation.gaps.length > 0) {
+    collectedSources = mergeGaps(input.command, collectedSources, issuerValidation.gaps);
+    emittedGaps.push(...issuerValidation.gaps);
+  }
+  for (const output of issuerOutputs) {
+    const merged = input.mergeRequestOutput(collectedSources, output);
+    collectedSources = merged.state;
+    emittedGaps.push(...merged.gaps);
+  }
+  const acceptedRequests = [
+    ...searchValidation.requests,
+    ...fetchValidation.requests,
+    ...issuerValidation.requests,
+  ];
   return {
     collectedSources,
     stageOutputs,
@@ -368,6 +403,7 @@ async function runDeepEquityWebGatherBatch(input: {
       rejectedRequests: [
         ...searchValidation.rejected,
         ...fetchValidation.rejected,
+        ...issuerValidation.rejected,
         ...input.executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
           executionRejectedEntry(acceptedRequests[acceptedRequestIndex]!.audit, reason, attempts),
         ),
@@ -381,6 +417,57 @@ async function runDeepEquityWebGatherBatch(input: {
         : {}),
     },
   };
+}
+
+const MAX_ISSUER_REPORT_FETCHES = 2;
+
+// The model keeps at least one search, since code fetches only report pages a search surfaced.
+function issuerReportFetchReserve(options: AppConfig["webGatherOptions"]): number {
+  return Math.max(
+    0,
+    Math.min(
+      MAX_ISSUER_REPORT_FETCHES,
+      options.maxToolCalls - 1,
+      Math.floor(
+        (options.sourceBudget - WEB_GATHER_TOOL_UNITS.web_search) / WEB_GATHER_TOOL_UNITS.web_fetch,
+      ),
+    ),
+  );
+}
+
+// Deep runs gather in one batch, so code fetches the report pages that batch's searches surfaced (ADR 0006).
+function issuerReportFetchRequests(
+  command: ResearchCommand,
+  sources: CollectedSources,
+  modelFetches: readonly ModelWebGatherRequest[],
+  limit: number,
+): readonly ModelWebGatherRequest[] {
+  if (!isInstrumentCommand(command) || issuerReportGatherContext(command) === undefined) {
+    return [];
+  }
+  const fetched = new Set(
+    modelFetches.flatMap(({ args }) =>
+      "url" in args ? [canonicalizeUrl(args.url) ?? args.url] : [],
+    ),
+  );
+  const urls = issuerReportPacket(command.symbol, sources.extendedSources, sources.rawSnapshots)
+    .documents.flatMap(
+      ({ sourceId }) => sources.extendedSources.find(({ id }) => id === sourceId)?.url ?? [],
+    )
+    .filter((url) => {
+      const key = canonicalizeUrl(url) ?? url;
+      if (fetched.has(key)) {
+        return false;
+      }
+      fetched.add(key);
+      return true;
+    });
+  return urls.slice(0, limit).map((url) => ({
+    tool: "web_fetch",
+    args: { url },
+    rationale:
+      "Issuer report page surfaced on an Exchange Profile report host; fetched by code for its full statements",
+  }));
 }
 
 function withWebGatherFailureCode(

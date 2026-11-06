@@ -1,60 +1,557 @@
 {
   "values": {
-    "cache:93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3:2026-11-06": [{}],
-    "host-circuit:query1.finance.yahoo.com": [
+    "cache:93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3:2026-11-06": [
       {
-        "value": false,
-        "count": 7
+        "value": {
+          "cacheKey": "93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3",
+          "adapter": "yahoo-ticker",
+          "fetchedAt": "2026-11-06T05:46:13.672Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "EQUITY",
+                  "typeDisp": "Equity",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": false,
+                  "customPriceAlertConfidence": "LOW",
+                  "currency": "MYR",
+                  "earningsTimestampStart": 1753268340,
+                  "earningsTimestampEnd": 1753704000,
+                  "isEarningsDateEstimate": true,
+                  "trailingAnnualDividendRate": 0.012,
+                  "trailingPE": 92.36363,
+                  "dividendRate": 0.02,
+                  "trailingAnnualDividendYield": 0.0011320754,
+                  "dividendYield": 0.17,
+                  "epsTrailingTwelveMonths": 0.11,
+                  "epsForward": 0.21035,
+                  "epsCurrentYear": 0.1723,
+                  "priceEpsCurrentYear": 58.96692,
+                  "sharesOutstanding": 1894902800,
+                  "impliedSharesOutstanding": 1894902800,
+                  "bookValue": 0.659,
+                  "fiftyDayAverage": 10.1182,
+                  "fiftyDayAverageChange": 0.041799545,
+                  "fiftyDayAverageChangePercent": 0.0041311244,
+                  "twoHundredDayAverage": 7.14365,
+                  "twoHundredDayAverageChange": 3.0163498,
+                  "twoHundredDayAverageChangePercent": 0.4222421,
+                  "marketCap": 19252211712,
+                  "forwardPE": 48.30045,
+                  "priceToBook": 15.417299,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "averageAnalystRating": "1.9 - Buy",
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 1126486800000,
+                  "priceHint": 2,
+                  "regularMarketChange": -0.44000053,
+                  "regularMarketChangePercent": -4.150948,
+                  "fulldayChange": -0.44000053,
+                  "fulldayChangePercent": -4.150948,
+                  "fulldayPrice": 10.16,
+                  "regularMarketPrice": 10.16,
+                  "regularMarketDayHigh": 10.4,
+                  "regularMarketDayRange": "9.88 - 10.4",
+                  "regularMarketDayLow": 9.88,
+                  "regularMarketVolume": 10338700,
+                  "regularMarketPreviousClose": 10.6,
+                  "bid": 10.16,
+                  "ask": 10.18,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Kuala Lumpur",
+                  "financialCurrency": "MYR",
+                  "regularMarketOpen": 10.2,
+                  "averageDailyVolume3Month": 3553825,
+                  "averageDailyVolume10Day": 4012400,
+                  "fiftyTwoWeekLowChange": 6.22,
+                  "fiftyTwoWeekLowChangePercent": 1.5786802,
+                  "fiftyTwoWeekRange": "3.94 - 11.3",
+                  "fiftyTwoWeekHighChange": -1.1400003,
+                  "fiftyTwoWeekHighChangePercent": -0.10088498,
+                  "fiftyTwoWeekLow": 3.94,
+                  "fiftyTwoWeekHigh": 11.3,
+                  "fiftyTwoWeekChangePercent": 134.51328,
+                  "marketState": "REGULAR",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793939390,
+                  "shortName": "VITROX",
+                  "longName": "ViTrox Corporation Berhad",
+                  "exchange": "KLS",
+                  "exchangeTimezoneName": "Asia/Kuala_Lumpur",
+                  "exchangeTimezoneShortName": "MYT",
+                  "gmtOffSetMilliseconds": 28800000,
+                  "market": "my_market",
+                  "esgPopulated": false,
+                  "symbol": "0097.KL"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
       }
     ],
-    "cache:13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6:2026-11-06": [{}],
-    "cache:736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474:2026-11-06": [{}],
-    "host-circuit:api.marketaux.com": [
+    "cache:13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6:2026-11-06": [
       {
-        "value": false
+        "value": {
+          "cacheKey": "13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6",
+          "adapter": "yahoo-regime",
+          "fetchedAt": "2026-11-06T05:46:13.672Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": false,
+                  "customPriceAlertConfidence": "LOW",
+                  "currency": "MYR",
+                  "marketState": "REGULAR",
+                  "corporateActions": [],
+                  "regularMarketTime": 1793943030,
+                  "exchange": "KLS",
+                  "messageBoardId": "finmb_INDEXKLSE",
+                  "exchangeTimezoneName": "Asia/Kuala_Lumpur",
+                  "exchangeTimezoneShortName": "MYT",
+                  "gmtOffSetMilliseconds": 28800000,
+                  "market": "my_market",
+                  "esgPopulated": false,
+                  "shortName": "FTSE Bursa Malaysia KLCI",
+                  "longName": "FTSE Bursa Malaysia KLCI",
+                  "regularMarketChange": -22.01001,
+                  "regularMarketChangePercent": -1.3454703,
+                  "fulldayChange": -22.01001,
+                  "fulldayChangePercent": -1.3454703,
+                  "fulldayPrice": 1613.85,
+                  "regularMarketPrice": 1613.85,
+                  "regularMarketDayHigh": 1620.55,
+                  "regularMarketDayRange": "1612.33 - 1620.55",
+                  "regularMarketDayLow": 1612.33,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 1616.56,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Kuala Lumpur",
+                  "regularMarketOpen": 1620.55,
+                  "averageDailyVolume3Month": 221953803,
+                  "averageDailyVolume10Day": 191175300,
+                  "fiftyTwoWeekLowChange": 21.28003,
+                  "fiftyTwoWeekLowChangePercent": 0.013362069,
+                  "fiftyTwoWeekRange": "1592.57 - 1771.25",
+                  "fiftyTwoWeekHighChange": -157.40002,
+                  "fiftyTwoWeekHighChangePercent": -0.08886381,
+                  "fiftyTwoWeekLow": 1592.57,
+                  "fiftyTwoWeekHigh": 1771.25,
+                  "fiftyTwoWeekChangePercent": -0.1470089,
+                  "fiftyDayAverage": 1655.0883,
+                  "fiftyDayAverageChange": -41.23828,
+                  "fiftyDayAverageChangePercent": -0.024916062,
+                  "twoHundredDayAverage": 1698.9495,
+                  "twoHundredDayAverageChange": -85.09949,
+                  "twoHundredDayAverageChangePercent": -0.050089475,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 754880400000,
+                  "priceHint": 2,
+                  "symbol": "^KLSE"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
       }
     ],
-    "cache:ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88:2026-11-06": [{}],
-    "cache:fd38c94ed00ad5770b7348b01c8b83f2afed8d9911b5f1010b1112c60ac20ba2:2026-11-06": [{}],
-    "host-circuit:api.massive.com": [
+    "cache:736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474:2026-11-06": [
       {
-        "value": false,
-        "count": 2
+        "value": {
+          "cacheKey": "736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474",
+          "adapter": "marketaux-news",
+          "fetchedAt": "2026-11-06T05:46:13.672Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "warnings": ["limit is higher than your plan allows"],
+            "meta": {
+              "found": 0,
+              "returned": 0,
+              "limit": 3,
+              "page": 1
+            },
+            "data": []
+          }
+        }
       }
     ],
-    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-06": [{}],
-    "host-circuit:api.stlouisfed.org": [
+    "cache:ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88:2026-11-06": [
       {
-        "value": false,
-        "count": 7
+        "value": {
+          "cacheKey": "ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88",
+          "adapter": "yahoo-news",
+          "fetchedAt": "2026-11-06T05:46:13.672Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "explains": [],
+            "count": 1,
+            "quotes": [
+              {
+                "exchange": "KLS",
+                "shortname": "VITROX",
+                "quoteType": "EQUITY",
+                "symbol": "0097.KL",
+                "index": "quotes",
+                "score": 10063500,
+                "typeDisp": "Equity",
+                "longname": "ViTrox Corporation Berhad",
+                "exchDisp": "Kuala Lumpur Stock Exchange",
+                "sector": "Technology",
+                "sectorDisp": "Technology",
+                "industry": "Semiconductor Equipment & Materials",
+                "industryDisp": "Semiconductor Equipment & Materials",
+                "isYahooFinance": true
+              }
+            ],
+            "news": [],
+            "nav": [],
+            "lists": [],
+            "researchReports": [],
+            "screenerFieldResults": [],
+            "totalTime": 45,
+            "timeTakenForQuotes": 420,
+            "timeTakenForNews": 600,
+            "timeTakenForAlgowatchlist": 400,
+            "timeTakenForPredefinedScreener": 400,
+            "timeTakenForCrunchbase": 0,
+            "timeTakenForNav": 400,
+            "timeTakenForResearchReports": 0,
+            "timeTakenForQuestions": 0,
+            "timeTakenForScreenerField": 0,
+            "timeTakenForCulturalAssets": 0,
+            "timeTakenForSearchLists": 0
+          }
+        }
       }
     ],
-    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-06": [{}],
-    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-06": [{}],
-    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-06": [{}],
-    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-06": [{}],
-    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-06": [{}],
-    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-06": [{}],
-    "cache:f385be787fd3baf272616ad8e3656003fd02e286622b76534ae5d60df886e909:2026-11-06": [{}],
-    "cache:af1e7992cb38c0188d4b3fd8106c3a528d49aed404abe188054849c1968c73aa:2026-11-06": [{}],
-    "cache:0ccbdc1663d2ab55c44fdb144f12f3b9b9c68f0142bf07fe0cce2440f5778c73:2026-11-06": [{}],
-    "cache:14fe21ca9623291e5799182f412e9d185be6ec22f28154df49ce99528da02be9:2026-11-06": [{}],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba",
+          "adapter": "fred-DGS10",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-05",
+            "realtime_end": "2026-11-05",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 16917,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-04",
+                "value": "4.9"
+              },
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-03",
+                "value": "4.95"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47",
+          "adapter": "fred-DGS2",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-05",
+            "realtime_end": "2026-11-05",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13157,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-04",
+                "value": "4.58"
+              },
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-03",
+                "value": "4.61"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d",
+          "adapter": "fred-T10Y2Y",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-05",
+            "realtime_end": "2026-11-05",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13158,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-05",
+                "value": "0.38"
+              },
+              {
+                "realtime_start": "2026-11-05",
+                "realtime_end": "2026-11-05",
+                "date": "2026-11-04",
+                "value": "0.32"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8",
+          "adapter": "fred-FEDFUNDS",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 868,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-01",
+                "value": "3.88"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-09-01",
+                "value": "3.75"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1",
+          "adapter": "fred-CPIAUCSL",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-10-26",
+            "realtime_end": "2026-10-26",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 957,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-09-01",
+                "value": "336.298"
+              },
+              {
+                "realtime_start": "2026-10-26",
+                "realtime_end": "2026-10-26",
+                "date": "2026-08-01",
+                "value": "334.131"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed",
+          "adapter": "fred-UNRATE",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-10-21",
+            "realtime_end": "2026-10-21",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 945,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-09-01",
+                "value": "4.2"
+              },
+              {
+                "realtime_start": "2026-10-21",
+                "realtime_end": "2026-10-21",
+                "date": "2026-08-01",
+                "value": "4.1"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-06": [
+      {
+        "value": {
+          "cacheKey": "8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8",
+          "adapter": "fred-DTWEXBGS",
+          "fetchedAt": "2026-11-06T03:07:03.043Z",
+          "cachedDate": "2026-11-06",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 5435,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-30",
+                "value": "121.6656"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-29",
+                "value": "121.7361"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:f385be787fd3baf272616ad8e3656003fd02e286622b76534ae5d60df886e909:2026-11-06": [
+      {
+        "bodyFile": "bodies/ff0b909016466ddbd8ec9eb74edf753113447be46376597283d32b6bd5d2154d.json",
+        "sha256": "ff0b909016466ddbd8ec9eb74edf753113447be46376597283d32b6bd5d2154d"
+      }
+    ],
+    "cache:af1e7992cb38c0188d4b3fd8106c3a528d49aed404abe188054849c1968c73aa:2026-11-06": [
+      {
+        "bodyFile": "bodies/80d45e99e5f2ef4cc2e43d17707ebc058cfd91d745b189617b5509dcba55bf39.json",
+        "sha256": "80d45e99e5f2ef4cc2e43d17707ebc058cfd91d745b189617b5509dcba55bf39"
+      }
+    ],
+    "cache:0ccbdc1663d2ab55c44fdb144f12f3b9b9c68f0142bf07fe0cce2440f5778c73:2026-11-06": [
+      {
+        "bodyFile": "bodies/83b16ca851105228274faf4dc8ab01968ee4c40b16c2e0a28e3df50f9c082d18.json",
+        "sha256": "83b16ca851105228274faf4dc8ab01968ee4c40b16c2e0a28e3df50f9c082d18"
+      }
+    ],
     "news-seen": [
       {
-        "bodyFile": "bodies/1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0.json",
-        "sha256": "1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0"
+        "bodyFile": "bodies/233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d.json",
+        "sha256": "233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d"
       },
       {
-        "bodyFile": "bodies/1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0.json",
-        "sha256": "1516d90467f38b5ec38c278332886eb38b23ae5b689d22f77ec6463f29fb52a0"
+        "bodyFile": "bodies/233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d.json",
+        "sha256": "233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d"
       }
     ],
-    "cache-stale:14fe21ca9623291e5799182f412e9d185be6ec22f28154df49ce99528da02be9": [{}],
-    "cache:2f3aab0c645bd116849b2d7f1c6c86d1b6ad47d6659647169e7eba46f345327a:2026-11-06": [{}],
+    "cache:2f3aab0c645bd116849b2d7f1c6c86d1b6ad47d6659647169e7eba46f345327a:2026-11-06": [
+      {
+        "bodyFile": "bodies/741e556f996b5552c0e45c15ae54f17bd8dc16bd80c516d08338253f0bbb9d6e.json",
+        "sha256": "741e556f996b5552c0e45c15ae54f17bd8dc16bd80c516d08338253f0bbb9d6e"
+      }
+    ],
     "calibration": [
       {
         "value": {
-          "generatedAt": "2026-11-06T03:07:03.043Z",
+          "generatedAt": "2026-11-06T05:46:58.749Z",
           "resolvedCount": 134,
           "duplicateForecastCount": 100,
           "missAutopsyCount": 27,
@@ -429,45 +926,251 @@
     "history:null": [
       {
         "value": {
-          "generatedAt": "2026-11-06T03:07:03.043Z",
+          "generatedAt": "2026-11-06T05:46:58.749Z",
           "recentDays": 90,
           "anchorMonths": [3, 6, 12],
-          "runs": [],
-          "sources": [],
-          "gaps": [
-            "No prior ticker runs found for 0097.KL",
-            "No prior equity market-update runs found"
+          "runs": [
+            {
+              "runId": "2026-11-06T03-07-03-043Z-4135821d",
+              "sourceId": "history-report-2026-11-06T03-07-03-043Z-4135821d",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "generatedAt": "2026-11-06T03:07:03.043Z",
+              "selectionReasons": ["recent", "same-symbol"],
+              "summary": "ViTrox reported a sharply stronger third quarter amid semiconductor inspection demand and a favorable management outlook. The evidence supports a constructive operating narrative, but does not establish how durable or broad-based the growth is. Financial-statement coverage, segment detail, and independent forward estimates are limited; recent market behavior and technical indicators are mixed.",
+              "confidence": "medium",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "ViTrox makes automated inspection equipment for semiconductor components and printed circuit board assemblies. The supplied sources identify Automated Board Inspection and Machine Vision System segments but do not give revenue by segment.",
+                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "The Edge reported 3QFY2026 revenue of RM485.1 million, up more than 110% year over year. The cited web source states: “Revenue was up more than 110% year-on-year to RM485.1 million”.",
+                  "sourceIds": ["web-0097.kl-4225acb7"]
+                },
+                {
+                  "text": "The Star reported 3QFY2026 net profit of RM118.58 million compared with RM34.72 million in the same quarter a year earlier. The cited web source states: “coming in at RM118.58mil compared to RM34.72mil registered in the same quarter last year”.",
+                  "sourceIds": ["web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "A market report attributes demand across Automated Board Inspection and Machine Vision System to the quarterly results; supplied sources do not quantify each segment’s contribution or establish repeatability.",
+                  "sourceIds": ["web-0097.kl-2df06f20", "web-0097.kl-4225acb7"]
+                },
+                {
+                  "text": "The company’s favorable outlook through the remainder of FY2026 and into 2027 is reported alongside semiconductor-sector growth, data-center investment, and edge-AI demand. This is issuer outlook conveyed by a market report, not a verified future result.",
+                  "sourceIds": ["web-0097.kl-4225acb7"]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "Missing required source: The reports do not establish whether quarterly growth is broad-based or repeatable; segment contributions, order trends, backlog, conversion timing, and customer corroboration are absent.",
+                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "Assumption: Weaker AI-infrastructure spending, a semiconductor downturn, component shortages, delayed capital spending, competition, or currency movements could weigh on results. A market report identifies these risks without quantifying issuer exposure.",
+                  "sourceIds": ["web-0097.kl-cd5a78ad"]
+                },
+                {
+                  "text": "Observed fact: Yahoo forward PE uses forward EPS without a provider as-of date. Target valuation and peer comparisons are unavailable, limiting interpretation against a normalized earnings base.",
+                  "sourceIds": ["market-yahoo-equity-0097.kl"]
+                },
+                {
+                  "text": "Observed fact: The 2026-11-06 quote was captured during an unfinished session; completed-session indicators are anchored to 2026-11-05.",
+                  "sourceIds": ["market-yahoo-equity-0097.kl", "verified-snapshot-0097.KL"]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "Observed fact: The reported 3QFY2026 results provide evidence of stronger recent business activity: revenue was reported up more than 110% year over year and net profit was reported at RM118.58 million versus RM34.72 million a year earlier.",
+                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "Issuer claim: Management’s reported outlook through FY2026 and into 2027 cites semiconductor-sector growth, data-center investment, and edge-AI demand; the supplied evidence does not include a confirmed future event date.",
+                  "sourceIds": ["web-0097.kl-4225acb7"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: SEC EDGAR does not support 0097.KL (non-US listing)",
+                "finnhub-events: Finnhub event endpoints do not support 0097.KL (non-US listing)",
+                "finnhub-eps-estimate: Finnhub EPS estimate endpoint does not support 0097.KL",
+                "finnhub-revenue-estimate: Finnhub revenue estimate endpoint does not support 0097.KL",
+                "finnhub-ebitda-estimate: Finnhub EBITDA estimate endpoint does not support 0097.KL",
+                "finnhub-analyst-range: Finnhub external analyst range endpoint does not support 0097.KL",
+                "finnhub-institutional-ownership: Finnhub institutional ownership endpoint does not support 0097.KL",
+                "finnhub-insider-transactions: Finnhub insider transactions endpoint does not support 0097.KL"
+              ],
+              "predictions": [
+                {
+                  "id": "pred-relative-spy-20",
+                  "claim": "0097.KL outperforms SPY over 20 trading days",
+                  "kind": "relative",
+                  "subject": "0097.KL:SPY",
+                  "measurableAs": "close(0097.KL, +20) / close(0097.KL, 0) > close(SPY, +20) / close(SPY, 0)",
+                  "horizonTradingDays": 20,
+                  "probability": 0.42,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "pred-range-10",
+                  "claim": "0097.KL closes outside 9.82-11.44 over 10 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +10) outside [9.82, 11.44]",
+                  "horizonTradingDays": 10,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-1",
+                  "claim": "0097.KL closes outside 10.35-10.86 over 1 trading day",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +1) outside [10.35, 10.86]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-5",
+                  "claim": "0097.KL closes outside 10.04-11.19 over 5 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +5) outside [10.04, 11.19]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-range-20",
+                  "claim": "0097.KL closes outside 9.51-11.81 over 20 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +20) outside [9.51, 11.81]",
+                  "horizonTradingDays": 20,
+                  "probability": 0.32,
+                  "scoreStatus": "unresolved"
+                },
+                {
+                  "id": "grid-relative-5",
+                  "claim": "0097.KL outperforms ^KLSE over 5 trading days",
+                  "kind": "relative",
+                  "subject": "0097.KL:^KLSE",
+                  "measurableAs": "close(0097.KL, +5)/close(0097.KL, 0) > close(^KLSE, +5)/close(^KLSE, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.49,
+                  "scoreStatus": "unresolved"
+                }
+              ],
+              "scoreSummary": {
+                "total": 6,
+                "resolved": 0,
+                "hit": 0,
+                "miss": 0,
+                "unresolved": 6
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "0097.KL",
+                  "price": 10.32,
+                  "changePercent24h": -2.6415157,
+                  "volume": 4674900,
+                  "observedAt": "2026-11-06T03:07:03.043Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "deep",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 1,
+                  "drivers": [
+                    "local benchmark ^KLSE negative: 1/1",
+                    "trend negative: 1/1 proxies below 50-day average"
+                  ]
+                }
+              }
+            }
           ],
+          "sources": [
+            {
+              "id": "history-report-2026-11-06T03-07-03-043Z-4135821d",
+              "title": "equity 0097.KL prior report",
+              "fetchedAt": "2026-11-06T03:07:03.043Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "provider": "market-bot",
+              "rawRef": "2026-11-06T03-07-03-043Z-4135821d/report.json",
+              "summary": "ViTrox reported a sharply stronger third quarter amid semiconductor inspection demand and a favorable management outlook. The evidence supports a constructive operating narrative, but does not establish how durable or broad-based the growth is. Financial-statement coverage, segment detail, and independent forward estimates are limited; recent market behavior and technical indicators are mixed."
+            }
+          ],
+          "gaps": ["No prior equity market-update runs found"],
           "audit": {
-            "scannedRunCount": 109,
+            "scannedRunCount": 110,
             "malformedRunCount": 0,
             "malformedScoreCount": 0,
-            "candidateRunCount": 0,
-            "selectedRunCount": 0,
-            "recentSelectedCount": 0,
+            "candidateRunCount": 1,
+            "selectedRunCount": 1,
+            "recentSelectedCount": 1,
             "anchorSelectedCount": 0,
-            "sameSymbolSelectedCount": 0,
+            "sameSymbolSelectedCount": 1,
             "spotlightSymbolSelectedCount": 0,
             "sameSubjectSelectedCount": 0,
             "sameHorizonSelectedCount": 0,
             "crossHorizonSelectedCount": 0,
             "resolvedMissRunCount": 0,
             "missCorrectionSelectedCount": 0,
-            "gapCount": 2
+            "gapCount": 1
           },
           "artifactDeltas": []
         }
       }
     ],
     "reused-profile": [{}],
-    "cache:3516fdbaa140b25697ef9388611b2ab8089557cad497ec84ae35201202695d4d:2026-11-06": [{}],
+    "cache:1b66305ac1a525675afa610b8b38b5c99f7e65e49e0eac9d36d622f17b97f9df:2026-11-06": [{}],
     "host-circuit:api.exa.ai": [
       {
         "value": false,
-        "count": 2
+        "count": 4
       }
     ],
-    "cache:b973515825a597d364172f8f3490657452dc40d6d3a245124739eded468bbea0:2026-11-06": [{}],
-    "forecast-persistence-baseline": [{}]
+    "cache:6e0429f8051816032b27ad0d665eaa82738f477b34ebe7b252dc1d7cfe530866:2026-11-06": [{}],
+    "cache:6173e0fa1a1da14f9cd677fc0fb8ff1b8ac98312eece14cb10a6cb371658c45c:2026-11-06": [{}],
+    "cache:b40dc002f184d45e335d73d31a73095bb1ff5651f1151d7a077561d731eeba3f:2026-11-06": [{}],
+    "forecast-persistence-baseline": [
+      {
+        "value": {
+          "runId": "2026-11-06T03-07-03-043Z-4135821d",
+          "depth": "deep",
+          "predictions": [
+            {
+              "measurableAs": "close(0097.KL, +20) / close(0097.KL, 0) > close(SPY, +20) / close(SPY, 0)",
+              "probability": 0.42
+            },
+            {
+              "measurableAs": "close(0097.KL, +10) outside [9.82, 11.44]",
+              "probability": 0.32
+            },
+            {
+              "measurableAs": "close(0097.KL, +1) outside [10.35, 10.86]",
+              "probability": 0.32
+            },
+            {
+              "measurableAs": "close(0097.KL, +5) outside [10.04, 11.19]",
+              "probability": 0.32
+            },
+            {
+              "measurableAs": "close(0097.KL, +20) outside [9.51, 11.81]",
+              "probability": 0.32
+            },
+            {
+              "measurableAs": "close(0097.KL, +5)/close(0097.KL, 0) > close(^KLSE, +5)/close(^KLSE, 0)",
+              "probability": 0.49
+            }
+          ]
+        }
+      }
+    ]
   }
 }

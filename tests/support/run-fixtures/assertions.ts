@@ -99,6 +99,7 @@ function asWritten(value: unknown): unknown {
 // Assembly adds these after synthesis, so the synthesis prompt never sees them.
 const FORECAST_BOOK_GAP_SOURCES = new Set([
   "event-grid",
+  "forecast-book",
   "forecast-baseline",
   "earnings-forecasts",
 ]);
@@ -340,6 +341,16 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
   }
 }
 
+// Recorded model output attached row quotes to metric references and misquoted one cell (34,720 vs 34,716).
+const EXPECTED_PRUNED_CLAIMS: Readonly<Record<string, [string, string][]>> = {
+  "equity-bursa-brief": [
+    ["keyFindings[0]", "quote-too-short"],
+    ["keyFindings[1]", "quote-not-in-source"],
+    ["bullCase[0]", "quote-too-short"],
+    ["extras.businessFramework.sections[3]", "quote-too-short"],
+  ],
+};
+
 export async function assertInvariants(
   result: RunFixtureResult,
   meta: FixtureMeta,
@@ -467,7 +478,16 @@ export async function assertInvariants(
   assertOperatingRatioInvariants(result, report);
   assertPricePerformanceInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
-  expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
+  const expectedPrunes = EXPECTED_PRUNED_CLAIMS[fixtureName] ?? [];
+  expect(
+    (result.trace.reportIntegrityAudit?.pruned ?? []).map(({ location, webFigure }) => [
+      location,
+      webFigure?.reason,
+    ]),
+  ).toEqual(expectedPrunes);
+  expect(report.reportIntegrity, "integrity audit pruned report content").toBe(
+    expectedPrunes.length === 0 ? "high" : "medium",
+  );
   assertVerifiedWebFigures(result, report);
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
@@ -1390,6 +1410,7 @@ const EXPECTED_LENS_VALUES: Readonly<
   "ebay-extension-investments": {},
   "equity-amd-deep": {},
   "equity-bursa-deep": {},
+  "equity-bursa-brief": {},
 };
 
 export function assertFinancialLensMetricInvariants(
@@ -3995,6 +4016,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "ebay-extension-investments": EBAY_WORKBENCH_VALUES,
   "equity-amd-deep": AMD_WORKBENCH_VALUES,
   "equity-bursa-deep": {},
+  "equity-bursa-brief": {},
   "equity-depository-deep": {
     "annual|2016-10-31|2018-11-27": [
       MISSING_WORKBENCH_PRICE,

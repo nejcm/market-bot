@@ -37,7 +37,7 @@ const MIN_QUOTE_CONTEXT_WORDS = 3;
 const GAP_PREFIX = "Verified Web Figure check withheld";
 
 const FIGURE_PATTERN =
-  /(?<![\p{L}\d.,'’]|[\p{L}\d][-/])(?<prefix>US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc})?\s?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil)|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|per\s?cent|pct|percentage points?|pp|bps|basis points)|(?<multiple>x|×))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB))?(?![\p{L}\d]|[-.,]\p{L}|[.,]\d)/giu;
+  /(?<![\p{L}\d.,'’]|[\p{L}\d][-/])(?<sign>[-−](?=\S))?(?<prefix>US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil)|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|per\s?cent|pct|percentage points?|pp|bps|basis points)|(?<multiple>x|×))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB))?(?![\p{L}\d]|[-.,]\p{L}|[.,]\d)/giu;
 const CALENDAR_TOKEN_PATTERN =
   /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?:,?\s+\d{4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b\.?(?:,?\s+\d{4})?|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m)?\b/gu;
 
@@ -124,23 +124,36 @@ function unitOf(groups: Readonly<Record<string, string | undefined>>): string {
   if (unit === undefined) {
     return "";
   }
-  if (unit === "%" || unit === "pct" || unit.startsWith("per")) {
-    return "%";
+  if (unit === "pp" || unit.startsWith("percentage")) {
+    return "pp";
   }
-  return unit === "pp" || unit.startsWith("percentage") ? "pp" : "bps";
+  return unit === "%" || unit === "pct" || unit.startsWith("per") ? "%" : "bps";
 }
 
-export function figuresIn(text: string): readonly Figure[] {
-  return [
-    ...text.normalize("NFKC").replaceAll(CALENDAR_TOKEN_PATTERN, " ").matchAll(FIGURE_PATTERN),
-  ].flatMap((match) => {
+interface PlacedFigure {
+  readonly figure: Figure;
+  readonly numStart: number;
+  readonly numEnd: number;
+}
+
+function placedFiguresIn(text: string): readonly PlacedFigure[] {
+  const blanked = text
+    .normalize("NFKC")
+    .replaceAll(CALENDAR_TOKEN_PATTERN, (token) => " ".repeat(token.length));
+  return [...blanked.matchAll(FIGURE_PATTERN)].flatMap((match) => {
     const groups = match.groups ?? {};
     const num = groups.num ?? "";
     const scaleKey = (groups.scaleWord ?? groups.scaleLetter)?.toLowerCase();
     const currencyKey = (groups.prefix ?? groups.suffix)?.toLowerCase();
+    const raw = match[0].trim();
+    const rawStart = match.index + match[0].indexOf(raw);
+    // Accounting parentheses: only an amount wrapped whole in "( )" is negative.
+    const parenthesized = blanked[rawStart - 1] === "(" && blanked[rawStart + raw.length] === ")";
+    const negative = (groups.sign ?? groups.innerSign) !== undefined || parenthesized;
+    const magnitude = Number(num.replaceAll(",", ""));
     const figure: Figure = {
-      raw: match[0].trim(),
-      value: Number(num.replaceAll(",", "")),
+      raw,
+      value: negative ? -magnitude : magnitude,
       scale: scaleKey === undefined ? 1 : (SCALES[scaleKey] ?? 1),
       currency: currencyKey === undefined ? "" : (CURRENCIES[currencyKey] ?? currencyKey),
       unit: unitOf(groups),
@@ -148,21 +161,130 @@ export function figuresIn(text: string): readonly Figure[] {
     // Counts, ranks, years and model numbers ("iPhone 17", "top 10") are not figures.
     const bareInteger =
       figure.scale === 1 && figure.currency === "" && figure.unit === "" && !/[.,]/u.test(num);
-    return bareInteger ? [] : [figure];
+    const numStart = match.index + match[0].indexOf(num);
+    return bareInteger ? [] : [{ figure, numStart, numEnd: numStart + num.length }];
   });
 }
 
-function normalizedQuoteText(text: string): string {
-  return text
-    .normalize("NFKC")
-    .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
-    .replaceAll(/[‘’‚‛′`]/gu, "'")
-    .replaceAll(/[“”„‟″]/gu, '"')
-    .replaceAll(/[‐‑‒–—―−]/gu, "-")
-    .replaceAll(/[*_#]/gu, "")
+export function figuresIn(text: string): readonly Figure[] {
+  return placedFiguresIn(text).map(({ figure }) => figure);
+}
+
+// Table cell edges survive normalization so a quoted figure is read whole from its own cell.
+const CELL_EDGE = "\u0000";
+// Edge after a row with no closing "|" whose next line may start a new row; figures beside it are withheld.
+const AMBIGUOUS_EDGE = "\u0001";
+const EDGES = new RegExp(`[${CELL_EDGE}${AMBIGUOUS_EDGE}]`, "gu");
+
+function closesWrappedCell(trimmed: string): boolean {
+  return trimmed.endsWith("|") && !trimmed.slice(0, -1).includes("|");
+}
+
+function withCellEdges(lines: readonly string[]): string {
+  let open = false;
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        const closing = open ? CELL_EDGE : "";
+        open = false;
+        return closing;
+      }
+      if (open && closesWrappedCell(trimmed)) {
+        open = false;
+        return line.replaceAll("|", ` ${CELL_EDGE} `);
+      }
+      if (!open && !trimmed.includes("|")) {
+        return line;
+      }
+      const opening = open ? AMBIGUOUS_EDGE : CELL_EDGE;
+      open = trimmed.startsWith("|") && !trimmed.endsWith("|");
+      return `${opening} ${line.replaceAll("|", ` ${CELL_EDGE} `)} ${open ? "" : CELL_EDGE}`;
+    })
+    .join("\n");
+}
+
+function normalizedSourceText(text: string): string {
+  return withCellEdges(
+    text
+      .normalize("NFKC")
+      .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+      .replaceAll(/[‘’‚‛′`]/gu, "'")
+      .replaceAll(/[“”„‟″]/gu, '"')
+      .replaceAll(/[‐‑‒–—―−]/gu, "-")
+      .replaceAll(/[*_#]/gu, "")
+      .split(/\r?\n/u),
+  )
     .replaceAll(/\s+/gu, " ")
-    .trim()
-    .toLowerCase();
+    .trim();
+}
+
+function normalizedQuoteText(text: string): string {
+  return normalizedSourceText(text).replaceAll(EDGES, " ").replaceAll(/\s+/gu, " ").trim();
+}
+
+function placedSourceFigures(text: string): readonly PlacedFigure[] {
+  const placed: PlacedFigure[] = [];
+  let offset = 0;
+  let ambiguousBefore = false;
+  for (const cell of text.split(EDGES)) {
+    const end = offset + cell.length;
+    const ambiguousAfter = text[end] === AMBIGUOUS_EDGE;
+    if (!ambiguousBefore && !ambiguousAfter) {
+      for (const figure of placedFiguresIn(cell)) {
+        placed.push({
+          figure: figure.figure,
+          numStart: offset + figure.numStart,
+          numEnd: offset + figure.numEnd,
+        });
+      }
+    }
+    ambiguousBefore = ambiguousAfter;
+    offset = end + 1;
+  }
+  return placed;
+}
+
+function figuresTouching(placed: readonly PlacedFigure[], start: number, end: number): Figure[] {
+  let low = 0;
+  let high = placed.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if ((placed[middle]?.numEnd ?? 0) > start) {
+      high = middle;
+    } else {
+      low = middle + 1;
+    }
+  }
+  const figures: Figure[] = [];
+  for (let index = low; index < placed.length; index += 1) {
+    const row = placed[index];
+    if (row === undefined || row.numStart >= end) {
+      break;
+    }
+    figures.push(row.figure);
+  }
+  return figures;
+}
+
+// Every match, overlapping ones included, yields the source figures whose number it touches.
+function quotedSourceFigures(needle: string, stored: readonly string[]): readonly Figure[][] {
+  const pattern = new RegExp(
+    needle
+      .split(" ")
+      .map((word) => word.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, String.raw`\$&`))
+      .join(`[\\s${CELL_EDGE}${AMBIGUOUS_EDGE}]+`),
+    "giu",
+  );
+  return stored.flatMap((text) => {
+    const placed = placedSourceFigures(text);
+    const spans: Figure[][] = [];
+    for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
+      spans.push(figuresTouching(placed, match.index, match.index + match[0].length));
+      pattern.lastIndex = match.index + 1;
+    }
+    return spans;
+  });
 }
 
 export function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<string, string[]> {
@@ -215,7 +337,7 @@ export function webSourceTexts(
     const url = canonicalizeUrl(source.url);
     const stored = [source.snippet, ...(url === undefined ? [] : (raw.get(url) ?? []))]
       .filter((text): text is string => text !== undefined)
-      .map((text) => normalizedQuoteText(text))
+      .map((text) => normalizedSourceText(text))
       .filter((text) => text !== "");
     texts.set(source.id, [...new Set([...(texts.get(source.id) ?? []), ...stored])]);
   }
@@ -257,24 +379,38 @@ function sameFigure(left: Figure, right: Figure): boolean {
   );
 }
 
-function quoteFailure(
+interface QuoteCheck {
+  readonly failure?: WebFigureFailureReason;
+  readonly figures: readonly Figure[];
+}
+
+function checkedQuote(
   quote: FigureQuote,
   sourceIds: readonly string[],
   texts: WebSourceTexts,
-): WebFigureFailureReason | undefined {
+  claimFigures: readonly Figure[],
+): QuoteCheck {
+  const failed = (failure: WebFigureFailureReason): QuoteCheck => ({
+    failure,
+    figures: figuresIn(quote.quote),
+  });
   if (!sourceIds.includes(quote.sourceId)) {
-    return "quote-source-not-cited";
+    return failed("quote-source-not-cited");
   }
   const stored = texts.web.get(quote.sourceId) ?? [];
   if (stored.length === 0) {
-    return "no-stored-text";
+    return failed("no-stored-text");
   }
   const needle = normalizedQuoteText(quote.quote);
   const contextWords = needle.replaceAll(FIGURE_PATTERN, " ").match(/\p{L}{2,}/gu) ?? [];
   if (contextWords.length < MIN_QUOTE_CONTEXT_WORDS) {
-    return "quote-too-short";
+    return failed("quote-too-short");
   }
-  return stored.some((text) => text.includes(needle)) ? undefined : "quote-not-in-source";
+  const spans = quotedSourceFigures(needle, stored);
+  const covered = (figures: readonly Figure[]) =>
+    claimFigures.filter((claimed) => figures.some((quoted) => sameFigure(quoted, claimed))).length;
+  const [best] = spans.toSorted((left, right) => covered(right) - covered(left));
+  return best === undefined ? failed("quote-not-in-source") : { figures: best };
 }
 
 function mismatchReason(figure: Figure, near: Figure): WebFigureFailureReason {
@@ -293,8 +429,7 @@ export function unverifiedWebFigure(
   const figures = citedWeb.length === 0 ? [] : figuresIn(claim.text);
   const quotes = (claim.figureQuotes ?? []).map((quote) => ({
     sourceId: quote.sourceId,
-    failure: quoteFailure(quote, claim.sourceIds, texts),
-    figures: figuresIn(quote.quote),
+    ...checkedQuote(quote, claim.sourceIds, texts, figures),
   }));
   const failed = quotes.find((quote) => quote.failure !== undefined);
   if (failed?.failure !== undefined) {

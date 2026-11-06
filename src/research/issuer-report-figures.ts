@@ -806,6 +806,36 @@ function issuerReportGap(
   });
 }
 
+function providerEpsCrossCheckGap(
+  symbol: string,
+  collectedSources: CollectedSources,
+  figures: readonly IssuerReportFigure[],
+): SourceGap[] {
+  const snapshot = collectedSources.marketSnapshots.find(
+    (row) => row.symbol.toUpperCase() === symbol.toUpperCase(),
+  );
+  const providerEps = snapshot?.fundamentals?.epsTrailingTwelveMonths;
+  const currency = snapshot?.identity?.quoteCurrency;
+  if (providerEps === undefined || currency === undefined) {
+    return [];
+  }
+  const [ytd] = figures
+    .filter(
+      (figure) =>
+        figure.concept === "basic-eps" && figure.basis === "ytd" && figure.currency === currency,
+    )
+    .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd));
+  return ytd === undefined || ytd.value <= 0 || providerEps >= ytd.value
+    ? []
+    : [
+        issuerReportGap(
+          symbol,
+          `Yahoo trailing EPS ${String(providerEps)} ${currency} (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported ${ytd.periodMonths === undefined ? "year-to-date" : `${String(ytd.periodMonths)}-month year-to-date`} basic EPS of ${String(ytd.value)} ${currency} to ${ytd.periodEnd}; this run reads no prior-year EPS or weighted share counts to reconcile them, so the Yahoo value may be stale or on another basis`,
+          "validation-failed",
+        ),
+      ];
+}
+
 export interface IssuerReportPhaseInput {
   readonly symbol: string;
   readonly collectedSources: CollectedSources;
@@ -900,10 +930,31 @@ export async function runIssuerReportPhase(
           ),
         ]
       : [];
+  const published = new Set(reading.figures.map((figure) => figure.concept));
+  const unpublished = ISSUER_REPORT_CONCEPTS.filter((concept) => !published.has(concept));
+  const unpublishedGap =
+    reading.figures.length === 0 || unpublished.length === 0
+      ? []
+      : [
+          issuerReportGap(
+            symbol,
+            `Issuer report text for ${symbol} published no checked figure for: ${unpublished
+              .map((concept) => CONCEPTS[concept].label)
+              .join(
+                ", ",
+              )}; the report pages reached do not show them, or no cell for them passed the table check`,
+            "provider-data-missing",
+          ),
+        ];
   return {
     collectedSources: withIssuerReport(
       collectedSources,
-      [...failureGaps, ...emptyGap],
+      [
+        ...failureGaps,
+        ...emptyGap,
+        ...unpublishedGap,
+        ...providerEpsCrossCheckGap(symbol, collectedSources, reading.figures),
+      ],
       reading.figures.length === 0 ? undefined : issuerReportSection(reading.figures),
     ),
     stageOutputs: [output],

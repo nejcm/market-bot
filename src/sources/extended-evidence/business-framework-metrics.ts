@@ -95,18 +95,20 @@ function hasCapitalReturn(input: PhaseClassificationInput): boolean {
 
 export function classifyBusinessLifecyclePhase(
   input: PhaseClassificationInput,
-): BusinessLifecyclePhase {
+): BusinessLifecyclePhase | undefined {
+  if (input.revenueDeltaPercent === undefined) {
+    return undefined;
+  }
   if (
-    input.revenueDeltaPercent !== undefined &&
     input.revenueDeltaPercent < 0 &&
     (input.operatingIncomeDeltaPercent ?? input.netIncomeDeltaPercent ?? -1) < 0
   ) {
     return "decline";
   }
-  if (input.revenueDeltaPercent !== undefined && input.revenueDeltaPercent >= 30) {
+  if (input.revenueDeltaPercent >= 30) {
     return "hyper-growth";
   }
-  if (hasCapitalReturn(input) && (input.revenueDeltaPercent ?? 0) <= 15) {
+  if (hasCapitalReturn(input) && input.revenueDeltaPercent <= 15) {
     return "capital-return";
   }
   if (
@@ -653,9 +655,21 @@ function sectionDefinitions(
           "lifecycle rule over revenue, income and their YoY changes, dividends paid and dividend yield",
         compute: (context) => {
           const { classification, inputs } = phaseInputs(context);
-          return inputs.some((input) => input.sourceIds.length > 0)
-            ? { status: "value", value: classifyBusinessLifecyclePhase(classification), inputs }
-            : { status: "missing", reason: "no cited lifecycle classification inputs", inputs };
+          const phase = classifyBusinessLifecyclePhase(classification);
+          if (!inputs.some((input) => input.sourceIds.length > 0)) {
+            return {
+              status: "missing",
+              reason: "no cited lifecycle classification inputs",
+              inputs,
+            };
+          }
+          return phase === undefined
+            ? {
+                status: "missing",
+                reason: "Revenue YoY missing, so no lifecycle phase is classified",
+                inputs,
+              }
+            : { status: "value", value: phase, inputs };
         },
       },
       REVENUE_YOY,
@@ -862,7 +876,7 @@ export function businessFrameworkMetrics(
 ): {
   readonly sections: Readonly<Partial<Record<BusinessFrameworkSectionName, MetricSection>>>;
   readonly postures: Readonly<Record<BusinessFrameworkSectionName, BusinessFrameworkPosture>>;
-  readonly phase: BusinessLifecyclePhase;
+  readonly phase: BusinessLifecyclePhase | undefined;
   readonly sourceGaps: readonly SourceGap[];
 } {
   const evaluated = Object.entries(sectionDefinitions(ctx, lensMetrics)).map(

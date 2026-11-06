@@ -70,7 +70,10 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   `forecast-book` gap; final synthesis is asked for no predictions or Event Grid, and no Prediction Shortfall
   is reported. With closes, [ADR 0003](./0003-forecasts-scoring-and-calibration.md) applies unchanged: a range
   Prediction whose scored sessions are unknown (non-US listing) omits its baseline with a `forecast-baseline`
-  gap, direction and relative keep their 0.5 baseline, and range references fall back to 0.5.
+  gap, direction and relative keep their 0.5 baseline, and range references fall back to 0.5. On a listing
+  with an Exchange Profile, a model Prediction with a leg outside that exchange other than its benchmark (SPY
+  on a MYR listing) is withheld with a diagnostic `forecast-book` gap: its outcome would mix currencies and
+  session calendars (amended 2026-11-06).
 - **Currency.** Valuation Evidence divides on a USD basis; a quote currency other than USD withholds it with a
   gap instead of dividing across currencies. Yahoo per-share values (EPS, dividend rate) name a non-USD quote
   currency.
@@ -90,7 +93,13 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - **Fetch size.** `web_fetch` keeps 32,000 characters for a report host of a profiled listing, enough for an
   interim report's four statements (about 27,000 characters). Every other fetch and every search keeps
   `MAX_TEXT_CHARS` (5,000), so US runs send identical requests. The brief round loop asks for one report search
-  and then a fetch. The deep single-round batch cannot fetch, so deep runs read search text only.
+  and then a fetch. The deep single-round batch cannot fetch a page it has not yet seen, so the deep model is asked
+  for the report search only, and after the batch code fetches up to two of the newest surfaced report-host
+  pages, within budget, whose search text already holds a table and that the model did not fetch. The reserve is
+  conditional: up to two fetches, fewer when the budget left after one model search cannot cover two, and none
+  without an Exchange Profile. The deep model is shown, and held to, the budget minus that reserve. A failed fetch
+  is a declared gap, and the issuer-report gap still fires when no report text arrives. Listings without an
+  Exchange Profile keep the full budget and get no code fetch.
 - **Model maps, code reads.** The `issuer-report-mapping` stage sees report tables as cell refs and text and
   returns only `{concept, cell}` pairs from a fixed concept list. Code reads the value from the cell and accepts
   it only when all of these hold:
@@ -133,9 +142,14 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 
 - Web-sourced figures without a quote, including every recorded pre-change model output, prune into gaps.
   Reports lose figures they published before; each loss is declared.
-- Verification is lexical: it proves a cited span holds the number, not that the span is about the claim. Sign
-  is not parsed ("fell 4%" matches "+4%"), a range carries its scale only on the last number ("$1.2-1.4
-  billion" parses as $1.2), and "9M" reads as nine million; each is symmetric between claim and quote.
+- Verification is lexical: it proves a cited span holds the number, not that the span is about the claim. Each
+  quoted figure is read whole from its own source table cell. A row with no closing `|` followed by a line that
+  may start a new row withholds the figures beside that break. A leading minus, or accounting parentheses around
+  the amount itself, makes a figure negative, and a sign mismatch fails. A parenthesized aside in prose ("revenue
+  (RM5m)") also reads as negative, so it prunes unless the claim matches it. Sign words are not parsed ("fell 4%"
+  matches "4%"). Percentage points and percent are distinct units. A range carries its scale only on the last
+  number ("$1.2-1.4 billion" parses as $1.2), and "9M" reads as nine million; each is symmetric between claim
+  and quote.
 - A web figure in a claim that also cites a deterministic source is not checked.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.

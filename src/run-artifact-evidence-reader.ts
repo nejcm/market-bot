@@ -487,8 +487,8 @@ export function readBusinessFrameworkArtifact(
   if (
     readString(value, "generatedAt") === undefined ||
     readString(value, "symbol") === undefined ||
-    typeof value.phase !== "string" ||
-    !isBusinessLifecyclePhase(value.phase) ||
+    (value.phase !== undefined &&
+      (typeof value.phase !== "string" || !isBusinessLifecyclePhase(value.phase))) ||
     !Array.isArray(value.sections) ||
     !value.sections.every((section) => hasBusinessFrameworkSectionShape(section, version)) ||
     readStringArray(value, "sourceIds") === undefined ||

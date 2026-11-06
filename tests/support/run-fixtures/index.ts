@@ -515,4 +515,5 @@ export const EQUITY_RUN_FIXTURES = [
   "ebay-extension-investments",
   "equity-amd-deep",
   "equity-bursa-deep",
+  "equity-bursa-brief",
 ] as const;

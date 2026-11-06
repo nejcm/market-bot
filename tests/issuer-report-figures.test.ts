@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { exchangeProfileFor, issuerReportHostKind } from "../src/domain/exchange-profile";
+import type { MarketSnapshot } from "../src/domain/market-data";
 import type { Source } from "../src/domain/sources";
 import {
   datesIn,
@@ -14,7 +15,7 @@ import { issuerReportGatherContext } from "../src/web-evidence/web-gather-covera
 import { resolveMetricReferences } from "../src/research/metric-references";
 import { auditReportIntegrity } from "../src/research/report-integrity-audit";
 import { webSourceTexts } from "../src/research/web-figure-verification";
-import { collectedSources, researchReport } from "./support/fixtures";
+import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 
 // Shape of the KLSE Screener copy of ViTrox (0097.KL) Q3 2026 results, fixture equity-bursa-deep.
 const KLSE_TEXT = `VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026
@@ -421,6 +422,63 @@ function output(content: string) {
 describe("issuer report phase", () => {
   const symbol = "0097.KL";
 
+  describe("Yahoo trailing EPS against the issuer's year-to-date EPS", () => {
+    const crossCheck = async (
+      epsTrailingTwelveMonths: number,
+      options: { readonly quoteCurrency?: string; readonly epsRow?: string } = {},
+    ) => {
+      const text =
+        options.epsRow === undefined
+          ? KLSE_TEXT
+          : KLSE_TEXT.replace("| 6.26 | 1.83 | 13.45 | 4.60 |", options.epsRow);
+      const result = await runIssuerReportPhase({
+        symbol,
+        collectedSources: collectedSources({
+          extendedSources: [source({ snippet: text })],
+          marketSnapshots: [
+            marketSnapshot({
+              symbol,
+              fundamentals: { epsTrailingTwelveMonths },
+              identity: { quoteCurrency: options.quoteCurrency ?? "MYR" } as NonNullable<
+                MarketSnapshot["identity"]
+              >,
+            }),
+          ],
+        }),
+        generateMapping: async () =>
+          output(mapping(["basic-eps", "t1:r6:c4"], ["basic-eps", "t1:r6:c5"])),
+      });
+      return result.collectedSources.sourceGaps.find(({ message }) =>
+        message.startsWith("Yahoo trailing EPS"),
+      )?.message;
+    };
+
+    test("discloses an unreconciled comparison against the newest period", async () => {
+      const message = await crossCheck(0.11);
+      expect(message).toContain(
+        "Yahoo trailing EPS 0.11 MYR (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported 9-month year-to-date basic EPS of 0.1345 MYR to 2026-09-30",
+      );
+      expect(message).toContain("no prior-year EPS or weighted share counts");
+      // A shrinking share count can put positive-profit TTM EPS below YTD EPS, so no loss is implied.
+      expect(message).not.toContain("loss");
+    });
+
+    test("stays silent at or above the newest period, on a currency mismatch, or on a loss", async () => {
+      expect(await crossCheck(0.16)).toBeUndefined();
+      expect(await crossCheck(0.11, { quoteCurrency: "USD" })).toBeUndefined();
+      expect(
+        await crossCheck(-0.2, { epsRow: "| 6.26 | 1.83 | (13.45) | 4.60 |" }),
+      ).toBeUndefined();
+    });
+
+    test("an older comparative above the Yahoo value does not trigger it", async () => {
+      expect(await crossCheck(0.11, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toBeUndefined();
+      expect(await crossCheck(0.01, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toContain(
+        "basic EPS of 0.046 MYR to 2026-09-30",
+      );
+    });
+  });
+
   test("publishes checked figures and derived metrics with mirror labels", async () => {
     const result = await runIssuerReportPhase({
       symbol,
@@ -488,6 +546,13 @@ describe("issuer report phase", () => {
         source: "issuer-report",
         cause: "validation-failed",
         message: expect.stringContaining("basic-eps at t1:r10:c2 (period-not-declared)"),
+      }),
+      expect.objectContaining({
+        source: "issuer-report",
+        cause: "provider-data-missing",
+        message: expect.stringContaining(
+          "published no checked figure for: Profit before tax, Profit for the period, Basic EPS",
+        ),
       }),
     ]);
   });

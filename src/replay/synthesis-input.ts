@@ -222,8 +222,8 @@ function collectedInputs(value: Record<string, unknown>): boolean {
     framework !== undefined &&
     (!isRecord(framework) ||
       ![1, 2, 3].includes(Number(framework.version)) ||
-      typeof framework.phase !== "string" ||
-      !isBusinessLifecyclePhase(framework.phase) ||
+      (framework.phase !== undefined &&
+        (typeof framework.phase !== "string" || !isBusinessLifecyclePhase(framework.phase))) ||
       !strings(framework.sourceIds) ||
       !Array.isArray(framework.gaps) ||
       !Array.isArray(framework.sections) ||

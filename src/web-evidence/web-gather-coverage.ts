@@ -239,7 +239,10 @@ export function issuerReportGatherContext(
     exchange: profile.exchange,
     primaryHosts: profile.reportHosts.primary,
     mirrorHosts: profile.reportHosts.mirror,
-    request:
-      "This listing files no SEC reports. Spend one current-subject web_search on the issuer's latest quarterly report and latest annual report, naming the company and the exchange. In the next round, web_fetch the newest surfaced report page on these hosts: fetched pages there keep up to 32000 characters, enough for the financial statements.",
+    request: `This listing files no SEC reports. Spend one current-subject web_search on the issuer's latest quarterly report and latest annual report, naming the company and the exchange. ${
+      command.depth === "deep"
+        ? "After this batch, code fetches up to two of the newest surfaced report pages on these hosts in full, within budget, so do not web_fetch them."
+        : "In the next round, web_fetch the newest surfaced report page on these hosts: fetched pages there keep up to 32000 characters, enough for the financial statements."
+    }`,
   };
 }

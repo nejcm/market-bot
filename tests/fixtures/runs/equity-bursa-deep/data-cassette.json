@@ -1,394 +1,82 @@
 {
   "entries": {
-    "GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=0097.KL": {
-      "status": 401,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "{\"finance\":{\"result\":null,\"error\":{\"code\":\"Unauthorized\",\"description\":\"User is unable to access this feature - https://bit.ly/yahoo-finance-api-feedback\"}}}",
-      "sequence": [
-        {
-          "status": 401,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "{\"finance\":{\"result\":null,\"error\":{\"code\":\"Unauthorized\",\"description\":\"User is unable to access this feature - https://bit.ly/yahoo-finance-api-feedback\"}}}"
-        }
-      ]
-    },
-    "GET  https://fc.yahoo.com/": {
-      "status": 404,
-      "headers": {
-        "content-type": "text/html"
-      },
-      "body": "<!DOCTYPE html>\n<html lang=\"en-us\">\n  <head>\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n    <meta charset=\"utf-8\">\n    <title>Yahoo</title>\n    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,minimal-ui\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <style>\n      html {\n          height: 100%;\n      }\n      body {\n          background: #fafafc url(https://s.yimg.com/nn/img/sad-panda-201402200631.png) 50% 50%;\n          background-size: cover;\n          height: 100%;\n          text-align: center;\n          font: 300 18px \"helvetica neue\", helvetica, verdana, tahoma, arial, sans-serif;\n          margin: 0;\n      }\n      table {\n          height: 100%;\n          width: 100%;\n          table-layout: fixed;\n          border-collapse: collapse;\n          border-spacing: 0;\n          border: none;\n      }\n      h1 {\n          font-size: 42px;\n          font-weight: 400;\n          color: #400090;\n      }\n      p {\n          color: #1A1A1A;\n      }\n      #message-1 {\n          font-weight: bold;\n          margin: 0;\n      }\n      #message-2 {\n          display: inline-block;\n          *display: inline;\n          zoom: 1;\n          max-width: 17em;\n          _width: 17em;\n      }\n      </style>\n      <script>\n      !function(){if(window==window.top){var o=window.location.host;o.endsWith(\".yahoo.com\")&&window.location.replace(\"https://www.yahoo.com/\"),o.endsWith(\".aol.com\")&&window.location.replace(\"https://www.aol.com/\")}}();\n      </script>\n  </head>\n  <body>\n  <!-- status code : 404 -->\n  <!-- Not Found on Accelerator -->\n  <!-- host machine: e1.ycpi.sgb.yahoo.com -->\n  <!-- timestamp: 1793934423.162 -->\n  <!-- url: https://fc.yahoo.com/-->\n  <script type=\"text/javascript\">\n    function buildUrl(url, parameters){\n      var qs = [];\n      for(var key in parameters) {\n        var value = parameters[key];\n        qs.push(encodeURIComponent(key) + \"=\" + encodeURIComponent(value));\n      }\n      url = url + \"?\" + qs.join('&');\n      return url;\n    }\n\n    function generateBRBMarkup(site) {\n      params.source = 'brb';\n      generateBeaconMarkup(params);\n      var englishHeader = 'Will be right back...';\n      var englishMessage1 = 'Thank you for your patience.';\n      var englishMessage2 = 'Our engineers are working quickly to resolve the issue.';\n      var defaultLogoStyle = '';\n      var siteDataMap = {\n        'default': {\n          logo: 'https://s.yimg.com/rz/p/yahoo_frontpage_en-US_s_f_p_205x58_frontpage.png',\n          logoAlt: 'Yahoo Logo',\n          logoStyle: defaultLogoStyle,\n          header: englishHeader,\n          message1: englishMessage1,\n          message2: englishMessage2\n        }\n      };\n\n      var siteDetails = siteDataMap['default'];\n\n      document.write('<table><tbody><tr><td>');\n      document.write('<div id=\"content\">');\n      document.write('<img src=\"' + siteDetails['logo'] + '\" alt=\"' + siteDetails['logoAlt'] + '\" style=\"' + siteDetails['logoStyle'] + '\">');\n      document.write('<h1 style=\"margin-top:20px;\">' + siteDetails['header'] + '</h1>');\n      document.write('<p id=\"message-1\">' + siteDetails['message1'] + '</p>');\n      document.write('<p id=\"message-2\">' + siteDetails['message2'] + '</p>');\n      document.write('</div>');\n      document.write('</td></tr></tbody></table>');\n    }\n\n    function generateBeaconMarkup(params) {\n        document.write('<img src=\"' + buildUrl('//geo.yahoo.com/b', params) + '\" style=\"display:none;\" width=\"0px\" height=\"0px\"/>');\n        var beacon = new Image();\n        beacon.src = buildUrl('//bcn.fp.yahoo.com/p', params);\n    }\n\n    var hostname = window.location.hostname;\n    var device = 'featurephone';\n    var ynet = ('-' === '1');\n    var time = new Date().getTime();\n    var params = {\n        s: '1197757129',\n        t: time,\n        err_url: document.URL,\n        err: '404',\n        test: '-',\n        ats_host: 'e1.ycpi.sgb.yahoo.com',\n        rid: '-',\n        message: 'Not Found on Accelerator'\n    };\n\n    if(ynet) {\n        document.write('<div style=\"height: 5px; background-color: red;\"></div>');\n    }\n    generateBRBMarkup(hostname, params);\n\n  </script>\n  <noscript>\n  <table>\n    <tbody>\n      <tr>\n        <td>\n          <div id=\"englishContent\">\n            <h1 style=\"margin-top:20px;\">Will be right back...</h1>\n            <p id=\"message-1\">Thank you for your patience.</p>\n            <p id=\"message-2\">Our engineers are working quickly to resolve the issue.</p>\n          </div>\n        </td>\n      </tr>\n    </tbody>\n  </table>\n  </noscript>\n  </body>\n</html>\n",
-      "sequence": [
-        {
-          "status": 404,
-          "headers": {
-            "content-type": "text/html"
-          },
-          "body": "<!DOCTYPE html>\n<html lang=\"en-us\">\n  <head>\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n    <meta charset=\"utf-8\">\n    <title>Yahoo</title>\n    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,minimal-ui\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <style>\n      html {\n          height: 100%;\n      }\n      body {\n          background: #fafafc url(https://s.yimg.com/nn/img/sad-panda-201402200631.png) 50% 50%;\n          background-size: cover;\n          height: 100%;\n          text-align: center;\n          font: 300 18px \"helvetica neue\", helvetica, verdana, tahoma, arial, sans-serif;\n          margin: 0;\n      }\n      table {\n          height: 100%;\n          width: 100%;\n          table-layout: fixed;\n          border-collapse: collapse;\n          border-spacing: 0;\n          border: none;\n      }\n      h1 {\n          font-size: 42px;\n          font-weight: 400;\n          color: #400090;\n      }\n      p {\n          color: #1A1A1A;\n      }\n      #message-1 {\n          font-weight: bold;\n          margin: 0;\n      }\n      #message-2 {\n          display: inline-block;\n          *display: inline;\n          zoom: 1;\n          max-width: 17em;\n          _width: 17em;\n      }\n      </style>\n      <script>\n      !function(){if(window==window.top){var o=window.location.host;o.endsWith(\".yahoo.com\")&&window.location.replace(\"https://www.yahoo.com/\"),o.endsWith(\".aol.com\")&&window.location.replace(\"https://www.aol.com/\")}}();\n      </script>\n  </head>\n  <body>\n  <!-- status code : 404 -->\n  <!-- Not Found on Accelerator -->\n  <!-- host machine: e1.ycpi.sgb.yahoo.com -->\n  <!-- timestamp: 1793934423.162 -->\n  <!-- url: https://fc.yahoo.com/-->\n  <script type=\"text/javascript\">\n    function buildUrl(url, parameters){\n      var qs = [];\n      for(var key in parameters) {\n        var value = parameters[key];\n        qs.push(encodeURIComponent(key) + \"=\" + encodeURIComponent(value));\n      }\n      url = url + \"?\" + qs.join('&');\n      return url;\n    }\n\n    function generateBRBMarkup(site) {\n      params.source = 'brb';\n      generateBeaconMarkup(params);\n      var englishHeader = 'Will be right back...';\n      var englishMessage1 = 'Thank you for your patience.';\n      var englishMessage2 = 'Our engineers are working quickly to resolve the issue.';\n      var defaultLogoStyle = '';\n      var siteDataMap = {\n        'default': {\n          logo: 'https://s.yimg.com/rz/p/yahoo_frontpage_en-US_s_f_p_205x58_frontpage.png',\n          logoAlt: 'Yahoo Logo',\n          logoStyle: defaultLogoStyle,\n          header: englishHeader,\n          message1: englishMessage1,\n          message2: englishMessage2\n        }\n      };\n\n      var siteDetails = siteDataMap['default'];\n\n      document.write('<table><tbody><tr><td>');\n      document.write('<div id=\"content\">');\n      document.write('<img src=\"' + siteDetails['logo'] + '\" alt=\"' + siteDetails['logoAlt'] + '\" style=\"' + siteDetails['logoStyle'] + '\">');\n      document.write('<h1 style=\"margin-top:20px;\">' + siteDetails['header'] + '</h1>');\n      document.write('<p id=\"message-1\">' + siteDetails['message1'] + '</p>');\n      document.write('<p id=\"message-2\">' + siteDetails['message2'] + '</p>');\n      document.write('</div>');\n      document.write('</td></tr></tbody></table>');\n    }\n\n    function generateBeaconMarkup(params) {\n        document.write('<img src=\"' + buildUrl('//geo.yahoo.com/b', params) + '\" style=\"display:none;\" width=\"0px\" height=\"0px\"/>');\n        var beacon = new Image();\n        beacon.src = buildUrl('//bcn.fp.yahoo.com/p', params);\n    }\n\n    var hostname = window.location.hostname;\n    var device = 'featurephone';\n    var ynet = ('-' === '1');\n    var time = new Date().getTime();\n    var params = {\n        s: '1197757129',\n        t: time,\n        err_url: document.URL,\n        err: '404',\n        test: '-',\n        ats_host: 'e1.ycpi.sgb.yahoo.com',\n        rid: '-',\n        message: 'Not Found on Accelerator'\n    };\n\n    if(ynet) {\n        document.write('<div style=\"height: 5px; background-color: red;\"></div>');\n    }\n    generateBRBMarkup(hostname, params);\n\n  </script>\n  <noscript>\n  <table>\n    <tbody>\n      <tr>\n        <td>\n          <div id=\"englishContent\">\n            <h1 style=\"margin-top:20px;\">Will be right back...</h1>\n            <p id=\"message-1\">Thank you for your patience.</p>\n            <p id=\"message-2\">Our engineers are working quickly to resolve the issue.</p>\n          </div>\n        </td>\n      </tr>\n    </tbody>\n  </table>\n  </noscript>\n  </body>\n</html>\n"
-        },
-        {
-          "status": 404,
-          "headers": {
-            "content-type": "text/html"
-          },
-          "body": "<!DOCTYPE html>\n<html lang=\"en-us\">\n  <head>\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n    <meta charset=\"utf-8\">\n    <title>Yahoo</title>\n    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,minimal-ui\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <style>\n      html {\n          height: 100%;\n      }\n      body {\n          background: #fafafc url(https://s.yimg.com/nn/img/sad-panda-201402200631.png) 50% 50%;\n          background-size: cover;\n          height: 100%;\n          text-align: center;\n          font: 300 18px \"helvetica neue\", helvetica, verdana, tahoma, arial, sans-serif;\n          margin: 0;\n      }\n      table {\n          height: 100%;\n          width: 100%;\n          table-layout: fixed;\n          border-collapse: collapse;\n          border-spacing: 0;\n          border: none;\n      }\n      h1 {\n          font-size: 42px;\n          font-weight: 400;\n          color: #400090;\n      }\n      p {\n          color: #1A1A1A;\n      }\n      #message-1 {\n          font-weight: bold;\n          margin: 0;\n      }\n      #message-2 {\n          display: inline-block;\n          *display: inline;\n          zoom: 1;\n          max-width: 17em;\n          _width: 17em;\n      }\n      </style>\n      <script>\n      !function(){if(window==window.top){var o=window.location.host;o.endsWith(\".yahoo.com\")&&window.location.replace(\"https://www.yahoo.com/\"),o.endsWith(\".aol.com\")&&window.location.replace(\"https://www.aol.com/\")}}();\n      </script>\n  </head>\n  <body>\n  <!-- status code : 404 -->\n  <!-- Not Found on Accelerator -->\n  <!-- host machine: e1.ycpi.sgb.yahoo.com -->\n  <!-- timestamp: 1793934424.093 -->\n  <!-- url: https://fc.yahoo.com/-->\n  <script type=\"text/javascript\">\n    function buildUrl(url, parameters){\n      var qs = [];\n      for(var key in parameters) {\n        var value = parameters[key];\n        qs.push(encodeURIComponent(key) + \"=\" + encodeURIComponent(value));\n      }\n      url = url + \"?\" + qs.join('&');\n      return url;\n    }\n\n    function generateBRBMarkup(site) {\n      params.source = 'brb';\n      generateBeaconMarkup(params);\n      var englishHeader = 'Will be right back...';\n      var englishMessage1 = 'Thank you for your patience.';\n      var englishMessage2 = 'Our engineers are working quickly to resolve the issue.';\n      var defaultLogoStyle = '';\n      var siteDataMap = {\n        'default': {\n          logo: 'https://s.yimg.com/rz/p/yahoo_frontpage_en-US_s_f_p_205x58_frontpage.png',\n          logoAlt: 'Yahoo Logo',\n          logoStyle: defaultLogoStyle,\n          header: englishHeader,\n          message1: englishMessage1,\n          message2: englishMessage2\n        }\n      };\n\n      var siteDetails = siteDataMap['default'];\n\n      document.write('<table><tbody><tr><td>');\n      document.write('<div id=\"content\">');\n      document.write('<img src=\"' + siteDetails['logo'] + '\" alt=\"' + siteDetails['logoAlt'] + '\" style=\"' + siteDetails['logoStyle'] + '\">');\n      document.write('<h1 style=\"margin-top:20px;\">' + siteDetails['header'] + '</h1>');\n      document.write('<p id=\"message-1\">' + siteDetails['message1'] + '</p>');\n      document.write('<p id=\"message-2\">' + siteDetails['message2'] + '</p>');\n      document.write('</div>');\n      document.write('</td></tr></tbody></table>');\n    }\n\n    function generateBeaconMarkup(params) {\n        document.write('<img src=\"' + buildUrl('//geo.yahoo.com/b', params) + '\" style=\"display:none;\" width=\"0px\" height=\"0px\"/>');\n        var beacon = new Image();\n        beacon.src = buildUrl('//bcn.fp.yahoo.com/p', params);\n    }\n\n    var hostname = window.location.hostname;\n    var device = 'featurephone';\n    var ynet = ('-' === '1');\n    var time = new Date().getTime();\n    var params = {\n        s: '1197757129',\n        t: time,\n        err_url: document.URL,\n        err: '404',\n        test: '-',\n        ats_host: 'e1.ycpi.sgb.yahoo.com',\n        rid: '-',\n        message: 'Not Found on Accelerator'\n    };\n\n    if(ynet) {\n        document.write('<div style=\"height: 5px; background-color: red;\"></div>');\n    }\n    generateBRBMarkup(hostname, params);\n\n  </script>\n  <noscript>\n  <table>\n    <tbody>\n      <tr>\n        <td>\n          <div id=\"englishContent\">\n            <h1 style=\"margin-top:20px;\">Will be right back...</h1>\n            <p id=\"message-1\">Thank you for your patience.</p>\n            <p id=\"message-2\">Our engineers are working quickly to resolve the issue.</p>\n          </div>\n        </td>\n      </tr>\n    </tbody>\n  </table>\n  </noscript>\n  </body>\n</html>\n"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v1/test/getcrumb": {
-      "status": 200,
-      "headers": {
-        "content-type": "text/plain;charset=utf-8"
-      },
-      "body": "fixture-crumb",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "text/plain;charset=utf-8"
-          },
-          "body": "fixture-crumb"
-        },
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "text/plain;charset=utf-8"
-          },
-          "body": "fixture-crumb"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v7/finance/quote?crumb=fixture-crumb&symbols=0097.KL": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "{\"quoteResponse\":{\"result\":[{\"language\":\"en-US\",\"region\":\"US\",\"quoteType\":\"EQUITY\",\"typeDisp\":\"Equity\",\"quoteSourceName\":\"Delayed Quote\",\"triggerable\":false,\"customPriceAlertConfidence\":\"LOW\",\"currency\":\"MYR\",\"shortName\":\"VITROX\",\"longName\":\"ViTrox Corporation Berhad\",\"regularMarketTime\":1793933521,\"exchange\":\"KLS\",\"exchangeTimezoneName\":\"Asia/Kuala_Lumpur\",\"exchangeTimezoneShortName\":\"MYT\",\"gmtOffSetMilliseconds\":28800000,\"market\":\"my_market\",\"esgPopulated\":false,\"corporateActions\":[],\"regularMarketChange\":-0.2800007,\"regularMarketChangePercent\":-2.6415157,\"fulldayChange\":-0.2800007,\"fulldayChangePercent\":-2.6415157,\"fulldayPrice\":10.32,\"regularMarketPrice\":10.32,\"regularMarketDayHigh\":10.4,\"regularMarketDayRange\":\"9.88 - 10.4\",\"regularMarketDayLow\":9.88,\"regularMarketVolume\":4674900,\"regularMarketPreviousClose\":10.6,\"bid\":10.3,\"ask\":10.32,\"bidSize\":0,\"askSize\":0,\"fullExchangeName\":\"Kuala Lumpur\",\"financialCurrency\":\"MYR\",\"regularMarketOpen\":10.2,\"averageDailyVolume3Month\":3553825,\"averageDailyVolume10Day\":4012400,\"fiftyTwoWeekLowChange\":6.3799996,\"fiftyTwoWeekLowChangePercent\":1.6192893,\"fiftyTwoWeekRange\":\"3.94 - 11.3\",\"fiftyTwoWeekHighChange\":-0.9800005,\"fiftyTwoWeekHighChangePercent\":-0.086725704,\"fiftyTwoWeekLow\":3.94,\"fiftyTwoWeekHigh\":11.3,\"fiftyTwoWeekChangePercent\":134.51328,\"earningsTimestampStart\":1753268340,\"earningsTimestampEnd\":1753704000,\"isEarningsDateEstimate\":true,\"trailingAnnualDividendRate\":0.012,\"trailingPE\":93.81818,\"dividendRate\":0.02,\"trailingAnnualDividendYield\":0.0011320754,\"dividendYield\":0.17,\"epsTrailingTwelveMonths\":0.11,\"epsForward\":0.21035,\"epsCurrentYear\":0.1723,\"priceEpsCurrentYear\":59.89553,\"sharesOutstanding\":1894902800,\"impliedSharesOutstanding\":1894902800,\"bookValue\":0.659,\"fiftyDayAverage\":10.1182,\"fiftyDayAverageChange\":0.2017994,\"fiftyDayAverageChangePercent\":0.019944198,\"twoHundredDayAverage\":7.14365,\"twoHundredDayAverageChange\":3.1763496,\"twoHundredDayAverageChangePercent\":0.4446396,\"marketCap\":19555395584,\"forwardPE\":49.061085,\"priceToBook\":15.660091,\"marketState\":\"REGULAR\",\"sourceInterval\":15,\"exchangeDataDelayedBy\":15,\"averageAnalystRating\":\"1.9 - Buy\",\"tradeable\":false,\"cryptoTradeable\":false,\"hasPrePostMarketData\":false,\"firstTradeDateMilliseconds\":1126486800000,\"priceHint\":2,\"symbol\":\"0097.KL\"}],\"error\":null}}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "{\"quoteResponse\":{\"result\":[{\"language\":\"en-US\",\"region\":\"US\",\"quoteType\":\"EQUITY\",\"typeDisp\":\"Equity\",\"quoteSourceName\":\"Delayed Quote\",\"triggerable\":false,\"customPriceAlertConfidence\":\"LOW\",\"currency\":\"MYR\",\"shortName\":\"VITROX\",\"longName\":\"ViTrox Corporation Berhad\",\"regularMarketTime\":1793933521,\"exchange\":\"KLS\",\"exchangeTimezoneName\":\"Asia/Kuala_Lumpur\",\"exchangeTimezoneShortName\":\"MYT\",\"gmtOffSetMilliseconds\":28800000,\"market\":\"my_market\",\"esgPopulated\":false,\"corporateActions\":[],\"regularMarketChange\":-0.2800007,\"regularMarketChangePercent\":-2.6415157,\"fulldayChange\":-0.2800007,\"fulldayChangePercent\":-2.6415157,\"fulldayPrice\":10.32,\"regularMarketPrice\":10.32,\"regularMarketDayHigh\":10.4,\"regularMarketDayRange\":\"9.88 - 10.4\",\"regularMarketDayLow\":9.88,\"regularMarketVolume\":4674900,\"regularMarketPreviousClose\":10.6,\"bid\":10.3,\"ask\":10.32,\"bidSize\":0,\"askSize\":0,\"fullExchangeName\":\"Kuala Lumpur\",\"financialCurrency\":\"MYR\",\"regularMarketOpen\":10.2,\"averageDailyVolume3Month\":3553825,\"averageDailyVolume10Day\":4012400,\"fiftyTwoWeekLowChange\":6.3799996,\"fiftyTwoWeekLowChangePercent\":1.6192893,\"fiftyTwoWeekRange\":\"3.94 - 11.3\",\"fiftyTwoWeekHighChange\":-0.9800005,\"fiftyTwoWeekHighChangePercent\":-0.086725704,\"fiftyTwoWeekLow\":3.94,\"fiftyTwoWeekHigh\":11.3,\"fiftyTwoWeekChangePercent\":134.51328,\"earningsTimestampStart\":1753268340,\"earningsTimestampEnd\":1753704000,\"isEarningsDateEstimate\":true,\"trailingAnnualDividendRate\":0.012,\"trailingPE\":93.81818,\"dividendRate\":0.02,\"trailingAnnualDividendYield\":0.0011320754,\"dividendYield\":0.17,\"epsTrailingTwelveMonths\":0.11,\"epsForward\":0.21035,\"epsCurrentYear\":0.1723,\"priceEpsCurrentYear\":59.89553,\"sharesOutstanding\":1894902800,\"impliedSharesOutstanding\":1894902800,\"bookValue\":0.659,\"fiftyDayAverage\":10.1182,\"fiftyDayAverageChange\":0.2017994,\"fiftyDayAverageChangePercent\":0.019944198,\"twoHundredDayAverage\":7.14365,\"twoHundredDayAverageChange\":3.1763496,\"twoHundredDayAverageChangePercent\":0.4446396,\"marketCap\":19555395584,\"forwardPE\":49.061085,\"priceToBook\":15.660091,\"marketState\":\"REGULAR\",\"sourceInterval\":15,\"exchangeDataDelayedBy\":15,\"averageAnalystRating\":\"1.9 - Buy\",\"tradeable\":false,\"cryptoTradeable\":false,\"hasPrePostMarketData\":false,\"firstTradeDateMilliseconds\":1126486800000,\"priceHint\":2,\"symbol\":\"0097.KL\"}],\"error\":null}}"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=%5EKLSE": {
-      "status": 401,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "{\"finance\":{\"result\":null,\"error\":{\"code\":\"Unauthorized\",\"description\":\"User is unable to access this feature - https://bit.ly/yahoo-finance-api-feedback\"}}}",
-      "sequence": [
-        {
-          "status": 401,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "{\"finance\":{\"result\":null,\"error\":{\"code\":\"Unauthorized\",\"description\":\"User is unable to access this feature - https://bit.ly/yahoo-finance-api-feedback\"}}}"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v7/finance/quote?crumb=fixture-crumb&symbols=%5EKLSE": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "{\"quoteResponse\":{\"result\":[{\"language\":\"en-US\",\"region\":\"US\",\"quoteType\":\"INDEX\",\"typeDisp\":\"Index\",\"quoteSourceName\":\"Delayed Quote\",\"triggerable\":false,\"customPriceAlertConfidence\":\"LOW\",\"currency\":\"MYR\",\"marketState\":\"REGULAR\",\"shortName\":\"FTSE Bursa Malaysia KLCI\",\"longName\":\"FTSE Bursa Malaysia KLCI\",\"hasPrePostMarketData\":false,\"firstTradeDateMilliseconds\":754880400000,\"priceHint\":2,\"regularMarketChange\":-21.359985,\"regularMarketChangePercent\":-1.3058541,\"fulldayChange\":-21.359985,\"fulldayChangePercent\":-1.3058541,\"fulldayPrice\":1614.5,\"regularMarketPrice\":1614.5,\"regularMarketDayHigh\":1620.55,\"regularMarketDayRange\":\"1613.11 - 1620.55\",\"regularMarketDayLow\":1613.11,\"regularMarketVolume\":0,\"regularMarketPreviousClose\":1635.86,\"bid\":0.0,\"ask\":0.0,\"bidSize\":0,\"askSize\":0,\"fullExchangeName\":\"Kuala Lumpur\",\"regularMarketOpen\":1620.55,\"averageDailyVolume3Month\":221953803,\"averageDailyVolume10Day\":191175300,\"fiftyTwoWeekLowChange\":21.930054,\"fiftyTwoWeekLowChangePercent\":0.013770229,\"fiftyTwoWeekRange\":\"1592.57 - 1771.25\",\"fiftyTwoWeekHighChange\":-156.75,\"fiftyTwoWeekHighChangePercent\":-0.08849683,\"fiftyTwoWeekLow\":1592.57,\"fiftyTwoWeekHigh\":1771.25,\"fiftyTwoWeekChangePercent\":-0.1470089,\"fiftyDayAverage\":1655.0883,\"fiftyDayAverageChange\":-40.588257,\"fiftyDayAverageChangePercent\":-0.024523318,\"twoHundredDayAverage\":1698.9495,\"twoHundredDayAverageChange\":-84.44946,\"twoHundredDayAverageChangePercent\":-0.049706873,\"sourceInterval\":15,\"exchangeDataDelayedBy\":15,\"tradeable\":false,\"cryptoTradeable\":false,\"corporateActions\":[],\"regularMarketTime\":1793933490,\"exchange\":\"KLS\",\"messageBoardId\":\"finmb_INDEXKLSE\",\"exchangeTimezoneName\":\"Asia/Kuala_Lumpur\",\"exchangeTimezoneShortName\":\"MYT\",\"gmtOffSetMilliseconds\":28800000,\"market\":\"my_market\",\"esgPopulated\":false,\"symbol\":\"^KLSE\"}],\"error\":null}}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "{\"quoteResponse\":{\"result\":[{\"language\":\"en-US\",\"region\":\"US\",\"quoteType\":\"INDEX\",\"typeDisp\":\"Index\",\"quoteSourceName\":\"Delayed Quote\",\"triggerable\":false,\"customPriceAlertConfidence\":\"LOW\",\"currency\":\"MYR\",\"marketState\":\"REGULAR\",\"shortName\":\"FTSE Bursa Malaysia KLCI\",\"longName\":\"FTSE Bursa Malaysia KLCI\",\"hasPrePostMarketData\":false,\"firstTradeDateMilliseconds\":754880400000,\"priceHint\":2,\"regularMarketChange\":-21.359985,\"regularMarketChangePercent\":-1.3058541,\"fulldayChange\":-21.359985,\"fulldayChangePercent\":-1.3058541,\"fulldayPrice\":1614.5,\"regularMarketPrice\":1614.5,\"regularMarketDayHigh\":1620.55,\"regularMarketDayRange\":\"1613.11 - 1620.55\",\"regularMarketDayLow\":1613.11,\"regularMarketVolume\":0,\"regularMarketPreviousClose\":1635.86,\"bid\":0.0,\"ask\":0.0,\"bidSize\":0,\"askSize\":0,\"fullExchangeName\":\"Kuala Lumpur\",\"regularMarketOpen\":1620.55,\"averageDailyVolume3Month\":221953803,\"averageDailyVolume10Day\":191175300,\"fiftyTwoWeekLowChange\":21.930054,\"fiftyTwoWeekLowChangePercent\":0.013770229,\"fiftyTwoWeekRange\":\"1592.57 - 1771.25\",\"fiftyTwoWeekHighChange\":-156.75,\"fiftyTwoWeekHighChangePercent\":-0.08849683,\"fiftyTwoWeekLow\":1592.57,\"fiftyTwoWeekHigh\":1771.25,\"fiftyTwoWeekChangePercent\":-0.1470089,\"fiftyDayAverage\":1655.0883,\"fiftyDayAverageChange\":-40.588257,\"fiftyDayAverageChangePercent\":-0.024523318,\"twoHundredDayAverage\":1698.9495,\"twoHundredDayAverageChange\":-84.44946,\"twoHundredDayAverageChangePercent\":-0.049706873,\"sourceInterval\":15,\"exchangeDataDelayedBy\":15,\"tradeable\":false,\"cryptoTradeable\":false,\"corporateActions\":[],\"regularMarketTime\":1793933490,\"exchange\":\"KLS\",\"messageBoardId\":\"finmb_INDEXKLSE\",\"exchangeTimezoneName\":\"Asia/Kuala_Lumpur\",\"exchangeTimezoneShortName\":\"MYT\",\"gmtOffSetMilliseconds\":28800000,\"market\":\"my_market\",\"esgPopulated\":false,\"symbol\":\"^KLSE\"}],\"error\":null}}"
-        }
-      ]
-    },
-    "GET  https://api.stlouisfed.org/fred/series/observations?file_type=json&limit=2&series_id=DGS10&sort_order=desc": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json; charset=UTF-8",
-        "last-modified": "Thu, 05 Nov 2026 21:16:28 GMT"
-      },
-      "body": "{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":16917,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-04\",\"value\":\"4.9\"},{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-03\",\"value\":\"4.95\"}]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json; charset=UTF-8",
-            "last-modified": "Thu, 05 Nov 2026 21:16:28 GMT"
-          },
-          "body": "{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":16917,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-04\",\"value\":\"4.9\"},{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-03\",\"value\":\"4.95\"}]}"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v1/finance/search?newsCount=15&q=0097.KL": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "{\"explains\":[],\"count\":1,\"quotes\":[{\"exchange\":\"KLS\",\"shortname\":\"VITROX\",\"quoteType\":\"EQUITY\",\"symbol\":\"0097.KL\",\"index\":\"quotes\",\"score\":1.00475E7,\"typeDisp\":\"Equity\",\"longname\":\"ViTrox Corporation Berhad\",\"exchDisp\":\"Kuala Lumpur Stock Exchange\",\"sector\":\"Technology\",\"sectorDisp\":\"Technology\",\"industry\":\"Semiconductor Equipment & Materials\",\"industryDisp\":\"Semiconductor Equipment & Materials\",\"isYahooFinance\":true}],\"news\":[],\"nav\":[],\"lists\":[],\"researchReports\":[],\"screenerFieldResults\":[],\"totalTime\":37,\"timeTakenForQuotes\":413,\"timeTakenForNews\":600,\"timeTakenForAlgowatchlist\":400,\"timeTakenForPredefinedScreener\":400,\"timeTakenForCrunchbase\":0,\"timeTakenForNav\":400,\"timeTakenForResearchReports\":0,\"timeTakenForQuestions\":0,\"timeTakenForScreenerField\":0,\"timeTakenForCulturalAssets\":0,\"timeTakenForSearchLists\":0}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "{\"explains\":[],\"count\":1,\"quotes\":[{\"exchange\":\"KLS\",\"shortname\":\"VITROX\",\"quoteType\":\"EQUITY\",\"symbol\":\"0097.KL\",\"index\":\"quotes\",\"score\":1.00475E7,\"typeDisp\":\"Equity\",\"longname\":\"ViTrox Corporation Berhad\",\"exchDisp\":\"Kuala Lumpur Stock Exchange\",\"sector\":\"Technology\",\"sectorDisp\":\"Technology\",\"industry\":\"Semiconductor Equipment & Materials\",\"industryDisp\":\"Semiconductor Equipment & Materials\",\"isYahooFinance\":true}],\"news\":[],\"nav\":[],\"lists\":[],\"researchReports\":[],\"screenerFieldResults\":[],\"totalTime\":37,\"timeTakenForQuotes\":413,\"timeTakenForNews\":600,\"timeTakenForAlgowatchlist\":400,\"timeTakenForPredefinedScreener\":400,\"timeTakenForCrunchbase\":0,\"timeTakenForNav\":400,\"timeTakenForResearchReports\":0,\"timeTakenForQuestions\":0,\"timeTakenForScreenerField\":0,\"timeTakenForCulturalAssets\":0,\"timeTakenForSearchLists\":0}"
-        }
-      ]
-    },
-    "GET  https://api.marketaux.com/v1/news/all?filter_entities=true&language=en&limit=15&published_after=2026-10-07&symbols=0097.KL": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json"
-      },
-      "body": "{\"warnings\":[\"limit is higher than your plan allows\"],\"meta\":{\"found\":0,\"returned\":0,\"limit\":3,\"page\":1},\"data\":[]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json"
-          },
-          "body": "{\"warnings\":[\"limit is higher than your plan allows\"],\"meta\":{\"found\":0,\"returned\":0,\"limit\":3,\"page\":1},\"data\":[]}"
-        }
-      ]
-    },
-    "GET  https://api.stlouisfed.org/fred/series/observations?file_type=json&limit=2&series_id=T10Y2Y&sort_order=desc": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json; charset=UTF-8",
-        "last-modified": "Thu, 05 Nov 2026 22:03:46 GMT"
-      },
-      "body": "{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":13158,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-05\",\"value\":\"0.38\"},{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-04\",\"value\":\"0.32\"}]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json; charset=UTF-8",
-            "last-modified": "Thu, 05 Nov 2026 22:03:46 GMT"
-          },
-          "body": "{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":13158,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-05\",\"value\":\"0.38\"},{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-04\",\"value\":\"0.32\"}]}"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/0097.KL?events=div%2Csplits&interval=1d&period1=1634947200&period2=1794009600": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "",
-      "bodyFile": "bodies/2770257e52a8256e605ce3e77b80488fb3374bcb76ff1575aaf7b624a5d7170e.txt",
-      "sha256": "2770257e52a8256e605ce3e77b80488fb3374bcb76ff1575aaf7b624a5d7170e",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "",
-          "bodyFile": "bodies/2770257e52a8256e605ce3e77b80488fb3374bcb76ff1575aaf7b624a5d7170e.txt",
-          "sha256": "2770257e52a8256e605ce3e77b80488fb3374bcb76ff1575aaf7b624a5d7170e"
-        }
-      ]
-    },
-    "GET  https://api.stlouisfed.org/fred/series/observations?file_type=json&limit=2&series_id=DGS2&sort_order=desc": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json; charset=UTF-8",
-        "last-modified": "Thu, 05 Nov 2026 21:16:34 GMT"
-      },
-      "body": "{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":13157,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-04\",\"value\":\"4.58\"},{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-03\",\"value\":\"4.61\"}]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json; charset=UTF-8",
-            "last-modified": "Thu, 05 Nov 2026 21:16:34 GMT"
-          },
-          "body": "{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":13157,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-04\",\"value\":\"4.58\"},{\"realtime_start\":\"2026-11-05\",\"realtime_end\":\"2026-11-05\",\"date\":\"2026-11-03\",\"value\":\"4.61\"}]}"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/SPY?events=div%2Csplits&interval=1d&period1=1634947200&period2=1794009600": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "",
-      "bodyFile": "bodies/c84262cb53c8e0388d1508a1661155bc13a2acd2bf315eac99d50261152e47d8.txt",
-      "sha256": "c84262cb53c8e0388d1508a1661155bc13a2acd2bf315eac99d50261152e47d8",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "",
-          "bodyFile": "bodies/c84262cb53c8e0388d1508a1661155bc13a2acd2bf315eac99d50261152e47d8.txt",
-          "sha256": "c84262cb53c8e0388d1508a1661155bc13a2acd2bf315eac99d50261152e47d8"
-        }
-      ]
-    },
-    "GET  https://api.stlouisfed.org/fred/series/observations?file_type=json&limit=2&series_id=FEDFUNDS&sort_order=desc": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json; charset=UTF-8",
-        "last-modified": "Mon, 02 Nov 2026 21:16:50 GMT"
-      },
-      "body": "{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":868,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-10-01\",\"value\":\"3.88\"},{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-09-01\",\"value\":\"3.75\"}]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json; charset=UTF-8",
-            "last-modified": "Mon, 02 Nov 2026 21:16:50 GMT"
-          },
-          "body": "{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":868,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-10-01\",\"value\":\"3.88\"},{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-09-01\",\"value\":\"3.75\"}]}"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/%5EKLSE?events=div%2Csplits&interval=1d&period1=1634947200&period2=1794009600": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "",
-      "bodyFile": "bodies/1ae406a7e698469b567d9efb60b1bf1d0e1fc4d7e567f0b0c94cf6a5163ff7ed.txt",
-      "sha256": "1ae406a7e698469b567d9efb60b1bf1d0e1fc4d7e567f0b0c94cf6a5163ff7ed",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "",
-          "bodyFile": "bodies/1ae406a7e698469b567d9efb60b1bf1d0e1fc4d7e567f0b0c94cf6a5163ff7ed.txt",
-          "sha256": "1ae406a7e698469b567d9efb60b1bf1d0e1fc4d7e567f0b0c94cf6a5163ff7ed"
-        }
-      ]
-    },
-    "GET  https://api.stlouisfed.org/fred/series/observations?file_type=json&limit=2&series_id=CPIAUCSL&sort_order=desc": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json; charset=UTF-8",
-        "last-modified": "Wed, 14 Oct 2026 13:08:29 GMT"
-      },
-      "body": "{\"realtime_start\":\"2026-10-26\",\"realtime_end\":\"2026-10-26\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":957,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-10-26\",\"realtime_end\":\"2026-10-26\",\"date\":\"2026-09-01\",\"value\":\"336.298\"},{\"realtime_start\":\"2026-10-26\",\"realtime_end\":\"2026-10-26\",\"date\":\"2026-08-01\",\"value\":\"334.131\"}]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json; charset=UTF-8",
-            "last-modified": "Wed, 14 Oct 2026 13:08:29 GMT"
-          },
-          "body": "{\"realtime_start\":\"2026-10-26\",\"realtime_end\":\"2026-10-26\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":957,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-10-26\",\"realtime_end\":\"2026-10-26\",\"date\":\"2026-09-01\",\"value\":\"336.298\"},{\"realtime_start\":\"2026-10-26\",\"realtime_end\":\"2026-10-26\",\"date\":\"2026-08-01\",\"value\":\"334.131\"}]}"
-        }
-      ]
-    },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/QQQ?events=div%2Csplits&interval=1d&period1=1634947200&period2=1794009600": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json;charset=utf-8"
-      },
-      "body": "",
-      "bodyFile": "bodies/51ecb40072f4f480c955a79cc76d07d2f364cdd72ec7e0fe141db27690ea847f.txt",
-      "sha256": "51ecb40072f4f480c955a79cc76d07d2f364cdd72ec7e0fe141db27690ea847f",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json;charset=utf-8"
-          },
-          "body": "",
-          "bodyFile": "bodies/51ecb40072f4f480c955a79cc76d07d2f364cdd72ec7e0fe141db27690ea847f.txt",
-          "sha256": "51ecb40072f4f480c955a79cc76d07d2f364cdd72ec7e0fe141db27690ea847f"
-        }
-      ]
-    },
-    "GET  https://api.stlouisfed.org/fred/series/observations?file_type=json&limit=2&series_id=UNRATE&sort_order=desc": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json; charset=UTF-8",
-        "last-modified": "Fri, 02 Oct 2026 13:24:37 GMT"
-      },
-      "body": "{\"realtime_start\":\"2026-10-21\",\"realtime_end\":\"2026-10-21\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":945,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-10-21\",\"realtime_end\":\"2026-10-21\",\"date\":\"2026-09-01\",\"value\":\"4.2\"},{\"realtime_start\":\"2026-10-21\",\"realtime_end\":\"2026-10-21\",\"date\":\"2026-08-01\",\"value\":\"4.1\"}]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json; charset=UTF-8",
-            "last-modified": "Fri, 02 Oct 2026 13:24:37 GMT"
-          },
-          "body": "{\"realtime_start\":\"2026-10-21\",\"realtime_end\":\"2026-10-21\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":945,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-10-21\",\"realtime_end\":\"2026-10-21\",\"date\":\"2026-09-01\",\"value\":\"4.2\"},{\"realtime_start\":\"2026-10-21\",\"realtime_end\":\"2026-10-21\",\"date\":\"2026-08-01\",\"value\":\"4.1\"}]}"
-        }
-      ]
-    },
-    "GET  https://api.stlouisfed.org/fred/series/observations?file_type=json&limit=2&series_id=DTWEXBGS&sort_order=desc": {
-      "status": 200,
-      "headers": {
-        "content-type": "application/json; charset=UTF-8",
-        "last-modified": "Mon, 02 Nov 2026 21:51:35 GMT"
-      },
-      "body": "{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":5435,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-10-30\",\"value\":\"121.6656\"},{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-10-29\",\"value\":\"121.7361\"}]}",
-      "sequence": [
-        {
-          "status": 200,
-          "headers": {
-            "content-type": "application/json; charset=UTF-8",
-            "last-modified": "Mon, 02 Nov 2026 21:51:35 GMT"
-          },
-          "body": "{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"observation_start\":\"1600-01-01\",\"observation_end\":\"9999-12-31\",\"units\":\"lin\",\"output_type\":1,\"file_type\":\"json\",\"order_by\":\"observation_date\",\"sort_order\":\"desc\",\"count\":5435,\"offset\":0,\"limit\":2,\"observations\":[{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-10-30\",\"value\":\"121.6656\"},{\"realtime_start\":\"2026-11-02\",\"realtime_end\":\"2026-11-02\",\"date\":\"2026-10-29\",\"value\":\"121.7361\"}]}"
-        }
-      ]
-    },
-    "POST dffe561806714c67f95381ccbbe70622f81fc788243eb12be91e88c81fd8d35a https://api.exa.ai/search": {
+    "POST e910c22036c7730853b904d0c44b847584d68a97fe064b42a660fcb5081937a2 https://api.exa.ai/search": {
       "status": 200,
       "headers": {
         "content-type": "application/json; charset=utf-8",
-        "etag": "W/\"9c84-yR+IS/NS1LueKfOrzrIt9+esI/s\""
+        "etag": "W/\"b64b-1saKpogc6T/cud8HkFfJW4mKtes\""
       },
       "body": "",
-      "bodyFile": "bodies/73af38c497cc449ecb5ae7765db7fae813869123924fe737ff70f7a034e17b19.txt",
-      "sha256": "73af38c497cc449ecb5ae7765db7fae813869123924fe737ff70f7a034e17b19",
+      "bodyFile": "bodies/46311978cda08989c49ac9d2b4b53a46c05546cced6ea541a181632ffb4b5dcf.txt",
+      "sha256": "46311978cda08989c49ac9d2b4b53a46c05546cced6ea541a181632ffb4b5dcf",
       "sequence": [
         {
           "status": 200,
           "headers": {
             "content-type": "application/json; charset=utf-8",
-            "etag": "W/\"9c84-yR+IS/NS1LueKfOrzrIt9+esI/s\""
+            "etag": "W/\"b64b-1saKpogc6T/cud8HkFfJW4mKtes\""
           },
           "body": "",
-          "bodyFile": "bodies/73af38c497cc449ecb5ae7765db7fae813869123924fe737ff70f7a034e17b19.txt",
-          "sha256": "73af38c497cc449ecb5ae7765db7fae813869123924fe737ff70f7a034e17b19"
+          "bodyFile": "bodies/46311978cda08989c49ac9d2b4b53a46c05546cced6ea541a181632ffb4b5dcf.txt",
+          "sha256": "46311978cda08989c49ac9d2b4b53a46c05546cced6ea541a181632ffb4b5dcf"
         }
       ]
     },
-    "POST db31155cac3ea58d4c514bf279f334722f96d7df8634de8c9c7e4305b655b7c6 https://api.exa.ai/search": {
+    "POST dfabe6a070fe5aea3674229a2b19a0b35cf5e0f1bfb4dd9d1a5d203dc8c468fa https://api.exa.ai/search": {
       "status": 200,
       "headers": {
         "content-type": "application/json; charset=utf-8",
-        "etag": "W/\"906e-M6+ogx8jSEj0K3LsTObCArDh7o0\""
+        "etag": "W/\"a42c-Cu8rmWk3GESmjajW0J1qQdNJtYs\""
       },
       "body": "",
-      "bodyFile": "bodies/c314222d2fe8d89718b5dfe2cfa200cf02a576d12646cfdafe724d8601f664e3.txt",
-      "sha256": "c314222d2fe8d89718b5dfe2cfa200cf02a576d12646cfdafe724d8601f664e3",
+      "bodyFile": "bodies/d7dfea14e1ff2b804767bf864c4f9dc9e38162614f9306b26916f19c0b35de21.txt",
+      "sha256": "d7dfea14e1ff2b804767bf864c4f9dc9e38162614f9306b26916f19c0b35de21",
       "sequence": [
         {
           "status": 200,
           "headers": {
             "content-type": "application/json; charset=utf-8",
-            "etag": "W/\"906e-M6+ogx8jSEj0K3LsTObCArDh7o0\""
+            "etag": "W/\"a42c-Cu8rmWk3GESmjajW0J1qQdNJtYs\""
           },
           "body": "",
-          "bodyFile": "bodies/c314222d2fe8d89718b5dfe2cfa200cf02a576d12646cfdafe724d8601f664e3.txt",
-          "sha256": "c314222d2fe8d89718b5dfe2cfa200cf02a576d12646cfdafe724d8601f664e3"
+          "bodyFile": "bodies/d7dfea14e1ff2b804767bf864c4f9dc9e38162614f9306b26916f19c0b35de21.txt",
+          "sha256": "d7dfea14e1ff2b804767bf864c4f9dc9e38162614f9306b26916f19c0b35de21"
+        }
+      ]
+    },
+    "POST 811b0deb9bbd33f97c4f2f6ff71264364895800f78504b58523bf482e731e222 https://api.exa.ai/contents": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "etag": "W/\"1d84-/gdF9SDjB69skSgcwY5BpetOD7U\""
+      },
+      "body": "{\"requestId\":\"93fa4adcc23fbe6ee4268d6ba1291d0e\",\"results\":[{\"id\":\"https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30\",\"title\":\"VITROX (0097) - Sep 2026 Quarterly Report | KLSE Screener\",\"url\":\"https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30\",\"author\":null,\"text\":\"VITROX (0097) - Sep 2026 Quarterly Report | KLSE Screener \\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency: \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| 1 | Revenue | | | | |\\n| 2 | Profit/(loss) before tax | | | | |\\n| 3 | Profit/(loss) for the period | | | | |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | | | | |\\n| 5 | Basic earnings/(loss) per share (Subunit) | | | | |\\n| 6 | Proposed/Declared dividend per share (Subunit) | | | | |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | | | | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\",\"highlights\":[\"VITROX (0097) - Sep 2026 Quarterly Report | KLSE Screener \\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency:\\n\\n...\\n\\n| --- | --- | --- |\\n\\n...\\n\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\"],\"summary\":\"Summary:\\n- Company: ViTrox Corporation Berhad (VITROX), KLSE stock 0097\\n- Report: Sep 2026 Quarterly Report (Q3 2026) for the financial year ending 31 Dec 2026\\n- Auditor: Figures not audited yet\\n- Key figures (Current year quarter ended 30 Sep 2026 vs prior year):\\n  - Revenue: MYR 485.1 million (Q3 2026) vs MYR 228.6 million (Q3 2025)\\n  - Profit before tax: MYR 136.8 million vs MYR 50.5 million\\n  - Profit for the period: MYR 118.1 million vs MYR 34.3 million\\n  - Profit attributable to ordinary equity holders: MYR 118.6 million vs MYR 34.7 million\\n  - Basic earnings per share: 6.26 sen vs 1.83 sen\\n  - Dividend per share: 0.00 sen in the quarter (year-to-date 1.18 sen for the year; 0.70 sen prior year)\\n- Year-to-date (YTD) 30 Sep 2026:\\n  - Revenue: MYR 1,127.1 million\\n  - Profit before tax: MYR 298.4 million\\n  - Profit for the period: MYR 253.4 million\\n  - Profit attributable to ordinary equity holders: MYR 254.8 million\\n  - YTD basic EPS: 13.45 sen\\n- Net assets per share: 0.7230 MYR (as at 30 Sep 2026), up from 0.5981 MYR (as at prior year end)\\n- Attachments: Announcement file “ViTrox -Announcement (Q3_2026).pdf” (684.1 KB)\\n\\nNotes:\\n- Revenue and profits show significant year-on-year growth in Q3 2026.\\n- Dividend declared for the current year remains 0.00 sen for the quarter; full-year dividend guidance is 1.18 sen (vs 0.70 sen prior year).\\n- Figures are in Malaysian Ringgit (MYR).\",\"image\":\"https://www.klsescreener.com/v2/img/icon_og-image.png\"}],\"statuses\":[{\"id\":\"https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30\",\"status\":\"success\",\"source\":\"cached\"}],\"costDollars\":{\"total\":0.003,\"contents\":{\"text\":0.001,\"highlights\":0.001,\"summary\":0.001}},\"searchTime\":4663.78105400037}",
+      "sequence": [
+        {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json; charset=utf-8",
+            "etag": "W/\"1d84-/gdF9SDjB69skSgcwY5BpetOD7U\""
+          },
+          "body": "{\"requestId\":\"93fa4adcc23fbe6ee4268d6ba1291d0e\",\"results\":[{\"id\":\"https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30\",\"title\":\"VITROX (0097) - Sep 2026 Quarterly Report | KLSE Screener\",\"url\":\"https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30\",\"author\":null,\"text\":\"VITROX (0097) - Sep 2026 Quarterly Report | KLSE Screener \\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency: \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| 1 | Revenue | | | | |\\n| 2 | Profit/(loss) before tax | | | | |\\n| 3 | Profit/(loss) for the period | | | | |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | | | | |\\n| 5 | Basic earnings/(loss) per share (Subunit) | | | | |\\n| 6 | Proposed/Declared dividend per share (Subunit) | | | | |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | | | | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\",\"highlights\":[\"VITROX (0097) - Sep 2026 Quarterly Report | KLSE Screener \\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency:\\n\\n...\\n\\n| --- | --- | --- |\\n\\n...\\n\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\"],\"summary\":\"Summary:\\n- Company: ViTrox Corporation Berhad (VITROX), KLSE stock 0097\\n- Report: Sep 2026 Quarterly Report (Q3 2026) for the financial year ending 31 Dec 2026\\n- Auditor: Figures not audited yet\\n- Key figures (Current year quarter ended 30 Sep 2026 vs prior year):\\n  - Revenue: MYR 485.1 million (Q3 2026) vs MYR 228.6 million (Q3 2025)\\n  - Profit before tax: MYR 136.8 million vs MYR 50.5 million\\n  - Profit for the period: MYR 118.1 million vs MYR 34.3 million\\n  - Profit attributable to ordinary equity holders: MYR 118.6 million vs MYR 34.7 million\\n  - Basic earnings per share: 6.26 sen vs 1.83 sen\\n  - Dividend per share: 0.00 sen in the quarter (year-to-date 1.18 sen for the year; 0.70 sen prior year)\\n- Year-to-date (YTD) 30 Sep 2026:\\n  - Revenue: MYR 1,127.1 million\\n  - Profit before tax: MYR 298.4 million\\n  - Profit for the period: MYR 253.4 million\\n  - Profit attributable to ordinary equity holders: MYR 254.8 million\\n  - YTD basic EPS: 13.45 sen\\n- Net assets per share: 0.7230 MYR (as at 30 Sep 2026), up from 0.5981 MYR (as at prior year end)\\n- Attachments: Announcement file “ViTrox -Announcement (Q3_2026).pdf” (684.1 KB)\\n\\nNotes:\\n- Revenue and profits show significant year-on-year growth in Q3 2026.\\n- Dividend declared for the current year remains 0.00 sen for the quarter; full-year dividend guidance is 1.18 sen (vs 0.70 sen prior year).\\n- Figures are in Malaysian Ringgit (MYR).\",\"image\":\"https://www.klsescreener.com/v2/img/icon_og-image.png\"}],\"statuses\":[{\"id\":\"https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30\",\"status\":\"success\",\"source\":\"cached\"}],\"costDollars\":{\"total\":0.003,\"contents\":{\"text\":0.001,\"highlights\":0.001,\"summary\":0.001}},\"searchTime\":4663.78105400037}"
+        }
+      ]
+    },
+    "POST 8904eab72631d8f733fee6b5d78639680ca9ce0a178a49b3b1fecf526f9ded96 https://api.exa.ai/contents": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "etag": "W/\"1c6b-iOnBf/3IAIQk1iH1Sbz+WXHF7nM\""
+      },
+      "body": "{\"requestId\":\"a4abd51465fccc5e48642b12f40debb3\",\"results\":[{\"id\":\"https://www.klsescreener.com/v2/announcements/view/11698017\",\"title\":\"VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener\",\"url\":\"https://www.klsescreener.com/v2/announcements/view/11698017\",\"publishedDate\":\"2026-11-05T00:00:00.000Z\",\"author\":null,\"text\":\"VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener \\n\\n# 10.060\\n\\n### -0.54 (-5.1%)\\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency: \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| 1 | Revenue | | | | |\\n| 2 | Profit/(loss) before tax | | | | |\\n| 3 | Profit/(loss) for the period | | | | |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | | | | |\\n| 5 | Basic earnings/(loss) per share (Subunit) | | | | |\\n| 6 | Proposed/Declared dividend per share (Subunit) | | | | |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | | | | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\",\"highlights\":[\"VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener \\n\\n# 10.060\\n\\n### -0.54 (-5.1%)\\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency:\\n\\n...\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\"],\"summary\":\"ViTrox Corporation Berhad reports its Q3 2026 quarterly results (period ended 30 Sep 2026), with figures unaudited.\\n\\nKey highlights:\\n- Revenue: MYR 485.1 million for the current quarter; MYR 1,127.1 million year-to-date.\\n- Profit before tax: MYR 136.8 million for the quarter; MYR 298.4 million year-to-date.\\n- Net profit attributable to ordinary equity holders: MYR 118.6 million for the quarter; MYR 254.8 million year-to-date.\\n- Basic earnings per share: 6.26 sen for the quarter; 13.45 sen year-to-date.\\n- Dividend: no dividend declared for the current quarter; year-to-date dividend per share is 1.18 sen (previous year 0.70 sen).\\n- Net assets per share: MYR 0.7230 at end of current quarter (vs MYR 0.5981 at prior year end).\\n\\nContext:\\n- Period covered: Q3 2026 (three quarters of the financial year ending 31 Dec 2026).\\n- Figures are in MYR thousands; comparison provided against the prior-year corresponding quarter/year-to-date. \\n- Attachments include ViTrox Announcement (Q3_2026).pdf for detailed disclosures.\",\"image\":\"https://www.klsescreener.com/v2/img/icon_og-image.png\"}],\"statuses\":[{\"id\":\"https://www.klsescreener.com/v2/announcements/view/11698017\",\"status\":\"success\",\"source\":\"cached\"}],\"costDollars\":{\"total\":0.003,\"contents\":{\"text\":0.001,\"highlights\":0.001,\"summary\":0.001}},\"searchTime\":3002.027870999882}",
+      "sequence": [
+        {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json; charset=utf-8",
+            "etag": "W/\"1c6b-iOnBf/3IAIQk1iH1Sbz+WXHF7nM\""
+          },
+          "body": "{\"requestId\":\"a4abd51465fccc5e48642b12f40debb3\",\"results\":[{\"id\":\"https://www.klsescreener.com/v2/announcements/view/11698017\",\"title\":\"VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener\",\"url\":\"https://www.klsescreener.com/v2/announcements/view/11698017\",\"publishedDate\":\"2026-11-05T00:00:00.000Z\",\"author\":null,\"text\":\"VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener \\n\\n# 10.060\\n\\n### -0.54 (-5.1%)\\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency: \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| 1 | Revenue | | | | |\\n| 2 | Profit/(loss) before tax | | | | |\\n| 3 | Profit/(loss) for the period | | | | |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | | | | |\\n| 5 | Basic earnings/(loss) per share (Subunit) | | | | |\\n| 6 | Proposed/Declared dividend per share (Subunit) | | | | |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | | | | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\",\"highlights\":[\"VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener \\n\\n# 10.060\\n\\n### -0.54 (-5.1%)\\n\\n### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 \\n\\n| VITROX CORPORATION BERHAD |\\n| --- |\\n\\n| Financial Year End | 31 Dec 2026 |\\n| --- | --- |\\n| Quarter | 3 Qtr |\\n| Quarterly report for the financial period ended | 30 Sep 2026 |\\n| The figures | have not been audited |\\n\\n#### Attachments\\n\\n ViTrox -Announcement (Q3_2026).pdf 684.1 kB \\n\\n Currency: Malaysian Ringgit (MYR) \\n\\n#### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \\n\\n| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\\n| --- | --- | --- | --- | --- | --- |\\n| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\\n| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\\n| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\\n| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |\\n| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |\\n| 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34,716 | 254,821 | 87,009 |\\n| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 | 13.45 | 4.60 |\\n| 6 | Proposed/Declared dividend per share (Subunit) | 0.00 | 0.00 | 1.18 | 0.70 |\\n| | | AS AT END OF CURRENT QUARTER | | AS AT PRECEDING FINANCIAL YEAR END | |\\n| 7 | Net assets per share attributable to ordinary equity holders of the parent | 0.7230 | | 0.5981 | |\\n\\n Definition of Subunit:\\n\\n In a currency system, there is usually a main unit (base) and subunit that is a fraction amount of the main unit. Example for the subunit as follows: \\n\\n| Country | Base Unit | Subunit |\\n| --- | --- | --- |\\n| Malaysia | Ringgit | Sen |\\n| United States | Dollar | Cent |\\n| United Kingdom | Pound | Pence |\\n\\n Currency:\\n\\n...\\n\\n#### Announcement Info\\n\\n| Company Name | VITROX CORPORATION BERHAD |\\n| --- | --- |\\n| Stock Name | VITROX |\\n| Date Announced | 05 Nov 2026 |\\n| Category | Financial Results |\\n| Reference Number | FRA-28102026-00010 |\"],\"summary\":\"ViTrox Corporation Berhad reports its Q3 2026 quarterly results (period ended 30 Sep 2026), with figures unaudited.\\n\\nKey highlights:\\n- Revenue: MYR 485.1 million for the current quarter; MYR 1,127.1 million year-to-date.\\n- Profit before tax: MYR 136.8 million for the quarter; MYR 298.4 million year-to-date.\\n- Net profit attributable to ordinary equity holders: MYR 118.6 million for the quarter; MYR 254.8 million year-to-date.\\n- Basic earnings per share: 6.26 sen for the quarter; 13.45 sen year-to-date.\\n- Dividend: no dividend declared for the current quarter; year-to-date dividend per share is 1.18 sen (previous year 0.70 sen).\\n- Net assets per share: MYR 0.7230 at end of current quarter (vs MYR 0.5981 at prior year end).\\n\\nContext:\\n- Period covered: Q3 2026 (three quarters of the financial year ending 31 Dec 2026).\\n- Figures are in MYR thousands; comparison provided against the prior-year corresponding quarter/year-to-date. \\n- Attachments include ViTrox Announcement (Q3_2026).pdf for detailed disclosures.\",\"image\":\"https://www.klsescreener.com/v2/img/icon_og-image.png\"}],\"statuses\":[{\"id\":\"https://www.klsescreener.com/v2/announcements/view/11698017\",\"status\":\"success\",\"source\":\"cached\"}],\"costDollars\":{\"total\":0.003,\"contents\":{\"text\":0.001,\"highlights\":0.001,\"summary\":0.001}},\"searchTime\":3002.027870999882}"
         }
       ]
     }

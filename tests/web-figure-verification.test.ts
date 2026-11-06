@@ -188,6 +188,288 @@ describe("Verified Web Figure", () => {
     });
   });
 
+  // KLSE Screener copy of ViTrox's Q3 2026 report, run 2026-11-06T05-46-13-672Z-b7171fdf.
+  test("reads Markdown table cell separators as whitespace", () => {
+    const table = webSourceTexts([
+      webSource({
+        snippet:
+          "| Quarter | 3 Qtr |\n| The figures | have not been audited |\n| 1 | Revenue | 485,101 |",
+      }),
+    ]);
+    const claim = (text: string, quote: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        table,
+      );
+    expect(
+      claim("The figures are unaudited.", "The figures have not been audited"),
+    ).toBeUndefined();
+    expect(claim("The figures are unaudited.", "The figures | were audited")).toMatchObject({
+      reason: "quote-not-in-source",
+    });
+    expect(claim("Revenue was 485,101.", "Revenue | 485,101")).toMatchObject({
+      reason: "quote-too-short",
+    });
+  });
+
+  test("a quoted figure reads its scale and currency from its own table cell only", () => {
+    const claim = (
+      snippet: string,
+      quote: string,
+      text = "Reported revenue was MYR 125.5 million.",
+    ) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    const quote = "Reported revenue in MYR 125.5 Million";
+    expect(
+      claim("| Reported revenue in MYR | 125.5 |\n| Million units sold | 2.0 |", quote),
+    ).toMatchObject({ reason: "scale-mismatch", figure: "MYR 125.5 million" });
+    expect(claim("Reported revenue in MYR | 125.5\nMillion units sold | 2.0", quote)).toMatchObject(
+      {
+        reason: "scale-mismatch",
+      },
+    );
+    expect(
+      claim("| Reported revenue in MYR | 125.5 | Million units sold | 2.0 |", quote),
+    ).toMatchObject({
+      reason: "scale-mismatch",
+    });
+    expect(
+      claim(
+        "| Reported revenue in MYR | 125.5 |\n| Million units sold | 2.0 |",
+        "Reported revenue in MYR | 125.5 |\n| Million",
+      ),
+    ).toMatchObject({ reason: "scale-mismatch" });
+    expect(
+      claim(
+        "| Revenue | MYR 125.5 million in the quarter |",
+        "Revenue | MYR 125.5 million in the quarter",
+      ),
+    ).toBeUndefined();
+    expect(
+      claim(
+        "Reported revenue in the quarter was MYR 125.5\nmillion, up 4%.",
+        "revenue in the quarter was MYR 125.5 million",
+      ),
+    ).toBeUndefined();
+  });
+
+  test("reads a figure whole from a table cell that wraps across lines", () => {
+    const snippet = "| Reported revenue for the quarter | MYR 125.5\nmillion |\n| Units | 2.0 |";
+    const claim = (text: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [
+            {
+              sourceId: "web-vitrox",
+              quote: "Reported revenue for the quarter | MYR 125.5\nmillion",
+            },
+          ],
+        },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    expect(claim("Reported revenue was MYR 125.5 million.")).toBeUndefined();
+    expect(claim("Reported revenue was MYR 125.5.")).toMatchObject({ reason: "scale-mismatch" });
+  });
+
+  test("a quote that cuts a source figure short is checked against the whole figure", () => {
+    const claim = (snippet: string, quote: string, text: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    expect(
+      claim(
+        "| Reported revenue for the quarter | MYR 125,500 |",
+        "Reported revenue for the quarter | MYR 125",
+        "Reported revenue was MYR 125.",
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    const prose =
+      "Reported revenue for the quarter was MYR 125.5 million, with revenue up 22.8% on the year.";
+    expect(
+      claim(prose, "revenue for the quarter was MYR 125.5", "Revenue was MYR 125.5."),
+    ).toMatchObject({ reason: "scale-mismatch" });
+    expect(
+      claim(prose, "revenue for the quarter was MYR 125.5", "Revenue was MYR 125.5 million."),
+    ).toBeUndefined();
+    expect(claim(prose, "with revenue up 22.8", "Revenue rose 22.8.")).toMatchObject({
+      reason: "unit-mismatch",
+    });
+  });
+
+  test("a quote verifies when any span of its source states the figure", () => {
+    const prose = "Reported revenue in MYR 125.5 million in the quarter";
+    const rawSnapshots = [
+      {
+        id: "raw-exa-search-1",
+        adapter: "exa-search",
+        fetchedAt: "2026-11-05T11:00:00.000Z",
+        payload: {
+          results: [{ url: "https://www.thestar.com.my/business/vitrox-q3/", text: prose }],
+        },
+      },
+    ];
+    const snippet = webSource({
+      snippet: "| Reported revenue in MYR | 125.5 | million in the quarter |",
+    });
+    const claim = (stored: ReturnType<typeof webSourceTexts>) =>
+      unverifiedWebFigure(
+        {
+          text: "Reported revenue was MYR 125.5 million.",
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: prose }],
+        },
+        stored,
+      );
+    expect(claim(webSourceTexts([snippet], rawSnapshots))).toBeUndefined();
+    expect(claim(webSourceTexts([snippet]))).toMatchObject({ reason: "scale-mismatch" });
+  });
+
+  test("withholds a figure beside a row with no closing pipe whose next line may start a new row", () => {
+    const claim = (snippet: string, quote: string, text: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    const table =
+      "| Reported revenue | Amount |\n| --- | --- |\n| Reported revenue in MYR | 125.5\nMillion units sold | 2.0";
+    const quote = "Reported revenue in MYR | 125.5";
+    expect(claim(table, quote, "Reported revenue was 125.5 million.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(claim(table, quote, "Reported revenue was 125.5.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(
+      claim(
+        "| Reported revenue in MYR 125.5\nMillion units sold | 2.0",
+        "Reported revenue in MYR 125.5\nMillion",
+        "Reported revenue was MYR 125.5 million.",
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+  });
+
+  test("keeps percentage points apart from percent", () => {
+    const claim = (snippet: string, quote: string, text: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    const points = "Reported operating margin expanded 2.5 percentage points.";
+    const pointsQuote = "Reported operating margin expanded 2.5 percentage points";
+    expect(claim(points, pointsQuote, "Operating margin expanded 2.5%.")).toMatchObject({
+      reason: "unit-mismatch",
+    });
+    expect(claim(points, pointsQuote, "Operating margin expanded 2.5 pp.")).toBeUndefined();
+    const percent = "Reported operating margin expanded 2.5% in the quarter.";
+    expect(
+      claim(
+        percent,
+        "Reported operating margin expanded 2.5%",
+        "Operating margin expanded 2.5 percentage points.",
+      ),
+    ).toMatchObject({ reason: "unit-mismatch" });
+    expect(
+      claim(
+        percent,
+        "Reported operating margin expanded 2.5%",
+        "Operating margin expanded 2.5 percent.",
+      ),
+    ).toBeUndefined();
+  });
+
+  test("keeps the sign of a negative or parenthesized amount", () => {
+    const claim = (snippet: string, text: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: snippet }],
+        },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    const positive = "Operating cash flow was MYR 125.5 million.";
+    expect(claim("Reported operating cash flow was -MYR 125.5 million.", positive)).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(claim("Reported operating cash flow was (MYR 125.5 million).", positive)).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(claim("Reported operating cash flow was MYR −125.5 million.", positive)).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(
+      claim(
+        "Reported operating cash flow was MYR 125.5 million.",
+        "Operating cash flow was -MYR 125.5 million.",
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim(
+        "Reported operating cash flow was (MYR 125.5 million).",
+        "Operating cash flow was -MYR 125.5 million.",
+      ),
+    ).toBeUndefined();
+    expect(
+      claim(
+        "Reported operating cash flow in Q3 (Q3 2026) was MYR 125.5 million (2025: MYR 100 million).",
+        "Operating cash flow was MYR 125.5 million against MYR 100 million.",
+      ),
+    ).toBeUndefined();
+    expect(
+      claim("Reported margin was 12.5% - 2.5% lower on the year.", "Margin was 12.5%, 2.5% lower."),
+    ).toBeUndefined();
+  });
+
+  test("tries overlapping matches of a quote", () => {
+    const snippet =
+      "| Reported revenue | MYR 125.5 |\n| Reported revenue | MYR 125.5 |\n| Reported revenue | MYR 125.5 million |";
+    const claim = (stored: string) =>
+      unverifiedWebFigure(
+        {
+          text: "Reported revenue was MYR 125.5 million.",
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [
+            {
+              sourceId: "web-vitrox",
+              quote: "Reported revenue | MYR 125.5 |\n| Reported revenue | MYR 125.5",
+            },
+          ],
+        },
+        webSourceTexts([webSource({ snippet: stored })]),
+      );
+    expect(claim(snippet)).toBeUndefined();
+    expect(claim(snippet.split("\n").slice(0, 2).join("\n"))).toMatchObject({
+      reason: "scale-mismatch",
+    });
+  });
+
+  test("checks a quote with thousands of matches in time linear in the text", () => {
+    const sentence = "Reported revenue rose to MYR 125.5 million in the quarter. ";
+    const timed = (repeats: number) => {
+      const stored = webSourceTexts([webSource({ snippet: sentence.repeat(repeats) })]);
+      const started = performance.now();
+      const failure = unverifiedWebFigure(
+        {
+          text: "Revenue was MYR 125.5 million.",
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: "revenue rose to MYR 125.5 million" }],
+        },
+        stored,
+      );
+      expect(failure).toBeUndefined();
+      return performance.now() - started;
+    };
+    timed(100);
+    // Quadratic span work took about 1.1 s at 25,600 matches; linear work stays far below this bound.
+    expect(timed(25_600)).toBeLessThan(500);
+  });
+
   test("verifies against stored raw page text and fails beyond its truncation", () => {
     const stored = `${"Filler sentence. ".repeat(10)}Order backlog stood at RM210.4 million.`;
     const rawSnapshots = [

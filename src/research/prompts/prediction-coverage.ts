@@ -61,6 +61,7 @@ export function supportedPredictionKinds(
 export function predictionCoverageGuidance(
   gridEvents: readonly EventGridEvent[],
   supportedKinds: readonly PredictionKind[],
+  benchmarkFixed = false,
 ): string {
   const horizonsByShape = new Map<string, number[]>();
   for (const event of gridEvents) {
@@ -83,5 +84,5 @@ export function predictionCoverageGuidance(
     gridEvents.length > 0
       ? " A prediction restating a covered event is folded into the grid and does not count toward the target; do not carry forward a prior run's prediction that does. A range at a covered horizon is a new forecast only with different, evidence-supported bounds."
       : "";
-  return ` Prediction coverage: events the Event Grid already covers: ${coveredShapes}; supported kinds it leaves uncovered: ${uncoveredKinds.length > 0 ? uncoveredKinds.join(", ") : "none"}.${restatement} Seek an uncovered supported kind, or a covered kind at another horizon or benchmark, where evidence supports it. Use a different exact horizon only when evidence supports that horizon.`;
+  return ` Prediction coverage: events the Event Grid already covers: ${coveredShapes}; supported kinds it leaves uncovered: ${uncoveredKinds.length > 0 ? uncoveredKinds.join(", ") : "none"}.${restatement} Seek an uncovered supported kind, or a covered kind at another horizon${benchmarkFixed ? "" : " or benchmark"}, where evidence supports it. Use a different exact horizon only when evidence supports that horizon.`;
 }

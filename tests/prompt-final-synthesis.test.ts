@@ -129,6 +129,31 @@ describe("range volatility reference", () => {
     );
   });
 
+  test("keeps relative forecasts on the Exchange Profile benchmark in a brief profiled prompt", () => {
+    const instruction = kindMixSynthesisInstruction(
+      { jobType: "equity", assetClass: "equity", symbol: "0097.KL", depth: "brief" },
+      {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          symbol: "0097.KL",
+          recentCloses: rangeReferenceCloses(21),
+        }),
+        extendedSources: ["0097.KL", "^KLSE"].map((symbol) =>
+          newsSource({ id: `price-history-${symbol}`, kind: "market-data" }),
+        ),
+      },
+    );
+    expect(instruction).toContain(
+      "Relative forecasts on this Bursa Malaysia listing use ^KLSE (FTSE Bursa Malaysia KLCI) as the benchmark and no other",
+    );
+    expect(instruction).toContain(
+      "The relative grid event is 0097.KL vs ^KLSE at +5, so a relative prediction needs another horizon.",
+    );
+    expect(instruction).toContain(
+      "or a covered kind at another horizon, where evidence supports it",
+    );
+    expect(instruction).not.toContain("another benchmark");
+  });
+
   test("names each grid range event as its ±1σ band with the base rate for its scored sessions", () => {
     const sameDay = reference(rangeReferenceCloses(21));
     for (const horizon of [1, 5, 20]) {
@@ -871,6 +896,44 @@ describe("StageInput assembly", () => {
       readonly instruction: string;
     };
     expect(us.instruction).toContain("Emit up to");
+  });
+
+  test("names the Exchange Profile benchmark for relative forecasts on profiled listings", () => {
+    const prompt = (symbol: string): string =>
+      buildStagePrompt(
+        "final-synthesis",
+        baseStageInput({
+          command: { jobType: "equity", assetClass: "equity", symbol, depth: "deep" },
+          collectedSources: collectedSources({
+            rawSnapshots: [],
+            marketSnapshots: [marketSnapshot({ symbol })],
+            newsSources: [],
+            sourceGaps: [],
+            verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol }),
+          }),
+          predictionRepromptErrors: ["pred-1 withheld"],
+        }),
+      );
+    const bursa = prompt("0097.KL");
+    expect(bursa).toContain(
+      "Relative forecasts on this Bursa Malaysia listing use ^KLSE (FTSE Bursa Malaysia KLCI) as the benchmark and no other",
+    );
+    expect(bursa).toContain("relative (vs ^KLSE)");
+    expect(bursa).toContain(
+      "the benchmark must be ^KLSE, so emit at most one relative forecast per primary subject and exact horizon.",
+    );
+    expect(bursa).not.toContain("must differ in probability");
+    expect(bursa).not.toContain("broad US index");
+    expect(bursa).not.toContain("the benchmark may be any citeable instrument");
+
+    for (const unprofiled of [prompt("AAPL"), prompt("VOD.L")]) {
+      expect(unprofiled).not.toContain("^KLSE");
+      expect(unprofiled).toContain("relative (vs benchmark)");
+      expect(unprofiled).toContain("equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA)");
+      expect(unprofiled).toContain("the benchmark may be any citeable instrument");
+      expect(unprofiled).toContain("at another horizon or benchmark, where");
+      expect(unprofiled).toContain("must differ in probability by more than 0.005");
+    }
   });
 
   test("omits reportValidationErrors unless provided", () => {

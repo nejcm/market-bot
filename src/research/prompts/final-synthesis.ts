@@ -34,6 +34,7 @@ import {
   RANGE_REFERENCE_OUTSIDE_PROBABILITY,
 } from "../range-volatility-reference";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
+import { exchangeProfileFor, type ExchangeProfile } from "../../domain/exchange-profile";
 import {
   eventGrid,
   forecastsWithheld,
@@ -48,6 +49,18 @@ const MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE = 10;
 const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
 const NEAR_BASE_RATE_PROBABILITY_RULE = `an evidence-supported probability, even inside the inclusive near-base-rate band (within ${NEAR_BASE_RATE_BAND.toFixed(2)} of the stated base rate only for forecasts on a listed ±1σ range-reference band, ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} otherwise); choose claims the evidence can move clearly from their applicable base rates rather than shading a probability to just outside the band to clear it`;
+
+// Narrower than offExchangePredictions: same-exchange peer legs pass it but get no collected price history.
+function profiledExchange(command: ResearchCommand): ExchangeProfile | undefined {
+  return isInstrumentCommand(command) ? exchangeProfileFor(command.symbol) : undefined;
+}
+
+function exchangeBenchmarkInstruction(command: ResearchCommand): string {
+  const profile = profiledExchange(command);
+  return profile === undefined
+    ? ""
+    : ` Relative forecasts on this ${profile.exchange} listing use ${profile.benchmark} (${profile.benchmarkName}) as the benchmark and no other: code withholds a prediction with a leg that trades outside ${profile.exchange}, such as a US index or ETF, because its currency and session calendar differ.`;
+}
 
 const CITED_CLAIM_SHAPE = {
   text: "string",
@@ -159,9 +172,10 @@ function buildForecastDiversityGuidance(
   if (command.depth !== "deep" || !isInstrumentCommand(command)) {
     return "";
   }
+  const profile = profiledExchange(command);
   const shapes: string[] = [
     "direction (close up/down)",
-    "relative (vs benchmark)",
+    `relative (vs ${profile?.benchmark ?? "benchmark"})`,
     ...(excludedKinds.includes("range") ? [] : ["range (outside [Lo, Hi])"]),
   ];
   if (hasCiteableOptionsIvEvidence(collectedSources)) {
@@ -179,7 +193,7 @@ function buildForecastDiversityGuidance(
       ? ""
       : ` The range reference already carries ±1σ bands at ${anchorHorizons} trading days, so a non-redundant further forecast may be the same kind at another referenced horizon rather than a new kind.`;
 
-  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.${referencedHorizons} A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
+  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.${referencedHorizons} A better-measured kind such as relative is informative only when its probability departs from 0.5${profile === undefined ? "; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal" : ""}. The count is still a soft target; do not pad with low-conviction forecasts.`;
 }
 
 // The observable grammar only ever asserts the positive side of a comparison, so a bearish or
@@ -257,13 +271,13 @@ function buildRangeVolatilityReference(
   return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returnCount)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility (sample standard deviation) ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands with the base rate of a close outside each: ${bands}. A range forecast on one of these bands uses that band's base rate unless a catalyst inside its window, such as a confirmed earnings date or a provider-estimated earnings date explicitly labeled as estimated, is cited in that prediction's sourceIds; move off that base rate only as far as that catalyst supports. Daily returns are fat-tailed, so this reference does not carry over to a band of another width.`;
 }
 
-function relativeGridNote(events: readonly EventGridEvent[]): string {
+function relativeGridNote(command: ResearchCommand, events: readonly EventGridEvent[]): string {
   const relative = events.find((event) => event.kind === "relative");
   if (relative === undefined) {
     return "";
   }
   const [symbol, benchmark] = relative.subject.split(":");
-  return ` The relative grid event is ${symbol!} vs ${benchmark!} at +${String(relative.horizonTradingDays)}, so a relative prediction needs another benchmark or another horizon.`;
+  return ` The relative grid event is ${symbol!} vs ${benchmark!} at +${String(relative.horizonTradingDays)}, so a relative prediction needs ${profiledExchange(command) === undefined ? "another benchmark or " : ""}another horizon.`;
 }
 
 // The grid is priced in the same response, so it costs no extra model call (ADR 0003).
@@ -296,7 +310,7 @@ function buildEventGridInstruction(
   const rangeBaseRate = rows.includes("Gaussian base rate")
     ? " Each range grid base rate is a reference, not a default: judge each event from it and the run's evidence, such as a catalyst inside its window."
     : "";
-  return ` Event Grid: code also issues these fixed events for every run of this kind: ${rows}. Return eventGrid with one { id, probability } row per listed id, where probability is your own chance that event's expression evaluates TRUE, judged from the run's evidence.${rangeBaseRate} The probability in the required eventGrid shape is a placeholder, not a default. Grid events are scored beside your predictions but are not predictions: do not restate them in predictions, and they do not count toward the prediction target. A prediction identical to a grid event (same id or same measurableAs) is folded into that grid event and does not count toward the prediction target, so it spends a prediction slot for nothing.${relativeGridNote(events)} A grid event without a valid probability is not issued and is reported as a data gap.`;
+  return ` Event Grid: code also issues these fixed events for every run of this kind: ${rows}. Return eventGrid with one { id, probability } row per listed id, where probability is your own chance that event's expression evaluates TRUE, judged from the run's evidence.${rangeBaseRate} The probability in the required eventGrid shape is a placeholder, not a default. Grid events are scored beside your predictions but are not predictions: do not restate them in predictions, and they do not count toward the prediction target. A prediction identical to a grid event (same id or same measurableAs) is folded into that grid event and does not count toward the prediction target, so it spends a prediction slot for nothing.${relativeGridNote(command, events)} A grid event without a valid probability is not issued and is reported as a data gap.`;
 }
 
 export function buildConditionalPredictionActivationGuidance(
@@ -362,13 +376,22 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
 
 // Repair-pass steering for the validator's disallowed-subject and broad-US-index redundancy
 // Rejections (observable.ts resolveCandidate/redundancyKey).
-function buildAllowedSubjectSteering(predictionSubjects: readonly string[]): string {
+function buildAllowedSubjectSteering(
+  command: ResearchCommand,
+  predictionSubjects: readonly string[],
+): string {
   const subjects = predictionSubjects.join(", ");
   const benchmarks = BROAD_US_INDEX_BENCHMARK_SYMBOLS.join(", ");
-  return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind. A second relative forecast for the same primary subject and exact horizon must differ in probability by more than ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)}, backed by a stated evidence-based differentiation; changing only the benchmark ticker does not add signal.`;
+  const profile = profiledExchange(command);
+  const benchmarkRule =
+    profile === undefined
+      ? `the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind. A second relative forecast for the same primary subject and exact horizon must differ in probability by more than ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)}, backed by a stated evidence-based differentiation; changing only the benchmark ticker does not add signal.`
+      : `the benchmark must be ${profile.benchmark}, so emit at most one relative forecast per primary subject and exact horizon.`;
+  return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; ${benchmarkRule}`;
 }
 
 function buildPredictionRepairInstruction(
+  command: ResearchCommand,
   context: ResearchContext,
   excludedKinds: readonly PredictionKind[] = [],
 ): string {
@@ -380,7 +403,7 @@ function buildPredictionRepairInstruction(
   const rangeGuidance = excludedKinds.includes("range")
     ? ""
     : " For range forecasts, use a different horizon when another range forecast already covers the same subject and horizon.";
-  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK.${rangeGuidance} Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
+  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(command, context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK.${rangeGuidance} Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
 function earningsForecastGrammar(): string {
@@ -447,7 +470,7 @@ function buildPrimaryPredictionInstruction(
   if (forecastsWithheld(command, collectedSources)) {
     return ` Return an empty predictions array: no verified closes were collected for this listing, so no Observable Prediction can be resolved and code issues none.${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}`;
   }
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer well-evidenced forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(command, collectedSources, excludedKinds)}${buildEventGridInstruction(command, collectedSources)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance(promptGridEvents(command, collectedSources), supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer well-evidenced forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)}${exchangeBenchmarkInstruction(command)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(command, collectedSources, excludedKinds)}${buildEventGridInstruction(command, collectedSources)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance(promptGridEvents(command, collectedSources), supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds), profiledExchange(command) !== undefined)}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction
@@ -468,7 +491,7 @@ export function buildStageSteeringSegment(
     buildPrimaryPredictionInstruction(command, collectedSources, context),
   ];
   if (predictionRepromptErrors.length > 0) {
-    segments.push(buildPredictionRepairInstruction(context));
+    segments.push(buildPredictionRepairInstruction(command, context));
   }
   const steering = segments
     .map((segment) => segment.trim())
@@ -539,7 +562,7 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     (context.spotlightSelection?.selected.length ?? 0) > 0;
   const predictionRepair =
     predictionRepromptErrors.length > 0
-      ? { instruction: buildPredictionRepairInstruction(context) }
+      ? { instruction: buildPredictionRepairInstruction(command, context) }
       : undefined;
   const requiredShape = finalReportShape(
     command,

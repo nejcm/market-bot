@@ -254,7 +254,7 @@ export function exchangeProfileGaps(
     sourceGap({
       source: "exchange-profile",
       symbol,
-      message: `No Exchange Profile for ${identity?.exchange ?? symbol}: market regime and the Event Grid relative event use US proxies (SPY, QQQ, IWM, DIA, VIX) instead of a local benchmark`,
+      message: `No Exchange Profile for ${identity?.exchange ?? symbol}: market regime, the Event Grid relative event, and final-synthesis relative benchmark guidance use US proxies (SPY, QQQ, IWM, DIA, VIX) instead of a local benchmark`,
       capability: "market-data",
       cause: "unsupported-coverage",
       evidenceQualityImpact: "no-cap",

@@ -645,6 +645,28 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
       ["duplicate prediction pred-1"],
     ),
   );
+  const profiledCommand: ResearchCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "0097.KL",
+    depth: "deep",
+  };
+  add(
+    "segment:steering:profiled-exchange-repair",
+    buildStageSteeringSegment(
+      "final-synthesis",
+      profiledCommand,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "0097.KL" })],
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol: "0097.KL" }),
+        extendedSources: ["0097.KL", "^KLSE"].map((symbol) =>
+          newsSource({ id: `price-history-${symbol}`, kind: "market-data" }),
+        ),
+      }),
+      { ...equityContext(), depthProfile: buildDepthProfile(profiledCommand, config) },
+      ["pred-1 withheld"],
+    ),
+  );
   add(
     "segment:steering:non-synthesis",
     buildStageSteeringSegment("critique", equityCommand, richEquitySources(), equityContext()),

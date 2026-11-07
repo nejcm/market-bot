@@ -200,7 +200,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   points ("pp", "ppt", "ppts", "percentage pts", "percentage-point"), percent ("%", "pct", lower-case "pc", "per cent") and basis points
   ("bp", "bps", "basis point", "basis-point") are distinct units. A figure before "points", "pts" or "pt", spaced or glued ("14pts"), without a currency
   withholds, since the word may mean index points, percentage points or a price target ("13 points", "2% points"),
-  as does one before upper-case "PC". A tight dash before a digit or currency prefix joins a range, and both
+  as does one before upper-case "PC". A currency subunit ("sen", "cent", "cents") stays its own currency, unscaled,
+  so "26.4 sen" never matches "RM26.4"; it reads the same glued ("26.4sen", "54cents"), while a glued main-unit word
+  does not. A figure with a prefix and a different suffix currency, or a currency followed by a subunit, withholds ("RM0.30 sen", "5 USD cents"). A tight dash before a digit or currency prefix joins a range, and both
   endpoints are checked as separate figures, not as a pair (`$1.2-1.4 billion` matches a quote stating $1.2 billion
   and $1.4 billion apart). The low endpoint takes the scale, unit and currency written once on the high ("$1.2-1.4
   billion", "RM5–6m", "5–6%"); the high takes only a missing currency. Neither endpoint of a range, tight or spaced,

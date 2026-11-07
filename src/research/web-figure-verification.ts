@@ -48,8 +48,11 @@ const COUNT_WORD_AFTER =
   /^-(?:[AC-JLN-Z]|(?:[Dd]ay|[Ww]eek|[Mm]onth|[Qq]uarter|[Yy]ear|[Yy]r|[Hh]our)s?|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?!\p{L})/u;
 // K, M and B may be scales, so only the SEC form codes keep them.
 const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
+// Only a subunit may be glued ("26.4sen"); a glued main-unit word is too often a label.
+const SUBUNITS = "sen|cents?";
+const SUBUNIT_AFTER = new RegExp(String.raw`^\s?(?:${SUBUNITS})(?!\p{L})`, "iu");
 const FIGURE_PATTERN = new RegExp(
-  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:(?:\s|(?=${SUBUNITS}))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
   "giu",
 );
 const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
@@ -133,6 +136,11 @@ const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
   "no-stored-text": "rests on a source with no stored text to check",
   "quote-too-short": "rests on a quote with too little text around the figure",
 };
+
+function currencyOf(mark: string | undefined): string | undefined {
+  const key = mark?.toLowerCase();
+  return key === undefined ? undefined : (CURRENCIES[key] ?? key);
+}
 
 function unitOf(groups: Readonly<Record<string, string | undefined>>): string {
   if (groups.multiple !== undefined) {
@@ -349,10 +357,19 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
     const num = groups.num ?? "";
     const scaleKey = (groups.scaleWord ?? groups.scaleLetter)?.toLowerCase();
     const currencyKey = (groups.prefix ?? groups.suffix)?.toLowerCase();
+    const [prefixCurrency, suffixCurrency] = [groups.prefix, groups.suffix].map((word) =>
+      currencyOf(word),
+    );
     const raw = match[0].trim();
     const rawStart = match.index + match[0].indexOf(raw);
     const before = blanked.slice(Math.max(0, rawStart - 8), rawStart);
     const after = blanked.slice(rawStart + raw.length, rawStart + raw.length + 8);
+    // "RM0.30 sen" or "5 USD cents" may mean the unit or its subunit, so neither reading verifies.
+    const currencyConflict =
+      (prefixCurrency !== undefined &&
+        suffixCurrency !== undefined &&
+        prefixCurrency !== suffixCurrency) ||
+      (currencyKey !== undefined && SUBUNIT_AFTER.test(after));
     const parenthesized = OPEN_PAREN.test(before) && CLOSE_PAREN.test(after);
     const accounting =
       parenthesized &&
@@ -373,9 +390,9 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
     const figure: Figure = {
       raw,
       // NaN never equals a figure, so an ambiguous sign cannot verify either reading.
-      value: ambiguousSign || unitUnread ? Number.NaN : signed,
+      value: ambiguousSign || unitUnread || currencyConflict ? Number.NaN : signed,
       scale: scaleKey === undefined ? 1 : (SCALES[scaleKey] ?? 1),
-      currency: currencyKey === undefined ? "" : (CURRENCIES[currencyKey] ?? currencyKey),
+      currency: currencyOf(currencyKey) ?? "",
       unit: unitOf(groups),
     };
     const numStart = match.index + match[0].indexOf(num);

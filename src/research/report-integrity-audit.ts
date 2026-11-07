@@ -89,7 +89,7 @@ function isUtcRoundTripIsoDate(isoDate: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === isoDate;
 }
 
-function isBlockingNumericOrTechnical(text: string): boolean {
+function isBlockingNumericOrTechnical(text: string, runCurrencies: readonly string[]): boolean {
   if (isTechnicalClaim(text)) {
     return true;
   }
@@ -120,14 +120,18 @@ function isBlockingNumericOrTechnical(text: string): boolean {
     )
     .replaceAll(YEAR_TOKEN_PATTERN, " ")
     .replaceAll(HORIZON_TOKEN_PATTERN, " ");
-  return isNumericClaim(stripped);
+  return isNumericClaim(stripped, runCurrencies);
 }
 
-function isBlockingViolation(text: string, sourceIds: readonly string[]): boolean {
+function isBlockingViolation(
+  text: string,
+  sourceIds: readonly string[],
+  runCurrencies: readonly string[],
+): boolean {
   return (
     hasNoSupportingSource(sourceIds) &&
     !isHistoricalForecastOutcome(text) &&
-    isBlockingNumericOrTechnical(text)
+    isBlockingNumericOrTechnical(text, runCurrencies)
   );
 }
 
@@ -144,6 +148,7 @@ function partitionItems<T extends { readonly sourceIds: readonly string[] }>(
   textOf: (item: T) => string,
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  runCurrencies: readonly string[],
   webTexts?: WebSourceTexts,
 ): Partition<T> {
   const kept: T[] = [];
@@ -153,7 +158,7 @@ function partitionItems<T extends { readonly sourceIds: readonly string[] }>(
     const { sourceIds } = item;
     const location = `${section}[${String(index)}]`;
     if (
-      isBlockingViolation(text, sourceIds) ||
+      isBlockingViolation(text, sourceIds, runCurrencies) ||
       isUncitedPeerMedianClaim(text, sourceIds, usablePeerSourceIds, peerMedianLabels)
     ) {
       pruned.push({ location, text, sourceIds });
@@ -175,6 +180,7 @@ function partitionFindings(
   findings: readonly KeyFinding[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  runCurrencies: readonly string[],
   webTexts: WebSourceTexts | undefined,
 ): Partition<KeyFinding> {
   return partitionItems(
@@ -183,6 +189,7 @@ function partitionFindings(
     (finding) => finding.text,
     usablePeerSourceIds,
     peerMedianLabels,
+    runCurrencies,
     webTexts,
   );
 }
@@ -191,6 +198,7 @@ function partitionScenarios(
   scenarios: readonly Scenario[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  runCurrencies: readonly string[],
   webTexts: WebSourceTexts | undefined,
 ): Partition<Scenario> {
   return partitionItems(
@@ -202,6 +210,7 @@ function partitionScenarios(
     (scenario) => `${scenario.name}: ${scenario.description}`,
     usablePeerSourceIds,
     peerMedianLabels,
+    runCurrencies,
     webTexts,
   );
 }
@@ -210,6 +219,7 @@ function partitionPredictions(
   predictions: readonly Prediction[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  runCurrencies: readonly string[],
 ): Partition<Prediction> {
   return partitionItems(
     "predictions",
@@ -217,6 +227,7 @@ function partitionPredictions(
     (prediction) => prediction.claim,
     usablePeerSourceIds,
     peerMedianLabels,
+    runCurrencies,
   );
 }
 
@@ -425,6 +436,7 @@ function partitionSummary(
   summary: string,
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  runCurrencies: readonly string[],
 ): {
   readonly summary: string;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
@@ -432,7 +444,7 @@ function partitionSummary(
   const { kept, pruned } = pruneSentences(
     summary,
     (sentence) =>
-      isBlockingViolation(sentence, []) ||
+      isBlockingViolation(sentence, [], runCurrencies) ||
       isUncitedPeerMedianClaim(sentence, [], usablePeerSourceIds, peerMedianLabels),
   );
   if (pruned.length === 0) {
@@ -517,9 +529,17 @@ export function auditReportIntegrity(
   usablePeerSourceIds?: ReadonlySet<string>,
   peerMedianLabels?: PeerMedianLabels,
   webTexts?: WebSourceTexts,
+  runCurrencies: readonly string[] = [],
 ): ReportIntegrityAuditResult {
   const findings = (section: string, items: readonly KeyFinding[]) =>
-    partitionFindings(section, items, usablePeerSourceIds, peerMedianLabels, webTexts);
+    partitionFindings(
+      section,
+      items,
+      usablePeerSourceIds,
+      peerMedianLabels,
+      runCurrencies,
+      webTexts,
+    );
   const keyFindings = findings("keyFindings", report.keyFindings);
   const bullCase = findings("bullCase", report.bullCase);
   const bearCase = findings("bearCase", report.bearCase);
@@ -529,15 +549,22 @@ export function auditReportIntegrity(
     report.scenarios,
     usablePeerSourceIds,
     peerMedianLabels,
+    runCurrencies,
     webTexts,
   );
   const predictions = partitionPredictions(
     report.predictions,
     usablePeerSourceIds,
     peerMedianLabels,
+    runCurrencies,
   );
   const extras = partitionExtras(report.extras, webTexts);
-  const summary = partitionSummary(report.summary, usablePeerSourceIds, peerMedianLabels);
+  const summary = partitionSummary(
+    report.summary,
+    usablePeerSourceIds,
+    peerMedianLabels,
+    runCurrencies,
+  );
 
   const pruned = [
     ...summary.pruned,

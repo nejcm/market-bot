@@ -14,6 +14,7 @@ import type {
   ValuationCompsArtifact,
   ValuationCompsRow,
 } from "../src/sources/extended-evidence/valuation-comps-contract";
+import type { CollectedSources } from "../src/sources/types";
 import { collectedSources, researchReport } from "./support/fixtures";
 
 const IDS = ["market-amd", "market-nvda", "market-avgo", "history-report-1"];
@@ -74,6 +75,7 @@ function finalize(
   bearCase: readonly KeyFinding[],
   comps?: ValuationCompsArtifact,
   audit: PeerMedianAudit = regexOnly,
+  collected: Partial<CollectedSources> = {},
 ) {
   auditCalls = [];
   return finalizeSynthesis(
@@ -92,7 +94,7 @@ function finalize(
       reportValidationErrors: [],
       relocatedGapClaims: [],
     },
-    collectedSources(comps === undefined ? {} : { valuationComps: comps }),
+    collectedSources({ ...collected, ...(comps === undefined ? {} : { valuationComps: comps }) }),
     ASSESSMENT,
     audit,
   );
@@ -447,5 +449,26 @@ describe("createPeerMedianAudit", () => {
       "peer-median-audit-unavailable@report",
     ]);
     expect(result.report.bearCase).toEqual([]);
+  });
+});
+
+describe("finalizeSynthesis run currencies", () => {
+  const bearCase = [
+    { text: "Cited bear point.", sourceIds: ["market-amd"] },
+    { text: "The dividend was R500.", sourceIds: ["history-report-1"] },
+  ];
+
+  test("prunes and warns on an uncited amount in the resolved quote currency", async () => {
+    const result = await finalize(bearCase, undefined, regexOnly, {
+      resolvedInstrumentIdentity: { quoteCurrency: "ZAR" },
+    });
+    expect(codes(result)).toContain("unsupported-numeric-claim@bearCase[1]");
+    expect(result.integrityAudit.pruned.map((item) => item.location)).toEqual(["bearCase[1]"]);
+  });
+
+  test("keeps the token as a name without currency context", async () => {
+    const result = await finalize(bearCase);
+    expect(codes(result)).not.toContain("unsupported-numeric-claim@bearCase[1]");
+    expect(result.integrityAudit.pruned).toEqual([]);
   });
 });

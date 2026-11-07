@@ -60,7 +60,7 @@ const OCT_8_SESSION = { opens: [1_791_379_800, 1_791_466_200], end: 1_791_489_60
 const MONDAY_OCT_12_SESSION = { opens: [1_791_552_600, 1_791_811_800], end: 1_791_835_200 };
 
 function yahooChart(
-  closes: readonly number[],
+  closes: readonly (number | null)[],
   session: { readonly opens: readonly number[]; readonly end: number } = OCT_8_SESSION,
   regularStart = session.opens[1],
 ): unknown {
@@ -150,7 +150,7 @@ describe("completed-session scoring", () => {
         join(runDir, "report.json"),
         JSON.stringify(clfdReport([pred], undefined, generatedAt)),
       );
-      let closes: readonly number[] = firstCloses;
+      let closes: readonly (number | null)[] = firstCloses;
       globalThis.fetch = (async () =>
         Response.json(yahooChart(closes, session))) as unknown as typeof fetch;
       const readScore = async () => {
@@ -441,6 +441,55 @@ describe("completed-session scoring", () => {
         scores: readonly PredictionScore[];
       };
       expect(file.scores[0]).toMatchObject({ status: "pending-condition", attemptCount: 0 });
+    },
+  );
+
+  // Yahoo nulled the settled 2026-11-06 ^KLSE close (run 2026-11-06T21-47-29-661Z-cc03f563).
+  const OCT_9_SESSION = { opens: [...OCT_8_SESSION.opens, 1_791_552_600], end: 1_791_576_000 };
+  test.each([
+    ["the trailing resolution bar", [32.9, null], OCT_8_SESSION, OCT_8_AFTER_CLOSE, ["2026-10-08"]],
+    [
+      "a mid-series resolution bar",
+      [32.9, null, 33.5],
+      OCT_9_SESSION,
+      new Date("2026-10-09T21:00:00.000Z"),
+      undefined,
+    ],
+    ["every bar", [null, null], OCT_8_SESSION, OCT_8_AFTER_CLOSE, undefined],
+  ] as const)(
+    "never resolves on another session when Yahoo nulls %s",
+    async (_name, nullCloses, session, scoredAt, withheldDates) => {
+      const dataDir = join(root, "runs");
+      const cacheDir = join(root, "cache");
+      const runDir = join(dataDir, "run-clfd");
+      await mkdir(runDir, { recursive: true });
+      await writeFile(join(runDir, "report.json"), JSON.stringify(clfdReport([rangePrediction])));
+      let closes: readonly (number | null)[] = nullCloses;
+      globalThis.fetch = (async () =>
+        Response.json(yahooChart(closes, session))) as unknown as typeof fetch;
+      const options = { closeCacheDir: cacheDir, refreshProviderHealth: async () => undefined };
+      const readScore = async () =>
+        (
+          JSON.parse(await readFile(join(runDir, "score.json"), "utf8")) as {
+            scores: readonly PredictionScore[];
+          }
+        ).scores[0];
+
+      await runScorePass(dataDir, scoredAt, options);
+
+      const pending = await readScore();
+      expect(pending).toMatchObject({ status: "pending", resolved: false, attemptCount: 1 });
+      expect(
+        (pending?.evidence?.withheldSessions as readonly WithheldSession[] | undefined)?.map(
+          ({ date, status }) => `${date} ${status}`,
+        ),
+      ).toEqual(withheldDates?.map((date) => `${date} unverified`));
+      expect(existsSync(join(cacheDir, "close-windows"))).toBe(false);
+
+      closes = [32.9, 31.8, 33.5].slice(0, session.opens.length);
+      await runScorePass(dataDir, new Date(scoredAt.getTime() + 86_400_000), options);
+
+      expect(await readScore()).toMatchObject({ status: "resolved", evidence: { closeN: 31.8 } });
     },
   );
 });

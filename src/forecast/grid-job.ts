@@ -59,6 +59,7 @@ interface ForecastGridFactSheet {
   readonly realizedVol20dAnnualizedPct?: number;
   readonly benchmark: {
     readonly symbol: string;
+    readonly asOf?: string;
     readonly returnsPct: Readonly<Record<string, number>>;
   };
   readonly marketRegime?: string;
@@ -363,14 +364,22 @@ async function priceModelGrid(input: {
   readonly now: Date;
 }): Promise<PricedGrid> {
   const { symbol, priceHistory } = input;
+  const historyFor = (subject: string) =>
+    priceHistory.find((history) => history.symbol.toUpperCase() === subject);
   const completedCloses = (subject: string) =>
-    (priceHistory.find((history) => history.symbol.toUpperCase() === subject)?.bars ?? []).filter(
-      (bar) => bar.completed,
-    );
+    (historyFor(subject)?.bars ?? []).filter((bar) => bar.completed);
   const closes = completedCloses(symbol);
   const lastBar = closes.at(-1);
   const latest = await latestRunContext(input.config.dataDir, symbol, input.now);
   const vol = realizedVol20dAnnualizedPct(closes.map((bar) => bar.close));
+  const benchmarkSymbol = gridBenchmark(symbol);
+  const benchmarkCloses = completedCloses(benchmarkSymbol);
+  const benchmarkReturns = returnsPct(
+    benchmarkCloses.map((bar) => bar.close),
+    BENCHMARK_RETURN_SESSIONS,
+  );
+  const benchmarkLast = benchmarkCloses.at(-1);
+  const benchmarkReason = historyFor(benchmarkSymbol)?.reason;
   const factSheet: ForecastGridFactSheet = {
     symbol,
     ...(lastBar !== undefined ? { asOf: lastBar.date, lastClose: lastBar.close } : {}),
@@ -380,11 +389,9 @@ async function priceModelGrid(input: {
     ),
     ...(vol !== undefined ? { realizedVol20dAnnualizedPct: vol } : {}),
     benchmark: {
-      symbol: gridBenchmark(symbol),
-      returnsPct: returnsPct(
-        completedCloses(gridBenchmark(symbol)).map((bar) => bar.close),
-        BENCHMARK_RETURN_SESSIONS,
-      ),
+      symbol: benchmarkSymbol,
+      ...(benchmarkLast !== undefined ? { asOf: benchmarkLast.date } : {}),
+      returnsPct: benchmarkReturns,
     },
     ...latest.context,
     events: input.events.map(({ id, measurableAs, horizonTradingDays }) => ({
@@ -393,7 +400,18 @@ async function priceModelGrid(input: {
       horizonTradingDays,
     })),
   };
-  const contextGaps = latest.gap !== undefined ? [latest.gap] : [];
+  const contextGaps = [
+    ...(latest.gap !== undefined ? [latest.gap] : []),
+    ...(Object.keys(benchmarkReturns).length === 0
+      ? [
+          forecastBookGap(
+            symbol,
+            `Forecast Grid fact sheet has no ${benchmarkSymbol} benchmark returns for ${symbol}${benchmarkReason === undefined ? "" : ` (${benchmarkReason})`}`,
+            "provider-data-missing",
+          ),
+        ]
+      : []),
+  ];
   const { quickModel, quickModelParams } = resolveRunParams(input.command, input.config);
   const response = await input.provider
     .generate(forecastGridRequest(input.loaded, quickModel, quickModelParams, factSheet))

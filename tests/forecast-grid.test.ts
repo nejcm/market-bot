@@ -313,10 +313,39 @@ describe("forecast-grid command", () => {
     const { requests } = await spend(allPriced, aliased);
     expect(requested.some((url) => /\/chart\/(?:SPY|QQQ)\b/u.test(url))).toBe(false);
     const user = JSON.parse(requests[0]!.messages[1]!.content) as {
-      factSheet: { benchmark: { symbol: string; returnsPct: Record<string, number> } };
+      factSheet: {
+        asOf: string;
+        benchmark: { symbol: string; asOf: string; returnsPct: Record<string, number> };
+      };
     };
     expect(user.factSheet.benchmark.symbol).toBe("^KLSE");
+    expect(user.factSheet.benchmark.asOf).toBe(user.factSheet.asOf);
     expect(Object.keys(user.factSheet.benchmark.returnsPct).length).toBeGreaterThan(0);
+  });
+
+  test("a benchmark history Yahoo answers for another symbol is a declared gap, not empty returns", async () => {
+    seedWatchlist("core", [["equity", "AAPL"]]);
+    const replay = makeReplayFetch(await cassette(), FIXTURE_DIR);
+    const misnamed: FetchLike = async (input, init) => {
+      const response = await replay(input, init);
+      if (!String(input instanceof Request ? input.url : input).includes("/chart/SPY")) {
+        return response;
+      }
+      const body = (await response.json()) as { chart: { result: [{ meta: { symbol: string } }] } };
+      body.chart.result[0].meta.symbol = "QQQ";
+      return Response.json(body, { status: 200, headers: response.headers });
+    };
+    const { requests, runDir } = await spend(allPriced, misnamed);
+    const user = JSON.parse(requests[0]!.messages[1]!.content) as {
+      factSheet: { benchmark: { symbol: string; asOf?: string; returnsPct: object } };
+    };
+    expect(user.factSheet.benchmark).toEqual({ symbol: "SPY", returnsPct: {} });
+    const gaps = JSON.parse(
+      await readFile(join(runDir, RUN_ARTIFACT_FILES.sourceGaps), "utf8"),
+    ) as SourceGap[];
+    expect(gaps.map(({ message }) => message)).toContain(
+      "Forecast Grid fact sheet has no SPY benchmark returns for AAPL (Yahoo returned QQQ for SPY)",
+    );
   });
 
   test("invalid or missing model probabilities are declared, never defaulted", async () => {

@@ -169,6 +169,28 @@ describe("Price Performance Metric Section", () => {
     }
   });
 
+  test("a null close on a completed newest session keeps earlier bars and declares the session", async () => {
+    for (const nulled of ["TEST", "SPY"]) {
+      const collected = await collect((symbol) =>
+        chart(symbol, DATES, symbol === nulled ? [50, 75, 100, null] : [50, 75, 100, 120]),
+      );
+      expect(
+        collected.priceHistory
+          .find(({ symbol }) => symbol === nulled)
+          ?.bars.map(({ date }) => date),
+      ).toEqual(DATES.slice(0, 3));
+      expect(collected.sourceGaps).toMatchObject([
+        {
+          source: "yahoo-price-history",
+          symbol: nulled,
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "no-cap",
+          message: `${nulled}: Yahoo returned no close for the completed 2026-07-24 session; price history ends at the prior session`,
+        },
+      ]);
+    }
+  });
+
   test("uses price closes for six cumulative returns with common sessions and frozen reader values", async () => {
     const collected = await collect((symbol) =>
       chart(symbol, DATES, symbol === "SPY" ? [100, 120, 150, 180] : [50, 75, 100, 120]),
@@ -187,6 +209,7 @@ describe("Price Performance Metric Section", () => {
         String(Date.parse("2021-07-10") / 1000),
       );
     }
+    expect(collected.sourceGaps).toEqual([]);
     const { section, sourceGaps } = evaluate(collected.priceHistory);
     expect(sourceGaps).toEqual([]);
     for (const [i, expected] of [0.2, 0.2, 0.6, 0.5, 1.4, 0.8].entries()) {

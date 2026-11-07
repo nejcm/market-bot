@@ -77,13 +77,11 @@ export async function collectPriceHistory(
     }
     const schedule = readYahooRegularSession(fetched.payload);
     const adjusted = splitAdjustedObservationsFromYahooChart(ticker, fetched.payload);
+    const completedSession = (date: string) =>
+      date <= to.toISOString().slice(0, 10) &&
+      classifyLatestSession(schedule, date, fetched.rawSnapshot.fetchedAt).status === "complete";
     const bars = adjusted
-      .filter(
-        ({ date }) =>
-          date <= to.toISOString().slice(0, 10) &&
-          classifyLatestSession(schedule, date, fetched.rawSnapshot.fetchedAt).status ===
-            "complete",
-      )
+      .filter(({ date }) => completedSession(date))
       .map(({ date, value }) => ({ date, close: value, completed: true }));
     const splitDates = yahooChartSplitDates(fetched.payload);
     const chart =
@@ -104,7 +102,27 @@ export async function collectPriceHistory(
           ? "split-adjusted history unavailable: invalid closes or split metadata"
           : "price history unavailable: no rows returned";
     }
+    const missingCloseGaps = mismatch
+      ? []
+      : (adjusted.withheldSessions ?? [])
+          .filter(({ date }) => completedSession(date))
+          .map(({ date }) =>
+            sourceGapWithContext(
+              {
+                source: fetched.rawSnapshot.adapter,
+                symbol: ticker,
+                message: `${ticker}: Yahoo returned no close for the completed ${date} session; price history ends at the prior session`,
+              },
+              {
+                provider: "yahoo",
+                capability: "market-data",
+                cause: "provider-data-missing",
+                evidenceQualityImpact: "no-cap",
+              },
+            ),
+          );
     return {
+      sourceGaps: missingCloseGaps,
       verifiedSnapshot: mismatch
         ? {
             sourceGaps: [

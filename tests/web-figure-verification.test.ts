@@ -146,6 +146,54 @@ describe("figure parsing", () => {
     ]);
   });
 
+  test("withholds a bare whole number with a letter scale, which may be a period or a time", () => {
+    expect(parsed("9M FY2026, 3m ago, 1M 6M, 12.3M, RM9m, 9M USD, 9 million")).toEqual([
+      [Number.NaN, 1e6, "", ""],
+      [Number.NaN, 1e6, "", ""],
+      [Number.NaN, 1e6, "", ""],
+      [Number.NaN, 1e6, "", ""],
+      [12.3, 1e6, "", ""],
+      [9, 1e6, "MYR", ""],
+      [9, 1e6, "USD", ""],
+      [9, 1e6, "", ""],
+    ]);
+    expect(parsed("16k GPUs, 9,000M, 4K racks")).toEqual([
+      [16, 1e3, "", ""],
+      [9000, 1e6, "", ""],
+      [4, 1e3, "", ""],
+    ]);
+    expect(parsed("5-6M, RM5-6m")).toEqual([
+      [Number.NaN, 1e6, "", ""],
+      [Number.NaN, 1e6, "", ""],
+      [5, 1e6, "MYR", ""],
+      [6, 1e6, "MYR", ""],
+    ]);
+  });
+
+  test("reads a word range's low endpoint with the scale, unit and currency of its high", () => {
+    expect(parsed("-9 to -3%, 1 to 2 billion, 76.5 to 81 cents, 800 to 1,000 sites")).toEqual([
+      [-9, 1, "", "%"],
+      [-3, 1, "", "%"],
+      [1, 1e9, "", ""],
+      [2, 1e9, "", ""],
+      [76.5, 1, "cent", ""],
+      [81, 1, "cent", ""],
+      [800, 1, "", ""],
+      [1000, 1, "", ""],
+    ]);
+    expect(parsed("between 5 and 7%, 5 and 7%")).toEqual([
+      [5, 1, "", "%"],
+      [7, 1, "", "%"],
+      [7, 1, "", "%"],
+    ]);
+    expect(parsed("from 37% in fiscal 2024 to 51%, 15 to 90 days, 5 to 9M")).toEqual([
+      [37, 1, "", "%"],
+      [51, 1, "", "%"],
+      [Number.NaN, 1e6, "", ""],
+      [Number.NaN, 1e6, "", ""],
+    ]);
+  });
+
   test("ignores dates, periods, forms and bare years", () => {
     expect(
       figuresIn(
@@ -619,6 +667,43 @@ describe("Verified Web Figure", () => {
     expect(
       claim("Management guided revenue of RM5m-RM6bnish for the year.", "Guidance is RM5m."),
     ).toMatchObject({ reason: "figure-not-in-quote", figure: "RM5m" });
+  });
+
+  test("checks a word range's low endpoint and never reads a period label as an amount", () => {
+    const claim = (snippet: string, text: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: snippet }],
+        },
+        webSourceTexts([webSource({ snippet })]),
+      );
+    const guided = "Management guided a margin change of -5 to -3% for the year.";
+    expect(claim(guided, "Guidance is -5 to -3%.")).toBeUndefined();
+    expect(claim(guided, "Guidance is -9 to -3%.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    // ViTrox Q3 FY2026 table header, run 3f1aa431.
+    const header = "| Q3 FY2026 | Q3 FY2025 | Change | 9M FY2026 | 9M FY2025 | Change |";
+    expect(claim(header, "The company shipped 9M units.")).toMatchObject({
+      reason: "figure-ambiguous",
+    });
+    expect(
+      claim(
+        "Capex fell from 500 to 2 million this year per filings.",
+        "Capex was 500 million this year.",
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim(
+        "Segment revenue was up 100 to $5 million in the quarter.",
+        "Revenue was up $100 million.",
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim("Management guided capex of 5 to $7-million for the year.", "Capex of $5 is guided."),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
   });
 
   test("withholds a range it cannot read whole", () => {

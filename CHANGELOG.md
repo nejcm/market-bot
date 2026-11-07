@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.9](https://github.com/nejcm/market-bot/compare/v1.13.8...v1.13.9) (2026-11-07)
+
+### Bug Fixes
+
+- **audit:** count compact amounts in the run's currency as figures (#159) ([e7158f3](https://github.com/nejcm/market-bot/commit/e7158f391218b812181a84215bb08bff09abaac1))
+
 ## [1.13.8](https://github.com/nejcm/market-bot/compare/v1.13.7...v1.13.8) (2026-11-07)
 
 ### Bug Fixes

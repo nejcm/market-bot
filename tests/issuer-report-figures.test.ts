@@ -448,11 +448,12 @@ describe("issuer report phase", () => {
 
   describe("Yahoo trailing EPS against the issuer's year-to-date EPS", () => {
     const crossCheck = async (
-      epsTrailingTwelveMonths: number,
+      epsTrailingTwelveMonths: number | undefined,
       options: {
         readonly quoteCurrency?: string;
         readonly epsRow?: string;
         readonly cells?: readonly string[];
+        readonly revenueCell?: string;
         readonly text?: string;
       } = {},
     ) => {
@@ -468,7 +469,8 @@ describe("issuer report phase", () => {
           marketSnapshots: [
             marketSnapshot({
               symbol,
-              fundamentals: { epsTrailingTwelveMonths },
+              fundamentals:
+                epsTrailingTwelveMonths === undefined ? {} : { epsTrailingTwelveMonths },
               identity: { quoteCurrency: options.quoteCurrency ?? "MYR" } as NonNullable<
                 MarketSnapshot["identity"]
               >,
@@ -481,6 +483,9 @@ describe("issuer report phase", () => {
               ...(options.cells ?? ["t1:r6:c4", "t1:r6:c5"]).map(
                 (cell) => ["basic-eps", cell] as const,
               ),
+              ...(options.revenueCell === undefined
+                ? []
+                : [["revenue", options.revenueCell] as const]),
             ),
           ),
       });
@@ -522,21 +527,44 @@ describe("issuer report phase", () => {
       ).toBe(fullYearMessage);
       expect(await crossCheck(0.4, annualOnly)).toBe(fullYearMessage);
       expect(await crossCheck(0.8, annualOnly)).toBeUndefined();
+      expect(await crossCheck(0.804, annualOnly)).toBeUndefined();
+      expect(
+        await crossCheck(0.05, { ...annualOnly, cells: ["t1:r5:c5"], revenueCell: "t1:r3:c4" }),
+      ).toContain(
+        "is published unreconciled: it is not below the issuer-reported financial-year basic EPS of 0.046 MYR to 2025-12-31, but it matches that financial year at two decimals while the newest issuer-reported period ends 2026-12-31, so it may be a stale value",
+      );
+      expect(await crossCheck(0.9, annualOnly)).toBe(
+        "Yahoo trailing EPS 0.9 MYR (no as-of date; period, share count and basic or diluted basis undisclosed) is published unreconciled: it is not below the issuer-reported financial-year basic EPS of 0.8 MYR to 2026-12-31, but it is above the financial-year figure a trailing twelve months to that date equals, so a later period, a stale value or another share basis would each fit; the trailing PE and payout ratio derived from it are unreconciled too",
+      );
     });
 
     test("checks a quarter-only mapping against the quarter, which any trailing twelve months contains", async () => {
       expect(await crossCheck(0.05, { cells: ["t1:r6:c2", "t1:r6:c3"] })).toContain(
         "is below the issuer-reported quarterly basic EPS of 0.0626 MYR to 2026-09-30",
       );
-      expect(await crossCheck(0.11, { cells: ["t1:r6:c2", "t1:r6:c3"] })).toBeUndefined();
+      expect(await crossCheck(0.11, { cells: ["t1:r6:c2", "t1:r6:c3"] })).toContain(
+        "is published unreconciled: it is not below the issuer-reported quarterly basic EPS of 0.0626 MYR",
+      );
     });
 
-    test("stays silent at or above the newest period, on a currency mismatch, or on a loss", async () => {
-      expect(await crossCheck(0.16)).toBeUndefined();
-      expect(await crossCheck(0.11, { quoteCurrency: "USD" })).toBeUndefined();
-      expect(
-        await crossCheck(-0.2, { epsRow: "| 6.26 | 1.83 | (13.45) | 4.60 |" }),
-      ).toBeUndefined();
+    const unchecked =
+      "is published unreconciled: no positive total-operations basic EPS in MYR passed the issuer report table check to compare it with";
+
+    test("publishes unreconciled when not below a year-to-date EPS, whose TTM needs the prior FY", async () => {
+      expect(await crossCheck(0.16)).toBe(
+        "Yahoo trailing EPS 0.16 MYR (no as-of date; period, share count and basic or diluted basis undisclosed) is published unreconciled: it is not below the issuer-reported 9-month year-to-date basic EPS of 0.1345 MYR to 2026-09-30, but a trailing twelve months to that date also needs the prior-financial-year basic EPS (financial year − prior year-to-date + year-to-date), which this run does not compute; the trailing PE and payout ratio derived from it are unreconciled too",
+      );
+    });
+
+    test("publishes unreconciled on a currency mismatch, a loss, or no issuer EPS", async () => {
+      expect(await crossCheck(0.11, { quoteCurrency: "USD" })).toContain(
+        "no positive total-operations basic EPS in USD passed",
+      );
+      expect(await crossCheck(-0.2, { epsRow: "| 6.26 | 1.83 | (13.45) | 4.60 |" })).toContain(
+        unchecked,
+      );
+      expect(await crossCheck(0.11, { cells: [] })).toContain(unchecked);
+      expect(await crossCheck(undefined)).toBeUndefined();
     });
 
     test("compares only a total-operations EPS", async () => {
@@ -544,12 +572,14 @@ describe("issuer report phase", () => {
         "Basic earnings/(loss) per share (Subunit)",
         "Basic earnings/(loss) per share from continuing operations (Subunit)",
       );
-      expect(await crossCheck(0.11, { text: continuing })).toBeUndefined();
-      expect(await crossCheck(0.11, { text: DISCONTINUED_TEXT })).toBeUndefined();
+      expect(await crossCheck(0.11, { text: continuing })).toContain(unchecked);
+      expect(await crossCheck(0.11, { text: DISCONTINUED_TEXT })).toContain(unchecked);
     });
 
     test("an older comparative above the Yahoo value does not trigger it", async () => {
-      expect(await crossCheck(0.11, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toBeUndefined();
+      expect(await crossCheck(0.11, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toContain(
+        "is published unreconciled",
+      );
       expect(await crossCheck(0.01, { epsRow: "| 1.83 | 6.26 | 4.60 | 13.45 |" })).toContain(
         "basic EPS of 0.046 MYR to 2026-09-30",
       );
@@ -662,6 +692,9 @@ describe("issuer report phase", () => {
       expect(sources.extendedEvidence).toBe(input.extendedEvidence);
       expect(sources.financialLenses).toBe(input.financialLenses);
       expect(JSON.stringify(sources)).toContain("92.36");
+      expect(
+        sources.sourceGaps.find(({ message }) => message.startsWith("Yahoo trailing EPS"))?.message,
+      ).toContain("is published unreconciled");
     });
   });
 

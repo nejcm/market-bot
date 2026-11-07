@@ -987,18 +987,26 @@ function issuerReportGap(
   });
 }
 
-function providerEpsCrossCheckGap(
+const isFullYear = (figure: IssuerReportFigure) =>
+  figure.basis === "annual" || figure.periodMonths === 12;
+
+interface ProviderEpsCheck {
+  readonly gaps: readonly SourceGap[];
+  readonly withhold: boolean;
+}
+
+function providerEpsCheck(
   symbol: string,
   collectedSources: CollectedSources,
   figures: readonly IssuerReportFigure[],
-): SourceGap[] {
+): ProviderEpsCheck {
   const snapshot = collectedSources.marketSnapshots.find(
     (row) => row.symbol.toUpperCase() === symbol.toUpperCase(),
   );
   const providerEps = snapshot?.fundamentals?.epsTrailingTwelveMonths;
   const currency = snapshot?.identity?.quoteCurrency;
   if (providerEps === undefined || currency === undefined) {
-    return [];
+    return { gaps: [], withhold: false };
   }
   const flows = figures.filter(
     (figure) =>
@@ -1014,19 +1022,59 @@ function providerEpsCrossCheckGap(
   const [issuer] = flows
     .filter(({ periodEnd }) => periodEnd === newestEnd)
     .toSorted((left, right) => right.value - left.value);
-  return issuer === undefined || issuer.value <= 0 || providerEps >= issuer.value
-    ? []
-    : [
+  const yahoo = `Yahoo trailing EPS ${String(providerEps)} ${currency} (no as-of date; period, share count and basic or diluted basis undisclosed)`;
+  if (issuer === undefined || issuer.value <= 0) {
+    return {
+      gaps: [
         issuerReportGap(
           symbol,
-          `Yahoo trailing EPS ${String(providerEps)} ${currency} (no as-of date; period, share count and basic or diluted basis undisclosed) is below the issuer-reported ${epsPeriodLabel(issuer)} basic EPS of ${String(issuer.value)} ${currency} to ${issuer.periodEnd}, ${unreconciledClause(issuer)}; it is withheld with the trailing PE and payout ratio derived from it`,
+          `${yahoo} is published unreconciled: no positive total-operations basic EPS in ${currency} passed the issuer report table check to compare it with; the trailing PE and payout ratio derived from it are unreconciled too`,
+          "provider-data-missing",
+        ),
+      ],
+      withhold: false,
+    };
+  }
+  if (providerEps < issuer.value) {
+    return {
+      gaps: [
+        issuerReportGap(
+          symbol,
+          `${yahoo} is below the issuer-reported ${epsPeriodLabel(issuer)} basic EPS of ${String(issuer.value)} ${currency} to ${issuer.periodEnd}, ${unreconciledClause(issuer)}; it is withheld with the trailing PE and payout ratio derived from it`,
           "validation-failed",
         ),
-      ];
+      ],
+      withhold: true,
+    };
+  }
+  const newestReported = figures
+    .map(({ periodEnd }) => periodEnd)
+    .toSorted()
+    .at(-1);
+  // Two decimals is the precision Yahoo publishes, as in the SEC earnings-basis comparison.
+  const matchesYear = isFullYear(issuer) && providerEps.toFixed(2) === issuer.value.toFixed(2);
+  if (matchesYear && issuer.periodEnd === newestReported) {
+    return { gaps: [], withhold: false };
+  }
+  let missing =
+    "a trailing twelve months to that date also needs the prior-financial-year basic EPS (financial year − prior year-to-date + year-to-date), which this run does not compute";
+  if (matchesYear) {
+    missing = `it matches that financial year at two decimals while the newest issuer-reported period ends ${String(newestReported)}, so it may be a stale value`;
+  } else if (isFullYear(issuer)) {
+    missing =
+      "it is above the financial-year figure a trailing twelve months to that date equals, so a later period, a stale value or another share basis would each fit";
+  }
+  return {
+    gaps: [
+      issuerReportGap(
+        symbol,
+        `${yahoo} is published unreconciled: it is not below the issuer-reported ${epsPeriodLabel(issuer)} basic EPS of ${String(issuer.value)} ${currency} to ${issuer.periodEnd}, but ${missing}; the trailing PE and payout ratio derived from it are unreconciled too`,
+        "provider-data-missing",
+      ),
+    ],
+    withhold: false,
+  };
 }
-
-const isFullYear = (figure: IssuerReportFigure) =>
-  figure.basis === "annual" || figure.periodMonths === 12;
 
 function unreconciledClause(figure: IssuerReportFigure): string {
   return isFullYear(figure)
@@ -1156,7 +1204,7 @@ export async function runIssuerReportPhase(
             "provider-data-missing",
           ),
         ];
-  const epsGaps = providerEpsCrossCheckGap(symbol, collectedSources, reading.figures);
+  const eps = providerEpsCheck(symbol, collectedSources, reading.figures);
   const section = reading.figures.length === 0 ? undefined : issuerReportSection(reading.figures);
   const withheld = section?.metrics.filter((metric) => metric.status === "missing") ?? [];
   const withheldGap =
@@ -1177,8 +1225,8 @@ export async function runIssuerReportPhase(
       : withIssuerReportFramework(collectedSources, symbol, section);
   return {
     collectedSources: withIssuerReport(
-      epsGaps.length === 0 ? framed : withholdProviderEps(framed, symbol, PROVIDER_EPS_WITHHELD),
-      [...failureGaps, ...emptyGap, ...unpublishedGap, ...withheldGap, ...epsGaps],
+      eps.withhold ? withholdProviderEps(framed, symbol, PROVIDER_EPS_WITHHELD) : framed,
+      [...failureGaps, ...emptyGap, ...unpublishedGap, ...withheldGap, ...eps.gaps],
       section,
     ),
     stageOutputs: [output],

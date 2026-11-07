@@ -37,12 +37,17 @@ export async function finalizeSynthesis(
         );
   const clauses = usablePeerSourceIds === undefined ? [] : peerMedianAuditClauses(synthesis.report);
   const peerMedian = clauses.length === 0 ? undefined : await peerMedianAudit(clauses);
+  const runCurrencies = [
+    collected.resolvedInstrumentIdentity?.quoteCurrency,
+    collected.financialStatements?.reportingCurrency,
+  ].filter((currency) => currency !== undefined);
   const postSynthesisWarnings = [
     ...auditPostSynthesisReport(
       synthesis.report,
       computeWebSourceUsage(synthesis.report, collected),
       usablePeerSourceIds,
       peerMedian?.labels,
+      runCurrencies,
     ),
     ...(peerMedian?.warnings ?? []),
   ];
@@ -56,6 +61,7 @@ export async function finalizeSynthesis(
       collected.rawSnapshots,
       collected.metricSections,
     ),
+    runCurrencies,
   );
   const integrityAudit = {
     ...audit,

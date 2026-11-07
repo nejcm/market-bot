@@ -411,6 +411,23 @@ describe("auditReportIntegrity", () => {
     expect(prunedSummaryLocations(`${summary} Rev8 shipped 9M units.`)).toEqual(["summary[2]"]);
   });
 
+  test("prunes uncited compact amounts in the run currency and keeps product names", () => {
+    const summary = "Intel N100 adoption remains strong. The dividend was R500.";
+    const prunedOn = (currencies: readonly string[]) =>
+      auditReportIntegrity(
+        researchReport({ summary }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        currencies,
+      ).pruned.map((item) => item.location);
+
+    expect(prunedOn(["USD"])).toEqual([]);
+    expect(prunedOn(["ZAR"])).toEqual(["summary[1]"]);
+    expect(prunedSummaryLocations(summary)).toEqual([]);
+  });
+
   test("NBIS secondary-coverage summary sentence is not pruned", () => {
     const summary =
       "NBIS evidence is mixed. Secondary coverage reports stronger Q2 2026 revenue and capacity plans; those figures are not validated in the supplied canonical statements.";

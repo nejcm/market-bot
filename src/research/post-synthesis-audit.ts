@@ -69,10 +69,11 @@ export function auditPostSynthesisReport(
   webSourceUsage?: WebSourceUsage,
   usablePeerSourceIds?: ReadonlySet<string>,
   peerMedianLabels?: PeerMedianLabels,
+  runCurrencies: readonly string[] = [],
 ): readonly PostSynthesisAuditWarning[] {
   return [
     ...claimsForReport(report).flatMap((claim) =>
-      auditClaim(claim, usablePeerSourceIds, peerMedianLabels),
+      auditClaim(claim, usablePeerSourceIds, peerMedianLabels, runCurrencies),
     ),
     ...(webSourceUsage !== undefined &&
     webSourceUsage.currentRunIds.size >= 4 &&
@@ -125,6 +126,7 @@ function auditClaim(
   claim: AuditClaim,
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
+  runCurrencies: readonly string[],
 ): readonly PostSynthesisAuditWarning[] {
   return [
     ...(isUncitedPeerMedianClaim(claim.text, claim.sourceIds, usablePeerSourceIds, peerMedianLabels)
@@ -133,7 +135,7 @@ function auditClaim(
     ...(isGapShapedClaimForAuditWarning(claim.text) && claim.sourceIds.length > 0
       ? [citedGapShapedClaimWarning(claim)]
       : []),
-    ...(isNumericOrTechnicalClaim(claim.text) &&
+    ...((isNumericClaim(claim.text, runCurrencies) || isTechnicalClaim(claim.text)) &&
     !isHistoricalForecastOutcome(claim.text) &&
     hasNoSupportingSource(claim.sourceIds)
       ? [unsupportedNumericWarning(claim)]
@@ -175,22 +177,48 @@ export function isUncitedPeerMedianClaim(
   );
 }
 
-function isNumericOrTechnicalClaim(text: string): boolean {
-  return isNumericClaim(text) || isTechnicalClaim(text);
-}
-
 export function isTechnicalClaim(text: string): boolean {
   return TECHNICAL_INDICATOR_PATTERN.test(text);
 }
 
-export function isNumericClaim(text: string): boolean {
+export function isNumericClaim(text: string, runCurrencies: readonly string[] = []): boolean {
+  const prefixes = runCurrencyPrefixes(runCurrencies);
   return NUMERIC_CLAIM_PATTERN.test(
     text
       .replaceAll(FISCAL_PERIOD_TOKEN_PATTERN, (span, offset: number) =>
         hasAttachedFinancialUnit(text, offset, offset + span.length) ? span : " ",
       )
-      .replaceAll(ALPHANUMERIC_NAME_PATTERN, " "),
+      .replaceAll(ALPHANUMERIC_NAME_PATTERN, (span) =>
+        prefixes.has(span.replace(/\d+$/u, "").toLowerCase()) ? span : " ",
+      ),
   );
+}
+
+// "R500" on a ZAR run or "Myr500" on a MYR run is that currency, not a name: ISO code plus CLDR letter symbols.
+function runCurrencyPrefixes(currencies: readonly string[]): ReadonlySet<string> {
+  return new Set(
+    currencies.flatMap((code) => [
+      code.toLowerCase(),
+      ...(["symbol", "narrowSymbol"] as const).flatMap((currencyDisplay) =>
+        currencySymbol(code, currencyDisplay),
+      ),
+    ]),
+  );
+}
+
+function currencySymbol(code: string, currencyDisplay: "symbol" | "narrowSymbol"): string[] {
+  try {
+    const symbol = new Intl.NumberFormat("en", {
+      style: "currency",
+      currency: code,
+      currencyDisplay,
+    })
+      .formatToParts(0)
+      .find((part) => part.type === "currency")?.value;
+    return symbol !== undefined && /^\p{L}+$/u.test(symbol) ? [symbol.toLowerCase()] : [];
+  } catch {
+    return [];
+  }
 }
 
 export function hasAttachedFinancialUnit(text: string, start: number, end: number): boolean {

@@ -343,6 +343,9 @@ describe("isNumericClaim", () => {
     ["earnings of R500 Million", true],
     ["earnings of R500 cr", true],
     ["earnings of R500 K", true],
+    ["Intel N100 adoption remains strong", false],
+    ["earnings of R500", false],
+    ["fees of Myr500", false],
     ["H100 $", true],
     ["q3 % rise", true],
     ["h1 % rise", true],
@@ -374,5 +377,24 @@ describe("isNumericClaim", () => {
     ["H1 demand", false],
   ])("%p classifies as numeric: %p", (text, numeric) => {
     expect(isNumericClaim(text)).toBe(numeric);
+  });
+});
+
+describe("isNumericClaim with run currencies", () => {
+  test.each([
+    ["Intel N100 adoption remains strong", ["USD"], false],
+    ["Cloudflare R2 and TSMC N2 capacity", ["USD"], false],
+    ["earnings of R500", ["ZAR"], true],
+    ["earnings of R5000", ["ZAR"], true],
+    ["earnings of ZAR500", ["ZAR"], true],
+    ["earnings of Zar500", ["ZAR"], true],
+    ["Cloudflare R2 storage", ["ZAR"], true],
+    ["fees of Myr500", ["MYR"], true],
+    ["fees of RM500", ["MYR"], true],
+    ["earnings of R500", ["MYR", "USD"], false],
+    ["fees of Myr500", ["USD", "MYR"], true],
+    ["earnings of R500", ["not-a-code"], false],
+  ] as const)("%p on %p classifies as numeric: %p", (text, currencies, numeric) => {
+    expect(isNumericClaim(text, currencies)).toBe(numeric);
   });
 });

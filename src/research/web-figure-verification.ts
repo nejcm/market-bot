@@ -161,6 +161,7 @@ interface ParsedRow {
   readonly figure: Figure;
   readonly num: string;
   readonly scaled: boolean;
+  readonly scaleLetter: string | undefined;
   readonly rawStart: number;
   readonly rawEnd: number;
   readonly numStart: number;
@@ -186,8 +187,24 @@ function isBare(row: ParsedRow, figure: Figure): boolean {
   );
 }
 
+// "9M FY2026", "3m ago" and "1M 6M" chart tabs read as millions unless a currency or unit says so.
+// "k" stays a scale: every bare "16k GPUs"-style token in saved sources is a count.
+function periodLike(row: ParsedRow, figure: Figure): boolean {
+  return (
+    (row.scaleLetter === "m" || row.scaleLetter === "b") &&
+    figure.currency === "" &&
+    figure.unit === "" &&
+    !/[.,]/u.test(row.num)
+  );
+}
+
 function placedRow(row: ParsedRow, figure: Figure): PlacedFigure {
-  return { figure, numStart: row.numStart, numEnd: row.numStart + row.num.length };
+  const value = periodLike(row, figure) ? Number.NaN : figure.value;
+  return {
+    figure: { ...figure, value },
+    numStart: row.numStart,
+    numEnd: row.numStart + row.num.length,
+  };
 }
 
 function parenthesizedRange(low: ParsedRow, high: ParsedRow, blanked: string): boolean {
@@ -261,6 +278,43 @@ function spacedRange(low: ParsedRow, high: ParsedRow, blanked: string): readonly
   ];
 }
 
+const YEAR = /^(?:19|20)\d{2}$/u;
+
+// "-9 to -3%": the plain low takes the high's scale, unit and currency; a year before "to" starts no range.
+function wordRangeLow(
+  low: ParsedRow,
+  high: ParsedRow,
+  highWithheld: boolean,
+  blanked: string,
+): Figure | undefined {
+  const gap = blanked.slice(low.rawEnd, high.rawStart);
+  const between = /between\s+$/iu.test(blanked.slice(Math.max(0, low.rawStart - 12), low.rawStart));
+  if (
+    low.scaled ||
+    low.figure.unit !== "" ||
+    low.figure.currency !== "" ||
+    isBare(high, high.figure) ||
+    YEAR.test(low.num) ||
+    !(/^\s+to\s+$/iu.test(gap) || (between && /^\s+and\s+$/iu.test(gap)))
+  ) {
+    return undefined;
+  }
+  return {
+    ...low.figure,
+    raw: blanked.slice(low.rawStart, high.rawEnd),
+    // A low above its high cannot share the high's scale or currency ("from 500 to 2 million").
+    value:
+      highWithheld ||
+      Number.isNaN(placedRow(high, high.figure).figure.value) ||
+      low.figure.value > high.figure.value
+        ? Number.NaN
+        : low.figure.value,
+    scale: high.figure.scale,
+    unit: high.figure.unit,
+    currency: high.figure.currency,
+  };
+}
+
 // A range keeps both endpoints when either is a figure, and a bare one it keeps cannot verify.
 function rangeFigures(
   low: ParsedRow,
@@ -270,8 +324,9 @@ function rangeFigures(
   if (isBare(low, bottom) && isBare(high, top)) {
     return [];
   }
+  const either = periodLike(low, bottom) || periodLike(high, top);
   const kept = (row: ParsedRow, figure: Figure) =>
-    placedRow(row, isBare(row, figure) ? { ...figure, value: Number.NaN } : figure);
+    placedRow(row, either || isBare(row, figure) ? { ...figure, value: Number.NaN } : figure);
   return [kept(low, bottom), kept(high, top)];
 }
 
@@ -317,6 +372,7 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       figure,
       num,
       scaled: scaleKey !== undefined,
+      scaleLetter: groups.scaleLetter?.toLowerCase(),
       rawStart,
       rawEnd: rawStart + raw.length,
       numStart,
@@ -329,6 +385,10 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
   const countWordAfter = (row: ParsedRow) =>
     COUNT_WORD_AFTER.test(blanked.slice(row.rawEnd)) ||
     SEC_K_FORM.test(blanked.slice(row.rawStart));
+  const withheldAlone = (row: ParsedRow) =>
+    gluedBefore(row) ||
+    (gluedAfter(row) && !row.scaled && row.figure.unit === "") ||
+    RANGE_TAIL_START.test(blanked.slice(row.rawEnd));
   const placed: PlacedFigure[] = [];
   for (let index = 0; index < rows.length; ) {
     let end = index + 1;
@@ -345,6 +405,13 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       break;
     }
     const last = chain.at(-1) ?? row;
+    const high = rows[index];
+    const wordLow =
+      next === undefined &&
+      high !== undefined &&
+      rangeGap(blanked, high, rows[index + 1]) === undefined
+        ? wordRangeLow(row, high, withheldAlone(high), blanked)
+        : undefined;
     // A word-glued dash may be a sign before a figure ("profit-5m") or hide a scale after one ("$5-million").
     const glued = gluedBefore(row) || (gluedAfter(last) && !last.scaled && last.figure.unit === "");
     // A dash chain ("1-2-3%") is not a range, so none of it verifies.
@@ -361,6 +428,8 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       placed.push(...rangeFigures(row, next, pair));
     } else if (RANGE_TAIL_START.test(blanked.slice(row.rawEnd))) {
       placed.push(placedRow(row, { ...row.figure, value: Number.NaN }));
+    } else if (wordLow !== undefined) {
+      placed.push(placedRow(row, wordLow));
     } else if (!isBare(row, row.figure)) {
       placed.push(placedRow(row, row.figure));
     }

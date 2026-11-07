@@ -215,7 +215,13 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   word may be a unit ("5-per-cent", "25-basis-point", "5-fold"), unless the word is a time noun, a month
   abbreviation, a single capital letter other than the scale letters K, M and B, or an SEC form code ("52-week",
   "30-Jun", "20-F", "10-K"; "5-M" withholds); such a count is dropped and ends any range. SEC accession ids
-  ("sec-8k-0001193125-26-337999") are not figures. "9M" reads as nine million, symmetric between claim and quote.
+  ("sec-8k-0001193125-26-337999") are not figures. A whole number with only an M or B letter scale and no currency
+  or unit ("9M FY2026", "3m ago", "1M 6M" chart tabs) may be a period or a time, so it withholds, with any range it
+  ends; a currency, unit, decimal or comma grouping keeps it ("RM9m", "9M USD", "12.3M", "9,000M"), and "k" always
+  stays a scale ("16k GPUs"). A word range ("-9 to -3%", "between 5 and 7%", "1 to 2 billion") keeps a plain low
+  endpoint (no scale, unit or currency of its own), which takes the high's scale, unit and currency, unless the low
+  is a year ("fiscal 2024 to 51%") or both endpoints are bare. The low withholds when it exceeds the high ("from 500
+  to 2 million", "up 100 to $5 million") or the high withholds ("5 to $7-million").
 - A web figure in a claim that also cites a deterministic source is not checked.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.

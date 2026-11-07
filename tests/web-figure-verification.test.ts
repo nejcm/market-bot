@@ -519,6 +519,68 @@ describe("Verified Web Figure", () => {
     ).toBeUndefined();
   });
 
+  test("reads pc, ppts and basis point, and withholds a figure before points or pts", () => {
+    expect(
+      parsed(
+        "3 ppts, 1 ppt, 5pc, 4 percentage pts, 1 basis point, 11 PC, 7 points, 2.5 pts, 2% points",
+      ),
+    ).toEqual([
+      [3, 1, "", "pp"],
+      [1, 1, "", "pp"],
+      [5, 1, "", "%"],
+      [4, 1, "", "pp"],
+      [1, 1, "", "bps"],
+      [Number.NaN, 1, "", "%"],
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", "%"],
+    ]);
+    expect(
+      parsed("5.04 percentage-point, 5 basis-points, 14 percentage-pts, 14pts, 2pt, $600PT"),
+    ).toEqual([
+      [5.04, 1, "", "pp"],
+      [5, 1, "", "bps"],
+      [14, 1, "", "pp"],
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", ""],
+      [600, 1, "USD", ""],
+    ]);
+    expect(parsed("5 - 6 pc, $600 PT")).toEqual([
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", "%"],
+      [600, 1, "USD", ""],
+    ]);
+    const claim = (quote: string, text: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet: `${quote} in the year.` })]),
+      );
+    const ppts = "Group operating margin widened 3 ppts";
+    expect(claim(ppts, "Operating margin widened 3 ppts.")).toBeUndefined();
+    expect(claim(ppts, "Operating margin widened 3 pp.")).toBeUndefined();
+    expect(claim(ppts, "Operating margin widened 14 ppts.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(claim(ppts, "Operating margin widened 3%.")).toMatchObject({ reason: "unit-mismatch" });
+    const pc = "Group revenue grew 5pc on the year";
+    expect(claim(pc, "Revenue grew 5%.")).toBeUndefined();
+    expect(claim(pc, "Revenue grew 9pc.")).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(claim("Group net margin rose 2% points", "Net margin rose 2%.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    for (const text of [
+      "Margin widened 5 basis-point.",
+      "Margin widened 14 percentage-points.",
+      "Margin widened 14pts.",
+    ]) {
+      expect(claim(ppts, text)).toBeDefined();
+    }
+    expect(claim(ppts, "Margin widened 3 percentage-points.")).toBeUndefined();
+    expect(
+      claim("The Dow industrials advanced 13 points", "The Dow rose 13 points."),
+    ).toMatchObject({ reason: "figure-ambiguous" });
+  });
+
   test("keeps the sign of a negative amount or an accounting-parenthesized table cell", () => {
     const claim = (snippet: string, text: string) =>
       unverifiedWebFigure(

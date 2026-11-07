@@ -197,7 +197,10 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   (`| (125.5) |`); a sign mismatch fails. A figure in parentheses anywhere else ("revenue (RM5m)") or after a spaced
   single dash ("- RM5m", including a Markdown bullet) has an ambiguous sign and never verifies, in claim or source;
   a double dash ("Revenue -- $5m") is punctuation. Sign words are not parsed ("fell 4%" matches "4%"). Percentage
-  points and percent are distinct units. A tight dash before a digit or currency prefix joins a range, and both
+  points ("pp", "ppt", "ppts", "percentage pts", "percentage-point"), percent ("%", "pct", lower-case "pc", "per cent") and basis points
+  ("bp", "bps", "basis point", "basis-point") are distinct units. A figure before "points", "pts" or "pt", spaced or glued ("14pts"), without a currency
+  withholds, since the word may mean index points, percentage points or a price target ("13 points", "2% points"),
+  as does one before upper-case "PC". A tight dash before a digit or currency prefix joins a range, and both
   endpoints are checked as separate figures, not as a pair (`$1.2-1.4 billion` matches a quote stating $1.2 billion
   and $1.4 billion apart). The low endpoint takes the scale, unit and currency written once on the high ("$1.2-1.4
   billion", "RM5–6m", "5–6%"); the high takes only a missing currency. Neither endpoint of a range, tight or spaced,

@@ -40,14 +40,16 @@ const CURRENCY_PREFIX = String.raw`US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CA
 // A dash before a digit or currency prefix joins a range ("RM5m-RM6m").
 const RANGE_TAIL = String.raw`-(?:(?:${CURRENCY_PREFIX})\s?)?\d`;
 export const SCALE_WORDS = "trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil";
-const UNIT_WORDS = String.raw`per\s?cent|pct|percentage points?|pp|bps|bp|basis points`;
+const UNIT_WORDS = String.raw`per\s?cent|pct|pc|percentage[\s-]points?|percentage[\s-]pts?|ppts?|pp|bps|bp|basis[\s-]points?`;
+// "13 points" may be index points, percentage points or a price target ("$600 PT"), so it never verifies.
+const POINTS_AFTER = /^\s?(?:points?|pts?)(?!\p{L})/iu;
 // Words a bare count may be glued to and still be no figure ("52-week", "10-K"); any other word may be a unit.
 const COUNT_WORD_AFTER =
   /^-(?:[AC-JLN-Z]|(?:[Dd]ay|[Ww]eek|[Mm]onth|[Qq]uarter|[Yy]ear|[Yy]r|[Hh]our)s?|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?!\p{L})/u;
 // K, M and B may be scales, so only the SEC form codes keep them.
 const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
 const FIGURE_PATTERN = new RegExp(
-  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:\s(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|sen|cents?|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
   "giu",
 );
 const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
@@ -140,10 +142,10 @@ function unitOf(groups: Readonly<Record<string, string | undefined>>): string {
   if (unit === undefined) {
     return "";
   }
-  if (unit === "pp" || unit.startsWith("percentage")) {
+  if (unit.startsWith("pp") || unit.startsWith("percentage")) {
     return "pp";
   }
-  return unit === "%" || unit === "pct" || unit.startsWith("per") ? "%" : "bps";
+  return unit === "%" || unit.startsWith("pc") || unit.startsWith("per") ? "%" : "bps";
 }
 
 interface PlacedFigure {
@@ -162,6 +164,7 @@ interface ParsedRow {
   readonly num: string;
   readonly scaled: boolean;
   readonly scaleLetter: string | undefined;
+  readonly unitUnread: boolean;
   readonly rawStart: number;
   readonly rawEnd: number;
   readonly numStart: number;
@@ -183,7 +186,11 @@ function mixedRange(low: Figure, high: Figure): boolean {
 // Counts, ranks, years and model numbers ("iPhone 17", "top 10") are not figures.
 function isBare(row: ParsedRow, figure: Figure): boolean {
   return (
-    figure.scale === 1 && figure.currency === "" && figure.unit === "" && !/[.,]/u.test(row.num)
+    !row.unitUnread &&
+    figure.scale === 1 &&
+    figure.currency === "" &&
+    figure.unit === "" &&
+    !/[.,]/u.test(row.num)
   );
 }
 
@@ -356,13 +363,17 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
     const ambiguousSign =
       (parenthesized && !accounting && !explicitSign) ||
       (groups.sign === undefined && SEPARATED_SIGN.test(before));
+    // Upper-case "PC" may be a computer ("11 PC"); only "pc" is percent.
+    const unitUnread =
+      (groups.unit?.toLowerCase() === "pc" && groups.unit !== "pc") ||
+      (currencyKey === undefined && (groups.points !== undefined || POINTS_AFTER.test(after)));
     const negative = explicitSign || accounting;
     const magnitude = Number(num.replaceAll(",", ""));
     const signed = negative ? -magnitude : magnitude;
     const figure: Figure = {
       raw,
       // NaN never equals a figure, so an ambiguous sign cannot verify either reading.
-      value: ambiguousSign ? Number.NaN : signed,
+      value: ambiguousSign || unitUnread ? Number.NaN : signed,
       scale: scaleKey === undefined ? 1 : (SCALES[scaleKey] ?? 1),
       currency: currencyKey === undefined ? "" : (CURRENCIES[currencyKey] ?? currencyKey),
       unit: unitOf(groups),
@@ -373,6 +384,7 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       num,
       scaled: scaleKey !== undefined,
       scaleLetter: groups.scaleLetter?.toLowerCase(),
+      unitUnread,
       rawStart,
       rawEnd: rawStart + raw.length,
       numStart,

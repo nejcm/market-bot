@@ -402,6 +402,15 @@ describe("auditReportIntegrity", () => {
     expect(auditUncitedFinding(`${text}.`).pruned.length > 0).toBe(numeric);
   });
 
+  test("keeps uncited summary sentences that name digit-bearing entities", () => {
+    // TE 2026-11-05T11-09-41-015Z-ec47bae7 and OUST 2026-11-05T11-21-05-536Z-6084018b lost these as summary[0].
+    const summary =
+      "T1 Energy is scaling a U.S. solar manufacturing business while building a cell factory. OUST’s recent results show rapid sales expansion, strong shipment growth and early Rev8 adoption, alongside continuing losses and heavier cash outflow.";
+
+    expect(prunedSummaryLocations(summary)).toEqual([]);
+    expect(prunedSummaryLocations(`${summary} Rev8 shipped 9M units.`)).toEqual(["summary[2]"]);
+  });
+
   test("NBIS secondary-coverage summary sentence is not pruned", () => {
     const summary =
       "NBIS evidence is mixed. Secondary coverage reports stronger Q2 2026 revenue and capacity plans; those figures are not validated in the supplied canonical statements.";

@@ -3,6 +3,7 @@ import type { KeyFinding, ResearchReport, Scenario } from "../domain/report";
 import type { PostSynthesisAuditWarning } from "../domain/run-trace";
 import type { WebSourceUsage } from "../web-evidence";
 import { isGapShapedClaimForAuditWarning } from "./gap-shaped-claims";
+import { SCALE_WORDS } from "./web-figure-verification";
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 // "Q2 2026", "H1 FY26", "3Q" label a period, not a figure, unless a financial unit is attached.
@@ -10,6 +11,11 @@ const FISCAL_PERIOD_TOKEN_PATTERN =
   /(?<![\d.])\b(?:Q[1-4]|H[12]|[1-4]Q)(?:\s+(?:FY\s?\d{2}|(?:FY)?(?:19|20)\d{2}))?\b(?!\.\d)/giu;
 // 8 covers Sc + grouping/minus/whitespace; unbounded prefix slice was O(n^2) per date.
 const UNIT_WINDOW = 8;
+// Only "T1"/"H100" or "Rev8" shapes name an entity; currency-led forms (RM485, Rs500, kr500, usd500) stay figures.
+const ALPHANUMERIC_NAME_PATTERN = new RegExp(
+  String.raw`(?<![\p{L}\d\p{Sc}])(?!Q[1-4]\b|H[12]\b)(?:\p{Lu}|\p{Lu}\p{Ll}{2,})\d+(?![\p{L}\d%‰‱]|[.,]\d|\s*(?:[x×%‰‱]|\p{Sc}|(?i:${SCALE_WORDS}|bln|crore|cr|lakh|mm|k|m|b)\b))`,
+  "gu",
+);
 const CURRENCY_PREFIX_PATTERN = /\p{Sc}[\s()[\]{}-]*$/u;
 const UNIT_SUFFIX_PATTERN = /^\s*(?:[%‰‱]|[x×X⨯*]|\p{Sc})/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
@@ -179,9 +185,11 @@ export function isTechnicalClaim(text: string): boolean {
 
 export function isNumericClaim(text: string): boolean {
   return NUMERIC_CLAIM_PATTERN.test(
-    text.replaceAll(FISCAL_PERIOD_TOKEN_PATTERN, (span, offset: number) =>
-      hasAttachedFinancialUnit(text, offset, offset + span.length) ? span : " ",
-    ),
+    text
+      .replaceAll(FISCAL_PERIOD_TOKEN_PATTERN, (span, offset: number) =>
+        hasAttachedFinancialUnit(text, offset, offset + span.length) ? span : " ",
+      )
+      .replaceAll(ALPHANUMERIC_NAME_PATTERN, " "),
   );
 }
 

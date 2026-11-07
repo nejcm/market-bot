@@ -746,7 +746,11 @@ describe("static equity run fixtures", () => {
         (485_101 - 228_567) / 228_567,
         6,
       );
-      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_580 / 485_101, 6);
+      expect(metric("issuer-report-net-margin-quarter")).toMatchObject({
+        basis: "profit for the period, including non-controlling interests / revenue, same period",
+      });
+      expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_073 / 485_101, 6);
+      expect(metric("issuer-report-net-margin-ytd")?.value).toBeCloseTo(253_351 / 1_127_067, 6);
       expect(result.markdown).toContain("### Issuer report figures");
       const dps = metric("issuer-report-dividend-per-share-ytd-2026-09-30");
       if (name === "equity-bursa-brief") {

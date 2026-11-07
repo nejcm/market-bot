@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Prediction } from "../src/domain/prediction";
 import type { ResearchReport } from "../src/domain/report";
-import { auditPostSynthesisReport } from "../src/research/post-synthesis-audit";
+import { auditPostSynthesisReport, isNumericClaim } from "../src/research/post-synthesis-audit";
 import type { WebSourceUsage } from "../src/web-evidence";
 
 function reportWith(
@@ -309,5 +309,70 @@ describe("auditPostSynthesisReport", () => {
     const warnings = auditPostSynthesisReport(reportWith({}), webSourceUsage(10, 1));
 
     expect(warnings).toEqual([]);
+  });
+});
+
+describe("isNumericClaim", () => {
+  test.each([
+    ["T1 Energy is scaling", false],
+    ["early Rev8 adoption", false],
+    ["H100 and B200 demand", false],
+    ["A17 chip launch", false],
+    [
+      "T1 Energy is scaling a U.S. solar manufacturing business while building a cell factory.",
+      false,
+    ],
+    [
+      "OUST’s recent results show rapid sales expansion, strong shipment growth and early Rev8 adoption, alongside continuing losses and heavier cash outflow.",
+      false,
+    ],
+    ["iPhone15 launch", true],
+    ["x86 and v2 servers", true],
+    ["revenue of RM485 million", true],
+    ["Rs500 crore", true],
+    ["Rs5 billion", true],
+    ["Rp500 million", true],
+    ["kr500", true],
+    ["rm485 million", true],
+    ["myr485", true],
+    ["usd500", true],
+    ["MYR485", true],
+    ["T1 million", true],
+    ["earnings of R500 mln", true],
+    ["earnings of R500 bln", true],
+    ["earnings of R500 Million", true],
+    ["earnings of R500 cr", true],
+    ["earnings of R500 K", true],
+    ["H100 $", true],
+    ["q3 % rise", true],
+    ["h1 % rise", true],
+    ["built by T1.", false],
+    ["T1, Rev8 and H100", false],
+    ["Rev8 revenue rose 12%", true],
+    ["Rev8 shipped 9M units", true],
+    ["T1.5 growth", true],
+    ["Rev8,000 units", true],
+    ["B200s shipped", true],
+    ["T1x leverage", true],
+    ["€T1 of backlog", true],
+    ["USD500 of debt", true],
+    ["EUR500m of debt", true],
+    ["Rs5bn of debt", true],
+    ["5G rollout", true],
+    ["F-150 sales", true],
+    ["$3.4bn", true],
+    ["12%", true],
+    ["1,234 units", true],
+    ["9M units", true],
+    ["5x leverage", true],
+    ["3.2B shares", true],
+    ["FY2025", true],
+    ["FY2025 revenue of 9.6", true],
+    ["2025 demand", true],
+    ["Q3 demand", false],
+    ["Q3 % rise", true],
+    ["H1 demand", false],
+  ])("%p classifies as numeric: %p", (text, numeric) => {
+    expect(isNumericClaim(text)).toBe(numeric);
   });
 });

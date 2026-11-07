@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.8](https://github.com/nejcm/market-bot/compare/v1.13.7...v1.13.8) (2026-11-07)
+
+### Bug Fixes
+
+- **valuation:** disclose unreconciled provider eps on issuer listings (#157) ([9fd4121](https://github.com/nejcm/market-bot/commit/9fd412181cfc56eb298f9426800a6163121c9869))
+- **framework:** feed issuer report growth into the business framework (#156) ([a07bcbd](https://github.com/nejcm/market-bot/commit/a07bcbdaec92ba470e9f22cd11b6c897aa1e39df))
+
 ## [1.13.7](https://github.com/nejcm/market-bot/compare/v1.13.6...v1.13.7) (2026-11-07)
 
 ### Bug Fixes

@@ -581,6 +581,42 @@ describe("Verified Web Figure", () => {
     ).toMatchObject({ reason: "figure-ambiguous" });
   });
 
+  test("reads a glued sen or cents like the spaced form, never as the main unit", () => {
+    expect(parsed("26.4sen, 26.4 Sen, 54cents, 1cent, RM0.30 sen, 26.4sensors")).toEqual([
+      [26.4, 1, "MYR-sen", ""],
+      [26.4, 1, "MYR-sen", ""],
+      [54, 1, "cent", ""],
+      [1, 1, "cent", ""],
+      [Number.NaN, 1, "MYR", ""],
+    ]);
+    expect(parsed("5 USD cents, USD 5 cents, MYR 26 sen, S$5, C$5")).toEqual([
+      [Number.NaN, 1, "USD", ""],
+      [Number.NaN, 1, "USD", ""],
+      [Number.NaN, 1, "MYR", ""],
+      [5, 1, "SGD", ""],
+      [5, 1, "CAD", ""],
+    ]);
+    const claim = (quote: string, text: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet: `${quote} in the year.` })]),
+      );
+    const glued = "applied to rolled-over FY28F EPS of 26.4sen";
+    expect(claim(glued, "FY28F EPS of 26.4 sen.")).toBeUndefined();
+    expect(claim(glued, "FY28F EPS of 26.4sen.")).toBeUndefined();
+    expect(claim(glued, "FY28F EPS of 99.9sen.")).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(claim(glued, "FY28F EPS of RM26.4.")).toMatchObject({ reason: "currency-mismatch" });
+    expect(
+      claim("Shares of the bank fell RM0.30 sen on the day", "Shares fell RM0.30."),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim("Net income was 54 cents a diluted share", "Net income was 99cents a share."),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(
+      claim("Net income was 5 USD cents a diluted share", "Net income was $5 a share."),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+  });
+
   test("keeps the sign of a negative amount or an accounting-parenthesized table cell", () => {
     const claim = (snippet: string, text: string) =>
       unverifiedWebFigure(

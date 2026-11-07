@@ -180,7 +180,11 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   Gap and withholds the Yahoo EPS and every metric priced off it (trailing PE, Yahoo-fallback payout ratio) from
   every surface and every model stage after the phase; a metric row reads `not meaningful` with the reason. A
   loss or zero issuer EPS proves nothing about the TTM, so it is not checked. The web gather runs before the
-  check and still sees the Yahoo values (amended 2026-11-06).
+  check and still sees the Yahoo values (amended 2026-11-06). Not below is not reconciled: the Yahoo value
+  publishes, as on SEC listings, with an `issuer-report` Source Gap naming the unreconciled check, unless the
+  financial-year EPS it matches at two decimals ends at the newest period end of any checked issuer figure.
+  Reconciling a year-to-date period needs an issuer TTM (FY + YTD − prior YTD), which the phase does not
+  compute (amended 2026-11-07).
 
 ## Consequences
 

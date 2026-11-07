@@ -249,12 +249,71 @@ function latestAmount(key: FrameworkSeries) {
   };
 }
 
+// US GAAP net income is parent-attributable, so the issuer's owners' profit is its counterpart.
+const ISSUER_REPORT_YOY: Partial<Record<FrameworkSeries, readonly [string, string]>> = {
+  revenue: ["revenue", "Revenue YoY"],
+  netIncome: ["profit-attributable-to-owners", "Net income YoY"],
+};
+const ISSUER_CONTINUING = ", continuing operations";
+
+// Newest period end, then longest length, as the statement path picks its latest fact.
+function issuerReportYearOverYear(
+  section: MetricSection,
+  key: FrameworkSeries,
+): MetricOutcome | undefined {
+  const concept = ISSUER_REPORT_YOY[key];
+  if (concept === undefined) {
+    return undefined;
+  }
+  const [row] = section.metrics
+    .filter(
+      ({ id }) => /^issuer-report-(.+)-yoy-(?:quarter|ytd|annual)$/u.exec(id)?.[1] === concept[0],
+    )
+    .toSorted(
+      (left, right) =>
+        (right.periodEnd ?? "").localeCompare(left.periodEnd ?? "") ||
+        (right.periodMonths ?? 0) - (left.periodMonths ?? 0),
+    );
+  if (row === undefined) {
+    return {
+      status: "missing",
+      reason: `no issuer report ${concept[0].replaceAll("-", " ")} with a checked prior-year same-length comparative`,
+    };
+  }
+  const period = {
+    ...(row.periodEnd === undefined ? {} : { periodEnd: row.periodEnd }),
+    ...(row.periodMonths === undefined ? {} : { periodMonths: row.periodMonths }),
+  };
+  const common = {
+    ...period,
+    // Prior first, as the statement path orders YoY inputs.
+    inputs: row.inputs.toReversed(),
+    basis: `issuer report ${row.label.toLowerCase()}; ${row.basis}`,
+    ...(row.label.endsWith(ISSUER_CONTINUING)
+      ? { label: `${concept[1]}${ISSUER_CONTINUING}` }
+      : {}),
+  };
+  if (row.status === "value" && typeof row.value === "number") {
+    return { status: "value", value: row.value * 100, ...common };
+  }
+  return {
+    status: row.status === "not-meaningful" ? "not-meaningful" : "missing",
+    reason: `issuer report: ${row.reason ?? "no value"}`,
+    ...common,
+  };
+}
+
 function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
   if (ctx.statements === undefined) {
     const found = secInput(ctx, `${key}DeltaPercent`, `${SERIES_LABELS[key]} YoY`, "whole-percent");
-    return found === undefined
-      ? noFact(ctx, key)
-      : { status: "value", value: found.value, ...secPeriod(ctx, key), inputs: [found] };
+    if (found !== undefined) {
+      return { status: "value", value: found.value, ...secPeriod(ctx, key), inputs: [found] };
+    }
+    return (
+      (ctx.issuerReport === undefined
+        ? undefined
+        : issuerReportYearOverYear(ctx.issuerReport, key)) ?? noFact(ctx, key)
+    );
   }
   const latest = latestFact(ctx, key);
   const series =
@@ -505,7 +564,7 @@ function phaseInputs(ctx: MetricContext): {
         used
           .flatMap((outcome) => outcome.inputs ?? [])
           .map((item) => [
-            `${String(item.series ?? item.key)}|${String(item.periodKey)}|${String(item.periodType)}`,
+            `${String(item.series ?? item.key ?? item.label)}|${String(item.periodKey)}|${String(item.periodType)}|${String(item.periodEnd)}|${String(item.value)}`,
             item,
           ]),
       ).values(),
@@ -807,6 +866,16 @@ function criteriaPosture(
   return supported === 0 ? "criteria-not-supported" : "criteria-mixed";
 }
 
+// Revenue growth alone says nothing about balance-sheet risk, so one balance-sheet criterion must be known.
+function riskPosture(
+  balanceSheet: readonly (boolean | undefined)[],
+  revenueGrowth: boolean | undefined,
+): BusinessFrameworkPosture {
+  return balanceSheet.every((value) => value === undefined)
+    ? "insufficient-data"
+    : criteriaPosture([...balanceSheet, revenueGrowth]);
+}
+
 function meets(
   value: number | undefined,
   criterion: (value: number) => boolean,
@@ -852,11 +921,13 @@ function postures(
       2,
     ),
     Management: "insufficient-data",
-    Risk: criteriaPosture([
-      meets(valueIn("Risk", "currentRatio"), (value) => value >= 1),
-      meets(valueIn("Risk", "debtToMarketCap"), (value) => value <= 0.5),
+    Risk: riskPosture(
+      [
+        meets(valueIn("Risk", "currentRatio"), (value) => value >= 1),
+        meets(valueIn("Risk", "debtToMarketCap"), (value) => value <= 0.5),
+      ],
       meets(revenueDelta, (value) => value >= 0),
-    ]),
+    ),
     Valuation: criteriaPosture([
       supportability === undefined || supportability === "not-meaningful"
         ? undefined

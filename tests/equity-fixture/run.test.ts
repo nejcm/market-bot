@@ -754,6 +754,7 @@ describe("static equity run fixtures", () => {
       expect(metric("issuer-report-net-margin-quarter")?.value).toBeCloseTo(118_073 / 485_101, 6);
       expect(metric("issuer-report-net-margin-ytd")?.value).toBeCloseTo(253_351 / 1_127_067, 6);
       expect(result.markdown).toContain("### Issuer report figures");
+      expect(result.collectedSources.businessFramework?.phase).toBe("hyper-growth");
       const dps = metric("issuer-report-dividend-per-share-ytd-2026-09-30");
       if (name === "equity-bursa-brief") {
         expect(dps).toMatchObject({ value: "MYR 0.0118 or 1.18 sen", periodMonths: 9 });
@@ -874,8 +875,14 @@ describe("static equity run fixtures", () => {
       ["https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30", true],
       ["https://www.klsescreener.com/v2/announcements/view/11698017", true],
     ]);
-    expect(result.report.extras).not.toHaveProperty("businessFramework.phase");
-    expect(result.markdown).toContain("Phase: not classified");
+    // Issuer 9-month YTD revenue 1,127,067 vs 552,728 (MYR'000) classifies the phase.
+    expect(result.report.extras).toHaveProperty("businessFramework.phase", "hyper-growth");
+    const revenueYoy = result.collectedSources.metricSections
+      ?.find(({ id }) => id === "business-framework-growth")
+      ?.metrics.find(({ id }) => id === "revenueDeltaPercent");
+    expect(revenueYoy).toMatchObject({ periodEnd: "2026-09-30", periodMonths: 9 });
+    expect(revenueYoy?.value).toBeCloseTo((1_127_067 / 552_728 - 1) * 100, 6);
+    expect(result.markdown).toContain("Phase: hyper-growth");
     expect(result.report.predictions.map(({ id }) => id)).not.toContain("pred-1");
     expect(result.report.dataGaps.join("\n")).toContain(
       "Model prediction(s) pred-1 for 0097.KL withheld: they compare against SPY",

@@ -748,6 +748,139 @@ describe("issuer report phase", () => {
     ]);
   });
 
+  describe("Business Framework from issuer YoY rows", () => {
+    const frameworkRun = async (
+      cells: readonly (readonly [string, string])[],
+      text = KLSE_TEXT,
+    ) => {
+      const command = { jobType: "equity", assetClass: "equity", symbol, depth: "brief" } as const;
+      const generatedAt = "2026-11-06T05:46:13.672Z";
+      const snapshots = [
+        marketSnapshot({
+          symbol,
+          sourceId: "market-yahoo-equity-0097.kl",
+          fundamentals: { forwardPE: 48.3, dividendYield: 0.2 },
+          identity: { quoteCurrency: "MYR" } as NonNullable<MarketSnapshot["identity"]>,
+        }),
+      ];
+      const yahoo = buildYahooFundamentals(command, snapshots, generatedAt);
+      const framework = addBusinessFrameworkEvidence(
+        command,
+        snapshots,
+        { items: yahoo === undefined ? [] : [yahoo], gaps: [] },
+        undefined,
+        generatedAt,
+      );
+      const input = collectedSources({
+        extendedSources: [source({ snippet: text })],
+        marketSnapshots: snapshots,
+        ...(framework.extendedEvidence === undefined
+          ? {}
+          : { extendedEvidence: framework.extendedEvidence }),
+        ...(framework.artifact === undefined ? {} : { businessFramework: framework.artifact }),
+        metricSections: framework.metricSections ?? [],
+        sourceGaps: framework.metricSectionGaps ?? [],
+      });
+      const result = await runIssuerReportPhase({
+        symbol,
+        collectedSources: input,
+        generateMapping: async () => output(mapping(...cells)),
+      });
+      const sources = result.collectedSources;
+      const metric = (section: string, id: string) =>
+        sources.metricSections
+          ?.find((row) => row.id === `business-framework-${section}`)
+          ?.metrics.find((row) => row.id === id);
+      return { input, sources, metric };
+    };
+    const ALL = [
+      ["revenue", "t1:r4:c2"],
+      ["revenue", "t1:r4:c3"],
+      ["revenue", "t1:r4:c4"],
+      ["revenue", "t1:r4:c5"],
+      ["profit-attributable-to-owners", "t1:r5:c2"],
+      ["profit-attributable-to-owners", "t1:r5:c3"],
+      ["profit-attributable-to-owners", "t1:r5:c4"],
+      ["profit-attributable-to-owners", "t1:r5:c5"],
+    ] as const;
+
+    // ViTrox Q3 2026 (KLSE Screener copy, announced 2026-11-05): 9-month YTD vs prior 9-month YTD.
+    test("classifies the phase from the newest, longest same-length YoY", async () => {
+      const { sources, metric } = await frameworkRun(ALL);
+      const revenue = metric("growth", "revenueDeltaPercent");
+      expect(revenue).toMatchObject({
+        status: "value",
+        unit: "whole-percent",
+        periodEnd: "2026-09-30",
+        periodMonths: 9,
+        sourceIds: ["web-0097.kl-klse"],
+        inputs: [
+          { label: "Revenue", value: "552,728" },
+          { label: "Revenue", value: "1,127,067" },
+        ],
+      });
+      expect(revenue?.value).toBeCloseTo((1_127_067 / 552_728 - 1) * 100, 6);
+      expect(revenue?.basis).toContain("issuer report revenue change vs prior-year year to date");
+      expect(metric("growth", "netIncomeDeltaPercent")?.value).toBeCloseTo(
+        (254_821 / 87_009 - 1) * 100,
+        6,
+      );
+      expect(metric("phase", "phase")).toMatchObject({ status: "value", value: "hyper-growth" });
+      expect(metric("phase", "phase")?.inputs.map(({ value }) => value)).toEqual(
+        expect.arrayContaining(["552,728", "1,127,067", "87,009", "254,821"]),
+      );
+      expect(sources.businessFramework?.sections.find(({ name }) => name === "Risk")?.posture).toBe(
+        "insufficient-data",
+      );
+      const framework = sources.businessFramework;
+      expect(framework?.phase).toBe("hyper-growth");
+      const phaseSection = framework?.sections.find(({ name }) => name === "Phase");
+      expect(phaseSection?.sourceIds).toContain("web-0097.kl-klse");
+      expect(phaseSection?.summary).toContain("Phase hyper-growth");
+      expect(framework?.sections.find(({ name }) => name === "Growth")?.posture).toBe(
+        "criteria-supported",
+      );
+      expect(
+        sources.extendedEvidence?.items.find(({ category }) => category === "business-framework")
+          ?.metrics,
+      ).toMatchObject({ phase: "hyper-growth", growthPosture: "criteria-supported" });
+      const phaseGaps = sources.sourceGaps.filter(
+        ({ source: gap }) => gap === "business-framework-phase",
+      );
+      expect(phaseGaps).toHaveLength(1);
+      expect(phaseGaps[0]?.message).not.toContain("Revenue YoY");
+    });
+
+    test("uses the quarter when it is the only same-length pair", async () => {
+      const { metric } = await frameworkRun(ALL.filter(([, cell]) => /c[23]$/u.test(cell)));
+      expect(metric("growth", "revenueDeltaPercent")).toMatchObject({ periodMonths: 3 });
+      expect(metric("growth", "revenueDeltaPercent")?.value).toBeCloseTo(
+        (485_101 / 228_567 - 1) * 100,
+        6,
+      );
+    });
+
+    test("names the missing comparative instead of guessing across period lengths", async () => {
+      // Current quarter against the prior year-to-date: no same-length prior-year pair.
+      const { sources, metric } = await frameworkRun([
+        ["revenue", "t1:r4:c2"],
+        ["revenue", "t1:r4:c5"],
+      ]);
+      expect(metric("growth", "revenueDeltaPercent")).toMatchObject({
+        status: "missing",
+        reason: "no issuer report revenue with a checked prior-year same-length comparative",
+      });
+      expect(sources.businessFramework).not.toHaveProperty("phase");
+      expect(metric("phase", "phase")?.status).toBe("missing");
+    });
+
+    test("leaves the framework untouched without issuer revenue or profit rows", async () => {
+      const { input, sources } = await frameworkRun([["basic-eps", "t1:r6:c2"]]);
+      expect(sources.businessFramework).toBe(input.businessFramework);
+      expect(sources.extendedEvidence).toBe(input.extendedEvidence);
+    });
+  });
+
   describe("Accounting Scope", () => {
     const QUARTER_HEAD = `| | 3 months ended 30 Sep 2026 | 3 months ended 30 Sep 2025 |
 | --- | --- | --- |

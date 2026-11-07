@@ -113,6 +113,7 @@ export interface MetricContext {
   readonly snapshot?: MarketSnapshot;
   readonly verifiedSnapshot?: VerifiedMarketSnapshot;
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
+  readonly issuerReport?: MetricSection;
 }
 
 // `basis` replaces the definition's when the selected inputs narrow it.

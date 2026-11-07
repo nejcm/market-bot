@@ -221,6 +221,18 @@ export function sectionSummary(
   return `${name} ${posture}${metricText === "" ? "" : ` (${metricText})`}`;
 }
 
+export function businessFrameworkItemMetrics(
+  phase: BusinessLifecyclePhase | undefined,
+  sections: readonly BusinessFrameworkSection[],
+): Readonly<Record<string, string>> {
+  return Object.fromEntries([
+    ...(phase === undefined ? [] : [["phase", phase] as const]),
+    ...sections.map(
+      (section) => [`${section.name.toLowerCase()}Posture`, section.posture] as const,
+    ),
+  ]);
+}
+
 export function businessFrameworkSummary(sections: readonly BusinessFrameworkSection[]): string {
   return `Business Framework: ${sections.map((section) => section.summary).join("; ")}.`;
 }
@@ -364,13 +376,7 @@ export function addBusinessFrameworkEvidence(
         .filter((value): value is string => value !== undefined)
         .toSorted()
         .at(-1) ?? generatedAt,
-    metrics: Object.fromEntries([
-      ...(phase === undefined ? [] : [["phase", phase] as const]),
-      ...sections.map(
-        (frameworkSection) =>
-          [`${frameworkSection.name.toLowerCase()}Posture`, frameworkSection.posture] as const,
-      ),
-    ]),
+    metrics: businessFrameworkItemMetrics(phase, sections),
     ...(secItem?.identity !== undefined ? { identity: secItem.identity } : {}),
   };
   const artifact: BusinessFrameworkArtifact = {

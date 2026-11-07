@@ -8,7 +8,10 @@ import {
   frameworkGaps,
   QUALITATIVE_GAPS,
 } from "../src/sources/extended-evidence/business-framework";
-import { classifyBusinessLifecyclePhase } from "../src/sources/extended-evidence/business-framework-metrics";
+import {
+  businessFrameworkMetrics,
+  classifyBusinessLifecyclePhase,
+} from "../src/sources/extended-evidence/business-framework-metrics";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
@@ -315,6 +318,19 @@ describe("frameworkGaps", () => {
     expect(classifyGap(gap)).toBe("material");
     expect(classifyGap(sourceGapScopedReportText(gap))).toBe("material");
   });
+});
+
+const issuerYoyRow = (id: string, fields: Partial<MetricResult>): MetricResult => ({
+  id,
+  label: "Revenue change vs prior-year quarter",
+  unit: "ratio-percent",
+  basis: "(current − prior-year same period) / |prior-year same period|",
+  status: "value",
+  periodEnd: "2026-09-30",
+  periodMonths: 3,
+  inputs: [],
+  sourceIds: ["web-x"],
+  ...fields,
 });
 
 describe("business framework evidence", () => {
@@ -912,6 +928,59 @@ describe("business framework evidence", () => {
     ).toContain(
       "Business criteria-supported (Revenue $100, Gross profit $45, Operating income $24)",
     );
+  });
+
+  test("issuer report YoY rows feed Growth only on the non-statement path, with their outcome", () => {
+    const growth = (issuerRows: readonly MetricResult[], filed = false) =>
+      businessFrameworkMetrics({
+        symbol: "0097.KL",
+        issuerReport: { id: "issuer-report", title: "Issuer report figures", metrics: issuerRows },
+        ...(filed ? { statements: ANNUAL_STATEMENTS } : {}),
+      }).sections.Growth?.metrics;
+    const revenue = (rows: readonly MetricResult[]) =>
+      growth(rows)?.find(({ id }) => id === "revenueDeltaPercent");
+
+    expect(
+      revenue([
+        issuerYoyRow("issuer-report-revenue-yoy-quarter", {
+          status: "missing",
+          reason: "inputs are reported in different currencies",
+        }),
+      ]),
+    ).toMatchObject({
+      status: "missing",
+      reason: "issuer report: inputs are reported in different currencies",
+    });
+    expect(
+      revenue([
+        issuerYoyRow("issuer-report-revenue-yoy-quarter", {
+          status: "not-meaningful",
+          reason: "prior-year figure is zero or negative",
+        }),
+      ]),
+    ).toMatchObject({ status: "not-meaningful" });
+    expect(
+      revenue([
+        issuerYoyRow("issuer-report-revenue-yoy-quarter", {
+          label: "Revenue change vs prior-year quarter, continuing operations",
+          value: 0.1,
+        }),
+      ]),
+    ).toMatchObject({ label: "Revenue YoY, continuing operations", value: 10 });
+    expect(
+      growth([issuerYoyRow("issuer-report-revenue-yoy-quarter", { value: 0.1 })])?.find(
+        ({ id }) => id === "netIncomeDeltaPercent",
+      ),
+    ).toMatchObject({
+      status: "missing",
+      reason:
+        "no issuer report profit attributable to owners with a checked prior-year same-length comparative",
+    });
+    expect(
+      growth([issuerYoyRow("issuer-report-revenue-yoy-quarter", { value: 0.9 })], true)?.find(
+        ({ id }) => id === "revenueDeltaPercent",
+      )?.inputs[0]?.artifact,
+    ).toBe("statements");
   });
 
   test("SEC-only amounts carry the summary's USD unit, not a non-USD quote currency", () => {

@@ -4113,14 +4113,15 @@ export function assertPricePerformanceInvariants(
     "equity runs, including fixtures with price history, require Price Performance",
   ).toBeDefined();
   expect(run.markdown).toContain("### Price Performance\n");
-  expect(section!.metrics.map(({ id }) => id)).toEqual([
-    "priceReturn1y",
-    "spyPriceReturn1y",
-    "priceReturn3y",
-    "spyPriceReturn3y",
-    "priceReturn5y",
-    "spyPriceReturn5y",
-  ]);
+  const profile = exchangeProfileFor(report.symbol ?? "");
+  const benchmark = profile?.benchmark ?? "SPY";
+  const benchmarkPrefix = profile === undefined ? "spyPriceReturn" : "benchmarkPriceReturn";
+  expect(section!.metrics.map(({ id }) => id)).toEqual(
+    [1, 3, 5].flatMap((years) => [
+      `priceReturn${String(years)}y`,
+      `${benchmarkPrefix}${String(years)}y`,
+    ]),
+  );
   const unresolved = section!.metrics.some(({ status }) => status !== "value");
   expect(report.dataGaps.some((gap) => gap.startsWith("price-performance: "))).toBe(unresolved);
   const gaps = run.collectedSources.sourceGaps.filter(
@@ -4141,18 +4142,22 @@ export function assertPricePerformanceInvariants(
     ({ adapter }) => adapter === "yahoo-price-history",
   );
   const rawFor = (symbol: string) => histories.find(({ id }) => id.endsWith(`-${symbol}`));
-  if (rawFor(report.symbol ?? "") !== undefined && rawFor("SPY") === undefined) {
-    for (const metric of section!.metrics.filter(({ id }) => !id.startsWith("spy"))) {
-      expect(metric.reason ?? "", "issuer returns do not depend on SPY history").not.toContain(
-        "SPY",
-      );
+  if (rawFor(report.symbol ?? "") !== undefined && rawFor(benchmark) === undefined) {
+    for (const metric of section!.metrics.filter(({ id }) => !id.startsWith(benchmarkPrefix))) {
+      expect(
+        metric.reason ?? "",
+        "issuer returns do not depend on benchmark history",
+      ).not.toContain(benchmark);
     }
     expect(run.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({
         source: "yahoo-price-history",
-        message: expect.stringContaining("SPY"),
+        message: expect.stringContaining(benchmark),
       }),
     );
+  }
+  if (profile !== undefined) {
+    expect(histories.some(({ id }) => id.endsWith("-SPY") || id.endsWith("-QQQ"))).toBe(false);
   }
   for (const metric of section!.metrics) {
     expect(metric.sourceIds.toSorted()).toEqual(
@@ -4194,8 +4199,9 @@ export function assertPricePerformanceInvariants(
     expectClose(metric.value, Number(end!.value) / Number(start!.value) - 1, metric.id);
     expect(metric.basis).toContain("price return, not total return");
     expect(metric.basis).toContain("split-adjusted");
-    if (metric.id.startsWith("spy")) {
-      expect(metric.label).toContain("SPY (S&P 500 proxy)");
+    if (metric.id.startsWith(benchmarkPrefix)) {
+      expect(metric.label).toContain(profile?.benchmarkName ?? "SPY (S&P 500 proxy)");
+      expect(metric.inputs.map(({ symbol }) => symbol)).toEqual([benchmark, benchmark]);
       const subject = rawFor(report.symbol!);
       expect(subject).toBeDefined();
       const bars = splitAdjustedObservationsFromYahooChart(report.symbol!, subject!.payload);

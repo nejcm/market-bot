@@ -94,6 +94,7 @@ async function collect(
   payloadFor: (symbol: string, init?: RequestInit) => unknown,
   at = AS_OF,
   retryDelaysMs: readonly number[] = [],
+  subject = "TEST",
 ) {
   resetSourceResilienceForTests();
   setSourceHostMinDelayMsForTests(0);
@@ -108,7 +109,7 @@ async function collect(
     },
     retryDelaysMs,
   );
-  return collectPriceHistory(context, "TEST");
+  return collectPriceHistory(context, subject);
 }
 
 describe("Price Performance Metric Section", () => {
@@ -168,6 +169,28 @@ describe("Price Performance Metric Section", () => {
     }
   });
 
+  test("a null close on a completed newest session keeps earlier bars and declares the session", async () => {
+    for (const nulled of ["TEST", "SPY"]) {
+      const collected = await collect((symbol) =>
+        chart(symbol, DATES, symbol === nulled ? [50, 75, 100, null] : [50, 75, 100, 120]),
+      );
+      expect(
+        collected.priceHistory
+          .find(({ symbol }) => symbol === nulled)
+          ?.bars.map(({ date }) => date),
+      ).toEqual(DATES.slice(0, 3));
+      expect(collected.sourceGaps).toMatchObject([
+        {
+          source: "yahoo-price-history",
+          symbol: nulled,
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "no-cap",
+          message: `${nulled}: Yahoo returned no close for the completed 2026-07-24 session; price history ends at the prior session`,
+        },
+      ]);
+    }
+  });
+
   test("uses price closes for six cumulative returns with common sessions and frozen reader values", async () => {
     const collected = await collect((symbol) =>
       chart(symbol, DATES, symbol === "SPY" ? [100, 120, 150, 180] : [50, 75, 100, 120]),
@@ -186,6 +209,7 @@ describe("Price Performance Metric Section", () => {
         String(Date.parse("2021-07-10") / 1000),
       );
     }
+    expect(collected.sourceGaps).toEqual([]);
     const { section, sourceGaps } = evaluate(collected.priceHistory);
     expect(sourceGaps).toEqual([]);
     for (const [i, expected] of [0.2, 0.2, 0.6, 0.5, 1.4, 0.8].entries()) {
@@ -266,6 +290,104 @@ describe("Price Performance Metric Section", () => {
       }
       expect(sourceGaps).toMatchObject([{ source: "price-performance", triage: "material" }]);
     }
+  });
+
+  test("measures a profiled listing against its Exchange Profile benchmark, never SPY", async () => {
+    const collected = await collect(
+      (symbol) =>
+        chart(symbol, DATES, symbol === "^KLSE" ? [100, 120, 150, 180] : [50, 75, 100, 120]),
+      AS_OF,
+      [],
+      "0097.KL",
+    );
+    expect(collected.sources.map(({ id }) => id)).toEqual([
+      "price-history-0097.KL",
+      "price-history-^KLSE",
+    ]);
+    const { section, sourceGaps } = pricePerformanceSection({
+      symbol: "0097.KL",
+      asOf: AS_OF,
+      priceHistory: [
+        ...collected.priceHistory.map((row) => ({ ...row, currency: "MYR" })),
+        history("SPY", [1, 1, 1, 1], "USD"),
+      ],
+    });
+    expect(sourceGaps).toEqual([]);
+    expect(section.metrics.map(({ id }) => id)).toEqual(
+      [1, 3, 5].flatMap((years) => [
+        `priceReturn${String(years)}y`,
+        `benchmarkPriceReturn${String(years)}y`,
+      ]),
+    );
+    expect(section.metrics[1]).toMatchObject({
+      label: "FTSE Bursa Malaysia KLCI (^KLSE) 1-year price return",
+      sourceIds: ["price-history-^KLSE"],
+    });
+    expect(Number(section.metrics[1]?.value)).toBeCloseTo(0.2, 12);
+    expect(section.metrics[1]?.inputs.map(({ unit }) => unit)).toEqual([
+      "index-points",
+      "index-points",
+    ]);
+    expect(section.metrics[0]?.inputs[0]).toMatchObject({ unit: "currency-per-share" });
+    expect(section.metrics[1]?.basis).toContain(
+      "common completed sessions with FTSE Bursa Malaysia KLCI (^KLSE); quote currency MYR",
+    );
+    expect(JSON.stringify(section)).not.toContain("SPY");
+  });
+
+  test("declares a missing Exchange Profile benchmark instead of falling back to SPY", () => {
+    for (const histories of [
+      [history("0097.KL"), history("SPY")],
+      [history("0097.KL"), { ...history("^KLSE"), bars: [] }, history("SPY")],
+    ]) {
+      const { section, sourceGaps } = pricePerformanceSection({
+        symbol: "0097.KL",
+        asOf: AS_OF,
+        priceHistory: histories,
+      });
+      expect(section.metrics.filter((_, i) => i % 2 === 0).map(({ status }) => status)).toEqual(
+        Array.from({ length: 3 }, () => "value"),
+      );
+      for (const metric of section.metrics.filter((_, i) => i % 2 === 1)) {
+        expect(metric).toMatchObject({
+          status: "missing",
+          reason: "no completed price history for FTSE Bursa Malaysia KLCI (^KLSE)",
+        });
+      }
+      expect(sourceGaps).toMatchObject([{ source: "price-performance", triage: "material" }]);
+    }
+  });
+
+  test("declares a failed Exchange Profile benchmark fetch without fetching SPY", async () => {
+    const requested: string[] = [];
+    const collected = await collect(
+      (symbol) => {
+        requested.push(symbol);
+        if (symbol === "^KLSE") {
+          throw new Error("synthetic benchmark failure");
+        }
+        return chart(symbol, DATES, [50, 75, 100, 120]);
+      },
+      AS_OF,
+      [],
+      "0097.KL",
+    );
+    expect(requested.toSorted()).toEqual(["0097.KL", "^KLSE"]);
+    expect(collected.sourceGaps).toMatchObject([
+      { source: "yahoo-price-history", symbol: "^KLSE", evidenceQualityImpact: "no-cap" },
+    ]);
+    const { section } = pricePerformanceSection({
+      symbol: "0097.KL",
+      asOf: AS_OF,
+      priceHistory: collected.priceHistory,
+    });
+    for (const metric of section.metrics.filter((_, i) => i % 2 === 1)) {
+      expect(metric.status).toBe("missing");
+      expect(metric.reason).toStartWith(
+        "no completed price history for FTSE Bursa Malaysia KLCI (^KLSE); ^KLSE: ",
+      );
+    }
+    expect(section.metrics[0]).toMatchObject({ status: "value" });
   });
 
   test("declares a SPY fetch failure while retaining issuer returns and its snapshot", async () => {

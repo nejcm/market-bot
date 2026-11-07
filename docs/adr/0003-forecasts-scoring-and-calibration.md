@@ -56,6 +56,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   supplied end. Without a usable schedule accept only bars before the previous UTC day. A later schedule
   certifies a recent earlier bar only after the later session opens; before that, withhold as awaiting-open
   if it opens within 10 days, otherwise unverified. Filter after split validation, before caching/selection.
+  A null close on the newest bar withholds only that session as unverified; any other missing or invalid
+  close rejects the window, because dropping an earlier bar would shift the session count onto a wrong close.
 - Withheld in-progress/awaiting-open or scheduled-unopened sessions cause a horizon wait only if filling exactly
   those sessions resolves the one unresolved base expression. For conditionals consider only the antecedent
   until resolved; placeholder prices never activate it. Other missing observations consume an attempt.

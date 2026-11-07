@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { RESEARCH_SUBJECT_SYMBOL_RE } from "../src/config/shared";
 import {
   MAX_PEERS,
   MIN_PROPOSED_PEERS,
@@ -187,6 +188,45 @@ describe("peer universe", () => {
     };
 
     expect(validatePeerUniverse(universe)).toEqual({ valid: true, errors: [] });
+  });
+
+  test("accepts numeric exchange codes only with an exchange suffix", () => {
+    const peer = { role: "core" as const, rationale: "Bursa semiconductor peer", sourceIds: ["s"] };
+    const universe = (targetSymbol: string, symbol: string): PeerUniverse => ({
+      targetSymbol,
+      provenance: "model-proposed-validated",
+      peers: [{ ...peer, symbol }],
+      sources: [{ sourceId: "s", title: "Bursa listing" }],
+    });
+
+    expect(validatePeerUniverse(universe("0097.KL", "3867.KL"))).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(validatePeerUniverse(universe("0700.HK", "7203.T")).valid).toBe(true);
+    for (const symbol of ["BRK.B", "BRK-B", "RDS.A"]) {
+      expect(validatePeerUniverse(universe("AAPL", symbol)).valid).toBe(true);
+    }
+    for (const symbol of [
+      "3867",
+      "2025",
+      "3867.K1",
+      "3867.",
+      "../3867.KL",
+      "3867 .KL",
+      "3867-KL",
+    ]) {
+      expect(validatePeerUniverse(universe("0097.KL", symbol)).errors).toEqual([
+        `0097.KL: invalid peer symbol ${symbol}`,
+      ]);
+    }
+    expect(validatePeerUniverse(universe("0097.KL", "600519.SS")).valid).toBe(true);
+    expect(validatePeerUniverse(universe("0097.KL", "60051900.SS")).valid).toBe(false);
+    // The subject registry and exclusion feedback test symbols without uppercasing.
+    expect(RESEARCH_SUBJECT_SYMBOL_RE.test("3867.kl")).toBe(false);
+    expect(validatePeerUniverse(universe("2025", "3867.KL")).errors).toEqual([
+      "2025: invalid target symbol",
+    ]);
   });
 });
 

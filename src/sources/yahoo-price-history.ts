@@ -24,7 +24,7 @@ const OPTIONAL_BENCHMARK_TIMEOUT_MS = 3000;
 export async function collectPriceHistory(
   ctx: CollectContext,
   symbol: string,
-  // Relative Predictions cite SPY or QQQ; any other benchmark keeps the declared forecast-baseline gap.
+  // US relative Predictions cite SPY or QQQ; profiled listings use only the Exchange Profile benchmark.
   relativeBenchmarks: readonly string[] = ["QQQ"],
 ): Promise<{
   readonly priceHistory: NonNullable<MetricContext["priceHistory"]>;
@@ -77,13 +77,11 @@ export async function collectPriceHistory(
     }
     const schedule = readYahooRegularSession(fetched.payload);
     const adjusted = splitAdjustedObservationsFromYahooChart(ticker, fetched.payload);
+    const completedSession = (date: string) =>
+      date <= to.toISOString().slice(0, 10) &&
+      classifyLatestSession(schedule, date, fetched.rawSnapshot.fetchedAt).status === "complete";
     const bars = adjusted
-      .filter(
-        ({ date }) =>
-          date <= to.toISOString().slice(0, 10) &&
-          classifyLatestSession(schedule, date, fetched.rawSnapshot.fetchedAt).status ===
-            "complete",
-      )
+      .filter(({ date }) => completedSession(date))
       .map(({ date, value }) => ({ date, close: value, completed: true }));
     const splitDates = yahooChartSplitDates(fetched.payload);
     const chart =
@@ -104,7 +102,27 @@ export async function collectPriceHistory(
           ? "split-adjusted history unavailable: invalid closes or split metadata"
           : "price history unavailable: no rows returned";
     }
+    const missingCloseGaps = mismatch
+      ? []
+      : (adjusted.withheldSessions ?? [])
+          .filter(({ date }) => completedSession(date))
+          .map(({ date }) =>
+            sourceGapWithContext(
+              {
+                source: fetched.rawSnapshot.adapter,
+                symbol: ticker,
+                message: `${ticker}: Yahoo returned no close for the completed ${date} session; price history ends at the prior session`,
+              },
+              {
+                provider: "yahoo",
+                capability: "market-data",
+                cause: "provider-data-missing",
+                evidenceQualityImpact: "no-cap",
+              },
+            ),
+          );
     return {
+      sourceGaps: missingCloseGaps,
       verifiedSnapshot: mismatch
         ? {
             sourceGaps: [
@@ -148,17 +166,11 @@ export async function collectPriceHistory(
     };
   };
   const localBenchmark = exchangeProfileFor(symbol)?.benchmark;
-  const coreTickers = [
-    ...new Set([
-      symbol.toUpperCase(),
-      "SPY",
-      ...(localBenchmark === undefined ? [] : [localBenchmark]),
-    ]),
-  ];
+  const coreTickers = [...new Set([symbol.toUpperCase(), localBenchmark ?? "SPY"])];
   const core = await Promise.all(coreTickers.map((ticker) => collectTicker(ticker)));
-  // Optional benchmarks wait for issuer and SPY retries, so their failures cannot open the shared Yahoo circuit first.
+  // Optional benchmarks wait for issuer and benchmark retries, so their failures cannot open the shared Yahoo circuit first.
   const optional = await Promise.all(
-    relativeBenchmarks
+    (localBenchmark === undefined ? relativeBenchmarks : [])
       .filter((ticker) => !coreTickers.includes(ticker))
       .map((ticker) => collectTicker(ticker, true)),
   );

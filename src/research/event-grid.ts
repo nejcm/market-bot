@@ -30,7 +30,7 @@ const GRID_RANGE_HORIZONS = [1, 5, 20] as const;
 const GRID_RELATIVE_HORIZON = 5;
 const US_GRID_BENCHMARK = "SPY";
 
-function gridBenchmark(symbol: string): string {
+export function gridBenchmark(symbol: string): string {
   return exchangeProfileFor(symbol)?.benchmark ?? US_GRID_BENCHMARK;
 }
 

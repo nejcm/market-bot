@@ -620,6 +620,33 @@ describe("ObservationRepository window routing", () => {
     ).toEqual([]);
   });
 
+  test("drops only a null newest close, as an unverified session; any other bad close rejects", () => {
+    const parse = (closes: readonly unknown[]) =>
+      splitAdjustedObservationsFromYahooChart("^KLSE", yahooChartPayload(closes));
+
+    const trailing = parse([1610.5, 1612.25, null]);
+    expect([...trailing]).toEqual([
+      { subject: "^KLSE", date: "2026-05-19", value: 1610.5 },
+      { subject: "^KLSE", date: "2026-05-20", value: 1612.25 },
+    ]);
+    expect(trailing.withheldSessions).toEqual([
+      {
+        date: "2026-05-21",
+        status: "unverified",
+        reason: "Yahoo returned no close for this session",
+      },
+    ]);
+    for (const closes of [
+      [1610.5, null, 1612.25],
+      [1610.5, null, null],
+      [null, null, null],
+      [1610.5, 1612.25, 0],
+      [1610.5, 1612.25, Number.NaN],
+    ]) {
+      expect([...parse(closes)]).toEqual([]);
+    }
+  });
+
   test("does not mix Massive into a failed policy-v3 Yahoo equity window", async () => {
     const { calls, fetch: stub } = recordingFetch(() => new Response(null, { status: 400 }));
     globalThis.fetch = stub;

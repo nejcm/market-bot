@@ -63,7 +63,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   Gate stops the run before any model stage when `MARKET_BOT_EXA_API_KEY` is unset or
   `MARKET_BOT_WEB_GATHER_DISABLE` is set: either removes the evidence base the coverage label names.
 - **Exchange Profile.** A checked-in row per exchange (suffix, local benchmark, currency; Bursa: `^KLSE`, MYR)
-  drives market regime and the Event Grid relative event. Its benchmark is never served by the US Massive
+  drives market regime, the Event Grid relative event, the final-synthesis relative benchmark, and the Price
+  Performance benchmark rows (amended 2026-11-07); such a listing collects no SPY or QQQ history. Its benchmark is never served by the US Massive
   fallback. An exchange without a row keeps the US proxies and declares an `exchange-profile` Source Gap, and a
   quote currency that differs from the row's currency declares one too; the two are never compared.
 - **Forecasts.** A non-SEC listing without verified closes issues no Observable Predictions and declares a
@@ -73,7 +74,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   gap, direction and relative keep their 0.5 baseline, and range references fall back to 0.5. On a listing
   with an Exchange Profile, a model Prediction with a leg outside that exchange other than its benchmark (SPY
   on a MYR listing) is withheld with a diagnostic `forecast-book` gap: its outcome would mix currencies and
-  session calendars (amended 2026-11-06).
+  session calendars (amended 2026-11-06). The final-synthesis prompt offers that benchmark as the only relative
+  benchmark on such a listing, in place of the US index examples (amended 2026-11-07).
 - **Currency.** Valuation Evidence divides on a USD basis; a quote currency other than USD, or a Reporting
   Currency other than USD beside a USD quote (a CAD 40-F filer), withholds it with a gap instead of dividing
   across currencies. Yahoo per-share values (EPS, dividend rate) name a non-USD quote
@@ -214,7 +216,6 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.
 - A redirected run collects market data twice (typed code, then the resolved code).
-- Price performance stays SPY-relative for every listing until it reads the Exchange Profile.
 - Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and the Business
   Framework do not read them yet. The mapping call reads at most four documents, so four fetched 32k-character
   pages bound its input at about 32k tokens (one fetched report adds about 8k). A mirror page that changes its table layout degrades to withheld figures, never to a guessed value.

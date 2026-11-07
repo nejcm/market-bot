@@ -857,7 +857,7 @@ export type CloseWindow = readonly Observation[] & {
 // Scoring withholds what the snapshot keeps. A scheduled session that has not closed and has no
 // Bar yet (pre-open) is reported too, so the window is never cached as covering that date.
 export function withholdUnfinishedSessions(
-  observations: readonly Observation[],
+  observations: CloseWindow,
   schedule: YahooRegularSessionRead,
   cutoff: string,
 ): CloseWindow {
@@ -907,6 +907,10 @@ export function withholdUnfinishedSessions(
       closesAt: schedule.window.endsAt,
     });
   }
+  const scheduleDates = new Set(withheld.map((session) => session.date));
+  withheld.push(
+    ...(observations.withheldSessions ?? []).filter(({ date }) => !scheduleDates.has(date)),
+  );
   if (withheld.length === 0) {
     return observations;
   }
@@ -1205,7 +1209,7 @@ export function yahooChartSplitDates(payload: unknown): readonly string[] | unde
 export function splitAdjustedObservationsFromYahooChart(
   symbol: string,
   payload: unknown,
-): readonly Observation[] {
+): CloseWindow {
   const chart = readYahooChartQuote(payload);
   if (chart === undefined) {
     return [];
@@ -1222,17 +1226,24 @@ export function splitAdjustedObservationsFromYahooChart(
   }
 
   const observations: Observation[] = [];
+  const withheldSessions: WithheldSession[] = [];
   let previousDate: string | undefined = undefined;
   for (let index = 0; index < chart.timestamps.length; index++) {
     const date = dateFromUnixSeconds(chart.timestamps[index]);
     const close = closes[index];
-    if (
-      date === undefined ||
-      typeof close !== "number" ||
-      !Number.isFinite(close) ||
-      close <= 0 ||
-      (previousDate !== undefined && date <= previousDate)
-    ) {
+    if (date === undefined || (previousDate !== undefined && date <= previousDate)) {
+      return [];
+    }
+    // Only the newest bar may lack a close: dropping an earlier one would shift session counts.
+    if (close === null && index === chart.timestamps.length - 1 && index > 0) {
+      withheldSessions.push({
+        date,
+        status: "unverified",
+        reason: "Yahoo returned no close for this session",
+      });
+      continue;
+    }
+    if (typeof close !== "number" || !Number.isFinite(close) || close <= 0) {
       return [];
     }
     observations.push({ subject: symbol, date, value: close });
@@ -1242,7 +1253,9 @@ export function splitAdjustedObservationsFromYahooChart(
   if (splits.some((split) => !observationDates.has(split.date))) {
     return [];
   }
-  return observations;
+  return withheldSessions.length === 0
+    ? observations
+    : Object.assign(observations, { withheldSessions });
 }
 
 export async function fetchYahooSplitAdjustedCloseWindow(

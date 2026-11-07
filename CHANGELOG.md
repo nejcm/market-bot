@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.7](https://github.com/nejcm/market-bot/compare/v1.13.6...v1.13.7) (2026-11-07)
+
+### Bug Fixes
+
+- exchange benchmark for Bursa forecasts, performance and closes (#154) ([3d42ad6](https://github.com/nejcm/market-bot/commit/3d42ad684a036dc47d06d594c9c2bf98f79427dd))
+- issuer net margin numerator and entity names counted as figures (#153) ([3be8ec3](https://github.com/nejcm/market-bot/commit/3be8ec3335c3f06bff0c9d71cf13b6674a604d82))
+
 ## [1.13.6](https://github.com/nejcm/market-bot/compare/v1.13.5...v1.13.6) (2026-11-06)
 
 ### Bug Fixes

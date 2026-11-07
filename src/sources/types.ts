@@ -188,7 +188,7 @@ export interface CollectedSources {
   readonly newsAnalytics?: NewsCollectionAnalytics;
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
-  /** Split-adjusted closes for the equity symbol, SPY and QQQ; the Forecast Baseline's only market input. */
+  /** Split-adjusted closes for the equity symbol and its benchmarks (SPY and QQQ, or the Exchange Profile benchmark); the Forecast Baseline's only market input. */
   readonly priceHistory?: MetricContext["priceHistory"];
   readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;

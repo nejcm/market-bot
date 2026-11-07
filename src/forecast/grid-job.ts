@@ -17,6 +17,7 @@ import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
 import {
   eventGrid,
+  gridBenchmark,
   issuableGridEvents,
   issueForecastBook,
   plannedEventGridIds,
@@ -57,7 +58,7 @@ interface ForecastGridFactSheet {
   readonly returnsPct: Readonly<Record<string, number>>;
   readonly realizedVol20dAnnualizedPct?: number;
   readonly benchmark: {
-    readonly symbol: "SPY";
+    readonly symbol: string;
     readonly returnsPct: Readonly<Record<string, number>>;
   };
   readonly marketRegime?: string;
@@ -379,9 +380,9 @@ async function priceModelGrid(input: {
     ),
     ...(vol !== undefined ? { realizedVol20dAnnualizedPct: vol } : {}),
     benchmark: {
-      symbol: "SPY",
+      symbol: gridBenchmark(symbol),
       returnsPct: returnsPct(
-        completedCloses("SPY").map((bar) => bar.close),
+        completedCloses(gridBenchmark(symbol)).map((bar) => bar.close),
         BENCHMARK_RETURN_SESSIONS,
       ),
     },

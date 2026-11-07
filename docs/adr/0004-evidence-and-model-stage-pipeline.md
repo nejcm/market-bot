@@ -102,8 +102,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   Structural `not-filed`, bounded issuer `insufficient-history`, and workbench `outside-price-history-window`
   are diagnostic; other missing inputs and independently unresolved inputs stay material.
 - Issuer insufficient history requires completed data beginning 8–14 days after anniversary; later starts do
-  not prove listing age. Issuer returns use own sessions; SPY comparisons require common completed sessions
-  and benchmark coverage. Missing SPY preserves issuer returns; fetch failure declares Yahoo gap. Workbench
+  not prove listing age. Issuer returns use own sessions; benchmark comparisons (SPY, or the Exchange Profile benchmark per
+  ADR 0006) require common completed sessions and benchmark coverage. Missing benchmark history preserves
+  issuer returns, never falls back to SPY; fetch failure declares Yahoo gap. Workbench
   outside-window status needs requested start and usable returned closes; unavailable history, interior
   missing bars, and failures remain material. Lifecycle values require cited classification inputs. Price
   Performance, Workbench, and snapshot share issuer history; the first two share completed split-adjusted
@@ -522,7 +523,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   expressions. An optional `|period` format appends the metric's period label; an unknown format or
   `|period` without `periodEnd` rejects for repair like an unknown id. References stay inline tokens, not a
   parallel field, so the existing repair loop, citation merge and replays of tokenless outputs are unchanged.
-- Catalog includes Capital Return, five Operating Ratios, six issuer/SPY returns, framework/lenses,
+- Catalog includes Capital Return, five Operating Ratios, six issuer/benchmark returns, framework/lenses,
   Workbench observations, and a reference-only `market-session` section built from the Verified Market
   Snapshot at prompt and assembly time (not persisted as a Metric Section). Rows retain exact ID/label/status, available formatted value, unit/currency,
   basis/period/citations; identical section metadata may inherit defaults, never another row. Exclude raw

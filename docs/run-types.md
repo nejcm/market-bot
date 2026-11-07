@@ -544,11 +544,11 @@ market-bot forecast-grid --watchlist <name> --yes  # spends one quick-model call
 
 ### Data and Model Call
 
-Per equity symbol, in sequence: `yahoo-price-history` (issuer + SPY) feeds the
+Per equity symbol, in sequence: `yahoo-price-history` (issuer + SPY, or the Exchange Profile benchmark) feeds the
 Verified Market Snapshot, the deterministic Event Grid and the Forecast Baseline.
 When the grid has events, one `forecast-grid` stage call on `quickModel` prices
 them from a compact fact sheet: last close, 1/5/20/60-session returns, 20-day
-realized volatility, SPY 5/20-session returns and, when the newest instrument run
+realized volatility, that benchmark's 5/20-session returns and, when the newest instrument run
 is at most seven days old, its summary and market regime label. No report
 synthesis, no Web Gather, no news. Crypto items are declared gaps.
 

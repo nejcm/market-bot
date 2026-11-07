@@ -40,6 +40,7 @@ import { renderMarkdownReport } from "../../src/report/markdown";
 import { projectExtendedEvidenceReportExtras } from "../../src/research/extended-evidence-projections";
 import { newsSource } from "../support/fixtures";
 import { splitAdjustedObservationsFromYahooChart } from "../../src/sources/yahoo";
+import { exchangeProfileFor } from "../../src/domain/exchange-profile";
 
 const EXPECTED_COMPLETENESS_GRADES = {
   "equity-aapl-brief": ["blocked", "limited"],
@@ -440,10 +441,11 @@ describe("static equity run fixtures", () => {
         ({ adapter }) => adapter === "yahoo-price-history",
       );
       const issuerHistory = histories.find(({ id }) => id.endsWith(`-${result.report.symbol}`));
-      const benchmarkHistory = histories.find(({ id }) => id.endsWith("-SPY"));
+      const benchmark = exchangeProfileFor(result.report.symbol!)?.benchmark ?? "SPY";
+      const benchmarkHistory = histories.find(({ id }) => id.endsWith(`-${benchmark}`));
       if (issuerHistory !== undefined && benchmarkHistory !== undefined) {
         expect(
-          splitAdjustedObservationsFromYahooChart("SPY", benchmarkHistory.payload).map(
+          splitAdjustedObservationsFromYahooChart(benchmark, benchmarkHistory.payload).map(
             ({ value }) => value,
           ),
           `${name} benchmark price history must differ from the issuer history`,
@@ -842,7 +844,24 @@ describe("static equity run fixtures", () => {
   });
 
   test("bursa deep fetches the newest issuer report page in code", async () => {
-    const result = await runFixture("equity-bursa-deep", { llm: "replay" });
+    const fixture = await loadFixture("equity-bursa-deep");
+    const replayProvider = makeReplayProvider(fixture.llmCassette);
+    const result = await runFixture("equity-bursa-deep", {
+      llm: "replay",
+      provider: {
+        name: replayProvider.name,
+        // Recorded pred-1 cites SPY history, which a profiled listing no longer collects.
+        generate: async (request: ModelRequest) => {
+          const response = await replayProvider.generate(request);
+          return requestStage(request) === "final-synthesis"
+            ? {
+                ...response,
+                content: response.content.replaceAll("price-history-SPY", "price-history-0097.KL"),
+              }
+            : response;
+        },
+      },
+    });
     runResults.push(result);
     const audit = JSON.parse(
       await readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.webGatherAudit), "utf8"),

@@ -287,6 +287,38 @@ describe("forecast-grid command", () => {
     expect(report.dataGaps.join("\n")).not.toContain("no latest-run summary");
   });
 
+  test("a profiled listing's fact sheet reports its Exchange Profile benchmark, not SPY", async () => {
+    seedWatchlist("core", [["equity", "0097.KL"]]);
+    const replay = makeReplayFetch(await cassette(), FIXTURE_DIR);
+    const requested: string[] = [];
+    const aliased: FetchLike = async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      requested.push(decodeURIComponent(url));
+      const recorded = { "0097.KL": "AAPL", "^KLSE": "SPY" }[
+        decodeURIComponent(new URL(url).pathname.split("/").at(-1)!)
+      ];
+      if (recorded === undefined) {
+        throw new Error(`unexpected fetch ${url}`);
+      }
+      const response = await replay(url.replace(/\/chart\/[^?]+/u, `/chart/${recorded}`), init);
+      const body = (await response.json()) as {
+        chart: { result: [{ meta?: { symbol: string } }] };
+      };
+      const [result] = body.chart.result;
+      if (result.meta !== undefined) {
+        result.meta.symbol = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!);
+      }
+      return Response.json(body, { status: 200, headers: response.headers });
+    };
+    const { requests } = await spend(allPriced, aliased);
+    expect(requested.some((url) => /\/chart\/(?:SPY|QQQ)\b/u.test(url))).toBe(false);
+    const user = JSON.parse(requests[0]!.messages[1]!.content) as {
+      factSheet: { benchmark: { symbol: string; returnsPct: Record<string, number> } };
+    };
+    expect(user.factSheet.benchmark.symbol).toBe("^KLSE");
+    expect(Object.keys(user.factSheet.benchmark.returnsPct).length).toBeGreaterThan(0);
+  });
+
   test("invalid or missing model probabilities are declared, never defaulted", async () => {
     seedWatchlist("core", [["equity", "AAPL"]]);
     const { report } = await spend(

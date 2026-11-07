@@ -24,7 +24,7 @@ const OPTIONAL_BENCHMARK_TIMEOUT_MS = 3000;
 export async function collectPriceHistory(
   ctx: CollectContext,
   symbol: string,
-  // Relative Predictions cite SPY or QQQ; any other benchmark keeps the declared forecast-baseline gap.
+  // US relative Predictions cite SPY or QQQ; profiled listings use only the Exchange Profile benchmark.
   relativeBenchmarks: readonly string[] = ["QQQ"],
 ): Promise<{
   readonly priceHistory: NonNullable<MetricContext["priceHistory"]>;
@@ -148,17 +148,11 @@ export async function collectPriceHistory(
     };
   };
   const localBenchmark = exchangeProfileFor(symbol)?.benchmark;
-  const coreTickers = [
-    ...new Set([
-      symbol.toUpperCase(),
-      "SPY",
-      ...(localBenchmark === undefined ? [] : [localBenchmark]),
-    ]),
-  ];
+  const coreTickers = [...new Set([symbol.toUpperCase(), localBenchmark ?? "SPY"])];
   const core = await Promise.all(coreTickers.map((ticker) => collectTicker(ticker)));
-  // Optional benchmarks wait for issuer and SPY retries, so their failures cannot open the shared Yahoo circuit first.
+  // Optional benchmarks wait for issuer and benchmark retries, so their failures cannot open the shared Yahoo circuit first.
   const optional = await Promise.all(
-    relativeBenchmarks
+    (localBenchmark === undefined ? relativeBenchmarks : [])
       .filter((ticker) => !coreTickers.includes(ticker))
       .map((ticker) => collectTicker(ticker, true)),
   );

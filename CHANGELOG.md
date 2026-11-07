@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.10](https://github.com/nejcm/market-bot/compare/v1.13.9...v1.13.10) (2026-11-07)
+
+### Bug Fixes
+
+- **web-figures:** parse glued sen and cents, withhold mixed currency (#162) ([7ad14b5](https://github.com/nejcm/market-bot/commit/7ad14b54177efd51085372c28078842575ba4a69))
+- **web-figures:** check figures before point and percent unit words (#161) ([a859492](https://github.com/nejcm/market-bot/commit/a8594927a4f2a0f0dcd879b726d6cbbe02941926))
+- **web-figures:** stop loose parses from verifying mismatched figures (#160) ([de3f3fd](https://github.com/nejcm/market-bot/commit/de3f3fd0ae19617005b34f8f1c0e207a362d1649))
+
 ## [1.13.9](https://github.com/nejcm/market-bot/compare/v1.13.8...v1.13.9) (2026-11-07)
 
 ### Bug Fixes

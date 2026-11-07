@@ -706,6 +706,24 @@ function resolveInput(
       value === undefined || value === null
         ? undefined
         : { value, ...(periodEnd !== undefined ? { periodEnd } : {}) };
+  } else if (input.artifact === "issuerReport") {
+    const figure = run.collectedSources.metricSections
+      ?.find(({ id }) => id === "issuer-report")
+      ?.metrics.flatMap(({ inputs }) => (inputs.length === 1 ? inputs : []))
+      .find(
+        (candidate) =>
+          candidate.label === input.label &&
+          candidate.value === input.value &&
+          candidate.periodEnd === input.periodEnd &&
+          candidate.periodType === input.periodType &&
+          candidate.sourceIds.join(",") === input.sourceIds.join(","),
+      );
+    resolved = figure && {
+      value: figure.value,
+      ...(figure.periodEnd === undefined ? {} : { periodEnd: figure.periodEnd }),
+      ...(figure.periodType === undefined ? {} : { periodType: figure.periodType }),
+      ...(figure.currency === undefined ? {} : { currency: figure.currency }),
+    };
   } else if (input.artifact === "subsequentFinancing") {
     const bridge = run.collectedSources.subsequentFinancing;
     resolved =
@@ -2329,7 +2347,14 @@ export function assertBusinessFrameworkMetricInvariants(
         if (metric.status !== "value" || typeof metric.value !== "number") {
           continue;
         }
-        const [first, second] = resolved.map((input) => Number(input?.value));
+        // Issuer report inputs carry the table cell text, e.g. "1,127,067" or "(500)".
+        const [first, second] = resolved.map((input) =>
+          Number(
+            String(input?.value)
+              .replaceAll(",", "")
+              .replace(/^\((.+)\)$/u, "-$1"),
+          ),
+        );
         const ratio = FRAMEWORK_RATIOS[metric.id];
         // SEC-summary pass-through (no statements): inputs name evidence keys and YoY is filed.
         const passThrough = metric.inputs.every(({ artifact }) => artifact === "evidence");

@@ -15,6 +15,7 @@ import type {
 import { canonicalizeUrl } from "../sources/news-utils";
 import type { CollectedSources, RawSourceSnapshot } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
+import { withIssuerReportFramework } from "./issuer-report-framework";
 import { withholdProviderEps } from "./provider-eps-withholding";
 import { rawTextsByUrl } from "./web-figure-verification";
 
@@ -1170,11 +1171,13 @@ export async function runIssuerReportPhase(
             "validation-failed",
           ),
         ];
+  const framed =
+    section === undefined
+      ? collectedSources
+      : withIssuerReportFramework(collectedSources, symbol, section);
   return {
     collectedSources: withIssuerReport(
-      epsGaps.length === 0
-        ? collectedSources
-        : withholdProviderEps(collectedSources, symbol, PROVIDER_EPS_WITHHELD),
+      epsGaps.length === 0 ? framed : withholdProviderEps(framed, symbol, PROVIDER_EPS_WITHHELD),
       [...failureGaps, ...emptyGap, ...unpublishedGap, ...withheldGap, ...epsGaps],
       section,
     ),

@@ -216,6 +216,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.
 - A redirected run collects market data twice (typed code, then the resolved code).
-- Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and the Business
-  Framework do not read them yet. The mapping call reads at most four documents, so four fetched 32k-character
+- Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and Valuation Evidence
+  do not read them yet. The Business Framework reads their same-basis YoY rows (amended 2026-11-07): on a run
+  without SEC facts, Revenue YoY and Net income YoY take the newest period end, then the longest length (annual,
+  year to date, quarter), as the statement path does; net income is profit attributable to owners, the parent
+  scope US GAAP net income has. A withheld row keeps its reason, and the framework is re-derived after the phase. The mapping call reads at most four documents, so four fetched 32k-character
   pages bound its input at about 32k tokens (one fetched report adds about 8k). A mirror page that changes its table layout degrades to withheld figures, never to a guessed value.

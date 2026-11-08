@@ -2,11 +2,33 @@ import { describe, expect, test } from "bun:test";
 import type { Prediction } from "../src/domain/prediction";
 import type { ResearchReport } from "../src/domain/report";
 import {
-  auditPostSynthesisReport,
+  freshWebUnusedWarnings,
   isNumericClaim,
   isTechnicalClaim,
+  type PeerMedianLabels,
 } from "../src/research/post-synthesis-audit";
+import { auditReportIntegrity } from "../src/research/report-integrity-audit";
 import type { WebSourceUsage } from "../src/web-evidence";
+
+function auditPostSynthesisReport(
+  report: ResearchReport,
+  usage?: WebSourceUsage,
+  usablePeerSourceIds?: ReadonlySet<string>,
+  peerMedianLabels?: PeerMedianLabels,
+  runCurrencies: readonly string[] = [],
+) {
+  return [
+    ...auditReportIntegrity(
+      report,
+      undefined,
+      usablePeerSourceIds,
+      peerMedianLabels,
+      undefined,
+      runCurrencies,
+    ).warnings,
+    ...freshWebUnusedWarnings(usage),
+  ];
+}
 
 function reportWith(
   overrides: Partial<

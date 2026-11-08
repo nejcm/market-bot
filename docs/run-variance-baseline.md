@@ -176,7 +176,10 @@ says nothing about its 0.67 ratio. Run 3 also reads
 
 No run carried `webSources.usageWarning` (it needs ≥4 accepted and a ratio below
 0.25) and no run raised a report-integrity advisory warning
-(`reportIntegrityAudit.advisoryWarningCount` 0, `prunedItemCount` 0).
+(`reportIntegrityAudit.advisoryWarningCount` 0, `prunedItemCount` 0). That
+count no longer exists; posture omissions now read from
+`postSynthesisAudit.byCode["weak-evidence-posture-missing"]` (2026-11-09), which
+also counts claims later pruned, so it is not comparable with the old count.
 
 ### Reading new runs against the subsystem-outcome rows
 

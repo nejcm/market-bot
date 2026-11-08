@@ -2,15 +2,17 @@ import type { SynthesizeReportUntilValidResult } from "./final-synthesis";
 import type { CollectedSources } from "../sources/types";
 import type { EvidenceQualityAssessment } from "../domain/evidence";
 import type { ResearchReport } from "../domain/report";
-import {
-  auditPostSynthesisReport,
-  claimsForReport,
-  peerMedianClauses,
-} from "./post-synthesis-audit";
+import type { PostSynthesisAuditWarning } from "../domain/run-trace";
+import { freshWebUnusedWarnings, peerMedianClauses } from "./post-synthesis-audit";
 import type { PeerMedianAudit, PeerMedianAuditClause } from "./peer-median-audit";
 import type { StageOutput } from "./final-synthesis";
 import { computeWebSourceUsage } from "../web-evidence";
-import { auditReportIntegrity, summarySentenceTexts } from "./report-integrity-audit";
+import {
+  auditReportIntegrity,
+  claimsForReport,
+  summarySentenceTexts,
+  type ReportIntegrityAuditResult,
+} from "./report-integrity-audit";
 import { rederivePredictionShortfallReportAfterPruning } from "../report/prediction-shortfall";
 import { reconcileEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { validateResearchReport } from "../report/schema";
@@ -23,8 +25,8 @@ export async function finalizeSynthesis(
   peerMedianAudit: PeerMedianAudit,
 ): Promise<{
   readonly report: SynthesizeReportUntilValidResult["report"];
-  readonly postSynthesisWarnings: ReturnType<typeof auditPostSynthesisReport>;
-  readonly integrityAudit: ReturnType<typeof auditReportIntegrity>;
+  readonly postSynthesisWarnings: readonly PostSynthesisAuditWarning[];
+  readonly integrityAudit: ReportIntegrityAuditResult;
   readonly peerMedianAuditOutput?: StageOutput;
 }> {
   const usablePeerSourceIds =
@@ -41,17 +43,7 @@ export async function finalizeSynthesis(
     collected.resolvedInstrumentIdentity?.quoteCurrency,
     collected.financialStatements?.reportingCurrency,
   ].filter((currency) => currency !== undefined);
-  const postSynthesisWarnings = [
-    ...auditPostSynthesisReport(
-      synthesis.report,
-      computeWebSourceUsage(synthesis.report, collected),
-      usablePeerSourceIds,
-      peerMedian?.labels,
-      runCurrencies,
-    ),
-    ...(peerMedian?.warnings ?? []),
-  ];
-  const audit = auditReportIntegrity(
+  const { warnings, ...audit } = auditReportIntegrity(
     synthesis.report,
     assessment,
     usablePeerSourceIds,
@@ -62,6 +54,11 @@ export async function finalizeSynthesis(
     ),
     runCurrencies,
   );
+  const postSynthesisWarnings = [
+    ...warnings,
+    ...freshWebUnusedWarnings(computeWebSourceUsage(synthesis.report, collected)),
+    ...(peerMedian?.warnings ?? []),
+  ];
   const integrityAudit = {
     ...audit,
     report: rederivePredictionShortfallReportAfterPruning(audit.report),

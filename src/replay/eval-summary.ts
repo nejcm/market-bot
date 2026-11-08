@@ -181,9 +181,6 @@ function analyticsMetrics(analytics: Partial<RunAnalytics>, metrics: Record<stri
   if (integrity !== undefined) {
     metrics[`integrity.label.${integrity.label}`] = 1;
     metrics["integrity.prunedItems"] = integrity.prunedItemCount;
-    for (const advisory of integrity.advisories ?? []) {
-      addCount(metrics, `integrity.advisory.${advisory.code}`);
-    }
   }
   for (const [code, count] of Object.entries(analytics.postSynthesisAudit?.byCode ?? {})) {
     metrics[`postSynthesisAudit.${code}`] = count;
@@ -330,12 +327,7 @@ function isIntegrityAudit(value: unknown): value is Record<string, unknown> {
   return (
     isRecord(value) &&
     typeof value.reportIntegrity === "string" &&
-    typeof value.prunedItemCount === "number" &&
-    (value.advisories === undefined ||
-      (Array.isArray(value.advisories) &&
-        value.advisories.every(
-          (advisory) => isRecord(advisory) && typeof advisory.code === "string",
-        )))
+    typeof value.prunedItemCount === "number"
   );
 }
 
@@ -435,13 +427,24 @@ async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetr
         reportIntegrity: {
           label: audit.reportIntegrity,
           prunedItemCount: audit.prunedItemCount,
-          advisories: audit.advisories,
         },
       } as Partial<RunAnalytics>,
       metrics,
     );
     prunedMetrics({ reportIntegrityAudit: audit }, metrics);
     available.add("integrity");
+  }
+  const warnings =
+    validation.status === "ok" && isRecord(validation.value)
+      ? validation.value.warnings
+      : undefined;
+  if (Array.isArray(warnings)) {
+    for (const warning of warnings) {
+      if (isRecord(warning) && typeof warning.code === "string") {
+        addCount(metrics, `postSynthesisAudit.${warning.code}`);
+      }
+    }
+    available.add("postSynthesisAudit");
   }
   return {
     fixture: SYNTHESIS_SCOPE,
@@ -516,6 +519,11 @@ function cell(samples: readonly EvalSampleMetrics[], metric: string): string {
   return `${formatNumber(mean)} ${range}${n}`;
 }
 
+// Older labels' stored summaries still carry these; read as 0 on newer labels they fake a drop.
+function isRetiredMetric(metric: string): boolean {
+  return metric.startsWith("integrity.advisory.");
+}
+
 export function formatEvalCompare(base: EvalSummary, next: EvalSummary): string {
   if (base.scope !== next.scope) {
     throw new Error(
@@ -534,7 +542,9 @@ export function formatEvalCompare(base: EvalSummary, next: EvalSummary): string 
     const nextSamples = next.samples.filter((sample) => sample.fixture === fixture);
     const metrics = [
       ...new Set([...baseSamples, ...nextSamples].flatMap((sample) => Object.keys(sample.metrics))),
-    ].toSorted();
+    ]
+      .filter((metric) => !isRetiredMetric(metric))
+      .toSorted();
     for (const metric of metrics) {
       lines.push(
         `| ${fixture} | ${metric} | ${cell(baseSamples, metric)} | ${cell(nextSamples, metric)} |`,

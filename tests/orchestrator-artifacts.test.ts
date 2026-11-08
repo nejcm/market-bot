@@ -104,10 +104,9 @@ interface DiskTrace {
     readonly reportIntegrity: string;
     readonly researchQuality: string;
     readonly prunedItemCount: number;
-    readonly advisoryWarningCount: number;
-    readonly advisories?: readonly DiskAdvisory[];
     readonly pruned: readonly DiskPrunedItem[];
   };
+  readonly postSynthesisAudit?: { readonly warnings: readonly DiskAdvisory[] };
 }
 
 interface DiskAnalytics {
@@ -115,9 +114,8 @@ interface DiskAnalytics {
     readonly label: string;
     readonly researchQuality: string;
     readonly prunedItemCount: number;
-    readonly advisoryWarningCount: number;
-    readonly advisories?: readonly DiskAdvisory[];
   };
+  readonly postSynthesisAudit?: { readonly byCode: Readonly<Record<string, number>> };
 }
 
 async function readRunJson<T>(runDir: string, file: string): Promise<T> {
@@ -136,8 +134,10 @@ async function readIntegrityArtifacts(runDir: string) {
     report,
     traceAudit,
     analyticsIntegrity,
-    traceAdvisories: traceAudit.advisories ?? [],
-    analyticsAdvisories: analyticsIntegrity.advisories ?? [],
+    traceAdvisories: (trace.postSynthesisAudit?.warnings ?? [])
+      .filter(({ code }) => code === WEAK_POSTURE_ADVISORY.code)
+      .map(({ code, location }) => ({ code, location })),
+    analyticsAdvisoryCount: analytics.postSynthesisAudit?.byCode[WEAK_POSTURE_ADVISORY.code] ?? 0,
   };
 }
 
@@ -681,17 +681,13 @@ describe("runResearchJob artifact persistence", () => {
       traceAudit,
       analyticsIntegrity,
       traceAdvisories,
-      analyticsAdvisories,
+      analyticsAdvisoryCount,
     } = await readIntegrityArtifacts(result.artifacts.runDir);
 
     expect(report.summary).toBe(AMD_DATED_SUMMARY);
     expect(reportJson).toContain(AMD_DATED_SUMMARY);
     expect(traceAdvisories).toEqual([WEAK_POSTURE_ADVISORY]);
-    expect(analyticsAdvisories).toEqual([WEAK_POSTURE_ADVISORY]);
-    expect(traceAdvisories).toEqual(analyticsAdvisories);
-    expect(traceAudit.advisoryWarningCount).toBe(traceAdvisories.length);
-    expect(analyticsIntegrity.advisoryWarningCount).toBe(analyticsAdvisories.length);
-    expect(analyticsIntegrity.advisoryWarningCount).toBe(traceAudit.advisoryWarningCount);
+    expect(analyticsAdvisoryCount).toBe(traceAdvisories.length);
     expect(traceAudit.prunedItemCount).toBe(0);
     expect(traceAudit.pruned).toEqual([]);
     expect(analyticsIntegrity.prunedItemCount).toBe(0);
@@ -731,16 +727,17 @@ describe("runResearchJob artifact persistence", () => {
       traceAudit,
       analyticsIntegrity,
       traceAdvisories,
-      analyticsAdvisories,
+      analyticsAdvisoryCount,
     } = await readIntegrityArtifacts(result.artifacts.runDir);
 
     expect(report.summary).toBe(AMD_DATED_SUMMARY);
     expect(reportJson).not.toContain(NUMERIC_SUMMARY_SENTENCE);
-    expect(traceAdvisories).toEqual([WEAK_POSTURE_ADVISORY]);
-    expect(traceAdvisories).toEqual(analyticsAdvisories);
-    expect(traceAudit.advisoryWarningCount).toBe(traceAdvisories.length);
-    expect(analyticsIntegrity.advisoryWarningCount).toBe(analyticsAdvisories.length);
-    expect(analyticsIntegrity.advisoryWarningCount).toBe(traceAudit.advisoryWarningCount);
+    // Warnings index the pre-prune report, so the pruned numeric finding keeps its own.
+    expect(traceAdvisories).toEqual([
+      WEAK_POSTURE_ADVISORY,
+      { code: WEAK_POSTURE_ADVISORY.code, location: PRUNED_NUMERIC_ITEM.location },
+    ]);
+    expect(analyticsAdvisoryCount).toBe(traceAdvisories.length);
     expect(traceAudit.pruned).toEqual([
       { location: "summary[1]", text: NUMERIC_SUMMARY_SENTENCE, sourceIds: [] },
       PRUNED_NUMERIC_ITEM,

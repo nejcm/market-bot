@@ -1,15 +1,12 @@
 import { type EvidenceQuality, type EvidenceQualityAssessment } from "../domain/evidence";
-import { type Prediction } from "../domain/prediction";
+import type { PostSynthesisAuditWarning } from "../domain/run-trace";
 import {
   researchReportEvidenceQuality,
   type DroppedFigureQuote,
   type FigureQuote,
-  type KeyFinding,
   type RenderedMetric,
-  type ReportIntegrityAdvisoryCode,
   type ReportIntegrity,
   type ResearchReport,
-  type Scenario,
   type WebFigureFailure,
 } from "../domain/report";
 import { deriveResearchQualityDriver } from "./quality-driver";
@@ -34,8 +31,9 @@ import {
   type PeerMedianLabels,
   shouldCarryPostureLabel,
 } from "./post-synthesis-audit";
+import { isGapShapedClaimForAuditWarning } from "./gap-shaped-claims";
 
-// ADR 0004: prune unsupported numeric/technical and uncited peer-median claims and grade; posture labels stay advisory.
+// ADR 0004: one claim walk; prune-severity rules drop and grade, warn-severity rules only reach the trace.
 // ADR 0006: also prune claims whose web-sourced figures fail quote verification, and drop failing quotes.
 
 interface ReportIntegrityPrunedItem {
@@ -49,27 +47,20 @@ interface ReportIntegrityDroppedQuote extends DroppedFigureQuote {
   readonly location: string;
 }
 
-interface ReportIntegrityAdvisory {
-  readonly code: ReportIntegrityAdvisoryCode;
-  readonly location: string;
-}
-
 export interface ReportIntegrityAuditResult {
   readonly report: ResearchReport;
   readonly reportIntegrity: ReportIntegrity;
   readonly researchQuality: ReportIntegrity;
   readonly prunedItemCount: number;
-  readonly advisoryWarningCount: number;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
   readonly droppedFigureQuotes: readonly ReportIntegrityDroppedQuote[];
-  readonly advisories: readonly ReportIntegrityAdvisory[];
 }
 
 // Bare calendar/fiscal years and forecast-horizon phrasing are not numeric claims for
 // Pruning purposes: "revenue guidance for 2026" or "a 5-trading-day horizon"
 // Carries no measurable figure that demands a citation on its own. A year-like
 // Token attached to a price or percentage ("$2050", "2026%") stays numeric.
-// This exemption is deliberately broader than the warn-only audit's horizon
+// This exemption is deliberately broader than the warn rule's horizon
 // Pattern: pruning is destructive, so ambiguity favors keeping the claim.
 // YEAR, month-day, horizon, and ISO-date matchers carry /g for replaceAll, not .test();
 // The unit patterns omit /g because they are .test()ed.
@@ -134,15 +125,103 @@ function isBlockingNumericOrTechnical(text: string, runCurrencies: readonly stri
   return isNumericClaim(stripped, runCurrencies);
 }
 
-function isBlockingViolation(
-  text: string,
-  sourceIds: readonly string[],
-  runCurrencies: readonly string[],
-): boolean {
-  return (
-    hasNoSupportingSource(sourceIds) &&
-    !isHistoricalForecastOutcome(text) &&
-    isBlockingNumericOrTechnical(text, runCurrencies)
+interface ClaimContext {
+  readonly usablePeerSourceIds: ReadonlySet<string> | undefined;
+  readonly peerMedianLabels: PeerMedianLabels | undefined;
+  readonly runCurrencies: readonly string[];
+}
+
+interface Claim {
+  readonly location: string;
+  readonly text: string;
+  // Warn rules read only an item's last field (a scenario's description).
+  readonly lastField: string;
+  readonly sourceIds: readonly string[];
+}
+
+type ClaimRule =
+  | {
+      readonly severity: "prune";
+      readonly matches: (claim: Claim, context: ClaimContext) => boolean;
+    }
+  | {
+      readonly severity: "warn";
+      readonly code: PostSynthesisAuditWarning["code"];
+      readonly message: string;
+      readonly matches: (claim: Claim, context: ClaimContext) => boolean;
+    };
+
+const CLAIM_RULES: readonly ClaimRule[] = [
+  {
+    severity: "prune",
+    matches: ({ text, sourceIds }, { runCurrencies }) =>
+      hasNoSupportingSource(sourceIds) &&
+      !isHistoricalForecastOutcome(text) &&
+      isBlockingNumericOrTechnical(text, runCurrencies),
+  },
+  {
+    severity: "prune",
+    matches: ({ text, sourceIds }, context) =>
+      isUncitedPeerMedianClaim(
+        text,
+        sourceIds,
+        context.usablePeerSourceIds,
+        context.peerMedianLabels,
+      ),
+  },
+  {
+    severity: "warn",
+    code: "peer-median-uncited",
+    message: "peer-median claim cites no usable peer source",
+    matches: ({ lastField, sourceIds }, context) =>
+      isUncitedPeerMedianClaim(
+        lastField,
+        sourceIds,
+        context.usablePeerSourceIds,
+        context.peerMedianLabels,
+      ),
+  },
+  {
+    severity: "warn",
+    code: "gap-shaped-claim-cited",
+    message: "gap-shaped claim carries source citations; review citation grounding",
+    matches: ({ lastField, sourceIds }) =>
+      isGapShapedClaimForAuditWarning(lastField) && sourceIds.length > 0,
+  },
+  {
+    severity: "warn",
+    code: "unsupported-numeric-claim",
+    message: "numeric or technical claim has no non-history supporting source citation",
+    matches: ({ lastField, sourceIds }, { runCurrencies }) =>
+      (isNumericClaim(lastField, runCurrencies) || isTechnicalClaim(lastField)) &&
+      !isHistoricalForecastOutcome(lastField) &&
+      hasNoSupportingSource(sourceIds),
+  },
+  {
+    severity: "warn",
+    code: "weak-evidence-posture-missing",
+    message: "weak or unsupported claim is missing an evidence posture label",
+    matches: ({ lastField, sourceIds }) =>
+      shouldCarryPostureLabel(lastField, sourceIds) && !hasPostureLabel(lastField, sourceIds),
+  },
+];
+
+function isPruned(claim: Claim, context: ClaimContext): boolean {
+  return CLAIM_RULES.some((rule) => rule.severity === "prune" && rule.matches(claim, context));
+}
+
+function claimWarnings(claim: Claim, context: ClaimContext): readonly PostSynthesisAuditWarning[] {
+  return CLAIM_RULES.flatMap((rule) =>
+    rule.severity === "warn" && rule.matches(claim, context)
+      ? [
+          {
+            code: rule.code,
+            location: claim.location,
+            message: rule.message,
+            sourceIds: claim.sourceIds,
+          },
+        ]
+      : [],
   );
 }
 
@@ -150,6 +229,7 @@ interface Partition<T> {
   readonly kept: readonly T[];
   readonly pruned: readonly ReportIntegrityPrunedItem[];
   readonly dropped: readonly ReportIntegrityDroppedQuote[];
+  readonly warnings: readonly PostSynthesisAuditWarning[];
 }
 
 function withoutQuotes<T extends { readonly figureQuotes?: readonly FigureQuote[] }>(
@@ -181,106 +261,87 @@ function typedClaim<
   };
 }
 
-// Pruned locations use pre-prune indices (matching the warn-only audit's
-// Location space); posture advisories below index the pruned report.
-function partitionItems<
-  T extends {
-    readonly sourceIds: readonly string[];
-    readonly figureQuotes?: readonly FigureQuote[];
-    readonly metricSourceIds?: readonly string[];
-    readonly renderedMetrics?: readonly RenderedMetric[];
-  },
->(
+interface ClaimItem {
+  readonly sourceIds: readonly string[];
+  readonly figureQuotes?: readonly FigureQuote[];
+  readonly metricSourceIds?: readonly string[];
+  readonly renderedMetrics?: readonly RenderedMetric[];
+}
+
+interface ClaimSection<T extends ClaimItem> {
+  readonly claims: readonly (Claim & { readonly item: T })[];
+  readonly fields: readonly (keyof T & string)[];
+}
+
+function claimSection<T extends ClaimItem>(
   section: string,
   items: readonly T[],
-  // Joined with ": " into the claim text the checks read.
-  fields: readonly (keyof T & string)[],
-  usablePeerSourceIds: ReadonlySet<string> | undefined,
-  peerMedianLabels: PeerMedianLabels | undefined,
-  runCurrencies: readonly string[],
-  webTexts?: WebSourceTexts,
+  // Joined with ": " into the claim text the prune rules read.
+  fields: readonly [keyof T & string, ...(keyof T & string)[]],
+): ClaimSection<T> {
+  const last = fields.at(-1) ?? fields[0];
+  return {
+    fields,
+    claims: items.map((item, index) => ({
+      item,
+      location: `${section}[${String(index)}]`,
+      text: fields.map((key) => String(item[key])).join(": "),
+      lastField: String(item[last]),
+      sourceIds: item.sourceIds,
+    })),
+  };
+}
+
+function reportSections(report: ResearchReport) {
+  return {
+    keyFindings: claimSection("keyFindings", report.keyFindings, ["text"]),
+    bullCase: claimSection("bullCase", report.bullCase, ["text"]),
+    bearCase: claimSection("bearCase", report.bearCase, ["text"]),
+    risks: claimSection("risks", report.risks, ["text"]),
+    catalysts: claimSection("catalysts", report.catalysts, ["text"]),
+    // A scenario's name can carry the numeric claim ("20% Downside") while the description stays qualitative.
+    scenarios: claimSection("scenarios", report.scenarios, ["name", "description"]),
+    predictions: claimSection("predictions", report.predictions, ["claim"]),
+  };
+}
+
+export function claimsForReport(report: ResearchReport): readonly {
+  readonly location: string;
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+}[] {
+  return Object.values(reportSections(report)).flatMap(({ claims }) =>
+    claims.map(({ location, lastField, sourceIds }) => ({ location, text: lastField, sourceIds })),
+  );
+}
+
+function walkSection<T extends ClaimItem>(
+  { claims, fields }: ClaimSection<T>,
+  context: ClaimContext,
+  webTexts: WebSourceTexts | undefined,
 ): Partition<T> {
   const kept: T[] = [];
   const pruned: ReportIntegrityPrunedItem[] = [];
   const dropped: ReportIntegrityDroppedQuote[] = [];
-  items.forEach((item, index) => {
-    const text = fields.map((key) => String(item[key])).join(": ");
-    const { sourceIds } = item;
-    const location = `${section}[${String(index)}]`;
-    if (
-      isBlockingViolation(text, sourceIds, runCurrencies) ||
-      isUncitedPeerMedianClaim(text, sourceIds, usablePeerSourceIds, peerMedianLabels)
-    ) {
+  const warnings: PostSynthesisAuditWarning[] = [];
+  for (const claim of claims) {
+    const { item, location, text, sourceIds } = claim;
+    warnings.push(...claimWarnings(claim, context));
+    if (isPruned(claim, context)) {
       pruned.push({ location, text, sourceIds });
-      return;
+      continue;
     }
     const webFigure =
       webTexts === undefined ? undefined : unverifiedWebFigure(typedClaim(item, fields), webTexts);
     if (webFigure !== undefined) {
       pruned.push({ location, text, sourceIds, webFigure });
-      return;
+      continue;
     }
     const failedQuotes = webTexts === undefined ? [] : failedFigureQuotes(item, webTexts);
     dropped.push(...failedQuotes.map((quote) => ({ location, ...quote })));
     kept.push(withoutQuotes(item, failedQuotes));
-  });
-  return { kept, pruned, dropped };
-}
-
-function partitionFindings(
-  section: string,
-  findings: readonly KeyFinding[],
-  usablePeerSourceIds: ReadonlySet<string> | undefined,
-  peerMedianLabels: PeerMedianLabels | undefined,
-  runCurrencies: readonly string[],
-  webTexts: WebSourceTexts | undefined,
-): Partition<KeyFinding> {
-  return partitionItems(
-    section,
-    findings,
-    ["text"],
-    usablePeerSourceIds,
-    peerMedianLabels,
-    runCurrencies,
-    webTexts,
-  );
-}
-
-function partitionScenarios(
-  scenarios: readonly Scenario[],
-  usablePeerSourceIds: ReadonlySet<string> | undefined,
-  peerMedianLabels: PeerMedianLabels | undefined,
-  runCurrencies: readonly string[],
-  webTexts: WebSourceTexts | undefined,
-): Partition<Scenario> {
-  return partitionItems(
-    "scenarios",
-    scenarios,
-    // A scenario's name can carry the numeric or technical claim ("20%
-    // Downside") while the description stays qualitative, so both fields feed
-    // The blocking check.
-    ["name", "description"],
-    usablePeerSourceIds,
-    peerMedianLabels,
-    runCurrencies,
-    webTexts,
-  );
-}
-
-function partitionPredictions(
-  predictions: readonly Prediction[],
-  usablePeerSourceIds: ReadonlySet<string> | undefined,
-  peerMedianLabels: PeerMedianLabels | undefined,
-  runCurrencies: readonly string[],
-): Partition<Prediction> {
-  return partitionItems(
-    "predictions",
-    predictions,
-    ["claim"],
-    usablePeerSourceIds,
-    peerMedianLabels,
-    runCurrencies,
-  );
+  }
+  return { kept, pruned, dropped, warnings };
 }
 
 const EARNINGS_SETUP_BULLET_KEYS = [
@@ -504,18 +565,13 @@ export function pruneSentences(
 
 function partitionSummary(
   summary: string,
-  usablePeerSourceIds: ReadonlySet<string> | undefined,
-  peerMedianLabels: PeerMedianLabels | undefined,
-  runCurrencies: readonly string[],
+  context: ClaimContext,
 ): {
   readonly summary: string;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
 } {
-  const { kept, pruned } = pruneSentences(
-    summary,
-    (sentence) =>
-      isBlockingViolation(sentence, [], runCurrencies) ||
-      isUncitedPeerMedianClaim(sentence, [], usablePeerSourceIds, peerMedianLabels),
+  const { kept, pruned } = pruneSentences(summary, (sentence) =>
+    isPruned({ location: "summary", text: sentence, lastField: sentence, sourceIds: [] }, context),
   );
   if (pruned.length === 0) {
     return { summary, pruned: [] };
@@ -528,51 +584,6 @@ function partitionSummary(
       sourceIds: [],
     })),
   };
-}
-
-function postureAdvisories(report: ResearchReport): readonly ReportIntegrityAdvisory[] {
-  const claims = [
-    ...report.keyFindings.map((finding, index) => ({
-      location: `keyFindings[${String(index)}]`,
-      text: finding.text,
-      sourceIds: finding.sourceIds,
-    })),
-    ...report.bullCase.map((finding, index) => ({
-      location: `bullCase[${String(index)}]`,
-      text: finding.text,
-      sourceIds: finding.sourceIds,
-    })),
-    ...report.bearCase.map((finding, index) => ({
-      location: `bearCase[${String(index)}]`,
-      text: finding.text,
-      sourceIds: finding.sourceIds,
-    })),
-    ...report.risks.map((finding, index) => ({
-      location: `risks[${String(index)}]`,
-      text: finding.text,
-      sourceIds: finding.sourceIds,
-    })),
-    ...report.catalysts.map((finding, index) => ({
-      location: `catalysts[${String(index)}]`,
-      text: finding.text,
-      sourceIds: finding.sourceIds,
-    })),
-    ...report.scenarios.map((scenario, index) => ({
-      location: `scenarios[${String(index)}]`,
-      text: scenario.description,
-      sourceIds: scenario.sourceIds,
-    })),
-  ];
-  return claims
-    .filter(
-      (claim) =>
-        shouldCarryPostureLabel(claim.text, claim.sourceIds) &&
-        !hasPostureLabel(claim.text, claim.sourceIds),
-    )
-    .map((claim) => ({
-      code: "weak-evidence-posture-missing" as const,
-      location: claim.location,
-    }));
 }
 
 const QUALITY_RANK: Readonly<Record<ReportIntegrity, number>> = {
@@ -600,62 +611,27 @@ export function auditReportIntegrity(
   peerMedianLabels?: PeerMedianLabels,
   webTexts?: WebSourceTexts,
   runCurrencies: readonly string[] = [],
-): ReportIntegrityAuditResult {
-  const findings = (section: string, items: readonly KeyFinding[]) =>
-    partitionFindings(
-      section,
-      items,
-      usablePeerSourceIds,
-      peerMedianLabels,
-      runCurrencies,
-      webTexts,
-    );
-  const keyFindings = findings("keyFindings", report.keyFindings);
-  const bullCase = findings("bullCase", report.bullCase);
-  const bearCase = findings("bearCase", report.bearCase);
-  const risks = findings("risks", report.risks);
-  const catalysts = findings("catalysts", report.catalysts);
-  const scenarios = partitionScenarios(
-    report.scenarios,
-    usablePeerSourceIds,
-    peerMedianLabels,
-    runCurrencies,
-    webTexts,
-  );
-  const predictions = partitionPredictions(
-    report.predictions,
-    usablePeerSourceIds,
-    peerMedianLabels,
-    runCurrencies,
-  );
+): ReportIntegrityAuditResult & { readonly warnings: readonly PostSynthesisAuditWarning[] } {
+  const context: ClaimContext = { usablePeerSourceIds, peerMedianLabels, runCurrencies };
+  const sections = reportSections(report);
+  const keyFindings = walkSection(sections.keyFindings, context, webTexts);
+  const bullCase = walkSection(sections.bullCase, context, webTexts);
+  const bearCase = walkSection(sections.bearCase, context, webTexts);
+  const risks = walkSection(sections.risks, context, webTexts);
+  const catalysts = walkSection(sections.catalysts, context, webTexts);
+  const scenarios = walkSection(sections.scenarios, context, webTexts);
+  // Predictions carry no Verified Web Figure check.
+  const predictions = walkSection(sections.predictions, context, undefined);
   const extras = partitionExtras(report.extras, webTexts);
-  const summary = partitionSummary(
-    report.summary,
-    usablePeerSourceIds,
-    peerMedianLabels,
-    runCurrencies,
-  );
+  const summary = partitionSummary(report.summary, context);
+  const walked = [keyFindings, bullCase, bearCase, risks, catalysts, scenarios, predictions];
 
   const pruned = [
     ...summary.pruned,
-    ...keyFindings.pruned,
-    ...bullCase.pruned,
-    ...bearCase.pruned,
-    ...risks.pruned,
-    ...catalysts.pruned,
-    ...scenarios.pruned,
-    ...predictions.pruned,
+    ...walked.flatMap((section) => section.pruned),
     ...extras.pruned,
   ];
-  const droppedFigureQuotes = [
-    ...keyFindings.dropped,
-    ...bullCase.dropped,
-    ...bearCase.dropped,
-    ...risks.dropped,
-    ...catalysts.dropped,
-    ...scenarios.dropped,
-    ...extras.dropped,
-  ];
+  const droppedFigureQuotes = [...walked.flatMap((section) => section.dropped), ...extras.dropped];
   const webFigureGaps = pruned.flatMap((item) =>
     item.webFigure === undefined ? [] : [webFigureGapText(item.location, item.webFigure)],
   );
@@ -703,16 +679,14 @@ export function auditReportIntegrity(
     researchQuality,
     ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
   };
-  const advisories = postureAdvisories(prunedReport);
 
   return {
     report: prunedReport,
     reportIntegrity,
     researchQuality,
     prunedItemCount: pruned.length,
-    advisoryWarningCount: advisories.length,
     pruned,
     droppedFigureQuotes,
-    advisories,
+    warnings: walked.flatMap((section) => section.warnings),
   };
 }

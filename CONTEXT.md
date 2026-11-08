@@ -77,7 +77,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Forecast-Shape Diversity Guidance** — Soft prompt guidance for varied Prediction shapes on deep instrument runs. Never a gate.
 
-**Event Grid** — Fixed set of events code issues on every equity instrument run (±1σ range outside-events at +1/+5/+20, relative vs SPY, or the Exchange Profile benchmark, at +5), priced by the primary synthesis or a Forecast Grid Job and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into it. An unpriced event is a declared gap, never dropped or defaulted. See ADR 0003.
+**Event Grid** — Fixed set of events code issues on every equity instrument run (±1σ range outside-events at +1/+5/+20 on US listings only, relative vs SPY, or the Exchange Profile benchmark, at +5), priced by the primary synthesis or a Forecast Grid Job and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into it. An unpriced event is a declared gap, never dropped or defaulted. See ADR 0003.
 
 **Forecast Grid Job** — `forecast-grid --watchlist <name>`: issues the Event Grid with Baselines for every equity on a watchlist, one quick-model call per symbol from a compact fact sheet. No synthesis or Web Gather. Dry run unless `--yes`. Publishes one symbol-less run (`jobType: "forecast-grid"`) scored and calibrated like any other.
 

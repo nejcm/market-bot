@@ -158,6 +158,13 @@ function computed(probability: number, infoCutoff: string): ForecastBaselineResu
   };
 }
 
+const ESTIMATED_KINDS: ReadonlySet<string> = new Set(["range", "direction", "relative"]);
+
+// The expression kinds forecastBaseline estimates; it returns "unsupported" for every other kind.
+export function hasForecastBaselineEstimator(kind: string): boolean {
+  return ESTIMATED_KINDS.has(kind);
+}
+
 // Forecast Baseline: zero-drift lognormal, EWMA volatility on split-adjusted closes, √h over the sessions scored after infoCutoff.
 // A symbol missing from splitDatesBySymbol has unknown split metadata, not "no splits".
 export function forecastBaseline(

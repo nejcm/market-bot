@@ -1,4 +1,5 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import type { InstrumentIdentity } from "../domain/instrument";
 import type { Prediction } from "../domain/prediction";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/sources";
@@ -20,18 +21,24 @@ import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snaps
 import { isRecord } from "../guards";
 import { exchangeProfileFor } from "../domain/exchange-profile";
 import { isNonSecEquityListing } from "../sources/identity-gate";
+import { isUsListing } from "../sources/instrument-capability";
 import {
   rangeReferenceBand,
   rangeVolatilityReference,
   scoredSessions,
 } from "./range-volatility-reference";
 
-const GRID_RANGE_HORIZONS = [1, 5, 20] as const;
+export const GRID_RANGE_HORIZONS = [1, 5, 20] as const;
 const GRID_RELATIVE_HORIZON = 5;
 const US_GRID_BENCHMARK = "SPY";
 
 export function gridBenchmark(symbol: string): string {
   return exchangeProfileFor(symbol)?.benchmark ?? US_GRID_BENCHMARK;
+}
+
+// ScoredSessions counts US sessions only, so elsewhere a range event could never carry a Forecast Baseline.
+export function gridIssuesRange(symbol: string, identity?: InstrumentIdentity): boolean {
+  return isUsListing(symbol, identity);
 }
 
 type GridSources = Pick<
@@ -51,7 +58,9 @@ export interface EventGridEvent {
 // Ids eventGrid issues when every input is present; dry runs plan from this without fetching.
 export function plannedEventGridIds(symbol: string): readonly string[] {
   return [
-    ...GRID_RANGE_HORIZONS.map((horizon) => `grid-range-${String(horizon)}`),
+    ...(gridIssuesRange(symbol)
+      ? GRID_RANGE_HORIZONS.map((horizon) => `grid-range-${String(horizon)}`)
+      : []),
     ...(symbol === gridBenchmark(symbol) ? [] : [`grid-relative-${String(GRID_RELATIVE_HORIZON)}`]),
   ];
 }
@@ -95,7 +104,14 @@ export function eventGrid(
   const events: EventGridEvent[] = [];
   const gaps: SourceGap[] = [];
   const reference = rangeVolatilityReference(collectedSources.verifiedMarketSnapshot);
-  if (reference === undefined || "gap" in reference) {
+  if (!gridIssuesRange(symbol, collectedSources.resolvedInstrumentIdentity)) {
+    gaps.push(
+      gridGap(
+        symbol,
+        `Event Grid range events not issued: ${symbol} trades outside the US session calendar scoring counts on, so no Forecast Baseline could be stamped for them`,
+      ),
+    );
+  } else if (reference === undefined || "gap" in reference) {
     gaps.push(
       gridGap(
         symbol,
@@ -194,21 +210,28 @@ function primarySymbol(event: EventGridEvent): string {
   return event.subject.split(":")[0]!;
 }
 
-export function modelGridProbabilities(value: unknown): ReadonlyMap<string, number> {
-  const probabilities = new Map<string, number>();
+export function modelGridRows(value: unknown): ReadonlyMap<string, readonly unknown[]> {
+  const rows = new Map<string, unknown[]>();
   for (const item of Array.isArray(value) ? value : []) {
-    if (
-      isRecord(item) &&
-      typeof item.id === "string" &&
-      typeof item.probability === "number" &&
-      item.probability >= 0 &&
-      item.probability <= 1 &&
-      !probabilities.has(item.id)
-    ) {
-      probabilities.set(item.id, item.probability);
+    if (isRecord(item) && typeof item.id === "string") {
+      rows.set(item.id, [...(rows.get(item.id) ?? []), item]);
     }
   }
-  return probabilities;
+  return rows;
+}
+
+// A repeated id is ambiguous: neither row prices it, and neither does a restating prediction.
+export function modelGridProbability(rows: readonly unknown[]): number | "duplicate" | undefined {
+  if (rows.length > 1) {
+    return "duplicate";
+  }
+  const [row] = rows;
+  return isRecord(row) &&
+    typeof row.probability === "number" &&
+    row.probability >= 0 &&
+    row.probability <= 1
+    ? row.probability
+    : undefined;
 }
 
 const UNAVAILABLE_REASON_TEXT: Record<ForecastBaselineUnavailableReason, string> = {
@@ -334,17 +357,20 @@ export function issueForecastBook(input: {
   const onExchange = offExchangePredictions(input.command, input.modelPredictions);
   const grid = eventGrid(input.command, input.collectedSources);
   const gaps: SourceGap[] = [...onExchange.gaps, ...grid.gaps];
-  const pModel = modelGridProbabilities(input.modelEventGrid);
+  const modelRows = modelGridRows(input.modelEventGrid);
   const restated = new Map<string, Prediction>();
   const closeSourceIds = collectedCloseSourceIds(input.knownSourceIds, input.collectedSources);
-  const issuable = issuableGridEvents(grid.events, input.knownSourceIds, input.collectedSources);
   const modelPredictions = onExchange.kept.filter((prediction) => {
-    const event = issuable.find(
+    const event = grid.events.find(
       (candidate) =>
         candidate.id === prediction.id ||
         claimKey(candidate.measurableAs) === claimKey(prediction.measurableAs),
     );
-    if (event === undefined) {
+    if (
+      event === undefined ||
+      (unissuableReason(event, closeSourceIds) !== undefined &&
+        modelGridProbability(modelRows.get(event.id) ?? []) !== "duplicate")
+    ) {
       return true;
     }
     if (!restated.has(event.id)) {
@@ -353,12 +379,19 @@ export function issueForecastBook(input: {
     return false;
   });
   const unpriced: string[] = [];
+  const ambiguous: string[] = [];
   const gridPredictions: Prediction[] = [];
   for (const event of grid.events) {
     const sourceIds = event.sourceIds.filter((id) => closeSourceIds.has(id));
-    const probability = pModel.get(event.id) ?? restated.get(event.id)?.probability;
+    const modelProbability = modelGridProbability(modelRows.get(event.id) ?? []);
+    const probability = modelProbability ?? restated.get(event.id)?.probability;
     const unissuable = unissuableReason(event, closeSourceIds);
-    if (unissuable !== undefined) {
+    if (probability === "duplicate") {
+      const restating = restated.get(event.id);
+      ambiguous.push(
+        restating === undefined ? event.id : `${event.id} (restated by ${restating.id})`,
+      );
+    } else if (unissuable !== undefined) {
       gaps.push(
         gridGap(primarySymbol(event), `Event Grid event ${event.id} not issued: ${unissuable}`),
       );
@@ -377,6 +410,14 @@ export function issueForecastBook(input: {
         origin: "grid",
       });
     }
+  }
+  if (ambiguous.length > 0) {
+    gaps.push(
+      gridGap(
+        primarySymbol(grid.events[0]!),
+        `Event Grid events not issued because ${input.pricedBy ?? "the final synthesis"} returned more than one eventGrid row for them: ${ambiguous.join(", ")}`,
+      ),
+    );
   }
   if (unpriced.length > 0) {
     gaps.push(
@@ -397,11 +438,21 @@ export function issueForecastBook(input: {
   // The resolver quarantines an unverified session, moving the primary's scoring origin before infoCutoff.
   const unverifiedSymbol =
     snapshot?.latestSessionStatus === "unverified" ? snapshot.symbol.toUpperCase() : undefined;
+  // The resolved identity describes the run's instrument only; benchmark legs classify by symbol.
+  const isPrimary = (symbol: string) =>
+    isInstrumentCommand(input.command) &&
+    symbol.toUpperCase() === input.command.symbol.toUpperCase();
   const sessionsAfter = (symbol: string, infoCutoff: string, horizon: number) =>
     symbol.toUpperCase() === unverifiedSymbol
       ? undefined
       : scoredSessions(
-          { symbol, assetClass: input.command.assetClass },
+          {
+            symbol,
+            assetClass: input.command.assetClass,
+            identity: isPrimary(symbol)
+              ? input.collectedSources.resolvedInstrumentIdentity
+              : undefined,
+          },
           infoCutoff,
           runDate,
           horizon,

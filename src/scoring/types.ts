@@ -124,8 +124,10 @@ export interface PairedSkillPolicy {
 
 export interface PairedSkillSummary {
   readonly policy: PairedSkillPolicy;
-  /** Resolved Forecast Events without a Forecast Baseline, excluded from every paired metric. */
-  readonly excludedWithoutBaselineCount: number;
+  /** Resolved Forecast Events of a kind with no Forecast Baseline estimator, excluded from every paired metric. */
+  readonly excludedNoEstimatorCount: number;
+  /** Resolved Forecast Events of an estimated kind that carry no Forecast Baseline (a declared gap), likewise excluded. */
+  readonly excludedEstimatorFailedCount: number;
   /** Range events stamped `ewma-0.94-w60-v1` (nominal-horizon √h), excluded from every paired metric; absent in older summaries. */
   readonly excludedLegacyRangeBaselineCount?: number;
   /** Absent when no resolved Forecast Event carries a baseline. */

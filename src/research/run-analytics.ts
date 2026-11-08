@@ -17,6 +17,7 @@ import { type RunTrace, type SourceTextResearchOnlySummary } from "../domain/run
 import { sourceProvider, type Source, type SourceGap, type SourceKind } from "../domain/sources";
 import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { isRecord } from "../guards";
+import type { InstrumentIdentity } from "../domain/instrument";
 import type { VerifiedMarketSnapshot } from "../domain/market-data";
 import { parseObservableExpression } from "../forecast/observable";
 import {
@@ -311,6 +312,7 @@ const SIGNAL_INFORMATIVE_FLOOR = 0.5;
 function predictionReferenceProbability(
   prediction: Prediction,
   snapshot: VerifiedMarketSnapshot | undefined,
+  identity: InstrumentIdentity | undefined,
 ): number {
   if (
     prediction.kind !== "range" ||
@@ -334,8 +336,12 @@ function predictionReferenceProbability(
     }
     const band = rangeReferenceBand(reference, expression.horizonTradingDays);
     return band !== undefined && expression.lo === band[0] && expression.hi === band[1]
-      ? (rangeReferenceOutsideProbability(snapshot, reference, expression.horizonTradingDays)
-          ?.probability ?? RANGE_REFERENCE_OUTSIDE_PROBABILITY)
+      ? (rangeReferenceOutsideProbability(
+          snapshot,
+          reference,
+          expression.horizonTradingDays,
+          identity,
+        )?.probability ?? RANGE_REFERENCE_OUTSIDE_PROBABILITY)
       : 0.5;
   } catch {
     return 0.5;
@@ -768,7 +774,11 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     (prediction) =>
       Math.abs(
         prediction.probability -
-          predictionReferenceProbability(prediction, collectedSources.verifiedMarketSnapshot),
+          predictionReferenceProbability(
+            prediction,
+            collectedSources.verifiedMarketSnapshot,
+            collectedSources.resolvedInstrumentIdentity,
+          ),
       ) <=
       NEAR_BASE_RATE_BAND + Number.EPSILON,
   ).length;

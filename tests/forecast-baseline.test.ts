@@ -9,7 +9,12 @@ import {
   type BaselineClose,
 } from "../src/forecast/baseline";
 import { parseObservableExpression } from "../src/forecast/observable";
-import { eventGrid, issuableGridEvents, issueForecastBook } from "../src/research/event-grid";
+import {
+  eventGrid,
+  issuableGridEvents,
+  issueForecastBook,
+  plannedEventGridIds,
+} from "../src/research/event-grid";
 import { rederivePredictionShortfallReportAfterPruning } from "../src/report/prediction-shortfall";
 import { validateResearchReport } from "../src/report/schema";
 import {
@@ -344,9 +349,9 @@ describe("Event Grid", () => {
     ).not.toThrow();
   });
 
-  test("a Bursa listing measures the relative event against its Exchange Profile benchmark", () => {
+  test("a Bursa listing issues only the relative event, against its Exchange Profile benchmark", () => {
     const bursa: ResearchCommand = { ...EQUITY, symbol: "0097.KL" };
-    const relative = eventGrid(
+    const grid = eventGrid(
       bursa,
       collectedSources({
         verifiedMarketSnapshot: verifiedMarketSnapshot({
@@ -354,9 +359,20 @@ describe("Event Grid", () => {
           recentCloses: alternatingCloses(30).map(({ date, close }) => ({ date, close })),
         }),
       }),
-    ).events.find(({ id }) => id === "grid-relative-5");
-    expect(relative?.measurableAs).toContain("^KLSE");
-    expect(relative?.measurableAs).not.toContain("SPY");
+    );
+    expect(grid.events.map(({ id }) => id)).toEqual(["grid-relative-5"]);
+    expect(grid.events[0]?.measurableAs).toContain("^KLSE");
+    expect(grid.events[0]?.measurableAs).not.toContain("SPY");
+    expect(grid.gaps.map(({ source, message }) => `${source}: ${message}`)).toEqual([
+      "event-grid: Event Grid range events not issued: 0097.KL trades outside the US session calendar scoring counts on, so no Forecast Baseline could be stamped for them",
+    ]);
+    expect(plannedEventGridIds("0097.KL")).toEqual(["grid-relative-5"]);
+    expect(plannedEventGridIds("AAPL")).toEqual([
+      "grid-range-1",
+      "grid-range-5",
+      "grid-range-20",
+      "grid-relative-5",
+    ]);
   });
 
   test("withholds a Bursa model prediction measured against a US benchmark", () => {
@@ -463,6 +479,147 @@ describe("Event Grid", () => {
     expect(book.gaps.map(({ source, message }) => `${source}: ${message}`)).toEqual([
       "event-grid: Event Grid events not issued because the final synthesis returned no valid eventGrid probability for them: grid-range-5, grid-range-20, grid-relative-5",
     ]);
+  });
+
+  test("declares a grid event the model priced twice instead of taking a row or a restatement", () => {
+    const book = issueForecastBook({
+      command: EQUITY,
+      collectedSources: gridSources(),
+      modelPredictions: [
+        prediction({
+          id: "pred-restating",
+          kind: "relative",
+          measurableAs: eventGrid(EQUITY, gridSources()).events.find(
+            ({ id }) => id === "grid-relative-5",
+          )!.measurableAs,
+          probability: 0.4,
+        }),
+      ],
+      modelEventGrid: [
+        { id: "grid-range-1", probability: 0.3 },
+        { id: "grid-range-5", probability: 0.2 },
+        { id: "grid-range-5", probability: 0.7 },
+        { id: "grid-range-20", probability: 0.4 },
+        { id: "grid-relative-5", probability: 0.5 },
+        { id: "grid-relative-5", probability: 0.5 },
+      ],
+      knownSourceIds: KNOWN,
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(book.predictions.map(({ id }) => id)).toEqual(["grid-range-1", "grid-range-20"]);
+    expect(book.gaps.map(({ source, message }) => `${source}: ${message}`)).toContain(
+      "event-grid: Event Grid events not issued because the final synthesis returned more than one eventGrid row for them: grid-range-5, grid-relative-5 (restated by pred-restating)",
+    );
+    expect(book.gaps.some(({ message }) => message.includes("no valid eventGrid"))).toBe(false);
+  });
+
+  test("declares a duplicated grid event even when its benchmark history is missing", () => {
+    const sources = gridSources({ spy: false });
+    const book = issueForecastBook({
+      command: EQUITY,
+      collectedSources: sources,
+      modelPredictions: [
+        prediction({
+          id: "pred-restating",
+          kind: "relative",
+          measurableAs: eventGrid(EQUITY, sources).events.find(
+            ({ id }) => id === "grid-relative-5",
+          )!.measurableAs,
+          probability: 0.4,
+        }),
+      ],
+      modelEventGrid: [
+        { id: "grid-range-1", probability: 0.3 },
+        { id: "grid-range-5", probability: 0.2 },
+        { id: "grid-range-20", probability: 0.4 },
+        { id: "grid-relative-5", probability: 0.5 },
+        { id: "grid-relative-5", probability: 0.6 },
+      ],
+      knownSourceIds: new Set(["verified-snapshot-AAPL", "price-history-AAPL"]),
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(book.predictions.map(({ id }) => id)).toEqual([
+      "grid-range-1",
+      "grid-range-5",
+      "grid-range-20",
+    ]);
+    expect(book.gaps.map(({ message }) => message)).toEqual([
+      "Event Grid events not issued because the final synthesis returned more than one eventGrid row for them: grid-relative-5 (restated by pred-restating)",
+    ]);
+  });
+
+  test("classifies the session calendar by resolved identity, not only the symbol suffix", () => {
+    const withIdentity = (symbol: string, exchange: string, quoteCurrency: string) =>
+      eventGrid(
+        { ...EQUITY, symbol },
+        collectedSources({
+          verifiedMarketSnapshot: verifiedMarketSnapshot({
+            symbol,
+            recentCloses: alternatingCloses(30).map(({ date, close }) => ({ date, close })),
+          }),
+          resolvedInstrumentIdentity: { exchange, quoteCurrency },
+        }),
+      );
+    const athens = withIdentity("ETE.AT", "Athens", "EUR");
+    expect(athens.events.map(({ kind }) => kind)).toEqual(["relative"]);
+    expect(athens.gaps[0]?.message).toContain("ETE.AT trades outside the US session calendar");
+    expect(
+      eventGrid(
+        { ...EQUITY, symbol: "ETE.AT" },
+        collectedSources({
+          verifiedMarketSnapshot: verifiedMarketSnapshot({
+            symbol: "ETE.AT",
+            recentCloses: alternatingCloses(30).map(({ date, close }) => ({ date, close })),
+          }),
+        }),
+      ).events.filter(({ kind }) => kind === "range"),
+    ).toHaveLength(3);
+    for (const [symbol, exchange] of [
+      ["TSM", "NYSE"],
+      ["XYZ", "Cboe BZX"],
+      ["NSRGY", "OTC Markets"],
+    ] as const) {
+      expect(
+        withIdentity(symbol, exchange, "USD").events.filter(({ kind }) => kind === "range"),
+        `${symbol} on ${exchange}`,
+      ).toHaveLength(3);
+    }
+
+    const book = issueForecastBook({
+      command: { ...EQUITY, symbol: "ETE.AT" },
+      collectedSources: collectedSources({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          symbol: "ETE.AT",
+          recentCloses: alternatingCloses(30).map(({ date, close }) => ({ date, close })),
+        }),
+        resolvedInstrumentIdentity: { exchange: "Athens", quoteCurrency: "EUR" },
+        priceHistory: [
+          {
+            symbol: "ETE.AT",
+            sourceId: "price-history-ETE.AT",
+            priceMode: "split-adjusted-close",
+            bars: alternatingCloses(61).map((bar) => ({ ...bar, completed: true })),
+          },
+        ],
+      }),
+      modelPredictions: [
+        prediction({
+          id: "r1",
+          kind: "range",
+          subject: "ETE.AT",
+          measurableAs: "close(ETE.AT, +5) outside [97.79, 102.26]",
+        }),
+      ],
+      modelEventGrid: [],
+      knownSourceIds: new Set(["price-history-ETE.AT"]),
+      generatedAt: AFTER_CLOSE,
+    });
+    expect(book.predictions.find(({ id }) => id === "r1")).not.toHaveProperty(
+      "baselineProbability",
+    );
+    expect(book.gaps.map(({ message }) => message)).toContain(
+      "Forecast Baseline omitted for r1: the sessions scoring spans after its latest close are unknown (non-US listing or unverified latest session) for ETE.AT",
+    );
   });
 
   test("folds a model prediction restating a grid event into the grid", () => {

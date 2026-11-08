@@ -128,17 +128,36 @@ export function isExchangeTradingDay(date: Date): boolean {
   return dow !== 0 && dow !== 6 && !isExchangeHoliday(date);
 }
 
+// The one "next US session" step: resolver due dates, Forecast Baseline horizons and event keys must agree.
+function nextExchangeSession(after: Date): Date {
+  let cursor = shiftDays(after, 1);
+  while (!isExchangeTradingDay(cursor)) {
+    cursor = shiftDays(cursor, 1);
+  }
+  return cursor;
+}
+
 // Advance from an ISO instant by N exchange trading days (open weekdays).
 // Shared by close-window scoring and alpha validation so both count real sessions.
 // All date math is UTC, so results stay deterministic across time zones.
 export function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
-  let count = 0;
   let cursor = new Date(generatedAt);
-  while (count < horizonTradingDays) {
-    cursor = shiftDays(cursor, 1);
-    if (isExchangeTradingDay(cursor)) {
-      count += 1;
-    }
+  for (let count = 0; count < horizonTradingDays; count += 1) {
+    cursor = nextExchangeSession(cursor);
   }
   return cursor;
+}
+
+// The close-window origin: the first session on or after a YYYY-MM-DD date.
+export function firstExchangeSessionOnOrAfter(date: string): string {
+  return ymd(nextExchangeSession(shiftDays(new Date(`${date}T00:00:00Z`), -1)));
+}
+
+// Sessions after `from` up to and including the first session on or after `through`.
+export function exchangeSessionsAfter(from: string, through: string): number {
+  let count = 0;
+  for (let day = new Date(`${from}T00:00:00Z`); ymd(day) < through; count += 1) {
+    day = nextExchangeSession(day);
+  }
+  return count;
 }

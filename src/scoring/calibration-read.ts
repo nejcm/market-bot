@@ -198,9 +198,14 @@ export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | un
   const bootstrapResamples = readNumberWhere(policy, "bootstrapResamples", isCalibrationCount);
   const seed = readNumberWhere(policy, "seed", isCalibrationCount);
   const poweredBlockCount = readNumberWhere(policy, "poweredBlockCount", isCalibrationCount);
-  const excludedWithoutBaselineCount = readNumberWhere(
+  const excludedNoEstimatorCount = readNumberWhere(
     value,
-    "excludedWithoutBaselineCount",
+    "excludedNoEstimatorCount",
+    isCalibrationCount,
+  );
+  const excludedEstimatorFailedCount = readNumberWhere(
+    value,
+    "excludedEstimatorFailedCount",
     isCalibrationCount,
   );
   if (
@@ -211,7 +216,8 @@ export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | un
     bootstrapResamples === undefined ||
     seed === undefined ||
     poweredBlockCount === undefined ||
-    excludedWithoutBaselineCount === undefined
+    excludedNoEstimatorCount === undefined ||
+    excludedEstimatorFailedCount === undefined
   ) {
     return undefined;
   }
@@ -232,7 +238,8 @@ export function parsePairedSkillSummary(value: unknown): PairedSkillSummary | un
       seed,
       poweredBlockCount,
     },
-    excludedWithoutBaselineCount,
+    excludedNoEstimatorCount,
+    excludedEstimatorFailedCount,
     ...(excludedLegacyRangeBaselineCount === undefined ? {} : { excludedLegacyRangeBaselineCount }),
     ...(overall === undefined ? {} : { overall }),
     byKind: parsePairedSkillByKind(value.byKind),

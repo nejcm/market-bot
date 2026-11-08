@@ -323,6 +323,63 @@ describe("forecast-grid command", () => {
     expect(Object.keys(user.factSheet.benchmark.returnsPct).length).toBeGreaterThan(0);
   });
 
+  test("a non-USD quote currency on the collected history keeps range events out of the grid", async () => {
+    seedWatchlist("core", [["equity", "ETE.AT"]]);
+    const replay = makeReplayFetch(await cassette(), FIXTURE_DIR);
+    const aliased: FetchLike = async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const requested = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!);
+      const recorded = requested === "ETE.AT" ? "AAPL" : requested;
+      const response = await replay(url.replace(/\/chart\/[^?]+/u, `/chart/${recorded}`), init);
+      const body = (await response.json()) as {
+        chart: { result: [{ meta?: { symbol: string; currency?: string } }] };
+      };
+      if (requested === "ETE.AT") {
+        body.chart.result[0].meta = { symbol: "ETE.AT", currency: "EUR" };
+      }
+      return Response.json(body, { status: 200, headers: response.headers });
+    };
+    const { report } = await spend(allPriced, aliased);
+    expect(report.predictions.map((prediction) => prediction.id)).toEqual([
+      "grid-relative-5-ETE.AT",
+    ]);
+    expect(report.dataGaps.join("\n")).toContain(
+      "Event Grid range events not issued: ETE.AT trades outside the US session calendar",
+    );
+  });
+
+  test("a non-USD history with closes but no Verified Market Snapshot withholds the forecast book", async () => {
+    seedWatchlist("core", [["equity", "ETE.AT"]]);
+    const replay = makeReplayFetch(await cassette(), FIXTURE_DIR);
+    const aliased: FetchLike = async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const requested = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!);
+      const recorded = requested === "ETE.AT" ? "AAPL" : requested;
+      const response = await replay(url.replace(/\/chart\/[^?]+/u, `/chart/${recorded}`), init);
+      const body = (await response.json()) as {
+        chart: {
+          result: [
+            {
+              meta?: { symbol: string; currency?: string };
+              indicators: { quote: [{ open: unknown[] }] };
+            },
+          ];
+        };
+      };
+      if (requested === "ETE.AT") {
+        const [result] = body.chart.result;
+        result.meta = { symbol: "ETE.AT", currency: "EUR" };
+        result.indicators.quote[0].open = result.indicators.quote[0].open.map(() => null);
+      }
+      return Response.json(body, { status: 200, headers: response.headers });
+    };
+    const { report } = await spend(allPriced, aliased);
+    expect(report.predictions).toEqual([]);
+    expect(
+      report.dataGaps.filter((gap) => gap.includes("No Observable Predictions issued for ETE.AT")),
+    ).toHaveLength(1);
+  });
+
   test("a benchmark history Yahoo answers for another symbol is a declared gap, not empty returns", async () => {
     seedWatchlist("core", [["equity", "AAPL"]]);
     const replay = makeReplayFetch(await cassette(), FIXTURE_DIR);

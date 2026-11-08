@@ -1,13 +1,13 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { EVALS_ROOT } from "../src/replay/eval-output";
 import {
-  EVALS_ROOT,
   liveTokenEstimate,
   unreplayableFixtureError,
   runEvalSample,
   runEvalBatch,
-} from "../tests/support/run-fixtures/eval";
+} from "../src/replay/eval-run";
 
 const args = process.argv.slice(2);
 const fixtureNames = args.filter((argument) => !argument.startsWith("--"));

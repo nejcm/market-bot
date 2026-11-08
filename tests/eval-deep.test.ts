@@ -8,19 +8,22 @@ import { loadStagePrompt } from "../src/research/prompt-loader";
 import { resolveConfig } from "../src/config";
 import { loadRunArtifact } from "../src/run-artifacts";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
-import { createLiveFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
+import { createLiveFixtureConfig, loadFixture, runFixture } from "../src/replay/fixture-run";
 import { countCassetteMisses, makeReplayFetch } from "../src/replay/data-cassette";
 import { llmCassetteKey, makeReplayProvider, type LiveStage } from "../src/replay/llm-cassette";
+import { evalSampleDir, liveTokenEstimate, runEvalSample } from "../src/replay/eval-run";
 import {
-  evalSampleDir,
   extractSampleMetrics,
   formatEvalCompare,
-  liveTokenEstimate,
   readEvalSummary,
-  runEvalSample,
   writeEvalSummary,
-} from "./support/run-fixtures/eval";
+} from "../src/replay/eval-summary";
 import { approvalSubsetEstimate } from "../src/replay/replay-synthesis";
+import {
+  formatStageDeletionStatistics,
+  readStageDeletionInput,
+  stageDeletionStatistics,
+} from "../src/replay/eval-decision";
 import {
   calibrateJudge,
   overheadDisclosure,
@@ -1454,5 +1457,191 @@ describe("approval subset calibrated on judge telemetry", () => {
     expect(await readJudgeTelemetry(root, join(root, "missing.json"))).toMatchObject({
       skipped: 3,
     });
+  });
+});
+
+const unit = (verdict: string, kind = "contradiction", location = "keyFindings[0]") => ({
+  location,
+  kind,
+  verdict,
+});
+const sample = (
+  status: string,
+  staleSupport: number,
+  judged?: { contradictions: number; units: object[]; unconveyed?: string[]; shared?: string[] },
+) => ({
+  status,
+  defects: {
+    staleSupport: Array.from({ length: staleSupport }, (_, i) => `risks[${String(i)}]`),
+  },
+  ...(judged === undefined
+    ? {}
+    : {
+        judged: {
+          contradictions: Array.from({ length: judged.contradictions }, () => "keyFindings[0]"),
+          unconveyed: judged.unconveyed ?? [],
+          sharedConveyance: judged.shared ?? [],
+          units: judged.units,
+        },
+      }),
+});
+async function writeAblateLabel(
+  root: string,
+  label: string,
+  arm: string | undefined,
+  samples: Record<string, object>,
+): Promise<void> {
+  const dir = join(root, label);
+  for (const [name, record] of Object.entries(samples)) {
+    await mkdir(join(dir, name), { recursive: true });
+    await writeFile(join(dir, name, "eval-sample.json"), JSON.stringify(record));
+  }
+  await writeFile(
+    join(dir, "summary.json"),
+    JSON.stringify({
+      scope: "final-synthesis-only",
+      ...(arm === undefined ? {} : { arm: { name: arm } }),
+      samples: Object.keys(samples).map((name) => ({ dir: `/elsewhere/${label}/${name}` })),
+    }),
+  );
+}
+const judgedUnits = [unit("no"), unit("yes"), unit("insufficient-evidence"), unit("no")];
+
+describe("eval-deep --decide", () => {
+  test("reads paired samples into the stage deletion statistics", async () => {
+    const root = await tempRoot();
+    await writeAblateLabel(root, "decide", "market-behavior-analysis", {
+      "control-1": sample("completed", 1, {
+        contradictions: 1,
+        units: [...judgedUnits, unit("yes", "conveyance", "ubs")],
+      }),
+      "ablation-1": sample("completed", 0, {
+        contradictions: 2,
+        units: [unit("no"), unit("yes"), unit("yes"), unit("no")],
+        shared: ["ubs"],
+      }),
+      "control-2": sample("completed", 0, {
+        contradictions: 1,
+        units: [...judgedUnits, unit("yes", "conveyance", "ubs")],
+      }),
+      "ablation-2": sample("completed", 1, {
+        contradictions: 2,
+        units: [...judgedUnits, unit("yes", "conveyance", "ubs")],
+      }),
+    });
+    const input = await readStageDeletionInput(root, ["decide"]);
+    expect(input).toMatchObject({
+      arm: "market-behavior-analysis",
+      control: { decide: [2, 1] },
+      ablation: { decide: [2, 3] },
+      conveyance: { ubs: { control: [true, true], ablation: [true, true] } },
+      insufficientEvidence: {
+        control: { insufficientEvidence: 2, judged: 8 },
+        ablation: { insufficientEvidence: 1, judged: 8 },
+      },
+    });
+    const stats = stageDeletionStatistics(input);
+    expect(stats).toMatchObject({ captures: 1, meanDifference: 1, vetoes: [] });
+    const text = formatStageDeletionStatistics(stats);
+    expect(text).toContain("Mean paired difference (ablation - control score): 1.000");
+    expect(text).toContain("Vetoes: none");
+
+    await writeAblateLabel(root, "decide-failed", "market-behavior-analysis", {
+      "control-1": sample("completed", 0, { contradictions: 0, units: judgedUnits }),
+      "ablation-1": sample("failed", 0),
+    });
+    const both = stageDeletionStatistics(
+      await readStageDeletionInput(root, ["decide", "decide-failed"]),
+    );
+    expect(both.captures).toBe(2);
+    expect(both.vetoes).toEqual(["failed or missing sample: decide-failed ablation"]);
+    expect(formatStageDeletionStatistics(both)).toContain(
+      "Mean paired difference (ablation - control score): not computed (vetoed)",
+    );
+  });
+
+  test("refuses labels without judged --ablate data", async () => {
+    const root = await tempRoot();
+    await expect(readStageDeletionInput(root, ["missing"])).rejects.toThrow(
+      "No readable eval summary for label missing",
+    );
+    await writeAblateLabel(root, "plain", undefined, { "1": sample("completed", 0) });
+    await expect(readStageDeletionInput(root, ["plain"])).rejects.toThrow(
+      "plain is not an --ablate label",
+    );
+    await writeAblateLabel(root, "unjudged", "critique", {
+      "control-1": sample("completed", 0),
+      "ablation-1": sample("completed", 0),
+    });
+    await expect(readStageDeletionInput(root, ["unjudged"])).rejects.toThrow(
+      "unjudged has no judged control/ablation samples",
+    );
+    await writeAblateLabel(root, "old", "critique", {
+      "control-1": { status: "completed", judged: { contradictions: [] } },
+    });
+    await expect(readStageDeletionInput(root, ["old"])).rejects.toThrow("predates judged.units");
+    await writeAblateLabel(root, "critique-arm", "critique", {
+      "control-1": sample("completed", 0, { contradictions: 0, units: judgedUnits }),
+      "ablation-1": sample("completed", 0, { contradictions: 0, units: judgedUnits }),
+    });
+    await writeAblateLabel(root, "mbx", "market-behavior-analysis", {
+      "control-1": sample("completed", 0, { contradictions: 0, units: judgedUnits }),
+      "ablation-1": sample("completed", 0, { contradictions: 0, units: judgedUnits }),
+    });
+    await expect(readStageDeletionInput(root, ["critique-arm", "mbx"])).rejects.toThrow(
+      "Labels mix ablation arms",
+    );
+    await expect(readStageDeletionInput(root, ["mbx", "critique-arm", "mbx"])).rejects.toThrow(
+      "Duplicate eval label: mbx",
+    );
+    const valid = sample("completed", 0, { contradictions: 0, units: judgedUnits }) as {
+      defects: object;
+      judged: Record<string, unknown>;
+    };
+    for (const [name, record, message] of [
+      [
+        "no-contradictions",
+        { ...valid, judged: { ...valid.judged, contradictions: undefined } },
+        "no-contradictions/control-1: judged.contradictions must be a string array",
+      ],
+      [
+        "no-unconveyed",
+        { ...valid, judged: { ...valid.judged, unconveyed: undefined } },
+        "no-unconveyed/control-1: judged.unconveyed must be a string array",
+      ],
+      [
+        "bad-unit",
+        { ...valid, judged: { ...valid.judged, units: [unit("no"), { kind: "contradiction" }] } },
+        "bad-unit/control-1: judged.units must be rows with location, kind and verdict",
+      ],
+      [
+        "no-stale",
+        { ...valid, defects: {} },
+        "no-stale/control-1: defects.staleSupport must be a string array",
+      ],
+    ] as const) {
+      await writeAblateLabel(root, name, "critique", { "control-1": record, "ablation-1": valid });
+      await expect(readStageDeletionInput(root, [name])).rejects.toThrow(message);
+    }
+  });
+
+  test.each([
+    { args: ["--decide"], stderr: "--decide <ablate-label>" },
+    { args: ["--decide", "x", "--yes"], stderr: "--decide <ablate-label>" },
+    { args: ["--decide", "x", "--samples", "3"], stderr: "--decide <ablate-label>" },
+    { args: ["--decide", "x", "--bogus"], stderr: "Unknown option '--bogus'" },
+    {
+      args: ["--decide", "decide-test-label-that-does-not-exist"],
+      stderr: "No readable eval summary for label decide-test-label-that-does-not-exist",
+    },
+  ])("refuses $args before printing anything", async ({ args, stderr }) => {
+    const child = Bun.spawn([process.execPath, "run", "scripts/eval-deep.ts", ...args], {
+      cwd: join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(await child.exited).not.toBe(0);
+    expect(await new Response(child.stderr).text()).toContain(stderr);
+    expect(await new Response(child.stdout).text()).toBe("");
   });
 });

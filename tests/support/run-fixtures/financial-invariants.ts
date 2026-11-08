@@ -49,7 +49,11 @@ import {
   MIXED_PERIOD_METRIC,
 } from "../../../src/sources/extended-evidence/valuation-comps";
 import { yearsBetween } from "../fiscal-years";
-import { isDeepFixture, type FixtureMeta, type RunFixtureResult } from ".";
+import {
+  isDeepFixture,
+  type FixtureMeta,
+  type RunFixtureResult,
+} from "../../../src/replay/fixture-run";
 
 const DAY_MS = 86_400_000;
 const DURATION_MONTHS = new Set([3, 6, 9, 12]);

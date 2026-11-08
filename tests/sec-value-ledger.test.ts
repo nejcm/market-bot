@@ -27,7 +27,7 @@ import {
   fixtureCommand,
   loadFixture,
   runFixture,
-} from "./support/run-fixtures";
+} from "../src/replay/fixture-run";
 import { replayedRunOutput } from "./support/run-fixtures/artifacts";
 
 function row(overrides: Partial<LedgerRow> = {}): LedgerRow {

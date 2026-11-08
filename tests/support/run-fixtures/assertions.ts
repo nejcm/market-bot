@@ -88,7 +88,12 @@ import {
 } from "../../../src/sources/identity-gate";
 import { FORECAST_BASELINE_VERSION } from "../../../src/forecast/baseline";
 import { eventGrid } from "../../../src/research/event-grid";
-import { fixtureCommand, isDeepFixture, type FixtureMeta, type RunFixtureResult } from ".";
+import {
+  fixtureCommand,
+  isDeepFixture,
+  type FixtureMeta,
+  type RunFixtureResult,
+} from "../../../src/replay/fixture-run";
 import { assertFinancialRunInvariants } from "./financial-invariants";
 
 function asWritten(value: unknown): unknown {

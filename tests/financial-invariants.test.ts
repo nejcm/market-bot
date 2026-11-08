@@ -6,7 +6,7 @@ import {
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import { identityTolerance } from "../src/sources/extended-evidence/untagged-financial-table-validation";
-import { runFixture, type RunFixtureResult } from "./support/run-fixtures";
+import { runFixture, type RunFixtureResult } from "../src/replay/fixture-run";
 import {
   assertBalanceSheetFactIdentity,
   assertCompositeFactIntegrity,

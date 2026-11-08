@@ -6,7 +6,7 @@ import {
   unavailableEndpoint,
   type ProviderEndpointAvailability,
 } from "../../src/sources/provider-endpoint-availability";
-import { runFixture, type RunFixtureResult } from "./run-fixtures";
+import { runFixture, type RunFixtureResult } from "../../src/replay/fixture-run";
 
 export const PHASE0_BASELINE_PATH = join(
   import.meta.dir,

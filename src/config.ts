@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { dataRootFromRunsDir } from "./data-paths";
 import type { SubjectKind } from "./domain/evidence";
-import { defaultRunArtifactIndexPath } from "./run-artifact-index";
 import type { ModelParams, ReasoningEffort } from "./model/types";
 
 export type ProviderName = "openai" | "openai-compatible" | "codex" | "anthropic";
@@ -193,6 +192,22 @@ const SEC_FORM_TYPE_RE = /^[0-9A-Z-]+$/u;
 
 function readBoolean(value: string | undefined): boolean {
   return value === "1" || value === "true";
+}
+
+export function runArtifactIndexDisabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return readBoolean(env.MARKET_BOT_INDEX_DISABLE);
+}
+
+export function runArtifactIndexDbPath(
+  dataDir: string,
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return (
+    readOptionalString(env.MARKET_BOT_INDEX_DB_PATH)?.trim() ??
+    join(dataRootFromRunsDir(dataDir), "index.sqlite")
+  );
 }
 
 function readPositiveInteger(value: string | undefined, fallback: number): number {
@@ -684,14 +699,9 @@ export function resolveConfig(
       ),
     },
     historyOptions: resolveHistoryOptions(env),
-    indexOptions: readBoolean(env.MARKET_BOT_INDEX_DISABLE)
+    indexOptions: runArtifactIndexDisabled(env)
       ? { disabled: true }
-      : {
-          dbPath:
-            readOptionalString(env.MARKET_BOT_INDEX_DB_PATH) ??
-            defaultRunArtifactIndexPath(dataDir),
-          disabled: false,
-        },
+      : { dbPath: runArtifactIndexDbPath(dataDir, env), disabled: false },
   };
 }
 

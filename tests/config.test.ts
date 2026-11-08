@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { resolveConfig, resolveResearchConsoleConfig } from "../src/config";
+import {
+  resolveConfig,
+  resolveResearchConsoleConfig,
+  runArtifactIndexDbPath,
+  runArtifactIndexDisabled,
+} from "../src/config";
 import {
   configuredFixtureProviders,
   createFixtureConfig,
@@ -644,5 +649,39 @@ describe("resolveResearchConsoleConfig", () => {
     expect(() => resolveResearchConsoleConfig({ MARKET_BOT_CONSOLE_PORT: "0" })).toThrow(
       "Expected positive integer",
     );
+  });
+});
+
+describe("Run Artifact Index env", () => {
+  test("defaults the index DB path to the data root of the runs dir", () => {
+    expect(runArtifactIndexDbPath(join("data", "runs"), {})).toBe(join("data", "index.sqlite"));
+    expect(runArtifactIndexDbPath("/srv/market/runs/", {})).toBe("/srv/market/index.sqlite");
+    expect(runArtifactIndexDbPath("/srv/custom", {})).toBe(join("/srv/custom", "index.sqlite"));
+  });
+
+  test("reads a trimmed MARKET_BOT_INDEX_DB_PATH and ignores a blank one", () => {
+    expect(runArtifactIndexDbPath("data/runs", { MARKET_BOT_INDEX_DB_PATH: " /tmp/i.db " })).toBe(
+      "/tmp/i.db",
+    );
+    expect(runArtifactIndexDbPath("data/runs", { MARKET_BOT_INDEX_DB_PATH: "  " })).toBe(
+      join("data", "index.sqlite"),
+    );
+  });
+
+  test("MARKET_BOT_INDEX_DISABLE accepts only 1 or true", () => {
+    expect(runArtifactIndexDisabled({})).toBe(false);
+    expect(runArtifactIndexDisabled({ MARKET_BOT_INDEX_DISABLE: "false" })).toBe(false);
+    expect(runArtifactIndexDisabled({ MARKET_BOT_INDEX_DISABLE: "1" })).toBe(true);
+    expect(runArtifactIndexDisabled({ MARKET_BOT_INDEX_DISABLE: "true" })).toBe(true);
+  });
+
+  test("resolveConfig carries the index options from the same reads", () => {
+    expect(resolveConfig({ MARKET_BOT_DATA_DIR: "/srv/market/runs" }).indexOptions).toEqual({
+      dbPath: "/srv/market/index.sqlite",
+      disabled: false,
+    });
+    expect(resolveConfig({ MARKET_BOT_INDEX_DISABLE: "1" }).indexOptions).toEqual({
+      disabled: true,
+    });
   });
 });

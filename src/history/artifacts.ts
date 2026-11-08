@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
 import { type InstrumentIdentity } from "../domain/instrument";
@@ -902,12 +902,11 @@ export async function buildThesisDelta(input: ThesisDeltaInput): Promise<ThesisD
     const dir = join(historyDir(input.dataDir), "deltas");
     await mkdir(dir, { recursive: true });
     const baseName = `${instrumentFileName(timeline.instrumentKey).replace(/\.json$/u, "")}-${from.runId}-to-${to.runId}`;
-    await writeFile(
+    await writeFileAtomic(
       join(dir, `${baseName}.json`),
       `${JSON.stringify(delta, undefined, 2)}\n`,
-      "utf8",
     );
-    await writeFile(join(dir, `${baseName}.md`), renderDeltaMarkdown(delta), "utf8");
+    await writeFileAtomic(join(dir, `${baseName}.md`), renderDeltaMarkdown(delta));
   }
 
   return delta;

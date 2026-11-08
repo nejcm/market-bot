@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -1007,6 +1007,31 @@ describe("runScorePass Alpha validation", () => {
     });
     expect(markdown).toContain("# Alpha Validation Summary");
     expect(attributionMarkdown).toContain("# Alpha Feature Attribution");
+
+    // A hard link keeps the old inode only when the writer renames a new file in.
+    const sharedOutputs = [
+      "alpha-validation/summary.json",
+      "alpha-validation/summary.md",
+      "alpha-search/cohorts.json",
+      "alpha-search/cohorts.md",
+      "alpha-search/watchlist.json",
+      "alpha-search/watchlist.md",
+      "alpha-search/feature-attribution.json",
+      "alpha-search/feature-attribution.md",
+    ];
+    for (const output of sharedOutputs) {
+      await link(join(tmpDir, output), join(tmpDir, `${output}.link`));
+    }
+    await runScorePass(tmpDir, new Date("2026-06-02T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    for (const output of sharedOutputs) {
+      const [current, linked] = await Promise.all([
+        stat(join(tmpDir, output)),
+        stat(join(tmpDir, `${output}.link`)),
+      ]);
+      expect(current.ino).not.toBe(linked.ino);
+    }
   });
 
   test("rebuilds alpha candidate watchlist with cross-run deltas", async () => {

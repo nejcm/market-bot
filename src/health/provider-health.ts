@@ -33,6 +33,7 @@ import {
   type LoadedDeepEquityEvidenceBundle,
 } from "../run-artifacts";
 import { readAnalytics } from "../run-artifact-analytics-reader";
+import { isAssetClass, isJobType } from "../run-artifact-value-guards";
 import {
   rollupSubsystemOutcomes,
   type SubsystemOutcomeRollup,
@@ -150,23 +151,6 @@ function stringValue(value: unknown): string | undefined {
 
 function numberValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function isJobType(value: unknown): value is JobType {
-  return (
-    value === "market-overview" ||
-    value === "daily" ||
-    value === "weekly" ||
-    value === "equity" ||
-    value === "crypto" ||
-    value === "alpha-search" ||
-    value === "research" ||
-    value === "forecast-grid"
-  );
-}
-
-function isAssetClass(value: unknown): value is AssetClass {
-  return value === "equity" || value === "crypto";
 }
 
 const SOURCE_KIND_SET: ReadonlySet<Source["kind"]> = new Set(SOURCE_KINDS);

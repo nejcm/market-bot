@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
 import { dataRootFromRunsDir } from "../data-paths";
@@ -327,10 +327,9 @@ async function writeAlphaValidationRunDir(
   if (validation === undefined) {
     return false;
   }
-  await writeFile(
+  await writeFileAtomic(
     join(runDir, ALPHA_VALIDATION_FILE),
     `${JSON.stringify(validation, undefined, 2)}\n`,
-    "utf8",
   );
   return true;
 }
@@ -350,10 +349,9 @@ async function writeAlphaCandidateProfilesRunDir(
   }
 
   await mkdir(join(runDir, NORMALIZED_DIR), { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     join(runDir, ALPHA_CANDIDATE_PROFILES_FILE),
     `${JSON.stringify(profiles, undefined, 2)}\n`,
-    "utf8",
   );
   return true;
 }
@@ -596,12 +594,11 @@ export async function buildAndWriteAlphaLeadCohorts(
   });
   const outputDir = join(dataRootFromRunsDir(dataDir), "alpha-search");
   await mkdir(outputDir, { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     join(outputDir, "cohorts.json"),
     `${JSON.stringify(cohorts, undefined, 2)}\n`,
-    "utf8",
   );
-  await writeFile(join(outputDir, "cohorts.md"), renderAlphaLeadCohortMarkdown(cohorts), "utf8");
+  await writeFileAtomic(join(outputDir, "cohorts.md"), renderAlphaLeadCohortMarkdown(cohorts));
   return true;
 }
 
@@ -625,15 +622,13 @@ async function buildAndWriteAlphaCandidateWatchlist(
   const watchlist = buildAlphaCandidateWatchlist({ profiles, validations, now });
   const watchlistDir = join(dataRootFromRunsDir(dataDir), "alpha-search");
   await mkdir(watchlistDir, { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     join(watchlistDir, "watchlist.json"),
     `${JSON.stringify(watchlist, undefined, 2)}\n`,
-    "utf8",
   );
-  await writeFile(
+  await writeFileAtomic(
     join(watchlistDir, "watchlist.md"),
     renderAlphaCandidateWatchlistMarkdown(watchlist),
-    "utf8",
   );
   return true;
 }
@@ -658,15 +653,13 @@ async function buildAndWriteAlphaFeatureAttribution(
   const attribution = buildAlphaFeatureAttribution({ profiles, validations, now });
   const outputDir = join(dataRootFromRunsDir(dataDir), "alpha-search");
   await mkdir(outputDir, { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     join(outputDir, "feature-attribution.json"),
     `${JSON.stringify(attribution, undefined, 2)}\n`,
-    "utf8",
   );
-  await writeFile(
+  await writeFileAtomic(
     join(outputDir, "feature-attribution.md"),
     renderAlphaFeatureAttributionMarkdown(attribution),
-    "utf8",
   );
   return true;
 }
@@ -693,15 +686,13 @@ async function buildAndWriteAlphaValidationSummary(
   );
   const summaryDir = join(dataRootFromRunsDir(dataDir), "alpha-validation");
   await mkdir(summaryDir, { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     join(summaryDir, "summary.json"),
     `${JSON.stringify(summary, undefined, 2)}\n`,
-    "utf8",
   );
-  await writeFile(
+  await writeFileAtomic(
     join(summaryDir, "summary.md"),
     renderAlphaValidationSummaryMarkdown(summary),
-    "utf8",
   );
   return true;
 }

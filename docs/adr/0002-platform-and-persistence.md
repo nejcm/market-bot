@@ -37,7 +37,7 @@ The CLI, Research Console, orchestration, and durable Run Artifacts share one pl
 - Completed deep equity persists normalized current evidence and deterministic views only in
   `normalized/evidence-bundle.json`; subsumed component sidecars are not written. Raw payloads live only in
   `raw/snapshots.json`. Other run types keep their component layouts.
-- Failed final synthesis retains `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`,
+- Failed final synthesis, or a throw in the post-synthesis finalize step, retains `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`,
   normalized components, and raw evidence; no validated report, report Markdown, trace, or analytics is emitted.
   Failed deep equity retains component evidence rather than constructing a completed bundle.
 - Root `outcomes.json` is the canonical successful/failed final-synthesis Subsystem Outcome ledger. Successful

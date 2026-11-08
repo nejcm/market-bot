@@ -232,7 +232,7 @@ Provider Health projects those same rows into its route table, because it otherw
 
 Web Gather records `failed` / `parse-retries-exhausted` only when parse retries are exhausted and the loop accepted no requests — the silence-vs-failure case the ledger exists to draw. Earlier-round accepted requests still roll up as `produced` / `accepted-requests`, with the exhaustion left on `detail`. The generic Web Gather loop spends one extra model round on a parse retry (live-token cost, bounded by that one retry and `maxRounds`). The Evidence Request loop passes no retry option and is unaffected.
 
-A Failed Run Artifact is marked by `failure.json`, includes `outcomes.json`, and deliberately has no `report.json` or `analytics.json`. Its diagnostics stay outside the completed-run `src/run-artifacts.ts` reader.
+A Failed Run Artifact is marked by `failure.json`, includes `outcomes.json`, and deliberately has no `report.json` or `analytics.json`. Its diagnostics stay outside the completed-run `src/run-artifacts.ts` reader. `failure.json:phase` is `final-synthesis` when repairs are exhausted, or `post-synthesis` when synthesis was accepted but the deep-equity bundle build or `finalizeSynthesis` (integrity audit, post-prune validation) threw; the latter keeps the error `stack`, stores the accepted pre-audit report as `rejected-report.json`, and blocks the integrity-audit and forecast-disagreement outcomes with `post-synthesis-failed`.
 
 Provider Health v3 reads Subsystem Outcomes through Run Artifact Index schema v11 when fresh and
 scans `outcomes.json` from disk when the index is missing, stale, or unsupported. It counts Failed
@@ -349,7 +349,7 @@ CLI args → AppConfig → pre-run score + index repair (best-effort) → collec
                          ├─ validated report → completed Run Artifact
                          │                    ↓
                          │       score pass + calibration + index write-through
-                         └─ repairs exhausted → Failed Run Artifact → index write-through
+                         └─ repairs exhausted or post-synthesis throw → Failed Run Artifact → index write-through
 ```
 
 `score` and `calibration` CLI verbs invoke the last stage directly without a new research run. `index rebuild` fully repopulates the derived SQLite index from disk. `cache prune` removes raw cache entries older than 30 days and scorer close-cache entries older than 365 days; it leaves `data/cache/accession/` alone.

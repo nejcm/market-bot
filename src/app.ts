@@ -9,6 +9,7 @@ import type { ModelProvider } from "./model/types";
 import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
 import { isFinalSynthesisRejectedError } from "./research/final-synthesis";
+import { PostSynthesisError } from "./research/finalize-synthesis";
 import { buildSourcePlan } from "./research/source-plan";
 import {
   renderRunAnalyticsConsole,
@@ -413,7 +414,10 @@ export async function runCli(
             dependencies,
           });
     } catch (error: unknown) {
-      if (isFinalSynthesisRejectedError(error) && error.runDir !== undefined) {
+      if (
+        (isFinalSynthesisRejectedError(error) || error instanceof PostSynthesisError) &&
+        error.runDir !== undefined
+      ) {
         progress("updating run artifact index");
         const failedRunDir = error.runDir;
         await locked(() =>

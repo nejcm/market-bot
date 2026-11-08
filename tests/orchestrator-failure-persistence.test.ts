@@ -5,6 +5,9 @@ import { readRunDetail, readRunFile } from "../app/artifacts";
 import type { InstrumentCommand } from "../src/cli/args";
 import type { ModelProvider } from "../src/model/types";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
+import * as earningsEligibilityModule from "../src/forecast/earnings-eligibility";
+import * as finalizeModule from "../src/research/finalize-synthesis";
+import { PostSynthesisError } from "../src/research/finalize-synthesis";
 import { persistResearchJob } from "../src/research/orchestrator";
 import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
 import type { CollectedSources } from "../src/sources/types";
@@ -345,5 +348,85 @@ describe("Failed Run Artifact persistence", () => {
     const failure = JSON.parse(await readFile(join(failedDir, runId!, "failure.json"), "utf8"));
     expect(failure.codeVersion).toEqual(codeState.codeVersion);
     expect(failure.sourceStateHash).toBe(codeState.sourceStateHash);
+  });
+
+  test.each([
+    {
+      name: "finalize throws",
+      inject: () =>
+        spyOn(finalizeModule, "finalizeSynthesis").mockRejectedValue(
+          new Error("integrity audit exploded"),
+        ),
+      message: "integrity audit exploded",
+    },
+    {
+      name: "the post-prune report fails validation",
+      inject: () =>
+        spyOn(earningsEligibilityModule, "reconcileEarningsForecastTelemetry").mockImplementation(
+          (report) => ({ ...report, confidence: "certain" as never }),
+        ),
+      message: "confidence",
+    },
+  ])("publishes a post-synthesis Failed Run Artifact when $name", async ({ inject, message }) => {
+    const dataDir = tempDataDir("market-bot-post-synthesis-failure");
+    const spy = inject();
+    let caught: unknown;
+    try {
+      await persistResearchJob({
+        command,
+        config: { ...config, dataDir },
+        provider: providerReturningFinal(modelPayload("AAPL evidence is sourced.")),
+        collectedSources: sources(),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+        endClock: () => new Date("2026-05-19T00:01:00.000Z"),
+      });
+    } catch (error: unknown) {
+      caught = error;
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(caught).toBeInstanceOf(PostSynthesisError);
+    const error = caught as PostSynthesisError;
+    const [runId] = await readdir(dataDir);
+    const runDir = join(dataDir, runId!);
+    expect(error.runDir).toBe(runDir);
+    expect(error.message).toContain(message);
+    expect(error.cause).toBeInstanceOf(Error);
+    const rootFiles = await readdir(runDir);
+    expect(rootFiles).toEqual(
+      expect.arrayContaining([
+        "failure.json",
+        "rejected-report.json",
+        "stages.json",
+        "outcomes.json",
+      ]),
+    );
+    expect(rootFiles).not.toContain("report.json");
+    expect(rootFiles).not.toContain("trace.json");
+    const failure = JSON.parse(await readFile(join(runDir, "failure.json"), "utf8"));
+    expect(failure).toMatchObject({
+      phase: "post-synthesis",
+      message: error.message,
+      stack: (error.cause as Error).stack,
+      sourceGapsAsOf: "post-synthesis",
+    });
+    expect(failure).not.toHaveProperty("languageViolations");
+    const stages = JSON.parse(await readFile(join(runDir, "stages.json"), "utf8")) as readonly {
+      readonly stage: string;
+    }[];
+    expect(stages.filter((stage) => stage.stage === "final-synthesis")).toHaveLength(1);
+    const rejected = JSON.parse(await readFile(join(runDir, "rejected-report.json"), "utf8"));
+    expect(rejected).toMatchObject({ runId, summary: "AAPL evidence is sourced." });
+    const outcomes = JSON.parse(
+      await readFile(join(runDir, "outcomes.json"), "utf8"),
+    ) as readonly SubsystemOutcome[];
+    expect(
+      outcomes
+        .filter((item) => item.code === "post-synthesis-failed")
+        .map((item) => item.subsystem),
+    ).toEqual(["report-integrity-audit", "forecast-disagreement"]);
+    const detail = await readRunDetail(dataDir, runId!);
+    expect(detail?.failure).toMatchObject({ phase: "post-synthesis", message: error.message });
   });
 });

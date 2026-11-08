@@ -9,6 +9,7 @@ import { runDeepEquity } from "../src/deep-equity";
 import type { PersistedResearchJobResult, RunResearchJobInput } from "../src/research/orchestrator";
 import type { ModelProvider } from "../src/model/types";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
+import { PostSynthesisError } from "../src/research/finalize-synthesis";
 import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
 import { collectedSources, researchReport } from "./support/fixtures";
@@ -481,7 +482,26 @@ describe("runCli", () => {
     expect(calls).toEqual(["score", "index", "stale-rebuild", "collect"]);
   });
 
-  test("indexes a Failed Run Artifact before rethrowing its validator error", async () => {
+  test.each([
+    {
+      name: "validator rejection",
+      failure: () =>
+        new FinalSynthesisRejectedError({
+          message: "Report failed validation",
+          cause: new Error("trade-action language"),
+          reportValidationErrors: ["trade-action language"],
+          predictionErrors: [],
+          stageOutputs: [],
+          payload: {},
+          totalCalls: 4,
+          reportRepairReprompts: 3,
+        }),
+    },
+    {
+      name: "post-synthesis error",
+      failure: () => new PostSynthesisError(new Error("integrity audit exploded")),
+    },
+  ])("indexes a Failed Run Artifact before rethrowing its $name", async ({ failure }) => {
     const dataDir = join(
       tmpdir(),
       `market-bot-failed-index-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -492,16 +512,7 @@ describe("runCli", () => {
     const indexedRunDirs: (readonly string[])[] = [];
     const stderr: string[] = [];
     const originalWrite = process.stderr.write.bind(process.stderr);
-    const rejection = new FinalSynthesisRejectedError({
-      message: "Report failed validation",
-      cause: new Error("trade-action language"),
-      reportValidationErrors: ["trade-action language"],
-      predictionErrors: [],
-      stageOutputs: [],
-      payload: {},
-      totalCalls: 4,
-      reportRepairReprompts: 3,
-    });
+    const rejection = failure();
     rejection.runDir = runDir;
     await mkdir(runDir, { recursive: true });
     await writeFile(

@@ -96,3 +96,13 @@ function peerMedianAuditClauses(report: ResearchReport): readonly PeerMedianAudi
     }),
   );
 }
+
+export class PostSynthesisError extends Error {
+  // Set by the orchestrator after the Failed Run Artifact publishes; undefined skips app indexing.
+  runDir?: string;
+
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = "PostSynthesisError";
+  }
+}

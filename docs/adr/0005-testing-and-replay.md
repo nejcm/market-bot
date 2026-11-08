@@ -62,7 +62,11 @@ re-derived properties and targeted assertions, not approving large output snapsh
   cache/cross-run state, and versioned Final-Synthesis Input with embedded responses. Retain HTTP status and
   transport/model failures as failures. Large HTTP/state bodies, and Final-Synthesis Input `rawSnapshots` /
   `secTargetPacket` subtrees over 32 KB (as `{"$replayBody": <sha256>}` → `bodies/<sha256>.json`, a key
-  capture refuses in payloads), are content-addressed; readers check hashes and path containment. Redact credentials, configured SEC contact identities, and local paths before recording;
+  capture refuses in payloads), are content-addressed; readers check hashes and path containment. A
+  Final-Synthesis Input subtree equal to a parsed large HTTP body is stored as `{"$replayHttpBody": <sha256>}`,
+  a reference to that cassette's `bodies/<sha256>.txt`, read as JSON (re-serialized as the checkpoint was) and
+  never resolved further. Only envelopes marked `bodyEncoding: "http-body-refs"` interpret that key; older
+  captures keep it as literal data and still load (amended 2026-11-09). Redact credentials, configured SEC contact identities, and local paths before recording;
   never store request auth headers.
 - Publish captures only by renaming validated, secret-scanned private partial directories. Handled failure
   removes only private capture staging, never research artifacts, never invalidates research, and never publishes

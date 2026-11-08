@@ -43,6 +43,7 @@ export interface SynthesisReplayInput {
   readonly responses: LlmCassette;
   readonly promptProvenance: readonly { readonly model: string; readonly requestSha256: string }[];
   readonly baseline?: ReturnType<typeof synthesisReplayFacts>;
+  readonly bodyEncoding?: typeof HTTP_BODY_ENCODING;
 }
 
 export function synthesisReplayFacts(report: ResearchReport): {
@@ -334,6 +335,9 @@ export function readSynthesisReplayInput(value: unknown): SynthesisReplayInput {
   ) {
     throw new Error("Invalid final-synthesis replay envelope/version");
   }
+  if (value.bodyEncoding !== undefined && value.bodyEncoding !== HTTP_BODY_ENCODING) {
+    throw new Error("Invalid final-synthesis replay body encoding");
+  }
   if (
     value.baseline !== undefined &&
     (!isRecord(value.baseline) ||
@@ -450,34 +454,44 @@ export function readSynthesisReplayInput(value: unknown): SynthesisReplayInput {
 }
 
 const BODY_REF = "$replayBody";
+const HTTP_BODY_REF = "$replayHttpBody";
+const HTTP_BODY_ENCODING = "http-body-refs";
 
-function bodyRef(value: unknown): string | undefined {
-  if (!isRecord(value) || !(BODY_REF in value)) {
+function bodyRef(
+  value: unknown,
+  httpRefs: boolean,
+): { readonly file: string; readonly sha256: string } | undefined {
+  const keys = httpRefs ? [BODY_REF, HTTP_BODY_REF] : [BODY_REF];
+  const key = isRecord(value) ? keys.find((name) => name in value) : undefined;
+  if (key === undefined) {
     return undefined;
   }
-  const sha256 = value[BODY_REF];
+  const sha256 = (value as Record<string, unknown>)[key];
   if (
-    Object.keys(value).length !== 1 ||
+    Object.keys(value as object).length !== 1 ||
     typeof sha256 !== "string" ||
     !/^[a-f0-9]{64}$/u.test(sha256)
   ) {
     throw new Error("Invalid replay body reference");
   }
-  return sha256;
+  return { file: `bodies/${sha256}.${key === BODY_REF ? "json" : "txt"}`, sha256 };
 }
 
 async function resolveBodies(
   dir: string,
   text: string,
   cache: Map<string, Promise<unknown>>,
+  httpRefs?: boolean,
   used = new Set<string>(),
 ): Promise<unknown> {
-  const refs = new Set<string>();
+  const refs = new Map<string, string>();
   const parsed: unknown = JSON.parse(text);
+  // Older envelopes predate the reserved key, so it stays literal data there.
+  const http = httpRefs ?? (isRecord(parsed) && parsed.bodyEncoding === HTTP_BODY_ENCODING);
   const collect = (value: unknown): void => {
-    const sha256 = bodyRef(value);
-    if (sha256 !== undefined) {
-      refs.add(sha256);
+    const ref = bodyRef(value, http);
+    if (ref !== undefined) {
+      refs.set(ref.file, ref.sha256);
     } else if (Array.isArray(value) || isRecord(value)) {
       Object.values(value).forEach(collect);
     }
@@ -488,28 +502,30 @@ async function resolveBodies(
   }
   const loaded = new Map(
     await Promise.all(
-      [...refs].map(async (sha256) => {
-        if (!cache.has(sha256)) {
+      [...refs].map(async ([file, sha256]) => {
+        if (!cache.has(file)) {
+          const body = readRecordedBody(dir, file, sha256);
+          // Raw HTTP text: no nested refs; round-trip it as the checkpoint was (1e400 → null, -0 → 0).
           cache.set(
-            sha256,
-            readRecordedBody(dir, `bodies/${sha256}.json`, sha256).then((body) =>
-              resolveBodies(dir, body, cache, used),
-            ),
+            file,
+            file.endsWith(".txt")
+              ? body.then((raw): unknown => JSON.parse(JSON.stringify(JSON.parse(raw))))
+              : body.then((raw) => resolveBodies(dir, raw, cache, http, used)),
           );
         }
-        return [sha256, await cache.get(sha256)] as const;
+        return [file, await cache.get(file)] as const;
       }),
     ),
   );
   const substitute = (value: unknown): unknown => {
-    const sha256 = bodyRef(value);
-    if (sha256 !== undefined) {
-      if (!loaded.has(sha256)) {
+    const ref = bodyRef(value, http);
+    if (ref !== undefined) {
+      if (!loaded.has(ref.file)) {
         throw new Error("Unresolved replay body reference");
       }
       // The first use takes the loaded body; repeats get a clone so no two sites alias.
-      const body = loaded.get(sha256);
-      return used.has(sha256) ? structuredClone(body) : (used.add(sha256), body);
+      const body = loaded.get(ref.file);
+      return used.has(ref.file) ? structuredClone(body) : (used.add(ref.file), body);
     }
     if (Array.isArray(value)) {
       value.forEach((row, index) => {
@@ -526,21 +542,30 @@ async function resolveBodies(
 }
 
 export async function loadSynthesisReplayInput(file: string): Promise<SynthesisReplayInput> {
-  return readSynthesisReplayInput(
+  const { bodyEncoding: _resolved, ...saved } = readSynthesisReplayInput(
     await resolveBodies(dirname(file), await readFile(file, "utf8"), new Map()),
   );
+  return saved;
 }
 
 export function externalizeSynthesisBodies(
   saved: SynthesisReplayInput,
   store: (body: string) => string,
+  httpBodies: ReadonlyMap<string, string> = new Map(),
 ): SynthesisReplayInput {
   const externalize = (value: unknown): unknown => {
     let mapped = value;
+    const sha256 =
+      typeof value === "object" && value !== null
+        ? httpBodies.get(JSON.stringify(value))
+        : undefined;
+    if (sha256 !== undefined) {
+      return { [HTTP_BODY_REF]: sha256 };
+    }
     if (Array.isArray(value)) {
       mapped = value.map((row) => externalize(row));
     } else if (isRecord(value)) {
-      if (BODY_REF in value) {
+      if (BODY_REF in value || HTTP_BODY_REF in value) {
         throw new Error(`Replay input contains reserved key ${BODY_REF}`);
       }
       mapped = Object.fromEntries(
@@ -555,6 +580,7 @@ export function externalizeSynthesisBodies(
   const collected = saved.input.collectedSources;
   return {
     ...saved,
+    bodyEncoding: HTTP_BODY_ENCODING,
     input: {
       ...saved.input,
       collectedSources: {

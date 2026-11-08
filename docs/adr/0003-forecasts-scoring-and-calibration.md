@@ -70,7 +70,9 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   keep UTC date; earnings use event date; conditional keys combine both origins. Distinct bounds stay distinct.
   Deduplicate before every aggregate, keeping earliest issuance by instant, then Run ID, then Prediction ID;
   voided events use the same key. Publish `duplicateForecastCount`, including zero, distinct Run counts, and
-  Run-clustered standard errors when calculable; Brier remains event-weighted.
+  standard errors clustered by subject (first leg) and origin session when there are at least two clusters;
+  Brier remains event-weighted (amended 2026-11-08; Run ID clusters left a multi-subject `forecast-grid` run
+  as one cluster, and on 2026-11-07 data the switch moved no slice's standard error by more than 6%).
 - Recompute origins from `generatedAt`/claim rather than unstored legacy windows. Known limits: unverified-session
   quarantine and changed BMO/AMC timing can split/merge events incorrectly; persist window identity if observed.
   Invalid `generatedAt` fails strict reading and is excluded by disk/index scoring and Calibration alike.
@@ -98,10 +100,18 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   block's latest close due date (the Scoring Policy horizon end, not the score-pass clock), so overlapping
   horizons never count as independent; floor 30 paired events and 5 blocks (the existing Actionable
   Negative Calibration count floor, plus enough blocks for a resample to vary); minimum useful effect
-  ΔBrier ≥ 0.01. Status is `model-better` (interval above 0), `baseline-better` (below 0) or
+  ΔBrier ≥ 0.01 on the point estimate, with the interval above 0 (amended 2026-11-08: the point estimate, not
+  `ciLow`, because the 784-block power figure below is the power for an interval above 0 at a true ΔBrier of
+  0.01; gating on `ciLow` would hold 80% power only near a true 0.02). Status is `model-better` (interval above 0), `baseline-better` (below 0) or
   `not-yet-decidable` (interval spans 0 or below the floor). The floor is a minimum, not power: 80% power
   for ΔBrier 0.01 at SD 0.10 needs about 784 independent blocks (`poweredBlockCount`), so every surface
-  says to expect `not-yet-decidable` until then and to treat earlier statuses as provisional. The 0.01 bar
+  says to expect `not-yet-decidable` until then and to treat earlier statuses as provisional. Blocks are
+  independent only across subjects (amended 2026-11-08): cross-subject dependence, a shared benchmark leg
+  (SPY/QQQ) and the same-session market move, is not modeled, so the interval is likely too narrow, and
+  `pairedSkillPolicyNote` says so. Cross-subject blocking is revisited once there are about 30 or more origin
+  sessions; on 2026-11-07 data (11 sessions) it cut the overall slice from 33 blocks to 4–11, leaving a
+  degenerate bootstrap. Under strict cross-subject overlap blocking, 784 independent blocks cannot be reached
+  at a daily cadence. The 0.01 bar
   is deliberately one-sided: the model must clear it to keep its probabilities, while the free baseline
   wins on any interval below 0. The index
   stores the baseline stamp (schema 14; schema 15 also projects each prediction's primary subject as
@@ -124,7 +134,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   outside-band probability; direction and plain outperform relative (A−B) are 0.5 by construction (any
   zero-drift symmetric distribution) but still require their close windows and are stamped with
   `baselineVersion`, so their Paired Skill is skill against a declared coin flip. Conditional, volatility, IV, macro and earnings claims carry no baseline and are not
-  scored for skill. Fewer than 61 closes, a residual split, zero movement, a
+  scored for skill. Fewer than 61 closes (kept for the constant-0.5 kinds too, amended 2026-11-08: on
+  2026-11-07 data it excluded no event, and the closes still anchor `infoCutoff` and the stale-leg check), a residual split, zero movement, a
   missing series, relative legs whose last closes are more than 4 days apart, or a range whose scored
   sessions are unknown (non-US listing, or the primary's unverified latest session) omit the baseline and
   declare a `forecast-baseline` data gap; it is never defaulted to 0.5. A non-positive range bound

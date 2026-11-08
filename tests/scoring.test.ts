@@ -1164,32 +1164,36 @@ describe("buildCalibrationSummary", () => {
     expect(summary.byAssetClass["crypto"]).toBeDefined();
   });
 
-  test("reports run-clustered Brier standard error with unequal cluster sizes", () => {
+  function sessionPair(
+    runId: string,
+    generatedAt: string,
+    outcome: "hit" | "miss",
+    probability: number,
+    subject = "SPY",
+    horizon = 5,
+  ) {
+    return {
+      prediction: {
+        ...basePrediction,
+        id: `${runId}-${subject}-${String(horizon)}`,
+        subject,
+        measurableAs: `close(${subject}, +${String(horizon)}) > close(${subject}, 0)`,
+        probability,
+      },
+      score: makeScore(outcome),
+      assetClass: "equity" as const,
+      jobType: "daily" as const,
+      runId,
+      generatedAt,
+    };
+  }
+
+  test("clusters Brier standard error by subject and origin session, with unequal cluster sizes", () => {
+    const session = distinctIssuance();
     const pairs = [
-      {
-        prediction: { ...basePrediction, probability: 1 },
-        score: makeScore("hit"),
-        assetClass: "equity" as const,
-        jobType: "daily" as const,
-        runId: "r1",
-        generatedAt: distinctIssuance(),
-      },
-      {
-        prediction: { ...basePrediction, probability: 1 },
-        score: makeScore("miss"),
-        assetClass: "equity" as const,
-        jobType: "daily" as const,
-        runId: "r1",
-        generatedAt: distinctIssuance(),
-      },
-      {
-        prediction: { ...basePrediction, probability: 0 },
-        score: makeScore("miss"),
-        assetClass: "equity" as const,
-        jobType: "daily" as const,
-        runId: "r2",
-        generatedAt: distinctIssuance(),
-      },
+      sessionPair("r1", session, "hit", 1, "SPY", 5),
+      sessionPair("r1", session, "miss", 1, "SPY", 10),
+      sessionPair("r2", distinctIssuance(), "miss", 0),
     ];
 
     const metric = buildCalibrationSummary(pairs).byAssetClass.equity;
@@ -1199,15 +1203,31 @@ describe("buildCalibrationSummary", () => {
     expect(metric?.brierStandardError).toBeCloseTo(2 / 9);
   });
 
-  test("omits clustered uncertainty when all predictions come from one run", () => {
-    const pairs = Array.from({ length: 3 }, (_, index) => ({
-      prediction: { ...basePrediction, id: `p-${String(index)}` },
-      score: makeScore(index === 0 ? "hit" : "miss"),
-      assetClass: "equity" as const,
-      jobType: "daily" as const,
-      runId: "r1",
-      generatedAt: distinctIssuance(),
-    }));
+  test("one run spanning two subjects or two sessions gives two clusters", () => {
+    const session = distinctIssuance();
+    const twoSubjects = [
+      sessionPair("grid", session, "hit", 1, "SPY"),
+      sessionPair("grid", session, "miss", 1, "QQQ"),
+    ];
+    const twoSessions = [
+      sessionPair("grid", distinctIssuance(), "hit", 1),
+      sessionPair("grid", distinctIssuance(), "miss", 1),
+    ];
+
+    for (const pairs of [twoSubjects, twoSessions]) {
+      expect(buildCalibrationSummary(pairs).byAssetClass.equity).toMatchObject({
+        count: 2,
+        runCount: 1,
+        brierStandardError: 0.5,
+      });
+    }
+  });
+
+  test("omits clustered uncertainty when every prediction shares one subject and session", () => {
+    const session = distinctIssuance();
+    const pairs = [1, 5, 10].map((horizon, index) =>
+      sessionPair("r1", session, index === 0 ? "hit" : "miss", 0.65, "SPY", horizon),
+    );
 
     expect(buildCalibrationSummary(pairs).byAssetClass.equity).toMatchObject({
       count: 3,

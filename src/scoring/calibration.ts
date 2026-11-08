@@ -71,14 +71,22 @@ function overallBrierScore(pairs: readonly ResolvedPair[]): number | undefined {
   return pairs.length === 0 ? undefined : meanBrierLoss(pairs);
 }
 
+// Subject and origin session (ADR 0003), so one grid run's subjects stay separate clusters.
+function standardErrorCluster(pair: ResolvedPair): string {
+  const { assetClass, prediction, generatedAt } = pair;
+  return `${clusterSubject(pair)}|${forecastOrigin(assetClass, prediction.measurableAs, generatedAt)}`;
+}
+
 function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
   const mean = meanBrierLoss(pairs);
   const clusterSums = new Map<string, number>();
   for (const pair of pairs) {
-    clusterSums.set(pair.runId, (clusterSums.get(pair.runId) ?? 0) + (brierLoss(pair) - mean));
+    const cluster = standardErrorCluster(pair);
+    clusterSums.set(cluster, (clusterSums.get(cluster) ?? 0) + (brierLoss(pair) - mean));
   }
-  const runCount = clusterSums.size;
-  if (runCount < 2) {
+  const runCount = new Set(pairs.map(({ runId }) => runId)).size;
+  const clusterCount = clusterSums.size;
+  if (clusterCount < 2) {
     return { brierScore: mean, count: pairs.length, runCount };
   }
   const squaredClusterSum = [...clusterSums.values()].reduce(
@@ -86,7 +94,7 @@ function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
     0,
   );
   const variance =
-    (runCount / (runCount - 1)) * (squaredClusterSum / (pairs.length * pairs.length));
+    (clusterCount / (clusterCount - 1)) * (squaredClusterSum / (pairs.length * pairs.length));
   return {
     brierScore: mean,
     count: pairs.length,
@@ -245,18 +253,20 @@ function observationStrategy(measurableAs: string): ObservationStrategy | undefi
 
 // NOTE — ponytail: origins are recomputed, not read from the resolver's window, so quarantine-anchored
 // Reports and earnings timing that changes between issuances can split or merge; persist the window then.
+function forecastOrigin(assetClass: AssetClass, measurableAs: string, generatedAt: string): string {
+  const issuedAt = new Date(generatedAt);
+  const strategy = observationStrategy(measurableAs);
+  return strategy === undefined
+    ? closeWindowOrigin(assetClass, issuedAt)
+    : strategyOrigin(strategy, assetClass, issuedAt);
+}
+
 export function forecastEventKey(
   assetClass: AssetClass,
   measurableAs: string,
   generatedAt: string,
 ): string {
-  const issuedAt = new Date(generatedAt);
-  const strategy = observationStrategy(measurableAs);
-  const origin =
-    strategy === undefined
-      ? closeWindowOrigin(assetClass, issuedAt)
-      : strategyOrigin(strategy, assetClass, issuedAt);
-  return `${assetClass}|${claimKey(measurableAs)}|${origin}`;
+  return `${assetClass}|${claimKey(measurableAs)}|${forecastOrigin(assetClass, measurableAs, generatedAt)}`;
 }
 
 function compareIssuance(left: ResolvedPair, right: ResolvedPair): number {

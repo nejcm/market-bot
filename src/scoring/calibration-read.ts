@@ -259,5 +259,5 @@ export function pairedSkillStatusText(
 }
 
 export function pairedSkillPolicyNote(policy: PairedSkillPolicy): string {
-  return `Floor ${String(policy.minPairedCount)} events and ${String(policy.minBlockCount)} blocks; 80% power for ΔBrier ${String(policy.minimumUsefulEffect)} (SD 0.10) needs about ${String(policy.poweredBlockCount)} independent blocks, so expect not-yet-decidable until then and treat earlier statuses as provisional. Minimum useful effect ΔBrier ≥ ${String(policy.minimumUsefulEffect)} gates keeping model probabilities; baseline-better needs only an interval below 0.`;
+  return `Floor ${String(policy.minPairedCount)} events and ${String(policy.minBlockCount)} blocks; 80% power for ΔBrier ${String(policy.minimumUsefulEffect)} (SD 0.10) needs about ${String(policy.poweredBlockCount)} independent blocks, so expect not-yet-decidable until then and treat earlier statuses as provisional. Keeping model probabilities needs the interval above 0 and point ΔBrier ≥ ${String(policy.minimumUsefulEffect)}; baseline-better needs only an interval below 0. Blocks are independent only across subjects: a shared benchmark leg and the same-session market move are not modeled, so the interval is likely too narrow until cross-subject blocking is revisited at about 30 origin sessions.`;
 }

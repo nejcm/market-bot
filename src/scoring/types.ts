@@ -118,7 +118,7 @@ export interface PairedSkillPolicy {
   readonly confidenceLevel: number;
   readonly bootstrapResamples: number;
   readonly seed: number;
-  /** Independent blocks for 80% power at the minimum useful effect (SD 0.10); below it expect not-yet-decidable. */
+  /** Independent blocks for 80% power that the interval clears 0 at a true ΔBrier of the minimum useful effect (SD 0.10). */
   readonly poweredBlockCount: number;
 }
 

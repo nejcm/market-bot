@@ -387,6 +387,9 @@ describe("Paired Skill", () => {
     });
     expect(view?.summary).toEqual(summary.pairedSkill);
     expect(view?.policyNote).toContain("about 784 independent blocks");
+    expect(view?.policyNote).toContain(
+      "interval above 0 and point ΔBrier ≥ 0.01; baseline-better needs only an interval below 0. Blocks are independent only across subjects: a shared benchmark leg and the same-session market move are not modeled, so the interval is likely too narrow until cross-subject blocking is revisited at about 30 origin sessions.",
+    );
     expect(view?.rows.map(({ key, status, decisionRule }) => [key, status, decisionRule])).toEqual([
       ["all", "model-better", undefined],
       ["direction", "model-better", "keep-model"],

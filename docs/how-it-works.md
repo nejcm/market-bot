@@ -163,7 +163,7 @@ Useful knobs:
 | `MARKET_BOT_DATA_DIR`                                                                     | Run artifact directory, default `data/runs`.                                                                       |
 | `MARKET_BOT_INDEX_DB_PATH`                                                                | Derived SQLite Run Artifact Index path; defaults to `data/index.sqlite` when `MARKET_BOT_DATA_DIR` is `data/runs`. |
 | `MARKET_BOT_INDEX_DISABLE`                                                                | Set `1` or `true` to force disk-scan fallbacks for index-backed reads and skip write-through.                      |
-| `MARKET_BOT_CACHE_DIR`                                                                    | Raw source cache directory, default `data/cache`.                                                                  |
+| `MARKET_BOT_CACHE_DIR`                                                                    | Raw source cache directory, default `cache/` in the data root (`data/cache` for `data/runs`).                      |
 | `MARKET_BOT_CACHE_DISABLE`                                                                | Set `1` or `true` to bypass cache.                                                                                 |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS`                                                          | Stale cache fallback window after an over-budget or missing live refetch fails.                                    |
 | `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT`      | Caps AI-selected Market Spotlights for market-overview runs.                                                       |

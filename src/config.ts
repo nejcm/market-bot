@@ -1,4 +1,5 @@
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
+import { dataRootFromRunsDir } from "./data-paths";
 import type { SubjectKind } from "./domain/evidence";
 import { defaultRunArtifactIndexPath } from "./run-artifact-index";
 import type { ModelParams, ReasoningEffort } from "./model/types";
@@ -279,6 +280,10 @@ function readProvider(value: string | undefined): ProviderName {
   throw new Error(`Unsupported provider: ${value}`);
 }
 
+export function defaultPeerUniverseLearnedPath(dataDir: string): string {
+  return join(dataRootFromRunsDir(dataDir), "peer-universe-learned.json");
+}
+
 function readOptionalString(value: string | undefined): string | undefined {
   return value !== undefined && value.trim() !== "" ? value : undefined;
 }
@@ -318,16 +323,6 @@ function readReasoningEffort(value: string | undefined): ReasoningEffort | undef
   }
 
   throw new Error(`Unsupported reasoning effort: ${effort}`);
-}
-
-function deriveNewsSeenPath(dataDir: string): string {
-  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
-  return join(dataRoot, "news-seen.json");
-}
-
-function derivePeerUniverseLearnedPath(dataDir: string): string {
-  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
-  return join(dataRoot, "peer-universe-learned.json");
 }
 
 function readApeWisdomFilter(value: string | undefined): string {
@@ -601,18 +596,20 @@ export function resolveConfig(
         ? { firecrawlApiKey: readOptionalString(env.MARKET_BOT_FIRECRAWL_API_KEY) as string }
         : {}),
       secUserAgent: readOptionalString(env.MARKET_BOT_SEC_USER_AGENT) ?? DEFAULT_SEC_USER_AGENT,
-      cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",
+      cacheDir:
+        readOptionalString(env.MARKET_BOT_CACHE_DIR) ?? join(dataRootFromRunsDir(dataDir), "cache"),
       cacheDisabled: readBoolean(env.MARKET_BOT_CACHE_DISABLE),
       cacheFallbackDays: readPositiveInteger(env.MARKET_BOT_CACHE_FALLBACK_DAYS, 7),
       newsSeenPath:
-        readOptionalString(env.MARKET_BOT_NEWS_SEEN_PATH) ?? deriveNewsSeenPath(dataDir),
+        readOptionalString(env.MARKET_BOT_NEWS_SEEN_PATH) ??
+        join(dataRootFromRunsDir(dataDir), "news-seen.json"),
       newsSeenRetentionDays: readPositiveInteger(
         env.MARKET_BOT_NEWS_SEEN_RETENTION_DAYS,
         DEFAULT_NEWS_SEEN_RETENTION_DAYS,
       ),
       peerUniverseLearnedPath:
         readOptionalString(env.MARKET_BOT_PEER_UNIVERSE_LEARNED_PATH) ??
-        derivePeerUniverseLearnedPath(dataDir),
+        defaultPeerUniverseLearnedPath(dataDir),
       peerUniverseTtlDays: readPositiveInteger(
         env.MARKET_BOT_PEER_UNIVERSE_TTL_DAYS,
         DEFAULT_PEER_UNIVERSE_TTL_DAYS,

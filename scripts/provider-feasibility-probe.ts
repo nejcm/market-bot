@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { resolveConfig } from "../src/config";
+import { dataRootFromRunsDir } from "../src/data-paths";
 import { sourceGapStatusCode } from "../src/domain/source-gaps";
 import { createCollectContext } from "../src/sources/source-request";
 import { isFetchJsonResult } from "../src/sources/types";
@@ -19,7 +20,6 @@ interface CandidateEndpoint {
   readonly params: Readonly<Record<string, string>>;
 }
 
-const OUTPUT_PATH = join("data", "provider-health", "feasibility.json");
 const SYMBOL = "AAPL";
 const observedAt = new Date().toISOString();
 const from = observedAt.slice(0, 10);
@@ -39,6 +39,11 @@ const candidates: readonly CandidateEndpoint[] = [
 ];
 
 const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+const OUTPUT_PATH = join(
+  dataRootFromRunsDir(config.dataDir),
+  "provider-health",
+  "feasibility.json",
+);
 const command = {
   jobType: "equity",
   assetClass: "equity",

@@ -1,3 +1,4 @@
+import { defaultPeerUniverseLearnedPath } from "../config";
 import { withRunCapture } from "../replay/capture";
 import { collectSources } from "../sources/collector";
 import { buildSourcePlan } from "../research/source-plan";
@@ -56,7 +57,7 @@ export async function runDeepEquity(
           model: input.config.quickModel,
           cachePath:
             input.config.sourceOptions.peerUniverseLearnedPath ??
-            `${input.config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
+            defaultPeerUniverseLearnedPath(input.config.dataDir),
           ...(input.config.sourceOptions.peerUniverseTtlDays !== undefined
             ? { ttlDays: input.config.sourceOptions.peerUniverseTtlDays }
             : {}),

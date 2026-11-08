@@ -5,5 +5,8 @@ export function dataRootFromRunsDir(dataDir: string): string {
   }
 
   const parentDir = trimmedDataDir.replace(/[\\/][^\\/]*$/u, "");
+  if (parentDir === "") {
+    return dataDir.charAt(0);
+  }
   return parentDir === trimmedDataDir ? "." : parentDir;
 }

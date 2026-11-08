@@ -33,6 +33,8 @@ import {
 } from "./contract";
 import { pruneSentences } from "../research/report-integrity-audit";
 import {
+  droppedFigureQuoteText,
+  failedFigureQuotes,
   readFigureQuotes,
   unverifiedWebFigure,
   webFigureGapText,
@@ -598,11 +600,30 @@ function screenWebFigures(
   const failureGap = (location: string, failure: WebFigureFailure): void => {
     withheldGaps.push(profileGap(webFigureGapText(location, failure), "validation-failed"));
   };
+  const withProvenQuotes = <T extends WebSubjectProfileAnswer | WebSubjectProfileFact>(
+    value: T,
+    location: string,
+  ): T => {
+    const failed = failedFigureQuotes(value, webTexts);
+    for (const quote of failed) {
+      withheldGaps.push(profileGap(droppedFigureQuoteText(location, quote), "validation-failed"));
+    }
+    return failed.length === 0 || value.figureQuotes === undefined
+      ? value
+      : {
+          ...value,
+          figureQuotes: value.figureQuotes.filter(
+            (quote) =>
+              !failed.some((row) => row.sourceId === quote.sourceId && row.quote === quote.quote),
+          ),
+        };
+  };
   const answer = (
-    value: WebSubjectProfileAnswer,
+    original: WebSubjectProfileAnswer,
     location: string,
     notice: string,
   ): WebSubjectProfileAnswer => {
+    const value = withProvenQuotes(original, location);
     if (value.answer.includes(WEB_SUBJECT_PROFILE_WEB_FIGURE_MARKER)) {
       withheldGaps.push(profileGap(value.answer, "validation-failed"));
       return value;
@@ -611,7 +632,7 @@ function screenWebFigures(
       return value;
     }
     const { kept, pruned } = pruneSentences(value.answer, (sentence) => {
-      const failure = unverifiedWebFigure({ ...value, text: sentence }, webTexts);
+      const failure = unverifiedWebFigure({ ...original, text: sentence }, webTexts);
       if (failure !== undefined) {
         failureGap(location, failure);
       }
@@ -630,18 +651,20 @@ function screenWebFigures(
     fieldLabel: string,
   ): readonly WebSubjectProfileFact[] => {
     const failed: WebSubjectProfileFact[] = [];
-    const kept = rows.filter((fact, index) => {
-      const failure = isWebSubjectProfileWithheldAnswer(fact.claim)
-        ? undefined
-        : unverifiedWebFigure({ ...fact, text: fact.claim }, webTexts);
+    const kept = rows.flatMap((fact, index) => {
+      if (isWebSubjectProfileWithheldAnswer(fact.claim)) {
+        return [fact];
+      }
+      const failure = unverifiedWebFigure({ ...fact, text: fact.claim }, webTexts);
       if (failure !== undefined) {
         failureGap(`${location}[${String(index)}]`, failure);
         failed.push(fact);
+        return [];
       }
-      return failure === undefined;
+      return [withProvenQuotes(fact, `${location}[${String(index)}]`)];
     });
     if (failed.length === 0) {
-      return rows;
+      return kept;
     }
     const considered = rows.filter((fact) => !isWebSubjectProfileWithheldAnswer(fact.claim)).length;
     return [

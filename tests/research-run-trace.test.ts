@@ -135,6 +135,7 @@ function traceFor(
       prunedItemCount: 0,
       advisoryWarningCount: 0,
       pruned: [],
+      droppedFigureQuotes: [],
       advisories: [],
     },
     sourcePlanning,
@@ -373,6 +374,7 @@ describe("run trace builder", () => {
         prunedItemCount: 0,
         advisoryWarningCount: 1,
         pruned: [],
+        droppedFigureQuotes: [],
         advisories: [
           {
             code: "weak-evidence-posture-missing",

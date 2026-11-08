@@ -59,7 +59,6 @@ export async function finalizeSynthesis(
     webSourceTexts(
       [...collected.extendedSources, ...synthesis.report.sources],
       collected.rawSnapshots,
-      collected.metricSections,
     ),
     runCurrencies,
   );

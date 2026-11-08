@@ -50,7 +50,7 @@ import { researchIdentityExtras } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { isGapShapedClaimForRelocation } from "./gap-shaped-claims";
-import { readFigureQuotes } from "./web-figure-verification";
+import { readClaimProvenance } from "./web-figure-verification";
 import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 import {
   assertNoUnresolvedMetricReferences,
@@ -106,11 +106,10 @@ function readFindings(value: unknown): readonly KeyFinding[] {
         return undefined;
       }
 
-      const figureQuotes = readFigureQuotes(item.figureQuotes);
       return {
         text: item.text,
         sourceIds: nonEmptyStringArrayValue(item.sourceIds),
-        ...(figureQuotes === undefined ? {} : { figureQuotes }),
+        ...readClaimProvenance(item),
       };
     })
     .filter((item): item is KeyFinding => item !== undefined);
@@ -244,12 +243,11 @@ function readScenarios(value: unknown): readonly Scenario[] {
         return undefined;
       }
 
-      const figureQuotes = readFigureQuotes(item.figureQuotes);
       return {
         name: item.name,
         description: item.description,
         sourceIds: nonEmptyStringArrayValue(item.sourceIds),
-        ...(figureQuotes === undefined ? {} : { figureQuotes }),
+        ...readClaimProvenance(item),
       };
     })
     .filter((item): item is Scenario => item !== undefined);

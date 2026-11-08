@@ -1,4 +1,4 @@
-import type { ResearchReport } from "../domain/report";
+import type { RenderedMetric, ResearchReport } from "../domain/report";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import type { MetricResult, MetricSection } from "../sources/extended-evidence/metric-engine";
 import {
@@ -210,7 +210,9 @@ function transformClaims(
   if (!isRecord(value)) {
     return value;
   }
-  const sourceIds = new Set(nonEmptyStringArrayValue(value.sourceIds));
+  const citedIds = new Set(nonEmptyStringArrayValue(value.sourceIds));
+  const sourceIds = new Set(citedIds);
+  const renderedMetrics: RenderedMetric[] = [];
   let referenced = false;
   const entries = Object.entries(value).map(([key, item]) => {
     if (typeof item !== "string" || !REFERENCE_START.test(item)) {
@@ -221,9 +223,10 @@ function transformClaims(
       return [key, item];
     }
     const written = new Map<string, string>();
+    let shift = 0;
     const text = withMetricPrefix(item, sections, written).replaceAll(
       REFERENCE,
-      (prefixed, captured: string) => {
+      (prefixed, captured: string, offset: number) => {
         const token = written.get(prefixed) ?? prefixed;
         const [reference = "", format, ...extra] = captured.split("|").map((part) => part.trim());
         const dot = reference.lastIndexOf(".");
@@ -269,7 +272,12 @@ function transformClaims(
         }
         referenced = true;
         metric.sourceIds.forEach((id) => sourceIds.add(id));
-        return resolve ? formatted : prefixed;
+        if (!resolve) {
+          return prefixed;
+        }
+        renderedMetrics.push({ field: key, start: offset + shift, text: formatted });
+        shift += formatted.length - prefixed.length;
+        return formatted;
       },
     );
     const rest = text.replaceAll(REFERENCE, " ");
@@ -285,7 +293,21 @@ function transformClaims(
     }
     return [key, text];
   });
-  return { ...Object.fromEntries(entries), ...(referenced ? { sourceIds: [...sourceIds] } : {}) };
+  if (!referenced) {
+    return Object.fromEntries(entries);
+  }
+  const metricSourceIds = [
+    ...new Set([
+      ...nonEmptyStringArrayValue(value.metricSourceIds),
+      ...[...sourceIds].filter((id) => !citedIds.has(id)),
+    ]),
+  ];
+  return {
+    ...Object.fromEntries(entries),
+    sourceIds: [...sourceIds],
+    ...(metricSourceIds.length === 0 ? {} : { metricSourceIds }),
+    ...(renderedMetrics.length === 0 ? {} : { renderedMetrics }),
+  };
 }
 
 function transformNarrative<T extends ModelReportPayload>(
@@ -325,11 +347,28 @@ function transformNarrative<T extends ModelReportPayload>(
   return { ...payload, ...transformed, extras: { ...extras, ...transformed.extras } };
 }
 
+const CODE_PROVENANCE_FIELDS = new Set(["metricSourceIds", "renderedMetrics"]);
+
+function withoutCodeProvenance(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(withoutCodeProvenance);
+  }
+  if (!isRecord(value)) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !CODE_PROVENANCE_FIELDS.has(key))
+      .map(([key, item]) => [key, withoutCodeProvenance(item)]),
+  );
+}
+
+// Only code may set metricSourceIds and renderedMetrics: a draft's own copies would forge the exemption.
 export function citeMetricReferences(
   payload: ModelReportPayload,
   sections: readonly MetricSection[],
 ): ModelReportPayload {
-  return transformNarrative(payload, sections, false);
+  return transformNarrative(withoutCodeProvenance(payload) as ModelReportPayload, sections, false);
 }
 
 export function resolveMetricReferences(

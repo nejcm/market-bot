@@ -2378,6 +2378,54 @@ describe("Verified Web Figure profile screen", () => {
     );
   });
 
+  test("drops a failing quote from a kept fact and records the drop as a gap", () => {
+    const failing = { sourceId: webSource.id, quote: "Services margin was 74%" };
+    const result = produce((payload) => {
+      payload.factLedger = [
+        {
+          claim: "Services revenue reached $26.3 billion.",
+          sourceIds: [webSource.id],
+          figureQuotes: [...quoted, failing],
+        },
+      ];
+    }, withSnippet);
+    expect(result.artifact.factLedger).toEqual([
+      {
+        claim: "Services revenue reached $26.3 billion.",
+        sourceIds: [webSource.id],
+        figureQuotes: quoted,
+      },
+    ]);
+    expect(result.sourceGaps.map(({ message }) => message)).toContain(
+      `Verified Web Figure quote dropped from webSubjectProfile.factLedger[0]: quote-not-in-source (${webSource.id}).`,
+    );
+  });
+
+  test("an answer sentence resting on a dropped quote keeps that quote's failure reason", () => {
+    const failing = { sourceId: webSource.id, quote: "Services margin was 74%" };
+    const result = produce((payload) => {
+      questionsOf(payload).companyKpis = {
+        answer: "Services revenue reached $26.3 billion. Services margin was 74%.",
+        sourceIds: [webSource.id],
+        figureQuotes: [...quoted, failing],
+      };
+    }, withSnippet);
+    const answer = (result.artifact.questions as Record<string, WebSubjectProfileAnswer>)
+      .companyKpis!;
+    expect(answer).toEqual({
+      answer: "Services revenue reached $26.3 billion.",
+      sourceIds: [webSource.id],
+      figureQuotes: quoted,
+    });
+    const messages = result.sourceGaps.map(({ message }) => message);
+    expect(messages).toContain(
+      `Verified Web Figure check withheld webSubjectProfile.questions.companyKpis: 74% rests on a quote not found in the stored source text (${webSource.id}).`,
+    );
+    expect(messages).toContain(
+      `Verified Web Figure quote dropped from webSubjectProfile.questions.companyKpis: quote-not-in-source (${webSource.id}).`,
+    );
+  });
+
   test("fails every figure from a web source with no stored text", () => {
     const result = produce((payload) => {
       payload.recentMaterialEvents = [

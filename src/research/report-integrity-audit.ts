@@ -2,7 +2,10 @@ import { type EvidenceQuality, type EvidenceQualityAssessment } from "../domain/
 import { type Prediction } from "../domain/prediction";
 import {
   researchReportEvidenceQuality,
+  type DroppedFigureQuote,
+  type FigureQuote,
   type KeyFinding,
+  type RenderedMetric,
   type ReportIntegrityAdvisoryCode,
   type ReportIntegrity,
   type ResearchReport,
@@ -12,7 +15,10 @@ import {
 import { deriveResearchQualityDriver } from "./quality-driver";
 import { isRecord } from "../guards";
 import {
+  failedFigureQuotes,
   readFigureQuotes,
+  readClaimProvenance,
+  typedReading,
   unverifiedWebFigure,
   webFigureGapText,
   type WebSourceTexts,
@@ -30,13 +36,17 @@ import {
 } from "./post-synthesis-audit";
 
 // ADR 0004: prune unsupported numeric/technical and uncited peer-median claims and grade; posture labels stay advisory.
-// ADR 0006: also prune claims whose web-sourced figures fail quote verification.
+// ADR 0006: also prune claims whose web-sourced figures fail quote verification, and drop failing quotes.
 
 interface ReportIntegrityPrunedItem {
   readonly location: string;
   readonly text: string;
   readonly sourceIds: readonly string[];
   readonly webFigure?: WebFigureFailure;
+}
+
+interface ReportIntegrityDroppedQuote extends DroppedFigureQuote {
+  readonly location: string;
 }
 
 interface ReportIntegrityAdvisory {
@@ -51,6 +61,7 @@ export interface ReportIntegrityAuditResult {
   readonly prunedItemCount: number;
   readonly advisoryWarningCount: number;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
+  readonly droppedFigureQuotes: readonly ReportIntegrityDroppedQuote[];
   readonly advisories: readonly ReportIntegrityAdvisory[];
 }
 
@@ -138,14 +149,52 @@ function isBlockingViolation(
 interface Partition<T> {
   readonly kept: readonly T[];
   readonly pruned: readonly ReportIntegrityPrunedItem[];
+  readonly dropped: readonly ReportIntegrityDroppedQuote[];
+}
+
+function withoutQuotes<T extends { readonly figureQuotes?: readonly FigureQuote[] }>(
+  item: T,
+  dropped: readonly DroppedFigureQuote[],
+): T {
+  return item.figureQuotes === undefined || dropped.length === 0
+    ? item
+    : {
+        ...item,
+        figureQuotes: item.figureQuotes.filter(
+          (quote) =>
+            !dropped.some((row) => row.sourceId === quote.sourceId && row.quote === quote.quote),
+        ),
+      };
+}
+
+function typedClaim<
+  T extends {
+    readonly sourceIds: readonly string[];
+    readonly renderedMetrics?: readonly RenderedMetric[];
+  },
+>(item: T, fields: readonly (keyof T & string)[]) {
+  const readings = fields.map((key) => typedReading(item, key));
+  return {
+    ...item,
+    text: readings.map(({ text }) => text).join(": "),
+    ambiguousSpans: readings.flatMap(({ ambiguousSpans }) => ambiguousSpans),
+  };
 }
 
 // Pruned locations use pre-prune indices (matching the warn-only audit's
 // Location space); posture advisories below index the pruned report.
-function partitionItems<T extends { readonly sourceIds: readonly string[] }>(
+function partitionItems<
+  T extends {
+    readonly sourceIds: readonly string[];
+    readonly figureQuotes?: readonly FigureQuote[];
+    readonly metricSourceIds?: readonly string[];
+    readonly renderedMetrics?: readonly RenderedMetric[];
+  },
+>(
   section: string,
   items: readonly T[],
-  textOf: (item: T) => string,
+  // Joined with ": " into the claim text the checks read.
+  fields: readonly (keyof T & string)[],
   usablePeerSourceIds: ReadonlySet<string> | undefined,
   peerMedianLabels: PeerMedianLabels | undefined,
   runCurrencies: readonly string[],
@@ -153,8 +202,9 @@ function partitionItems<T extends { readonly sourceIds: readonly string[] }>(
 ): Partition<T> {
   const kept: T[] = [];
   const pruned: ReportIntegrityPrunedItem[] = [];
+  const dropped: ReportIntegrityDroppedQuote[] = [];
   items.forEach((item, index) => {
-    const text = textOf(item);
+    const text = fields.map((key) => String(item[key])).join(": ");
     const { sourceIds } = item;
     const location = `${section}[${String(index)}]`;
     if (
@@ -165,14 +215,16 @@ function partitionItems<T extends { readonly sourceIds: readonly string[] }>(
       return;
     }
     const webFigure =
-      webTexts === undefined ? undefined : unverifiedWebFigure({ ...item, text }, webTexts);
-    if (webFigure === undefined) {
-      kept.push(item);
-    } else {
+      webTexts === undefined ? undefined : unverifiedWebFigure(typedClaim(item, fields), webTexts);
+    if (webFigure !== undefined) {
       pruned.push({ location, text, sourceIds, webFigure });
+      return;
     }
+    const failedQuotes = webTexts === undefined ? [] : failedFigureQuotes(item, webTexts);
+    dropped.push(...failedQuotes.map((quote) => ({ location, ...quote })));
+    kept.push(withoutQuotes(item, failedQuotes));
   });
-  return { kept, pruned };
+  return { kept, pruned, dropped };
 }
 
 function partitionFindings(
@@ -186,7 +238,7 @@ function partitionFindings(
   return partitionItems(
     section,
     findings,
-    (finding) => finding.text,
+    ["text"],
     usablePeerSourceIds,
     peerMedianLabels,
     runCurrencies,
@@ -207,7 +259,7 @@ function partitionScenarios(
     // A scenario's name can carry the numeric or technical claim ("20%
     // Downside") while the description stays qualitative, so both fields feed
     // The blocking check.
-    (scenario) => `${scenario.name}: ${scenario.description}`,
+    ["name", "description"],
     usablePeerSourceIds,
     peerMedianLabels,
     runCurrencies,
@@ -224,7 +276,7 @@ function partitionPredictions(
   return partitionItems(
     "predictions",
     predictions,
-    (prediction) => prediction.claim,
+    ["claim"],
     usablePeerSourceIds,
     peerMedianLabels,
     runCurrencies,
@@ -251,18 +303,21 @@ function extraRowWebFigure(
       readonly text: string;
       readonly sourceIds: readonly string[];
       readonly webFigure?: WebFigureFailure;
+      readonly failedQuotes: readonly DroppedFigureQuote[];
     }
   | undefined {
   if (!isRecord(row) || typeof row.text !== "string") {
     return undefined;
   }
   const sourceIds = stringArray(row.sourceIds);
-  const figureQuotes = readFigureQuotes(row.figureQuotes);
-  const webFigure = unverifiedWebFigure(
-    { text: row.text, sourceIds, ...(figureQuotes === undefined ? {} : { figureQuotes }) },
-    webTexts,
-  );
-  return { text: row.text, sourceIds, ...(webFigure === undefined ? {} : { webFigure }) };
+  const claim = { text: row.text, sourceIds, ...readClaimProvenance(row) };
+  const webFigure = unverifiedWebFigure(typedClaim(claim, ["text"]), webTexts);
+  return {
+    text: row.text,
+    sourceIds,
+    failedQuotes: failedFigureQuotes(claim, webTexts),
+    ...(webFigure === undefined ? {} : { webFigure }),
+  };
 }
 
 // Model-authored Earnings Setup bullets drop whole; a Business Framework section keeps its code-owned fields.
@@ -272,18 +327,32 @@ function partitionExtras(
 ): {
   readonly extras: ResearchReport["extras"];
   readonly pruned: readonly ReportIntegrityPrunedItem[];
+  readonly dropped: readonly ReportIntegrityDroppedQuote[];
 } {
   if (extras === undefined || webTexts === undefined) {
-    return { extras, pruned: [] };
+    return { extras, pruned: [], dropped: [] };
   }
   const pruned: ReportIntegrityPrunedItem[] = [];
-  const failed = (location: string, row: unknown): boolean => {
+  const dropped: ReportIntegrityDroppedQuote[] = [];
+  // Undefined when the row is pruned; otherwise the row without its failing quotes.
+  const screened = (location: string, row: unknown): unknown => {
     const checked = extraRowWebFigure(row, webTexts);
-    if (checked?.webFigure === undefined) {
-      return false;
+    if (checked === undefined || !isRecord(row)) {
+      return row;
     }
-    pruned.push({ location, ...checked });
-    return true;
+    const { failedQuotes, ...item } = checked;
+    if (item.webFigure !== undefined) {
+      pruned.push({ location, ...item });
+      return undefined;
+    }
+    if (failedQuotes.length === 0) {
+      return row;
+    }
+    dropped.push(...failedQuotes.map((quote) => ({ location, ...quote })));
+    return withoutQuotes(
+      { ...row, figureQuotes: readFigureQuotes(row.figureQuotes) ?? [] },
+      failedQuotes,
+    );
   };
   const setup = extras.earningsSetup;
   const earningsSetup = isRecord(setup)
@@ -292,10 +361,10 @@ function partitionExtras(
           (EARNINGS_SETUP_BULLET_KEYS as readonly string[]).includes(key) && Array.isArray(value)
             ? [
                 key,
-                value.filter(
-                  (bullet, index) =>
-                    !failed(`extras.earningsSetup.${key}[${String(index)}]`, bullet),
-                ),
+                value.flatMap((bullet, index) => {
+                  const kept = screened(`extras.earningsSetup.${key}[${String(index)}]`, bullet);
+                  return kept === undefined ? [] : [kept];
+                }),
               ]
             : [key, value],
         ),
@@ -306,22 +375,23 @@ function partitionExtras(
     isRecord(framework) && Array.isArray(framework.sections)
       ? {
           ...framework,
-          sections: framework.sections.map((section: unknown, index) =>
-            isRecord(section) &&
-            failed(`extras.businessFramework.sections[${String(index)}]`, section)
+          sections: framework.sections.map((section: unknown, index) => {
+            const kept = screened(`extras.businessFramework.sections[${String(index)}]`, section);
+            return kept === undefined && isRecord(section)
               ? Object.fromEntries(
                   Object.entries(section).filter(
-                    ([key]) => key !== "text" && key !== "figureQuotes",
+                    ([key]) => !["text", "figureQuotes", "renderedMetrics"].includes(key),
                   ),
                 )
-              : section,
-          ),
+              : kept;
+          }),
         }
       : framework;
-  if (pruned.length === 0) {
-    return { extras, pruned };
+  if (pruned.length === 0 && dropped.length === 0) {
+    return { extras, pruned, dropped };
   }
   return {
+    dropped,
     extras: {
       ...extras,
       ...(earningsSetup === undefined ? {} : { earningsSetup }),
@@ -577,6 +647,15 @@ export function auditReportIntegrity(
     ...predictions.pruned,
     ...extras.pruned,
   ];
+  const droppedFigureQuotes = [
+    ...keyFindings.dropped,
+    ...bullCase.dropped,
+    ...bearCase.dropped,
+    ...risks.dropped,
+    ...catalysts.dropped,
+    ...scenarios.dropped,
+    ...extras.dropped,
+  ];
   const webFigureGaps = pruned.flatMap((item) =>
     item.webFigure === undefined ? [] : [webFigureGapText(item.location, item.webFigure)],
   );
@@ -633,6 +712,7 @@ export function auditReportIntegrity(
     prunedItemCount: pruned.length,
     advisoryWarningCount: advisories.length,
     pruned,
+    droppedFigureQuotes,
     advisories,
   };
 }

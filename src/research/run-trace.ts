@@ -157,6 +157,9 @@ export function buildRunTrace(input: {
         ? { advisories: input.integrityAudit.advisories }
         : {}),
       pruned: input.integrityAudit.pruned,
+      ...(input.integrityAudit.droppedFigureQuotes.length > 0
+        ? { droppedFigureQuotes: input.integrityAudit.droppedFigureQuotes }
+        : {}),
     },
     sourcePlan: {
       plannedLaneCount: input.sourcePlanning.evidenceLanes.summary.plannedLaneCount,

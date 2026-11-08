@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Prediction } from "../src/domain/prediction";
 import type { ResearchReport } from "../src/domain/report";
-import { auditPostSynthesisReport, isNumericClaim } from "../src/research/post-synthesis-audit";
+import {
+  auditPostSynthesisReport,
+  isNumericClaim,
+  isTechnicalClaim,
+} from "../src/research/post-synthesis-audit";
 import type { WebSourceUsage } from "../src/web-evidence";
 
 function reportWith(
@@ -362,7 +366,7 @@ describe("isNumericClaim", () => {
     ["EUR500m of debt", true],
     ["Rs5bn of debt", true],
     ["5G rollout", true],
-    ["F-150 sales", true],
+    ["F-150 sales", false],
     ["$3.4bn", true],
     ["12%", true],
     ["1,234 units", true],
@@ -377,6 +381,45 @@ describe("isNumericClaim", () => {
     ["H1 demand", false],
   ])("%p classifies as numeric: %p", (text, numeric) => {
     expect(isNumericClaim(text)).toBe(numeric);
+  });
+});
+
+describe("isNumericClaim names with digits", () => {
+  test.each([
+    "Performance versus the S&P 500 proxy is mixed.",
+    "The company is in the Nasdaq 100.",
+    "A Fortune 500 customer base.",
+    "The latest 10-K describes three segments.",
+    "Foreign filers use 20-F and 6-K forms.",
+    "iPhone 17 demand is strong.",
+    "Instinct MI350 Series GPUs drive growth.",
+    "Section 232 tariffs apply.",
+    "COVID-19 era comparisons.",
+    "Segments are reported under ASC 280.",
+    "Maia 200 is in production.",
+  ])("%p is not numeric", (text) => {
+    expect(isNumericClaim(text)).toBe(false);
+  });
+
+  test.each([
+    "The top 10 customers are concentrated.",
+    "IREN reported about 40 MW of operating capacity.",
+    "IREN reported 5 GW of power arrangements.",
+    "Sector RSI14 is 70.",
+    "Shares trade at a P/E of 25.",
+    "AMD closes outside 570-720 over 5 trading days",
+    "Nasdaq 100 futures fell 2%.",
+    "Debt was USD 500 at year end.",
+    "Revenue was RM 485 for the quarter.",
+    "The S&P 500 rose 1.2 points.",
+    "MI350 shipped 9M units.",
+    "Results are due April 31, 2026.",
+  ])("%p stays numeric", (text) => {
+    expect(isNumericClaim(text)).toBe(true);
+  });
+
+  test("a glued moving-average name is a technical claim", () => {
+    expect(isTechnicalClaim("Price held above EMA10 and SMA50.")).toBe(true);
   });
 });
 

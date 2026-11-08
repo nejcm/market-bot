@@ -547,6 +547,20 @@ describe("auditReportIntegrity", () => {
     expect(worseQuality("low", "high")).toBe("low");
   });
 
+  test("keeps summary sentences that name an index, form or product with digits", () => {
+    expect(
+      prunedSummaryLocations(
+        "Recent price behavior is constructive, while longer-period performance versus the S&P 500 proxy is mixed.",
+      ),
+    ).toEqual([]);
+    expect(
+      auditUncitedFinding(
+        "Issuer filing evidence identifies Data Center revenue as a growth contributor, mainly from EPYC processors and Instinct MI350 Series GPUs.",
+      ).pruned,
+    ).toEqual([]);
+    expect(prunedSummaryLocations("The S&P 500 proxy rose 2%.")).toEqual(["summary[0]"]);
+  });
+
   describe("ISO calendar dates", () => {
     test("keeps a month-day percentage numeric after an earlier ISO date", () => {
       for (const text of [

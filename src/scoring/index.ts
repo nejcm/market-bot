@@ -1,7 +1,7 @@
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
-import { dataRootFromRunsDir } from "../data-paths";
+import { dataRootFromRunsDir, listRunDirNames } from "../data-paths";
 import {
   buildAlphaCandidateProfiles,
   buildAlphaCandidateWatchlist,
@@ -452,12 +452,7 @@ async function scoreRunDir(
 }
 
 async function listRunDirs(dataDir: string): Promise<readonly string[]> {
-  try {
-    const entries = await readdir(dataDir, { withFileTypes: true });
-    return entries.filter((entry) => entry.isDirectory()).map((entry) => join(dataDir, entry.name));
-  } catch {
-    return [];
-  }
+  return (await listRunDirNames(dataDir)).map((name) => join(dataDir, name));
 }
 
 export interface ScorePassResult {

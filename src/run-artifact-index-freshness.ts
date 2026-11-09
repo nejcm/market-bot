@@ -1,17 +1,10 @@
-import { readdir, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Database } from "bun:sqlite";
+import { listRunDirNames } from "./data-paths";
 import { INDEX_SCHEMA_VERSION } from "./run-artifact-index-schema";
 import type { ArtifactFileRow, RunRow } from "./run-artifact-index-types";
 import { MUTABLE_SIDECARS } from "./run-artifact-layout";
-
-async function listRunDirNames(dataDir: string): Promise<readonly string[]> {
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .toSorted();
-}
 
 function summarizeMismatches(mismatches: readonly string[]): string {
   const more = mismatches.length > 1 ? ` (+${String(mismatches.length - 1)} more)` : "";

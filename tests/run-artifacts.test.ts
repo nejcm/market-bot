@@ -1622,11 +1622,11 @@ describe("scanRunArtifacts", () => {
     ]);
   });
 
-  test("returns ok artifacts and a status entry per directory", async () => {
+  test("returns ok artifacts and a status entry per run directory", async () => {
     const dataDir = tempRunsDir();
     await writeJson(join(dataDir, "ok-1", "report.json"), researchReport({ runId: "ok-1" }));
     await writeJson(join(dataDir, "ok-2", "report.json"), researchReport({ runId: "ok-2" }));
-    await mkdir(join(dataDir, "absent"), { recursive: true });
+    await mkdir(join(dataDir, "not-a-run"), { recursive: true });
     const badDir = join(dataDir, "malformed");
     await mkdir(badDir, { recursive: true });
     await writeFile(join(badDir, "report.json"), "{bad", "utf8");
@@ -1637,10 +1637,10 @@ describe("scanRunArtifacts", () => {
       "ok-1",
       "ok-2",
     ]);
-    expect(scan.entries).toHaveLength(4);
+    expect(scan.entries).toHaveLength(3);
     const byDir = new Map(scan.entries.map((entry) => [entry.runDirName, entry.status.report]));
     expect(byDir.get("ok-1")).toBe("ok");
-    expect(byDir.get("absent")).toBe("absent");
+    expect(byDir.has("not-a-run")).toBe(false);
     expect(byDir.get("malformed")).toBe("malformed");
   });
 

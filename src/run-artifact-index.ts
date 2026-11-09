@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary, WatchlistRowState } from "../app/types";
@@ -7,6 +7,7 @@ import { marketUpdateHorizonBucketOf, type AssetClass, type JobType } from "./do
 import { isPredictionOrigin, type PredictionKind } from "./domain/prediction";
 import { isMarketRegimeLabel } from "./domain/report";
 import { runArtifactIndexDbPath, runArtifactIndexDisabled } from "./config";
+import { listRunDirNames } from "./data-paths";
 import {
   instrumentsForExpression,
   parseObservableExpression,
@@ -213,11 +214,7 @@ export async function rebuildRunArtifactIndex(
 ): Promise<RebuildRunArtifactIndexResult> {
   const dbPath = options.dbPath ?? runArtifactIndexDbPath(dataDir);
   await mkdir(dirname(dbPath), { recursive: true });
-  const runDirs = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  const dirNames = runDirs
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .toSorted();
+  const dirNames = await listRunDirNames(dataDir);
 
   const indexedRuns = await Promise.all(
     dirNames.map((runDirName) => indexRowsForRun(dataDir, runDirName)),
@@ -641,7 +638,7 @@ export async function scanRunSubsystemOutcomesFromDisk(
   dataDir: string,
   runDirNames?: readonly string[],
 ): Promise<readonly RunSubsystemOutcomeLedger[]> {
-  const names = runDirNames ?? (await listOutcomeScanDirNames(dataDir));
+  const names = runDirNames ?? (await listRunDirNames(dataDir));
   const outcomes = await Promise.all(
     [...names]
       .toSorted((left, right) => left.localeCompare(right))
@@ -662,11 +659,6 @@ export async function scanRunSubsystemOutcomesFromDisk(
   return outcomes.toSorted(
     (left, right) => Number(left.runId > right.runId) - Number(left.runId < right.runId),
   );
-}
-
-async function listOutcomeScanDirNames(dataDir: string): Promise<readonly string[]> {
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 }
 
 export async function readRunSummaryFromIndex(

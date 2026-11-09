@@ -893,6 +893,21 @@ describe("provider health", () => {
     );
   });
 
+  test("counts only run dirs under a data dir not named runs", async () => {
+    dataDir = join(tmpDir, "data");
+    for (const shared of ["alpha-search", "cache", "calibration", "console", "history"]) {
+      await mkdir(join(dataDir, shared), { recursive: true });
+    }
+    await writeJson(join(dataDir, "calibration", "summary.json"), {});
+    await writeRun({ runId: "completed", jobType: "equity", assetClass: "equity" });
+    await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.failure), { runId: "failed" });
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.runCount).toBe(2);
+    expect(summary.subsystemOutcomes.failedRunCount).toBe(1);
+  });
+
   test("writes json and markdown health views", async () => {
     await writeRun({
       runId: "run-1",

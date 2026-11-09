@@ -1,6 +1,7 @@
-import { readdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readWatchlistsNamed } from "../console-watchlists";
+import { listRunDirNames } from "../data-paths";
 import { createRunId, publishRunArtifacts, writeJson } from "../artifacts";
 import type { InstrumentCommand } from "../cli/args";
 import { readCodeVersion } from "../code-version";
@@ -200,11 +201,7 @@ async function observedTokensPerCall(
   provider: string,
   model: string,
 ): Promise<ObservedTokensPerCall | undefined> {
-  const names = await readdir(dataDir).catch(() => [] as string[]);
-  for (const name of names
-    .filter((entry) => !entry.startsWith("."))
-    .toSorted()
-    .toReversed()) {
+  for (const name of (await listRunDirNames(dataDir)).toReversed()) {
     // oxlint-disable-next-line no-await-in-loop -- Newest-first scan stops at the first match.
     const read = await readJsonFile(join(dataDir, name, RUN_ARTIFACT_FILES.report));
     const grid =

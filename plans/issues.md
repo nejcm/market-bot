@@ -35,7 +35,6 @@ These publish today but may be wrong, mixed-scope, or unproven. They also cover 
 - **Superseded-FY note outside the workbench.** Saved runs carry it on `consolidatedNetIncome`, `continuingIncome`, `consolidatedContinuingIncome`, `continuingDilutedEps` and `shareRepurchases`, none of which feed the workbench. Whether consolidated or continuing income should feed it is undecided.
 - **Pretax `firstPublicAt`.** The standing-total branch can date a total from the other scope's equal value. Low risk; no cached hit.
 - **Price-as-of fallbacks outside the lens tiles.** `equity-reader.ts:205`, `valuation-workbench-markdown.ts:115` and `run-workspace-valuation.ts:154` still fall back to `priceAsOf ?? quoteObservedAt`, and quote/fetch-time caption literals repeat across report and Console files; lens tiles read the frozen row since b80824e9. Candidate: one shared rendered-report model.
-- **Shared-state dirs counted as runs under a non-`runs` data dir.** With `MARKET_BOT_DATA_DIR` not named `runs`, the data root is that dir, so `listRunDirs` in `scoring/index.ts` and `health/provider-health.ts` (`buildProviderHealthSummary`) treat `calibration/`, `provider-health/`, `alpha-*`, `history/`, `cache/` and `console/` as run dirs. Scoring skips them; provider-health builds an empty `RunHealth` for each and folds it into the summary (count effect unmeasured). The default `data/runs` layout is unaffected.
 
 ## Time-boxed
 

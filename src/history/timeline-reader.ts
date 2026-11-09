@@ -1,9 +1,10 @@
-import { readdir, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssetClass } from "../domain/job-type";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { scanRunArtifacts } from "../run-artifacts";
 import { isRecord } from "../guards";
+import { listRunDirNames } from "../data-paths";
 import { isDeepEquityReport } from "../deep-equity/artifact-schema";
 import {
   buildInstrumentTimelines,
@@ -63,27 +64,25 @@ async function timelineIsFresh(dataDir: string, timelinePath: string): Promise<b
     return false;
   }
 
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  const checks = entries
-    .filter((entry) => entry.isDirectory())
-    .flatMap((entry) => {
-      const runDir = join(dataDir, entry.name);
-      const reportPromise = readJson(join(runDir, RUN_ARTIFACT_FILES.report));
-      return [
-        ...TIMELINE_FRESHNESS_FILES.map(async (file) => {
-          const mtime = await fileMtimeMs(join(runDir, file));
-          return mtime === undefined || mtime <= timelineMtime;
-        }),
-        (async () => {
-          const report = await reportPromise;
-          const evidenceFile = isDeepEquityReport(report)
-            ? RUN_ARTIFACT_FILES.evidenceBundle
-            : RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
-          const mtime = await fileMtimeMs(join(runDir, evidenceFile));
-          return mtime === undefined || mtime <= timelineMtime;
-        })(),
-      ];
-    });
+  const runDirNames = await listRunDirNames(dataDir);
+  const checks = runDirNames.flatMap((name) => {
+    const runDir = join(dataDir, name);
+    const reportPromise = readJson(join(runDir, RUN_ARTIFACT_FILES.report));
+    return [
+      ...TIMELINE_FRESHNESS_FILES.map(async (file) => {
+        const mtime = await fileMtimeMs(join(runDir, file));
+        return mtime === undefined || mtime <= timelineMtime;
+      }),
+      (async () => {
+        const report = await reportPromise;
+        const evidenceFile = isDeepEquityReport(report)
+          ? RUN_ARTIFACT_FILES.evidenceBundle
+          : RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
+        const mtime = await fileMtimeMs(join(runDir, evidenceFile));
+        return mtime === undefined || mtime <= timelineMtime;
+      })(),
+    ];
+  });
   const results = await Promise.all(checks);
   return results.every(Boolean);
 }

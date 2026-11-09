@@ -1,5 +1,3 @@
-import type { Dirent } from "node:fs";
-import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { SubjectKind } from "./domain/evidence";
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "./domain/market-data";
@@ -72,7 +70,7 @@ import {
   readWebSubjectProfileArtifact,
   type ThemeCatalystItem,
 } from "./run-artifact-evidence-reader";
-import { isRecord } from "./guards";
+import { listRunDirNames } from "./data-paths";
 
 export { readReportMarketRegimeLabel, readSourceGapAttempts } from "./run-artifact-report-reader";
 export { isMissAutopsyCause } from "./run-artifact-score-reader";
@@ -459,18 +457,12 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
 // Scans every run directory under dataDir in one pass. A missing dataDir yields
 // An empty scan.
 async function scanRunArtifactsFromDisk(dataDir: string): Promise<RunArtifactScan> {
-  const dirEntries = await readdir(dataDir, { withFileTypes: true }).catch((error: unknown) => {
-    if (isRecord(error) && error.code === "ENOENT") {
-      return [] as Dirent[];
-    }
-    throw error;
-  });
+  const runDirNames = await listRunDirNames(dataDir);
 
-  const dirs = dirEntries.filter((entry) => entry.isDirectory());
   const loaded = await Promise.all(
-    dirs.map(async (entry) => ({
-      name: entry.name,
-      result: await loadRunArtifact(join(dataDir, entry.name)),
+    runDirNames.map(async (name) => ({
+      name,
+      result: await loadRunArtifact(join(dataDir, name)),
     })),
   );
 
@@ -513,29 +505,22 @@ export async function scanWebSubjectProfileRunArtifacts(
     readonly depth: "brief" | "deep";
   },
 ): Promise<readonly WebSubjectProfileRunArtifact[]> {
-  const dirEntries = await readdir(dataDir, { withFileTypes: true }).catch((error: unknown) => {
-    if (isRecord(error) && error.code === "ENOENT") {
-      return [] as Dirent[];
-    }
-    throw error;
-  });
+  const runDirNames = await listRunDirNames(dataDir);
 
   const reportCandidates = await Promise.all(
-    dirEntries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => {
-        const runDir = join(dataDir, entry.name);
-        const reportFile = await readJsonFile(join(runDir, REPORT_FILE));
-        const report = reportFile.status === "ok" ? readReport(reportFile.value) : undefined;
-        if (
-          report === undefined ||
-          report.extras?.depth !== input.depth ||
-          !reportMatchesWebSubjectKind(report, input.subjectKind)
-        ) {
-          return;
-        }
-        return { runDir, runDirName: entry.name, report };
-      }),
+    runDirNames.map(async (name) => {
+      const runDir = join(dataDir, name);
+      const reportFile = await readJsonFile(join(runDir, REPORT_FILE));
+      const report = reportFile.status === "ok" ? readReport(reportFile.value) : undefined;
+      if (
+        report === undefined ||
+        report.extras?.depth !== input.depth ||
+        !reportMatchesWebSubjectKind(report, input.subjectKind)
+      ) {
+        return;
+      }
+      return { runDir, runDirName: name, report };
+    }),
   );
 
   const profileCandidates = await Promise.all(

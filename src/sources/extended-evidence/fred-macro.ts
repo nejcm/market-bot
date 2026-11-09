@@ -1,5 +1,5 @@
 import type { SourceGap } from "../../domain/sources";
-import { isInstrumentCommand } from "../../cli/args";
+import { isInstrumentCommand } from "../../cli/job-registry";
 import { sourceGap } from "../../domain/source-gaps";
 import {
   buildFredMacroMetrics,

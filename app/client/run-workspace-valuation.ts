@@ -6,7 +6,7 @@ import {
   valuationScopeDisclosure,
 } from "../../src/report/valuation-workbench-markdown";
 import type { RunDetail } from "../types";
-import type { MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
+import { resolveRowPriceAsOf, type MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import type { EquityReaderValuationContext } from "../../src/report/equity-reader";
 import type {
   StoredPeerImpliedRange,
@@ -150,12 +150,7 @@ function rangeGeometry(
 }
 
 function valuationRowPriceAsOf(row: ValuationCompsRow): MarketSnapshotPriceAsOf | undefined {
-  return (
-    row.priceAsOf ??
-    (row.quoteObservedAt === undefined
-      ? undefined
-      : { kind: "fetch-time-only", instant: row.quoteObservedAt })
-  );
+  return resolveRowPriceAsOf(row.priceAsOf, row.quoteObservedAt);
 }
 
 function valuationTargetPriceAsOf(
@@ -165,9 +160,7 @@ function valuationTargetPriceAsOf(
   if (detail.valuationWorkbench?.peerComparison.status === "available") {
     return valuationRowPriceAsOf(detail.valuationWorkbench.peerComparison.valuationComps.target);
   }
-  return fallbackFetchTime === null || fallbackFetchTime === undefined
-    ? undefined
-    : { kind: "fetch-time-only", instant: fallbackFetchTime };
+  return resolveRowPriceAsOf(undefined, fallbackFetchTime);
 }
 
 function valuationRowInputDates(row: ValuationCompsRow): string {

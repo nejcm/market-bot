@@ -1,4 +1,4 @@
-import { isInstrumentCommand } from "../../cli/args";
+import { isInstrumentCommand } from "../../cli/job-registry";
 import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import type { Source, SourceGap } from "../../domain/sources";
 import { isRecord, readNumber, readString } from "../../guards";

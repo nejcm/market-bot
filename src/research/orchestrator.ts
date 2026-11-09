@@ -1,32 +1,30 @@
 import { buildModelStageRequest } from "./model-stage-prompt";
+import type {
+  PersistedResearchJobResult,
+  RunResearchJobInput,
+  RunResearchJobResult,
+} from "./job-types";
 import { replayValue } from "../replay/session";
-import type { AppConfig } from "../config";
-import { readCodeVersion, type CodeVersion } from "../code-version";
+import { readCodeVersion } from "../code-version";
 import { progress } from "../progress";
 import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
-import { resolveRunParams, type RunConfig } from "../config/runs";
+import { resolveRunParams } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import { createRunId, publishRunArtifacts, type RunArtifactPaths } from "../artifacts";
+import { createRunId, publishRunArtifacts } from "../artifacts";
 import { isMarketUpdateJobType, marketUpdateHorizonBucket } from "../domain/job-type";
-import { type MarketSnapshot, type Mover } from "../domain/market-data";
-import { type ResearchReport } from "../domain/report";
-import { type RunTrace } from "../domain/run-trace";
+import { type MarketSnapshot } from "../domain/market-data";
 import { buildResearchRunManifest, persistRunArtifactWrites } from "../run-artifact-writer";
-import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
-import type { CollectedSources, FetchLike } from "../sources/types";
+import type { CollectedSources } from "../sources/types";
 import { recordSeenNewsSources } from "../sources/news-seen";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import type { StageOutput, StageReprompt } from "./final-synthesis";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
-import { buildRunAnalytics, type RunAnalytics } from "./run-analytics";
+import { buildRunAnalytics } from "./run-analytics";
 import { isLedgered, ledgerTotals, withModelCallLedger } from "../model/call-ledger";
-import {
-  createHistoricalContextReader,
-  type HistoricalResearchContext,
-} from "./historical-context";
+import { createHistoricalContextReader } from "./historical-context";
 import { createSanitizedHistoricalContextReader } from "./historical-context-sanitization";
 import { buildForecastPersistence } from "./forecast-persistence";
 import type { PlaybookSelectionAudit } from "./playbooks";
@@ -34,13 +32,8 @@ import { refreshCalibrationContext } from "./calibration-context";
 import { buildDepthProfileFromParams } from "./depth-profile";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
-import type { ForecastDisagreementArtifact } from "./forecast-disagreement";
 import { runWebEvidencePhase } from "../web-evidence";
-import {
-  loadAlphaWatchlistForSpotlights,
-  type SpotlightCandidate,
-  type SpotlightSelectionResult,
-} from "./spotlights";
+import { loadAlphaWatchlistForSpotlights } from "./spotlights";
 import { runMarketUpdatePhase } from "./market-update-phase";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
@@ -53,27 +46,19 @@ import {
   applyEarningsDateConflict,
   applyOfficialEarningsDateConfirmation,
 } from "../sources/extended-evidence/earnings-date-confirmation";
-import {
-  assessSourcePlan,
-  buildSourcePlan,
-  type EvidenceLanesArtifact,
-  type SourceLedgerArtifact,
-  type SourcePlanArtifact,
-  type SourcePlanArtifactV2,
-} from "./source-plan";
+import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase, runPlaybookSelection } from "./analysis-phase";
 import { runForecastDisagreementPhase } from "./forecast-disagreement-phase";
 import { runSynthesisPhase } from "./synthesis-phase";
 import { buildRunTrace } from "./run-trace";
-import { buildSubsystemOutcomes, type WrittenSubsystemOutcome } from "./subsystem-outcomes";
+import { buildSubsystemOutcomes } from "./subsystem-outcomes";
 import { createSourceRequestContext } from "../sources/source-request";
 import {
   runFinancialTableExtractionPhase,
   runFinancialTableMappingStage,
   type FinancialTableExtractionPhaseResult,
 } from "./financial-table-extraction-phase";
-import type { DeepEquityEvidenceBundleV1 } from "../deep-equity/types";
 import { listingCommand } from "../sources/identity-gate";
 import { exchangeProfileFor } from "../domain/exchange-profile";
 import {
@@ -81,50 +66,6 @@ import {
   runIssuerReportPhase,
   type IssuerReportPhaseResult,
 } from "./issuer-report-figures";
-
-export interface RunResearchJobInput {
-  readonly command: ResearchCommand;
-  readonly config: AppConfig;
-  readonly runConfig?: RunConfig;
-  readonly provider: ModelProvider;
-  readonly collectedSources: CollectedSources;
-  // The frozen pre-collection Source Plan. Callers that run collection build it
-  // Before the first source-provider I/O and pass it here; when omitted (tests,
-  // Replays of pre-existing collected sources) the orchestrator derives the
-  // Identical plan from the command, since plan contents never depend on
-  // Collection outcomes.
-  readonly sourcePlan?: SourcePlanArtifactV2;
-  // Captured before collection so a checkout during a long run is not recorded.
-  readonly codeVersion?: CodeVersion;
-  readonly sourceStateHash?: string;
-  readonly now?: Date;
-  readonly endClock?: () => Date;
-  readonly sourceFetchImpl?: FetchLike;
-  readonly sourceRetryDelaysMs?: readonly number[];
-}
-
-export interface RunResearchJobResult {
-  readonly report: ResearchReport;
-  readonly markdown: string;
-  readonly trace: RunTrace;
-  readonly analytics: RunAnalytics;
-  readonly outcomes: readonly WrittenSubsystemOutcome[];
-  readonly stageOutputs: readonly StageOutput[];
-  readonly collectedSources: CollectedSources;
-  readonly historicalContext: HistoricalResearchContext;
-  readonly sourcePlan: SourcePlanArtifact;
-  readonly evidenceLanes: EvidenceLanesArtifact;
-  readonly sourceLedger: SourceLedgerArtifact;
-  readonly forecastDisagreement?: ForecastDisagreementArtifact;
-  readonly spotlightCandidates?: readonly SpotlightCandidate[];
-  readonly spotlightSelection?: SpotlightSelectionResult;
-  readonly marketUpdateMovers?: readonly Mover[];
-  readonly deepEquityEvidenceBundle?: DeepEquityEvidenceBundleV1;
-}
-
-export interface PersistedResearchJobResult extends RunResearchJobResult {
-  readonly artifacts: RunArtifactPaths;
-}
 
 function matchingMarketSnapshot(
   command: ResearchCommand,

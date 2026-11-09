@@ -1,6 +1,10 @@
 import { isRecord } from "../guards";
 import { readEquityAnalysisCompleteness } from "../domain/equity-analysis-completeness";
-import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../domain/market-data";
+import {
+  resolveRowPriceAsOf,
+  type MarketSnapshot,
+  type MarketSnapshotPriceAsOf,
+} from "../domain/market-data";
 import type { EquityAnalysisDimensionStatus } from "../domain/report";
 import type { SourceGap } from "../domain/sources";
 import type { FinancialStatementsArtifact } from "../sources/extended-evidence/financial-statements-contract";
@@ -201,17 +205,9 @@ function valuationPriceAsOf(
 ): MarketSnapshotPriceAsOf | undefined {
   if (workbench?.peerComparison.status === "available") {
     const { priceAsOf, quoteObservedAt } = workbench.peerComparison.valuationComps.target;
-    return (
-      priceAsOf ??
-      (quoteObservedAt === undefined
-        ? undefined
-        : { kind: "fetch-time-only", instant: quoteObservedAt })
-    );
+    return resolveRowPriceAsOf(priceAsOf, quoteObservedAt);
   }
-  const { quoteObservedAt } = range.inputs;
-  return quoteObservedAt === null
-    ? undefined
-    : { kind: "fetch-time-only", instant: quoteObservedAt };
+  return resolveRowPriceAsOf(undefined, range.inputs.quoteObservedAt);
 }
 
 function valuationContext(

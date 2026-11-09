@@ -1,5 +1,5 @@
 import type { SourceAdapter } from "./adapter-freshness";
-import { isInstrumentCommand } from "../cli/args";
+import { isInstrumentCommand } from "../cli/job-registry";
 import { type InstrumentIdentity } from "../domain/instrument";
 import { isMarketUpdateJobType, type AssetClass } from "../domain/job-type";
 import {

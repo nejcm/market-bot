@@ -1,4 +1,4 @@
-import type { InstrumentCommand } from "../../cli/args";
+import type { InstrumentCommand } from "../../cli/job-registry";
 import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";

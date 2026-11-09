@@ -1,4 +1,4 @@
-import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/job-registry";
 import { marketUpdateHorizonBucketOf } from "../domain/job-type";
 
 const TRACKING_PARAMS = new Set(["fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref", "spm"]);

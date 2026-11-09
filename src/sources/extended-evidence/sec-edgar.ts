@@ -1,6 +1,6 @@
 import type { InstrumentIdentity } from "../../domain/instrument";
 import type { Source, SourceGap } from "../../domain/sources";
-import { isInstrumentCommand } from "../../cli/args";
+import { isInstrumentCommand } from "../../cli/job-registry";
 import { SEC_COMPANYFACTS_MAX_RESPONSE_BYTES } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../../guards";

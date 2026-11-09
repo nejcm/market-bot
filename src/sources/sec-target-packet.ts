@@ -1,4 +1,4 @@
-import type { InstrumentCommand } from "../cli/args";
+import type { InstrumentCommand } from "../cli/job-registry";
 import type { ExtendedEvidenceItem } from "../domain/evidence";
 import type { InstrumentIdentity } from "../domain/instrument";
 import type { Source, SourceGap } from "../domain/sources";

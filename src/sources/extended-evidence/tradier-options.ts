@@ -1,5 +1,5 @@
 import { sourceGap } from "../../domain/source-gaps";
-import { isInstrumentCommand } from "../../cli/args";
+import { isInstrumentCommand } from "../../cli/job-registry";
 import { isUsListing } from "../instrument-capability";
 import { selectTradierExpiration, summarizeTradierIv, tradierRequestInit } from "../tradier";
 import { isFetchJsonResult, type CollectContext } from "../types";

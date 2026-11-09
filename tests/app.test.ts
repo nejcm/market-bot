@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { AlphaSearchWorkflowResult } from "../src/alpha-search/workflow";
 import { runCli, scorePassOptions } from "../src/app";
 import { runDeepEquity } from "../src/deep-equity";
-import type { PersistedResearchJobResult, RunResearchJobInput } from "../src/research/orchestrator";
+import type { PersistedResearchJobResult, RunResearchJobInput } from "../src/research/job-types";
 import type { ModelProvider } from "../src/model/types";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
 import type { RunAnalytics } from "../src/research/run-analytics";

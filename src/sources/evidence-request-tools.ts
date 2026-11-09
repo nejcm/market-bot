@@ -1,4 +1,4 @@
-import { isInstrumentCommand, type InstrumentCommand } from "../cli/args";
+import { isInstrumentCommand, type InstrumentCommand } from "../cli/job-registry";
 import type { ExtendedEvidenceItem } from "../domain/evidence";
 import type { EvidenceRequestToolName } from "../domain/gather-audit";
 import type { InstrumentIdentity } from "../domain/instrument";

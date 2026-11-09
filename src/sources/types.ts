@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import type { ResearchCommand } from "../cli/job-registry";
 import type { SourceAdapter } from "./adapter-freshness";
 import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";

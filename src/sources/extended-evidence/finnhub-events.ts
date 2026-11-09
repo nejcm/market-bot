@@ -1,5 +1,5 @@
 import type { SourceGap } from "../../domain/sources";
-import { isInstrumentCommand } from "../../cli/args";
+import { isInstrumentCommand } from "../../cli/job-registry";
 import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
 import { isUsListing } from "../instrument-capability";

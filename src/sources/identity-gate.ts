@@ -1,4 +1,8 @@
-import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
+import {
+  isInstrumentCommand,
+  type InstrumentCommand,
+  type ResearchCommand,
+} from "../cli/job-registry";
 import { exchangeProfileFor } from "../domain/exchange-profile";
 import type { InstrumentIdentity } from "../domain/instrument";
 import { sourceGap } from "../domain/source-gaps";

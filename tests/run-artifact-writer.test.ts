@@ -24,7 +24,7 @@ import {
   type ResearchRunManifestResult,
 } from "../src/run-artifact-writer";
 import { modelPayloadLanguageViolations } from "../src/research/model-payload-language";
-import type { RunResearchJobResult } from "../src/research/orchestrator";
+import type { RunResearchJobResult } from "../src/research/job-types";
 import type { WrittenSubsystemOutcome } from "../src/research/subsystem-outcomes";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type {

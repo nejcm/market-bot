@@ -1,6 +1,10 @@
 import { geographicRevenueSection } from "./extended-evidence/geographic-revenue";
 import { segmentResultsSection } from "./extended-evidence/segment-results";
-import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
+import {
+  isInstrumentCommand,
+  type InstrumentCommand,
+  type ResearchCommand,
+} from "../cli/job-registry";
 import { type ExtendedEvidence, type ExtendedEvidenceItem } from "../domain/evidence";
 import { isMarketUpdateJobType } from "../domain/job-type";
 import { type MarketSnapshot, type VerifiedMarketSnapshot } from "../domain/market-data";

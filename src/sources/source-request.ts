@@ -3,7 +3,7 @@ import { isOfflineReplay, usesReplayState, replayValueSync } from "../replay/ses
 // Breaker), capped response reads, retry/gap handling, response caching, and the
 // CollectContext/SourceRequestExecutor factories built on top. Sits below the source
 // Registry so adapters and the collector can depend on it without import cycles.
-import type { ResearchCommand } from "../cli/args";
+import type { ResearchCommand } from "../cli/job-registry";
 import type { SourceOptions } from "../config";
 import type { SourceGap, SourceGapAttemptFailure, SourceGapAttempts } from "../domain/sources";
 import { fetchFailureSourceGap, type FetchFailureSourceGapCause } from "../domain/source-gaps";

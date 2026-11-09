@@ -42,6 +42,7 @@ import { debtCandidateConcepts } from "./sec-debt-resolution";
 type SecForm = "10-K" | "10-Q" | "10-K/A" | "10-Q/A";
 
 const UNBOUNDED_AS_OF = "9999-12-31T00:00:00.000Z";
+const UNTRANSLATED_METRIC = /^dilutedShares(?:[A-Z]|$)/u;
 const BRIDGE_METRIC =
   /^(?:shortTermInvestments|noncontrollingInterest|preferredStock|temporaryEquity)/u;
 
@@ -624,10 +625,28 @@ export function summarizeSecFundamentals(
       metrics[`${totalKey}Scope`] = TOTAL_OPERATIONS_SCOPE;
     }
   }
-  const summary = formatSecFundamentalsSummary(() => metrics);
+  // Legacy metrics read USD units, which a non-USD us-gaap filer tags only as convenience translations.
+  const translated =
+    statements.taxonomy === "us-gaap" && statements.reportingCurrency !== undefined && !usd
+      ? statements.reportingCurrency
+      : undefined;
+  const withheld = (key: string) => translated !== undefined && !UNTRANSLATED_METRIC.test(key);
+  for (const key of Object.keys(metrics).filter(withheld)) {
+    delete metrics[key];
+  }
+  const translationGap =
+    translated === undefined
+      ? undefined
+      : `monetary metrics: us-gaap facts are reported in ${translated}, so USD-unit facts are convenience translations at an undeclared rate`;
+  const summary =
+    formatSecFundamentalsSummary(() => metrics) ??
+    (translationGap === undefined
+      ? undefined
+      : `SEC Fundamental Evidence withheld ${translationGap}.`);
   if (summary === undefined) {
     return undefined;
   }
+  const unwithheld = (keys: readonly string[]) => keys.filter((key) => !withheld(key));
 
   const staleRevenueGap =
     typeof metrics.revenuePeriodEnd === "string"
@@ -639,25 +658,26 @@ export function summarizeSecFundamentals(
       ? financialStatementsDebtBasisGaps(statements)
       : []
     ).map(({ symbol: _symbol, ...gap }) => gap),
-    ...[debtMismatch, ttmMismatch].flatMap((reason) =>
-      reason === undefined
-        ? []
-        : [
-            sourceGap({
-              source: "sec-edgar",
-              message: `SEC summary withheld canonical ${reason}`,
-              provider: "sec-edgar",
-              capability: "extended-evidence",
-              cause: "provider-data-missing",
-              evidenceQualityImpact: "no-cap",
-            }),
-          ],
+    ...(translationGap === undefined ? [debtMismatch, ttmMismatch] : [translationGap]).flatMap(
+      (reason) =>
+        reason === undefined
+          ? []
+          : [
+              sourceGap({
+                source: "sec-edgar",
+                message: `SEC summary withheld ${translationGap === undefined ? "canonical " : ""}${reason}`,
+                provider: "sec-edgar",
+                capability: "extended-evidence",
+                cause: "provider-data-missing",
+                evidenceQualityImpact: "no-cap",
+              }),
+            ],
     ),
-    ...(missingFacts.length > 0
+    ...(unwithheld(missingFacts).length > 0
       ? [
           sourceGap({
             source: "sec-edgar",
-            message: `Missing SEC company facts: ${missingFacts.join(", ")}`,
+            message: `Missing SEC company facts: ${unwithheld(missingFacts).join(", ")}`,
             provider: "sec-edgar",
             capability: "extended-evidence",
             cause: "provider-data-missing",
@@ -665,13 +685,13 @@ export function summarizeSecFundamentals(
           }),
         ]
       : []),
-    ...(missingDeltas.length > 0
+    ...(unwithheld(missingDeltas).length > 0
       ? [
           sourceGap({
             source: "sec-edgar",
-            message: `Missing comparable SEC company facts for YoY deltas: ${missingDeltas.join(
-              ", ",
-            )}`,
+            message: `Missing comparable SEC company facts for YoY deltas: ${unwithheld(
+              missingDeltas,
+            ).join(", ")}`,
             provider: "sec-edgar",
             capability: "extended-evidence",
             cause: "provider-data-missing",

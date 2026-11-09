@@ -1291,6 +1291,83 @@ describe("SEC fundamental evidence", () => {
     }
   });
 
+  test("withholds USD convenience translations of a non-USD us-gaap filer", () => {
+    const usdPayload = secCompanyFactsPayload() as {
+      facts: { "us-gaap": Record<string, unknown> };
+    };
+    const translated = (keepShares: boolean) => ({
+      facts: {
+        "us-gaap": Object.fromEntries(
+          Object.entries(usdPayload.facts["us-gaap"]).flatMap(([concept, fact]) => {
+            const { units } = fact as { units: Record<string, Record<string, number | string>[]> };
+            if (units.shares !== undefined) {
+              return keepShares ? [[concept, fact]] : [];
+            }
+            const [unit, rows] = Object.entries(units)[0]!;
+            const local = unit.replace("USD", "CNY");
+            return [
+              [
+                concept,
+                {
+                  units: {
+                    [local]: rows.map((row) => ({ ...row, val: Number(row.val) * 7 })),
+                    [unit]: rows.slice(-1),
+                  },
+                },
+              ],
+            ];
+          }),
+        ),
+      },
+    });
+    const withheld = summarizeSecFundamentals(translated(true))!;
+    expect(Object.keys(withheld.metrics).every((key) => key.startsWith("dilutedShares"))).toBe(
+      true,
+    );
+    expect(withheld.metrics.dilutedShares).toBe(9);
+    expect(withheld.summary).not.toContain("Revenue");
+    expect(withheld.gaps.map(({ message }) => message)).toEqual([
+      "SEC summary withheld monetary metrics: us-gaap facts are reported in CNY, so USD-unit facts are convenience translations at an undeclared rate",
+    ]);
+    const empty = summarizeSecFundamentals(translated(false))!;
+    expect(empty.metrics).toEqual({});
+    expect(empty.summary).toBe(
+      "SEC Fundamental Evidence withheld monetary metrics: us-gaap facts are reported in CNY, so USD-unit facts are convenience translations at an undeclared rate.",
+    );
+    expect(empty.gaps.map(({ message }) => message)).toEqual([
+      "SEC summary withheld monetary metrics: us-gaap facts are reported in CNY, so USD-unit facts are convenience translations at an undeclared rate",
+      "Missing SEC company facts: dilutedShares",
+    ]);
+
+    const usd = summarizeSecFundamentals(usdPayload)!;
+    expect(usd.metrics.revenue).toBe(100);
+    expect(usd.gaps.some(({ message }) => message.includes("convenience"))).toBe(false);
+    const annual = (val: number, instant = false) => ({
+      ...secFact(val, { form: "20-F", fp: "FY", filed: "2027-04-30", end: "2026-12-31" }),
+      ...(instant ? {} : { start: "2026-01-01" }),
+    });
+    const ifrsSwitch = {
+      facts: {
+        "us-gaap": usdPayload.facts["us-gaap"],
+        "ifrs-full": {
+          Revenue: { units: { AUD: [annual(1), annual(2)] } },
+          CashAndCashEquivalents: { units: { AUD: [annual(3, true)] } },
+        },
+      },
+    };
+    expect(summarizeSecFundamentals(ifrsSwitch)!.metrics.revenue).toBe(100);
+    const sharesOnly = {
+      facts: {
+        "us-gaap": {
+          WeightedAverageNumberOfDilutedSharesOutstanding: { units: { shares: [secFact(9)] } },
+        },
+      },
+    };
+    expect(summarizeSecFundamentals(sharesOnly)!.gaps.map(({ message }) => message)).not.toContain(
+      expect.stringContaining("convenience"),
+    );
+  });
+
   test("selects the latest reporting period before a newer filing revision", () => {
     const result = summarizeSecFundamentals(
       {

@@ -130,7 +130,9 @@ issuer periodic forms, and records cadence and exact-component TTM derivations (
 exists, Fundamental History, Financial Lenses, completeness, and valuation derive from it without
 running legacy financial derivations. Without the artifact, Fundamental History is omitted; the
 legacy SEC summary still feeds Financial Lenses, and the offline corpus (`src/corpus/`) pins lens
-equivalence at this boundary.
+equivalence at this boundary. The legacy summary reads USD units only, so for a us-gaap filer whose
+reporting currency is not USD it withholds every monetary metric (USD facts there are convenience
+translations) and keeps diluted shares, with a Source Gap.
 
 Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual
 or reconciled-TTM fundamentals to a verified close no more than seven calendar days after the row's

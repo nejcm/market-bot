@@ -18,6 +18,7 @@ import { validateResearchReport } from "../report/schema";
 import {
   eventGrid,
   gridBenchmark,
+  forecastsWithheld,
   issuableGridEvents,
   issueForecastBook,
   plannedEventGridIds,
@@ -493,7 +494,7 @@ async function gridForSymbol(input: {
     gridSources,
   );
   const priced: PricedGrid =
-    events.length > 0
+    events.length > 0 && !forecastsWithheld(command, gridSources)
       ? await priceModelGrid({ ...input, command, priceHistory: collected.priceHistory, events })
       : { eventGrid: undefined, tokens: 0, gaps: [] };
   const book = issueForecastBook({
@@ -528,7 +529,7 @@ function uniqueById<T extends { readonly id: string }>(items: readonly T[]): rea
   return [...new Map(items.map((item) => [item.id, item])).values()];
 }
 
-// Spends one quick-model call per symbol with a grid; persists parsed probabilities only, never model text.
+// Spends one quick-model call per symbol with an issuable, non-withheld grid; persists parsed probabilities only, never model text.
 export async function runForecastGridJob(input: {
   readonly plan: ForecastGridPlan;
   readonly config: AppConfig;

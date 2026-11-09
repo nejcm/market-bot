@@ -339,16 +339,17 @@ describe("forecast-grid command", () => {
       }
       return Response.json(body, { status: 200, headers: response.headers });
     };
-    const { report } = await spend(allPriced, aliased);
+    const { report, requests } = await spend(allPriced, aliased);
     expect(report.predictions.map((prediction) => prediction.id)).toEqual([
       "grid-relative-5-ETE.AT",
     ]);
+    expect(requests).toHaveLength(1);
     expect(report.dataGaps.join("\n")).toContain(
       "Event Grid range events not issued: ETE.AT trades outside the US session calendar",
     );
   });
 
-  test("a non-USD history with closes but no Verified Market Snapshot withholds the forecast book", async () => {
+  test("a non-USD history with closes but no Verified Market Snapshot withholds the forecast book without a model call", async () => {
     seedWatchlist("core", [["equity", "ETE.AT"]]);
     const replay = makeReplayFetch(await cassette(), FIXTURE_DIR);
     const aliased: FetchLike = async (input, init) => {
@@ -373,8 +374,10 @@ describe("forecast-grid command", () => {
       }
       return Response.json(body, { status: 200, headers: response.headers });
     };
-    const { report } = await spend(allPriced, aliased);
+    const { report, requests } = await spend(allPriced, aliased);
     expect(report.predictions).toEqual([]);
+    expect(requests).toEqual([]);
+    expect(report.dataGaps.filter((gap) => gap.includes("Forecast Grid fact sheet"))).toEqual([]);
     expect(
       report.dataGaps.filter((gap) => gap.includes("No Observable Predictions issued for ETE.AT")),
     ).toHaveLength(1);

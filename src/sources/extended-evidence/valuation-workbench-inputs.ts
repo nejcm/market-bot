@@ -24,6 +24,8 @@ import {
 } from "./financial-statement-definitions";
 import {
   deriveFinancialStatementTtm,
+  financialStatementTtmComponentBasis,
+  TTM_COMPONENT_BASIS_PREFIX,
   earlierShareBasisPeriods,
   fiscalYearTtmSupersededAt,
   touchesEarlierShareBasis,
@@ -133,7 +135,9 @@ function ttmInput(
     lineage: Object.values(ttm.components).map((fact) =>
       statementInput(fact, INPUT_SERIES[label]!, label),
     ),
-    derivation: ttm.formula,
+    derivation: [ttm.formula, financialStatementTtmComponentBasis(ttm.components)]
+      .filter((part) => part !== undefined)
+      .join("; "),
   };
 }
 
@@ -164,10 +168,17 @@ function fcfInput(
     unit: operatingCashFlow.unit,
     sourceIds: unique([...operatingCashFlow.sourceIds, ...capitalExpenditure.sourceIds]),
     lineage: [...(operatingCashFlow.lineage ?? []), ...(capitalExpenditure.lineage ?? [])],
-    derivation:
+    derivation: [
       operatingCashFlow.scope === undefined
         ? "operating cash flow - capital expenditure"
         : `operating cash flow (${operatingCashFlow.scope}) - capital expenditure; ${CAPEX_SCOPE_CAVEAT}`,
+      ...[operatingCashFlow, capitalExpenditure].flatMap(
+        (input) =>
+          input.derivation
+            ?.split("; ")
+            .filter((part) => part.startsWith(TTM_COMPONENT_BASIS_PREFIX)) ?? [],
+      ),
+    ].join("; "),
   };
 }
 

@@ -288,6 +288,7 @@ export interface FinancialStatementNote {
     | "history-cap"
     | "incomplete-statement"
     | "unreconciled-ttm"
+    | "ttm-component-basis"
     | "untagged-balance-sheet-series"
     | "incomplete-composite-series"
     | "unchecked-extension-capex"

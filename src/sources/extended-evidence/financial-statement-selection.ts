@@ -387,6 +387,18 @@ export function financialStatementPeriodsYearAligned(
   );
 }
 
+export const TTM_COMPONENT_BASIS_PREFIX = "TTM components differ in concept or derivation: ";
+
+// Each leg is the fact its series already selected, so a mixed concept or derivation is disclosed, not withheld.
+export function financialStatementTtmComponentBasis(
+  components: FinancialStatementTtm["components"],
+): string | undefined {
+  const legs = Object.entries(components);
+  return new Set(legs.map(([, fact]) => `${fact.concept}|${fact.extractionMethod}`)).size > 1
+    ? `${TTM_COMPONENT_BASIS_PREFIX}${legs.map(([leg, fact]) => `${leg} ${fact.concept} (${fact.extractionMethod})`).join(", ")}`
+    : undefined;
+}
+
 export function deriveFinancialStatementTtm(
   definition: FinancialStatementSeriesDefinition,
   annual: readonly FinancialStatementFact[],
@@ -495,6 +507,11 @@ export function deriveFinancialStatementTtm(
       },
     };
   }
+  const componentBasis = financialStatementTtmComponentBasis({
+    fiscalYear,
+    latestYearToDate,
+    priorYearToDate,
+  });
   const sourceIds = [
     ...new Set([
       ...fiscalYear.sourceIds,
@@ -503,6 +520,15 @@ export function deriveFinancialStatementTtm(
     ]),
   ];
   return {
+    ...(componentBasis === undefined
+      ? {}
+      : {
+          note: {
+            code: "ttm-component-basis" as const,
+            seriesKey: definition.key,
+            message: componentBasis,
+          },
+        }),
     ttm: {
       value: fiscalYear.value + latestYearToDate.value - priorYearToDate.value,
       periodStart: new Date(Date.parse(priorYearToDate.periodEnd) + DAY_MS)

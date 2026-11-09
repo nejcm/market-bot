@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { canonicalRequestUrl } from "../src/sources/cache";
 import type { FetchLike } from "../src/sources/types";
 import type { ModelUsage } from "../src/model/types";
-import { runFixture, type FixtureMeta } from "../tests/support/run-fixtures";
+import { runFixture, type FixtureMeta } from "../src/replay/fixture-run";
 import { createRecordingFetch } from "../src/replay/data-cassette";
 import {
   makeReplayProvider,

@@ -273,6 +273,7 @@ The replay command accepts exactly one fixture name and the optional `--live` fl
 bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base
 bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base --yes
 bun run scripts/eval-deep.ts --compare base branch
+bun run scripts/eval-deep.ts --decide <ablate-label>   # stage deletion statistics, read-only
 MARKET_BOT_SYNTHESIS_MODEL=<model> bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label <arm> --live-stages final-synthesis
 ```
 
@@ -527,6 +528,11 @@ before anything runs.
   that resamples paired differences within each capture, captures fixed (10,000 resamples, fixed seed).
   `stageDeletionStatistics` in `src/replay/eval-decision.ts` computes it, with the arm, its control,
   removed stages and vetoes; it returns statistics, not a decision.
+  `bun run scripts/eval-deep.ts --decide <ablate-label> [<ablate-label>...]` prints it for saved
+  `--ablate` labels under `data/evals/`, one capture per label, all of one arm. It reads files only and
+  spends nothing; a label without `summary.json`, without an ablation arm, without judged samples, or
+  judged before `judged.units` existed is an error, never an empty result. It does not check that the
+  labels share a commit or models.
 - Non-inferiority holds when that upper bound is ≤ 0.5 and no veto applies.
 - Failed sample: a veto for that arm. Each failed sample may be rerun once, with at most
   ceil(10% of the arm's samples) reruns per arm; a sample still failing, or a sample without `judged`,
@@ -621,7 +627,7 @@ intentional shared price-path change before replaying all seven fixtures.
 
 ## Fixture maintenance rules
 
-- Keep harness helpers in `tests/support/run-fixtures/`.
+- Keep the fixture runner in `src/replay/fixture-run.ts` and invariant helpers in `tests/support/run-fixtures/`.
 - A fixture that exists to pin one behavior carries one targeted assertion for it in
   `tests/equity-fixture/run.test.ts`; never a snapshot of its output.
 - Keep fixture test cases in `tests/equity-fixture/run.test.ts` and shared assertions in

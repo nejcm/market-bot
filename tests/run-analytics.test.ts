@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readRecordedBody } from "../src/replay/body-file";
 import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
-import { loadFixture } from "./support/run-fixtures";
+import { loadFixture } from "../src/replay/fixture-run";
 import { readPredictions } from "../src/research/report-assembly";
 import { verifiedMarketSnapshotFromChart } from "../src/sources/verified-market-snapshot";
 import { buildRunAnalytics } from "../src/research/run-analytics";

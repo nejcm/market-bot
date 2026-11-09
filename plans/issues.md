@@ -52,6 +52,7 @@ These publish today but may be wrong, mixed-scope, or unproven. They also cover 
 - **Forecast Grid Job prices a withheld book.** When `forecastsWithheld(command, gridSources)` is true (non-USD history, no Verified Market Snapshot), `grid-job.ts` still calls `priceModelGrid`, then issues nothing. Skip the model call on that path.
 - **SEC excerpts.** 8–9k chars each reach specialist, instrument-evidence, market-behavior, critique and synthesis in full; all of them cite the prose. A cut would have to drop sections no stage cites, and which sections those are is unchecked.
 - **Pre-quote Web Subject Profiles regenerate once.** Every saved profile predates `figureQuotes`, so reuse declines it (AAPL 4, OUST 2, AMD 1 failing figures on the newest) and the next deep run per subject pays one profile stage. Quote compliance of live stages is unmeasured; check with `eval-deep.ts --live-stages` before relying on it.
+- **Scripts still import test support.** `evaluate-untagged-financial-corpus.ts`, `phase0-equity-baseline.ts` and `sec-cache-sweep.ts` import corpus and invariant modules from `tests/support/` (~6k lines with the offline-financial deps); the fixture harness moved to `src/replay/fixture-run.ts` and `eval-run.ts`.
 
 ## Withheld correctly (coverage gaps)
 
@@ -83,6 +84,7 @@ Each was measured; don't reinvestigate without new evidence.
 - **Amount equality as containment:** never proves it.
 - **Fetching older filings' calc linkbases for capex/D&A:** 31 capex periods across 26 filings, ~7 real flips (all past periods), ~3 requests per filing at 1 req/s and 3 fixture recaptures; D&A gains notes only (2026-11-05). The zero-request debt-face piggyback ships instead.
 - **GPN and Vistance continuing OCF:** neither filing states the split (checked 2026-11-04).
+- **Catalog derivations for typed figures:** over the newest 60 runs only 4 of 1215 typed figures (segment revenue YoY) are exactly derivable from catalog rows; typed margins are for quarters the catalog lacks, since releases precede the 10-Q (2026-11-09). Most typed figures are issuer-release and web values, the domain of verified web figures.
 
 ## Accepted exceptions
 

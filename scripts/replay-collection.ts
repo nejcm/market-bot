@@ -11,11 +11,7 @@ import {
 import { collectSources } from "../src/sources/collector";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
 import { freshEvalDir } from "../src/replay/eval-output";
-import {
-  createFixtureConfig,
-  fixtureCommand,
-  loadFixture,
-} from "../tests/support/run-fixtures/index";
+import { createFixtureConfig, fixtureCommand, loadFixture } from "../src/replay/fixture-run";
 
 const args = process.argv.slice(2);
 const positional = args.filter((argument) => !argument.startsWith("--"));

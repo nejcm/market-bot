@@ -12,7 +12,7 @@ import { WEB_GATHER_DUPLICATE_REQUEST_REASON } from "../src/sources/web-gather-r
 import { isCompanyProfileSecSource } from "../src/web-evidence/web-subject-profile";
 import { latestSecFilingDate } from "../src/web-evidence/web-subject-profile-reuse";
 import { makeReplayFetch } from "../src/replay/data-cassette";
-import { createFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
+import { createFixtureConfig, loadFixture, runFixture } from "../src/replay/fixture-run";
 
 const NOW = new Date("2026-06-15T14:30:00.000Z");
 const AAPL_COMMAND: InstrumentCommand = {

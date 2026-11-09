@@ -1,15 +1,12 @@
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import {
-  EVALS_ROOT,
-  evalLabelDir,
-  formatEvalCompare,
   liveTokenEstimate,
-  readEvalSummary,
   unreplayableFixtureError,
   runEvalSample,
   runEvalBatch,
-} from "../tests/support/run-fixtures/eval";
+} from "../src/replay/eval-run";
+import { evalLabelDir, formatEvalCompare, readEvalSummary } from "../src/replay/eval-summary";
 import { validateLiveStage } from "../src/replay/llm-cassette";
 import {
   approvalSubsetEstimate,
@@ -18,9 +15,14 @@ import {
   replayPairedSample,
   replaySynthesisFile,
 } from "../src/replay/replay-synthesis";
-import { ABLATION_ARMS } from "../src/replay/eval-decision";
+import {
+  ABLATION_ARMS,
+  formatStageDeletionStatistics,
+  readStageDeletionInput,
+  stageDeletionStatistics,
+} from "../src/replay/eval-decision";
 import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
-import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
+import { EVALS_ROOT, freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
 import { createProvider } from "../src/model/factory";
 import { resolveConfig } from "../src/config";
 import { join, resolve } from "node:path";
@@ -37,16 +39,18 @@ const measuredShare = (value: number | undefined) =>
 const USAGE =
   "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--ablate <arm> | --no-judge] [--yes]\n" +
-  "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
+  "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>\n" +
+  "       bun run scripts/eval-deep.ts --decide <ablate-label> [<ablate-label>...]";
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
   options: {
     fixtures: { type: "string" },
     input: { type: "string" },
-    samples: { type: "string", default: "2" },
+    samples: { type: "string" },
     label: { type: "string" },
     compare: { type: "boolean", default: false },
+    decide: { type: "boolean", default: false },
     "live-stages": { type: "string" },
     ablate: { type: "string" },
     "no-judge": { type: "boolean", default: false },
@@ -55,6 +59,23 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
 });
 
+if (values.decide) {
+  const { input, fixtures, label, samples, ablate } = values;
+  if (
+    [input, fixtures, label, samples, ablate, values["live-stages"]].some((v) => v !== undefined) ||
+    values.compare ||
+    values["no-judge"] ||
+    values.yes ||
+    positionals.length === 0
+  ) {
+    throw new Error(USAGE);
+  }
+  const decision = await readStageDeletionInput(EVALS_ROOT, positionals);
+  process.stdout.write(formatStageDeletionStatistics(stageDeletionStatistics(decision)));
+  process.exit(0);
+}
+
+const samplesArg = values.samples ?? "2";
 const ablate = Object.keys(ABLATION_ARMS).find((arm) => arm === values.ablate) as
   | keyof typeof ABLATION_ARMS
   | undefined;
@@ -67,8 +88,8 @@ if (values.input !== undefined) {
     values.label === undefined ||
     positionals.length > 0 ||
     (values["live-stages"] !== undefined && values["live-stages"] !== "final-synthesis") ||
-    !Number.isInteger(Number(values.samples)) ||
-    Number(values.samples) < 1
+    !Number.isInteger(Number(samplesArg)) ||
+    Number(samplesArg) < 1
   ) {
     throw new Error(USAGE);
   }
@@ -80,7 +101,7 @@ if (values.input !== undefined) {
     await Bun.file(join(import.meta.dir, "../tests/fixtures/eval-cases/cases.json")).json(),
   ).filter((row): row is OmissionCase => row.check === "omission");
   const estimate = await estimateSynthesisFile(values.input, ablate, omissionCases);
-  const samplesCount = Number(values.samples);
+  const samplesCount = Number(samplesArg);
   let identity: { provider: string; model: string } | undefined = undefined;
   try {
     const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
@@ -195,7 +216,7 @@ if (values.compare) {
 }
 
 const fixtures = values.fixtures?.split(",").filter((name) => name.length > 0) ?? [];
-const samples = Number(values.samples);
+const samples = Number(samplesArg);
 const { label } = values;
 if (
   fixtures.length === 0 ||

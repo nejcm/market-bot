@@ -26,7 +26,7 @@ import {
   loadFixture,
   runFixture,
   type RunFixtureResult,
-} from "../support/run-fixtures";
+} from "../../src/replay/fixture-run";
 import { makeReplayProvider, requestStage } from "../../src/replay/llm-cassette";
 import { countCassetteMisses, makeReplayFetch } from "../../src/replay/data-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";

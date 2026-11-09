@@ -2,8 +2,9 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadFixture } from "./support/run-fixtures";
-import { readEvalSummary, runEvalBatch, runEvalSample } from "./support/run-fixtures/eval";
+import { loadFixture } from "../src/replay/fixture-run";
+import { runEvalBatch, runEvalSample } from "../src/replay/eval-run";
+import { readEvalSummary } from "../src/replay/eval-summary";
 import { makeReplayProvider } from "../src/replay/llm-cassette";
 
 const roots: string[] = [];
@@ -73,11 +74,11 @@ test("live and selected-stage samples with zero live calls are not exercised", a
     `
 import { mock } from "bun:test";
 import { writeFile } from "node:fs/promises";
-const fixtures = await import(${JSON.stringify(join(import.meta.dir, "support/run-fixtures/index.ts"))});
-mock.module(${JSON.stringify(join(import.meta.dir, "support/run-fixtures/index.ts"))}, () => ({
+const fixtures = await import(${JSON.stringify(join(import.meta.dir, "../src/replay/fixture-run.ts"))});
+mock.module(${JSON.stringify(join(import.meta.dir, "../src/replay/fixture-run.ts"))}, () => ({
   ...fixtures, runFixture: async () => ({}),
 }));
-const { runEvalSample } = await import(${JSON.stringify(join(import.meta.dir, "support/run-fixtures/eval.ts"))});
+const { runEvalSample } = await import(${JSON.stringify(join(import.meta.dir, "../src/replay/eval-run.ts"))});
 const results = [];
 for (const mode of ["live", "final-synthesis"]) {
   results.push(await runEvalSample({

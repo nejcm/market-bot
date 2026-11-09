@@ -11,7 +11,7 @@ import {
   createFixtureConfig,
   createLiveFixtureConfig,
   type FixtureMeta,
-} from "./support/run-fixtures";
+} from "../src/replay/fixture-run";
 
 const CONFIGURED_PROVIDERS = ["exa", "finnhub", "firecrawl", "tradier"] as const;
 const FIXTURE_META: FixtureMeta = {

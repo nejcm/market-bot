@@ -1,40 +1,25 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, basename } from "node:path";
-import { withRunCapture } from "../../../src/replay/capture";
-import {
-  withReplaySession,
-  assertReplayStateComplete,
-  type ReplayState,
-} from "../../../src/replay/session";
-import { assertCaptureSettings, type CaptureSettings } from "../../../src/replay/settings";
-import { isRecord } from "../../../src/guards";
-import { readRecordedBody } from "../../../src/replay/body-file";
-import { parseArgs, type ResearchCommand } from "../../../src/cli/args";
-import { resolveConfig, type AppConfig } from "../../../src/config";
-import { createProvider } from "../../../src/model/factory";
-import type { ModelProvider } from "../../../src/model/types";
-import { collectSources } from "../../../src/sources/collector";
-import type { FetchLike } from "../../../src/sources/types";
-import {
-  persistResearchJob,
-  type PersistedResearchJobResult,
-} from "../../../src/research/orchestrator";
+import { withRunCapture } from "./capture";
+import { withReplaySession, assertReplayStateComplete, type ReplayState } from "./session";
+import { assertCaptureSettings, type CaptureSettings } from "./settings";
+import { isRecord } from "../guards";
+import { readRecordedBody } from "./body-file";
+import { parseArgs, type ResearchCommand } from "../cli/args";
+import { resolveConfig, type AppConfig } from "../config";
+import { createProvider } from "../model/factory";
+import type { ModelProvider } from "../model/types";
+import { collectSources } from "../sources/collector";
+import type { FetchLike } from "../sources/types";
+import { persistResearchJob, type PersistedResearchJobResult } from "../research/orchestrator";
 import {
   commandWithResolvedResearchSubject,
   resolveResearchSubject,
-} from "../../../src/research/research-subject-identity";
-import { buildSourcePlan } from "../../../src/research/source-plan";
-import {
-  countCassetteMisses,
-  makeReplayFetch,
-  type DataCassette,
-} from "../../../src/replay/data-cassette";
-import {
-  makeReplayProvider,
-  ModelReplayError,
-  type LlmCassette,
-} from "../../../src/replay/llm-cassette";
+} from "../research/research-subject-identity";
+import { buildSourcePlan } from "../research/source-plan";
+import { countCassetteMisses, makeReplayFetch, type DataCassette } from "./data-cassette";
+import { makeReplayProvider, ModelReplayError, type LlmCassette } from "./llm-cassette";
 
 export interface FixtureMeta {
   readonly command?: ResearchCommand;
@@ -100,7 +85,7 @@ export interface RunFixtureResult extends PersistedResearchJobResult {
   readonly cleanup: () => Promise<void>;
 }
 
-export interface FixtureDataRequest {
+interface FixtureDataRequest {
   readonly method: string;
   readonly url: string;
 }
@@ -110,7 +95,7 @@ interface FixtureDataDir {
   readonly tempRoot?: string;
 }
 
-const FIXTURE_ROOT = join(import.meta.dir, "../../fixtures/runs");
+const FIXTURE_ROOT = join(import.meta.dir, "../../tests/fixtures/runs");
 
 async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T;

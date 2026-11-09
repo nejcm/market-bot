@@ -24,8 +24,9 @@ and fixture recording.
 - Static run fixtures are the exception to the usual unit-test seam: they mock only HTTP `fetch`
   and `ModelProvider.generate` so the real source adapters, cache, normalization, orchestration, and
   report assembly run.
-- Keep fixture harness helpers under `tests/support/run-fixtures/`; tests should only load fixtures,
-  run them, and assert invariants.
+- The fixture runner lives in `src/replay/fixture-run.ts` (eval batches in `src/replay/eval-run.ts`) so
+  scripts never import `tests/`; invariant helpers stay under `tests/support/run-fixtures/`. Tests
+  should only load fixtures, run them, and assert invariants.
 - Fixture replays assert invariants, never byte-exact output
   ([ADR 0005](./adr/0005-testing-and-replay.md)). A behavior worth keeping gets
   its own assertion.

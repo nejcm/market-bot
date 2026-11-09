@@ -18,7 +18,7 @@ import {
   configuredFixtureProviders,
   createLiveFixtureConfig,
   type FixtureMeta,
-} from "../tests/support/run-fixtures";
+} from "../src/replay/fixture-run";
 import { knownSecretValues } from "./fixture-secret-scan";
 
 function usage(): never {

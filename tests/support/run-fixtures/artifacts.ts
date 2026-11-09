@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
-import { runFixture } from ".";
+import { runFixture } from "../../../src/replay/fixture-run";
 
 export interface ReplayedRunOutput {
   readonly report: unknown;

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.14.0](https://github.com/nejcm/market-bot/compare/v1.13.11...v1.14.0) (2026-11-09)
+
+### Features
+
+- **synthesis:** hint catalog tokens for typed figures during repair (#184) ([ed31afe](https://github.com/nejcm/market-bot/commit/ed31afe48116711b3852f439d273083fd49b17db))
+
+### Bug Fixes
+
+- **audit:** run warn rules on the same claim text as prune rules (#185) ([9605ece](https://github.com/nejcm/market-bot/commit/9605ece58856bd1899e687bfc90cf2b1c34f1a21))
+- **eval:** count unprefixed catalog ids as metric references (#183) ([6c8dbaf](https://github.com/nejcm/market-bot/commit/6c8dbafccf6eecf6646eab447b36ec4527d9a640))
+- **research:** name the field path of an unresolved metric token (#181) ([e9fe1c0](https://github.com/nejcm/market-bot/commit/e9fe1c0eec3af07c0199817973c69e9d826d67b9))
+- **research:** publish a fixed gap when forecast disagreement fails (#180) ([7cada66](https://github.com/nejcm/market-bot/commit/7cada660f2283a11b1168d22b0cd69bf739a0446))
+- **sec:** disclose ttm components that differ in concept or method (#179) ([93a54d9](https://github.com/nejcm/market-bot/commit/93a54d980751fad1a63fab88491f05a63165535f))
+- **forecast:** stamp the info cutoff on unavailable baselines (#178) ([fecb3c1](https://github.com/nejcm/market-bot/commit/fecb3c1faccdbd01d06f4bf4c43ae46b6a930b9d))
+- **runs:** list run dirs through one lister that skips shared state (#177) ([6a99a66](https://github.com/nejcm/market-bot/commit/6a99a664c647f31e4405f12490a7fff0577b37cb))
+- **grid:** skip the model call when the forecast book is withheld (#176) ([832d3af](https://github.com/nejcm/market-bot/commit/832d3af3accd93fe5c0364097b252ced8371717d))
+
 ## [1.13.11](https://github.com/nejcm/market-bot/compare/v1.13.10...v1.13.11) (2026-11-09)
 
 ### Bug Fixes

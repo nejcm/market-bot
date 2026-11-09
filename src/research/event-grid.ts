@@ -55,18 +55,52 @@ export interface EventGridEvent {
   readonly sourceIds: readonly string[];
 }
 
-// Ids eventGrid issues when every input is present; dry runs plan from this without fetching.
-export function plannedEventGridIds(symbol: string): readonly string[] {
-  return [
-    ...(gridIssuesRange(symbol)
-      ? GRID_RANGE_HORIZONS.map((horizon) => `grid-range-${String(horizon)}`)
-      : []),
-    ...(symbol === gridBenchmark(symbol) ? [] : [`grid-relative-${String(GRID_RELATIVE_HORIZON)}`]),
-  ];
-}
-
 function priceHistorySourceId(symbol: string): string {
   return `price-history-${symbol}`;
+}
+
+function rangeEvent(
+  symbol: string,
+  horizon: number,
+  [lo, hi]: readonly [number, number],
+): EventGridEvent {
+  return {
+    id: `grid-range-${String(horizon)}`,
+    kind: "range",
+    subject: symbol,
+    measurableAs: `close(${symbol}, +${String(horizon)}) outside [${String(lo)}, ${String(hi)}]`,
+    horizonTradingDays: horizon,
+    sourceIds: [verifiedMarketSnapshotSourceId(symbol), priceHistorySourceId(symbol)],
+  };
+}
+
+function relativeEvent(symbol: string, benchmark: string): EventGridEvent {
+  const horizon = String(GRID_RELATIVE_HORIZON);
+  return {
+    id: `grid-relative-${horizon}`,
+    kind: "relative",
+    subject: `${symbol}:${benchmark}`,
+    measurableAs: `close(${symbol}, +${horizon})/close(${symbol}, 0) > close(${benchmark}, +${horizon})/close(${benchmark}, 0)`,
+    horizonTradingDays: GRID_RELATIVE_HORIZON,
+    sourceIds: [priceHistorySourceId(symbol), priceHistorySourceId(benchmark)],
+  };
+}
+
+// Events eventGrid issues when every input is present; dry runs plan from this without fetching.
+export function plannedEventGrid(
+  symbol: string,
+  reference: { readonly sigma: number; readonly spot: number },
+): readonly EventGridEvent[] {
+  const benchmark = gridBenchmark(symbol);
+  return [
+    ...(gridIssuesRange(symbol)
+      ? GRID_RANGE_HORIZONS.flatMap((horizon) => {
+          const band = rangeReferenceBand(reference, horizon);
+          return band === undefined ? [] : [rangeEvent(symbol, horizon, band)];
+        })
+      : []),
+    ...(symbol === benchmark ? [] : [relativeEvent(symbol, benchmark)]),
+  ];
 }
 
 function gridGap(symbol: string, message: string): SourceGap {
@@ -126,15 +160,7 @@ export function eventGrid(
         degenerate.push(`grid-range-${String(horizon)}`);
         continue;
       }
-      const [lo, hi] = band;
-      events.push({
-        id: `grid-range-${String(horizon)}`,
-        kind: "range",
-        subject: symbol,
-        measurableAs: `close(${symbol}, +${String(horizon)}) outside [${String(lo)}, ${String(hi)}]`,
-        horizonTradingDays: horizon,
-        sourceIds: [verifiedMarketSnapshotSourceId(symbol), priceHistorySourceId(symbol)],
-      });
+      events.push(rangeEvent(symbol, horizon, band));
     }
     if (degenerate.length > 0) {
       gaps.push(
@@ -151,15 +177,7 @@ export function eventGrid(
       gridGap(symbol, `Event Grid relative event not issued: ${benchmark} is its own benchmark`),
     );
   } else {
-    const horizon = String(GRID_RELATIVE_HORIZON);
-    events.push({
-      id: `grid-relative-${horizon}`,
-      kind: "relative",
-      subject: `${symbol}:${benchmark}`,
-      measurableAs: `close(${symbol}, +${horizon})/close(${symbol}, 0) > close(${benchmark}, +${horizon})/close(${benchmark}, 0)`,
-      horizonTradingDays: GRID_RELATIVE_HORIZON,
-      sourceIds: [priceHistorySourceId(symbol), priceHistorySourceId(benchmark)],
-    });
+    events.push(relativeEvent(symbol, benchmark));
   }
   return { events, gaps };
 }

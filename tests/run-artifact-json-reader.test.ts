@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readAnalytics } from "../src/run-artifact-analytics-reader";
+import { readAnalytics } from "../src/run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 const tmpDirs: string[] = [];

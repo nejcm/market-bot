@@ -56,8 +56,7 @@ import {
   readVerifiedMarketSnapshots,
 } from "./run-artifact-snapshot-reader";
 import { readMissAutopsies, readScores } from "./run-artifact-score-reader";
-import { readAnalytics } from "./run-artifact-analytics-reader";
-import { readJsonFile } from "./run-artifact-json-reader";
+import { readAnalytics, readJsonFile } from "./run-artifact-json-reader";
 import {
   readBusinessFrameworkArtifact,
   readEvidenceLanes,

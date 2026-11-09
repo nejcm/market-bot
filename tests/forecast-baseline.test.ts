@@ -13,7 +13,7 @@ import {
   eventGrid,
   issuableGridEvents,
   issueForecastBook,
-  plannedEventGridIds,
+  plannedEventGrid,
 } from "../src/research/event-grid";
 import { rederivePredictionShortfallReportAfterPruning } from "../src/report/prediction-shortfall";
 import { validateResearchReport } from "../src/report/schema";
@@ -23,6 +23,8 @@ import {
   researchReport,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
+
+const RANGE_REFERENCE = { sigma: 0.01, spot: 100 };
 
 const EQUITY: ResearchCommand = {
   jobType: "equity",
@@ -379,8 +381,10 @@ describe("Event Grid", () => {
     expect(grid.gaps.map(({ source, message }) => `${source}: ${message}`)).toEqual([
       "event-grid: Event Grid range events not issued: 0097.KL trades outside the US session calendar scoring counts on, so no Forecast Baseline could be stamped for them",
     ]);
-    expect(plannedEventGridIds("0097.KL")).toEqual(["grid-relative-5"]);
-    expect(plannedEventGridIds("AAPL")).toEqual([
+    expect(plannedEventGrid("0097.KL", RANGE_REFERENCE).map(({ id }) => id)).toEqual([
+      "grid-relative-5",
+    ]);
+    expect(plannedEventGrid("AAPL", RANGE_REFERENCE).map(({ id }) => id)).toEqual([
       "grid-range-1",
       "grid-range-5",
       "grid-range-20",

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { isRecord } from "./guards";
-import type { JsonFileResult } from "./run-artifact-layout";
+import { RUN_ARTIFACT_FILES, type JsonFileResult } from "./run-artifact-layout";
 
 // Shared JSON reader. Missing files return "absent"; other read or parse
 // Failures return "malformed"; valid JSON keeps its parsed value.
@@ -17,4 +18,8 @@ export async function readJsonFile(path: string): Promise<JsonFileResult> {
       ? { status: "absent" }
       : { status: "malformed" };
   }
+}
+
+export async function readAnalytics(runDir: string): Promise<JsonFileResult> {
+  return await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.analytics));
 }

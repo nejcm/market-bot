@@ -23,7 +23,8 @@ import {
   forecastsWithheld,
   issuableGridEvents,
   issueForecastBook,
-  plannedEventGridIds,
+  plannedEventGrid,
+  type EventGridEvent,
 } from "../research/event-grid";
 import { loadStagePrompt, type LoadedPrompt } from "../research/prompt-loader";
 import { verifiedSnapshotSource } from "../research/verified-snapshot-contract";
@@ -46,6 +47,8 @@ const LATEST_RUN_FRESH_DAYS = 7;
 const LATEST_RUN_SUMMARY_CHARS = 600;
 const RETURN_SESSIONS = [1, 5, 20, 60] as const;
 const BENCHMARK_RETURN_SESSIONS = [5, 20] as const;
+// Dry runs fetch nothing, so range bounds come from a fixed ±1σ reference of typical width.
+const PLACEHOLDER_RANGE_REFERENCE = { sigma: 0.0123, spot: 1234.56 } as const;
 
 export interface ForecastGridPlan {
   readonly watchlist: string;
@@ -165,28 +168,38 @@ function requestTokenEstimate(request: ModelRequest): number {
   return Math.ceil(chars / 4) + PER_CALL_UNSEEN_TOKEN_ALLOWANCE;
 }
 
-function placeholderFactSheet(symbol: string): ForecastGridFactSheet {
-  const sampleReturns = Object.fromEntries(
-    RETURN_SESSIONS.map((sessions) => [String(sessions), -12.34]),
-  );
+function factSheetEvents(events: readonly EventGridEvent[]): ForecastGridFactSheet["events"] {
+  return events.map(({ id, measurableAs, horizonTradingDays }) => ({
+    id,
+    measurableAs,
+    horizonTradingDays,
+  }));
+}
+
+function sampleReturns(sessions: readonly number[]): Record<string, number> {
+  return Object.fromEntries(sessions.map((count) => [String(count), -12.34]));
+}
+
+export function placeholderFactSheet(symbol: string): ForecastGridFactSheet {
+  const asOf = "2000-01-01";
   return {
     symbol,
-    asOf: "2000-01-01",
-    lastClose: 1234.56,
-    returnsPct: sampleReturns,
+    asOf,
+    lastClose: PLACEHOLDER_RANGE_REFERENCE.spot,
+    returnsPct: sampleReturns(RETURN_SESSIONS),
     realizedVol20dAnnualizedPct: 12.34,
-    benchmark: { symbol: "SPY", returnsPct: sampleReturns },
+    benchmark: {
+      symbol: gridBenchmark(symbol),
+      asOf,
+      returnsPct: sampleReturns(BENCHMARK_RETURN_SESSIONS),
+    },
     marketRegime: "placeholder regime label",
     latestRun: {
       runId: createRunId(new Date(0)),
       generatedAt: new Date(0).toISOString(),
       summary: "x".repeat(LATEST_RUN_SUMMARY_CHARS),
     },
-    events: plannedEventGridIds(symbol).map((id) => ({
-      id,
-      measurableAs: `close(${symbol}, +20)/close(${symbol}, 0) > close(SPY, +20)/close(SPY, 0)`,
-      horizonTradingDays: 20,
-    })),
+    events: factSheetEvents(plannedEventGrid(symbol, PLACEHOLDER_RANGE_REFERENCE)),
   };
 }
 
@@ -237,15 +250,16 @@ export async function renderForecastGridDryRun(
     config,
   );
   const observed = await observedTokensPerCall(config.dataDir, config.provider, quickModel);
-  const perSymbol = plan.symbols.map((symbol) => ({
-    symbol,
-    ids: plannedEventGridIds(symbol),
-    tokens:
-      observed?.tokensPerCall ??
-      requestTokenEstimate(
-        forecastGridRequest(loaded, quickModel, quickModelParams, placeholderFactSheet(symbol)),
-      ),
-  }));
+  const perSymbol = plan.symbols.map((symbol) => {
+    const factSheet = placeholderFactSheet(symbol);
+    return {
+      symbol,
+      ids: factSheet.events.map(({ id }) => id),
+      tokens:
+        observed?.tokensPerCall ??
+        requestTokenEstimate(forecastGridRequest(loaded, quickModel, quickModelParams, factSheet)),
+    };
+  });
   const events = perSymbol.reduce((total, { ids }) => total + ids.length, 0);
   const tokens = perSymbol.reduce((total, entry) => total + entry.tokens, 0);
   const basis =
@@ -392,11 +406,7 @@ async function priceModelGrid(input: {
       returnsPct: benchmarkReturns,
     },
     ...latest.context,
-    events: input.events.map(({ id, measurableAs, horizonTradingDays }) => ({
-      id,
-      measurableAs,
-      horizonTradingDays,
-    })),
+    events: factSheetEvents(input.events),
   };
   const contextGaps = [
     ...(latest.gap !== undefined ? [latest.gap] : []),

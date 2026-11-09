@@ -875,6 +875,13 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
         ...saved,
         input: {
           ...saved.input,
+          context: { ...saved.input.context, evidenceQualityAssessment: undefined },
+        },
+      },
+      {
+        ...saved,
+        input: {
+          ...saved.input,
           collectedSources: {
             ...saved.input.collectedSources,
             businessFramework: {

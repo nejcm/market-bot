@@ -25,7 +25,8 @@ and fixture recording.
   and `ModelProvider.generate` so the real source adapters, cache, normalization, orchestration, and
   report assembly run.
 - The fixture runner lives in `src/replay/fixture-run.ts` (eval batches in `src/replay/eval-run.ts`) so
-  scripts never import `tests/`; invariant helpers stay under `tests/support/run-fixtures/`. Tests
+  replay and eval scripts never import `tests/`; invariant helpers stay under
+  `tests/support/run-fixtures/` (three corpus scripts still import them, see `plans/issues.md`). Tests
   should only load fixtures, run them, and assert invariants.
 - Fixture replays assert invariants, never byte-exact output
   ([ADR 0005](./adr/0005-testing-and-replay.md)). A behavior worth keeping gets

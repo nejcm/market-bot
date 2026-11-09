@@ -76,7 +76,7 @@ Retest a change against saved run data instead of a fresh live run. Pick the nar
 - Outputs go under `data/evals/<label>/` (fresh label each time) or a temp dir; original runs are never touched. Replays still don't replace `bun run check`.
 - Judging a live-run delta: [docs/run-variance-baseline.md](./docs/run-variance-baseline.md) has same-code noise bands (AMD `--deep`) and a command to check whether they still apply.
 
-Always fine: `bun test`, `bun run check`, fixture replays without `--live`, `scripts/eval-deep.ts` / `replay-fixture-run.ts --live` without `--yes` (prints the plan only), `eval-deep.ts --compare`, reading anything under `data/runs/` or `data/evals/`.
+Always fine: `bun test`, `bun run check`, fixture replays without `--live`, `scripts/eval-deep.ts` / `replay-fixture-run.ts --live` without `--yes` (prints the plan only), `eval-deep.ts --compare` / `--decide`, reading anything under `data/runs/` or `data/evals/`.
 
 ## Data layout
 

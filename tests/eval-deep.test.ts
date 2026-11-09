@@ -1276,8 +1276,9 @@ describe("frozen-input eval replay", () => {
     expect(compare).toContain(
       "| final-synthesis-only | tokens.critique.outputTokens | — (n=0/3) | 5 [5–5] |",
     );
+    // These samples name no capture, so without its catalog Metric References stay unmeasured.
+    expect(compare).not.toContain("synthesis.metricReferences");
     for (const [metric, value] of [
-      ["metricReferences", 1],
       ["typedFigures", 1],
       ["unmatchedFigures", 2],
     ] as const) {

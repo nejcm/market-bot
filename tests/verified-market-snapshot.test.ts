@@ -7,7 +7,7 @@ import {
   INDICATOR_KEYS,
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
-} from "../src/research/verified-snapshot-contract";
+} from "../src/sources/verified-snapshot-contract";
 import { deriveCanonicalInstrumentIdentity } from "../src/sources/instrument-identity";
 import { buildStagePrompt } from "../src/research/prompts";
 import { buildDepthProfile } from "../src/research/depth-profile";

@@ -1,4 +1,4 @@
-import type { RunSummary } from "../types";
+import type { RunSummary } from "../../src/run-artifact-index-types";
 
 interface InstrumentRunGroup {
   readonly key: string;

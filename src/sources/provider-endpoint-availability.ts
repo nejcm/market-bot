@@ -88,7 +88,7 @@ function availableEndpoint(evidence: readonly string[]): ProviderEndpointAvailab
   return { status: "available", evidence };
 }
 
-export function unavailableEndpoint(
+function unavailableEndpoint(
   status: "degraded" | "missing-credential" | "unsupported" | "unmeasured",
   reason: string,
   evidence: readonly string[] = [],

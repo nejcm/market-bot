@@ -6,7 +6,7 @@ import type { CalibrationSummary } from "../scoring/types";
 import type { HistoricalResearchContext } from "./historical-context";
 import type { MarketUpdateDelta } from "./market-update-delta";
 import type { StagePlaybooks } from "./playbooks";
-import type { ResolvedResearchSubject } from "./research-subject-identity";
+import type { ResolvedResearchSubject } from "../domain/research-subject";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 import type { BuildSourcePlanResult } from "./source-plan";
 

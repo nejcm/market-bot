@@ -1,18 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { yearsBetween } from "./support/fiscal-years";
+import { yearsBetween } from "../src/corpus/fiscal-years";
 import { isRecord } from "../src/guards";
 import {
   OFFLINE_FINANCIAL_STATEMENT_FIXTURES,
   loadOfflineCorpusCase,
   mutateOfflineCorpusCase,
-} from "./support/offline-financial-statements-corpus";
+} from "../src/corpus/offline-financial-statements-corpus";
 import {
   detectEligibleRevenueAliasAlternatives,
   detectInterchangeableAliasCandidates,
   verifyHistoryAnnualRosters,
   type AliasVerdict,
   type RosterVerdict,
-} from "./support/offline-financial-history-roster";
+} from "../src/corpus/offline-financial-history-roster";
 import {
   countNetworkAttemptsDuring,
   runOfflineCorpusFixture,

@@ -25,7 +25,7 @@ import { deriveCanonicalInstrumentIdentity, withListingAlias } from "./instrumen
 import { exchangeProfileGaps, IdentityGateStopError, runIdentityGate } from "./identity-gate";
 import { deriveAnalystExpectations } from "./extended-evidence/analyst-expectations";
 import { deriveInstitutionalOwnership } from "./extended-evidence/institutional-ownership";
-import type { ResolvedResearchSubject } from "../research/research-subject-identity";
+import type { ResolvedResearchSubject } from "../domain/research-subject";
 import { mergeModelInputSanitization } from "./model-input-sanitizer";
 import {
   sanitizeInstrumentIdentityMetadata,

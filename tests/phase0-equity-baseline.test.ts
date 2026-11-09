@@ -3,7 +3,7 @@ import {
   measurePhase4EarningsCoverageComparison,
   readPhase0Baseline,
   readPhase4EarningsCoverageComparison,
-} from "./support/phase0-equity-baseline";
+} from "../src/corpus/phase0-equity-baseline";
 
 test("Phase 4 reports confirmed and suppressed earnings paths against Phase 0", async () => {
   const baseline = await readPhase0Baseline();

@@ -1,16 +1,13 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { isRecord } from "../../src/guards";
-import {
-  deriveProviderEndpointAvailability,
-  unavailableEndpoint,
-  type ProviderEndpointAvailability,
-} from "../../src/sources/provider-endpoint-availability";
-import { runFixture, type RunFixtureResult } from "../../src/replay/fixture-run";
+import type { ProviderEndpointAvailability } from "../sources/provider-endpoint-availability";
+import { runFixture, type RunFixtureResult } from "../replay/fixture-run";
 
-export const PHASE0_BASELINE_PATH = join(
+const PHASE0_BASELINE_PATH = join(
   import.meta.dir,
   "..",
+  "..",
+  "tests",
   "baselines",
   "equity-deep-phase0.json",
 );
@@ -18,6 +15,8 @@ export const PHASE0_BASELINE_PATH = join(
 export const PHASE4_EARNINGS_COMPARISON_PATH = join(
   import.meta.dir,
   "..",
+  "..",
+  "tests",
   "baselines",
   "equity-deep-phase4-earnings-comparison.json",
 );
@@ -36,18 +35,6 @@ const PHASE4_FIXTURES = [
     fixture: "equity-analysis-estimated-suppressed",
     phase0Fixture: "equity-analysis-comprehensive",
   },
-] as const;
-
-export const ANALYST_EXPECTATION_ENDPOINT_KEYS = [
-  "finnhubEpsEstimate",
-  "finnhubRevenueEstimate",
-  "finnhubEbitdaEstimate",
-  "finnhubPriceTarget",
-] as const;
-
-export const OWNERSHIP_ENDPOINT_KEYS = [
-  "finnhubInstitutionalOwnership",
-  "finnhubInsiderTransactions",
 ] as const;
 
 interface FixtureBaseline {
@@ -120,7 +107,7 @@ export interface Phase4EarningsCoverageComparison {
   };
 }
 
-export interface HistoricalArtifactsBaseline {
+interface HistoricalArtifactsBaseline {
   readonly status: "measured" | "unmeasured";
   readonly source: string;
   readonly inspectedRunCount?: number;
@@ -148,33 +135,6 @@ export interface Phase0EquityBaseline {
   readonly historicalArtifacts: HistoricalArtifactsBaseline;
 }
 
-function measureFixtureResult(fixture: string, result: RunFixtureResult): FixtureBaseline {
-  const setup = result.collectedSources.earningsSetup;
-  const eventDateStatus = setup?.event.eventDateStatus ?? setup?.event.dateStatus;
-  const providerEndpointAvailability = deriveProviderEndpointAvailability(
-    result.collectedSources.rawSnapshots,
-    result.collectedSources.sourceGaps,
-    { hasTradierEarningsImpliedMove: setup?.impliedMove !== undefined },
-  );
-  for (const endpoint of [...ANALYST_EXPECTATION_ENDPOINT_KEYS, ...OWNERSHIP_ENDPOINT_KEYS]) {
-    if (providerEndpointAvailability[endpoint] === undefined) {
-      throw new Error(`${fixture}: ${endpoint} availability is missing`);
-    }
-  }
-  return {
-    fixture,
-    earningsSetupCount: setup === undefined ? 0 : 1,
-    earningsPredictionCount: result.report.predictions.filter((prediction) =>
-      prediction.kind.startsWith("earnings-"),
-    ).length,
-    eventDateStatus: eventDateStatus ?? "not-present",
-    populatedFinancialHistoryCount: Object.values(
-      result.collectedSources.fundamentalHistory?.series ?? {},
-    ).filter((series) => series.annual.length > 0 || series.ttm !== undefined).length,
-    providerEndpointAvailability,
-  };
-}
-
 function measurePhase4FixtureEarningsCoverage(
   fixture: string,
   result: RunFixtureResult,
@@ -198,28 +158,17 @@ function measurePhase4FixtureEarningsCoverage(
   };
 }
 
-export async function measureFixtureBaselines(): Promise<readonly FixtureBaseline[]> {
-  const baselines: FixtureBaseline[] = [];
-  for (const fixture of PHASE0_FIXTURES) {
-    const result = await runFixture(fixture, { llm: "replay" });
-    try {
-      baselines.push(measureFixtureResult(fixture, result));
-    } finally {
-      await result.cleanup();
-    }
-  }
-  return baselines;
-}
-
 async function measurePhase4FixtureEarningsCoverageRuns(): Promise<
   readonly (Phase4FixtureEarningsCoverage & { readonly phase0Fixture: string })[]
 > {
   const coverage: (Phase4FixtureEarningsCoverage & { readonly phase0Fixture: string })[] = [];
   for (const { fixture, phase0Fixture } of PHASE4_FIXTURES) {
+    // eslint-disable-next-line no-await-in-loop -- each replay is cleaned up before the next starts
     const result = await runFixture(fixture, { llm: "replay" });
     try {
       coverage.push({ ...measurePhase4FixtureEarningsCoverage(fixture, result), phase0Fixture });
     } finally {
+      // eslint-disable-next-line no-await-in-loop -- cleanup before the next replay
       await result.cleanup();
     }
   }
@@ -317,119 +266,6 @@ export async function measurePhase4EarningsCoverageComparison(): Promise<Phase4E
       earningsSetupCount: requiredHistoricalCount(baseline, "earningsSetupCount"),
       earningsPredictionCount: requiredHistoricalCount(baseline, "earningsPredictionCount"),
     },
-  };
-}
-
-function stringValue(value: unknown, key: string): string | undefined {
-  return isRecord(value) && typeof value[key] === "string" ? value[key] : undefined;
-}
-
-function arrayValue(value: unknown, key: string): readonly unknown[] {
-  return isRecord(value) && Array.isArray(value[key]) ? value[key] : [];
-}
-
-function populatedSeriesCount(value: unknown): number | undefined {
-  if (!isRecord(value) || !isRecord(value.series)) {
-    return;
-  }
-  return Object.values(value.series).filter(
-    (series) =>
-      isRecord(series) && (arrayValue(series, "annual").length > 0 || isRecord(series.ttm)),
-  ).length;
-}
-
-export async function measureHistoricalArtifacts(
-  dataRoot = join(import.meta.dir, "..", "..", "data", "runs"),
-): Promise<HistoricalArtifactsBaseline> {
-  let runDirs: readonly string[] = [];
-  try {
-    runDirs = await readdir(dataRoot);
-  } catch {
-    return {
-      status: "unmeasured",
-      source: "data/runs",
-      providerEndpointAvailability: unavailableEndpoint(
-        "unmeasured",
-        "Local gitignored data/runs artifacts are absent",
-      ),
-      reason: "Local gitignored data/runs artifacts are absent",
-    };
-  }
-
-  let inspectedRunCount = 0;
-  let deepEquityRunCount = 0;
-  let earningsSetupCount = 0;
-  let earningsPredictionCount = 0;
-  let providerEstimated = 0;
-  let legacyUnstamped = 0;
-  let notPresent = 0;
-  let measuredFinancialHistory = 0;
-  let populatedFinancialSeries = 0;
-
-  for (const runDir of runDirs.toSorted()) {
-    let report: unknown = undefined;
-    try {
-      report = JSON.parse(await readFile(join(dataRoot, runDir, "report.json"), "utf8")) as unknown;
-    } catch {
-      continue;
-    }
-    inspectedRunCount += 1;
-    if (!isRecord(report) || report.jobType !== "equity" || !isRecord(report.extras)) {
-      continue;
-    }
-    if (report.extras.depth !== "deep") {
-      continue;
-    }
-    deepEquityRunCount += 1;
-    const setup = isRecord(report.extras.earningsSetup) ? report.extras.earningsSetup : undefined;
-    if (setup === undefined) {
-      notPresent += 1;
-    } else {
-      earningsSetupCount += 1;
-      const status = isRecord(setup.event) ? stringValue(setup.event, "dateStatus") : undefined;
-      if (status === "provider-estimated") {
-        providerEstimated += 1;
-      } else {
-        legacyUnstamped += 1;
-      }
-    }
-    earningsPredictionCount += arrayValue(report, "predictions").filter(
-      (prediction) =>
-        isRecord(prediction) &&
-        typeof prediction.kind === "string" &&
-        prediction.kind.startsWith("earnings-"),
-    ).length;
-    try {
-      const history = JSON.parse(
-        await readFile(join(dataRoot, runDir, "normalized", "fundamental-history.json"), "utf8"),
-      ) as unknown;
-      const count = populatedSeriesCount(history);
-      if (count !== undefined) {
-        measuredFinancialHistory += 1;
-        populatedFinancialSeries += count;
-      }
-    } catch {
-      // Historical artifacts predate the sidecar; absence is measured below.
-    }
-  }
-
-  return {
-    status: "measured",
-    source: "local gitignored data/runs snapshot",
-    inspectedRunCount,
-    deepEquityRunCount,
-    earningsSetupCount,
-    earningsPredictionCount,
-    eventDateStatus: { providerEstimated, legacyUnstamped, notPresent },
-    financialHistory: {
-      measuredRunCount: measuredFinancialHistory,
-      unmeasuredRunCount: deepEquityRunCount - measuredFinancialHistory,
-      populatedSeriesCount: populatedFinancialSeries,
-    },
-    providerEndpointAvailability: unavailableEndpoint(
-      "unmeasured",
-      "Historical report artifacts do not persist a stable endpoint availability matrix",
-    ),
   };
 }
 

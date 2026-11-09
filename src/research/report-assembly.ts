@@ -39,7 +39,10 @@ import {
   withoutModelProviderGapDuplicates,
 } from "./report-assembly-data-gaps";
 import { extractCatalystDate } from "./catalyst-date";
-import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
+import {
+  verifiedSnapshotSource,
+  verifiedSnapshotSourceId,
+} from "../sources/verified-snapshot-contract";
 import { projectExtendedEvidenceReportExtras } from "./extended-evidence-projections";
 import type { HistoricalResearchContext } from "./historical-context";
 import { deterministicSourceGapEntries } from "./deterministic-gaps";

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
-import type { RunSearchResult, RunSummary, WatchlistRowState } from "../app/types";
+import type { RunSearchResult, RunSummary, WatchlistRowState } from "./run-artifact-index-types";
 import { marketUpdateHorizonBucketOf, type AssetClass, type JobType } from "./domain/job-type";
 import { isPredictionOrigin, type PredictionKind } from "./domain/prediction";
 import { isMarketRegimeLabel } from "./domain/report";

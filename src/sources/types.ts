@@ -15,7 +15,7 @@ import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
-import type { ResolvedResearchSubject } from "../research/research-subject-identity";
+import type { ResolvedResearchSubject } from "../domain/research-subject";
 import type { ExtendedEvidence } from "../domain/evidence";
 import type { InstrumentIdentity } from "../domain/instrument";
 import type { AssetClass } from "../domain/job-type";

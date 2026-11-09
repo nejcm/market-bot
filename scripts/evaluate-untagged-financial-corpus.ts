@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
   evaluateUntaggedFinancialCorpus,
   UNTAGGED_FINANCIAL_CORPUS_DIR,
-} from "../tests/support/untagged-financial-corpus";
+} from "../src/corpus/untagged-financial-corpus";
 
 const evaluation = await evaluateUntaggedFinancialCorpus();
 const serialized = `${JSON.stringify(evaluation, null, 2)}\n`;

@@ -20,6 +20,7 @@ import {
 import { buildSourcePlan } from "../research/source-plan";
 import { countCassetteMisses, makeReplayFetch, type DataCassette } from "./data-cassette";
 import { makeReplayProvider, ModelReplayError, type LlmCassette } from "./llm-cassette";
+import { peerUniverseSeam } from "../research/peer-universe-seam";
 
 export interface FixtureMeta {
   readonly command?: ResearchCommand;
@@ -433,13 +434,13 @@ export async function runFixture(
           ...(config.extensionShortTermInvestmentsDisabled === true
             ? { extensionShortTermInvestmentsDisabled: true }
             : {}),
-          peerUniverse: {
+          peerUniverse: peerUniverseSeam({
             provider: runtime.provider,
             model: config.quickModel,
             cachePath:
               config.sourceOptions.peerUniverseLearnedPath ??
               join(dataDir, "..", "peer-universe.json"),
-          },
+          }),
         });
         const result = await persistResearchJob({
           command,

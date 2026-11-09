@@ -21,7 +21,7 @@ import type {
   LearnedPeerUniverse,
   PeerUniverse,
   PeerUniverseFallbackContext,
-} from "../src/research/peer-universe";
+} from "../src/domain/peer-universe";
 import { isRecord } from "../src/guards";
 import { UNTAGGED_EV_BRIDGE, collectedSources, marketSnapshot } from "./support/fixtures";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";

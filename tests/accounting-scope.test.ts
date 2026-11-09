@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
-import type { RunDetail, RunSummary } from "../app/types";
+import type { RunDetail } from "../app/types";
+import type { RunSummary } from "../src/run-artifact-index-types";
 import { buildRunWorkspaceView, valuationWorkbenchView } from "../app/client/run-workspace-view";
 import {
   financialTrendFromProjection,
@@ -52,7 +53,7 @@ import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuatio
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { debtScopeUnproven } from "../src/sources/extended-evidence/sec-debt";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
-import { assertFinancialLensPeriodHygiene } from "./support/run-fixtures/financial-invariants";
+import { assertFinancialLensPeriodHygiene } from "../src/corpus/financial-invariants";
 
 const AS_OF = "2026-10-07T00:00:00.000Z";
 const CONTINUING_OCF = "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";

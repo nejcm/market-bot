@@ -94,7 +94,7 @@ import {
   type FixtureMeta,
   type RunFixtureResult,
 } from "../../../src/replay/fixture-run";
-import { assertFinancialRunInvariants } from "./financial-invariants";
+import { assertFinancialRunInvariants } from "../../../src/corpus/financial-invariants";
 
 function asWritten(value: unknown): unknown {
   const written = JSON.stringify(value);

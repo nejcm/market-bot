@@ -102,3 +102,66 @@ export interface RunIndexRows {
 export interface RebuildOptions {
   readonly dbPath?: string;
 }
+
+export interface RunSummary {
+  readonly runId: string;
+  readonly generatedAt?: string;
+  readonly jobType?: string;
+  readonly assetClass?: string;
+  readonly symbol?: string;
+  readonly depth?: string;
+  readonly confidence?: string;
+  readonly findingCount: number;
+  readonly predictionCount: number;
+  readonly sourceCount: number;
+  readonly dataGapCount: number;
+  readonly hasScore: boolean;
+  readonly availableFiles: readonly string[];
+}
+
+export type WatchlistRowState =
+  | {
+      readonly state: "available";
+      readonly latestRunId: string;
+      readonly latestRunAt?: string;
+      readonly depth?: string;
+      readonly openPredictionCount: number;
+      readonly latestCalibration?: {
+        readonly outcome: "hit" | "miss";
+        readonly at: string;
+      };
+    }
+  | { readonly state: "never-run" }
+  | { readonly state: "index-unavailable" };
+
+export interface RunSearchFilters {
+  readonly query: string;
+  readonly symbol?: string;
+  readonly assetClass?: string;
+  readonly jobType?: string;
+  readonly from?: string;
+  readonly to?: string;
+}
+
+export interface RunSearchResult {
+  readonly run: RunSummary;
+  readonly section: RunSearchSection;
+  readonly label: string;
+  readonly snippet: string;
+  readonly sourceIds: readonly string[];
+}
+
+export type RunSearchSection =
+  | "summary"
+  | "keyFindings"
+  | "bullCase"
+  | "bearCase"
+  | "risks"
+  | "catalysts"
+  | "researchLeads"
+  | "rejectedCandidates"
+  | "predictions"
+  | "sources"
+  | "dataGaps"
+  | "extendedEvidence"
+  | "scenarios";

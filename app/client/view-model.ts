@@ -1,4 +1,5 @@
-import type { ConsoleJob, Pin, ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
+import type { ConsoleJob, Pin, ProviderHealthDetail } from "../types";
+import type { RunSearchResult, RunSummary } from "../../src/run-artifact-index-types";
 import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import type { InstrumentRunHistoryEntry } from "./view-model-history";

@@ -1,4 +1,4 @@
-import { isRecord } from "../../src/guards";
+import { isRecord } from "../guards";
 import {
   financialStatementFacts,
   financialStatementFactsAreCompatible,
@@ -8,11 +8,11 @@ import {
   latestCommonFinancialStatementFacts,
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
-} from "../../src/sources/extended-evidence/financial-statement-selection";
+} from "../sources/extended-evidence/financial-statement-selection";
 import type {
   FinancialStatementFact,
   FinancialStatementSeriesKey,
-} from "../../src/sources/extended-evidence/financial-statements-contract";
+} from "../sources/extended-evidence/financial-statements-contract";
 import { NET_MARGIN_CONCEPTS } from "./offline-financial-history-roster";
 import type {
   OfflineCorpusAllowance,

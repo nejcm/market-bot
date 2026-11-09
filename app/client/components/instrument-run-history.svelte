@@ -1,6 +1,6 @@
 <script lang="ts">
   import Pin from "@lucide/svelte/icons/pin";
-  import type { RunSummary } from "../../types";
+  import type { RunSummary } from "../../../src/run-artifact-index-types";
   import {
     formatDateMinute,
     instrumentPath,

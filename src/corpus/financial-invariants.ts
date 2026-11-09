@@ -1,26 +1,26 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ExtendedEvidenceItem } from "../../../src/domain/evidence";
-import type { EquityAnalysisCompletenessDimension } from "../../../src/domain/report";
+import type { ExtendedEvidenceItem } from "../domain/evidence";
+import type { EquityAnalysisCompletenessDimension } from "../domain/report";
 import {
   hasSubstantiveResultsContent,
   normalizeFilingText,
-} from "../../../src/sources/evidence-request-tools";
-import { EQUITY_FRESHNESS_GAP_REASON_CODES } from "../../../src/sources/extended-evidence/equity-analysis-completeness";
-import { ZERO_BORROWINGS_EXTRACTION_METHOD } from "../../../src/sources/extended-evidence/financial-statements-contract";
-import { filingDocuments } from "../../../src/sources/extended-evidence/sec-archive";
+} from "../sources/evidence-request-tools";
+import { EQUITY_FRESHNESS_GAP_REASON_CODES } from "../sources/extended-evidence/equity-analysis-completeness";
+import { ZERO_BORROWINGS_EXTRACTION_METHOD } from "../sources/extended-evidence/financial-statements-contract";
+import { filingDocuments } from "../sources/extended-evidence/sec-archive";
 import {
   EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS,
   resolveCoverageLevel,
-} from "../../../src/domain/equity-analysis-completeness";
-import { readGapTriage } from "../../../src/report/gap-triage";
-import type { FinancialLensArtifact } from "../../../src/sources/extended-evidence/financial-lens";
+} from "../domain/equity-analysis-completeness";
+import { readGapTriage } from "../report/gap-triage";
+import type { FinancialLensArtifact } from "../sources/extended-evidence/financial-lens";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
-} from "../../../src/sources/extended-evidence/financial-statements-contract";
+} from "../sources/extended-evidence/financial-statements-contract";
 import {
   capFinancialStatementPeriods,
   detectFinancialStatementCadence,
@@ -32,28 +32,24 @@ import {
   financialStatementSeriesByKey,
   incompleteFinancialStatementNotes,
   latestFinancialStatementFact,
-} from "../../../src/sources/extended-evidence/financial-statement-selection";
+} from "../sources/extended-evidence/financial-statement-selection";
 import {
   MIN_CAGR_ANNUAL_POINTS,
   type FundamentalHistoryArtifact,
   type FundamentalHistorySeries,
-} from "../../../src/sources/extended-evidence/fundamental-history";
+} from "../sources/extended-evidence/fundamental-history";
 import {
   conceptScope,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   isContinuingScope,
-} from "../../../src/sources/extended-evidence/financial-statement-definitions";
-import { identityTolerance } from "../../../src/sources/extended-evidence/untagged-financial-table-validation";
+} from "../sources/extended-evidence/financial-statement-definitions";
+import { identityTolerance } from "../sources/extended-evidence/untagged-financial-table-validation";
 import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
   MIXED_PERIOD_METRIC,
-} from "../../../src/sources/extended-evidence/valuation-comps";
-import { yearsBetween } from "../fiscal-years";
-import {
-  isDeepFixture,
-  type FixtureMeta,
-  type RunFixtureResult,
-} from "../../../src/replay/fixture-run";
+} from "../sources/extended-evidence/valuation-comps";
+import { yearsBetween } from "./fiscal-years";
+import { isDeepFixture, type FixtureMeta, type RunFixtureResult } from "../replay/fixture-run";
 
 const DAY_MS = 86_400_000;
 const DURATION_MONTHS = new Set([3, 6, 9, 12]);

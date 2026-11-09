@@ -7,18 +7,20 @@ import type {
   ProviderHealthDetail,
   RunDetail,
   RunFile,
-  RunSearchFilters,
-  RunSearchResult,
-  RunSummary,
   RunNote,
   NoteKind,
   Pin,
   SymbolSearchResult,
   WatchlistDetail,
   WatchlistItem,
-  WatchlistRowState,
   WatchlistSummary,
 } from "../types";
+import type {
+  RunSearchFilters,
+  RunSearchResult,
+  RunSummary,
+  WatchlistRowState,
+} from "../../src/run-artifact-index-types";
 import { isRecord } from "../../src/guards";
 
 export interface CreateJobRequest {

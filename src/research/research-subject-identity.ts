@@ -1,41 +1,15 @@
 import type { ResearchCommand } from "../cli/args";
 import type { ResearchReport } from "../domain/report";
 import { isRecord, readString } from "../guards";
+import { resolveResearchSubjectProxy } from "../domain/subject-registry";
 import {
-  resolveResearchSubjectProxy,
-  type ResearchSubjectInstrument,
-  type ResearchSubjectSource,
-  type ResearchSubjectSummary,
-} from "./subject-registry";
-
-export interface ResearchSubjectIdentity {
-  readonly subjectKey?: string;
-  readonly predictionProxySymbol?: string;
-}
-
-export interface ResolvedResearchSubject {
-  readonly input: string;
-  readonly normalizedInput: string;
-  readonly status: "resolved" | "unresolved";
-  readonly canEmitPredictions: boolean;
-  readonly reason: string;
-  readonly subjectKey?: string;
-  readonly displayName?: string;
-  readonly aliases?: readonly string[];
-  readonly representativeInstruments?: readonly ResearchSubjectInstrument[];
-  readonly predictionProxySymbol?: string;
-  readonly sources?: readonly ResearchSubjectSource[];
-  readonly supportedSubjects?: readonly ResearchSubjectSummary[];
-  readonly closestMatch?: ResearchSubjectSummary;
-}
+  cleanResearchProxySymbol,
+  type ResearchSubjectIdentity,
+  type ResolvedResearchSubject,
+} from "../domain/research-subject";
 
 function cleanResearchSubjectKey(value: string | undefined): string | undefined {
   const normalized = value?.trim().toLowerCase();
-  return normalized === "" ? undefined : normalized;
-}
-
-export function cleanResearchProxySymbol(value: string | undefined): string | undefined {
-  const normalized = value?.trim().toUpperCase();
   return normalized === "" ? undefined : normalized;
 }
 

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
   evaluateUntaggedFinancialCorpus,
   UNTAGGED_FINANCIAL_CORPUS_DIR,
-} from "./support/untagged-financial-corpus";
+} from "../src/corpus/untagged-financial-corpus";
 
 describe("untagged FPI financial exhibit corpus", () => {
   test("passes the pre-production extraction gate without silent mismatches", async () => {

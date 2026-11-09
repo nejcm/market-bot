@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { RunSummary } from "../app/types";
+import type { RunSummary } from "../src/run-artifact-index-types";
 import {
   compareRunSummariesByRecency,
   runSearchResultFromIndexRow,

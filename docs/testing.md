@@ -191,7 +191,7 @@ Replays assert invariants, not byte-exact output
 `failure.json`, persist exactly what the run generated (report, Markdown, analytics, outcomes,
 evidence bundle), validate the persisted report against the report schema, pass the research-language gate, resolve every
 evidence-bundle source id, keep `reportIntegrity` at `high`, and pass the
-`tests/support/run-fixtures/` property checks. To read a replayed run by hand:
+`tests/support/run-fixtures/` and `src/corpus/financial-invariants.ts` property checks. To read a replayed run by hand:
 
 ```sh
 bun run scripts/replay-fixture-run.ts equity-aapl-brief # prints the retained temporary run directory
@@ -628,7 +628,8 @@ intentional shared price-path change before replaying all seven fixtures.
 
 ## Fixture maintenance rules
 
-- Keep the fixture runner in `src/replay/fixture-run.ts` and invariant helpers in `tests/support/run-fixtures/`.
+- Keep the fixture runner in `src/replay/fixture-run.ts`, assertion helpers in `tests/support/run-fixtures/`,
+  and financial invariants shared with scripts in `src/corpus/financial-invariants.ts`.
 - A fixture that exists to pin one behavior carries one targeted assertion for it in
   `tests/equity-fixture/run.test.ts`; never a snapshot of its output.
 - Keep fixture test cases in `tests/equity-fixture/run.test.ts` and shared assertions in

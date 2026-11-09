@@ -1,5 +1,5 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE } from "../config/shared";
-import type { AssetClass } from "../domain/job-type";
+import type { AssetClass } from "./job-type";
 
 const SUBJECT_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 

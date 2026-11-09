@@ -1,12 +1,7 @@
 <script lang="ts">
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-  import type {
-    ConsoleJob,
-    InstrumentTimelineDetail,
-    InstrumentTimelineForecast,
-    RunSummary,
-    WatchlistSummary,
-  } from "../../types";
+  import type { ConsoleJob, InstrumentTimelineDetail, InstrumentTimelineForecast, WatchlistSummary } from "../../types";
+  import type { RunSummary } from "../../../src/run-artifact-index-types";
   import { deepEquityJobForSymbol, formatClose, formatDate, formatDateMinute } from "../view-model";
   import InstrumentRunHistory from "./instrument-run-history.svelte";
   import SymbolSearch from "./symbol-search.svelte";

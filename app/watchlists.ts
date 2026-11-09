@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { readInstrumentWatchlistRows } from "../src/run-artifact-index";
 import { getWatchlist, listWatchlistItems, withConsoleDb } from "./console-db";
 import { readInstrumentStalenessInputs } from "./freshness";
-import type { InstrumentStalenessInput, WatchlistDetail, WatchlistRowState } from "./types";
+import type { InstrumentStalenessInput, WatchlistDetail } from "./types";
+import type { WatchlistRowState } from "../src/run-artifact-index-types";
 
 export async function readWatchlistDetail(
   dataDir: string,

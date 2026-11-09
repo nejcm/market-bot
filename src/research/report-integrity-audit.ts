@@ -11,9 +11,9 @@ import {
 } from "../domain/report";
 import { deriveResearchQualityDriver } from "./quality-driver";
 import { isRecord } from "../guards";
+import { readFigureQuotes } from "../report/figure-quotes";
 import {
   failedFigureQuotes,
-  readFigureQuotes,
   readClaimProvenance,
   typedReading,
   unverifiedWebFigure,

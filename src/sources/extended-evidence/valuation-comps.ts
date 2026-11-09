@@ -33,7 +33,7 @@ import {
   resolvePeerUniverseWithFallback,
   type PeerUniverseRefreshNote,
   type PeerUniverseTargetInputs,
-} from "../../research/peer-universe";
+} from "../../domain/peer-universe";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import {
   normalizeYahooQuotePayload,

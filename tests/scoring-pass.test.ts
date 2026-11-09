@@ -4,14 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/report";
-import { buildAndWriteAlphaLeadCohorts, runScorePass } from "../src/scoring/index";
+import { buildAndWriteAlphaLeadCohorts } from "../src/alpha-search/post-score";
+import { runScorePass } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
 import type { AlphaLeadCohortSummary } from "../src/alpha-search/cohorts";
 import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
 import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
-import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import { verifiedSnapshotSource } from "../src/sources/verified-snapshot-contract";
 import { researchReport, verifiedMarketSnapshot } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
 

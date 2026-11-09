@@ -2,7 +2,7 @@ import {
   loadOfflineCorpusCase,
   type OfflineCorpusExecution,
   type OfflineFinancialStatementInput,
-} from "./offline-financial-statements-corpus";
+} from "../../src/corpus/offline-financial-statements-corpus";
 
 export type OfflineCorpusFixtureName = OfflineFinancialStatementInput["fixture"];
 

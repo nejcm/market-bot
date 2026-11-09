@@ -12,7 +12,7 @@ import {
   type PlaybookMetadata,
   type PlaybookStage,
 } from "../src/research/playbooks";
-import { DEFAULT_RESEARCH_SUBJECT_REGISTRY } from "../src/research/subject-registry";
+import { DEFAULT_RESEARCH_SUBJECT_REGISTRY } from "../src/domain/subject-registry";
 import { violatesResearchOnly } from "../src/domain/research-language";
 
 const registry: readonly PlaybookMetadata[] = [

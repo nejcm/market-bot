@@ -3,7 +3,7 @@ import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/eviden
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
 import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
-import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
 import {
   isBusinessFrameworkGapCode,
   type BusinessFrameworkGapCode,

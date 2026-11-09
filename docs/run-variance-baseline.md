@@ -54,6 +54,8 @@ git diff --name-only 6f4e6a11..HEAD -- \
   src/research/source-plan.ts \
   src/research/report-assembly.ts \
   src/research/orchestrator.ts \
+  src/research/synthesis-phase.ts \
+  src/research/forecast-disagreement-phase.ts \
   src/run-artifact-writer.ts \
   src/domain/equity-analysis-completeness.ts \
   src/research/deterministic-gaps.ts

@@ -36,19 +36,8 @@
   import RunWorkspace from "./components/run-workspace.svelte";
   import SearchView from "./components/search-view.svelte";
   import WatchlistsView from "./components/watchlists-view.svelte";
-  import type {
-    CalibrationDetail,
-    AlphaCohortDetail,
-    ConsoleJob,
-    InstrumentTimelineDetail,
-    Pin,
-    ProviderHealthDetail,
-    RunDetail,
-    RunSearchResult,
-    RunSummary,
-    WatchlistDetail,
-    WatchlistSummary,
-  } from "../types";
+  import type { CalibrationDetail, AlphaCohortDetail, ConsoleJob, InstrumentTimelineDetail, Pin, ProviderHealthDetail, RunDetail, WatchlistDetail, WatchlistSummary } from "../types";
+  import type { RunSearchResult, RunSummary } from "../../src/run-artifact-index-types";
   import {
     dashboardMetrics,
     filterInstrumentRunHistory,

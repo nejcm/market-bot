@@ -1,15 +1,15 @@
-import { isRecord, readNumber, readString } from "../../src/guards";
+import { isRecord, readNumber, readString } from "../guards";
 import {
   financialStatementPeriodKey,
   financialStatementPeriodMonths,
-} from "../../src/sources/extended-evidence/financial-statement-selection";
+} from "../sources/extended-evidence/financial-statement-selection";
 import {
   CANONICAL_SEC_FORMS,
   isAnnualReportForm,
   type AnnualReportForm,
   type CanonicalSecForm,
-} from "../../src/sources/extended-evidence/financial-statements-contract";
-import type { FundamentalHistoryPoint } from "../../src/sources/extended-evidence/fundamental-history";
+} from "../sources/extended-evidence/financial-statements-contract";
+import type { FundamentalHistoryPoint } from "../sources/extended-evidence/fundamental-history";
 import type { OfflineCorpusExecution } from "./offline-financial-statements-corpus";
 
 // Shared fact-lookup primitives for the offline history roster/alias oracles: concept-unit lookups, canonical (financial-statements) eligible-point derivation, and the selection-policy replicas (expectedSelectedConcept, canonicalUnion) both oracles depend on.

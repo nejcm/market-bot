@@ -3,10 +3,8 @@ import { legacyMarketOverviewCommand } from "./support/commands";
 import { sourceGap } from "../src/domain/source-gaps";
 import type { ResearchCommand } from "../src/cli/args";
 import { assessEvidenceQuality } from "../src/research/evidence-quality";
-import {
-  resolveResearchSubject,
-  type ResolvedResearchSubject,
-} from "../src/research/research-subject-identity";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
+import type { ResolvedResearchSubject } from "../src/domain/research-subject";
 import {
   assessSourcePlan,
   buildSourcePlan,

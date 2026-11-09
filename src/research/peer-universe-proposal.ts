@@ -17,7 +17,7 @@ import {
   type PeerUniverseSource,
   type PeerUniverseTargetInputs,
   type ProposalAudit,
-} from "./peer-universe";
+} from "../domain/peer-universe";
 import {
   SIZE_GATE_MAX_RATIO,
   SIZE_GATE_MIN_RATIO,

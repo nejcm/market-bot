@@ -1,19 +1,21 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { buildFinancialTablePacket } from "../../src/sources/extended-evidence/untagged-financial-table-packet";
+import { buildFinancialTablePacket } from "../sources/extended-evidence/untagged-financial-table-packet";
 import {
   parseFinancialTableMappingOutput,
   validateFinancialTableMapping,
-} from "../../src/sources/extended-evidence/untagged-financial-table-validation";
+} from "../sources/extended-evidence/untagged-financial-table-validation";
 import type {
   FinancialTableSemanticField,
   FinancialTableValidationIssue,
-} from "../../src/sources/extended-evidence/untagged-financial-tables-contract";
+} from "../sources/extended-evidence/untagged-financial-tables-contract";
 
 export const UNTAGGED_FINANCIAL_CORPUS_DIR = join(
   import.meta.dir,
   "..",
+  "..",
+  "tests",
   "fixtures",
   "untagged-financial-corpus",
 );
@@ -54,7 +56,7 @@ interface Oracle {
   readonly values: readonly OracleValue[];
 }
 
-export interface CorpusCaseEvaluation {
+interface CorpusCaseEvaluation {
   readonly id: string;
   readonly symbol: string;
   readonly layoutFamily: string;

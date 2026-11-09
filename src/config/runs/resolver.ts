@@ -1,9 +1,7 @@
 import type { AppConfig } from "../../config";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
-import {
-  cleanResearchProxySymbol,
-  normalizeResearchCommandDepth,
-} from "../../research/research-subject-identity";
+import { cleanResearchProxySymbol } from "../../domain/research-subject";
+import { normalizeResearchCommandDepth } from "../../research/research-subject-identity";
 import { runConfig } from "./profiles";
 import type { ResolvedRunParams, RunBaseParams, RunConfig, RunKey } from "./types";
 import { CODE_DEFAULTS } from "./profiles/shared";

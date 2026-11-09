@@ -10,7 +10,7 @@ import {
   type PeerUniverse,
   type PeerUniverseFallbackContext,
   type ProposalAudit,
-} from "../src/research/peer-universe";
+} from "../src/domain/peer-universe";
 
 describe("peer universe", () => {
   test("resolves AAPL to deterministic large-cap peer universe", () => {

@@ -8,6 +8,7 @@ import type {
 import type { Source } from "../domain/sources";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import { canonicalizeUrl } from "../sources/news-utils";
+import { readFigureQuotes } from "../report/figure-quotes";
 
 export interface WebSourceTexts {
   // Normalized stored text per web Source id; an empty list means the source kept nothing to check.
@@ -644,20 +645,6 @@ export function webSourceTexts(
     texts.set(source.id, [...new Set([...(texts.get(source.id) ?? []), ...stored])]);
   }
   return { web: texts, deterministic };
-}
-
-export function readFigureQuotes(value: unknown): readonly FigureQuote[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-  return value.flatMap((item) =>
-    isRecord(item) &&
-    typeof item.sourceId === "string" &&
-    typeof item.quote === "string" &&
-    item.quote.trim() !== ""
-      ? [{ sourceId: item.sourceId, quote: item.quote }]
-      : [],
-  );
 }
 
 function readRenderedMetrics(value: unknown): readonly RenderedMetric[] {

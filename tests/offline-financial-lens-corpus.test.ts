@@ -9,9 +9,9 @@ import {
   type OfflineCorpusAllowance,
   type OfflineCorpusExecution,
   type OfflineCorpusMutation,
-} from "./support/offline-financial-statements-corpus";
-import { verifyLensAllowanceProperties } from "./support/offline-financial-lens-properties";
-import { verifyHistoryAnnualRosters } from "./support/offline-financial-history-roster";
+} from "../src/corpus/offline-financial-statements-corpus";
+import { verifyLensAllowanceProperties } from "../src/corpus/offline-financial-lens-properties";
+import { verifyHistoryAnnualRosters } from "../src/corpus/offline-financial-history-roster";
 import {
   classifierPattern,
   countNetworkAttemptsDuring,

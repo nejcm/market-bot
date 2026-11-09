@@ -1,4 +1,4 @@
-import type { RunSummary } from "../types";
+import type { RunSummary } from "../../src/run-artifact-index-types";
 import { isRecord } from "../../src/guards";
 
 // Formatting and lenient-read primitives shared by more than one view-model

@@ -1,4 +1,4 @@
-import type { FundamentalHistoryPoint } from "../../src/sources/extended-evidence/fundamental-history";
+import type { FundamentalHistoryPoint } from "../sources/extended-evidence/fundamental-history";
 import {
   CANONICAL_DURATION_DEFINITIONS,
   canonicalEligiblePoints,
@@ -18,7 +18,6 @@ import type { OfflineCorpusExecution } from "./offline-financial-statements-corp
 export {
   detectEligibleRevenueAliasAlternatives,
   detectInterchangeableAliasCandidates,
-  type AliasRejectionReason,
   type AliasVerdict,
 } from "./offline-financial-history-aliases";
 

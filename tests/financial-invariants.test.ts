@@ -17,7 +17,7 @@ import {
   assertSourceIdClosure,
   balanceSheetIdentityCoverage,
   financialStatementDurationProjection,
-} from "./support/run-fixtures/financial-invariants";
+} from "../src/corpus/financial-invariants";
 
 function financialStatements(result: RunFixtureResult): FinancialStatementsArtifact {
   const artifact = result.deepEquityEvidenceBundle?.derived.financialStatements;

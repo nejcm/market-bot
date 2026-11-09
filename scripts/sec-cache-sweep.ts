@@ -24,11 +24,11 @@ import {
   secFilingSectionPacket,
   type SectionMiss,
 } from "../src/sources/sec-filing-text";
-import { runOfflineFinancialStatementCorpus } from "../tests/support/offline-financial-statements-corpus";
+import { runOfflineFinancialStatementCorpus } from "../src/corpus/offline-financial-statements-corpus";
 import {
   collectFinancialStatementInvariants,
   type FinancialInvariantResult,
-} from "../tests/support/run-fixtures/financial-invariants";
+} from "../src/corpus/financial-invariants";
 import {
   diffLedgers,
   formatLedgerDiff,

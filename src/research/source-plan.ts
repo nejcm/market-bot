@@ -6,15 +6,12 @@ import {
   type SourceGap,
   type SourceGapCause,
 } from "../domain/sources";
-import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
+import { verifiedSnapshotSourceId } from "../sources/verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
 import { substantiveProfileSourceIds } from "../web-evidence/contract";
 import { isUsListing } from "../sources/instrument-capability";
-import {
-  normalizeResearchCommandDepth,
-  resolveResearchSubject,
-  type ResolvedResearchSubject,
-} from "./research-subject-identity";
+import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
+import type { ResolvedResearchSubject } from "../domain/research-subject";
 import { deepEquityRecipeLanes } from "../deep-equity/acquisition-recipe";
 
 function normalizedSymbol(symbol: string): string {

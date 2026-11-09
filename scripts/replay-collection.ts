@@ -12,6 +12,7 @@ import { collectSources } from "../src/sources/collector";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
 import { freshEvalDir } from "../src/replay/eval-output";
 import { createFixtureConfig, fixtureCommand, loadFixture } from "../src/replay/fixture-run";
+import { peerUniverseSeam } from "../src/research/peer-universe-seam";
 
 const args = process.argv.slice(2);
 const positional = args.filter((argument) => !argument.startsWith("--"));
@@ -65,11 +66,11 @@ const { collected } = await withReplaySession(
           ...(config.extensionShortTermInvestmentsDisabled === true
             ? { extensionShortTermInvestmentsDisabled: true }
             : {}),
-          peerUniverse: {
+          peerUniverse: peerUniverseSeam({
             provider: runtime.provider,
             model: config.quickModel,
             cachePath: join(outDir, "peer-universe.json"),
-          },
+          }),
         }),
       }),
     ),

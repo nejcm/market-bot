@@ -1,4 +1,9 @@
-import type { RunSearchFilters, RunSearchResult, RunSearchSection, RunSummary } from "../app/types";
+import type {
+  RunSearchFilters,
+  RunSearchResult,
+  RunSearchSection,
+  RunSummary,
+} from "./run-artifact-index-types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { ReportSearchCandidate } from "./report-search-entries";
 import { predictionShortfallGapCount } from "./report/prediction-shortfall";

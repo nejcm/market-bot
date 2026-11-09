@@ -34,7 +34,7 @@ import type { SourceGap } from "../src/domain/sources";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { readReport } from "../src/run-artifact-report-reader";
 import { readSnapshots } from "../src/run-artifact-snapshot-reader";
-import { assertSourceIdClosure } from "./support/run-fixtures/financial-invariants";
+import { assertSourceIdClosure } from "../src/corpus/financial-invariants";
 
 const { dataDirs, cleanupDataDirs, tempDataDir } = createDataDirRegistry();
 const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;

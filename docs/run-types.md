@@ -402,7 +402,7 @@ Research always runs the deep profile; there is no brief variant. The
 
 ### Subject Registry
 
-The checked-in registry in `src/research/subject-registry.ts` maps aliases such
+The checked-in registry in `src/domain/subject-registry.ts` maps aliases such
 as `semis`, `chip stocks`, or `ai infrastructure` to:
 
 - `subjectKey`, `displayName`.

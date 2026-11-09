@@ -14,7 +14,7 @@ import {
   type PeerExclusionFeedback,
   type PeerUniverse,
   type ProposalAudit,
-} from "../src/research/peer-universe";
+} from "../src/domain/peer-universe";
 import { createPeerUniverseProposer } from "../src/research/peer-universe-proposal";
 
 let dir = "";

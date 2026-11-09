@@ -143,8 +143,11 @@ describe("figure parsing", () => {
       [298.02, 1, "", ""],
       [Number.NaN, 1, "", ""],
     ]);
+    expect(parsed("5—6%, 5―6m, Q3—5%, $5—$6 million, RM5m—RM6m")).toEqual(
+      parsed("5–6%, 5–6m, Q3–5%, $5–$6 million, RM5m–RM6m"),
+    );
     expect(parsed("Revenue—7%, $5-million, results-5m-6-7, 10-K, 3-for-1")).toEqual([
-      [Number.NaN, 1, "", "%"],
+      [7, 1, "", "%"],
       [Number.NaN, 1, "USD", ""],
       [Number.NaN, 1e6, "", ""],
       [Number.NaN, 1, "", ""],
@@ -381,6 +384,291 @@ describe("Verified Web Figure", () => {
     ).toBeUndefined();
   });
 
+  // KLSE Screener copy of ViTrox's Q3 2026 report (fixture equity-bursa-brief), announced 2026-11-05.
+  describe("unit header quote", () => {
+    const header =
+      "| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER |\n" +
+      "| --- | --- | --- | --- |\n| | | 30 Sep 2026 | 30 Sep 2025 |\n";
+    const rows =
+      "| 2 | Profit/(loss) before tax | 136,774 | 50,464 |\n" +
+      "| 5 | Basic earnings/(loss) per share (Subunit) | 6.26 | 1.83 |\n" +
+      "| | | AS AT END OF CURRENT QUARTER | |\n" +
+      "| 7 | Total equity attributable to owners | 1,370,000 | |";
+    const claim = (snippet: string, text: string, quote: string, unitQuote?: string) => {
+      const figureQuotes = [
+        { sourceId: "web-vitrox", quote, ...(unitQuote === undefined ? {} : { unitQuote }) },
+      ];
+      const table = webSourceTexts([webSource({ snippet })]);
+      return {
+        failure: unverifiedWebFigure({ text, sourceIds: ["web-vitrox"], figureQuotes }, table),
+        dropped: failedFigureQuotes({ sourceIds: ["web-vitrox"], figureQuotes }, table),
+      };
+    };
+    const headed = `${header}| | | MYR'000 | MYR'000 |\n${rows}`;
+
+    test("reads a bare cell in the currency and scale its column header states", () => {
+      expect(
+        claim(
+          headed,
+          "Pretax profit was RM136,774 thousand.",
+          "Profit/(loss) before tax | 136,774 | 50,464",
+          "MYR’000",
+        ),
+      ).toEqual({ failure: undefined, dropped: [] });
+      expect(
+        claim(headed, "Pretax profit was 136,774.", "Profit/(loss) before tax | 136,774 | 50,464"),
+      ).toMatchObject({ failure: undefined });
+      expect(
+        claim(
+          headed,
+          "Pretax profit was RM136,774 thousand.",
+          "Profit/(loss) before tax | 136,774 | 50,464",
+        ).failure,
+      ).toMatchObject({ reason: "scale-mismatch" });
+    });
+
+    test("reads a split currency and scale header", () => {
+      const split = `${header}| | | RM | RM |\n| | | '000 | '000 |\n${rows}`;
+      expect(
+        claim(
+          split,
+          "Pretax profit was RM136,774 thousand.",
+          "Profit/(loss) before tax | 136,774 | 50,464",
+          "RM",
+        ).failure,
+      ).toBeUndefined();
+    });
+
+    test("keeps the figure unverified when the unit header is not in the source", () => {
+      expect(
+        claim(
+          headed,
+          "Pretax profit was USD136,774 thousand.",
+          "Profit/(loss) before tax | 136,774 | 50,464",
+          "USD'000",
+        ),
+      ).toMatchObject({
+        failure: { reason: "unit-not-in-source" },
+        dropped: [{ unitQuote: "USD'000", reason: "unit-not-in-source" }],
+      });
+    });
+
+    test("never takes a unit from another column, table, header block, or a per-share row", () => {
+      const mixed = `${header}| | | MYR'000 | USD'000 |\n${rows}`;
+      const quote = "Profit/(loss) before tax | 136,774 | 50,464";
+      expect(
+        claim(mixed, "Pretax profit was RM136,774 thousand.", quote, "MYR'000").failure,
+      ).toBeUndefined();
+      expect(
+        claim(mixed, "Pretax profit was RM50,464 thousand.", quote, "MYR'000").failure,
+      ).toMatchObject({ reason: "scale-mismatch" });
+      const row = "| 2 | Profit/(loss) before tax | 99,999 | 88,888 |";
+      for (const next of [`${header}${row}`, row]) {
+        for (const gap of ["\n\nSegment revenue\n\n", "\n\n", "\n"]) {
+          const { dropped } = claim(
+            `${header}| | | MYR'000 | MYR'000 |\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 |${gap}${next}`,
+            "Pretax profit was RM99,999 thousand.",
+            "Profit/(loss) before tax | 99,999",
+            "MYR'000",
+          );
+          // Only a row continuing the headed table with no break reads its header.
+          const continues = gap === "\n" && next === row;
+          expect(dropped.map(({ reason }) => reason)).toEqual(
+            continues ? [] : ["unit-not-in-source"],
+          );
+        }
+      }
+      expect(
+        claim(
+          `${headed}\n\nSegment revenue\n\n| Segment | Revenue |\n| --- | --- |\n| ABI segment revenue | 300,000 |`,
+          "ABI revenue was RM300,000 thousand.",
+          "ABI segment revenue | 300,000",
+          "MYR'000",
+        ).dropped,
+      ).toMatchObject([{ reason: "unit-not-in-source" }]);
+      expect(
+        claim(
+          headed,
+          "Basic EPS was RM6.26 thousand.",
+          "Basic earnings/(loss) per share (Subunit) | 6.26",
+          "MYR'000",
+        ).dropped,
+      ).toMatchObject([{ reason: "unit-not-in-source" }]);
+      expect(
+        claim(
+          headed,
+          "Total equity was RM1,370,000 thousand.",
+          "Total equity attributable to owners | 1,370,000",
+          "MYR'000",
+        ).dropped,
+      ).toMatchObject([{ reason: "unit-not-in-source" }]);
+    });
+
+    const dropped = (snippet: string, text: string, quote: string) =>
+      claim(snippet, text, quote, "MYR'000").dropped.map(({ reason }) => reason);
+    const headedRow = (unitRows: string, row: string) =>
+      `${header}${unitRows}\n| 2 | Profit/(loss) before tax | 136,774 | 50,464 |\n${row}`;
+
+    test("reads a row label from every label cell, not its first", () => {
+      expect(
+        dropped(
+          headedRow(
+            "| | | MYR'000 | MYR'000 |",
+            "| 5(a) | Basic earnings per share (Subunit) | 6.26 | 1.83 |",
+          ),
+          "Basic EPS was RM6.26 thousand.",
+          "Basic earnings per share (Subunit) | 6.26",
+        ),
+      ).toEqual(["unit-not-in-source"]);
+    });
+
+    test("does not read a column with a unit header cell the rule cannot parse", () => {
+      for (const competing of ["US$", "USD mil", "RM million"]) {
+        expect(
+          dropped(
+            headedRow(`| | | MYR'000 | MYR'000 |\n| | | ${competing} | ${competing} |`, ""),
+            "Pretax profit was RM136,774 thousand.",
+            "Profit/(loss) before tax | 136,774",
+          ),
+        ).toEqual(["unit-not-in-source"]);
+      }
+    });
+
+    test("reads a unit only into a row whose whole label is a monetary line", () => {
+      for (const label of [
+        "Gross profit margin",
+        "Profit margin for the period",
+        "Headcount at period end",
+        "Revenue growth rate",
+        "Profit margin before tax",
+      ]) {
+        expect(
+          dropped(
+            headedRow("| | | MYR'000 | MYR'000 |", `| 3 | ${label} | 35.2 | 30.1 |`),
+            "The figure was RM35.2 thousand.",
+            `${label} | 35.2`,
+          ),
+        ).toEqual(["unit-not-in-source"]);
+      }
+    });
+
+    test("reads a unit only through header cells that are a unit, a scale, or a period", () => {
+      for (const competing of ["%", "CAD", "Note"]) {
+        expect(
+          dropped(
+            headedRow(`| | | MYR'000 | MYR'000 |\n| | | ${competing} | ${competing} |`, ""),
+            "Pretax profit was RM136,774 thousand.",
+            "Profit/(loss) before tax | 136,774",
+          ),
+        ).toEqual(["unit-not-in-source"]);
+      }
+      expect(
+        dropped(
+          `${header}| | | Note | MYR'000 |\n| 2 | Profit before tax | 5.1 | 136,774 |`,
+          "Pretax profit was RM136,774 thousand.",
+          "Profit before tax | 5.1 | 136,774",
+        ),
+      ).toEqual(["unit-not-in-source"]);
+    });
+
+    test("blocks a unit at any crossed row that is not a monetary line or a unit, scale or period header", () => {
+      for (const competing of ["%", "CAD", "Note"]) {
+        expect(
+          dropped(
+            `| | MYR'000 | MYR'000 |\n| --- | --- | --- |\n| | ${competing} | 2025 |\n| Profit before tax | 35.2 | 30.1 |`,
+            "Pretax profit was RM35.2 thousand.",
+            "Profit before tax | 35.2 | 30.1",
+          ),
+        ).toEqual(["unit-not-in-source"]);
+      }
+      expect(
+        dropped(
+          "| | MYR'000 |\n| --- | --- |\n| Revenue | 485,101 |\n| Ratios (%) | |\n| Profit before tax | 35.2 |",
+          "Pretax profit was RM35.2 thousand.",
+          "Profit before tax | 35.2",
+        ),
+      ).toEqual(["unit-not-in-source"]);
+      expect(
+        dropped(
+          "| | MYR'000 |\n| --- | --- |\n| Revenue | 485,101 |\n| Profit before tax | 35.2 |",
+          "Pretax profit was RM35.2 thousand.",
+          "Profit before tax | 35.2",
+        ),
+      ).toEqual([]);
+    });
+
+    test("reads only exact month names and blocks a partial or ragged unit header row", () => {
+      for (const between of ["| | Margin |", "| | 30 CAD 2026 |", "| | Marketing |"]) {
+        expect(
+          dropped(
+            `| | MYR'000 |\n| --- | --- |\n${between}\n| Profit before tax | 35.2 |`,
+            "Pretax profit was RM35.2 thousand.",
+            "Profit before tax | 35.2",
+          ),
+        ).toEqual(["unit-not-in-source"]);
+      }
+      expect(
+        dropped(
+          "| | MYR'000 |\n| --- | --- |\n| | 30 September 2026 |\n| Profit before tax | 35.2 |",
+          "Pretax profit was RM35.2 thousand.",
+          "Profit before tax | 35.2",
+        ),
+      ).toEqual([]);
+      for (const partial of [
+        "| | USD'000 | |",
+        "| | USD'000 |",
+        "| | US$ | |",
+        "| | CAD | |",
+        "| | USD mil | |",
+        "| | % | |",
+        "| | Margin | |",
+      ]) {
+        expect(
+          dropped(
+            `| | MYR'000 | MYR'000 |\n| --- | --- | --- |\n${partial}\n| Profit before tax | | 50,464 |`,
+            "Pretax profit was RM50,464 thousand.",
+            "Profit before tax | | 50,464",
+          ),
+        ).toEqual(["unit-not-in-source"]);
+      }
+    });
+
+    test("inherits the unit only when the figure reads the whole cell", () => {
+      for (const cell of ["1 234.5", "1\u00A0234.5", "234 . 5", "1 234"]) {
+        expect(
+          dropped(
+            `| | MYR'000 |\n| --- | --- |\n| Profit before tax | ${cell} |`,
+            `Pretax profit was RM${cell.endsWith(" 234") ? "234" : cell.startsWith("234") ? "5" : "234.5"} thousand.`,
+            `Profit before tax | ${cell}`,
+          ),
+        ).toEqual(["unit-not-in-source"]);
+      }
+      expect(
+        dropped(
+          "| | MYR'000 |\n| --- | --- |\n| Profit before tax | (234.5) |",
+          "Pretax loss was -RM234.5 thousand.",
+          "Profit before tax | (234.5)",
+        ),
+      ).toEqual([]);
+    });
+
+    test("does not read a column whose header states two units or two scales", () => {
+      for (const units of [
+        "| | | MYR'000 | MYR'000 |\n| | | USD | USD |",
+        "| | | RM'000 | RM'000 |\n| | | mil | mil |",
+      ]) {
+        expect(
+          claim(
+            `${header}${units}\n${rows}`,
+            "Pretax profit was RM136,774 thousand.",
+            "Profit/(loss) before tax | 136,774 | 50,464",
+            "MYR'000",
+          ).dropped,
+        ).toMatchObject([{ reason: "unit-not-in-source" }]);
+      }
+    });
+  });
+
   test("withholds a figure in a cell that wraps across lines, which may instead start a new row", () => {
     const claim = (
       snippet: string,
@@ -602,6 +890,12 @@ describe("Verified Web Figure", () => {
       [1, 1, "cent", ""],
       [Number.NaN, 1, "MYR", ""],
     ]);
+    expect(parsed("20p, 20 pence, 26¢, 26 ¢, 1080px, 20 p.a., 1P vs 3P, 4:15p ET")).toEqual([
+      [20, 1, "GBP-pence", ""],
+      [20, 1, "GBP-pence", ""],
+      [26, 1, "cent", ""],
+      [26, 1, "cent", ""],
+    ]);
     expect(parsed("5 USD cents, USD 5 cents, MYR 26 sen, S$5, C$5")).toEqual([
       [Number.NaN, 1, "USD", ""],
       [Number.NaN, 1, "USD", ""],
@@ -656,13 +950,16 @@ describe("Verified Web Figure", () => {
       ),
     ).toBeUndefined();
     const margin = "Reported margin in the quarter was 5.46%.";
-    for (const dash of ["–", "—", "‒"]) {
+    for (const dash of ["–", "‒"]) {
       expect(claim(margin, `Margin was ${dash}5.46%.`)).toMatchObject({
         reason: "figure-not-in-quote",
       });
       expect(
         claim(`Reported margin in the quarter was ${dash}5.46%.`, `Margin was ${dash}5.46%.`),
       ).toBeUndefined();
+    }
+    for (const dash of ["—", "―"]) {
+      expect(claim(margin, `Margin was ${dash}5.46%.`)).toBeUndefined();
     }
     expect(claim("Reported operating cash flow was MYR 125.5 million.", negative)).toMatchObject({
       reason: "figure-not-in-quote",
@@ -736,6 +1033,53 @@ describe("Verified Web Figure", () => {
     const aside = "Reported quarterly revenue (RM5m) rose on the year.";
     expect(claim(aside, "Revenue was -RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
     expect(claim(aside, "Revenue was RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
+    // Web coverage in run 2026-11-02T12-47-02-362Z-b57f22b6.
+    const translated = "Quarter revenue rose to 118.71 billion yuan ($16.7 billion), up 19.3%.";
+    expect(claim(translated, "Revenue was $16.7 billion.")).toBeUndefined();
+    expect(claim(translated, "Revenue was -$16.7 billion.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    for (const untranslated of [
+      "Reported net loss was -RM5m (USD1.2m) in the year.",
+      "Reported net loss was RM5m (RM5.0m) in the year.",
+      "Reported net loss was 5m (USD1.2m) in the year.",
+      "Reported net loss-RM5m (USD1.2m) in the year.",
+      "Reported net loss of RM6m-RM5m (USD1.2m) in the year.",
+      "Reported net loss of RM5m-RM6m (USD1.2m) in the year.",
+    ]) {
+      expect(claim(untranslated, "The loss was USD1.2m.")).toMatchObject({
+        reason: "figure-not-in-quote",
+      });
+    }
+    const bullets =
+      "Quarter highlights:\n- $3.4bn revenue in the quarter\n- 12% growth on the year";
+    const bulletClaim = (quote: string, text: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet: bullets })]),
+      );
+    expect(bulletClaim("- $3.4bn revenue in the quarter", "Revenue was $3.4bn.")).toBeUndefined();
+    expect(bulletClaim("$3.4bn revenue in the quarter", "Revenue was $3.4bn.")).toBeUndefined();
+    expect(bulletClaim("— 12% growth on the year", "Growth was 12%.")).toBeUndefined();
+    expect(bulletClaim("$3.4bn revenue in the quarter", "Revenue was -$3.4bn.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    for (const minus of ["−", "‒", "–"]) {
+      const line = `${minus} 5.46% loss in the quarter`;
+      expect(claim(line, "The loss was 5.46%.")).toMatchObject({ reason: "figure-not-in-quote" });
+    }
+    // Run 2026-11-05T10-45-16-771Z-df74b0c2: prose accounting parentheses on a loss per share.
+    const loss = "The net loss was ($239.8 million) or ($0.89) per basic share.";
+    expect(claim(loss, "The loss was $0.89 per share.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    for (const linked of [
+      "Reported operating cash flow of (RM5m) in the year.",
+      "Reported operating cash flow was (RM5m) in the year.",
+      "Reported operating cash flow (RM5m).",
+    ]) {
+      expect(claim(linked, "Cash flow was RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
+    }
     expect(
       claim("Reported margin was 12.5% - 2.5% lower on the year.", "Margin was 12.5%, 2.5% lower."),
     ).toMatchObject({ reason: "figure-not-in-quote", figure: "2.5%" });
@@ -875,6 +1219,33 @@ describe("Verified Web Figure", () => {
     expect(
       claim("Revenue was $574.9 million—up strongly this year.", "Revenue was $574.9 million."),
     ).toBeUndefined();
+    expect(
+      claim(
+        "Reported AI cloud Revenue—$574.9 million this quarter.",
+        "Revenue was $574.9 million.",
+      ),
+    ).toBeUndefined();
+    expect(
+      unverifiedWebFigure(
+        {
+          text: "Revenue was $574.9 million.",
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: "AI cloud Revenue-$574.9 million this" }],
+        },
+        webSourceTexts([webSource({ snippet: "Reported AI cloud Revenue—$574.9 million this." })]),
+      ),
+    ).toBeUndefined();
+    expect(
+      claim(
+        "Reported revenue was $6.7 billion — 58% of the group.",
+        "Revenue was 58% of the group.",
+      ),
+    ).toBeUndefined();
+    for (const high of ["$6", "USD 6", "usd6"]) {
+      expect(
+        claim(`Forecast revenue range was $5—${high} million for next year.`, "Revenue was $5."),
+      ).toMatchObject({ reason: "scale-mismatch" });
+    }
     expect(
       claim(
         "Management guided revenue of $1.2-1.4 billion for the year.",

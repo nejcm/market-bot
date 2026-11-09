@@ -5526,7 +5526,7 @@ describe("gross-principal debt withholding", () => {
 describe("SEC summary canonical merge eligibility", () => {
   const asOf = "2026-10-04T00:00:00.000Z";
 
-  test("withholds canonical debt and TTM reported outside the USD summary currency", () => {
+  test("withholds USD-unit revenue, canonical debt and TTM of a non-USD reporter", () => {
     const summary = summarizeSecFundamentals(
       payload({
         "us-gaap": {
@@ -5536,8 +5536,8 @@ describe("SEC summary canonical merge eligibility", () => {
       }),
       asOf,
     );
-    expect(summary?.metrics.revenue).toBe(200);
-    expect(summary?.metrics.revenueTtm).not.toBe(100);
+    expect(summary?.metrics.revenue).toBeUndefined();
+    expect(summary?.metrics.revenueTtm).toBeUndefined();
     expect(summary?.metrics.debt).toBeUndefined();
   });
 

@@ -29,6 +29,8 @@ export interface MarketRegimeSummary {
 export interface FigureQuote {
   readonly sourceId: string;
   readonly quote: string;
+  // Verbatim unit header cell (such as RM'000) of the quoted table cells' column.
+  readonly unitQuote?: string;
 }
 
 export type WebFigureFailureReason =
@@ -39,6 +41,7 @@ export type WebFigureFailureReason =
   | "currency-mismatch"
   | "unit-mismatch"
   | "quote-not-in-source"
+  | "unit-not-in-source"
   | "quote-source-not-cited"
   | "no-stored-text"
   | "quote-too-short";

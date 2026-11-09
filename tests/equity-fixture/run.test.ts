@@ -837,6 +837,11 @@ describe("static equity run fixtures", () => {
     );
     // The model quoted 34,720 for prior-quarter attributable profit; the table says 34,716.
     expect(JSON.stringify(result.report)).not.toContain("34,720");
+    // Hand-edited recorded output: the bare 136,774 cell reads as RM136,774 thousand under its MYR'000 header.
+    expect(result.report.catalysts?.[0]).toMatchObject({
+      text: expect.stringContaining("profit before tax of RM136,774 thousand"),
+      figureQuotes: expect.arrayContaining([expect.objectContaining({ unitQuote: "MYR'000" })]),
+    });
   });
 
   test("bursa deep fetches the newest issuer report page in code", async () => {

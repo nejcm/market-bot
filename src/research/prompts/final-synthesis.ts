@@ -68,7 +68,11 @@ const CITED_CLAIM_SHAPE = {
   text: "string",
   sourceIds: ["source-id"],
   figureQuotes: [
-    { sourceId: "web-source-id", quote: "verbatim web source text holding the figure" },
+    {
+      sourceId: "web-source-id",
+      quote: "verbatim web source text holding the figure",
+      unitQuote: "optional: verbatim unit header cell of a table figure's column",
+    },
   ],
 };
 

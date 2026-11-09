@@ -9,6 +9,7 @@ import type { Source } from "../domain/sources";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import { canonicalizeUrl } from "../sources/news-utils";
 import { readFigureQuotes } from "../report/figure-quotes";
+import { cellNumber, headedAmountUnit } from "./unit-header";
 
 export interface WebSourceTexts {
   // Normalized stored text per web Source id; an empty list means the source kept nothing to check.
@@ -43,7 +44,8 @@ const GAP_PREFIX = "Verified Web Figure check withheld";
 
 const CURRENCY_PREFIX = String.raw`US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc}`;
 // A dash before a digit or currency prefix joins a range ("RM5m-RM6m").
-const RANGE_TAIL = String.raw`-(?:(?:${CURRENCY_PREFIX})\s?)?\d`;
+const RANGE_HIGH = String.raw`(?:(?:${CURRENCY_PREFIX})\s?)?\d`;
+const RANGE_TAIL = `-${RANGE_HIGH}`;
 export const SCALE_WORDS = "trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil";
 const UNIT_WORDS = String.raw`per\s?cent|pct|pc|percentage[\s-]points?|percentage[\s-]pts?|ppts?|pp|bps|bp|basis[\s-]points?`;
 // "13 points" may be index points, percentage points or a price target ("$600 PT"), so it never verifies.
@@ -54,17 +56,17 @@ const COUNT_WORD_AFTER =
 // K, M and B may be scales, so only the SEC form codes keep them.
 const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
 // Only a subunit may be glued ("26.4sen"); a glued main-unit word is too often a label.
-const SUBUNITS = "sen|cents?";
+const SUBUNITS = "sen|cents?|pence|¢";
 const SUBUNIT_AFTER = new RegExp(String.raw`^\s?(?:${SUBUNITS})(?!\p{L})`, "iu");
 const FIGURE_PATTERN = new RegExp(
-  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:(?:\s|(?=${SUBUNITS}))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
   "giu",
 );
 const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
 const CURRENCY_BEFORE = new RegExp(`(?:${CURRENCY_PREFIX})\\s*$`, "u");
 const SEC_ACCESSION_PATTERN = /[\p{L}\d-]*\d{10}-\d{2}-\d{6}/gu;
 const CALENDAR_TOKEN_PATTERN =
-  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?:,?\s+\d{4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b\.?(?:,?\s+\d{4})?|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m)?\b/gu;
+  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?:,?\s+\d{4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b\.?(?:,?\s+\d{4})?|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m|[ap])?\b/gu;
 
 const CURRENCIES: Readonly<Record<string, string>> = {
   us$: "USD",
@@ -111,6 +113,9 @@ const CURRENCIES: Readonly<Record<string, string>> = {
   sen: "MYR-sen",
   cent: "cent",
   cents: "cent",
+  "¢": "cent",
+  pence: "GBP-pence",
+  p: "GBP-pence",
 };
 
 const SCALES: Readonly<Record<string, number>> = {
@@ -137,6 +142,7 @@ const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
   "currency-mismatch": "is quoted in a different currency",
   "unit-mismatch": "is quoted with a different unit",
   "quote-not-in-source": "rests on a quote not found in the stored source text",
+  "unit-not-in-source": "rests on a unit header not found above the quoted cells in their table",
   "quote-source-not-cited": "rests on a quote from a source the claim does not cite",
   "no-stored-text": "rests on a source with no stored text to check",
   "quote-too-short": "rests on a quote with too little text around the figure",
@@ -167,10 +173,14 @@ interface PlacedFigure {
   readonly numEnd: number;
 }
 
-const DASHES = /[‐‑‒–—―−]/gu;
+const DASHES = /[‐‑‒–−]/gu;
+// An em dash or horizontal bar separates words, so it is never a sign; between digits it still joins a range.
+const GAP_DASHES = /[—―]/gu;
+const DIGIT_GAP_DASH = new RegExp(String.raw`(?<=\d[%\p{L}]{0,3})[—―](?=${RANGE_HIGH})`, "giu");
 const SEPARATED_SIGN = /(?<!-)-\s+$/u;
 const OPEN_PAREN = /\(\s*$/u;
 const CLOSE_PAREN = /^\s*\)/u;
+const TRANSLATION_GAP = /^\s*\(\s*$/u;
 
 interface ParsedRow {
   readonly figure: Figure;
@@ -181,6 +191,29 @@ interface ParsedRow {
   readonly rawStart: number;
   readonly rawEnd: number;
   readonly numStart: number;
+  // Set when only bare parentheses make the sign ambiguous.
+  readonly parenMagnitude?: number;
+}
+
+// "118.71 billion yuan ($16.7 billion)" translates the amount before it, so its parentheses carry no sign.
+// The amount translated must itself read whole: unsigned, not glued to a word, not a range end.
+function translatedAside(
+  row: ParsedRow,
+  previous: ParsedRow | undefined,
+  beforePrevious: ParsedRow | undefined,
+  blanked: string,
+): boolean {
+  return (
+    row.parenMagnitude !== undefined &&
+    previous !== undefined &&
+    !/[\p{L}\d]-$/u.test(blanked.slice(Math.max(0, previous.rawStart - 2), previous.rawStart)) &&
+    rangeGap(blanked, beforePrevious, previous) === undefined &&
+    previous.figure.value >= 0 &&
+    previous.figure.currency !== "" &&
+    row.figure.currency !== "" &&
+    previous.figure.currency !== row.figure.currency &&
+    TRANSLATION_GAP.test(blanked.slice(previous.rawEnd, row.rawStart))
+  );
 }
 
 function differ(left: string, right: string): boolean {
@@ -354,10 +387,12 @@ function rangeFigures(
 function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
   const blanked = text
     .normalize("NFKC")
+    .replaceAll(DIGIT_GAP_DASH, "-")
+    .replaceAll(GAP_DASHES, " ")
     .replaceAll(DASHES, "-")
     .replaceAll(CALENDAR_TOKEN_PATTERN, (token) => " ".repeat(token.length))
     .replaceAll(SEC_ACCESSION_PATTERN, (token) => " ".repeat(token.length));
-  const rows = [...blanked.matchAll(FIGURE_PATTERN)].map((match) => {
+  const matched = [...blanked.matchAll(FIGURE_PATTERN)].map((match): ParsedRow => {
     const groups = match.groups ?? {};
     const num = groups.num ?? "";
     const scaleKey = (groups.scaleWord ?? groups.scaleLetter)?.toLowerCase();
@@ -410,8 +445,21 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       rawStart,
       rawEnd: rawStart + raw.length,
       numStart,
+      ...(parenthesized &&
+      !accounting &&
+      !explicitSign &&
+      !SEPARATED_SIGN.test(before) &&
+      !unitUnread &&
+      !currencyConflict
+        ? { parenMagnitude: magnitude }
+        : {}),
     };
   });
+  const rows = matched.map((row, index) =>
+    translatedAside(row, matched[index - 1], matched[index - 2], blanked)
+      ? { ...row, figure: { ...row.figure, value: row.parenMagnitude ?? Number.NaN } }
+      : row,
+  );
   const gluedBefore = (row: ParsedRow) =>
     /[\p{L}\d]-$/u.test(blanked.slice(Math.max(0, row.rawStart - 2), row.rawStart));
   const gluedAfter = (row: ParsedRow) =>
@@ -486,15 +534,19 @@ const EDGES = new RegExp(`[${EDGE_CHARS}]`, "gu");
 
 function withCellEdges(lines: readonly string[]): string {
   let open = false;
+  let afterRow = false;
   return lines
     .map((line) => {
       const trimmed = line.trim();
       if (trimmed === "") {
-        const closing = open ? AMBIGUOUS_EDGE : "";
+        // A blank line ends a table, so no unit header reaches a table below it.
+        const closing = open ? AMBIGUOUS_EDGE : afterRow ? ROW_EDGE : "";
         open = false;
+        afterRow = false;
         return closing;
       }
-      if (!open && !trimmed.includes("|")) {
+      afterRow = open || trimmed.includes("|");
+      if (!afterRow) {
         return line;
       }
       const opening = open ? AMBIGUOUS_EDGE : ROW_EDGE;
@@ -504,6 +556,10 @@ function withCellEdges(lines: readonly string[]): string {
     .join("\n");
 }
 
+// An ASCII Markdown list dash reads as a gap, like an em dash, and still matches a quote's hyphen.
+// Read before dash folding: a line-initial minus or en dash may be a sign.
+const BULLET_DASH = /^([^\S\n]*)-(?=[^\S\n])/gmu;
+
 function normalizedSourceText(text: string): string {
   return withCellEdges(
     text
@@ -511,7 +567,8 @@ function normalizedSourceText(text: string): string {
       .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
       .replaceAll(/[‘’‚‛′`]/gu, "'")
       .replaceAll(/[“”„‟″]/gu, '"')
-      .replaceAll(/[‐‑‒–—―−]/gu, "-")
+      .replaceAll(BULLET_DASH, "$1—")
+      .replaceAll(DASHES, "-")
       .replaceAll(/[*_#]/gu, "")
       .split(/\r?\n/u),
   )
@@ -549,7 +606,11 @@ function placedSourceFigures(text: string): readonly PlacedFigure[] {
   return placed;
 }
 
-function figuresTouching(placed: readonly PlacedFigure[], start: number, end: number): Figure[] {
+function figuresTouching(
+  placed: readonly PlacedFigure[],
+  start: number,
+  end: number,
+): PlacedFigure[] {
   let low = 0;
   let high = placed.length;
   while (low < high) {
@@ -560,31 +621,128 @@ function figuresTouching(placed: readonly PlacedFigure[], start: number, end: nu
       low = middle + 1;
     }
   }
-  const figures: Figure[] = [];
+  const figures: PlacedFigure[] = [];
   for (let index = low; index < placed.length; index += 1) {
     const row = placed[index];
     if (row === undefined || row.numStart >= end) {
       break;
     }
-    figures.push(row.figure);
+    figures.push(row);
   }
   return figures;
 }
 
+interface QuotedSpan {
+  readonly text: string;
+  readonly placed: readonly PlacedFigure[];
+}
+
+interface StoredCell {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+}
+
+const STORED_ROW = new RegExp(
+  `${ROW_EDGE}\\s*(${CELL_EDGE}[^${AMBIGUOUS_EDGE}${ROW_EDGE}]*${CELL_EDGE})\\s*${ROW_EDGE}`,
+  "gu",
+);
+const SEPARATOR_CELL = /^:?-+:?$/u;
+
+// Pipe tables of normalized text; a separator row starts a new table at its header row, as in Markdown.
+function storedTables(text: string): readonly (readonly StoredCell[])[][] {
+  const tables: StoredCell[][][] = [];
+  let previousEnd = -1;
+  for (const match of text.matchAll(STORED_ROW)) {
+    const body = match[1] ?? "";
+    let cursor = match.index + match[0].indexOf(body) + 1;
+    const cells = body
+      .split(CELL_EDGE)
+      .slice(1, -1)
+      .map((piece) => {
+        const cell = { text: piece.trim(), start: cursor, end: cursor + piece.length };
+        cursor = cell.end + 1;
+        return cell;
+      });
+    const adjacent = previousEnd >= 0 && text.slice(previousEnd, match.index).trim() === "";
+    previousEnd = match.index + match[0].length;
+    const current = adjacent ? tables.at(-1) : undefined;
+    if (cells.every((cell) => SEPARATOR_CELL.test(cell.text))) {
+      const header = current?.pop();
+      tables.push(header === undefined ? [] : [header]);
+    } else if (current === undefined) {
+      tables.push([cells]);
+    } else {
+      current.push(cells);
+    }
+  }
+  return tables;
+}
+
+// The figure must read the whole cell: no digit outside its span and the same signed value.
+function headedUnit(
+  tables: readonly (readonly StoredCell[])[][],
+  text: string,
+  { figure, numStart, numEnd }: PlacedFigure,
+) {
+  for (const rows of tables) {
+    for (const [rowIndex, row] of rows.entries()) {
+      const column = row.findIndex(({ start, end }) => start <= numStart && numStart < end);
+      const cell = row[column];
+      if (cell !== undefined) {
+        const outside = text.slice(cell.start, numStart) + text.slice(numEnd, cell.end);
+        if (/\d/u.test(outside) || cellNumber(cell.text) !== figure.value) {
+          return undefined;
+        }
+        return headedAmountUnit(
+          rows.map((cells) => cells.map((stored) => stored.text)),
+          rowIndex,
+          column,
+        );
+      }
+    }
+  }
+  return undefined;
+}
+
+// Bare cells whose column header is the quoted unit read in that unit; undefined when none is.
+function headedFigures({ text, placed }: QuotedSpan, unitQuote: string): Figure[] | undefined {
+  const wanted = normalizedQuoteText(unitQuote).toLowerCase();
+  const tables = storedTables(text);
+  let headed = false;
+  const figures = placed.map((place) => {
+    const { figure } = place;
+    const bare = figure.scale === 1 && figure.currency === "" && figure.unit === "";
+    const unit =
+      bare && Number.isFinite(figure.value) ? headedUnit(tables, text, place) : undefined;
+    if (unit === undefined || !unit.headers.some((cell) => cell.toLowerCase() === wanted)) {
+      return figure;
+    }
+    headed = true;
+    return { ...figure, scale: unit.scale, currency: unit.currency };
+  });
+  return headed ? figures : undefined;
+}
+
 // Every match, overlapping ones included, yields the source figures whose number it touches.
-function quotedSourceFigures(needle: string, stored: readonly string[]): readonly Figure[][] {
+function quotedSourceFigures(needle: string, stored: readonly string[]): readonly QuotedSpan[] {
   const pattern = new RegExp(
     needle
       .split(" ")
-      .map((word) => word.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, String.raw`\$&`))
+      .map((word) =>
+        word.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, String.raw`\$&`).replaceAll(/[-—―]/gu, "[-—―]"),
+      )
       .join(`[\\s${EDGE_CHARS}]+`),
     "giu",
   );
   return stored.flatMap((text) => {
     const placed = placedSourceFigures(text);
-    const spans: Figure[][] = [];
+    const spans: QuotedSpan[] = [];
     for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
-      spans.push(figuresTouching(placed, match.index, match.index + match[0].length));
+      spans.push({
+        text,
+        placed: figuresTouching(placed, match.index, match.index + match[0].length),
+      });
       pattern.lastIndex = match.index + 1;
     }
     return spans;
@@ -781,11 +939,22 @@ function checkedQuote(
   if (contextWords.length < MIN_QUOTE_CONTEXT_WORDS) {
     return failed("quote-too-short");
   }
-  const spans = quotedSourceFigures(needle, stored);
+  const matched = quotedSourceFigures(needle, stored);
+  const { unitQuote } = quote;
+  const spans =
+    unitQuote === undefined
+      ? matched.map(({ placed }) => placed.map(({ figure }) => figure))
+      : matched.flatMap((span) => {
+          const figures = headedFigures(span, unitQuote);
+          return figures === undefined ? [] : [figures];
+        });
   const covered = (figures: readonly Figure[]) =>
     claimFigures.filter((claimed) => figures.some((quoted) => sameFigure(quoted, claimed))).length;
   const [best] = spans.toSorted((left, right) => covered(right) - covered(left));
-  return best === undefined ? failed("quote-not-in-source") : { figures: best };
+  if (best === undefined) {
+    return failed(matched.length === 0 ? "quote-not-in-source" : "unit-not-in-source");
+  }
+  return { figures: best };
 }
 
 function mismatchReason(figure: Figure, near: Figure): WebFigureFailureReason {
@@ -811,8 +980,11 @@ export function failedFigureQuotes(
   claim: Omit<WebFigureClaim, "text">,
   texts: WebSourceTexts,
 ): readonly DroppedFigureQuote[] {
-  return checkedQuotes({ ...claim, text: "" }, texts, []).flatMap(({ sourceId, quote, failure }) =>
-    failure === undefined ? [] : [{ sourceId, quote, reason: failure }],
+  return checkedQuotes({ ...claim, text: "" }, texts, []).flatMap(
+    ({ sourceId, quote, unitQuote, failure }) =>
+      failure === undefined
+        ? []
+        : [{ sourceId, quote, ...(unitQuote === undefined ? {} : { unitQuote }), reason: failure }],
   );
 }
 

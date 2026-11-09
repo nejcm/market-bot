@@ -47,8 +47,9 @@ Ephemeral Run Chat has a deliberately different boundary.
   - `extras.metricSections`: labels, values, basis, and reasons are deterministic templates tested against
     the matcher. Assembly unconditionally strips draft-authored copies, including when none were collected.
   - `predictions[]`: public claims render from parsed observable expressions; `measurableAs` is parsed DSL.
-  - `figureQuotes[].quote` on report claims and Web Subject Profile rows: verbatim source spans that code
-    checks against stored source text ([ADR 0006](./0006-non-sec-issuer-coverage.md)). They persist for
+  - `figureQuotes[].quote` and `figureQuotes[].unitQuote` (amended 2026-11-09) on report claims and Web Subject
+    Profile rows: verbatim source spans and unit header cells that code checks against stored source text
+    ([ADR 0006](./0006-non-sec-issuer-coverage.md)). They persist for
     re-verification and never render as report prose in Markdown or the Console.
 - `report.dataGaps` remains an existing unscanned mixed-authorship surface, not an added exemption.
   Relocation of uncited findings/Business Framework text into it can bypass the screen; closing that gap is

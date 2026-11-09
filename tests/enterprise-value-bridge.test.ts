@@ -751,7 +751,7 @@ describe("enterprise value bridge on both SEC producers", () => {
     });
   });
 
-  test("withholds summary debt and the EV bridge when the reporting currency is not USD", () => {
+  test("withholds summary money and the EV bridge when the reporting currency is not USD", () => {
     const accn = "0000002488-26-000123";
     const summary = summarizeSecFundamentals(
       {
@@ -779,9 +779,9 @@ describe("enterprise value bridge on both SEC producers", () => {
       },
       ANALYSIS_AS_OF,
     );
-    expect(summary?.metrics).toEqual({ cash: 5086 * M, cashPeriodEnd: "2026-06-27" });
+    expect(summary?.metrics).toEqual({});
     expect(summary?.gaps.map(({ message }) => message)).toContain(
-      "SEC summary withheld canonical debt is reported in EUR, not USD",
+      "SEC summary withheld monetary metrics: us-gaap facts are reported in EUR, so USD-unit facts are convenience translations at an undeclared rate",
     );
   });
 });

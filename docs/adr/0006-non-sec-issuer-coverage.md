@@ -14,7 +14,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 ## Decision
 
 - **Verified Web Figure.** A figure a model states from a web source (`Source.kind === "web"`) carries a
-  `figureQuotes` entry `{ sourceId, quote }`: a verbatim span from that cited source holding the figure.
+  `figureQuotes` entry `{ sourceId, quote, unitQuote? }`: a verbatim span from that cited source holding the figure.
 - Code verifies before publishing, on every run, US included:
   - The quote, after NFKC, whitespace, quote/dash and Markdown-emphasis normalization, appears in the source's
     stored text. Stored text is the source's snippet plus its raw Exa/Firecrawl page text matched by
@@ -29,6 +29,25 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
     `reportIntegrityAudit.droppedFigureQuotes` with its location and reason, or becomes a profile Source Gap on a
     Web Subject Profile row; a claim figure that only a dropped quote held fails with that quote's reason. A quote
     needs at least three words outside its figures; a bare number matches almost any page.
+  - A table figure whose currency and scale appear only in its column's unit header adds `unitQuote`, that header
+    cell verbatim (amended 2026-11-09). Code splits the same stored text into pipe tables (a blank line, a non-table
+    line, or a Markdown separator row starts a new one), finds each quoted figure's own cell, and walks up from its row to the table top. Every row
+    it crosses must be proven, or the unit is blocked: either a data row whose single label is a listed monetary
+    line and whose value cells are bare numbers, or a header row whose cell in this column is a unit cell, a scale
+    cell, a period or date (`CURRENT YEAR QUARTER`, `30 Sep 2026`; exact month names only), or blank, and whose
+    label cell is blank or a period or date. A missing cell blocks, and a blank cell passes only when every other
+    cell in its row is blank or a period or date, since a merged header may cover it. A caption, a `%`, `CAD`, `US$`, or `Note` cell, or any unparsed row blocks. These are allowlists
+    that fail closed, since no list of excluded ratio or unit words is complete. The walk must find exactly one unit
+    cell for the column, at most one scale, and a currency; `unitQuote` must equal one of those unit or scale cells.
+    Only a bare whole-cell amount takes the unit, on a row whose single label is wholly (not as a substring) a listed
+    monetary line (revenue, profit before tax, profit for the period, profit attributable to owners, operating cash
+    flow, capital expenditure, cash, total current assets or liabilities, total equity), and every value cell of
+    that row must pass the same walk. Such a cell then matches at the header's scale and currency
+    (`485,101` under `MYR'000` is `MYR 485,101 thousand`), and cells in other columns stay bare. Issuer Report
+    Figures keeps its own header rule, and also withholds a column with a currency- or scale-looking cell it cannot
+    parse (`unit-ambiguous`). A quote whose `unitQuote` heads none of its cells
+    drops as `unit-not-in-source`. The quote had no unit field before, so an `RM'000` table figure verified only as
+    the bare cell, without its currency.
   - Web Gather stores at most `MAX_TEXT_CHARS` per page and the snippet cap; a figure beyond the stored text
     fails. A snippet-only source verifies only what the snippet holds. A source with no stored text fails every
     figure tied to it.
@@ -59,7 +78,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   failing figure is not reused, so the run regenerates the profile instead of publishing it degraded.
 - Final synthesis reads a fresh web source's snippet, falling back to the summary only when no snippet exists,
   so the quotable text is what the model sees.
-- Quotes persist on report claims and profile rows. `figureQuotes[].quote` is quoted source text, exempt from
+- Quotes persist on report claims and profile rows. `figureQuotes[].quote` and `.unitQuote` are quoted source text, exempt from
   the research-only scan ([ADR 0001](./0001-research-only-boundary.md)).
 
 ### Non-SEC foundation (amended 2026-11-06)
@@ -134,7 +153,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   - the header text states the basis: "as at" for a stock, a month count, "quarter", "year ended", or "to date"
     with the Financial Year End;
   - the concept kind matches that basis: a flow needs a period length, a stock needs "as at";
-  - the unit header gives the currency and scale, in one cell (`MYR'000`, `USD mil`) or as a currency cell plus a
+  - the unit header gives the currency and scale, in one cell (`MYR'000`, `USD'mil`) or as a currency cell plus a
     scale cell (`RM` | `'000`); two different scales in one column are ambiguous and not read;
   - a per-share concept needs a subunit label (`(Subunit)`, `sen`, `cents`), which scales by 0.01;
   - the column currency matches the document's "Currency: … (XXX)" line;
@@ -212,14 +231,20 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   the line break, because the next line may wrap the cell or start a new row; a cell wrapped across lines never
   verifies. An attached minus makes a figure negative, and so do accounting parentheses that wrap a whole table cell
   (`| (125.5) |`); a sign mismatch fails. A figure in parentheses anywhere else ("revenue (RM5m)") or after a spaced
-  single dash ("- RM5m", including a Markdown bullet) has an ambiguous sign and never verifies, in claim or source;
-  a double dash ("Revenue -- $5m") is punctuation. Sign words are not parsed ("fell 4%" matches "4%"). Percentage
+  single dash ("- RM5m") has an ambiguous sign and never verifies, in claim or source; a double dash ("Revenue --
+  $5m") is punctuation. Since 2026-11-09 (amended), an em dash or horizontal bar is a word gap, never a sign
+  ("Revenue—$574.9 million", "$6.7 billion — 58%"), except after a number and before another ("5—6%", "$5—$6 million"), where it joins a range like an en dash;
+  an en dash, figure dash or minus sign stays a possible minus. An ASCII Markdown list dash at the start of a stored source
+  line reads as that gap ("- $3.4bn"); a line-initial en dash, figure dash or minus does not. A parenthesized amount directly after an amount in another currency that reads
+  whole (unsigned, not glued to a word, not a range end) is a translation and reads unsigned ("118.71 billion yuan ($16.7 billion)"); any other prose parenthesis
+  stays ambiguous, since prose also writes losses that way ("was ($239.8 million) or ($0.89) per basic share").
+  Quote matching treats every dash alike. Sign words are not parsed ("fell 4%" matches "4%"). Percentage
   points ("pp", "ppt", "ppts", "percentage pts", "percentage-point"), percent ("%", "pct", lower-case "pc", "per cent") and basis points
   ("bp", "bps", "basis point", "basis-point") are distinct units. A figure before "points", "pts" or "pt", spaced or glued ("14pts"), without a currency
   withholds, since the word may mean index points, percentage points or a price target ("13 points", "2% points"),
-  as does one before upper-case "PC". A currency subunit ("sen", "cent", "cents") stays its own currency, unscaled,
-  so "26.4 sen" never matches "RM26.4"; it reads the same glued ("26.4sen", "54cents"), while a glued main-unit word
-  does not. A figure with a prefix and a different suffix currency, or a currency followed by a subunit, withholds ("RM0.30 sen", "5 USD cents"). A tight dash before a digit or currency prefix joins a range, and both
+  as does one before upper-case "PC". A currency subunit ("sen", "cent", "cents", "¢", "pence") stays its own currency, unscaled,
+  so "26.4 sen" never matches "RM26.4"; it reads the same glued ("26.4sen", "54cents", "26¢"), while a glued main-unit word
+  does not. A glued lower-case "p" is pence ("20p"); upper-case "1P" and a time ("4:15p") are not figures. A figure with a prefix and a different suffix currency, or a currency followed by a subunit, withholds ("RM0.30 sen", "5 USD cents"). A tight dash before a digit or currency prefix joins a range, and both
   endpoints are checked as separate figures, not as a pair (`$1.2-1.4 billion` matches a quote stating $1.2 billion
   and $1.4 billion apart). The low endpoint takes the scale, unit and currency written once on the high ("$1.2-1.4
   billion", "RM5–6m", "5–6%"); the high takes only a missing currency. Neither endpoint of a range, tight or spaced,
@@ -230,8 +255,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   or more numbers ("1-2-3%"). An endpoint still bare after sharing withholds the claim when its partner is a figure,
   across a tight dash, a spaced dash, or a signed spaced number ("7% -15"). A spaced range shares nothing, so it
   withholds when one endpoint carries a scale, unit or currency the other lacks ("$1.2 - 1.4 billion"). A claim
-  figure with an unreadable sign or range fails as `figure-ambiguous`. A dash glued to a word before a figure may be
-  its sign, so the figure and any range it starts withhold ("Revenue—$574.9 million", "profit-5m-9"); a bare count
+  figure with an unreadable sign or range fails as `figure-ambiguous`. A hyphen glued to a word before a figure may be
+  its sign, so the figure and any range it starts withhold ("Revenue-$574.9 million", "profit-5m-9"); a bare count
   there is dropped ("COVID-19"). A dash glued to a word after a figure keeps a scaled or unit figure whole ("$574.9
   million—up") and withholds one whose scale may follow ("$5-million"). A bare number there withholds, since the
   word may be a unit ("5-per-cent", "25-basis-point", "5-fold"), unless the word is a time noun, a month

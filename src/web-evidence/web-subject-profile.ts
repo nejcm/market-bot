@@ -191,7 +191,11 @@ export function webSubjectProfileSubjectForCommand(
   };
 }
 
-const FIGURE_QUOTE = { sourceId: "web-source-id", quote: "verbatim source text" };
+const FIGURE_QUOTE = {
+  sourceId: "web-source-id",
+  quote: "verbatim source text",
+  unitQuote: "optional: verbatim unit header cell of a table figure's column",
+};
 
 export function webSubjectProfileRequiredShape(subjectKind: SubjectKind): Record<string, unknown> {
   return {
@@ -614,7 +618,12 @@ function screenWebFigures(
           ...value,
           figureQuotes: value.figureQuotes.filter(
             (quote) =>
-              !failed.some((row) => row.sourceId === quote.sourceId && row.quote === quote.quote),
+              !failed.some(
+                (row) =>
+                  row.sourceId === quote.sourceId &&
+                  row.quote === quote.quote &&
+                  row.unitQuote === quote.unitQuote,
+              ),
           ),
         };
   };

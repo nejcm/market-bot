@@ -344,6 +344,18 @@ describe("issuer report mapping check", () => {
         }),
       ])?.failures.map((failure) => failure.reason),
     ).toEqual(["unit-ambiguous"]);
+    for (const competing of ["US$", "USD mil"]) {
+      expect(
+        read(mapping(["revenue", "t1:r5:c2"]), [
+          source({
+            snippet: KLSE_TEXT.replace(
+              "| | | MYR'000 | MYR'000 |",
+              `| | | MYR'000 | MYR'000 |\n| | | ${competing} | ${competing} |`,
+            ),
+          }),
+        ])?.failures.map((failure) => failure.reason),
+      ).toEqual(["unit-ambiguous"]);
+    }
   });
 
   test("withholds every figure the table does not prove", () => {

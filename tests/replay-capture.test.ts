@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
 import { loadFixture, runFixture, createFixtureConfig } from "./support/run-fixtures";
@@ -234,11 +234,30 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     const saved = await loadSynthesisReplayInput(file);
     expect(Object.keys(saved.input.settings)).toEqual(["sourceOptions"]);
     const storedCollected = JSON.parse(stored).input.collectedSources;
-    expect(storedCollected.secTargetPacket).toEqual({
-      $replayBody: expect.stringMatching(/^[a-f0-9]{64}$/u),
-    });
-    expect(JSON.stringify(storedCollected.rawSnapshots)).toContain('"$replayBody"');
+    expect(JSON.stringify(storedCollected.secTargetPacket)).toContain('"$replayHttpBody"');
+    const httpRefs = [
+      ...JSON.stringify(storedCollected.rawSnapshots).matchAll(
+        /"\$replayHttpBody":"([a-f0-9]{64})"/gu,
+      ),
+    ].map((match) => `bodies/${match[1]!}.txt`);
+    expect(httpRefs).not.toHaveLength(0);
+    expect(stored).not.toContain("x".repeat(1000));
+    const cassetteBodies = new Set(
+      Object.values(loaded.dataCassette.entries).map((row) => row.bodyFile),
+    );
+    expect(httpRefs.every((ref) => cassetteBodies.has(ref))).toBe(true);
+    const bodyNames = await readdir(join(capture, "bodies"));
+    const synthesisBodies = await Promise.all(
+      bodyNames
+        .filter((name) => name.endsWith(".json"))
+        .map((name) => readFile(join(capture, "bodies", name), "utf8")),
+    );
+    expect(synthesisBodies.some((text) => text.includes("x".repeat(1000)))).toBe(false);
     expect(saved.input.collectedSources.secTargetPacket?.companyFacts).toBeDefined();
+    const companyFacts = saved.input.collectedSources.rawSnapshots.find(
+      (row) => row.adapter === "sec-companyfacts",
+    )!;
+    expect((companyFacts.payload as { padding?: string }).padding).toHaveLength(400_000);
     expect(stored.length * 2).toBeLessThan(JSON.stringify(saved).length);
     const inline = join(dir, "inline-final-synthesis-input.json");
     await writeFile(inline, JSON.stringify(saved));
@@ -317,7 +336,30 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
       },
     } as typeof saved;
     expect(() => externalizeSynthesisBodies(reserved, () => "")).toThrow("reserved key");
-    for (const ref of [{ $replayBody: "f".repeat(64) }, { $replayBody: "x", extra: 1 }]) {
+    const httpReserved = {
+      ...reserved,
+      input: {
+        ...reserved.input,
+        collectedSources: {
+          ...reserved.input.collectedSources,
+          rawSnapshots: [{ payload: { $replayHttpBody: "0".repeat(64) } }] as never,
+        },
+      },
+    } as typeof saved;
+    expect(() => externalizeSynthesisBodies(httpReserved, () => "")).toThrow("reserved key");
+    const tamperedHttp = join(dir, "tampered-http");
+    await cp(capture, tamperedHttp, { recursive: true });
+    await writeFile(join(tamperedHttp, httpRefs[0]!), '{"tampered":true}');
+    await expect(
+      loadSynthesisReplayInput(join(tamperedHttp, "final-synthesis-input.json")),
+    ).rejects.toThrow("hash mismatch");
+    for (const ref of [
+      { $replayBody: "f".repeat(64) },
+      { $replayBody: "x", extra: 1 },
+      { $replayHttpBody: "f".repeat(64) },
+      { $replayHttpBody: "../../report" },
+      { $replayHttpBody: "0".repeat(64), $replayBody: "0".repeat(64) },
+    ]) {
       const broken = join(lookalikes, "broken.json");
       await writeFile(
         broken,
@@ -330,6 +372,81 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
         }),
       );
       await expect(loadSynthesisReplayInput(broken)).rejects.toThrow();
+    }
+    const rawHttp = `{"big":1e400,"negZero":-0,"pad":"${"y".repeat(40_000)}"}`;
+    const rawSha = new Bun.CryptoHasher("sha256").update(rawHttp).digest("hex");
+    await writeFile(join(lookalikes, "bodies", `${rawSha}.txt`), rawHttp);
+    const checkpointed: unknown = JSON.parse(JSON.stringify(JSON.parse(rawHttp)));
+    const withRaw = {
+      ...saved,
+      input: {
+        ...saved.input,
+        collectedSources: {
+          ...saved.input.collectedSources,
+          rawSnapshots: [{ adapter: "raw", payload: checkpointed }] as never,
+        },
+      },
+    } as typeof saved;
+    const rawBodies = new Map<string, string>();
+    const rawRef = externalizeSynthesisBodies(
+      withRaw,
+      (text) => {
+        const sha256 = new Bun.CryptoHasher("sha256").update(text).digest("hex");
+        rawBodies.set(sha256, text);
+        return sha256;
+      },
+      new Map([[JSON.stringify(JSON.parse(rawHttp)), rawSha]]),
+    );
+    expect(rawRef.input.collectedSources.rawSnapshots).toEqual([
+      { adapter: "raw", payload: { $replayHttpBody: rawSha } },
+    ] as never);
+    await Promise.all(
+      [...rawBodies].map(([sha256, text]) =>
+        writeFile(join(lookalikes, "bodies", `${sha256}.json`), text),
+      ),
+    );
+    const rawFile = join(lookalikes, "raw-http.json");
+    await writeFile(rawFile, JSON.stringify(rawRef));
+    const [restored] = (await loadSynthesisReplayInput(rawFile)).input.collectedSources
+      .rawSnapshots as unknown as { payload: { big: unknown; negZero: number } }[];
+    expect(restored!.payload.big).toBeNull();
+    expect(Object.is(restored!.payload.negZero, 0)).toBe(true);
+    const literal = [
+      { payload: { $replayHttpBody: "vendor-value", other: 1 } },
+      { payload: { $replayHttpBody: rawSha } },
+    ];
+    const legacy = join(lookalikes, "legacy-literal.json");
+    const { bodyEncoding: _marker, ...legacyEnvelope } = rawRef;
+    await writeFile(
+      legacy,
+      JSON.stringify({
+        ...legacyEnvelope,
+        input: {
+          ...legacyEnvelope.input,
+          collectedSources: { ...legacyEnvelope.input.collectedSources, rawSnapshots: literal },
+        },
+      }),
+    );
+    expect((await loadSynthesisReplayInput(legacy)).input.collectedSources.rawSnapshots).toEqual(
+      literal as never,
+    );
+    for (const row of literal) {
+      const marked = join(lookalikes, "marked-literal.json");
+      await writeFile(
+        marked,
+        JSON.stringify({
+          ...rawRef,
+          input: {
+            ...rawRef.input,
+            collectedSources: { ...rawRef.input.collectedSources, rawSnapshots: [row] },
+          },
+        }),
+      );
+      const resolved = loadSynthesisReplayInput(marked);
+      // oxlint-disable-next-line no-await-in-loop -- two shapes, sequential file reuse
+      await (row.payload.other === undefined
+        ? expect(resolved).resolves.toBeDefined()
+        : expect(resolved).rejects.toThrow("Invalid replay body reference"));
     }
     const stage = await replaySynthesisFile({ input: file, label: "stage", root: dir });
     expect(stage.status).toBe("completed");

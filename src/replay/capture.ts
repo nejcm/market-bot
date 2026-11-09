@@ -128,6 +128,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
         assertNoSecretsInText(name, text, secrets);
         await writeFile(join(staged, name), `${text}\n`, "utf8");
       };
+      const httpBodies = new Map<string, string>();
       const bodyEntry = async (entry: DataCassetteEntry): Promise<DataCassetteEntry> => {
         const { sequence, ...recorded } = entry;
         const body = redact(recorded.body);
@@ -138,6 +139,10 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
           const bodyFile = `bodies/${sha256}.txt`;
           await writeFile(join(staged, bodyFile), body, "utf8");
           result = { ...recorded, body: "", bodyFile, sha256 };
+          const parsed = parsedJson(body);
+          if (parsed !== undefined) {
+            httpBodies.set(parsed, sha256);
+          }
         }
         return {
           ...result,
@@ -197,6 +202,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
             synthesisBodies.set(`bodies/${sha256}.json`, body);
             return sha256;
           },
+          httpBodies,
         );
         await Promise.all(
           [...synthesisBodies].map(([bodyFile, body]) => {
@@ -243,5 +249,13 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
       await publish(error.runDir);
     }
     throw error;
+  }
+}
+
+function parsedJson(text: string): string | undefined {
+  try {
+    return JSON.stringify(JSON.parse(text));
+  } catch {
+    return undefined;
   }
 }

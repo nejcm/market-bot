@@ -1,4 +1,6 @@
-export type AssetClass = "equity" | "crypto";
+export const ASSET_CLASSES = ["equity", "crypto"] as const;
+
+export type AssetClass = (typeof ASSET_CLASSES)[number];
 
 export type LegacyMarketUpdateJobType = "daily" | "weekly";
 
@@ -6,12 +8,18 @@ export type MarketUpdateJobType = "market-overview" | LegacyMarketUpdateJobType;
 
 export type InstrumentJobType = "equity" | "crypto";
 
-export type JobType =
-  | MarketUpdateJobType
-  | InstrumentJobType
-  | "alpha-search"
-  | "research"
-  | "forecast-grid";
+export const JOB_TYPES = [
+  "market-overview",
+  "daily",
+  "weekly",
+  "equity",
+  "crypto",
+  "alpha-search",
+  "research",
+  "forecast-grid",
+] as const;
+
+export type JobType = (typeof JOB_TYPES)[number];
 
 export type Depth = "brief" | "deep";
 

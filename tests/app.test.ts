@@ -9,6 +9,8 @@ import { runDeepEquity } from "../src/deep-equity";
 import type { PersistedResearchJobResult, RunResearchJobInput } from "../src/research/orchestrator";
 import type { ModelProvider } from "../src/model/types";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
+import type { RunAnalytics } from "../src/research/run-analytics";
+import { renderRunAnalyticsConsole } from "../src/research/run-analytics-console";
 import { PostSynthesisError } from "../src/research/finalize-synthesis";
 import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
@@ -39,6 +41,7 @@ const analyticsStub = {
     signalTargetMet: null,
     mixWarnings: [],
   },
+  runShape: { usageByStage: [], tokenEstimate: 0 },
 };
 
 // Alpha-search analytics has its own shape; the stderr summary reads alphaSearch and
@@ -67,6 +70,12 @@ const originalCacheDir = process.env.MARKET_BOT_CACHE_DIR;
 const originalApeWisdomFilter = process.env.MARKET_BOT_APEWISDOM_FILTER;
 const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
 const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
+
+test("the analytics stub renders a run-quality summary instead of the failure line", () => {
+  expect(renderRunAnalyticsConsole(analyticsStub as unknown as RunAnalytics)).toStartWith(
+    "Run quality — daily",
+  );
+});
 
 describe("Research Console equity presentation boundary", () => {
   test("leaves every non-equity run type on the existing flat workspace path", () => {

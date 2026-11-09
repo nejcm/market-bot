@@ -1,6 +1,17 @@
 import { constants } from "node:fs";
-import { access, mkdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  open,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { isRecord } from "./guards";
 import { NORMALIZED_DIR, RAW_DIR } from "./run-artifact-layout";
 
 export interface RunArtifactPaths {
@@ -62,16 +73,72 @@ export async function publishRunArtifacts(
   const { runsDir, parent } = await runStagingParent(dataDir);
   const staged = await prepareRunArtifacts(parent, `.${basename(runsDir)}-${runId}.partial`);
   await write(staged);
+  await fsyncTree(staged.runDir);
   const runDir = join(dataDir, runId);
   await rename(staged.runDir, runDir);
+  await fsyncDir(runsDir);
+  await fsyncDir(parent);
   return { runDir, rawDir: join(runDir, RAW_DIR), normalizedDir: join(runDir, NORMALIZED_DIR) };
+}
+
+// Some filesystems reject directory fsync anywhere; Windows refuses directory handles outright.
+function dirFsyncUnsupported(code: unknown): boolean {
+  if (code === "EINVAL" || code === "ENOTSUP") {
+    return true;
+  }
+  return process.platform === "win32" && (code === "EPERM" || code === "EISDIR");
+}
+
+async function fsyncDir(dir: string): Promise<void> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined = undefined;
+  try {
+    handle = await open(dir, "r");
+    await handle.sync();
+  } catch (error: unknown) {
+    if (!isRecord(error) || !dirFsyncUnsupported(error.code)) {
+      throw error;
+    }
+  } finally {
+    await handle?.close();
+  }
+}
+
+async function fsyncFile(path: string): Promise<void> {
+  const handle = await open(path, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function fsyncTree(root: string): Promise<void> {
+  const entries = await readdir(root, { recursive: true, withFileTypes: true });
+  for (const entry of entries) {
+    const path = join(entry.parentPath, entry.name);
+    if (entry.isDirectory()) {
+      // oxlint-disable-next-line no-await-in-loop -- One handle at a time keeps large trees under the fd limit.
+      await fsyncDir(path);
+    } else if (entry.isFile()) {
+      // oxlint-disable-next-line no-await-in-loop -- One handle at a time keeps large trees under the fd limit.
+      await fsyncFile(path);
+    }
+  }
+  await fsyncDir(root);
 }
 
 export async function writeFileAtomic(path: string, data: string): Promise<void> {
   const tempPath = `${path}.${crypto.randomUUID()}.tmp`;
   try {
-    await writeFile(tempPath, data, "utf8");
+    const handle = await open(tempPath, "w");
+    try {
+      await handle.writeFile(data, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await rename(tempPath, path);
+    await fsyncDir(dirname(path));
   } catch (error: unknown) {
     await rm(tempPath, { force: true });
     throw error;

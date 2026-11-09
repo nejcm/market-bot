@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { mkdtemp, readdir, readFile, utimes } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readdir, readFile, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -354,6 +354,10 @@ describe("history artifacts", () => {
         };
       },
     };
+    const deltaPath = join(rootDir, "history", "deltas", "equity-AAPL-run-old-to-run-new.json");
+    await mkdir(join(rootDir, "history", "deltas"), { recursive: true });
+    await writeFile(deltaPath, "stale", "utf8");
+    await link(deltaPath, `${deltaPath}.link`);
     const delta = await buildThesisDelta({
       dataDir,
       symbol: "AAPL",
@@ -377,6 +381,7 @@ describe("history artifacts", () => {
       "utf8",
     );
     expect(persisted).toContain("The research thesis shifted");
+    expect(await readFile(`${deltaPath}.link`, "utf8")).toBe("stale");
   });
 
   test("carries structured prediction shortfalls into thesis snapshots and deltas", async () => {

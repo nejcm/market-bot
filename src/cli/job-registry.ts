@@ -5,6 +5,7 @@ import {
   runTypeSupportsDepth,
 } from "../domain/run-types";
 import {
+  ASSET_CLASSES,
   isInstrumentJobType,
   type AssetClass,
   type Depth,
@@ -132,7 +133,7 @@ export function isResearchCommand(command: CliCommand): command is ResearchComma
   return runTypeProducesSynthesisReport(command.jobType);
 }
 
-export const ASSET_CLASS_OPTIONS = ["equity", "crypto"] as const;
+export const ASSET_CLASS_OPTIONS = ASSET_CLASSES;
 export const DEPTH_OPTIONS = ["brief", "deep"] as const;
 
 export const CONSOLE_JOB_TYPES = [

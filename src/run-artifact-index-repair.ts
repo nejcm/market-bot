@@ -1,8 +1,5 @@
-import {
-  configuredRunArtifactIndexPath,
-  readRunArtifactIndexStatus,
-  rebuildRunArtifactIndex,
-} from "./run-artifact-index";
+import { runArtifactIndexDbPath } from "./config";
+import { readRunArtifactIndexStatus, rebuildRunArtifactIndex } from "./run-artifact-index";
 import { openRunArtifactIndexDatabase } from "./run-artifact-index-schema";
 import { indexIsFresh } from "./run-artifact-index-freshness";
 import type { RebuildOptions } from "./run-artifact-index-types";
@@ -11,37 +8,20 @@ export interface RebuildIfStaleResult {
   readonly rebuilt: boolean;
 }
 
-/**
- * Trigger a one-shot full rebuild when an existing, schema-matched index has
- * drifted from disk. Non-fatal; callers must `.catch` independently.
- *
- * Guards:
- *  - state !== "available" → early return (disabled / missing / unsupported-schema / unreadable)
- *  - index is fresh        → early return (no work needed)
- *
- * Does NOT auto-create a missing index; ADR 0002 permits stale healing only for
- * an existing schema-compatible index.
- *
- * @param {string} dataDir - Canonical run artifacts directory.
- * @param {RebuildOptions} options - Optional override for the SQLite DB path.
- * @returns {Promise<RebuildIfStaleResult>} Object indicating whether a rebuild was performed.
- */
+// Rebuilds an existing, schema-matched index that drifted from disk, never a missing one (ADR 0002).
+// Non-fatal by contract, so callers `.catch` it.
 export async function rebuildRunArtifactIndexIfStale(
   dataDir: string,
   options: RebuildOptions = {},
 ): Promise<RebuildIfStaleResult> {
-  // Resolve the path ONCE so status, freshness probe, and rebuild all use the same DB.
-  // Prevents check-one-rebuild-another when the caller passes an explicit dbPath.
-  const dbPath = options.dbPath ?? configuredRunArtifactIndexPath(dataDir);
+  // Status, probe, and rebuild share one path, so an explicit dbPath is checked and rebuilt alike.
+  const dbPath = options.dbPath ?? runArtifactIndexDbPath(dataDir);
 
-  // Status guard — only act on an existing, schema-matched DB at THIS path.
-  // Disabled / missing / unsupported-schema / unreadable all return early.
   if (readRunArtifactIndexStatus(dataDir, process.env, dbPath).state !== "available") {
     return { rebuilt: false };
   }
 
-  // Freshness probe with a suppressing warn callback so the misleading
-  // "falling back to disk scan" line is never emitted in this repair lane.
+  // Silent warn callback: the "falling back to disk scan" line would mislead in this lane.
   const db = openRunArtifactIndexDatabase(dbPath, true);
   let fresh = false;
   try {
@@ -54,7 +34,7 @@ export async function rebuildRunArtifactIndexIfStale(
     return { rebuilt: false };
   }
 
-  // Full rebuild at the same path. Read handle is already closed so BEGIN IMMEDIATE acquires cleanly.
+  // The read handle is closed first so BEGIN IMMEDIATE acquires cleanly.
   process.stderr.write("Run artifact index: stale, rebuilding\n");
   const result = await rebuildRunArtifactIndex(dataDir, { dbPath });
   process.stderr.write(`Run artifact index: rebuilt ${String(result.sourceRunCount)} run(s)\n`);

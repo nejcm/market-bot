@@ -6,7 +6,7 @@ import type { RunSearchResult, RunSummary, WatchlistRowState } from "../app/type
 import { marketUpdateHorizonBucketOf, type AssetClass, type JobType } from "./domain/job-type";
 import { isPredictionOrigin, type PredictionKind } from "./domain/prediction";
 import { isMarketRegimeLabel } from "./domain/report";
-import { dataRootFromRunsDir } from "./data-paths";
+import { runArtifactIndexDbPath, runArtifactIndexDisabled } from "./config";
 import {
   instrumentsForExpression,
   parseObservableExpression,
@@ -50,7 +50,6 @@ import type {
 } from "./scoring/types";
 
 export { INDEX_SCHEMA_VERSION };
-const DEFAULT_INDEX_FILE = "index.sqlite";
 const MAX_HISTORY_SEARCH_RESULTS = 100;
 const MAX_CONSOLE_SEARCH_RESULTS = 100;
 
@@ -78,28 +77,10 @@ export interface RunArtifactIndexStatus {
   readonly message: string;
 }
 
-export function defaultRunArtifactIndexPath(dataDir: string): string {
-  return join(dataRootFromRunsDir(dataDir), DEFAULT_INDEX_FILE);
-}
-
-export function configuredRunArtifactIndexPath(
-  dataDir: string,
-  env: Record<string, string | undefined> = process.env,
-): string {
-  return env.MARKET_BOT_INDEX_DB_PATH?.trim() || defaultRunArtifactIndexPath(dataDir);
-}
-
-function isRunArtifactIndexDisabled(
-  env: Record<string, string | undefined> = process.env,
-): boolean {
-  const value = env.MARKET_BOT_INDEX_DISABLE;
-  return value === "1" || value === "true";
-}
-
 export function readRunArtifactIndexStatus(
   dataDir: string,
   env: Record<string, string | undefined> = process.env,
-  dbPath: string = configuredRunArtifactIndexPath(dataDir, env),
+  dbPath: string = runArtifactIndexDbPath(dataDir, env),
 ): RunArtifactIndexStatus {
   const rebuildCommand = "bun run src/cli.ts index rebuild";
   const base = {
@@ -107,7 +88,7 @@ export function readRunArtifactIndexStatus(
     expectedSchemaVersion: INDEX_SCHEMA_VERSION,
     rebuildCommand,
   };
-  if (isRunArtifactIndexDisabled(env)) {
+  if (runArtifactIndexDisabled(env)) {
     return {
       ...base,
       state: "disabled",
@@ -230,7 +211,7 @@ export async function rebuildRunArtifactIndex(
   dataDir: string,
   options: RebuildOptions = {},
 ): Promise<RebuildRunArtifactIndexResult> {
-  const dbPath = options.dbPath ?? configuredRunArtifactIndexPath(dataDir);
+  const dbPath = options.dbPath ?? runArtifactIndexDbPath(dataDir);
   await mkdir(dirname(dbPath), { recursive: true });
   const runDirs = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
   const dirNames = runDirs
@@ -345,10 +326,10 @@ export async function writeThroughRunArtifactIndex(
   runDirs: readonly string[],
   options: RebuildOptions = {},
 ): Promise<void> {
-  if (isRunArtifactIndexDisabled() || runDirs.length === 0) {
+  if (runArtifactIndexDisabled() || runDirs.length === 0) {
     return;
   }
-  const dbPath = options.dbPath ?? configuredRunArtifactIndexPath(dataDir);
+  const dbPath = options.dbPath ?? runArtifactIndexDbPath(dataDir);
   if (!existsSync(dbPath)) {
     warnIndexFallback("index database missing, skipping write-through");
     return;
@@ -495,10 +476,10 @@ function normalizeSearchQuery(query: string): string | undefined {
 }
 
 function openReadableIndex(dataDir: string): Database | undefined {
-  if (isRunArtifactIndexDisabled()) {
+  if (runArtifactIndexDisabled()) {
     return;
   }
-  const dbPath = configuredRunArtifactIndexPath(dataDir);
+  const dbPath = runArtifactIndexDbPath(dataDir);
   if (!existsSync(dbPath)) {
     return;
   }

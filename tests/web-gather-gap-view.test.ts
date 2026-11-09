@@ -48,7 +48,7 @@ import {
   contextWithHistory,
   stagePromptFromArgs,
 } from "./support/research-context-helpers";
-import { assertSourceIdClosure } from "./support/run-fixtures/financial-invariants";
+import { assertSourceIdClosure } from "../src/corpus/financial-invariants";
 
 const command: ResearchCommand = {
   jobType: "equity",

@@ -1,25 +1,25 @@
-import { isRecord } from "../../src/guards";
-import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../src/domain/evidence";
-import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
+import { isRecord } from "../guards";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../domain/evidence";
+import { withCanonicalFinancialLensInputs } from "../sources/extended-evidence/financial-lens-canonical";
 import {
   addFinancialLensEvidence,
   type FinancialLensArtifact,
   type FinancialLensMetric,
-} from "../../src/sources/extended-evidence/financial-lens";
+} from "../sources/extended-evidence/financial-lens";
 import {
   financialStatementFacts,
   financialStatementSeries,
   latestFinancialStatementFact,
-} from "../../src/sources/extended-evidence/financial-statement-selection";
+} from "../sources/extended-evidence/financial-statement-selection";
 import { canonicalHistoryPropertyFailures } from "./offline-financial-history-properties";
-import { deriveFinancialStatements } from "../../src/sources/extended-evidence/financial-statements";
+import { deriveFinancialStatements } from "../sources/extended-evidence/financial-statements";
 import type {
   FinancialStatementFact,
   FinancialStatementsArtifact,
-} from "../../src/sources/extended-evidence/financial-statements-contract";
-import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";
-import type { FundamentalHistoryArtifact } from "../../src/sources/extended-evidence/fundamental-history";
-import { summarizeSecFundamentals } from "../../src/sources/extended-evidence/sec-edgar";
+} from "../sources/extended-evidence/financial-statements-contract";
+import { deriveFundamentalHistoryFromFinancialStatements } from "../sources/extended-evidence/fundamental-history-canonical";
+import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fundamental-history";
+import { summarizeSecFundamentals } from "../sources/extended-evidence/sec-edgar";
 import {
   allowanceKey,
   compareConsumers,
@@ -89,9 +89,7 @@ interface ProjectedStatementSeries {
   };
 }
 
-export interface OfflineCorpusProjection<
-  Fixture extends string = OfflineFinancialStatementFixtureId,
-> {
+interface OfflineCorpusProjection<Fixture extends string = OfflineFinancialStatementFixtureId> {
   readonly fixture: Fixture;
   readonly symbol: string;
   readonly analysisAsOf: string;
@@ -144,7 +142,7 @@ async function loadOfflineFinancialStatementInput(
   fixture: OfflineFinancialStatementFixtureId,
 ): Promise<OfflineFinancialStatementInput> {
   const path = new URL(
-    `../fixtures/financial-statements-corpus/${fixture}/input.json`,
+    `../../tests/fixtures/financial-statements-corpus/${fixture}/input.json`,
     import.meta.url,
   );
   const value: unknown = await Bun.file(path).json();
@@ -173,7 +171,7 @@ async function loadOfflineCorpusGolden(
   fixture: OfflineFinancialStatementFixtureId,
 ): Promise<OfflineCorpusProjection> {
   const path = new URL(
-    `../fixtures/financial-statements-corpus/${fixture}/golden.json`,
+    `../../tests/fixtures/financial-statements-corpus/${fixture}/golden.json`,
     import.meta.url,
   );
   const value: unknown = await Bun.file(path).json();
@@ -195,7 +193,10 @@ async function loadOfflineCorpusGolden(
 }
 
 async function loadOfflineCorpusAllowances(): Promise<readonly OfflineCorpusAllowance[]> {
-  const path = new URL("../fixtures/financial-statements-corpus/allowances.json", import.meta.url);
+  const path = new URL(
+    "../../tests/fixtures/financial-statements-corpus/allowances.json",
+    import.meta.url,
+  );
   const value: unknown = await Bun.file(path).json();
   if (
     !Array.isArray(value) ||
@@ -559,7 +560,7 @@ function injectCanonicalMutations(
 }
 
 // No kind: regenerate only the canonical hash. Kind + existing allowance: reclassify, no hash touched. Kind + justification + no existing allowance: create one, hashing both sides fresh.
-export interface OfflineCorpusAllowanceUpdate {
+interface OfflineCorpusAllowanceUpdate {
   readonly path: string;
   readonly kind?: OfflineCorpusAllowance["kind"];
   readonly justification?: string;

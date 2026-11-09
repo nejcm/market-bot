@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { FundamentalHistorySeries } from "../../src/sources/extended-evidence/fundamental-history";
+import type { FundamentalHistorySeries } from "../sources/extended-evidence/fundamental-history";
 import type {
   OfflineCorpusAllowance,
   OfflineCorpusDifference,

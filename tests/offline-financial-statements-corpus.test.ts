@@ -4,7 +4,7 @@ import {
   auditOfflineCorpusCase,
   loadOfflineCorpusCase,
   mutateOfflineCorpusCase,
-} from "./support/offline-financial-statements-corpus";
+} from "../src/corpus/offline-financial-statements-corpus";
 
 describe("offline financial-statement corpus", () => {
   test("locks every issuer projection and classifies every consumer difference offline", async () => {
@@ -58,12 +58,12 @@ describe("offline financial-statement corpus", () => {
 
   test("uses no collector, credential, network, or model seam", async () => {
     for (const path of [
-      "support/offline-financial-statements-corpus.ts",
-      "support/offline-financial-corpus-compare.ts",
-      "support/offline-financial-history-roster.ts",
-      "support/offline-financial-history-facts.ts",
-      "support/offline-financial-history-aliases.ts",
-      "support/offline-financial-lens-properties.ts",
+      "../src/corpus/offline-financial-statements-corpus.ts",
+      "../src/corpus/offline-financial-corpus-compare.ts",
+      "../src/corpus/offline-financial-history-roster.ts",
+      "../src/corpus/offline-financial-history-facts.ts",
+      "../src/corpus/offline-financial-history-aliases.ts",
+      "../src/corpus/offline-financial-lens-properties.ts",
       "support/synthetic-alias-companyfacts.ts",
       "support/offline-corpus-test-helpers.ts",
       "support/offline-financial-history-fixtures.ts",

@@ -1,4 +1,4 @@
-import type { FundamentalHistoryPoint } from "../../src/sources/extended-evidence/fundamental-history";
+import type { FundamentalHistoryPoint } from "../sources/extended-evidence/fundamental-history";
 import {
   aliasPoints,
   CANONICAL_DURATION_DEFINITIONS,
@@ -11,7 +11,7 @@ import type { OfflineCorpusExecution } from "./offline-financial-statements-corp
 
 // Revenue-alias interchangeability oracle: whether the concept the roster selected was the only one that could have been selected, or an alternate canonical revenue concept would have produced a superset of the same periods with identical values on every shared period.
 
-export type AliasRejectionReason = "not-a-superset" | "disagrees-on-shared-periods";
+type AliasRejectionReason = "not-a-superset" | "disagrees-on-shared-periods";
 
 export type AliasVerdict =
   | {

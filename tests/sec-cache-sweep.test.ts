@@ -7,7 +7,7 @@ import { deriveFinancialStatements } from "../src/sources/extended-evidence/fina
 import {
   collectFinancialStatementInvariants,
   assertFinancialStatementInvariants,
-} from "./support/run-fixtures/financial-invariants";
+} from "../src/corpus/financial-invariants";
 import {
   inferFilingForm,
   newestCachedEntry,

@@ -19,7 +19,7 @@ import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financia
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { collectedSources, researchReport } from "./support/fixtures";
 import { assertOperatingRatioInvariants } from "./support/run-fixtures/assertions";
-import { assertCompositeFactIntegrity } from "./support/run-fixtures/financial-invariants";
+import { assertCompositeFactIntegrity } from "../src/corpus/financial-invariants";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";

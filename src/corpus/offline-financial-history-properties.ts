@@ -2,7 +2,7 @@ import { yearsBetween } from "./fiscal-years";
 import {
   type FundamentalHistoryCagr,
   type FundamentalHistorySeries,
-} from "../../src/sources/extended-evidence/fundamental-history";
+} from "../sources/extended-evidence/fundamental-history";
 
 interface ProjectedHistorySeries {
   readonly concept: string | null;

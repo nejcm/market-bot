@@ -10,6 +10,7 @@ src/
   cli/args.ts         Argument parsing; cli/job-registry.ts for the CliCommand union and job shapes
   config.ts           Env-driven AppConfig
   config/runs/        Typed per-run-profile config (model, sampling knobs, depth profile)
+  corpus/             Offline financial-statement and untagged-table corpora, fixture financial invariants, phase-0 baseline (scripts and tests only)
   domain/             Shared types split by subsystem (job-type, instrument, prediction, report, sources, evidence, run-trace); run-type registry; research-language gate
   forecast/           Observable forecast contract: parser, expression shape, resolver
   model/              OpenAI / OpenAI-compatible / Codex / Anthropic providers
@@ -127,7 +128,7 @@ the analysis cutoff before period/restatement selection, supports domestic and f
 issuer periodic forms, and records cadence and exact-component TTM derivations (FY + latest YTD − prior YTD, or the latest fiscal year itself when no later period is filed). When the artifact
 exists, Fundamental History, Financial Lenses, completeness, and valuation derive from it without
 running legacy financial derivations. Without the artifact, Fundamental History is omitted; the
-legacy SEC summary still feeds Financial Lenses, and the test-only offline corpus pins lens
+legacy SEC summary still feeds Financial Lenses, and the offline corpus (`src/corpus/`) pins lens
 equivalence at this boundary.
 
 Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual

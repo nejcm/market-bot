@@ -4,7 +4,7 @@ import {
   measurePhase4EarningsCoverageComparison,
   PHASE4_EARNINGS_COMPARISON_PATH,
   readPhase4EarningsCoverageComparison,
-} from "../tests/support/phase0-equity-baseline";
+} from "../src/corpus/phase0-equity-baseline";
 
 const flag = process.argv[2] ?? "--check";
 if (flag !== "--check" && flag !== "--write") {

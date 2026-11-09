@@ -8,7 +8,7 @@ import {
   mutateOfflineCorpusCase,
   type OfflineCorpusCase,
   type OfflineCorpusExecution,
-} from "./offline-financial-statements-corpus";
+} from "../../src/corpus/offline-financial-statements-corpus";
 import {
   buildSyntheticAliasPayloads,
   type SyntheticAliasVariant,

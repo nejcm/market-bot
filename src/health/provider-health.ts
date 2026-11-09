@@ -32,7 +32,7 @@ import {
   readSourceGapAttempts,
   type LoadedDeepEquityEvidenceBundle,
 } from "../run-artifacts";
-import { readAnalytics } from "../run-artifact-analytics-reader";
+import { readAnalytics } from "../run-artifact-json-reader";
 import { isAssetClass, isJobType } from "../run-artifact-value-guards";
 import {
   rollupSubsystemOutcomes,

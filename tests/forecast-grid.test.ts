@@ -10,6 +10,7 @@ import { parseArgs } from "../src/cli/args";
 import type { SourceGap } from "../src/domain/sources";
 import { buildProviderHealthSummary } from "../src/health/provider-health";
 import { CONSOLE_JOB_TYPES, jobRequestArgv } from "../src/cli/job-registry";
+import { placeholderFactSheet } from "../src/forecast/grid-job";
 import type { ResearchReport } from "../src/domain/report";
 import type { ModelRequest } from "../src/model/types";
 import { makeReplayFetch, type DataCassette } from "../src/replay/data-cassette";
@@ -61,6 +62,9 @@ async function cassette(): Promise<DataCassette> {
     await readFile(join(FIXTURE_DIR, "data-cassette.json"), "utf8"),
   ) as DataCassette;
 }
+
+const horizons = (events: readonly { id: string; horizonTradingDays: number }[]) =>
+  events.map(({ id, horizonTradingDays }) => `${id}:${String(horizonTradingDays)}`);
 
 const forbiddenProvider = () => {
   throw new Error("dry run must not create a provider");
@@ -191,7 +195,12 @@ describe("forecast-grid command", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({ stage: "forecast-grid", responseFormat: "json" });
     const user = JSON.parse(requests[0]!.messages[1]!.content) as {
-      factSheet: { symbol: string; events: { id: string }[]; returnsPct: Record<string, number> };
+      factSheet: {
+        symbol: string;
+        events: { id: string; horizonTradingDays: number }[];
+        returnsPct: Record<string, number>;
+        benchmark: { symbol: string; returnsPct: Record<string, number> };
+      };
       responseShape: { eventGrid: { probability: unknown }[] };
     };
     // A numeric example would anchor every answer on one value (0.5 is the relative baseline).
@@ -199,6 +208,13 @@ describe("forecast-grid command", () => {
     expect(user.factSheet.symbol).toBe("AAPL");
     expect(user.factSheet.events.map(({ id }) => id)).toEqual(AAPL_EVENTS);
     expect(Object.keys(user.factSheet.returnsPct)).toEqual(["1", "5", "20", "60"]);
+    const placeholder = placeholderFactSheet("AAPL");
+    expect(horizons(placeholder.events)).toEqual(horizons(user.factSheet.events));
+    expect(placeholder.benchmark.symbol).toBe(user.factSheet.benchmark.symbol);
+    expect(Object.keys(placeholder.returnsPct)).toEqual(Object.keys(user.factSheet.returnsPct));
+    expect(Object.keys(placeholder.benchmark.returnsPct)).toEqual(
+      Object.keys(user.factSheet.benchmark.returnsPct),
+    );
 
     expect(report).toMatchObject({ jobType: "forecast-grid", assetClass: "equity" });
     expect(report.symbol).toBeUndefined();
@@ -316,9 +332,13 @@ describe("forecast-grid command", () => {
       factSheet: {
         asOf: string;
         benchmark: { symbol: string; asOf: string; returnsPct: Record<string, number> };
+        events: ReturnType<typeof placeholderFactSheet>["events"];
       };
     };
     expect(user.factSheet.benchmark.symbol).toBe("^KLSE");
+    const placeholder = placeholderFactSheet("0097.KL");
+    expect(placeholder.benchmark.symbol).toBe("^KLSE");
+    expect(placeholder.events).toEqual(user.factSheet.events);
     expect(user.factSheet.benchmark.asOf).toBe(user.factSheet.asOf);
     expect(Object.keys(user.factSheet.benchmark.returnsPct).length).toBeGreaterThan(0);
   });

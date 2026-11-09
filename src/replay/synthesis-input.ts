@@ -29,6 +29,8 @@ type PhaseInput = Omit<
   readonly knownSourceIds: readonly string[];
   readonly allowedSubjects?: readonly string[];
   readonly settings: StageSettings;
+  readonly context: SynthesizeReportUntilValidInput["context"] &
+    Required<Pick<SynthesizeReportUntilValidInput["context"], "evidenceQualityAssessment">>;
 };
 
 // The peer-median audit runs inside finalizeSynthesis, so stage replay needs its recording too.

@@ -251,7 +251,7 @@ export async function executeSynthesisInput(
   const finalized = await finalizeSynthesis(
     synthesis,
     collected,
-    context.evidenceQualityAssessment!,
+    context.evidenceQualityAssessment,
     createPeerMedianAudit({
       provider: {
         ...provider,

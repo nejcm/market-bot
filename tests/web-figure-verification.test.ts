@@ -439,6 +439,30 @@ describe("Verified Web Figure", () => {
       ).toBeUndefined();
     });
 
+    // Web Subject Profile quote of run 2026-11-09T20-12-16-531Z-ba3a337e (0097.KL), KLSE Screener page text.
+    test("accepts a labelled table row whose only context is its label", () => {
+      const page =
+        "SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \n\n" +
+        "| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\n| --- | --- | --- | --- | --- | --- |\n" +
+        "| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\n" +
+        "| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\n" +
+        "| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\n" +
+        "| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\n" +
+        "| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |";
+      const row = "| 1 | Revenue | 485,101 | 228,567 |";
+      expect(claim(page, "Revenue was RM485,101 thousand.", row, "MYR'000")).toEqual({
+        failure: undefined,
+        dropped: [],
+      });
+      expect(claim(page, "Revenue was RM485,101 thousand.", "485,101", "MYR'000")).toMatchObject({
+        failure: { reason: "quote-too-short" },
+        dropped: [{ reason: "quote-too-short" }],
+      });
+      expect(claim(page, "Revenue was 485,101.", row)).toMatchObject({
+        failure: { reason: "quote-too-short" },
+      });
+    });
+
     test("keeps the figure unverified when the unit header is not in the source", () => {
       expect(
         claim(

@@ -45,6 +45,8 @@ const DETERMINISTIC_KINDS: ReadonlySet<Source["kind"]> = new Set([
   "extended-evidence",
 ]);
 const MIN_QUOTE_CONTEXT_WORDS = 3;
+// A unitQuote row verifies only as a whole-label monetary row, so its label is the context.
+const MIN_UNIT_QUOTE_CONTEXT_WORDS = 1;
 const GAP_PREFIX = "Verified Web Figure check withheld";
 
 const CURRENCY_PREFIX = String.raw`US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc}`;
@@ -960,11 +962,13 @@ function checkedQuote(
   }
   const needle = normalizedQuoteText(quote.quote);
   const contextWords = needle.replaceAll(FIGURE_PATTERN, " ").match(/\p{L}{2,}/gu) ?? [];
-  if (contextWords.length < MIN_QUOTE_CONTEXT_WORDS) {
+  const { unitQuote } = quote;
+  const minContextWords =
+    unitQuote === undefined ? MIN_QUOTE_CONTEXT_WORDS : MIN_UNIT_QUOTE_CONTEXT_WORDS;
+  if (contextWords.length < minContextWords) {
     return failed("quote-too-short");
   }
   const matched = quotedSourceFigures(needle, stored);
-  const { unitQuote } = quote;
   const spans =
     unitQuote === undefined
       ? matched.map(({ placed }) => placed.map(({ figure }) => figure))

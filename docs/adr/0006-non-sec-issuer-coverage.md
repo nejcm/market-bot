@@ -28,7 +28,10 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
     asked for (run `b7171fdf`, three of its five prunes). A dropped quote is traced in
     `reportIntegrityAudit.droppedFigureQuotes` with its location and reason, or becomes a profile Source Gap on a
     Web Subject Profile row; a claim figure that only a dropped quote held fails with that quote's reason. A quote
-    needs at least three words outside its figures; a bare number matches almost any page.
+    needs at least three words outside its figures; a bare number matches almost any page. A quote with
+    `unitQuote` needs one word, since it verifies only as a whole-label monetary row and the label is the
+    context (amended 2026-11-10); the three-word floor dropped a `| 1 | Revenue | 485,101 | 228,567 |` row as
+    `quote-too-short` and withheld the profile's KPIs (run `ba3a337e`, 0097.KL).
   - A table figure whose currency and scale appear only in its column's unit header adds `unitQuote`, that header
     cell verbatim (amended 2026-11-09). Code splits the same stored text into pipe tables (a blank line, a non-table
     line, or a Markdown separator row starts a new one), finds each quoted figure's own cell, and walks up from its row to the table top. Every row

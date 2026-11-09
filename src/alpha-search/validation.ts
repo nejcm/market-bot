@@ -1,4 +1,5 @@
 import type { ResearchReport } from "../domain/report";
+import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import type { Observation, ObservationRepository } from "../scoring/observations";
 import type { AlphaSearchDiscoverySource } from "./candidates";
@@ -99,6 +100,85 @@ export interface AlphaValidationFile {
   readonly benchmarkSymbol: string;
   readonly horizons: readonly number[];
   readonly leads: readonly AlphaValidationLeadResult[];
+}
+
+const RESOLVED_HORIZON_NUMBER_KEYS = [
+  "candidateClose0",
+  "candidateCloseN",
+  "benchmarkClose0",
+  "benchmarkCloseN",
+  "candidateReturn",
+  "benchmarkReturn",
+  "excessReturn",
+] as const;
+const RESOLVED_HORIZON_DATE_KEYS = [
+  "candidateDate0",
+  "candidateDateN",
+  "benchmarkDate0",
+  "benchmarkDateN",
+] as const;
+
+function isAlphaValidationHorizon(value: unknown): value is AlphaValidationHorizon {
+  if (
+    !isRecord(value) ||
+    readNumber(value, "horizonTradingDays") === undefined ||
+    readString(value, "benchmarkSymbol") === undefined
+  ) {
+    return false;
+  }
+  if (value.status === "resolved") {
+    return (
+      RESOLVED_HORIZON_NUMBER_KEYS.every((key) => readNumber(value, key) !== undefined) &&
+      RESOLVED_HORIZON_DATE_KEYS.every((key) => readString(value, key) !== undefined) &&
+      (value.outcome === "outperformed" || value.outcome === "did-not-outperform")
+    );
+  }
+  return (
+    value.status === "unresolved" &&
+    (value.reason === "horizon-not-elapsed" || value.reason === "observation-unavailable") &&
+    (value.missingInstruments === undefined ||
+      readStringArray(value, "missingInstruments") !== undefined)
+  );
+}
+
+function isAlphaValidationLeadResult(value: unknown): value is AlphaValidationLeadResult {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const discoverySources = readStringArray(value, "discoverySources");
+  const { horizons } = value;
+  return (
+    readString(value, "symbol") !== undefined &&
+    (value.name === undefined || readString(value, "name") !== undefined) &&
+    discoverySources !== undefined &&
+    discoverySources.every((source) => source === "apewisdom" || source === "sec-filings") &&
+    (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
+    (value.socialMomentumScore === undefined ||
+      readNumber(value, "socialMomentumScore") !== undefined) &&
+    readStringArray(value, "sourceIds") !== undefined &&
+    (value.sourceGroup === "apewisdom-only" ||
+      value.sourceGroup === "sec-only" ||
+      value.sourceGroup === "apewisdom+sec") &&
+    Array.isArray(horizons) &&
+    horizons.every((horizon) => isAlphaValidationHorizon(horizon))
+  );
+}
+
+export function isAlphaValidationFile(value: unknown): value is AlphaValidationFile {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const { horizons, leads } = value;
+  return (
+    readString(value, "runId") !== undefined &&
+    readString(value, "validatedAt") !== undefined &&
+    readString(value, "generatedAt") !== undefined &&
+    readString(value, "benchmarkSymbol") !== undefined &&
+    Array.isArray(horizons) &&
+    horizons.every((horizon) => typeof horizon === "number" && Number.isFinite(horizon)) &&
+    Array.isArray(leads) &&
+    leads.every((lead) => isAlphaValidationLeadResult(lead))
+  );
 }
 
 export interface AlphaValidationMetrics {

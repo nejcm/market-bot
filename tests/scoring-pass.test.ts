@@ -1459,6 +1459,61 @@ describe("runScorePass Alpha validation", () => {
     }
   });
 
+  test.each([
+    ["a wrong shape", `${JSON.stringify({ runId: "alpha-run-1", leads: [{ horizons: "x" }] })}\n`],
+    ["invalid JSON", "{"],
+  ])("treats an alpha validation sidecar with %s as absent and warns", async (_label, body) => {
+    const runDir = await writeRun(
+      "alpha-run-1",
+      report([], {
+        runId: "alpha-run-1",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 1,
+          secCandidateCount: 0,
+          researchLeads: [
+            {
+              symbol: "ALFA",
+              exchange: "NMS",
+              price: 10,
+              volume: 1_000_000,
+              marketCap: 500_000_000,
+              discoverySources: ["apewisdom"],
+              sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+            },
+          ],
+          rejectedCandidates: [],
+        },
+      }),
+    );
+    await writeFile(join(runDir, "alpha-validation.json"), body, "utf8");
+    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+    const stderrChunks: string[] = [];
+    process.stderr.write = ((chunk: unknown) => {
+      stderrChunks.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+
+    try {
+      const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+        refreshProviderHealth: async () => {},
+        observationRepository: { point: noObservation, window: async () => [] },
+      });
+
+      expect(result).toMatchObject({ scored: 1, skipped: 0 });
+      expect(stderrChunks.join("")).toContain("Ignoring malformed alpha validation sidecar:");
+      const validation = await readAlphaValidation(runDir);
+      expect(validation.runId).toBe("alpha-run-1");
+      expect(validation.leads.map((lead) => lead.symbol)).toEqual(["ALFA"]);
+      const summary = await readAlphaValidationSummary();
+      expect(summary.runCount).toBe(1);
+    } finally {
+      process.stderr.write = originalStderrWrite;
+    }
+  });
+
   test("throws when persisted alpha watchlist is malformed while building cohorts", async () => {
     await mkdir(join(tmpDir, "alpha-search"), { recursive: true });
     await writeFile(join(tmpDir, "alpha-search", "watchlist.json"), "{", "utf8");

@@ -5,6 +5,7 @@ import { dataRootFromRunsDir, listRunDirNames } from "../data-paths";
 import { isInstrumentJobType } from "../domain/job-type";
 import { type ResearchReport } from "../domain/report";
 import { isRecord, readNumber, readString } from "../guards";
+import { readJsonFile } from "../run-artifact-json-reader";
 import { loadRunArtifact } from "../run-artifacts";
 import { NORMALIZED_DIR, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { ObservationRepository } from "../scoring/observations";
@@ -28,6 +29,7 @@ import {
 import {
   buildAlphaValidationSummary,
   isAlphaValidationComplete,
+  isAlphaValidationFile,
   renderAlphaValidationSummaryMarkdown,
   validateAlphaSearchReport,
   type AlphaValidationPrerequisiteInput,
@@ -43,12 +45,15 @@ async function listRunDirs(dataDir: string): Promise<readonly string[]> {
 }
 
 async function loadAlphaValidationFile(runDir: string): Promise<AlphaValidationFile | undefined> {
-  try {
-    const raw = await readFile(join(runDir, ALPHA_VALIDATION_FILE), "utf8");
-    return JSON.parse(raw) as AlphaValidationFile;
-  } catch {
-    return undefined;
+  const path = join(runDir, ALPHA_VALIDATION_FILE);
+  const file = await readJsonFile(path);
+  if (file.status === "ok" && isAlphaValidationFile(file.value)) {
+    return file.value;
   }
+  if (file.status !== "absent") {
+    process.stderr.write(`Ignoring malformed alpha validation sidecar: ${path}\n`);
+  }
+  return undefined;
 }
 
 async function loadAlphaCandidateProfiles(

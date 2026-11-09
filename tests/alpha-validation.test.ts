@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildAlphaValidationSummary,
+  isAlphaValidationFile,
   renderAlphaValidationSummaryMarkdown,
   validateAlphaSearchReport,
   type AlphaValidationFile,
@@ -71,6 +72,66 @@ function datedWindow(
 ): readonly Observation[] {
   return values.map(([date, value]) => ({ subject, date, value }));
 }
+
+describe("isAlphaValidationFile", () => {
+  test("accepts written validations and rejects malformed shapes", async () => {
+    const written = await validateAlphaSearchReport({
+      report: alphaReport({
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 1,
+          secCandidateCount: 0,
+          researchLeads: [
+            lead(),
+            {
+              symbol: "BETA",
+              exchange: "NMS",
+              price: 5,
+              volume: 1_000_000,
+              marketCap: 300_000_000,
+              discoverySources: ["sec-filings"],
+              sourceIds: ["sec-BETA"],
+            },
+          ],
+          rejectedCandidates: [],
+        },
+      }),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+      repository: observationRepository([
+        ...closeWindow("ALFA", [10, 10, 10, 10, 10, 11]),
+        ...closeWindow("IWM", [100, 100, 100, 100, 100, 101]),
+      ]),
+      horizons: [5, 20],
+    });
+    const valid = structuredClone(written) as AlphaValidationFile;
+    const [first] = valid.leads;
+    if (first === undefined) {
+      throw new Error("expected a validated lead");
+    }
+    const [resolved, unresolved] = first.horizons;
+
+    expect(resolved?.status).toBe("resolved");
+    expect(unresolved?.status).toBe("unresolved");
+    expect(isAlphaValidationFile(valid)).toBe(true);
+    for (const malformed of [
+      undefined,
+      [],
+      { ...valid, runId: "" },
+      { ...valid, horizons: [5, "20"] },
+      { ...valid, leads: {} },
+      { ...valid, leads: [{ ...first, sourceGroup: "reddit" }] },
+      { ...valid, leads: [{ ...first, discoverySources: ["twitter"] }] },
+      { ...valid, leads: [{ ...first, socialRank: "1" }] },
+      { ...valid, leads: [{ ...first, horizons: [{ ...resolved, outcome: "beat" }] }] },
+      { ...valid, leads: [{ ...first, horizons: [{ ...resolved, excessReturn: null }] }] },
+      { ...valid, leads: [{ ...first, horizons: [{ ...unresolved, reason: "later" }] }] },
+      { ...valid, leads: [{ ...first, horizons: [{ ...unresolved, missingInstruments: [1] }] }] },
+      { ...valid, leads: [{ ...first, horizons: [{ ...unresolved, status: "pending" }] }] },
+    ]) {
+      expect(isAlphaValidationFile(malformed)).toBe(false);
+    }
+  });
+});
 
 describe("validateAlphaSearchReport", () => {
   test("resolves outperformance when candidate return beats IWM", async () => {

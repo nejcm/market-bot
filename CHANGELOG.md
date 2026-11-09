@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.13.11](https://github.com/nejcm/market-bot/compare/v1.13.10...v1.13.11) (2026-11-09)
+
+### Bug Fixes
+
+- **artifacts:** fsync atomic writes and route shared writes through them (#171) ([b6a1d90](https://github.com/nejcm/market-bot/commit/b6a1d9027c01fb41df8eacccb92d9e1f4aa9e4ea))
+- **forecast:** drop unbaselined grid ranges, reject duplicate grid ids (#170) ([8b1b8ad](https://github.com/nejcm/market-bot/commit/8b1b8adf0391e21a553cbd0a0307b5d6eda99065))
+- **scoring:** cluster brier error by subject session, note ci limits (#169) ([6c1e83b](https://github.com/nejcm/market-bot/commit/6c1e83bd3991819e79c59a081a0d24c25c6c1089))
+- **paths:** resolve every shared data path from one root (#168) ([957e9ae](https://github.com/nejcm/market-bot/commit/957e9ae452a77ed06d5bc58a3e3a3b847c702061))
+- **research:** persist the run when post-synthesis steps throw (#167) ([72c2e87](https://github.com/nejcm/market-bot/commit/72c2e8704aed540e807edf9e3c7b536e0687fdd9))
+- **web-figures:** drop failing quotes, keep code-rendered claims (#165) ([344a909](https://github.com/nejcm/market-bot/commit/344a9093149480393785e123858c966d72f8dcec))
+- **audit:** stop counting index, form and product names as figures (#164) ([08ced2a](https://github.com/nejcm/market-bot/commit/08ced2a2bd04e7d5634d5206cf2fe6abb34ba834))
+
+### Performance
+
+- **replay:** reference cassette bodies instead of copying them (#172) ([fb2d1b5](https://github.com/nejcm/market-bot/commit/fb2d1b50d04919456de0681cbb4701dcb7d15840))
+
 ## [1.13.10](https://github.com/nejcm/market-bot/compare/v1.13.9...v1.13.10) (2026-11-07)
 
 ### Bug Fixes

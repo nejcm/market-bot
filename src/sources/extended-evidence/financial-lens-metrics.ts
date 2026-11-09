@@ -3,8 +3,8 @@ import { DAY_MS } from "../../config/shared";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
 import {
   marketCapQuotePhrase,
+  resolveMarketSnapshotPriceAsOf,
   type MarketSnapshot,
-  type MarketSnapshotPriceAsOf,
 } from "../../domain/market-data";
 import type { SourceGap } from "../../domain/sources";
 import { type SecFactMetricKey, type SecMetricKey } from "./financial-lens-canonical";
@@ -188,10 +188,10 @@ export function valuationDateBasisMetric(
   if (quoteObservedAt === undefined || balanceSheetPeriodEnd === undefined) {
     return [];
   }
-  const priceAsOf: MarketSnapshotPriceAsOf =
-    quoteTimeUtc === undefined
-      ? { kind: "fetch-time-only", instant: quoteObservedAt }
-      : { kind: "quote-time", instant: quoteTimeUtc };
+  const priceAsOf = resolveMarketSnapshotPriceAsOf({
+    observedAt: quoteObservedAt,
+    ...(quoteTimeUtc === undefined ? {} : { quoteTimeUtc }),
+  });
   const quoteDate = priceAsOf.instant.slice(0, 10);
   const divergenceDays =
     Math.abs(Date.parse(quoteDate) - Date.parse(balanceSheetPeriodEnd)) / DAY_MS;

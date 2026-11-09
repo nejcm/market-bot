@@ -8,7 +8,7 @@ import type {
 } from "../sources/extended-evidence/valuation-comps";
 import { CAPEX_SCOPE_CAVEAT } from "../sources/extended-evidence/financial-statement-definitions";
 import { compsCashLabel } from "../sources/extended-evidence/valuation-comps-contract";
-import type { MarketSnapshotPriceAsOf } from "../domain/market-data";
+import { resolveRowPriceAsOf, type MarketSnapshotPriceAsOf } from "../domain/market-data";
 import type { ResearchReport } from "../domain/report";
 import { formatMetricValue } from "../sources/extended-evidence/value-format";
 import type { MetricResult } from "../sources/extended-evidence/metric-engine";
@@ -111,12 +111,7 @@ function peerRole(row: ValuationCompsRow, targetSymbol: string): string {
 }
 
 function rowPriceAsOf(row: ValuationCompsRow): MarketSnapshotPriceAsOf | undefined {
-  return (
-    row.priceAsOf ??
-    (row.quoteObservedAt === undefined
-      ? undefined
-      : { kind: "fetch-time-only", instant: row.quoteObservedAt })
-  );
+  return resolveRowPriceAsOf(row.priceAsOf, row.quoteObservedAt);
 }
 
 function priceAsOfLabel(priceAsOf: MarketSnapshotPriceAsOf | undefined): string | undefined {

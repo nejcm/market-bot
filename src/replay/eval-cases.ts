@@ -5,6 +5,7 @@ import { claimsForReport } from "../research/report-integrity-audit";
 import { judgeItem, type JudgeItem, type JudgeMeter, type JudgeResult } from "./eval-judge";
 import { modelAuthoredReportSegments } from "../report/schema";
 import { splitMetricReferences } from "../research/metric-references";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import type { ModelProvider } from "../model/types";
 
 const EVAL_CHECKS = [
@@ -272,8 +273,11 @@ function narrativeNumbers(text: string): number {
 }
 
 // One accepted final-synthesis output: metric references the renderer resolves vs figures the model typed; predictions excluded.
-export function synthesisFigureCounts(content: string): {
-  readonly metricReferences: number;
+export function synthesisFigureCounts(
+  content: string,
+  sections: readonly MetricSection[] | undefined,
+): {
+  readonly metricReferences: number | undefined;
   readonly typedFigures: number;
   readonly figureQuotes: number;
 } {
@@ -283,7 +287,7 @@ export function synthesisFigureCounts(content: string): {
   let figureQuotes = 0;
   const walk = (node: unknown): void => {
     if (typeof node === "string") {
-      const { prose, references } = splitMetricReferences(node);
+      const { prose, references } = splitMetricReferences(node, sections ?? []);
       metricReferences += references;
       typedFigures += narrativeNumbers(prose);
     } else if (Array.isArray(node)) {
@@ -299,7 +303,11 @@ export function synthesisFigureCounts(content: string): {
     }
   };
   walk(payload);
-  return { metricReferences, typedFigures, figureQuotes };
+  return {
+    metricReferences: sections === undefined ? undefined : metricReferences,
+    typedFigures,
+    figureQuotes,
+  };
 }
 
 const METADATA_KEY =

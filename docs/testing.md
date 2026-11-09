@@ -74,7 +74,8 @@ validated report/Markdown, synthesis attempts, audit diagnostics, token groups a
 deltas against the captured baseline; failures exit nonzero. Direct-input eval summaries have
 phase-only scope: `--compare` shows status, durations, call/token counts and report-derived
 predictions, citations, data gaps and integrity, plus `synthesis.metricReferences` (Metric References in
-the accepted output), `synthesis.typedFigures` (numbers typed outside them, unitless included; dates, years, ordinals,
+the accepted output, counting an unprefixed exact catalog id that assembly prefixes; the catalog is
+rebuilt from the sample's `input` capture, and a sample whose capture is gone leaves it unmeasured), `synthesis.typedFigures` (numbers typed outside them, unitless included; dates, years, ordinals,
 identifiers and predictions excluded) and `synthesis.unmatchedFigures` (the figure diagnostic below); a
 sample without an accepted output leaves these unmeasured, not zero. It refuses to compare them with fixture labels.
 These are read from each sample's `synthesis.json` and `eval-sample.json` at compare time, so labels written

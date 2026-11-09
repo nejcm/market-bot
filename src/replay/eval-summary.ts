@@ -7,14 +7,17 @@ import { USAGE_FIELDS } from "../model/types";
 import { readGapTriage } from "../report/gap-triage";
 import { knownSourceIds } from "../report/markdown-primitives";
 import type { StageOutput } from "../research/final-synthesis";
+import { referenceMetricSections } from "../research/metric-references";
 import type { RunAnalytics } from "../research/run-analytics";
 import { rollupStageUsage, type StageUsageRollup } from "../research/stage-usage";
 import { readAnalytics } from "../run-artifact-analytics-reader";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import { readJsonFile } from "../run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { readSourceGaps } from "../run-artifact-report-reader";
 import { loadRunArtifact, type RunArtifact } from "../run-artifacts";
 import { synthesisFigureCounts } from "./eval-cases";
+import { loadSynthesisReplayInput } from "./synthesis-input";
 import type { LiveStage, ReplayProvider } from "./llm-cassette";
 
 export const EVAL_SAMPLE_FILE = "eval-sample.json";
@@ -304,6 +307,25 @@ interface SynthesisSampleRecord {
   readonly tokens: EvalSampleRecord["tokens"];
   readonly modelReplayMisses: readonly string[];
   readonly metrics: Readonly<Record<string, number>>;
+  readonly input?: unknown;
+}
+
+// The catalog assembly prefixed against; undefined when the sample's capture is gone or unreadable.
+async function sampleMetricCatalog(
+  record: SynthesisSampleRecord,
+  catalogs: Map<string, Promise<readonly MetricSection[] | undefined>>,
+): Promise<readonly MetricSection[] | undefined> {
+  if (typeof record.input !== "string") {
+    return undefined;
+  }
+  const cached =
+    catalogs.get(record.input) ??
+    loadSynthesisReplayInput(record.input).then(
+      ({ input }) => referenceMetricSections(input.collectedSources),
+      () => undefined,
+    );
+  catalogs.set(record.input, cached);
+  return cached;
 }
 
 function isCounts(value: unknown): value is { readonly replayed: number; readonly live: number } {
@@ -331,7 +353,10 @@ function isIntegrityAudit(value: unknown): value is Record<string, unknown> {
   );
 }
 
-async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetrics> {
+async function synthesisSampleMetrics(
+  sampleDir: string,
+  catalogs: Map<string, Promise<readonly MetricSection[] | undefined>>,
+): Promise<EvalSampleMetrics> {
   const sample = basename(sampleDir);
   const file = await readJsonFile(join(sampleDir, EVAL_SAMPLE_FILE));
   const record =
@@ -398,8 +423,13 @@ async function synthesisSampleMetrics(sampleDir: string): Promise<EvalSampleMetr
     available.add("tokens");
   }
   if (isRecord(accepted) && typeof accepted.content === "string") {
-    const counts = synthesisFigureCounts(accepted.content);
-    metrics["synthesis.metricReferences"] = counts.metricReferences;
+    const counts = synthesisFigureCounts(
+      accepted.content,
+      await sampleMetricCatalog(record, catalogs),
+    );
+    if (counts.metricReferences !== undefined) {
+      metrics["synthesis.metricReferences"] = counts.metricReferences;
+    }
     metrics["synthesis.typedFigures"] = counts.typedFigures;
     metrics["synthesis.figureQuotes"] = counts.figureQuotes;
   }
@@ -468,9 +498,11 @@ export async function readEvalSummary(root: string, label: string): Promise<Eval
   }
   // Summary dirs are absolute at write time; resolve them under this label so moved labels still read.
   const samples = [];
+  const catalogs = new Map<string, Promise<readonly MetricSection[] | undefined>>();
   for (const { dir } of summary.samples as readonly { dir: string }[]) {
+    const sampleDir = join(labelDir, pathSegment(basename(dir)));
     // oxlint-disable-next-line no-await-in-loop -- small, ordered sample list
-    samples.push(await synthesisSampleMetrics(join(labelDir, pathSegment(basename(dir)))));
+    samples.push(await synthesisSampleMetrics(sampleDir, catalogs));
   }
   return { label, scope: SYNTHESIS_SCOPE, samples };
 }

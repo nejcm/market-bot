@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { cp, mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, basename } from "node:path";
+import { join, basename, dirname } from "node:path";
 import { loadFixture, runFixture, createFixtureConfig } from "../src/replay/fixture-run";
 import { runDeepEquity } from "../src/deep-equity";
 import { parseArgs } from "../src/cli/args";
@@ -35,7 +35,9 @@ import {
   formatSynthesisEstimate,
 } from "../src/replay/replay-synthesis";
 import { rerunReport } from "../src/replay/rerun-report";
-import { parseEvalCases, type OmissionCase } from "../src/replay/eval-cases";
+import { parseEvalCases, synthesisFigureCounts, type OmissionCase } from "../src/replay/eval-cases";
+import { readEvalSummary } from "../src/replay/eval-summary";
+import { referenceMetricSections } from "../src/research/metric-references";
 import { resolveConfig } from "../src/config";
 import { assertNoSecretsInFiles } from "../scripts/fixture-secret-scan";
 import { runEvalSample } from "../src/replay/eval-run";
@@ -464,6 +466,20 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(metrics.tokens.live).toBe(0);
     expect(metrics.tokens.replayed).toBeGreaterThan(0);
     expect(saved.promptProvenance).toHaveLength(1);
+    await writeFile(
+      join(dir, "summary.json"),
+      JSON.stringify({ scope: "final-synthesis-only", samples: [{ dir: stage.dir }] }),
+    );
+    const [summarized] = (await readEvalSummary(dirname(dir), basename(dir))).samples;
+    const accepted = JSON.parse(
+      await readFile(join(stage.dir, "synthesis.json"), "utf8"),
+    ).stageOutputs.findLast((row: { stage: string }) => row.stage === "final-synthesis").content;
+    const { metricReferences } = synthesisFigureCounts(
+      accepted,
+      referenceMetricSections(saved.input.collectedSources),
+    );
+    expect(metricReferences).toBeNumber();
+    expect(summarized?.metrics["synthesis.metricReferences"]).toBe(metricReferences);
     const estimate = await estimateSynthesisFile(file);
     const unjudged = formatSynthesisEstimate(estimate, 2, false, "overhead note");
     expect(unjudged).toContain("Report judge skipped (--no-judge)");

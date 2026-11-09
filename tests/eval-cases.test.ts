@@ -59,7 +59,7 @@ function isJudged(row: (typeof cases)[number]) {
 }
 
 const typed = (text: string) =>
-  synthesisFigureCounts(JSON.stringify({ keyFindings: [{ text }] })).typedFigures;
+  synthesisFigureCounts(JSON.stringify({ keyFindings: [{ text }] }), []).typedFigures;
 
 const clippedClaim = (notes: string) =>
   reportJudgeItems(
@@ -1003,6 +1003,7 @@ describe("deterministic checks", () => {
           ],
           predictions: [{ measurableAs: "AAPL close outside [$100, $120] on 2026-06-01" }],
         }),
+        [],
       ),
     ).toEqual({ metricReferences: 2, typedFigures: 2, figureQuotes: 1 });
     expect(typed("RSI14 was 55.00 and close was 108.00.")).toBe(2);
@@ -1010,6 +1011,26 @@ describe("deterministic checks", () => {
     expect(typed("Volume 20,153,700 vs 1.2M; 3 segments, -4% and 2x.")).toBe(5);
     expect(typed("EPS was -.50 and margin was .25%.")).toBe(2);
     expect(typed("Yield .5, change -.75%, beta .9.")).toBe(3);
+  });
+
+  test("synthesis figure counts take an unprefixed catalog id as the reference assembly makes it", () => {
+    const sections = referenceMetricSections(
+      collectedSources({ verifiedMarketSnapshot: verifiedMarketSnapshot() }),
+    );
+    const content = JSON.stringify({
+      keyFindings: [
+        {
+          text: "Close <<market-session.close|period>>, RSI <<market-session.rsi99>>, <<metric:market-session.rsi14>>.",
+        },
+      ],
+    });
+    expect(synthesisFigureCounts(content, sections).metricReferences).toBe(2);
+    expect(synthesisFigureCounts(content, []).metricReferences).toBe(1);
+    expect(synthesisFigureCounts(content, undefined)).toEqual({
+      metricReferences: undefined,
+      typedFigures: 0,
+      figureQuotes: 0,
+    });
   });
 
   test("rejects malformed and duplicate cases", () => {

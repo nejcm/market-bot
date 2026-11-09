@@ -152,14 +152,18 @@ function withChange(value: string | undefined, metric: MetricResult): string | u
   return `${/^[-+]/u.test(value) ? "" : "+"}${value} ${metric.change.over}`;
 }
 
-// Prose with every well-formed reference removed, and how many there were.
-export function splitMetricReferences(text: string): {
+// Prose with every well-formed reference removed, and how many there were, counting catalog ids assembly prefixes.
+export function splitMetricReferences(
+  text: string,
+  sections: readonly MetricSection[],
+): {
   readonly prose: string;
   readonly references: number;
 } {
+  const prefixed = withMetricPrefix(text, sections, new Map());
   return {
-    prose: text.replaceAll(REFERENCE, " "),
-    references: [...text.matchAll(REFERENCE)].length,
+    prose: prefixed.replaceAll(REFERENCE, " "),
+    references: [...prefixed.matchAll(REFERENCE)].length,
   };
 }
 

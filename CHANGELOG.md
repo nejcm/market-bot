@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.1](https://github.com/nejcm/market-bot/compare/v1.15.0...v1.15.1) (2026-11-09)
+
+### Bug Fixes
+
+- console 500s, malformed alpha sidecars and a replayed prune path (#193) ([e19e082](https://github.com/nejcm/market-bot/commit/e19e082769ed25a7b46d9e12d6c810c1724d0170))
+
 ## [1.15.0](https://github.com/nejcm/market-bot/compare/v1.14.2...v1.15.0) (2026-11-09)
 
 ### Features

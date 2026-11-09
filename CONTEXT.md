@@ -14,7 +14,7 @@ Domain glossary. Definitions state what a term means and the invariants that mat
 
 **Run Artifact** — Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`. Later runs and history read it; Source Providers are never refetched for it. Layout in AGENTS.md.
 
-**Failed Run Artifact** — Diagnostics of a run whose final synthesis never produced a valid Research View. `failure.json` marks it complete; `report.json` is deliberately absent.
+**Failed Run Artifact** — Diagnostics of a run whose final synthesis never produced a valid Research View, or whose post-synthesis finalize step threw. `failure.json` marks it complete; `report.json` is deliberately absent.
 
 **Run Artifact Index** — Rebuildable SQLite index over Run Artifacts for console/search/calibration queries. Disk artifacts stay authoritative; a missing or stale index falls back to disk or rebuilds.
 

@@ -209,6 +209,7 @@ function failedManifest(overrides: Partial<Parameters<typeof buildFailedRunManif
     runId: "run-1",
     generatedAt: GENERATED_AT,
     failedAt: GENERATED_AT,
+    phase: "final-synthesis",
     message: "Report failed validation",
     reportValidationErrors: ["Report contains trade-action language"],
     predictionErrors: [],

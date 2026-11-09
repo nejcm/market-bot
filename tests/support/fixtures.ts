@@ -405,6 +405,7 @@ export function failedRunOutcomesArtifact(
     runId: "failed-run",
     generatedAt,
     failedAt: generatedAt,
+    phase: "final-synthesis",
     message: "Report failed validation",
     reportValidationErrors: ["Report failed validation"],
     predictionErrors: [],

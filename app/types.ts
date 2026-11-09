@@ -31,7 +31,9 @@ export interface RunSummary {
 export interface FailedRunArtifactFailure {
   readonly generatedAt?: string;
   readonly failedAt?: string;
+  readonly phase?: "final-synthesis" | "post-synthesis";
   readonly message?: string;
+  readonly stack?: string;
   readonly reportValidationErrors?: readonly string[];
   readonly predictionErrors?: readonly string[];
   readonly totalCalls?: number;

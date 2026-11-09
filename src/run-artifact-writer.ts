@@ -70,16 +70,19 @@ export interface ResearchRunManifestResult {
   readonly marketUpdateMovers?: readonly Mover[];
 }
 
-interface FailedRunManifestInput {
+export interface FailedRunManifestInput {
   readonly command: ResearchCommand;
   readonly runId: string;
   readonly generatedAt: string;
   readonly failedAt: string;
+  // "post-synthesis": synthesis was accepted but a later deterministic stage threw.
+  readonly phase: "final-synthesis" | "post-synthesis";
   readonly message: string;
+  readonly stack?: string;
   readonly reportValidationErrors: readonly string[];
   readonly predictionErrors: readonly string[];
-  readonly totalCalls: number;
-  readonly reportRepairReprompts: number;
+  readonly totalCalls?: number;
+  readonly reportRepairReprompts?: number;
   readonly stageOutputs: readonly StageOutput[];
   readonly modelCalls: readonly ModelCallRecord[];
   readonly payload: ModelReportPayload;
@@ -239,6 +242,7 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
   readonly failure: RunArtifactWrite;
 } {
   const { tokenEstimate, costEstimateUsd } = ledgerTotals(input.modelCalls);
+  const rejected = input.phase === "final-synthesis";
   const outcomes = buildSubsystemOutcomes({
     sourcePlan: input.sourcePlan,
     evidenceLanes: input.evidenceLanes,
@@ -255,7 +259,7 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
       ? { spotlightSelection: input.spotlightSelection }
       : {}),
     playbookAudit: input.playbookAudit,
-    finalSynthesisRejected: true,
+    blockedBy: rejected ? "final-synthesis-rejected" : "post-synthesis-failed",
   });
   const writes: readonly RunArtifactWrite[] = [
     {
@@ -344,22 +348,25 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
         runId: input.runId,
         generatedAt: input.generatedAt,
         failedAt: input.failedAt,
-        phase: "final-synthesis",
+        phase: input.phase,
         jobType: input.command.jobType,
         assetClass: input.command.assetClass,
         ...(isInstrumentCommand(input.command) ? { symbol: input.command.symbol } : {}),
         depth: input.command.depth,
         message: input.message,
+        ...(input.stack !== undefined ? { stack: input.stack } : {}),
         reportValidationErrors: input.reportValidationErrors,
         predictionErrors: input.predictionErrors,
-        totalCalls: input.totalCalls,
-        reportRepairReprompts: input.reportRepairReprompts,
+        ...(input.totalCalls !== undefined ? { totalCalls: input.totalCalls } : {}),
+        ...(input.reportRepairReprompts !== undefined
+          ? { reportRepairReprompts: input.reportRepairReprompts }
+          : {}),
         /*
          * `reportValidationErrors` is authoritative; see model-payload-language.ts for what an empty
          * list means. This helper is a failed-run diagnostic only; final synthesis decides
          * repairability from the rejected field's own path, not from this scan.
          */
-        languageViolations: modelPayloadLanguageViolations(input.payload),
+        ...(rejected ? { languageViolations: modelPayloadLanguageViolations(input.payload) } : {}),
         evidenceQuality: input.evidenceQuality,
         cost: {
           tokenEstimate,
@@ -367,7 +374,7 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
           modelCalls: input.modelCalls,
           usageByStage: rollupStageUsage(input.modelCalls),
         },
-        sourceGapsAsOf: "pre-synthesis",
+        sourceGapsAsOf: rejected ? "pre-synthesis" : "post-synthesis",
         codeVersion: input.codeVersion,
         ...(input.sourceStateHash !== undefined ? { sourceStateHash: input.sourceStateHash } : {}),
       },

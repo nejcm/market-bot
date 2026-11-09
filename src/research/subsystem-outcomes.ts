@@ -41,6 +41,7 @@ type NonSourceGapSubsystemOutcomeCode =
   | "no-playbooks-selected"
   | "playbooks-selected"
   | "final-synthesis-rejected"
+  | "post-synthesis-failed"
   | "audit-complete";
 
 type SourceGapCauseCollisionGuard =
@@ -97,6 +98,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "no-playbooks-selected": true,
   "playbooks-selected": true,
   "final-synthesis-rejected": true,
+  "post-synthesis-failed": true,
   failed: true,
   "audit-complete": true,
   produced: true,
@@ -186,7 +188,7 @@ interface BuildSubsystemOutcomesInput {
   readonly reportIntegrityAudit?: RunTrace["reportIntegrityAudit"];
   readonly forecastDisagreement?: RunTrace["forecastDisagreement"];
   readonly forecastDisagreementCode?: ForecastDisagreementOutcomeCode;
-  readonly finalSynthesisRejected?: true;
+  readonly blockedBy?: "final-synthesis-rejected" | "post-synthesis-failed";
 }
 
 function isSubsystemExpectation(value: unknown): value is SubsystemExpectation {
@@ -522,12 +524,12 @@ function playbookOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOu
 }
 
 function integrityAuditOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
-  if (input.finalSynthesisRejected === true) {
+  if (input.blockedBy !== undefined) {
     return {
       subsystem: "report-integrity-audit",
       expectation: "expected",
       outcome: "blocked",
-      code: "final-synthesis-rejected",
+      code: input.blockedBy,
       stage: "report-integrity-audit",
       count: 0,
     };
@@ -544,12 +546,12 @@ function integrityAuditOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsy
 }
 
 function forecastDisagreementOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
-  if (input.finalSynthesisRejected === true) {
+  if (input.blockedBy !== undefined) {
     return {
       subsystem: "forecast-disagreement",
       expectation: "expected",
       outcome: "blocked",
-      code: "final-synthesis-rejected",
+      code: input.blockedBy,
       stage: "forecast-disagreement",
       count: 0,
     };

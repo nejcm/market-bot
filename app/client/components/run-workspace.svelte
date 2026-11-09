@@ -320,9 +320,16 @@
         <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700">
           Failed Run Artifact
         </div>
-        <h1 class="mt-1 text-xl font-semibold tracking-tight">Final synthesis did not validate</h1>
+        <h1 class="mt-1 text-xl font-semibold tracking-tight">
+          {failure.phase === "post-synthesis"
+            ? "Post-synthesis stage failed"
+            : "Final synthesis did not validate"}
+        </h1>
         {#if failure.message !== undefined}
           <p class="mt-2 text-sm leading-relaxed text-[#45494e]">{failure.message}</p>
+        {/if}
+        {#if failure.stack !== undefined}
+          <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-[#45494e]">{failure.stack}</pre>
         {/if}
       </div>
 

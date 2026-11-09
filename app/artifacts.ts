@@ -141,7 +141,11 @@ async function readFailedRunArtifactFailure(
   }
   const generatedAt = readString(value, "generatedAt");
   const failedAt = readString(value, "failedAt");
+  const rawPhase = readString(value, "phase");
+  const phase =
+    rawPhase === "final-synthesis" || rawPhase === "post-synthesis" ? rawPhase : undefined;
   const message = readString(value, "message");
+  const stack = readString(value, "stack");
   const reportValidationErrors = readStringArray(value, "reportValidationErrors");
   const predictionErrors = readStringArray(value, "predictionErrors");
   const totalCalls = readNumber(value, "totalCalls");
@@ -188,7 +192,9 @@ async function readFailedRunArtifactFailure(
   return {
     ...(generatedAt === undefined ? {} : { generatedAt }),
     ...(failedAt === undefined ? {} : { failedAt }),
+    ...(phase === undefined ? {} : { phase }),
     ...(message === undefined ? {} : { message }),
+    ...(stack === undefined ? {} : { stack }),
     ...(reportValidationErrors === undefined ? {} : { reportValidationErrors }),
     ...(predictionErrors === undefined ? {} : { predictionErrors }),
     ...(totalCalls === undefined ? {} : { totalCalls }),

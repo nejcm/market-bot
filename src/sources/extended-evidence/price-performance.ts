@@ -1,3 +1,4 @@
+import { DAY_MS } from "../../config/shared";
 import { exchangeProfileFor } from "../../domain/exchange-profile";
 import {
   evaluateMetricSection,
@@ -7,7 +8,6 @@ import {
   type MetricOutcome,
 } from "./metric-engine";
 
-const DAY_MS = 86_400_000;
 const ENDPOINT_TOLERANCE_DAYS = 7;
 const SHORT_HISTORY_TOLERANCE_DAYS = 14;
 type History = NonNullable<MetricContext["priceHistory"]>[number];

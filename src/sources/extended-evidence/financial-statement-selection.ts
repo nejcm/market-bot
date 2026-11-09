@@ -1,3 +1,4 @@
+import { DAY_MS, daysBetween } from "../../config/shared";
 import {
   CAP_FOLLOWER_SERIES,
   type FinancialStatementSeriesDefinition,
@@ -18,7 +19,6 @@ import {
   type InterimCadence,
 } from "./financial-statements-contract";
 
-const DAY_MS = 86_400_000;
 const DAYS_PER_MONTH = 30.4368;
 const FY_BOUNDARY_TOLERANCE_DAYS = 10;
 // Two facts in one duration bucket can differ by at most twice this; 7 covers 52/53-week years.
@@ -26,14 +26,6 @@ const PERIOD_DRIFT_TOLERANCE_DAYS = 7;
 // Each limit applies per shape (duration and instant): up to 20 annual and 24 interim keys.
 export const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
 const MAX_INTERIM_PERIODS_PER_SHAPE = 12;
-
-function daysBetween(start: string, end: string): number | undefined {
-  const startMs = Date.parse(start);
-  const endMs = Date.parse(end);
-  return Number.isFinite(startMs) && Number.isFinite(endMs)
-    ? (endMs - startMs) / DAY_MS
-    : undefined;
-}
 
 export function financialStatementPeriodMonths(
   fact: Pick<FinancialStatementFact, "periodStart" | "periodEnd">,

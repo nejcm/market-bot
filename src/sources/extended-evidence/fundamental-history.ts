@@ -1,3 +1,4 @@
+import { daysBetween } from "../../config/shared";
 import {
   conceptScope,
   CAPEX_SCOPE_CAVEAT,
@@ -79,15 +80,6 @@ export const CONTINUING_INCOME_HISTORY = {
 const MAX_CAGR_YEARS = 5;
 const DAYS_PER_YEAR = 365.2425;
 export const MIN_CAGR_ANNUAL_POINTS = 3;
-
-function daysBetween(start: string, end: string): number | undefined {
-  const startMs = Date.parse(start);
-  const endMs = Date.parse(end);
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-    return undefined;
-  }
-  return (endMs - startMs) / 86_400_000;
-}
 
 export function negativeCapexTtmNote(periodEnd: string): string {
   return `ttm:negative-capex: ${periodEnd} omitted; ${NEGATIVE_CAPEX_REASON}`;

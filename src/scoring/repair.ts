@@ -1,3 +1,4 @@
+import { DAY_MS } from "../config/shared";
 import { readdir, readFile, realpath } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
@@ -15,8 +16,6 @@ import { fetchCloseWithCache, readLegacyWindowEntry } from "./close-cache";
 import { scoreOnePrediction, writeMissAutopsyRunDir, type ScorePassOptions } from "./index";
 import { resolveOutcome, type ResolveOutcomeResult } from "./resolver";
 import type { AuditedWithheldSession, PredictionScore, ScoreRepairVerdict } from "./types";
-
-const DAY_MS = 86_400_000;
 
 type ScoreRepairDetection =
   | ScoreRepairVerdict

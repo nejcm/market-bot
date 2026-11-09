@@ -1,3 +1,4 @@
+import { roundedDaysAfter } from "../../config/shared";
 import type { InstrumentIdentity } from "../../domain/instrument";
 import { sourceGap } from "../../domain/source-gaps";
 import type { Source } from "../../domain/sources";
@@ -591,10 +592,6 @@ const SUPERSEDED_EXPECTATION_PATTERN =
 const SENTENCE_BOUNDARY_PATTERN = /[.!?]\s+(?=[A-Z"“])/gu;
 const MAX_CONFLICT_DATE_DISTANCE_DAYS = 30;
 
-function daysBetween(left: string, right: string): number {
-  return Math.round((Date.parse(left) - Date.parse(right)) / 86_400_000);
-}
-
 function announcementSpan(text: string, offset: number, length: number): string {
   const before = text.slice(0, offset);
   let start = Math.max(0, before.lastIndexOf("\n") + 1);
@@ -662,7 +659,7 @@ function conflictingEarningsDate(input: {
     }
     if (
       (!FUTURE_ANNOUNCEMENT_PATTERN.test(span) && !SCHEDULED_FOR_PATTERN.test(span)) ||
-      Math.abs(daysBetween(date, input.providerDate)) > MAX_CONFLICT_DATE_DISTANCE_DAYS
+      Math.abs(roundedDaysAfter(date, input.providerDate)) > MAX_CONFLICT_DATE_DISTANCE_DAYS
     ) {
       continue;
     }

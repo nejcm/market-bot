@@ -1,3 +1,4 @@
+import { DAY_MS } from "../config/shared";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readWatchlistsNamed } from "../console-watchlists";
@@ -45,7 +46,6 @@ const LATEST_RUN_FRESH_DAYS = 7;
 const LATEST_RUN_SUMMARY_CHARS = 600;
 const RETURN_SESSIONS = [1, 5, 20, 60] as const;
 const BENCHMARK_RETURN_SESSIONS = [5, 20] as const;
-const DAY_MS = 86_400_000;
 
 export interface ForecastGridPlan {
   readonly watchlist: string;

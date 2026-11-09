@@ -1,3 +1,4 @@
+import { DAY_MS } from "../../config/shared";
 import {
   GROSS_PRINCIPAL_DEBT_CONCEPT,
   type FinancialStatementName,
@@ -225,7 +226,6 @@ export function isDebtPresenceConcept(
   );
 }
 
-const DAY_MS = 86_400_000;
 const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
 
 export function isRevenueConceptInRecencyBucket(

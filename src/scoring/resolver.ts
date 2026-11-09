@@ -1,3 +1,4 @@
+import { DAY_MS } from "../config/shared";
 import type { Prediction } from "../domain/prediction";
 import type { ResearchReport } from "../domain/report";
 import {
@@ -22,7 +23,6 @@ import type { CloseWindow } from "../sources/yahoo";
 export type { Observation };
 
 const PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS = 5;
-const UTC_DAY_MS = 86_400_000;
 
 interface ResolveOutcomeResolved {
   readonly status: "resolved";
@@ -73,7 +73,7 @@ function startsWithinProviderAnchorTolerance(
   const anchorTime = Date.parse(`${ymd(anchor)}T00:00:00Z`);
   const firstTime = Date.parse(`${first.date}T00:00:00Z`);
   const delay = firstTime - anchorTime;
-  return delay >= 0 && delay <= PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS * UTC_DAY_MS;
+  return delay >= 0 && delay <= PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS * DAY_MS;
 }
 
 function unverifiedSession(report: ResearchReport, subject: string): UnverifiedSession | undefined {
@@ -230,7 +230,7 @@ async function nearestPointObservation(
     repo,
     request,
     report,
-    new Date(date.getTime() + stepDays * 86_400_000),
+    new Date(date.getTime() + stepDays * DAY_MS),
     stepDays,
     remainingDays - 1,
     now,
@@ -282,7 +282,7 @@ function readEarningsEventTiming(report: ResearchReport): EarningsEventTiming {
 }
 
 function shiftCalendarDay(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 86_400_000);
+  return new Date(date.getTime() + days * DAY_MS);
 }
 
 function previousTradingDay(date: Date): Date {

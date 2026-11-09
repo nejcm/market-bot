@@ -1,3 +1,4 @@
+import { DAY_MS } from "../../config/shared";
 import { readNumberMetric, readStringMetric } from "./utils";
 
 export type EnterpriseValueBridgeKey =
@@ -101,7 +102,6 @@ const LABELS: Readonly<Record<EnterpriseValueBridgeKey, string>> = {
 
 // Same continuity window as composite debt (ADR 0004): a nonzero line this recent cannot vanish untagged.
 const CONTINUITY_DAYS = 400;
-const DAY_MS = 86_400_000;
 const NONE_TAGGED = "none tagged";
 const COMBINED_CONCEPT = "CashCashEquivalentsAndShortTermInvestments";
 const CURRENT_EQUITY_CONCEPT = "EquitySecuritiesFvNiCurrent";

@@ -1,3 +1,4 @@
+import { DAY_MS, roundedDaysAfter } from "../config/shared";
 import { replayValue } from "../replay/session";
 import { readdirSync } from "node:fs";
 import { mkdir, rm, unlink } from "node:fs/promises";
@@ -38,8 +39,6 @@ const CACHE_KEY_VERSION = "v3";
 const CREDENTIAL_QUERY_PARAM =
   /^(?:api[-_]?key|api[-_]?token|access[-_]?token|token|key|secret|password|authorization)$/iu;
 const MINUTE_MS = 60 * 1000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
 
 const FRESHNESS_BUDGETS_MS = {
   live: 15 * MINUTE_MS,
@@ -188,11 +187,6 @@ function entryPath(dir: string, date: string, sha: string): string {
   return `${dir}/${date}/${sha}.json`;
 }
 
-function dateDiffDays(later: string, earlier: string): number {
-  const diff = new Date(later).getTime() - new Date(earlier).getTime();
-  return Math.round(diff / (24 * 60 * 60 * 1000));
-}
-
 async function readEntry(path: string): Promise<CacheEntry | undefined> {
   try {
     const file = Bun.file(path);
@@ -258,7 +252,7 @@ async function findStaleFallback(
   extraCandidates: readonly { readonly date: string; readonly entry: CacheEntry | undefined }[],
   isPayload: (payload: unknown) => boolean,
 ): Promise<CacheEntry | undefined> {
-  const withinWindow = (d: string) => d <= today && dateDiffDays(today, d) <= fallbackDays;
+  const withinWindow = (d: string) => d <= today && roundedDaysAfter(today, d) <= fallbackDays;
   const candidateDirs = listDateDirs(dir).filter((d) => d < today && withinWindow(d));
 
   const entries = await Promise.all(
@@ -428,7 +422,7 @@ export function withCache<TPayload = unknown>(
       ),
     );
     if (stale !== undefined) {
-      const ageDays = dateDiffDays(today, stale.cachedDate);
+      const ageDays = roundedDaysAfter(today, stale.cachedDate);
       options.onStaleFallback(
         sourceGap({
           source: adapter,
@@ -455,7 +449,7 @@ function isWithinDir(root: string, target: string): boolean {
 async function pruneRawCache(options: PruneCacheOptions): Promise<number> {
   const today = utcDateString(options.now);
   const dateDirs = listDateDirs(options.dir).filter(
-    (date) => dateDiffDays(today, date) > options.rawRetentionDays,
+    (date) => roundedDaysAfter(today, date) > options.rawRetentionDays,
   );
 
   const results = await Promise.all(
@@ -521,7 +515,7 @@ async function pruneCloseCache(options: PruneCacheOptions): Promise<number> {
       }
 
       const cachedDate = cachedCloseDate(file);
-      if (dateDiffDays(today, cachedDate) <= options.closeRetentionDays) {
+      if (roundedDaysAfter(today, cachedDate) <= options.closeRetentionDays) {
         return 0;
       }
 

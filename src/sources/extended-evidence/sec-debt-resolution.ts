@@ -1,3 +1,4 @@
+import { DAY_MS } from "../../config/shared";
 import {
   DEBT_CONCEPTS,
   type DebtTaxonomyConcepts,
@@ -8,8 +9,6 @@ import type {
   FinancialStatementNote,
   FinancialStatementTaxonomy,
 } from "./financial-statements-contract";
-
-const DAY_MS = 86_400_000;
 
 export interface DebtResolution<T> {
   readonly basis: "total" | "components";

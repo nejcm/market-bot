@@ -1,3 +1,4 @@
+import { DAY_MS } from "../config/shared";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
@@ -59,7 +60,6 @@ import type {
 
 const MAX_OBSERVATION_FAILURES = 4;
 const OBSERVATION_RETRY_DELAYS_DAYS = [1, 3, 7] as const;
-const DAY_MS = 86_400_000;
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
 const ALPHA_VALIDATION_FILE = RUN_ARTIFACT_FILES.alphaValidation;

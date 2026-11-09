@@ -23,7 +23,7 @@ import type {
   NewsCollectionAnalytics,
 } from "../sources/types";
 import type { CollectSourcesRuntimeOptions } from "../sources/collector";
-import type { PersistedResearchJobResult, RunResearchJobInput } from "../research/orchestrator";
+import type { PersistedResearchJobResult, RunResearchJobInput } from "../research/job-types";
 import type { ModelInputSanitizationAggregate } from "../sources/model-input-sanitizer";
 import type { FinancialStatementsArtifact } from "../sources/extended-evidence/financial-statements-contract";
 import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fundamental-history";

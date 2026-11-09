@@ -12,7 +12,8 @@ import { createProvider } from "../model/factory";
 import type { ModelProvider } from "../model/types";
 import { collectSources } from "../sources/collector";
 import type { FetchLike } from "../sources/types";
-import { persistResearchJob, type PersistedResearchJobResult } from "../research/orchestrator";
+import type { PersistedResearchJobResult } from "../research/job-types";
+import { persistResearchJob } from "../research/orchestrator";
 import {
   commandWithResolvedResearchSubject,
   resolveResearchSubject,

@@ -1,6 +1,6 @@
 import type { ExtendedEvidence } from "../domain/evidence";
 import type { AssetClass } from "../domain/job-type";
-import { isInstrumentCommand } from "../cli/args";
+import { isInstrumentCommand } from "../cli/job-registry";
 import { extendedEvidenceGap } from "../domain/source-gaps";
 import type {
   CollectContext,

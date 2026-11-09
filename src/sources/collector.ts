@@ -3,7 +3,7 @@ import { pricePerformanceSection } from "./extended-evidence/price-performance";
 import { withStatementDebtBasisGaps } from "./extended-evidence/sec-debt";
 import { collectEquityEnrichment, type PeerUniverseSeam } from "./collector-equity-enrichment";
 
-import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/job-registry";
 import type { SourceOptions } from "../config";
 import { progress } from "../progress";
 import { isMarketUpdateJobType } from "../domain/job-type";

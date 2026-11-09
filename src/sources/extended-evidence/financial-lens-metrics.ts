@@ -1,4 +1,4 @@
-import type { InstrumentCommand } from "../../cli/args";
+import type { InstrumentCommand } from "../../cli/job-registry";
 import { DAY_MS } from "../../config/shared";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
 import {

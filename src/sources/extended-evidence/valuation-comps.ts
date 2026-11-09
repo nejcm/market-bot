@@ -23,7 +23,7 @@ import {
   type ValuationCompsResult,
 } from "./valuation-comps-contract";
 
-import type { InstrumentCommand } from "../../cli/args";
+import type { InstrumentCommand } from "../../cli/job-registry";
 import { sourceGapWithContext } from "../../domain/source-gaps";
 import { type ExtendedEvidence, type ExtendedEvidenceItem } from "../../domain/evidence";
 import { type MarketSnapshot } from "../../domain/market-data";

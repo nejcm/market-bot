@@ -3,7 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { writeFileAtomic } from "../artifacts";
 import { withFileLock } from "../shared-state-lock";
-import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/job-registry";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { Source, SourceGap } from "../domain/sources";

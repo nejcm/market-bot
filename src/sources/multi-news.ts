@@ -1,5 +1,5 @@
 import type { Source, SourceGap, SourceProviderAlias } from "../domain/sources";
-import { isInstrumentCommand } from "../cli/args";
+import { isInstrumentCommand } from "../cli/job-registry";
 import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
 import { filterSeenNewsSources, NEWS_SEEN_GRACE_MS, newsSeenLane } from "./news-seen";
 import { isNewsRelevant, isNewsRelevantByTitleOrSymbol } from "./news-relevance";

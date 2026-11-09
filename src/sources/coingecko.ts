@@ -1,7 +1,7 @@
 import { type InstrumentIdentity } from "../domain/instrument";
 import { isMarketUpdateJobType } from "../domain/job-type";
 import { type MarketSnapshot } from "../domain/market-data";
-import { isInstrumentCommand } from "../cli/args";
+import { isInstrumentCommand } from "../cli/job-registry";
 import type { Observation } from "../forecast/observable";
 import {
   isFetchJsonResult,

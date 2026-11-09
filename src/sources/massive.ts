@@ -1,4 +1,4 @@
-import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/job-registry";
 import { sourceGap, sourceGapStatusCode, sourceGapWithContext } from "../domain/source-gaps";
 import type { InstrumentIdentity } from "../domain/instrument";
 import type { AssetClass } from "../domain/job-type";

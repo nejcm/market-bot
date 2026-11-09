@@ -1,4 +1,4 @@
-import { isInstrumentCommand } from "../cli/args";
+import { isInstrumentCommand } from "../cli/job-registry";
 import { exchangeProfileFor, issuerReportHostKind } from "../domain/exchange-profile";
 import type {
   WebGatherFallbackAudit,

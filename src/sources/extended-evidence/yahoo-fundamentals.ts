@@ -1,5 +1,9 @@
 import type { InstrumentIdentity } from "../../domain/instrument";
-import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
+import {
+  isInstrumentCommand,
+  type InstrumentCommand,
+  type ResearchCommand,
+} from "../../cli/job-registry";
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { MarketFundamentals, MarketSnapshot } from "../../domain/market-data";
 import { formatPeRatio } from "./value-format";

@@ -1,4 +1,4 @@
-import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../../cli/job-registry";
 import type { ExtendedEvidenceCategory, ExtendedEvidenceItem } from "../../domain/evidence";
 import type { InstrumentIdentity } from "../../domain/instrument";
 import type { Source, SourceGap } from "../../domain/sources";

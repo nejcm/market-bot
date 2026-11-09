@@ -143,6 +143,7 @@ export interface RunTrace {
     readonly repromptReason?: {
       readonly predictionErrors?: readonly string[];
       readonly reportValidationErrors?: readonly string[];
+      readonly catalogFigureHints?: number;
     };
   }[];
   readonly tokenEstimate: number;

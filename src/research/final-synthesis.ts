@@ -12,6 +12,7 @@ import type { StageLabel } from "./prompt-loader";
 import { ReportLanguageViolationError } from "../report/schema";
 import { SourceIdValidationError } from "../report/source-id-validation-error";
 import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
+import { catalogFigureHints, referenceMetricSections } from "./metric-references";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceIdRepair, type SourceIdRepair } from "./prompts/source-id-guidance";
 import {
@@ -26,6 +27,8 @@ export interface StageReprompt {
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
   readonly unknownSourceIds?: readonly string[];
+  /** How many advisory catalog figure hints follow the errors in reportValidationErrors. */
+  readonly catalogFigureHints?: number;
   readonly sourceIdRepair?: SourceIdRepair;
   /** Predictions from the attempt being repaired that already validated. A repair reprompt
    *  regenerates the whole report from a stateless call, so without this the model never sees the
@@ -242,6 +245,9 @@ function stageRepromptReason(reprompt: StageReprompt | undefined): StageReprompt
     ...(reprompt.reportValidationErrors !== undefined
       ? { reportValidationErrors: reprompt.reportValidationErrors }
       : {}),
+    ...(reprompt.catalogFigureHints !== undefined
+      ? { catalogFigureHints: reprompt.catalogFigureHints }
+      : {}),
   };
   return Object.keys(reason).length > 0 ? reason : undefined;
 }
@@ -283,7 +289,11 @@ async function validateBaseReport(
   recordReportRepairReprompt();
   const validationState = await repromptFinalSynthesis(input, progress.retainedPredictions, {
     predictionErrors: reportRetryPredictionErrors,
-    reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
+    ...withCatalogFigureHints(
+      input,
+      progress.state,
+      accumulateReportValidationErrors(reportValidationErrors),
+    ),
     unknownSourceIds,
   });
   let validationProgress: SynthesisProgress = {
@@ -304,7 +314,11 @@ async function validateBaseReport(
   if (postReportPredictionErrors.length > 0) {
     const state = await repromptFinalSynthesis(input, validationProgress.retainedPredictions, {
       predictionErrors: postReportPredictionErrors,
-      reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
+      ...withCatalogFigureHints(
+        input,
+        validationProgress.state,
+        accumulateReportValidationErrors(reportValidationErrors),
+      ),
       unknownSourceIds,
     });
     validationProgress = {
@@ -454,7 +468,7 @@ async function buildReportWithRepair(
     recordReportRepairReprompt();
     const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
       ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
-      reportValidationErrors: accumulatedErrors,
+      ...withCatalogFigureHints(input, progress.state, accumulatedErrors),
       unknownSourceIds: unknownSourceIdsOf(error),
     });
     const nextProgress: SynthesisProgress = {
@@ -622,6 +636,23 @@ function accumulateReportValidationErrors(values: readonly string[]): readonly s
     }
   }
   return newestFirst.toReversed().slice(-MAX_ACCUMULATED_REPORT_VALIDATION_ERRORS);
+}
+
+function withCatalogFigureHints(
+  input: SynthesizeReportUntilValidInput,
+  state: FinalSynthesisState,
+  reportValidationErrors: readonly string[],
+): Pick<StageReprompt, "reportValidationErrors" | "catalogFigureHints"> {
+  const hints =
+    state.parseError === undefined
+      ? catalogFigureHints(state.payload, referenceMetricSections(input.collectedSources))
+      : [];
+  return hints.length === 0
+    ? { reportValidationErrors }
+    : {
+        reportValidationErrors: [...reportValidationErrors, ...hints],
+        catalogFigureHints: hints.length,
+      };
 }
 
 function errorMessage(error: unknown): string {

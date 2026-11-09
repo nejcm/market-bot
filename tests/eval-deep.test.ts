@@ -1033,7 +1033,11 @@ describe("frozen-input eval replay", () => {
         ...stages,
         repairStage({
           predictionErrors: [],
-          reportValidationErrors: ['Report contains trade-action language: "you should"'],
+          reportValidationErrors: [
+            'Report contains trade-action language: "you should"',
+            'Catalog figure hint: risks[0].text types "12.5%", which equals the catalog value of <<metric:a.b>>',
+          ],
+          catalogFigureHints: 1,
         }),
         repairStage({ reportValidationErrors: ["Report probability must be finite"] }),
         repairStage({ predictionErrors: ["pred-1 horizon out of range"] }),
@@ -1043,6 +1047,7 @@ describe("frozen-input eval replay", () => {
     expect(metrics["repairs.researchLanguage"]).toBe(1);
     expect(metrics["repairs.reportValidation"]).toBe(1);
     expect(metrics["repairs.predictionErrors"]).toBe(1);
+    expect(metrics["repairs.catalogFigureHints"]).toBe(1);
     expect(metrics["integrity.pruned.summary"]).toBe(1);
   });
 

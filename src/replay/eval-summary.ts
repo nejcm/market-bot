@@ -7,7 +7,7 @@ import { USAGE_FIELDS } from "../model/types";
 import { readGapTriage } from "../report/gap-triage";
 import { knownSourceIds } from "../report/markdown-primitives";
 import type { StageOutput } from "../research/final-synthesis";
-import { referenceMetricSections } from "../research/metric-references";
+import { CATALOG_FIGURE_HINT, referenceMetricSections } from "../research/metric-references";
 import type { RunAnalytics } from "../research/run-analytics";
 import { rollupStageUsage, type StageUsageRollup } from "../research/stage-usage";
 import { readAnalytics } from "../run-artifact-analytics-reader";
@@ -114,12 +114,17 @@ function stageMetrics(stages: readonly StageOutput[], metrics: Record<string, nu
     addCount(metrics, `tokens.${stage.stage}`, stage.tokenEstimate);
     addCount(metrics, "tokens.total", stage.tokenEstimate);
     const reason = stage.stage === "final-synthesis" ? stage.repromptReason : undefined;
-    const reportErrors = reason?.reportValidationErrors ?? [];
+    const reportErrors = (reason?.reportValidationErrors ?? []).filter(
+      (error) => !error.startsWith(CATALOG_FIGURE_HINT),
+    );
     if (reportErrors.some((error) => error.includes(LANGUAGE_GATE_ERROR))) {
       addCount(metrics, "repairs.researchLanguage");
     }
     if (reportErrors.some((error) => !error.includes(LANGUAGE_GATE_ERROR))) {
       addCount(metrics, "repairs.reportValidation");
+    }
+    if (reason?.catalogFigureHints !== undefined) {
+      addCount(metrics, "repairs.catalogFigureHints", reason.catalogFigureHints);
     }
     if ((reason?.predictionErrors ?? []).length > 0) {
       addCount(metrics, "repairs.predictionErrors");

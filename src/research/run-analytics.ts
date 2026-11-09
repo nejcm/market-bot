@@ -443,7 +443,7 @@ function dateAgeDays(fromDate: string, toDate: string): number | undefined {
   if (!Number.isFinite(from) || !Number.isFinite(to)) {
     return undefined;
   }
-  return Math.max(0, Math.round((to - from) / (24 * 60 * 60 * 1000)));
+  return Math.max(0, Math.round((to - from) / DAY_MS));
 }
 
 function timestampAgeDays(fromTimestamp: string, toTimestamp: string): number | undefined {

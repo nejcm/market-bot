@@ -1,3 +1,4 @@
+import { DAY_MS, daysBetween } from "../../config/shared";
 import type {
   FinancialStatementFact,
   FinancialStatementSeriesKey,
@@ -62,7 +63,6 @@ export const SERIES_LABELS: Readonly<Record<JoinSeries, string>> = {
   cash: "cash and cash equivalents",
 };
 
-const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365;
 const ENDPOINT_TOLERANCE_DAYS = 15;
 const SHARE_TREND_BAND = 0.03;
@@ -241,10 +241,6 @@ function latestFyAmount(key: JoinSeries) {
   }));
 }
 
-function daysBetween(start: string, end: string): number {
-  return (Date.parse(end) - Date.parse(start)) / DAY_MS;
-}
-
 type Endpoints =
   | {
       readonly prior: FinancialStatementFact;
@@ -279,8 +275,9 @@ function annualEndpoints(
   }
   const prior = facts.find(
     (fact) =>
-      Math.abs(daysBetween(fact.periodEnd, latest.periodEnd) - years * DAYS_PER_YEAR) <=
-      ENDPOINT_TOLERANCE_DAYS,
+      Math.abs(
+        (daysBetween(fact.periodEnd, latest.periodEnd) ?? Infinity) - years * DAYS_PER_YEAR,
+      ) <= ENDPOINT_TOLERANCE_DAYS,
   );
   if (prior === undefined) {
     return {

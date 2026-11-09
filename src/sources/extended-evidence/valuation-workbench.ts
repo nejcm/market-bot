@@ -1,3 +1,4 @@
+import { DAY_MS } from "../../config/shared";
 import { evaluateMetricSection, type MetricSection } from "./metric-engine";
 import { sourceGap } from "../../domain/source-gaps";
 import type { ExtendedEvidence } from "../../domain/evidence";
@@ -25,7 +26,6 @@ import type {
   PeerValuationComparison,
 } from "./valuation-workbench-contract";
 
-const DAY_MS = 86_400_000;
 const MAX_PRICE_ALIGNMENT_DAYS = 7;
 const PRICE_SELECTION_RULE =
   "first verified close within 7 calendar days on or after publicAt" as const;

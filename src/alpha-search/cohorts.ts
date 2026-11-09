@@ -1,3 +1,4 @@
+import { DAY_MS } from "../config/shared";
 import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import { isAlphaCandidateProfile, type AlphaCandidateWatchlist } from "./candidate-state";
 import { isAlphaSearchRejectedCandidate, type AlphaSearchRejectedCandidate } from "./report-extras";
@@ -160,12 +161,12 @@ function buildRejectionBuckets(
     });
 }
 
-function daysBetween(fromIso: string, to: Date): number {
+function clampedWholeDaysSince(fromIso: string, to: Date): number {
   const from = Date.parse(fromIso);
   if (!Number.isFinite(from)) {
     return 0;
   }
-  return Math.max(0, Math.floor((to.getTime() - from) / (24 * 60 * 60 * 1000)));
+  return Math.max(0, Math.floor((to.getTime() - from) / DAY_MS));
 }
 
 function staleBucket(days: number): string {
@@ -188,7 +189,7 @@ function buildStaleLeadDecay(input: {
     if (input.tickerBriefSymbols.has(candidate.symbol)) {
       continue;
     }
-    const bucket = staleBucket(daysBetween(candidate.firstSeenAt, input.now));
+    const bucket = staleBucket(clampedWholeDaysSince(candidate.firstSeenAt, input.now));
     byBucket.set(bucket, [...(byBucket.get(bucket) ?? []), candidate.symbol]);
   }
 

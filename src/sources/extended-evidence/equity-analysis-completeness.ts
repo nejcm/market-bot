@@ -1,3 +1,4 @@
+import { DAY_MS, daysBetween } from "../../config/shared";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
 import type { AssetClass } from "../../domain/job-type";
 import type {
@@ -41,7 +42,6 @@ export {
   equityAnalysisCompletenessGaps,
 } from "./equity-analysis-completeness-gaps";
 
-const DAY_MS = 86_400_000;
 const CURRENT_ANNUAL_MAX_AGE_DAYS = 550;
 const QUARTER_FILING_LAG_DAYS = 60;
 const HALF_YEAR_FILING_LAG_DAYS = 120;
@@ -78,12 +78,6 @@ function unique(values: readonly string[]): readonly string[] {
 function dateMs(value: string): number | undefined {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function daysBetween(start: string, end: string): number | undefined {
-  const startMs = dateMs(start);
-  const endMs = dateMs(end);
-  return startMs === undefined || endMs === undefined ? undefined : (endMs - startMs) / DAY_MS;
 }
 
 function addDays(value: string, days: number): string | undefined {

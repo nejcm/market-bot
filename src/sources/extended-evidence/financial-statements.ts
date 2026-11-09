@@ -1,3 +1,4 @@
+import { DAY_MS } from "../../config/shared";
 import { isRecord, readNumber, readString } from "../../guards";
 import {
   ENTERPRISE_VALUE_BRIDGE_CONCEPTS,
@@ -155,7 +156,6 @@ export interface FinancialStatementsDeriveInput {
 
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
 const STATEMENT_DURATION_MONTHS = new Set([3, 6, 9, 12]);
-const DAY_MS = 86_400_000;
 const QUARTERLY_REPORTING_PERIOD_DAYS = 120;
 const SEMIANNUAL_REPORTING_PERIOD_DAYS = 200;
 const ANNUAL_REPORTING_PERIOD_DAYS = 400;
@@ -3160,7 +3160,7 @@ function isSubsequentEventFact(fact: ParsedFact, fiscalYear: FiscalYearFiling): 
     fact.accessionNumber === fiscalYear.accessionNumber &&
     !fiscalYear.amendment &&
     !(
-      (Date.parse(fact.periodStart!) - Date.parse(fiscalYear.periodEnd)) / 86_400_000 <=
+      (Date.parse(fact.periodStart!) - Date.parse(fiscalYear.periodEnd)) / DAY_MS <=
       FISCAL_YEAR_BOUNDARY_DAYS
     )
   );

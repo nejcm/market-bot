@@ -436,6 +436,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   dates, horizon wording, and cited historic forecast outcomes are exempt from numeric classification; posture
   omissions remain advisory. Both are one claim walk with a `warn | prune` severity per rule, so warnings and
   prunes share pre-prune locations; the separate post-prune posture advisory list is gone (amended 2026-11-09).
+  Warn rules read the same text as prune rules (a scenario's `name: description`, each summary sentence) and
+  also cover Earnings Setup bullets and Business Framework text; summary sentences skip the posture rule,
+  since they carry no citations and it would flag every one (amended 2026-11-09).
 - When peer comps were collected, the same audit prunes a non-negated peer-median(s) claim that cites no usable
   peer source (warned as `peer-median-uncited`), and any such summary sentence (summaries carry no citations);
   comps carry only EV/revenue, so a median whose own clause names another metric (any EV/x other than

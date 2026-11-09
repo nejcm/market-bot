@@ -119,12 +119,10 @@ export function createDataDirRegistry(): DataDirRegistry {
   return {
     dataDirs,
     tempDataDir(prefix: string): string {
-      const dataDir = join(
-        tmpdir(),
-        `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      );
-      dataDirs.push(dataDir);
-      return dataDir;
+      const root = join(tmpdir(), `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      dataDirs.push(root);
+      // Named `runs` so shared state lands in the parent and the dir lists only runs.
+      return join(root, "runs");
     },
     async cleanupDataDirs(): Promise<void> {
       await Promise.all(

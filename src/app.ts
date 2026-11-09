@@ -1,7 +1,12 @@
 import { withRunCapture } from "./replay/capture";
 import { basename, join } from "node:path";
 import { commandBanner, isResearchCommand, parseArgs, type ResearchCommand } from "./cli/args";
-import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
+import {
+  defaultPeerUniverseLearnedPath,
+  resolveConfig,
+  type AppConfig,
+  type SourceOptions,
+} from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { renderAlphaSearchAnalyticsConsole } from "./alpha-search/run-analytics-console";
 import { createProvider } from "./model/factory";
@@ -529,7 +534,7 @@ async function runStandardResearch(input: {
             model: input.config.quickModel,
             cachePath:
               input.config.sourceOptions.peerUniverseLearnedPath ??
-              `${input.config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
+              defaultPeerUniverseLearnedPath(input.config.dataDir),
             ...(input.config.sourceOptions.peerUniverseTtlDays !== undefined
               ? { ttlDays: input.config.sourceOptions.peerUniverseTtlDays }
               : {}),

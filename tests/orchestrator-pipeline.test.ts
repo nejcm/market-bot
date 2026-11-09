@@ -19,7 +19,7 @@ import {
   writeHistoricalRun,
 } from "./support/orchestrator-helpers";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { RunConfig } from "../src/config/runs";
 import type { ModelProvider } from "../src/model/types";
 
@@ -438,8 +438,8 @@ describe("runResearchJob pipeline stages", () => {
   test("surfaces an unreadable alpha-watchlist gap for market-update runs but not ticker runs", async () => {
     const dataDir = tempDataDir("market-bot-alpha-gap");
     // Present-but-unreadable watchlist → loadAlphaWatchlistForSpotlights returns a gap.
-    await mkdir(join(dataDir, "alpha-search"), { recursive: true });
-    await writeFile(join(dataDir, "alpha-search", "watchlist.json"), "{not-json", "utf8");
+    await mkdir(join(dirname(dataDir), "alpha-search"), { recursive: true });
+    await writeFile(join(dirname(dataDir), "alpha-search", "watchlist.json"), "{not-json", "utf8");
     const provider: ModelProvider = {
       name: "mock",
       generate: async (request) => {

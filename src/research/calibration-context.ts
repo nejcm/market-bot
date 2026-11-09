@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
+import { dataRootFromRunsDir } from "../data-paths";
 import { marketUpdateHorizonBucket } from "../domain/job-type";
 import { isMarketRegimeLabel } from "../domain/report";
 import { isRecord, readString } from "../guards";
@@ -31,7 +32,10 @@ export async function loadCalibrationContext(
   dataDir: string,
 ): Promise<CalibrationContext | undefined> {
   try {
-    const raw = await readFile(join(dataDir, "../calibration/summary.json"), "utf8");
+    const raw = await readFile(
+      join(dataRootFromRunsDir(dataDir), "calibration", "summary.json"),
+      "utf8",
+    );
     return parseCalibrationContext(JSON.parse(raw));
   } catch {
     return undefined;

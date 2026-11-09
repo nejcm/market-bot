@@ -24,9 +24,6 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  rmSync(join(tmpDir, "..", "alpha-validation"), { recursive: true, force: true });
-  rmSync(join(tmpDir, "..", "alpha-search"), { recursive: true, force: true });
-  rmSync(join(tmpDir, "..", "provider-health"), { recursive: true, force: true });
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -60,30 +57,27 @@ async function readAlphaValidation(runDir: string): Promise<AlphaValidationFile>
 }
 
 async function readAlphaValidationSummary(): Promise<AlphaValidationSummary> {
-  const raw = await readFile(join(tmpDir, "..", "alpha-validation", "summary.json"), "utf8");
+  const raw = await readFile(join(tmpDir, "alpha-validation", "summary.json"), "utf8");
   return JSON.parse(raw) as AlphaValidationSummary;
 }
 
 async function readAlphaWatchlist(): Promise<AlphaCandidateWatchlist> {
-  const raw = await readFile(join(tmpDir, "..", "alpha-search", "watchlist.json"), "utf8");
+  const raw = await readFile(join(tmpDir, "alpha-search", "watchlist.json"), "utf8");
   return JSON.parse(raw) as AlphaCandidateWatchlist;
 }
 
 async function readAlphaFeatureAttribution(): Promise<AlphaFeatureAttribution> {
-  const raw = await readFile(
-    join(tmpDir, "..", "alpha-search", "feature-attribution.json"),
-    "utf8",
-  );
+  const raw = await readFile(join(tmpDir, "alpha-search", "feature-attribution.json"), "utf8");
   return JSON.parse(raw) as AlphaFeatureAttribution;
 }
 
 async function readAlphaLeadCohorts(): Promise<AlphaLeadCohortSummary> {
-  const raw = await readFile(join(tmpDir, "..", "alpha-search", "cohorts.json"), "utf8");
+  const raw = await readFile(join(tmpDir, "alpha-search", "cohorts.json"), "utf8");
   return JSON.parse(raw) as AlphaLeadCohortSummary;
 }
 
 async function writeProviderHealthSummary(validation: Record<string, unknown>): Promise<void> {
-  const dir = join(tmpDir, "..", "provider-health");
+  const dir = join(tmpDir, "provider-health");
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, "summary.json"),
@@ -979,10 +973,10 @@ describe("runScorePass Alpha validation", () => {
       outcome: "outperformed",
     });
     const summary = await readAlphaValidationSummary();
-    const markdown = await readFile(join(tmpDir, "..", "alpha-validation", "summary.md"), "utf8");
+    const markdown = await readFile(join(tmpDir, "alpha-validation", "summary.md"), "utf8");
     const attribution = await readAlphaFeatureAttribution();
     const attributionMarkdown = await readFile(
-      join(tmpDir, "..", "alpha-search", "feature-attribution.md"),
+      join(tmpDir, "alpha-search", "feature-attribution.md"),
       "utf8",
     );
     expect(summary.overall["5"]).toMatchObject({
@@ -1086,7 +1080,7 @@ describe("runScorePass Alpha validation", () => {
     });
 
     const watchlist = await readAlphaWatchlist();
-    const markdown = await readFile(join(tmpDir, "..", "alpha-search", "watchlist.md"), "utf8");
+    const markdown = await readFile(join(tmpDir, "alpha-search", "watchlist.md"), "utf8");
     expect(watchlist.candidates[0]).toMatchObject({
       symbol: "ALFA",
       firstSeenAt: "2026-05-01T00:00:00.000Z",
@@ -1289,7 +1283,7 @@ describe("runScorePass Alpha validation", () => {
         },
       },
     });
-    expect(secondResult).toMatchObject({ scored: 0, skipped: 1 });
+    expect(secondResult).toMatchObject({ scored: 0, touchedRunDirs: [] });
     await expect(readFile(profilesPath, "utf8")).resolves.toBe(profilesRaw);
   });
 
@@ -1440,8 +1434,8 @@ describe("runScorePass Alpha validation", () => {
   });
 
   test("throws when persisted alpha watchlist is malformed while building cohorts", async () => {
-    await mkdir(join(tmpDir, "..", "alpha-search"), { recursive: true });
-    await writeFile(join(tmpDir, "..", "alpha-search", "watchlist.json"), "{", "utf8");
+    await mkdir(join(tmpDir, "alpha-search"), { recursive: true });
+    await writeFile(join(tmpDir, "alpha-search", "watchlist.json"), "{", "utf8");
 
     await expect(
       buildAndWriteAlphaLeadCohorts(tmpDir, new Date("2026-06-01T00:00:00.000Z")),

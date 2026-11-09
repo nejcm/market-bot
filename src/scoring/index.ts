@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
+import { dataRootFromRunsDir } from "../data-paths";
 import {
   buildAlphaCandidateProfiles,
   buildAlphaCandidateWatchlist,
@@ -274,7 +275,10 @@ async function loadAlphaValidationPrerequisites(
   dataDir: string,
 ): Promise<AlphaValidationPrerequisiteInput | undefined> {
   try {
-    const raw = await readFile(join(dataDir, "../provider-health", "summary.json"), "utf8");
+    const raw = await readFile(
+      join(dataRootFromRunsDir(dataDir), "provider-health", "summary.json"),
+      "utf8",
+    );
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed) || !isRecord(parsed.validation)) {
       return;
@@ -540,7 +544,10 @@ export async function runScorePass(
 
 async function loadAlphaWatchlist(dataDir: string) {
   try {
-    const raw = await readFile(join(dataDir, "../alpha-search", "watchlist.json"), "utf8");
+    const raw = await readFile(
+      join(dataRootFromRunsDir(dataDir), "alpha-search", "watchlist.json"),
+      "utf8",
+    );
     const watchlist = readAlphaCandidateWatchlist(JSON.parse(raw) as unknown);
     if (watchlist === undefined) {
       throw new Error("Alpha candidate watchlist is invalid");
@@ -587,7 +594,7 @@ export async function buildAndWriteAlphaLeadCohorts(
     tickerBriefSymbols,
     now,
   });
-  const outputDir = join(dataDir, "../alpha-search");
+  const outputDir = join(dataRootFromRunsDir(dataDir), "alpha-search");
   await mkdir(outputDir, { recursive: true });
   await writeFile(
     join(outputDir, "cohorts.json"),
@@ -616,7 +623,7 @@ async function buildAndWriteAlphaCandidateWatchlist(
     (file): file is AlphaValidationFile => file !== undefined,
   );
   const watchlist = buildAlphaCandidateWatchlist({ profiles, validations, now });
-  const watchlistDir = join(dataDir, "../alpha-search");
+  const watchlistDir = join(dataRootFromRunsDir(dataDir), "alpha-search");
   await mkdir(watchlistDir, { recursive: true });
   await writeFile(
     join(watchlistDir, "watchlist.json"),
@@ -649,7 +656,7 @@ async function buildAndWriteAlphaFeatureAttribution(
   }
 
   const attribution = buildAlphaFeatureAttribution({ profiles, validations, now });
-  const outputDir = join(dataDir, "../alpha-search");
+  const outputDir = join(dataRootFromRunsDir(dataDir), "alpha-search");
   await mkdir(outputDir, { recursive: true });
   await writeFile(
     join(outputDir, "feature-attribution.json"),
@@ -684,7 +691,7 @@ async function buildAndWriteAlphaValidationSummary(
     now,
     prerequisiteOverride ?? persistedPrerequisites,
   );
-  const summaryDir = join(dataDir, "../alpha-validation");
+  const summaryDir = join(dataRootFromRunsDir(dataDir), "alpha-validation");
   await mkdir(summaryDir, { recursive: true });
   await writeFile(
     join(summaryDir, "summary.json"),
@@ -790,7 +797,7 @@ export async function buildAndWriteCalibration(
     indexConditionalCounts ?? diskInputs?.conditionalCounts ?? ZERO_CONDITIONAL_COUNTS;
 
   const summary = buildCalibrationSummary(pairs, now, conditionalCounts);
-  const calibrationDir = join(dataDir, "../calibration");
+  const calibrationDir = join(dataRootFromRunsDir(dataDir), "calibration");
   await mkdir(calibrationDir, { recursive: true });
   await writeFileAtomic(
     join(calibrationDir, "summary.json"),

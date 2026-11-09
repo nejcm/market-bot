@@ -18,6 +18,11 @@ describe("dataRootFromRunsDir", () => {
     expect(dataRootFromRunsDir(`${windowsRunsDir}\\`)).toBe(String.raw`C:\data`);
   });
 
+  test("returns the filesystem root for a top-level runs directory", () => {
+    expect(dataRootFromRunsDir("/runs")).toBe("/");
+    expect(dataRootFromRunsDir("runs")).toBe(".");
+  });
+
   test("returns non-runs directory unchanged", () => {
     expect(dataRootFromRunsDir("data/archive")).toBe("data/archive");
   });

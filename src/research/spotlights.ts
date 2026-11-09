@@ -1,6 +1,7 @@
 import { replayValue } from "../replay/session";
 import { readFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
+import { dataRootFromRunsDir } from "../data-paths";
 import { isInstrumentJobType, type AssetClass } from "../domain/job-type";
 import { type MarketSnapshot, type MoverFeatures } from "../domain/market-data";
 import { rankMovers } from "../movers/ranking";
@@ -90,8 +91,7 @@ export interface SpotlightSelectionResult {
 }
 
 function alphaWatchlistPath(dataDir: string): string {
-  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
-  return join(dataRoot, "alpha-search", "watchlist.json");
+  return join(dataRootFromRunsDir(dataDir), "alpha-search", "watchlist.json");
 }
 
 function readLatestValidation(value: unknown): readonly string[] {

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import { isAbsolute, join, normalize, relative, resolve } from "node:path";
 import type {
   CalibrationDetail,
   AlphaCohortDetail,
@@ -28,6 +28,7 @@ import {
   runSummaryFromReport,
   runSummaryMatchesFilters,
 } from "../src/run-artifact-projection";
+import { dataRootFromRunsDir } from "../src/data-paths";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES, isReplayCapturePath } from "../src/run-artifact-layout";
 import { isRecord, readNumber, readString, readStringArray } from "../src/guards";
@@ -229,10 +230,6 @@ async function readLimitedText(path: string, maxBytes: number): Promise<string |
 function isWithinDirectory(root: string, path: string): boolean {
   const childPath = relative(root, path);
   return childPath === "" || (!childPath.startsWith("..") && !isAbsolute(childPath));
-}
-
-function dataRootFromRunsDir(dataDir: string): string {
-  return basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
 }
 
 function safeRunDir(dataDir: string, runId: string): string | undefined {

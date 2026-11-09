@@ -118,7 +118,7 @@ test("report rerun rejects a saved report with leaked placeholder text", async (
     const leaked = await rerunReport({ run: produced.artifacts.runDir, label: "leak", root: dir });
     expect(leaked.status).toBe("failed");
     expect(await readFile(join(leaked.dir, "eval-sample.json"), "utf8")).toContain(
-      "Unresolved metric reference",
+      "Unresolved metric reference in assembled report at keyFindings[0].text;",
     );
     expect(await Bun.file(join(leaked.dir, "report.json")).exists()).toBe(false);
   } finally {

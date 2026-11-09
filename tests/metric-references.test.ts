@@ -25,7 +25,11 @@ import {
   metricReferenceEvidence,
   withoutRestatedMetricValues,
 } from "../src/research/prompts/metric-references";
-import { citeMetricReferences, referenceMetricSections } from "../src/research/metric-references";
+import {
+  assertNoUnresolvedMetricReferences,
+  citeMetricReferences,
+  referenceMetricSections,
+} from "../src/research/metric-references";
 import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { formatMetricValue } from "../src/sources/extended-evidence/value-format";
@@ -292,6 +296,22 @@ test.each([
   ]) {
     expect(() => assembleResearchReport(input(payload))).toThrow(/Metric reference/iu);
   }
+});
+
+test.each([
+  ["bare string array", { extras: { foo: ["a", "b", "<<metric:x.y>>"] } }, "extras.foo[2]"],
+  [
+    "nested object",
+    { keyFindings: [{ text: "Margin", sourceIds: [], note: { body: "<<metric:x.y>>" } }] },
+    "keyFindings[0].note.body",
+  ],
+  ["top-level field", { summary: "<<metric:x.y>>" }, "summary"],
+])("names the field path of an unresolved token in a %s", (_shape, overrides, path) => {
+  expect(() =>
+    assertNoUnresolvedMetricReferences(researchReport(overrides), collectedSources()),
+  ).toThrow(
+    `Unresolved metric reference in assembled report at ${path}; remove it or use a supported cited narrative claim`,
+  );
 });
 
 test.each(["<< METRIC:unknown.margin>>", "<<\nMetric:operating-ratios.margin>"])(

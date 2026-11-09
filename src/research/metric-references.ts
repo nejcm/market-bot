@@ -163,13 +163,28 @@ export function splitMetricReferences(text: string): {
   };
 }
 
-function hasMetricReference(value: unknown): boolean {
+function metricReferencePath(value: unknown, path = ""): string | undefined {
   if (typeof value === "string") {
-    return REFERENCE_START.test(value);
+    return REFERENCE_START.test(value) ? path : undefined;
   }
-  return Array.isArray(value)
-    ? value.some((item) => hasMetricReference(item))
-    : isRecord(value) && Object.values(value).some((item) => hasMetricReference(item));
+  const children = Array.isArray(value)
+    ? value.map((item, index) => [`${path}[${index}]`, item] as const)
+    : isRecord(value)
+      ? Object.entries(value).map(
+          ([key, item]) => [path === "" ? key : `${path}.${key}`, item] as const,
+        )
+      : [];
+  for (const [childPath, item] of children) {
+    const found = metricReferencePath(item, childPath);
+    if (found !== undefined) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+function hasMetricReference(value: unknown): boolean {
+  return metricReferencePath(value) !== undefined;
 }
 
 // Exact catalog ids missing only the `metric:` prefix; anything else stays malformed.
@@ -392,9 +407,10 @@ export function assertNoUnresolvedMetricReferences(
   const authoredExtras = Object.fromEntries(
     Object.entries(extras ?? {}).filter(([key]) => !collectedKeys.has(key)),
   );
-  if (hasMetricReference([authoredAndDeterministic, authoredExtras])) {
+  const path = metricReferencePath({ ...authoredAndDeterministic, extras: authoredExtras });
+  if (path !== undefined) {
     throw new Error(
-      "Unresolved metric reference in assembled report; remove it or use a supported cited narrative claim",
+      `Unresolved metric reference in assembled report at ${path}; remove it or use a supported cited narrative claim`,
     );
   }
 }

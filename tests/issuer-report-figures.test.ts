@@ -1430,20 +1430,22 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
       }),
       sections,
     );
-    const audit = (withSections: boolean) =>
+    const audit = (keyFindings: typeof report.keyFindings) =>
       auditReportIntegrity(
-        report,
+        { ...report, keyFindings },
         undefined,
         undefined,
         undefined,
-        webSourceTexts([KLSE], [], withSections ? sections : []),
+        webSourceTexts([KLSE]),
       ).report.keyFindings.map(({ text }) => text);
 
-    expect(audit(true)).toEqual([
+    expect(audit(report.keyFindings)).toEqual([
       "Quarter revenue was MYR 485.1M, a change of 112.2%.",
       "Quarter basic EPS was MYR 0.0626 or 6.26 sen through 2026-09-30.",
     ]);
-    expect(audit(false)).toEqual([]);
+    expect(
+      audit(report.keyFindings.map(({ renderedMetrics: _rendered, ...finding }) => finding)),
+    ).toEqual([]);
   });
 
   test("leaves SEC listings untouched", async () => {

@@ -45,16 +45,30 @@ export type WebFigureFailureReason =
   | "no-stored-text"
   | "quote-too-short";
 
+export interface DroppedFigureQuote extends FigureQuote {
+  readonly reason: WebFigureFailureReason;
+}
+
 export interface WebFigureFailure {
   readonly reason: WebFigureFailureReason;
   readonly figure: string;
   readonly sourceIds: readonly string[];
 }
 
+// Code-rendered metric reference text: `text` substituted at `start` (UTF-16 offset) in claim field `field`.
+export interface RenderedMetric {
+  readonly field: string;
+  readonly start: number;
+  readonly text: string;
+}
+
+// The metricSourceIds field holds ids added to sourceIds only by a metric reference.
 export interface KeyFinding {
   readonly text: string;
   readonly sourceIds: readonly string[];
   readonly figureQuotes?: readonly FigureQuote[];
+  readonly metricSourceIds?: readonly string[];
+  readonly renderedMetrics?: readonly RenderedMetric[];
 }
 
 export interface Scenario {
@@ -62,6 +76,8 @@ export interface Scenario {
   readonly description: string;
   readonly sourceIds: readonly string[];
   readonly figureQuotes?: readonly FigureQuote[];
+  readonly metricSourceIds?: readonly string[];
+  readonly renderedMetrics?: readonly RenderedMetric[];
 }
 
 export type EquityAnalysisDimensionStatus =

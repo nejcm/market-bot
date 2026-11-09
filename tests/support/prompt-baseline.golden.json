@@ -34,7 +34,7 @@
   "file:prompts/console-run-chat.md": "26f27b37fb445b1ac1a9a0cc00cb404f0b5a8db02513f4fcf66a919490170053",
   "file:prompts/critique/base.md": "c8d9acc87d775119ed9a3dde49b01a4ca8f4e60fe8a5408f8b98c415f59f70c3",
   "file:prompts/evidence-request/base.md": "ebd4dbf9cc66f8c1b8ed28a98cd7d5a741c336fb00473b7bf394dc2920c36086",
-  "file:prompts/final-synthesis/base.md": "a6a9f554ee2f2d58328fca04f6b6a709013e773d8569577dd621123ecb93bfae",
+  "file:prompts/final-synthesis/base.md": "97b0aa7dd46ad3b04c2eadc91120740c9acf8ed5df60c3c3bd9b6418449e121f",
   "file:prompts/financial-table-mapping/base.md": "87bba6f27d395fc46461fa7abc51725eff78482597cadbb56bb441ea81a19539",
   "file:prompts/forecast-disagreement/base.md": "f80b0412a07ad1486e254772695b2a1200a2435c7ef5cebe9975111aabe6d8b9",
   "file:prompts/forecast-grid/base.md": "ca21f30adfcc57f3aaccee49baf04510d8faa54b3b2a517651559268a8bae2b9",

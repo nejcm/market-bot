@@ -14,8 +14,7 @@ import type {
 } from "../report/report-extras-contract";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
-import type { FigureQuote } from "../domain/report";
-import { readFigureQuotes } from "./web-figure-verification";
+import { readClaimProvenance } from "./web-figure-verification";
 
 interface ExtraProjector {
   readonly key: string;
@@ -29,7 +28,7 @@ interface ExtraProjector {
 interface ModelBusinessFrameworkSection {
   readonly text: string;
   readonly sourceIds: readonly string[];
-  readonly figureQuotes?: readonly FigureQuote[];
+  readonly provenance: ReturnType<typeof readClaimProvenance>;
 }
 
 function modelBusinessFrameworkSections(
@@ -46,11 +45,10 @@ function modelBusinessFrameworkSections(
     if (!isBusinessFrameworkSectionName(item.name)) {
       continue;
     }
-    const figureQuotes = readFigureQuotes(item.figureQuotes);
     sections.set(item.name, {
       text: item.text,
       sourceIds: nonEmptyStringArrayValue(item.sourceIds),
-      ...(figureQuotes === undefined ? {} : { figureQuotes }),
+      provenance: readClaimProvenance(item),
     });
   }
   return sections;
@@ -82,10 +80,9 @@ function businessFrameworkExtra(
             ? modelSection.sourceIds
             : section.sourceIds,
         gaps: section.gaps,
-        ...(modelSection !== undefined ? { text: modelSection.text } : {}),
-        ...(modelSection?.figureQuotes === undefined
-          ? {}
-          : { figureQuotes: modelSection.figureQuotes }),
+        ...(modelSection !== undefined
+          ? { text: modelSection.text, ...modelSection.provenance }
+          : {}),
       };
     }),
     ...(artifact.reconciliation !== undefined ? { reconciliation: artifact.reconciliation } : {}),

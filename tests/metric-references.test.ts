@@ -1,4 +1,7 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import type { EvidenceQualityAssessment } from "../src/domain/evidence";
+import { finalizeSynthesis } from "../src/research/finalize-synthesis";
+import { readReport } from "../src/run-artifact-report-reader";
 import { buildWebSubjectProfileEvidence } from "../src/web-evidence/web-subject-profile";
 import { assembleResearchReport, type ModelReportPayload } from "../src/research/report-assembly";
 import { synthesizeReportUntilValid } from "../src/research/final-synthesis";
@@ -22,7 +25,7 @@ import {
   metricReferenceEvidence,
   withoutRestatedMetricValues,
 } from "../src/research/prompts/metric-references";
-import { referenceMetricSections } from "../src/research/metric-references";
+import { citeMetricReferences, referenceMetricSections } from "../src/research/metric-references";
 import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { formatMetricValue } from "../src/sources/extended-evidence/value-format";
@@ -152,6 +155,16 @@ test("compact metric catalog preserves values, units, periods, statuses and cita
   }
 });
 
+// The resolver's spans for `values` rendered in order into a claim's text.
+function rendered(text: string, ...values: readonly string[]) {
+  let from = 0;
+  return values.map((value) => {
+    const start = text.indexOf(value, from);
+    from = start + value.length;
+    return { field: "text", start, text: value };
+  });
+}
+
 function input(payload: ModelReportPayload, metricSections = [section]) {
   return {
     runId: "metric-test",
@@ -194,6 +207,14 @@ test("assembly formats repeated metric references, merges citations, and publish
   expect(report.keyFindings[0]).toEqual({
     text: "FY margin 12.5%; cash €1.0M; coverage 2.50x; DPS £0.25; margin 12.5%.",
     sourceIds: ["market-aapl", "metric-source"],
+    renderedMetrics: rendered(
+      "FY margin 12.5%; cash €1.0M; coverage 2.50x; DPS £0.25; margin 12.5%.",
+      "12.5%",
+      "€1.0M",
+      "2.50x",
+      "£0.25",
+      "12.5%",
+    ),
   });
   expect(report.scenarios[0]?.sourceIds).toEqual(["metric-source"]);
   expect(report.scenarios[0]?.description).toContain("12.5%");
@@ -235,6 +256,20 @@ test("references allow dots in a Valuation Workbench section's publication times
   expect(report.keyFindings[0]?.text).toBe("Margin 12.5%.");
 });
 
+test("marks only the ids a metric reference added, not ids the claim already cited", () => {
+  const claim = (sourceIds: readonly string[]) =>
+    assembleResearchReport(
+      input({
+        keyFindings: [{ text: "FY margin <<metric:operating-ratios.margin>>.", sourceIds }],
+      }),
+    ).keyFindings[0];
+  expect(claim(["metric-source"])).toEqual({
+    text: "FY margin 12.5%.",
+    sourceIds: ["metric-source"],
+    renderedMetrics: rendered("FY margin 12.5%.", "12.5%"),
+  });
+});
+
 test.each([
   "<<Metric:operating-ratios.margin>>",
   "<< METRIC: operating-ratios.margin >>",
@@ -243,7 +278,12 @@ test.each([
   const report = assembleResearchReport(
     input({ keyFindings: [{ text: `FY margin ${token}.`, sourceIds: [] }] }),
   );
-  expect(report.keyFindings[0]).toEqual({ text: "FY margin 12.5%.", sourceIds: ["metric-source"] });
+  expect(report.keyFindings[0]).toEqual({
+    text: "FY margin 12.5%.",
+    sourceIds: ["metric-source"],
+    metricSourceIds: ["metric-source"],
+    renderedMetrics: rendered("FY margin 12.5%.", "12.5%"),
+  });
   for (const payload of [
     { summary: token },
     { dataGaps: [token] },
@@ -402,6 +442,8 @@ test.each([
   expect(result.report.keyFindings[0]).toEqual({
     text: "FY margin 12.5%.",
     sourceIds: ["metric-source"],
+    metricSourceIds: ["metric-source"],
+    renderedMetrics: rendered("FY margin 12.5%.", "12.5%"),
   });
 });
 
@@ -558,6 +600,12 @@ test("prefixes an exact catalog id missing only metric: and validates it like an
   expect(report.keyFindings[0]).toEqual({
     text: "Margin 12.5% (6-month period ending 2026-03-31); cash €1.0M.",
     sourceIds: ["metric-source"],
+    metricSourceIds: ["metric-source"],
+    renderedMetrics: rendered(
+      "Margin 12.5% (6-month period ending 2026-03-31); cash €1.0M.",
+      "12.5% (6-month period ending 2026-03-31)",
+      "€1.0M",
+    ),
   });
   for (const [token, error] of [
     ["<<operating-ratios.missing>>", "unknown, unavailable, or unciteable"],
@@ -730,6 +778,12 @@ test("|period renders the metric's period label and rejects metrics without one"
   expect(report.keyFindings[0]).toEqual({
     text: "Margin 12.5% (6-month period ending 2026-03-31); again 12.5% (6-month period ending 2026-03-31).",
     sourceIds: ["metric-source"],
+    metricSourceIds: ["metric-source"],
+    renderedMetrics: rendered(
+      "Margin 12.5% (6-month period ending 2026-03-31); again 12.5% (6-month period ending 2026-03-31).",
+      "12.5% (6-month period ending 2026-03-31)",
+      "12.5% (6-month period ending 2026-03-31)",
+    ),
   });
   for (const token of [
     "<<metric:operating-ratios.cash|period>>",
@@ -823,6 +877,14 @@ test("market-session references resolve verified snapshot values with its citati
   expect(report.keyFindings[0]).toEqual({
     text: "Close 108.00 vs 105.00 (+2.9% vs prior close), RSI14 55.00 (as of 2026-05-18).",
     sourceIds: ["verified-snapshot-AAPL"],
+    metricSourceIds: ["verified-snapshot-AAPL"],
+    renderedMetrics: rendered(
+      "Close 108.00 vs 105.00 (+2.9% vs prior close), RSI14 55.00 (as of 2026-05-18).",
+      "108.00",
+      "105.00",
+      "+2.9% vs prior close",
+      "55.00 (as of 2026-05-18)",
+    ),
   });
   expect(() =>
     assembleResearchReport(
@@ -948,4 +1010,155 @@ test("prompt evidence keeps nonmigrated summary prose while stripping migrated v
   expect(projected.items[0]!.metrics).not.toHaveProperty(latest.key);
   expect(projected.items[0]!.metrics?.sma50).toBe(item.metrics?.sma50);
   expect(withoutRestatedMetricValues(evidence, []).items).toBe(evidence.items);
+});
+
+describe("metric references through finalization", () => {
+  const snapshot = verifiedMarketSnapshot();
+  const web = newsSource({
+    id: "web-aapl",
+    kind: "web",
+    url: "https://example.com/aapl-results",
+    snippet:
+      "Apple said services revenue rose to a record in the quarter, and its operating margin was 12.5% for the period. Its cash balance was €1.0M at period end.",
+  });
+  const finalSources = [...sources, verifiedSnapshotSource(snapshot), web];
+  const collected = collectedSources({
+    metricSections: [section],
+    verifiedMarketSnapshot: snapshot,
+  });
+  const assessment: EvidenceQualityAssessment = {
+    version: 1,
+    rubricVersion: 3,
+    label: "high",
+    checks: [],
+    limitingReasons: [],
+    advisoryReasons: [],
+  };
+  const assembled = (keyFindings: ModelReportPayload["keyFindings"]) =>
+    assembleResearchReport({
+      ...input({ keyFindings }),
+      sources: finalSources,
+      collectedSources: collected,
+    });
+  const finalized = (keyFindings: ModelReportPayload["keyFindings"]) =>
+    finalizeSynthesis(
+      {
+        report: assembled(keyFindings),
+        sourceGaps: [],
+        stageOutputs: [],
+        predictionRetryErrors: [],
+        predictionTrimWarnings: [],
+        predictionErrors: [],
+        reportValidationErrors: [],
+        relocatedGapClaims: [],
+      },
+      collected,
+      assessment,
+      async () => ({ labels: new Map(), warnings: [] }),
+    );
+
+  test("keeps a market-session value beside a web citation", async () => {
+    const result = await finalized([
+      {
+        text: "Shares closed at <<metric:market-session.close>> after the results.",
+        sourceIds: [web.id],
+      },
+    ]);
+    expect(result.integrityAudit.pruned).toEqual([]);
+    expect(result.report.keyFindings[0]?.text).toBe("Shares closed at 108.00 after the results.");
+  });
+
+  test("exempts only the occurrence code rendered, never a typed copy of its value", async () => {
+    const margin = "<<metric:operating-ratios.margin>>";
+    const marginQuote = {
+      sourceId: web.id,
+      quote: "its operating margin was 12.5% for the period",
+    };
+    const prunedFigures = async (claim: object) =>
+      (await finalized([claim])).integrityAudit.pruned.map(({ webFigure }) => webFigure?.figure);
+    expect(await prunedFigures({ text: `Margin was ${margin}.`, sourceIds: [web.id] })).toEqual([]);
+    expect(
+      await prunedFigures({
+        text: `Margin was ${margin}; backlog grew 12.5%.`,
+        sourceIds: [web.id],
+      }),
+    ).toEqual(["12.5%"]);
+    expect(
+      await prunedFigures({
+        text: `Backlog changed -12.5%; margin was ${margin}.`,
+        sourceIds: [web.id],
+        figureQuotes: [marginQuote],
+      }),
+    ).toEqual(["-12.5%"]);
+  });
+
+  test("a rendered value typed text touches is ambiguous, even beside a valid quote", async () => {
+    const quotes = [
+      { sourceId: web.id, quote: "its operating margin was 12.5% for the period" },
+      { sourceId: web.id, quote: "Its cash balance was €1.0M at period end" },
+    ];
+    const pruned = async (text: string) =>
+      (
+        await finalized([{ text, sourceIds: [web.id], figureQuotes: quotes }])
+      ).integrityAudit.pruned.map(({ webFigure }) => [webFigure?.reason, webFigure?.figure]);
+    const margin = "<<metric:operating-ratios.margin>>";
+    const cash = "<<metric:operating-ratios.cash>>";
+    for (const [text, figure] of [
+      [`Margin was -${margin}.`, "12.5%"],
+      [`Margin was -**${margin}**.`, "12.5%"],
+      [`Cash was ${cash} bn.`, "€1.0M"],
+      [`Cash was ${cash}  bn.`, "€1.0M"],
+      [`Cash was ${cash}\nbn.`, "€1.0M"],
+      [`Cash was USD  ${cash}.`, "€1.0M"],
+      [`Cash was USD\n${cash}.`, "€1.0M"],
+      [`Cash was USD ${cash}.`, "€1.0M"],
+      [`DPS was <<metric:operating-ratios.dps>> million.`, "£0.25"],
+      [`Margin ranged 10-${margin}.`, "12.5%"],
+      [`Margin ranged from 10 to ${margin}.`, "12.5%"],
+    ]) {
+      expect(await pruned(text!)).toEqual([["figure-ambiguous", figure]]);
+    }
+    expect(await pruned(`Margin was ${margin}; cash was ${cash}.`)).toEqual([]);
+    expect(await pruned(`Margin was ${margin} (-1.2pp).`)).toEqual([
+      ["figure-not-in-quote", "-1.2pp"],
+    ]);
+  });
+
+  test("ignores draft-supplied rendered metrics and metric source ids", async () => {
+    const forged = {
+      text: "Backlog grew 900%.",
+      sourceIds: [web.id],
+      metricSourceIds: [web.id],
+      renderedMetrics: [{ field: "text", start: 13, text: "900%" }],
+    };
+    const result = await finalized([forged]);
+    expect(result.integrityAudit.pruned.map(({ webFigure }) => webFigure?.figure)).toEqual([
+      "900%",
+    ]);
+    const stripped = citeMetricReferences(
+      {
+        ...input({}).payload,
+        keyFindings: [forged],
+        scenarios: [{ name: "Up", description: "Backlog grew 900%.", ...forged }],
+        extras: { businessFramework: { sections: [{ id: "moat", ...forged }] } },
+      },
+      [section],
+    );
+    expect(JSON.stringify(stripped)).not.toMatch(/renderedMetrics|metricSourceIds/u);
+  });
+
+  test("a finalized report keeps claim provenance through the artifact reader", async () => {
+    const { report } = await finalized([
+      {
+        text: "Margin was <<metric:operating-ratios.margin>>.",
+        sourceIds: [web.id],
+        figureQuotes: [{ sourceId: web.id, quote: "services revenue rose to a record" }],
+      },
+    ]);
+    expect(report.keyFindings[0]).toMatchObject({
+      metricSourceIds: ["metric-source"],
+      renderedMetrics: [{ field: "text", start: 11, text: "12.5%" }],
+    });
+    expect(readReport(JSON.parse(JSON.stringify(report)))?.keyFindings).toEqual(report.keyFindings);
+  });
 });

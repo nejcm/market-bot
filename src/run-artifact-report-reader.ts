@@ -42,6 +42,7 @@ import { normalizePredictionShortfall } from "./report/prediction-shortfall";
 import { readVerifiedMarketSnapshots } from "./run-artifact-snapshot-reader";
 import { isAssetClass, isJobType, readPrimitiveEvidence } from "./run-artifact-value-guards";
 import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "./guards";
+import { readClaimProvenance } from "./research/web-figure-verification";
 
 const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEvidenceCategory>([
   "sec-edgar",
@@ -87,7 +88,13 @@ function readFindings(value: unknown): readonly KeyFinding[] {
     if (!isRecord(item) || typeof item.text !== "string") {
       return [];
     }
-    return [{ text: item.text, sourceIds: nonEmptyStringArrayValue(item.sourceIds) }];
+    return [
+      {
+        text: item.text,
+        sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+        ...readClaimProvenance(item),
+      },
+    ];
   });
 }
 
@@ -104,6 +111,7 @@ function readScenarios(value: unknown): readonly Scenario[] {
         name: item.name,
         description: item.description,
         sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+        ...readClaimProvenance(item),
       },
     ];
   });

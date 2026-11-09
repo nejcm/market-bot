@@ -461,6 +461,8 @@ describe("static equity run fixtures", () => {
         expect(result.report.keyFindings).toContainEqual({
           text: `Filed metric reference: ${injectedMetric.value}.`,
           sourceIds: injectedMetric.sourceIds,
+          metricSourceIds: injectedMetric.sourceIds,
+          renderedMetrics: [{ field: "text", start: 24, text: injectedMetric.value }],
         });
         expect(result.markdown).toContain(`Filed metric reference: ${injectedMetric.value}.`);
       }

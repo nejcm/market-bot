@@ -28,7 +28,7 @@
 // ReadWebSubjectProfileFacts) are the strict artifact ones, moved here unchanged.
 
 import type { SubjectKind } from "../domain/evidence";
-import type { FigureQuote } from "../domain/report";
+import type { FigureQuote, RenderedMetric } from "../domain/report";
 import type {
   BusinessFrameworkArtifact,
   BusinessFrameworkMetric,
@@ -61,6 +61,8 @@ import { readFigureQuotes } from "../research/web-figure-verification";
 type BusinessFrameworkExtraSection = BusinessFrameworkSection & {
   readonly text?: string;
   readonly figureQuotes?: readonly FigureQuote[];
+  readonly metricSourceIds?: readonly string[];
+  readonly renderedMetrics?: readonly RenderedMetric[];
 };
 
 export type BusinessFrameworkExtra = Omit<

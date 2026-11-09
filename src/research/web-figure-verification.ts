@@ -1,22 +1,26 @@
-import type { FigureQuote, WebFigureFailure, WebFigureFailureReason } from "../domain/report";
+import type {
+  DroppedFigureQuote,
+  FigureQuote,
+  RenderedMetric,
+  WebFigureFailure,
+  WebFigureFailureReason,
+} from "../domain/report";
 import type { Source } from "../domain/sources";
-import { isRecord } from "../guards";
-import type { MetricSection } from "../sources/extended-evidence/metric-engine";
-import { formatMetricValue } from "../sources/extended-evidence/value-format";
+import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import { canonicalizeUrl } from "../sources/news-utils";
 
 export interface WebSourceTexts {
   // Normalized stored text per web Source id; an empty list means the source kept nothing to check.
   readonly web: ReadonlyMap<string, readonly string[]>;
   readonly deterministic: ReadonlySet<string>;
-  // Figures code rendered from a web-sourced Metric Section, which a metric reference substitutes into a claim.
-  readonly codeFigures: ReadonlyMap<string, readonly Figure[]>;
 }
 
 interface WebFigureClaim {
   readonly text: string;
   readonly sourceIds: readonly string[];
   readonly figureQuotes?: readonly FigureQuote[];
+  readonly metricSourceIds?: readonly string[];
+  readonly ambiguousSpans?: readonly string[];
 }
 
 interface Figure {
@@ -625,7 +629,6 @@ export function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<str
 export function webSourceTexts(
   sources: readonly Source[],
   rawSnapshots: readonly unknown[] = [],
-  metricSections: readonly MetricSection[] = [],
 ): WebSourceTexts {
   const raw = rawTextsByUrl(rawSnapshots);
   const texts = new Map<string, string[]>();
@@ -640,19 +643,7 @@ export function webSourceTexts(
       .filter((text) => text !== "");
     texts.set(source.id, [...new Set([...(texts.get(source.id) ?? []), ...stored])]);
   }
-  const codeFigures = new Map<string, Figure[]>();
-  for (const metric of metricSections.flatMap((section) => section.metrics)) {
-    const rendered =
-      metric.status === "value"
-        ? formatMetricValue(metric.value, metric.unit, metric.currency)
-        : undefined;
-    for (const id of rendered === undefined
-      ? []
-      : metric.sourceIds.filter((row) => texts.has(row))) {
-      codeFigures.set(id, [...(codeFigures.get(id) ?? []), ...figuresIn(rendered ?? "")]);
-    }
-  }
-  return { web: texts, deterministic, codeFigures };
+  return { web: texts, deterministic };
 }
 
 export function readFigureQuotes(value: unknown): readonly FigureQuote[] | undefined {
@@ -667,6 +658,104 @@ export function readFigureQuotes(value: unknown): readonly FigureQuote[] | undef
       ? [{ sourceId: item.sourceId, quote: item.quote }]
       : [],
   );
+}
+
+function readRenderedMetrics(value: unknown): readonly RenderedMetric[] {
+  return Array.isArray(value)
+    ? value.flatMap((item) =>
+        isRecord(item) &&
+        typeof item.field === "string" &&
+        typeof item.text === "string" &&
+        typeof item.start === "number" &&
+        Number.isSafeInteger(item.start) &&
+        item.start >= 0
+          ? [{ field: item.field, start: item.start, text: item.text }]
+          : [],
+      )
+    : [];
+}
+
+// Claim fields the Verified Web Figure check reads; every claim reader carries them unchanged.
+export function readClaimProvenance(item: Readonly<Record<string, unknown>>): {
+  readonly figureQuotes?: readonly FigureQuote[];
+  readonly metricSourceIds?: readonly string[];
+  readonly renderedMetrics?: readonly RenderedMetric[];
+} {
+  const figureQuotes = readFigureQuotes(item.figureQuotes);
+  const metricSourceIds = nonEmptyStringArrayValue(item.metricSourceIds);
+  const renderedMetrics = readRenderedMetrics(item.renderedMetrics);
+  return {
+    ...(figureQuotes === undefined ? {} : { figureQuotes }),
+    ...(metricSourceIds.length === 0 ? {} : { metricSourceIds }),
+    ...(renderedMetrics.length === 0 ? {} : { renderedMetrics }),
+  };
+}
+
+function withoutSpan(text: string, { start, text: rendered }: RenderedMetric): string {
+  return `${text.slice(0, start)}${" ".repeat(rendered.length)}${text.slice(start + rendered.length)}`;
+}
+
+function figureKeys(...texts: readonly string[]): string {
+  return texts
+    .flatMap((text) => figuresIn(text))
+    .map(
+      ({ value, scale, currency, unit }) => `${String(value)}|${String(scale)}|${currency}|${unit}`,
+    )
+    .toSorted()
+    .join(" ");
+}
+
+const MODIFIER_WORDS = String.raw`${SCALE_WORDS}|${UNIT_WORDS}|${SUBUNITS}|points?|pts?|ringgit|dollars?|euros?|yen|yuan|baht|won|${CURRENCY_PREFIX}|[kmbx×%]`;
+const OPEN_BEFORE = /(?:^|[\s(])$/u;
+const CLOSED_AFTER = /^(?:$|[\s;:)]|[.,](?![\p{L}\d]))/u;
+// Across whitespace, a scale, unit or currency word the parser may ignore ("MYR 485.1M bn"), or a range bound.
+const SPACED_AFTER = new RegExp(
+  String.raw`^\s+(?:(?:${MODIFIER_WORDS})(?!\p{L})|[-−–+]\s*[\d\p{Sc}])`,
+  "iu",
+);
+const SPACED_BEFORE = new RegExp(String.raw`(?<!\p{L})(?:${CURRENCY_PREFIX})\s+$`, "iu");
+
+function standsAlone(text: string, { start, text: rendered }: RenderedMetric): boolean {
+  const before = text.slice(0, start);
+  const after = text.slice(start + rendered.length);
+  return (
+    OPEN_BEFORE.test(before) &&
+    CLOSED_AFTER.test(after) &&
+    !SPACED_BEFORE.test(before) &&
+    !SPACED_AFTER.test(after)
+  );
+}
+
+export interface TypedReading {
+  readonly text: string;
+  // Rendered values typed text touches; no quote can prove them, so they make the claim ambiguous.
+  readonly ambiguousSpans: readonly string[];
+}
+
+// Blanks each span code rendered into `field` that stands alone and reads the same masked, so the check sees only
+// Model-typed figures. A span that no longer matches stays in the text and is checked like typed text.
+export function typedReading<T extends { readonly renderedMetrics?: readonly RenderedMetric[] }>(
+  item: T,
+  field: keyof T & string,
+): TypedReading {
+  const text: unknown = item[field];
+  if (typeof text !== "string") {
+    return { text: "", ambiguousSpans: [] };
+  }
+  const whole = figureKeys(text);
+  const spans = (item.renderedMetrics ?? []).filter(
+    (metric) => metric.field === field && text.startsWith(metric.text, metric.start),
+  );
+  const exempt = spans.filter(
+    (metric) =>
+      standsAlone(text, metric) && figureKeys(withoutSpan(text, metric), metric.text) === whole,
+  );
+  return {
+    text: exempt.reduce<string>(withoutSpan, text),
+    ambiguousSpans: spans
+      .filter((metric) => !exempt.includes(metric))
+      .map(({ text: span }) => span),
+  };
 }
 
 function sameFigure(left: Figure, right: Figure): boolean {
@@ -719,42 +808,61 @@ function mismatchReason(figure: Figure, near: Figure): WebFigureFailureReason {
   return near.currency === figure.currency ? "unit-mismatch" : "currency-mismatch";
 }
 
-// Every persisted quote must verify. Uncovered figures pass only when a deterministic source is also cited.
+function checkedQuotes(
+  claim: WebFigureClaim,
+  texts: WebSourceTexts,
+  claimFigures: readonly Figure[],
+) {
+  return (claim.figureQuotes ?? []).map((quote) => ({
+    ...quote,
+    ...checkedQuote(quote, claim.sourceIds, texts, claimFigures),
+  }));
+}
+
+// A failing quote never fails a claim on its own; callers drop it so every persisted quote is a proven span.
+export function failedFigureQuotes(
+  claim: Omit<WebFigureClaim, "text">,
+  texts: WebSourceTexts,
+): readonly DroppedFigureQuote[] {
+  return checkedQuotes({ ...claim, text: "" }, texts, []).flatMap(({ sourceId, quote, failure }) =>
+    failure === undefined ? [] : [{ sourceId, quote, reason: failure }],
+  );
+}
+
+// Uncovered figures pass only when a deterministic source the model cited itself is also cited.
 export function unverifiedWebFigure(
   claim: WebFigureClaim,
   texts: WebSourceTexts,
 ): WebFigureFailure | undefined {
   const citedWeb = claim.sourceIds.filter((id) => texts.web.has(id));
   const figures = citedWeb.length === 0 ? [] : figuresIn(claim.text);
-  const quotes = (claim.figureQuotes ?? []).map((quote) => ({
-    sourceId: quote.sourceId,
-    ...checkedQuote(quote, claim.sourceIds, texts, figures),
-  }));
-  const failed = quotes.find((quote) => quote.failure !== undefined);
-  if (failed?.failure !== undefined) {
-    const figure = failed.figures[0]?.raw ?? figures[0]?.raw ?? "a quoted figure";
-    return { reason: failed.failure, figure, sourceIds: [failed.sourceId] };
+  const quotes = checkedQuotes(claim, texts, figures);
+  const failed = quotes.filter((quote) => quote.failure !== undefined);
+  const proven = quotes.filter((quote) => quote.failure === undefined);
+  const quotedFigures = proven.flatMap((quote) => quote.figures);
+  const deterministicSupport = claim.sourceIds.some(
+    (id) => texts.deterministic.has(id) && !(claim.metricSourceIds ?? []).includes(id),
+  );
+  const ambiguousSpan = deterministicSupport ? undefined : claim.ambiguousSpans?.[0];
+  if (citedWeb.length > 0 && ambiguousSpan !== undefined) {
+    return { reason: "figure-ambiguous", figure: ambiguousSpan, sourceIds: citedWeb };
   }
-  const quotedFigures = quotes.flatMap((quote) => quote.figures);
-  const deterministicSupport = claim.sourceIds.some((id) => texts.deterministic.has(id));
   for (const figure of figures) {
-    const codeRendered = citedWeb.some((id) =>
-      texts.codeFigures.get(id)?.some((rendered) => sameFigure(rendered, figure)),
-    );
-    if (
-      deterministicSupport ||
-      codeRendered ||
-      quotedFigures.some((quoted) => sameFigure(quoted, figure))
-    ) {
+    if (deterministicSupport || quotedFigures.some((quoted) => sameFigure(quoted, figure))) {
       continue;
     }
     const near = quotedFigures.find((quoted) => quoted.value === figure.value);
+    const failedQuote =
+      failed.find((quote) => quote.figures.some((quoted) => sameFigure(quoted, figure))) ??
+      (proven.length === 0 ? failed[0] : undefined);
     let reason: WebFigureFailureReason = "figure-not-quoted";
     if (Number.isNaN(figure.value)) {
       reason = "figure-ambiguous";
+    } else if (failedQuote?.failure !== undefined) {
+      return { reason: failedQuote.failure, figure: figure.raw, sourceIds: [failedQuote.sourceId] };
     } else if (near !== undefined) {
       reason = mismatchReason(figure, near);
-    } else if (quotes.length > 0) {
+    } else if (proven.length > 0) {
       reason = "figure-not-in-quote";
     } else if (citedWeb.every((id) => texts.web.get(id)?.length === 0)) {
       reason = "no-stored-text";
@@ -770,4 +878,8 @@ export function isWebFigureGapText(text: string): boolean {
 
 export function webFigureGapText(location: string, failure: WebFigureFailure): string {
   return `${GAP_PREFIX} ${location}: ${failure.figure} ${REASON_TEXT[failure.reason]} (${failure.sourceIds.join(", ")}).`;
+}
+
+export function droppedFigureQuoteText(location: string, quote: DroppedFigureQuote): string {
+  return `Verified Web Figure quote dropped from ${location}: ${quote.reason} (${quote.sourceId}).`;
 }

@@ -410,6 +410,11 @@ function withResolvedPredictionsOnly(
   return pendingPredictionCount === 0 ? run : { ...run, predictions, pendingPredictionCount };
 }
 
+// A prior run's item ids are not in this run's catalog; the run's own sourceId is what cites it.
+function withoutPriorRunSourceIds({ text }: { readonly text: string }) {
+  return { text };
+}
+
 export function compactHistoricalContext(
   context: HistoricalResearchContext,
   sourceGapView: SourceGapView,
@@ -417,7 +422,13 @@ export function compactHistoricalContext(
   // Renamed so prior-run gaps read as re-check context, not rows to copy into this report's dataGaps.
   const runs = historicalRunsForGapView(context.runs, sourceGapView).map((run) => {
     const { dataGaps, ...rest } = withResolvedPredictionsOnly(run);
-    return { ...rest, priorRunGapsToRecheck: dataGaps };
+    return {
+      ...rest,
+      keyFindings: run.keyFindings.map(withoutPriorRunSourceIds),
+      risks: run.risks.map(withoutPriorRunSourceIds),
+      catalysts: run.catalysts.map(withoutPriorRunSourceIds),
+      priorRunGapsToRecheck: dataGaps,
+    };
   });
   return {
     generatedAt: context.generatedAt,

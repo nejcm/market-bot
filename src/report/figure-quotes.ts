@@ -10,7 +10,15 @@ export function readFigureQuotes(value: unknown): readonly FigureQuote[] | undef
     typeof item.sourceId === "string" &&
     typeof item.quote === "string" &&
     item.quote.trim() !== ""
-      ? [{ sourceId: item.sourceId, quote: item.quote }]
+      ? [
+          {
+            sourceId: item.sourceId,
+            quote: item.quote,
+            ...(typeof item.unitQuote === "string" && item.unitQuote.trim() !== ""
+              ? { unitQuote: item.unitQuote }
+              : {}),
+          },
+        ]
       : [],
   );
 }

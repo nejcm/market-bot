@@ -14,7 +14,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 ## Decision
 
 - **Verified Web Figure.** A figure a model states from a web source (`Source.kind === "web"`) carries a
-  `figureQuotes` entry `{ sourceId, quote }`: a verbatim span from that cited source holding the figure.
+  `figureQuotes` entry `{ sourceId, quote, unitQuote? }`: a verbatim span from that cited source holding the figure.
 - Code verifies before publishing, on every run, US included:
   - The quote, after NFKC, whitespace, quote/dash and Markdown-emphasis normalization, appears in the source's
     stored text. Stored text is the source's snippet plus its raw Exa/Firecrawl page text matched by
@@ -29,6 +29,25 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
     `reportIntegrityAudit.droppedFigureQuotes` with its location and reason, or becomes a profile Source Gap on a
     Web Subject Profile row; a claim figure that only a dropped quote held fails with that quote's reason. A quote
     needs at least three words outside its figures; a bare number matches almost any page.
+  - A table figure whose currency and scale appear only in its column's unit header adds `unitQuote`, that header
+    cell verbatim (amended 2026-11-09). Code splits the same stored text into pipe tables (a blank line, a non-table
+    line, or a Markdown separator row starts a new one), finds each quoted figure's own cell, and walks up from its row to the table top. Every row
+    it crosses must be proven, or the unit is blocked: either a data row whose single label is a listed monetary
+    line and whose value cells are bare numbers, or a header row whose cell in this column is a unit cell, a scale
+    cell, a period or date (`CURRENT YEAR QUARTER`, `30 Sep 2026`; exact month names only), or blank, and whose
+    label cell is blank or a period or date. A missing cell blocks, and a blank cell passes only when every other
+    cell in its row is blank or a period or date, since a merged header may cover it. A caption, a `%`, `CAD`, `US$`, or `Note` cell, or any unparsed row blocks. These are allowlists
+    that fail closed, since no list of excluded ratio or unit words is complete. The walk must find exactly one unit
+    cell for the column, at most one scale, and a currency; `unitQuote` must equal one of those unit or scale cells.
+    Only a bare whole-cell amount takes the unit, on a row whose single label is wholly (not as a substring) a listed
+    monetary line (revenue, profit before tax, profit for the period, profit attributable to owners, operating cash
+    flow, capital expenditure, cash, total current assets or liabilities, total equity), and every value cell of
+    that row must pass the same walk. Such a cell then matches at the header's scale and currency
+    (`485,101` under `MYR'000` is `MYR 485,101 thousand`), and cells in other columns stay bare. Issuer Report
+    Figures keeps its own header rule, and also withholds a column with a currency- or scale-looking cell it cannot
+    parse (`unit-ambiguous`). A quote whose `unitQuote` heads none of its cells
+    drops as `unit-not-in-source`. The quote had no unit field before, so an `RM'000` table figure verified only as
+    the bare cell, without its currency.
   - Web Gather stores at most `MAX_TEXT_CHARS` per page and the snippet cap; a figure beyond the stored text
     fails. A snippet-only source verifies only what the snippet holds. A source with no stored text fails every
     figure tied to it.
@@ -59,7 +78,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   failing figure is not reused, so the run regenerates the profile instead of publishing it degraded.
 - Final synthesis reads a fresh web source's snippet, falling back to the summary only when no snippet exists,
   so the quotable text is what the model sees.
-- Quotes persist on report claims and profile rows. `figureQuotes[].quote` is quoted source text, exempt from
+- Quotes persist on report claims and profile rows. `figureQuotes[].quote` and `.unitQuote` are quoted source text, exempt from
   the research-only scan ([ADR 0001](./0001-research-only-boundary.md)).
 
 ### Non-SEC foundation (amended 2026-11-06)
@@ -134,7 +153,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   - the header text states the basis: "as at" for a stock, a month count, "quarter", "year ended", or "to date"
     with the Financial Year End;
   - the concept kind matches that basis: a flow needs a period length, a stock needs "as at";
-  - the unit header gives the currency and scale, in one cell (`MYR'000`, `USD mil`) or as a currency cell plus a
+  - the unit header gives the currency and scale, in one cell (`MYR'000`, `USD'mil`) or as a currency cell plus a
     scale cell (`RM` | `'000`); two different scales in one column are ambiguous and not read;
   - a per-share concept needs a subunit label (`(Subunit)`, `sen`, `cents`), which scales by 0.01;
   - the column currency matches the document's "Currency: … (XXX)" line;

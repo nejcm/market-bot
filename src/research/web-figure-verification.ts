@@ -9,6 +9,7 @@ import type { Source } from "../domain/sources";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import { canonicalizeUrl } from "../sources/news-utils";
 import { readFigureQuotes } from "../report/figure-quotes";
+import { cellNumber, headedAmountUnit } from "./unit-header";
 
 export interface WebSourceTexts {
   // Normalized stored text per web Source id; an empty list means the source kept nothing to check.
@@ -141,6 +142,7 @@ const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
   "currency-mismatch": "is quoted in a different currency",
   "unit-mismatch": "is quoted with a different unit",
   "quote-not-in-source": "rests on a quote not found in the stored source text",
+  "unit-not-in-source": "rests on a unit header not found above the quoted cells in their table",
   "quote-source-not-cited": "rests on a quote from a source the claim does not cite",
   "no-stored-text": "rests on a source with no stored text to check",
   "quote-too-short": "rests on a quote with too little text around the figure",
@@ -532,15 +534,19 @@ const EDGES = new RegExp(`[${EDGE_CHARS}]`, "gu");
 
 function withCellEdges(lines: readonly string[]): string {
   let open = false;
+  let afterRow = false;
   return lines
     .map((line) => {
       const trimmed = line.trim();
       if (trimmed === "") {
-        const closing = open ? AMBIGUOUS_EDGE : "";
+        // A blank line ends a table, so no unit header reaches a table below it.
+        const closing = open ? AMBIGUOUS_EDGE : afterRow ? ROW_EDGE : "";
         open = false;
+        afterRow = false;
         return closing;
       }
-      if (!open && !trimmed.includes("|")) {
+      afterRow = open || trimmed.includes("|");
+      if (!afterRow) {
         return line;
       }
       const opening = open ? AMBIGUOUS_EDGE : ROW_EDGE;
@@ -600,7 +606,11 @@ function placedSourceFigures(text: string): readonly PlacedFigure[] {
   return placed;
 }
 
-function figuresTouching(placed: readonly PlacedFigure[], start: number, end: number): Figure[] {
+function figuresTouching(
+  placed: readonly PlacedFigure[],
+  start: number,
+  end: number,
+): PlacedFigure[] {
   let low = 0;
   let high = placed.length;
   while (low < high) {
@@ -611,19 +621,111 @@ function figuresTouching(placed: readonly PlacedFigure[], start: number, end: nu
       low = middle + 1;
     }
   }
-  const figures: Figure[] = [];
+  const figures: PlacedFigure[] = [];
   for (let index = low; index < placed.length; index += 1) {
     const row = placed[index];
     if (row === undefined || row.numStart >= end) {
       break;
     }
-    figures.push(row.figure);
+    figures.push(row);
   }
   return figures;
 }
 
+interface QuotedSpan {
+  readonly text: string;
+  readonly placed: readonly PlacedFigure[];
+}
+
+interface StoredCell {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+}
+
+const STORED_ROW = new RegExp(
+  `${ROW_EDGE}\\s*(${CELL_EDGE}[^${AMBIGUOUS_EDGE}${ROW_EDGE}]*${CELL_EDGE})\\s*${ROW_EDGE}`,
+  "gu",
+);
+const SEPARATOR_CELL = /^:?-+:?$/u;
+
+// Pipe tables of normalized text; a separator row starts a new table at its header row, as in Markdown.
+function storedTables(text: string): readonly (readonly StoredCell[])[][] {
+  const tables: StoredCell[][][] = [];
+  let previousEnd = -1;
+  for (const match of text.matchAll(STORED_ROW)) {
+    const body = match[1] ?? "";
+    let cursor = match.index + match[0].indexOf(body) + 1;
+    const cells = body
+      .split(CELL_EDGE)
+      .slice(1, -1)
+      .map((piece) => {
+        const cell = { text: piece.trim(), start: cursor, end: cursor + piece.length };
+        cursor = cell.end + 1;
+        return cell;
+      });
+    const adjacent = previousEnd >= 0 && text.slice(previousEnd, match.index).trim() === "";
+    previousEnd = match.index + match[0].length;
+    const current = adjacent ? tables.at(-1) : undefined;
+    if (cells.every((cell) => SEPARATOR_CELL.test(cell.text))) {
+      const header = current?.pop();
+      tables.push(header === undefined ? [] : [header]);
+    } else if (current === undefined) {
+      tables.push([cells]);
+    } else {
+      current.push(cells);
+    }
+  }
+  return tables;
+}
+
+// The figure must read the whole cell: no digit outside its span and the same signed value.
+function headedUnit(
+  tables: readonly (readonly StoredCell[])[][],
+  text: string,
+  { figure, numStart, numEnd }: PlacedFigure,
+) {
+  for (const rows of tables) {
+    for (const [rowIndex, row] of rows.entries()) {
+      const column = row.findIndex(({ start, end }) => start <= numStart && numStart < end);
+      const cell = row[column];
+      if (cell !== undefined) {
+        const outside = text.slice(cell.start, numStart) + text.slice(numEnd, cell.end);
+        if (/\d/u.test(outside) || cellNumber(cell.text) !== figure.value) {
+          return undefined;
+        }
+        return headedAmountUnit(
+          rows.map((cells) => cells.map((stored) => stored.text)),
+          rowIndex,
+          column,
+        );
+      }
+    }
+  }
+  return undefined;
+}
+
+// Bare cells whose column header is the quoted unit read in that unit; undefined when none is.
+function headedFigures({ text, placed }: QuotedSpan, unitQuote: string): Figure[] | undefined {
+  const wanted = normalizedQuoteText(unitQuote).toLowerCase();
+  const tables = storedTables(text);
+  let headed = false;
+  const figures = placed.map((place) => {
+    const { figure } = place;
+    const bare = figure.scale === 1 && figure.currency === "" && figure.unit === "";
+    const unit =
+      bare && Number.isFinite(figure.value) ? headedUnit(tables, text, place) : undefined;
+    if (unit === undefined || !unit.headers.some((cell) => cell.toLowerCase() === wanted)) {
+      return figure;
+    }
+    headed = true;
+    return { ...figure, scale: unit.scale, currency: unit.currency };
+  });
+  return headed ? figures : undefined;
+}
+
 // Every match, overlapping ones included, yields the source figures whose number it touches.
-function quotedSourceFigures(needle: string, stored: readonly string[]): readonly Figure[][] {
+function quotedSourceFigures(needle: string, stored: readonly string[]): readonly QuotedSpan[] {
   const pattern = new RegExp(
     needle
       .split(" ")
@@ -635,9 +737,12 @@ function quotedSourceFigures(needle: string, stored: readonly string[]): readonl
   );
   return stored.flatMap((text) => {
     const placed = placedSourceFigures(text);
-    const spans: Figure[][] = [];
+    const spans: QuotedSpan[] = [];
     for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
-      spans.push(figuresTouching(placed, match.index, match.index + match[0].length));
+      spans.push({
+        text,
+        placed: figuresTouching(placed, match.index, match.index + match[0].length),
+      });
       pattern.lastIndex = match.index + 1;
     }
     return spans;
@@ -834,11 +939,22 @@ function checkedQuote(
   if (contextWords.length < MIN_QUOTE_CONTEXT_WORDS) {
     return failed("quote-too-short");
   }
-  const spans = quotedSourceFigures(needle, stored);
+  const matched = quotedSourceFigures(needle, stored);
+  const { unitQuote } = quote;
+  const spans =
+    unitQuote === undefined
+      ? matched.map(({ placed }) => placed.map(({ figure }) => figure))
+      : matched.flatMap((span) => {
+          const figures = headedFigures(span, unitQuote);
+          return figures === undefined ? [] : [figures];
+        });
   const covered = (figures: readonly Figure[]) =>
     claimFigures.filter((claimed) => figures.some((quoted) => sameFigure(quoted, claimed))).length;
   const [best] = spans.toSorted((left, right) => covered(right) - covered(left));
-  return best === undefined ? failed("quote-not-in-source") : { figures: best };
+  if (best === undefined) {
+    return failed(matched.length === 0 ? "quote-not-in-source" : "unit-not-in-source");
+  }
+  return { figures: best };
 }
 
 function mismatchReason(figure: Figure, near: Figure): WebFigureFailureReason {
@@ -864,8 +980,11 @@ export function failedFigureQuotes(
   claim: Omit<WebFigureClaim, "text">,
   texts: WebSourceTexts,
 ): readonly DroppedFigureQuote[] {
-  return checkedQuotes({ ...claim, text: "" }, texts, []).flatMap(({ sourceId, quote, failure }) =>
-    failure === undefined ? [] : [{ sourceId, quote, reason: failure }],
+  return checkedQuotes({ ...claim, text: "" }, texts, []).flatMap(
+    ({ sourceId, quote, unitQuote, failure }) =>
+      failure === undefined
+        ? []
+        : [{ sourceId, quote, ...(unitQuote === undefined ? {} : { unitQuote }), reason: failure }],
   );
 }
 

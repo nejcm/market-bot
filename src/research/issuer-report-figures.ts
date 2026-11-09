@@ -23,6 +23,17 @@ import type { StageOutput } from "./final-synthesis";
 import { withIssuerReportFramework } from "./issuer-report-framework";
 import { loadStagePrompt } from "./prompt-loader";
 import { withholdProviderEps } from "./provider-eps-withholding";
+import {
+  SCALE_CELL,
+  SUBUNIT_LABEL,
+  UNIT_CELL,
+  cellNumber,
+  columnHeaders,
+  columnUnit,
+  declaredLabel,
+  rowLabel,
+  valueColumns,
+} from "./unit-header";
 import { rawTextsByUrl } from "./web-figure-verification";
 
 type ConceptKind = "flow" | "stock" | "per-share";
@@ -37,7 +48,7 @@ const CONCEPTS = {
   "profit-for-period": {
     label: "Profit for the period",
     kind: "flow",
-    row: /^(?!.*(?:attributable|before tax|\bgross\b|\boperating\b|comprehensive)).*\bprofit\b.*\bfor the (?:financial )?(?:period|year)\b/iu,
+    row: /^(?!.*(?:attributable|before tax|\bgross\b|\boperating\b|\bmargin\b|comprehensive)).*\bprofit\b.*\bfor the (?:financial )?(?:period|year)\b/iu,
   },
   "profit-attributable-to-owners": {
     label: "Profit attributable to owners of the parent",
@@ -97,25 +108,9 @@ const MAX_DOCUMENTS = 4;
 const GAP_SOURCE = "issuer-report";
 const PROVIDER_EPS_WITHHELD =
   "Yahoo trailing EPS is below an issuer-reported basic EPS for a period its trailing twelve months would contain, so it is withheld; see the issuer-report Source Gap";
-const CELL_REF = /^t(\d+):r(\d+):c(\d+)$/u;
-const NUMBER_CELL = /^(\()?(-)?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(\))?$/u;
 const DATE_PATTERN = /\b(\d{1,2})[\s\-/.]+([A-Za-z]{3,9}|\d{1,2})[\s\-/.,]+(\d{4}|\d{2})\b/gu;
+const CELL_REF = /^t(\d+):r(\d+):c(\d+)$/u;
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-const UNIT_CELL =
-  /^(?<currency>RM|MYR|USD|SGD|HKD|EUR|GBP|CNY|RMB)\s*(?:['’‘]\s*(?<scale>000|mil|million|m|bil|billion|b))?$/iu;
-const SCALE_CELL = /^['’‘]?\s*(?<scale>000|mil|million|m|bil|billion|b)$/iu;
-const UNIT_SCALES: Readonly<Record<string, number>> = {
-  "000": 1e3,
-  mil: 1e6,
-  million: 1e6,
-  m: 1e6,
-  bil: 1e9,
-  billion: 1e9,
-  b: 1e9,
-};
-const CURRENCY_ALIASES: Readonly<Record<string, string>> = { RM: "MYR", RMB: "CNY" };
-const SUB_ITEM_LABEL = /^(?:[-–•]|(?:basic|diluted)\b)/iu;
-const SUBUNIT_LABEL = /\((?:subunit|sen|cents?)\)|\bsen\b/iu;
 const RESTATED_HEADER = /\brestated\b|\bre-?presented\b/iu;
 const RESTATED_NOTE = "; column headed as a restated or re-presented comparative";
 const MONTH_BASES: Readonly<Record<number, PeriodBasis>> = { 3: "quarter", 12: "annual" };
@@ -225,15 +220,6 @@ interface IssuerReportFailure {
 interface IssuerReportReading {
   readonly figures: readonly IssuerReportFigure[];
   readonly failures: readonly IssuerReportFailure[];
-}
-
-function cellNumber(text: string): number | undefined {
-  const match = text.replaceAll(/\s+/gu, "").match(NUMBER_CELL);
-  if (match === null || (match[1] === undefined) !== (match[5] === undefined)) {
-    return undefined;
-  }
-  const value = Number(`${match[3] ?? ""}${match[4] ?? ""}`.replaceAll(",", ""));
-  return match[1] !== undefined || match[2] !== undefined ? -value : value;
 }
 
 function isoDate(day: number, month: number, year: number): string | undefined {
@@ -376,47 +362,6 @@ export function issuerReportMappingInput(packet: IssuerReportPacket): Record<str
   };
 }
 
-function valueColumns(rows: readonly (readonly string[])[]): ReadonlySet<number> {
-  return new Set(
-    rows.flatMap((row) =>
-      row.flatMap((cell, index) => (cellNumber(cell) === undefined ? [] : [index])),
-    ),
-  );
-}
-
-// Header rows above the data run that holds the row; a row of figures ends the block, so no unit crosses it.
-function columnHeaders(
-  rows: readonly (readonly string[])[],
-  rowIndex: number,
-  column: number,
-): { readonly raw: readonly string[]; readonly filled: readonly string[] } {
-  const columns = valueColumns(rows);
-  const raw: string[] = [];
-  const filled: string[] = [];
-  let collecting = false;
-  for (let index = rowIndex - 1; index >= 0; index -= 1) {
-    const row = rows[index] ?? [];
-    const isData = row.some((cell) => cellNumber(cell) !== undefined && !SCALE_CELL.test(cell));
-    const isHeader =
-      !isData && row.some((cell, cellIndex) => columns.has(cellIndex) && cell !== "");
-    if (isData && collecting) {
-      break;
-    }
-    if (!isHeader) {
-      continue;
-    }
-    collecting = true;
-    const own = row[column] ?? "";
-    let merged = own;
-    for (let left = column - 1; merged === "" && left >= 0 && columns.has(left); left -= 1) {
-      merged = row[left] ?? "";
-    }
-    raw.unshift(own);
-    filled.unshift(merged);
-  }
-  return { raw, filled };
-}
-
 function periodBasis(
   headerText: string,
   fiscalYearEndMonth: number | undefined,
@@ -442,28 +387,6 @@ function periodBasis(
     return { basis: "quarter", months: 3 };
   }
   return /financial year|year ended/u.test(text) ? { basis: "annual", months: 12 } : undefined;
-}
-
-function rowLabel(row: readonly string[]): string {
-  return row.find((cell) => cell !== "" && cellNumber(cell) === undefined) ?? "";
-}
-
-// A sub-item row ("- Basic", "- Owners of the Company") reads with the caption rows directly above it.
-function declaredLabel(rows: readonly (readonly string[])[], rowIndex: number): string {
-  const own = rowLabel(rows[rowIndex] ?? []);
-  if (!SUB_ITEM_LABEL.test(own)) {
-    return own;
-  }
-  const columns = valueColumns(rows);
-  const captions: string[] = [];
-  for (let index = rowIndex - 1; index >= 0; index -= 1) {
-    const row = rows[index] ?? [];
-    if (row.some((cell, cellIndex) => columns.has(cellIndex) && cell !== "")) {
-      break;
-    }
-    captions.unshift(rowLabel(row));
-  }
-  return [...captions, own].join(" ");
 }
 
 function scopeText(text: string): string {
@@ -606,7 +529,7 @@ function readFigure(
   if (period.basis !== "instant" && period.months === undefined) {
     return "period-length-not-declared";
   }
-  const units = [...new Set(headers.raw.flatMap((text) => (UNIT_CELL.test(text) ? [text] : [])))];
+  const { units, scaleCells, scales, currency: columnCurrency, unparsed } = columnUnit(headers.raw);
   const label = rowLabel(row);
   const declared = declaredLabel(rows, rowIndex);
   if (!CONCEPTS[known].row.test(declared)) {
@@ -618,7 +541,7 @@ function readFigure(
   }
   const perShare = SUBUNIT_LABEL.test(declared);
   const [unitText] = units;
-  if (units.length > 1) {
+  if (units.length > 1 || unparsed) {
     return "unit-ambiguous";
   }
   if ((kind === "per-share") !== perShare) {
@@ -627,20 +550,9 @@ function readFigure(
   if (unitText === undefined && !perShare) {
     return "unit-not-declared";
   }
-  const groups = unitText?.match(UNIT_CELL)?.groups;
-  const scaleCells = headers.raw.flatMap((text) => (SCALE_CELL.test(text) ? [text] : []));
-  const scales = new Set(
-    [groups?.scale, ...scaleCells.map((text) => text.match(SCALE_CELL)?.groups?.scale)].flatMap(
-      (token) => (token === undefined ? [] : [UNIT_SCALES[token.toLowerCase()] ?? 1]),
-    ),
-  );
   if (!perShare && scales.size > 1) {
     return "unit-ambiguous";
   }
-  const columnCurrency =
-    groups?.currency === undefined
-      ? undefined
-      : (CURRENCY_ALIASES[groups.currency.toUpperCase()] ?? groups.currency.toUpperCase());
   if (
     columnCurrency !== undefined &&
     document.declaredCurrency !== undefined &&

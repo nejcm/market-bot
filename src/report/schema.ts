@@ -136,6 +136,7 @@ function validateScenarios(
  * scanned, with the producer that proves each classification:
  *   extendedEvidence         collector-derived filing/news text
  *   *.figureQuotes[].quote   verbatim source spans checked against stored text (ADR 0006); never rendered as prose
+ *   *.figureQuotes[].unitQuote  verbatim unit header cell of the quoted table column, checked the same way
  *   researchQualityDriver    deterministic (research/quality-driver.ts)
  *   coverageLabel            deterministic constant (sources/identity-gate.ts:NON_SEC_COVERAGE_LABEL)
  *   extras.historicalContext code-built in research/report-assembly.ts:historicalContextExtra;

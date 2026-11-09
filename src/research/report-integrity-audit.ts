@@ -239,7 +239,12 @@ function withoutQuotes<T extends { readonly figureQuotes?: readonly FigureQuote[
         ...item,
         figureQuotes: item.figureQuotes.filter(
           (quote) =>
-            !dropped.some((row) => row.sourceId === quote.sourceId && row.quote === quote.quote),
+            !dropped.some(
+              (row) =>
+                row.sourceId === quote.sourceId &&
+                row.quote === quote.quote &&
+                row.unitQuote === quote.unitQuote,
+            ),
         ),
       };
 }

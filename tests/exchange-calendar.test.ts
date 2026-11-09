@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { isExchangeHoliday, isExchangeTradingDay } from "../src/scoring/exchange-calendar";
+import {
+  exchangeSessionsAfter,
+  firstExchangeSessionOnOrAfter,
+  isExchangeHoliday,
+  isExchangeTradingDay,
+  resolutionDate,
+} from "../src/scoring/exchange-calendar";
 
 function utc(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
@@ -70,5 +76,22 @@ describe("isExchangeTradingDay", () => {
   test("open weekdays are trading days", () => {
     expect(isExchangeTradingDay(utc("2026-07-02"))).toBe(true);
     expect(isExchangeTradingDay(utc("2026-07-06"))).toBe(true);
+  });
+});
+
+describe("next US session", () => {
+  test("origin, session count and due date step over the same closures", () => {
+    // Fri 2026-07-03 (observed Independence Day) and the weekend are closed.
+    expect(firstExchangeSessionOnOrAfter("2026-07-02")).toBe("2026-07-02");
+    expect(firstExchangeSessionOnOrAfter("2026-07-03")).toBe("2026-07-06");
+    expect(exchangeSessionsAfter("2026-07-02", "2026-07-02")).toBe(0);
+    expect(exchangeSessionsAfter("2026-07-02", "2026-07-04")).toBe(1);
+    expect(exchangeSessionsAfter("2026-07-01", "2026-07-06")).toBe(2);
+    expect(resolutionDate("2026-07-02T21:00:00.000Z", 1).toISOString()).toBe(
+      "2026-07-06T21:00:00.000Z",
+    );
+    expect(resolutionDate("2026-07-02T21:00:00.000Z", 0).toISOString()).toBe(
+      "2026-07-02T21:00:00.000Z",
+    );
   });
 });

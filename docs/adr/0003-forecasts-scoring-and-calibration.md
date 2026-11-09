@@ -88,7 +88,9 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   remains unchanged.
 - Calibration's headline is Paired Skill: ΔBrier = Brier(Forecast Baseline) − Brier(model) over resolved,
   deduped Forecast Events that carry a baseline, overall and per kind; the fixed-0.5 skill stays a
-  secondary column. Events without a baseline are excluded and counted (`excludedWithoutBaselineCount`).
+  secondary column. Events without a baseline are excluded and counted by why: a kind with no
+  estimator (`excludedNoEstimatorCount`) or an estimated kind whose baseline was unavailable
+  (`excludedEstimatorFailedCount`).
   Range events stamped `ewma-0.94-w60-v1` are excluded and counted too (`excludedLegacyRangeBaselineCount`),
   because v1 scaled σ by the nominal horizon instead of the sessions scored; v1 direction and relative
   baselines are 0.5 for any horizon and stay in. Stamps are never rewritten;
@@ -149,6 +151,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   nearby means a genuine move, which stays volatility. Without split metadata (the verified chart), a genuine 10–65% one-day move inside those windows is treated as a split. That is a
   documented shortcut; volume is not consulted.
 - Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
+  on US listings only (scoring counts US sessions, so elsewhere no range baseline could be stamped and
+  the range events are an `event-grid` gap until an exchange calendar exists; amended 2026-11-09)
   (the prompt lists only the other ±1σ bands as prediction anchors, each with the same session-true base
   rate, or 0.32 when the session count is unknown) and relative vs SPY at h = 5. The primary synthesis prices them in the same
   response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the

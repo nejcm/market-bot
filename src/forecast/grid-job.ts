@@ -474,9 +474,13 @@ async function gridForSymbol(input: {
   );
   const collected = await collectPriceHistory(context, symbol, []);
   const { snapshot } = collected.verifiedSnapshot;
+  const quoteCurrency = collected.priceHistory.find(
+    (history) => history.symbol === symbol.toUpperCase(),
+  )?.currency;
   const gridSources = {
     priceHistory: collected.priceHistory,
     ...(snapshot !== undefined ? { verifiedMarketSnapshot: snapshot } : {}),
+    ...(quoteCurrency !== undefined ? { resolvedInstrumentIdentity: { quoteCurrency } } : {}),
   };
   const sources = [
     ...collected.sources,

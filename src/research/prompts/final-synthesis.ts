@@ -38,6 +38,8 @@ import { exchangeProfileFor, type ExchangeProfile } from "../../domain/exchange-
 import {
   eventGrid,
   forecastsWithheld,
+  GRID_RANGE_HORIZONS,
+  gridIssuesRange,
   issuableGridEvents,
   type EventGridEvent,
 } from "../event-grid";
@@ -226,12 +228,20 @@ function rangeAnchorHorizons(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly number[] {
-  const gridHorizons = new Set(
+  const gridHorizons = new Set<number>(
     promptGridEvents(command, collectedSources)
       .filter((event) => event.kind === "range")
       .map((event) => event.horizonTradingDays),
   );
-  return RANGE_REFERENCE_HORIZONS.filter((horizon) => !gridHorizons.has(horizon));
+  // Grid bands withheld for want of a session calendar stay out of the anchors, as when they were issued.
+  const withheld: readonly number[] =
+    isInstrumentCommand(command) &&
+    !gridIssuesRange(command.symbol, collectedSources.resolvedInstrumentIdentity)
+      ? GRID_RANGE_HORIZONS
+      : [];
+  return RANGE_REFERENCE_HORIZONS.filter(
+    (horizon) => !gridHorizons.has(horizon) && !withheld.includes(horizon),
+  );
 }
 
 const sessions = (count: number) => `${String(count)} session${count === 1 ? "" : "s"}`;
@@ -257,7 +267,12 @@ function buildRangeVolatilityReference(
         return [];
       }
       const [lo, hi] = band;
-      const scored = rangeReferenceOutsideProbability(snapshot, reference, horizon);
+      const scored = rangeReferenceOutsideProbability(
+        snapshot,
+        reference,
+        horizon,
+        collectedSources.resolvedInstrumentIdentity,
+      );
       const baseRate =
         scored === undefined
           ? `base rate about ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} (Gaussian one-sigma)`
@@ -295,7 +310,12 @@ function buildEventGridInstruction(
     if (snapshot === undefined || reference === undefined || "gap" in reference) {
       return `${event.id}: ${event.measurableAs}`;
     }
-    const scored = rangeReferenceOutsideProbability(snapshot, reference, event.horizonTradingDays);
+    const scored = rangeReferenceOutsideProbability(
+      snapshot,
+      reference,
+      event.horizonTradingDays,
+      collectedSources.resolvedInstrumentIdentity,
+    );
     const baseRate =
       scored === undefined
         ? ""

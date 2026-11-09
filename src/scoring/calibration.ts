@@ -7,8 +7,9 @@ import {
   parseObservableExpression,
   type ObservationStrategy,
 } from "../forecast/observable";
+import { hasForecastBaselineEstimator } from "../forecast/baseline";
 import { pairedSkillDecisionRule } from "./calibration-read";
-import { isExchangeTradingDay } from "./exchange-calendar";
+import { firstExchangeSessionOnOrAfter } from "./exchange-calendar";
 import { scoringPolicyFor } from "./policy";
 import type {
   CalibrationBin,
@@ -212,11 +213,7 @@ function closeWindowOrigin(assetClass: AssetClass, issuedAt: Date): string {
   if (assetClass === "crypto") {
     return utcDate(issuedAt);
   }
-  let session = new Date(`${utcDate(issuedAt)}T00:00:00.000Z`);
-  while (!isExchangeTradingDay(session)) {
-    session = new Date(session.getTime() + 86_400_000);
-  }
-  return utcDate(session);
+  return firstExchangeSessionOnOrAfter(utcDate(issuedAt));
 }
 
 // Mirrors the clock each family resolves on in resolver.ts: sessions, calendar days, or the event.
@@ -301,11 +298,11 @@ export const PAIRED_SKILL_POLICY: PairedSkillPolicy = {
   poweredBlockCount: 784,
 };
 
-function groupPairs(
-  pairs: readonly ResolvedPair[],
-  keyFn: (pair: ResolvedPair) => string,
-): Map<string, ResolvedPair[]> {
-  const groups = new Map<string, ResolvedPair[]>();
+function groupPairs<T extends ResolvedPair>(
+  pairs: readonly T[],
+  keyFn: (pair: T) => string,
+): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
   for (const pair of pairs) {
     groups.set(keyFn(pair), [...(groups.get(keyFn(pair)) ?? []), pair]);
   }
@@ -328,9 +325,17 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-function baselineLoss({ prediction, score }: ResolvedPair): number {
+type BaselinedPair = ResolvedPair & {
+  readonly prediction: Prediction & { readonly baselineProbability: number };
+};
+
+function isBaselined(pair: ResolvedPair): pair is BaselinedPair {
+  return pair.prediction.baselineProbability !== undefined;
+}
+
+function baselineLoss({ prediction, score }: BaselinedPair): number {
   const outcome = score.outcome === "hit" ? 1 : 0;
-  return ((prediction.baselineProbability ?? 0.5) - outcome) ** 2;
+  return (prediction.baselineProbability - outcome) ** 2;
 }
 
 function clusterSubject({ prediction }: ResolvedPair): string {
@@ -338,7 +343,7 @@ function clusterSubject({ prediction }: ResolvedPair): string {
 }
 
 // Blocks chain a subject's events whose close windows overlap, so a resample never splits one price path.
-function pairedBlocks(pairs: readonly ResolvedPair[]): readonly PairedBlock[] {
+function pairedBlocks(pairs: readonly BaselinedPair[]): readonly PairedBlock[] {
   const bySubject = groupPairs(pairs, clusterSubject);
   const blocks: PairedBlock[] = [];
   for (const subject of [...bySubject.keys()].toSorted()) {
@@ -390,7 +395,7 @@ function bootstrapInterval(blocks: readonly PairedBlock[]): readonly [number, nu
   ];
 }
 
-function pairedSkillMetric(pairs: readonly ResolvedPair[], perKind: boolean): PairedSkillMetric {
+function pairedSkillMetric(pairs: readonly BaselinedPair[], perKind: boolean): PairedSkillMetric {
   const blocks = pairedBlocks(pairs);
   const modelBrier = meanBrierLoss(pairs);
   const baselineBrier = pairs.reduce((total, pair) => total + baselineLoss(pair), 0) / pairs.length;
@@ -439,16 +444,19 @@ export function nextPairedSkillReviewDate(now: Date): string {
   );
 }
 
+function expressionKind(prediction: Prediction): string {
+  try {
+    return parseObservableExpression(prediction.measurableAs).kind;
+  } catch {
+    return prediction.kind;
+  }
+}
+
 // V1 scaled range baselines by the nominal horizon, not the sessions scored; direction and relative are 0.5 for any horizon.
 function isLegacyRangeBaseline({ prediction }: ResolvedPair): boolean {
-  if (prediction.baselineVersion !== "ewma-0.94-w60-v1") {
-    return false;
-  }
-  try {
-    return parseObservableExpression(prediction.measurableAs).kind === "range";
-  } catch {
-    return prediction.kind === "range";
-  }
+  return (
+    prediction.baselineVersion === "ewma-0.94-w60-v1" && expressionKind(prediction) === "range"
+  );
 }
 
 function pairedMetrics(pairs: readonly ResolvedPair[]): {
@@ -456,9 +464,7 @@ function pairedMetrics(pairs: readonly ResolvedPair[]): {
   readonly byKind: Record<string, PairedSkillMetric>;
 } {
   const paired = pairs
-    .filter(
-      (pair) => pair.prediction.baselineProbability !== undefined && !isLegacyRangeBaseline(pair),
-    )
+    .filter((pair): pair is BaselinedPair => isBaselined(pair) && !isLegacyRangeBaseline(pair))
     .toSorted(compareIssuance);
   const byKind = groupPairs(paired, ({ prediction }) => prediction.kind);
   return {
@@ -471,10 +477,14 @@ function pairedMetrics(pairs: readonly ResolvedPair[]): {
 
 // Deduped Forecast Events (a re-issued grid event counts once), sorted so input order never moves the interval.
 function buildPairedSkill(pairs: readonly ResolvedPair[], now: Date): PairedSkillSummary {
+  const unbaselined = pairs.filter((pair) => !isBaselined(pair));
   return {
     policy: PAIRED_SKILL_POLICY,
-    excludedWithoutBaselineCount: pairs.filter(
-      ({ prediction }) => prediction.baselineProbability === undefined,
+    excludedNoEstimatorCount: unbaselined.filter(
+      ({ prediction }) => !hasForecastBaselineEstimator(expressionKind(prediction)),
+    ).length,
+    excludedEstimatorFailedCount: unbaselined.filter(({ prediction }) =>
+      hasForecastBaselineEstimator(expressionKind(prediction)),
     ).length,
     excludedLegacyRangeBaselineCount: pairs.filter(
       (pair) => pair.prediction.baselineProbability !== undefined && isLegacyRangeBaseline(pair),

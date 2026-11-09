@@ -147,7 +147,8 @@ describe("Paired Skill", () => {
     );
     const summary = paired([...direction, ...legacy, ...current]);
     expect(summary.excludedLegacyRangeBaselineCount).toBe(3);
-    expect(summary.excludedWithoutBaselineCount).toBe(0);
+    expect(summary.excludedNoEstimatorCount).toBe(0);
+    expect(summary.excludedEstimatorFailedCount).toBe(0);
     expect(summary.overall?.count).toBe(6);
     expect(summary.byKind.range?.count).toBe(2);
     expect(summary.byKind.direction?.count).toBe(4);
@@ -163,17 +164,40 @@ describe("Paired Skill", () => {
     );
   });
 
-  test("predictions without a baseline are excluded and counted", () => {
+  test("predictions without a baseline are excluded and counted by why", () => {
     const withBaseline = events(4, (hit) => (hit ? 0.8 : 0.2));
     const without = [
       pair({ subject: "AAPL", dayOffset: 400, hit: true, modelProbability: 0.9 }, 100),
       pair({ subject: "MSFT", dayOffset: 400, hit: false, modelProbability: 0.9 }, 101),
+      pair(
+        {
+          subject: "NVDA",
+          dayOffset: 400,
+          hit: false,
+          modelProbability: 0.6,
+          kind: "conditional",
+          measurableAs:
+            "if close(NVDA, +1) > close(NVDA, 0) then close(NVDA, +5) > close(NVDA, +1)",
+        },
+        102,
+      ),
     ];
     const summary = paired([...withBaseline, ...without]);
-    expect(summary.excludedWithoutBaselineCount).toBe(2);
+    expect(summary.excludedEstimatorFailedCount).toBe(2);
+    expect(summary.excludedNoEstimatorCount).toBe(1);
     expect(summary.overall?.count).toBe(4);
+    const calibration = buildCalibrationSummary(
+      [...withBaseline, ...without],
+      new Date("2026-10-20T00:00:00.000Z"),
+    );
+    expect(renderCalibrationMarkdown(calibration)).toContain(
+      "Excluded without a Forecast Baseline: 1 of a kind with no estimator, 2 of an estimated kind where the baseline was unavailable",
+    );
+    expect(renderCalibrationConsole(calibration)).toContain(
+      "Excluded without a baseline: 1 no estimator, 2 estimator unavailable",
+    );
     const none = paired(without);
-    expect(none.excludedWithoutBaselineCount).toBe(2);
+    expect(none.excludedEstimatorFailedCount).toBe(2);
     expect(none).not.toHaveProperty("overall");
     expect(none.byKind).toEqual({});
   });
@@ -357,7 +381,8 @@ describe("Paired Skill", () => {
         1,
       ),
     ]);
-    expect(summary.excludedWithoutBaselineCount).toBe(1);
+    expect(summary.excludedNoEstimatorCount).toBe(1);
+    expect(summary.excludedEstimatorFailedCount).toBe(0);
     expect(Object.keys(summary.byKind)).toEqual(["direction"]);
     expect(summary.overall?.count).toBe(1);
   });
@@ -366,7 +391,9 @@ describe("Paired Skill", () => {
     const summary = buildCalibrationSummary(events(40, (hit) => (hit ? 0.8 : 0.2)));
     const markdown = renderCalibrationMarkdown(summary);
     expect(markdown).toContain("## Paired skill vs Forecast Baseline");
-    expect(markdown).toContain("Excluded without a Forecast Baseline: 0");
+    expect(markdown).toContain(
+      "Excluded without a Forecast Baseline: 0 of a kind with no estimator, 0 of an estimated kind",
+    );
     expect(markdown).toContain(
       "| all | 40 | 40 | +0.2100 | [+0.2100, +0.2100] | model-better (meets minimum useful effect) | none (decided per kind) | 0.8400 |",
     );
@@ -395,6 +422,12 @@ describe("Paired Skill", () => {
       ["direction", "model-better", "keep-model"],
     ]);
     expect(pairedSkillView({ summary: {} })).toBeUndefined();
+    const { excludedNoEstimatorCount: _split, ...preSplit } = summary.pairedSkill!;
+    expect(
+      pairedSkillView({
+        summary: { pairedSkill: { ...preSplit, excludedWithoutBaselineCount: 63 } },
+      }),
+    ).toBeUndefined();
     const { pairedSkill: _omitted, ...legacy } = summary;
     expect(renderCalibrationMarkdown(legacy)).toContain("_Not recorded in this summary._");
     expect(renderCalibrationConsole(legacy)).toContain(

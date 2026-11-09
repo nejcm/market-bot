@@ -222,20 +222,36 @@ describe("range volatility reference", () => {
     expect(instruction).not.toContain("NaN");
   });
 
-  test.each([["a non-US listing", "RY.TO", rangeReferenceCloses(21)]])(
-    "states the band without a base rate for %s",
-    (_, symbol, recentCloses) => {
-      const instruction = kindMixSynthesisInstruction(
-        { ...command, symbol },
-        { verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol, recentCloses }) },
-      );
-      expect(instruction).toContain(
-        "the ±1σ band over 1 session around the 2026-05-21 reference close 100.00;",
-      );
-      expect(instruction).not.toContain("Gaussian base rate");
-      expect(instruction).not.toContain("NaN");
-    },
-  );
+  test("offers a non-US listing no grid range event and no grid-horizon anchor", () => {
+    const instruction = kindMixSynthesisInstruction(
+      { ...command, symbol: "RY.TO" },
+      {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          symbol: "RY.TO",
+          recentCloses: rangeReferenceCloses(21),
+        }),
+      },
+    );
+    expect(instruction).not.toContain("grid-range-");
+    expect(instruction).not.toContain("Gaussian base rate");
+    expect(instruction).toMatch(
+      /base rate of a close outside each: \+10: \[[\d.]+, [\d.]+\], base rate about 0\.32 \(Gaussian one-sigma\)\. /u,
+    );
+    expect(instruction).not.toContain("NaN");
+    const identityOnly = kindMixSynthesisInstruction(
+      { ...command, symbol: "ETE.AT" },
+      {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          symbol: "ETE.AT",
+          recentCloses: rangeReferenceCloses(21),
+        }),
+        resolvedInstrumentIdentity: { exchange: "Athens", quoteCurrency: "EUR" },
+      },
+    );
+    expect(identityOnly).not.toContain("grid-range-");
+    expect(identityOnly).toContain("+10: ");
+    expect(identityOnly).toContain("base rate about 0.32 (Gaussian one-sigma)");
+  });
 
   test("states no grid band or base rate when the range reference is unavailable", () => {
     const split = reference(rangeReferenceCloses(21, 0.01, { at: 10, ratio: 0.5 }));

@@ -113,7 +113,7 @@ function renderPairedSkillSection(lines: string[], paired: PairedSkillSummary | 
   lines.push(
     `ΔBrier = baseline Brier − model Brier on the same resolved Forecast Events; positive means the model beat the Forecast Baseline. ${String(Math.round(policy.confidenceLevel * 100))}% block-bootstrap interval clustered by subject. ${pairedSkillPolicyNote(policy)}`,
     "",
-    `Excluded without a Forecast Baseline: ${String(paired.excludedWithoutBaselineCount)}`,
+    `Excluded without a Forecast Baseline: ${String(paired.excludedNoEstimatorCount)} of a kind with no estimator, ${String(paired.excludedEstimatorFailedCount)} of an estimated kind where the baseline was unavailable`,
     "",
     ...(paired.excludedLegacyRangeBaselineCount === undefined
       ? []

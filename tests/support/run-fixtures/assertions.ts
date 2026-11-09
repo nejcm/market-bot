@@ -436,6 +436,7 @@ export async function assertInvariants(
               rangeSnapshot,
               reference!,
               prediction.horizonTradingDays,
+              result.collectedSources.resolvedInstrumentIdentity,
             )?.probability ?? RANGE_REFERENCE_OUTSIDE_PROBABILITY)
           : 0.5;
       return Math.abs(prediction.probability - centre) <= 0.1 + Number.EPSILON;

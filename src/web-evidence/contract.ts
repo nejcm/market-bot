@@ -169,6 +169,7 @@ export type WebSubjectProfileArtifact =
           Partial<Record<WebSubjectProfileCompanyQuestionKey, WebSubjectProfileAnswer>>
       >;
       readonly secFilingBasisDate?: string;
+      readonly issuerReportBasisDate?: string;
     })
   | (WebSubjectProfileBase & {
       readonly subjectKind: "crypto-asset";

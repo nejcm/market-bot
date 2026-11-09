@@ -795,6 +795,7 @@ export function buildWebSubjectProfileEvidence(input: {
   readonly extendedEvidence: ExtendedEvidence | undefined;
   readonly metricSections?: readonly MetricSection[];
   readonly secFilingBasisDate?: string;
+  readonly issuerReportBasisDate?: string;
 }): WebSubjectProfileResult {
   const webSourceIds = new Set(input.webSources.map((source) => source.id));
   if (webSourceIds.size === 0) {
@@ -804,7 +805,7 @@ export function buildWebSubjectProfileEvidence(input: {
       input.generatedAt,
       input.runId,
       message,
-      input.secFilingBasisDate,
+      basisDates(input),
     );
     const gap = profileGap(message, "provider-data-missing");
     return profileResult(input.command, input.extendedEvidence, input.subject, artifact, [], [gap]);
@@ -818,7 +819,7 @@ export function buildWebSubjectProfileEvidence(input: {
       input.generatedAt,
       input.runId,
       message,
-      input.secFilingBasisDate,
+      basisDates(input),
     );
     const gap = profileGap(message, "validation-failed");
     return profileResult(input.command, input.extendedEvidence, input.subject, artifact, [], [gap]);
@@ -869,9 +870,7 @@ export function buildWebSubjectProfileEvidence(input: {
     originRunDirName: input.runId,
     profile: profileForArtifact,
     sourceIds,
-    ...(input.secFilingBasisDate !== undefined
-      ? { secFilingBasisDate: input.secFilingBasisDate }
-      : {}),
+    basis: basisDates(input),
   });
   const emptyGap =
     substantiveProfileSourceIds(artifact).size === 0
@@ -898,13 +897,14 @@ export function buildWebSubjectProfileFailureEvidence(input: {
   readonly cause: NonNullable<SourceGap["cause"]>;
   readonly extendedEvidence: ExtendedEvidence | undefined;
   readonly secFilingBasisDate?: string;
+  readonly issuerReportBasisDate?: string;
 }): WebSubjectProfileResult {
   const artifact = emptyArtifact(
     input.subject,
     input.generatedAt,
     input.runId,
     input.message,
-    input.secFilingBasisDate,
+    basisDates(input),
   );
   const gap = profileGap(input.message, input.cause);
   return profileResult(input.command, input.extendedEvidence, input.subject, artifact, [], [gap]);
@@ -1198,12 +1198,28 @@ function emptyQuestions(
   );
 }
 
+interface ProfileBasisDates {
+  readonly secFilingBasisDate?: string;
+  readonly issuerReportBasisDate?: string;
+}
+
+function basisDates(input: ProfileBasisDates): ProfileBasisDates {
+  return {
+    ...(input.secFilingBasisDate !== undefined
+      ? { secFilingBasisDate: input.secFilingBasisDate }
+      : {}),
+    ...(input.issuerReportBasisDate !== undefined
+      ? { issuerReportBasisDate: input.issuerReportBasisDate }
+      : {}),
+  };
+}
+
 function emptyArtifact(
   subject: WebSubjectProfileSubject,
   generatedAt: string,
   originRunDirName: string,
   gap: string,
-  secFilingBasisDate?: string,
+  basis: ProfileBasisDates,
 ): WebSubjectProfileArtifact {
   const base = {
     version: 3 as const,
@@ -1226,7 +1242,7 @@ function emptyArtifact(
       questions: emptyQuestions("company") as Readonly<
         Record<WebSubjectProfileCompanyQuestionKey, WebSubjectProfileAnswer>
       >,
-      ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
+      ...basis,
     };
   }
   if (subject.subjectKind === "crypto-asset") {
@@ -1254,7 +1270,7 @@ function profileArtifact(input: {
   readonly originRunDirName: string;
   readonly profile: ParsedProfile;
   readonly sourceIds: readonly string[];
-  readonly secFilingBasisDate?: string;
+  readonly basis: ProfileBasisDates;
 }): WebSubjectProfileArtifact {
   const subjectLabel = input.profile.subjectLabel ?? input.subject.subjectLabel;
   const base = {
@@ -1281,9 +1297,7 @@ function profileArtifact(input: {
       questions: input.profile.questions as Readonly<
         Record<WebSubjectProfileCompanyQuestionKey, WebSubjectProfileAnswer>
       >,
-      ...(input.secFilingBasisDate !== undefined
-        ? { secFilingBasisDate: input.secFilingBasisDate }
-        : {}),
+      ...input.basis,
     };
   }
   if (input.subject.subjectKind === "crypto-asset") {

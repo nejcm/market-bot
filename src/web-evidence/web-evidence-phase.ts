@@ -16,13 +16,20 @@ import type { StageOutput } from "../research/final-synthesis";
 import type { ResearchContext } from "../research/research-context-types";
 import { commandWithResolvedResearchSubject } from "../research/research-subject-identity";
 import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
+import type { RunTrace } from "../domain/run-trace";
+import { isNonSecEquityListing } from "../sources/identity-gate";
 import {
   attachReusableWebSubjectProfile,
+  confirmIssuerReportReuse,
   findReusableWebSubjectProfile,
+  latestIssuerReportDate,
   latestSecFilingDate,
   webGatherAcceptancePolicyForReuse,
   type WebSubjectProfileReuse,
 } from "./web-subject-profile-reuse";
+
+const NO_REUSABLE_PROFILE_REASON =
+  "No reusable Web Subject Profile for this subject, depth and reuse window.";
 
 function reusedProfileCoverage(
   reuse: WebSubjectProfileReuse,
@@ -60,6 +67,7 @@ async function runWebSubjectProfileExtraction(input: {
   readonly phaseInput: WebEvidencePhaseInput;
   readonly collectedSources: CollectedSources;
   readonly secFilingBasisDate?: string;
+  readonly issuerReportBasisDate?: string;
 }): Promise<{
   readonly collectedSources: CollectedSources;
   readonly output?: StageOutput;
@@ -100,6 +108,9 @@ async function runWebSubjectProfileExtraction(input: {
       ...(subject.subjectKind === "company" && input.secFilingBasisDate !== undefined
         ? { secFilingBasisDate: input.secFilingBasisDate }
         : {}),
+      ...(subject.subjectKind === "company" && input.issuerReportBasisDate !== undefined
+        ? { issuerReportBasisDate: input.issuerReportBasisDate }
+        : {}),
     });
     return {
       collectedSources: {
@@ -124,6 +135,9 @@ async function runWebSubjectProfileExtraction(input: {
       extendedEvidence: input.collectedSources.extendedEvidence,
       ...(subject.subjectKind === "company" && input.secFilingBasisDate !== undefined
         ? { secFilingBasisDate: input.secFilingBasisDate }
+        : {}),
+      ...(subject.subjectKind === "company" && input.issuerReportBasisDate !== undefined
+        ? { issuerReportBasisDate: input.issuerReportBasisDate }
         : {}),
     });
     return {
@@ -174,6 +188,7 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
   readonly collectedSources: CollectedSources;
   readonly webGatherLoop: Awaited<ReturnType<typeof runWebGatherLoop>>;
   readonly webSubjectProfile?: Awaited<ReturnType<typeof runWebSubjectProfileExtraction>>;
+  readonly profileReuse?: RunTrace["webSubjectProfileReuse"];
 }> {
   let { collectedSources } = input;
   const currentSecFilingDate = latestSecFilingDate(collectedSources.extendedEvidence);
@@ -183,6 +198,7 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
   };
   let webSubjectProfile: Awaited<ReturnType<typeof runWebSubjectProfileExtraction>> | undefined =
     undefined;
+  let profileReuse: RunTrace["webSubjectProfileReuse"] = undefined;
   const webGatherEnabled = isWebGatherLoopEnabled(
     input.command,
     input.config,
@@ -200,6 +216,9 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
       input.command,
       collectedSources.resolvedSubject,
     );
+    const nonSecListing =
+      currentSecFilingDate === undefined &&
+      isNonSecEquityListing(profileCommand, collectedSources.resolvedInstrumentIdentity);
     const reusableWebSubjectProfile = await replayValue("reused-profile", () =>
       findReusableWebSubjectProfile({
         dataDir: input.config.dataDir,
@@ -207,56 +226,81 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
         now: input.now,
         reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
         ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
+        ...(nonSecListing ? { nonSecListing } : {}),
         currentSources: collectedSources.extendedSources,
         ...(collectedSources.metricSections !== undefined
           ? { metricSections: collectedSources.metricSections }
           : {}),
       }),
     );
-    if (reusableWebSubjectProfile !== undefined) {
+    // Without an SEC basis the issuer report date is known only after the gather, so reuse stays provisional.
+    const provisional =
+      reusableWebSubjectProfile?.profile.subjectKind === "company" &&
+      currentSecFilingDate === undefined;
+    if (reusableWebSubjectProfile !== undefined && !provisional) {
       collectedSources = attachReusableWebSubjectProfile({
         command: profileCommand,
         collectedSources,
         reuse: reusableWebSubjectProfile,
       });
-      webGatherLoop = await runWebGatherLoop({
-        command: profileCommand,
-        config: input.config,
-        collectedSources,
-        context: input.context,
-        now: input.now,
-        reusedProfileCoverage: reusedProfileCoverage(reusableWebSubjectProfile),
-        acceptancePolicy: webGatherAcceptancePolicyForReuse(reusableWebSubjectProfile),
-        ...(input.fetchImpl !== undefined ? { fetchImpl: input.fetchImpl } : {}),
-        ...(input.retryDelaysMs !== undefined ? { retryDelaysMs: input.retryDelaysMs } : {}),
-        generateRound: (currentSources, roundContext, priorStages) =>
-          input.generateStage("web-gather", currentSources, roundContext, priorStages) as Promise<
-            StageOutput & { readonly stage: "web-gather" }
-          >,
-      });
-      ({ collectedSources } = webGatherLoop);
-    } else {
-      webGatherLoop = await runWebGatherLoop({
-        command: profileCommand,
-        config: input.config,
-        collectedSources,
-        context: input.context,
-        now: input.now,
-        ...(input.fetchImpl !== undefined ? { fetchImpl: input.fetchImpl } : {}),
-        ...(input.retryDelaysMs !== undefined ? { retryDelaysMs: input.retryDelaysMs } : {}),
-        generateRound: (currentSources, roundContext, priorStages) =>
-          input.generateStage("web-gather", currentSources, roundContext, priorStages) as Promise<
-            StageOutput & { readonly stage: "web-gather" }
-          >,
-      });
-      ({ collectedSources } = webGatherLoop);
+    }
+    webGatherLoop = await runWebGatherLoop({
+      command: profileCommand,
+      config: input.config,
+      collectedSources,
+      context: input.context,
+      now: input.now,
+      ...(reusableWebSubjectProfile !== undefined && !provisional
+        ? {
+            reusedProfileCoverage: reusedProfileCoverage(reusableWebSubjectProfile),
+            acceptancePolicy: webGatherAcceptancePolicyForReuse(reusableWebSubjectProfile),
+          }
+        : {}),
+      ...(input.fetchImpl !== undefined ? { fetchImpl: input.fetchImpl } : {}),
+      ...(input.retryDelaysMs !== undefined ? { retryDelaysMs: input.retryDelaysMs } : {}),
+      generateRound: (currentSources, roundContext, priorStages) =>
+        input.generateStage("web-gather", currentSources, roundContext, priorStages) as Promise<
+          StageOutput & { readonly stage: "web-gather" }
+        >,
+    });
+    ({ collectedSources } = webGatherLoop);
+    const issuerReportDate =
+      currentSecFilingDate === undefined
+        ? latestIssuerReportDate(profileCommand, collectedSources)
+        : undefined;
+    let reuse = reusableWebSubjectProfile;
+    let discardReason: string | undefined = undefined;
+    if (reusableWebSubjectProfile !== undefined && provisional) {
+      const check = confirmIssuerReportReuse(
+        reusableWebSubjectProfile,
+        collectedSources.extendedSources,
+        issuerReportDate,
+      );
+      if ("reuse" in check) {
+        ({ reuse } = check);
+        collectedSources = attachReusableWebSubjectProfile({
+          command: profileCommand,
+          collectedSources,
+          reuse,
+        });
+      } else {
+        reuse = undefined;
+        ({ discardReason } = check);
+      }
+    }
+    if (reuse === undefined) {
       webSubjectProfile = await runWebSubjectProfileExtraction({
         phaseInput: input,
         collectedSources,
         ...(currentSecFilingDate !== undefined ? { secFilingBasisDate: currentSecFilingDate } : {}),
+        ...(issuerReportDate !== undefined ? { issuerReportBasisDate: issuerReportDate } : {}),
       });
       ({ collectedSources } = webSubjectProfile);
     }
+    profileReuse =
+      reuse === undefined
+        ? { decision: "regenerated", reason: discardReason ?? NO_REUSABLE_PROFILE_REASON }
+        : { decision: "reused", reason: reuse.gap.message };
     collectedSources = reconcileBusinessFrameworkEvidence(collectedSources);
   } else {
     webGatherLoop = await runWebGatherLoop({
@@ -289,5 +333,6 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
     collectedSources,
     webGatherLoop,
     ...(webSubjectProfile !== undefined ? { webSubjectProfile } : {}),
+    ...(profileReuse !== undefined ? { profileReuse } : {}),
   };
 }

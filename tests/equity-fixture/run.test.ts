@@ -883,6 +883,13 @@ describe("static equity run fixtures", () => {
     expect(revenueYoy).toMatchObject({ periodEnd: "2026-09-30", periodMonths: 9 });
     expect(revenueYoy?.value).toBeCloseTo((1_127_067 / 552_728 - 1) * 100, 6);
     expect(result.markdown).toContain("Phase: hyper-growth");
+    // Fixture starts with no reusable profile, so the recorded profile stage runs and stores the report date.
+    expect(result.trace.webSubjectProfileReuse?.decision).toBe("regenerated");
+    expect(result.collectedSources.webSubjectProfile).toHaveProperty(
+      "issuerReportBasisDate",
+      "2026-11-05",
+    );
+    expect(result.markdown).toContain("profile stage read (latest issuer report 2026-11-05)");
     expect(result.report.predictions.map(({ id }) => id)).not.toContain("pred-1");
     expect(result.report.dataGaps.join("\n")).toContain(
       "Model prediction(s) pred-1 for 0097.KL withheld: they compare against SPY",

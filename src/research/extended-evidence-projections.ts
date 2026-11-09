@@ -205,6 +205,9 @@ function webSubjectProfileExtra(
     ...("secFilingBasisDate" in artifact && artifact.secFilingBasisDate !== undefined
       ? { secFilingBasisDate: artifact.secFilingBasisDate }
       : {}),
+    ...("issuerReportBasisDate" in artifact && artifact.issuerReportBasisDate !== undefined
+      ? { issuerReportBasisDate: artifact.issuerReportBasisDate }
+      : {}),
   };
 }
 

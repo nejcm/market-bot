@@ -381,7 +381,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     collectedSources,
     analysisAsOf: generatedAt,
   });
-  const { webGatherLoop, webSubjectProfile } = webEvidence;
+  const { webGatherLoop, webSubjectProfile, profileReuse } = webEvidence;
   let issuerReport: IssuerReportPhaseResult = { collectedSources, stageOutputs: [] };
   if (
     isInstrumentCommand(command) &&
@@ -590,6 +590,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     collectedSources,
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
     ...(webGatherLoop.audit !== undefined ? { webGatherLoop: webGatherLoop.audit } : {}),
+    ...(profileReuse !== undefined ? { webSubjectProfileReuse: profileReuse } : {}),
     historicalContext,
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
     playbookAudit,

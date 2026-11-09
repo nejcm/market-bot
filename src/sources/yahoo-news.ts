@@ -1,5 +1,6 @@
 import type { AssetClass } from "../domain/job-type";
 import type { Source } from "../domain/sources";
+import type { SourceAdapter } from "./adapter-freshness";
 import { isRecord, optionalString, readString } from "../guards";
 import { canonicalizeUrl, encodeQuery, newsQuery } from "./news-utils";
 import {
@@ -67,7 +68,7 @@ function normalizeNews(
 async function collectQuery(
   ctx: CollectContext,
   query: string,
-  adapter: string,
+  adapter: SourceAdapter,
 ): Promise<NewsCollectionResult> {
   const { command, newsLimit } = ctx;
   const url = `${YAHOO_SEARCH_URL}?${encodeQuery({ q: query, newsCount: String(newsLimit) })}`;

@@ -133,16 +133,17 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
   }
   const from = daysFrom(fetchedAt, -CALENDAR_WINDOW_DAYS);
   const to = daysFrom(fetchedAt, CALENDAR_WINDOW_DAYS);
-  const urls = [
-    `https://finnhub.io/api/v1/calendar/earnings?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
-    `https://finnhub.io/api/v1/stock/dividend?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
-    `https://finnhub.io/api/v1/stock/split?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
-  ];
+  const token = ctx.finnhubApiToken;
+  const routes = [
+    ["finnhub-events-1", "calendar/earnings"],
+    ["finnhub-events-2", "stock/dividend"],
+    ["finnhub-events-3", "stock/split"],
+  ] as const;
   const results = await Promise.all(
-    urls.map((url, index) =>
+    routes.map(([adapter, path]) =>
       ctx.request.json({
-        url,
-        adapter: `finnhub-events-${String(index + 1)}`,
+        url: `https://finnhub.io/api/v1/${path}?${encodeQuery({ symbol: command.symbol, from, to, token })}`,
+        adapter,
       }),
     ),
   );

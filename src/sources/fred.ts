@@ -8,7 +8,7 @@ export const FRED_SERIES = [
   "CPIAUCSL",
   "UNRATE",
   "DTWEXBGS",
-];
+] as const;
 
 export function isFredBaseMetricKey(key: string): boolean {
   return !key.endsWith("Change") && !key.endsWith("Date") && !key.endsWith("Prior");

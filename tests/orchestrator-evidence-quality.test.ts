@@ -13,7 +13,7 @@ import {
   modelReport,
   newsSources,
 } from "./support/orchestrator-helpers";
-import { access, readFile } from "node:fs/promises";
+import { access, cp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ModelProvider } from "../src/model/types";
@@ -199,6 +199,49 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
     expect(outcomes.find((outcome) => outcome.subsystem === "forecast-disagreement")?.code).toBe(
       "no-predictions",
     );
+  });
+
+  test("publishes a fixed gap and keeps the raw error in the trace when the phase fails", async () => {
+    const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-failed-${Date.now()}`);
+    dataDirs.push(dataDir);
+    const promptDir = join(dataDir, "prompts");
+    await cp("prompts", promptDir, { recursive: true });
+    await rm(join(promptDir, "forecast-disagreement"), { recursive: true });
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        promptDir,
+        forecastDisagreementOptions: { challengerModels: ["challenger-ok"] },
+      },
+      provider: providerReturning(modelReport("AAPL")),
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.dataGaps).toContain(
+      "forecastDisagreement: stage failed, check did not run; uncertainty signal unavailable",
+    );
+    expect(result.trace.postSynthesisAudit?.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "forecast-disagreement-unavailable",
+        message: expect.stringContaining("Prompt base file missing"),
+      }),
+    );
+    const reportJson = await readFile(join(result.artifacts.runDir, "report.json"), "utf8");
+    const reportMd = await readFile(join(result.artifacts.runDir, "report.md"), "utf8");
+    expect(reportJson).not.toContain("Prompt base file missing");
+    expect(reportMd).not.toContain("Prompt base file missing");
+    expect(result.analytics.postSynthesisAudit?.byCode).toMatchObject({
+      "forecast-disagreement-unavailable": 1,
+    });
   });
 
   test("does not persist movers.json for ticker runs", async () => {

@@ -29,7 +29,8 @@ type PostSynthesisAuditWarningCode =
   | "fresh-web-unused"
   | "gap-shaped-claim-cited"
   | "peer-median-uncited"
-  | "peer-median-audit-unavailable";
+  | "peer-median-audit-unavailable"
+  | "forecast-disagreement-unavailable";
 
 export interface PostSynthesisAuditWarning {
   readonly code: PostSynthesisAuditWarningCode;

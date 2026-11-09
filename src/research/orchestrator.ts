@@ -13,7 +13,7 @@ import { createRunId, publishRunArtifacts, type RunArtifactPaths } from "../arti
 import { isMarketUpdateJobType, marketUpdateHorizonBucket } from "../domain/job-type";
 import { type MarketSnapshot, type Mover } from "../domain/market-data";
 import { type ResearchReport } from "../domain/report";
-import { type RunTrace } from "../domain/run-trace";
+import { type PostSynthesisAuditWarning, type RunTrace } from "../domain/run-trace";
 import {
   buildFailedRunManifest,
   buildResearchRunManifest,
@@ -396,6 +396,7 @@ async function runForecastDisagreementPhase(input: {
   readonly stageOutputs: readonly StageOutput[];
   readonly artifact?: ForecastDisagreementArtifact;
   readonly outcomeCode: ForecastDisagreementOutcomeCode;
+  readonly warning?: PostSynthesisAuditWarning;
 }> {
   const challengerModels = forecastDisagreementModels(
     input.jobInput,
@@ -453,10 +454,21 @@ async function runForecastDisagreementPhase(input: {
         ...report,
         dataGaps: [
           ...report.dataGaps,
-          `forecastDisagreement: stage failed (${message}); uncertainty signal unavailable`,
+          "forecastDisagreement: stage failed, check did not run; uncertainty signal unavailable",
         ],
       });
-      return { report, challengerModels, stageOutputs: [], outcomeCode: "failed" };
+      return {
+        report,
+        challengerModels,
+        stageOutputs: [],
+        outcomeCode: "failed",
+        warning: {
+          code: "forecast-disagreement-unavailable",
+          location: "forecastDisagreement",
+          message: `forecast-disagreement stage failed (${message})`,
+          sourceIds: [],
+        },
+      };
     }
   } else if (challengerModels.length > 0) {
     report = validateResearchReport({
@@ -1009,7 +1021,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionErrors,
     reportValidationErrors,
     relocatedGapClaims,
-    postSynthesisWarnings,
+    postSynthesisWarnings:
+      forecastDisagreementPhase.warning === undefined
+        ? postSynthesisWarnings
+        : [...postSynthesisWarnings, forecastDisagreementPhase.warning],
     integrityAudit,
     sourcePlanning,
     configuredForecastDisagreementModels,

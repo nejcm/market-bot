@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.14.1](https://github.com/nejcm/market-bot/compare/v1.14.0...v1.14.1) (2026-11-09)
+
+### Bug Fixes
+
+- **history:** stop passing prior-run item source ids to prompts (#186) ([e59700c](https://github.com/nejcm/market-bot/commit/e59700c44f9ed6cd779d7cd26c6e150833c21b23))
+
 ## [1.14.0](https://github.com/nejcm/market-bot/compare/v1.13.11...v1.14.0) (2026-11-09)
 
 ### Features

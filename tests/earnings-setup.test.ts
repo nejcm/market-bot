@@ -21,7 +21,7 @@ import {
 } from "../src/sources/extended-evidence/earnings-setup";
 import type { CollectContext } from "../src/sources/types";
 import { prediction, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
-import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import { verifiedSnapshotSource } from "../src/sources/verified-snapshot-contract";
 
 // ---------------------------------------------------------------------------
 // Helpers

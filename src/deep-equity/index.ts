@@ -4,6 +4,7 @@ import { collectSources } from "../sources/collector";
 import { buildSourcePlan } from "../research/source-plan";
 import { persistResearchJob } from "../research/orchestrator";
 import type { DeepEquityRunDependencies, DeepEquityRunInput, DeepEquityRunResult } from "./types";
+import { peerUniverseSeam } from "../research/peer-universe-seam";
 
 export async function runDeepEquity(
   input: DeepEquityRunInput,
@@ -52,7 +53,7 @@ export async function runDeepEquity(
         ...(input.config.extensionShortTermInvestmentsDisabled === true
           ? { extensionShortTermInvestmentsDisabled: true }
           : {}),
-        peerUniverse: {
+        peerUniverse: peerUniverseSeam({
           provider: capturedDependencies.provider,
           model: input.config.quickModel,
           cachePath:
@@ -61,7 +62,7 @@ export async function runDeepEquity(
           ...(input.config.sourceOptions.peerUniverseTtlDays !== undefined
             ? { ttlDays: input.config.sourceOptions.peerUniverseTtlDays }
             : {}),
-        },
+        }),
       });
       const persist = capturedDependencies.persistResearchJob ?? persistResearchJob;
       const result = await persist({

@@ -1,7 +1,7 @@
 import { DAY_MS } from "../../config/shared";
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
-import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
 import {
   CAPEX_SCOPE_CAVEAT,
   conceptScope,

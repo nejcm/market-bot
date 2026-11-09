@@ -14,7 +14,7 @@ import { exchangeProfileFor } from "../domain/exchange-profile";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";
 import { dedupeMoversBySymbol } from "../movers/dedupe";
-import { cleanResearchProxySymbol } from "../research/research-subject-identity";
+import { cleanResearchProxySymbol } from "../domain/research-subject";
 import {
   isFetchJsonResult,
   type CollectContext,

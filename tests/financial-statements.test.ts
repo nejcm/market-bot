@@ -23,7 +23,7 @@ import {
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
-import type { RunSummary } from "../app/types";
+import type { RunSummary } from "../src/run-artifact-index-types";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import {

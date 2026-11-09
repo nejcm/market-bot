@@ -17,7 +17,7 @@ import {
   type PeerUniverse,
   type PeerUniversePeer,
   type PeerUniverseSource,
-} from "./peer-universe";
+} from "../domain/peer-universe";
 
 const CACHE_VERSION = 1;
 const DEFAULT_PEER_UNIVERSE_TTL_DAYS = 90;

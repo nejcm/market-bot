@@ -13,7 +13,7 @@ import { buildMissAutopsyFile, forecastErrorDirection } from "../src/scoring/mis
 import type { Prediction } from "../src/domain/prediction";
 import type { MarketRegimeLabel, ResearchReport } from "../src/domain/report";
 import type { ObservationRepository } from "../src/scoring/observations";
-import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import { verifiedSnapshotSource } from "../src/sources/verified-snapshot-contract";
 import {
   prediction,
   predictionScore,

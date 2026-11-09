@@ -11,7 +11,7 @@ import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-stat
 import type { AlphaLeadCohortSummary } from "../src/alpha-search/cohorts";
 import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
 import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
-import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import { verifiedSnapshotSource } from "../src/sources/verified-snapshot-contract";
 import { researchReport, verifiedMarketSnapshot } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
 

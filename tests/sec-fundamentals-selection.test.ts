@@ -1,6 +1,7 @@
 import { CAPEX_SCOPE_CAVEAT } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { describe, expect, test } from "bun:test";
-import type { RunDetail, RunSummary } from "../app/types";
+import type { RunDetail } from "../app/types";
+import type { RunSummary } from "../src/run-artifact-index-types";
 import {
   financialTrendFromProjection,
   fundamentalHistoryView,

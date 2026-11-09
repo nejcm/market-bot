@@ -3,7 +3,8 @@
   import Menu from "@lucide/svelte/icons/menu";
   import Pin from "@lucide/svelte/icons/pin";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { RunDetail, RunSummary, WatchlistSummary } from "../../types";
+  import type { RunDetail, WatchlistSummary } from "../../types";
+  import type { RunSummary } from "../../../src/run-artifact-index-types";
   import type { ReportDetail } from "../app-settings";
   import { formatDate, jsonBlock, runLabel } from "../view-model";
   import { buildRunWorkspaceView, type RunWorkspaceSectionKey } from "../run-workspace-view";

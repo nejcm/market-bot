@@ -9,7 +9,7 @@
 
 import type { IndicatorMap, MarketSnapshot, VerifiedMarketSnapshot } from "../domain/market-data";
 import type { Source } from "../domain/sources";
-import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
+import { verifiedMarketSnapshotSourceId } from "./verified-market-snapshot";
 
 type RequiredKeys<T> = {
   [Key in keyof T]-?: Pick<T, Key> extends Required<Pick<T, Key>> ? Key : never;

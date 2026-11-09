@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { readRunDetail } from "../app/artifacts";
-import type { FailedRunArtifactFailure, RunDetail, RunSummary } from "../app/types";
+import type { FailedRunArtifactFailure, RunDetail } from "../app/types";
+import type { RunSummary } from "../src/run-artifact-index-types";
 import {
   buildRunWorkspaceView,
   equityHeaderView,

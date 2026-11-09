@@ -9,7 +9,7 @@ import {
   resolveResearchSubjectProxy,
   validateResearchSubjectRegistry,
   type ResearchSubjectRegistryEntry,
-} from "../src/research/subject-registry";
+} from "../src/domain/subject-registry";
 
 const baseEntry: ResearchSubjectRegistryEntry = {
   subjectKey: "test-subject",

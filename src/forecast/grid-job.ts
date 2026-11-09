@@ -27,7 +27,7 @@ import {
   type EventGridEvent,
 } from "../research/event-grid";
 import { loadStagePrompt, type LoadedPrompt } from "../research/prompt-loader";
-import { verifiedSnapshotSource } from "../research/verified-snapshot-contract";
+import { verifiedSnapshotSource } from "../sources/verified-snapshot-contract";
 import { readJsonFile } from "../run-artifact-json-reader";
 import { readLatestSuccessfulInstrumentRuns } from "../run-artifact-index";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";

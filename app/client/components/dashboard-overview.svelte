@@ -8,7 +8,7 @@
     type RunCompareCard,
     type RunTrendPoint,
   } from "../view-model";
-  import type { RunSummary } from "../../types";
+  import type { RunSummary } from "../../../src/run-artifact-index-types";
   import RunTrendChart from "./run-trend-chart.svelte";
   import SymbolSearch from "./symbol-search.svelte";
 

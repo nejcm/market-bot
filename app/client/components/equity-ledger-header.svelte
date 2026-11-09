@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import TickerLogo from "./ticker-logo.svelte";
-  import type { RunSummary } from "../../types";
+  import type { RunSummary } from "../../../src/run-artifact-index-types";
   import type { ReportDetail } from "../app-settings";
   import type { RunWorkspaceEquityPresentationView, BindSection } from "../run-workspace-view";
 

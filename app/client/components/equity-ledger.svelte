@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { RunSummary } from "../../types";
+  import type { RunSummary } from "../../../src/run-artifact-index-types";
   import type { ReportDetail } from "../app-settings";
   import { formatDate, type SnapshotView } from "../view-model";
   import type { SourceView } from "../../report-artifact-view";

@@ -4,7 +4,7 @@ import { marketUpdateHorizonOf } from "../domain/job-type";
 import { type SourceGapEvidenceQualityImpact } from "../domain/sources";
 import type { CollectedSources } from "../sources/types";
 import { rangeVolatilityReference } from "./range-volatility-reference";
-import { missingVerifiedSnapshotGapText } from "./verified-snapshot-contract";
+import { missingVerifiedSnapshotGapText } from "../sources/verified-snapshot-contract";
 
 // Deterministic source gaps — disclosed in the prompt and in the final report.
 

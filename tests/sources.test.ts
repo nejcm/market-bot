@@ -30,7 +30,7 @@ import { withCanonicalFinancialLensInputs } from "../src/sources/extended-eviden
 import { secIssuerRegistration } from "../src/sources/extended-evidence/industry-classification";
 import { sourceGap } from "../src/domain/source-gaps";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
-import { forPrompt } from "../src/research/verified-snapshot-contract";
+import { forPrompt } from "../src/sources/verified-snapshot-contract";
 import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 import type {

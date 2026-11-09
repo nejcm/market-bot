@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { assessEvidenceQuality } from "../src/research/evidence-quality";
-import {
-  resolveResearchSubject,
-  type ResolvedResearchSubject,
-} from "../src/research/research-subject-identity";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
+import type { ResolvedResearchSubject } from "../src/domain/research-subject";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
 import { collectSources, researchThematicNewsQuery } from "../src/sources/collector";
 import {

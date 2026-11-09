@@ -50,7 +50,7 @@ import {
   type WebSubjectProfileQuestionKey,
 } from "../web-evidence/contract";
 import { isRecord, readString, readStringArray, readStringVerbatim } from "../guards";
-import { readFigureQuotes } from "../research/web-figure-verification";
+import { readFigureQuotes } from "./figure-quotes";
 
 // ---------------------------------------------------------------------------
 // Producer contract

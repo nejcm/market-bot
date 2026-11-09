@@ -24,6 +24,7 @@ import { SEC_COMPANYFACTS_MAX_RESPONSE_BYTES } from "../src/config/shared";
 import { fetchSecCompanyFactsForSymbol } from "../src/sources/extended-evidence/sec-edgar";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 import { researchReport } from "./support/fixtures";
+import { peerUniverseSeam } from "../src/research/peer-universe-seam";
 
 function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
@@ -1445,7 +1446,7 @@ describe("collectSources", () => {
       {
         now: new Date("2026-07-15T00:00:00.000Z"),
         fetchImpl,
-        peerUniverse: { provider, model: "test-model", cachePath },
+        peerUniverse: peerUniverseSeam({ provider, model: "test-model", cachePath }),
       },
     );
 
@@ -1495,15 +1496,53 @@ describe("collectSources", () => {
       {
         now: new Date("2026-07-15T00:00:00.000Z"),
         fetchImpl,
-        peerUniverse: {
+        peerUniverse: peerUniverseSeam({
           provider,
           model: "test-model",
           cachePath: join(tempCacheDir(), "peers.json"),
-        },
+        }),
       },
     );
 
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  test("leaves the peer universe unresolved when no seam is injected on a deep run", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
+        return jsonResponse({
+          quoteResponse: { result: symbols.map((symbol) => collectorQuote(symbol, 1000)) },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "ZZZZ", title: "ZZZZ" } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "ZZZZ", depth: "deep" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.valuationComps?.peers).toEqual([]);
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        cause: "unsupported-coverage",
+        message:
+          "Peer Universe unavailable for ZZZZ: No checked-in peer mapping or subject-registry representative match",
+      }),
+    );
   });
 
   test("collects daily equity market data and news with injectable fetch", async () => {

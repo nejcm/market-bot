@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import { createPeerUniverseProposer } from "../src/research/peer-universe-proposal";
-import { MAX_PEERS, MIN_PROPOSED_PEERS } from "../src/research/peer-universe";
+import { MAX_PEERS, MIN_PROPOSED_PEERS } from "../src/domain/peer-universe";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
 import type { FetchJsonResult, FetchTextResult, SourceRequestExecutor } from "../src/sources/types";
 import { createRecordingProvider, makeReplayProvider } from "../src/replay/llm-cassette";

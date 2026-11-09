@@ -24,8 +24,8 @@ import { rollupSubsystemOutcomes } from "./research/subsystem-outcomes";
 import {
   commandWithResolvedResearchSubject,
   resolveResearchSubject,
-  type ResolvedResearchSubject,
 } from "./research/research-subject-identity";
+import type { ResolvedResearchSubject } from "./domain/research-subject";
 import { collectSources } from "./sources/collector";
 import { readRunSubsystemOutcomesFromDisk } from "./run-artifact-index-rows";
 import { pruneCache } from "./sources/cache";
@@ -55,6 +55,7 @@ import {
   runForecastGridJob,
 } from "./forecast/grid-job";
 import type { FetchLike } from "./sources/types";
+import { peerUniverseSeam } from "./research/peer-universe-seam";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -529,7 +530,7 @@ async function runStandardResearch(input: {
           ...(input.config.extensionShortTermInvestmentsDisabled === true
             ? { extensionShortTermInvestmentsDisabled: true }
             : {}),
-          peerUniverse: {
+          peerUniverse: peerUniverseSeam({
             provider: runtime.provider,
             model: input.config.quickModel,
             cachePath:
@@ -538,7 +539,7 @@ async function runStandardResearch(input: {
             ...(input.config.sourceOptions.peerUniverseTtlDays !== undefined
               ? { ttlDays: input.config.sourceOptions.peerUniverseTtlDays }
               : {}),
-          },
+          }),
         },
       );
       return (input.dependencies.persistResearchJob ?? persistResearchJob)({

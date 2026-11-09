@@ -31,7 +31,7 @@ import {
   citeMetricReferences,
   referenceMetricSections,
 } from "../src/research/metric-references";
-import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import { verifiedSnapshotSource } from "../src/sources/verified-snapshot-contract";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { formatMetricValue } from "../src/sources/extended-evidence/value-format";
 

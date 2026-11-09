@@ -6,7 +6,7 @@
     ASSET_CLASS_OPTIONS,
     SEARCH_JOB_TYPE_OPTIONS,
   } from "../../../src/cli/job-registry";
-  import type { RunSearchResult } from "../../types";
+  import type { RunSearchResult } from "../../../src/run-artifact-index-types";
   import {
     formatDateMinute,
     groupedSearchResults,

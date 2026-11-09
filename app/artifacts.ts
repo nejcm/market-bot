@@ -8,10 +8,12 @@ import type {
   ProviderHealthDetail,
   RunDetail,
   RunFile,
+} from "./types";
+import type {
   RunSearchFilters,
   RunSearchResult,
   RunSummary,
-} from "./types";
+} from "../src/run-artifact-index-types";
 import { reportSearchCandidates } from "./report-artifact-view";
 import {
   withoutUnmeasuredMarkdownMetrics,

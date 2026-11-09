@@ -14,7 +14,7 @@ import {
   forPrompt,
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
-} from "../verified-snapshot-contract";
+} from "../../sources/verified-snapshot-contract";
 import type { HistoricalResearchContext, HistoricalRunContext } from "../historical-context";
 import type { ResearchContext } from "../research-context-types";
 import {

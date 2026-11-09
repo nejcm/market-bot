@@ -16,7 +16,7 @@ import {
   verifiedMarketSnapshot as verifiedSnapshotFixture,
 } from "./support/fixtures";
 import { config, researchContext, stagePromptFromArgs } from "./support/research-context-helpers";
-import { verifiedSnapshotCitationRule } from "../src/research/verified-snapshot-contract";
+import { verifiedSnapshotCitationRule } from "../src/sources/verified-snapshot-contract";
 import { hasFreshWebEvidence } from "../src/research/prompts/steering";
 import { buildWebSourceSynthesisInputs } from "../src/research/prompts/web-source-synthesis-inputs";
 import { sourceGap, sourceGapScopedReportText } from "../src/domain/source-gaps";

@@ -65,18 +65,9 @@ import {
 } from "./extended-evidence/industry-classification";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import { buildReverseDcf, type ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
-import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
-import {
-  makePeerUniverseCacheReader,
-  makePeerUniverseCacheWriter,
-  makePeerUniverseEvaluationRecorder,
-  makePeerUniverseRefreshClaimer,
-  makePeerUniverseRefreshReleaser,
-} from "../research/peer-universe-cache";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
-import type { ModelProvider } from "../model/types";
-import type { PeerUniverseFallbackContext } from "../research/peer-universe";
+import type { PeerUniverseFallbackContext } from "../domain/peer-universe";
 import { type SecTargetPacket } from "./sec-target-packet";
 import type { EvidenceRequestToolOutput } from "./evidence-request-output";
 import { deriveTradierImpliedMove, type TradierPacket } from "./tradier-packet";
@@ -87,12 +78,7 @@ import {
   financialStatementsDebtBasisGaps,
 } from "./extended-evidence/sec-debt";
 
-export interface PeerUniverseSeam {
-  readonly provider: ModelProvider;
-  readonly model: string;
-  readonly cachePath: string;
-  readonly ttlDays?: number;
-}
+export type PeerUniverseSeam = (ctx: CollectContext, now: Date) => PeerUniverseFallbackContext;
 
 function buildImpliedMoveSource(
   command: ResearchCommand,
@@ -110,40 +96,6 @@ function buildImpliedMoveSource(
     command,
     impliedMove.observedAt,
   );
-}
-
-function peerUniverseFallbackFor(
-  peerUniverse: PeerUniverseSeam | undefined,
-  ctx: CollectContext,
-  now: Date,
-): PeerUniverseFallbackContext | undefined {
-  return peerUniverse === undefined
-    ? undefined
-    : {
-        cacheRead: makePeerUniverseCacheReader(peerUniverse.cachePath, peerUniverse.ttlDays, now),
-        cacheWrite: makePeerUniverseCacheWriter(
-          peerUniverse.cachePath,
-          peerUniverse.ttlDays,
-          peerUniverse.provider.name,
-          now,
-        ),
-        claimRefresh: makePeerUniverseRefreshClaimer(
-          peerUniverse.cachePath,
-          peerUniverse.ttlDays,
-          now,
-        ),
-        recordEvaluation: makePeerUniverseEvaluationRecorder(peerUniverse.cachePath, now),
-        releaseRefresh: makePeerUniverseRefreshReleaser(peerUniverse.cachePath, now),
-        propose: createPeerUniverseProposer({
-          provider: peerUniverse.provider,
-          model: peerUniverse.model,
-          request: ctx.request,
-          ...(ctx.secUserAgent !== undefined ? { secUserAgent: ctx.secUserAgent } : {}),
-          ...(ctx.instrumentIdentity?.displayName !== undefined
-            ? { targetName: ctx.instrumentIdentity.displayName }
-            : {}),
-        }),
-      };
 }
 
 type InstrumentIdentityResult = ReturnType<typeof deriveCanonicalInstrumentIdentity>;
@@ -314,7 +266,7 @@ export async function collectEquityEnrichment(
         );
   const peerUniverseFallback =
     input.command.depth === "deep"
-      ? peerUniverseFallbackFor(input.peerUniverse, input.identityContext, input.now)
+      ? input.peerUniverse?.(input.identityContext, input.now)
       : undefined;
   // Peer comps screen and rank on EV/revenue alone, so for a depository issuer there is nothing
   // Left to compare on; the workbench states the inapplicability rather than fetching peers whose

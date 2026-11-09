@@ -20,6 +20,7 @@ import {
   type FixtureMeta,
 } from "../src/replay/fixture-run";
 import { knownSecretValues } from "./fixture-secret-scan";
+import { peerUniverseSeam } from "../src/research/peer-universe-seam";
 
 function usage(): never {
   throw new Error(
@@ -119,12 +120,12 @@ async function main(): Promise<void> {
       ...(config.extensionShortTermInvestmentsDisabled === true
         ? { extensionShortTermInvestmentsDisabled: true }
         : {}),
-      peerUniverse: {
+      peerUniverse: peerUniverseSeam({
         provider: providerRecorder.provider,
         model: config.quickModel,
         cachePath:
           config.sourceOptions.peerUniverseLearnedPath ?? join(tempRoot, "peer-universe.json"),
-      },
+      }),
     });
     await persistResearchJob({
       command,

@@ -7,6 +7,7 @@ import type { Source, SourceGap } from "../domain/sources";
 import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import { GEOGRAPHIC_REVENUE_SECTION_ID } from "../sources/extended-evidence/geographic-revenue";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
+import { readFigureQuotes } from "../report/figure-quotes";
 import {
   isWebSubjectProfileWithheldAnswer,
   substantiveProfileSourceIds,
@@ -35,7 +36,6 @@ import { pruneSentences } from "../research/report-integrity-audit";
 import {
   droppedFigureQuoteText,
   failedFigureQuotes,
-  readFigureQuotes,
   unverifiedWebFigure,
   webFigureGapText,
   webSourceTexts,

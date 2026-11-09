@@ -7,7 +7,7 @@ import {
 } from "./enterprise-value-bridge";
 import { type ExtendedEvidenceItem } from "../../domain/evidence";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../domain/market-data";
-import type { PeerUniverse, PeerUniversePeer } from "../../research/peer-universe";
+import type { PeerUniverse, PeerUniversePeer } from "../../domain/peer-universe";
 import {
   MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE,
   MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP,

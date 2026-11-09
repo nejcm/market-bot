@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import type { Component } from "svelte";
 import { compile, compileModule } from "svelte/compiler";
 import { render } from "svelte/server";
-import type { RunDetail, RunSummary } from "../../app/types";
+import type { RunDetail } from "../../app/types";
+import type { RunSummary } from "../../src/run-artifact-index-types";
 import type { ReportDetail } from "../../app/client/app-settings";
 
 type Tab = "report" | "runs" | "sources" | "data" | "files" | "chat";

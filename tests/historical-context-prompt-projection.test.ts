@@ -27,6 +27,19 @@ async function writeRun(
     assetClass: "equity",
     symbol: "AMD",
     generatedAt,
+    ...Object.fromEntries(
+      ["keyFindings", "risks", "catalysts"].map((field) => [
+        field,
+        [
+          {
+            text: `${field} of ${runId}`,
+            sourceIds: [`extended-sec-edgar-amd-8k-${runId}`],
+            metricSourceIds: [`extended-sec-edgar-amd-10q-${runId}`],
+            figureQuotes: [{ sourceId: `web-${runId}`, quote: "AMD" }],
+          },
+        ],
+      ]),
+    ),
     dataGaps: [
       "price-performance: no completed price history",
       ...Array.from({ length: 8 }, (_, i) => `existing gap ${String(i)}`),
@@ -120,6 +133,12 @@ describe("compactHistoricalContext", () => {
       readonly pendingPredictionCount?: number;
     }[];
     const byId = new Map(runs.map((run) => [run.runId, run]));
+    for (const run of runs as readonly Record<string, unknown>[]) {
+      expect(run.sourceId).toBe(`history-report-${String(run.runId)}`);
+      for (const field of ["keyFindings", "risks", "catalysts"]) {
+        expect(run[field]).toEqual([{ text: `${field} of ${String(run.runId)}` }]);
+      }
+    }
     expect(byId.get("absent")?.predictions).toEqual([]);
     expect(byId.get("absent")?.pendingPredictionCount).toBe(3);
     for (const runId of ["partial", "mixed"]) {

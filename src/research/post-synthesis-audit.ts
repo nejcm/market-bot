@@ -16,9 +16,30 @@ const ALPHANUMERIC_NAME_PATTERN = new RegExp(
   String.raw`(?<![\p{L}\d\p{Sc}])(?!Q[1-4]\b|H[12]\b)(?:\p{Lu}|\p{Lu}\p{Ll}{2,})\d+(?![\p{L}\d%‰‱]|[.,]\d|\s*(?:[x×%‰‱]|\p{Sc}|(?i:${SCALE_WORDS}|bln|crore|cr|lakh|mm|k|m|b)\b))`,
   "gu",
 );
+const NOT_A_FIGURE_AFTER = String.raw`(?![\p{L}\d%‰‱]|[.,]\d|\s*(?:[x×%‰‱]|\p{Sc}|-\s*\d|(?i:${SCALE_WORDS}|bln|crore|cr|lakh|mm|k|m|b|mw|gw|mwh|gwh|bps|bp|pp)\b))`;
+// Month-day dates stay with the integrity audit's date check, which keeps invalid ones numeric.
+const MONTH_NAMES =
+  "(?:January|February|March|April|May|June|July|August|September|October|November|December)";
+// Shortcut: name shapes seen in real runs ("S&P 500", "10-K", "MI350", "COVID-19"); a model token label replaces them in phase 7.
+const SEC_FORM_PATTERN = /(?<![\p{L}\d-])(?:6|8|10|11|20|40)-[KQF](?:\/A)?(?![\p{L}\d])/gu;
+const SPACED_NAME_PATTERN = new RegExp(
+  String.raw`(?<![\p{L}\d\p{Sc}/&'’.-])(?!${MONTH_NAMES}\b)([\p{L}&'’]*\p{Lu}[\p{L}&'’]*) \d+${NOT_A_FIGURE_AFTER}`,
+  "gu",
+);
+const GLUED_NAME_PATTERN = new RegExp(
+  String.raw`(?<![\p{L}\d\p{Sc}/&'’.-])(?!FY)(\p{Lu}{2,}|\p{Lu}\p{L}*-)\d+${NOT_A_FIGURE_AFTER}`,
+  "gu",
+);
+const CURRENCY_WORDS: ReadonlySet<string> = new Set([
+  ...Intl.supportedValuesOf("currency").map((code) => code.toLowerCase()),
+  "rm",
+  "rs",
+  "rp",
+  "kr",
+]);
 const CURRENCY_PREFIX_PATTERN = /\p{Sc}[\s()[\]{}-]*$/u;
 const UNIT_SUFFIX_PATTERN = /^\s*(?:[%‰‱]|[x×X⨯*]|\p{Sc})/u;
-const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
+const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\d*\b/iu;
 export const EVIDENCE_POSTURE_LABELS = [
   "observed fact",
   "issuer claim",
@@ -190,8 +211,20 @@ export function isNumericClaim(text: string, runCurrencies: readonly string[] = 
       )
       .replaceAll(ALPHANUMERIC_NAME_PATTERN, (span) =>
         prefixes.has(span.replace(/\d+$/u, "").toLowerCase()) ? span : " ",
+      )
+      .replaceAll(SEC_FORM_PATTERN, " ")
+      .replaceAll(SPACED_NAME_PATTERN, (span, name: string) =>
+        isCurrencyWord(name, prefixes) ? span : " ",
+      )
+      .replaceAll(GLUED_NAME_PATTERN, (span, name: string) =>
+        isCurrencyWord(name.replace(/-$/u, ""), prefixes) ? span : " ",
       ),
   );
+}
+
+function isCurrencyWord(word: string, runPrefixes: ReadonlySet<string>): boolean {
+  const lower = word.toLowerCase();
+  return CURRENCY_WORDS.has(lower) || runPrefixes.has(lower);
 }
 
 // "R500" on a ZAR run or "Myr500" on a MYR run is that currency, not a name: ISO code plus CLDR letter symbols.

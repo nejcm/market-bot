@@ -143,8 +143,11 @@ describe("figure parsing", () => {
       [298.02, 1, "", ""],
       [Number.NaN, 1, "", ""],
     ]);
+    expect(parsed("5—6%, 5―6m, Q3—5%, $5—$6 million, RM5m—RM6m")).toEqual(
+      parsed("5–6%, 5–6m, Q3–5%, $5–$6 million, RM5m–RM6m"),
+    );
     expect(parsed("Revenue—7%, $5-million, results-5m-6-7, 10-K, 3-for-1")).toEqual([
-      [Number.NaN, 1, "", "%"],
+      [7, 1, "", "%"],
       [Number.NaN, 1, "USD", ""],
       [Number.NaN, 1e6, "", ""],
       [Number.NaN, 1, "", ""],
@@ -602,6 +605,12 @@ describe("Verified Web Figure", () => {
       [1, 1, "cent", ""],
       [Number.NaN, 1, "MYR", ""],
     ]);
+    expect(parsed("20p, 20 pence, 26¢, 26 ¢, 1080px, 20 p.a., 1P vs 3P, 4:15p ET")).toEqual([
+      [20, 1, "GBP-pence", ""],
+      [20, 1, "GBP-pence", ""],
+      [26, 1, "cent", ""],
+      [26, 1, "cent", ""],
+    ]);
     expect(parsed("5 USD cents, USD 5 cents, MYR 26 sen, S$5, C$5")).toEqual([
       [Number.NaN, 1, "USD", ""],
       [Number.NaN, 1, "USD", ""],
@@ -656,13 +665,16 @@ describe("Verified Web Figure", () => {
       ),
     ).toBeUndefined();
     const margin = "Reported margin in the quarter was 5.46%.";
-    for (const dash of ["–", "—", "‒"]) {
+    for (const dash of ["–", "‒"]) {
       expect(claim(margin, `Margin was ${dash}5.46%.`)).toMatchObject({
         reason: "figure-not-in-quote",
       });
       expect(
         claim(`Reported margin in the quarter was ${dash}5.46%.`, `Margin was ${dash}5.46%.`),
       ).toBeUndefined();
+    }
+    for (const dash of ["—", "―"]) {
+      expect(claim(margin, `Margin was ${dash}5.46%.`)).toBeUndefined();
     }
     expect(claim("Reported operating cash flow was MYR 125.5 million.", negative)).toMatchObject({
       reason: "figure-not-in-quote",
@@ -736,6 +748,53 @@ describe("Verified Web Figure", () => {
     const aside = "Reported quarterly revenue (RM5m) rose on the year.";
     expect(claim(aside, "Revenue was -RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
     expect(claim(aside, "Revenue was RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
+    // Web coverage in run 2026-11-02T12-47-02-362Z-b57f22b6.
+    const translated = "Quarter revenue rose to 118.71 billion yuan ($16.7 billion), up 19.3%.";
+    expect(claim(translated, "Revenue was $16.7 billion.")).toBeUndefined();
+    expect(claim(translated, "Revenue was -$16.7 billion.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    for (const untranslated of [
+      "Reported net loss was -RM5m (USD1.2m) in the year.",
+      "Reported net loss was RM5m (RM5.0m) in the year.",
+      "Reported net loss was 5m (USD1.2m) in the year.",
+      "Reported net loss-RM5m (USD1.2m) in the year.",
+      "Reported net loss of RM6m-RM5m (USD1.2m) in the year.",
+      "Reported net loss of RM5m-RM6m (USD1.2m) in the year.",
+    ]) {
+      expect(claim(untranslated, "The loss was USD1.2m.")).toMatchObject({
+        reason: "figure-not-in-quote",
+      });
+    }
+    const bullets =
+      "Quarter highlights:\n- $3.4bn revenue in the quarter\n- 12% growth on the year";
+    const bulletClaim = (quote: string, text: string) =>
+      unverifiedWebFigure(
+        { text, sourceIds: ["web-vitrox"], figureQuotes: [{ sourceId: "web-vitrox", quote }] },
+        webSourceTexts([webSource({ snippet: bullets })]),
+      );
+    expect(bulletClaim("- $3.4bn revenue in the quarter", "Revenue was $3.4bn.")).toBeUndefined();
+    expect(bulletClaim("$3.4bn revenue in the quarter", "Revenue was $3.4bn.")).toBeUndefined();
+    expect(bulletClaim("— 12% growth on the year", "Growth was 12%.")).toBeUndefined();
+    expect(bulletClaim("$3.4bn revenue in the quarter", "Revenue was -$3.4bn.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    for (const minus of ["−", "‒", "–"]) {
+      const line = `${minus} 5.46% loss in the quarter`;
+      expect(claim(line, "The loss was 5.46%.")).toMatchObject({ reason: "figure-not-in-quote" });
+    }
+    // Run 2026-11-05T10-45-16-771Z-df74b0c2: prose accounting parentheses on a loss per share.
+    const loss = "The net loss was ($239.8 million) or ($0.89) per basic share.";
+    expect(claim(loss, "The loss was $0.89 per share.")).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    for (const linked of [
+      "Reported operating cash flow of (RM5m) in the year.",
+      "Reported operating cash flow was (RM5m) in the year.",
+      "Reported operating cash flow (RM5m).",
+    ]) {
+      expect(claim(linked, "Cash flow was RM5m.")).toMatchObject({ reason: "figure-not-in-quote" });
+    }
     expect(
       claim("Reported margin was 12.5% - 2.5% lower on the year.", "Margin was 12.5%, 2.5% lower."),
     ).toMatchObject({ reason: "figure-not-in-quote", figure: "2.5%" });
@@ -875,6 +934,33 @@ describe("Verified Web Figure", () => {
     expect(
       claim("Revenue was $574.9 million—up strongly this year.", "Revenue was $574.9 million."),
     ).toBeUndefined();
+    expect(
+      claim(
+        "Reported AI cloud Revenue—$574.9 million this quarter.",
+        "Revenue was $574.9 million.",
+      ),
+    ).toBeUndefined();
+    expect(
+      unverifiedWebFigure(
+        {
+          text: "Revenue was $574.9 million.",
+          sourceIds: ["web-vitrox"],
+          figureQuotes: [{ sourceId: "web-vitrox", quote: "AI cloud Revenue-$574.9 million this" }],
+        },
+        webSourceTexts([webSource({ snippet: "Reported AI cloud Revenue—$574.9 million this." })]),
+      ),
+    ).toBeUndefined();
+    expect(
+      claim(
+        "Reported revenue was $6.7 billion — 58% of the group.",
+        "Revenue was 58% of the group.",
+      ),
+    ).toBeUndefined();
+    for (const high of ["$6", "USD 6", "usd6"]) {
+      expect(
+        claim(`Forecast revenue range was $5—${high} million for next year.`, "Revenue was $5."),
+      ).toMatchObject({ reason: "scale-mismatch" });
+    }
     expect(
       claim(
         "Management guided revenue of $1.2-1.4 billion for the year.",

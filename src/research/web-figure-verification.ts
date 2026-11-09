@@ -43,7 +43,8 @@ const GAP_PREFIX = "Verified Web Figure check withheld";
 
 const CURRENCY_PREFIX = String.raw`US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc}`;
 // A dash before a digit or currency prefix joins a range ("RM5m-RM6m").
-const RANGE_TAIL = String.raw`-(?:(?:${CURRENCY_PREFIX})\s?)?\d`;
+const RANGE_HIGH = String.raw`(?:(?:${CURRENCY_PREFIX})\s?)?\d`;
+const RANGE_TAIL = `-${RANGE_HIGH}`;
 export const SCALE_WORDS = "trillion|billion|million|thousand|tn|bn|mn|mln|mil|bil";
 const UNIT_WORDS = String.raw`per\s?cent|pct|pc|percentage[\s-]points?|percentage[\s-]pts?|ppts?|pp|bps|bp|basis[\s-]points?`;
 // "13 points" may be index points, percentage points or a price target ("$600 PT"), so it never verifies.
@@ -54,17 +55,17 @@ const COUNT_WORD_AFTER =
 // K, M and B may be scales, so only the SEC form codes keep them.
 const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
 // Only a subunit may be glued ("26.4sen"); a glued main-unit word is too often a label.
-const SUBUNITS = "sen|cents?";
+const SUBUNITS = "sen|cents?|pence|¢";
 const SUBUNIT_AFTER = new RegExp(String.raw`^\s?(?:${SUBUNITS})(?!\p{L})`, "iu");
 const FIGURE_PATTERN = new RegExp(
-  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:(?:\s|(?=${SUBUNITS}))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
   "giu",
 );
 const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
 const CURRENCY_BEFORE = new RegExp(`(?:${CURRENCY_PREFIX})\\s*$`, "u");
 const SEC_ACCESSION_PATTERN = /[\p{L}\d-]*\d{10}-\d{2}-\d{6}/gu;
 const CALENDAR_TOKEN_PATTERN =
-  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?:,?\s+\d{4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b\.?(?:,?\s+\d{4})?|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m)?\b/gu;
+  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?:,?\s+\d{4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b\.?(?:,?\s+\d{4})?|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m|[ap])?\b/gu;
 
 const CURRENCIES: Readonly<Record<string, string>> = {
   us$: "USD",
@@ -111,6 +112,9 @@ const CURRENCIES: Readonly<Record<string, string>> = {
   sen: "MYR-sen",
   cent: "cent",
   cents: "cent",
+  "¢": "cent",
+  pence: "GBP-pence",
+  p: "GBP-pence",
 };
 
 const SCALES: Readonly<Record<string, number>> = {
@@ -167,10 +171,14 @@ interface PlacedFigure {
   readonly numEnd: number;
 }
 
-const DASHES = /[‐‑‒–—―−]/gu;
+const DASHES = /[‐‑‒–−]/gu;
+// An em dash or horizontal bar separates words, so it is never a sign; between digits it still joins a range.
+const GAP_DASHES = /[—―]/gu;
+const DIGIT_GAP_DASH = new RegExp(String.raw`(?<=\d[%\p{L}]{0,3})[—―](?=${RANGE_HIGH})`, "giu");
 const SEPARATED_SIGN = /(?<!-)-\s+$/u;
 const OPEN_PAREN = /\(\s*$/u;
 const CLOSE_PAREN = /^\s*\)/u;
+const TRANSLATION_GAP = /^\s*\(\s*$/u;
 
 interface ParsedRow {
   readonly figure: Figure;
@@ -181,6 +189,29 @@ interface ParsedRow {
   readonly rawStart: number;
   readonly rawEnd: number;
   readonly numStart: number;
+  // Set when only bare parentheses make the sign ambiguous.
+  readonly parenMagnitude?: number;
+}
+
+// "118.71 billion yuan ($16.7 billion)" translates the amount before it, so its parentheses carry no sign.
+// The amount translated must itself read whole: unsigned, not glued to a word, not a range end.
+function translatedAside(
+  row: ParsedRow,
+  previous: ParsedRow | undefined,
+  beforePrevious: ParsedRow | undefined,
+  blanked: string,
+): boolean {
+  return (
+    row.parenMagnitude !== undefined &&
+    previous !== undefined &&
+    !/[\p{L}\d]-$/u.test(blanked.slice(Math.max(0, previous.rawStart - 2), previous.rawStart)) &&
+    rangeGap(blanked, beforePrevious, previous) === undefined &&
+    previous.figure.value >= 0 &&
+    previous.figure.currency !== "" &&
+    row.figure.currency !== "" &&
+    previous.figure.currency !== row.figure.currency &&
+    TRANSLATION_GAP.test(blanked.slice(previous.rawEnd, row.rawStart))
+  );
 }
 
 function differ(left: string, right: string): boolean {
@@ -354,10 +385,12 @@ function rangeFigures(
 function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
   const blanked = text
     .normalize("NFKC")
+    .replaceAll(DIGIT_GAP_DASH, "-")
+    .replaceAll(GAP_DASHES, " ")
     .replaceAll(DASHES, "-")
     .replaceAll(CALENDAR_TOKEN_PATTERN, (token) => " ".repeat(token.length))
     .replaceAll(SEC_ACCESSION_PATTERN, (token) => " ".repeat(token.length));
-  const rows = [...blanked.matchAll(FIGURE_PATTERN)].map((match) => {
+  const matched = [...blanked.matchAll(FIGURE_PATTERN)].map((match): ParsedRow => {
     const groups = match.groups ?? {};
     const num = groups.num ?? "";
     const scaleKey = (groups.scaleWord ?? groups.scaleLetter)?.toLowerCase();
@@ -410,8 +443,21 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       rawStart,
       rawEnd: rawStart + raw.length,
       numStart,
+      ...(parenthesized &&
+      !accounting &&
+      !explicitSign &&
+      !SEPARATED_SIGN.test(before) &&
+      !unitUnread &&
+      !currencyConflict
+        ? { parenMagnitude: magnitude }
+        : {}),
     };
   });
+  const rows = matched.map((row, index) =>
+    translatedAside(row, matched[index - 1], matched[index - 2], blanked)
+      ? { ...row, figure: { ...row.figure, value: row.parenMagnitude ?? Number.NaN } }
+      : row,
+  );
   const gluedBefore = (row: ParsedRow) =>
     /[\p{L}\d]-$/u.test(blanked.slice(Math.max(0, row.rawStart - 2), row.rawStart));
   const gluedAfter = (row: ParsedRow) =>
@@ -504,6 +550,10 @@ function withCellEdges(lines: readonly string[]): string {
     .join("\n");
 }
 
+// An ASCII Markdown list dash reads as a gap, like an em dash, and still matches a quote's hyphen.
+// Read before dash folding: a line-initial minus or en dash may be a sign.
+const BULLET_DASH = /^([^\S\n]*)-(?=[^\S\n])/gmu;
+
 function normalizedSourceText(text: string): string {
   return withCellEdges(
     text
@@ -511,7 +561,8 @@ function normalizedSourceText(text: string): string {
       .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
       .replaceAll(/[‘’‚‛′`]/gu, "'")
       .replaceAll(/[“”„‟″]/gu, '"')
-      .replaceAll(/[‐‑‒–—―−]/gu, "-")
+      .replaceAll(BULLET_DASH, "$1—")
+      .replaceAll(DASHES, "-")
       .replaceAll(/[*_#]/gu, "")
       .split(/\r?\n/u),
   )
@@ -576,7 +627,9 @@ function quotedSourceFigures(needle: string, stored: readonly string[]): readonl
   const pattern = new RegExp(
     needle
       .split(" ")
-      .map((word) => word.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, String.raw`\$&`))
+      .map((word) =>
+        word.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, String.raw`\$&`).replaceAll(/[-—―]/gu, "[-—―]"),
+      )
       .join(`[\\s${EDGE_CHARS}]+`),
     "giu",
   );

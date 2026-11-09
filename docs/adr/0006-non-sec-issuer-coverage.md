@@ -212,14 +212,20 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   the line break, because the next line may wrap the cell or start a new row; a cell wrapped across lines never
   verifies. An attached minus makes a figure negative, and so do accounting parentheses that wrap a whole table cell
   (`| (125.5) |`); a sign mismatch fails. A figure in parentheses anywhere else ("revenue (RM5m)") or after a spaced
-  single dash ("- RM5m", including a Markdown bullet) has an ambiguous sign and never verifies, in claim or source;
-  a double dash ("Revenue -- $5m") is punctuation. Sign words are not parsed ("fell 4%" matches "4%"). Percentage
+  single dash ("- RM5m") has an ambiguous sign and never verifies, in claim or source; a double dash ("Revenue --
+  $5m") is punctuation. Since 2026-11-09 (amended), an em dash or horizontal bar is a word gap, never a sign
+  ("Revenue—$574.9 million", "$6.7 billion — 58%"), except after a number and before another ("5—6%", "$5—$6 million"), where it joins a range like an en dash;
+  an en dash, figure dash or minus sign stays a possible minus. An ASCII Markdown list dash at the start of a stored source
+  line reads as that gap ("- $3.4bn"); a line-initial en dash, figure dash or minus does not. A parenthesized amount directly after an amount in another currency that reads
+  whole (unsigned, not glued to a word, not a range end) is a translation and reads unsigned ("118.71 billion yuan ($16.7 billion)"); any other prose parenthesis
+  stays ambiguous, since prose also writes losses that way ("was ($239.8 million) or ($0.89) per basic share").
+  Quote matching treats every dash alike. Sign words are not parsed ("fell 4%" matches "4%"). Percentage
   points ("pp", "ppt", "ppts", "percentage pts", "percentage-point"), percent ("%", "pct", lower-case "pc", "per cent") and basis points
   ("bp", "bps", "basis point", "basis-point") are distinct units. A figure before "points", "pts" or "pt", spaced or glued ("14pts"), without a currency
   withholds, since the word may mean index points, percentage points or a price target ("13 points", "2% points"),
-  as does one before upper-case "PC". A currency subunit ("sen", "cent", "cents") stays its own currency, unscaled,
-  so "26.4 sen" never matches "RM26.4"; it reads the same glued ("26.4sen", "54cents"), while a glued main-unit word
-  does not. A figure with a prefix and a different suffix currency, or a currency followed by a subunit, withholds ("RM0.30 sen", "5 USD cents"). A tight dash before a digit or currency prefix joins a range, and both
+  as does one before upper-case "PC". A currency subunit ("sen", "cent", "cents", "¢", "pence") stays its own currency, unscaled,
+  so "26.4 sen" never matches "RM26.4"; it reads the same glued ("26.4sen", "54cents", "26¢"), while a glued main-unit word
+  does not. A glued lower-case "p" is pence ("20p"); upper-case "1P" and a time ("4:15p") are not figures. A figure with a prefix and a different suffix currency, or a currency followed by a subunit, withholds ("RM0.30 sen", "5 USD cents"). A tight dash before a digit or currency prefix joins a range, and both
   endpoints are checked as separate figures, not as a pair (`$1.2-1.4 billion` matches a quote stating $1.2 billion
   and $1.4 billion apart). The low endpoint takes the scale, unit and currency written once on the high ("$1.2-1.4
   billion", "RM5–6m", "5–6%"); the high takes only a missing currency. Neither endpoint of a range, tight or spaced,
@@ -230,8 +236,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   or more numbers ("1-2-3%"). An endpoint still bare after sharing withholds the claim when its partner is a figure,
   across a tight dash, a spaced dash, or a signed spaced number ("7% -15"). A spaced range shares nothing, so it
   withholds when one endpoint carries a scale, unit or currency the other lacks ("$1.2 - 1.4 billion"). A claim
-  figure with an unreadable sign or range fails as `figure-ambiguous`. A dash glued to a word before a figure may be
-  its sign, so the figure and any range it starts withhold ("Revenue—$574.9 million", "profit-5m-9"); a bare count
+  figure with an unreadable sign or range fails as `figure-ambiguous`. A hyphen glued to a word before a figure may be
+  its sign, so the figure and any range it starts withhold ("Revenue-$574.9 million", "profit-5m-9"); a bare count
   there is dropped ("COVID-19"). A dash glued to a word after a figure keeps a scaled or unit figure whole ("$574.9
   million—up") and withholds one whose scale may follow ("$5-million"). A bare number there withholds, since the
   word may be a unit ("5-per-cent", "25-basis-point", "5-fold"), unless the word is a time noun, a month

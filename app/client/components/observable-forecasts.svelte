@@ -180,6 +180,13 @@
               >
                 base {Math.round(forecast.baselineProbability * 100)}%
               </span>
+            {:else if forecast.infoCutoff !== undefined}
+              <span
+                class="font-mono text-[10.5px] text-[#5c6066] tabular-nums"
+                title="Forecast Baseline unavailable; closes collected through this date"
+              >
+                base n/a · {forecast.infoCutoff}
+              </span>
             {/if}
           {/if}
         </div>

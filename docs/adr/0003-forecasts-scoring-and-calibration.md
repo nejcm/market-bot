@@ -140,7 +140,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   2026-11-07 data it excluded no event, and the closes still anchor `infoCutoff` and the stale-leg check), a residual split, zero movement, a
   missing series, relative legs whose last closes are more than 4 days apart, or a range whose scored
   sessions are unknown (non-US listing, or the primary's unverified latest session) omit the baseline and
-  declare a `forecast-baseline` data gap; it is never defaulted to 0.5. A non-positive range bound
+  declare a `forecast-baseline` data gap; it is never defaulted to 0.5. The Prediction still carries
+  `infoCutoff` (the last close the baseline could have used) unless no close was collected. A non-positive range bound
   contributes zero tail probability. The primary symbol's window extends to the snapshot's newer
   unverified closes so the baseline and the grid bands share one spot. Changing the math requires a new `baselineVersion`. Forecast
   Baseline is unrelated to the prior-run baseline of Forecast Persistence Telemetry.

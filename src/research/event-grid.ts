@@ -483,7 +483,9 @@ export function issueForecastBook(input: {
           baselineVersion: FORECAST_BASELINE_VERSION,
           infoCutoff: baseline.infoCutoff,
         }
-      : prediction;
+      : baseline.status === "unavailable" && baseline.infoCutoff !== undefined
+        ? { ...prediction, infoCutoff: baseline.infoCutoff }
+        : prediction;
   });
   for (const { symbol, reason, ids } of unavailable.values()) {
     gaps.push(

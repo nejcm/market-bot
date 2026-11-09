@@ -910,9 +910,9 @@ export async function loadResolvedPairsFromIndex(
               ? {
                   baselineProbability: row.baseline_probability,
                   baselineVersion: row.baseline_version,
-                  infoCutoff: row.info_cutoff,
                 }
               : {}),
+            ...(row.info_cutoff !== null ? { infoCutoff: row.info_cutoff } : {}),
           },
           score: {
             predictionId: row.prediction_id,

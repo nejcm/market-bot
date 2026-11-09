@@ -122,12 +122,15 @@ describe("Forecast Baseline estimator", () => {
       status: "unavailable",
       symbol: "AAPL",
       reason: "short-history",
+      infoCutoff: day(59),
     });
     expect(forecastBaseline(expression, closes({ AAPL: split }), exactHorizon)).toMatchObject({
       reason: "split-signature",
+      infoCutoff: day(60),
     });
     expect(forecastBaseline(expression, closes({ AAPL: flat }), exactHorizon)).toMatchObject({
       reason: "zero-volatility",
+      infoCutoff: day(60),
     });
     expect(
       forecastBaseline(
@@ -252,7 +255,12 @@ describe("Forecast Baseline estimator", () => {
         closes({ AAPL: alternatingCloses(61), SPY: staleSpy }),
         exactHorizon,
       ),
-    ).toEqual({ status: "unavailable", symbol: "SPY", reason: "stale-closes" });
+    ).toEqual({
+      status: "unavailable",
+      symbol: "SPY",
+      reason: "stale-closes",
+      infoCutoff: day(30),
+    });
   });
 
   test("declares a range baseline whose scored sessions are unknown", () => {
@@ -262,7 +270,12 @@ describe("Forecast Baseline estimator", () => {
         closes({ AAPL: alternatingCloses(61) }),
         () => undefined,
       ),
-    ).toEqual({ status: "unavailable", symbol: "AAPL", reason: "unscored-sessions" });
+    ).toEqual({
+      status: "unavailable",
+      symbol: "AAPL",
+      reason: "unscored-sessions",
+      infoCutoff: day(60),
+    });
   });
 
   test("conditional and volatility events have no baseline", () => {
@@ -899,12 +912,11 @@ describe("Event Grid", () => {
       knownSourceIds: new Set([...KNOWN, "price-history-RY.TO"]),
       generatedAt: AFTER_CLOSE,
     });
-    expect(book.predictions.find(({ id }) => id === "r1")).not.toHaveProperty(
-      "baselineProbability",
-    );
-    expect(book.predictions.find(({ id }) => id === "r2")).not.toHaveProperty(
-      "baselineProbability",
-    );
+    for (const id of ["r1", "r2"]) {
+      const unpriced = book.predictions.find((row) => row.id === id);
+      expect(unpriced).not.toHaveProperty("baselineProbability");
+      expect(unpriced).toMatchObject({ infoCutoff: day(60) });
+    }
     expect(book.predictions.find(({ id }) => id === "d1")).toMatchObject({
       baselineProbability: 0.5,
     });
@@ -931,6 +943,7 @@ describe("Event Grid", () => {
     const relative = book.predictions.find(({ id }) => id === "grid-relative-5");
     expect(relative).toBeDefined();
     expect(relative).not.toHaveProperty("baselineProbability");
+    expect(relative).not.toHaveProperty("infoCutoff");
     expect(book.gaps.map(({ source, message }) => `${source}: ${message}`)).toContain(
       "forecast-baseline: Forecast Baseline omitted for grid-relative-5: no split-adjusted close history was collected for SPY",
     );
@@ -969,6 +982,11 @@ describe("Event Grid", () => {
         researchReport({ predictions: [prediction({ baselineProbability: 0.3 })] }),
       ),
     ).toThrow();
+    expect(() =>
+      validateResearchReport(
+        researchReport({ predictions: [prediction({ infoCutoff: "2026-03-02" })] }),
+      ),
+    ).not.toThrow();
     expect(() =>
       validateResearchReport(
         researchReport({

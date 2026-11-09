@@ -133,6 +133,20 @@ describe("research console app API", () => {
     });
   });
 
+  test("maps an unreadable runs dir without an index to a json 500", async () => {
+    const dataDir = join(mkdtempSync(join(tmpdir(), "research-console-runs-")), "not-a-dir");
+    writeFileSync(dataDir, "");
+
+    const response = await handleResearchConsoleRequest(new Request("http://127.0.0.1/api/runs"), {
+      dataDir,
+    });
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(JSON.parse(body)).toEqual({ error: "Internal server error" });
+    expect(body).not.toContain(dataDir);
+  });
+
   test("returns not found for missing runs", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
 

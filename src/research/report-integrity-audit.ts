@@ -134,8 +134,6 @@ interface ClaimContext {
 interface Claim {
   readonly location: string;
   readonly text: string;
-  // Warn rules read only an item's last field (a scenario's description).
-  readonly lastField: string;
   readonly sourceIds: readonly string[];
 }
 
@@ -173,9 +171,9 @@ const CLAIM_RULES: readonly ClaimRule[] = [
     severity: "warn",
     code: "peer-median-uncited",
     message: "peer-median claim cites no usable peer source",
-    matches: ({ lastField, sourceIds }, context) =>
+    matches: ({ text, sourceIds }, context) =>
       isUncitedPeerMedianClaim(
-        lastField,
+        text,
         sourceIds,
         context.usablePeerSourceIds,
         context.peerMedianLabels,
@@ -185,24 +183,23 @@ const CLAIM_RULES: readonly ClaimRule[] = [
     severity: "warn",
     code: "gap-shaped-claim-cited",
     message: "gap-shaped claim carries source citations; review citation grounding",
-    matches: ({ lastField, sourceIds }) =>
-      isGapShapedClaimForAuditWarning(lastField) && sourceIds.length > 0,
+    matches: ({ text, sourceIds }) => isGapShapedClaimForAuditWarning(text) && sourceIds.length > 0,
   },
   {
     severity: "warn",
     code: "unsupported-numeric-claim",
     message: "numeric or technical claim has no non-history supporting source citation",
-    matches: ({ lastField, sourceIds }, { runCurrencies }) =>
-      (isNumericClaim(lastField, runCurrencies) || isTechnicalClaim(lastField)) &&
-      !isHistoricalForecastOutcome(lastField) &&
+    matches: ({ text, sourceIds }, { runCurrencies }) =>
+      (isNumericClaim(text, runCurrencies) || isTechnicalClaim(text)) &&
+      !isHistoricalForecastOutcome(text) &&
       hasNoSupportingSource(sourceIds),
   },
   {
     severity: "warn",
     code: "weak-evidence-posture-missing",
     message: "weak or unsupported claim is missing an evidence posture label",
-    matches: ({ lastField, sourceIds }) =>
-      shouldCarryPostureLabel(lastField, sourceIds) && !hasPostureLabel(lastField, sourceIds),
+    matches: ({ text, sourceIds }) =>
+      shouldCarryPostureLabel(text, sourceIds) && !hasPostureLabel(text, sourceIds),
   },
 ];
 
@@ -269,14 +266,15 @@ interface ClaimItem {
 }
 
 interface ClaimSection<T extends ClaimItem> {
-  readonly claims: readonly (Claim & { readonly item: T })[];
+  // LastField (a scenario's description) feeds only claimsForReport, keeping the peer-median clause list stable.
+  readonly claims: readonly (Claim & { readonly item: T; readonly lastField: string })[];
   readonly fields: readonly (keyof T & string)[];
 }
 
 function claimSection<T extends ClaimItem>(
   section: string,
   items: readonly T[],
-  // Joined with ": " into the claim text the prune rules read.
+  // Joined with ": " into the claim text every rule reads.
   fields: readonly [keyof T & string, ...(keyof T & string)[]],
 ): ClaimSection<T> {
   const last = fields.at(-1) ?? fields[0];
@@ -384,21 +382,33 @@ function extraRowWebFigure(
 // Model-authored Earnings Setup bullets drop whole; a Business Framework section keeps its code-owned fields.
 function partitionExtras(
   extras: ResearchReport["extras"],
+  context: ClaimContext,
   webTexts: WebSourceTexts | undefined,
 ): {
   readonly extras: ResearchReport["extras"];
   readonly pruned: readonly ReportIntegrityPrunedItem[];
   readonly dropped: readonly ReportIntegrityDroppedQuote[];
+  readonly warnings: readonly PostSynthesisAuditWarning[];
 } {
-  if (extras === undefined || webTexts === undefined) {
-    return { extras, pruned: [], dropped: [] };
+  if (extras === undefined) {
+    return { extras, pruned: [], dropped: [], warnings: [] };
   }
   const pruned: ReportIntegrityPrunedItem[] = [];
   const dropped: ReportIntegrityDroppedQuote[] = [];
+  const warnings: PostSynthesisAuditWarning[] = [];
   // Undefined when the row is pruned; otherwise the row without its failing quotes.
   const screened = (location: string, row: unknown): unknown => {
-    const checked = extraRowWebFigure(row, webTexts);
-    if (checked === undefined || !isRecord(row)) {
+    if (!isRecord(row) || typeof row.text !== "string") {
+      return row;
+    }
+    warnings.push(
+      ...claimWarnings(
+        { location, text: row.text, sourceIds: stringArray(row.sourceIds) },
+        context,
+      ),
+    );
+    const checked = webTexts === undefined ? undefined : extraRowWebFigure(row, webTexts);
+    if (checked === undefined) {
       return row;
     }
     const { failedQuotes, ...item } = checked;
@@ -449,9 +459,10 @@ function partitionExtras(
         }
       : framework;
   if (pruned.length === 0 && dropped.length === 0) {
-    return { extras, pruned, dropped };
+    return { extras, pruned, dropped, warnings };
   }
   return {
+    warnings,
     dropped,
     extras: {
       ...extras,
@@ -569,14 +580,24 @@ function partitionSummary(
 ): {
   readonly summary: string;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
+  readonly warnings: readonly PostSynthesisAuditWarning[];
 } {
+  // Summaries carry no citations, so the posture rule would flag every sentence.
+  const warnings = summarySentenceTexts(summary)
+    .flatMap((text, index) =>
+      text === ""
+        ? []
+        : claimWarnings({ location: `summary[${String(index)}]`, text, sourceIds: [] }, context),
+    )
+    .filter(({ code }) => code !== "weak-evidence-posture-missing");
   const { kept, pruned } = pruneSentences(summary, (sentence) =>
-    isPruned({ location: "summary", text: sentence, lastField: sentence, sourceIds: [] }, context),
+    isPruned({ location: "summary", text: sentence, sourceIds: [] }, context),
   );
   if (pruned.length === 0) {
-    return { summary, pruned: [] };
+    return { summary, pruned: [], warnings };
   }
   return {
+    warnings,
     summary: kept === "" ? SUMMARY_FALLBACK : kept,
     pruned: pruned.map(({ index, text }) => ({
       location: `summary[${String(index)}]`,
@@ -622,7 +643,7 @@ export function auditReportIntegrity(
   const scenarios = walkSection(sections.scenarios, context, webTexts);
   // Predictions carry no Verified Web Figure check.
   const predictions = walkSection(sections.predictions, context, undefined);
-  const extras = partitionExtras(report.extras, webTexts);
+  const extras = partitionExtras(report.extras, context, webTexts);
   const summary = partitionSummary(report.summary, context);
   const walked = [keyFindings, bullCase, bearCase, risks, catalysts, scenarios, predictions];
 
@@ -687,6 +708,10 @@ export function auditReportIntegrity(
     prunedItemCount: pruned.length,
     pruned,
     droppedFigureQuotes,
-    warnings: walked.flatMap((section) => section.warnings),
+    warnings: [
+      ...summary.warnings,
+      ...walked.flatMap((section) => section.warnings),
+      ...extras.warnings,
+    ],
   };
 }

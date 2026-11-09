@@ -255,6 +255,69 @@ describe("auditReportIntegrity", () => {
       "Base",
     ]);
     expect(result.reportIntegrity).toBe("medium");
+    expect(
+      result.warnings
+        .filter(({ code }) => code === "unsupported-numeric-claim")
+        .map(({ location }) => location),
+    ).toEqual(["scenarios[0]"]);
+  });
+
+  test("a posture label in a scenario name satisfies the posture warning", () => {
+    const result = auditReportIntegrity(
+      researchReport({
+        keyFindings: [citedFinding("Cited finding.")],
+        risks: [citedFinding("Cited risk.")],
+        scenarios: [
+          { name: "Model inference upside", description: "Demand recovers.", sourceIds: [] },
+          { name: "Base", description: "Conditions remain mixed.", sourceIds: [] },
+        ],
+      }),
+    );
+
+    expect(result.pruned).toEqual([]);
+    expect(postureWarnings(result).map(({ location }) => location)).toEqual(["scenarios[1]"]);
+  });
+
+  test("uncited numeric summary sentences warn as well as prune, without posture warnings", () => {
+    const result = auditSummary("Revenue grew 40%. Demand recovery remains open.");
+
+    expect(result.pruned.map((item) => item.location)).toEqual(["summary[0]"]);
+    expect(
+      result.warnings
+        .filter(({ location }) => location.startsWith("summary["))
+        .map(({ code, location }) => [code, location]),
+    ).toEqual([["unsupported-numeric-claim", "summary[0]"]]);
+  });
+
+  test("Earnings Setup and Business Framework rows get warn rules without being pruned", () => {
+    const extras = {
+      earningsSetup: {
+        expectationBar: [{ text: "Consensus sits at 22.8% growth.", sourceIds: [] }],
+        qualityLandmines: [{ text: "Unverified channel stuffing risk.", sourceIds: CITED }],
+      },
+      businessFramework: {
+        sections: [{ name: "moat", text: "Switching costs look durable.", sourceIds: [] }],
+      },
+    };
+    const result = auditReportIntegrity(
+      researchReport({
+        keyFindings: [citedFinding("Cited finding.")],
+        risks: [citedFinding("Cited risk.")],
+        extras,
+      }),
+    );
+
+    expect(result.pruned).toEqual([]);
+    expect(result.report.extras).toBe(extras);
+    expect(
+      result.warnings
+        .filter(({ location }) => location.startsWith("extras."))
+        .map(({ code, location }) => [code, location]),
+    ).toEqual([
+      ["unsupported-numeric-claim", "extras.earningsSetup.expectationBar[0]"],
+      ["weak-evidence-posture-missing", "extras.earningsSetup.expectationBar[0]"],
+      ["weak-evidence-posture-missing", "extras.businessFramework.sections[0]"],
+    ]);
   });
 
   test("prunes uncited numeric summary sentences and keeps posture warnings advisory", () => {
@@ -284,12 +347,12 @@ describe("auditReportIntegrity", () => {
     expect(result.report.summary).toBe("Backlog contracted.\n\nEvidence remains mixed overall.");
     expect(report.summary).toBe(summary);
     expect(result.report.keyFindings).toHaveLength(1);
-    expect(postureWarnings(result)).toEqual([
-      {
-        code: "weak-evidence-posture-missing",
-        location: "keyFindings[0]",
-      },
-    ]);
+    expect(postureWarnings(result).map(({ location }) => location)).toEqual(["keyFindings[0]"]);
+    expect(
+      result.warnings
+        .filter(({ location }) => location.startsWith("summary["))
+        .map(({ code, location }) => [code, location]),
+    ).toEqual([["unsupported-numeric-claim", "summary[1]"]]);
   });
 
   test("replaces a summary whose every sentence is pruned with the neutral fallback", () => {

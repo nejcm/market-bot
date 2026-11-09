@@ -14,14 +14,19 @@ import { cellNumber, headedAmountUnit } from "./unit-header";
 export interface WebSourceTexts {
   // Normalized stored text per web Source id; an empty list means the source kept nothing to check.
   readonly web: ReadonlyMap<string, readonly string[]>;
-  readonly deterministic: ReadonlySet<string>;
+  // Normalized collector text per deterministic Source id: the evidence item summaries citing it.
+  readonly deterministic: ReadonlyMap<string, readonly string[]>;
+}
+
+interface QuotableEvidenceItem {
+  readonly summary: string;
+  readonly sourceIds: readonly string[];
 }
 
 interface WebFigureClaim {
   readonly text: string;
   readonly sourceIds: readonly string[];
   readonly figureQuotes?: readonly FigureQuote[];
-  readonly metricSourceIds?: readonly string[];
   readonly ambiguousSpans?: readonly string[];
 }
 
@@ -135,7 +140,7 @@ const SCALES: Readonly<Record<string, number>> = {
 };
 
 const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
-  "figure-not-quoted": "has no verbatim quote from its cited web source",
+  "figure-not-quoted": "has no verbatim quote from a cited source",
   "figure-not-in-quote": "does not appear in any verified quote",
   "figure-ambiguous": "has a sign or range structure that cannot be read reliably",
   "scale-mismatch": "is quoted at a different scale",
@@ -785,15 +790,34 @@ export function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<str
 }
 
 // Provider summaries are model-written abstracts, not source text, so only the snippet and page text count.
+// A deterministic source is quotable through its collector-written snippet (SEC filing text) and the item
+// Summaries citing it; market-data rows hold structured values only, so their figures come via metric references.
 export function webSourceTexts(
   sources: readonly Source[],
   rawSnapshots: readonly unknown[] = [],
+  evidenceItems: readonly QuotableEvidenceItem[] = [],
 ): WebSourceTexts {
   const raw = rawTextsByUrl(rawSnapshots);
   const texts = new Map<string, string[]>();
-  const deterministic = new Set(
-    sources.filter((row) => DETERMINISTIC_KINDS.has(row.kind)).map((row) => row.id),
-  );
+  const deterministic = new Map<string, string[]>();
+  for (const source of sources.filter((row) => DETERMINISTIC_KINDS.has(row.kind))) {
+    const quotable =
+      source.kind === "market-data"
+        ? []
+        : [
+            source.snippet,
+            ...evidenceItems
+              .filter((item) => item.sourceIds.includes(source.id))
+              .map((item) => item.summary),
+          ];
+    const stored = quotable
+      .filter((text): text is string => text !== undefined)
+      .map((text) => normalizedSourceText(text))
+      .filter((text) => text !== "");
+    deterministic.set(source.id, [
+      ...new Set([...(deterministic.get(source.id) ?? []), ...stored]),
+    ]);
+  }
   for (const source of sources.filter((row) => row.kind === "web")) {
     const url = canonicalizeUrl(source.url);
     const stored = [source.snippet, ...(url === undefined ? [] : (raw.get(url) ?? []))]
@@ -930,7 +954,7 @@ function checkedQuote(
   if (!sourceIds.includes(quote.sourceId)) {
     return failed("quote-source-not-cited");
   }
-  const stored = texts.web.get(quote.sourceId) ?? [];
+  const stored = texts.web.get(quote.sourceId) ?? texts.deterministic.get(quote.sourceId) ?? [];
   if (stored.length === 0) {
     return failed("no-stored-text");
   }
@@ -988,7 +1012,8 @@ export function failedFigureQuotes(
   );
 }
 
-// Uncovered figures pass only when a deterministic source the model cited itself is also cited.
+// Every typed figure in a web-cited claim needs a proven quote; a co-cited deterministic source proves nothing
+// By itself, since code cannot tell which cited source a figure came from.
 export function unverifiedWebFigure(
   claim: WebFigureClaim,
   texts: WebSourceTexts,
@@ -999,15 +1024,12 @@ export function unverifiedWebFigure(
   const failed = quotes.filter((quote) => quote.failure !== undefined);
   const proven = quotes.filter((quote) => quote.failure === undefined);
   const quotedFigures = proven.flatMap((quote) => quote.figures);
-  const deterministicSupport = claim.sourceIds.some(
-    (id) => texts.deterministic.has(id) && !(claim.metricSourceIds ?? []).includes(id),
-  );
-  const ambiguousSpan = deterministicSupport ? undefined : claim.ambiguousSpans?.[0];
+  const ambiguousSpan = claim.ambiguousSpans?.[0];
   if (citedWeb.length > 0 && ambiguousSpan !== undefined) {
     return { reason: "figure-ambiguous", figure: ambiguousSpan, sourceIds: citedWeb };
   }
   for (const figure of figures) {
-    if (deterministicSupport || quotedFigures.some((quoted) => sameFigure(quoted, figure))) {
+    if (quotedFigures.some((quoted) => sameFigure(quoted, figure))) {
       continue;
     }
     const near = quotedFigures.find((quoted) => quoted.value === figure.value);

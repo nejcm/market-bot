@@ -4276,9 +4276,14 @@ export function assertPricePerformanceInvariants(
 }
 
 function assertVerifiedWebFigures(result: RunFixtureResult, report: ResearchReport): void {
+  const { collectedSources } = result;
   const texts = webSourceTexts(
-    [...result.collectedSources.extendedSources, ...report.sources],
-    result.collectedSources.rawSnapshots,
+    [...collectedSources.extendedSources, ...report.sources],
+    collectedSources.rawSnapshots,
+    [
+      ...(collectedSources.extendedEvidence?.items ?? []),
+      ...(collectedSources.marketContext?.items ?? []),
+    ],
   );
   const reaudit = auditReportIntegrity(report, undefined, undefined, undefined, texts);
   expect(reaudit.pruned.filter(({ webFigure }) => webFigure !== undefined)).toEqual([]);

@@ -34,7 +34,7 @@
   "file:prompts/console-run-chat.md": "26f27b37fb445b1ac1a9a0cc00cb404f0b5a8db02513f4fcf66a919490170053",
   "file:prompts/critique/base.md": "c8d9acc87d775119ed9a3dde49b01a4ca8f4e60fe8a5408f8b98c415f59f70c3",
   "file:prompts/evidence-request/base.md": "ebd4dbf9cc66f8c1b8ed28a98cd7d5a741c336fb00473b7bf394dc2920c36086",
-  "file:prompts/final-synthesis/base.md": "4bb734d9731698b3f4296bf2f9268262f9ea762c0530fe0690b2386c2d4cbc18",
+  "file:prompts/final-synthesis/base.md": "160378e05493beabb4871216ba0d3015549ff1bcad9601dcc33c1ff5e9fbb7a7",
   "file:prompts/financial-table-mapping/base.md": "87bba6f27d395fc46461fa7abc51725eff78482597cadbb56bb441ea81a19539",
   "file:prompts/forecast-disagreement/base.md": "f80b0412a07ad1486e254772695b2a1200a2435c7ef5cebe9975111aabe6d8b9",
   "file:prompts/forecast-grid/base.md": "ca21f30adfcc57f3aaccee49baf04510d8faa54b3b2a517651559268a8bae2b9",
@@ -57,5 +57,5 @@
   "file:prompts/specialist-analysis/base.md": "265daa5474b02b79f1143c2801c5e00d5ab2e23aaed3f4b41fff1f6ec99911d1",
   "file:prompts/spotlight-selection/base.md": "534db80c3ea34c167034debe0f59f5178dca15d2078ff0efef13b342f389a306",
   "file:prompts/web-gather/base.md": "69d7c7310cdd5b6e5033a37a76c5f094be3217c1aff5438e6481e013dea84a8e",
-  "file:prompts/web-subject-profile/base.md": "b2d734403d8b451d63b98c86a32440393e2e2bc913e5719d803e0db7108de33d"
+  "file:prompts/web-subject-profile/base.md": "5dc463d1c9afb73e22975c4ff91680be6bbc5824e6c2c822f50568206ec8b715"
 }

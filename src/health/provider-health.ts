@@ -1,7 +1,7 @@
-import { access, mkdir, readdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
-import { dataRootFromRunsDir } from "../data-paths";
+import { dataRootFromRunsDir, listRunDirNames } from "../data-paths";
 import {
   isSourceGapCapability,
   isSourceGapCause,
@@ -149,8 +149,8 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function numberValue(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 const SOURCE_KIND_SET: ReadonlySet<Source["kind"]> = new Set(SOURCE_KINDS);
@@ -172,12 +172,7 @@ async function readJson(path: string): Promise<unknown | undefined> {
 }
 
 async function listRunDirs(dataDir: string): Promise<readonly string[]> {
-  try {
-    const entries = await readdir(dataDir, { withFileTypes: true });
-    return entries.filter((entry) => entry.isDirectory()).map((entry) => join(dataDir, entry.name));
-  } catch {
-    return [];
-  }
+  return (await listRunDirNames(dataDir)).map((name) => join(dataDir, name));
 }
 
 export function parseSourceGap(value: unknown): SourceGap | undefined {
@@ -288,7 +283,7 @@ function parsePredictionHorizons(value: unknown): readonly number[] {
       return [];
     }
     const horizon = numberValue(item.horizonTradingDays);
-    return horizon > 0 ? [horizon] : [];
+    return horizon !== undefined && horizon > 0 ? [horizon] : [];
   });
 }
 
@@ -369,6 +364,7 @@ async function loadRunHealth(runDir: string): Promise<RunHealth> {
   const generatedAt = stringValue(report.generatedAt);
   const symbol = stringValue(report.symbol);
   const depth = depthFrom(report, analytics);
+  const horizonTradingDays = numberValue(report.horizonTradingDays);
 
   return {
     runId: stringValue(report.runId) ?? basename(runDir),
@@ -378,9 +374,7 @@ async function loadRunHealth(runDir: string): Promise<RunHealth> {
     ...(isAssetClass(report.assetClass) ? { assetClass: report.assetClass } : {}),
     ...(symbol !== undefined ? { symbol } : {}),
     ...(depth !== undefined ? { depth } : {}),
-    ...(numberValue(report.horizonTradingDays) > 0
-      ? { horizonTradingDays: numberValue(report.horizonTradingDays) }
-      : {}),
+    ...(horizonTradingDays !== undefined && horizonTradingDays > 0 ? { horizonTradingDays } : {}),
     sourceGaps,
     sources: parseSources(report.sources),
     predictionHorizons: parsePredictionHorizons(report.predictions),

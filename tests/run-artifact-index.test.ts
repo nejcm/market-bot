@@ -147,6 +147,42 @@ function writeRun(
 }
 
 describe("run artifact index", () => {
+  test("rebuild keeps the existing index when the runs dir cannot be read", async () => {
+    const { rootDir, dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const notADir = join(rootDir, "not-a-dir");
+    writeFileSync(notADir, "", "utf8");
+
+    await expect(rebuildRunArtifactIndex(notADir, { dbPath })).rejects.toMatchObject({
+      code: "ENOTDIR",
+    });
+
+    const db = new Database(dbPath, { readonly: true });
+    const rows = db.query("SELECT run_dir_name FROM runs").all();
+    db.close();
+    expect(rows).toEqual([{ run_dir_name: "run-a" }]);
+  });
+
+  test("rebuild indexes failed runs and skips shared-state dirs under a non-runs data dir", async () => {
+    const { rootDir, dbPath } = await tempDataDir();
+    const dataDir = join(rootDir, "data");
+    mkdirSync(join(dataDir, "cache"), { recursive: true });
+    mkdirSync(join(dataDir, "alpha-search"));
+    mkdirSync(join(dataDir, "calibration"));
+    mkdirSync(join(dataDir, "run-failed"));
+    writeJson(join(dataDir, "calibration", "summary.json"), {});
+    writeRun(dataDir, "run-a");
+    writeJson(join(dataDir, "run-failed", "failure.json"), { runId: "run-failed" });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const db = new Database(dbPath, { readonly: true });
+    const rows = db.query("SELECT run_dir_name FROM runs ORDER BY run_dir_name").all();
+    db.close();
+    expect(rows).toEqual([{ run_dir_name: "run-a" }, { run_dir_name: "run-failed" }]);
+  });
+
   test("score pass updates sidecars before provider health reads the index", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeRun(dataDir, "run-a", { writeScore: false });
@@ -498,8 +534,8 @@ describe("run artifact index", () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeRun(dataDir, "run-a");
     await rebuildRunArtifactIndex(dataDir, { dbPath });
-    mkdirSync(join(dataDir, "run-new"));
-    mkdirSync(join(dataDir, "run-other"));
+    writeRun(dataDir, "run-new");
+    writeRun(dataDir, "run-other");
     const stderr = captureStderr();
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
@@ -1180,7 +1216,7 @@ describe("rebuildRunArtifactIndexIfStale", () => {
     await rebuildRunArtifactIndex(dataDir, { dbPath });
 
     // Simulate drift: a new run dir appears on disk but was never write-through'd.
-    mkdirSync(join(dataDir, "run-new"));
+    writeRun(dataDir, "run-new");
 
     const stderr = captureStderr();
     const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
@@ -1262,7 +1298,7 @@ describe("rebuildRunArtifactIndexIfStale", () => {
     writeRun(dataDir, "run-a");
     await rebuildRunArtifactIndex(dataDir, { dbPath });
     // Create drift: a new run dir appears on disk.
-    mkdirSync(join(dataDir, "run-new"));
+    writeRun(dataDir, "run-new");
 
     process.env.MARKET_BOT_INDEX_DISABLE = "1";
     const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
@@ -1277,7 +1313,7 @@ describe("rebuildRunArtifactIndexIfStale", () => {
     writeRun(dataDir, "run-a");
     await rebuildRunArtifactIndex(dataDir, { dbPath: customDbPath });
     // Drift on disk: env default points elsewhere, orchestrator must use customDbPath.
-    mkdirSync(join(dataDir, "run-new"));
+    writeRun(dataDir, "run-new");
 
     process.env.MARKET_BOT_INDEX_DB_PATH = join(dataDir, "..", "other.sqlite");
 

@@ -28,7 +28,7 @@ import {
   runSummaryFromReport,
   runSummaryMatchesFilters,
 } from "../src/run-artifact-projection";
-import { dataRootFromRunsDir } from "../src/data-paths";
+import { dataRootFromRunsDir, listRunDirNames } from "../src/data-paths";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES, isReplayCapturePath } from "../src/run-artifact-layout";
 import { isRecord, readNumber, readString, readStringArray } from "../src/guards";
@@ -353,12 +353,8 @@ export async function listRunSummaries(dataDir: string): Promise<readonly RunSum
     return indexed;
   }
 
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  const summaries = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => runSummaryFromDir(dataDir, entry.name)),
-  );
+  const runDirNames = await listRunDirNames(dataDir);
+  const summaries = await Promise.all(runDirNames.map((name) => runSummaryFromDir(dataDir, name)));
 
   return summaries
     .filter((summary): summary is RunSummary => summary !== undefined)
@@ -380,11 +376,9 @@ export async function searchRunReports(
     return indexed;
   }
 
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
+  const runDirNames = await listRunDirNames(dataDir);
   const runResults = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => searchRun(dataDir, entry.name, { ...filters, query })),
+    runDirNames.map((name) => searchRun(dataDir, name, { ...filters, query })),
   );
   const results = runResults.flat();
 

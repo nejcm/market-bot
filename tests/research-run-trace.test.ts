@@ -133,10 +133,8 @@ function traceFor(
       reportIntegrity: "high",
       researchQuality: "high",
       prunedItemCount: 0,
-      advisoryWarningCount: 0,
       pruned: [],
       droppedFigureQuotes: [],
-      advisories: [],
     },
     sourcePlanning,
     configuredForecastDisagreementModels: [],
@@ -372,15 +370,8 @@ describe("run trace builder", () => {
         reportIntegrity: "high",
         researchQuality: "high",
         prunedItemCount: 0,
-        advisoryWarningCount: 1,
         pruned: [],
         droppedFigureQuotes: [],
-        advisories: [
-          {
-            code: "weak-evidence-posture-missing",
-            location: "keyFindings[0]",
-          },
-        ],
       },
       sourcePlanning,
       configuredForecastDisagreementModels: [],
@@ -403,15 +394,9 @@ describe("run trace builder", () => {
     expect(trace.reproducibility?.effectiveConfigHash).toBeString();
     // No web sources collected, so the per-source synthesis-input block is absent.
     expect(trace.webSourceSynthesisInputs).toBeUndefined();
-    expect(trace.reportIntegrityAudit?.advisories).toEqual([
-      {
-        code: "weak-evidence-posture-missing",
-        location: "keyFindings[0]",
-      },
-    ]);
   });
 
-  test("omits empty report integrity advisories", () => {
+  test("carries no report integrity advisories", () => {
     const trace = traceFor(
       {
         jobType: "equity",

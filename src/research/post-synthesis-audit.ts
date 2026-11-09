@@ -1,5 +1,3 @@
-import type { Prediction } from "../domain/prediction";
-import type { KeyFinding, ResearchReport, Scenario } from "../domain/report";
 import type { PostSynthesisAuditWarning } from "../domain/run-trace";
 import type { WebSourceUsage } from "../web-evidence";
 import { isGapShapedClaimForAuditWarning } from "./gap-shaped-claims";
@@ -79,93 +77,20 @@ export type PeerMedianMetric = "ev-revenue" | "other" | "absence";
 // Keyed by trimmed clause text; a clause without a label falls back to the regex.
 export type PeerMedianLabels = ReadonlyMap<string, PeerMedianMetric>;
 
-interface AuditClaim {
-  readonly location: string;
-  readonly text: string;
-  readonly sourceIds: readonly string[];
-}
-
-export function auditPostSynthesisReport(
-  report: ResearchReport,
-  webSourceUsage?: WebSourceUsage,
-  usablePeerSourceIds?: ReadonlySet<string>,
-  peerMedianLabels?: PeerMedianLabels,
-  runCurrencies: readonly string[] = [],
+export function freshWebUnusedWarnings(
+  usage: WebSourceUsage | undefined,
 ): readonly PostSynthesisAuditWarning[] {
-  return [
-    ...claimsForReport(report).flatMap((claim) =>
-      auditClaim(claim, usablePeerSourceIds, peerMedianLabels, runCurrencies),
-    ),
-    ...(webSourceUsage !== undefined &&
-    webSourceUsage.currentRunIds.size >= 4 &&
-    webSourceUsage.currentRunUsedIds.size === 0
-      ? [freshWebUnusedWarning(webSourceUsage)]
-      : []),
-  ];
-}
-
-export function claimsForReport(report: ResearchReport): readonly AuditClaim[] {
-  return [
-    ...findingsForSection("keyFindings", report.keyFindings),
-    ...findingsForSection("bullCase", report.bullCase),
-    ...findingsForSection("bearCase", report.bearCase),
-    ...findingsForSection("risks", report.risks),
-    ...findingsForSection("catalysts", report.catalysts),
-    ...scenariosForSection(report.scenarios),
-    ...predictionsForSection(report.predictions),
-  ];
-}
-
-function findingsForSection(
-  section: string,
-  findings: readonly KeyFinding[],
-): readonly AuditClaim[] {
-  return findings.map((finding, index) => ({
-    location: `${section}[${String(index)}]`,
-    text: finding.text,
-    sourceIds: finding.sourceIds,
-  }));
-}
-
-function scenariosForSection(scenarios: readonly Scenario[]): readonly AuditClaim[] {
-  return scenarios.map((scenario, index) => ({
-    location: `scenarios[${String(index)}]`,
-    text: scenario.description,
-    sourceIds: scenario.sourceIds,
-  }));
-}
-
-function predictionsForSection(predictions: readonly Prediction[]): readonly AuditClaim[] {
-  return predictions.map((prediction, index) => ({
-    location: `predictions[${String(index)}]`,
-    text: prediction.claim,
-    sourceIds: prediction.sourceIds,
-  }));
-}
-
-function auditClaim(
-  claim: AuditClaim,
-  usablePeerSourceIds: ReadonlySet<string> | undefined,
-  peerMedianLabels: PeerMedianLabels | undefined,
-  runCurrencies: readonly string[],
-): readonly PostSynthesisAuditWarning[] {
-  return [
-    ...(isUncitedPeerMedianClaim(claim.text, claim.sourceIds, usablePeerSourceIds, peerMedianLabels)
-      ? [peerMedianUncitedWarning(claim)]
-      : []),
-    ...(isGapShapedClaimForAuditWarning(claim.text) && claim.sourceIds.length > 0
-      ? [citedGapShapedClaimWarning(claim)]
-      : []),
-    ...((isNumericClaim(claim.text, runCurrencies) || isTechnicalClaim(claim.text)) &&
-    !isHistoricalForecastOutcome(claim.text) &&
-    hasNoSupportingSource(claim.sourceIds)
-      ? [unsupportedNumericWarning(claim)]
-      : []),
-    ...(shouldCarryPostureLabel(claim.text, claim.sourceIds) &&
-    !hasPostureLabel(claim.text, claim.sourceIds)
-      ? [missingPostureWarning(claim)]
-      : []),
-  ];
+  return usage !== undefined && usage.currentRunIds.size >= 4 && usage.currentRunUsedIds.size === 0
+    ? [
+        {
+          code: "fresh-web-unused",
+          location: "report",
+          message:
+            "accepted fresh web sources were unused; review gather relevance and dataGap wording",
+          sourceIds: [...usage.currentRunIds],
+        },
+      ]
+    : [];
 }
 
 export function peerMedianClauses(text: string): readonly string[] {
@@ -289,49 +214,4 @@ export function hasPostureLabel(text: string, sourceIds: readonly string[]): boo
     !CANONICAL_POSTURE_REQUIRED_PATTERN.test(text) &&
     SELF_DECLARING_WEAK_POSTURES.some((posture) => normalized.includes(posture))
   );
-}
-
-function citedGapShapedClaimWarning(claim: AuditClaim): PostSynthesisAuditWarning {
-  return {
-    code: "gap-shaped-claim-cited",
-    location: claim.location,
-    message: "gap-shaped claim carries source citations; review citation grounding",
-    sourceIds: claim.sourceIds,
-  };
-}
-
-function unsupportedNumericWarning(claim: AuditClaim): PostSynthesisAuditWarning {
-  return {
-    code: "unsupported-numeric-claim",
-    location: claim.location,
-    message: "numeric or technical claim has no non-history supporting source citation",
-    sourceIds: claim.sourceIds,
-  };
-}
-
-function peerMedianUncitedWarning(claim: AuditClaim): PostSynthesisAuditWarning {
-  return {
-    code: "peer-median-uncited",
-    location: claim.location,
-    message: "peer-median claim cites no usable peer source",
-    sourceIds: claim.sourceIds,
-  };
-}
-
-function missingPostureWarning(claim: AuditClaim): PostSynthesisAuditWarning {
-  return {
-    code: "weak-evidence-posture-missing",
-    location: claim.location,
-    message: "weak or unsupported claim is missing an evidence posture label",
-    sourceIds: claim.sourceIds,
-  };
-}
-
-function freshWebUnusedWarning(usage: WebSourceUsage): PostSynthesisAuditWarning {
-  return {
-    code: "fresh-web-unused",
-    location: "report",
-    message: "accepted fresh web sources were unused; review gather relevance and dataGap wording",
-    sourceIds: [...usage.currentRunIds],
-  };
 }

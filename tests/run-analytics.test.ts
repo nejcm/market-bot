@@ -106,18 +106,6 @@ const webGatherAttemptedTrace: RunTrace = {
   },
 };
 
-function analyticsFor(reportIntegrityTrace: RunTrace): ReturnType<typeof buildRunAnalytics> {
-  return buildRunAnalytics({
-    report: researchReport(),
-    trace: reportIntegrityTrace,
-    collectedSources: collectedSourceBundle(),
-    modelCalls: [],
-    stageOutputs: [],
-    targetPredictions: 0,
-    outcomes: [],
-  });
-}
-
 function attemptedWebGatherAudit(): NonNullable<RunTrace["webGatherLoop"]> {
   const audit = webGatherAttemptedTrace.webGatherLoop;
   if (audit === undefined) {
@@ -1190,56 +1178,6 @@ describe("forecast quality telemetry (3.2)", () => {
   });
 });
 
-describe("report integrity advisories", () => {
-  const reportIntegrityAudit = {
-    reportIntegrity: "high",
-    researchQuality: "high",
-    prunedItemCount: 0,
-    advisoryWarningCount: 0,
-    pruned: [],
-  } as const;
-
-  test("surfaces report integrity advisory codes and locations", () => {
-    const analytics = analyticsFor({
-      ...trace,
-      reportIntegrityAudit: {
-        ...reportIntegrityAudit,
-        advisoryWarningCount: 1,
-        advisories: [
-          {
-            code: "weak-evidence-posture-missing",
-            location: "keyFindings[0]",
-          },
-        ],
-      },
-    });
-
-    expect(analytics.reportIntegrity?.advisories).toEqual([
-      {
-        code: "weak-evidence-posture-missing",
-        location: "keyFindings[0]",
-      },
-    ]);
-  });
-
-  test("omits empty advisories without changing analytics serialization", () => {
-    const withoutAdvisories = analyticsFor({
-      ...trace,
-      reportIntegrityAudit,
-    });
-    const withEmptyAdvisories = analyticsFor({
-      ...trace,
-      reportIntegrityAudit: {
-        ...reportIntegrityAudit,
-        advisories: [],
-      },
-    });
-
-    expect(withEmptyAdvisories.reportIntegrity).not.toHaveProperty("advisories");
-    expect(JSON.stringify(withEmptyAdvisories)).toBe(JSON.stringify(withoutAdvisories));
-  });
-});
-
 function webSource(id: string): Source {
   return { id, title: `Web source ${id}`, fetchedAt: "2026-06-28T00:00:00.000Z", kind: "web" };
 }
@@ -1576,7 +1514,6 @@ describe("web source roles accounting", () => {
           reportIntegrity: "high",
           researchQuality: "high",
           prunedItemCount: 0,
-          advisoryWarningCount: 0,
           pruned: [],
         },
       },

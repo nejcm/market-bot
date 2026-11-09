@@ -191,7 +191,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Post-Synthesis Audit** — Warn-only, no-model check for weak-evidence hygiene; records telemetry, never blocks or rewrites.
 
-**Report Integrity Audit** — No-model pass after schema-valid synthesis, before Forecast Disagreement, that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (an emptied summary gets a fixed neutral fallback). Missing posture labels stay advisory; pruned Predictions never score. See ADR 0004.
+**Report Integrity Audit** — No-model pass after schema-valid synthesis, before Forecast Disagreement, that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (an emptied summary gets a fixed neutral fallback). Missing posture labels stay warn-only (one claim walk, per-rule `warn | prune` severity); pruned Predictions never score. See ADR 0004.
 
 **Report Integrity** — Audit grade: `high` (no pruning), `medium` (pruned, required sections remain), `low` (pruning emptied a populated required section). Always stamped on new reports; tolerant reads may omit it.
 

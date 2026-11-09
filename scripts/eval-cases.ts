@@ -8,7 +8,7 @@ import {
   runEvalCase,
 } from "../src/replay/eval-cases";
 import type { ResearchReport } from "../src/domain/report";
-import { claimsForReport } from "../src/research/post-synthesis-audit";
+import { claimsForReport } from "../src/research/report-integrity-audit";
 
 const { values } = parseArgs({
   args: process.argv.slice(2),

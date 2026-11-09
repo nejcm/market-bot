@@ -1,6 +1,7 @@
 import { isRecord } from "../guards";
 import type { ResearchReport } from "../domain/report";
-import { claimsForReport, isHistoricalForecastOutcome } from "../research/post-synthesis-audit";
+import { isHistoricalForecastOutcome } from "../research/post-synthesis-audit";
+import { claimsForReport } from "../research/report-integrity-audit";
 import { judgeItem, type JudgeItem, type JudgeMeter, type JudgeResult } from "./eval-judge";
 import { modelAuthoredReportSegments } from "../report/schema";
 import { splitMetricReferences } from "../research/metric-references";

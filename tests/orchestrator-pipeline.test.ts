@@ -826,7 +826,6 @@ describe("runResearchJob pipeline stages", () => {
       label: "low",
       researchQuality: "low",
       prunedItemCount: 1,
-      advisoryWarningCount: result.trace.reportIntegrityAudit?.advisoryWarningCount ?? -1,
     });
   });
 

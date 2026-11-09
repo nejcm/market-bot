@@ -7,12 +7,7 @@ import type {
 } from "./gather-audit";
 import type { AssetClass, Depth, JobType, LegacyMarketUpdateJobType } from "./job-type";
 import type { EarningsForecastTelemetry } from "./prediction";
-import type {
-  DroppedFigureQuote,
-  ReportIntegrity,
-  ReportIntegrityAdvisoryCode,
-  WebFigureFailure,
-} from "./report";
+import type { DroppedFigureQuote, ReportIntegrity, WebFigureFailure } from "./report";
 import type { SourceKind } from "./sources";
 
 interface DomainPlaybookSelectionAudit {
@@ -184,11 +179,6 @@ export interface RunTrace {
     readonly reportIntegrity: ReportIntegrity;
     readonly researchQuality: ReportIntegrity;
     readonly prunedItemCount: number;
-    readonly advisoryWarningCount: number;
-    readonly advisories?: readonly {
-      readonly code: ReportIntegrityAdvisoryCode;
-      readonly location: string;
-    }[];
     readonly pruned: readonly {
       readonly location: string;
       readonly text: string;

@@ -4,8 +4,6 @@ import type { VerifiedMarketSnapshot } from "./market-data";
 import type { Prediction } from "./prediction";
 import type { Source } from "./sources";
 
-export type ReportIntegrityAdvisoryCode = "weak-evidence-posture-missing";
-
 export const MARKET_REGIME_LABELS = ["risk-on", "risk-off", "mixed", "insufficient-data"] as const;
 
 export type MarketRegimeLabel = (typeof MARKET_REGIME_LABELS)[number];

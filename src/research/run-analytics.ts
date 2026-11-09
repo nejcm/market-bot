@@ -204,11 +204,6 @@ export interface RunAnalytics {
     readonly label: ReportIntegrity;
     readonly researchQuality: ReportIntegrity;
     readonly prunedItemCount: number;
-    readonly advisoryWarningCount: number;
-    readonly advisories?: readonly {
-      readonly code: string;
-      readonly location: string;
-    }[];
   };
   readonly sourcePlan?: {
     readonly plannedLaneCount: number;
@@ -924,11 +919,6 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
             label: trace.reportIntegrityAudit.reportIntegrity,
             researchQuality: trace.reportIntegrityAudit.researchQuality,
             prunedItemCount: trace.reportIntegrityAudit.prunedItemCount,
-            advisoryWarningCount: trace.reportIntegrityAudit.advisoryWarningCount,
-            ...(trace.reportIntegrityAudit.advisories !== undefined &&
-            trace.reportIntegrityAudit.advisories.length > 0
-              ? { advisories: trace.reportIntegrityAudit.advisories }
-              : {}),
           },
         }
       : {}),

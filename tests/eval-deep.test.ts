@@ -1082,6 +1082,20 @@ describe("frozen-input eval replay", () => {
     );
     expect(compare).toContain(`| ${FIXTURE} | predictions.count | 1 [0–2] | 4 [4–4] |`);
     expect(compare).toContain(`| ${FIXTURE} | status.threw | 0.50 [0–1] | 0 [0–0] |`);
+
+    const oldLabel = formatEvalCompare(
+      summary("old", [
+        {
+          "integrity.advisory.weak-evidence-posture-missing": 2,
+          "postSynthesisAudit.weak-evidence-posture-missing": 3,
+        },
+      ]),
+      summary("new", [{ "postSynthesisAudit.weak-evidence-posture-missing": 3 }]),
+    );
+    expect(oldLabel).not.toContain("integrity.advisory");
+    expect(oldLabel).toContain(
+      `| ${FIXTURE} | postSynthesisAudit.weak-evidence-posture-missing | 3 [3–3] | 3 [3–3] |`,
+    );
   });
 
   test("compares usage counts as measured-only, labeling unknown samples instead of averaging 0", () => {
@@ -1284,11 +1298,21 @@ describe("frozen-input eval replay", () => {
     await writeFile(
       join(root, "next", "1", "validation.json"),
       JSON.stringify({
-        integrity: { reportIntegrity: "high", prunedItemCount: 0, advisories: [null] },
+        integrity: { reportIntegrity: "high", prunedItemCount: "0" },
       }),
     );
     const nextSummary = await readEvalSummary(root, "next");
     expect(nextSummary.samples[0]!.unavailable).toContain("integrity");
+
+    await writeFile(
+      join(root, "next", "1", "validation.json"),
+      JSON.stringify({ warnings: [{ code: "weak-evidence-posture-missing" }, null] }),
+    );
+    const warnedSummary = await readEvalSummary(root, "next");
+    expect(
+      warnedSummary.samples[0]!.metrics["postSynthesisAudit.weak-evidence-posture-missing"],
+    ).toBe(1);
+    expect(warnedSummary.samples[0]!.unavailable).not.toContain("postSynthesisAudit");
 
     await writeLabel("escape", [undefined], ["/moved/.."]);
     await expect(readEvalSummary(root, "escape")).rejects.toThrow("Eval path segment must match");

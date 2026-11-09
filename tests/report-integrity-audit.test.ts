@@ -92,7 +92,37 @@ function evidenceAssessment(label: EvidenceQualityAssessment["label"]): Evidence
   };
 }
 
+function postureWarnings(result: ReturnType<typeof auditReportIntegrity>) {
+  return result.warnings
+    .filter(({ code }) => code === "weak-evidence-posture-missing")
+    .map(({ code, location }) => ({ code, location }));
+}
+
 describe("auditReportIntegrity", () => {
+  test("one walk prunes on prune-severity rules and only warns on warn-severity rules", () => {
+    const result = auditReportIntegrity(
+      researchReport({
+        keyFindings: [
+          uncitedFinding("Revenue grew 40%."),
+          citedFinding("Assume utilization improves."),
+          uncitedFinding("Observed fact: guidance covers 2026."),
+        ],
+      }),
+    );
+
+    expect(result.pruned.map(({ location }) => location)).toEqual(["keyFindings[0]"]);
+    expect(result.report.keyFindings.map(({ text }) => text)).toEqual([
+      "Assume utilization improves.",
+      "Observed fact: guidance covers 2026.",
+    ]);
+    expect(result.warnings.map(({ code, location }) => `${code}@${location}`)).toEqual([
+      "unsupported-numeric-claim@keyFindings[0]",
+      "weak-evidence-posture-missing@keyFindings[0]",
+      "weak-evidence-posture-missing@keyFindings[1]",
+      "unsupported-numeric-claim@keyFindings[2]",
+    ]);
+  });
+
   test("clean synthesis produces high integrity with no pruning", () => {
     const report = researchReport({
       confidence: "high",
@@ -254,13 +284,12 @@ describe("auditReportIntegrity", () => {
     expect(result.report.summary).toBe("Backlog contracted.\n\nEvidence remains mixed overall.");
     expect(report.summary).toBe(summary);
     expect(result.report.keyFindings).toHaveLength(1);
-    expect(result.advisories).toEqual([
+    expect(postureWarnings(result)).toEqual([
       {
         code: "weak-evidence-posture-missing",
         location: "keyFindings[0]",
       },
     ]);
-    expect(result.advisoryWarningCount).toBe(1);
   });
 
   test("replaces a summary whose every sentence is pruned with the neutral fallback", () => {
@@ -456,7 +485,7 @@ describe("auditReportIntegrity", () => {
       researchReport({ keyFindings: [citedFinding("Utilization remains unverified.")] }),
     );
 
-    expect(result.advisories).not.toContainEqual({
+    expect(postureWarnings(result)).not.toContainEqual({
       code: "weak-evidence-posture-missing",
       location: "keyFindings[0]",
     });
@@ -472,7 +501,7 @@ describe("auditReportIntegrity", () => {
   ] as const)("advises for a %s claim", (_case, finding) => {
     const result = auditReportIntegrity(researchReport({ keyFindings: [finding] }));
 
-    expect(result.advisories).toContainEqual({
+    expect(postureWarnings(result)).toContainEqual({
       code: "weak-evidence-posture-missing",
       location: "keyFindings[0]",
     });
@@ -655,7 +684,6 @@ describe("auditReportIntegrity", () => {
     ] as const)("summary numeric detection for %s", (_name, summary, expectBlocking) => {
       const result = auditSummary(summary);
 
-      expect(result.advisoryWarningCount).toBe(result.advisories.length);
       if (expectBlocking) {
         expect(result.pruned.map((item) => item.location)).toEqual(["summary[0]"]);
         expect(result.report.summary).toBe(SUMMARY_FALLBACK);

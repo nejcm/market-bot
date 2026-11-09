@@ -329,13 +329,9 @@ function transformClaims(
   };
 }
 
-function transformNarrative<T extends ModelReportPayload>(
-  payload: T,
-  sections: readonly MetricSection[],
-  resolve: boolean,
-): T {
+function claimNarrative(payload: ModelReportPayload) {
   const extras = isRecord(payload.extras) ? payload.extras : {};
-  const narrative = {
+  return {
     keyFindings: payload.keyFindings,
     bullCase: payload.bullCase,
     bearCase: payload.bearCase,
@@ -348,6 +344,77 @@ function transformNarrative<T extends ModelReportPayload>(
       spotlights: extras.spotlights,
     },
   };
+}
+
+export const CATALOG_FIGURE_HINT = "Catalog figure hint:";
+const UNITLESS: ReadonlySet<LensValueUnit> = new Set(["number", "text"]);
+const FIGURE_BEFORE = /[\p{L}\p{N}.,\-−]$/u;
+const FIGURE_AFTER = /^(?:[\p{L}\p{N}]|[.,]\p{N})/u;
+
+export function catalogFigureHints(
+  payload: ModelReportPayload,
+  sections: readonly MetricSection[],
+): readonly string[] {
+  const tokensByValue = new Map<string, string[]>();
+  for (const { id: sectionId, metrics } of sections) {
+    for (const metric of metrics) {
+      const value =
+        metric.status === "value" && metric.sourceIds.length > 0 && !UNITLESS.has(metric.unit)
+          ? formatMetricValue(metric.value, metric.unit, metric.currency)
+          : undefined;
+      if (value !== undefined) {
+        tokensByValue.set(value, [
+          ...(tokensByValue.get(value) ?? []),
+          `<<metric:${sectionId}.${metric.id}>>`,
+        ]);
+      }
+    }
+  }
+  const hints: string[] = [];
+  const visit = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${String(index)}]`));
+      return;
+    }
+    if (!isRecord(value)) {
+      return;
+    }
+    for (const [key, item] of Object.entries(value)) {
+      const childPath = path === "" ? key : `${path}.${key}`;
+      if (typeof item !== "string" || !CLAIM_FIELDS.has(key)) {
+        visit(item, childPath);
+        continue;
+      }
+      const { prose } = splitMetricReferences(item, sections);
+      for (const [typed, tokens] of tokensByValue) {
+        const typedAt = (start: number): boolean =>
+          !FIGURE_BEFORE.test(prose.slice(0, start)) &&
+          !FIGURE_AFTER.test(prose.slice(start + typed.length));
+        let start = prose.indexOf(typed);
+        while (start !== -1 && !typedAt(start)) {
+          start = prose.indexOf(typed, start + 1);
+        }
+        if (start !== -1) {
+          hints.push(
+            tokens.length === 1
+              ? `${CATALOG_FIGURE_HINT} ${childPath} types "${typed}", which equals the catalog value of ${tokens[0] ?? ""}; if that metric is the figure meant, write the reference in place of the typed number, otherwise keep the text`
+              : `${CATALOG_FIGURE_HINT} ${childPath} types "${typed}", which equals the catalog value of more than one metric, so the match is ambiguous: ${tokens.join(", ")}; if one of them is the figure meant, write that reference in place of the typed number, otherwise keep the text`,
+          );
+        }
+      }
+    }
+  };
+  visit(claimNarrative(payload), "");
+  return hints;
+}
+
+function transformNarrative<T extends ModelReportPayload>(
+  payload: T,
+  sections: readonly MetricSection[],
+  resolve: boolean,
+): T {
+  const extras = isRecord(payload.extras) ? payload.extras : {};
+  const narrative = claimNarrative(payload);
   const errors = hasMetricReference([payload.summary, payload.dataGaps, payload.predictions])
     ? [
         "Metric references require a cited narrative claim; summary, dataGaps and predictions cannot contain them",

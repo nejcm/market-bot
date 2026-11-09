@@ -27,6 +27,7 @@ import {
 } from "../src/research/prompts/metric-references";
 import {
   assertNoUnresolvedMetricReferences,
+  catalogFigureHints,
   citeMetricReferences,
   referenceMetricSections,
 } from "../src/research/metric-references";
@@ -773,6 +774,145 @@ test("repairs a non-catalog unprefixed placeholder instead of publishing or gues
     "Malformed metric reference <<operating-ratios.marginal|period>> in text; write it as <<metric:section.metric>>",
   );
   expect(result.report.keyFindings[0]?.text).toBe("Margin 12.5%.");
+});
+
+function claims(...texts: readonly string[]): ModelReportPayload {
+  return {
+    ...researchReport({ predictions: [] }),
+    keyFindings: texts.map((text) => ({ text, sourceIds: [] })),
+  };
+}
+
+describe("catalog figure hints", () => {
+  test("names the reference for a typed unit-bearing catalog value, and only at a figure boundary", () => {
+    expect(
+      catalogFigureHints(
+        claims(
+          "Margin held at 12.5%, cash €1.0M.",
+          "Coverage 2.50x; 112.5% and -12.5% and 12.55%.",
+        ),
+        [section],
+      ),
+    ).toEqual([
+      'Catalog figure hint: keyFindings[0].text types "12.5%", which equals the catalog value of <<metric:operating-ratios.margin>>; if that metric is the figure meant, write the reference in place of the typed number, otherwise keep the text',
+      'Catalog figure hint: keyFindings[0].text types "€1.0M", which equals the catalog value of <<metric:operating-ratios.cash>>; if that metric is the figure meant, write the reference in place of the typed number, otherwise keep the text',
+      'Catalog figure hint: keyFindings[1].text types "2.50x", which equals the catalog value of <<metric:operating-ratios.ratio>>; if that metric is the figure meant, write the reference in place of the typed number, otherwise keep the text',
+    ]);
+  });
+
+  test("ignores unitless values, years, and figures already written as references", () => {
+    const margin = section.metrics.find(({ id }) => id === "margin");
+    if (margin?.status !== "value") {
+      throw new Error("fixture margin must have a value");
+    }
+    const oscillators = {
+      id: "oscillators",
+      title: "Oscillators",
+      metrics: [
+        { ...margin, id: "rsi14", unit: "number" as const, value: 43.74 },
+        { ...margin, id: "year", unit: "number" as const, value: 2025 },
+      ],
+    };
+    expect(
+      catalogFigureHints(
+        claims("In 2025 RSI was 43.74 and margin <<metric:operating-ratios.margin>>."),
+        [section, oscillators],
+      ),
+    ).toEqual([]);
+  });
+
+  test("lists every candidate when a typed value equals more than one catalog id", () => {
+    expect(
+      catalogFigureHints(claims("Margin was 12.5%."), [section, { ...section, id: "peer-ratios" }]),
+    ).toEqual([
+      'Catalog figure hint: keyFindings[0].text types "12.5%", which equals the catalog value of more than one metric, so the match is ambiguous: <<metric:operating-ratios.margin>>, <<metric:peer-ratios.margin>>; if one of them is the figure meant, write that reference in place of the typed number, otherwise keep the text',
+    ]);
+  });
+
+  const synthesize = async (drafts: readonly string[]) => {
+    const assembly = input({});
+    const reprompts: (readonly string[] | undefined)[] = [];
+    const result = await synthesizeReportUntilValid({
+      ...assembly,
+      knownSourceIds: new Set(sources.map(({ id }) => id)),
+      priorStages: [],
+      maxPredictionReprompts: 0,
+      runFinalSynthesis: async (_prior, reprompt) => {
+        reprompts.push(reprompt?.reportValidationErrors);
+        const text = drafts[Math.min(reprompts.length, drafts.length) - 1] ?? "";
+        return {
+          stage: "final-synthesis",
+          tokenEstimate: 0,
+          content: JSON.stringify({
+            ...assembly.payload,
+            keyFindings: [{ text, sourceIds: ["metric-source"] }],
+          }),
+        };
+      },
+    });
+    return { result, reprompts };
+  };
+
+  test("a hint alone never costs a repair call", async () => {
+    const { result, reprompts } = await synthesize(["FY margin was 12.5%."]);
+    expect(reprompts).toEqual([undefined]);
+    expect(result.reportValidationErrors).toEqual([]);
+    expect(result.stageOutputs.map(({ repromptReason }) => repromptReason)).toEqual([undefined]);
+  });
+
+  test("the prediction follow-up after a report repair hints only the latest draft", async () => {
+    const assembly = input({});
+    const drafts = [
+      { text: "Cash €1.0M; coverage <<metric:operating-ratios.unknown>>.", predictions: [] },
+      {
+        text: "Cash <<metric:operating-ratios.cash>>; FY margin was 12.5%.",
+        predictions: [{ id: "bad", measurableAs: "nonsense" }],
+      },
+      { text: "Cash <<metric:operating-ratios.cash>>.", predictions: [] },
+    ];
+    const reprompts: (readonly string[] | undefined)[] = [];
+    const result = await synthesizeReportUntilValid({
+      ...assembly,
+      knownSourceIds: new Set(sources.map(({ id }) => id)),
+      priorStages: [],
+      maxPredictionReprompts: 0,
+      runFinalSynthesis: async (_prior, reprompt) => {
+        reprompts.push(reprompt?.reportValidationErrors);
+        const draft = drafts[reprompts.length - 1] ?? drafts[2];
+        return {
+          stage: "final-synthesis",
+          tokenEstimate: 0,
+          content: JSON.stringify({
+            ...assembly.payload,
+            predictions: draft?.predictions,
+            keyFindings: [{ text: draft?.text, sourceIds: ["metric-source"] }],
+          }),
+        };
+      },
+    });
+    const hints = (index: number) =>
+      (reprompts[index] ?? []).filter((line) => line.startsWith("Catalog figure hint:"));
+    expect(reprompts).toHaveLength(3);
+    expect(hints(1).map((line) => line.includes('"€1.0M"'))).toEqual([true]);
+    expect(hints(2)).toHaveLength(1);
+    expect(hints(2)[0]).toContain('types "12.5%"');
+    expect(result.stageOutputs[2]?.repromptReason?.catalogFigureHints).toBe(1);
+  });
+
+  test("a repair owed anyway carries the hint after the errors and records its count", async () => {
+    const { result, reprompts } = await synthesize([
+      "FY margin was 12.5%; coverage <<metric:operating-ratios.unknown>>.",
+      "FY margin was <<metric:operating-ratios.margin>>.",
+    ]);
+    const hint =
+      'Catalog figure hint: keyFindings[0].text types "12.5%", which equals the catalog value of <<metric:operating-ratios.margin>>; if that metric is the figure meant, write the reference in place of the typed number, otherwise keep the text';
+    expect(reprompts).toHaveLength(2);
+    expect(reprompts[1]?.at(-1)).toBe(hint);
+    expect(reprompts[1]?.[0]).toContain("Metric reference <<metric:operating-ratios.unknown>>");
+    expect(result.stageOutputs[1]?.repromptReason?.catalogFigureHints).toBe(1);
+    expect(result.reportValidationErrors).not.toContain(hint);
+    expect(result.report.keyFindings[0]?.text).toBe("FY margin was 12.5%.");
+  });
 });
 
 test("|period renders the metric's period label and rejects metrics without one", () => {

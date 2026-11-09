@@ -850,7 +850,7 @@ export async function handleResearchConsoleRequest(
   const apiResponse = await handleApiRequest(url, dataDir, {
     consoleDbPath: options.consoleDbPath ?? consoleDbPath(dataDir),
     providers,
-  });
+  }).catch(() => jsonResponse({ error: "Internal server error" }, 500));
   if (apiResponse !== undefined) {
     return apiResponse;
   }

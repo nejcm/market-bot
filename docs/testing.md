@@ -152,6 +152,7 @@ bun test tests/equity-fixture/run.test.ts
 Current checked-in fixtures:
 
 - `tests/fixtures/runs/equity-aapl-brief/`
+- `tests/fixtures/runs/equity-aapl-brief-prune/` (`equity-aapl-brief` with one uncited summary figure added to the final-synthesis output; pins the integrity prune via `meta.json` `expectedIntegrityPrune`, and symlinks the AAPL brief data cassette)
 - `tests/fixtures/runs/equity-aapl-deep/`
 - `tests/fixtures/runs/equity-earnings-release-deep/`
 - `tests/fixtures/runs/equity-nbis-deep/`
@@ -294,6 +295,9 @@ so none calls `peer-median-audit` (pinned by the fixture invariants). The `final
 repair responses after the first in `equity-bursa-deep` (two) and `equity-bursa-brief` (one) are reviewed
 synthetic entries, listed in each fixture's `meta.json` `syntheticLlmEntries`: each is the recorded output
 with only the claims on values code now withholds removed, so it proves the code checks, not model quality.
+The `equity-aapl-brief-prune` final-synthesis entries are the AAPL brief output with one uncited
+summary figure appended. `expectedIntegrityPrune` pins the exact pruned sentence and grade; every
+fixture without it must prune nothing and grade `high`.
 
 For example, this invocation only plans a critique evaluation:
 

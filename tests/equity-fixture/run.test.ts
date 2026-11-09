@@ -10,6 +10,7 @@ import {
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
+  assertIntegrityPruneInvariant,
   assertQuarterlyCapexProof,
   assertIrenExtensionCapexWithheld,
   assertMarketRegimeRendered,
@@ -44,6 +45,7 @@ import { exchangeProfileFor } from "../../src/domain/exchange-profile";
 
 const EXPECTED_COMPLETENESS_GRADES = {
   "equity-aapl-brief": ["blocked", "limited"],
+  "equity-aapl-brief-prune": ["blocked", "limited"],
   "equity-aapl-deep": ["complete", "limited"],
   "equity-earnings-release-deep": ["complete", "substantial"],
   "equity-nbis-deep": ["partial", "limited"],
@@ -95,6 +97,12 @@ const EXPECTED_EVENT_GRID: Record<
 > = {
   // The synthetic AAPL fixtures run on 2026-06-15 against closes ending 2026-05-01, so scoring spans ~30 more sessions.
   "equity-aapl-brief": [
+    ["grid-range-1", 0.8416],
+    ["grid-range-5", 0.6739],
+    ["grid-range-20", 0.4815],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-aapl-brief-prune": [
     ["grid-range-1", 0.8416],
     ["grid-range-5", 0.6739],
     ["grid-range-20", 0.4815],
@@ -268,6 +276,39 @@ test("fixture invariants preserve quoted metric tokens and escape them in markdo
     fixture.meta,
     fixture.name,
   );
+});
+
+describe("integrity prune fixture invariant", () => {
+  const prune = { location: "summary[1]", text: "Uncited 52% figure." };
+  const auditPrune = { ...prune, sourceIds: [] };
+
+  test("fails a fixture without expectedIntegrityPrune that prunes", () => {
+    expect(() =>
+      assertIntegrityPruneInvariant([auditPrune], { reportIntegrity: "medium" }, {}),
+    ).toThrow();
+    expect(() => assertIntegrityPruneInvariant([], { reportIntegrity: "medium" }, {})).toThrow();
+    expect(() =>
+      assertIntegrityPruneInvariant(undefined, { reportIntegrity: "high" }, {}),
+    ).toThrow();
+    expect(() => assertIntegrityPruneInvariant([], { reportIntegrity: "high" }, {})).not.toThrow();
+  });
+
+  test("holds a flagged fixture to its exact prune and grade", () => {
+    const meta = {
+      expectedIntegrityPrune: { reportIntegrity: "medium" as const, pruned: [prune] },
+    };
+
+    expect(() =>
+      assertIntegrityPruneInvariant([prune], { reportIntegrity: "medium" }, meta),
+    ).not.toThrow();
+    expect(() => assertIntegrityPruneInvariant([], { reportIntegrity: "high" }, meta)).toThrow();
+    expect(() =>
+      assertIntegrityPruneInvariant([prune, prune], { reportIntegrity: "medium" }, meta),
+    ).toThrow();
+    expect(() =>
+      assertIntegrityPruneInvariant([prune], { reportIntegrity: "low" }, meta),
+    ).toThrow();
+  });
 });
 
 describe("static equity run fixtures", () => {

@@ -1,0 +1,29 @@
+{
+  "now": "2026-06-15T14:30:00.000Z",
+  "argv": ["equity", "AAPL"],
+  "quickModel": "fixture-quick",
+  "synthesisModel": "fixture-synthesis",
+  "challengerModels": [],
+  "webGatherDisabled": true,
+  "evidenceRequestOptions": {
+    "maxRounds": 0,
+    "maxToolCalls": 0,
+    "sourceBudget": 0
+  },
+  "webGatherOptions": {
+    "maxRounds": 0,
+    "maxToolCalls": 0,
+    "sourceBudget": 0
+  },
+  "replayClassification": "clean",
+  "syntheticLlmEntries": ["final-synthesis|fixture-synthesis"],
+  "expectedIntegrityPrune": {
+    "reportIntegrity": "medium",
+    "pruned": [
+      {
+        "location": "summary[1]",
+        "text": "AAPL gross margin expanded to 52% in the latest quarter."
+      }
+    ]
+  }
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.14.2](https://github.com/nejcm/market-bot/compare/v1.14.1...v1.14.2) (2026-11-09)
+
+### Bug Fixes
+
+- **web-figures:** verify more web figures and fail closed on wrong units (#191) ([19619ed](https://github.com/nejcm/market-bot/commit/19619ed1d81f99cfa006f9003a05ed3c74e724f2))
+
 ## [1.14.1](https://github.com/nejcm/market-bot/compare/v1.14.0...v1.14.1) (2026-11-09)
 
 ### Bug Fixes

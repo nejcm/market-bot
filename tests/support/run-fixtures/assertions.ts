@@ -336,12 +336,19 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
       expect(prediction.baselineVersion).toBe(FORECAST_BASELINE_VERSION);
       expect(prediction.infoCutoff).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
     } else if (["range", "direction", "relative"].includes(expression.kind)) {
-      expect(
-        report.dataGaps.some(
-          (gap) => gap.startsWith("forecast-baseline: ") && gap.includes(prediction.id),
-        ),
-        `${prediction.id} baseline neither stamped nor declared`,
-      ).toBe(true);
+      const gap = report.dataGaps.find(
+        (row) =>
+          row.startsWith("forecast-baseline: ") &&
+          new RegExp(`\\b${prediction.id}\\b`, "u").test(row),
+      );
+      expect(gap, `${prediction.id} baseline neither stamped nor declared`).toBeDefined();
+      if (gap?.includes("no split-adjusted close history was collected") === true) {
+        expect(prediction.infoCutoff, `${prediction.id} cutoff without closes`).toBeUndefined();
+      } else {
+        expect(prediction.infoCutoff, `${prediction.id} unavailable baseline cutoff`).toMatch(
+          /^\d{4}-\d{2}-\d{2}$/u,
+        );
+      }
     }
   }
 }

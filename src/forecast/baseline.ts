@@ -35,6 +35,7 @@ export type ForecastBaselineResult =
       readonly status: "unavailable";
       readonly symbol: string;
       readonly reason: ForecastBaselineUnavailableReason;
+      readonly infoCutoff?: string;
     }
   | { readonly status: "unsupported" };
 
@@ -135,19 +136,25 @@ function returnWindow(
     .filter((bar) => bar.close > 0)
     .toSorted((a, b) => a.date.localeCompare(b.date))
     .slice(-(FORECAST_BASELINE_RETURN_WINDOW + 1));
-  if (window.length < FORECAST_BASELINE_RETURN_WINDOW + 1) {
-    return { status: "unavailable", symbol, reason: "short-history" };
+  const last = window.at(-1);
+  if (last === undefined || window.length < FORECAST_BASELINE_RETURN_WINDOW + 1) {
+    return {
+      status: "unavailable",
+      symbol,
+      reason: "short-history",
+      ...(last !== undefined ? { infoCutoff: last.date } : {}),
+    };
   }
+  const infoCutoff = last.date;
   const returns = window.slice(1).map((bar, index) => Math.log(bar.close / window[index]!.close));
   if (hasAdjustedSplitSignature(window, returns, splitDatesBySymbol?.get(symbol.toUpperCase()))) {
-    return { status: "unavailable", symbol, reason: "split-signature" };
+    return { status: "unavailable", symbol, reason: "split-signature", infoCutoff };
   }
   const sigma = ewmaDailySigma(returns);
   if (sigma === 0) {
-    return { status: "unavailable", symbol, reason: "zero-volatility" };
+    return { status: "unavailable", symbol, reason: "zero-volatility", infoCutoff };
   }
-  const last = window.at(-1)!;
-  return { sigma, spot: last.close, infoCutoff: last.date };
+  return { sigma, spot: last.close, infoCutoff };
 }
 
 function computed(probability: number, infoCutoff: string): ForecastBaselineResult {
@@ -185,7 +192,12 @@ export function forecastBaseline(
         expression.horizonTradingDays,
       );
       if (horizon === undefined) {
-        return { status: "unavailable", symbol: expression.subject, reason: "unscored-sessions" };
+        return {
+          status: "unavailable",
+          symbol: expression.subject,
+          reason: "unscored-sessions",
+          infoCutoff: window.infoCutoff,
+        };
       }
       return computed(
         rangeOutsideProbability({
@@ -221,6 +233,7 @@ export function forecastBaseline(
           status: "unavailable",
           symbol: earlier === a ? expression.subjectA : expression.subjectB,
           reason: "stale-closes",
+          infoCutoff: earlier.infoCutoff,
         };
       }
       // The A−B log-return difference is zero-drift and symmetric, so P(A beats B) is 1/2.

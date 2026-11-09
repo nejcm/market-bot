@@ -272,6 +272,7 @@ export interface PredictionView {
   readonly measurableAs?: string;
   readonly probability?: number;
   readonly baselineProbability?: number;
+  readonly infoCutoff?: string;
   readonly origin?: string;
   readonly horizonTradingDays?: number;
   readonly sourceIds: readonly string[];
@@ -299,6 +300,7 @@ export function predictions(
       const subject = readStringVerbatim(item, "subject");
       const probability = readNumber(item, "probability");
       const baselineProbability = readNumber(item, "baselineProbability");
+      const infoCutoff = readStringVerbatim(item, "infoCutoff");
       const origin = readStringVerbatim(item, "origin");
       const horizonTradingDays = readNumber(item, "horizonTradingDays");
       return id === undefined || claim === undefined
@@ -312,6 +314,7 @@ export function predictions(
               ...(measurableAs !== undefined ? { measurableAs } : {}),
               ...(probability !== undefined ? { probability } : {}),
               ...(baselineProbability !== undefined ? { baselineProbability } : {}),
+              ...(infoCutoff !== undefined ? { infoCutoff } : {}),
               ...(origin !== undefined ? { origin } : {}),
               ...(horizonTradingDays !== undefined ? { horizonTradingDays } : {}),
               sourceIds: stringArrayValue(item.sourceIds),

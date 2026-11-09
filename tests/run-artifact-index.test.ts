@@ -1063,12 +1063,13 @@ describe("run artifact index", () => {
             subject: "MSFT",
             measurableAs: "close(MSFT, +5) > close(MSFT, 0)",
           }),
+          prediction({ id: "p-cutoff-only", origin: "grid", infoCutoff: "2026-05-29" }),
         ],
       }),
     );
     writeJson(join(runDir, "score.json"), {
       runId: "run-baseline",
-      scores: ["p-grid", "p-plain"].map((predictionId) =>
+      scores: ["p-grid", "p-plain", "p-cutoff-only"].map((predictionId) =>
         predictionScore("hit", {
           predictionId,
           runId: "run-baseline",
@@ -1090,6 +1091,9 @@ describe("run artifact index", () => {
     });
     expect(byId.get("p-plain")).not.toHaveProperty("baselineProbability");
     expect(byId.get("p-plain")).not.toHaveProperty("origin");
+    expect(byId.get("p-plain")).not.toHaveProperty("infoCutoff");
+    expect(byId.get("p-cutoff-only")).toMatchObject({ infoCutoff: "2026-05-29" });
+    expect(byId.get("p-cutoff-only")).not.toHaveProperty("baselineProbability");
   });
 
   test("returns undefined when the index is disabled", async () => {

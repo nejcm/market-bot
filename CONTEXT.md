@@ -81,7 +81,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Forecast Grid Job** — `forecast-grid --watchlist <name>`: issues the Event Grid with Baselines for every equity on a watchlist, one quick-model call per symbol from a compact fact sheet. No synthesis or Web Gather. Dry run unless `--yes`. Publishes one symbol-less run (`jobType: "forecast-grid"`) scored and calibrated like any other.
 
-**Forecast Baseline** — Frozen, versioned no-skill probability on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`): EWMA volatility, zero drift, √h over the sessions scoring spans. Range, direction, relative only; missing inputs omit it with a declared gap. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
+**Forecast Baseline** — Frozen, versioned no-skill probability on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`): EWMA volatility, zero drift, √h over the sessions scoring spans. Range, direction, relative only; missing inputs omit it with a declared gap, keeping `infoCutoff` when closes were collected. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
 
 **Forecast Event** — The unit Calibration counts: one canonical claim per asset class and origin, where origin follows the claim's resolution clock (next trading day for equity close windows, UTC date for crypto and calendar-day macro/IV, declared date for earnings). Same-session repeats collapse to the earliest (`duplicateForecastCount`). Per-run views still count issuances.
 

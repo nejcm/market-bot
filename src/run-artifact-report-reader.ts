@@ -163,12 +163,9 @@ function readPredictions(value: unknown): readonly Prediction[] {
         item.baselineProbability <= 1 &&
         typeof item.baselineVersion === "string" &&
         typeof item.infoCutoff === "string"
-          ? {
-              baselineProbability: item.baselineProbability,
-              baselineVersion: item.baselineVersion,
-              infoCutoff: item.infoCutoff,
-            }
+          ? { baselineProbability: item.baselineProbability, baselineVersion: item.baselineVersion }
           : {}),
+        ...(typeof item.infoCutoff === "string" ? { infoCutoff: item.infoCutoff } : {}),
       },
     ];
   });

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.0](https://github.com/nejcm/market-bot/compare/v1.14.2...v1.15.0) (2026-11-09)
+
+### Features
+
+- **profile:** reuse non-sec web subject profiles by issuer report date (#192) ([0fc816a](https://github.com/nejcm/market-bot/commit/0fc816a8c0f6e11a6dad38e32b15d244cb5c6b4d))
+
 ## [1.14.2](https://github.com/nejcm/market-bot/compare/v1.14.1...v1.14.2) (2026-11-09)
 
 ### Bug Fixes

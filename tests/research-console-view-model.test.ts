@@ -2760,6 +2760,14 @@ describe("report artifact parsers", () => {
     expect(webSubjectProfileView({ extras: { webSubjectProfile: profile } })).not.toHaveProperty(
       "secFilingBasisDate",
     );
+    expect(
+      webSubjectProfileView({
+        extras: { webSubjectProfile: { ...profile, issuerReportBasisDate: "2026-11-05" } },
+      })?.issuerReportBasisDate,
+    ).toBe("2026-11-05");
+    expect(webSubjectProfileView({ extras: { webSubjectProfile: profile } })).not.toHaveProperty(
+      "issuerReportBasisDate",
+    );
   });
 
   test("keeps a blank subject label instead of falling back to the company name", () => {

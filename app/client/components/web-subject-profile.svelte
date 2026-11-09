@@ -89,9 +89,11 @@
       </div>
       {#if profile.openGaps.length > 0}
       <div class="mb-2 text-[11.5px] italic text-[#8a6116]">
-        Gaps in the evidence the profile stage read{profile.secFilingBasisDate === undefined
-          ? ""
-          : ` (latest SEC filing basis ${profile.secFilingBasisDate})`}, not in this run's deterministic sections, which
+        Gaps in the evidence the profile stage read{profile.secFilingBasisDate !== undefined
+          ? ` (latest SEC filing basis ${profile.secFilingBasisDate})`
+          : profile.issuerReportBasisDate !== undefined
+            ? ` (latest issuer report ${profile.issuerReportBasisDate})`
+            : ""}, not in this run's deterministic sections, which
         may publish the same data.
       </div>
       {/if}

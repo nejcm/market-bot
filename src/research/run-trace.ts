@@ -52,6 +52,7 @@ export function buildRunTrace(input: {
   readonly collectedSources: CollectedSources;
   readonly evidenceRequestLoop?: RunTrace["evidenceRequestLoop"];
   readonly webGatherLoop?: RunTrace["webGatherLoop"];
+  readonly webSubjectProfileReuse?: RunTrace["webSubjectProfileReuse"];
   readonly historicalContext: HistoricalResearchContext;
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly playbookAudit: PlaybookSelectionAudit;
@@ -113,6 +114,9 @@ export function buildRunTrace(input: {
       ? { evidenceRequestLoop: input.evidenceRequestLoop }
       : {}),
     ...(input.webGatherLoop !== undefined ? { webGatherLoop: input.webGatherLoop } : {}),
+    ...(input.webSubjectProfileReuse !== undefined
+      ? { webSubjectProfileReuse: input.webSubjectProfileReuse }
+      : {}),
     ...(webEvidenceUtilization !== undefined ? { webEvidenceUtilization } : {}),
     ...(webSourceSynthesisInputs !== undefined ? { webSourceSynthesisInputs } : {}),
     sourceTextResearchOnly: auditSourceTextResearchOnly(input.report.sources),

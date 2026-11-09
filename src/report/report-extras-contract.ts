@@ -90,6 +90,7 @@ export interface WebSubjectProfileExtra {
   readonly reconciledGaps?: readonly WebSubjectProfileReconciledGap[];
   readonly sourceIds: readonly string[];
   readonly secFilingBasisDate?: string;
+  readonly issuerReportBasisDate?: string;
 }
 
 interface WebSubjectProfileReconciledGap {
@@ -184,6 +185,7 @@ export interface WebSubjectProfileExtraValue {
   readonly sourceIds: readonly string[];
   readonly sourceIdsComplete: boolean;
   readonly secFilingBasisDate?: string;
+  readonly issuerReportBasisDate?: string;
 }
 
 interface MetricResultValue {
@@ -548,6 +550,7 @@ export function readWebSubjectProfileExtra(
   const symbol = readString(value, "symbol");
   const companyName = readStringVerbatim(value, "companyName");
   const secFilingBasisDate = readString(value, "secFilingBasisDate");
+  const issuerReportBasisDate = readString(value, "issuerReportBasisDate");
   const subjectSummary = readAnswerValue(value.subjectSummary);
   // A sidecar artifact carries {text, topic} gaps where report.json carries strings.
   const openGaps = stringList(
@@ -599,6 +602,7 @@ export function readWebSubjectProfileExtra(
     sourceIds: sourceIds.values,
     sourceIdsComplete: sourceIds.complete,
     ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
+    ...(issuerReportBasisDate !== undefined ? { issuerReportBasisDate } : {}),
   };
 }
 

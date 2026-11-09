@@ -155,6 +155,10 @@ export interface RunTrace {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;
+  readonly webSubjectProfileReuse?: {
+    readonly decision: "reused" | "regenerated";
+    readonly reason: string;
+  };
   readonly webEvidenceUtilization?: WebEvidenceUtilization;
   readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
   readonly sourceTextResearchOnly: SourceTextResearchOnlyAudit;

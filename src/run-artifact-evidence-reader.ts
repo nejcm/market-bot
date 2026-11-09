@@ -552,6 +552,7 @@ export function readWebSubjectProfileArtifact(
   const subjectLabel = readString(value, "subjectLabel");
   const companyName = readString(value, "companyName");
   const secFilingBasisDate = readString(value, "secFilingBasisDate");
+  const issuerReportBasisDate = readString(value, "issuerReportBasisDate");
   if (
     generatedAt === undefined ||
     subjectSummary === undefined ||
@@ -588,6 +589,7 @@ export function readWebSubjectProfileArtifact(
       ...(companyName !== undefined ? { companyName } : {}),
       questions: questions as WebSubjectProfileArtifact["questions"],
       ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
+      ...(issuerReportBasisDate !== undefined ? { issuerReportBasisDate } : {}),
     } as WebSubjectProfileArtifact;
   }
   if (subjectKind === "crypto-asset") {

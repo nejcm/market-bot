@@ -241,6 +241,33 @@ describe("business framework extra", () => {
   });
 });
 
+function renderProfileWithBasis(basis: Record<string, string>): string {
+  return renderMarkdownReport(
+    researchReport({
+      jobType: "research",
+      sources: [
+        {
+          id: "web-vitrox",
+          title: "Profile source",
+          fetchedAt: "2026-11-01T00:00:00.000Z",
+          kind: "web",
+          assetClass: "equity",
+        },
+      ],
+      extras: {
+        webSubjectProfile: {
+          subjectKind: "company",
+          ...basis,
+          questions: {
+            whatItDoes: { answer: "Sells vision systems.", sourceIds: ["web-vitrox"] },
+          },
+          openGaps: ["No regional split."],
+        },
+      },
+    }),
+  );
+}
+
 describe("web subject profile extra", () => {
   test("round-trips the equity-web-fallback-deep replayed payload", async () => {
     const extra = await replayedExtra("equity-web-fallback-deep", "webSubjectProfile");
@@ -429,6 +456,15 @@ describe("web subject profile extra", () => {
     );
     expect(markdown).toContain(
       "### Profile Gaps\n\n_Gaps in the evidence the profile stage read (latest SEC filing basis 2026-09-11), not in this run's deterministic sections, which may publish the same data._\n\n- The supplied evidence does not contain revenue percentages by geographic region.",
+    );
+  });
+
+  test("scopes non-SEC profile gaps to the issuer report basis", () => {
+    expect(renderProfileWithBasis({ issuerReportBasisDate: "2026-11-05" })).toContain(
+      "_Gaps in the evidence the profile stage read (latest issuer report 2026-11-05), not",
+    );
+    expect(renderProfileWithBasis({})).toContain(
+      "_Gaps in the evidence the profile stage read, not",
     );
   });
 

@@ -4268,6 +4268,12 @@ function assertVerifiedWebFigures(result: RunFixtureResult, report: ResearchRepo
   const reaudit = auditReportIntegrity(report, undefined, undefined, undefined, texts);
   expect(reaudit.pruned.filter(({ webFigure }) => webFigure !== undefined)).toEqual([]);
   const profile = result.collectedSources.webSubjectProfile;
+  const reuseDecision = result.trace.webSubjectProfileReuse;
+  if (reuseDecision !== undefined) {
+    expect(reuseDecision.decision).toBe(
+      result.collectedSources.webSubjectProfileReuse === undefined ? "regenerated" : "reused",
+    );
+  }
   // A reused profile is the replay-recorded lookup result, so only a fresh profile reflects this code.
   if (profile !== undefined && result.collectedSources.webSubjectProfileReuse === undefined) {
     const { withheldGaps } = screenReusedWebSubjectProfile(profile, texts);

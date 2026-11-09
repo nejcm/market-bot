@@ -318,6 +318,7 @@ export function issuerReportPacket(
   symbol: string,
   sources: readonly Source[],
   rawSnapshots: readonly RawSourceSnapshot[],
+  maxDocuments = MAX_DOCUMENTS,
 ): IssuerReportPacket {
   const profile = exchangeProfileFor(symbol);
   if (profile === undefined) {
@@ -327,7 +328,7 @@ export function issuerReportPacket(
   const candidates = sources
     .filter((source) => source.kind === "web" && issuerReportHostKind(profile, source.url))
     .toSorted((left, right) => right.fetchedAt.localeCompare(left.fetchedAt))
-    .slice(0, MAX_DOCUMENTS);
+    .slice(0, maxDocuments);
   const documents: IssuerReportDocument[] = [];
   for (const source of candidates) {
     const stored = rawTexts.get(canonicalizeUrl(source.url) ?? "") ?? [];

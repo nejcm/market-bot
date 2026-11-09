@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { ExtendedEvidence, SubjectKind } from "../domain/evidence";
@@ -12,6 +12,7 @@ import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
 import { readJsonFile } from "../run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import { issuerReportPacket } from "../research/issuer-report-figures";
 import { isWebFigureGapText, webSourceTexts } from "../research/web-figure-verification";
 import type { SecFilingForm } from "../sources/evidence-request-tools";
 import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements-contract";
@@ -88,6 +89,8 @@ export async function findReusableWebSubjectProfile(input: {
   readonly now: Date;
   readonly reuseDaysBySubjectKind: Readonly<Record<SubjectKind, number>>;
   readonly currentSecFilingDate?: string;
+  // Non-SEC listings reuse provisionally; confirmIssuerReportReuse settles it after the gather.
+  readonly nonSecListing?: boolean;
   readonly currentSources?: readonly Source[];
   readonly metricSections?: readonly MetricSection[];
 }): Promise<WebSubjectProfileReuse | undefined> {
@@ -98,7 +101,11 @@ export async function findReusableWebSubjectProfile(input: {
   ) {
     return;
   }
-  if (subject.subjectKind === "company" && input.currentSecFilingDate === undefined) {
+  if (
+    subject.subjectKind === "company" &&
+    input.currentSecFilingDate === undefined &&
+    input.nonSecListing !== true
+  ) {
     return;
   }
   const reusableArtifacts = await scanWebSubjectProfileRunArtifacts(input.dataDir, {
@@ -160,14 +167,7 @@ export async function findReusableWebSubjectProfile(input: {
       profile,
       withheldGaps,
       sources,
-      gap: sourceGap({
-        source: "web-subject-profile",
-        message: `Reused web subject profile from ${profile.generatedAt} (${ageDays.toFixed(1)} days old)${filingSuffix}.`,
-        provider: "market-bot",
-        capability: "extended-evidence",
-        cause: "reused-in-window",
-        evidenceQualityImpact: "no-cap",
-      }),
+      gap: reuseFreshnessGap(profile.generatedAt, ageDays, filingSuffix),
       runDirName: artifact.runDirName,
       ageDays,
       ...(profile.originRunDirName !== undefined
@@ -181,6 +181,71 @@ export async function findReusableWebSubjectProfile(input: {
         : {}),
     };
   }
+}
+
+function reuseFreshnessGap(generatedAt: string, ageDays: number, basisSuffix: string): SourceGap {
+  return sourceGap({
+    source: "web-subject-profile",
+    message: `Reused web subject profile from ${generatedAt} (${ageDays.toFixed(1)} days old)${basisSuffix}.`,
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "reused-in-window",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+// Only a stated announcement date counts; a fetch date says nothing about when the report was public.
+export function latestIssuerReportDate(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): string | undefined {
+  if (!isInstrumentCommand(command)) {
+    return undefined;
+  }
+  return issuerReportPacket(
+    command.symbol,
+    collectedSources.extendedSources,
+    collectedSources.rawSnapshots,
+    Number.POSITIVE_INFINITY,
+  )
+    .documents.filter((document) => document.announcedAtBasis === "announcement")
+    .map((document) => document.announcedAt)
+    .toSorted()
+    .at(-1);
+}
+
+export function confirmIssuerReportReuse(
+  reuse: WebSubjectProfileReuse,
+  currentSources: readonly Source[],
+  latestReportDate: string | undefined,
+): { readonly reuse: WebSubjectProfileReuse } | { readonly discardReason: string } {
+  if (!citedTextUnchanged(reuse.sources, currentSources)) {
+    return {
+      discardReason: `Provisional reuse of ${reuse.runDirName} discarded: a cited Source re-gathered this run changed text.`,
+    };
+  }
+  const recorded =
+    reuse.profile.subjectKind === "company" ? reuse.profile.issuerReportBasisDate : undefined;
+  const basis = recorded !== undefined && ISO_DATE_RE.test(recorded) ? recorded : undefined;
+  const discard = (why: string) => ({
+    discardReason: `Provisional reuse of ${reuse.runDirName} discarded: issuer report announced ${latestReportDate ?? ""} ${why}.`,
+  });
+  let basisSuffix = "; no dated issuer report found, so reuse rests on profile age only";
+  if (latestReportDate !== undefined) {
+    if (basis === undefined) {
+      return discard("found, but the profile records no issuer report basis");
+    }
+    if (latestReportDate > basis) {
+      return discard(`is newer than the profile basis ${basis}`);
+    }
+    basisSuffix = `; latest issuer report ${latestReportDate} is not newer than the profile basis ${basis}`;
+  }
+  return {
+    reuse: {
+      ...reuse,
+      gap: reuseFreshnessGap(reuse.profile.generatedAt, reuse.ageDays, basisSuffix),
+    },
+  };
 }
 
 export function webGatherAcceptancePolicyForReuse(
@@ -258,10 +323,7 @@ function isReusableProfile(
   if (
     profile.subjectKind === "company" &&
     (profile.version !== 3 ||
-      input.currentSecFilingDate === undefined ||
-      profile.secFilingBasisDate === undefined ||
-      !ISO_DATE_RE.test(profile.secFilingBasisDate) ||
-      profile.secFilingBasisDate < input.currentSecFilingDate)
+      !secBasisCurrent(profile.secFilingBasisDate, input.currentSecFilingDate))
   ) {
     return false;
   }
@@ -271,6 +333,14 @@ function isReusableProfile(
     return false;
   }
   return nowMs - generatedAtMs <= input.reuseDays * DAY_MS;
+}
+
+// Without a current SEC filing only a profile written without one qualifies, so SEC profiles never go age-only.
+function secBasisCurrent(basis: string | undefined, current: string | undefined): boolean {
+  if (current === undefined) {
+    return basis === undefined;
+  }
+  return basis !== undefined && ISO_DATE_RE.test(basis) && basis >= current;
 }
 
 function requiredAnswersAreAllWithheld(profile: WebSubjectProfileArtifact): boolean {

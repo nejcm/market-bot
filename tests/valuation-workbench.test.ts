@@ -1097,6 +1097,46 @@ describe("valuation workbench", () => {
     ).toMatchObject({ status: "suppressed", reason: "reconciled-ttm-fcf-unavailable" });
   });
 
+  test("discloses a TTM concept switch on the free cash flow input", () => {
+    const input = statements();
+    const ocf = input.statements.cashFlowStatement.operatingCashFlow;
+    const ocfTtm = ocf.ttm as Extract<
+      FinancialStatementTtm,
+      { formula: "FY + latest-YTD - prior-YTD" }
+    >;
+    const latestYearToDate = {
+      ...ocfTtm.components.latestYearToDate,
+      concept: "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    };
+    const switched = {
+      ...input,
+      statements: {
+        ...input.statements,
+        cashFlowStatement: {
+          ...input.statements.cashFlowStatement,
+          operatingCashFlow: {
+            ...ocf,
+            ttm: { ...ocfTtm, components: { ...ocfTtm.components, latestYearToDate } },
+          },
+        },
+      },
+    };
+    const ttmObservation = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: switched,
+      priceHistory: [
+        { date: "2025-02-18", close: 24 },
+        { date: "2025-05-01", close: 26 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    }).historicalMultiples.observations.find((item) => item.basis === "ttm")!;
+    const disclosure = `TTM components differ in concept or derivation: fiscalYear operatingCashFlow (sec-companyfacts), latestYearToDate ${latestYearToDate.concept} (sec-companyfacts)`;
+
+    expect(ttmObservation.inputs.freeCashFlow?.derivation).toContain(disclosure);
+  });
+
   test("does not derive free cash flow across mismatched periods or units", () => {
     const input = statements();
     const latestCapex = input.statements.cashFlowStatement.capitalExpenditure.annual[1]!;

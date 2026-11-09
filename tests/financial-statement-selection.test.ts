@@ -782,6 +782,161 @@ describe("financial statement selection", () => {
     expect(derive([thirteenMonths], []).ttm).toBeUndefined();
   });
 
+  describe("TTM component concept and derivation", () => {
+    const operatingCashFlow = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+      (item) => item.key === "operatingCashFlow",
+    )!;
+    const netIncome = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+      (item) => item.key === "netIncome",
+    )!;
+    const continuing = "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";
+    const total = "NetCashProvidedByUsedInOperatingActivities";
+    const component = (
+      value: number,
+      periodStart: string,
+      periodEnd: string,
+      concept: string,
+      extractionMethod: FinancialStatementFact["extractionMethod"] = "sec-companyfacts",
+      periodType: FinancialStatementFact["periodType"] = "interim",
+    ) => ({
+      ...fact({
+        value,
+        periodType,
+        periodStart,
+        periodEnd,
+        periodKey: `${periodStart}|${periodEnd}`,
+      }),
+      concept,
+      extractionMethod,
+    });
+    // EMR FY2025 10-K 0000032604-25-000087 and Q3 FY2026 10-Q 0000032604-26-000043.
+    const emrFiscalYear = component(
+      3_676_000_000,
+      "2024-10-01",
+      "2025-09-30",
+      continuing,
+      "sec-companyfacts",
+      "annual",
+    );
+    const emrPriorYtd = component(2_664_000_000, "2024-10-01", "2025-06-30", continuing);
+    const emrLatestYtd = component(2_902_000_000, "2025-10-01", "2026-06-30", total);
+
+    test("derives TTM without a note when every component shares one concept", () => {
+      const sameConcept = { ...emrLatestYtd, concept: continuing };
+      expect(
+        deriveFinancialStatementTtm(
+          operatingCashFlow,
+          [emrFiscalYear],
+          [emrPriorYtd, sameConcept],
+          "USD",
+        ),
+      ).toEqual({ ttm: expect.objectContaining({ value: 3_914_000_000 }) });
+    });
+
+    test("discloses a concept switch across reported components (EMR OCF to 2026-06-30)", () => {
+      expect(
+        deriveFinancialStatementTtm(
+          operatingCashFlow,
+          [emrFiscalYear],
+          [emrPriorYtd, emrLatestYtd],
+          "USD",
+        ),
+      ).toEqual({
+        ttm: expect.objectContaining({
+          value: 3_914_000_000,
+          formula: "FY + latest-YTD - prior-YTD",
+          periodEnd: "2026-06-30",
+        }),
+        note: expect.objectContaining({
+          code: "ttm-component-basis",
+          seriesKey: "operatingCashFlow",
+          message: expect.stringContaining(`latestYearToDate ${total} (sec-companyfacts)`),
+        }),
+      });
+    });
+
+    test("discloses a derived leg beside reported ones (VRSN net income to 2026-09-30)", () => {
+      // VRSN FY2025 ProfitLoss fallback (10-K 0001014473-26-000006) beside 9M NetIncomeLoss (10-Q 0001014473-26-000039).
+      const fiscalYear = component(
+        825_700_000,
+        "2025-01-01",
+        "2025-12-31",
+        "ProfitLoss",
+        "derived-sec-companyfacts",
+        "annual",
+      );
+      const latest = component(643_600_000, "2026-01-01", "2026-09-30", "NetIncomeLoss");
+      const prior = component(619_500_000, "2025-01-01", "2025-09-30", "NetIncomeLoss");
+
+      expect(deriveFinancialStatementTtm(netIncome, [fiscalYear], [prior, latest], "USD")).toEqual({
+        ttm: expect.objectContaining({ value: 849_800_000 }),
+        note: expect.objectContaining({
+          code: "ttm-component-basis",
+          seriesKey: "netIncome",
+          message: expect.stringContaining(
+            "fiscalYear ProfitLoss (derived-sec-companyfacts), latestYearToDate NetIncomeLoss (sec-companyfacts)",
+          ),
+        }),
+      });
+      const allDerived = [prior, latest].map((item) => ({
+        ...item,
+        concept: "ProfitLoss",
+        extractionMethod: "derived-sec-companyfacts" as const,
+      }));
+      expect(deriveFinancialStatementTtm(netIncome, [fiscalYear], allDerived, "USD")).toEqual({
+        ttm: expect.objectContaining({ value: 849_800_000 }),
+      });
+    });
+
+    test("discloses derived legs under different concepts (QCOM OCF to 2025-06-29)", () => {
+      // QCOM FY2024 and 9M FY2024 are total - discontinued OCF; 9M FY2025 is the reported total (10-Q 0000804328-26-000086).
+      const derivedConcept = `${total}-CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations`;
+      const derived = "derived-sec-companyfacts" as const;
+      const fiscalYear = component(
+        12_293_000_000,
+        "2023-09-25",
+        "2024-09-29",
+        derivedConcept,
+        derived,
+        "annual",
+      );
+      const prior = component(9_646_000_000, "2023-09-25", "2024-06-23", derivedConcept, derived);
+      const latest = component(10_016_000_000, "2024-09-30", "2025-06-29", total);
+
+      expect(
+        deriveFinancialStatementTtm(operatingCashFlow, [fiscalYear], [prior, latest], "USD"),
+      ).toEqual({
+        ttm: expect.objectContaining({ value: 12_663_000_000 }),
+        note: expect.objectContaining({ code: "ttm-component-basis" }),
+      });
+      expect(
+        deriveFinancialStatementTtm(
+          operatingCashFlow,
+          [fiscalYear],
+          [prior, { ...latest, concept: continuing, extractionMethod: derived }],
+          "USD",
+        ),
+      ).toEqual({
+        ttm: expect.objectContaining({ value: 12_663_000_000 }),
+        note: expect.objectContaining({
+          code: "ttm-component-basis",
+          message: expect.stringContaining(`latestYearToDate ${continuing} (${derived})`),
+        }),
+      });
+    });
+
+    test("keeps the missing-component note when the prior YTD is absent", () => {
+      expect(
+        deriveFinancialStatementTtm(operatingCashFlow, [emrFiscalYear], [emrLatestYtd], "USD"),
+      ).toEqual({
+        note: expect.objectContaining({
+          code: "unreconciled-ttm",
+          message: "No aligned prior-year interim duration fact is available",
+        }),
+      });
+    });
+  });
+
   test("checks TTM period alignment separately from full compatibility", () => {
     const base = ttm();
     const differentUnit = ttm({ unit: "EUR" });

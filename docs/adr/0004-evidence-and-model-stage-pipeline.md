@@ -161,7 +161,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   continuing amount is filed no earlier than the newest total; otherwise the period is withheld. IFRS capex beside
   it follows the same capex rule. Narrower current concepts carry continuing-operation labels through every OCF/FCF consumer. Apply cutoff; keep up to ten 10–14-month 10-K
   periods and latest-filed restatements. Derive TTM as FY + aligned current YTD − prior YTD; mismatches are
-  omitted/audited. EPS TTM is approximate; FCF/margins/CAGR/margin change need matched periods/units and CAGR
+  omitted/audited. Each component is the fact its series already selected; a difference in concept or
+  extraction method is disclosed on the published TTM with a `ttm-component-basis` note (also on the workbench TTM input derivation). EPS TTM is approximate; FCF/margins/CAGR/margin change need matched periods/units and CAGR
   is annual-only.
 - A canonical versioned financial-statements artifact accepts standard us-gaap/ifrs-full 10-K/Q/20-F/6-K and
   amendments. It drives history, lenses, valuation, APIs, and completeness through tested seams; fundamental

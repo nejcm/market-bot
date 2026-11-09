@@ -173,7 +173,7 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   expression instead. Either way a folded event is scored at the `eventGrid` probability when valid, so
   Brier and Calibration inputs can differ from the duplicate's probability.
 - The `forecast-grid` job issues the same Event Grid per watchlist equity, priced by one `quickModel` call
-  from a compact fact sheet (no synthesis, not shown the baseline). It publishes a run-artifact dir under
+  from a compact fact sheet (no synthesis, not shown the baseline); a withheld book makes no call. It publishes a run-artifact dir under
   `data/runs/` so the existing score pass, Calibration, index and history read it unchanged; only parsed
   probabilities persist. Spending needs an explicit CLI `--yes`; the Research Console cannot queue it. An
   event it shares with an instrument run on the same session collapses through the Forecast Event dedupe.

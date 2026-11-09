@@ -528,7 +528,7 @@ from persisted alpha-search artifacts.
 
 ```sh
 market-bot forecast-grid --watchlist <name>        # dry run: plan only, spends nothing
-market-bot forecast-grid --watchlist <name> --yes  # spends one quick-model call per symbol
+market-bot forecast-grid --watchlist <name> --yes  # spends one quick-model call per symbol with an issuable book
 ```
 
 - The watchlist is read by exact name from the Research Console DB
@@ -546,7 +546,7 @@ market-bot forecast-grid --watchlist <name> --yes  # spends one quick-model call
 
 Per equity symbol, in sequence: `yahoo-price-history` (issuer + SPY, or the Exchange Profile benchmark) feeds the
 Verified Market Snapshot, the deterministic Event Grid and the Forecast Baseline.
-When the grid has events, one `forecast-grid` stage call on `quickModel` prices
+When the grid has events and the forecast book is not withheld, one `forecast-grid` stage call on `quickModel` prices
 them from a compact fact sheet: last close, 1/5/20/60-session returns, 20-day
 realized volatility, that benchmark's 5/20-session returns and, when the newest instrument run
 is at most seven days old, its summary and market regime label. No report

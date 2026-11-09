@@ -30,6 +30,11 @@ export interface FixtureMeta {
   readonly replayClassification: "clean" | "missing-source" | "incomplete";
   // LLM Cassette keys written by hand, not recorded; "clean" covers HTTP replay only.
   readonly syntheticLlmEntries?: readonly string[];
+  // Only fixtures that exercise the integrity prune path set this; all others must prune nothing.
+  readonly expectedIntegrityPrune?: {
+    readonly reportIntegrity: "medium" | "low";
+    readonly pruned: readonly { readonly location: string; readonly text: string }[];
+  };
   readonly now: string;
   readonly argv: readonly string[];
   readonly quickModel?: string;
@@ -486,6 +491,7 @@ export async function runFixture(
 // Every fixture `bun run check` replays through the real equity pipeline.
 export const EQUITY_RUN_FIXTURES = [
   "equity-aapl-brief",
+  "equity-aapl-brief-prune",
   "equity-aapl-deep",
   "equity-earnings-release-deep",
   "equity-nbis-deep",

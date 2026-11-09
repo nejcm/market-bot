@@ -96,6 +96,20 @@ import {
 } from "../../../src/replay/fixture-run";
 import { assertFinancialRunInvariants } from "../../../src/corpus/financial-invariants";
 
+export function assertIntegrityPruneInvariant(
+  pruned: readonly { readonly location: string; readonly text: string }[] | undefined,
+  report: Pick<ResearchReport, "reportIntegrity">,
+  meta: Pick<FixtureMeta, "expectedIntegrityPrune">,
+): void {
+  const expected = meta.expectedIntegrityPrune;
+  expect(pruned?.map(({ location, text }) => ({ location, text }))).toEqual([
+    ...(expected?.pruned ?? []),
+  ]);
+  expect(report.reportIntegrity, "integrity audit pruned report content").toBe(
+    expected?.reportIntegrity ?? "high",
+  );
+}
+
 function asWritten(value: unknown): unknown {
   const written = JSON.stringify(value);
   return JSON.parse(written) as unknown;
@@ -493,8 +507,7 @@ export async function assertInvariants(
   assertOperatingRatioInvariants(result, report);
   assertPricePerformanceInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
-  expect(result.trace.reportIntegrityAudit?.pruned).toEqual([]);
-  expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
+  assertIntegrityPruneInvariant(result.trace.reportIntegrityAudit?.pruned, report, meta);
   expect(
     (result.trace.reportIntegrityAudit?.droppedFigureQuotes ?? []).map(({ location, reason }) => [
       location,
@@ -1301,6 +1314,7 @@ const EXPECTED_LENS_VALUES: Readonly<
   Record<string, Readonly<Record<string, number | string | null>>>
 > = {
   "equity-aapl-brief": {},
+  "equity-aapl-brief-prune": {},
   "equity-aapl-deep": AAPL_LENS_VALUES,
   "equity-earnings-release-deep": {
     // FY2026 10-K 0000320193-26-000026 (filed 2026-11-03): revenue 478,834M, net income 132,175M, diluted EPS 8.98.
@@ -3878,6 +3892,7 @@ const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
 };
 const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-aapl-brief": {},
+  "equity-aapl-brief-prune": {},
   "equity-aapl-deep": AAPL_WORKBENCH_VALUES,
   "equity-earnings-release-deep": {
     "annual|2017-09-30|2017-11-03": [

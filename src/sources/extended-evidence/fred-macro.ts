@@ -32,12 +32,11 @@ export async function collectFred(ctx: CollectContext): Promise<ProviderResult> 
     };
   }
   const { fredApiKey } = ctx;
-  const urls = FRED_SERIES.map((seriesId) => fredObservationsUrl(seriesId, fredApiKey, 2));
   const results = await Promise.all(
-    urls.map((url, index) =>
+    FRED_SERIES.map((seriesId) =>
       ctx.request.json({
-        url,
-        adapter: `fred-${FRED_SERIES[index]}`,
+        url: fredObservationsUrl(seriesId, fredApiKey, 2),
+        adapter: `fred-${seriesId}`,
       }),
     ),
   );

@@ -6,12 +6,12 @@ import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { encodeQuery, latestNumber } from "./utils";
 
 const GLASSNODE_METRICS = [
-  "addresses/active_count",
-  "transactions/count",
-  "transactions/transfers_volume_exchanges_net",
-  "market/mvrv",
-  "fees/volume_sum",
-];
+  ["glassnode-1", "addresses/active_count"],
+  ["glassnode-2", "transactions/count"],
+  ["glassnode-3", "transactions/transfers_volume_exchanges_net"],
+  ["glassnode-4", "market/mvrv"],
+  ["glassnode-5", "fees/volume_sum"],
+] as const;
 
 export async function collectGlassnode(ctx: CollectContext): Promise<ProviderResult> {
   const { command, fetchedAt } = ctx;
@@ -35,18 +35,14 @@ export async function collectGlassnode(ctx: CollectContext): Promise<ProviderRes
     };
   }
   const { glassnodeApiKey } = ctx;
-  const urls = GLASSNODE_METRICS.map(
-    (metric) =>
-      `https://api.glassnode.com/v1/metrics/${metric}?${encodeQuery({
-        a: command.symbol,
-        api_key: glassnodeApiKey,
-      })}`,
-  );
   const results = await Promise.all(
-    urls.map((url, index) =>
+    GLASSNODE_METRICS.map(([adapter, metric]) =>
       ctx.request.json({
-        url,
-        adapter: `glassnode-${String(index + 1)}`,
+        url: `https://api.glassnode.com/v1/metrics/${metric}?${encodeQuery({
+          a: command.symbol,
+          api_key: glassnodeApiKey,
+        })}`,
+        adapter,
       }),
     ),
   );
@@ -57,7 +53,8 @@ export async function collectGlassnode(ctx: CollectContext): Promise<ProviderRes
     if (isFetchJsonResult(result)) {
       const value = latestNumber(Array.isArray(result.payload) ? result.payload : [], ["v"]);
       if (value !== undefined) {
-        metrics[GLASSNODE_METRICS[index]?.replaceAll("/", ".") ?? `metric${String(index)}`] = value;
+        metrics[GLASSNODE_METRICS[index]?.[1].replaceAll("/", ".") ?? `metric${String(index)}`] =
+          value;
       }
     }
   }

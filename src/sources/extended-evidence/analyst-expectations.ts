@@ -2,6 +2,7 @@ import { isInstrumentCommand } from "../../cli/args";
 import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import type { Source, SourceGap } from "../../domain/sources";
 import { isRecord, readNumber, readString } from "../../guards";
+import type { SourceAdapter } from "../adapter-freshness";
 import { isUsListing } from "../instrument-capability";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { collectedItem, evidenceSource, type CollectedItem, type ProviderResult } from "./common";
@@ -61,7 +62,7 @@ export interface AnalystExpectationsProviderResult extends ProviderResult {
 }
 
 interface RouteDefinition {
-  readonly adapter: string;
+  readonly adapter: SourceAdapter;
   readonly endpoint: string;
   readonly label: string;
   readonly kind?: AnalystEstimateKind;
@@ -96,7 +97,7 @@ export const ANALYST_EXPECTATION_ADAPTERS: ReadonlySet<string> = new Set(
   ROUTES.map((route) => route.adapter),
 );
 
-const ESTIMATE_ADAPTERS = new Set(
+const ESTIMATE_ADAPTERS = new Set<string>(
   ROUTES.flatMap((route) => (route.kind === undefined ? [] : [route.adapter])),
 );
 

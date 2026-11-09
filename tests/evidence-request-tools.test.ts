@@ -2634,12 +2634,12 @@ describe("extension short-term investments proof fetch", () => {
               : jsonResult(adapter, submissions),
           text: async ({ adapter }) => {
             requested.push(adapter);
-            const payload = {
+            const payload: string | undefined = {
               "sec-xbrl-instance": INSTANCE,
               "sec-xbrl-schema": SCHEMA,
               "sec-calculation-linkbase": CAL,
               ...served,
-            }[adapter];
+            }[adapter as string];
             return payload === undefined ? gap(adapter) : textResult(adapter, payload);
           },
         }),

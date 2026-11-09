@@ -27,7 +27,7 @@ export function isVixAllowedSubject(predictionSubjects: readonly string[]): bool
 
 // `macro` forecasts take a FRED series as subject; equity runs allow only their symbol.
 export function isFredAllowedSubject(predictionSubjects: readonly string[]): boolean {
-  return predictionSubjects.some((subject) => FRED_SERIES.includes(subject));
+  return predictionSubjects.some((subject) => FRED_SERIES.some((series) => series === subject));
 }
 
 // `excludedKinds` withdraws kinds a specific path cannot support from every surface the prompt

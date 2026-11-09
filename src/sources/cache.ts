@@ -6,6 +6,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { writeFileAtomic } from "../artifacts";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/sources";
+import { adapterFreshnessBudget, type SourceAdapter } from "./adapter-freshness";
 import { isYahooMarketDataAdapter, yahooCacheFallbackDays } from "./yahoo-resilience";
 import type { FetchSourceResult, RawSourceSnapshot, SourceRequest } from "./types";
 
@@ -176,7 +177,7 @@ export async function makeCacheKeyForTest(
   adapter: string,
   init?: RequestInit,
 ): Promise<string | undefined> {
-  return cacheKey({ url, adapter, init });
+  return cacheKey({ url, adapter: adapter as SourceAdapter, init });
 }
 
 function utcDateString(date: Date): string {
@@ -272,27 +273,7 @@ async function findStaleFallback(
 }
 
 function freshnessBudgetMs(adapter: string): number {
-  if (
-    adapter.includes("news") ||
-    adapter === "apewisdom" ||
-    adapter.startsWith("exa-search") ||
-    adapter.includes("social")
-  ) {
-    return FRESHNESS_BUDGETS_MS.news;
-  }
-  if (
-    adapter.startsWith("sec-") ||
-    adapter.startsWith("fred") ||
-    adapter.startsWith("nasdaq-") ||
-    adapter.startsWith("cboe-") ||
-    adapter.startsWith("exa-contents") ||
-    adapter.startsWith("glassnode") ||
-    adapter.includes("expirations") ||
-    adapter.includes("events")
-  ) {
-    return FRESHNESS_BUDGETS_MS.reference;
-  }
-  return FRESHNESS_BUDGETS_MS.live;
+  return FRESHNESS_BUDGETS_MS[adapterFreshnessBudget(adapter)];
 }
 
 function isFresh(entry: CacheEntry, budgetMs: number, now: Date): boolean {

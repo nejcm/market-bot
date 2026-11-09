@@ -59,7 +59,7 @@ async function probe(candidate: CandidateEndpoint): Promise<ProbeResult> {
   const query = encodeQuery({ ...candidate.params, token: context.finnhubApiToken });
   const result = await context.request.json({
     url: `https://finnhub.io/api/v1${candidate.endpoint}?${query}`,
-    adapter: `finnhub-feasibility-${candidate.endpoint.slice(1).replaceAll("/", "-")}`,
+    adapter: "finnhub-feasibility",
   });
   if (isFetchJsonResult(result)) {
     return { endpoint: candidate.endpoint, status: "available", observedAt };

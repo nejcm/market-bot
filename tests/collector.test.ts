@@ -1,3 +1,4 @@
+import type { SourceAdapter } from "../src/sources/adapter-freshness";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,7 +55,7 @@ async function requestJson(
   );
   const result = await context.request.json({
     url: "https://example.test/json",
-    adapter: "json-source",
+    adapter: "json-source" as SourceAdapter,
     ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
   });
   return { result, calls };
@@ -310,7 +311,7 @@ describe("collectSources", () => {
       [],
     );
 
-    const request = { url: "https://example.test/filing", adapter: "sec-filing-text" };
+    const request = { url: "https://example.test/filing", adapter: "sec-filing-text" as const };
     await context.request.json(request);
 
     const textResult = await context.request.text(request);
@@ -340,7 +341,7 @@ describe("collectSources", () => {
       [],
     );
 
-    const request = { url: "https://example.test/json", adapter: "test-json" };
+    const request = { url: "https://example.test/json", adapter: "test-json" as SourceAdapter };
     await context.request.text(request);
 
     const jsonResult = await context.request.json(request);
@@ -368,7 +369,7 @@ describe("collectSources", () => {
 
     const result = await context.request.text({
       url: "https://example.test/oversized",
-      adapter: "oversized-source",
+      adapter: "oversized-source" as SourceAdapter,
     });
 
     expect(result).toEqual(
@@ -397,7 +398,7 @@ describe("collectSources", () => {
 
     const result = await context.request.text({
       url: "https://example.test/oversized-stream",
-      adapter: "oversized-source",
+      adapter: "oversized-source" as SourceAdapter,
     });
 
     expect(result).toEqual(
@@ -455,7 +456,7 @@ describe("collectSources", () => {
       );
       const result = await context.request.json({
         url: "https://example.test/json",
-        adapter: "json-source",
+        adapter: "json-source" as SourceAdapter,
       });
       expect(result).toEqual(expect.objectContaining({ cause: "fetch-failed" }));
       expect(result).not.toHaveProperty("attempts");

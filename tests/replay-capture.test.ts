@@ -1,3 +1,4 @@
+import type { SourceAdapter } from "../src/sources/adapter-freshness";
 import { afterAll, expect, test } from "bun:test";
 import { cp, mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -983,14 +984,17 @@ test("circuit capture stays compact across distinct requests while preserving tr
       for (let index = 0; index < 100; index += 1) {
         const result = await request.json({
           url: `https://compact-circuit.test/quote?symbol=${String(index)}`,
-          adapter: "capture-test",
+          adapter: "capture-test" as SourceAdapter,
         });
         expect("rawSnapshot" in result).toBe(true);
       }
-      await request.json({ url: "https://compact-circuit.test/limited", adapter: "capture-test" });
+      await request.json({
+        url: "https://compact-circuit.test/limited",
+        adapter: "capture-test" as SourceAdapter,
+      });
       const blocked = await request.json({
         url: "https://compact-circuit.test/blocked",
-        adapter: "capture-test",
+        adapter: "capture-test" as SourceAdapter,
       });
       expect("cause" in blocked && blocked.cause).toBe("circuit-open");
     },
@@ -1008,18 +1012,18 @@ test("circuit capture stays compact across distinct requests while preserving tr
       for (let index = 0; index < 100; index += 1) {
         const result = await request.json({
           url: `https://compact-circuit.test/quote?symbol=${String(index)}`,
-          adapter: "capture-test",
+          adapter: "capture-test" as SourceAdapter,
         });
         expect("rawSnapshot" in result).toBe(true);
       }
       const limited = await request.json({
         url: "https://compact-circuit.test/limited",
-        adapter: "capture-test",
+        adapter: "capture-test" as SourceAdapter,
       });
       expect("cause" in limited && limited.cause).toBe("fetch-failed");
       const blocked = await request.json({
         url: "https://compact-circuit.test/blocked",
-        adapter: "capture-test",
+        adapter: "capture-test" as SourceAdapter,
       });
       expect("cause" in blocked && blocked.cause).toBe("circuit-open");
       expect(() => replayValueSync(Object.keys(state.values)[0]!, () => false)).toThrow(

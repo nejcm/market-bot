@@ -41,7 +41,7 @@ function makeFetchResult(
 }
 
 function request(url: string, adapter = "test-adapter", init?: RequestInit): SourceRequest {
-  return { url, adapter, init };
+  return { url, adapter: adapter as SourceRequest["adapter"], init };
 }
 
 function makeOptions(

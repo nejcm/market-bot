@@ -1,4 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
+import type { SourceAdapter } from "./adapter-freshness";
 import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
@@ -39,7 +40,7 @@ export type FetchLike = (input: string | URL | Request, init?: RequestInit) => P
 
 export interface SourceRequest {
   readonly url: string;
-  readonly adapter: string;
+  readonly adapter: SourceAdapter;
   readonly init?: RequestInit | undefined;
   readonly fetch?: ((baseFetch: FetchLike) => FetchLike) | undefined;
   // Overrides the default response-byte ceiling in source-request.ts for this text or JSON fetch.

@@ -2,6 +2,7 @@ import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { AssetClass } from "../domain/job-type";
 import type { Source } from "../domain/sources";
+import type { SourceAdapter } from "./adapter-freshness";
 import { isRecord, optionalString, readString } from "../guards";
 import {
   canonicalizeUrl,
@@ -100,7 +101,7 @@ function normalizeNews(
 
 async function collectQuery(
   ctx: CollectContext,
-  adapter: string,
+  adapter: SourceAdapter,
   thematicSearch?: string,
 ): Promise<NewsCollectionResult> {
   const { command, fetchedAt, newsLimit } = ctx;

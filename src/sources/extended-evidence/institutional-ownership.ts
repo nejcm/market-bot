@@ -2,6 +2,7 @@ import { isInstrumentCommand } from "../../cli/args";
 import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import type { Source, SourceGap } from "../../domain/sources";
 import { isRecord, readNumber } from "../../guards";
+import type { SourceAdapter } from "../adapter-freshness";
 import { isUsListing } from "../instrument-capability";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { collectedItem, evidenceSource, type CollectedItem, type ProviderResult } from "./common";
@@ -45,7 +46,7 @@ export interface InstitutionalOwnershipProviderResult extends ProviderResult {
 }
 
 interface RouteDefinition {
-  readonly adapter: string;
+  readonly adapter: SourceAdapter;
   readonly endpoint: string;
   readonly label: string;
   readonly sourceSuffix: "institutional" | "insider-transactions";
@@ -66,7 +67,7 @@ const INSIDER_ROUTE: RouteDefinition = {
 };
 
 const ROUTES: readonly RouteDefinition[] = [INSTITUTIONAL_ROUTE, INSIDER_ROUTE];
-const ROUTE_ADAPTERS = new Set(ROUTES.map((route) => route.adapter));
+const ROUTE_ADAPTERS = new Set<string>(ROUTES.map((route) => route.adapter));
 
 function firstNumber(record: Record<string, unknown>, keys: readonly string[]): number | undefined {
   for (const key of keys) {

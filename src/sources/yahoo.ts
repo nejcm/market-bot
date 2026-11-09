@@ -1,3 +1,4 @@
+import type { SourceAdapter } from "./adapter-freshness";
 import { isInstrumentCommand } from "../cli/args";
 import { type InstrumentIdentity } from "../domain/instrument";
 import { isMarketUpdateJobType, type AssetClass } from "../domain/job-type";
@@ -233,7 +234,7 @@ export function yahooResilientFetchWrapper(baseFetch: FetchLike): FetchLike {
 
 export function yahooQuoteSourceRequest(
   symbols: readonly string[],
-  adapter: string,
+  adapter: SourceAdapter,
 ): SourceRequest {
   return {
     url: yahooQuoteUrl(symbols.join(",")),
@@ -255,7 +256,7 @@ function isMoverRole(role: EquityRole): boolean {
   return role === "gainers" || role === "losers" || role === "actives";
 }
 
-function equityRoleAdapter(role: EquityRole): string {
+function equityRoleAdapter(role: EquityRole): SourceAdapter {
   if (role === "regime") {
     return "yahoo-regime";
   }

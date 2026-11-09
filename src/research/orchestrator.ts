@@ -1,42 +1,26 @@
 import { buildModelStageRequest } from "./model-stage-prompt";
-import { finalizeSynthesis, PostSynthesisError } from "./finalize-synthesis";
-import { createPeerMedianAudit } from "./peer-median-audit";
-import { replayValue, captureSynthesisInput } from "../replay/session";
+import { replayValue } from "../replay/session";
 import type { AppConfig } from "../config";
 import { readCodeVersion, type CodeVersion } from "../code-version";
 import { progress } from "../progress";
 import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
-import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
+import { resolveRunParams, type RunConfig } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { createRunId, publishRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import { isMarketUpdateJobType, marketUpdateHorizonBucket } from "../domain/job-type";
 import { type MarketSnapshot, type Mover } from "../domain/market-data";
 import { type ResearchReport } from "../domain/report";
-import { type PostSynthesisAuditWarning, type RunTrace } from "../domain/run-trace";
-import {
-  buildFailedRunManifest,
-  buildResearchRunManifest,
-  persistFailedRunArtifactWrites,
-  persistRunArtifactWrites,
-  type FailedRunManifestInput,
-} from "../run-artifact-writer";
+import { type RunTrace } from "../domain/run-trace";
+import { buildResearchRunManifest, persistRunArtifactWrites } from "../run-artifact-writer";
 import type { ModelProvider } from "../model/types";
-import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { recordSeenNewsSources } from "../sources/news-seen";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
-import {
-  isFinalSynthesisRejectedError,
-  synthesizeReportUntilValid,
-  type SynthesizeReportUntilValidResult,
-  type StageOutput,
-  type StageReprompt,
-} from "./final-synthesis";
+import type { StageOutput, StageReprompt } from "./final-synthesis";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
-import { loadStagePrompt } from "./prompt-loader";
 import { buildRunAnalytics, type RunAnalytics } from "./run-analytics";
 import { isLedgered, ledgerTotals, withModelCallLedger } from "../model/call-ledger";
 import {
@@ -45,24 +29,12 @@ import {
 } from "./historical-context";
 import { createSanitizedHistoricalContextReader } from "./historical-context-sanitization";
 import { buildForecastPersistence } from "./forecast-persistence";
-import {
-  loadPlaybookRegistry,
-  loadPlaybooksByStage,
-  playbookScopeWithSubjectKey,
-  selectPlaybooks,
-  type PlaybookSelectionAudit,
-  type PlaybookStage,
-} from "./playbooks";
+import type { PlaybookSelectionAudit } from "./playbooks";
 import { refreshCalibrationContext } from "./calibration-context";
 import { buildDepthProfileFromParams } from "./depth-profile";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
-import { validateResearchReport } from "../report/schema";
-import {
-  runForecastDisagreement,
-  type ForecastDisagreementArtifact,
-  type ForecastDisagreementExtra,
-} from "./forecast-disagreement";
+import type { ForecastDisagreementArtifact } from "./forecast-disagreement";
 import { runWebEvidencePhase } from "../web-evidence";
 import {
   loadAlphaWatchlistForSpotlights,
@@ -90,28 +62,23 @@ import {
   type SourcePlanArtifactV2,
 } from "./source-plan";
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
-import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
+import { plannedResearchStages, runAnalysisPhase, runPlaybookSelection } from "./analysis-phase";
+import { runForecastDisagreementPhase } from "./forecast-disagreement-phase";
+import { runSynthesisPhase } from "./synthesis-phase";
 import { buildRunTrace } from "./run-trace";
-import {
-  buildSubsystemOutcomes,
-  type ForecastDisagreementOutcomeCode,
-  type WrittenSubsystemOutcome,
-} from "./subsystem-outcomes";
+import { buildSubsystemOutcomes, type WrittenSubsystemOutcome } from "./subsystem-outcomes";
 import { createSourceRequestContext } from "../sources/source-request";
 import {
   runFinancialTableExtractionPhase,
+  runFinancialTableMappingStage,
   type FinancialTableExtractionPhaseResult,
 } from "./financial-table-extraction-phase";
-import type { FinancialTablePacket } from "../sources/extended-evidence/untagged-financial-tables-contract";
-import { FINANCIAL_TABLE_SEMANTIC_FIELDS } from "../sources/extended-evidence/untagged-financial-table-validation";
-import { buildDeepEquityEvidenceBundle } from "../deep-equity/evidence";
 import type { DeepEquityEvidenceBundleV1 } from "../deep-equity/types";
 import { listingCommand } from "../sources/identity-gate";
 import { exchangeProfileFor } from "../domain/exchange-profile";
 import {
-  issuerReportMappingInput,
+  runIssuerReportMappingStage,
   runIssuerReportPhase,
-  type IssuerReportPacket,
   type IssuerReportPhaseResult,
 } from "./issuer-report-figures";
 
@@ -173,33 +140,6 @@ function matchingMarketSnapshot(
   );
 }
 
-export const MAX_PREDICTION_REPROMPTS = 2;
-
-function forecastDisagreementModels(
-  input: RunResearchJobInput,
-  synthesisModel: string,
-): readonly string[] {
-  if (input.command.depth !== "deep") {
-    return [];
-  }
-  return (input.config.forecastDisagreementOptions?.challengerModels ?? []).filter(
-    (model) => model !== synthesisModel,
-  );
-}
-
-function compactForecastDisagreementExtra(
-  artifact: ForecastDisagreementArtifact,
-): ForecastDisagreementExtra {
-  return {
-    version: artifact.version,
-    generatedAt: artifact.generatedAt,
-    participantCount: artifact.participantCount,
-    successfulParticipantCount: artifact.successfulParticipantCount,
-    errorCount: artifact.errorCount,
-    predictions: artifact.predictions,
-  };
-}
-
 // The constant job plus the per-stage evidence, context, prior stages, and reprompt.
 interface ModelStageInput {
   readonly job: RunResearchJobInput;
@@ -257,233 +197,6 @@ async function runModelStage(
       : {}),
     ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
     ...(steering !== undefined ? { steering } : {}),
-  };
-}
-
-async function runFinancialTableMappingStage(
-  packet: FinancialTablePacket,
-  filingReportDate: string,
-  job: RunResearchJobInput,
-  runParams: ResolvedRunParams,
-): Promise<StageOutput & { readonly stage: "financial-table-mapping" }> {
-  const loaded = await loadStagePrompt(
-    "financial-table-mapping",
-    job.command,
-    job.config.promptDir,
-  );
-  const prompt = JSON.stringify({
-    stage: "financial-table-mapping",
-    instruction: loaded.instruction,
-    goal: loaded.goal,
-    filing: packet.source,
-    filingReportDate,
-    allowedFields: FINANCIAL_TABLE_SEMANTIC_FIELDS,
-    tables: packet.tables.map((table) => ({
-      id: table.id,
-      sourceTableIndex: table.sourceTableIndex,
-      context: table.context,
-      ...(table.title !== undefined ? { title: table.title } : {}),
-      ...(table.unitText !== undefined ? { unitText: table.unitText } : {}),
-      ...(table.unitCellRef !== undefined ? { unitCellRef: table.unitCellRef } : {}),
-      ...(table.inheritedHeaderRefs !== undefined
-        ? { inheritedHeaderRefs: table.inheritedHeaderRefs }
-        : {}),
-      rows: table.rows.map((row) => ({
-        rowIndex: row.rowIndex,
-        cells: row.cells.map((cell) => ({
-          ref: cell.ref,
-          text: cell.text,
-          headerRefs: cell.headerRefs,
-        })),
-      })),
-    })),
-  });
-  const startedAt = performance.now();
-  const response = await job.provider.generate({
-    step: packet.source.accessionNumber,
-    model: runParams.quickModel,
-    ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
-    responseFormat: "json",
-    messages: [
-      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
-      { role: "user", content: prompt },
-    ],
-  });
-  const endedAt = performance.now();
-  return {
-    stage: "financial-table-mapping",
-    content: response.content,
-    tokenEstimate: response.tokenEstimate,
-    usage: response.usage ?? "unknown",
-    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
-    ...(response.costEstimateUsd !== undefined
-      ? { costEstimateUsd: response.costEstimateUsd }
-      : {}),
-    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
-  };
-}
-
-async function runIssuerReportMappingStage(
-  packet: IssuerReportPacket,
-  symbol: string,
-  job: RunResearchJobInput,
-  runParams: ResolvedRunParams,
-): Promise<StageOutput & { readonly stage: "issuer-report-mapping" }> {
-  const loaded = await loadStagePrompt("issuer-report-mapping", job.command, job.config.promptDir);
-  const prompt = JSON.stringify({
-    stage: "issuer-report-mapping",
-    instruction: loaded.instruction,
-    goal: loaded.goal,
-    subject: symbol,
-    ...issuerReportMappingInput(packet),
-  });
-  const startedAt = performance.now();
-  const response = await job.provider.generate({
-    step: symbol,
-    model: runParams.quickModel,
-    ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
-    responseFormat: "json",
-    messages: [
-      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
-      { role: "user", content: prompt },
-    ],
-  });
-  const endedAt = performance.now();
-  return {
-    stage: "issuer-report-mapping",
-    content: response.content,
-    tokenEstimate: response.tokenEstimate,
-    usage: response.usage ?? "unknown",
-    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
-    ...(response.costEstimateUsd !== undefined
-      ? { costEstimateUsd: response.costEstimateUsd }
-      : {}),
-    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
-  };
-}
-
-async function runPlaybookSelection(
-  input: RunResearchJobInput,
-  collectedSources: CollectedSources,
-  context: ResearchContext,
-  plannedStages: readonly PlaybookStage[],
-): Promise<{
-  readonly audit: PlaybookSelectionAudit;
-  readonly context: ResearchContext;
-}> {
-  const registry = await loadPlaybookRegistry(input.config.promptDir);
-  const scope = playbookScopeWithSubjectKey(
-    input.command,
-    collectedSources.resolvedSubject?.subjectKey,
-  );
-  const audit = selectPlaybooks(scope, plannedStages, registry);
-  const domainPlaybooks = await loadPlaybooksByStage(
-    input.config.promptDir,
-    registry,
-    audit.selected,
-  );
-  return { audit, context: { ...context, domainPlaybooks } };
-}
-
-async function runForecastDisagreementPhase(input: {
-  readonly jobInput: RunResearchJobInput;
-  readonly generatedAt: string;
-  readonly runParams: ResolvedRunParams;
-  readonly report: ResearchReport;
-}): Promise<{
-  readonly report: ResearchReport;
-  readonly challengerModels: readonly string[];
-  readonly stageOutputs: readonly StageOutput[];
-  readonly artifact?: ForecastDisagreementArtifact;
-  readonly outcomeCode: ForecastDisagreementOutcomeCode;
-  readonly warning?: PostSynthesisAuditWarning;
-}> {
-  const challengerModels = forecastDisagreementModels(
-    input.jobInput,
-    input.runParams.synthesisModel,
-  );
-  let { report } = input;
-  if (challengerModels.length > 0 && report.predictions.length > 0) {
-    try {
-      const loaded = await loadStagePrompt(
-        "forecast-disagreement",
-        input.jobInput.command,
-        input.jobInput.config.promptDir,
-      );
-      const disagreement = await runForecastDisagreement({
-        generatedAt: input.generatedAt,
-        provider: input.jobInput.provider,
-        providerName: input.jobInput.provider.name,
-        baselineModel: input.runParams.synthesisModel,
-        challengerModels,
-        ...(input.runParams.synthesisModelParams !== undefined
-          ? { modelParams: input.runParams.synthesisModelParams }
-          : {}),
-        loaded,
-        report: {
-          runId: report.runId,
-          generatedAt: report.generatedAt,
-          summary: report.summary,
-          keyFindings: report.keyFindings,
-          bullCase: report.bullCase,
-          bearCase: report.bearCase,
-          risks: report.risks,
-          catalysts: report.catalysts,
-          scenarios: report.scenarios,
-          predictions: report.predictions,
-        },
-      });
-      report = validateResearchReport({
-        ...report,
-        dataGaps: [...report.dataGaps, ...disagreement.dataGaps],
-        extras: {
-          ...report.extras,
-          forecastDisagreement: compactForecastDisagreementExtra(disagreement.artifact),
-        },
-      });
-      return {
-        report,
-        challengerModels,
-        stageOutputs: disagreement.stageOutputs,
-        artifact: disagreement.artifact,
-        outcomeCode: "produced",
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      report = validateResearchReport({
-        ...report,
-        dataGaps: [
-          ...report.dataGaps,
-          "forecastDisagreement: stage failed, check did not run; uncertainty signal unavailable",
-        ],
-      });
-      return {
-        report,
-        challengerModels,
-        stageOutputs: [],
-        outcomeCode: "failed",
-        warning: {
-          code: "forecast-disagreement-unavailable",
-          location: "forecastDisagreement",
-          message: `forecast-disagreement stage failed (${message})`,
-          sourceIds: [],
-        },
-      };
-    }
-  } else if (challengerModels.length > 0) {
-    report = validateResearchReport({
-      ...report,
-      dataGaps: [
-        ...report.dataGaps,
-        "forecastDisagreement: skipped because report emitted no predictions",
-      ],
-    });
-  }
-  return {
-    report,
-    challengerModels,
-    stageOutputs: [],
-    outcomeCode: challengerModels.length === 0 ? "not-configured" : "no-predictions",
   };
 }
 
@@ -773,12 +486,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       }),
   });
   const { analysisOutputs, critiqueOutput } = reasoning;
-  const knownSourceIds = new Set(sources.map((source) => source.id));
-  // Build the emission-time subject allowlist from the resolved run params.
-  // Research runs use researchPredictionGate instead; pass undefined so no double-drop occurs.
-  const allowedSubjects =
-    command.jobType !== "research" ? new Set(runParams.predictionSubjects) : undefined;
-
   const preSynthesisStageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
     ...financialTableExtraction.stageOutputs,
@@ -789,181 +496,51 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...analysisOutputs,
     critiqueOutput,
   ];
-  const persistFailedRun = async (
-    failure: Pick<
-      FailedRunManifestInput,
-      | "phase"
-      | "message"
-      | "stack"
-      | "reportValidationErrors"
-      | "predictionErrors"
-      | "totalCalls"
-      | "reportRepairReprompts"
-      | "payload"
-      | "collectedSources"
-    > & { readonly synthesisStageOutputs: readonly StageOutput[] },
-  ): Promise<string | undefined> => {
-    try {
-      const { synthesisStageOutputs, ...details } = failure;
-      progress("writing failed run artifacts");
-      const artifacts = await publishRunArtifacts(input.config.dataDir, runId, (staged) =>
-        persistFailedRunArtifactWrites(
-          staged,
-          buildFailedRunManifest({
-            ...details,
-            command,
-            runId,
-            generatedAt,
-            failedAt: completedAt(),
-            stageOutputs: [...preSynthesisStageOutputs, ...synthesisStageOutputs],
-            modelCalls: provider.modelCalls(),
-            historicalContext,
-            sourcePlan: sourcePlanning.sourcePlan,
-            evidenceLanes: sourcePlanning.evidenceLanes,
-            sourceLedger: sourcePlanning.sourceLedger,
-            ...(webGatherLoop.audit !== undefined ? { webGatherAudit: webGatherLoop.audit } : {}),
-            ...(webGatherLoop.skipCode !== undefined
-              ? { webGatherSkipCode: webGatherLoop.skipCode }
-              : {}),
-            ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
-            playbookAudit,
-            evidenceQuality: evidenceQualityAssessment,
-            codeVersion,
-            ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
-          }),
-        ),
-      );
-      return artifacts.runDir;
-    } catch (persistError: unknown) {
-      try {
-        process.stderr.write(
-          `Failed to persist run diagnostics: ${persistError instanceof Error ? persistError.message : String(persistError)}\n`,
-        );
-      } catch {
-        // The original error remains authoritative even if stderr is unavailable.
-      }
-      return undefined;
-    }
-  };
-
-  progress("final synthesis");
-  let synthesis: SynthesizeReportUntilValidResult | undefined = undefined;
-  try {
-    const synthesisInput = {
-      runId,
-      generatedAt,
-      command,
-      collectedSources,
-      context: playbookContext,
-      sources,
-      knownSourceIds: [...knownSourceIds],
-      ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
-      ...(allowedSubjects !== undefined ? { allowedSubjects: [...allowedSubjects] } : {}),
-      priorStages: [...analysisOutputs, critiqueOutput],
-      maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
-    };
-    captureSynthesisInput({
-      ...synthesisInput,
-      settings: {
-        sourceOptions: {
-          equityMoverLimit: input.config.sourceOptions.equityMoverLimit,
-          cryptoMoverLimit: input.config.sourceOptions.cryptoMoverLimit,
-        },
-      },
-    });
-    const { allowedSubjects: _savedSubjects, ...phaseInput } = synthesisInput;
-    synthesis = await synthesizeReportUntilValid({
-      ...phaseInput,
-      knownSourceIds,
-      ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
-      runFinalSynthesis: (priorStages, reprompt) =>
-        runModelStage("final-synthesis", runParams.synthesisModel, {
-          job: jobInput,
-          collectedSources,
-          context: playbookContext,
-          priorStages,
-          ...(reprompt !== undefined ? { reprompt } : {}),
-        }),
-    });
-  } catch (error: unknown) {
-    if (!isFinalSynthesisRejectedError(error)) {
-      throw error;
-    }
-
-    const runDir = await persistFailedRun({
-      phase: "final-synthesis",
-      message: error.message,
-      reportValidationErrors: error.reportValidationErrors,
-      predictionErrors: error.predictionErrors,
-      totalCalls: error.totalCalls,
-      reportRepairReprompts: error.reportRepairReprompts,
-      payload: error.payload,
-      collectedSources,
-      synthesisStageOutputs: error.stageOutputs,
-    });
-    if (runDir !== undefined) {
-      error.runDir = runDir;
-    }
-    throw error;
-  }
-  collectedSources = { ...collectedSources, sourceGaps: synthesis.sourceGaps };
-  const acceptedSynthesis = synthesis;
-  const finalized = await (async () => {
-    try {
-      const deepEquityEvidenceBundle =
-        isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep"
-          ? buildDeepEquityEvidenceBundle({
-              symbol: command.symbol,
-              analysisAsOf: generatedAt,
-              collectedSources,
-              historicalContext,
-              sourcePlan: sourcePlanning.sourcePlan,
-              evidenceLanes: sourcePlanning.evidenceLanes,
-              sourceLedger: sourcePlanning.sourceLedger,
-            })
-          : undefined;
-      // Prune before forecast disagreement so pruned Predictions never reach challengers.
-      const result = await finalizeSynthesis(
-        acceptedSynthesis,
+  const synthesisPhase = await runSynthesisPhase({
+    config: input.config,
+    provider,
+    runParams,
+    runId,
+    generatedAt,
+    completedAt,
+    command,
+    collectedSources,
+    context: playbookContext,
+    sources,
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
+    priorStages: [...analysisOutputs, critiqueOutput],
+    historicalContext,
+    sourcePlanning,
+    evidenceQualityAssessment,
+    failedRunManifest: {
+      stageOutputs: preSynthesisStageOutputs,
+      ...(webGatherLoop.audit !== undefined ? { webGatherAudit: webGatherLoop.audit } : {}),
+      ...(webGatherLoop.skipCode !== undefined
+        ? { webGatherSkipCode: webGatherLoop.skipCode }
+        : {}),
+      ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
+      playbookAudit,
+      codeVersion,
+      ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
+    },
+    runFinalSynthesis: (priorStages, reprompt) =>
+      runModelStage("final-synthesis", runParams.synthesisModel, {
+        job: jobInput,
         collectedSources,
-        evidenceQualityAssessment,
-        createPeerMedianAudit({
-          provider,
-          model: runParams.quickModel,
-          ...(runParams.quickModelParams === undefined
-            ? {}
-            : { params: runParams.quickModelParams }),
-          command,
-          ...(input.config.promptDir === undefined ? {} : { promptDir: input.config.promptDir }),
-        }),
-      );
-      return { ...result, deepEquityEvidenceBundle };
-    } catch (error: unknown) {
-      const failure = new PostSynthesisError(error);
-      const runDir = await persistFailedRun({
-        phase: "post-synthesis",
-        message: failure.message,
-        ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
-        reportValidationErrors: acceptedSynthesis.reportValidationErrors,
-        predictionErrors: acceptedSynthesis.predictionErrors,
-        // The accepted synthesis report as assembled, before the integrity audit prunes it.
-        payload: acceptedSynthesis.report,
-        collectedSources,
-        synthesisStageOutputs: acceptedSynthesis.stageOutputs,
-      });
-      if (runDir !== undefined) {
-        failure.runDir = runDir;
-      }
-      throw failure;
-    }
-  })();
+        context: playbookContext,
+        priorStages,
+        ...(reprompt !== undefined ? { reprompt } : {}),
+      }),
+  });
   const {
+    synthesis,
     report: integrityReport,
     postSynthesisWarnings,
     integrityAudit,
     peerMedianAuditOutput,
     deepEquityEvidenceBundle,
-  } = finalized;
+  } = synthesisPhase;
+  ({ collectedSources } = synthesisPhase);
   progress("forecast-disagreement phase");
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,

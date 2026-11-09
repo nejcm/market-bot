@@ -1,4 +1,9 @@
+import type { ResearchCommand } from "../cli/args";
+import type { AppConfig } from "../config";
+import type { ResolvedRunParams } from "../config/runs";
 import type { SourceGap } from "../domain/sources";
+import type { ModelProvider } from "../model/types";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { sourceGap } from "../domain/source-gaps";
 import type { StageOutput } from "./final-synthesis";
 import {
@@ -10,6 +15,7 @@ import {
   UNTAGGED_FINANCIAL_PRODUCTION_EXECUTION_POLICY,
 } from "../sources/extended-evidence/untagged-financial-extraction-policy";
 import {
+  FINANCIAL_TABLE_SEMANTIC_FIELDS,
   parseFinancialTableMappingOutput,
   validateFinancialTableMapping,
 } from "../sources/extended-evidence/untagged-financial-table-validation";
@@ -22,6 +28,7 @@ import type {
   UntaggedFinancialStatementsArtifact,
 } from "../sources/extended-evidence/untagged-financial-tables-contract";
 import type { CollectedSources } from "../sources/types";
+import { loadStagePrompt } from "./prompt-loader";
 
 export interface FinancialTableExtractionPhaseInput {
   readonly symbol: string;
@@ -189,5 +196,72 @@ export async function runFinancialTableExtractionPhase(
       untaggedFinancialStatements: artifact(input, packet, mapping, validation),
     },
     stageOutputs: [output],
+  };
+}
+
+export async function runFinancialTableMappingStage(
+  packet: FinancialTablePacket,
+  filingReportDate: string,
+  job: {
+    readonly command: ResearchCommand;
+    readonly config: Pick<AppConfig, "promptDir">;
+    readonly provider: ModelProvider;
+  },
+  runParams: ResolvedRunParams,
+): Promise<StageOutput & { readonly stage: "financial-table-mapping" }> {
+  const loaded = await loadStagePrompt(
+    "financial-table-mapping",
+    job.command,
+    job.config.promptDir,
+  );
+  const prompt = JSON.stringify({
+    stage: "financial-table-mapping",
+    instruction: loaded.instruction,
+    goal: loaded.goal,
+    filing: packet.source,
+    filingReportDate,
+    allowedFields: FINANCIAL_TABLE_SEMANTIC_FIELDS,
+    tables: packet.tables.map((table) => ({
+      id: table.id,
+      sourceTableIndex: table.sourceTableIndex,
+      context: table.context,
+      ...(table.title !== undefined ? { title: table.title } : {}),
+      ...(table.unitText !== undefined ? { unitText: table.unitText } : {}),
+      ...(table.unitCellRef !== undefined ? { unitCellRef: table.unitCellRef } : {}),
+      ...(table.inheritedHeaderRefs !== undefined
+        ? { inheritedHeaderRefs: table.inheritedHeaderRefs }
+        : {}),
+      rows: table.rows.map((row) => ({
+        rowIndex: row.rowIndex,
+        cells: row.cells.map((cell) => ({
+          ref: cell.ref,
+          text: cell.text,
+          headerRefs: cell.headerRefs,
+        })),
+      })),
+    })),
+  });
+  const startedAt = performance.now();
+  const response = await job.provider.generate({
+    step: packet.source.accessionNumber,
+    model: runParams.quickModel,
+    ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
+    responseFormat: "json",
+    messages: [
+      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
+      { role: "user", content: prompt },
+    ],
+  });
+  const endedAt = performance.now();
+  return {
+    stage: "financial-table-mapping",
+    content: response.content,
+    tokenEstimate: response.tokenEstimate,
+    usage: response.usage ?? "unknown",
+    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
+    ...(response.costEstimateUsd !== undefined
+      ? { costEstimateUsd: response.costEstimateUsd }
+      : {}),
+    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
   };
 }

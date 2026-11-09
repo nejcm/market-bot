@@ -4,9 +4,14 @@ import {
   type ExchangeProfile,
   type IssuerReportHostKind,
 } from "../domain/exchange-profile";
+import type { ResearchCommand } from "../cli/args";
+import type { AppConfig } from "../config";
+import type { ResolvedRunParams } from "../config/runs";
 import { sourceGap } from "../domain/source-gaps";
 import type { Source, SourceGap } from "../domain/sources";
 import { isRecord } from "../guards";
+import type { ModelProvider } from "../model/types";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import type {
   MetricInput,
   MetricResult,
@@ -16,6 +21,7 @@ import { canonicalizeUrl } from "../sources/news-utils";
 import type { CollectedSources, RawSourceSnapshot } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
 import { withIssuerReportFramework } from "./issuer-report-framework";
+import { loadStagePrompt } from "./prompt-loader";
 import { withholdProviderEps } from "./provider-eps-withholding";
 import { rawTextsByUrl } from "./web-figure-verification";
 
@@ -1230,5 +1236,48 @@ export async function runIssuerReportPhase(
       section,
     ),
     stageOutputs: [output],
+  };
+}
+
+export async function runIssuerReportMappingStage(
+  packet: IssuerReportPacket,
+  symbol: string,
+  job: {
+    readonly command: ResearchCommand;
+    readonly config: Pick<AppConfig, "promptDir">;
+    readonly provider: ModelProvider;
+  },
+  runParams: ResolvedRunParams,
+): Promise<StageOutput & { readonly stage: "issuer-report-mapping" }> {
+  const loaded = await loadStagePrompt("issuer-report-mapping", job.command, job.config.promptDir);
+  const prompt = JSON.stringify({
+    stage: "issuer-report-mapping",
+    instruction: loaded.instruction,
+    goal: loaded.goal,
+    subject: symbol,
+    ...issuerReportMappingInput(packet),
+  });
+  const startedAt = performance.now();
+  const response = await job.provider.generate({
+    step: symbol,
+    model: runParams.quickModel,
+    ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
+    responseFormat: "json",
+    messages: [
+      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
+      { role: "user", content: prompt },
+    ],
+  });
+  const endedAt = performance.now();
+  return {
+    stage: "issuer-report-mapping",
+    content: response.content,
+    tokenEstimate: response.tokenEstimate,
+    usage: response.usage ?? "unknown",
+    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
+    ...(response.costEstimateUsd !== undefined
+      ? { costEstimateUsd: response.costEstimateUsd }
+      : {}),
+    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
   };
 }

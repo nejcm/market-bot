@@ -1,8 +1,16 @@
 import { isMarketUpdateJobType } from "../domain/job-type";
 import type { ResearchCommand } from "../cli/args";
+import type { AppConfig } from "../config";
 import type { CollectedSources } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
-import type { PlaybookStage } from "./playbooks";
+import {
+  loadPlaybookRegistry,
+  loadPlaybooksByStage,
+  playbookScopeWithSubjectKey,
+  selectPlaybooks,
+  type PlaybookSelectionAudit,
+  type PlaybookStage,
+} from "./playbooks";
 import type { ResearchContext } from "./research-context-types";
 
 export type AnalysisStage = Extract<
@@ -67,4 +75,27 @@ export async function runAnalysisPhase(input: {
   const analysisOutputs = [...specialistOutputs, ...panelOutputs];
   const critiqueOutput = await run("critique", analysisOutputs);
   return { analysisOutputs, critiqueOutput };
+}
+
+export async function runPlaybookSelection(
+  input: { readonly command: ResearchCommand; readonly config: Pick<AppConfig, "promptDir"> },
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+  plannedStages: readonly PlaybookStage[],
+): Promise<{
+  readonly audit: PlaybookSelectionAudit;
+  readonly context: ResearchContext;
+}> {
+  const registry = await loadPlaybookRegistry(input.config.promptDir);
+  const scope = playbookScopeWithSubjectKey(
+    input.command,
+    collectedSources.resolvedSubject?.subjectKey,
+  );
+  const audit = selectPlaybooks(scope, plannedStages, registry);
+  const domainPlaybooks = await loadPlaybooksByStage(
+    input.config.promptDir,
+    registry,
+    audit.selected,
+  );
+  return { audit, context: { ...context, domainPlaybooks } };
 }

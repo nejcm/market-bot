@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import type { AppConfig } from "../config";
 import type { ModelProvider } from "../model/types";
 import { MAX_REPORT_VALIDATION_REPROMPTS } from "../research/final-synthesis";
-import { MAX_PREDICTION_REPROMPTS } from "../research/orchestrator";
+import { MAX_PREDICTION_REPROMPTS } from "../research/synthesis-phase";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { FetchLike } from "../sources/types";
 import { countCassetteMisses, makeReplayFetch } from "./data-cassette";

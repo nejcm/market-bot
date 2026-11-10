@@ -5,7 +5,9 @@ import type { Source } from "./domain/sources";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import { isRecord, readStringVerbatim, stringArrayValue } from "./guards";
 import { predictionShortfallMaterialGaps } from "./report/prediction-shortfall";
+import { isTerminal } from "./scoring/score-status";
 import type { PredictionScore } from "./scoring/types";
+import { malformedWithoutValidScore, type MalformedScoreRow } from "./run-artifact-score-reader";
 
 export const REPORT_SEARCH_SECTIONS = [
   "summary",
@@ -94,19 +96,23 @@ interface OpenQuestion {
   readonly predictionId?: string;
 }
 
+type OpenQuestionSubject = Pick<ResearchReport, "predictions" | "dataGaps" | "predictionShortfall">;
+
 function openQuestionRows(
-  report: ResearchReport,
+  report: OpenQuestionSubject,
   scores: readonly PredictionScore[],
+  malformed: readonly MalformedScoreRow[],
 ): readonly OpenQuestion[] {
-  const resolved = new Set(
-    scores.filter((score) => score.resolved).map((score) => score.predictionId),
-  );
+  const settled = new Set([
+    ...scores.filter((score) => isTerminal(score.status)).map((score) => score.predictionId),
+    ...malformedWithoutValidScore(scores, malformed).map((row) => row.predictionId),
+  ]);
   return [
     ...predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).map((gap) => ({
       text: `Data gap: ${gap}`,
     })),
     ...report.predictions
-      .filter((prediction) => !resolved.has(prediction.id))
+      .filter((prediction) => !settled.has(prediction.id))
       .map((prediction) => ({
         text: `Unresolved prediction: ${predictionClaim(prediction)}`,
         predictionId: prediction.id,
@@ -115,10 +121,11 @@ function openQuestionRows(
 }
 
 export function openQuestions(
-  report: ResearchReport,
+  report: OpenQuestionSubject,
   scores: readonly PredictionScore[],
+  malformed: readonly MalformedScoreRow[],
 ): readonly string[] {
-  return openQuestionRows(report, scores).map(({ text }) => text);
+  return openQuestionRows(report, scores, malformed).map(({ text }) => text);
 }
 
 function metricsSearchText(metrics: Readonly<Record<string, number | string>> | undefined): string {
@@ -587,6 +594,7 @@ function enrichCandidate(
 export function buildReportSearchEntries(
   report: ResearchReport,
   scores: readonly PredictionScore[],
+  malformed: readonly MalformedScoreRow[],
   scope: ReportSearchScope,
 ): readonly ReportSearchEntry[] {
   const candidates = reportSearchCandidates(report, scope);
@@ -636,6 +644,7 @@ export function buildReportSearchEntries(
     for (const [index, { text: question, predictionId }] of openQuestionRows(
       report,
       scores,
+      malformed,
     ).entries()) {
       const symbol =
         (predictionId === undefined ? undefined : subjectByPredictionId.get(predictionId)) ??

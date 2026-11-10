@@ -65,6 +65,11 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   bypass uncertified older cache versions without deleting them.
 - Horizon waits consume no attempts. Persist `nextAttemptAt` for unavailable observations; retry after 1/3/7
   days and abandon on the fourth failed fetch. `score --force` bypasses timing only, never resolution/abandonment.
+- A score's required `status` is its lifecycle; abandonment persists `abandonedAt` (amended 2026-11-10). A score
+  pass may re-serialise a terminal row without the redundant `resolved` key (and a legacy abandoned `observedAt`
+  as `abandonedAt`); status, outcome and observation never change. Rows a pass does not rescore (malformed, id-less, duplicated ids,
+  or for a prediction no longer in the report) are written back as read; an id with more than one row is never rescored.
+  Readers prefer a valid row over a malformed one; malformed rows are disclosed, never counted open.
 - Calibration is descriptive and counts Forecast Events, keyed by `assetClass | canonical claim | origin`.
   Equity close origins roll the report UTC date forward to a trading day; crypto and calendar-day macro/IV
   keep UTC date; earnings use `event <date>@<origin session>` (amended 2026-11-10, below); conditional
@@ -202,8 +207,9 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   subject/instrument, horizon, recency, anchors, and resolved-miss relevance; collapse redundant same-day runs
   while preserving eligible miss-correction runs. Missing/malformed history is a soft Source Gap.
 - Prior reports are citeable internal `model` sources and narrative context. Prompt forecast rows include
-  resolved forecasts only; pending forecasts are counted as `pendingPredictionCount`, never listed as rows
-  (prior summaries/findings may still echo them).
+  terminal forecasts only (resolved, voided, abandoned), each with its stored status; pending forecasts are
+  counted as `pendingPredictionCount` and score rows failing the row contract as `malformedPredictionCount`, never
+  listed as rows (prior summaries/findings may still echo them).
 - Correction scope is same instrument for instrument runs; same asset/horizon bucket and configured subjects
   for market overviews; same subject/proxy for thematic research. History rebuild/search/thesis-delta use
   artifacts only; narrative deltas run only on request and obey [ADR 0001](./0001-research-only-boundary.md).

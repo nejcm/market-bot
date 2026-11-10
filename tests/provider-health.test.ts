@@ -16,7 +16,13 @@ import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
 import { eventGrid } from "../src/research/event-grid";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { verifiedMarketSnapshotFromChart } from "../src/sources/verified-market-snapshot";
-import { deepEquityEvidenceBundle, failedRunOutcomesArtifact } from "./support/fixtures";
+import type { PredictionScore } from "../src/scoring/types";
+import {
+  deepEquityEvidenceBundle,
+  failedRunOutcomesArtifact,
+  predictionScore,
+  scoreWithStatus,
+} from "./support/fixtures";
 
 type WebGatherAuditEntry = WebGatherLoopAudit["acceptedRequests"][number];
 
@@ -36,7 +42,7 @@ interface RunFixture {
   readonly repeatFallbackKeptCount?: number;
   readonly relevantRepeatKeptCount?: number;
   readonly predictions?: readonly { readonly horizonTradingDays: number }[];
-  readonly scores?: readonly { readonly resolved: boolean }[];
+  readonly scores?: readonly PredictionScore[];
   readonly endpointAvailability?: Record<string, unknown>;
 }
 
@@ -309,6 +315,27 @@ describe("provider health", () => {
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
       "| Relevant repeat kept | 6 |",
     );
+  });
+
+  test("counts only scores with an outcome as resolved predictions", async () => {
+    await writeRun({
+      runId: "scored",
+      jobType: "equity",
+      assetClass: "equity",
+      scores: [
+        predictionScore("hit", { predictionId: "hit" }),
+        predictionScore("miss", { predictionId: "miss" }),
+        ...(["voided", "abandoned", "pending"] as const).map((status) =>
+          scoreWithStatus(status, { predictionId: status }),
+        ),
+      ],
+    });
+    await writeRun({ runId: "empty", jobType: "equity", assetClass: "equity", scores: [] });
+
+    const result = await writeProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(result.summary.realRunValidation.resolvedPredictions).toBe(2);
+    expect(result.summary.realRunValidation.scoredRuns).toBe(1);
   });
 
   test("includes Failed Run Artifacts, their Source Gaps, and outcome rows", async () => {

@@ -4,10 +4,6 @@ Sorted by impact. Each entry stays at three lines or fewer, gives its issuer cou
 
 A recovery for a withheld value is built only after `bun run sweep:sec --diff` shows that the rule publishes at least one instant on the cache and moves no other published value.
 
-## TODOs
-
-- check for state machines
-
 ## Wrong-value risk
 
 These publish today but may be wrong, mixed-scope, or unproven. They also cover the cases where code falls short of the AGENTS.md data rules.

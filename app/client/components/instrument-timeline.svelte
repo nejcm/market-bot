@@ -137,14 +137,18 @@
     "event-false": "border-border bg-secondary text-[#5c6066]",
     pending: "border-[#c9c4ba] bg-transparent text-[#8a8f96]",
     voided: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
+    abandoned: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
     unscored: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
+    malformed: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
   };
   const OUTCOME_LABEL: Record<string, string> = {
     "event-true": "event true",
     "event-false": "event false",
     pending: "pending",
     voided: "voided",
+    abandoned: "abandoned",
     unscored: "unscored",
+    malformed: "malformed score",
   };
 
   function pct(value: number): string {
@@ -263,7 +267,7 @@
         </div>
         <div>
           <div class="font-mono text-[17px] font-medium">
-            {detail.counts.pending + detail.counts.voided + detail.counts.unscored}
+            {detail.counts.pending + detail.counts.unscored}
           </div>
           <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
             Open

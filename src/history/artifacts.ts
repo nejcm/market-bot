@@ -29,6 +29,7 @@ import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index-queries";
 import { MUTABLE_SIDECARS, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
+import { readScoreRows, type MalformedScoreRow } from "../run-artifact-score-reader";
 import { isRecord, readStringVerbatim } from "../guards";
 import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 
@@ -107,6 +108,7 @@ export interface InstrumentTimelineEntry {
   readonly thesis: ResearchThesisState;
   readonly sources: readonly Source[];
   readonly scores: readonly PredictionScore[];
+  readonly malformedScores: readonly MalformedScoreRow[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly identity?: InstrumentIdentity;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
@@ -270,6 +272,7 @@ function firstIdentity(report: ResearchReport, symbol: string): InstrumentIdenti
 function thesisState(
   report: ResearchReport,
   scores: readonly PredictionScore[],
+  malformedScores: readonly MalformedScoreRow[],
 ): ResearchThesisState {
   return {
     summary: report.summary,
@@ -280,7 +283,7 @@ function thesisState(
     catalysts: report.catalysts,
     dataGaps: predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps),
     predictions: report.predictions,
-    openQuestions: openQuestions(report, scores),
+    openQuestions: openQuestions(report, scores, malformedScores),
   };
 }
 
@@ -340,11 +343,12 @@ function historyEntryForReportEntry(entry: ReportSearchEntry, index: number): Hi
 function searchEntriesFor(
   report: ResearchReport,
   scores: readonly PredictionScore[],
+  malformedScores: readonly MalformedScoreRow[],
   fundamentals: readonly Record<string, unknown>[],
   validation: readonly Record<string, unknown>[],
 ): readonly HistorySearchEntry[] {
-  const entries = buildReportSearchEntries(report, scores, "history").map((entry, index) =>
-    historyEntryForReportEntry(entry, index),
+  const entries = buildReportSearchEntries(report, scores, malformedScores, "history").map(
+    (entry, index) => historyEntryForReportEntry(entry, index),
   );
   for (const [index, item] of fundamentals.entries()) {
     addEntry(
@@ -370,6 +374,7 @@ function searchEntriesFor(
 export interface LoadedHistoryRun {
   readonly report: ResearchReport;
   readonly scores: readonly PredictionScore[];
+  readonly malformedScores: readonly MalformedScoreRow[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
@@ -417,6 +422,7 @@ function timelineRun(run: LoadedHistoryRun, symbol: string): LoadedHistoryRun {
     ...run,
     report: { ...run.report, predictions },
     scores: run.scores.filter((score) => ids.has(score.predictionId)),
+    malformedScores: run.malformedScores.filter((row) => ids.has(row.predictionId)),
   };
 }
 
@@ -449,11 +455,12 @@ export function buildInstrumentTimelines(
         scope,
         confidence: researchReportEvidenceQuality(run.report),
         confidenceLegacy: run.report.evidenceQuality === undefined,
-        thesis: thesisState(view.report, view.scores),
+        thesis: thesisState(view.report, view.scores, view.malformedScores),
         sources: run.report.sources.filter(
           (source) => source.symbol === undefined || source.symbol.toUpperCase() === symbol,
         ),
         scores: view.scores,
+        malformedScores: view.malformedScores,
         missAutopsies: run.missAutopsies,
         ...(identity !== undefined ? { identity } : {}),
         ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
@@ -495,6 +502,7 @@ export async function rebuildHistoryArtifacts(
       return {
         report: artifact.report,
         scores: artifact.scores,
+        malformedScores: artifact.malformedScores,
         missAutopsies: artifact.missAutopsies,
         ...(artifact.verifiedMarketSnapshot !== undefined
           ? { verifiedMarketSnapshot: artifact.verifiedMarketSnapshot }
@@ -519,7 +527,7 @@ export async function rebuildHistoryArtifacts(
   ).length;
   const generatedAt = now.toISOString();
   const indexEntries = loaded.flatMap((run) =>
-    searchEntriesFor(run.report, run.scores, run.fundamentals, run.validation),
+    searchEntriesFor(run.report, run.scores, run.malformedScores, run.fundamentals, run.validation),
   );
   const timelines = buildInstrumentTimelines(loaded, generatedAt);
   const sourceRunIds = scan.artifacts.map((artifact) => artifact.runDirName).toSorted();
@@ -693,10 +701,39 @@ async function readTimeline(
   symbol: string,
 ): Promise<InstrumentTimeline | undefined> {
   const key = instrumentKey(assetClass, symbol);
-  const parsed = await readJson(join(historyDir(dataDir), "instruments", instrumentFileName(key)));
-  return isRecord(parsed) && parsed.version === 1
-    ? (parsed as unknown as InstrumentTimeline)
-    : undefined;
+  return parseInstrumentTimeline(
+    await readJson(join(historyDir(dataDir), "instruments", instrumentFileName(key))),
+  );
+}
+
+// Persisted score rows re-enter through the score seam, so timelines written before the union parse alike.
+export function parseInstrumentTimeline(value: unknown): InstrumentTimeline | undefined {
+  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.entries)) {
+    return undefined;
+  }
+  const timeline = value as unknown as InstrumentTimeline;
+  return {
+    ...timeline,
+    entries: timeline.entries.map((entry) => {
+      const persisted = entry as unknown as Record<string, unknown>;
+      const rows = readScoreRows({
+        scores: [
+          ...(Array.isArray(persisted.scores) ? persisted.scores : []),
+          ...(Array.isArray(persisted.malformedScores)
+            ? persisted.malformedScores.map((row) => (isRecord(row) ? row.raw : row))
+            : []),
+        ],
+      });
+      const scores = rows?.scores ?? [];
+      const malformedScores = rows?.malformed ?? [];
+      // Open questions depend on score state, so the cached list is recomputed from the parsed rows.
+      const thesis = {
+        ...entry.thesis,
+        openQuestions: openQuestions(entry.thesis, scores, malformedScores),
+      };
+      return { ...entry, thesis, scores, malformedScores };
+    }),
+  };
 }
 
 function chooseEntry(
@@ -747,11 +784,14 @@ function predictionTexts(items: readonly Prediction[]): readonly string[] {
   );
 }
 
-function scoreTexts(items: readonly PredictionScore[]): readonly string[] {
-  return items.map(
-    (item) =>
-      `${item.predictionId}: ${item.resolved ? (item.outcome ?? "resolved-no-outcome") : "unresolved"}`,
-  );
+function scoreTexts(entry: InstrumentTimelineEntry): readonly string[] {
+  return [
+    ...entry.scores.map(
+      (item) =>
+        `${item.predictionId}: ${item.status}${item.outcome === undefined ? "" : ` ${item.outcome}`}`,
+    ),
+    ...entry.malformedScores.map((row) => `${row.predictionId}: malformed`),
+  ];
 }
 
 function buildDeltaSections(
@@ -774,7 +814,7 @@ function buildDeltaSections(
       predictionTexts(from.thesis.predictions),
       predictionTexts(to.thesis.predictions),
     ),
-    scores: simpleDelta(scoreTexts(from.scores), scoreTexts(to.scores)),
+    scores: simpleDelta(scoreTexts(from), scoreTexts(to)),
     fundamentals: simpleDelta(
       from.fundamentals.map((item) => JSON.stringify(item)),
       to.fundamentals.map((item) => JSON.stringify(item)),

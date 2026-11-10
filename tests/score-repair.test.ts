@@ -7,7 +7,11 @@ import { runCli } from "../src/app";
 import type { ResearchReport } from "../src/domain/report";
 import { buildMissAutopsyFile } from "../src/scoring/miss-autopsy";
 import { repairScore, renderScoreRepair } from "../src/scoring/repair";
-import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";
+import type {
+  MissAutopsyFile,
+  PredictionScore,
+  ResolvedPredictionScore,
+} from "../src/scoring/types";
 import { prediction, researchReport } from "./support/fixtures";
 
 let root = "";
@@ -62,19 +66,15 @@ const pendingScore: PredictionScore = {
   predictionId: "pred-1",
   runId: RUN_ID,
   status: "pending",
-  resolved: false,
-  outcome: undefined,
-  observedAt: undefined,
   attemptCount: 0,
   scoringVersion: 3,
   evidence: { reason: "horizon not yet elapsed" },
 };
 
-const storedMiss = (observedAt: string): PredictionScore => ({
+const storedMiss = (observedAt: string): ResolvedPredictionScore => ({
   predictionId: "pred-2",
   runId: RUN_ID,
   status: "resolved",
-  resolved: true,
   outcome: "miss",
   observedAt,
   attemptCount: 1,
@@ -299,6 +299,16 @@ describe("score repair", () => {
     );
   });
 
+  test("refuses to repair a score row without a status instead of assuming resolved", async () => {
+    const runDir = await seed();
+    const { status: _status, ...statusless } = storedMiss(PRE_CLOSE);
+    await writeJson(join(runDir, "score.json"), { runId: RUN_ID, scores: [statusless] });
+
+    await expect(repairScore(dataDir, request(false))).rejects.toThrow(
+      `Score pred-2 in run ${RUN_ID} is malformed (missing status); not repaired`,
+    );
+  });
+
   test("leaves crypto scores out of equity session repair", async () => {
     const runDir = await seed();
     await writeJson(join(runDir, "report.json"), { ...report, assetClass: "crypto" });
@@ -368,7 +378,7 @@ describe("score repair", () => {
 
     await expect(runCli(argv, dependencies)).rejects.toThrow("calibration disk full");
     const output = await runCli(argv, dependencies);
-    const { scores } = await readJson<{ scores: readonly PredictionScore[] }>(
+    const { scores } = await readJson<{ scores: readonly ResolvedPredictionScore[] }>(
       join(runDir, "score.json"),
     );
 

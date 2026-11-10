@@ -43,7 +43,7 @@ export async function prepareRunArtifacts(
 }
 
 // The stage sits beside the real runs dir so the rename never crosses a filesystem and
-// Scanners of the runs dir never see it; a killed run leaves only the hidden stage.
+// Scanners of the runs dir never see it; a run killed before the rename leaves only the hidden stage.
 async function runStagingParent(dataDir: string): Promise<{ runsDir: string; parent: string }> {
   await mkdir(dataDir, { recursive: true });
   const runsDir = await realpath(dataDir);

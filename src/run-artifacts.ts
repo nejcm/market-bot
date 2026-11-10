@@ -55,7 +55,12 @@ import {
   readVerifiedMarketSnapshot,
   readVerifiedMarketSnapshots,
 } from "./run-artifact-snapshot-reader";
-import { readMissAutopsies, readScores } from "./run-artifact-score-reader";
+import {
+  readMissAutopsies,
+  readScoreRows,
+  type MalformedScoreRow,
+  type ScoreRows,
+} from "./run-artifact-score-reader";
 import { readAnalytics, readJsonFile } from "./run-artifact-json-reader";
 import {
   readBusinessFrameworkArtifact,
@@ -98,6 +103,9 @@ export interface RunArtifact {
   readonly runDirName: string;
   readonly report: ResearchReport;
   readonly scores: readonly PredictionScore[];
+  /** Score rows rejected by the lifecycle contract; never rescored, written back verbatim. */
+  readonly malformedScores: readonly MalformedScoreRow[];
+  readonly unidentifiedScoreRows: readonly unknown[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly sourceGaps: readonly SourceGap[];
@@ -151,10 +159,7 @@ export type LoadedDeepEquityEvidenceBundle =
   | { readonly status: "ok"; readonly value: DeepEquityEvidenceBundleV1 }
   | { readonly status: "absent" | "malformed" };
 
-function scoreStatusFor(
-  file: JsonFileResult,
-  parsed: readonly PredictionScore[] | undefined,
-): ArtifactFileStatus {
+function scoreStatusFor(file: JsonFileResult, parsed: ScoreRows | undefined): ArtifactFileStatus {
   if (file.status === "absent") {
     return "absent";
   }
@@ -238,7 +243,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const deepEquityEvidenceBundle =
     deepEquityEvidenceBundleFile?.status === "ok" ? deepEquityEvidenceBundleFile.value : undefined;
   const scoreFile = await readJsonFile(join(runDir, SCORE_FILE));
-  const parsedScores = scoreFile.status === "ok" ? readScores(scoreFile.value) : undefined;
+  const parsedScores = scoreFile.status === "ok" ? readScoreRows(scoreFile.value) : undefined;
   const missAutopsyFile = await readJsonFile(join(runDir, MISS_AUTOPSY_FILE));
   const snapshotFile = deepEquity
     ? undefined
@@ -424,7 +429,9 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     artifact: {
       runDirName,
       report: readableReport,
-      scores: parsedScores ?? [],
+      scores: parsedScores?.scores ?? [],
+      malformedScores: parsedScores?.malformed ?? [],
+      unidentifiedScoreRows: parsedScores?.unidentified ?? [],
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: deepEquity
         ? readSnapshots(deepEquityEvidenceBundle?.evidence.marketSnapshots)

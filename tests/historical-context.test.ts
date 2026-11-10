@@ -8,9 +8,16 @@ import {
   createHistoricalContextReader,
   loadHistoricalContext,
 } from "../src/research/historical-context";
+import { compactHistoricalContext } from "../src/research/prompts/evidence-payload";
 import { researchIdentityExtras } from "../src/research/research-subject-identity";
 import { withReplaySession } from "../src/replay/session";
-import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
+import {
+  marketSnapshot,
+  prediction,
+  predictionScore,
+  researchReport,
+  scoreWithStatus,
+} from "./support/fixtures";
 
 const tmpDirs: string[] = [];
 
@@ -253,6 +260,146 @@ describe("loadHistoricalContext", () => {
       source: "yahoo",
     });
     expect(hit?.scoreEvidence).toBeUndefined();
+  });
+
+  test("keeps voided and abandoned prior scores out of hit/miss and shows their status", async () => {
+    const dataDir = tempRunsDir();
+    const ids = ["hit", "miss", "voided", "abandoned", "pending", "unscored"];
+    await writeRun({
+      dataDir,
+      runDirName: "terminal",
+      report: researchReport({
+        runId: "terminal",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        predictions: ids.map((id) => prediction({ id, subject: "AAPL" })),
+      }),
+      score: {
+        scores: [
+          predictionScore("hit", { predictionId: "hit", runId: "terminal" }),
+          predictionScore("miss", { predictionId: "miss", runId: "terminal" }),
+          ...(["voided", "abandoned", "pending"] as const).map((status) =>
+            scoreWithStatus(status, { predictionId: status, runId: "terminal" }),
+          ),
+        ],
+      },
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: { historyOptions: options() },
+      now: new Date("2026-06-04T00:00:00.000Z"),
+    });
+
+    const [run] = context.runs;
+    expect(run?.scoreSummary).toEqual({
+      total: 5,
+      resolved: 2,
+      hit: 1,
+      miss: 1,
+      voided: 1,
+      abandoned: 1,
+      unresolved: 1,
+    });
+    expect(run?.predictions.map((item) => [item.id, item.scoreStatus, item.scoreOutcome])).toEqual([
+      ["hit", "resolved", "hit"],
+      ["miss", "resolved", "miss"],
+      ["voided", "voided", undefined],
+      ["abandoned", "abandoned", undefined],
+      ["pending", "pending", undefined],
+      ["unscored", "not-scored", undefined],
+    ]);
+    const [prompt] = compactHistoricalContext(context, "all").runs as readonly {
+      readonly predictions: readonly { readonly id: string; readonly scoreStatus: string }[];
+      readonly pendingPredictionCount?: number;
+    }[];
+    expect(prompt?.predictions.map((item) => [item.id, item.scoreStatus])).toEqual([
+      ["hit", "resolved"],
+      ["miss", "resolved"],
+      ["voided", "voided"],
+      ["abandoned", "abandoned"],
+    ]);
+    expect(prompt?.pendingPredictionCount).toBe(2);
+  });
+
+  test("keeps status-less prior scores out of prompt rows and counts them as malformed", async () => {
+    const dataDir = tempRunsDir();
+    const { status: _status, ...statusless } = predictionScore("hit", {
+      predictionId: "statusless",
+      runId: "malformed",
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "malformed",
+      report: researchReport({
+        runId: "malformed",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        predictions: ["hit", "statusless"].map((id) => prediction({ id, subject: "AAPL" })),
+      }),
+      score: {
+        scores: [predictionScore("hit", { predictionId: "hit", runId: "malformed" }), statusless],
+      },
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: { historyOptions: options() },
+      now: new Date("2026-06-04T00:00:00.000Z"),
+    });
+
+    expect(context.runs[0]?.predictions.map((item) => item.scoreStatus)).toEqual([
+      "resolved",
+      "malformed",
+    ]);
+    expect(context.runs[0]?.scoreSummary).toMatchObject({ total: 2, resolved: 1, unresolved: 1 });
+    const [prompt] = compactHistoricalContext(context, "all").runs as readonly {
+      readonly predictions: readonly { readonly id: string }[];
+      readonly pendingPredictionCount?: number;
+      readonly malformedPredictionCount?: number;
+    }[];
+    expect(prompt?.predictions.map((item) => item.id)).toEqual(["hit"]);
+    expect(prompt?.malformedPredictionCount).toBe(1);
+    expect(prompt?.pendingPredictionCount).toBeUndefined();
+  });
+
+  test("counts an empty score file as zero, not as an omitted summary", async () => {
+    const dataDir = tempRunsDir();
+    await writeRun({
+      dataDir,
+      runDirName: "empty",
+      report: researchReport({
+        runId: "empty",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+      }),
+      score: { scores: [] },
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: { historyOptions: options() },
+      now: new Date("2026-06-04T00:00:00.000Z"),
+    });
+
+    expect(context.runs[0]?.scoreSummary).toEqual({
+      total: 0,
+      resolved: 0,
+      hit: 0,
+      miss: 0,
+      voided: 0,
+      abandoned: 0,
+      unresolved: 0,
+    });
   });
 
   test("softly reports no-history gaps without source gaps", async () => {

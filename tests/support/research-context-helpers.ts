@@ -163,11 +163,9 @@ export function resolvedPair(
     score: {
       predictionId: id,
       runId: "run-1",
-      resolved: true,
+      status: "resolved",
       outcome,
       observedAt: "2026-06-01T00:00:00.000Z",
-      attemptCount: 1,
-      evidence: {},
     },
     assetClass: "equity",
     jobType: "daily",

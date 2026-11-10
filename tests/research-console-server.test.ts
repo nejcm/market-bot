@@ -265,7 +265,7 @@ describe("research console app API", () => {
         {
           predictionId: "p-aapl",
           runId: "run-market",
-          resolved: true,
+          status: "resolved",
           outcome: "hit",
           observedAt: "2026-06-10T00:00:00.000Z",
           attemptCount: 1,
@@ -306,6 +306,68 @@ describe("research console app API", () => {
       pricePoints: [],
       counts: { total: 1, eventTrue: 1 },
       warnings: { malformedPredictionCount: 0 },
+    });
+  });
+
+  test("keeps voided, abandoned and status-less instrument forecasts apart", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-terminal");
+    mkdirSync(runDir, { recursive: true });
+    const ids = ["p-voided", "p-abandoned", "p-no-status"];
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-terminal",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-06-05T00:00:00.000Z",
+        predictions: ids.map((id) =>
+          prediction({ id, subject: "AAPL", measurableAs: "close(AAPL, +5) > close(AAPL, 0)" }),
+        ),
+      }),
+    );
+    writeJson(join(runDir, "score.json"), {
+      scores: [
+        { predictionId: "p-voided", status: "voided" },
+        { predictionId: "p-abandoned", status: "abandoned" },
+        { predictionId: "p-no-status", outcome: "hit" },
+      ].map((extra) => ({
+        runId: "run-terminal",
+        observedAt: "2026-06-10T00:00:00.000Z",
+        attemptCount: 1,
+        evidence: {},
+        ...extra,
+      })),
+    });
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/instruments/equity/aapl/timeline"),
+      { dataDir, consoleProviders: fakeConsoleProviders(dataDir) },
+    );
+
+    const body = (await response.json()) as {
+      readonly entries: readonly {
+        readonly id: string;
+        readonly outcome: string;
+        readonly observedAt?: string;
+      }[];
+      readonly counts: Record<string, number>;
+    };
+    expect(Object.fromEntries(body.entries.map((entry) => [entry.id, entry.outcome]))).toEqual({
+      "p-voided": "voided",
+      "p-abandoned": "abandoned",
+      "p-no-status": "malformed",
+    });
+    expect(body.entries.find(({ id }) => id === "p-abandoned")?.observedAt).toBeUndefined();
+    expect(body.counts).toMatchObject({
+      total: 3,
+      eventTrue: 0,
+      pending: 0,
+      voided: 1,
+      abandoned: 1,
+      unscored: 0,
+      malformed: 1,
     });
   });
 

@@ -17,6 +17,7 @@ import {
   readNumberWhere,
 } from "../scoring/calibration-read";
 import { buildAndWriteCalibration } from "../scoring/index";
+import { withSharedStateLock } from "../shared-state-lock";
 import type { CalibrationMetric } from "../scoring/types";
 import {
   applicableCalibrationSlices,
@@ -48,7 +49,9 @@ export async function refreshCalibrationContext(
   buildCalibration: typeof buildAndWriteCalibration = buildAndWriteCalibration,
 ): Promise<CalibrationContext | undefined> {
   try {
-    return parseCalibrationContext(await buildCalibration(dataDir, now));
+    return parseCalibrationContext(
+      await withSharedStateLock(dataDir, () => buildCalibration(dataDir, now)),
+    );
   } catch {
     // A failed refresh must omit calibration rather than expose the stale on-disk summary.
     return undefined;

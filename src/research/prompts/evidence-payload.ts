@@ -17,6 +17,7 @@ import {
 } from "../../sources/verified-snapshot-contract";
 import type { HistoricalResearchContext, HistoricalRunContext } from "../historical-context";
 import type { ResearchContext } from "../research-context-types";
+import { isTerminal } from "../../scoring/score-status";
 import {
   buildMarketForecastErrorBlock,
   buildPriorThesisErrorBlock,
@@ -401,13 +402,29 @@ function historicalRunsForGapView(
   return changed ? projectedRuns : runs;
 }
 
-// Pending prior forecasts are counted, not shown as rows; scoreSummary misses never-scored ones.
-function withResolvedPredictionsOnly(
-  run: HistoricalRunContext,
-): HistoricalRunContext & { readonly pendingPredictionCount?: number } {
-  const predictions = run.predictions.filter((prediction) => prediction.scoreStatus === "resolved");
-  const pendingPredictionCount = run.predictions.length - predictions.length;
-  return pendingPredictionCount === 0 ? run : { ...run, predictions, pendingPredictionCount };
+// Pending and malformed prior forecasts are counted, not shown as rows; scoreSummary misses never-scored ones.
+function withTerminalPredictionsOnly(run: HistoricalRunContext): HistoricalRunContext & {
+  readonly pendingPredictionCount?: number;
+  readonly malformedPredictionCount?: number;
+} {
+  const predictions = run.predictions.filter(
+    ({ scoreStatus }) =>
+      scoreStatus !== "not-scored" && scoreStatus !== "malformed" && isTerminal(scoreStatus),
+  );
+  const malformedPredictionCount = run.predictions.filter(
+    ({ scoreStatus }) => scoreStatus === "malformed",
+  ).length;
+  const pendingPredictionCount =
+    run.predictions.length - predictions.length - malformedPredictionCount;
+  if (predictions.length === run.predictions.length) {
+    return run;
+  }
+  return {
+    ...run,
+    predictions,
+    ...(pendingPredictionCount > 0 ? { pendingPredictionCount } : {}),
+    ...(malformedPredictionCount > 0 ? { malformedPredictionCount } : {}),
+  };
 }
 
 // A prior run's item ids are not in this run's catalog; the run's own sourceId is what cites it.
@@ -421,7 +438,7 @@ export function compactHistoricalContext(
 ): Record<string, unknown> {
   // Renamed so prior-run gaps read as re-check context, not rows to copy into this report's dataGaps.
   const runs = historicalRunsForGapView(context.runs, sourceGapView).map((run) => {
-    const { dataGaps, ...rest } = withResolvedPredictionsOnly(run);
+    const { dataGaps, ...rest } = withTerminalPredictionsOnly(run);
     return {
       ...rest,
       keyFindings: run.keyFindings.map(withoutPriorRunSourceIds),

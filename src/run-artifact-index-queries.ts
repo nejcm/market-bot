@@ -18,6 +18,8 @@ import { indexIsFresh } from "./run-artifact-index-freshness";
 import { readJsonFile } from "./run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES, type ArtifactFileStatus } from "./run-artifact-layout";
 import { readReport } from "./run-artifact-report-reader";
+import { readPredictionScoreStatus } from "./run-artifact-score-reader";
+import { isTerminal } from "./scoring/score-status";
 import { isMissAutopsyCause } from "./run-artifacts";
 import { readRunSubsystemOutcomesFromDisk } from "./run-artifact-index-rows";
 import {
@@ -36,11 +38,7 @@ import type {
   SubsystemOutcomeRow,
 } from "./run-artifact-index-types";
 import { forecastEventKey, type ResolvedPair } from "./scoring/calibration";
-import type {
-  ConditionalCalibrationSummary,
-  PredictionScore,
-  PredictionScoreStatus,
-} from "./scoring/types";
+import type { ConditionalCalibrationSummary, ScoreOutcome } from "./scoring/types";
 
 const MAX_HISTORY_SEARCH_RESULTS = 100;
 const MAX_CONSOLE_SEARCH_RESULTS = 100;
@@ -426,9 +424,8 @@ interface ResolvedPairQueryRow {
   readonly baseline_version: string | null;
   readonly info_cutoff: string | null;
   readonly prediction_id: string;
-  readonly status: string | null;
-  readonly outcome: string;
-  readonly observed_at: string | null;
+  readonly outcome: ScoreOutcome;
+  readonly observed_at: string;
   readonly scoring_version: number | null;
   readonly miss_autopsy_cause: string | null;
   readonly forecast_origin: string | null;
@@ -461,14 +458,15 @@ export async function loadResolvedPairsFromIndex(
           p.id, p.run_id, p.kind, p.subject, p.claim, p.probability, p.horizon_trading_days,
           p.measurable_as, p.source_ids_json,
           p.origin, p.baseline_probability, p.baseline_version, p.info_cutoff,
-          s.prediction_id, s.status, s.outcome, s.observed_at, s.scoring_version,
+          s.prediction_id, s.outcome, s.observed_at, s.scoring_version,
           s.miss_autopsy_cause, s.forecast_origin,
           r.job_type, r.asset_class, r.generated_at, r.market_regime_label,
           r.horizon_trading_days AS run_horizon_trading_days
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
         JOIN runs r ON r.run_id = p.run_id
-        WHERE s.resolved = 1 AND s.outcome IS NOT NULL AND s.scoring_version = 3`,
+        WHERE s.status = 'resolved' AND s.outcome IN ('hit', 'miss') AND s.observed_at IS NOT NULL
+          AND s.scoring_version = 3`,
       )
       .all() as readonly ResolvedPairQueryRow[];
 
@@ -504,13 +502,10 @@ export async function loadResolvedPairsFromIndex(
           score: {
             predictionId: row.prediction_id,
             runId: row.run_id,
-            ...(row.status !== null ? { status: row.status as PredictionScoreStatus } : {}),
-            resolved: true,
-            outcome: row.outcome as PredictionScore["outcome"],
-            observedAt: row.observed_at ?? undefined,
+            status: "resolved",
+            outcome: row.outcome,
+            observedAt: row.observed_at,
             ...(row.scoring_version !== null ? { scoringVersion: row.scoring_version } : {}),
-            attemptCount: 0,
-            evidence: {},
             ...(row.forecast_origin !== null ? { forecastOrigin: row.forecast_origin } : {}),
           },
           assetClass: row.asset_class as AssetClass,
@@ -593,13 +588,13 @@ function predictionMatchesInstrument(row: WatchlistPredictionQueryRow, symbol: s
     : parsedSymbols.includes(symbol);
 }
 
-// Open = unscored (no score row) or unresolved with a pending-family status.
-// Voided/abandoned are terminal; the status check covers scores stored otherwise.
+// Open = unscored (no score row) or a non-terminal status; a row without status is malformed, not open.
 function isOpenWatchlistPrediction(row: WatchlistPredictionQueryRow): boolean {
   if (row.resolved === null) {
     return true;
   }
-  return row.resolved === 0 && row.status !== "voided" && row.status !== "abandoned";
+  const status = readPredictionScoreStatus(row.status);
+  return status !== undefined && !isTerminal(status);
 }
 
 // Symbol-less multi-subject runs (Forecast Grid, market overview) count when a prediction's primary subject matches.

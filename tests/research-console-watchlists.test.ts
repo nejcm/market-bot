@@ -298,6 +298,11 @@ describe("watchlist index rows", () => {
       subject: "AAPL",
       measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
     });
+    const aaplMalformed = prediction({
+      id: "aapl-malformed",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+    });
     writeRun(dataDir, "run-a", {
       runId: "run-a",
       symbol: "AAPL",
@@ -312,6 +317,7 @@ describe("watchlist index rows", () => {
         aaplVoided,
         aaplAbandoned,
         aaplVoidedUnresolved,
+        aaplMalformed,
       ],
       scores: [
         predictionScore("hit", {
@@ -329,7 +335,6 @@ describe("watchlist index rows", () => {
         {
           predictionId: "aapl-pending",
           runId: "run-a",
-          resolved: false,
           status: "pending",
           attemptCount: 0,
           evidence: {},
@@ -337,28 +342,31 @@ describe("watchlist index rows", () => {
         {
           predictionId: "aapl-voided",
           runId: "run-a",
-          resolved: true,
           status: "voided",
+          observedAt: "2026-06-06T00:00:00.000Z",
           attemptCount: 1,
           evidence: {},
         },
         {
           predictionId: "aapl-abandoned",
           runId: "run-a",
-          resolved: true,
           status: "abandoned",
+          abandonedAt: "2026-06-06T00:00:00.000Z",
           attemptCount: 4,
           evidence: {},
         },
-        // Defensive: producers stamp voided resolved=true; a score stored otherwise must not count.
+        // A legacy `resolved` key that contradicts the status is ignored; the row is still terminal.
         {
           predictionId: "aapl-voided-unresolved",
           runId: "run-a",
           resolved: false,
           status: "voided",
+          observedAt: "2026-06-06T00:00:00.000Z",
           attemptCount: 1,
           evidence: {},
         },
+        // Malformed rows are indexed as scored without a status, never as open.
+        { predictionId: "aapl-malformed", runId: "run-a", attemptCount: 1, evidence: {} },
       ],
     });
     const briefOpen = prediction({

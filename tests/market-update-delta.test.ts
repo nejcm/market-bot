@@ -48,7 +48,7 @@ interface RunSpec {
   readonly predictions?: readonly { id: string; claim: string; probability: number }[];
   readonly scores?: readonly {
     predictionId: string;
-    resolved: boolean;
+    status: "resolved" | "pending";
     outcome?: "hit" | "miss";
     observedAt?: string;
   }[];
@@ -102,7 +102,7 @@ function writeRun(dataDir: string, spec: RunSpec): void {
       scores: spec.scores.map((score) => ({
         predictionId: score.predictionId,
         runId: spec.runId,
-        resolved: score.resolved,
+        status: score.status,
         outcome: score.outcome,
         observedAt: score.observedAt,
         attemptCount: 1,
@@ -345,17 +345,17 @@ describe("buildMarketUpdateDelta", () => {
       scores: [
         {
           predictionId: "p1",
-          resolved: true,
+          status: "resolved",
           outcome: "hit",
           observedAt: "2026-05-06T00:00:00.000Z",
         },
         {
           predictionId: "p2",
-          resolved: true,
+          status: "resolved",
           outcome: "miss",
           observedAt: "2026-05-04T00:00:00.000Z",
         },
-        { predictionId: "p3", resolved: true, outcome: "hit" },
+        { predictionId: "p3", status: "resolved", outcome: "hit" },
       ],
     });
     // A ticker run resolved after the baseline must be excluded (market flow only).
@@ -368,7 +368,7 @@ describe("buildMarketUpdateDelta", () => {
       scores: [
         {
           predictionId: "t1",
-          resolved: true,
+          status: "resolved",
           outcome: "hit",
           observedAt: "2026-05-07T00:00:00.000Z",
         },

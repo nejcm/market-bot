@@ -2,12 +2,12 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { link, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/report";
 import { buildAndWriteAlphaLeadCohorts } from "../src/alpha-search/post-score";
 import { runScorePass } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
-import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";
+import type { MissAutopsyFile } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
 import type { AlphaLeadCohortSummary } from "../src/alpha-search/cohorts";
 import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
@@ -42,9 +42,9 @@ async function writeRun(runId: string, value: ResearchReport): Promise<string> {
   return runDir;
 }
 
-async function readScores(runDir: string): Promise<readonly PredictionScore[]> {
+async function readScores(runDir: string): Promise<readonly Record<string, unknown>[]> {
   const raw = await readFile(join(runDir, "score.json"), "utf8");
-  return (JSON.parse(raw) as { scores: readonly PredictionScore[] }).scores;
+  return (JSON.parse(raw) as { scores: readonly Record<string, unknown>[] }).scores;
 }
 
 async function readMissAutopsy(runDir: string): Promise<MissAutopsyFile> {
@@ -191,11 +191,11 @@ describe("runScorePass Observation scoring", () => {
     const [score] = await readScores(runDir);
     expect(score).toMatchObject({
       status: "abandoned",
-      resolved: true,
+      abandonedAt: "2026-05-19T00:00:00.000Z",
       attemptCount: 4,
       evidence: { reason: "abandoned after fourth observation failure" },
     });
-    expect(score?.nextAttemptAt).toBeUndefined();
+    expect(score).not.toContainAnyKeys(["resolved", "observedAt", "nextAttemptAt"]);
     expect(observationCalls).toBe(4);
   });
 
@@ -240,6 +240,182 @@ describe("runScorePass Observation scoring", () => {
     expect(observationCalls).toBe(2);
   });
 
+  test("never rescores an id with duplicate rows, so its terminal row survives repeated passes", async () => {
+    const prediction: ResearchReport["predictions"][number] = {
+      id: "pred-duplicate",
+      claim: "SPY closes higher over 2 trading days.",
+      kind: "direction",
+      subject: "SPY",
+      measurableAs: "close(SPY, +2) > close(SPY, 0)",
+      horizonTradingDays: 2,
+      probability: 0.6,
+      sourceIds: [],
+    };
+    const runDir = await writeRun(
+      "run-duplicate",
+      report([prediction, { ...prediction, id: "pred-sibling" }]),
+    );
+    const base = {
+      predictionId: prediction.id,
+      runId: "run-1",
+      attemptCount: 1,
+      scoringVersion: 3,
+    };
+    const pending = { ...base, status: "pending", evidence: {} };
+    const resolved = {
+      ...base,
+      status: "resolved",
+      outcome: "hit",
+      observedAt: "2026-05-05T00:00:00.000Z",
+      evidence: { close0: 100, closeN: 110 },
+    };
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify({ runId: "run-1", scores: [pending, resolved] })}\n`,
+      "utf8",
+    );
+    let observationCalls = 0;
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        observationCalls += 1;
+        return [];
+      },
+    };
+    const stderr = spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      for (const day of ["2026-05-20", "2026-05-21"]) {
+        await runScorePass(tmpDir, new Date(`${day}T00:00:00.000Z`), {
+          observationRepository: repo,
+          force: true,
+        });
+      }
+      expect(stderr.mock.calls.map(([line]) => String(line))).toContain(
+        `score run-1/${prediction.id} has 2 rows, left as written and not rescored\n`,
+      );
+    } finally {
+      stderr.mockRestore();
+    }
+
+    expect(observationCalls).toBe(2);
+    const rows = await readScores(runDir);
+    expect(rows.slice(0, 2)).toEqual([pending, resolved]);
+    expect(rows[2]).toMatchObject({ predictionId: "pred-sibling", status: "pending" });
+    expect(rows).toHaveLength(3);
+  });
+
+  test("keeps rows it does not rescore, malformed, orphaned or id-less, while rescoring a sibling", async () => {
+    const prediction: ResearchReport["predictions"][number] = {
+      id: "pred-statusless",
+      claim: "SPY closes higher over 2 trading days.",
+      kind: "direction",
+      subject: "SPY",
+      measurableAs: "close(SPY, +2) > close(SPY, 0)",
+      horizonTradingDays: 2,
+      probability: 0.6,
+      sourceIds: [],
+    };
+    const sibling = { ...prediction, id: "pred-sibling" };
+    const runDir = await writeRun("run-statusless", report([prediction, sibling]));
+    const statusless = {
+      predictionId: prediction.id,
+      runId: "run-1",
+      resolved: false,
+      attemptCount: 1,
+      evidence: { reason: "observation unavailable" },
+    };
+    const malformedRows = [
+      statusless,
+      { ...statusless, attemptCount: 2 },
+      { ...statusless, predictionId: "pred-not-in-report" },
+    ];
+    const orphanResolved = {
+      predictionId: "pred-dropped-from-report",
+      runId: "run-1",
+      status: "resolved",
+      outcome: "hit",
+      observedAt: "2026-05-05T00:00:00.000Z",
+      attemptCount: 1,
+      scoringVersion: 3,
+      evidence: {},
+    };
+    const unidentified = [null, { status: "pending" }];
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify({ runId: "run-1", scores: [orphanResolved, ...malformedRows, ...unidentified] })}\n`,
+      "utf8",
+    );
+    let observationCalls = 0;
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        observationCalls += 1;
+        return [];
+      },
+    };
+    const stderr = spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    try {
+      await runScorePass(tmpDir, new Date("2026-05-20T00:00:00.000Z"), {
+        observationRepository: repo,
+        force: true,
+      });
+      expect(stderr.mock.calls.map(([line]) => String(line))).toContain(
+        `score run-1/${prediction.id} is malformed (missing status), left as written and not rescored\n`,
+      );
+    } finally {
+      stderr.mockRestore();
+    }
+
+    expect(observationCalls).toBe(1);
+    const scores = await readScores(runDir);
+    expect(scores[0]).toEqual(orphanResolved);
+    expect(scores[1]).toMatchObject({ predictionId: sibling.id, status: "pending" });
+    expect(scores.slice(2) as readonly unknown[]).toEqual([...malformedRows, ...unidentified]);
+  });
+
+  test("re-serialises a legacy terminal row without its resolved key when a sibling is rescored", async () => {
+    const terminal: ResearchReport["predictions"][number] = {
+      id: "pred-terminal",
+      claim: "SPY closes higher over 2 trading days.",
+      kind: "direction",
+      subject: "SPY",
+      measurableAs: "close(SPY, +2) > close(SPY, 0)",
+      horizonTradingDays: 2,
+      probability: 0.6,
+      sourceIds: [],
+    };
+    const runDir = await writeRun(
+      "run-legacy-terminal",
+      report([terminal, { ...terminal, id: "pred-open" }]),
+    );
+    const legacy = {
+      predictionId: terminal.id,
+      runId: "run-1",
+      status: "resolved",
+      resolved: true,
+      outcome: "miss",
+      observedAt: "2026-05-05T00:00:00.000Z",
+      attemptCount: 1,
+      scoringVersion: 3,
+      evidence: { close0: 100, closeN: 90 },
+    };
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify({ runId: "run-1", scores: [legacy] })}\n`,
+      "utf8",
+    );
+
+    await runScorePass(tmpDir, new Date("2026-05-20T00:00:00.000Z"), {
+      observationRepository: { point: noObservation, window: async () => [] },
+    });
+
+    const { resolved: _resolved, ...expected } = legacy;
+    const scores = await readScores(runDir);
+    expect(scores[0]).toEqual(expected);
+    expect(scores[1]).toMatchObject({ predictionId: "pred-open", status: "pending" });
+  });
+
   test("terminalizes a legacy pending score already at four failures", async () => {
     const prediction: ResearchReport["predictions"][number] = {
       id: "pred-legacy-pending",
@@ -282,11 +458,8 @@ describe("runScorePass Observation scoring", () => {
     });
 
     const [score] = await readScores(runDir);
-    expect(score).toMatchObject({
-      status: "abandoned",
-      resolved: true,
-      attemptCount: 4,
-    });
+    expect(score).toMatchObject({ status: "abandoned", attemptCount: 4 });
+    expect(score).not.toHaveProperty("resolved");
   });
 
   test("scores volatility from the full close window", async () => {
@@ -586,7 +759,6 @@ describe("runScorePass Observation scoring", () => {
     const [score] = await readScores(runDir);
     expect(score).toMatchObject({
       status: "voided",
-      resolved: true,
       forecastOrigin: "2026-05-01 & 2026-05-01",
       evidence: { reason: "conditional antecedent did not occur" },
     });
@@ -752,7 +924,7 @@ describe("runScorePass Observation scoring", () => {
             {
               predictionId: "pred-dir",
               runId: "run-1",
-              resolved: true,
+              status: "resolved",
               outcome: "miss",
               observedAt: "2026-05-07T00:00:00.000Z",
               attemptCount: 1,
@@ -800,6 +972,7 @@ describe("runScorePass Observation scoring", () => {
             {
               predictionId: "pred-dir",
               runId: "run-1",
+              status: "resolved",
               resolved: true,
               outcome: "miss",
               observedAt: "2026-05-08T00:00:00.000Z",

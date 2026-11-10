@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildThesisDelta,
+  historyDir,
+  instrumentFileName,
+  instrumentKey,
   rebuildHistoryArtifacts,
   rebuildHistoryArtifactsIfStale,
   searchHistoryIndex,
@@ -90,6 +93,7 @@ function writeRun(
         {
           predictionId: "p1",
           runId,
+          status: runId === "run-new" ? "resolved" : "pending",
           resolved: runId === "run-new",
           outcome: runId === "run-new" ? "hit" : undefined,
           observedAt: runId === "run-new" ? generatedAt : undefined,
@@ -298,7 +302,7 @@ describe("history artifacts", () => {
         {
           predictionId: "p1",
           runId: "run-old",
-          resolved: true,
+          status: "resolved",
           outcome: "miss",
           observedAt: "2026-06-03T00:00:00.000Z",
           attemptCount: 1,
@@ -382,6 +386,123 @@ describe("history artifacts", () => {
     );
     expect(persisted).toContain("The research thesis shifted");
     expect(await readFile(`${deltaPath}.link`, "utf8")).toBe("stale");
+  });
+
+  test("keys score deltas on the stored status, not a resolved flag", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-score-status-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+    for (const [runId, status] of [
+      ["run-old", "abandoned"],
+      ["run-new", "voided"],
+    ] as const) {
+      writeJson(join(dataDir, runId, "score.json"), {
+        scores: [
+          {
+            predictionId: "p1",
+            runId,
+            status,
+            observedAt: "2026-06-05T00:00:00.000Z",
+            attemptCount: 1,
+            evidence: {},
+          },
+        ],
+      });
+    }
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const delta = await buildThesisDelta({
+      dataDir,
+      symbol: "AAPL",
+      assetClass: "equity",
+      since: "run-old",
+      to: "run-new",
+      now: new Date("2026-06-06T00:00:00.000Z"),
+    });
+    expect(delta.sections.scores).toMatchObject({
+      added: ["p1: voided"],
+      removed: ["p1: abandoned"],
+    });
+  });
+
+  test("parses persisted timeline score rows through the score seam", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-legacy-scores-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+    const timelinePath = join(
+      historyDir(dataDir),
+      "instruments",
+      instrumentFileName(instrumentKey("equity", "AAPL")),
+    );
+    const persisted = JSON.parse(await readFile(timelinePath, "utf8")) as {
+      entries: Record<string, unknown>[];
+    };
+    const legacyRow = {
+      predictionId: "p1",
+      resolved: true,
+      observedAt: "2026-06-05T00:00:00.000Z",
+      attemptCount: 1,
+      evidence: {},
+    };
+    const [oldEntry, newEntry] = persisted.entries;
+    persisted.entries = [
+      {
+        ...oldEntry,
+        scores: [{ ...legacyRow, runId: "run-old", status: "abandoned" }],
+        malformedScores: undefined,
+      },
+      {
+        ...newEntry,
+        thesis: {
+          ...(newEntry?.thesis as Record<string, unknown>),
+          openQuestions: ["Unresolved prediction: New thesis AAPL closes higher."],
+        },
+        scores: [{ ...legacyRow, runId: "run-new" }],
+        malformedScores: undefined,
+      },
+    ];
+    await writeFile(timelinePath, JSON.stringify(persisted));
+
+    const { timeline, source } = await readInstrumentTimeline(dataDir, "equity", "AAPL");
+    expect(source).toBe("history");
+    expect(timeline.entries[0]?.scores).toEqual([
+      {
+        predictionId: "p1",
+        runId: "run-old",
+        status: "abandoned",
+        abandonedAt: "2026-06-05T00:00:00.000Z",
+        attemptCount: 1,
+        evidence: {},
+      },
+    ]);
+    expect(timeline.entries[1]?.scores).toEqual([]);
+    expect(timeline.entries[1]?.malformedScores.map(({ reason }) => reason)).toEqual([
+      "missing status",
+    ]);
+    for (const entry of timeline.entries) {
+      expect(entry.thesis.openQuestions.filter((q) => q.startsWith("Unresolved"))).toEqual([]);
+    }
+
+    const delta = await buildThesisDelta({
+      dataDir,
+      symbol: "AAPL",
+      assetClass: "equity",
+      since: "run-old",
+      to: "run-new",
+      now: new Date("2026-06-06T00:00:00.000Z"),
+    });
+    expect(delta.sections.scores).toMatchObject({
+      added: ["p1: malformed"],
+      removed: ["p1: abandoned"],
+    });
+    expect(delta.sections.openQuestions?.added).not.toContainEqual(
+      expect.stringContaining("Unresolved prediction"),
+    );
   });
 
   test("carries structured prediction shortfalls into thesis snapshots and deltas", async () => {

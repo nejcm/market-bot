@@ -79,9 +79,15 @@
       {#if forecastStats.resolved > 0}
         scored {forecastStats.resolved}/{forecastStats.total} ·
         {forecastStats.hits} event true · {forecastStats.misses} event false ·
-        {#if forecastStats.voided > 0}
-          {forecastStats.voided} voided ·
-        {/if}
+      {/if}
+      {#if forecastStats.voided > 0}
+        {forecastStats.voided} voided ·
+      {/if}
+      {#if forecastStats.abandoned > 0}
+        {forecastStats.abandoned} abandoned ·
+      {/if}
+      {#if forecastStats.malformed > 0}
+        {forecastStats.malformed} malformed score ·
       {/if}
       td = trading days
     </span>
@@ -104,7 +110,7 @@
         <div class="font-serif text-sm leading-normal text-[#1f2225]">
           {forecast.claim}
           {@render citeChips(forecast.sourceIds)}
-          {#if !compact && forecast.score?.resolved === true && forecast.score.close0 !== undefined && forecast.score.closeN !== undefined}
+          {#if !compact && (forecast.score?.status === "resolved" || forecast.score?.status === "voided") && forecast.score.close0 !== undefined && forecast.score.closeN !== undefined}
             <span class="mt-1 block font-mono text-[10.5px] text-[#8a8f96]">
               close {formatClose(forecast.score.close0)} → {formatClose(forecast.score.closeN)}
               {#if forecast.score.changePct !== undefined}
@@ -230,9 +236,16 @@
           {:else if forecast.score?.status === "abandoned"}
             <span
               class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
-              title={forecast.score?.pendingReason ?? "scoring abandoned"}
+              title={`${forecast.score?.pendingReason ?? "scoring abandoned"}${forecast.score?.abandonedAt === undefined ? "" : ` at ${formatDateMinute(forecast.score.abandonedAt)}`}`}
             >
               ABANDONED
+            </span>
+          {:else if forecast.score?.status === "malformed"}
+            <span
+              class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
+              title={`${forecast.score?.malformedReason ?? "malformed score row"}; not rescored`}
+            >
+              MALFORMED
             </span>
           {:else}
             <span

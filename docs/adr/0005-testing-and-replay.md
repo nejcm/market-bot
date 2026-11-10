@@ -68,6 +68,10 @@ re-derived properties and targeted assertions, not approving large output snapsh
   never resolved further. Only envelopes marked `bodyEncoding: "http-body-refs"` interpret that key; older
   captures keep it as literal data and still load (amended 2026-11-09). Redact credentials, configured SEC contact identities, and local paths before recording;
   never store request auth headers.
+- Body files are immutable. Capture hardlinks each one from a shared pool, `<data root>/replay-bodies/<sha256>.<ext>`,
+  or writes it and then seeds the pool. A concurrent seed (EEXIST) or a filesystem without hardlinks falls
+  back to the run's own copy. Only redacted, secret-scanned bodies enter the pool. Run dirs stay
+  self-contained; existing runs are not migrated (amended 2026-11-10).
 - Publish captures only by renaming validated, secret-scanned private partial directories. Handled failure
   removes only private capture staging, never research artifacts, never invalidates research, and never publishes
   a ready capture. Optional `capture-failure.json` excludes credential-bearing errors. Captures, private partials,

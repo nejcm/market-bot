@@ -320,7 +320,9 @@ A prompt or stage change is verified by a Frozen-Input Eval: `scripts/eval-deep.
 Replay infrastructure lives in `src/replay/`. `withRunCapture` wraps standard research and
 `runDeepEquity` before collection when enabled. Its async context records consumed state without
 serializing clients, environment configuration or credentials. Captures publish at `<run>/replay/`
-only after the secret-scan gate; large bodies are hashed files. Ordinary report/index readers and
+only after the secret-scan gate; large bodies are hashed files, hardlinked from a shared
+content-addressed pool at `<data root>/replay-bodies/` (a plain copy when linking fails), so each run
+dir stays self-contained and deleting the pool or a run never breaks another run. Ordinary report/index readers and
 Console view models do not consume these sidecars. Shared path filtering also excludes capture,
 partial-capture and capture-failure files from the index file list and Console file browser. Capture failure stays separate from research
 success.

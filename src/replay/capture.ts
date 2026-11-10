@@ -6,6 +6,8 @@ import type { ModelProvider } from "../model/types";
 import type { FetchLike } from "../sources/types";
 import { readCodeVersion, type CodeVersion } from "../code-version";
 import { dirtySourceHash } from "../reproducibility";
+import { dataRootFromRunsDir } from "../data-paths";
+import { writePooledBody } from "./body-pool";
 import { assertNoSecretsInText } from "./secret-scan";
 import { createRecordingFetch, type DataCassetteEntry } from "./data-cassette";
 import { createRecordingProvider, requestStage } from "./llm-cassette";
@@ -123,6 +125,14 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
         throw new Error("Capture contains incomplete dependencies");
       }
       await mkdir(join(staged, "bodies"), { recursive: true });
+      const poolDir = join(dataRootFromRunsDir(input.config.dataDir), "replay-bodies");
+      const bodyWrites = new Map<string, Promise<void>>();
+      const writeBody = (bodyFile: string, body: string): Promise<void> => {
+        const pending =
+          bodyWrites.get(bodyFile) ?? writePooledBody(poolDir, join(staged, bodyFile), body);
+        bodyWrites.set(bodyFile, pending);
+        return pending;
+      };
       const write = async (name: string, value: unknown) => {
         const text = redact(JSON.stringify(value, null, 2));
         assertNoSecretsInText(name, text, secrets);
@@ -137,7 +147,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
           const sha256 = new Bun.CryptoHasher("sha256").update(body).digest("hex");
           assertNoSecretsInText("HTTP body", body, secrets);
           const bodyFile = `bodies/${sha256}.txt`;
-          await writeFile(join(staged, bodyFile), body, "utf8");
+          await writeBody(bodyFile, body);
           result = { ...recorded, body: "", bodyFile, sha256 };
           const parsed = parsedJson(body);
           if (parsed !== undefined) {
@@ -174,7 +184,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
                 const sha256 = new Bun.CryptoHasher("sha256").update(body).digest("hex");
                 const bodyFile = `bodies/${sha256}.json`;
                 assertNoSecretsInText("State body", body, secrets);
-                await writeFile(join(staged, bodyFile), body, "utf8");
+                await writeBody(bodyFile, body);
                 return { bodyFile, sha256 };
               }),
             ),
@@ -207,7 +217,7 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
         await Promise.all(
           [...synthesisBodies].map(([bodyFile, body]) => {
             assertNoSecretsInText("Synthesis body", body, secrets);
-            return writeFile(join(staged, bodyFile), body, "utf8");
+            return writeBody(bodyFile, body);
           }),
         );
         await write("final-synthesis-input.json", synthesis);

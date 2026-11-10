@@ -67,7 +67,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   days and abandon on the fourth failed fetch. `score --force` bypasses timing only, never resolution/abandonment.
 - Calibration is descriptive and counts Forecast Events, keyed by `assetClass | canonical claim | origin`.
   Equity close origins roll the report UTC date forward to a trading day; crypto and calendar-day macro/IV
-  keep UTC date; earnings use event date; conditional keys combine both origins. Distinct bounds stay distinct.
+  keep UTC date; earnings use `event <date>@<origin session>` (amended 2026-11-10, below); conditional
+  keys combine both origins. Distinct bounds stay distinct.
   Deduplicate before every aggregate, keeping earliest issuance by instant, then Run ID, then Prediction ID;
   voided events use the same key. Publish `duplicateForecastCount`, including zero, distinct Run counts, and
   standard errors clustered by subject (first leg) and origin session when there are at least two clusters;

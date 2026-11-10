@@ -11,7 +11,7 @@ import {
   DEBT_SCOPE_CAVEAT,
   NEGATIVE_CAPEX_REASON,
 } from "./financial-statement-definitions";
-import { shortTermInvestmentsAt } from "./financial-lens-sections";
+import { shortTermInvestmentsAt } from "./financial-lens-inputs";
 import type { SecIssuerRegistration } from "./industry-classification";
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import { debtScopeUnproven, heldForSaleRecast } from "./sec-debt";

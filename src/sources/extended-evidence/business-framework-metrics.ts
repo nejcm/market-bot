@@ -7,7 +7,7 @@ import type {
   BusinessLifecyclePhase,
 } from "./business-framework";
 import { priorComparable } from "./financial-lens-canonical";
-import { withCurrentEquityNote } from "./financial-lens-sections";
+import { withCurrentEquityNote } from "./financial-lens-inputs";
 import {
   itemByCategory,
   secFundamentalItem,

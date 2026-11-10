@@ -806,6 +806,9 @@ describe("provider dimension contracts", () => {
     expect(completenessReasonCodeLabel("operating-kpi-unverified:nbis-gpu-capacity")).toBe(
       "Operating KPI is unverified: nbis gpu capacity",
     );
+    expect(completenessReasonCodeLabel("reporting-currency-ambiguous")).toBe(
+      "Reporting currency is ambiguous",
+    );
     expect(completenessReasonCodeLabel("future-evidence-gap")).toBe("future evidence gap");
     expect(completenessReasonCodeLabel("future-provider-state:detail-key")).toBe(
       "future provider state: detail key",

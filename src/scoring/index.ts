@@ -108,6 +108,7 @@ function abandonedScore(
   report: ResearchReport,
   attemptCount: number,
   now: Date,
+  { withheldSessions }: Record<string, unknown>,
 ): AbandonedPredictionScore {
   return {
     predictionId: prediction.id,
@@ -116,7 +117,10 @@ function abandonedScore(
     abandonedAt: now.toISOString(),
     attemptCount,
     scoringVersion: scoringPolicyFor(prediction).version,
-    evidence: { reason: "abandoned after fourth observation failure" },
+    evidence: {
+      reason: "abandoned after fourth observation failure",
+      ...(withheldSessions === undefined ? {} : { withheldSessions }),
+    },
   };
 }
 
@@ -153,7 +157,13 @@ export async function scoreOnePrediction(
     isPendingScore(existingScore) &&
     existingScore.attemptCount >= MAX_OBSERVATION_FAILURES
   ) {
-    return abandonedScore(prediction, report, existingScore.attemptCount, now);
+    return abandonedScore(
+      prediction,
+      report,
+      existingScore.attemptCount,
+      now,
+      existingScore.evidence,
+    );
   }
 
   const attemptCount = (existingScore?.attemptCount ?? 0) + 1;
@@ -174,7 +184,7 @@ export async function scoreOnePrediction(
       );
     }
     if (attemptCount >= MAX_OBSERVATION_FAILURES) {
-      return abandonedScore(prediction, report, attemptCount, now);
+      return abandonedScore(prediction, report, attemptCount, now, resolveResult.evidence);
     }
     return unresolvedScore(
       prediction,

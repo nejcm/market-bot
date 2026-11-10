@@ -133,6 +133,12 @@ legacy SEC summary still feeds Financial Lenses, and the offline corpus (`src/co
 equivalence at this boundary. The legacy summary reads USD units only, so for a us-gaap filer whose
 reporting currency is not USD it withholds every monetary metric (USD facts there are convenience
 translations) and keeps diluted shares, with a Source Gap.
+With several candidate currencies, the reporting currency is elected only when every filing that
+reports the latest annual revenue period names the same currency, the one whose annual revenue
+periods strictly contain every other currency's in that filing (exact period keys, so a one-day
+mismatch counts as different). Otherwise the election is declared `ambiguous-reporting-currency`:
+every canonical series is withheld, completeness reports `reporting-currency-ambiguous`, and the
+legacy summary withholds its monetary metrics.
 
 Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual
 or reconciled-TTM fundamentals to a verified close no more than seven calendar days after the row's

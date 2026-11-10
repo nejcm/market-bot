@@ -1,5 +1,9 @@
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import {
+  deriveEquityAnalysisCompleteness,
+  equityAnalysisCompletenessGaps,
+} from "../src/sources/extended-evidence/equity-analysis-completeness";
 import { SourceIdValidationError } from "../src/report/source-id-validation-error";
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
@@ -227,6 +231,52 @@ test("summarizes diagnostic gaps with a pointer to retained artifacts", () => {
   );
   expect(markdown).not.toContain("configured token returned 403");
   expect(markdown).not.toContain("tradier-options: API token missing");
+});
+
+function fy2025TenKFact(val: number) {
+  return {
+    val,
+    form: "10-K",
+    fp: "FY",
+    fy: 2025,
+    filed: "2026-03-30",
+    start: "2025-01-01",
+    end: "2025-12-31",
+    accn: "0000000000-26-000001",
+  };
+}
+
+test("renders an ambiguous reporting-currency election as a material data gap", () => {
+  const asOf = "2026-06-01T00:00:00.000Z";
+  const financialStatements = deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: { units: { USD: [fy2025TenKFact(110)], ZAR: [fy2025TenKFact(2000)] } },
+        },
+      },
+    },
+    { symbol: "AAPL", generatedAt: asOf, analysisAsOf: asOf, sourceId: "extended-sec-edgar-aapl" },
+  );
+  const gaps = equityAnalysisCompletenessGaps(
+    deriveEquityAnalysisCompleteness({ asOf, assetClass: "equity", financialStatements }),
+    undefined,
+    "AAPL",
+  );
+  const markdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps: gaps.map((gap) => `${gap.source}: ${gap.message}`),
+    },
+    undefined,
+    { sourceGaps: gaps },
+  );
+  expect(markdown.slice(markdown.indexOf("## Material Data Gaps"))).toContain(
+    "reporting-currency-ambiguous: AAPL filed facts do not establish which currency is the reporting currency",
+  );
 });
 
 test("retains intended fallback disclosures under Diagnostic Data Gaps", () => {

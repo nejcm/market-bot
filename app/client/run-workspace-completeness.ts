@@ -24,6 +24,7 @@ export const COMPLETENESS_REASON_CODE_LABELS: Readonly<Record<string, string>> =
   "payout-evidence-missing": "Payout evidence is missing",
   "per-share-evidence-missing": "Per-share evidence is missing",
   "quarterly-periods-insufficient": "Quarterly history is insufficient",
+  "reporting-currency-ambiguous": "Reporting currency is ambiguous",
   "reporting-currency-incompatible": "Reporting currency evidence is inconsistent",
   "reporting-currency-missing": "Reporting currency is missing",
   "sbc-history-missing": "Stock-based compensation history is missing",

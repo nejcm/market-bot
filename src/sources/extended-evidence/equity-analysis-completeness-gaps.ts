@@ -19,6 +19,7 @@ export const EQUITY_FRESHNESS_GAP_REASON_CODES: readonly string[] = [
   "current-primary-statements-incomplete",
   "untagged-interim-evidence",
   "reporting-currency-missing",
+  "reporting-currency-ambiguous",
   "reporting-currency-incompatible",
   "subsequent-financing-unreconciled",
 ];
@@ -44,6 +45,9 @@ function gapMessage(
   detail: string,
   incompleteStatements: readonly string[],
 ): string {
+  if (code === "reporting-currency-ambiguous") {
+    return `${code}: ${subject} filed facts do not establish which currency is the reporting currency`;
+  }
   return code === "current-primary-statements-incomplete" && incompleteStatements.length > 0
     ? `${code}: ${subject} current primary statements are incomplete: ${incompleteStatements.join("; ")} (${detail})`
     : `${code}: ${subject} reporting surface is not current (${detail})`;

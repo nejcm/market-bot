@@ -530,6 +530,11 @@ describe("static equity run fixtures", () => {
       if (name === "equity-nbis-deep") {
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);
+        const companyFacts = result.collectedSources.rawSnapshots.find(
+          ({ adapter }) => adapter === "sec-companyfacts",
+        );
+        expect(JSON.stringify(companyFacts?.payload)).toContain('"RUB":');
+        expect(result.collectedSources.financialStatements?.reportingCurrency).toBe("USD");
         await assertNbisUnsupportedInputs();
       }
       if (name === "equity-web-fallback-deep") {

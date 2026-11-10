@@ -132,6 +132,9 @@ function statementRows(
   const notes = [...artifact.validationNotes, ...artifact.omissionNotes].filter(
     ({ code }) => code !== "duplicate-superseded" && code !== "history-cap",
   );
+  const currencyGap = artifact.structuredFinancialGaps.find(
+    ({ code }) => code === "ambiguous-reporting-currency",
+  )?.code;
   for (const series of financialStatementSeries(artifact)) {
     const metric = `statement.${series.key}`;
     const seriesNotes = notes.filter((note) => note.seriesKey === series.key);
@@ -140,8 +143,13 @@ function statementRows(
     const seriesLevel = seriesNotes.filter((note) => note.periodKey === undefined);
     push(metric, "series", {
       ...EMPTY,
-      status: facts.length > 0 ? "published" : seriesNotes.length > 0 ? "withheld" : "missing",
-      reason: joined(noteCodes(seriesLevel)),
+      status:
+        facts.length > 0
+          ? "published"
+          : seriesNotes.length > 0 || currencyGap !== undefined
+            ? "withheld"
+            : "missing",
+      reason: joined([...noteCodes(seriesLevel), currencyGap]),
     });
     const used = new Set<string>();
     for (const fact of facts) {

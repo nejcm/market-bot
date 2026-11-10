@@ -1077,7 +1077,56 @@ describe("equity analysis completeness", () => {
   });
 });
 
+function fy2025TenKFact(val: number) {
+  return {
+    val,
+    form: "10-K",
+    fp: "FY",
+    fy: 2025,
+    filed: "2026-03-30",
+    start: "2025-01-01",
+    end: "2025-12-31",
+    accn: "0000000000-26-000001",
+  };
+}
+
 describe("equity analysis completeness freshness gaps", () => {
+  test("gaps an ambiguous reporting-currency election from the producer artifact", () => {
+    const derive = (facts: Record<string, unknown>) =>
+      deriveFinancialStatements(
+        { facts: { "us-gaap": facts } },
+        { symbol: "ZAF", generatedAt: AS_OF, analysisAsOf: AS_OF, sourceId: SOURCE_ID },
+      );
+    const completenessOf = (financialStatements: FinancialStatementsArtifact) =>
+      deriveEquityAnalysisCompleteness({ asOf: AS_OF, assetClass: "equity", financialStatements });
+    const ambiguous = completenessOf(
+      derive({ Revenues: { units: { USD: [fy2025TenKFact(110)], ZAR: [fy2025TenKFact(2000)] } } }),
+    );
+    expect(ambiguous.dimensions.primaryFinancials.status).toBe("blocked");
+    expect(ambiguous.dimensions.primaryFinancials.reasonCodes).toEqual([
+      "reporting-currency-ambiguous",
+    ]);
+    expect(
+      equityAnalysisCompletenessGaps(ambiguous, undefined, "zaf").map(({ message }) => message),
+    ).toEqual([
+      "reporting-currency-ambiguous: ZAF filed facts do not establish which currency is the reporting currency",
+    ]);
+
+    const sharesOnlyArtifact = derive({
+      WeightedAverageNumberOfDilutedSharesOutstanding: {
+        units: { shares: [fy2025TenKFact(9)] },
+      },
+    });
+    expect(sharesOnlyArtifact.structuredFinancialGaps.map(({ code }) => code)).toEqual([
+      "no-reporting-currency",
+    ]);
+    const sharesOnly = completenessOf(sharesOnlyArtifact);
+    expect(sharesOnly.dimensions.primaryFinancials.reasonCodes).toEqual([
+      "current-annual-statement-unavailable",
+    ]);
+    expect(equityAnalysisCompletenessGaps(sharesOnly, undefined, "ZAF")).toEqual([]);
+  });
+
   test("does not attribute unavailable annual evidence to the issuer but still gaps a stale annual", () => {
     const unavailable = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
@@ -1337,6 +1386,28 @@ describe("equity analysis completeness freshness gaps", () => {
           asOf: AS_OF,
           assetClass: "equity",
           financialStatements: withoutReportingCurrency(quarterly),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["reporting-currency-ambiguous"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: {
+            ...withoutReportingCurrency(
+              withRevenue(quarterly, { ...revenue, annual: [], interim: [] }),
+            ),
+            structuredFinancialGaps: [
+              {
+                code: "ambiguous-reporting-currency",
+                message:
+                  "Standard monetary facts are filed in USD, ZAR; the filed facts do not establish which is the reporting currency",
+                forms: [],
+                sourceIds: [SOURCE_ID],
+              },
+            ],
+          },
         },
       },
       {

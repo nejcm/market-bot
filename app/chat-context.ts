@@ -1,7 +1,7 @@
 import type { RunDetail } from "./types";
 import { predictionShortfallMaterialGaps } from "../src/report/prediction-shortfall";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
-import { readPredictionScoreStatus } from "../src/run-artifact-score-reader";
+import { readScoreRows } from "../src/run-artifact-score-reader";
 import { isRecord, stringArrayValue } from "../src/guards";
 
 // ~24k tokens at ~4 chars/token
@@ -20,43 +20,24 @@ function truncateToBudget(block: string, budgetChars: number): string {
 }
 
 function formatScoreOutcomes(score: Record<string, unknown> | undefined): string | undefined {
-  if (score === undefined) {
+  const rows = readScoreRows(score);
+  if (rows === undefined) {
     return undefined;
   }
-
-  const scores = Array.isArray(score.scores) ? score.scores : [];
-  if (scores.length === 0) {
-    return undefined;
+  const lines = rows.scores.map((entry) => {
+    let detail = `- ${entry.predictionId}: ${entry.outcome === undefined ? entry.status : `${entry.outcome} (${entry.status})`}`;
+    const { close0, closeN } = entry.evidence;
+    if (typeof close0 === "number" && typeof closeN === "number") {
+      detail += ` | close ${String(close0)} → ${String(closeN)}`;
+    }
+    if (entry.status === "abandoned") {
+      return `${detail} at ${entry.abandonedAt}`;
+    }
+    return entry.observedAt === undefined ? detail : `${detail} observed ${entry.observedAt}`;
+  });
+  for (const { predictionId, reason } of rows.malformed) {
+    lines.push(`- ${predictionId}: malformed (${reason})`);
   }
-
-  const lines: string[] = [];
-  for (const entry of scores) {
-    if (!isRecord(entry)) {
-      continue;
-    }
-
-    const id = typeof entry.predictionId === "string" ? entry.predictionId : "?";
-    const status = readPredictionScoreStatus(entry.status);
-    const outcome = entry.outcome === "hit" || entry.outcome === "miss" ? entry.outcome : undefined;
-
-    let detail = `- ${id}: ${status ?? "malformed (no status)"}`;
-    if (status !== undefined && outcome !== undefined) {
-      detail = `- ${id}: ${outcome} (${status})`;
-    }
-    if (isRecord(entry.evidence)) {
-      const { close0 } = entry.evidence;
-      const { closeN } = entry.evidence;
-      if (typeof close0 === "number" && typeof closeN === "number") {
-        detail += ` | close ${String(close0)} → ${String(closeN)}`;
-      }
-    }
-    if (typeof entry.observedAt === "string") {
-      detail += ` observed ${entry.observedAt}`;
-    }
-
-    lines.push(detail);
-  }
-
   return lines.length > 0 ? lines.join("\n") : undefined;
 }
 

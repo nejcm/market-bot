@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { loadHistoricalContext } from "../src/research/historical-context";
 import { compactHistoricalContext } from "../src/research/prompts/evidence-payload";
 import type { PredictionScore } from "../src/scoring/types";
-import { prediction, predictionScore, researchReport } from "./support/fixtures";
+import { prediction, predictionScore, researchReport, scoreWithStatus } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
 
@@ -59,13 +59,8 @@ async function writeRun(
 }
 
 function score(runId: string, id: string, resolved: boolean, outcome: "hit" | "miss" = "hit") {
-  return predictionScore(outcome, {
-    runId,
-    predictionId: `${runId}-${id}`,
-    status: resolved ? "resolved" : "pending",
-    resolved,
-    ...(resolved ? {} : { outcome: undefined }),
-  });
+  const ids = { runId, predictionId: `${runId}-${id}` };
+  return resolved ? predictionScore(outcome, ids) : scoreWithStatus("pending", ids);
 }
 
 describe("compactHistoricalContext", () => {

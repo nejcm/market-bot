@@ -750,7 +750,7 @@ function predictionTexts(items: readonly Prediction[]): readonly string[] {
 function scoreTexts(items: readonly PredictionScore[]): readonly string[] {
   return items.map(
     (item) =>
-      `${item.predictionId}: ${item.status ?? "malformed"}${item.outcome === undefined ? "" : ` ${item.outcome}`}`,
+      `${item.predictionId}: ${item.status}${item.outcome === undefined ? "" : ` ${item.outcome}`}`,
   );
 }
 

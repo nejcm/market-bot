@@ -30,41 +30,99 @@ export function readPredictionScoreStatus(value: unknown): PredictionScoreStatus
     : undefined;
 }
 
-export function readScores(value: unknown): readonly PredictionScore[] | undefined {
+export interface MalformedScoreRow {
+  readonly predictionId: string;
+  readonly reason: string;
+  readonly raw: Record<string, unknown>;
+}
+
+export interface ScoreRows {
+  readonly scores: readonly PredictionScore[];
+  /** Rows with a prediction id that fail the row contract; kept so writers preserve them verbatim. */
+  readonly malformed: readonly MalformedScoreRow[];
+}
+
+// A persisted `resolved` key is ignored: status alone carries the lifecycle (ADR 0003).
+function readScoreRow(
+  item: Record<string, unknown>,
+): PredictionScore | MalformedScoreRow | undefined {
+  if (typeof item.predictionId !== "string") {
+    return;
+  }
+  const { predictionId } = item;
+  const malformed = (reason: string): MalformedScoreRow => ({ predictionId, reason, raw: item });
+  if (
+    typeof item.runId !== "string" ||
+    typeof item.attemptCount !== "number" ||
+    !isRecord(item.evidence)
+  ) {
+    return malformed("missing runId, attemptCount, or evidence");
+  }
+  const status = readPredictionScoreStatus(item.status);
+  if (status === undefined) {
+    return malformed(item.status === undefined ? "missing status" : "unknown status");
+  }
+  const base = {
+    predictionId,
+    runId: item.runId,
+    attemptCount: item.attemptCount,
+    // Carried through so score-writing consumers preserve the version stamped on terminal scores.
+    ...(typeof item.scoringVersion === "number" ? { scoringVersion: item.scoringVersion } : {}),
+    evidence: item.evidence,
+  };
+  const observedAt = typeof item.observedAt === "string" ? item.observedAt : undefined;
+  const terminalExtras = {
+    ...(typeof item.forecastOrigin === "string" ? { forecastOrigin: item.forecastOrigin } : {}),
+    ...(isRecord(item.repair) ? { repair: item.repair as unknown as ScoreRepair } : {}),
+  };
+  switch (status) {
+    case "resolved": {
+      if ((item.outcome !== "hit" && item.outcome !== "miss") || observedAt === undefined) {
+        return malformed("resolved without outcome and observedAt");
+      }
+      return { ...base, status, outcome: item.outcome, observedAt, ...terminalExtras };
+    }
+    case "voided": {
+      if (observedAt === undefined) {
+        return malformed("voided without observedAt");
+      }
+      return { ...base, status, observedAt, ...terminalExtras };
+    }
+    case "abandoned": {
+      const abandonedAt = typeof item.abandonedAt === "string" ? item.abandonedAt : observedAt;
+      if (abandonedAt === undefined) {
+        return malformed("abandoned without abandonedAt");
+      }
+      return { ...base, status, abandonedAt };
+    }
+    default: {
+      return {
+        ...base,
+        status,
+        ...(typeof item.nextAttemptAt === "string" ? { nextAttemptAt: item.nextAttemptAt } : {}),
+      };
+    }
+  }
+}
+
+export function readScoreRows(value: unknown): ScoreRows | undefined {
   if (!isRecord(value) || !Array.isArray(value.scores)) {
     return;
   }
-  return value.scores.flatMap((item): readonly PredictionScore[] => {
-    if (
-      !isRecord(item) ||
-      typeof item.predictionId !== "string" ||
-      typeof item.runId !== "string" ||
-      typeof item.resolved !== "boolean" ||
-      typeof item.attemptCount !== "number" ||
-      !isRecord(item.evidence)
-    ) {
-      return [];
+  const scores: PredictionScore[] = [];
+  const malformed: MalformedScoreRow[] = [];
+  for (const item of value.scores) {
+    const row = isRecord(item) ? readScoreRow(item) : undefined;
+    if (row === undefined) {
+      continue;
     }
-    const status = readPredictionScoreStatus(item.status);
-    return [
-      {
-        predictionId: item.predictionId,
-        runId: item.runId,
-        ...(status !== undefined ? { status } : {}),
-        resolved: item.resolved,
-        outcome: item.outcome === "hit" || item.outcome === "miss" ? item.outcome : undefined,
-        observedAt: typeof item.observedAt === "string" ? item.observedAt : undefined,
-        attemptCount: item.attemptCount,
-        ...(typeof item.nextAttemptAt === "string" ? { nextAttemptAt: item.nextAttemptAt } : {}),
-        // Carried through at full fidelity so score-writing consumers (scoring/index.ts) can
-        // Preserve the version stamped on already-resolved scores. Undefined for legacy files.
-        ...(typeof item.scoringVersion === "number" ? { scoringVersion: item.scoringVersion } : {}),
-        evidence: item.evidence,
-        ...(typeof item.forecastOrigin === "string" ? { forecastOrigin: item.forecastOrigin } : {}),
-        ...(isRecord(item.repair) ? { repair: item.repair as unknown as ScoreRepair } : {}),
-      },
-    ];
-  });
+    if ("reason" in row) {
+      malformed.push(row);
+    } else {
+      scores.push(row);
+    }
+  }
+  return { scores, malformed };
 }
 
 export function readMissAutopsies(value: unknown): readonly MissAutopsyEntry[] {

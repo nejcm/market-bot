@@ -299,7 +299,7 @@ describe("history artifacts", () => {
         {
           predictionId: "p1",
           runId: "run-old",
-          resolved: true,
+          status: "resolved",
           outcome: "miss",
           observedAt: "2026-06-03T00:00:00.000Z",
           attemptCount: 1,
@@ -397,7 +397,14 @@ describe("history artifacts", () => {
     ] as const) {
       writeJson(join(dataDir, runId, "score.json"), {
         scores: [
-          { predictionId: "p1", runId, status, resolved: true, attemptCount: 1, evidence: {} },
+          {
+            predictionId: "p1",
+            runId,
+            status,
+            observedAt: "2026-06-05T00:00:00.000Z",
+            attemptCount: 1,
+            evidence: {},
+          },
         ],
       });
     }

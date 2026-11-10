@@ -203,7 +203,7 @@ describe("runCli", () => {
     const original = {
       predictionId: "pred-2",
       runId: "run-1",
-      resolved: true,
+      status: "resolved" as const,
       outcome: "miss" as const,
       observedAt: "2026-10-08T15:58:52.674Z",
       attemptCount: 1,
@@ -269,7 +269,7 @@ describe("runCli", () => {
           original: {
             predictionId: "pred-2",
             runId: "run-1",
-            resolved: true,
+            status: "resolved" as const,
             outcome: "miss" as const,
             observedAt: "2026-10-08T21:00:00.000Z",
             attemptCount: 1,

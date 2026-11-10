@@ -17,7 +17,9 @@ import { predictionShortfallGapCount } from "./report/prediction-shortfall";
 import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
 import { RUN_ARTIFACT_FILES, isReplayCapturePath } from "./run-artifact-layout";
 import { scoreForecastOrigin } from "./scoring/forecast-origin";
+import { isTerminal } from "./scoring/score-status";
 import type { MissAutopsyEntry, PredictionScore } from "./scoring/types";
+import type { MalformedScoreRow } from "./run-artifact-score-reader";
 import type {
   ArtifactFileRow,
   PredictionRow,
@@ -188,29 +190,52 @@ function forecastOriginFor(
   measurableAs: string | undefined,
   report: ResearchReport,
 ): string | null {
-  return measurableAs === undefined ? null : scoreForecastOrigin(score, measurableAs, report);
+  if (measurableAs === undefined) {
+    return null;
+  }
+  const stored = score.status === "resolved" || score.status === "voided" ? score : {};
+  return scoreForecastOrigin(stored, measurableAs, report);
 }
 
 function scoreRowsFor(
   report: ResearchReport,
   scores: readonly PredictionScore[],
+  malformedScores: readonly MalformedScoreRow[],
   missAutopsies: readonly MissAutopsyEntry[],
 ): readonly ScoreRow[] {
   const causeByPrediction = new Map(
     missAutopsies.map((autopsy) => [autopsy.predictionId, autopsy.cause]),
   );
   const measurableAs = new Map(report.predictions.map(({ id, measurableAs: as }) => [id, as]));
-  return scores.map((score) => ({
-    prediction_id: score.predictionId,
-    run_id: report.runId,
-    resolved: score.resolved ? 1 : 0,
-    status: score.status ?? null,
-    outcome: score.outcome ?? null,
-    observed_at: score.observedAt ?? null,
-    scoring_version: score.scoringVersion ?? null,
-    miss_autopsy_cause: causeByPrediction.get(score.predictionId) ?? null,
-    forecast_origin: forecastOriginFor(score, measurableAs.get(score.predictionId), report),
-  }));
+  const scoredIds = new Set(scores.map(({ predictionId }) => predictionId));
+  const malformedIds = new Set(malformedScores.map(({ predictionId }) => predictionId));
+  return [
+    ...scores.map((score) => ({
+      prediction_id: score.predictionId,
+      run_id: report.runId,
+      resolved: isTerminal(score.status) ? 1 : 0,
+      status: score.status,
+      outcome: score.outcome ?? null,
+      observed_at: score.observedAt ?? null,
+      scoring_version: score.scoringVersion ?? null,
+      miss_autopsy_cause: causeByPrediction.get(score.predictionId) ?? null,
+      forecast_origin: forecastOriginFor(score, measurableAs.get(score.predictionId), report),
+    })),
+    // Status stays null so the watchlist reads a malformed row as scored, not open.
+    ...[...malformedIds]
+      .filter((predictionId) => !scoredIds.has(predictionId))
+      .map((predictionId) => ({
+        prediction_id: predictionId,
+        run_id: report.runId,
+        resolved: 0,
+        status: null,
+        outcome: null,
+        observed_at: null,
+        scoring_version: null,
+        miss_autopsy_cause: null,
+        forecast_origin: null,
+      })),
+  ];
 }
 
 export async function readRunSubsystemOutcomesFromDisk(
@@ -249,6 +274,7 @@ export async function indexRowsForRun(dataDir: string, runDirName: string): Prom
         : scoreRowsFor(
             loaded.artifact.report,
             loaded.artifact.scores,
+            loaded.artifact.malformedScores,
             loaded.artifact.missAutopsies,
           ),
     outcomes: outcomes.outcomes.map(

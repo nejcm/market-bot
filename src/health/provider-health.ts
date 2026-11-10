@@ -38,7 +38,7 @@ import {
   type SubsystemOutcomeRollup,
 } from "../research/subsystem-outcomes";
 import { isRecord, numberAt, readNumber } from "../guards";
-import { readScores } from "../run-artifact-score-reader";
+import { readScoreRows } from "../run-artifact-score-reader";
 import { hasOutcome } from "../scoring/score-status";
 import { deriveWebSearchEndpointAvailability } from "../sources/provider-endpoint-availability";
 import type { RunSubsystemOutcome, RunSubsystemOutcomeLedger } from "../run-artifact-projection";
@@ -292,12 +292,14 @@ function parseScoreCounts(value: unknown): {
   readonly scoreCount: number;
   readonly resolvedScoreCount: number;
 } {
-  if (!isRecord(value) || !Array.isArray(value.scores)) {
+  const rows = readScoreRows(value);
+  if (rows === undefined) {
     return { scoreCount: 0, resolvedScoreCount: 0 };
   }
-
-  const resolvedScoreCount = (readScores(value) ?? []).filter((score) => hasOutcome(score)).length;
-  return { scoreCount: value.scores.length, resolvedScoreCount };
+  return {
+    scoreCount: rows.scores.length + rows.malformed.length,
+    resolvedScoreCount: rows.scores.filter((score) => hasOutcome(score)).length,
+  };
 }
 
 function depthFrom(

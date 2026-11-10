@@ -1,9 +1,9 @@
 import { predictions, type PredictionView } from "../src/run-artifact-projection";
 import { isRecord, readNumber, readStringVerbatim } from "../src/guards";
 import { readPredictionShortfall } from "../src/report/prediction-shortfall";
-import { readPredictionScoreStatus } from "../src/run-artifact-score-reader";
+import { readScoreRows } from "../src/run-artifact-score-reader";
 import { hasOutcome } from "../src/scoring/score-status";
-import type { PredictionScoreStatus } from "../src/scoring/types";
+import type { PredictionScore, PredictionScoreStatus } from "../src/scoring/types";
 
 export {
   extendedEvidenceItems,
@@ -26,9 +26,10 @@ export {
 export interface PredictionScoreView {
   readonly predictionId: string;
   readonly status: PredictionScoreStatus | "malformed";
-  readonly resolved: boolean;
   readonly outcome?: "hit" | "miss";
   readonly observedAt?: string;
+  readonly abandonedAt?: string;
+  readonly malformedReason?: string;
   readonly close0?: number;
   readonly closeN?: number;
   readonly changePct?: number;
@@ -88,49 +89,39 @@ export interface PredictionTargetHealth {
   readonly targetMet: boolean;
 }
 
+function scoreView(score: PredictionScore): PredictionScoreView {
+  const close0 = readNumber(score.evidence, "close0");
+  const closeN = readNumber(score.evidence, "closeN");
+  const hasCloses = close0 !== undefined && closeN !== undefined;
+  const changePct = hasCloses && close0 !== 0 ? ((closeN - close0) / close0) * 100 : undefined;
+  const pendingReason = readStringVerbatim(score.evidence, "reason");
+  return {
+    predictionId: score.predictionId,
+    status: score.status,
+    ...(score.outcome !== undefined ? { outcome: score.outcome } : {}),
+    ...(score.observedAt !== undefined ? { observedAt: score.observedAt } : {}),
+    ...(score.status === "abandoned" ? { abandonedAt: score.abandonedAt } : {}),
+    ...(hasCloses ? { close0, closeN } : {}),
+    ...(changePct !== undefined ? { changePct } : {}),
+    ...(pendingReason !== undefined ? { pendingReason } : {}),
+  };
+}
+
 export function predictionScores(
   score: Record<string, unknown> | undefined,
 ): readonly PredictionScoreView[] {
-  const value = score?.scores;
-  if (!Array.isArray(value)) {
+  const rows = readScoreRows(score);
+  if (rows === undefined) {
     return [];
   }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item): readonly PredictionScoreView[] => {
-      const predictionId = readStringVerbatim(item, "predictionId");
-      if (predictionId === undefined) {
-        return [];
-      }
-      const status = readPredictionScoreStatus(item.status);
-      if (status === undefined) {
-        return [{ predictionId, status: "malformed", resolved: item.resolved === true }];
-      }
-
-      const resolved = item.resolved === true;
-      const rawOutcome = readStringVerbatim(item, "outcome");
-      const outcome = rawOutcome === "hit" || rawOutcome === "miss" ? rawOutcome : undefined;
-      const observedAt = readStringVerbatim(item, "observedAt");
-      const evidence = isRecord(item.evidence) ? item.evidence : {};
-      const close0 = readNumber(evidence, "close0");
-      const closeN = readNumber(evidence, "closeN");
-      const hasCloses = close0 !== undefined && closeN !== undefined;
-      const changePct = hasCloses && close0 !== 0 ? ((closeN - close0) / close0) * 100 : undefined;
-      const pendingReason = readStringVerbatim(evidence, "reason");
-      return [
-        {
-          predictionId,
-          status,
-          resolved,
-          ...(outcome !== undefined ? { outcome } : {}),
-          ...(observedAt !== undefined ? { observedAt } : {}),
-          ...(hasCloses ? { close0, closeN } : {}),
-          ...(changePct !== undefined ? { changePct } : {}),
-          ...(pendingReason !== undefined ? { pendingReason } : {}),
-        },
-      ];
-    });
+  return [
+    ...rows.scores.map((row) => scoreView(row)),
+    ...rows.malformed.map(({ predictionId, reason }) => ({
+      predictionId,
+      status: "malformed" as const,
+      malformedReason: reason,
+    })),
+  ];
 }
 
 function conditionalAntecedent(measurableAs: string | undefined): string | undefined {

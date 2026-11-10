@@ -24,7 +24,7 @@ export function forecastErrorDirection(
   prediction: Prediction,
   score: PredictionScore,
 ): ForecastErrorDirection | undefined {
-  if (!score.resolved || score.outcome === undefined) {
+  if (score.outcome === undefined) {
     return;
   }
   if (score.outcome === "miss" && prediction.probability >= OVERPREDICTED_THRESHOLD) {

@@ -1604,23 +1604,27 @@ describe("forecast outcomes", () => {
     scores: [
       {
         predictionId: "p1",
+        runId: "run-1",
         status: "resolved",
-        resolved: true,
         outcome: "miss",
         observedAt: "2026-06-10T05:46:56Z",
+        attemptCount: 1,
         evidence: { close0: 742.74, closeN: 716.07 },
       },
       {
         predictionId: "p2",
+        runId: "run-1",
         status: "pending",
-        resolved: false,
+        attemptCount: 0,
         evidence: { reason: "horizon not yet elapsed" },
       },
       {
         predictionId: "orphan",
+        runId: "run-1",
         status: "resolved",
-        resolved: true,
         outcome: "hit",
+        observedAt: "2026-06-10T05:46:56Z",
+        attemptCount: 1,
         evidence: {},
       },
     ],
@@ -1644,7 +1648,6 @@ describe("forecast outcomes", () => {
       {
         predictionId: "p1",
         status: "resolved",
-        resolved: true,
         outcome: "miss",
         observedAt: "2026-06-10T05:46:56Z",
         close0: 742.74,
@@ -1654,16 +1657,20 @@ describe("forecast outcomes", () => {
       {
         predictionId: "p2",
         status: "pending",
-        resolved: false,
         pendingReason: "horizon not yet elapsed",
       },
-      { predictionId: "orphan", status: "resolved", resolved: true, outcome: "hit" },
+      {
+        predictionId: "orphan",
+        status: "resolved",
+        outcome: "hit",
+        observedAt: "2026-06-10T05:46:56Z",
+      },
     ]);
   });
 
   const missingScore: Record<string, unknown> | undefined = undefined;
 
-  test("ignores malformed score payloads and entries", () => {
+  test("ignores unreadable score payloads and shows identifiable broken entries as malformed", () => {
     expect(predictionScores(missingScore)).toEqual([]);
     expect(predictionScores({ scores: "broken" })).toEqual([]);
     expect(
@@ -1671,14 +1678,24 @@ describe("forecast outcomes", () => {
         scores: [
           null,
           7,
-          { resolved: true },
+          { status: "pending" },
           { predictionId: "p1", outcome: "draw" },
-          { predictionId: "p2", status: "pending" },
+          { predictionId: "p2", runId: "run-1", status: "pending", attemptCount: 0, evidence: {} },
+          { predictionId: "p3", status: "pending" },
         ],
       }),
     ).toEqual([
-      { predictionId: "p1", status: "malformed", resolved: false },
-      { predictionId: "p2", status: "pending", resolved: false },
+      { predictionId: "p2", status: "pending" },
+      {
+        predictionId: "p1",
+        status: "malformed",
+        malformedReason: "missing runId, attemptCount, or evidence",
+      },
+      {
+        predictionId: "p3",
+        status: "malformed",
+        malformedReason: "missing runId, attemptCount, or evidence",
+      },
     ]);
   });
 
@@ -1687,15 +1704,22 @@ describe("forecast outcomes", () => {
       scores: [
         {
           predictionId: "p1",
+          runId: "run-1",
           status: "resolved",
-          resolved: true,
           outcome: "hit",
+          observedAt: "2026-06-10T05:46:56Z",
+          attemptCount: 1,
           evidence: { close0: 10 },
         },
       ],
     });
     expect(parsed).toEqual([
-      { predictionId: "p1", status: "resolved", resolved: true, outcome: "hit" },
+      {
+        predictionId: "p1",
+        status: "resolved",
+        outcome: "hit",
+        observedAt: "2026-06-10T05:46:56Z",
+      },
     ]);
   });
 
@@ -1704,9 +1728,11 @@ describe("forecast outcomes", () => {
       scores: [
         {
           predictionId: "p1",
+          runId: "run-1",
           status: "resolved",
-          resolved: true,
           outcome: "hit",
+          observedAt: "2026-06-10T05:46:56Z",
+          attemptCount: 1,
           evidence: { close0: 0, closeN: 5 },
         },
       ],
@@ -1735,7 +1761,7 @@ describe("forecast outcomes", () => {
       rationale: "Source coverage was incomplete.",
       supportingSignals: ["source gap"],
     });
-    expect(joined[1]?.score?.resolved).toBe(false);
+    expect(joined[1]?.score?.status).toBe("pending");
     expect(joined[1]?.score?.pendingReason).toBe("horizon not yet elapsed");
     expect(joined[1]?.forecastDisagreement).toBeUndefined();
     expect(joined[2]?.score).toBeUndefined();
@@ -1817,15 +1843,22 @@ describe("forecast outcomes", () => {
         sourceIds: [],
       })),
     };
+    const at = "2026-06-10T05:46:56Z";
     const terminalScore = {
       scores: [
-        { predictionId: "p1", status: "resolved", resolved: true, outcome: "hit" },
-        { predictionId: "p2", status: "resolved", resolved: true, outcome: "miss" },
-        { predictionId: "p3", status: "voided", resolved: true },
-        { predictionId: "p4", status: "abandoned", resolved: true },
-        { predictionId: "p5", status: "pending", resolved: false },
-        { predictionId: "p6", resolved: false },
-      ],
+        { status: "resolved", outcome: "hit", observedAt: at },
+        { status: "resolved", outcome: "miss", observedAt: at },
+        { status: "voided", observedAt: at },
+        { status: "abandoned", abandonedAt: at },
+        { status: "pending" },
+        { resolved: false },
+      ].map((fields, index) => ({
+        predictionId: `p${String(index + 1)}`,
+        runId: "run-1",
+        attemptCount: 1,
+        evidence: {},
+        ...fields,
+      })),
     };
     const rollup = forecastRollup(scoredForecasts(terminalReport, terminalScore));
     expect(rollup).toEqual({
@@ -1839,6 +1872,11 @@ describe("forecast outcomes", () => {
       pending: 1,
     });
     expect(rollup.hits + rollup.misses + rollup.voided + rollup.abandoned).toBe(4);
+    expect(predictionScores(terminalScore)[3]).toEqual({
+      predictionId: "p4",
+      status: "abandoned",
+      abandonedAt: at,
+    });
   });
 
   test("groups conditional forecasts by identical antecedent", () => {
@@ -1870,14 +1908,17 @@ describe("forecast outcomes", () => {
       scores: [
         {
           predictionId: "c1",
+          runId: "run-1",
           status: "active-pending",
-          resolved: false,
+          attemptCount: 0,
           evidence: { reason: "condition met; consequent pending" },
         },
         {
           predictionId: "c2",
+          runId: "run-1",
           status: "voided",
-          resolved: true,
+          observedAt: "2026-06-10T05:46:56Z",
+          attemptCount: 1,
           evidence: { reason: "condition unmet" },
         },
       ],

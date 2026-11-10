@@ -6,7 +6,11 @@ import type { RunTrace } from "../../src/domain/run-trace";
 import type { Source } from "../../src/domain/sources";
 import { buildFailedRunManifest } from "../../src/run-artifact-writer";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
-import type { PredictionScore } from "../../src/scoring/types";
+import type {
+  PredictionScore,
+  PredictionScoreStatus,
+  ResolvedPredictionScore,
+} from "../../src/scoring/types";
 import type { CollectedSources } from "../../src/sources/types";
 import type { DeepEquityEvidenceBundleV1 } from "../../src/deep-equity/types";
 import type { ValuationWorkbenchArtifact } from "../../src/sources/extended-evidence/valuation-workbench-contract";
@@ -376,19 +380,34 @@ export function reverseDcfArtifact(): ReverseDcfArtifact {
 
 export function predictionScore(
   outcome: "hit" | "miss",
-  overrides: Partial<PredictionScore> = {},
-): PredictionScore {
+  overrides: Partial<ResolvedPredictionScore> = {},
+): ResolvedPredictionScore {
   return {
     predictionId: "p",
     runId: "r",
     status: "resolved",
-    resolved: true,
     outcome,
     observedAt: DEFAULT_OBSERVED_AT,
     attemptCount: 1,
     evidence: {},
     ...overrides,
   };
+}
+
+export function scoreWithStatus(
+  status: Exclude<PredictionScoreStatus, "resolved">,
+  overrides: Partial<
+    Pick<PredictionScore, "predictionId" | "runId" | "attemptCount" | "scoringVersion" | "evidence">
+  > = {},
+): PredictionScore {
+  const base = { predictionId: "p", runId: "r", attemptCount: 1, evidence: {}, ...overrides };
+  if (status === "voided") {
+    return { ...base, status, observedAt: DEFAULT_OBSERVED_AT };
+  }
+  if (status === "abandoned") {
+    return { ...base, status, abandonedAt: DEFAULT_OBSERVED_AT };
+  }
+  return { ...base, status };
 }
 
 // Writer-produced `outcomes.json` value for a Failed Run Artifact.

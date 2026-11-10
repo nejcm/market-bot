@@ -1386,9 +1386,11 @@ describe("run workspace view", () => {
         scores: [
           {
             predictionId: "prediction-1",
+            runId: "run-1",
             status: "resolved",
-            resolved: true,
             outcome: "hit",
+            observedAt: "2026-07-04T12:00:00.000Z",
+            attemptCount: 1,
             evidence: { close0: 211, closeN: 215 },
           },
         ],
@@ -3682,9 +3684,11 @@ describe("run workspace view", () => {
           scores: [
             {
               predictionId: "prediction-1",
+              runId: "run-1",
               status: "resolved",
-              resolved: true,
               outcome: "hit",
+              observedAt: "2026-07-04T12:00:00.000Z",
+              attemptCount: 1,
               evidence: { close0: 211, closeN: 215 },
             },
           ],

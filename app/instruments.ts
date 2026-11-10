@@ -28,7 +28,7 @@ export interface InstrumentConsoleOptions {
 }
 
 function scoreOutcome(score: PredictionScore | undefined): InstrumentForecastOutcome {
-  if (score?.status === undefined) {
+  if (score === undefined) {
     return "unscored";
   }
   if (score.status === "voided" || score.status === "abandoned") {

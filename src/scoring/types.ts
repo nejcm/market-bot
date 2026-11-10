@@ -20,23 +20,56 @@ export type MissAutopsyCause =
 
 export type ForecastErrorDirection = "overpredicted" | "underpredicted";
 
-export interface PredictionScore {
+export type PendingScoreStatus = Exclude<
+  PredictionScoreStatus,
+  "resolved" | "voided" | "abandoned"
+>;
+
+interface PredictionScoreBase {
   readonly predictionId: string;
   readonly runId: string;
-  /** Optional for score files written before conditional score lifecycle states. */
-  readonly status?: PredictionScoreStatus;
-  readonly resolved: boolean;
-  readonly outcome: ScoreOutcome | undefined;
-  readonly observedAt: string | undefined;
   readonly attemptCount: number;
-  readonly nextAttemptAt?: string;
   /** Undefined for legacy score files written before scoring logic versioning. */
   readonly scoringVersion?: number;
   readonly evidence: Record<string, unknown>;
+}
+
+export interface PendingPredictionScore extends PredictionScoreBase {
+  readonly status: PendingScoreStatus;
+  readonly nextAttemptAt?: string;
+  readonly outcome?: never;
+  readonly observedAt?: never;
+}
+
+export interface ResolvedPredictionScore extends PredictionScoreBase {
+  readonly status: "resolved";
+  readonly outcome: ScoreOutcome;
+  readonly observedAt: string;
   /** Forecast Event origin the resolver anchored on; absent on scores written before it was persisted. */
   readonly forecastOrigin?: string;
   readonly repair?: ScoreRepair;
 }
+
+interface VoidedPredictionScore extends PredictionScoreBase {
+  readonly status: "voided";
+  readonly outcome?: never;
+  readonly observedAt: string;
+  readonly forecastOrigin?: string;
+  readonly repair?: ScoreRepair;
+}
+
+export interface AbandonedPredictionScore extends PredictionScoreBase {
+  readonly status: "abandoned";
+  readonly outcome?: never;
+  readonly observedAt?: never;
+  readonly abandonedAt: string;
+}
+
+export type PredictionScore =
+  | PendingPredictionScore
+  | ResolvedPredictionScore
+  | VoidedPredictionScore
+  | AbandonedPredictionScore;
 
 export type ScoreRepairVerdict = "proven-premature" | "suspect";
 

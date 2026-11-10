@@ -15,12 +15,21 @@ import type {
   PairedSkillMetric,
   PairedSkillPolicy,
   PairedSkillSummary,
-  PredictionScore,
+  ResolvedPredictionScore,
 } from "./types";
 
 export interface ResolvedPair {
   readonly prediction: Prediction;
-  readonly score: PredictionScore;
+  readonly score: Pick<
+    ResolvedPredictionScore,
+    | "predictionId"
+    | "runId"
+    | "status"
+    | "outcome"
+    | "observedAt"
+    | "scoringVersion"
+    | "forecastOrigin"
+  >;
   readonly assetClass: AssetClass;
   readonly jobType: JobType;
   readonly marketUpdateHorizonBucket?: string;

@@ -50,6 +50,14 @@ function minimalDetail(overrides: Partial<RunDetail> = {}): RunDetail {
   };
 }
 
+const pendingRow = {
+  predictionId: "p1",
+  runId: "run-1",
+  status: "pending",
+  attemptCount: 0,
+  evidence: {},
+};
+
 describe("buildRunChatContext", () => {
   test("includes report markdown as highest priority", () => {
     const detail = minimalDetail({ markdown: "# My Report\n\nSummary text here." });
@@ -66,10 +74,11 @@ describe("buildRunChatContext", () => {
         scores: [
           {
             predictionId: "p1",
+            runId: "run-1",
             status: "resolved",
             outcome: "hit",
-            resolved: true,
             observedAt: "2026-06-10T00:00:00.000Z",
+            attemptCount: 1,
             evidence: { close0: 100, closeN: 110 },
           },
         ],
@@ -176,7 +185,7 @@ describe("buildRunChatContext", () => {
   test("priority order: markdown > score > report fields > snapshot > sidecars", () => {
     const detail = minimalDetail({
       markdown: "# Report Markdown",
-      score: { scores: [{ predictionId: "p1", outcome: "hit", resolved: true }] },
+      score: { scores: [pendingRow] },
       report: { predictions: [{ claim: "Up", probability: 0.7 }], sources: [], dataGaps: [] },
       verifiedMarketSnapshot: testSnapshot(),
       summary: minimalSummary({ availableFiles: ["normalized/movers.json"] }),
@@ -200,7 +209,7 @@ describe("buildRunChatContext", () => {
     const longMarkdown = "A".repeat(500);
     const detail = minimalDetail({
       markdown: longMarkdown,
-      score: { scores: [{ predictionId: "p1", outcome: "hit", resolved: true }] },
+      score: { scores: [pendingRow] },
       report: {
         predictions: [{ claim: "Test claim", probability: 0.5 }],
         sources: [],
@@ -222,7 +231,7 @@ describe("buildRunChatContext", () => {
   test("truncation marker reports correct omission count", () => {
     const detail = minimalDetail({
       markdown: "A".repeat(400),
-      score: { scores: [{ predictionId: "p1", outcome: "hit", resolved: true }] },
+      score: { scores: [pendingRow] },
       report: { predictions: [{ claim: "C", probability: 0.5 }], sources: [], dataGaps: [] },
       verifiedMarketSnapshot: testSnapshot(),
       summary: minimalSummary({ availableFiles: ["normalized/movers.json"] }),
@@ -248,7 +257,7 @@ describe("buildRunChatContext", () => {
   test("stays within budget when the truncated head section is followed by other sections", () => {
     const detail = minimalDetail({
       markdown: `# Big Report\n\n${"x".repeat(5000)}`,
-      score: { scores: [{ predictionId: "p1", outcome: "hit", resolved: true }] },
+      score: { scores: [pendingRow] },
       verifiedMarketSnapshot: testSnapshot(),
       summary: minimalSummary({ availableFiles: ["normalized/movers.json"] }),
     });
@@ -285,7 +294,7 @@ describe("buildRunChatContext", () => {
   test("handles pending (unresolved) scores", () => {
     const detail = minimalDetail({
       score: {
-        scores: [{ predictionId: "p1", status: "pending", resolved: false }],
+        scores: [pendingRow],
       },
     });
     const context = buildRunChatContext(detail);
@@ -297,17 +306,22 @@ describe("buildRunChatContext", () => {
     const detail = minimalDetail({
       score: {
         scores: [
-          { predictionId: "p1", status: "voided", resolved: true },
-          { predictionId: "p2", status: "abandoned", resolved: true },
+          { ...pendingRow, status: "voided", observedAt: "2026-06-10T00:00:00.000Z" },
+          { ...pendingRow, predictionId: "p2", status: "abandoned", resolved: true },
           { predictionId: "p3", resolved: true, outcome: "hit" },
+          { predictionId: "p4", runId: "run-1", attemptCount: 1, evidence: {}, resolved: true },
+          { ...pendingRow, predictionId: "p5", status: "abandoned", abandonedAt: "2026-06-11" },
         ],
       },
     });
     const context = buildRunChatContext(detail);
 
-    expect(context).toContain("- p1: voided\n");
-    expect(context).toContain("- p2: abandoned\n");
-    expect(context).toContain("- p3: malformed (no status)");
+    expect(context).toContain("- p1: voided observed 2026-06-10T00:00:00.000Z\n");
+    expect(context).toContain("- p2: malformed (abandoned without abandonedAt)\n");
+    expect(context).toContain("- p3: malformed (missing runId, attemptCount, or evidence)\n");
+    expect(context).toContain("- p4: malformed (missing status)");
+    expect(context).toContain("- p5: abandoned at 2026-06-11\n");
+    expect(context).not.toContain("p5: abandoned observed");
     expect(context).not.toContain("(resolved)");
   });
 });

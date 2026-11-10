@@ -246,18 +246,10 @@ function resolvedSince(
     .flatMap((run): readonly MarketUpdateDeltaResolvedPrediction[] => {
       const claims = predictionClaims(run);
       return run.scores.flatMap((score): MarketUpdateDeltaResolvedPrediction[] => {
-        if (!score.resolved) {
+        if (score.status !== "resolved" || timeValue(score.observedAt) <= baselineTime) {
           return [];
         }
         const { observedAt, predictionId, outcome } = score;
-        // Legacy scores without observedAt are excluded from the window.
-        if (
-          observedAt === undefined ||
-          (outcome !== "hit" && outcome !== "miss") ||
-          timeValue(observedAt) <= baselineTime
-        ) {
-          return [];
-        }
         const prediction = claims.get(predictionId);
         if (prediction === undefined) {
           return [];

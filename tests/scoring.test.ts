@@ -17,6 +17,7 @@ import { verifiedSnapshotSource } from "../src/sources/verified-snapshot-contrac
 import {
   prediction,
   predictionScore,
+  scoreWithStatus,
   researchReport,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
@@ -1678,12 +1679,7 @@ describe("forecastErrorDirection", () => {
 
   test("returns undefined for an unresolved score", () => {
     const pred = prediction({ probability: 0.9 });
-    expect(
-      forecastErrorDirection(
-        pred,
-        predictionScore("miss", { resolved: false, outcome: undefined }),
-      ),
-    ).toBeUndefined();
+    expect(forecastErrorDirection(pred, scoreWithStatus("pending"))).toBeUndefined();
   });
 });
 

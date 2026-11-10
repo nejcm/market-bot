@@ -1471,13 +1471,14 @@ describe("loadRunArtifact", () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "legacy");
     await writeJson(join(runDir, "report.json"), researchReport({ runId: "legacy" }));
-    // A pre-versioning score file: every required field present, scoringVersion absent.
+    // A pre-versioning score file: scoringVersion absent, redundant `resolved` key present.
     await writeJson(join(runDir, "score.json"), {
       runId: "legacy",
       scores: [
         {
           predictionId: "p-legacy",
           runId: "legacy",
+          status: "resolved",
           resolved: true,
           outcome: "miss",
           observedAt: "2026-05-28T00:00:00.000Z",
@@ -1494,7 +1495,7 @@ describe("loadRunArtifact", () => {
       {
         predictionId: "p-legacy",
         runId: "legacy",
-        resolved: true,
+        status: "resolved",
         outcome: "miss",
         observedAt: "2026-05-28T00:00:00.000Z",
         attemptCount: 2,
@@ -1504,16 +1505,16 @@ describe("loadRunArtifact", () => {
     expect(artifact?.scores[0]?.scoringVersion).toBeUndefined();
   });
 
-  test("drops only the unusable score entries while keeping a valid sibling (file stays ok)", async () => {
+  test("sets unusable score entries aside as malformed while keeping a valid sibling (file stays ok)", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "mixed-scores");
     await writeJson(join(runDir, "report.json"), researchReport({ runId: "mixed-scores" }));
-    // One entry is missing required fields (no numeric attemptCount, no record evidence) and is
-    // Dropped; the file itself is well-formed so status stays "ok" and the valid sibling survives.
+    const broken = { predictionId: "p-broken", runId: "mixed-scores", status: "resolved" };
     await writeJson(join(runDir, "score.json"), {
       runId: "mixed-scores",
       scores: [
-        { predictionId: "p-broken", runId: "mixed-scores", resolved: true },
+        broken,
+        { runId: "mixed-scores", status: "pending" },
         predictionScore("hit", { predictionId: "p-good", runId: "mixed-scores" }),
       ],
     });
@@ -1522,6 +1523,13 @@ describe("loadRunArtifact", () => {
 
     expect(status.score).toBe("ok");
     expect(artifact?.scores.map((score) => score.predictionId)).toEqual(["p-good"]);
+    expect(artifact?.malformedScores).toEqual([
+      {
+        predictionId: "p-broken",
+        reason: "missing runId, attemptCount, or evidence",
+        raw: broken,
+      },
+    ]);
   });
 
   test("returns no snapshots when the snapshot file is absent", async () => {

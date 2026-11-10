@@ -21,6 +21,7 @@ import {
   deepEquityEvidenceBundle,
   failedRunOutcomesArtifact,
   predictionScore,
+  scoreWithStatus,
 } from "./support/fixtures";
 
 type WebGatherAuditEntry = WebGatherLoopAudit["acceptedRequests"][number];
@@ -324,10 +325,9 @@ describe("provider health", () => {
       scores: [
         predictionScore("hit", { predictionId: "hit" }),
         predictionScore("miss", { predictionId: "miss" }),
-        ...(["voided", "abandoned"] as const).map((status) =>
-          predictionScore("hit", { predictionId: status, status, outcome: undefined }),
+        ...(["voided", "abandoned", "pending"] as const).map((status) =>
+          scoreWithStatus(status, { predictionId: status }),
         ),
-        predictionScore("hit", { predictionId: "pending", status: "pending", resolved: false }),
       ],
     });
     await writeRun({ runId: "empty", jobType: "equity", assetClass: "equity", scores: [] });

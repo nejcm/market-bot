@@ -135,6 +135,7 @@ interface HistoricalArtifact {
   readonly report: ResearchReport;
   readonly snapshots: readonly HistoricalNumericSnapshot[];
   readonly scores: readonly PredictionScore[];
+  readonly malformedScoreIds: ReadonlySet<string>;
 }
 
 interface SelectedArtifact {
@@ -204,6 +205,7 @@ function toScanResult(scan: RunArtifactScan): ScanResult {
       report: artifact.report,
       snapshots: artifact.marketSnapshots.map(toHistoricalSnapshot),
       scores: artifact.scores,
+      malformedScoreIds: new Set(artifact.malformedScores.map(({ predictionId }) => predictionId)),
     })),
     scannedRunCount: scan.entries.filter((entry) => entry.status.report !== "absent").length,
     malformedRunCount: scan.entries.filter((entry) => entry.status.report === "malformed").length,
@@ -246,7 +248,7 @@ function sortPreferredHorizon(
 }
 
 function hasResolvedMiss(artifact: HistoricalArtifact): boolean {
-  return artifact.scores.some((score) => score.resolved && score.outcome === "miss");
+  return artifact.scores.some((score) => score.outcome === "miss");
 }
 
 function selectArtifacts(input: {
@@ -310,20 +312,22 @@ function selectArtifacts(input: {
   return result.toSorted((left, right) => sortNewest(left.artifact, right.artifact));
 }
 
-function scoreSummary(scores: readonly PredictionScore[]): HistoricalRunContext["scoreSummary"] {
+function scoreSummary(
+  scores: readonly PredictionScore[],
+  malformedCount: number,
+): HistoricalRunContext["scoreSummary"] {
   const outcomes = scores.filter((score) => hasOutcome(score));
   const hit = outcomes.filter((score) => score.outcome === "hit").length;
-  const terminal = scores.filter(
-    (score) => score.status !== undefined && isTerminal(score.status),
-  ).length;
+  const terminal = scores.filter((score) => isTerminal(score.status)).length;
+  const total = scores.length + malformedCount;
   return {
-    total: scores.length,
+    total,
     resolved: outcomes.length,
     hit,
     miss: outcomes.length - hit,
     voided: scores.filter((score) => score.status === "voided").length,
     abandoned: scores.filter((score) => score.status === "abandoned").length,
-    unresolved: scores.length - terminal,
+    unresolved: total - terminal,
   };
 }
 
@@ -352,13 +356,16 @@ function compactScoreEvidence(
 function predictionSummaries(
   report: ResearchReport,
   scores: readonly PredictionScore[],
+  malformedScoreIds: ReadonlySet<string>,
 ): readonly HistoricalPredictionSummary[] {
   const scoreByPrediction = new Map(scores.map((score) => [score.predictionId, score]));
   return report.predictions.map((prediction) => {
     const score = scoreByPrediction.get(prediction.id);
     let scoreStatus: HistoricalPredictionSummary["scoreStatus"] = "not-scored";
     if (score !== undefined) {
-      scoreStatus = score.status ?? "malformed";
+      scoreStatus = score.status;
+    } else if (malformedScoreIds.has(prediction.id)) {
+      scoreStatus = "malformed";
     }
     const scoreEvidence =
       score?.outcome === "miss" ? compactScoreEvidence(score.evidence) : undefined;
@@ -462,8 +469,12 @@ function toRunContext(
       0,
       8,
     ),
-    predictions: predictionSummaries(report, selected.artifact.scores),
-    scoreSummary: scoreSummary(selected.artifact.scores),
+    predictions: predictionSummaries(
+      report,
+      selected.artifact.scores,
+      selected.artifact.malformedScoreIds,
+    ),
+    scoreSummary: scoreSummary(selected.artifact.scores, selected.artifact.malformedScoreIds.size),
     marketSnapshots: compactSnapshots(selected.artifact.snapshots, symbols),
     ...(extras !== undefined ? { keyExtras: extras } : {}),
   };

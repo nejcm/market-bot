@@ -266,7 +266,6 @@ describe("research console app API", () => {
           predictionId: "p-aapl",
           runId: "run-market",
           status: "resolved",
-          resolved: true,
           outcome: "hit",
           observedAt: "2026-06-10T00:00:00.000Z",
           attemptCount: 1,
@@ -335,7 +334,6 @@ describe("research console app API", () => {
         { predictionId: "p-no-status", outcome: "hit" },
       ].map((extra) => ({
         runId: "run-terminal",
-        resolved: true,
         observedAt: "2026-06-10T00:00:00.000Z",
         attemptCount: 1,
         evidence: {},

@@ -1,7 +1,16 @@
-import type { PredictionScoreStatus, ScoreOutcome } from "./types";
+import type {
+  PendingPredictionScore,
+  PredictionScore,
+  PredictionScoreStatus,
+  ScoreOutcome,
+} from "./types";
 
 export function isTerminal(status: PredictionScoreStatus): boolean {
   return status === "resolved" || status === "voided" || status === "abandoned";
+}
+
+export function isPendingScore(score: PredictionScore): score is PendingPredictionScore {
+  return !isTerminal(score.status);
 }
 
 export function hasOutcome<

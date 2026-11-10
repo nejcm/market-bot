@@ -11,7 +11,13 @@ import {
 import { compactHistoricalContext } from "../src/research/prompts/evidence-payload";
 import { researchIdentityExtras } from "../src/research/research-subject-identity";
 import { withReplaySession } from "../src/replay/session";
-import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
+import {
+  marketSnapshot,
+  prediction,
+  predictionScore,
+  researchReport,
+  scoreWithStatus,
+} from "./support/fixtures";
 
 const tmpDirs: string[] = [];
 
@@ -274,21 +280,9 @@ describe("loadHistoricalContext", () => {
         scores: [
           predictionScore("hit", { predictionId: "hit", runId: "terminal" }),
           predictionScore("miss", { predictionId: "miss", runId: "terminal" }),
-          ...(["voided", "abandoned"] as const).map((status) =>
-            predictionScore("hit", {
-              predictionId: status,
-              runId: "terminal",
-              status,
-              outcome: undefined,
-            }),
+          ...(["voided", "abandoned", "pending"] as const).map((status) =>
+            scoreWithStatus(status, { predictionId: status, runId: "terminal" }),
           ),
-          predictionScore("hit", {
-            predictionId: "pending",
-            runId: "terminal",
-            status: "pending",
-            resolved: false,
-            outcome: undefined,
-          }),
         ],
       },
     });
@@ -336,8 +330,6 @@ describe("loadHistoricalContext", () => {
     const { status: _status, ...statusless } = predictionScore("hit", {
       predictionId: "statusless",
       runId: "malformed",
-      resolved: false,
-      outcome: undefined,
     });
     await writeRun({
       dataDir,
@@ -366,6 +358,7 @@ describe("loadHistoricalContext", () => {
       "resolved",
       "malformed",
     ]);
+    expect(context.runs[0]?.scoreSummary).toMatchObject({ total: 2, resolved: 1, unresolved: 1 });
     const [prompt] = compactHistoricalContext(context, "all").runs as readonly {
       readonly predictions: readonly { readonly id: string }[];
       readonly pendingPredictionCount?: number;

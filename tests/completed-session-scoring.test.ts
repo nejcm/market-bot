@@ -207,11 +207,8 @@ describe("completed-session scoring", () => {
       const file = JSON.parse(await readFile(join(runDir, "score.json"), "utf8")) as {
         scores: readonly PredictionScore[];
       };
-      expect(file.scores[0]).toMatchObject({
-        status: "pending",
-        resolved: false,
-        attemptCount: attempts,
-      });
+      expect(file.scores[0]).toMatchObject({ status: "pending", attemptCount: attempts });
+      expect(file.scores[0]).not.toHaveProperty("resolved");
       expect(existsSync(join(cacheDir, "close-windows"))).toBe(false);
     },
   );
@@ -244,7 +241,6 @@ describe("completed-session scoring", () => {
                 predictionId: "pred-2",
                 runId: "run-clfd",
                 status: "pending",
-                resolved: false,
                 attemptCount: priorAttempts,
                 nextAttemptAt: generatedAt,
                 scoringVersion: 3,
@@ -478,7 +474,7 @@ describe("completed-session scoring", () => {
       await runScorePass(dataDir, scoredAt, options);
 
       const pending = await readScore();
-      expect(pending).toMatchObject({ status: "pending", resolved: false, attemptCount: 1 });
+      expect(pending).toMatchObject({ status: "pending", attemptCount: 1 });
       expect(
         (pending?.evidence?.withheldSessions as readonly WithheldSession[] | undefined)?.map(
           ({ date, status }) => `${date} ${status}`,

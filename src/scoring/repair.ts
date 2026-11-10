@@ -118,20 +118,13 @@ async function detect(
   cacheDir: string | undefined,
 ): Promise<Detection> {
   const none = { withheldSessions: [] };
+  if (original.status !== "resolved" && original.status !== "voided") {
+    return { verdict: "not-resolved", detail: `score status is ${original.status}`, ...none };
+  }
   if (original.repair !== undefined) {
     return {
       verdict: "already-repaired",
       detail: `repaired at ${original.repair.repairedAt}`,
-      ...none,
-    };
-  }
-  if (
-    (original.status !== "resolved" && original.status !== "voided") ||
-    original.observedAt === undefined
-  ) {
-    return {
-      verdict: "not-resolved",
-      detail: `score status is ${original.status ?? "missing"}`,
       ...none,
     };
   }
@@ -283,6 +276,14 @@ export async function repairScore(
   const matches = artifact?.scores.filter(
     ({ predictionId }) => predictionId === request.predictionId,
   );
+  const malformed = artifact?.malformedScores.find(
+    ({ predictionId }) => predictionId === request.predictionId,
+  );
+  if (malformed !== undefined) {
+    throw new Error(
+      `Score ${request.predictionId} in run ${request.runId} is malformed (${malformed.reason}); not repaired`,
+    );
+  }
   const [original] = matches ?? [];
   if (artifact === undefined || prediction === undefined || original === undefined) {
     throw new Error(`No scored Prediction ${request.predictionId} in run ${request.runId}`);
@@ -358,7 +359,7 @@ export async function repairScore(
 }
 
 function describeScore(score: PredictionScore): string {
-  return `${score.status ?? "malformed"}${score.outcome === undefined ? "" : ` ${score.outcome}`} observed ${String(score.observedAt)}`;
+  return `${score.status}${score.outcome === undefined ? "" : ` ${score.outcome}`} observed ${String(score.observedAt)}`;
 }
 
 function describeWithheld(session: AuditedWithheldSession): string {

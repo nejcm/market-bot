@@ -8,12 +8,13 @@ import { marketUpdateHorizonBucketOf } from "../domain/job-type";
 import { type Prediction } from "../domain/prediction";
 import { type ResearchReport } from "../domain/report";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
+import type { MalformedScoreRow } from "../run-artifact-score-reader";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { writeProviderHealthSummary } from "../health/provider-health";
 import { scoringPolicyFor } from "./policy";
 import { scoreForecastOrigin } from "./forecast-origin";
 import { resolveOutcome } from "./resolver";
-import { isTerminal } from "./score-status";
+import { isPendingScore } from "./score-status";
 import { readRunArtifactIndexStatus, writeThroughRunArtifactIndex } from "../run-artifact-index";
 import {
   loadConditionalCalibrationCountsFromIndex,
@@ -30,7 +31,10 @@ import {
 import type {
   CalibrationSummary,
   ConditionalCalibrationSummary,
+  AbandonedPredictionScore,
   MissAutopsyEntry,
+  PendingPredictionScore,
+  PendingScoreStatus,
   PredictionScore,
 } from "./types";
 
@@ -45,7 +49,7 @@ const ZERO_CONDITIONAL_COUNTS: ConditionalCalibrationSummary = {
 
 interface ScoreFile {
   readonly runId: string;
-  readonly scores: readonly PredictionScore[];
+  readonly scores: readonly (PredictionScore | Record<string, unknown>)[];
   readonly scoredAt: string;
 }
 
@@ -65,16 +69,13 @@ function unresolvedScore(
   report: ResearchReport,
   attemptCount: number,
   evidence: Record<string, unknown>,
-  status: PredictionScore["status"] = "pending",
+  status: PendingScoreStatus = "pending",
   nextAttemptAt?: string,
-): PredictionScore {
+): PendingPredictionScore {
   return {
     predictionId: prediction.id,
     runId: report.runId,
     status,
-    resolved: false,
-    outcome: undefined,
-    observedAt: undefined,
     attemptCount,
     ...(nextAttemptAt !== undefined ? { nextAttemptAt } : {}),
     scoringVersion: scoringPolicyFor(prediction).version,
@@ -91,7 +92,7 @@ function nextObservationAttemptAt(now: Date, attemptCount: number): string {
 }
 
 function retryWindowElapsed(
-  score: PredictionScore,
+  score: PendingPredictionScore,
   now: Date,
   force: boolean | undefined,
 ): boolean {
@@ -107,14 +108,12 @@ function abandonedScore(
   report: ResearchReport,
   attemptCount: number,
   now: Date,
-): PredictionScore {
+): AbandonedPredictionScore {
   return {
     predictionId: prediction.id,
     runId: report.runId,
     status: "abandoned",
-    resolved: true,
-    outcome: undefined,
-    observedAt: now.toISOString(),
+    abandonedAt: now.toISOString(),
     attemptCount,
     scoringVersion: scoringPolicyFor(prediction).version,
     evidence: { reason: "abandoned after fourth observation failure" },
@@ -150,8 +149,8 @@ export async function scoreOnePrediction(
   options: ScorePassOptions,
 ): Promise<PredictionScore> {
   if (
-    existingScore?.status !== undefined &&
-    !isTerminal(existingScore.status) &&
+    existingScore !== undefined &&
+    isPendingScore(existingScore) &&
     existingScore.attemptCount >= MAX_OBSERVATION_FAILURES
   ) {
     return abandonedScore(prediction, report, existingScore.attemptCount, now);
@@ -197,8 +196,6 @@ export async function scoreOnePrediction(
       predictionId: prediction.id,
       runId: report.runId,
       status: "voided",
-      resolved: true,
-      outcome: undefined,
       observedAt: now.toISOString(),
       attemptCount,
       scoringVersion: scoringPolicyFor(prediction).version,
@@ -211,7 +208,6 @@ export async function scoreOnePrediction(
     predictionId: prediction.id,
     runId: report.runId,
     status: "resolved",
-    resolved: true,
     outcome: resolveResult.outcome,
     observedAt: now.toISOString(),
     attemptCount,
@@ -245,6 +241,7 @@ async function scoreRunDir(
   runDir: string,
   report: ResearchReport,
   priorScores: readonly PredictionScore[],
+  malformedScores: readonly MalformedScoreRow[],
   priorAutopsies: readonly MissAutopsyEntry[],
   now: Date,
   options: ScorePassOptions,
@@ -253,27 +250,27 @@ async function scoreRunDir(
   let currentScores = priorScores;
   if (report.predictions.length > 0) {
     const existingScores = new Map(priorScores.map((score) => [score.predictionId, score]));
+    const malformedById = new Map(malformedScores.map((row) => [row.predictionId, row]));
 
     const pendingPredictions = report.predictions.filter((prediction) => {
+      const malformed = malformedById.get(prediction.id);
+      if (malformed !== undefined) {
+        process.stderr.write(
+          `score ${report.runId}/${prediction.id} is malformed (${malformed.reason}), left as written and not rescored\n`,
+        );
+        return false;
+      }
       const prev = existingScores.get(prediction.id);
       if (prev === undefined) {
         return true;
       }
-      if (prev.status === undefined) {
-        process.stderr.write(
-          `score ${report.runId}/${prediction.id} has no status: malformed, left as written and not rescored\n`,
-        );
-        return false;
-      }
       // Terminal scores are historical records; version bumps apply only to new scoring writes.
-      if (isTerminal(prev.status)) {
+      if (!isPendingScore(prev)) {
         return false;
-      }
-      if (prev.attemptCount >= MAX_OBSERVATION_FAILURES) {
-        return true;
       }
       return (
-        prev.attemptCount < MAX_OBSERVATION_FAILURES && retryWindowElapsed(prev, now, options.force)
+        prev.attemptCount >= MAX_OBSERVATION_FAILURES ||
+        retryWindowElapsed(prev, now, options.force)
       );
     });
 
@@ -284,20 +281,17 @@ async function scoreRunDir(
         ),
       );
 
-      const mergedScores: PredictionScore[] = [];
-      for (const prediction of report.predictions) {
-        const newScore = newScores.find((score) => score.predictionId === prediction.id);
-        const existing2 = existingScores.get(prediction.id);
-        if (newScore !== undefined) {
-          mergedScores.push(newScore);
-        } else if (existing2 !== undefined) {
-          mergedScores.push(existing2);
-        }
-      }
+      const mergedScores = report.predictions.flatMap((prediction) => {
+        const score =
+          newScores.find(({ predictionId }) => predictionId === prediction.id) ??
+          existingScores.get(prediction.id);
+        return score === undefined ? [] : [score];
+      });
 
       const scoreFile: ScoreFile = {
         runId: report.runId,
-        scores: mergedScores,
+        // Every malformed row, duplicates and orphans included, goes back verbatim (ADR 0003).
+        scores: [...mergedScores, ...malformedScores.map(({ raw }) => raw)],
         scoredAt: now.toISOString(),
       };
 
@@ -353,6 +347,7 @@ export async function runScorePass(
         runDir,
         artifact.report,
         artifact.scores,
+        artifact.malformedScores,
         artifact.missAutopsies,
         now,
         options,
@@ -408,12 +403,7 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
   const marketRegimeLabel = readReportMarketRegimeLabel(report);
   return report.predictions.flatMap((prediction) => {
     const score = scores.find((sc) => sc.predictionId === prediction.id);
-    if (
-      score === undefined ||
-      score.scoringVersion !== 3 ||
-      !score.resolved ||
-      score.outcome === undefined
-    ) {
+    if (score === undefined || score.scoringVersion !== 3 || score.status !== "resolved") {
       return [];
     }
     const missAutopsy = autopsyByPrediction.get(prediction.id);

@@ -49,7 +49,7 @@ const ZERO_CONDITIONAL_COUNTS: ConditionalCalibrationSummary = {
 
 interface ScoreFile {
   readonly runId: string;
-  readonly scores: readonly (PredictionScore | Record<string, unknown>)[];
+  readonly scores: readonly unknown[];
   readonly scoredAt: string;
 }
 
@@ -242,6 +242,7 @@ async function scoreRunDir(
   report: ResearchReport,
   priorScores: readonly PredictionScore[],
   malformedScores: readonly MalformedScoreRow[],
+  unidentifiedRows: readonly unknown[],
   priorAutopsies: readonly MissAutopsyEntry[],
   now: Date,
   options: ScorePassOptions,
@@ -251,12 +252,23 @@ async function scoreRunDir(
   if (report.predictions.length > 0) {
     const existingScores = new Map(priorScores.map((score) => [score.predictionId, score]));
     const malformedById = new Map(malformedScores.map((row) => [row.predictionId, row]));
+    const rowCountById = new Map<string, number>();
+    for (const { predictionId } of [...priorScores, ...malformedScores]) {
+      rowCountById.set(predictionId, (rowCountById.get(predictionId) ?? 0) + 1);
+    }
 
     const pendingPredictions = report.predictions.filter((prediction) => {
       const malformed = malformedById.get(prediction.id);
       if (malformed !== undefined) {
         process.stderr.write(
           `score ${report.runId}/${prediction.id} is malformed (${malformed.reason}), left as written and not rescored\n`,
+        );
+        return false;
+      }
+      const rowCount = rowCountById.get(prediction.id) ?? 0;
+      if (rowCount > 1) {
+        process.stderr.write(
+          `score ${report.runId}/${prediction.id} has ${String(rowCount)} rows, left as written and not rescored\n`,
         );
         return false;
       }
@@ -281,17 +293,16 @@ async function scoreRunDir(
         ),
       );
 
-      const mergedScores = report.predictions.flatMap((prediction) => {
-        const score =
-          newScores.find(({ predictionId }) => predictionId === prediction.id) ??
-          existingScores.get(prediction.id);
-        return score === undefined ? [] : [score];
-      });
-
+      // Rescored ids have exactly one prior row, so replacing in place keeps every row's relative order.
+      const newById = new Map(newScores.map((score) => [score.predictionId, score]));
+      const mergedScores = [
+        ...priorScores.map((score) => newById.get(score.predictionId) ?? score),
+        ...newScores.filter(({ predictionId }) => !existingScores.has(predictionId)),
+      ];
       const scoreFile: ScoreFile = {
         runId: report.runId,
-        // Every malformed row, duplicates and orphans included, goes back verbatim (ADR 0003).
-        scores: [...mergedScores, ...malformedScores.map(({ raw }) => raw)],
+        // Rows this pass did not rescore go back as read: orphans, duplicates, malformed, id-less (ADR 0003).
+        scores: [...mergedScores, ...malformedScores.map(({ raw }) => raw), ...unidentifiedRows],
         scoredAt: now.toISOString(),
       };
 
@@ -348,6 +359,7 @@ export async function runScorePass(
         artifact.report,
         artifact.scores,
         artifact.malformedScores,
+        artifact.unidentifiedScoreRows,
         artifact.missAutopsies,
         now,
         options,

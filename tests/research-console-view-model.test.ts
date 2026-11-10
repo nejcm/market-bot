@@ -1699,6 +1699,19 @@ describe("forecast outcomes", () => {
     ]);
   });
 
+  test("prefers a valid score row over a malformed row with the same id", () => {
+    const valid = {
+      predictionId: "p1",
+      runId: "run-1",
+      status: "pending",
+      attemptCount: 0,
+      evidence: {},
+    };
+    expect(predictionScores({ scores: [valid, { ...valid, status: "done" }] })).toEqual([
+      { predictionId: "p1", status: "pending" },
+    ]);
+  });
+
   test("omits evidence closes unless both are numbers", () => {
     const parsed = predictionScores({
       scores: [

@@ -227,7 +227,7 @@ test("assembly formats repeated metric references, merges citations, and publish
   const markdown = renderMarkdownReport(report);
   expect(markdown).toContain("FY margin 12.5%");
   expect(markdown).not.toContain("<<metric:");
-  const entry = buildReportSearchEntries(report, [], "console").find(
+  const entry = buildReportSearchEntries(report, [], [], "console").find(
     ({ section: reportSection }) => reportSection === "keyFindings",
   );
   expect(entry?.text).toContain("12.5%");

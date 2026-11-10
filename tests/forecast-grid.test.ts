@@ -552,7 +552,17 @@ describe("forecast-grid command", () => {
     const { report } = await spend([allPriced, allPriced]);
     expect(report.predictions.map(({ id }) => id)).toContain("grid-range-1-SPY");
     const timelines = buildInstrumentTimelines(
-      [{ report, scores: [], missAutopsies: [], snapshots: [], fundamentals: [], validation: [] }],
+      [
+        {
+          report,
+          scores: [],
+          malformedScores: [],
+          missAutopsies: [],
+          snapshots: [],
+          fundamentals: [],
+          validation: [],
+        },
+      ],
       report.generatedAt,
     );
     const subjects = (symbol: string) =>

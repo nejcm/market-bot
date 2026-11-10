@@ -139,6 +139,7 @@
     voided: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
     abandoned: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
     unscored: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
+    malformed: "border-[#d9c89a] bg-[#fbf6ea] text-[#8a6116]",
   };
   const OUTCOME_LABEL: Record<string, string> = {
     "event-true": "event true",
@@ -147,6 +148,7 @@
     voided: "voided",
     abandoned: "abandoned",
     unscored: "unscored",
+    malformed: "malformed score",
   };
 
   function pct(value: number): string {

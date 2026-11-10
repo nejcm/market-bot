@@ -19,7 +19,7 @@ import { RUN_ARTIFACT_FILES, isReplayCapturePath } from "./run-artifact-layout";
 import { scoreForecastOrigin } from "./scoring/forecast-origin";
 import { isTerminal } from "./scoring/score-status";
 import type { MissAutopsyEntry, PredictionScore } from "./scoring/types";
-import type { MalformedScoreRow } from "./run-artifact-score-reader";
+import { malformedWithoutValidScore, type MalformedScoreRow } from "./run-artifact-score-reader";
 import type {
   ArtifactFileRow,
   PredictionRow,
@@ -41,9 +41,10 @@ function indexedSearchKeySuffix(key: string, index: number): string {
 function searchEntriesForReport(
   report: ResearchReport,
   scores: readonly PredictionScore[],
+  malformed: readonly MalformedScoreRow[],
   scope: ReportSearchScope,
 ): readonly SearchEntryRow[] {
-  return buildReportSearchEntries(report, scores, scope).map((entry) => {
+  return buildReportSearchEntries(report, scores, malformed, scope).map((entry) => {
     const id = `${entry.runId}:${scope}:${entry.section}:${entry.keySuffix}`;
     return {
       entry_key: `${scope}:${id}`,
@@ -207,8 +208,9 @@ function scoreRowsFor(
     missAutopsies.map((autopsy) => [autopsy.predictionId, autopsy.cause]),
   );
   const measurableAs = new Map(report.predictions.map(({ id, measurableAs: as }) => [id, as]));
-  const scoredIds = new Set(scores.map(({ predictionId }) => predictionId));
-  const malformedIds = new Set(malformedScores.map(({ predictionId }) => predictionId));
+  const malformedIds = new Set(
+    malformedWithoutValidScore(scores, malformedScores).map(({ predictionId }) => predictionId),
+  );
   return [
     ...scores.map((score) => ({
       prediction_id: score.predictionId,
@@ -222,19 +224,17 @@ function scoreRowsFor(
       forecast_origin: forecastOriginFor(score, measurableAs.get(score.predictionId), report),
     })),
     // Status stays null so the watchlist reads a malformed row as scored, not open.
-    ...[...malformedIds]
-      .filter((predictionId) => !scoredIds.has(predictionId))
-      .map((predictionId) => ({
-        prediction_id: predictionId,
-        run_id: report.runId,
-        resolved: 0,
-        status: null,
-        outcome: null,
-        observed_at: null,
-        scoring_version: null,
-        miss_autopsy_cause: null,
-        forecast_origin: null,
-      })),
+    ...[...malformedIds].map((predictionId) => ({
+      prediction_id: predictionId,
+      run_id: report.runId,
+      resolved: 0,
+      status: null,
+      outcome: null,
+      observed_at: null,
+      scoring_version: null,
+      miss_autopsy_cause: null,
+      forecast_origin: null,
+    })),
   ];
 }
 
@@ -261,8 +261,18 @@ export async function indexRowsForRun(dataDir: string, runDirName: string): Prom
       loaded.artifact === undefined
         ? []
         : [
-            ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "console"),
-            ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "history"),
+            ...searchEntriesForReport(
+              loaded.artifact.report,
+              loaded.artifact.scores,
+              loaded.artifact.malformedScores,
+              "console",
+            ),
+            ...searchEntriesForReport(
+              loaded.artifact.report,
+              loaded.artifact.scores,
+              loaded.artifact.malformedScores,
+              "history",
+            ),
           ],
     predictions:
       loaded.artifact === undefined

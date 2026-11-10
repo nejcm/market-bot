@@ -40,6 +40,8 @@ export interface ScoreRows {
   readonly scores: readonly PredictionScore[];
   /** Rows with a prediction id that fail the row contract; kept so writers preserve them verbatim. */
   readonly malformed: readonly MalformedScoreRow[];
+  /** Rows without a prediction id, kept only so writers preserve them verbatim. */
+  readonly unidentified: readonly unknown[];
 }
 
 // A persisted `resolved` key is ignored: status alone carries the lifecycle (ADR 0003).
@@ -105,24 +107,33 @@ function readScoreRow(
   }
 }
 
+// A valid row wins over a malformed row with the same prediction id.
+export function malformedWithoutValidScore(
+  scores: readonly PredictionScore[],
+  malformed: readonly MalformedScoreRow[],
+): readonly MalformedScoreRow[] {
+  const validIds = new Set(scores.map(({ predictionId }) => predictionId));
+  return malformed.filter(({ predictionId }) => !validIds.has(predictionId));
+}
+
 export function readScoreRows(value: unknown): ScoreRows | undefined {
   if (!isRecord(value) || !Array.isArray(value.scores)) {
     return;
   }
   const scores: PredictionScore[] = [];
   const malformed: MalformedScoreRow[] = [];
+  const unidentified: unknown[] = [];
   for (const item of value.scores) {
     const row = isRecord(item) ? readScoreRow(item) : undefined;
     if (row === undefined) {
-      continue;
-    }
-    if ("reason" in row) {
+      unidentified.push(item);
+    } else if ("reason" in row) {
       malformed.push(row);
     } else {
       scores.push(row);
     }
   }
-  return { scores, malformed };
+  return { scores, malformed, unidentified };
 }
 
 export function readMissAutopsies(value: unknown): readonly MissAutopsyEntry[] {

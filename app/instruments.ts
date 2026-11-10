@@ -27,18 +27,12 @@ export interface InstrumentConsoleOptions {
   readonly now?: Date;
 }
 
-function scoreOutcome(score: PredictionScore | undefined): InstrumentForecastOutcome {
-  if (score === undefined) {
-    return "unscored";
-  }
+function scoreOutcome(score: PredictionScore): InstrumentForecastOutcome {
   if (score.status === "voided" || score.status === "abandoned") {
     return score.status;
   }
   if (score.status !== "resolved") {
     return "pending";
-  }
-  if (score.outcome === undefined) {
-    return "unscored";
   }
   return score.outcome === "hit" ? "event-true" : "event-false";
 }
@@ -75,6 +69,7 @@ function forecastsForEntry(
   readonly malformedPredictionCount: number;
 } {
   const scoresById = new Map(entry.scores.map((score) => [score.predictionId, score] as const));
+  const malformedIds = new Set(entry.malformedScores.map(({ predictionId }) => predictionId));
   const autopsiesById = new Map(
     entry.missAutopsies.map((autopsy) => [autopsy.predictionId, autopsy] as const),
   );
@@ -88,6 +83,12 @@ function forecastsForEntry(
       return [];
     }
     const score = scoresById.get(prediction.id);
+    let outcome: InstrumentForecastOutcome = "unscored";
+    if (score !== undefined) {
+      outcome = scoreOutcome(score);
+    } else if (malformedIds.has(prediction.id)) {
+      outcome = "malformed";
+    }
     const autopsy = autopsiesById.get(prediction.id);
     return [
       {
@@ -104,7 +105,7 @@ function forecastsForEntry(
           : {}),
         ...(prediction.origin !== undefined ? { origin: prediction.origin } : {}),
         horizonTradingDays: prediction.horizonTradingDays,
-        outcome: scoreOutcome(score),
+        outcome,
         ...(score?.observedAt !== undefined ? { observedAt: score.observedAt } : {}),
         ...(autopsy !== undefined ? { missAutopsyCause: autopsy.cause } : {}),
       },
@@ -136,6 +137,7 @@ function countsFor(
     voided: forecasts.filter((forecast) => forecast.outcome === "voided").length,
     abandoned: forecasts.filter((forecast) => forecast.outcome === "abandoned").length,
     unscored: forecasts.filter((forecast) => forecast.outcome === "unscored").length,
+    malformed: forecasts.filter((forecast) => forecast.outcome === "malformed").length,
   };
 }
 

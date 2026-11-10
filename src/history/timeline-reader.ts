@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { AssetClass } from "../domain/job-type";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { scanRunArtifacts } from "../run-artifacts";
-import { isRecord } from "../guards";
 import { listRunDirNames } from "../data-paths";
 import { isDeepEquityReport } from "../deep-equity/artifact-schema";
 import {
@@ -14,6 +13,7 @@ import {
   type InstrumentTimeline,
   type LoadedHistoryRun,
   loadRunSidecars,
+  parseInstrumentTimeline,
   readJson,
 } from "./artifacts";
 
@@ -94,18 +94,11 @@ async function readFreshTimeline(
 ): Promise<InstrumentTimeline | undefined> {
   const key = instrumentKey(assetClass, symbol);
   const timelinePath = join(historyDir(dataDir), "instruments", instrumentFileName(key));
-  const parsed = await readJson(timelinePath);
-  if (
-    !isRecord(parsed) ||
-    parsed.version !== 1 ||
-    !Array.isArray(parsed.entries) ||
-    !timelineHasConsoleFields(parsed as unknown as InstrumentTimeline)
-  ) {
+  const parsed = parseInstrumentTimeline(await readJson(timelinePath));
+  if (parsed === undefined || !timelineHasConsoleFields(parsed)) {
     return undefined;
   }
-  return (await timelineIsFresh(dataDir, timelinePath))
-    ? (parsed as unknown as InstrumentTimeline)
-    : undefined;
+  return (await timelineIsFresh(dataDir, timelinePath)) ? parsed : undefined;
 }
 
 export async function readInstrumentTimeline(
@@ -127,6 +120,7 @@ export async function readInstrumentTimeline(
       return {
         report: artifact.report,
         scores: artifact.scores,
+        malformedScores: artifact.malformedScores,
         missAutopsies: artifact.missAutopsies,
         ...(artifact.verifiedMarketSnapshot !== undefined
           ? { verifiedMarketSnapshot: artifact.verifiedMarketSnapshot }

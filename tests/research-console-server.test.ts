@@ -347,21 +347,27 @@ describe("research console app API", () => {
     );
 
     const body = (await response.json()) as {
-      readonly entries: readonly { readonly id: string; readonly outcome: string }[];
+      readonly entries: readonly {
+        readonly id: string;
+        readonly outcome: string;
+        readonly observedAt?: string;
+      }[];
       readonly counts: Record<string, number>;
     };
     expect(Object.fromEntries(body.entries.map((entry) => [entry.id, entry.outcome]))).toEqual({
       "p-voided": "voided",
       "p-abandoned": "abandoned",
-      "p-no-status": "unscored",
+      "p-no-status": "malformed",
     });
+    expect(body.entries.find(({ id }) => id === "p-abandoned")?.observedAt).toBeUndefined();
     expect(body.counts).toMatchObject({
       total: 3,
       eventTrue: 0,
       pending: 0,
       voided: 1,
       abandoned: 1,
-      unscored: 1,
+      unscored: 0,
+      malformed: 1,
     });
   });
 

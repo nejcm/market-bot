@@ -85,6 +85,7 @@ describe("reportSearchCandidates", () => {
           predictionShortfall: { emittedCount: 0, targetCount: 3, missingCount: 3 },
         }),
         [],
+        [],
       ),
     ).toEqual(["Data gap: emitted 0 of 3 target predictions"]);
   });
@@ -162,6 +163,7 @@ describe("reportSearchCandidates", () => {
         ],
       }),
       [],
+      [],
       "console",
     );
 
@@ -202,6 +204,7 @@ describe("reportSearchCandidates", () => {
         },
       }),
       [],
+      [],
       "history",
     );
 
@@ -238,21 +241,39 @@ describe("reportSearchCandidates", () => {
         { ...(report.predictions as Record<string, unknown>[])[0], id: "b", subject: "AMD:SPY" },
       ] as never,
     });
-    const symbols = buildReportSearchEntries(grid, [], "history")
+    const symbols = buildReportSearchEntries(grid, [], [], "history")
       .filter(({ section }) => section === "predictions")
       .map(({ predictionId, symbol }) => [predictionId, symbol]);
     expect(symbols).toEqual([
       ["a", "AMD"],
       ["b", "AMD"],
     ]);
-    const single = buildReportSearchEntries({ ...grid, symbol: "NVDA" }, [], "history").filter(
+    const single = buildReportSearchEntries({ ...grid, symbol: "NVDA" }, [], [], "history").filter(
       ({ section }) => section === "predictions",
     );
     expect(single.map(({ symbol }) => symbol)).toEqual(["NVDA", "NVDA"]);
-    const questions = buildReportSearchEntries(grid, [], "history").filter(
+    const questions = buildReportSearchEntries(grid, [], [], "history").filter(
       ({ section, text }) =>
         section === "openQuestions" && text.startsWith("Unresolved prediction"),
     );
     expect(questions.map(({ symbol }) => symbol)).toEqual(["AMD", "AMD"]);
+    const malformed = [{ predictionId: "a", reason: "missing status", raw: {} }];
+    expect(
+      buildReportSearchEntries(grid, [], malformed, "history")
+        .filter(({ section }) => section === "openQuestions")
+        .map(({ label }) => label),
+    ).toEqual(["Open question 1"]);
+    const pendingA = {
+      predictionId: "a",
+      runId: "grid",
+      status: "pending",
+      attemptCount: 0,
+      evidence: {},
+    } as const;
+    expect(
+      buildReportSearchEntries(grid, [pendingA], malformed, "history").filter(
+        ({ section }) => section === "openQuestions",
+      ),
+    ).toHaveLength(2);
   });
 });

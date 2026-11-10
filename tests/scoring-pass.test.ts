@@ -240,7 +240,71 @@ describe("runScorePass Observation scoring", () => {
     expect(observationCalls).toBe(2);
   });
 
-  test("keeps status-less rows verbatim, duplicates and orphans included, while rescoring a sibling", async () => {
+  test("never rescores an id with duplicate rows, so its terminal row survives repeated passes", async () => {
+    const prediction: ResearchReport["predictions"][number] = {
+      id: "pred-duplicate",
+      claim: "SPY closes higher over 2 trading days.",
+      kind: "direction",
+      subject: "SPY",
+      measurableAs: "close(SPY, +2) > close(SPY, 0)",
+      horizonTradingDays: 2,
+      probability: 0.6,
+      sourceIds: [],
+    };
+    const runDir = await writeRun(
+      "run-duplicate",
+      report([prediction, { ...prediction, id: "pred-sibling" }]),
+    );
+    const base = {
+      predictionId: prediction.id,
+      runId: "run-1",
+      attemptCount: 1,
+      scoringVersion: 3,
+    };
+    const pending = { ...base, status: "pending", evidence: {} };
+    const resolved = {
+      ...base,
+      status: "resolved",
+      outcome: "hit",
+      observedAt: "2026-05-05T00:00:00.000Z",
+      evidence: { close0: 100, closeN: 110 },
+    };
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify({ runId: "run-1", scores: [pending, resolved] })}\n`,
+      "utf8",
+    );
+    let observationCalls = 0;
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        observationCalls += 1;
+        return [];
+      },
+    };
+    const stderr = spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      for (const day of ["2026-05-20", "2026-05-21"]) {
+        await runScorePass(tmpDir, new Date(`${day}T00:00:00.000Z`), {
+          observationRepository: repo,
+          force: true,
+        });
+      }
+      expect(stderr.mock.calls.map(([line]) => String(line))).toContain(
+        `score run-1/${prediction.id} has 2 rows, left as written and not rescored\n`,
+      );
+    } finally {
+      stderr.mockRestore();
+    }
+
+    expect(observationCalls).toBe(2);
+    const rows = await readScores(runDir);
+    expect(rows.slice(0, 2)).toEqual([pending, resolved]);
+    expect(rows[2]).toMatchObject({ predictionId: "pred-sibling", status: "pending" });
+    expect(rows).toHaveLength(3);
+  });
+
+  test("keeps rows it does not rescore, malformed, orphaned or id-less, while rescoring a sibling", async () => {
     const prediction: ResearchReport["predictions"][number] = {
       id: "pred-statusless",
       claim: "SPY closes higher over 2 trading days.",
@@ -265,9 +329,20 @@ describe("runScorePass Observation scoring", () => {
       { ...statusless, attemptCount: 2 },
       { ...statusless, predictionId: "pred-not-in-report" },
     ];
+    const orphanResolved = {
+      predictionId: "pred-dropped-from-report",
+      runId: "run-1",
+      status: "resolved",
+      outcome: "hit",
+      observedAt: "2026-05-05T00:00:00.000Z",
+      attemptCount: 1,
+      scoringVersion: 3,
+      evidence: {},
+    };
+    const unidentified = [null, { status: "pending" }];
     await writeFile(
       join(runDir, "score.json"),
-      `${JSON.stringify({ runId: "run-1", scores: malformedRows })}\n`,
+      `${JSON.stringify({ runId: "run-1", scores: [orphanResolved, ...malformedRows, ...unidentified] })}\n`,
       "utf8",
     );
     let observationCalls = 0;
@@ -294,8 +369,9 @@ describe("runScorePass Observation scoring", () => {
 
     expect(observationCalls).toBe(1);
     const scores = await readScores(runDir);
-    expect(scores[0]).toMatchObject({ predictionId: sibling.id, status: "pending" });
-    expect(scores.slice(1)).toEqual(malformedRows);
+    expect(scores[0]).toEqual(orphanResolved);
+    expect(scores[1]).toMatchObject({ predictionId: sibling.id, status: "pending" });
+    expect(scores.slice(2) as readonly unknown[]).toEqual([...malformedRows, ...unidentified]);
   });
 
   test("re-serialises a legacy terminal row without its resolved key when a sibling is rescored", async () => {

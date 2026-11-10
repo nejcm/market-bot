@@ -11,7 +11,10 @@ const row = (fields: Record<string, unknown>) => ({
 
 const read = (
   value: unknown,
-): { readonly scores: unknown; readonly malformed: unknown } | undefined => readScoreRows(value);
+): { readonly scores: unknown; readonly malformed: unknown } | undefined => {
+  const rows = readScoreRows(value);
+  return rows && { scores: rows.scores, malformed: rows.malformed };
+};
 const readOne = (fields: Record<string, unknown>) => read({ scores: [row(fields)] });
 
 describe("readScoreRows", () => {
@@ -80,10 +83,11 @@ describe("readScoreRows", () => {
     ).toEqual([row({ status: "voided", observedAt: "2026-05-01", forecastOrigin: "o" })]);
   });
 
-  test("drops rows without a prediction id and keeps an empty file distinct from an unreadable one", () => {
-    expect(readScoreRows({ scores: [null, { status: "pending" }] })).toEqual({
+  test("keeps rows without a prediction id aside and an empty file distinct from an unreadable one", () => {
+    expect(readScoreRows({ scores: [null, 7, { status: "pending" }] })).toEqual({
       scores: [],
       malformed: [],
+      unidentified: [null, 7, { status: "pending" }],
     });
     expect(readScoreRows({ scores: "nope" })).toBeUndefined();
     expect(readScoreRows(undefined)).toBeUndefined();

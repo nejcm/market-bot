@@ -21,6 +21,7 @@ import {
 import { type HistoricalContextAudit } from "../domain/run-trace";
 import { type Source } from "../domain/sources";
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
+import { malformedWithoutValidScore } from "../run-artifact-score-reader";
 import type { ForecastPersistenceBaseline } from "./forecast-persistence";
 import { hasOutcome, isTerminal } from "../scoring/score-status";
 import type { PredictionScore, PredictionScoreStatus } from "../scoring/types";
@@ -205,7 +206,11 @@ function toScanResult(scan: RunArtifactScan): ScanResult {
       report: artifact.report,
       snapshots: artifact.marketSnapshots.map(toHistoricalSnapshot),
       scores: artifact.scores,
-      malformedScoreIds: new Set(artifact.malformedScores.map(({ predictionId }) => predictionId)),
+      malformedScoreIds: new Set(
+        malformedWithoutValidScore(artifact.scores, artifact.malformedScores).map(
+          ({ predictionId }) => predictionId,
+        ),
+      ),
     })),
     scannedRunCount: scan.entries.filter((entry) => entry.status.report !== "absent").length,
     malformedRunCount: scan.entries.filter((entry) => entry.status.report === "malformed").length,

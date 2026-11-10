@@ -1,7 +1,7 @@
 import { predictions, type PredictionView } from "../src/run-artifact-projection";
 import { isRecord, readNumber, readStringVerbatim } from "../src/guards";
 import { readPredictionShortfall } from "../src/report/prediction-shortfall";
-import { readScoreRows } from "../src/run-artifact-score-reader";
+import { malformedWithoutValidScore, readScoreRows } from "../src/run-artifact-score-reader";
 import { hasOutcome } from "../src/scoring/score-status";
 import type { PredictionScore, PredictionScoreStatus } from "../src/scoring/types";
 
@@ -116,7 +116,7 @@ export function predictionScores(
   }
   return [
     ...rows.scores.map((row) => scoreView(row)),
-    ...rows.malformed.map(({ predictionId, reason }) => ({
+    ...malformedWithoutValidScore(rows.scores, rows.malformed).map(({ predictionId, reason }) => ({
       predictionId,
       status: "malformed" as const,
       malformedReason: reason,

@@ -105,6 +105,7 @@ export interface RunArtifact {
   readonly scores: readonly PredictionScore[];
   /** Score rows rejected by the lifecycle contract; never rescored, written back verbatim. */
   readonly malformedScores: readonly MalformedScoreRow[];
+  readonly unidentifiedScoreRows: readonly unknown[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly sourceGaps: readonly SourceGap[];
@@ -430,6 +431,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       report: readableReport,
       scores: parsedScores?.scores ?? [],
       malformedScores: parsedScores?.malformed ?? [],
+      unidentifiedScoreRows: parsedScores?.unidentified ?? [],
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: deepEquity
         ? readSnapshots(deepEquityEvidenceBundle?.evidence.marketSnapshots)

@@ -133,7 +133,8 @@ export type InstrumentForecastOutcome =
   | "pending"
   | "voided"
   | "abandoned"
-  | "unscored";
+  | "unscored"
+  | "malformed";
 
 export interface InstrumentTimelinePricePoint {
   readonly date: string;
@@ -173,6 +174,7 @@ export interface InstrumentTimelineDetail {
     readonly voided: number;
     readonly abandoned: number;
     readonly unscored: number;
+    readonly malformed: number;
   };
   readonly warnings: {
     readonly malformedRunCount: number;

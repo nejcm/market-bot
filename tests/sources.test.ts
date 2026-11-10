@@ -1368,6 +1368,45 @@ describe("SEC fundamental evidence", () => {
     );
   });
 
+  test("elects the local currency when its rows outnumber a same-period USD translation", () => {
+    const annual = (val: number, fy: number) =>
+      secFact(val, {
+        form: "10-K",
+        fp: "FY",
+        fy,
+        filed: `${fy + 1}-03-30`,
+        start: `${fy}-01-01`,
+        end: `${fy}-12-31`,
+      });
+    // ZAR sorts after USD, so only the row count can elect it on tied period end and filing date.
+    const payload = {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              ZAR: [annual(1800, 2023), annual(1900, 2024), annual(2000, 2025)],
+              USD: [annual(110, 2025)],
+            },
+          },
+        },
+      },
+    };
+    const analysisAsOf = "2026-06-01T00:00:00.000Z";
+    expect(
+      deriveFinancialStatements(payload, {
+        symbol: "ZAF",
+        generatedAt: analysisAsOf,
+        analysisAsOf,
+        sourceId: "extended-sec-edgar-zaf-fundamentals",
+      }).reportingCurrency,
+    ).toBe("ZAR");
+    const summary = summarizeSecFundamentals(payload, analysisAsOf)!;
+    expect(summary.metrics.revenue).toBeUndefined();
+    expect(summary.gaps.map(({ message }) => message)).toContain(
+      "SEC summary withheld monetary metrics: us-gaap facts are reported in ZAR, so USD-unit facts are convenience translations at an undeclared rate",
+    );
+  });
+
   test("selects the latest reporting period before a newer filing revision", () => {
     const result = summarizeSecFundamentals(
       {

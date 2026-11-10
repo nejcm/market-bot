@@ -1303,9 +1303,11 @@ const AAPL_LENS_VALUES = {
   pcfRatio: 23.076_923_076_923_077,
 };
 
+const NOT_MEANINGFUL = { status: "not-meaningful" } as const;
+
 // A null pin asserts the metric is withheld.
 const EXPECTED_LENS_VALUES: Readonly<
-  Record<string, Readonly<Record<string, number | string | null>>>
+  Record<string, Readonly<Record<string, number | string | null | typeof NOT_MEANINGFUL>>>
 > = {
   "equity-aapl-brief": {},
   "equity-aapl-brief-prune": {},
@@ -1343,12 +1345,14 @@ const EXPECTED_LENS_VALUES: Readonly<
     roe: 0.017_958_206_356_116_675,
     roa: 0.006_636_847_778_868_277,
     revenueDeltaPercent: 479.016_393_442_622_9,
-    operatingIncomeDeltaPercent: -53.078_078_078_078_07,
-    netIncomeDeltaPercent: 112.862_488_306_828_81,
-    dilutedEpsDeltaPercent: 114.473_684_210_526_33,
-    continuingIncomeDeltaPercent: 102.784_090_909_090_9,
-    continuingDilutedEpsDeltaPercent: 103.2,
-    operatingCashFlowDeltaPercent: 248.907_002_593_553_2,
+    // FY2024 -> FY2025: operating income -399.6M -> -611.7M, net income -641.4M -> 82.5M,
+    // Diluted EPS -2.28 -> 0.33, continuing income -352.0M -> 9.8M, OCF -269.9M -> 401.9M.
+    operatingIncomeDeltaPercent: NOT_MEANINGFUL,
+    netIncomeDeltaPercent: NOT_MEANINGFUL,
+    dilutedEpsDeltaPercent: NOT_MEANINGFUL,
+    continuingIncomeDeltaPercent: NOT_MEANINGFUL,
+    continuingDilutedEpsDeltaPercent: NOT_MEANINGFUL,
+    operatingCashFlowDeltaPercent: NOT_MEANINGFUL,
     capexDeltaPercent: null,
     cash: 3_678_100_000,
     payoutRatio: 0,
@@ -1465,7 +1469,11 @@ export function assertFinancialLensMetricInvariants(
     expect(
       sections.flatMap((section) => section.metrics).find((row) => row.id === id),
       `${fixtureName}.${id} retains its replayed value`,
-    ).toMatchObject(value === null ? { status: "missing" } : { status: "value", value });
+    ).toMatchObject(
+      value === null || value === NOT_MEANINGFUL
+        ? (value ?? { status: "missing" })
+        : { status: "value", value },
+    );
   }
   const statements = run.collectedSources.financialStatements;
   const filedFacts =
@@ -1747,6 +1755,9 @@ export function assertFinancialLensMetricInvariants(
           const [prior, latest] = [Number(resolved[0]?.value), Number(resolved[1]?.value)];
           const comparedSeries = metric.inputs.map((input) => input.series);
           expect(comparedSeries[0], `${label} compares one series`).toBe(comparedSeries[1]);
+          expect(prior > 0 && latest >= 0, `${label} has a positive base and no sign change`).toBe(
+            true,
+          );
           expectClose(metric.value, ((latest - prior) / Math.abs(prior)) * 100, label);
         }
       }
@@ -2388,6 +2399,10 @@ export function assertBusinessFrameworkMetricInvariants(
           expectClose(metric.value, (first ?? Number.NaN) / (second ?? Number.NaN), label);
         } else if (metric.id.endsWith("DeltaPercent") && !passThrough) {
           const prior = first ?? Number.NaN;
+          expect(
+            prior > 0 && (second ?? Number.NaN) >= 0,
+            `${label} has a positive base and no sign change`,
+          ).toBe(true);
           expectClose(
             metric.value,
             (((second ?? Number.NaN) - prior) / Math.abs(prior)) * 100,

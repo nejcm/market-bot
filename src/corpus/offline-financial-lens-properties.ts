@@ -1,4 +1,5 @@
 import { isRecord } from "../guards";
+import { deltaPercent } from "../sources/extended-evidence/sec-fundamentals-format";
 import {
   financialStatementFacts,
   financialStatementFactsAreCompatible,
@@ -177,6 +178,51 @@ const LENS_METRIC_RELATIONS: Readonly<Record<LensMetricKey, LensMetricRelation>>
   roe: "exact-period",
 };
 
+function yoyEndpoints(
+  artifact: OfflineCorpusExecution["artifact"],
+  seriesKey: FinancialStatementSeriesKey,
+):
+  | { readonly latest: FinancialStatementFact; readonly prior?: FinancialStatementFact }
+  | undefined {
+  const series = financialStatementSeriesByKey(artifact, seriesKey);
+  const latest =
+    series === undefined
+      ? undefined
+      : latestFinancialStatementFact(financialStatementFacts(series));
+  if (series === undefined || latest === undefined) {
+    return undefined;
+  }
+  const months = financialStatementPeriodMonths(latest);
+  const prior = latestFinancialStatementFact(
+    financialStatementFacts(series).filter(
+      (fact) =>
+        fact.periodEnd < latest.periodEnd &&
+        financialStatementPeriodMonths(fact) === months &&
+        financialStatementPeriodsYearAligned(fact, latest) &&
+        financialStatementFactsAreCompatible([fact, latest]),
+    ),
+  );
+  return prior === undefined ? { latest } : { latest, prior };
+}
+
+// A YoY withheld as not meaningful still counts toward Growth by the direction of its endpoints.
+function yoyDirection(
+  artifact: OfflineCorpusExecution["artifact"],
+  metrics: ProjectedLensMetrics,
+  key: string,
+): number | undefined {
+  const value = metricValue(metrics, key);
+  const seriesKey = EXACT_PERIOD_DELTAS[key];
+  const { latest, prior } =
+    (seriesKey === undefined ? undefined : yoyEndpoints(artifact, seriesKey)) ?? {};
+  if (value !== undefined || latest === undefined || prior === undefined) {
+    return value;
+  }
+  return deltaPercent(latest.value, prior.value) === undefined
+    ? latest.value - prior.value
+    : undefined;
+}
+
 function verifyExactPeriodMetric(
   execution: OfflineCorpusExecution,
   allowance: OfflineCorpusAllowance,
@@ -193,32 +239,18 @@ function verifyExactPeriodMetric(
   }
   const deltaSeriesKey = EXACT_PERIOD_DELTAS[metricKey];
   if (deltaSeriesKey !== undefined) {
-    const series = financialStatementSeriesByKey(execution.artifact, deltaSeriesKey);
-    const latest =
-      series === undefined
+    const { latest, prior } = yoyEndpoints(execution.artifact, deltaSeriesKey) ?? {};
+    const expected =
+      latest === undefined || prior === undefined
         ? undefined
-        : latestFinancialStatementFact(financialStatementFacts(series));
-    if (latest === undefined) {
+        : deltaPercent(latest.value, prior.value);
+    if (latest === undefined || prior === undefined || expected === undefined) {
       return false;
     }
-    const months = financialStatementPeriodMonths(latest);
-    const prior = latestFinancialStatementFact(
-      financialStatementFacts(series!).filter(
-        (fact) =>
-          fact.periodEnd < latest.periodEnd &&
-          financialStatementPeriodMonths(fact) === months &&
-          financialStatementPeriodsYearAligned(fact, latest) &&
-          financialStatementFactsAreCompatible([fact, latest]),
-      ),
-    );
-    if (prior === undefined || prior.value === 0) {
-      return false;
-    }
-    const expected = ((latest.value - prior.value) / Math.abs(prior.value)) * 100;
     return (
       Math.abs(value - expected) <= Math.max(1, Math.abs(value), Math.abs(expected)) * 1e-12 &&
       periodEnd === latest.periodEnd &&
-      (periodMonths === undefined || periodMonths === months) &&
+      (periodMonths === undefined || periodMonths === financialStatementPeriodMonths(latest)) &&
       sourceContainsFact(execution.input, latest) &&
       sourceContainsFact(execution.input, prior)
     );
@@ -462,6 +494,7 @@ function metricValue(metrics: ProjectedLensMetrics, key: string): number | undef
 }
 
 function verifyLensPosture(
+  artifact: OfflineCorpusExecution["artifact"],
   projection: ProjectedConsumers,
   lensName: LensName,
   posture: string,
@@ -495,7 +528,7 @@ function verifyLensPosture(
           "dilutedEpsDeltaPercent",
           "operatingCashFlowDeltaPercent",
         ].map((key) => {
-          const value = metricValue(metrics, key);
+          const value = yoyDirection(artifact, metrics, key);
           return value === undefined ? undefined : value > 0;
         }),
         2,
@@ -566,6 +599,7 @@ export function verifyLensAllowanceProperties(
   if (member === "posture" && metricKey === undefined) {
     return typeof difference.canonical === "string"
       ? verifyLensPosture(
+          execution.artifact,
           execution.projection.canonical,
           lensName,
           difference.canonical,

@@ -36,7 +36,8 @@ import {
   isCurrentBalanceSheetPeriod,
   isFreshPeriodEnd,
 } from "./valuation-comps-support";
-import { type LensValueUnit } from "./value-format";
+import { scaleCurrency, type LensValueUnit } from "./value-format";
+import { deltaPercent } from "./sec-fundamentals-format";
 import { withheldDebt } from "./sec-debt";
 
 export type LensSeries = Extract<
@@ -175,6 +176,48 @@ export function isCurrentPeriod(ctx: MetricContext, periodEnd: string | undefine
       .map((fact) => Date.parse(fact.periodEnd)),
   );
   return (newest - Date.parse(periodEnd)) / DAY_MS <= MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS;
+}
+
+export function yearOverYearOutcome(
+  label: string,
+  prior: number,
+  latest: number,
+  period: MetricPeriod,
+  inputs: readonly MetricInput[],
+): MetricOutcome {
+  const value = deltaPercent(latest, prior);
+  if (value !== undefined) {
+    return { status: "value", value, ...period, inputs };
+  }
+  const endpoints = `(${yoyEndpoint(prior)} to ${yoyEndpoint(latest)})`;
+  let reason = `${label} turns negative ${endpoints}`;
+  if (prior === 0) {
+    reason = `prior-year ${label} is zero`;
+  } else if (prior < 0) {
+    reason = `prior-year ${label} is negative ${endpoints}`;
+  }
+  return { status: "not-meaningful", reason, ...period, inputs };
+}
+
+// Postures and phase read a not-meaningful YoY by the direction between its two endpoints.
+export function yoyDirection(
+  result:
+    | {
+        readonly status: string;
+        readonly value?: unknown;
+        readonly inputs?: readonly MetricInput[];
+      }
+    | undefined,
+): number | undefined {
+  const [prior, latest] = result?.inputs ?? [];
+  if (result?.status === "not-meaningful" && prior !== undefined && latest !== undefined) {
+    return Number(latest.value) - Number(prior.value);
+  }
+  return result?.status === "value" && typeof result.value === "number" ? result.value : undefined;
+}
+
+function yoyEndpoint(value: number): string {
+  return Math.abs(value) >= 999.5 ? scaleCurrency(value) : value.toFixed(2);
 }
 
 export function noFact(ctx: MetricContext, key: LensSeries): MetricOutcome {

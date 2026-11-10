@@ -7,7 +7,7 @@ import type {
   BusinessLifecyclePhase,
 } from "./business-framework";
 import { priorComparable } from "./financial-lens-canonical";
-import { withCurrentEquityNote } from "./financial-lens-inputs";
+import { withCurrentEquityNote, yearOverYearOutcome, yoyDirection } from "./financial-lens-inputs";
 import {
   itemByCategory,
   secFundamentalItem,
@@ -309,6 +309,17 @@ function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
     if (found !== undefined) {
       return { status: "value", value: found.value, ...secPeriod(ctx, key), inputs: [found] };
     }
+    const priorInput = secInput(ctx, `${key}Prior`, SERIES_LABELS[key], "currency");
+    const latestInput = secInput(ctx, key, SERIES_LABELS[key], "currency");
+    if (priorInput !== undefined && latestInput !== undefined) {
+      return yearOverYearOutcome(
+        SERIES_LABELS[key],
+        priorInput.value,
+        latestInput.value,
+        secPeriod(ctx, key),
+        [priorInput, latestInput],
+      );
+    }
     return (
       (ctx.issuerReport === undefined
         ? undefined
@@ -335,21 +346,10 @@ function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
       inputs: [factInput(latest, key)],
     };
   }
-  const inputs = [factInput(prior, key), factInput(latest, key)];
-  if (prior.value === 0) {
-    return {
-      status: "not-meaningful",
-      reason: `prior-year ${label} is zero`,
-      ...periodOf(latest),
-      inputs,
-    };
-  }
-  return {
-    status: "value",
-    value: ((latest.value - prior.value) / Math.abs(prior.value)) * 100,
-    ...periodOf(latest),
-    inputs,
-  };
+  return yearOverYearOutcome(label, prior.value, latest.value, periodOf(latest), [
+    factInput(prior, key),
+    factInput(latest, key),
+  ]);
 }
 
 function secMargin(
@@ -570,14 +570,18 @@ function phaseInputs(ctx: MetricContext): {
     "dividend yield",
     "whole-percent",
   );
-  const used = Object.values(outcomes).filter((outcome) => valueOf(outcome) !== undefined);
+  const classification: Record<string, number | undefined> = {
+    ...Object.fromEntries(
+      Object.entries(outcomes).map(([key, outcome]) => [key, valueOf(outcome)]),
+    ),
+    operatingIncomeDeltaPercent: yoyDirection(outcomes.operatingIncomeDeltaPercent),
+    netIncomeDeltaPercent: yoyDirection(outcomes.netIncomeDeltaPercent),
+  };
+  const used = Object.entries(outcomes).flatMap(([key, outcome]) =>
+    classification[key] === undefined ? [] : [outcome],
+  );
   return {
-    classification: {
-      ...Object.fromEntries(
-        Object.entries(outcomes).map(([key, outcome]) => [key, valueOf(outcome)]),
-      ),
-      dividendYield: dividendYield?.value,
-    },
+    classification: { ...classification, dividendYield: dividendYield?.value },
     inputs: [
       ...new Map(
         used
@@ -901,7 +905,11 @@ function postures(
       : undefined;
   };
   const present = (id: string) => meets(valueIn("Business", id), () => true);
-  const positive = (id: string) => meets(valueIn("Growth", id), (value) => value > 0);
+  const positive = (id: string) =>
+    meets(
+      yoyDirection(sections.Growth?.metrics.find((metric) => metric.id === id)),
+      (value) => value > 0,
+    );
   const revenueDelta = valueIn("Growth", "revenueDeltaPercent");
   const supportability = valuationSupportability(ctx);
   const { classification } = phaseInputs(ctx);
@@ -923,7 +931,7 @@ function postures(
         positive("revenueDeltaPercent"),
         positive("operatingIncomeDeltaPercent"),
         positive("netIncomeDeltaPercent"),
-        meets(valueOf(yearOverYear(ctx, "operatingCashFlow")), (value) => value > 0),
+        meets(yoyDirection(yearOverYear(ctx, "operatingCashFlow")), (value) => value > 0),
       ],
       2,
     ),

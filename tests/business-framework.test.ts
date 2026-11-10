@@ -13,6 +13,7 @@ import {
   classifyBusinessLifecyclePhase,
 } from "../src/sources/extended-evidence/business-framework-metrics";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { renderMarkdownReport } from "../src/report/markdown";
@@ -941,6 +942,72 @@ describe("business framework evidence", () => {
     expect(yoy("2024-01-26")?.status).toBe("missing");
     expect(yoy("2024-01-16")).toMatchObject({ status: "value" });
   });
+
+  // NBIS FY2025 20-F and CECO FY2025 10-K endpoints, as (prior, latest).
+  test.each([
+    { prior: -641_400_000, latest: 82_500_000, reason: "prior-year operating income is negative" },
+    { prior: 89_300_000, latest: -20_800_000, reason: "operating income turns negative" },
+    {
+      prior: -399_600_000,
+      latest: -611_700_000,
+      reason: "prior-year operating income is negative",
+    },
+    { prior: -4_100_000, latest: 121_400_000, reason: "prior-year operating income is negative" },
+  ])(
+    "YoY from $prior to $latest is not meaningful on the statement and summary paths",
+    ({ prior, latest, reason }) => {
+      const artifact = statements({ OperatingIncomeLoss: annual(prior, latest) });
+      const canonical = withCanonicalFinancialLensInputs(undefined, artifact);
+      for (const filed of [artifact, null]) {
+        const metric = metricOf(
+          framework(canonical, AS_OF, filed),
+          "business-framework-growth",
+          "operatingIncomeDeltaPercent",
+        );
+        expect(metric).toMatchObject({
+          status: "not-meaningful",
+          reason: `${reason} (${(prior / 1e6).toFixed(1)}M to ${(latest / 1e6).toFixed(1)}M)`,
+          periodEnd: "2025-12-31",
+        });
+        expect(metric?.inputs.map(({ value }) => value)).toEqual([prior, latest]);
+      }
+    },
+  );
+
+  test("YoY between two positive endpoints keeps its value on both paths", () => {
+    const artifact = statements({ Revenues: annual(91_500_000, 529_800_000) });
+    for (const filed of [artifact, null]) {
+      const metric = metricOf(
+        framework(withCanonicalFinancialLensInputs(undefined, artifact), AS_OF, filed),
+        "business-framework-growth",
+        "revenueDeltaPercent",
+      );
+      expect(metric?.status).toBe("value");
+      expect(metric?.value).toBeCloseTo(479.016_393_442_623, 9);
+    }
+  });
+
+  test.each([
+    { operatingIncome: [-10, -5], phase: "startup" },
+    { operatingIncome: [10, -5], phase: "decline" },
+  ])(
+    "a falling revenue with operating income $operatingIncome classifies as $phase",
+    ({ operatingIncome, phase }) => {
+      const artifact = statements({
+        Revenues: annual(100, 90),
+        OperatingIncomeLoss: annual(operatingIncome[0]!, operatingIncome[1]!),
+      });
+      const result = framework(
+        withCanonicalFinancialLensInputs(undefined, artifact),
+        AS_OF,
+        artifact,
+      );
+      expect(
+        metricOf(result, "business-framework-growth", "operatingIncomeDeltaPercent")?.status,
+      ).toBe("not-meaningful");
+      expect(result.artifact?.phase).toBe(phase);
+    },
+  );
 
   test("keeps SEC summary values and classification when statements are absent", () => {
     const result = framework(evidence(), AS_OF, null);

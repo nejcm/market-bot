@@ -210,24 +210,15 @@ export function isDebtBasisGap(gap: SourceGap): boolean {
   );
 }
 
+// A change off a non-positive base, or into a negative value, is not meaningful.
 export function deltaPercent(latest: number, prior: number): number | undefined {
-  return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
+  return prior > 0 && latest >= 0 ? ((latest - prior) / prior) * 100 : undefined;
 }
 
-function formatMetric(
-  label: string,
-  latest: number,
-  prior: number | undefined,
-  delta: number | undefined,
-): string {
-  if (delta === undefined) {
-    return `${label} ${String(latest)}`;
-  }
-  if (prior !== undefined && latest < 0 && prior < 0) {
-    const direction = latest < prior ? "widened" : "narrowed";
-    return `${label} ${String(latest)} (loss ${direction} ${Math.abs(delta).toFixed(1)}% YoY)`;
-  }
-  return `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
+function formatMetric(label: string, latest: number, delta: number | undefined): string {
+  return delta === undefined
+    ? `${label} ${String(latest)}`
+    : `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
 }
 
 const SUMMARY_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
@@ -254,14 +245,12 @@ export function formatSecFundamentalsSummary(
     ) {
       return [];
     }
-    const prior = metrics?.[`${key}Prior`];
     const delta = metrics?.[`${key}DeltaPercent`];
     const scope = metrics?.[`${key}Scope`];
     return [
       formatMetric(
         scopedLabel(label, typeof scope === "string" ? scope : undefined),
         latest,
-        typeof prior === "number" ? prior : undefined,
         typeof delta === "number" ? delta : undefined,
       ),
     ];

@@ -451,7 +451,7 @@ describe("addFinancialLensEvidence", () => {
     ).toContain("Revenue YoY 0.5%");
   });
 
-  test("labels parent-attributable loss changes and discloses distinct consolidated income", () => {
+  test("withholds a loss-to-loss YoY and discloses distinct consolidated income", () => {
     const baseEvidence = evidence();
     const attributedEvidence: ExtendedEvidence = {
       ...baseEvidence,
@@ -460,10 +460,13 @@ describe("addFinancialLensEvidence", () => {
           ? {
               ...item,
               metrics: {
-                ...item.metrics,
+                ...Object.fromEntries(
+                  Object.entries(item.metrics ?? {}).filter(
+                    ([key]) => key !== "netIncomeDeltaPercent",
+                  ),
+                ),
                 netIncome: -20,
                 netIncomePrior: -10,
-                netIncomeDeltaPercent: -100,
                 consolidatedNetIncome: -18,
                 consolidatedNetIncomePeriodEnd: "2025-06-28",
                 consolidatedNetIncomePeriodMonths: 12,
@@ -480,9 +483,14 @@ describe("addFinancialLensEvidence", () => {
       "2026-06-22T00:00:00.000Z",
     );
 
-    expect(metricByKey(result, "Growth", "netIncomeDeltaPercent")).toMatchObject({
-      label: "Net loss (attrib.) YoY change",
-      value: -100,
+    expect(
+      result.metricSections
+        ?.find(({ id }) => id === "financial-lens-growth")
+        ?.metrics.find(({ id }) => id === "netIncomeDeltaPercent"),
+    ).toMatchObject({
+      label: "Net income (attrib.) YoY",
+      status: "not-meaningful",
+      reason: "prior-year net income is negative (-10.00 to -20.00)",
     });
     expect(metricByKey(result, "Quality", "consolidatedNetIncome")).toMatchObject({
       label: "Net income (consolidated incl. NCI)",
@@ -492,7 +500,7 @@ describe("addFinancialLensEvidence", () => {
     });
   });
 
-  test("describes widening parent-attributable losses in SEC summaries", () => {
+  test("states no YoY change for parent-attributable losses in SEC summaries", () => {
     const summary = summarizeSecFundamentals({
       facts: {
         "us-gaap": {
@@ -539,9 +547,9 @@ describe("addFinancialLensEvidence", () => {
       },
     });
 
-    expect(summary?.summary).toContain(
-      "net income attributable to parent -20 (loss widened 100.0% YoY)",
-    );
+    expect(summary?.summary).toContain("net income attributable to parent -20,");
+    expect(summary?.metrics.netIncomePrior).toBe(-10);
+    expect(summary?.metrics.netIncomeDeltaPercent).toBeUndefined();
     expect(summary?.summary).toContain("net income consolidated including NCI -18");
     expect(summary?.metrics.consolidatedNetIncome).toBe(-18);
   });
@@ -1192,6 +1200,114 @@ describe("financial lens artifact compatibility", () => {
       }
     },
   );
+
+  // NBIS FY2025 20-F and CECO FY2025 10-K endpoints, as (prior, latest).
+  test.each([
+    { prior: -641_400_000, latest: 82_500_000, reason: "prior-year operating income is negative" },
+    { prior: 89_300_000, latest: -20_800_000, reason: "operating income turns negative" },
+    {
+      prior: -399_600_000,
+      latest: -611_700_000,
+      reason: "prior-year operating income is negative",
+    },
+    { prior: -4_100_000, latest: 121_400_000, reason: "prior-year operating income is negative" },
+  ])(
+    "YoY from $prior to $latest is not meaningful on the statement and summary paths",
+    ({ prior, latest, reason }) => {
+      const artifact = deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              NetIncomeLoss: {
+                units: {
+                  USD: [canonicalAnnualFact(prior, 2024), canonicalAnnualFact(latest, 2025)],
+                },
+              },
+              OperatingIncomeLoss: {
+                units: {
+                  USD: [canonicalAnnualFact(prior, 2024), canonicalAnnualFact(latest, 2025)],
+                },
+              },
+            },
+          },
+        },
+        {
+          symbol: "AAPL",
+          generatedAt: "2026-06-22T00:00:00.000Z",
+          analysisAsOf: "2026-06-22T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-aapl-fundamentals",
+        },
+      );
+      const canonical = withCanonicalFinancialLensInputs(undefined, artifact);
+      const endpoints = `(${(prior / 1e6).toFixed(1)}M to ${(latest / 1e6).toFixed(1)}M)`;
+      for (const statements of [artifact, undefined]) {
+        const result = addFinancialLensEvidence(
+          command,
+          [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+          canonical,
+          verifiedSnapshot(),
+          "2026-06-22T00:00:00.000Z",
+          undefined,
+          undefined,
+          statements,
+        );
+        const growth = result.metricSections?.find(({ id }) => id === "financial-lens-growth");
+        const metric = growth?.metrics.find(({ id }) => id === "operatingIncomeDeltaPercent");
+        expect(metric).toMatchObject({
+          status: "not-meaningful",
+          reason: `${reason} ${endpoints}`,
+          periodEnd: "2025-12-31",
+        });
+        expect(metric?.inputs.map(({ value }) => value)).toEqual([prior, latest]);
+        expect(growth?.metrics.find(({ id }) => id === "netIncomeDeltaPercent")?.label).toBe(
+          "Net income (attrib.) YoY",
+        );
+      }
+    },
+  );
+
+  // NBIS FY2025 20-F revenue 91.5M -> 529.8M.
+  test("YoY between two positive endpoints keeps its value on both paths", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  canonicalAnnualFact(91_500_000, 2024),
+                  canonicalAnnualFact(529_800_000, 2025),
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        analysisAsOf: "2026-06-22T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    for (const statements of [artifact, undefined]) {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        withCanonicalFinancialLensInputs(undefined, artifact),
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+        undefined,
+        undefined,
+        statements,
+      );
+      const metric = result.metricSections
+        ?.find(({ id }) => id === "financial-lens-growth")
+        ?.metrics.find(({ id }) => id === "revenueDeltaPercent");
+      expect(metric?.status).toBe("value");
+      expect(metric?.value).toBeCloseTo(479.016_393_442_623, 9);
+    }
+  });
 
   test.each([
     [-441_000, -79_000],

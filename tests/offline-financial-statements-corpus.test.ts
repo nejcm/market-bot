@@ -11,8 +11,8 @@ describe("offline financial-statement corpus", () => {
     const expectedClassifications = {
       aapl: { matched: 16, allowances: 4 },
       msft: { matched: 20, allowances: 4 },
-      mara: { matched: 13, allowances: 9 },
-      nbis: { matched: 3, allowances: 16 },
+      mara: { matched: 10, allowances: 8 },
+      nbis: { matched: 3, allowances: 11 },
       "fpi-quarterly": { matched: 2, allowances: 19 },
       "fpi-ifrs-semiannual": { matched: 3, allowances: 17 },
     } as const;
@@ -118,7 +118,6 @@ describe("offline financial-statement corpus", () => {
       "financialLens.Financial Strength.metrics.cash",
       "financialLens.Financial Strength.metrics.debt",
       "financialLens.Financial Strength.metrics.netDebt",
-      "financialLens.Growth.metrics.netIncomeDeltaPercent",
       "financialLens.Quality.metrics.consolidatedNetIncome",
       "financialLens.Quality.metrics.freeCashFlowProxy",
       "financialLens.Quality.metrics.netMargin",
@@ -126,7 +125,6 @@ describe("offline financial-statement corpus", () => {
       "financialLens.Quality.metrics.roe",
     ]);
     expect(exactPeriodPaths).toEqual([
-      "financialLens.Growth.metrics.netIncomeDeltaPercent",
       "financialLens.Quality.metrics.consolidatedNetIncome",
       "financialLens.Quality.metrics.netMargin",
       "financialLens.Quality.metrics.roa",

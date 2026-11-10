@@ -203,7 +203,6 @@ describe("offline financial-statement corpus — financial-lens properties and c
       "cash",
       "cashConversion",
       "consolidatedNetIncome",
-      "continuingIncomeDeltaPercent",
       "currentRatio",
       "debt",
       "debtToEquity",
@@ -306,7 +305,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 69 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 63 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -334,7 +333,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(69);
+    expect(lensAllowances).toHaveLength(63);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(

@@ -2303,51 +2303,6 @@
             "periodEnd": "2025-12-31",
             "periodMonths": 12
           },
-          "operatingIncomeDeltaPercent": {
-            "key": "operatingIncomeDeltaPercent",
-            "label": "Operating income YoY",
-            "value": -53.07807807807807,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31",
-            "periodMonths": 12
-          },
-          "netIncomeDeltaPercent": {
-            "key": "netIncomeDeltaPercent",
-            "label": "Net loss (attrib.) YoY change (total operations)",
-            "value": 112.86248830682881,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31",
-            "periodMonths": 12
-          },
-          "dilutedEpsDeltaPercent": {
-            "key": "dilutedEpsDeltaPercent",
-            "label": "Diluted EPS YoY",
-            "value": 114.47368421052633,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31",
-            "periodMonths": 12
-          },
-          "continuingIncomeDeltaPercent": {
-            "key": "continuingIncomeDeltaPercent",
-            "label": "Loss YoY change (continuing operations, attributable to parent)",
-            "value": 102.7840909090909,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31",
-            "periodMonths": 12
-          },
-          "operatingCashFlowDeltaPercent": {
-            "key": "operatingCashFlowDeltaPercent",
-            "label": "Operating cash flow YoY (continuing operations)",
-            "value": 248.9070025935532,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31",
-            "periodMonths": 12
-          },
           "capexDeltaPercent": {
             "key": "capexDeltaPercent",
             "label": "Capex YoY (outflow amount)",

@@ -305,6 +305,10 @@ summary figure appended. `expectedIntegrityPrune` pins the exact pruned sentence
 fixture without it must prune nothing and grade `high`.
 The `equity-nbis-deep` final-synthesis entry drops the one key finding that cited
 `financial-lens-value.evToAnnualizedRevenue`, which a stale balance sheet now withholds.
+It also drops the two operating-income YoY clauses (`financial-lens-growth` and
+`business-framework-growth` `operatingIncomeDeltaPercent`), not meaningful on a negative base.
+The `clfd-zero-debt` final-synthesis entries replace the same two references, not meaningful
+across a sign change, with plain wording.
 The `equity-iren-brief` final-synthesis entries replace the two
 `business-framework-valuation.forwardPE` references (forward P/E on negative earnings, now not
 meaningful) with plain wording.

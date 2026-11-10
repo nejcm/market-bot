@@ -26,6 +26,7 @@ import { financialStatementFacts } from "../src/sources/extended-evidence/financ
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { deltaPercent } from "../src/sources/extended-evidence/sec-fundamentals-format";
 import { CAPEX_CALC_PREFIX } from "../src/sources/sec-calculation-linkbase";
 
 const AS_OF = "2026-10-07T00:00:00.000Z";
@@ -358,6 +359,22 @@ describe("trailing-twelve-month revenue", () => {
 });
 
 describe("legacy YoY comparatives", () => {
+  // NBIS FY2025 20-F and CECO FY2025 10-K endpoints, as (latest, prior).
+  test.each([
+    [82.5, -641.4, undefined],
+    [-20.8, 89.3, undefined],
+    [-611.7, -399.6, undefined],
+    [121.4, -4.1, undefined],
+    [1, 0, undefined],
+    [0, 10, -100],
+  ])("deltaPercent(%d, %d) is %p", (latest, prior, expected) => {
+    expect(deltaPercent(latest, prior)).toBe(expected);
+  });
+
+  test("deltaPercent keeps a value between positive endpoints", () => {
+    expect(deltaPercent(529.8, 91.5)).toBeCloseTo(479.016_393_442_623, 9);
+  });
+
   test("uses the restated comparative so summary prose agrees with canonical metrics", () => {
     const summary = summarizeSecFundamentals(payload(clfdConcepts()), AS_OF)!;
     const item = canonicalSecItem(clfdConcepts());

@@ -8,14 +8,14 @@ import type { Source, SourceGap } from "../domain/sources";
 import { isRecord, readString } from "../guards";
 import type { MetricContext } from "./extended-evidence/metric-engine";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "./types";
+import { yahooResilientFetchWrapper } from "./yahoo";
 import {
   classifyLatestSession,
   readYahooRegularSession,
   splitAdjustedObservationsFromYahooChart,
   yahooChartSplitDates,
   yahooScoringWindowUrl,
-  yahooResilientFetchWrapper,
-} from "./yahoo";
+} from "./yahoo-chart";
 
 const LOOKBACK_YEARS = 5;
 const ANNIVERSARY_MARGIN_DAYS = 14;

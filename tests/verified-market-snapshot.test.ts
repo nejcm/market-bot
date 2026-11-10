@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
-import { parseYahooChartOhlcv, readYahooRegularSession } from "../src/sources/yahoo";
+import { parseYahooChartOhlcv, readYahooRegularSession } from "../src/sources/yahoo-chart";
 import { computeIndicators, MIN_BARS_FOR_SNAPSHOT } from "../src/sources/indicators";
 import { collectVerifiedMarketSnapshot } from "../src/sources/verified-market-snapshot";
 import {

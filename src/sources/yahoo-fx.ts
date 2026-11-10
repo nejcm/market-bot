@@ -2,7 +2,7 @@ import { DAY_MS } from "../config/shared";
 import type { SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import type { FetchLike } from "./types";
-import { fetchYahooCloseWindow, type YahooCloseWindowResult } from "./yahoo";
+import { fetchYahooCloseWindow, type YahooCloseWindowResult } from "./yahoo-chart";
 
 // Ponytail: seven days covers normal FX market closures; widen if observed gaps exceed it.
 const FX_LOOKBACK_CALENDAR_DAYS = 7;

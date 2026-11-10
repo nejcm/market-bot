@@ -256,7 +256,7 @@ Spotlights do not spawn instrument jobs, fetch extra evidence, use provider-nati
 
 The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 
-- `src/sources/yahoo.ts` normalizes Yahoo quote payloads and fetches equity closes for scoring.
+- `src/sources/yahoo.ts` normalizes Yahoo quote payloads; `src/sources/yahoo-chart.ts` fetches chart windows and equity closes for scoring.
 - `src/sources/coingecko.ts` normalizes CoinGecko market payloads and fetches crypto closes for scoring.
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
 - `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL and by normalized title when the title carries enough signal, merge duplicates while preserving the first canonical URL and provider aliases, and suppress recently seen repeats.

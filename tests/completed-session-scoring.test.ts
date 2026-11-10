@@ -9,7 +9,7 @@ import { runScorePass } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import { resolveOutcome } from "../src/scoring/resolver";
 import type { PredictionScore } from "../src/scoring/types";
-import type { WithheldSession } from "../src/sources/yahoo";
+import type { WithheldSession } from "../src/sources/yahoo-chart";
 import { prediction, researchReport } from "./support/fixtures";
 
 let root = "";

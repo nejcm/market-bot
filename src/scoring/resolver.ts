@@ -24,7 +24,7 @@ import type { ObservationRepository } from "./observations";
 import { scoringPolicyFor, type ScoringPolicy } from "./policy";
 import { ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY, type ScoreOutcome } from "./types";
 import { verifiedSnapshotSourceId } from "../sources/verified-snapshot-contract";
-import type { CloseWindow } from "../sources/yahoo";
+import type { CloseWindow } from "../sources/yahoo-chart";
 
 export type { Observation };
 

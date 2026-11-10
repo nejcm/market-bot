@@ -40,7 +40,7 @@ import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import { renderMarkdownReport } from "../../src/report/markdown";
 import { projectExtendedEvidenceReportExtras } from "../../src/research/extended-evidence-projections";
 import { newsSource } from "../support/fixtures";
-import { splitAdjustedObservationsFromYahooChart } from "../../src/sources/yahoo";
+import { splitAdjustedObservationsFromYahooChart } from "../../src/sources/yahoo-chart";
 import { exchangeProfileFor } from "../../src/domain/exchange-profile";
 
 const EXPECTED_COMPLETENESS_GRADES = {

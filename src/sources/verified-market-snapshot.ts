@@ -9,14 +9,14 @@ import {
   type RawSourceSnapshot,
   type FetchJsonResult,
 } from "./types";
+import { yahooResilientFetchWrapper } from "./yahoo";
 import {
   classifyLatestSession,
   parseYahooChartOhlcv,
   readYahooRegularSession,
   yahooChartWindowUrl,
-  yahooResilientFetchWrapper,
   type LatestSessionVerdict,
-} from "./yahoo";
+} from "./yahoo-chart";
 import { computeIndicators, MIN_BARS_FOR_SNAPSHOT } from "./indicators";
 
 /** Lookback: at least 400 calendar days (~275 trading sessions) for SMA200 warmup. */

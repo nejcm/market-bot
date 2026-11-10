@@ -633,7 +633,7 @@ intentional shared price-path change before replaying all seven fixtures.
 ## Fixture maintenance rules
 
 - Keep the fixture runner in `src/replay/fixture-run.ts`, assertion helpers in `tests/support/run-fixtures/`,
-  and financial invariants shared with scripts in `src/corpus/financial-invariants.ts`.
+  and financial invariants shared with scripts in `src/corpus/financial-invariants.ts` and `src/corpus/financial-statement-invariants.ts`.
 - A fixture that exists to pin one behavior carries one targeted assertion for it in
   `tests/equity-fixture/run.test.ts`; never a snapshot of its output.
 - Keep fixture test cases in `tests/equity-fixture/run.test.ts` and shared assertions in

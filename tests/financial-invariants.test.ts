@@ -8,16 +8,18 @@ import {
 import { identityTolerance } from "../src/sources/extended-evidence/untagged-financial-table-validation";
 import { runFixture, type RunFixtureResult } from "../src/replay/fixture-run";
 import {
+  assertEarningsReleaseEvidence,
+  assertFundamentalHistoryInvariants,
+  assertSourceIdClosure,
+} from "../src/corpus/financial-invariants";
+import {
   assertBalanceSheetFactIdentity,
   assertCompositeFactIntegrity,
-  assertEarningsReleaseEvidence,
   assertFinancialStatementInvariants,
-  assertFundamentalHistoryInvariants,
   assertRetainedDurationFactsIdentical,
-  assertSourceIdClosure,
   balanceSheetIdentityCoverage,
   financialStatementDurationProjection,
-} from "../src/corpus/financial-invariants";
+} from "../src/corpus/financial-statement-invariants";
 
 function financialStatements(result: RunFixtureResult): FinancialStatementsArtifact {
   const artifact = result.deepEquityEvidenceBundle?.derived.financialStatements;

@@ -12,7 +12,7 @@ import {
   withheldDebt,
 } from "../src/sources/extended-evidence/sec-debt";
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
-import { assertCompositeFactIntegrity } from "../src/corpus/financial-invariants";
+import { assertCompositeFactIntegrity } from "../src/corpus/financial-statement-invariants";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
 import { collectFinancialStatements } from "../src/sources/collector-equity-enrichment";
 import type { CollectContext, SourceRequestExecutor } from "../src/sources/types";

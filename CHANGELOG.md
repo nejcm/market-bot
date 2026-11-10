@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.3](https://github.com/nejcm/market-bot/compare/v1.15.2...v1.15.3) (2026-11-10)
+
+### Bug Fixes
+
+- **scoring:** persist forecast event origins; pool replay bodies (#196) ([2aea20c](https://github.com/nejcm/market-bot/commit/2aea20c25d0e038b993c2fe16d4e91272dec74fa))
+
 ## [1.15.2](https://github.com/nejcm/market-bot/compare/v1.15.1...v1.15.2) (2026-11-10)
 
 ### Bug Fixes

@@ -11,7 +11,7 @@ import { type SecFactMetricKey, type SecMetricKey } from "./financial-lens-canon
 import { bridgeIncompleteReasons } from "./enterprise-value-bridge";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
 import { readNumberMetric } from "./utils";
-import { formatPeRatio, type LensValueUnit } from "./value-format";
+import { type LensValueUnit } from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -125,29 +125,6 @@ export function secFundamentalItem(
   return items.find((item) =>
     SEC_KEYS.some((key) => readSecMetric(item.metrics, key) !== undefined),
   );
-}
-
-// A P/E is "clean" (shown as a numeric multiple) only when it is a finite, positive
-// Ratio over positive earnings. Negative or non-computable P/Es render as annotated
-// Text via formatPeRatio instead of a bare multiple. See PE_NEGATIVE_CAVEAT rationale.
-export function peIsClean(pe: number | undefined, eps: number | undefined): boolean {
-  return (
-    pe !== undefined && Number.isFinite(pe) && pe > 0 && eps !== 0 && (eps === undefined || eps > 0)
-  );
-}
-
-// Metric value for a P/E cell: the bare number when clean (rendered as a multiple),
-// Otherwise the annotated formatPeRatio text (negative value + caveat, or N/M), and
-// Undefined when absent so the metric is omitted entirely.
-export function peMetricValue(
-  pe: number | undefined,
-  eps: number | undefined,
-  clean: boolean,
-): number | string | undefined {
-  if (pe === undefined) {
-    return undefined;
-  }
-  return clean ? pe : formatPeRatio(pe, eps);
 }
 
 function metric(

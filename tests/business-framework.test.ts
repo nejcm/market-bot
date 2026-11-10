@@ -453,6 +453,37 @@ describe("business framework evidence", () => {
     expect(gapOf(undated, "business-framework-moat")).toBeDefined();
   });
 
+  test("publishes a P/E on non-positive earnings as not meaningful with the raw value as input", () => {
+    const base = evidence();
+    const withYahoo = (metrics: Record<string, number>) =>
+      framework(
+        evidence({
+          items: base.items.map((item) =>
+            item.category === "yahoo-fundamentals" ? { ...item, metrics } : item,
+          ),
+        }),
+      );
+    const negative = withYahoo({ trailingPE: 24, epsTrailingTwelveMonths: -1, forwardPE: -40.02 });
+
+    expect(metricOf(negative, "business-framework-valuation", "forwardPE")).toMatchObject({
+      status: "not-meaningful",
+      reason: "non-positive forward earnings",
+      periodEnd: "2026-06-20T00:00:00.000Z",
+      inputs: [expect.objectContaining({ key: "forwardPE", value: -40.02 })],
+    });
+    expect(metricOf(negative, "business-framework-valuation", "trailingPE")).toMatchObject({
+      status: "not-meaningful",
+      reason: "non-positive trailing earnings",
+    });
+    expect(
+      metricOf(
+        withYahoo({ trailingPE: 24, forwardPE: 21, epsForward: 2 }),
+        "business-framework-valuation",
+        "forwardPE",
+      ),
+    ).toMatchObject({ status: "value", value: 21 });
+  });
+
   test("SEC-summary and evidence-backed values carry the period their own source publishes", () => {
     const periods: Record<string, Record<string, string | number>> = {
       "sec-edgar": { operatingIncomePeriodEnd: "2026-04-30", operatingIncomePeriodMonths: 6 },

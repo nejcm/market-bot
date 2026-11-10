@@ -305,6 +305,9 @@ summary figure appended. `expectedIntegrityPrune` pins the exact pruned sentence
 fixture without it must prune nothing and grade `high`.
 The `equity-nbis-deep` final-synthesis entry drops the one key finding that cited
 `financial-lens-value.evToAnnualizedRevenue`, which a stale balance sheet now withholds.
+The `equity-iren-brief` final-synthesis entries replace the two
+`business-framework-valuation.forwardPE` references (forward P/E on negative earnings, now not
+meaningful) with plain wording.
 
 For example, this invocation only plans a critique evaluation:
 

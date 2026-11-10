@@ -613,6 +613,18 @@ function tableOfContentsFixture(summaryOverrides: Partial<RunSummary> = {}): Run
                 inputs: [],
                 sourceIds: [],
               },
+              {
+                id: "payoutRatio",
+                label: "Not-meaningful sentinel",
+                unit: "ratio-percent",
+                basis: "not-meaningful basis sentinel",
+                status: "not-meaningful",
+                reason: "net income is not positive",
+                periodEnd: "2025-09-27",
+                periodMonths: 12,
+                inputs: [],
+                sourceIds: ["source-bear"],
+              },
             ],
           },
         ],
@@ -1176,6 +1188,24 @@ describe("run workspace view", () => {
     expect(simple).not.toContain("Buyback yield");
   }, 15_000);
 
+  test("renders a not-meaningful Metric Section tile with its period, basis and citation", async () => {
+    const html = await renderRunWorkspaceComponent(
+      tableOfContentsFixture(),
+      "advanced",
+      "report",
+      true,
+    );
+    const tile = html.match(
+      /<li[^>]*>(?:(?!<\/li>)[\s\S])*Not-meaningful sentinel[\s\S]*?<\/li>/u,
+    )?.[0];
+
+    expect(tile).toContain("not meaningful");
+    expect(tile).toContain("net income is not positive");
+    expect(tile).toContain("12-month period ending 2025-09-27");
+    expect(tile).toContain("not-meaningful basis sentinel");
+    expect(tile).toContain("source-bear");
+  }, 15_000);
+
   test("projects equity completeness without changing dimension evidence", () => {
     const primaryFinancials = {
       status: "complete",
@@ -1582,7 +1612,7 @@ describe("run workspace view", () => {
     });
   });
 
-  test("renders negative-earnings P/E header tiles with the value and a caveat", () => {
+  test("renders negative-earnings P/E header tiles as not meaningful", () => {
     const header = equityHeaderView({
       summary: summary(),
       marketSnapshots: [
@@ -1599,8 +1629,8 @@ describe("run workspace view", () => {
 
     expect(header?.financials).toEqual([
       expect.objectContaining({ key: "marketCap" }),
-      expect.objectContaining({ key: "trailingPE", value: "-40.00x (negative earnings)" }),
-      expect.objectContaining({ key: "forwardPE", value: "-222.14x (negative earnings)" }),
+      expect.objectContaining({ key: "trailingPE", value: "N/M (non-positive earnings)" }),
+      expect.objectContaining({ key: "forwardPE", value: "N/M (non-positive earnings)" }),
       expect.objectContaining({ key: "forwardEPS", value: "$-0.47" }),
     ]);
   });

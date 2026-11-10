@@ -11,7 +11,7 @@ import {
 } from "../src/sources/extended-evidence/metric-engine";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { config, contextWithHistory } from "./support/research-context-helpers";
-import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
+import { collectedSources, marketSnapshot, newsSource, researchReport } from "./support/fixtures";
 
 const AS_OF = "2026-06-22T00:00:00.000Z";
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -89,6 +89,36 @@ function instantReport() {
 test("markdown labels a balance-sheet instant as of its date", () => {
   expect(renderMetricSections(instantReport())).toContain("As of 2026-03-31");
   expect(renderMetricSections(instantReport())).not.toContain("FY ending");
+});
+
+test("markdown cites a not-meaningful row with its period and basis", () => {
+  const fact = statements.statements.balanceSheet.cash.interim[0]!;
+  const { section } = evaluateMetricSection(
+    "test",
+    "Balances",
+    [
+      {
+        id: "cash",
+        label: "Cash",
+        unit: "currency",
+        basis: "reported instant",
+        compute: () => ({
+          status: "not-meaningful",
+          reason: "sentinel reason",
+          periodEnd: fact.periodEnd,
+          inputs: [statementInput(fact, "cash", "cash")],
+        }),
+      },
+    ],
+    { symbol: "AAPL" },
+  );
+  const report = researchReport({
+    sources: [newsSource({ id: "sec-aapl" })],
+    extras: { metricSections: [section] },
+  });
+  expect(renderMetricSections(report)).toContain(
+    "- Cash: not meaningful, sentinel reason (As of 2026-03-31; reported instant) [sec-aapl]",
+  );
 });
 
 test("period labels name the date of a provider observation timestamp", () => {

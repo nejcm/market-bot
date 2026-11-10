@@ -1,10 +1,11 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
-import { peIsClean, peMetricValue, valuationDateBasisMetric } from "./financial-lens-metrics";
+import { valuationDateBasisMetric } from "./financial-lens-metrics";
 import { financialStatementPeriodMonths } from "./financial-statement-selection";
 import { type MetricContext, type MetricDefinition, type MetricOutcome } from "./metric-engine";
 import { ENTERPRISE_VALUE_BASIS } from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
+import { peIsClean } from "./value-format";
 import {
   type MetricPeriod,
   EMPTY_PERIOD,
@@ -29,6 +30,28 @@ import {
   currencyMismatch,
 } from "./financial-lens-inputs";
 
+function peOutcome(
+  yahoo: ExtendedEvidenceItem | undefined,
+  yahooPeriod: MetricPeriod,
+  key: "trailingPE" | "forwardPE",
+  basis: "trailing" | "forward",
+  pe: number | undefined,
+  clean: boolean,
+): MetricOutcome {
+  if (yahoo === undefined || pe === undefined) {
+    return { status: "missing", reason: `no Yahoo ${basis} PE` };
+  }
+  const inputs = [evidenceInput(yahoo, key, `${basis} PE`, "ratio", pe, yahooPeriod)];
+  return clean
+    ? { status: "value", value: pe, inputs, ...yahooPeriod }
+    : {
+        status: "not-meaningful",
+        reason: `non-positive ${basis} earnings`,
+        inputs,
+        ...yahooPeriod,
+      };
+}
+
 function peDefinitionsFor(
   ctx: MetricContext,
   yahoo: ExtendedEvidenceItem | undefined,
@@ -44,22 +67,10 @@ function peDefinitionsFor(
     {
       id: "peRatio",
       label: "PE",
-      unit: trailingClean ? "ratio" : "text",
+      unit: "ratio",
       basis: "Yahoo Finance trailing price/earnings",
-      compute: () => {
-        const value =
-          trailingPe === undefined ? undefined : peMetricValue(trailingPe, epsTtm, trailingClean);
-        return value === undefined || yahoo === undefined || trailingPe === undefined
-          ? { status: "missing", reason: "no Yahoo trailing PE" }
-          : {
-              status: "value",
-              value,
-              inputs: [
-                evidenceInput(yahoo, "trailingPE", "trailing PE", "ratio", trailingPe, yahooPeriod),
-              ],
-              ...yahooPeriod,
-            };
-      },
+      compute: () =>
+        peOutcome(yahoo, yahooPeriod, "trailingPE", "trailing", trailingPe, trailingClean),
     },
     ...(trailingPe !== undefined && !trailingClean
       ? [
@@ -82,23 +93,10 @@ function peDefinitionsFor(
     {
       id: "forwardPe",
       label: "Forward PE",
-      unit: forwardClean ? "ratio" : "text",
+      unit: "ratio",
       basis:
         "Yahoo Finance forward price/earnings; consensus forward EPS has no provider as-of date",
-      compute: () => {
-        const value =
-          forwardPe === undefined ? undefined : peMetricValue(forwardPe, epsForward, forwardClean);
-        return value === undefined || yahoo === undefined || forwardPe === undefined
-          ? { status: "missing", reason: "no Yahoo forward PE" }
-          : {
-              status: "value",
-              value,
-              inputs: [
-                evidenceInput(yahoo, "forwardPE", "forward PE", "ratio", forwardPe, yahooPeriod),
-              ],
-              ...yahooPeriod,
-            };
-      },
+      compute: () => peOutcome(yahoo, yahooPeriod, "forwardPE", "forward", forwardPe, forwardClean),
     },
     ...(forwardPe !== undefined && !forwardClean
       ? [

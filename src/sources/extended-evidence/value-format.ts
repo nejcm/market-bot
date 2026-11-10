@@ -20,24 +20,14 @@ export const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
 };
 
 export const PE_NOT_MEANINGFUL = "N/M (non-positive earnings)";
-export const PE_NEGATIVE_CAVEAT = "negative earnings";
 
-// A negative P/E is a real, computable figure (price over a forecast/trailing loss)
-// And its sign is genuine signal, so it is shown rather than hidden. Its *magnitude*
-// Is misleading — non-monotonic in the loss, so a tiny loss yields a huge multiple —
-// Hence the caveat, so it is not read as a normal multiple. Only a genuinely
-// Non-computable ratio (zero or non-finite earnings) collapses to N/M.
+// P/E on a loss or zero earnings is not meaningful, never a negative or huge multiple.
+export function peIsClean(pe: number | undefined, eps: number | undefined): pe is number {
+  return pe !== undefined && Number.isFinite(pe) && pe > 0 && (eps === undefined || eps > 0);
+}
+
 export function formatPeRatio(pe: number, eps?: number): string {
-  if (!Number.isFinite(pe) || eps === 0) {
-    return PE_NOT_MEANINGFUL;
-  }
-  if (pe < 0 || (eps !== undefined && eps < 0)) {
-    return `${pe.toFixed(2)}x (${PE_NEGATIVE_CAVEAT})`;
-  }
-  if (pe === 0) {
-    return PE_NOT_MEANINGFUL;
-  }
-  return `${pe.toFixed(2)}x`;
+  return peIsClean(pe, eps) ? `${pe.toFixed(2)}x` : PE_NOT_MEANINGFUL;
 }
 
 // Each threshold sits where the tier below would round up to "1000.0".

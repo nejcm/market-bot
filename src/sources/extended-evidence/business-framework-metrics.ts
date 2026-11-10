@@ -46,7 +46,7 @@ import {
 } from "./metric-engine";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import type { LensValueUnit } from "./value-format";
+import { peIsClean, type LensValueUnit } from "./value-format";
 
 type FrameworkSeries =
   | "revenue"
@@ -510,6 +510,25 @@ function evidenceValue(
   };
 }
 
+function peValue(key: "trailingPE" | "forwardPE", epsKey: string, basis: "trailing" | "forward") {
+  const compute = evidenceValue("yahoo-fundamentals", key, `${basis} PE`, "ratio", observedPeriod);
+  return (ctx: MetricContext): MetricOutcome => {
+    const outcome = compute(ctx);
+    const eps = readNumberMetric(
+      itemByCategory(ctx.evidence, "yahoo-fundamentals")?.metrics,
+      epsKey,
+    );
+    return outcome.status !== "value" || peIsClean(Number(outcome.value), eps)
+      ? outcome
+      : {
+          status: "not-meaningful",
+          reason: `non-positive ${basis} earnings`,
+          ...(outcome.periodEnd === undefined ? {} : { periodEnd: outcome.periodEnd }),
+          inputs: outcome.inputs,
+        };
+  };
+}
+
 // Provider quotes carry no reporting period; date them by observation, as the financial lens does.
 function observedPeriod(item: ExtendedEvidenceItem | undefined) {
   return item === undefined ? {} : { periodEnd: item.observedAt };
@@ -809,13 +828,7 @@ function sectionDefinitions(
         label: "Trailing PE",
         unit: "ratio",
         basis: "Yahoo Finance trailing price/earnings",
-        compute: evidenceValue(
-          "yahoo-fundamentals",
-          "trailingPE",
-          "trailing PE",
-          "ratio",
-          observedPeriod,
-        ),
+        compute: peValue("trailingPE", "epsTrailingTwelveMonths", "trailing"),
       },
       {
         id: "forwardPE",
@@ -823,13 +836,7 @@ function sectionDefinitions(
         unit: "ratio",
         basis:
           "Yahoo Finance forward price/earnings; consensus forward EPS has no provider as-of date",
-        compute: evidenceValue(
-          "yahoo-fundamentals",
-          "forwardPE",
-          "forward PE",
-          "ratio",
-          observedPeriod,
-        ),
+        compute: peValue("forwardPE", "epsForward", "forward"),
       },
       withCurrentEquityNote({
         id: "evToAnnualizedRevenue",

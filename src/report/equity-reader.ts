@@ -34,6 +34,7 @@ import {
 export interface EquityReaderMarketMultiple {
   readonly key: "trailingPE" | "forwardPE" | "priceToBook";
   readonly value: number;
+  readonly eps?: number;
 }
 
 export type EquityReaderCompanyDescription =
@@ -225,10 +226,24 @@ function valuationContext(
   const metrics = [
     ...(fundamentals?.trailingPE === undefined
       ? []
-      : [{ key: "trailingPE" as const, value: fundamentals.trailingPE }]),
+      : [
+          {
+            key: "trailingPE" as const,
+            value: fundamentals.trailingPE,
+            ...(fundamentals.epsTrailingTwelveMonths === undefined
+              ? {}
+              : { eps: fundamentals.epsTrailingTwelveMonths }),
+          },
+        ]),
     ...(fundamentals?.forwardPE === undefined
       ? []
-      : [{ key: "forwardPE" as const, value: fundamentals.forwardPE }]),
+      : [
+          {
+            key: "forwardPE" as const,
+            value: fundamentals.forwardPE,
+            ...(fundamentals.epsForward === undefined ? {} : { eps: fundamentals.epsForward }),
+          },
+        ]),
     ...(fundamentals?.priceToBook === undefined
       ? []
       : [{ key: "priceToBook" as const, value: fundamentals.priceToBook }]),

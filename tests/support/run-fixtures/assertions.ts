@@ -1362,7 +1362,6 @@ const EXPECTED_LENS_VALUES: Readonly<
     valuationSupportability: "not-meaningful",
     // Yahoo quote 2026-11-04: price 143.995, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 39.15B.
     peRatio: 112.496_09,
-    forwardPe: "-40.02x (negative earnings)",
     epsForward: -3.597_83,
     priceToBook: 3.817_268_4,
     pcfRatio: 97.401_820_074_645_43,

@@ -48,6 +48,15 @@
             <div class="mt-1 font-mono text-[10px] leading-normal text-[#8a6116]">
               {metric.reason}
             </div>
+            {#if metric.status === "not-meaningful"}
+              {#if metric.period !== undefined}
+                <div class="mt-1 font-mono text-[10px] text-[#8a8f96]">{metric.period}</div>
+              {/if}
+              {#if metric.basis !== undefined}
+                <div class="mt-1 text-[11px] leading-normal text-[#5c6066]">{metric.basis}</div>
+              {/if}
+              {@render citeChips(metric.sourceIds)}
+            {/if}
           {/if}
         </li>
       {/each}

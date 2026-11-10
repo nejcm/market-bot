@@ -1,3 +1,4 @@
+import { formatPeRatio } from "../sources/extended-evidence/value-format";
 import { perShareCurrency } from "../sources/extended-evidence/yahoo-fundamentals";
 import { type ExtendedEvidenceItem } from "../domain/evidence";
 import {
@@ -257,13 +258,11 @@ export function renderValuationContext(
     ({ fallbackMetrics: metrics, fallbackSourceIds: sourceIds } = valuation);
   }
   const renderedMetrics = metrics.map((metric) => {
-    let label = "price/book";
-    if (metric.key === "trailingPE") {
-      label = "trailing P/E";
-    } else if (metric.key === "forwardPE") {
-      label = "forward P/E";
+    if (metric.key === "priceToBook") {
+      return `price/book ${metric.value.toFixed(2)}x`;
     }
-    return `${label} ${metric.value.toFixed(2)}x`;
+    const label = metric.key === "trailingPE" ? "trailing P/E" : "forward P/E";
+    return `${label} ${formatPeRatio(metric.value, metric.eps)}`;
   });
   const refs = sourceRefs(knownSourceIds(report, sourceIds));
   const includePriceToBook = !metrics.some((metric) => metric.key === "priceToBook");

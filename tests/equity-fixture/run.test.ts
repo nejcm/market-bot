@@ -38,6 +38,7 @@ import { addFinancialLensEvidence } from "../../src/sources/extended-evidence/fi
 import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import { renderMarkdownReport } from "../../src/report/markdown";
+import type { MetricSectionsExtra } from "../../src/report/report-extras-contract";
 import { projectExtendedEvidenceReportExtras } from "../../src/research/extended-evidence-projections";
 import { newsSource } from "../support/fixtures";
 import { splitAdjustedObservationsFromYahooChart } from "../../src/sources/yahoo-chart";
@@ -613,6 +614,23 @@ describe("static equity run fixtures", () => {
             ),
           }),
         );
+        // Yahoo forward EPS -3.59783 gives forward P/E -40.02x, which is not meaningful.
+        const metricRow = (section: string, id: string) =>
+          (result.report.extras?.metricSections as MetricSectionsExtra | undefined)
+            ?.find((row) => row.id === section)
+            ?.metrics.find((row) => row.id === id);
+        for (const [section, id] of [
+          ["financial-lens-value", "forwardPe"],
+          ["business-framework-valuation", "forwardPE"],
+        ] as const) {
+          expect(metricRow(section, id)).toMatchObject({
+            status: "not-meaningful",
+            reason: "non-positive forward earnings",
+            inputs: [expect.objectContaining({ key: "forwardPE", value: -40.022_736 })],
+          });
+        }
+        expect(result.markdown).not.toMatch(/forward P\/?E -/iu);
+        expect(result.markdown).toContain("forward P/E N/M (non-positive earnings)");
         await assertNbisUnsupportedInputs();
       }
       if (name === "equity-web-fallback-deep") {

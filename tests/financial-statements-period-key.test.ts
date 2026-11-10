@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../src/sources/extended-evidence/financial-statement-definitions";
-import {
-  deriveFinancialStatements,
-  type FinancialStatementsDeriveInput,
-} from "../src/sources/extended-evidence/financial-statements";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { type FinancialStatementsDeriveInput } from "../src/sources/extended-evidence/financial-statement-facts";
 import { financialStatementSeries } from "../src/sources/extended-evidence/financial-statement-selection";
 import type { FinancialStatementSeriesKey } from "../src/sources/extended-evidence/financial-statements-contract";
 

@@ -1,5 +1,4 @@
 import { DAY_MS } from "../../config/shared";
-import { isRecord, readNumber, readString } from "../../guards";
 import {
   ENTERPRISE_VALUE_BRIDGE_CONCEPTS,
   TEMPORARY_EQUITY_CONCEPT_PRIORITY,
@@ -21,7 +20,6 @@ import {
   EXTENSION_SHORT_TERM_INVESTMENTS_PROOF_PREFIX,
 } from "../sec-extension-investments-proof";
 import {
-  CAP_FOLLOWER_SERIES,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   DISCONTINUED_OPERATIONS_CONCEPTS,
@@ -34,20 +32,16 @@ import {
   MAX_ANNUAL_DURATION_MONTHS,
   conceptScope,
   isContinuingScope,
-  isDebtPresenceConcept,
-  isRevenueConceptInRecencyBucket,
   type FinancialStatementSeriesDefinition,
 } from "./financial-statement-definitions";
 import {
   capFinancialStatementPeriods,
   compareFinancialStatementFacts,
-  compositeStatementIdentity,
   restatedFromOriginalFiling,
   deriveFinancialStatementTtm,
   detectFinancialStatementCadence,
   financialStatementPeriodKey,
   financialStatementPeriodMonths,
-  isYearAligned,
   financialStatementFacts,
   incompleteFinancialStatementNotes,
   fiscalYearTtmSupersededAt,
@@ -55,110 +49,74 @@ import {
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
   compareFinancialStatementRevisions,
-  MAX_ANNUAL_PERIODS_PER_SHAPE,
 } from "./financial-statement-selection";
 import {
   type DebtFactReader,
-  debtAliasesTagged,
   debtScopeUnprovenNotes,
   isUnprovenDebtNote,
   factsForDebt,
   withheldGrossPrincipalDebt,
 } from "./sec-debt";
-import { calendarYearFromPeriodEnd } from "./financial-statement-period-identity";
 import {
-  COMPOSITE_STATEMENT_FACT_FORMULA,
-  SEC_COMPANYFACTS_UNIT_SCALE,
-  canonicalizeSecForm,
-  isAnnualReportForm,
-  isCalendarDate,
-  readSecFactPeriodMetadata,
-  type CanonicalSecForm,
   type FinancialStatementFact,
   ENTERPRISE_VALUE_BRIDGE_FACT_KEYS,
   type FinancialStatementEnterpriseValueBridge,
   type FinancialStatementEquityStack,
   type FinancialStatementNote,
-  type FinancialStatementNotePeriod,
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
   type FinancialStatementSupersedingFact,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
-  type FirstAnnualReport,
-  type InterimCadence,
   type OriginalFiling,
-  type StructuredFinancialGap,
-  type SupportedSecForm,
   ZERO_BORROWINGS_EXTRACTION_METHOD,
 } from "./financial-statements-contract";
+import {
+  type ParsedFact,
+  type SelectedSeries,
+  type FinancialStatementsDeriveInput,
+  TAXONOMIES,
+  parseFact,
+  taxonomyRoot,
+  unitFacts,
+  factsForLatestPeriodConcept,
+  factsForDefinition,
+  revenueConceptSwitchNotes,
+  compositeFromContributors,
+  withCompositeFirstPublicAt,
+  type WithheldDerivation,
+  isObservable,
+  currencyForUnit,
+  periodType,
+  isStatementPeriod,
+  periodKey,
+  firstPublicDate,
+  withFirstPublicAt,
+  toSelectedFact,
+  selectRestatements,
+  chronological,
+} from "./financial-statement-facts";
+import {
+  taxonomyScore,
+  selectTaxonomy,
+  selectReportingCurrency,
+} from "./financial-statement-taxonomy";
+import {
+  firstAnnualReports,
+  dividendPaymentFiled,
+  unfiledSeries,
+  supportedSixKFacts,
+  structuredFinancialGaps,
+} from "./financial-statement-filing-coverage";
+import {
+  withheldDerivationNotes,
+  untaggedContinuingIncomeNotes,
+  untaggedConsolidatedIncomeNotes,
+  declarationSpanNotes,
+  staleConceptHistoryNotes,
+  instantSeriesOmissionNotes,
+} from "./financial-statement-notes";
 
-interface ParsedCompositeComponent {
-  readonly concept: string;
-  readonly value: number;
-  readonly accessionNumber: string | null;
-  readonly filedAt: string;
-  readonly periodEnd: string;
-  readonly sourceIds?: readonly string[];
-}
-
-export interface ParsedFact {
-  readonly value: number;
-  readonly restatedFrom?: OriginalFiling;
-  readonly form: SupportedSecForm;
-  readonly canonicalForm: CanonicalSecForm;
-  readonly amendment: boolean;
-  readonly accessionNumber: string | null;
-  readonly filedAt: string;
-  readonly periodStart?: string;
-  readonly periodEnd: string;
-  readonly fiscalYear: number;
-  readonly fiscalPeriod: string;
-  readonly taxonomy: FinancialStatementTaxonomy;
-  readonly concept: string;
-  readonly unit: string;
-  readonly firstPublicAt?: string;
-  readonly lineScope?: true;
-  readonly sourceIds?: readonly string[];
-  readonly proofSourceIds?: readonly string[];
-  readonly faceLeases?: readonly string[];
-  readonly zeroBorrowingsProof?: string;
-  readonly composite?: {
-    readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
-    readonly components: readonly ParsedCompositeComponent[];
-  };
-}
-
-export interface SelectedSeries {
-  readonly series: FinancialStatementSeries;
-  readonly validationNotes: readonly FinancialStatementNote[];
-  readonly omissionNotes: readonly FinancialStatementNote[];
-  readonly withheld?: readonly WithheldDerivation[];
-}
-
-interface SubmissionFiling {
-  readonly form: "6-K" | "6-K/A";
-  readonly filedAt: string;
-  readonly accessionNumber?: string;
-  readonly reportDate?: string;
-}
-
-export interface FinancialStatementsDeriveInput {
-  readonly symbol: string;
-  readonly generatedAt: string;
-  readonly analysisAsOf: string;
-  readonly sourceId: string;
-  readonly sourceUrl?: string;
-  readonly submissionsPayload?: unknown;
-  readonly submissionsSourceId?: string;
-  readonly secFilings?: readonly ExtendedEvidenceItem[];
-}
-
-const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
-const STATEMENT_DURATION_MONTHS = new Set([3, 6, 9, 12]);
-const QUARTERLY_REPORTING_PERIOD_DAYS = 120;
-const SEMIANNUAL_REPORTING_PERIOD_DAYS = 200;
-const ANNUAL_REPORTING_PERIOD_DAYS = 400;
 const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
   "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest";
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
@@ -174,338 +132,6 @@ type EquityStackComponentKey =
   | "minorityInterest"
   | "stockholdersEquityIncludingNoncontrollingInterest"
   | "temporaryEquity";
-
-function parseFact(
-  value: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  concept: string,
-  unit: string,
-): ParsedFact | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-  const numericValue = readNumber(value, "val");
-  const formValue = readString(value, "form");
-  const form = formValue === undefined ? undefined : canonicalizeSecForm(formValue);
-  const accessionNumber = readString(value, "accn");
-  const period = readSecFactPeriodMetadata(value);
-  if (numericValue === undefined || form === undefined || period === undefined) {
-    return undefined;
-  }
-  const { filed: filedAt, end: periodEnd, fp: fiscalPeriod } = period;
-  const fiscalYear = calendarYearFromPeriodEnd(periodEnd);
-  if (fiscalYear === undefined) {
-    return undefined;
-  }
-  const periodStart = readString(value, "start");
-  return {
-    value: numericValue,
-    ...form,
-    accessionNumber: accessionNumber ?? null,
-    filedAt,
-    ...(periodStart !== undefined ? { periodStart } : {}),
-    periodEnd,
-    fiscalYear,
-    fiscalPeriod,
-    taxonomy,
-    concept,
-    unit,
-  };
-}
-
-function factsRoot(payload: unknown): Record<string, unknown> | undefined {
-  return isRecord(payload) && isRecord(payload.facts) ? payload.facts : undefined;
-}
-
-function taxonomyRoot(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-): Record<string, unknown> | undefined {
-  const root = factsRoot(payload);
-  return root !== undefined && isRecord(root[taxonomy]) ? root[taxonomy] : undefined;
-}
-
-function unitFacts(
-  taxonomy: FinancialStatementTaxonomy,
-  root: Record<string, unknown>,
-  concept: string,
-): readonly ParsedFact[] {
-  const fact = isRecord(root[concept]) ? root[concept] : undefined;
-  const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
-  if (units === undefined) {
-    return [];
-  }
-  return Object.entries(units).flatMap(([unit, values]) =>
-    (Array.isArray(values) ? values : []).flatMap((value) => {
-      const parsed = parseFact(value, taxonomy, concept, unit);
-      return parsed === undefined ? [] : [parsed];
-    }),
-  );
-}
-
-function factsForLatestPeriodConcept(
-  taxonomy: FinancialStatementTaxonomy,
-  root: Record<string, unknown>,
-  concepts: readonly string[],
-  eligible: (fact: ParsedFact) => boolean,
-): readonly ParsedFact[] {
-  const ranked = concepts
-    .map((concept, priority) => {
-      const facts = unitFacts(taxonomy, root, concept);
-      const latestPeriodEnd = facts
-        .filter((fact) => eligible(fact))
-        .map((fact) => fact.periodEnd)
-        .toSorted()
-        .at(-1);
-      return { facts, latestPeriodEnd, priority };
-    })
-    .filter(
-      (
-        candidate,
-      ): candidate is {
-        readonly facts: readonly ParsedFact[];
-        readonly latestPeriodEnd: string;
-        readonly priority: number;
-      } => candidate.latestPeriodEnd !== undefined,
-    );
-  const latestPeriodEnd = ranked
-    .map((candidate) => candidate.latestPeriodEnd)
-    .toSorted()
-    .at(-1);
-  if (latestPeriodEnd === undefined) {
-    return [];
-  }
-  return (
-    ranked
-      .filter((candidate) => candidate.latestPeriodEnd === latestPeriodEnd)
-      .toSorted((left, right) => left.priority - right.priority)[0]?.facts ?? []
-  );
-}
-
-function factsForDefinition(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  definition: FinancialStatementSeriesDefinition,
-  eligible: (fact: ParsedFact) => boolean = () => true,
-): readonly ParsedFact[] {
-  const root = taxonomyRoot(payload, taxonomy);
-  if (root === undefined) {
-    return [];
-  }
-  const concepts = definition.concepts[taxonomy];
-  if (definition.key === "dividendsPerShare") {
-    // Declarations are annual-anchored; a newer interim cash-paid tag must not hide declared annual history.
-    const annualBasis = factsForLatestPeriodConcept(
-      taxonomy,
-      root,
-      concepts,
-      (fact) =>
-        eligible(fact) &&
-        fact.periodStart !== undefined &&
-        isYearAligned(fact.periodStart, fact.periodEnd) &&
-        periodType(fact, definition) === "annual",
-    );
-    const statementBasis =
-      annualBasis.length > 0
-        ? annualBasis
-        : factsForLatestPeriodConcept(
-            taxonomy,
-            root,
-            concepts,
-            (fact) => eligible(fact) && isStatementPeriod(fact, definition),
-          );
-    // Spans-only issuers still surface their declarations as omission evidence.
-    return statementBasis.length > 0
-      ? statementBasis
-      : factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
-  }
-  return definition.key === "revenue"
-    ? selectRevenueConcept(taxonomy, root, definition, eligible).facts
-    : factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
-}
-
-function selectRevenueConcept(
-  taxonomy: FinancialStatementTaxonomy,
-  root: Record<string, unknown>,
-  definition: FinancialStatementSeriesDefinition,
-  eligible: (fact: ParsedFact) => boolean,
-): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
-  const ranked = definition.concepts[taxonomy]
-    .map((concept, priority) => {
-      const facts = unitFacts(taxonomy, root, concept);
-      const [latest] = facts
-        .filter((fact) => eligible(fact))
-        .toSorted(compareFinancialStatementFacts);
-      return { facts, latest, priority };
-    })
-    .filter(
-      (
-        candidate,
-      ): candidate is {
-        readonly facts: readonly ParsedFact[];
-        readonly latest: ParsedFact;
-        readonly priority: number;
-      } => candidate.latest !== undefined,
-    );
-  const latestPeriodEnd = ranked
-    .map((candidate) => candidate.latest.periodEnd)
-    .toSorted()
-    .at(-1);
-  if (latestPeriodEnd === undefined) {
-    return { facts: [], notes: [] };
-  }
-  const [preferred, ...rest] = ranked
-    .filter((candidate) =>
-      isRevenueConceptInRecencyBucket(candidate.latest.periodEnd, latestPeriodEnd),
-    )
-    .toSorted(
-      (left, right) =>
-        left.priority - right.priority ||
-        left.latest.concept.localeCompare(right.latest.concept) ||
-        left.latest.unit.localeCompare(right.latest.unit),
-    );
-  if (preferred === undefined) {
-    return { facts: [], notes: [] };
-  }
-  const annualRevisions = (facts: readonly ParsedFact[]) =>
-    new Map(
-      selectRestatements(
-        facts.filter((fact) => eligible(fact) && periodType(fact, definition) === "annual"),
-        definition.key,
-        [],
-      ).facts.map((fact) => [periodKey(fact), fact] as const),
-    );
-  const preferredAnnual = annualRevisions(preferred.facts);
-  // A newer tag replaces the preferred one only if, inside the annual cap over both tags' periods, it
-  // Carries every preferred period at the same value and one filing tags both for the newest one.
-  const sameScopeNewer = rest.find((candidate) => {
-    const candidateAnnual = annualRevisions(candidate.facts);
-    const capped = [...new Map([...candidateAnnual, ...preferredAnnual]).values()]
-      .toSorted(chronological)
-      .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
-      .map((fact) => periodKey(fact))
-      .filter((key) => preferredAnnual.has(key));
-    const anchor = preferredAnnual.get(capped.at(-1) ?? "");
-    return (
-      candidate.latest.periodEnd > preferred.latest.periodEnd &&
-      anchor !== undefined &&
-      anchor.accessionNumber !== null &&
-      candidateAnnual.get(periodKey(anchor))?.accessionNumber === anchor.accessionNumber &&
-      capped.every((key) => candidateAnnual.get(key)?.value === preferredAnnual.get(key)!.value)
-    );
-  });
-  if (sameScopeNewer === undefined) {
-    return { facts: preferred.facts, notes: [] };
-  }
-  const cappedKeys = (annual: ReadonlyMap<string, ParsedFact>) =>
-    [...annual.values()]
-      .toSorted(chronological)
-      .slice(-MAX_ANNUAL_PERIODS_PER_SHAPE)
-      .map((fact) => periodKey(fact));
-  const switchedKeys = new Set(cappedKeys(annualRevisions(sameScopeNewer.facts)));
-  const interimKeys = (facts: readonly ParsedFact[]) =>
-    new Set(
-      facts
-        .filter((fact) => eligible(fact) && periodType(fact, definition) === "interim")
-        .map((fact) => periodKey(fact)),
-    );
-  const switchedInterim = interimKeys(sameScopeNewer.facts);
-  return {
-    facts: sameScopeNewer.facts,
-    notes: [
-      ...cappedKeys(preferredAnnual)
-        .filter((key) => !switchedKeys.has(key))
-        .map((key) => ({
-          code: "history-cap" as const,
-          seriesKey: definition.key,
-          periodKey: `annual|${key}`,
-          message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
-        })),
-      ...[...interimKeys(preferred.facts)]
-        .filter((key) => !switchedInterim.has(key))
-        .map((key) => ({
-          code: "history-cap" as const,
-          seriesKey: definition.key,
-          periodKey: `interim|${key}`,
-          message: `Interim period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, which does not tag that period`,
-        })),
-    ],
-  };
-}
-
-function revenueConceptSwitchNotes(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  definition: FinancialStatementSeriesDefinition,
-  eligible: (fact: ParsedFact) => boolean,
-): readonly FinancialStatementNote[] {
-  const root = taxonomyRoot(payload, taxonomy);
-  return root === undefined || definition.key !== "revenue"
-    ? []
-    : selectRevenueConcept(taxonomy, root, definition, eligible).notes;
-}
-
-function compositeFromContributors(
-  contributors: readonly ParsedFact[],
-  subtracted: ReadonlySet<string> = new Set(),
-): ParsedFact {
-  const [anchor] = contributors;
-  if (anchor === undefined) {
-    throw new Error("compositeFromContributors requires at least one contributor");
-  }
-  const identity = compositeStatementIdentity(contributors);
-  return {
-    value: identity.value,
-    form: anchor.form,
-    canonicalForm: anchor.canonicalForm,
-    amendment: anchor.amendment,
-    accessionNumber: identity.accessionNumber,
-    filedAt: identity.filedAt,
-    ...(anchor.periodStart !== undefined ? { periodStart: anchor.periodStart } : {}),
-    periodEnd: anchor.periodEnd,
-    fiscalYear: anchor.fiscalYear,
-    fiscalPeriod: anchor.fiscalPeriod,
-    taxonomy: anchor.taxonomy,
-    concept: contributors
-      .map((fact) => `${subtracted.has(fact.concept) ? "-" : "+"}${fact.concept}`)
-      .join("")
-      .slice(1),
-    unit: anchor.unit,
-    composite: {
-      formula: COMPOSITE_STATEMENT_FACT_FORMULA,
-      components: contributors.map((fact) => ({
-        concept: fact.concept,
-        value: fact.value,
-        accessionNumber: fact.accessionNumber,
-        filedAt: fact.filedAt,
-        periodEnd: fact.periodEnd,
-        ...(fact.sourceIds === undefined ? {} : { sourceIds: fact.sourceIds }),
-      })),
-    },
-  };
-}
-
-function withCompositeFirstPublicAt(
-  composite: ParsedFact,
-  definition: FinancialStatementSeriesDefinition,
-  candidates: readonly ParsedFact[],
-  subtracted: ReadonlySet<string>,
-): ParsedFact {
-  const histories = (composite.composite?.components ?? []).map((component) =>
-    candidates
-      .filter(
-        (fact) =>
-          fact.concept === component.concept &&
-          periodKey(fact) === periodKey(composite) &&
-          periodType(fact, definition) === periodType(composite, definition),
-      )
-      .map((fact) => (subtracted.has(fact.concept) ? { ...fact, value: -fact.value } : fact)),
-  );
-  return {
-    ...composite,
-    firstPublicAt: firstPublicDate(composite.value, composite.filedAt, histories),
-  };
-}
 
 function componentTolerance(value: number): number {
   return Math.abs(value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE;
@@ -853,13 +479,6 @@ function factsForDepreciationAndAmortization(
   return { facts: resolvedFacts, notes };
 }
 
-interface WithheldDerivation {
-  readonly periodKey: string;
-  readonly periodStart?: string;
-  readonly periodEnd: string;
-  readonly reason: string;
-}
-
 interface DerivedSeriesFacts {
   readonly facts: readonly ParsedFact[];
   readonly withheld: readonly WithheldDerivation[];
@@ -1078,6 +697,18 @@ const DISCONTINUED_OPERATING_CASH_FLOW_CONCEPT =
 const DISCONTINUED_OPERATIONS_CASH_FLOW_REASON =
   "discontinued operations are reported for the period and no continuing-operations operating cash flow is tagged";
 
+const lastFiled = (facts: readonly ParsedFact[]) => {
+  const filed = new Map<string, ParsedFact>();
+  for (const fact of facts) {
+    const key = periodKey(fact);
+    const current = filed.get(key);
+    if (current === undefined || compareFinancialStatementRevisions(fact, current) < 0) {
+      filed.set(key, fact);
+    }
+  }
+  return filed;
+};
+
 // ASC 205-20: continuing OCF where tagged; a total amount stands in only for a period with no discontinued operations.
 function scopeAlignedOperatingCashFlow(
   payload: unknown,
@@ -1088,17 +719,6 @@ function scopeAlignedOperatingCashFlow(
   if (root === undefined) {
     return NO_DERIVED_FACTS;
   }
-  const lastFiled = (facts: readonly ParsedFact[]) => {
-    const filed = new Map<string, ParsedFact>();
-    for (const fact of facts) {
-      const key = periodKey(fact);
-      const current = filed.get(key);
-      if (current === undefined || compareFinancialStatementRevisions(fact, current) < 0) {
-        filed.set(key, fact);
-      }
-    }
-    return filed;
-  };
   const continuing = unitFacts("us-gaap", root, CONTINUING_OPERATING_CASH_FLOW_CONCEPT).filter(
     eligible,
   );
@@ -1545,578 +1165,11 @@ function derivedSeriesFacts(
   return undefined;
 }
 
-function noteSpan(start: string | undefined, end: string): string {
-  return `${start ?? "instant"} to ${end}`;
-}
-
-function withheldFact(
-  fact: Pick<FinancialStatementFact, "periodStart" | "periodEnd">,
-  reason: string,
-): Pick<FinancialStatementNote, "periods" | "reason"> {
-  return {
-    periods: [
-      {
-        ...(fact.periodStart === undefined ? {} : { start: fact.periodStart }),
-        end: fact.periodEnd,
-      },
-    ],
-    reason,
-  };
-}
-
-// One note per series and reason, limited to periods its input series retains after the cap.
-function withheldDerivationNotes(
-  selected: readonly SelectedSeries[],
-  income: FinancialStatementsArtifact["statements"]["incomeStatement"],
-): readonly FinancialStatementNote[] {
-  return selected.flatMap(({ series, withheld = [] }) => {
-    const input = series.key === "netIncome" ? income.consolidatedNetIncome : income.revenue;
-    const retained = new Set(financialStatementFacts(input).map((fact) => fact.periodKey));
-    const byReason = new Map<string, Map<string, FinancialStatementNotePeriod>>();
-    for (const period of withheld.filter((item) => retained.has(item.periodKey))) {
-      const spans = byReason.get(period.reason) ?? new Map();
-      spans.set(noteSpan(period.periodStart, period.periodEnd), {
-        ...(period.periodStart === undefined ? {} : { start: period.periodStart }),
-        end: period.periodEnd,
-      });
-      byReason.set(period.reason, spans);
-    }
-    return [...byReason].map(([reason, spans]) => {
-      const sorted = [...spans].toSorted(([left], [right]) => left.localeCompare(right));
-      return {
-        code: "withheld-derivation" as const,
-        seriesKey: series.key,
-        periods: sorted.map(([, period]) => period),
-        reason,
-        message: `SEC ${series.label.toLowerCase()} is not derived for ${sorted.map(([span]) => span).join(", ")}: ${reason}`,
-      };
-    });
-  });
-}
-
-// Revenue is a continuing line; total net income for a period with discontinued operations has no margin partner.
-function untaggedContinuingIncomeNotes(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy | undefined,
-  analysisAsOf: string,
-  income: FinancialStatementsArtifact["statements"]["incomeStatement"],
-): readonly FinancialStatementNote[] {
-  const root = taxonomy === "us-gaap" ? taxonomyRoot(payload, taxonomy) : undefined;
-  if (root === undefined) {
-    return [];
-  }
-  const discontinued = new Set(
-    DISCONTINUED_OPERATIONS_CONCEPTS.flatMap((concept) => unitFacts("us-gaap", root, concept))
-      .filter((fact) => fact.value !== 0 && isObservable(fact, analysisAsOf))
-      .map((fact) => periodKey(fact)),
-  );
-  const continuing = new Set(
-    financialStatementFacts(income.continuingIncome).map((f) => f.periodKey),
-  );
-  return financialStatementFacts(income.netIncome)
-    .filter((fact) => discontinued.has(fact.periodKey) && !continuing.has(fact.periodKey))
-    .map((fact) => ({
-      code: "withheld-derivation" as const,
-      seriesKey: "continuingIncome" as const,
-      periodKey: fact.periodKey,
-      ...withheldFact(
-        fact,
-        "discontinued operations are reported and no continuing-operations income is tagged",
-      ),
-      message: `SEC net margin is withheld for ${noteSpan(fact.periodStart, fact.periodEnd)}: discontinued operations are reported and no continuing-operations income is tagged`,
-    }));
-}
-
-function periodKeys(series: FinancialStatementSeries): ReadonlySet<string> {
-  return new Set(financialStatementFacts(series).map((fact) => fact.periodKey));
-}
-
-// Net margin needs income including NCI; parent-attributed income stands in only for a period with no NCI income.
-function untaggedConsolidatedIncomeNotes(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy | undefined,
-  analysisAsOf: string,
-  income: FinancialStatementsArtifact["statements"]["incomeStatement"],
-): readonly FinancialStatementNote[] {
-  const root = taxonomy === undefined ? undefined : taxonomyRoot(payload, taxonomy);
-  if (taxonomy === undefined || root === undefined) {
-    return [];
-  }
-  const observable = (concept: string) =>
-    unitFacts(taxonomy, root, concept).filter((fact) => isObservable(fact, analysisAsOf));
-  const ifrsParent = new Map(
-    observable("ProfitLossAttributableToOwnersOfParent").map((fact) => [
-      periodKey(fact),
-      fact.value,
-    ]),
-  );
-  // IFRS netIncome is ProfitLoss, so a parent share that differs from it marks NCI.
-  const ifrsDivergent =
-    taxonomy === "ifrs-full"
-      ? observable("ProfitLoss")
-          .filter((fact) => {
-            const parent = ifrsParent.get(periodKey(fact));
-            return parent !== undefined && parent !== fact.value;
-          })
-          .map((fact) => periodKey(fact))
-      : [];
-  const noncontrolling = new Set([
-    ...(taxonomy === "ifrs-full"
-      ? ["ProfitLossAttributableToNoncontrollingInterests"]
-      : NONCONTROLLING_INCOME_CONCEPTS
-    )
-      .flatMap(observable)
-      .filter((fact) => fact.value !== 0)
-      .map((fact) => periodKey(fact)),
-    ...ifrsDivergent,
-  ]);
-  const consolidatedValues = new Map(
-    financialStatementFacts(income.consolidatedNetIncome).map((fact) => [
-      fact.periodKey,
-      fact.value,
-    ]),
-  );
-  const consolidated = periodKeys(income.consolidatedNetIncome);
-  const consolidatedContinuing = periodKeys(income.consolidatedContinuingIncome);
-  const continuing = periodKeys(income.continuingIncome);
-  return financialStatementFacts(income.netIncome).flatMap((fact): FinancialStatementNote[] => {
-    const span = noteSpan(fact.periodStart, fact.periodEnd);
-    const consolidatedValue = consolidatedValues.get(fact.periodKey);
-    if (
-      !noncontrolling.has(fact.periodKey) &&
-      (consolidatedValue === undefined || consolidatedValue === fact.value)
-    ) {
-      return [];
-    }
-    if (continuing.has(fact.periodKey) && !consolidatedContinuing.has(fact.periodKey)) {
-      return [
-        {
-          code: "withheld-derivation" as const,
-          seriesKey: "consolidatedContinuingIncome" as const,
-          periodKey: fact.periodKey,
-          ...withheldFact(
-            fact,
-            "noncontrolling interest income is reported and continuing income is tagged only as attributable to parent",
-          ),
-          message: `SEC continuing net margin is withheld for ${span}: noncontrolling interest income is reported and continuing income is tagged only as attributable to parent`,
-        },
-      ];
-    }
-    return taxonomy === "ifrs-full" || consolidated.has(fact.periodKey)
-      ? []
-      : [
-          {
-            code: "withheld-derivation" as const,
-            seriesKey: "consolidatedNetIncome" as const,
-            periodKey: fact.periodKey,
-            ...withheldFact(
-              fact,
-              "noncontrolling interest income is reported and no consolidated net income including NCI is tagged",
-            ),
-            message: `SEC net margin is withheld for ${span}: noncontrolling interest income is reported and no consolidated net income including NCI is tagged`,
-          },
-        ];
-  });
-}
-
-function allFactsForDefinition(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  definition: FinancialStatementSeriesDefinition,
-): readonly ParsedFact[] {
-  const root = taxonomyRoot(payload, taxonomy);
-  return root === undefined
-    ? []
-    : definition.concepts[taxonomy].flatMap((concept) => unitFacts(taxonomy, root, concept));
-}
-
-// Raw, pre-selection rows: only point-in-time observability, never form, fp, span or value shape.
-function rawConceptRows(
-  root: Record<string, unknown> | undefined,
-  concept: string,
-  analysisAsOf: string,
-): readonly unknown[] {
-  const cutoff = analysisAsOf.slice(0, 10);
-  const units = isRecord(root?.[concept]) ? root[concept].units : undefined;
-  return (isRecord(units) ? Object.values(units) : [])
-    .flatMap((values) => (Array.isArray(values) ? values : []))
-    .filter((fact) => {
-      const filed = isRecord(fact) ? readString(fact, "filed") : undefined;
-      return filed === undefined || !isCalendarDate(filed) || filed <= cutoff;
-    });
-}
-
-// Taxonomy switches and restatements re-file a period later, so no selected fact can date its first report;
-// A duration ending after its filing date is forward-looking (CLSK, LLY), not that period's report.
-function firstAnnualReports(payload: unknown, analysisAsOf: string): readonly FirstAnnualReport[] {
-  const earliest = new Map<string, FirstAnnualReport>();
-  for (const taxonomy of TAXONOMIES) {
-    const root = taxonomyRoot(payload, taxonomy) ?? {};
-    for (const fact of Object.keys(root).flatMap((concept) => unitFacts(taxonomy, root, concept))) {
-      const months = financialStatementPeriodMonths(fact);
-      const key = periodKey(fact);
-      const current = earliest.get(key);
-      if (
-        isAnnualReportForm(fact.canonicalForm) &&
-        isObservable(fact, analysisAsOf) &&
-        [fact.periodStart ?? "", fact.periodEnd, fact.filedAt].every(isCalendarDate) &&
-        fact.periodEnd < fact.filedAt &&
-        months !== undefined &&
-        months >= MIN_ANNUAL_DURATION_MONTHS &&
-        months <= MAX_ANNUAL_DURATION_MONTHS &&
-        (current === undefined || fact.filedAt < current.filedAt)
-      ) {
-        earliest.set(key, {
-          periodStart: fact.periodStart!,
-          periodEnd: fact.periodEnd,
-          filedAt: fact.filedAt,
-          accessionNumber: fact.accessionNumber,
-          form: fact.form,
-        });
-      }
-    }
-  }
-  return [...earliest.values()].toSorted(
-    (left, right) =>
-      left.periodEnd.localeCompare(right.periodEnd) ||
-      left.periodStart.localeCompare(right.periodStart),
-  );
-}
-
-// Span filtering, alias ranking and caps must not manufacture a non-payer.
-function dividendPaymentFiled(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  analysisAsOf: string,
-): boolean {
-  const root = taxonomyRoot(payload, taxonomy);
-  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.some(
-    (definition) =>
-      (definition.key === "dividendsPerShare" || definition.key === "dividendsPaid") &&
-      definition.concepts[taxonomy].some((concept) =>
-        rawConceptRows(root, concept, analysisAsOf).some((fact) => {
-          const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
-          return (
-            value !== undefined && (definition.key === "dividendsPaid" ? value !== 0 : value > 0)
-          );
-        }),
-      ),
-  );
-}
-
-// Any raw row, even malformed, counts as filed.
-function unfiledSeries(
-  payload: unknown,
-  analysisAsOf: string,
-): readonly FinancialStatementSeriesKey[] {
-  const filed = (taxonomy: FinancialStatementTaxonomy, concept: string) =>
-    rawConceptRows(taxonomyRoot(payload, taxonomy), concept, analysisAsOf).length > 0;
-  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter((definition) =>
-    TAXONOMIES.every((taxonomy) =>
-      definition.key === "debt"
-        ? !Object.keys(taxonomyRoot(payload, taxonomy) ?? {}).some(
-            (concept) => isDebtPresenceConcept(taxonomy, concept) && filed(taxonomy, concept),
-          )
-        : !definition.concepts[taxonomy].some((concept) => filed(taxonomy, concept)) &&
-          !(
-            definition.key === "depreciationAndAmortization" &&
-            taxonomy === "us-gaap" &&
-            [
-              ...DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flat(),
-              ...CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
-            ].some((concept) => filed(taxonomy, concept))
-          ),
-    ),
-  ).map((definition) => definition.key);
-}
-
-function isObservable(fact: ParsedFact, analysisAsOf: string): boolean {
-  const cutoff = analysisAsOf.slice(0, 10);
-  return fact.periodEnd <= cutoff && fact.filedAt <= cutoff;
-}
-
-const ELECTING_DEFINITIONS = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter(
-  (definition) => !CAP_FOLLOWER_SERIES.has(definition.key),
-);
-
-function taxonomyScore(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  analysisAsOf: string,
-): readonly [number, string, number, number] {
-  const seriesFacts = ELECTING_DEFINITIONS.map((definition) =>
-    allFactsForDefinition(payload, taxonomy, definition).filter((fact) =>
-      isObservable(fact, analysisAsOf),
-    ),
-  );
-  const revenueIndex = ELECTING_DEFINITIONS.findIndex((definition) => definition.key === "revenue");
-  if (revenueIndex === -1) {
-    throw new Error("Financial statement definitions must include revenue");
-  }
-  const revenueAnnual = seriesFacts[revenueIndex]?.filter((fact) =>
-    isAnnualReportForm(fact.canonicalForm),
-  );
-  const latestAnnual =
-    revenueAnnual
-      ?.map((fact) => fact.periodEnd)
-      .toSorted()
-      .at(-1) ?? "";
-  return [
-    Number((revenueAnnual?.length ?? 0) > 0),
-    latestAnnual,
-    seriesFacts.filter((facts) => facts.length > 0).length,
-    seriesFacts.flat().length,
-  ];
-}
-
-function compareTaxonomyScores(
-  left: readonly [number, string, number, number],
-  right: readonly [number, string, number, number],
-): number {
-  return (
-    left[0] - right[0] ||
-    left[1].localeCompare(right[1]) ||
-    left[2] - right[2] ||
-    left[3] - right[3]
-  );
-}
-
-function selectTaxonomy(
-  payload: unknown,
-  analysisAsOf: string,
-): FinancialStatementTaxonomy | undefined {
-  return TAXONOMIES.map((taxonomy) => ({
-    taxonomy,
-    score: taxonomyScore(payload, taxonomy, analysisAsOf),
-  }))
-    .filter(({ score }) => score[3] > 0)
-    .toSorted(
-      (left, right) =>
-        compareTaxonomyScores(right.score, left.score) ||
-        TAXONOMIES.indexOf(left.taxonomy) - TAXONOMIES.indexOf(right.taxonomy),
-    )[0]?.taxonomy;
-}
-
-function currencyForUnit(unit: string): string | undefined {
-  const currency = unit.endsWith("/shares") ? unit.slice(0, -7) : unit;
-  return /^[A-Z]{3}$/u.test(currency) ? currency : undefined;
-}
-
-function selectReportingCurrency(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  analysisAsOf: string,
-): string | undefined {
-  const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
-    (definition) => definition.key === "revenue",
-  );
-  if (revenue === undefined) {
-    throw new Error("Financial statement definitions must include revenue");
-  }
-  const revenueFacts = allFactsForDefinition(payload, taxonomy, revenue).filter(
-    (fact) => isObservable(fact, analysisAsOf) && isAnnualReportForm(fact.canonicalForm),
-  );
-  const pool =
-    revenueFacts.length > 0
-      ? revenueFacts
-      : ELECTING_DEFINITIONS.filter((definition) => definition.unitKind === "monetary")
-          .flatMap((definition) => allFactsForDefinition(payload, taxonomy, definition))
-          .filter((fact) => isObservable(fact, analysisAsOf));
-  const byCurrency = new Map<string, ParsedFact[]>();
-  for (const fact of pool) {
-    const currency = currencyForUnit(fact.unit);
-    if (currency !== undefined) {
-      byCurrency.set(currency, [...(byCurrency.get(currency) ?? []), fact]);
-    }
-  }
-  return [...byCurrency.entries()]
-    .map(([currency, facts]) => ({
-      currency,
-      latestEnd:
-        facts
-          .map((fact) => fact.periodEnd)
-          .toSorted()
-          .at(-1) ?? "",
-      latestFiled:
-        facts
-          .map((fact) => fact.filedAt)
-          .toSorted()
-          .at(-1) ?? "",
-      count: facts.length,
-    }))
-    .toSorted(
-      (left, right) =>
-        right.latestEnd.localeCompare(left.latestEnd) ||
-        right.latestFiled.localeCompare(left.latestFiled) ||
-        right.count - left.count ||
-        left.currency.localeCompare(right.currency),
-    )[0]?.currency;
-}
-
 function expectedUnit(definition: FinancialStatementSeriesDefinition, currency: string): string {
   if (definition.unitKind === "shares") {
     return "shares";
   }
   return definition.unitKind === "per-share" ? `${currency}/shares` : currency;
-}
-
-function periodType(
-  fact: ParsedFact,
-  definition: FinancialStatementSeriesDefinition,
-): "annual" | "interim" {
-  if (!isAnnualReportForm(fact.canonicalForm)) {
-    return "interim";
-  }
-  if (definition.kind === "instant") {
-    return "annual";
-  }
-  const months = financialStatementPeriodMonths(fact);
-  return months !== undefined &&
-    months >= MIN_ANNUAL_DURATION_MONTHS &&
-    months <= MAX_ANNUAL_DURATION_MONTHS
-    ? "annual"
-    : "interim";
-}
-
-function isStatementPeriod(
-  fact: ParsedFact,
-  definition: FinancialStatementSeriesDefinition,
-): boolean {
-  return (
-    periodType(fact, definition) === "annual" ||
-    STATEMENT_DURATION_MONTHS.has(financialStatementPeriodMonths(fact) ?? -1)
-  );
-}
-
-// Dropped declaration-date spans stay visible so a non-zero one still counts as dividend history.
-function declarationSpanNotes(
-  spans: readonly ParsedFact[],
-  definition: FinancialStatementSeriesDefinition,
-): readonly FinancialStatementNote[] {
-  const declared = spans.filter((fact) => fact.value !== 0);
-  const latest = declared.toSorted((a, b) => a.periodEnd.localeCompare(b.periodEnd)).at(-1);
-  return latest === undefined
-    ? []
-    : [
-        {
-          code: "declaration-span",
-          seriesKey: definition.key,
-          periodKey: periodKey(latest),
-          message: `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero declaration-date facts (latest ${periodKey(latest)}) omitted because their spans are not statement periods`,
-        },
-      ];
-}
-
-function periodKey(fact: ParsedFact): string {
-  return financialStatementPeriodKey(fact);
-}
-
-type DatedFact = ParsedFact & {
-  readonly firstPublicAt: string;
-  readonly restatedFrom?: OriginalFiling;
-};
-
-// Earliest filing date from which the selected value stayed effective, so A -> B -> A dates to the later A.
-function firstPublicDate(
-  value: number,
-  filedAt: string,
-  slots: readonly (readonly ParsedFact[])[],
-): string {
-  const valueAt = (date: string) =>
-    slots.reduce<number | undefined>((sum, slot) => {
-      const [effective] = slot
-        .filter((fact) => fact.filedAt <= date)
-        .toSorted(compareFinancialStatementFacts);
-      return sum === undefined || effective === undefined ? undefined : sum + effective.value;
-    }, 0);
-  const dates = [...new Set(slots.flat().map((fact) => fact.filedAt))]
-    .filter((date) => date <= filedAt)
-    .toSorted();
-  const supersededAt = dates.findLast((date) => valueAt(date) !== value) ?? "";
-  return dates.find((date) => date > supersededAt) ?? filedAt;
-}
-
-function withFirstPublicAt(
-  winner: ParsedFact,
-  candidates: readonly ParsedFact[],
-  aliasFacts: readonly ParsedFact[] = [],
-): DatedFact {
-  const peers = candidates.filter((fact) => periodKey(fact) === periodKey(winner));
-  const restatedFrom =
-    winner.restatedFrom ??
-    (winner.composite === undefined ? restatedFromOriginalFiling(winner.value, peers) : undefined);
-  // An alias tag that filed the same figure dates it with its full history (A -> B -> A holds);
-  // An alias that never matched may be another scope, so it is ignored.
-  const aliasPeers = aliasFacts.filter((fact) => periodKey(fact) === periodKey(winner));
-  const matchingAliases = new Set(
-    aliasPeers.filter((fact) => fact.value === winner.value).map((fact) => fact.concept),
-  );
-  const datingPeers = [...peers, ...aliasPeers.filter((fact) => matchingAliases.has(fact.concept))];
-  return {
-    ...winner,
-    firstPublicAt:
-      winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [datingPeers]),
-    ...(restatedFrom === undefined ? {} : { restatedFrom }),
-  };
-}
-
-function toSelectedFact(
-  fact: DatedFact,
-  definition: FinancialStatementSeriesDefinition,
-  currency: string,
-  sourceId: string,
-): FinancialStatementFact {
-  const sourceIds = [
-    ...new Set([
-      sourceId,
-      ...(fact.proofSourceIds ?? []),
-      ...(fact.composite?.components.flatMap((component) => component.sourceIds ?? []) ?? []),
-    ]),
-  ];
-  const composite =
-    fact.composite === undefined
-      ? undefined
-      : {
-          formula: fact.composite.formula,
-          components: fact.composite.components.map((component) => ({
-            ...component,
-            sourceIds: component.sourceIds ?? [sourceId],
-          })),
-        };
-  return {
-    value: fact.value,
-    periodKey: periodKey(fact),
-    periodType: periodType(fact, definition),
-    form: fact.form,
-    canonicalForm: fact.canonicalForm,
-    amendment: fact.amendment,
-    accessionNumber: fact.accessionNumber,
-    filedAt: fact.filedAt,
-    firstPublicAt: fact.firstPublicAt,
-    ...(fact.restatedFrom !== undefined ? { restatedFrom: fact.restatedFrom } : {}),
-    ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
-    periodEnd: fact.periodEnd,
-    fiscalYear: fact.fiscalYear,
-    fiscalPeriod: fact.fiscalPeriod,
-    taxonomy: fact.taxonomy,
-    concept: fact.concept,
-    currency: fact.unit === "shares" ? null : currency,
-    unit: fact.unit,
-    unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
-    extractionMethod:
-      fact.zeroBorrowingsProof !== undefined
-        ? ZERO_BORROWINGS_EXTRACTION_METHOD
-        : composite === undefined
-          ? "sec-companyfacts"
-          : "derived-sec-companyfacts",
-    sourceIds,
-    ...(fact.lineScope === true ? { lineScope: true as const } : {}),
-    ...(fact.faceLeases === undefined ? {} : { faceLeases: fact.faceLeases }),
-    ...(fact.zeroBorrowingsProof === undefined
-      ? {}
-      : { zeroBorrowingsProof: fact.zeroBorrowingsProof }),
-    ...(composite !== undefined ? { composite } : {}),
-  };
 }
 
 function equityStackConcepts(
@@ -2457,42 +1510,6 @@ function selectEquityStack(
   return { equityStack, validationNotes };
 }
 
-function selectRestatements(
-  facts: readonly ParsedFact[],
-  seriesKey: FinancialStatementSeriesKey,
-  aliasFacts: readonly ParsedFact[],
-): { readonly facts: readonly DatedFact[]; readonly notes: readonly FinancialStatementNote[] } {
-  const groups = new Map<string, ParsedFact[]>();
-  for (const fact of facts) {
-    const key = periodKey(fact);
-    groups.set(key, [...(groups.get(key) ?? []), fact]);
-  }
-  const notes: FinancialStatementNote[] = [];
-  const selected = [...groups.entries()].map(([key, matches]) => {
-    const ordered = matches.toSorted(compareFinancialStatementFacts);
-    const winner = ordered[0]!;
-    if (ordered.length > 1) {
-      notes.push({
-        code: "duplicate-superseded",
-        seriesKey,
-        periodKey: key,
-        message: `${String(ordered.length - 1)} duplicate/restated fact(s) superseded by ${winner.accessionNumber ?? "unknown accession"} filed ${winner.filedAt}`,
-      });
-    }
-    return withFirstPublicAt(winner, matches, aliasFacts);
-  });
-  return { facts: selected, notes };
-}
-
-function chronological(left: ParsedFact, right: ParsedFact): number {
-  return (
-    left.periodEnd.localeCompare(right.periodEnd) ||
-    (left.periodStart ?? "").localeCompare(right.periodStart ?? "") ||
-    left.filedAt.localeCompare(right.filedAt) ||
-    (left.accessionNumber ?? "").localeCompare(right.accessionNumber ?? "")
-  );
-}
-
 function materializeBasis(
   raw: readonly ParsedFact[],
   definition: FinancialStatementSeriesDefinition,
@@ -2589,40 +1606,6 @@ function materializeBasis(
     validationNotes,
     omissionNotes,
   };
-}
-
-function staleConceptHistoryNotes(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  definition: FinancialStatementSeriesDefinition,
-  selected: readonly ParsedFact[],
-  eligible: (fact: ParsedFact) => boolean,
-): readonly FinancialStatementNote[] {
-  const root = taxonomyRoot(payload, taxonomy);
-  const concept = selected[0]?.concept;
-  if (root === undefined || concept === undefined) {
-    return [];
-  }
-  const latestAnnualEnd = (facts: readonly ParsedFact[]) =>
-    facts
-      .filter((fact) => eligible(fact) && periodType(fact, definition) === "annual")
-      .map((fact) => fact.periodEnd)
-      .toSorted()
-      .at(-1);
-  const selectedEnd = latestAnnualEnd(selected);
-  return definition.concepts[taxonomy].flatMap((alias): FinancialStatementNote[] => {
-    const aliasEnd =
-      alias === concept ? undefined : latestAnnualEnd(unitFacts(taxonomy, root, alias));
-    return aliasEnd === undefined || (selectedEnd !== undefined && aliasEnd <= selectedEnd)
-      ? []
-      : [
-          {
-            code: "stale-concept-history",
-            seriesKey: definition.key,
-            message: `SEC ${definition.label.toLowerCase()} annual history under ${concept} ${selectedEnd === undefined ? "has no annual period" : `ends ${selectedEnd}`}, while ${alias} reports annual periods to ${aliasEnd}; the tags are not combined because their scope may differ`,
-          },
-        ];
-  });
 }
 
 function aliasConceptFacts(
@@ -2749,118 +1732,6 @@ function selectSeries(
   };
 }
 
-function recentSubmissionSixKFilings(
-  payload: unknown,
-  analysisAsOf: string,
-): readonly SubmissionFiling[] {
-  if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
-    return [];
-  }
-  const forms = Array.isArray(payload.filings.recent.form) ? payload.filings.recent.form : [];
-  const filingDates = Array.isArray(payload.filings.recent.filingDate)
-    ? payload.filings.recent.filingDate
-    : [];
-  const accessionNumbers = Array.isArray(payload.filings.recent.accessionNumber)
-    ? payload.filings.recent.accessionNumber
-    : [];
-  const reportDates = Array.isArray(payload.filings.recent.reportDate)
-    ? payload.filings.recent.reportDate
-    : [];
-  const cutoff = analysisAsOf.slice(0, 10);
-  return forms.flatMap((value, index) => {
-    const parsed = typeof value === "string" ? canonicalizeSecForm(value) : undefined;
-    const filedAt = filingDates[index];
-    if (
-      parsed === undefined ||
-      parsed.canonicalForm !== "6-K" ||
-      typeof filedAt !== "string" ||
-      filedAt > cutoff
-    ) {
-      return [];
-    }
-    const accessionNumber = accessionNumbers[index];
-    const reportDate = reportDates[index];
-    return [
-      {
-        form: parsed.form as "6-K" | "6-K/A",
-        filedAt,
-        ...(typeof accessionNumber === "string" ? { accessionNumber } : {}),
-        ...(typeof reportDate === "string" && reportDate !== "" ? { reportDate } : {}),
-      },
-    ];
-  });
-}
-
-function filingHasStructuredFact(filing: SubmissionFiling, facts: readonly ParsedFact[]): boolean {
-  return facts.some((fact) => {
-    if (fact.canonicalForm !== "6-K") {
-      return false;
-    }
-    if (filing.accessionNumber !== undefined && fact.accessionNumber !== null) {
-      return filing.accessionNumber === fact.accessionNumber;
-    }
-    return (
-      filing.filedAt === fact.filedAt &&
-      (filing.reportDate === undefined || filing.reportDate === fact.periodEnd)
-    );
-  });
-}
-
-function supportedSixKFacts(payload: unknown, analysisAsOf: string): readonly ParsedFact[] {
-  return TAXONOMIES.flatMap((taxonomy) =>
-    ELECTING_DEFINITIONS.flatMap((definition) =>
-      allFactsForDefinition(payload, taxonomy, definition),
-    ),
-  ).filter((fact) => fact.canonicalForm === "6-K" && isObservable(fact, analysisAsOf));
-}
-
-function structuredFinancialGaps(
-  taxonomy: FinancialStatementTaxonomy | undefined,
-  reportingCurrency: string | undefined,
-  taggedSixKFacts: readonly ParsedFact[],
-  currentAnnual: FinancialStatementFact | undefined,
-  input: FinancialStatementsDeriveInput,
-): readonly StructuredFinancialGap[] {
-  const gaps: StructuredFinancialGap[] = [];
-  if (taxonomy === undefined) {
-    gaps.push({
-      code: "no-standard-taxonomy",
-      message: "No supported us-gaap or ifrs-full standard concepts were available",
-      forms: [],
-      sourceIds: [input.sourceId],
-    });
-  }
-  if (taxonomy !== undefined && reportingCurrency === undefined) {
-    gaps.push({
-      code: "no-reporting-currency",
-      message: "No reporting currency could be selected for standard monetary statement series",
-      forms: [],
-      sourceIds: [input.sourceId],
-    });
-  }
-  const untaggedSixK = recentSubmissionSixKFilings(
-    input.submissionsPayload,
-    input.analysisAsOf,
-  ).filter(
-    (filing) =>
-      (currentAnnual === undefined ||
-        filing.filedAt > currentAnnual.filedAt ||
-        (filing.reportDate ?? filing.filedAt) > currentAnnual.periodEnd) &&
-      !filingHasStructuredFact(filing, taggedSixKFacts),
-  );
-  if (untaggedSixK.length > 0) {
-    gaps.push({
-      code: "untagged-6-k",
-      message:
-        "SEC submissions include 6-K filing evidence without supported structured companyfacts; table extraction is deferred",
-      forms: [...new Set(untaggedSixK.map((filing) => filing.form))],
-      sourceIds:
-        input.submissionsSourceId === undefined ? [input.sourceId] : [input.submissionsSourceId],
-    });
-  }
-  return gaps;
-}
-
 function emptySeries(definition: FinancialStatementSeriesDefinition): FinancialStatementSeries {
   return {
     key: definition.key,
@@ -2869,70 +1740,6 @@ function emptySeries(definition: FinancialStatementSeriesDefinition): FinancialS
     annual: [],
     interim: [],
   };
-}
-
-function reportingPeriodDays(cadence: InterimCadence): number {
-  if (cadence === "semiannual") {
-    return SEMIANNUAL_REPORTING_PERIOD_DAYS;
-  }
-  if (cadence === "annual-only") {
-    return ANNUAL_REPORTING_PERIOD_DAYS;
-  }
-  return QUARTERLY_REPORTING_PERIOD_DAYS;
-}
-
-function instantSeriesOmissionNotes(
-  series: readonly FinancialStatementSeries[],
-  cadence: InterimCadence,
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy | undefined,
-): readonly FinancialStatementNote[] {
-  const balanceSheet = series.filter((item) => item.statement === "balanceSheet");
-  const newestEnd = balanceSheet
-    .flatMap((item) => financialStatementFacts(item).map((fact) => fact.periodEnd))
-    .toSorted()
-    .at(-1);
-  const notes: FinancialStatementNote[] = [];
-  const debt = series.find((item) => item.key === "debt");
-  if (
-    debt !== undefined &&
-    !debtAliasesTagged(
-      { root: (candidate) => taxonomyRoot(payload, candidate), unitFacts },
-      taxonomy === undefined ? TAXONOMIES : [taxonomy],
-    )
-  ) {
-    notes.push({
-      code: "untagged-balance-sheet-series",
-      seriesKey: "debt",
-      message:
-        "Debt is untagged in companyfacts; no direct or current/noncurrent component facts were selected.",
-    });
-  }
-  if (newestEnd === undefined) {
-    return notes;
-  }
-  const lagLimitMs = reportingPeriodDays(cadence) * DAY_MS;
-  for (const item of balanceSheet) {
-    const latest = latestFinancialStatementFact(financialStatementFacts(item));
-    if (latest === undefined) {
-      continue;
-    }
-    const latestMs = Date.parse(latest.periodEnd);
-    const newestMs = Date.parse(newestEnd);
-    if (
-      !Number.isFinite(latestMs) ||
-      !Number.isFinite(newestMs) ||
-      newestMs - latestMs <= lagLimitMs
-    ) {
-      continue;
-    }
-    notes.push({
-      code: "stale-instant-series",
-      seriesKey: item.key,
-      message: `${item.label} latest period end ${latest.periodEnd} lags the newest balance-sheet period end ${newestEnd} by more than one reporting period.`,
-    });
-  }
-  return notes;
 }
 
 const SPLIT_EVIDENCE_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([

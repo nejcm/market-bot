@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.5](https://github.com/nejcm/market-bot/compare/v1.15.4...v1.15.5) (2026-11-10)
+
+### Bug Fixes
+
+- **valuation:** price trailing market cap on filed diluted share counts (#199) ([d79f4da](https://github.com/nejcm/market-bot/commit/d79f4da749c6f214cc1473c775623ed6d1ee9c3c))
+
 ## [1.15.4](https://github.com/nejcm/market-bot/compare/v1.15.3...v1.15.4) (2026-11-10)
 
 ### Bug Fixes

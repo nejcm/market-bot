@@ -376,7 +376,11 @@ export interface FinancialStatementNotePeriod {
 }
 
 export interface StructuredFinancialGap {
-  readonly code: "no-standard-taxonomy" | "no-reporting-currency" | "untagged-6-k";
+  readonly code:
+    | "no-standard-taxonomy"
+    | "no-reporting-currency"
+    | "ambiguous-reporting-currency"
+    | "untagged-6-k";
   readonly message: string;
   readonly forms: readonly SupportedSecForm[];
   readonly sourceIds: readonly string[];

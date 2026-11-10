@@ -630,14 +630,19 @@ export function summarizeSecFundamentals(
     statements.taxonomy === "us-gaap" && statements.reportingCurrency !== undefined && !usd
       ? statements.reportingCurrency
       : undefined;
-  const withheld = (key: string) => translated !== undefined && !UNTRANSLATED_METRIC.test(key);
+  const ambiguityGap = statements.structuredFinancialGaps.some(
+    (gap) => gap.code === "ambiguous-reporting-currency",
+  )
+    ? "monetary metrics: the filed facts do not establish which currency is the reporting currency, so USD-unit facts may be convenience translations"
+    : undefined;
+  const translationGap =
+    translated === undefined
+      ? ambiguityGap
+      : `monetary metrics: us-gaap facts are reported in ${translated}, so USD-unit facts are convenience translations at an undeclared rate`;
+  const withheld = (key: string) => translationGap !== undefined && !UNTRANSLATED_METRIC.test(key);
   for (const key of Object.keys(metrics).filter(withheld)) {
     delete metrics[key];
   }
-  const translationGap =
-    translated === undefined
-      ? undefined
-      : `monetary metrics: us-gaap facts are reported in ${translated}, so USD-unit facts are convenience translations at an undeclared rate`;
   const summary =
     formatSecFundamentalsSummary(() => metrics) ??
     (translationGap === undefined

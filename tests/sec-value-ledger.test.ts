@@ -413,3 +413,33 @@ test("a fiscal-year transition section matches its own ledger row", async () => 
     expect.arrayContaining(["annual|2023-12-31|10m 2024-02-15", "annual|2023-12-31 2024-03-15"]),
   );
 });
+
+test("an ambiguous reporting-currency election withholds every statement series with its code", () => {
+  const tie = annualFact(110, "2024-02-15", "2023-01-01");
+  const facts = { facts: { "us-gaap": { Revenues: { units: { USD: [tie], ZAR: [tie] } } } } };
+  const asOf = "2026-06-15T00:00:00.000Z";
+  const statements = deriveFinancialStatements(facts, {
+    symbol: "TEST",
+    generatedAt: asOf,
+    analysisAsOf: asOf,
+    sourceId: "extended-sec-edgar-test-fundamentals",
+  });
+  const rows = secValueLedgerRows({
+    cik: "0000000000",
+    symbol: "TEST",
+    statements,
+    companyFacts: facts,
+    sec: { items: [], gaps: [], rawSnapshots: [] } as unknown as SecProviderResult,
+    asOf: "2026-06-15",
+  }).filter(({ metric }) => metric.startsWith("statement."));
+
+  expect(rows.length).toBeGreaterThan(0);
+  expect(
+    rows.every(
+      ({ period, status, reason }) =>
+        period === "series" &&
+        status === "withheld" &&
+        reason?.split("; ").includes("ambiguous-reporting-currency") === true,
+    ),
+  ).toBe(true);
+});

@@ -12,6 +12,7 @@ import {
   allFactsForDefinition,
   isObservable,
   currencyForUnit,
+  periodType,
 } from "./financial-statement-facts";
 
 export const ELECTING_DEFINITIONS = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter(
@@ -80,7 +81,7 @@ export function selectReportingCurrency(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
-): string | undefined {
+): { readonly currency: string | undefined; readonly candidates: readonly string[] } {
   const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
     (definition) => definition.key === "revenue",
   );
@@ -96,33 +97,52 @@ export function selectReportingCurrency(
       : ELECTING_DEFINITIONS.filter((definition) => definition.unitKind === "monetary")
           .flatMap((definition) => allFactsForDefinition(payload, taxonomy, definition))
           .filter((fact) => isObservable(fact, analysisAsOf));
-  const byCurrency = new Map<string, ParsedFact[]>();
-  for (const fact of pool) {
-    const currency = currencyForUnit(fact.unit);
-    if (currency !== undefined) {
-      byCurrency.set(currency, [...(byCurrency.get(currency) ?? []), fact]);
-    }
+  const candidates = [
+    ...new Set(pool.flatMap((fact) => currencyForUnit(fact.unit) ?? [])),
+  ].toSorted();
+  if (candidates.length <= 1) {
+    return { currency: candidates[0], candidates };
   }
-  return [...byCurrency.entries()]
-    .map(([currency, facts]) => ({
+  const annual = revenueFacts.filter(
+    (fact) => periodType(fact, revenue) === "annual" && currencyForUnit(fact.unit) !== undefined,
+  );
+  const latestEnd = annual
+    .map((fact) => fact.periodEnd)
+    .toSorted()
+    .at(-1);
+  const latestFilings = new Set(
+    annual.filter((fact) => fact.periodEnd === latestEnd).map((fact) => filingOf(fact)),
+  );
+  const named = [...latestFilings].map((filing) =>
+    namedCurrency(annual.filter((fact) => filingOf(fact) === filing)),
+  );
+  const [elected] = named;
+  return {
+    currency:
+      elected !== undefined && named.every((name) => name === elected) ? elected : undefined,
+    candidates,
+  };
+}
+
+function filingOf(fact: ParsedFact): string {
+  return fact.accessionNumber ?? fact.filedAt;
+}
+
+// The currency whose literal annual periods strictly contain every other currency's in one filing.
+function namedCurrency(filingFacts: readonly ParsedFact[]): string | undefined {
+  const periods = new Map<string, Set<string>>();
+  for (const fact of filingFacts) {
+    const currency = currencyForUnit(fact.unit) ?? "";
+    periods.set(
       currency,
-      latestEnd:
-        facts
-          .map((fact) => fact.periodEnd)
-          .toSorted()
-          .at(-1) ?? "",
-      latestFiled:
-        facts
-          .map((fact) => fact.filedAt)
-          .toSorted()
-          .at(-1) ?? "",
-      count: facts.length,
-    }))
-    .toSorted(
-      (left, right) =>
-        right.latestEnd.localeCompare(left.latestEnd) ||
-        right.latestFiled.localeCompare(left.latestFiled) ||
-        right.count - left.count ||
-        left.currency.localeCompare(right.currency),
-    )[0]?.currency;
+      (periods.get(currency) ?? new Set()).add(`${fact.periodStart ?? ""}|${fact.periodEnd}`),
+    );
+  }
+  const entries = [...periods.entries()];
+  return entries.find(([, own]) =>
+    entries.every(
+      ([, other]) =>
+        own === other || (other.size < own.size && [...other].every((key) => own.has(key))),
+    ),
+  )?.[0];
 }

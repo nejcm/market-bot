@@ -411,7 +411,11 @@ function primaryFinancialsAssessment(
   if (currentAnnual === undefined || annualAge === undefined || annualAge < 0) {
     return {
       status: "blocked",
-      reasonCodes: ["current-annual-statement-unavailable"],
+      reasonCodes: [
+        artifact.structuredFinancialGaps.some((gap) => gap.code === "ambiguous-reporting-currency")
+          ? "reporting-currency-ambiguous"
+          : "current-annual-statement-unavailable",
+      ],
       asOf: artifact.analysisAsOf,
       sourceIds,
     };

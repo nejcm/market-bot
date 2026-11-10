@@ -302,7 +302,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `latest-due-interim-missing`, `quarterly-periods-insufficient`, `semiannual-comparison-missing`,
   `irregular-comparison-missing`, `ttm-unreconciled`, `cadence-unestablished`, `per-share-evidence-missing`,
   `current-primary-statements-incomplete`, `untagged-interim-evidence`, `reporting-currency-missing`,
-  `reporting-currency-incompatible`, `subsequent-financing-unreconciled`. All are no-cap; exclude
+  `reporting-currency-ambiguous` (set on the blocked result when the reporting-currency election is
+  ambiguous), `reporting-currency-incompatible`, `subsequent-financing-unreconciled`. All are no-cap; exclude
   informational/non-freshness reasons and blocked `current-annual-statement-unavailable` from this
   issuer-attributed channel.
 - `not-assessed` means deployment inputs never configured/available, including KPI registry or estimate

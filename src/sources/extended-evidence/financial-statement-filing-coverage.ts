@@ -192,7 +192,7 @@ export function supportedSixKFacts(payload: unknown, analysisAsOf: string): read
 
 export function structuredFinancialGaps(
   taxonomy: FinancialStatementTaxonomy | undefined,
-  reportingCurrency: string | undefined,
+  election: { readonly currency: string | undefined; readonly candidates: readonly string[] },
   taggedSixKFacts: readonly ParsedFact[],
   currentAnnual: FinancialStatementFact | undefined,
   input: FinancialStatementsDeriveInput,
@@ -206,7 +206,14 @@ export function structuredFinancialGaps(
       sourceIds: [input.sourceId],
     });
   }
-  if (taxonomy !== undefined && reportingCurrency === undefined) {
+  if (taxonomy !== undefined && election.currency === undefined && election.candidates.length > 1) {
+    gaps.push({
+      code: "ambiguous-reporting-currency",
+      message: `Standard monetary facts are filed in ${election.candidates.join(", ")}; the filed facts do not establish which is the reporting currency`,
+      forms: [],
+      sourceIds: [input.sourceId],
+    });
+  } else if (taxonomy !== undefined && election.currency === undefined) {
     gaps.push({
       code: "no-reporting-currency",
       message: "No reporting currency could be selected for standard monetary statement series",

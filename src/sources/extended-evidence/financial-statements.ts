@@ -388,10 +388,11 @@ export function deriveFinancialStatements(
   input: FinancialStatementsDeriveInput,
 ): FinancialStatementsArtifact {
   const taxonomy = selectTaxonomy(payload, input.analysisAsOf);
-  const reportingCurrency =
+  const election =
     taxonomy === undefined
-      ? undefined
+      ? { currency: undefined, candidates: [] }
       : selectReportingCurrency(payload, taxonomy, input.analysisAsOf);
+  const reportingCurrency = election.currency;
   const selected =
     taxonomy === undefined || reportingCurrency === undefined
       ? FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map(
@@ -558,7 +559,7 @@ export function deriveFinancialStatements(
     ),
     structuredFinancialGaps: structuredFinancialGaps(
       taxonomy,
-      reportingCurrency,
+      election,
       supportedSixKFacts(payload, input.analysisAsOf),
       currentAnnual,
       input,

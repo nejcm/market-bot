@@ -1253,6 +1253,40 @@ describe("news provider collection", () => {
   });
 });
 
+const AS_OF_2026 = "2026-06-01T00:00:00.000Z";
+const LATEST_ACCN = "0000000000-26-000001";
+const currencyRow = (
+  val: number,
+  fy: number,
+  accn?: string,
+  overrides: Record<string, string> = {},
+) =>
+  secFact(val, {
+    form: "10-K",
+    fp: "FY",
+    fy,
+    filed: `${fy + 1}-03-30`,
+    start: `${fy}-01-01`,
+    end: `${fy}-12-31`,
+    ...(accn === undefined ? {} : { accn }),
+    ...overrides,
+  });
+const latestFilingRow = (val: number, fy: number) =>
+  currencyRow(val, fy, LATEST_ACCN, { filed: "2026-03-30" });
+const deriveElection = (facts: Record<string, unknown>, analysisAsOf = AS_OF_2026) =>
+  deriveFinancialStatements(
+    { facts },
+    {
+      symbol: "ZAF",
+      generatedAt: analysisAsOf,
+      analysisAsOf,
+      sourceId: "extended-sec-edgar-zaf-fundamentals",
+    },
+  );
+const revenueUnits = (units: Record<string, unknown[]>) => ({ "us-gaap": { Revenues: { units } } });
+const electionGapCodes = (facts: Record<string, unknown>) =>
+  deriveElection(facts).structuredFinancialGaps.map(({ code }) => code);
+
 describe("SEC fundamental evidence", () => {
   test("declares company-facts absence only when the payload has no fact rows", () => {
     const foreignOnly = {
@@ -1305,13 +1339,32 @@ describe("SEC fundamental evidence", () => {
             }
             const [unit, rows] = Object.entries(units)[0]!;
             const local = unit.replace("USD", "CNY");
+            // The local currency's annual 10-K comparatives are what elect it over the USD translation.
+            const tenK = (val: number, fy: number) =>
+              concept === "Revenues"
+                ? [
+                    secFact(val, {
+                      form: "10-K",
+                      fp: "FY",
+                      fy,
+                      filed: "2026-03-30",
+                      start: `${fy}-01-01`,
+                      end: `${fy}-12-31`,
+                      accn: "0000000000-26-000001",
+                    }),
+                  ]
+                : [];
             return [
               [
                 concept,
                 {
                   units: {
-                    [local]: rows.map((row) => ({ ...row, val: Number(row.val) * 7 })),
-                    [unit]: rows.slice(-1),
+                    [local]: [
+                      ...rows.map((row) => ({ ...row, val: Number(row.val) * 7 })),
+                      ...tenK(2500, 2024),
+                      ...tenK(2800, 2025),
+                    ],
+                    [unit]: [...rows.slice(-1), ...tenK(400, 2025)],
                   },
                 },
               ],
@@ -1368,17 +1421,17 @@ describe("SEC fundamental evidence", () => {
     );
   });
 
-  test("elects the local currency when its rows outnumber a same-period USD translation", () => {
-    const annual = (val: number, fy: number) =>
+  test("elects the local currency whose annual comparatives contain the USD translation", () => {
+    const annual = (val: number, fy: number, accn = "0000000000-26-000001") =>
       secFact(val, {
         form: "10-K",
         fp: "FY",
         fy,
-        filed: `${fy + 1}-03-30`,
+        filed: "2026-03-30",
         start: `${fy}-01-01`,
         end: `${fy}-12-31`,
+        accn,
       });
-    // ZAR sorts after USD, so only the row count can elect it on tied period end and filing date.
     const payload = {
       facts: {
         "us-gaap": {
@@ -1392,19 +1445,318 @@ describe("SEC fundamental evidence", () => {
       },
     };
     const analysisAsOf = "2026-06-01T00:00:00.000Z";
-    expect(
-      deriveFinancialStatements(payload, {
+    const derive = (input: unknown) =>
+      deriveFinancialStatements(input, {
         symbol: "ZAF",
         generatedAt: analysisAsOf,
         analysisAsOf,
         sourceId: "extended-sec-edgar-zaf-fundamentals",
-      }).reportingCurrency,
-    ).toBe("ZAR");
+      });
+    expect(derive(payload).reportingCurrency).toBe("ZAR");
     const summary = summarizeSecFundamentals(payload, analysisAsOf)!;
     expect(summary.metrics.revenue).toBeUndefined();
     expect(summary.gaps.map(({ message }) => message)).toContain(
       "SEC summary withheld monetary metrics: us-gaap facts are reported in ZAR, so USD-unit facts are convenience translations at an undeclared rate",
     );
+    // One row per filing leaves the latest filing with one ZAR and one USD row for the same year.
+    const onePerFiling = {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              ZAR: [
+                annual(1800, 2023, "0000000000-24-000001"),
+                annual(1900, 2024, "0000000000-25-000001"),
+                annual(2000, 2025),
+              ],
+              USD: [annual(110, 2025)],
+            },
+          },
+        },
+      },
+    };
+    const tie = derive(onePerFiling);
+    expect(tie.reportingCurrency).toBeUndefined();
+    expect(tie.structuredFinancialGaps.map(({ code }) => code)).toEqual([
+      "ambiguous-reporting-currency",
+    ]);
+  });
+
+  describe("reporting-currency election", () => {
+    test.each([
+      [
+        "a same-filing tie",
+        revenueUnits({ USD: [latestFilingRow(110, 2025)], ZAR: [latestFilingRow(2000, 2025)] }),
+      ],
+      [
+        "a latest filing whose local rows miss the latest year",
+        revenueUnits({
+          USD: [latestFilingRow(110, 2025)],
+          ZAR: [latestFilingRow(1800, 2023), latestFilingRow(1900, 2024)],
+        }),
+      ],
+      [
+        "an amendment that tags only USD for the latest year",
+        revenueUnits({
+          ZAR: [
+            latestFilingRow(1800, 2023),
+            latestFilingRow(1900, 2024),
+            latestFilingRow(2000, 2025),
+          ],
+          USD: [
+            latestFilingRow(110, 2025),
+            currencyRow(110, 2025, "0000000000-26-000002", { form: "10-K/A", filed: "2026-05-01" }),
+          ],
+        }),
+      ],
+      [
+        "a local quarter beside equal annual periods",
+        revenueUnits({
+          USD: [latestFilingRow(105, 2024), latestFilingRow(110, 2025)],
+          ZAR: [
+            latestFilingRow(1900, 2024),
+            latestFilingRow(2000, 2025),
+            currencyRow(520, 2025, LATEST_ACCN, {
+              filed: "2026-03-30",
+              fp: "Q4",
+              start: "2025-10-01",
+            }),
+          ],
+        }),
+      ],
+      [
+        "periods one day apart",
+        revenueUnits({
+          ZAR: [
+            latestFilingRow(1800, 2023),
+            latestFilingRow(1900, 2024),
+            latestFilingRow(2000, 2025),
+          ],
+          USD: [currencyRow(110, 2025, LATEST_ACCN, { filed: "2026-03-30", end: "2025-12-30" })],
+        }),
+      ],
+      [
+        "periods starting one day apart",
+        revenueUnits({
+          ZAR: [
+            latestFilingRow(1800, 2023),
+            latestFilingRow(1900, 2024),
+            latestFilingRow(2000, 2025),
+          ],
+          USD: [currencyRow(110, 2025, LATEST_ACCN, { filed: "2026-03-30", start: "2025-01-02" })],
+        }),
+      ],
+      [
+        "accession-less filings on different dates",
+        revenueUnits({
+          ZAR: [1800, 1900, 2000].map((val, index) =>
+            currencyRow(val, 2023 + index, undefined, { filed: "2026-03-30" }),
+          ),
+          USD: [currencyRow(110, 2025, undefined, { filed: "2026-04-15" })],
+        }),
+      ],
+      [
+        "only non-annual facts, the newest from a 6-K",
+        revenueUnits({
+          ZAR: [
+            secFact(500, {
+              form: "10-Q",
+              start: "2026-01-01",
+              end: "2026-03-31",
+              filed: "2026-05-01",
+            }),
+          ],
+          USD: [
+            secFact(28, {
+              form: "6-K",
+              start: "2026-01-01",
+              end: "2026-03-31",
+              filed: "2026-05-10",
+            }),
+          ],
+        }),
+      ],
+    ])("declares %s ambiguous", (_name, facts) => {
+      const artifact = deriveElection(facts);
+      expect(artifact.reportingCurrency).toBeUndefined();
+      expect(artifact.structuredFinancialGaps.map(({ code }) => code)).toEqual([
+        "ambiguous-reporting-currency",
+      ]);
+      expect(artifact.statements.incomeStatement.revenue.annual).toEqual([]);
+    });
+
+    test.each([
+      [
+        "a single currency",
+        revenueUnits({ USD: [latestFilingRow(105, 2024), latestFilingRow(110, 2025)] }),
+        "USD",
+      ],
+      [
+        "USD accumulated over older filings against the latest filing's local comparatives",
+        revenueUnits({
+          USD: [
+            ...[2021, 2022, 2023, 2024].map((fy) =>
+              currencyRow(100 + fy - 2021, fy, `0000000000-${fy - 1999}-000001`),
+            ),
+            latestFilingRow(110, 2025),
+          ],
+          ZAR: [
+            latestFilingRow(1800, 2023),
+            latestFilingRow(1900, 2024),
+            latestFilingRow(2000, 2025),
+          ],
+        }),
+        "ZAR",
+      ],
+      [
+        "accession-less rows on one filing date",
+        revenueUnits({
+          ZAR: [1800, 1900, 2000].map((val, index) =>
+            currencyRow(val, 2023 + index, undefined, { filed: "2026-03-30" }),
+          ),
+          USD: [currencyRow(110, 2025, undefined, { filed: "2026-03-30" })],
+        }),
+        "ZAR",
+      ],
+      [
+        "three currencies, one containing the others",
+        revenueUnits({
+          ZAR: [
+            latestFilingRow(1800, 2023),
+            latestFilingRow(1900, 2024),
+            latestFilingRow(2000, 2025),
+          ],
+          EUR: [latestFilingRow(95, 2024), latestFilingRow(100, 2025)],
+          USD: [latestFilingRow(110, 2025)],
+        }),
+        "ZAR",
+      ],
+      // CECO Environmental FY2025 10-K (0001193125-26-085815): a stray EUR Revenues fact beside USD.
+      [
+        "a stray other-currency fact",
+        {
+          "us-gaap": {
+            RevenueFromContractWithCustomerExcludingAssessedTax: {
+              units: {
+                USD: [
+                  ...[2022, 2023, 2024].map((fy) =>
+                    currencyRow(500 + fy - 2022, fy, "0000000000-25-000002", {
+                      filed: "2025-03-05",
+                    }),
+                  ),
+                  ...[2023, 2024, 2025].map((fy) =>
+                    currencyRow(600 + fy - 2023, fy, "0001193125-26-085815", {
+                      filed: "2026-03-05",
+                    }),
+                  ),
+                ],
+              },
+            },
+            Revenues: {
+              units: {
+                EUR: [
+                  currencyRow(750, 2024, "0000000000-25-000002", { filed: "2025-03-05" }),
+                  currencyRow(750, 2025, "0001193125-26-085815", { filed: "2026-03-05" }),
+                ],
+              },
+            },
+          },
+        },
+        "USD",
+      ],
+    ])("elects with %s", (_name, facts, expected) => {
+      const artifact = deriveElection(facts);
+      expect(artifact.reportingCurrency).toBe(expected);
+      expect(artifact.structuredFinancialGaps).toEqual([]);
+    });
+
+    test("names every candidate when no currency contains the others", () => {
+      const [gap] = deriveElection(
+        revenueUnits({
+          ZAR: [latestFilingRow(1800, 2023), latestFilingRow(1900, 2024)],
+          EUR: [latestFilingRow(95, 2024), latestFilingRow(100, 2025)],
+          USD: [latestFilingRow(110, 2025)],
+        }),
+      ).structuredFinancialGaps;
+      expect(gap).toEqual({
+        code: "ambiguous-reporting-currency",
+        message:
+          "Standard monetary facts are filed in EUR, USD, ZAR; the filed facts do not establish which is the reporting currency",
+        forms: [],
+        sourceIds: ["extended-sec-edgar-zaf-fundamentals"],
+      });
+    });
+
+    test("follows Nebius from RUB to a USD reporting currency by analysis date", () => {
+      // Nebius Group 20-F shapes: RUB with a latest-year USD translation through FY2023
+      // (0001558370-24-005891), USD only from FY2024 (0001558370-25-005991, 0001104659-26-052948).
+      const twentyF = (val: number, fy: number, accn: string, filed: string) =>
+        currencyRow(val, fy, accn, { form: "20-F", filed });
+      const rubFiling = (fy: number, accn: string, filed: string) => [
+        ...[fy - 2, fy - 1, fy].map(
+          (year) => ["RUB", twentyF(300 + year - 2019, year, accn, filed)] as const,
+        ),
+        ["USD", twentyF(4 + fy - 2021, fy, accn, filed)] as const,
+      ];
+      const usdFiling = (fy: number, accn: string, filed: string) =>
+        [fy - 2, fy - 1, fy].map(
+          (year) => ["USD", twentyF(year - 2015, year, accn, filed)] as const,
+        );
+      const rows = [
+        ...rubFiling(2021, "0001558370-22-005654", "2022-05-16"),
+        ...rubFiling(2022, "0001558370-23-006319", "2023-04-27"),
+        ...rubFiling(2023, "0001558370-24-005891", "2024-04-30"),
+        ...usdFiling(2024, "0001558370-25-005991", "2025-04-30"),
+        ...usdFiling(2025, "0001104659-26-052948", "2026-04-30"),
+      ];
+      const facts = revenueUnits({
+        RUB: rows.filter(([unit]) => unit === "RUB").map(([, fact]) => fact),
+        USD: rows.filter(([unit]) => unit === "USD").map(([, fact]) => fact),
+      });
+      expect(deriveElection(facts, "2024-06-01T00:00:00.000Z").reportingCurrency).toBe("RUB");
+      expect(deriveElection(facts).reportingCurrency).toBe("USD");
+      expect(electionGapCodes(facts)).toEqual([]);
+    });
+
+    test("withholds legacy monetary metrics but keeps share counts on an ambiguous us-gaap election", () => {
+      const facts = {
+        "us-gaap": {
+          ...revenueUnits({
+            USD: [latestFilingRow(110, 2025)],
+            ZAR: [latestFilingRow(2000, 2025)],
+          })["us-gaap"],
+          WeightedAverageNumberOfDilutedSharesOutstanding: {
+            units: { shares: [latestFilingRow(9, 2025)] },
+          },
+        },
+      };
+      expect(deriveElection(facts).statements.perShare.dilutedShares.annual).toEqual([]);
+      const summary = summarizeSecFundamentals({ facts }, AS_OF_2026)!;
+      expect(summary.metrics.revenue).toBeUndefined();
+      expect(summary.metrics.dilutedShares).toBe(9);
+      expect(summary.gaps.map(({ message }) => message)).toContain(
+        "SEC summary withheld monetary metrics: the filed facts do not establish which currency is the reporting currency, so USD-unit facts may be convenience translations",
+      );
+    });
+
+    test("withholds legacy us-gaap USD metrics when the ifrs-full election is ambiguous", () => {
+      const ifrs = (val: number) =>
+        currencyRow(val, 2025, LATEST_ACCN, { form: "20-F", filed: "2026-03-30" });
+      const ifrsOnly = {
+        "ifrs-full": { Revenue: { units: { USD: [ifrs(110)], EUR: [ifrs(100)] } } },
+      };
+      expect(electionGapCodes(ifrsOnly)).toEqual(["ambiguous-reporting-currency"]);
+      expect(summarizeSecFundamentals({ facts: ifrsOnly }, AS_OF_2026)).toBeUndefined();
+      const both = {
+        ...ifrsOnly,
+        ...revenueUnits({ USD: [currencyRow(105, 2024, "0000000000-25-000001")] }),
+      };
+      expect(deriveElection(both).taxonomy).toBe("ifrs-full");
+      expect(electionGapCodes(both)).toEqual(["ambiguous-reporting-currency"]);
+      expect(
+        summarizeSecFundamentals({ facts: both }, AS_OF_2026)?.metrics.revenue,
+      ).toBeUndefined();
+    });
   });
 
   test("selects the latest reporting period before a newer filing revision", () => {

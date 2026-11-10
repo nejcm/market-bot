@@ -17,7 +17,7 @@ import { resolveMarketSnapshotPriceAsOf } from "../../../src/domain/market-data"
 import { readEarningsForecastTelemetry } from "../../../src/forecast/earnings-eligibility";
 import { claimKey, parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord, readNumber, readString } from "../../../src/guards";
-import type { ResearchReport } from "../../../src/domain/report";
+import type { RenderedMetric, ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
 import { readGapTriage } from "../../../src/report/gap-triage";
@@ -486,6 +486,7 @@ export async function assertInvariants(
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertNoUnresolvedMetricReferences(report, result.collectedSources);
+  assertRenderedMetricLabels(result, report);
   const marketSnapshot = result.collectedSources.marketSnapshots.find(
     (snapshot) =>
       snapshot.assetClass === report.assetClass &&
@@ -1762,6 +1763,43 @@ export function assertFinancialLensMetricInvariants(
         }
       }
     }
+  }
+}
+
+function renderedMetricSpans(value: unknown): readonly RenderedMetric[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(renderedMetricSpans);
+  }
+  if (!isRecord(value)) {
+    return [];
+  }
+  return [
+    ...(Array.isArray(value.renderedMetrics) ? (value.renderedMetrics as RenderedMetric[]) : []),
+    ...Object.entries(value)
+      .filter(([key]) => key !== "renderedMetrics")
+      .flatMap(([, item]) => renderedMetricSpans(item)),
+  ];
+}
+
+// Every rendered Metric Reference names what it measures, so a wrong surrounding noun shows on the page.
+function assertRenderedMetricLabels(result: RunFixtureResult, report: ResearchReport): void {
+  const catalog = referenceMetricSections(result.collectedSources).flatMap(({ metrics }) =>
+    metrics.flatMap((metric) => {
+      const value =
+        metric.status === "value"
+          ? formatMetricValue(metric.value, metric.unit, metric.currency)
+          : undefined;
+      return value === undefined ? [] : [{ value, label: metric.label }];
+    }),
+  );
+  for (const { text } of renderedMetricSpans(report)) {
+    expect(
+      catalog.some(
+        ({ value, label }) =>
+          text.replace(/^\+/u, "").startsWith(value) && text.includes(`(${label}`),
+      ),
+      `rendered metric "${text}" must carry its metric's label`,
+    ).toBe(true);
   }
 }
 

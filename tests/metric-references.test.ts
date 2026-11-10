@@ -210,15 +210,15 @@ test("assembly formats repeated metric references, merges citations, and publish
     }),
   );
   expect(report.keyFindings[0]).toEqual({
-    text: "FY margin 12.5%; cash €1.0M; coverage 2.50x; DPS £0.25; margin 12.5%.",
+    text: "FY margin 12.5% (Margin); cash €1.0M (Cash); coverage 2.50x (Coverage); DPS £0.25 (DPS); margin 12.5% (Margin).",
     sourceIds: ["market-aapl", "metric-source"],
     renderedMetrics: rendered(
-      "FY margin 12.5%; cash €1.0M; coverage 2.50x; DPS £0.25; margin 12.5%.",
-      "12.5%",
-      "€1.0M",
-      "2.50x",
-      "£0.25",
-      "12.5%",
+      "FY margin 12.5% (Margin); cash €1.0M (Cash); coverage 2.50x (Coverage); DPS £0.25 (DPS); margin 12.5% (Margin).",
+      "12.5% (Margin)",
+      "€1.0M (Cash)",
+      "2.50x (Coverage)",
+      "£0.25 (DPS)",
+      "12.5% (Margin)",
     ),
   });
   expect(report.scenarios[0]?.sourceIds).toEqual(["metric-source"]);
@@ -258,7 +258,7 @@ test("references allow dots in a Valuation Workbench section's publication times
       dated,
     ]),
   );
-  expect(report.keyFindings[0]?.text).toBe("Margin 12.5%.");
+  expect(report.keyFindings[0]?.text).toBe("Margin 12.5% (Margin).");
 });
 
 test("marks only the ids a metric reference added, not ids the claim already cited", () => {
@@ -269,9 +269,9 @@ test("marks only the ids a metric reference added, not ids the claim already cit
       }),
     ).keyFindings[0];
   expect(claim(["metric-source"])).toEqual({
-    text: "FY margin 12.5%.",
+    text: "FY margin 12.5% (Margin).",
     sourceIds: ["metric-source"],
-    renderedMetrics: rendered("FY margin 12.5%.", "12.5%"),
+    renderedMetrics: rendered("FY margin 12.5% (Margin).", "12.5% (Margin)"),
   });
 });
 
@@ -284,10 +284,10 @@ test.each([
     input({ keyFindings: [{ text: `FY margin ${token}.`, sourceIds: [] }] }),
   );
   expect(report.keyFindings[0]).toEqual({
-    text: "FY margin 12.5%.",
+    text: "FY margin 12.5% (Margin).",
     sourceIds: ["metric-source"],
     metricSourceIds: ["metric-source"],
-    renderedMetrics: rendered("FY margin 12.5%.", "12.5%"),
+    renderedMetrics: rendered("FY margin 12.5% (Margin).", "12.5% (Margin)"),
   });
   for (const payload of [
     { summary: token },
@@ -461,10 +461,10 @@ test.each([
   });
   expect(calls).toBe(2);
   expect(result.report.keyFindings[0]).toEqual({
-    text: "FY margin 12.5%.",
+    text: "FY margin 12.5% (Margin).",
     sourceIds: ["metric-source"],
     metricSourceIds: ["metric-source"],
-    renderedMetrics: rendered("FY margin 12.5%.", "12.5%"),
+    renderedMetrics: rendered("FY margin 12.5% (Margin).", "12.5% (Margin)"),
   });
 });
 
@@ -619,13 +619,13 @@ test("prefixes an exact catalog id missing only metric: and validates it like an
     ),
   );
   expect(report.keyFindings[0]).toEqual({
-    text: "Margin 12.5% (6-month period ending 2026-03-31); cash €1.0M.",
+    text: "Margin 12.5% (Margin, 6-month period ending 2026-03-31); cash €1.0M (Cash).",
     sourceIds: ["metric-source"],
     metricSourceIds: ["metric-source"],
     renderedMetrics: rendered(
-      "Margin 12.5% (6-month period ending 2026-03-31); cash €1.0M.",
-      "12.5% (6-month period ending 2026-03-31)",
-      "€1.0M",
+      "Margin 12.5% (Margin, 6-month period ending 2026-03-31); cash €1.0M (Cash).",
+      "12.5% (Margin, 6-month period ending 2026-03-31)",
+      "€1.0M (Cash)",
     ),
   });
   for (const [token, error] of [
@@ -672,7 +672,7 @@ test("prefixes an exact Valuation Workbench id whose section embeds a timestamp"
       workbench,
     ]),
   );
-  expect(report.keyFindings[0]?.text).toBe("Margin 12.5%.");
+  expect(report.keyFindings[0]?.text).toBe("Margin 12.5% (Margin).");
   expect(() =>
     assembleResearchReport(
       input(
@@ -773,7 +773,7 @@ test("repairs a non-catalog unprefixed placeholder instead of publishing or gues
   expect(reprompts[1]).toContain(
     "Malformed metric reference <<operating-ratios.marginal|period>> in text; write it as <<metric:section.metric>>",
   );
-  expect(result.report.keyFindings[0]?.text).toBe("Margin 12.5%.");
+  expect(result.report.keyFindings[0]?.text).toBe("Margin 12.5% (Margin).");
 });
 
 function claims(...texts: readonly string[]): ModelReportPayload {
@@ -911,7 +911,7 @@ describe("catalog figure hints", () => {
     expect(reprompts[1]?.[0]).toContain("Metric reference <<metric:operating-ratios.unknown>>");
     expect(result.stageOutputs[1]?.repromptReason?.catalogFigureHints).toBe(1);
     expect(result.reportValidationErrors).not.toContain(hint);
-    expect(result.report.keyFindings[0]?.text).toBe("FY margin was 12.5%.");
+    expect(result.report.keyFindings[0]?.text).toBe("FY margin was 12.5% (Margin).");
   });
 });
 
@@ -936,13 +936,13 @@ test("|period renders the metric's period label and rejects metrics without one"
     ),
   );
   expect(report.keyFindings[0]).toEqual({
-    text: "Margin 12.5% (6-month period ending 2026-03-31); again 12.5% (6-month period ending 2026-03-31).",
+    text: "Margin 12.5% (Margin, 6-month period ending 2026-03-31); again 12.5% (Margin, 6-month period ending 2026-03-31).",
     sourceIds: ["metric-source"],
     metricSourceIds: ["metric-source"],
     renderedMetrics: rendered(
-      "Margin 12.5% (6-month period ending 2026-03-31); again 12.5% (6-month period ending 2026-03-31).",
-      "12.5% (6-month period ending 2026-03-31)",
-      "12.5% (6-month period ending 2026-03-31)",
+      "Margin 12.5% (Margin, 6-month period ending 2026-03-31); again 12.5% (Margin, 6-month period ending 2026-03-31).",
+      "12.5% (Margin, 6-month period ending 2026-03-31)",
+      "12.5% (Margin, 6-month period ending 2026-03-31)",
     ),
   });
   for (const token of [
@@ -963,17 +963,18 @@ test("|period renders the metric's period label and rejects metrics without one"
   }
 });
 
-test("change metrics render signed with what they change over (HLIT 10-Q, H1 2026 run b8d04fa2)", () => {
+test("change metrics render signed under their label, which names the comparison (HLIT 10-Q, H1 2026 run b8d04fa2)", () => {
   const { section: growth } = evaluateMetricSection(
     "financial-lens-growth",
     "Growth",
     [
-      [48.523_248_504_039_67, "revenueDeltaPercent"],
-      [-43.4, "netIncomeDeltaPercent"],
+      [48.523_248_504_039_67, "revenueDeltaPercent", "Revenue YoY"],
+      [-43.4, "netIncomeDeltaPercent", "Net income YoY"],
+      [5, "unlabeledDeltaPercent", " "],
     ].map(
-      ([value, id]): MetricDefinition => ({
+      ([value, id, label]): MetricDefinition => ({
         id: String(id),
-        label: "YoY",
+        label: String(label),
         unit: "whole-percent",
         basis: "YoY",
         change: { over: "YoY" },
@@ -1001,7 +1002,7 @@ test("change metrics render signed with what they change over (HLIT 10-Q, H1 202
       {
         keyFindings: [
           {
-            text: "Revenue was <<metric:financial-lens-growth.revenueDeltaPercent|period>>; net income <<metric:financial-lens-growth.netIncomeDeltaPercent>>.",
+            text: "Revenue was <<metric:financial-lens-growth.revenueDeltaPercent|period>>; net income <<metric:financial-lens-growth.netIncomeDeltaPercent>>; other <<metric:financial-lens-growth.unlabeledDeltaPercent>>.",
             sourceIds: [],
           },
         ],
@@ -1010,7 +1011,66 @@ test("change metrics render signed with what they change over (HLIT 10-Q, H1 202
     ),
   );
   expect(report.keyFindings[0]!.text).toBe(
-    "Revenue was +48.5% YoY (6-month period ending 2026-07-03); net income -43.4% YoY.",
+    "Revenue was +48.5% (Revenue YoY, 6-month period ending 2026-07-03); net income -43.4% (Net income YoY); other +5.0% YoY.",
+  );
+});
+
+test("a reference renders the metric's label, so a wrong noun contradicts it on the page (CECO run a620231d)", () => {
+  const { section: growth } = evaluateMetricSection(
+    "financial-lens-growth",
+    "Growth",
+    [
+      {
+        id: "dilutedEpsDeltaPercent",
+        label: "Diluted EPS YoY",
+        unit: "whole-percent",
+        basis: "YoY",
+        change: { over: "YoY" },
+        compute: () => ({
+          status: "value",
+          value: -162.790_697_674_418_6,
+          periodEnd: "2026-09-30",
+          periodMonths: 9,
+          inputs: [
+            {
+              label: "EPS",
+              value: 1,
+              artifact: "statements",
+              unit: "USD",
+              sourceIds: ["metric-source"],
+            },
+          ],
+        }),
+      },
+    ],
+    { symbol: "CECO" },
+  );
+  const text =
+    "Diluted shares increased <<metric:financial-lens-growth.dilutedEpsDeltaPercent|period>>.";
+  const report = assembleResearchReport(
+    input({ keyFindings: [{ text, sourceIds: [] }] }, [growth]),
+  );
+  const span = "-162.8% (Diluted EPS YoY, 9-month period ending 2026-09-30)";
+  expect(report.keyFindings[0]).toMatchObject({
+    text: `Diluted shares increased ${span}.`,
+    renderedMetrics: [{ field: "text", start: 25, text: span }],
+  });
+});
+
+test("a metric with no label renders its value alone, which the language gate still reads", () => {
+  const unlabeled = {
+    ...section,
+    metrics: section.metrics.map((metric) => ({ ...metric, label: "" })),
+  };
+  const claim = (text: string) =>
+    assembleResearchReport(input({ keyFindings: [{ text, sourceIds: [] }] }, [unlabeled]))
+      .keyFindings[0];
+  expect(claim("FY margin <<metric:operating-ratios.margin>>.")).toMatchObject({
+    text: "FY margin 12.5%.",
+    renderedMetrics: [{ field: "text", start: 10, text: "12.5%" }],
+  });
+  expect(() => claim("A <<metric:operating-ratios.margin>> gap remains.")).toThrow(
+    "trade-action language",
   );
 });
 
@@ -1035,15 +1095,15 @@ test("market-session references resolve verified snapshot values with its citati
     }),
   );
   expect(report.keyFindings[0]).toEqual({
-    text: "Close 108.00 vs 105.00 (+2.9% vs prior close), RSI14 55.00 (as of 2026-05-18).",
+    text: "Close 108.00 (Session close) vs 105.00 (Prior session close) (+2.9% (Session change vs prior close)), RSI14 55.00 (RSI14, as of 2026-05-18).",
     sourceIds: ["verified-snapshot-AAPL"],
     metricSourceIds: ["verified-snapshot-AAPL"],
     renderedMetrics: rendered(
-      "Close 108.00 vs 105.00 (+2.9% vs prior close), RSI14 55.00 (as of 2026-05-18).",
-      "108.00",
-      "105.00",
-      "+2.9% vs prior close",
-      "55.00 (as of 2026-05-18)",
+      "Close 108.00 (Session close) vs 105.00 (Prior session close) (+2.9% (Session change vs prior close)), RSI14 55.00 (RSI14, as of 2026-05-18).",
+      "108.00 (Session close)",
+      "105.00 (Prior session close)",
+      "+2.9% (Session change vs prior close)",
+      "55.00 (RSI14, as of 2026-05-18)",
     ),
   });
   expect(() =>
@@ -1101,7 +1161,7 @@ test("market-session previousClose|period dates the prior session (run 7912637b)
     }),
   });
   expect(report.keyFindings[0]?.text).toBe(
-    "Prior $528.75 (as of 2026-10-16), close $538.05 (as of 2026-10-19).",
+    "Prior $528.75 (Prior session close, as of 2026-10-16), close $538.05 (Session close, as of 2026-10-19).",
   );
 });
 
@@ -1225,7 +1285,9 @@ describe("metric references through finalization", () => {
       },
     ]);
     expect(result.integrityAudit.pruned).toEqual([]);
-    expect(result.report.keyFindings[0]?.text).toBe("Shares closed at 108.00 after the results.");
+    expect(result.report.keyFindings[0]?.text).toBe(
+      "Shares closed at 108.00 (Session close) after the results.",
+    );
   });
 
   test("exempts only the occurrence code rendered, never a typed copy of its value", async () => {
@@ -1264,17 +1326,17 @@ describe("metric references through finalization", () => {
     const margin = "<<metric:operating-ratios.margin>>";
     const cash = "<<metric:operating-ratios.cash>>";
     for (const [text, figure] of [
-      [`Margin was -${margin}.`, "12.5%"],
-      [`Margin was -**${margin}**.`, "12.5%"],
-      [`Cash was ${cash} bn.`, "€1.0M"],
-      [`Cash was ${cash}  bn.`, "€1.0M"],
-      [`Cash was ${cash}\nbn.`, "€1.0M"],
-      [`Cash was USD  ${cash}.`, "€1.0M"],
-      [`Cash was USD\n${cash}.`, "€1.0M"],
-      [`Cash was USD ${cash}.`, "€1.0M"],
-      [`DPS was <<metric:operating-ratios.dps>> million.`, "£0.25"],
-      [`Margin ranged 10-${margin}.`, "12.5%"],
-      [`Margin ranged from 10 to ${margin}.`, "12.5%"],
+      [`Margin was -${margin}.`, "12.5% (Margin)"],
+      [`Margin was -**${margin}**.`, "12.5% (Margin)"],
+      [`Cash was ${cash} bn.`, "€1.0M (Cash)"],
+      [`Cash was ${cash}  bn.`, "€1.0M (Cash)"],
+      [`Cash was ${cash}\nbn.`, "€1.0M (Cash)"],
+      [`Cash was USD  ${cash}.`, "€1.0M (Cash)"],
+      [`Cash was USD\n${cash}.`, "€1.0M (Cash)"],
+      [`Cash was USD ${cash}.`, "€1.0M (Cash)"],
+      [`DPS was <<metric:operating-ratios.dps>> million.`, "£0.25 (DPS)"],
+      [`Margin ranged 10-${margin}.`, "12.5% (Margin)"],
+      [`Margin ranged from 10 to ${margin}.`, "12.5% (Margin)"],
     ]) {
       expect(await pruned(text!)).toEqual([["figure-ambiguous", figure]]);
     }
@@ -1317,7 +1379,7 @@ describe("metric references through finalization", () => {
     ]);
     expect(report.keyFindings[0]).toMatchObject({
       metricSourceIds: ["metric-source"],
-      renderedMetrics: [{ field: "text", start: 11, text: "12.5%" }],
+      renderedMetrics: [{ field: "text", start: 11, text: "12.5% (Margin)" }],
     });
     expect(readReport(JSON.parse(JSON.stringify(report)))?.keyFindings).toEqual(report.keyFindings);
   });

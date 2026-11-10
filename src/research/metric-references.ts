@@ -126,30 +126,54 @@ export function referenceMetricSections(collected: CollectedSources): readonly M
   return [...(collected.metricSections ?? []), ...(session === undefined ? [] : [session])];
 }
 
+// Change metrics whose label does not name the comparison; every other change label in the catalog does.
+const LABEL_OMITS_CHANGE = new Set([`${SESSION_SECTION}.sessionChangePercent`]);
+
+function annotation(metric: MetricResult, sectionId: string, labelled: boolean): string {
+  const label = labelled ? metric.label.trim() : "";
+  return label !== "" &&
+    metric.change !== undefined &&
+    LABEL_OMITS_CHANGE.has(`${sectionId}.${metric.id}`)
+    ? `${label} ${metric.change.over}`
+    : label;
+}
+
 function withFormat(
   value: string,
   metric: MetricResult,
   sectionId: string,
-  format: string,
+  format: string | undefined,
+  label: string,
 ): string | undefined {
-  if (format !== "period" || metric.periodEnd === undefined) {
+  if (format !== undefined && (format !== "period" || metric.periodEnd === undefined)) {
     return undefined;
   }
-  const label = metricPeriodLabel(
-    metric.periodEnd,
-    metric.periodMonths,
-    sectionId,
-    metric.inputs,
-    metric.priceAsOf,
-  );
-  return `${value} (${label.replace(/^[A-Z](?=[a-z])/u, (letter) => letter.toLowerCase())})`;
+  const period =
+    format === undefined || metric.periodEnd === undefined
+      ? ""
+      : metricPeriodLabel(
+          metric.periodEnd,
+          metric.periodMonths,
+          sectionId,
+          metric.inputs,
+          metric.priceAsOf,
+        ).replace(/^[A-Z](?=[a-z])/u, (letter) => letter.toLowerCase());
+  // The label stays verbatim: segment labels open with proper nouns ("Data Center segment revenue").
+  const notes = [label, period].filter((note) => note !== "");
+  return notes.length === 0 ? value : `${value} (${notes.join(", ")})`;
 }
 
-function withChange(value: string | undefined, metric: MetricResult): string | undefined {
+// A change metric's label already names its comparison ("Revenue YoY"), so the bare suffix is only a fallback.
+function withChange(
+  value: string | undefined,
+  metric: MetricResult,
+  label: string,
+): string | undefined {
   if (value === undefined || metric.change === undefined) {
     return value;
   }
-  return `${/^[-+]/u.test(value) ? "" : "+"}${value} ${metric.change.over}`;
+  const signed = `${/^[-+]/u.test(value) ? "" : "+"}${value}`;
+  return label === "" ? `${signed} ${metric.change.over}` : signed;
 }
 
 // Prose with every well-formed reference removed, and how many there were, counting catalog ids assembly prefixes.
@@ -222,9 +246,10 @@ function transformClaims(
   sections: readonly MetricSection[],
   resolve: boolean,
   errors: string[],
+  labelled = true,
 ): unknown {
   if (Array.isArray(value)) {
-    return value.map((item) => transformClaims(item, sections, resolve, errors));
+    return value.map((item) => transformClaims(item, sections, resolve, errors, labelled));
   }
   if (!isRecord(value)) {
     return value;
@@ -235,7 +260,7 @@ function transformClaims(
   let referenced = false;
   const entries = Object.entries(value).map(([key, item]) => {
     if (typeof item !== "string" || !REFERENCE_START.test(item)) {
-      return [key, transformClaims(item, sections, resolve, errors)];
+      return [key, transformClaims(item, sections, resolve, errors, labelled)];
     }
     if (!CLAIM_FIELDS.has(key)) {
       errors.push(`Metric reference is not allowed in ${key}; use a cited narrative claim`);
@@ -256,9 +281,14 @@ function transformClaims(
         const sectionId = reference.slice(0, dot);
         const sectionMetrics = sections.find(({ id }) => id === sectionId)?.metrics ?? [];
         const metric = sectionMetrics.find(({ id }) => id === reference.slice(dot + 1));
+        const label = metric === undefined ? "" : annotation(metric, sectionId, labelled);
         const rendered =
           metric?.status === "value"
-            ? withChange(formatMetricValue(metric.value, metric.unit, metric.currency), metric)
+            ? withChange(
+                formatMetricValue(metric.value, metric.unit, metric.currency),
+                metric,
+                label,
+              )
             : undefined;
         if (rendered === undefined || metric === undefined || metric.sourceIds.length === 0) {
           const longer =
@@ -279,10 +309,7 @@ function transformClaims(
           );
           return prefixed;
         }
-        const formatted =
-          format === undefined
-            ? rendered
-            : withFormat(rendered, metric, sectionId, format.toLowerCase());
+        const formatted = withFormat(rendered, metric, sectionId, format?.toLowerCase(), label);
         if (formatted === undefined) {
           errors.push(
             `Metric reference ${token} has an unsupported format; use |period only on a metric with a period, or the bare reference`,
@@ -412,6 +439,7 @@ function transformNarrative<T extends ModelReportPayload>(
   payload: T,
   sections: readonly MetricSection[],
   resolve: boolean,
+  labelled = true,
 ): T {
   const extras = isRecord(payload.extras) ? payload.extras : {};
   const narrative = claimNarrative(payload);
@@ -426,7 +454,13 @@ function transformNarrative<T extends ModelReportPayload>(
     }
     return payload;
   }
-  const transformed = transformClaims(narrative, sections, resolve, errors) as typeof narrative;
+  const transformed = transformClaims(
+    narrative,
+    sections,
+    resolve,
+    errors,
+    labelled,
+  ) as typeof narrative;
   if (errors.length > 0) {
     throw new Error([...new Set(errors)].join("; "));
   }
@@ -457,11 +491,13 @@ export function citeMetricReferences(
   return transformNarrative(withoutCodeProvenance(payload) as ModelReportPayload, sections, false);
 }
 
+// Unlabelled resolution renders values as bare figures, so the language gate sees what a label would separate.
 export function resolveMetricReferences(
   report: ResearchReport,
   sections: readonly MetricSection[],
+  labelled = true,
 ): ResearchReport {
-  return transformNarrative(report, sections, true);
+  return transformNarrative(report, sections, true, labelled);
 }
 
 export function assertNoUnresolvedMetricReferences(

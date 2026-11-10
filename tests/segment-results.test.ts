@@ -404,7 +404,7 @@ describe("SEC segment facts", () => {
           }),
           [{ id: "segment-results", title: "Segments", metrics: [{ ...change!, id: "m" }] }],
         ).keyFindings[0]!.text,
-      ).toBe("Margin +36.09 pp YoY.");
+      ).toBe("Margin +36.09 (Data Center segment operating margin YoY change, percentage points).");
       expect(change?.basis).toContain(
         "2025-03-30 to 2025-06-28, both from 10-Q filed 2026-08-05, accession 0000002488-26-000123",
       );

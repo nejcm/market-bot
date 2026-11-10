@@ -947,9 +947,12 @@ export function assembleResearchReportWithRelocations(
         : {}),
     },
   });
-  const resolvedReport = resolveMetricReferences(report, referenceMetricSections(collectedSources));
+  const sections = referenceMetricSections(collectedSources);
+  const resolvedReport = resolveMetricReferences(report, sections);
   assertNoUnresolvedMetricReferences(resolvedReport, collectedSources);
   assertSafeReportLanguage(resolvedReport);
+  // A label between a value and the next word can split a blocked phrase ("12.5% (Margin) gap").
+  assertSafeReportLanguage(resolveMetricReferences(report, sections, false));
   return {
     report: resolvedReport,
     relocatedGapClaims,

@@ -335,7 +335,7 @@ describe("static equity run fixtures", () => {
       const cassetteMisses: string[] = [];
       const replayProvider = makeReplayProvider(fixture.llmCassette);
       const injection: {
-        metric?: { reference: string; value: string; sourceIds: readonly string[] };
+        metric?: { reference: string; value: string; label: string; sourceIds: readonly string[] };
       } = {};
       const result = await runFixture(name, {
         llm: "replay",
@@ -500,13 +500,14 @@ describe("static equity run fixtures", () => {
       assertMetricPromptCatalog(result, fixture.meta, modelRequests);
       const injectedMetric = injection.metric;
       if (injectedMetric !== undefined) {
+        const rendered = `${injectedMetric.value} (${injectedMetric.label})`;
         expect(result.report.keyFindings).toContainEqual({
-          text: `Filed metric reference: ${injectedMetric.value}.`,
+          text: `Filed metric reference: ${rendered}.`,
           sourceIds: injectedMetric.sourceIds,
           metricSourceIds: injectedMetric.sourceIds,
-          renderedMetrics: [{ field: "text", start: 24, text: injectedMetric.value }],
+          renderedMetrics: [{ field: "text", start: 24, text: rendered }],
         });
-        expect(result.markdown).toContain(`Filed metric reference: ${injectedMetric.value}.`);
+        expect(result.markdown).toContain(`Filed metric reference: ${rendered}.`);
       }
       expect([
         result.report.equityAnalysisCompleteness?.financialCoreStatus,

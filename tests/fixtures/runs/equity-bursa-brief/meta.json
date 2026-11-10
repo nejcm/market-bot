@@ -93,7 +93,7 @@
     "pruned": [
       {
         "location": "keyFindings[3]",
-        "text": "The issuer mirror reports nine-month basic EPS of MYR 0.1345 or 13.45 sen (9-month period ending 2026-09-30). Yahoo reports provider trailing EPS of 0.16 MYR with accounting scope and period basis undisclosed; the two figures have different stated bases."
+        "text": "The issuer mirror reports nine-month basic EPS of MYR 0.1345 or 13.45 sen (Basic EPS, year to date, 9-month period ending 2026-09-30). Yahoo reports provider trailing EPS of 0.16 MYR with accounting scope and period basis undisclosed; the two figures have different stated bases."
       }
     ]
   }

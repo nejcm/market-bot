@@ -1498,8 +1498,8 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
       ).report.keyFindings.map(({ text }) => text);
 
     expect(audit(report.keyFindings)).toEqual([
-      "Quarter revenue was MYR 485.1M, a change of 112.2%.",
-      "Quarter basic EPS was MYR 0.0626 or 6.26 sen through 2026-09-30.",
+      "Quarter revenue was MYR 485.1M (Revenue, quarter), a change of 112.2% (Revenue change vs prior-year quarter).",
+      "Quarter basic EPS was MYR 0.0626 or 6.26 sen (Basic EPS, quarter) through 2026-09-30.",
     ]);
     expect(
       audit(report.keyFindings.map(({ renderedMetrics: _rendered, ...finding }) => finding)),

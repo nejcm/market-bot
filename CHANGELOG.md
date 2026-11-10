@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.6](https://github.com/nejcm/market-bot/compare/v1.15.5...v1.15.6) (2026-11-10)
+
+### Bug Fixes
+
+- **scoring:** stop holiday-short bursa windows from burning attempts (#200) ([50cff83](https://github.com/nejcm/market-bot/commit/50cff8345b615bf7378967e8bb24a20df618ab59))
+
 ## [1.15.5](https://github.com/nejcm/market-bot/compare/v1.15.4...v1.15.5) (2026-11-10)
 
 ### Bug Fixes

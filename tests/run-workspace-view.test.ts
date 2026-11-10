@@ -3629,6 +3629,20 @@ describe("run workspace view", () => {
     expect(
       withoutPermittedPeerPhrase(consoleSource).match(BANNED_SNAPSHOT_CONSOLE_TOKENS),
     ).toBeNull();
+    for (const file of [
+      "run-failure-summary.svelte",
+      "run-sources-table.svelte",
+      "run-file-browser.svelte",
+    ]) {
+      const componentSource = readFileSync(
+        new URL(`../app/client/components/${file}`, import.meta.url),
+        "utf8",
+      );
+      expect(
+        withoutPermittedPeerPhrase(componentSource).match(BANNED_SNAPSHOT_CONSOLE_TOKENS),
+        file,
+      ).toBeNull();
+    }
   });
 
   test("server-renders the extracted observable-forecasts component with scored evidence", async () => {

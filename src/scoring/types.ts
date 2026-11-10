@@ -1,4 +1,4 @@
-import type { WithheldSession } from "../sources/yahoo";
+import type { WithheldSession } from "../sources/yahoo-chart";
 
 export type ScoreOutcome = "hit" | "miss";
 

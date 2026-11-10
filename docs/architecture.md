@@ -25,7 +25,7 @@ src/
   run-artifacts.ts      Single read seam over persisted runs; run-artifact-*.ts writer, layout,
                       projection, value guards, and per-sidecar readers
   run-artifact-index.ts Derived SQLite Run Artifact Index (query layer over disk artifacts;
-                      run-artifact-index-*.ts for schema, rows, freshness, repair, and the
+                      run-artifact-index-*.ts for schema, rows, queries, freshness, repair, and the
                       RunSummary/RunSearch* read-model types the Console imports)
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache,

@@ -9,7 +9,7 @@ import {
   fetchYahooSplitAdjustedCloseWindow,
   splitAdjustedObservationsFromYahooChart,
   type YahooCloseWindowResult,
-} from "../src/sources/yahoo";
+} from "../src/sources/yahoo-chart";
 import type { FetchLike } from "../src/sources/types";
 import { researchReport } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";

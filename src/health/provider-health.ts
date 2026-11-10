@@ -19,12 +19,11 @@ import {
   type JobType,
 } from "../domain/job-type";
 import { SOURCE_KINDS, type Source, type SourceGap } from "../domain/sources";
+import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
 import {
   loadRunSubsystemOutcomesFromIndex,
-  readRunArtifactIndexStatus,
   scanRunSubsystemOutcomesFromDisk,
-  type RunArtifactIndexStatus,
-} from "../run-artifact-index";
+} from "../run-artifact-index-queries";
 import { RUN_ARTIFACT_FILES, type ArtifactFileStatus } from "../run-artifact-layout";
 import { isDeepEquityReport } from "../deep-equity/artifact-schema";
 import {

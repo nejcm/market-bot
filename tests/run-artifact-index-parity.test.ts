@@ -7,12 +7,11 @@ import { Database } from "bun:sqlite";
 import { listRunSummaries, searchRunReports } from "../app/artifacts";
 import { buildProviderHealthSummary } from "../src/health/provider-health";
 import { rebuildHistoryArtifacts, searchHistoryIndex } from "../src/history/artifacts";
+import { INDEX_SCHEMA_VERSION, rebuildRunArtifactIndex } from "../src/run-artifact-index";
 import {
-  INDEX_SCHEMA_VERSION,
   loadRunSubsystemOutcomesFromIndex,
-  rebuildRunArtifactIndex,
   scanRunSubsystemOutcomesFromDisk,
-} from "../src/run-artifact-index";
+} from "../src/run-artifact-index-queries";
 import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
 import { prepareRunArtifacts } from "../src/artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";

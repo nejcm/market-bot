@@ -9,7 +9,7 @@ import {
   fetchYahooCloseWindow,
   fetchYahooSplitAdjustedCloseWindow,
   type CloseWindow,
-} from "../sources/yahoo";
+} from "../sources/yahoo-chart";
 import {
   fetchCloseWithCache,
   fetchWindowWithCache,

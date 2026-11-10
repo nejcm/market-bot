@@ -28,7 +28,7 @@ import { runOfflineFinancialStatementCorpus } from "../src/corpus/offline-financ
 import {
   collectFinancialStatementInvariants,
   type FinancialInvariantResult,
-} from "../src/corpus/financial-invariants";
+} from "../src/corpus/financial-statement-invariants";
 import {
   diffLedgers,
   formatLedgerDiff,

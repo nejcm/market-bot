@@ -11,7 +11,7 @@ import {
   readYahooRegularSession,
   withholdUnfinishedSessions,
   type YahooRegularSessionRead,
-} from "../sources/yahoo";
+} from "../sources/yahoo-chart";
 import { fetchCloseWithCache, readLegacyWindowEntry } from "./close-cache";
 import { scoreOnePrediction, writeMissAutopsyRunDir, type ScorePassOptions } from "./index";
 import { resolveOutcome, type ResolveOutcomeResult } from "./resolver";

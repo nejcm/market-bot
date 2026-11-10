@@ -45,7 +45,7 @@ import {
   unadjustedLeaseInclusiveDebt,
   unsupersededDebtResolutions,
 } from "./sec-debt-resolution";
-import type { ParsedFact, SelectedSeries } from "./financial-statements";
+import type { ParsedFact, SelectedSeries } from "./financial-statement-facts";
 
 export interface DebtFactReader {
   readonly root: (taxonomy: FinancialStatementTaxonomy) => Record<string, unknown> | undefined;

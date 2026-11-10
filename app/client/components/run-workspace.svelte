@@ -33,6 +33,9 @@
   import AnalystEstimateDistributions from "./analyst-estimate-distributions.svelte";
   import ExtendedEvidence from "./extended-evidence.svelte";
   import InstrumentRunHistory from "./instrument-run-history.svelte";
+  import RunFailureSummary from "./run-failure-summary.svelte";
+  import RunSourcesTable from "./run-sources-table.svelte";
+  import RunFileBrowser from "./run-file-browser.svelte";
 
   interface Props {
     readonly activeTab: Tab;
@@ -304,162 +307,6 @@
   </div>
 {/snippet}
 
-{#snippet failureSummary()}
-  {#if failure === undefined}
-    <article class="mt-6 rounded-lg border border-red-200 bg-red-50 px-5 py-5">
-      <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700">
-        Failed Run Artifact
-      </div>
-      <h1 class="mt-1 text-xl font-semibold tracking-tight">Failure diagnostics unavailable</h1>
-      <p class="mt-2 text-sm leading-relaxed text-[#45494e]">
-        failure.json marks this run complete, but its diagnostics could not be read. Inspect the Files tab for the raw artifact.
-      </p>
-    </article>
-  {:else}
-    <article class="mt-6 overflow-hidden rounded-lg border border-red-200 bg-card">
-      <div class="border-b border-red-100 bg-red-50 px-5 py-4">
-        <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700">
-          Failed Run Artifact
-        </div>
-        <h1 class="mt-1 text-xl font-semibold tracking-tight">
-          {failure.phase === "post-synthesis"
-            ? "Post-synthesis stage failed"
-            : "Final synthesis did not validate"}
-        </h1>
-        {#if failure.message !== undefined}
-          <p class="mt-2 text-sm leading-relaxed text-[#45494e]">{failure.message}</p>
-        {/if}
-        {#if failure.stack !== undefined}
-          <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-[#45494e]">{failure.stack}</pre>
-        {/if}
-      </div>
-
-      {#if failure.totalCalls !== undefined || failure.reportRepairReprompts !== undefined || failure.cost !== undefined}
-        <div class="grid gap-px border-b border-border bg-border sm:auto-cols-fr sm:grid-flow-col">
-          {#each [
-            ...(failure.totalCalls === undefined
-              ? []
-              : [["Final-synthesis calls", String(failure.totalCalls)]]),
-            ...(failure.reportRepairReprompts === undefined
-              ? []
-              : [["Repair reprompts", String(failure.reportRepairReprompts)]]),
-            ...(failure.cost?.tokenEstimate === undefined
-              ? []
-              : [["Token estimate", failure.cost.tokenEstimate.toLocaleString()]]),
-            ...(failure.cost?.costEstimateUsd === undefined
-              ? []
-              : [["Estimated cost", `$${failure.cost.costEstimateUsd.toFixed(4)}`]]),
-          ] as stat}
-            <div class="bg-card px-4 py-3">
-              <div class="font-mono text-sm font-medium">{stat[1]}</div>
-              <div class="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                {stat[0]}
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-
-      <div class="grid gap-6 px-5 py-5 lg:grid-cols-2">
-        <section>
-          {#if failure.reportValidationErrors !== undefined}
-            <h2 class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-              Report validator errors
-            </h2>
-            {#if failure.reportValidationErrors.length > 0}
-              <ul class="mt-2.5 list-disc space-y-2 pl-4 text-sm leading-relaxed">
-                {#each failure.reportValidationErrors as error}
-                  <li>{error}</li>
-                {/each}
-              </ul>
-            {:else}
-              <p class="mt-2.5 text-sm text-muted-foreground">No report validator errors recorded.</p>
-            {/if}
-          {/if}
-
-          {#if failure.predictionErrors !== undefined}
-            <h2 class="mt-5 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-              Prediction validator errors
-            </h2>
-            {#if failure.predictionErrors.length > 0}
-              <ul class="mt-2.5 list-disc space-y-2 pl-4 text-sm leading-relaxed">
-                {#each failure.predictionErrors as error}
-                  <li>{error}</li>
-                {/each}
-              </ul>
-            {:else}
-              <p class="mt-2.5 text-sm text-muted-foreground">No prediction validator errors recorded.</p>
-            {/if}
-          {/if}
-        </section>
-
-        <section>
-          {#if failure.languageViolations !== undefined}
-            <h2 class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-              Language violation attribution
-            </h2>
-            {#if failure.languageViolations.length > 0}
-              <div class="mt-2.5 space-y-2">
-                {#each failure.languageViolations as violation}
-                  <div class="rounded-md border border-border bg-secondary px-3 py-2 text-sm">
-                    <span class="font-mono text-xs font-semibold">{violation.field}</span>
-                    <span class="text-muted-foreground"> matched </span>
-                    <span class="font-mono text-xs">{violation.match}</span>
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <p class="mt-2.5 rounded-md border border-border bg-secondary px-3 py-2 text-sm">
-                Attributed to assembly output, not the draft.
-              </p>
-            {/if}
-          {/if}
-
-          {#if failure.evidenceQuality !== undefined}
-            <h2 class="mt-5 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-              Evidence quality assessment
-            </h2>
-            <div class="mt-2.5 flex items-baseline gap-2">
-              <span class="font-mono text-base font-semibold uppercase">{failure.evidenceQuality.label}</span>
-              <span class="text-xs text-muted-foreground">
-                rubric {failure.evidenceQuality.rubricVersion}
-              </span>
-            </div>
-            {#if failure.evidenceQuality.limitingReasons.length > 0}
-              <p class="mt-2 text-xs leading-relaxed text-[#5c6066]">
-                Limits: {failure.evidenceQuality.limitingReasons.join("; ")}
-              </p>
-            {/if}
-            {#if failure.evidenceQuality.advisoryReasons.length > 0}
-              <p class="mt-1.5 text-xs leading-relaxed text-[#5c6066]">
-                Advisories: {failure.evidenceQuality.advisoryReasons.join("; ")}
-              </p>
-            {/if}
-            <div class="mt-3 space-y-1.5">
-              {#each failure.evidenceQuality.checks as check}
-                <div class="rounded-md border border-border px-3 py-2 text-xs">
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="font-mono font-semibold">{check.capability}</span>
-                    <span class={check.passed ? "text-emerald-700" : "text-red-700"}>
-                      {check.passed ? "pass" : "fail"}
-                    </span>
-                  </div>
-                  <div class="mt-1 text-muted-foreground">
-                    {check.evidenceClass} · coverage {check.coverage} · freshness {check.freshness} · corroboration {check.corroboration}
-                  </div>
-                  {#if check.reasons.length > 0}
-                    <div class="mt-1 text-muted-foreground">{check.reasons.join("; ")}</div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </section>
-      </div>
-    </article>
-  {/if}
-{/snippet}
-
 {#if loadingDetail}
   <div class="space-y-4" data-screen-label="Run loading">
     <Skeleton class="h-8 w-72" />
@@ -636,7 +483,7 @@
     {/if}
 
     {#if activeTab === "report" && failed}
-      {@render failureSummary()}
+      <RunFailureSummary {failure} />
     {:else if activeTab === "report"}
       <div class={equityPresentation === undefined ? "mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]" : "mt-6"}>
         <article class="min-w-0">
@@ -980,66 +827,7 @@
         {onOpenInstrument}
       />
     {:else if activeTab === "sources"}
-      <div class="mt-6 overflow-hidden rounded-lg border border-border bg-card" data-section="sourcesTable">
-        <div class="sm:overflow-x-auto">
-          <div class="sm:min-w-160">
-            <div
-              class="hidden sm:grid grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] gap-3.5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
-            >
-              <div>ID</div>
-              <div>TITLE</div>
-              <div>KIND</div>
-              <div>PROVIDER</div>
-              <div>LINK</div>
-            </div>
-            {#if sourceItems.length === 0}
-              <div class="px-4.5 py-6 text-sm text-muted-foreground">This run cites no normalized sources.</div>
-            {/if}
-            {#each sourceItems as source}
-              <div
-                {@attach (el) => {
-                  if (highlightSourceId === source.id) {
-                    el.scrollIntoView({ block: "center" });
-                  }
-                }}
-                class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-b sm:grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] sm:gap-y-0 border-[#f0ede7] px-4.5 py-2.75 {highlightSourceId ===
-                source.id
-                  ? 'bg-accent'
-                  : 'bg-transparent'}"
-              >
-                <div class="truncate font-mono text-[11.5px] font-medium text-primary" title={source.id}>
-                  {source.id}
-                </div>
-                <div class="order-3 col-span-2 truncate text-[12.5px] text-[#1f2225] sm:order-none sm:col-span-1" title={source.title}>
-                  {source.title}
-                </div>
-                <div class="order-2 sm:order-none">
-                  <span
-                    class="whitespace-nowrap rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
-                  >
-                    {source.kind ?? "source"}
-                  </span>
-                </div>
-                <div class="order-4 truncate text-xs text-[#5c6066] sm:order-none">
-                  {source.provider ?? ""}
-                </div>
-                <div class="order-5 text-right sm:order-none sm:text-left">
-                  {#if source.url !== undefined}
-                    <a
-                      class="font-mono text-[11px] text-primary hover:underline"
-                      href={source.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      open ↗
-                    </a>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-      </div>
+      <RunSourcesTable {sourceItems} {highlightSourceId} />
     {:else if activeTab === "data"}
       <div class="mt-6" data-section="dataSegments">
         <div class="inline-flex overflow-hidden rounded-md border border-border bg-card">
@@ -1061,45 +849,7 @@
         </div>
       </div>
     {:else if activeTab === "files"}
-      <div class="mt-6 grid items-start gap-3.5 lg:grid-cols-[250px_minmax(0,1fr)]" data-section="fileBrowser">
-        <div class="overflow-hidden rounded-lg border border-border bg-card">
-          {#if detail.summary.availableFiles.length === 0}
-            <div class="px-3.5 py-5 text-sm text-muted-foreground">No files on disk.</div>
-          {/if}
-          {#each detail.summary.availableFiles as file}
-            <button
-              class="block w-full border-b border-[#f0ede7] px-3.5 py-2.25 text-left transition last:border-b-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {selectedFile ===
-              file
-                ? 'bg-accent'
-                : 'bg-transparent'}"
-              type="button"
-              onclick={() => onLoadFile(file)}
-            >
-              <span
-                class="block truncate font-mono text-[11.5px] {selectedFile === file
-                  ? 'text-primary'
-                  : 'text-[#45494e]'}"
-              >
-                {file}
-              </span>
-            </button>
-          {/each}
-        </div>
-        {#if selectedFile === ""}
-          <div
-            class="flex min-h-80 items-center justify-center rounded-lg border border-dashed border-input text-[13px] text-muted-foreground"
-          >
-            Select a file to view its contents
-          </div>
-        {:else}
-          <div class="min-h-80 max-h-[75vh] overflow-auto rounded-lg bg-[#16181a] px-5 py-4.5">
-            <div class="mb-3 font-mono text-[10.5px] text-[#6e757d]">
-              runs/{detail.summary.runId}/{selectedFile}
-            </div>
-            <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{fileContent}</pre>
-          </div>
-        {/if}
-      </div>
+      <RunFileBrowser {detail} {selectedFile} {fileContent} {onLoadFile} />
     {/if}
 
     <!-- Kept mounted across tab switches so the conversation is not reset. -->

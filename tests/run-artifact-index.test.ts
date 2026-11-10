@@ -6,16 +6,18 @@ import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import {
   INDEX_SCHEMA_VERSION,
+  readRunArtifactIndexStatus,
+  rebuildRunArtifactIndex,
+  writeThroughRunArtifactIndex,
+} from "../src/run-artifact-index";
+import {
   listRunSummariesFromIndex,
   loadConditionalCalibrationCountsFromIndex,
   loadResolvedPairsFromIndex,
   loadRunSubsystemOutcomesFromIndex,
-  readRunArtifactIndexStatus,
-  rebuildRunArtifactIndex,
   searchHistoryEntriesFromIndex,
   searchRunReportsFromIndex,
-  writeThroughRunArtifactIndex,
-} from "../src/run-artifact-index";
+} from "../src/run-artifact-index-queries";
 import { rebuildRunArtifactIndexIfStale } from "../src/run-artifact-index-repair";
 import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
 import { buildAndWriteCalibration, runScorePass } from "../src/scoring/index";

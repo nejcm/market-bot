@@ -22,7 +22,8 @@ import {
   fetchWatchlistMembership,
 } from "../app/client/api";
 import { handleResearchConsoleRequest } from "../app/server";
-import { readInstrumentWatchlistRows, rebuildRunArtifactIndex } from "../src/run-artifact-index";
+import { rebuildRunArtifactIndex } from "../src/run-artifact-index";
+import { readInstrumentWatchlistRows } from "../src/run-artifact-index-queries";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
 import type { JobType } from "../src/domain/job-type";
 

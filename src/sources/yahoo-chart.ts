@@ -1,0 +1,706 @@
+import { type OhlcvBar } from "../domain/market-data";
+import type { Observation } from "../forecast/observable";
+import { type FetchLike } from "./types";
+import { isRecord, readNumber, readString } from "../guards";
+import { isUsListing } from "./instrument-capability";
+import { fetchMassiveCloseWindow } from "./massive-fallback";
+import { fetchYahooJsonWithResilience, fetchYahooResponseWithResilience } from "./yahoo-resilience";
+
+const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
+
+export function yahooChartWindowUrl(symbol: string, from: Date, to: Date): string {
+  const start = Math.floor(from.getTime() / 1000);
+  const end = Math.floor(to.getTime() / 1000) + 86_400;
+  const params = new URLSearchParams({
+    period1: String(start),
+    period2: String(end),
+    interval: "1d",
+    events: "history",
+  });
+  return `${YAHOO_CHART_URL}/${encodeURIComponent(symbol)}?${params.toString()}`;
+}
+
+export function yahooScoringWindowUrl(symbol: string, from: Date, to: Date): string {
+  const start = new Date(from);
+  const end = new Date(to);
+  start.setUTCHours(0, 0, 0, 0);
+  end.setUTCHours(0, 0, 0, 0);
+  const url = new URL(yahooChartWindowUrl(symbol, start, end));
+  url.searchParams.set("events", "div,splits");
+  return url.toString();
+}
+
+/*
+ * A Yahoo epoch-seconds value that is finite but absurd (a millisecond epoch, a float overflow)
+ * produces an Invalid Date, whose toISOString() throws RangeError rather than returning a date.
+ * Every caller treats an unreadable timestamp as "no date", so the check belongs in one place.
+ */
+function dateFromUnixSeconds(value: unknown): string | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  const date = new Date(value * 1000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
+}
+
+interface YahooChartQuote {
+  readonly timestamps: readonly unknown[];
+  readonly quote: Record<string, unknown>;
+  readonly result: Record<string, unknown>;
+}
+
+// Unwrap chart.result[0].timestamp + indicators.quote[0] from a Yahoo chart payload.
+function readYahooChartQuote(payload: unknown): YahooChartQuote | undefined {
+  if (!isRecord(payload) || !isRecord(payload.chart)) {
+    return undefined;
+  }
+  const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
+  if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
+    return undefined;
+  }
+  const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
+  if (!isRecord(quote)) {
+    return undefined;
+  }
+  return { timestamps: result.timestamp, quote, result };
+}
+
+function observationsFromYahooChartPayload(
+  symbol: string,
+  payload: unknown,
+): readonly Observation[] {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return [];
+  }
+  const closes: readonly unknown[] = Array.isArray(chart.quote.close) ? chart.quote.close : [];
+  return chart.timestamps.flatMap((timestamp, index) => {
+    const date = dateFromUnixSeconds(timestamp);
+    const value = closes[index];
+    return date !== undefined && typeof value === "number"
+      ? [{ subject: symbol, date, value }]
+      : [];
+  });
+}
+
+/**
+ * The exchange's current regular trading session, read from
+ * `chart.result[0].meta.currentTradingPeriod.regular`.
+ *
+ * This is the only exchange-schedule metadata a Yahoo chart payload carries, and the only way to
+ * tell an in-progress session apart from a completed one: OHLCV fields populate as soon as the
+ * session opens, so a field-presence test cannot distinguish "no data yet" from "data so far
+ * today".
+ */
+interface YahooRegularSessionWindow {
+  /** UTC date the session's daily bar is stamped with (Yahoo timestamps a bar at its open). */
+  readonly startDate: string;
+  readonly startSeconds: number;
+  /** Epoch seconds at which the regular session closes. */
+  readonly endSeconds: number;
+  /** ISO timestamp of the regular close, for gap prose. */
+  readonly endsAt: string;
+}
+
+/**
+ * Outcome of reading the regular trading period.
+ *
+ * `absent` and `unusable` are deliberately distinct. Absence is expected (older cassettes, a
+ * truncated payload, a non-Yahoo shape) and says nothing about the provider. An unusable value is
+ * a provider defect, and the caller must declare it rather than fall back to any heuristic that
+ * could silently accept an in-progress bar as a completed session.
+ */
+export type YahooRegularSessionRead =
+  | { readonly status: "ok"; readonly window: YahooRegularSessionWindow }
+  | { readonly status: "absent" }
+  | { readonly status: "unusable"; readonly detail: string };
+
+/** Epoch seconds for 2000-01-01; anything earlier is not a session this collector can see. */
+const MIN_PLAUSIBLE_SESSION_SECONDS = 946_684_800;
+/** Epoch seconds for 2100-01-01. A millisecond epoch for any real date lands far above this. */
+const MAX_PLAUSIBLE_SESSION_SECONDS = 4_102_444_800;
+/** No exchange runs a regular session shorter than five minutes... */
+const MIN_SESSION_DURATION_SECONDS = 300;
+/** ...nor one longer than a day (a 24h crypto period is the ceiling). */
+const MAX_SESSION_DURATION_SECONDS = 86_400;
+
+function plausibleSessionSeconds(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= MIN_PLAUSIBLE_SESSION_SECONDS &&
+    value <= MAX_PLAUSIBLE_SESSION_SECONDS
+    ? value
+    : undefined;
+}
+
+/*
+ * Reads the current regular trading period from a Yahoo chart payload.
+ *
+ * Callers must treat anything other than `ok` as "completeness unknown", never as "session
+ * complete": a schedule that fails validation is exactly as uninformative as a missing one, and
+ * trusting it would readmit the in-progress bar this reader exists to catch.
+ */
+export function readYahooRegularSession(payload: unknown): YahooRegularSessionRead {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return { status: "absent" };
+  }
+  const meta = readScheduleContainer(chart.result, "meta");
+  if (meta.status !== "ok") {
+    return meta;
+  }
+  const period = readScheduleContainer(meta.container, "currentTradingPeriod");
+  if (period.status !== "ok") {
+    return period;
+  }
+  const regular = readScheduleContainer(period.container, "regular");
+  if (regular.status !== "ok") {
+    return regular;
+  }
+  const start = plausibleSessionSeconds(regular.container.start);
+  const end = plausibleSessionSeconds(regular.container.end);
+  if (start === undefined || end === undefined) {
+    return {
+      status: "unusable",
+      detail: `start/end are not plausible epoch seconds (start ${describeSessionBound(regular.container.start)}, end ${describeSessionBound(regular.container.end)})`,
+    };
+  }
+  const durationSeconds = end - start;
+  if (
+    durationSeconds < MIN_SESSION_DURATION_SECONDS ||
+    durationSeconds > MAX_SESSION_DURATION_SECONDS
+  ) {
+    return {
+      status: "unusable",
+      detail: `session duration ${String(durationSeconds)}s is outside ${String(MIN_SESSION_DURATION_SECONDS)}–${String(MAX_SESSION_DURATION_SECONDS)}s`,
+    };
+  }
+  const startDate = dateFromUnixSeconds(start);
+  const endsAt = isoTimestampFromUnixSeconds(end);
+  if (startDate === undefined || endsAt === undefined) {
+    return { status: "unusable", detail: "start/end do not convert to a calendar date" };
+  }
+  return { status: "ok", window: { startDate, startSeconds: start, endSeconds: end, endsAt } };
+}
+
+/*
+ * Walks one step into the schedule metadata, keeping absence and corruption apart.
+ *
+ * A genuinely missing property is `absent` — expected of older cassettes and truncated payloads,
+ * and it says nothing about the provider. A property that is PRESENT but the wrong shape
+ * (`currentTradingPeriod: "corrupt"`, `regular: null`) is a provider defect and must be declared,
+ * not folded into absence where the age heuristic would suppress it.
+ */
+function readScheduleContainer(
+  parent: Record<string, unknown>,
+  key: string,
+):
+  | { readonly status: "ok"; readonly container: Record<string, unknown> }
+  | { readonly status: "absent" }
+  | { readonly status: "unusable"; readonly detail: string } {
+  const value = parent[key];
+  if (value === undefined) {
+    return { status: "absent" };
+  }
+  if (!isRecord(value)) {
+    return {
+      status: "unusable",
+      detail: `${key} is ${describeSessionBound(value)}, not an object`,
+    };
+  }
+  return { status: "ok", container: value };
+}
+
+function isoTimestampFromUnixSeconds(value: number): string | undefined {
+  const date = new Date(value * 1000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+// `unverified` bars are kept by the snapshot with a declared gap, never re-read as complete.
+export type LatestSessionVerdict =
+  | { readonly status: "complete" }
+  | { readonly status: "in-progress"; readonly closesAt: string }
+  | { readonly status: "unverified"; readonly reason: string };
+
+// Bars are stamped at session open, so a bar dated like the current regular period is still
+// Forming until its supplied end; an implausible schedule never gets the age shortcut.
+export function classifyLatestSession(
+  read: YahooRegularSessionRead,
+  latestBarDate: string,
+  fetchedAt: string,
+): LatestSessionVerdict {
+  const fetchedAtSeconds = Date.parse(fetchedAt) / 1000;
+  if (!Number.isFinite(fetchedAtSeconds)) {
+    return {
+      status: "unverified",
+      reason: `the fetch timestamp ${fetchedAt} is not a readable date`,
+    };
+  }
+  if (read.status === "unusable") {
+    return {
+      status: "unverified",
+      reason: `the regular trading-period schedule was implausible: ${read.detail}`,
+    };
+  }
+  if (read.status === "absent") {
+    return latestBarDate >= utcDateDaysBefore(fetchedAtSeconds, 1)
+      ? { status: "unverified", reason: "the payload carried no regular trading-period schedule" }
+      : { status: "complete" };
+  }
+  // A schedule older than the bar never described its session; a newer one is the pre-open case.
+  if (latestBarDate > read.window.startDate) {
+    return {
+      status: "unverified",
+      reason: `the regular trading-period schedule is stale: it describes ${read.window.startDate}, older than the newest bar ${latestBarDate}`,
+    };
+  }
+  return latestBarDate === read.window.startDate && fetchedAtSeconds < read.window.endSeconds
+    ? { status: "in-progress", closesAt: read.window.endsAt }
+    : { status: "complete" };
+}
+
+function utcDateDaysBefore(epochSeconds: number, days: number): string {
+  return new Date((epochSeconds - days * 86_400) * 1000).toISOString().slice(0, 10);
+}
+
+// `awaiting-open`: only a later session opening after the cutoff could prove this bar closed.
+export type WithheldSession = { readonly date: string } & (
+  | Exclude<LatestSessionVerdict, { readonly status: "complete" }>
+  | { readonly status: "awaiting-open"; readonly opensAt: string }
+);
+
+// Longest routine exchange closure (Golden Week, Lunar New Year) plus margin; anything further is
+// A stale or inconsistent schedule, not an upcoming session.
+const MAX_AWAITED_OPEN_SECONDS = 10 * 86_400;
+
+export type CloseWindow = readonly Observation[] & {
+  readonly withheldSessions?: readonly WithheldSession[];
+};
+
+// Scoring withholds what the snapshot keeps. A scheduled session that has not closed and has no
+// Bar yet (pre-open) is reported too, so the window is never cached as covering that date.
+export function withholdUnfinishedSessions(
+  observations: CloseWindow,
+  schedule: YahooRegularSessionRead,
+  cutoff: string,
+): CloseWindow {
+  const cutoffSeconds = Date.parse(cutoff) / 1000;
+  const settledBefore = Number.isFinite(cutoffSeconds) ? utcDateDaysBefore(cutoffSeconds, 1) : "";
+  const withheld = observations.flatMap((observation): readonly WithheldSession[] => {
+    if (observation.date < settledBefore) {
+      return [];
+    }
+    const verdict = classifyLatestSession(schedule, observation.date, cutoff);
+    if (verdict.status !== "complete") {
+      return [{ date: observation.date, ...verdict }];
+    }
+    // A later session proves this one closed only if it had already opened by the cutoff.
+    if (
+      schedule.status !== "ok" ||
+      observation.date >= schedule.window.startDate ||
+      schedule.window.startSeconds <= cutoffSeconds
+    ) {
+      return [];
+    }
+    return schedule.window.startSeconds - cutoffSeconds <= MAX_AWAITED_OPEN_SECONDS
+      ? [
+          {
+            date: observation.date,
+            status: "awaiting-open",
+            opensAt: new Date(schedule.window.startSeconds * 1000).toISOString(),
+          },
+        ]
+      : [
+          {
+            date: observation.date,
+            status: "unverified",
+            reason: `the schedule describes a session opening more than 10 days after the cutoff ${cutoff}`,
+          },
+        ];
+  });
+  if (
+    schedule.status === "ok" &&
+    cutoffSeconds < schedule.window.endSeconds &&
+    schedule.window.startDate <= cutoff.slice(0, 10) &&
+    !observations.some((observation) => observation.date === schedule.window.startDate)
+  ) {
+    withheld.push({
+      date: schedule.window.startDate,
+      status: "in-progress",
+      closesAt: schedule.window.endsAt,
+    });
+  }
+  const scheduleDates = new Set(withheld.map((session) => session.date));
+  withheld.push(
+    ...(observations.withheldSessions ?? []).filter(({ date }) => !scheduleDates.has(date)),
+  );
+  if (withheld.length === 0) {
+    return observations;
+  }
+  const withheldDates = new Set(withheld.map((session) => session.date));
+  return Object.assign(
+    observations.filter((observation) => !withheldDates.has(observation.date)),
+    { withheldSessions: withheld },
+  );
+}
+
+function describeSessionBound(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  return typeof value === "number" ? String(value) : typeof value;
+}
+
+type YahooOhlcvField = "open" | "high" | "low" | "close" | "volume";
+
+interface YahooChartOhlcvParseResult {
+  readonly bars: readonly OhlcvBar[];
+  readonly droppedBars: readonly {
+    readonly date: string;
+    readonly missingFields: readonly YahooOhlcvField[];
+  }[];
+}
+
+// Parse full OHLCV daily bars from a Yahoo chart API payload.
+// Filters to bars with date <= analysisDate when provided.
+// Returns bars sorted oldest -> newest.
+export function parseYahooChartOhlcv(
+  payload: unknown,
+  analysisDate?: string,
+): YahooChartOhlcvParseResult {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return { bars: [], droppedBars: [] };
+  }
+  const { timestamps, quote } = chart;
+  const opens: readonly unknown[] = Array.isArray(quote.open) ? quote.open : [];
+  const highs: readonly unknown[] = Array.isArray(quote.high) ? quote.high : [];
+  const lows: readonly unknown[] = Array.isArray(quote.low) ? quote.low : [];
+  const closes: readonly unknown[] = Array.isArray(quote.close) ? quote.close : [];
+  const volumes: readonly unknown[] = Array.isArray(quote.volume) ? quote.volume : [];
+
+  const bars: OhlcvBar[] = [];
+  const droppedBars: {
+    readonly date: string;
+    readonly missingFields: readonly YahooOhlcvField[];
+  }[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const date = dateFromUnixSeconds(timestamps[i]);
+    if (date === undefined) {
+      continue;
+    }
+    if (analysisDate !== undefined && date > analysisDate) {
+      continue;
+    }
+    const rawOpen = opens[i];
+    const rawHigh = highs[i];
+    const rawLow = lows[i];
+    const rawClose = closes[i];
+    const rawVolume = volumes[i];
+    if (
+      typeof rawOpen !== "number" ||
+      typeof rawHigh !== "number" ||
+      typeof rawLow !== "number" ||
+      typeof rawClose !== "number" ||
+      typeof rawVolume !== "number"
+    ) {
+      const missingFields: YahooOhlcvField[] = [];
+      if (typeof rawOpen !== "number") {
+        missingFields.push("open");
+      }
+      if (typeof rawHigh !== "number") {
+        missingFields.push("high");
+      }
+      if (typeof rawLow !== "number") {
+        missingFields.push("low");
+      }
+      if (typeof rawClose !== "number") {
+        missingFields.push("close");
+      }
+      if (typeof rawVolume !== "number") {
+        missingFields.push("volume");
+      }
+      droppedBars.push({ date, missingFields });
+      continue;
+    }
+    bars.push({
+      date,
+      open: rawOpen,
+      high: rawHigh,
+      low: rawLow,
+      close: rawClose,
+      volume: rawVolume,
+    });
+  }
+  return { bars, droppedBars };
+}
+
+/**
+ * `ok: false` means no provider returned usable data and says why; `ok: true` with an empty
+ * series means a provider answered and genuinely had no closes. Callers that state an absence
+ * reason need the difference — HTTP success alone does not prove the payload was usable.
+ */
+export type YahooCloseWindowResult =
+  | { readonly ok: true; readonly observations: CloseWindow }
+  | { readonly ok: false; readonly cause: "fetch-failed" | "malformed-response" };
+
+// Yahoo states "there is genuinely no series here" in the response body, and pairs it with a
+// Non-2xx status: an unknown symbol is 404 Not Found, an out-of-range window is 400 Bad Request.
+// Matched as (code, description-prefix) pairs — the code alone is broader than the condition.
+const YAHOO_NO_SERIES_ERRORS: readonly (readonly [string, string])[] = [
+  ["Not Found", "No data found"],
+  ["Bad Request", "Data doesn't exist for startDate"],
+];
+
+// The error object sits under chart.error on a chart payload, and at the top level on the bare
+// Error body Yahoo returns with a non-2xx status.
+function yahooErrorRecord(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+  return isRecord(payload.chart) ? payload.chart.error : payload;
+}
+
+function isYahooNoSeriesError(payload: unknown): boolean {
+  const error = yahooErrorRecord(payload);
+  if (!isRecord(error)) {
+    return false;
+  }
+  const code = readString(error, "code");
+  const description = readString(error, "description");
+  return YAHOO_NO_SERIES_ERRORS.some(
+    ([errorCode, descriptionPrefix]) =>
+      code === errorCode && description?.startsWith(descriptionPrefix) === true,
+  );
+}
+
+type YahooChartWindowFetch =
+  | { readonly kind: "payload"; readonly payload: unknown }
+  | { readonly kind: "no-series" }
+  | { readonly kind: "failed"; readonly cause: "fetch-failed" | "malformed-response" };
+
+async function fetchYahooChartWindowPayload(
+  url: string,
+  fetchImpl: FetchLike,
+): Promise<YahooChartWindowFetch> {
+  const response = await fetchYahooResponseWithResilience(url, fetchImpl, {
+    signal: AbortSignal.timeout(10_000),
+    headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+  }).catch(() => {});
+  if (response === undefined) {
+    return { kind: "failed", cause: "fetch-failed" };
+  }
+
+  // Read the body before judging the status. Yahoo reports its one honest no-data condition with a
+  // Non-2xx status, so classifying on status first makes the genuine empty series unreachable.
+  const payload = await response.json().catch(() => {});
+  if (isYahooNoSeriesError(payload)) {
+    return { kind: "no-series" };
+  }
+  if (!response.ok) {
+    return { kind: "failed", cause: "fetch-failed" };
+  }
+  return payload === undefined
+    ? { kind: "failed", cause: "malformed-response" }
+    : { kind: "payload", payload };
+}
+
+// A parseable chart is a genuine empty series only when it carries no rows at all. A chart with
+// Timestamps whose closes are absent or null is a malformed payload, not an empty one.
+function yahooChartHasNoRows(payload: unknown): boolean {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return false;
+  }
+  const closes = chart.quote.close;
+  return chart.timestamps.length === 0 && Array.isArray(closes) && closes.length === 0;
+}
+
+export async function fetchYahooCloseWindow(
+  symbol: string,
+  from: Date,
+  to: Date,
+  fetchImpl: FetchLike = fetch,
+  massiveApiKey?: string,
+  scoringCutoff?: Date,
+): Promise<YahooCloseWindowResult> {
+  const fetched = await fetchYahooChartWindowPayload(
+    yahooChartWindowUrl(symbol, from, to),
+    fetchImpl,
+  );
+  const completed = (observations: readonly Observation[], schedule: YahooRegularSessionRead) =>
+    scoringCutoff === undefined
+      ? observations
+      : withholdUnfinishedSessions(observations, schedule, scoringCutoff.toISOString());
+
+  if (fetched.kind === "payload") {
+    const observations = observationsFromYahooChartPayload(symbol, fetched.payload);
+    if (observations.length > 0) {
+      return {
+        ok: true,
+        observations: completed(observations, readYahooRegularSession(fetched.payload)),
+      };
+    }
+  }
+
+  const massiveObservations = isUsListing(symbol)
+    ? await fetchMassiveCloseWindow(symbol, from, to, massiveApiKey, fetchImpl)
+    : undefined;
+  if (massiveObservations !== undefined) {
+    return { ok: true, observations: completed(massiveObservations, { status: "absent" }) };
+  }
+  if (fetched.kind === "no-series") {
+    return { ok: true, observations: [] };
+  }
+  if (fetched.kind === "failed") {
+    return { ok: false, cause: fetched.cause };
+  }
+  return yahooChartHasNoRows(fetched.payload)
+    ? { ok: true, observations: [] }
+    : { ok: false, cause: "malformed-response" };
+}
+
+interface YahooSplitEvent {
+  readonly date: string;
+}
+
+function splitEventsFromYahooChart(
+  result: Record<string, unknown>,
+): readonly YahooSplitEvent[] | undefined {
+  const { events } = result;
+  if (events === undefined) {
+    return [];
+  }
+  if (!isRecord(events)) {
+    return undefined;
+  }
+  const { splits } = events;
+  if (splits === undefined) {
+    return [];
+  }
+  if (!isRecord(splits)) {
+    return undefined;
+  }
+
+  const parsed: YahooSplitEvent[] = [];
+  const dates = new Set<string>();
+  for (const [timestampKey, value] of Object.entries(splits)) {
+    if (!isRecord(value)) {
+      return undefined;
+    }
+    const timestamp = readNumber(value, "date");
+    const numerator = readNumber(value, "numerator");
+    const denominator = readNumber(value, "denominator");
+    const ratio = readString(value, "splitRatio");
+    const [ratioNumerator, ratioDenominator, ...extra] = ratio?.split(":") ?? [];
+    const parsedNumerator = Number(ratioNumerator);
+    const parsedDenominator = Number(ratioDenominator);
+    if (
+      timestamp === undefined ||
+      numerator === undefined ||
+      denominator === undefined ||
+      numerator <= 0 ||
+      denominator <= 0 ||
+      extra.length > 0 ||
+      !Number.isFinite(parsedNumerator) ||
+      !Number.isFinite(parsedDenominator) ||
+      parsedNumerator <= 0 ||
+      parsedDenominator <= 0 ||
+      Number(timestampKey) !== timestamp ||
+      Math.abs(numerator / denominator - parsedNumerator / parsedDenominator) > 1e-12
+    ) {
+      return undefined;
+    }
+    const date = dateFromUnixSeconds(timestamp);
+    if (date === undefined || dates.has(date)) {
+      return undefined;
+    }
+    dates.add(date);
+    parsed.push({ date });
+  }
+  return parsed.toSorted((left, right) => left.date.localeCompare(right.date));
+}
+
+export function yahooChartSplitDates(payload: unknown): readonly string[] | undefined {
+  const chart = readYahooChartQuote(payload);
+  return chart === undefined
+    ? undefined
+    : splitEventsFromYahooChart(chart.result)?.map(({ date }) => date);
+}
+
+// Yahoo chart `close` is already split-adjusted (not dividend-adjusted); split events are only validated.
+export function splitAdjustedObservationsFromYahooChart(
+  symbol: string,
+  payload: unknown,
+): CloseWindow {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return [];
+  }
+  const closes = Array.isArray(chart.quote.close) ? chart.quote.close : undefined;
+  const splits = splitEventsFromYahooChart(chart.result);
+  if (
+    closes === undefined ||
+    closes.length !== chart.timestamps.length ||
+    splits === undefined ||
+    chart.timestamps.length === 0
+  ) {
+    return [];
+  }
+
+  const observations: Observation[] = [];
+  const withheldSessions: WithheldSession[] = [];
+  let previousDate: string | undefined = undefined;
+  for (let index = 0; index < chart.timestamps.length; index++) {
+    const date = dateFromUnixSeconds(chart.timestamps[index]);
+    const close = closes[index];
+    if (date === undefined || (previousDate !== undefined && date <= previousDate)) {
+      return [];
+    }
+    // Only the newest bar may lack a close: dropping an earlier one would shift session counts.
+    if (close === null && index === chart.timestamps.length - 1 && index > 0) {
+      withheldSessions.push({
+        date,
+        status: "unverified",
+        reason: "Yahoo returned no close for this session",
+      });
+      continue;
+    }
+    if (typeof close !== "number" || !Number.isFinite(close) || close <= 0) {
+      return [];
+    }
+    observations.push({ subject: symbol, date, value: close });
+    previousDate = date;
+  }
+  const observationDates = new Set(observations.map((observation) => observation.date));
+  if (splits.some((split) => !observationDates.has(split.date))) {
+    return [];
+  }
+  return withheldSessions.length === 0
+    ? observations
+    : Object.assign(observations, { withheldSessions });
+}
+
+export async function fetchYahooSplitAdjustedCloseWindow(
+  symbol: string,
+  from: Date,
+  to: Date,
+  fetchImpl: FetchLike = fetch,
+): Promise<CloseWindow> {
+  const fetched = await fetchYahooJsonWithResilience(
+    yahooScoringWindowUrl(symbol, from, to),
+    fetchImpl,
+    {
+      signal: AbortSignal.timeout(10_000),
+      headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+    },
+  );
+  return fetched.ok
+    ? withholdUnfinishedSessions(
+        splitAdjustedObservationsFromYahooChart(symbol, fetched.payload),
+        readYahooRegularSession(fetched.payload),
+        // Scoring passes its clock as `to`, captured before this request: a conservative cutoff.
+        to.toISOString(),
+      )
+    : [];
+}

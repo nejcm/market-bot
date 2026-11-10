@@ -2,7 +2,7 @@ import {
   classifyLatestSession,
   readYahooRegularSession,
   splitAdjustedObservationsFromYahooChart,
-} from "../../../src/sources/yahoo";
+} from "../../../src/sources/yahoo-chart";
 import { ledgerTotals } from "../../../src/model/call-ledger";
 import { financialLensSectionTiles } from "../../../app/client/view-model-lens";
 import type {

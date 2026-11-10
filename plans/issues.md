@@ -6,7 +6,6 @@ A recovery for a withheld value is built only after `bun run sweep:sec --diff` s
 
 ## TODOs
 
-- split large files
 - check for state machines
 
 ## Wrong-value risk

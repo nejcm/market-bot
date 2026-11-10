@@ -29,7 +29,7 @@ import {
 import { loadStagePrompt, type LoadedPrompt } from "../research/prompt-loader";
 import { verifiedSnapshotSource } from "../sources/verified-snapshot-contract";
 import { readJsonFile } from "../run-artifact-json-reader";
-import { readLatestSuccessfulInstrumentRuns } from "../run-artifact-index";
+import { readLatestSuccessfulInstrumentRuns } from "../run-artifact-index-queries";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { readReport } from "../run-artifact-report-reader";
 import { readReportMarketRegimeLabel } from "../run-artifacts";

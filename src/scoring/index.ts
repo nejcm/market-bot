@@ -13,12 +13,11 @@ import { writeProviderHealthSummary } from "../health/provider-health";
 import { scoringPolicyFor } from "./policy";
 import { scoreForecastOrigin } from "./forecast-origin";
 import { resolveOutcome } from "./resolver";
+import { readRunArtifactIndexStatus, writeThroughRunArtifactIndex } from "../run-artifact-index";
 import {
   loadConditionalCalibrationCountsFromIndex,
   loadResolvedPairsFromIndex,
-  readRunArtifactIndexStatus,
-  writeThroughRunArtifactIndex,
-} from "../run-artifact-index";
+} from "../run-artifact-index-queries";
 import { buildCalibrationSummary, forecastEventKey, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import { buildMissAutopsyFile } from "./miss-autopsy";

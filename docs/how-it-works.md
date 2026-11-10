@@ -435,7 +435,7 @@ Scoring lives in `src/scoring/index.ts`, `src/scoring/observations.ts`, and `src
 
 1. Load `report.json`.
 2. For prediction reports, skip predictions that are already resolved or have reached the max attempt count.
-3. Check whether the prediction horizon has elapsed in trading days, counted against the US exchange calendar (`src/scoring/exchange-calendar.ts`) so weekends and market holidays are skipped.
+3. Check whether the prediction horizon has elapsed in trading days, counted against the US exchange calendar (`src/scoring/exchange-calendar.ts`) so weekends and market holidays are skipped. A policy-v3 equity close window that is short only on non-US listings (a local holiday the US calendar does not skip) waits without spending an attempt, until 10 days past that due date, provided its origin is not quarantined and every window starts within the anchor tolerance.
 4. Fetch point or window Observations from Yahoo, CoinGecko, FRED, or Tradier.
 5. For close-based predictions, use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin.
 6. Resolve each observable forecast as `hit`, `miss`, `voided`, or unresolved. Conditional Predictions first resolve the antecedent; false antecedents are voided/excluded, true antecedents activate the consequent.

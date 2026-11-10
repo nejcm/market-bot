@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.2](https://github.com/nejcm/market-bot/compare/v1.15.1...v1.15.2) (2026-11-10)
+
+### Bug Fixes
+
+- **web-figures:** check figures co-cited with deterministic sources (#195) ([e901dd9](https://github.com/nejcm/market-bot/commit/e901dd9a64abfda5af7af91860d5e9061814258e))
+
 ## [1.15.1](https://github.com/nejcm/market-bot/compare/v1.15.0...v1.15.1) (2026-11-09)
 
 ### Bug Fixes

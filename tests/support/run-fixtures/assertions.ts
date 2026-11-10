@@ -3949,59 +3949,23 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
   },
   "equity-nbis-deep": {
-    "annual|2016-12-31|2017-03-22": [
+    // Anchored at the period's first annual report (2023-04-20); the fixture has no close that early.
+    "annual|2022-12-31|2023-04-20": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_CASH,
       MISSING_WORKBENCH_PRICE,
     ],
-    "annual|2017-12-31|2018-03-27": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2018-12-31|2019-04-19": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2019-12-31|2020-04-02": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      { status: "missing", reason: "mixed-period-balance-sheet" },
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2020-12-31|2021-04-01": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2021-12-31|2022-04-20": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    // Anchored at the period's first annual report (2023-04-20); the fixture has no close that early.
-    "annual|2022-12-31|2023-04-20": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
     "annual|2023-12-31|2024-04-26": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_CASH,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2024-12-31|2025-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,
       RESTATED_WORKBENCH_INPUT,
-      MISSING_WORKBENCH_DEBT,
+      MIXED_WORKBENCH_BALANCE_SHEET,
       RESTATED_WORKBENCH_INPUT,
     ],
     "ttm|2025-12-31|2026-04-30": [

@@ -169,7 +169,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   history has no legacy derivation. Offline canonical/legacy financial-lens corpus differences need matches
   or exact fixture-specific allowances. Historical non-deep
   artifacts without sidecars/completeness stay readable.
-- Canonical facts apply cutoff before selection, one taxonomy/currency, no extension primary totals; matching
+- Canonical facts apply cutoff before selection, one taxonomy/currency, no extension primary totals. Facts in
+  the elected currency from a filing whose revenue names another currency are convenience translations: they are
+  excluded, and a `translation-filing` gap names the filings; share counts stay. Matching
   periods resolve by filed date, amendment, accession, never unrelated periods. Preserve
   form/accession/filing/period/fiscal/taxonomy/unit/scale/extraction/citation provenance; absent accessions
   stay null with notes. Shared roster caps ten annual/twelve interim exact periods, detects cadence, and

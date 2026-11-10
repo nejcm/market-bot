@@ -534,7 +534,62 @@ describe("static equity run fixtures", () => {
           ({ adapter }) => adapter === "sec-companyfacts",
         );
         expect(JSON.stringify(companyFacts?.payload)).toContain('"RUB":');
-        expect(result.collectedSources.financialStatements?.reportingCurrency).toBe("USD");
+        const statements = result.collectedSources.financialStatements!;
+        expect(statements.reportingCurrency).toBe("USD");
+        // Yandex-era 20-Fs report RUB; their USD columns are convenience translations.
+        const annual = Object.values(statements.statements)
+          .flatMap((section) => Object.values(section))
+          .flatMap((series) => series.annual);
+        expect(
+          new Set(annual.filter(({ currency }) => currency !== null).map((f) => f.accessionNumber)),
+        ).toEqual(new Set(["0001558370-25-005991", "0001104659-26-052948"]));
+        // USD 20-Fs tag only LongTermDebtCurrent at these instants (FY2024 20-F balance sheet, Note 12).
+        expect(
+          statements.statements.balanceSheet.debt.annual
+            .filter(({ periodEnd }) => periodEnd < "2025-12-31")
+            .map(({ periodEnd, value, currency, concept, accessionNumber }) => ({
+              periodEnd,
+              value,
+              currency,
+              concept,
+              accessionNumber,
+            })),
+        ).toEqual([
+          {
+            periodEnd: "2023-12-31",
+            value: 6_800_000,
+            currency: "USD",
+            concept: "LongTermDebtCurrent",
+            accessionNumber: "0001558370-25-005991",
+          },
+          {
+            periodEnd: "2024-12-31",
+            value: 6_100_000,
+            currency: "USD",
+            concept: "LongTermDebtCurrent",
+            accessionNumber: "0001104659-26-052948",
+          },
+        ]);
+        expect(
+          result.collectedSources.valuationWorkbench?.historicalMultiples.observations
+            .find(({ basis, periodEnd }) => basis === "annual" && periodEnd === "2024-12-31")
+            ?.metrics.enterpriseValueToRevenue.inputs.find(({ label }) => label === "Debt"),
+        ).toMatchObject({ value: 6_100_000, currency: "USD", periodEnd: "2024-12-31" });
+        expect(
+          statements.statements.incomeStatement.revenue.annual.map(({ periodEnd }) => periodEnd)[0],
+        ).toBe("2022-12-31");
+        expect(
+          statements.statements.perShare.dilutedShares.annual.some(
+            ({ periodEnd }) => periodEnd === "2021-12-31",
+          ),
+        ).toBe(true);
+        expect(result.collectedSources.sourceGaps).toContainEqual(
+          expect.objectContaining({
+            message: expect.stringMatching(
+              /^Excluded USD convenience translations from 13 filings whose revenue is reported in RUB .*0001558370-24-005891.*starts with the period ended 2022-12-31$/u,
+            ),
+          }),
+        );
         await assertNbisUnsupportedInputs();
       }
       if (name === "equity-web-fallback-deep") {

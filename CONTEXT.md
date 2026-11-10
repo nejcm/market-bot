@@ -45,7 +45,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Quote Currency** — Currency of quoted prices (`InstrumentIdentity.quoteCurrency`). Yahoo `GBp` is pence, not `GBP`; it renders as pence without K/M/B scaling.
 
-**Reporting Currency** — Currency of issuer fundamentals, distinct from Quote Currency. Elected from filed facts; an ambiguous election is declared, not guessed.
+**Reporting Currency** — Currency of issuer fundamentals, distinct from Quote Currency. Elected from filed facts; an ambiguous election is declared, not guessed. Elected-currency facts from a filing whose revenue names another currency are convenience translations, excluded with a declared Source Gap.
 
 **Research Subject Registry** — Checked-in registry for `research` runs: aliases → `subjectKey`, representative instruments, provenance, optional ETF prediction proxy. Never restricts user subjects; a missing proxy permits zero scored Predictions with a disclosed gap.
 

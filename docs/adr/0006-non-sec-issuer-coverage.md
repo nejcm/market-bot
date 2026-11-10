@@ -28,7 +28,10 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
     asked for (run `b7171fdf`, three of its five prunes). A dropped quote is traced in
     `reportIntegrityAudit.droppedFigureQuotes` with its location and reason, or becomes a profile Source Gap on a
     Web Subject Profile row; a claim figure that only a dropped quote held fails with that quote's reason. A quote
-    needs at least three words outside its figures; a bare number matches almost any page.
+    needs at least three words outside its figures; a bare number matches almost any page. A quote with
+    `unitQuote` needs one word, since it verifies only as a whole-label monetary row and the label is the
+    context (amended 2026-11-10); the three-word floor dropped a `| 1 | Revenue | 485,101 | 228,567 |` row as
+    `quote-too-short` and withheld the profile's KPIs (run `ba3a337e`, 0097.KL).
   - A table figure whose currency and scale appear only in its column's unit header adds `unitQuote`, that header
     cell verbatim (amended 2026-11-09). Code splits the same stored text into pipe tables (a blank line, a non-table
     line, or a Markdown separator row starts a new one), finds each quoted figure's own cell, and walks up from its row to the table top. Every row
@@ -51,9 +54,18 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   - Web Gather stores at most `MAX_TEXT_CHARS` per page and the snippet cap; a figure beyond the stored text
     fails. A snippet-only source verifies only what the snippet holds. A source with no stored text fails every
     figure tied to it.
-  - A claim whose model-cited source IDs include a deterministic source (`market-data`, `market-context`,
-    `extended-evidence`) may carry figures without quotes, because code cannot tell which cited source a figure
-    came from. News, prior-report, reference, and unknown IDs do not exempt.
+  - A co-cited deterministic source (`market-data`, `market-context`, `extended-evidence`) exempts nothing
+    (amended 2026-11-10): every model-typed figure in a web-cited claim needs a proven quote, and an ambiguous
+    span fails the claim whatever else it cites. A quote may instead name a deterministic source, and is then
+    checked against that source's stored collector text: its `snippet` (the sanitized SEC filing text, the
+    only text a Web Subject Profile sees) and the `summary` of every Extended Evidence or Market Context item
+    citing the ID, normalized and matched as web text is. Market-data rows hold structured values only, so
+    nothing is stored under one, not even a multi-source item summary that lists it, and a quote on one
+    fails as `no-stored-text`; their figures reach a web-cited claim as metric references, which code renders
+    and blanks. The earlier rule let any model-cited deterministic ID exempt every
+    figure in the claim and skipped the ambiguous-span check; on the 60 newest saved runs (2026-11-09) that
+    published 39 unchecked figures in 18 claims, and a re-audit under this rule prunes 24 claims in 18 runs,
+    all `figure-not-quoted`.
   - A metric reference substitutes a value code rendered from its Metric Section (`MYR 485.1M`, `112.2%`) and
     merges the metric's source IDs into the claim. The resolver records each substitution's field, offset, and
     text in `renderedMetrics`, and the IDs the claim did not already cite in `metricSourceIds`; only code sets
@@ -65,10 +77,10 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
     before it, and no scale, unit, or currency word or range bound across whitespace after it. The claim must also read
     the same figures with the span blanked as without it, which catches word ranges ("from 10 to"), parentheses,
     and a spaced sign. A span that fails either test is code-rendered text glued to typed text, which no quote can
-    prove, so a web-cited claim holding one prunes as `figure-ambiguous` unless it cites a deterministic source itself. A span whose text no longer matches is
-    checked like typed text
-    (amended 2026-11-08). The earlier rule let any deterministic ID exempt every figure, metric-reference sources
-    included, so one `<<metric:financial-lens.revenue>>` exempted an unquoted web figure in the same sentence.
+    prove, so a web-cited claim holding one prunes as `figure-ambiguous`. A span whose text no longer matches is
+    checked like typed text (amended 2026-11-08). The earlier rule let any deterministic ID exempt every figure,
+    metric-reference sources included, so one `<<metric:financial-lens.revenue>>` exempted an unquoted web figure
+    in the same sentence.
 - **Failure prunes and declares.** Final-synthesis findings, cases, risks, catalysts, scenarios, and Earnings
   Setup bullets drop whole; a Business Framework section loses its model text; each prune adds a
   `report.dataGaps` entry naming the figure, reason, and source, and is traced in `reportIntegrityAudit.pruned`
@@ -269,7 +281,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   endpoint (no scale, unit or currency of its own), which takes the high's scale, unit and currency, unless the low
   is a year ("fiscal 2024 to 51%") or both endpoints are bare. The low withholds when it exceeds the high ("from 500
   to 2 million", "up 100 to $5 million") or the high withholds ("5 to $7-million").
-- A web figure in a claim that also cites a deterministic source itself is not checked.
+- A deterministic source is quotable only through its snippet and item summaries; a figure held in a structured
+  field those omit can reach a web-cited claim only as a metric reference, or the claim prunes.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - News-kind sources and the qualitative summary are outside the check.
 - A redirected run collects market data twice (typed code, then the resolved code).

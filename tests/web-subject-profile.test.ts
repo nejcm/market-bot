@@ -2308,10 +2308,13 @@ describe("geography share screen", () => {
 const questionsOf = (payload: Record<string, unknown>) =>
   payload.questions as Record<string, unknown>;
 
+const companyKpis = (result: { artifact: { questions: unknown } }) =>
+  (result.artifact.questions as Record<string, WebSubjectProfileAnswer>).companyKpis!;
+
 describe("Verified Web Figure profile screen", () => {
   const snippet = "Services revenue reached $26.3 billion, up 14% year over year.";
   const quoted = [{ sourceId: webSource.id, quote: "Services revenue reached $26.3 billion" }];
-  const produce = (edit: (payload: Record<string, unknown>) => void, source = webSource) => {
+  const produce = (edit: (payload: Record<string, unknown>) => void, ...sources: Source[]) => {
     const payload = JSON.parse(profilePayload()) as Record<string, unknown>;
     edit(payload);
     return buildWebSubjectProfileEvidence({
@@ -2320,11 +2323,72 @@ describe("Verified Web Figure profile screen", () => {
       generatedAt: "2026-05-19T00:00:00.000Z",
       runId: "test-run",
       modelContent: JSON.stringify(payload),
-      webSources: [source],
+      webSources: sources.length === 0 ? [webSource] : sources,
       extendedEvidence: undefined,
     });
   };
   const withSnippet = { ...webSource, snippet };
+  const filing: Source = {
+    id: "extended-sec-edgar-aapl-10q",
+    title: "AAPL SEC 10-Q",
+    fetchedAt: "2026-05-19T00:00:00.000Z",
+    kind: "extended-evidence",
+    assetClass: "equity",
+    symbol: "AAPL",
+    provider: "sec-edgar",
+    snippet: "Item 2. Services net sales increased 14% to $26.3 billion in the second quarter.",
+  };
+  const mixedAnswer = "Services net sales rose 14% to $26.3 billion.";
+  const filingQuote = [
+    { sourceId: filing.id, quote: "Services net sales increased 14% to $26.3 billion" },
+  ];
+  test("a mixed filing-and-web sentence is proven by a quote of the filing snippet", () => {
+    const result = produce(
+      (payload) => {
+        questionsOf(payload).companyKpis = {
+          answer: mixedAnswer,
+          sourceIds: [filing.id, webSource.id],
+          figureQuotes: filingQuote,
+        };
+      },
+      webSource,
+      filing,
+    );
+    expect(companyKpis(result)).toEqual({
+      answer: mixedAnswer,
+      sourceIds: [filing.id, webSource.id],
+      figureQuotes: filingQuote,
+    });
+    expect(
+      result.sourceGaps.filter(({ message }) => message.includes("Verified Web Figure")),
+    ).toEqual([]);
+    const fresh = result.artifact;
+    expect(
+      screenReusedWebSubjectProfile(fresh, webSourceTexts([webSource, filing])).withheldGaps,
+    ).toEqual([]);
+    const { snippet: _snippet, ...bareFiling } = filing;
+    expect(
+      companyKpis(screenReusedWebSubjectProfile(fresh, webSourceTexts([webSource, bareFiling])))
+        .answer,
+    ).toBe(WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE);
+  });
+
+  test("a mixed filing-and-web sentence is withheld when its filing figures are unquoted", () => {
+    const result = produce(
+      (payload) => {
+        questionsOf(payload).companyKpis = {
+          answer: mixedAnswer,
+          sourceIds: [filing.id, webSource.id],
+        };
+      },
+      withSnippet,
+      filing,
+    );
+    expect(companyKpis(result).answer).toBe(WEB_SUBJECT_PROFILE_WEB_FIGURE_ANSWER_NOTICE);
+    expect(result.sourceGaps.map(({ message }) => message)).toContain(
+      `Verified Web Figure check withheld webSubjectProfile.questions.companyKpis: 14% has no verbatim quote from a cited source (${webSource.id}).`,
+    );
+  });
 
   test("keeps a quoted figure and prunes the unquoted sentence with a gap", () => {
     const result = produce((payload) => {
@@ -2374,7 +2438,7 @@ describe("Verified Web Figure profile screen", () => {
       `Verified Web Figure check withheld webSubjectProfile.questions.companyKpis: $26.3 million is quoted at a different scale (${webSource.id}).`,
     );
     expect(messages).toContain(
-      `Verified Web Figure check withheld webSubjectProfile.factLedger[1]: 15% has no verbatim quote from its cited web source (${webSource.id}).`,
+      `Verified Web Figure check withheld webSubjectProfile.factLedger[1]: 15% has no verbatim quote from a cited source (${webSource.id}).`,
     );
   });
 

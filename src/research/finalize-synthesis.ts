@@ -51,6 +51,7 @@ export async function finalizeSynthesis(
     webSourceTexts(
       [...collected.extendedSources, ...synthesis.report.sources],
       collected.rawSnapshots,
+      [...(collected.extendedEvidence?.items ?? []), ...(collected.marketContext?.items ?? [])],
     ),
     runCurrencies,
   );

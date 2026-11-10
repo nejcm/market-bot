@@ -439,6 +439,30 @@ describe("Verified Web Figure", () => {
       ).toBeUndefined();
     });
 
+    // Web Subject Profile quote of run 2026-11-09T20-12-16-531Z-ba3a337e (0097.KL), KLSE Screener page text.
+    test("accepts a labelled table row whose only context is its label", () => {
+      const page =
+        "SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 \n\n" +
+        "| | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | |\n| --- | --- | --- | --- | --- | --- |\n" +
+        "| | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD |\n" +
+        "| | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 |\n" +
+        "| | | MYR'000 | MYR'000 | MYR'000 | MYR'000 |\n" +
+        "| 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 |\n" +
+        "| 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 |";
+      const row = "| 1 | Revenue | 485,101 | 228,567 |";
+      expect(claim(page, "Revenue was RM485,101 thousand.", row, "MYR'000")).toEqual({
+        failure: undefined,
+        dropped: [],
+      });
+      expect(claim(page, "Revenue was RM485,101 thousand.", "485,101", "MYR'000")).toMatchObject({
+        failure: { reason: "quote-too-short" },
+        dropped: [{ reason: "quote-too-short" }],
+      });
+      expect(claim(page, "Revenue was 485,101.", row)).toMatchObject({
+        failure: { reason: "quote-too-short" },
+      });
+    });
+
     test("keeps the figure unverified when the unit header is not in the source", () => {
       expect(
         claim(
@@ -1348,18 +1372,132 @@ describe("Verified Web Figure", () => {
     expect(check("Results for Q3 2026 were filed on Nov 5, 2026.")).toBeUndefined();
   });
 
-  test("lets only a deterministic co-citation carry unquoted figures", () => {
-    expect(check("Revenue grew 22.8%.", undefined, ["web-vitrox", "sec-10q"])).toBeUndefined();
-    for (const other of ["news-vitrox", "history-report-prior", "unknown-id"]) {
-      expect(check("Revenue grew 22.8%.", undefined, ["web-vitrox", other])).toMatchObject({
+  test("a co-cited deterministic source proves no figure by itself", () => {
+    for (const other of ["sec-10q", "news-vitrox", "history-report-prior", "unknown-id"]) {
+      expect(check("Revenue grew 22.8%.", undefined, ["web-vitrox", other])).toEqual({
         reason: "figure-not-quoted",
+        figure: "22.8%",
+        sourceIds: ["web-vitrox"],
       });
     }
+    expect(
+      unverifiedWebFigure(
+        {
+          text: "Margin was -**12.5%**.",
+          sourceIds: ["web-vitrox", "sec-10q"],
+          ambiguousSpans: ["12.5%"],
+        },
+        texts,
+      ),
+    ).toEqual({ reason: "figure-ambiguous", figure: "12.5%", sourceIds: ["web-vitrox"] });
+  });
+
+  // SEC Fundamental Evidence summary as run 2026-11-09T11-49-24-320Z-b685f6d4 stores it for ORCL.
+  describe("quotes against a deterministic source's collector text", () => {
+    const summary =
+      "SEC Fundamental Evidence: revenue 19345000000 (29.6% YoY), operating income 6728000000 (57.3% YoY).";
+    const stored = webSourceTexts(
+      [webSource(), SEC_SOURCE],
+      [],
+      [{ summary, sourceIds: ["sec-10q"] }],
+    );
+    const claim = (text: string, quote: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: ["web-vitrox", "sec-10q"],
+          figureQuotes: [{ sourceId: "sec-10q", quote }],
+        },
+        stored,
+      );
+
+    test("proves a figure the quoted collector text holds", () => {
+      expect(
+        claim("Revenue grew 29.6% year over year.", "Evidence: revenue 19345000000 (29.6% YoY)"),
+      ).toBeUndefined();
+    });
+
+    test("fails a quote the collector text does not hold", () => {
+      const quote = "Evidence: revenue 19345000000 (31.2% YoY)";
+      expect(claim("Revenue grew 31.2% year over year.", quote)).toEqual({
+        reason: "quote-not-in-source",
+        figure: "31.2%",
+        sourceIds: ["sec-10q"],
+      });
+      expect(
+        failedFigureQuotes(
+          { sourceIds: ["sec-10q"], figureQuotes: [{ sourceId: "sec-10q", quote }] },
+          stored,
+        ),
+      ).toEqual([{ sourceId: "sec-10q", quote, reason: "quote-not-in-source" }]);
+    });
+
+    test("quotes a filing source's collector snippet", () => {
+      const filing = {
+        ...SEC_SOURCE,
+        snippet: "Net revenues increased 29.6% to $19.3 billion in the quarter.",
+      };
+      expect(
+        unverifiedWebFigure(
+          {
+            text: "Revenue grew 29.6% year over year.",
+            sourceIds: ["web-vitrox", "sec-10q"],
+            figureQuotes: [{ sourceId: "sec-10q", quote: "Net revenues increased 29.6% to" }],
+          },
+          webSourceTexts([webSource(), filing]),
+        ),
+      ).toBeUndefined();
+    });
+
+    test("stores nothing under a market-data id a multi-source item lists", () => {
+      const snapshot: Source = {
+        id: "verified-snapshot-AAPL",
+        title: "Verified snapshot",
+        fetchedAt: "2026-11-05T11:00:00.000Z",
+        kind: "market-data",
+        snippet: summary,
+      };
+      const shared = webSourceTexts(
+        [webSource(), SEC_SOURCE, snapshot],
+        [],
+        [{ summary, sourceIds: ["sec-10q", snapshot.id] }],
+      );
+      expect(shared.deterministic.get(snapshot.id)).toEqual([]);
+      expect(
+        unverifiedWebFigure(
+          {
+            text: "Revenue grew 29.6% year over year.",
+            sourceIds: ["web-vitrox", snapshot.id],
+            figureQuotes: [
+              { sourceId: snapshot.id, quote: "Evidence: revenue 19345000000 (29.6% YoY)" },
+            ],
+          },
+          shared,
+        ),
+      ).toEqual({ reason: "no-stored-text", figure: "29.6%", sourceIds: [snapshot.id] });
+    });
+
+    test("a deterministic source with no stored text proves nothing", () => {
+      expect(
+        unverifiedWebFigure(
+          {
+            text: "Revenue grew 29.6% year over year.",
+            sourceIds: ["web-vitrox", "sec-10q"],
+            figureQuotes: [
+              { sourceId: "sec-10q", quote: "Evidence: revenue 19345000000 (29.6% YoY)" },
+            ],
+          },
+          texts,
+        ),
+      ).toEqual({ reason: "no-stored-text", figure: "29.6%", sourceIds: ["sec-10q"] });
+    });
   });
 
   test("drops a failing quote and judges the claim on what remains", () => {
     const dropped = { sourceId: "web-vitrox", quote: "price target $300 - Buy now" };
-    expect(check("Revenue grew 22.8%.", dropped.quote, ["web-vitrox", "sec-10q"])).toBeUndefined();
+    expect(check("Revenue grew 22.8%.", dropped.quote, ["web-vitrox", "sec-10q"])).toMatchObject({
+      reason: "quote-not-in-source",
+    });
     expect(
       failedFigureQuotes({ sourceIds: ["web-vitrox", "sec-10q"], figureQuotes: [dropped] }, texts),
     ).toEqual([{ ...dropped, reason: "quote-not-in-source" }]);
@@ -1418,7 +1556,6 @@ describe("Verified Web Figure", () => {
         {
           text: typedReading({ text, renderedMetrics }, "text").text,
           sourceIds: ["web-vitrox", "sec-10q"],
-          metricSourceIds: ["sec-10q"],
         },
         texts,
       );
@@ -1496,25 +1633,23 @@ describe("Verified Web Figure", () => {
     ).toEqual({ reason: "figure-ambiguous", figure: "12.5%", sourceIds: ["web-vitrox"] });
   });
 
-  test("a deterministic id merged from a metric reference exempts only the figures code rendered", () => {
-    const claim = (text: string, metricSourceIds?: readonly string[]) =>
+  test("a metric reference exempts only the figure code rendered", () => {
+    const claim = (text: string) =>
       unverifiedWebFigure(
         {
           text: typedReading({ text, renderedMetrics: [renderedAt(text, "MYR 485.1M")] }, "text")
             .text,
           sourceIds: ["web-vitrox", "sec-10q"],
-          ...(metricSourceIds === undefined ? {} : { metricSourceIds }),
         },
         texts,
       );
     const typed = "Revenue was MYR 485.1M; management guided to RM 600m next quarter.";
-    expect(claim(typed, ["sec-10q"])).toEqual({
+    expect(claim(typed)).toEqual({
       reason: "figure-not-quoted",
       figure: "RM 600m",
       sourceIds: ["web-vitrox"],
     });
-    expect(claim("Revenue was MYR 485.1M.", ["sec-10q"])).toBeUndefined();
-    expect(claim(typed)).toBeUndefined();
+    expect(claim("Revenue was MYR 485.1M.")).toBeUndefined();
   });
 
   test("fails a quote with too little text around its figure", () => {
@@ -1566,8 +1701,8 @@ describe("Report Integrity Audit with Verified Web Figures", () => {
     expect(setup.expectationBar).toHaveLength(1);
     expect(result.report.dataGaps).toEqual([
       ...report.dataGaps,
-      "Verified Web Figure check withheld keyFindings[1]: RM118.8 million has no verbatim quote from its cited web source (web-vitrox).",
-      "Verified Web Figure check withheld extras.earningsSetup.expectationBar[0]: 22.8% has no verbatim quote from its cited web source (web-vitrox).",
+      "Verified Web Figure check withheld keyFindings[1]: RM118.8 million has no verbatim quote from a cited source (web-vitrox).",
+      "Verified Web Figure check withheld extras.earningsSetup.expectationBar[0]: 22.8% has no verbatim quote from a cited source (web-vitrox).",
     ]);
     expect(result.pruned.map(({ location, webFigure }) => [location, webFigure?.reason])).toEqual([
       ["keyFindings[1]", "figure-not-quoted"],

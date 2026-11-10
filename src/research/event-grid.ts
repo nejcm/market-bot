@@ -36,9 +36,9 @@ export function gridBenchmark(symbol: string): string {
   return exchangeProfileFor(symbol)?.benchmark ?? US_GRID_BENCHMARK;
 }
 
-// ScoredSessions counts US sessions only, so elsewhere a range event could never carry a Forecast Baseline.
+// ScoredSessions counts US and Exchange Profile sessions only, so elsewhere a range event could never carry a Forecast Baseline.
 export function gridIssuesRange(symbol: string, identity?: InstrumentIdentity): boolean {
-  return isUsListing(symbol, identity);
+  return isUsListing(symbol, identity) || exchangeProfileFor(symbol) !== undefined;
 }
 
 type GridSources = Pick<
@@ -142,7 +142,7 @@ export function eventGrid(
     gaps.push(
       gridGap(
         symbol,
-        `Event Grid range events not issued: ${symbol} trades outside the US session calendar scoring counts on, so no Forecast Baseline could be stamped for them`,
+        `Event Grid range events not issued: ${symbol} trades outside the US on an exchange with no Exchange Profile, so scoring has no session count to stamp a Forecast Baseline with`,
       ),
     );
   } else if (reference === undefined || "gap" in reference) {
@@ -259,7 +259,7 @@ const UNAVAILABLE_REASON_TEXT: Record<ForecastBaselineUnavailableReason, string>
   "zero-volatility": "the split-adjusted closes show no price movement",
   "stale-closes": "its latest close is more than a few days older than the other leg's",
   "unscored-sessions":
-    "the sessions scoring spans after its latest close are unknown (non-US listing or unverified latest session)",
+    "the sessions scoring spans after its latest close are unknown (a non-US listing without an Exchange Profile or with a weekday between its latest close and the run date, or an unverified latest session)",
 };
 
 function closesBySymbol(

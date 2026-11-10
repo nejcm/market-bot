@@ -1068,6 +1068,12 @@ const filings = (concepts: Concepts, form: (fp: string) => string): Concepts =>
       rows.map((value) => ({ ...value, form: form(String(value.fp)) })),
     ]),
   );
+const unitFor = (concept: string) => {
+  if (/PerShare/u.test(concept)) {
+    return "USD/shares";
+  }
+  return /Shares/u.test(concept) ? "shares" : "USD";
+};
 const scoped = (taxonomy: "us-gaap" | "ifrs-full", concepts: Concepts) =>
   deriveFinancialStatements(
     {
@@ -1075,7 +1081,7 @@ const scoped = (taxonomy: "us-gaap" | "ifrs-full", concepts: Concepts) =>
         [taxonomy]: Object.fromEntries(
           Object.entries(concepts).map(([concept, rows]) => [
             concept,
-            { units: { [/PerShare/u.test(concept) ? "USD/shares" : "USD"]: rows } },
+            { units: { [unitFor(concept)]: rows } },
           ]),
         ),
       },
@@ -1084,7 +1090,7 @@ const scoped = (taxonomy: "us-gaap" | "ifrs-full", concepts: Concepts) =>
   );
 const flows = (value: number): readonly Row[] => [fy25(value), ytdPrior(value), ytd(value)];
 
-describe("diluted shares fallback uses parent-attributable income", () => {
+describe("diluted shares require parent-attributable income", () => {
   test("IFRS consolidated ProfitLoss 100 vs parent 50 and EPS 5 withholds shares, not 20", () => {
     const { ttm, periods } = valuationPeriodInputs(
       scoped(
@@ -1107,18 +1113,19 @@ describe("diluted shares fallback uses parent-attributable income", () => {
     expect(periods[0]?.dilutedShares).toBeUndefined();
   });
 
-  test("us-gaap parent NetIncomeLoss 50 and EPS 5 derives 10 shares", () => {
+  test("us-gaap parent NetIncomeLoss 50 and EPS 5 takes the filed count, never NI / EPS", () => {
     const { ttm, periods } = valuationPeriodInputs(
       scoped("us-gaap", {
         Revenues: flows(1000),
         NetIncomeLoss: flows(50),
         ProfitLoss: flows(100),
         EarningsPerShareDiluted: flows(5),
+        WeightedAverageNumberOfDilutedSharesOutstanding: flows(12),
       }),
     );
 
-    expect(ttm?.dilutedShares?.value).toBe(10);
-    expect(periods[0]?.dilutedShares?.value).toBe(10);
+    expect(ttm?.dilutedShares?.value).toBe(12);
+    expect(periods[0]?.dilutedShares?.value).toBe(12);
   });
 });
 

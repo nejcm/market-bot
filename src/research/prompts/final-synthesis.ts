@@ -237,7 +237,7 @@ function rangeAnchorHorizons(
       .filter((event) => event.kind === "range")
       .map((event) => event.horizonTradingDays),
   );
-  // Grid bands withheld for want of a session calendar stay out of the anchors, as when they were issued.
+  // Grid bands withheld on a non-US listing without an Exchange Profile stay out of the anchors, as when they were issued.
   const withheld: readonly number[] =
     isInstrumentCommand(command) &&
     !gridIssuesRange(command.symbol, collectedSources.resolvedInstrumentIdentity)
@@ -249,6 +249,8 @@ function rangeAnchorHorizons(
 }
 
 const sessions = (count: number) => `${String(count)} session${count === 1 ? "" : "s"}`;
+const sessionCalendar = (command: ResearchCommand) =>
+  profiledExchange(command)?.exchange ?? "US exchange";
 
 function buildRangeVolatilityReference(
   command: ResearchCommand,
@@ -280,7 +282,7 @@ function buildRangeVolatilityReference(
       const baseRate =
         scored === undefined
           ? `base rate about ${String(RANGE_REFERENCE_OUTSIDE_PROBABILITY)} (Gaussian one-sigma)`
-          : `base rate about ${scored.probability.toFixed(2)} (Gaussian, assuming complete US exchange sessions it scores the close ${sessions(scored.sessions)} after that close)`;
+          : `base rate about ${scored.probability.toFixed(2)} (Gaussian, assuming complete ${sessionCalendar(command)} sessions it scores the close ${sessions(scored.sessions)} after that close)`;
       return [`+${String(horizon)}: [${lo.toFixed(2)}, ${hi.toFixed(2)}], ${baseRate}`];
     })
     .join("; ");
@@ -323,7 +325,7 @@ function buildEventGridInstruction(
     const baseRate =
       scored === undefined
         ? ""
-        : `, and assuming complete US exchange sessions it scores the close ${sessions(scored.sessions)} after that close, so a close outside it has a Gaussian base rate of about ${scored.probability.toFixed(2)}`;
+        : `, and assuming complete ${sessionCalendar(command)} sessions it scores the close ${sessions(scored.sessions)} after that close, so a close outside it has a Gaussian base rate of about ${scored.probability.toFixed(2)}`;
     return `${event.id}: ${event.measurableAs}, the ±1σ band over ${sessions(event.horizonTradingDays)} around the ${snapshot.recentCloses.at(-1)!.date} reference close ${reference.spot.toFixed(2)}${baseRate}`;
   };
   const rows = events

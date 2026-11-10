@@ -244,6 +244,39 @@ describe("finalizeSynthesis peer-median citation check", () => {
       [{ location: "bearCase[0]", text: "P/E is above the peer median" }],
     ]);
   });
+
+  test("sends a scenario's peer-median clause once, with its name", async () => {
+    auditCalls = [];
+    await finalizeSynthesis(
+      {
+        report: researchReport({
+          jobType: "equity",
+          symbol: "AMD",
+          scenarios: [
+            {
+              name: "Premium holds",
+              description: "P/E stays above the peer median; demand grows.",
+              sourceIds: ["market-amd"],
+            },
+          ],
+          sources: IDS.map(source),
+        }),
+        sourceGaps: [],
+        stageOutputs: [],
+        predictionRetryErrors: [],
+        predictionTrimWarnings: [],
+        predictionErrors: [],
+        reportValidationErrors: [],
+        relocatedGapClaims: [],
+      },
+      collectedSources({ valuationComps: COMPS }),
+      ASSESSMENT,
+      regexOnly,
+    );
+    expect(auditCalls).toEqual([
+      [{ location: "scenarios[0]", text: "Premium holds: P/E stays above the peer median" }],
+    ]);
+  });
 });
 
 describe("finalizeSynthesis peer-median audit labels", () => {

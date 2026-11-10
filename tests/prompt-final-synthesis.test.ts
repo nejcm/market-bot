@@ -154,6 +154,36 @@ describe("range volatility reference", () => {
     expect(instruction).not.toContain("another benchmark");
   });
 
+  test("names the Exchange Profile calendar in a profiled grid base rate, and omits it when sessions are unknown", () => {
+    const bursa = (analysisDate: string) =>
+      kindMixSynthesisInstruction(
+        { jobType: "equity", assetClass: "equity", symbol: "0097.KL", depth: "brief" },
+        {
+          verifiedMarketSnapshot: verifiedMarketSnapshot({
+            symbol: "0097.KL",
+            analysisDate,
+            recentCloses: rangeReferenceCloses(21),
+          }),
+          extendedSources: ["0097.KL", "^KLSE"].map((symbol) =>
+            newsSource({ id: `price-history-${symbol}`, kind: "market-data" }),
+          ),
+        },
+      );
+    const nextDay = bursa("2026-05-22");
+    expect(nextDay).toContain(
+      "the ±1σ band over 1 session around the 2026-05-21 reference close 100.00, and assuming complete Bursa Malaysia sessions it scores the close 2 sessions after that close, so a close outside it has a Gaussian base rate of about 0.48",
+    );
+    expect(nextDay).toContain(
+      "+10: [93.78, 106.64], base rate about 0.34 (Gaussian, assuming complete Bursa Malaysia sessions it scores the close 11 sessions after that close)",
+    );
+    expect(nextDay).not.toContain("US exchange");
+
+    const afterWeekday = bursa("2026-05-25");
+    expect(afterWeekday).toContain("grid-range-1: close(0097.KL, +1) outside [");
+    expect(afterWeekday).not.toContain("Gaussian base rate");
+    expect(afterWeekday).toContain("base rate about 0.32 (Gaussian one-sigma)");
+  });
+
   test("names each grid range event as its ±1σ band with the base rate for its scored sessions", () => {
     const sameDay = reference(rangeReferenceCloses(21));
     for (const horizon of [1, 5, 20]) {

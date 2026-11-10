@@ -252,16 +252,22 @@ function assertListingCoverageInvariants(result: RunFixtureResult, meta: Fixture
   if (withheld) {
     expect(result.report.predictions).toEqual([]);
   }
-  for (const { id } of result.report.predictions.filter(
+  assertGridBaselineGapsDeclared(result.report);
+  return withheld;
+}
+
+export function assertGridBaselineGapsDeclared(
+  report: Pick<ResearchReport, "predictions" | "dataGaps">,
+): void {
+  for (const { id } of report.predictions.filter(
     ({ origin, baselineProbability }) => origin === "grid" && baselineProbability === undefined,
   )) {
-    expect(result.report.dataGaps).toContainEqual(
+    expect(report.dataGaps).toContainEqual(
       expect.stringMatching(
-        new RegExp(`^forecast-baseline: .*\\b${id}\\b.*\\(non-US listing`, "u"),
+        new RegExp(`^forecast-baseline: Forecast Baseline omitted for [^:]*\\b${id}\\b`, "u"),
       ),
     );
   }
-  return withheld;
 }
 
 // A profiled non-SEC listing publishes issuer report figures or declares why not; every figure quotes its source text.
@@ -2564,7 +2570,7 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
       "clfd20251231_10q",
       "c1292",
       undefined,
-      2.2738,
+      2.2902,
     ],
     [
       "2026-03-31",
@@ -2573,7 +2579,7 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
       "clfd20260331_10q",
       "c1613",
       "clfd-20260331",
-      2.893,
+      2.8371,
     ],
     [
       "2026-06-30",
@@ -2582,7 +2588,7 @@ export function assertClfdTaggedZeroDebt(result: RunFixtureResult): void {
       "clfd20260630_10q",
       "c1651",
       "clfd-20260630",
-      1.7975,
+      1.6995,
     ],
   ] as const) {
     const fact = debt.find((row) => row.periodEnd === periodEnd);
@@ -3188,6 +3194,13 @@ function assertValuationWorkbenchInvariants(
   ).toEqual([]);
   const revenueSupersedingFacts = statements?.statements.incomeStatement.revenue.supersedingFacts;
   for (const { basis, periodEnd, publicAt, inputs } of observations) {
+    expect(
+      Object.values(inputs).filter((input) => input?.derivation === "net income / diluted EPS"),
+      `${fixtureName} ${basis} ${periodEnd} never derives shares from NI / diluted EPS`,
+    ).toEqual([]);
+    if (inputs.dilutedShares !== undefined) {
+      expect(inputs.dilutedShares.value).toBeGreaterThan(0);
+    }
     if (basis === "ttm" && inputs.revenue?.derivation === "FY") {
       expect(revenueSupersedingFacts, `${fixtureName} checks FY TTM ${periodEnd}`).toBeDefined();
       expect(
@@ -3321,12 +3334,8 @@ function assertValuationWorkbenchInvariants(
         .toSorted()
         .at(-1)!,
     );
-    expect(input.currency).toBe(
-      input.derivation === "net income / diluted EPS" ? null : facts[0]!.currency,
-    );
-    expect(input.unit).toBe(
-      input.derivation === "net income / diluted EPS" ? "shares" : facts[0]!.unit,
-    );
+    expect(input.currency).toBe(facts[0]!.currency);
+    expect(input.unit).toBe(facts[0]!.unit);
     expect(input.publicAt).toBe(
       facts
         .map(({ firstPublicAt }) => firstPublicAt)
@@ -3359,9 +3368,6 @@ function assertValuationWorkbenchInvariants(
         0,
       );
       return valueOf("operatingCashFlow") - valueOf("capitalExpenditure");
-    }
-    if (input.derivation === "net income / diluted EPS") {
-      return valueOf("netIncome") / valueOf("dilutedEps");
     }
     return valueOf(inputSeries[0]!);
   };
@@ -3670,21 +3676,21 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
   ],
   "ttm|2025-12-31|2026-02-09": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
-    2.896_894_170_941_147,
-    2.273_836_481_491_164,
+    2.913_208_983_379_236,
+    2.290_151_293_929_252_8,
     MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-03-31|2026-05-07": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
-    3.506_019_539_993_908_5,
-    2.892_954_314_846_312,
-    65.800_212_837_331_03,
+    3.450_126_513_799_874_7,
+    2.837_061_288_652_278_4,
+    64.751_224_667_773_84,
   ],
   "ttm|2026-06-30|2026-08-06": [
     NEGATIVE_WORKBENCH_DENOMINATOR,
-    2.456_278_691_519_679_5,
-    1.797_514_959_546_961_3,
-    51.391_878_897_623_63,
+    2.358_284_983_638_871,
+    1.699_521_251_666_153,
+    49.341_590_066_178_43,
   ],
 };
 
@@ -3718,24 +3724,27 @@ const IREN_WORKBENCH_VALUES: WorkbenchValues = {
 const AAPL_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2023-09-30|2023-11-01": [
     MISSING_WORKBENCH_PRICE,
-    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_SHARES,
     MISSING_WORKBENCH_CASH,
-    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_SHARES,
   ],
   "annual|2024-09-30|2024-11-01": [
     MISSING_WORKBENCH_PRICE,
-    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_SHARES,
     MISSING_WORKBENCH_CASH,
-    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_SHARES,
   ],
   "annual|2025-09-30|2025-11-01": [
     MISSING_WORKBENCH_PRICE,
-    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_SHARES,
     MISSING_WORKBENCH_CASH,
-    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_SHARES,
   ],
   "ttm|2026-03-31|2026-05-01": [
-    28.499_999_999_999_996, 7.760_563_380_281_689, 7.854_460_093_896_712, 28.016_949_152_542_37,
+    28.499_999_999_999_996,
+    MISSING_WORKBENCH_SHARES,
+    MISSING_WORKBENCH_SHARES,
+    MISSING_WORKBENCH_SHARES,
   ],
 };
 const AMD_WORKBENCH_VALUES: WorkbenchValues = {
@@ -3783,8 +3792,8 @@ const AMD_WORKBENCH_VALUES: WorkbenchValues = {
   ],
   "ttm|2025-09-27|2025-11-05": [
     126.896_032_956_567_14,
-    13.098_894_212_833_263,
-    12.973_281_448_603_084,
+    13.133_840_446_032_657,
+    13.008_227_681_802_476,
     MISSING_WORKBENCH_FCF,
   ],
   "annual|2025-12-27|2026-02-04": [
@@ -3792,14 +3801,14 @@ const AMD_WORKBENCH_VALUES: WorkbenchValues = {
   ],
   "ttm|2026-03-28|2026-05-06": [
     138.160_660_540_471_33,
-    18.477_245_384_931_404,
-    18.233_666_594_949_025,
+    18.563_932_401_610_558,
+    18.320_353_611_628_18,
     MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-06-27|2026-08-05": [
     123.602_560_972_556_08,
-    19.253_331_976_695_94,
-    19.014_014_702_758_16,
+    19.361_358_909_297_547,
+    19.122_041_635_359_768,
     MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-09-26|2026-11-04": [
@@ -3876,18 +3885,18 @@ const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
   ],
   "ttm|2026-03-31|2026-04-29": [
     23.535_147_599_892_82,
-    4.145_625_792_328_587,
+    4.087_558_636_538_779_5,
     IFRS_WORKBENCH_EV,
-    27.678_850_226_801_45,
+    27.291_156_742_460_3,
   ],
   "ttm|2026-06-30|2026-08-06": [
     22.709_278_224_669_78,
-    4.217_329_317_206_33,
+    4.173_359_403_921_555,
     IFRS_WORKBENCH_EV,
-    20.216_243_689_027_39,
+    20.005_468_951_013_988,
   ],
   "ttm|2026-09-30|2026-10-29": [
-    26.345_652_704_653_535, 4.461_798_049_626_252, 4.845_693_482_900_417, 22.562_025_714_837_933,
+    26.345_652_704_653_535, 4.429_487_744_550_349, 4.813_383_177_824_514, 22.398_641_822_095_893,
   ],
 };
 const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
@@ -3933,19 +3942,19 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       36.662_829_549_689_04, 8.783_404_331_776_257, 8.889_425_531_924_582, 31.566_153_950_353_645,
     ],
     "ttm|2025-06-28|2025-08-01": [
-      30.710_167_660_517_836, 7.461_377_657_598_557_5, 7.574_748_107_277_358, 31.698_675_926_725_97,
+      30.710_167_660_517_836, 7.403_395_629_266_822, 7.516_766_078_945_623, 31.452_346_949_691_79,
     ],
     "annual|2025-09-27|2025-10-31": [
       36.242_626_691_312, 9.748_198_064_270_506, 9.853_830_259_502_64, 41.074_648_968_024_52,
     ],
     "ttm|2025-12-27|2026-01-30": [
-      32.845_571_010_927_61, 8.880_399_105_071_705, 8.934_579_727_040_086, 31.368_207_461_272_917,
+      32.845_571_010_927_61, 8.821_949_872_460_053, 8.876_130_494_428_432, 31.161_747_410_004_79,
     ],
     "ttm|2026-03-28|2026-05-01": [
-      33.915_256_010_706_73, 9.208_630_356_750_982, 9.244_524_225_730_83, 32.182_656_769_259_89,
+      33.915_256_010_706_73, 9.138_064_863_107_621, 9.173_958_732_087_467, 31.936_041_911_925_233,
     ],
     "ttm|2026-06-27|2026-07-31": [
-      35.425_459_135_563_01, 9.784_017_596_279_83, 9.831_026_848_180_443, 33.416_038_910_092_25,
+      35.425_459_135_563_01, 9.737_117_959_155_297, 9.784_127_211_055_91, 33.255_859_302_523_014,
     ],
     "ttm|2026-09-26|2026-11-03": [
       36.959_910_233_461_51, 10.203_263_493_307_457, 10.252_109_231_078_792, 35.909_254_068_577_52,
@@ -4017,27 +4026,27 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-fpi-quarterly": {
     "annual|2023-12-31|2024-03-15": [
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
     ],
     "annual|2024-12-31|2025-03-15": [
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
     ],
     "annual|2025-12-31|2026-03-15": [
       14.314_666_666_666_666,
-      7.873_066_666_666_668,
-      9.873_066_666_666_668,
-      MISSING_WORKBENCH_FCF,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
     ],
     "ttm|2026-03-31|2026-05-10": [
       MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
+      MISSING_WORKBENCH_SHARES,
     ],
   },
   "equity-fpi-ifrs-semiannual": {

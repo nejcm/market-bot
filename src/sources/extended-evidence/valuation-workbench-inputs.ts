@@ -31,6 +31,7 @@ import {
   touchesEarlierShareBasis,
   financialStatementFactForPeriod,
   financialStatementPeriodKey,
+  financialStatementPeriodMonths,
   financialStatementFacts,
   financialStatementTtmsAreCompatible,
   financialStatementTtmsSharePeriod,
@@ -186,35 +187,62 @@ function fcfInput(
 const isParentIncome = (fact: FinancialStatementFact) =>
   fact.taxonomy === "us-gaap" && fact.concept === "NetIncomeLoss";
 
-function deriveShares(
+// Shortcut: the old NI / diluted EPS preconditions gate the filed count, so no row withheld before gains
+// One; recovery needs split-basis proof (plans/issues.md "TTM rows with a filed count").
+function sharesGateOpen(
   netIncome: ValuationFundamentalInput | undefined,
   dilutedEps: ValuationFundamentalInput | undefined,
   parentIncome: boolean,
-): ValuationFundamentalInput | undefined {
+): boolean {
+  return (
+    parentIncome &&
+    netIncome !== undefined &&
+    dilutedEps !== undefined &&
+    dilutedEps.value !== 0 &&
+    netIncome.periodEnd === dilutedEps.periodEnd &&
+    netIncome.currency !== null &&
+    netIncome.currency === dilutedEps.currency &&
+    netIncome.unit === netIncome.currency &&
+    dilutedEps.unit === `${netIncome.currency}/shares` &&
+    Number.isFinite(netIncome.value / dilutedEps.value)
+  );
+}
+
+// The latest filed period's diluted weighted average, paired by accession with the EPS it divides.
+function filedTtmShares(
+  artifact: FinancialStatementsArtifact,
+  dilutedEps: FinancialStatementTtm,
+  publicAt: string,
+): Pick<ValuationPeriodInputs, "dilutedShares" | "earlierShareBasis"> {
+  const epsAtEnd = Object.values(dilutedEps.components).find(
+    (fact) => fact.periodEnd === dilutedEps.periodEnd,
+  );
+  const [count] = financialStatementFacts(artifact.statements.perShare.dilutedShares)
+    .filter(
+      (fact) =>
+        fact.periodEnd === dilutedEps.periodEnd &&
+        (financialStatementPeriodMonths(fact) ?? Infinity) <= 12,
+    )
+    .toSorted((left, right) => (right.periodStart ?? "").localeCompare(left.periodStart ?? ""));
+  if (count === undefined) {
+    return {};
+  }
+  if (earlierShareBasisPeriods(artifact.omissionNotes, "dilutedShares").has(count.periodKey)) {
+    return { earlierShareBasis: ["dilutedShares"] };
+  }
   if (
-    !parentIncome ||
-    netIncome === undefined ||
-    dilutedEps === undefined ||
-    dilutedEps.value === 0 ||
-    netIncome.periodEnd !== dilutedEps.periodEnd ||
-    netIncome.currency === null ||
-    netIncome.currency !== dilutedEps.currency ||
-    netIncome.unit !== netIncome.currency ||
-    dilutedEps.unit !== `${netIncome.currency}/shares` ||
-    !Number.isFinite(netIncome.value / dilutedEps.value)
+    count.accessionNumber === null ||
+    count.accessionNumber !== epsAtEnd?.accessionNumber ||
+    count.firstPublicAt > publicAt ||
+    count.value <= 0
   ) {
-    return undefined;
+    return {};
   }
   return {
-    value: netIncome.value / dilutedEps.value,
-    label: "Diluted weighted-average shares",
-    periodEnd: netIncome.periodEnd,
-    publicAt: latest([netIncome.publicAt, dilutedEps.publicAt]),
-    currency: null,
-    unit: "shares",
-    sourceIds: unique([...netIncome.sourceIds, ...dilutedEps.sourceIds]),
-    lineage: [...(netIncome.lineage ?? []), ...(dilutedEps.lineage ?? [])],
-    derivation: "net income / diluted EPS",
+    dilutedShares: {
+      ...factInput("Diluted weighted-average shares", count),
+      derivation: `filed ${String(financialStatementPeriodMonths(count))}-month period ending ${count.periodEnd}`,
+    },
   };
 }
 
@@ -447,16 +475,6 @@ function annualInputs(
       (fact) => fact.periodEnd <= periodEnd && fact.firstPublicAt <= publicAt,
     ),
   );
-  // NI / rounded EPS never replaces a filed count withheld for restatement (JPM preferred, LTRX rounding).
-  const dilutedShares =
-    directShares ??
-    (restatedAfterFirstFiling.includes("dilutedShares")
-      ? undefined
-      : deriveShares(
-          netIncome,
-          dilutedEps,
-          netIncomeInput !== undefined && isParentIncome(netIncomeInput),
-        ));
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   return {
     basis: "annual",
@@ -465,7 +483,7 @@ function annualInputs(
     ...(revenue !== undefined ? { revenue } : {}),
     ...(netIncome !== undefined ? { netIncome } : {}),
     ...(dilutedEps !== undefined ? { dilutedEps } : {}),
-    ...(dilutedShares !== undefined ? { dilutedShares } : {}),
+    ...(directShares !== undefined ? { dilutedShares: directShares } : {}),
     ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
@@ -506,7 +524,19 @@ function periodInputsFromTtm(
   if (values.revenue.formula === "FY") {
     // The fiscal year's own facts, including filed diluted shares rather than NI / rounded EPS.
     const annual = annualInputs(artifact, values.revenue.components.fiscalYear, false);
-    return { ...annual, basis: "ttm", revenue: { ...annual.revenue!, derivation: "FY" } };
+    return {
+      ...annual,
+      basis: "ttm",
+      revenue: { ...annual.revenue!, derivation: "FY" },
+      ...(annual.dilutedShares !== undefined
+        ? {
+            dilutedShares: {
+              ...annual.dilutedShares,
+              derivation: `filed fiscal-year period ending ${annual.periodEnd}`,
+            },
+          }
+        : {}),
+    };
   }
   const { balanceSheet } = artifact.statements;
   const revenue = ttmInput("Revenue", values.revenue);
@@ -556,18 +586,22 @@ function periodInputsFromTtm(
     compatibleCapitalExpenditure === undefined
       ? undefined
       : ttmInput("Capital expenditure", compatibleCapitalExpenditure);
-  const dilutedShares = deriveShares(
-    netIncome,
-    dilutedEps,
-    compatibleNetIncome !== undefined &&
-      Object.values(compatibleNetIncome.components).every((fact) => isParentIncome(fact)),
-  );
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   const publicAt = latest(
-    [revenue, netIncome, dilutedEps, dilutedShares, freeCashFlow].flatMap((input) =>
+    [revenue, netIncome, dilutedEps, freeCashFlow].flatMap((input) =>
       input === undefined ? [] : [input.publicAt],
     ),
   );
+  const shares =
+    compatibleDilutedEps !== undefined &&
+    sharesGateOpen(
+      netIncome,
+      dilutedEps,
+      compatibleNetIncome !== undefined &&
+        Object.values(compatibleNetIncome.components).every((fact) => isParentIncome(fact)),
+    )
+      ? filedTtmShares(artifact, compatibleDilutedEps, publicAt)
+      : {};
   const cashFact = latestFinancialStatementFact(
     financialStatementFacts(balanceSheet.cash).filter(
       (fact) => fact.periodEnd <= revenue.periodEnd && fact.firstPublicAt <= publicAt,
@@ -584,7 +618,7 @@ function periodInputsFromTtm(
     revenue,
     ...(netIncome !== undefined ? { netIncome } : {}),
     ...(dilutedEps !== undefined ? { dilutedEps } : {}),
-    ...(dilutedShares !== undefined ? { dilutedShares } : {}),
+    ...shares,
     ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),

@@ -235,6 +235,19 @@ function freeCashFlowScopeDisclosure(
   return disclosure === undefined ? undefined : `${disclosure}; ${CAPEX_SCOPE_CAVEAT}`;
 }
 
+function sharePeriodDisclosure(
+  observations: readonly HistoricalValuationObservation[],
+): string | undefined {
+  const periods = observations.flatMap(({ basis, periodEnd, inputs }) =>
+    basis === "ttm" && inputs.dilutedShares?.derivation?.startsWith("filed ") === true
+      ? [`ttm ${periodEnd} (${inputs.dilutedShares.derivation})`]
+      : [],
+  );
+  return periods.length === 0
+    ? undefined
+    : `TTM market cap uses the latest filed period's diluted weighted-average shares, a proxy for a trailing-year count when shorter than a fiscal year, for ${periods.join(", ")}`;
+}
+
 export function valuationScopeDisclosure(
   observations: readonly HistoricalValuationObservation[],
 ): string | undefined {
@@ -242,6 +255,7 @@ export function valuationScopeDisclosure(
     inputScopeDisclosure(observations, "dilutedEps", "P/E uses diluted EPS"),
     freeCashFlowScopeDisclosure(observations),
     inputScopeDisclosure(observations, "debt", "EV/revenue uses debt"),
+    sharePeriodDisclosure(observations),
   ].filter((part) => part !== undefined);
   return parts.length === 0 ? undefined : parts.join("; ");
 }

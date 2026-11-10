@@ -92,12 +92,16 @@ export function valuationMetricSection(input: {
   const { period, price, reportingCurrency, quoteCurrency, fx } = input;
   const publicAt = periodPublicAt(period);
   const priceBasis = `first verified close within 7 calendar days on or after publicAt ${publicAt}${price === null ? " (unavailable)" : `; close ${price.sessionDate} ${price.currency}`}${fx === undefined ? "" : `; ${fx.pair} ${fx.rate} on ${fx.date}`}`;
+  const sharesBasis =
+    period.basis === "ttm" && period.dilutedShares?.derivation !== undefined
+      ? `; diluted shares: ${period.dilutedShares.derivation} weighted average, a proxy for a trailing-year count when shorter than a fiscal year`
+      : "";
   const definitions: readonly MetricDefinition[] = METRICS.map(
     ([id, label, formula, denominatorKey]) => ({
       id,
       label,
       unit: "ratio",
-      basis: `${period.basis.toUpperCase()}; ${formula}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}`,
+      basis: `${period.basis.toUpperCase()}; ${formula}${id === "priceToEarnings" ? "" : sharesBasis}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}`,
       ...(id === "enterpriseValueToRevenue" || id === "priceToFreeCashFlow"
         ? {
             applicable: () => {

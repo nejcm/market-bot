@@ -338,7 +338,8 @@ describe("forecast-grid command", () => {
     expect(user.factSheet.benchmark.symbol).toBe("^KLSE");
     const placeholder = placeholderFactSheet("0097.KL");
     expect(placeholder.benchmark.symbol).toBe("^KLSE");
-    expect(placeholder.events).toEqual(user.factSheet.events);
+    expect(horizons(placeholder.events)).toEqual(horizons(user.factSheet.events));
+    expect(user.factSheet.events.map(({ id }) => id)).toEqual(AAPL_EVENTS);
     expect(user.factSheet.benchmark.asOf).toBe(user.factSheet.asOf);
     expect(Object.keys(user.factSheet.benchmark.returnsPct).length).toBeGreaterThan(0);
   });
@@ -365,7 +366,7 @@ describe("forecast-grid command", () => {
     ]);
     expect(requests).toHaveLength(1);
     expect(report.dataGaps.join("\n")).toContain(
-      "Event Grid range events not issued: ETE.AT trades outside the US session calendar",
+      "Event Grid range events not issued: ETE.AT trades outside the US on an exchange with no Exchange Profile",
     );
   });
 

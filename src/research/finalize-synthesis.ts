@@ -74,15 +74,11 @@ export async function finalizeSynthesis(
   };
 }
 
-// Scenario name+description and summary sentences mirror the texts the integrity audit splits.
+// Summary sentences mirror the texts the integrity audit splits.
 function peerMedianAuditClauses(report: ResearchReport): readonly PeerMedianAuditClause[] {
   const seen = new Set<string>();
   return [
     ...claimsForReport(report),
-    ...report.scenarios.map((scenario, index) => ({
-      location: `scenarios[${String(index)}]`,
-      text: `${scenario.name}: ${scenario.description}`,
-    })),
     ...summarySentenceTexts(report.summary).map((text) => ({ location: "summary", text })),
   ].flatMap(({ location, text }) =>
     peerMedianClauses(text).flatMap((clause) => {

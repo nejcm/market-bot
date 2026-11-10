@@ -271,8 +271,7 @@ interface ClaimItem {
 }
 
 interface ClaimSection<T extends ClaimItem> {
-  // LastField (a scenario's description) feeds only claimsForReport, keeping the peer-median clause list stable.
-  readonly claims: readonly (Claim & { readonly item: T; readonly lastField: string })[];
+  readonly claims: readonly (Claim & { readonly item: T })[];
   readonly fields: readonly (keyof T & string)[];
 }
 
@@ -282,14 +281,12 @@ function claimSection<T extends ClaimItem>(
   // Joined with ": " into the claim text every rule reads.
   fields: readonly [keyof T & string, ...(keyof T & string)[]],
 ): ClaimSection<T> {
-  const last = fields.at(-1) ?? fields[0];
   return {
     fields,
     claims: items.map((item, index) => ({
       item,
       location: `${section}[${String(index)}]`,
       text: fields.map((key) => String(item[key])).join(": "),
-      lastField: String(item[last]),
       sourceIds: item.sourceIds,
     })),
   };
@@ -314,7 +311,7 @@ export function claimsForReport(report: ResearchReport): readonly {
   readonly sourceIds: readonly string[];
 }[] {
   return Object.values(reportSections(report)).flatMap(({ claims }) =>
-    claims.map(({ location, lastField, sourceIds }) => ({ location, text: lastField, sourceIds })),
+    claims.map(({ location, text, sourceIds }) => ({ location, text, sourceIds })),
   );
 }
 

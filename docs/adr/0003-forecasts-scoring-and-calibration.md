@@ -63,9 +63,12 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   those sessions resolves the one unresolved base expression. For conditionals consider only the antecedent
   until resolved; placeholder prices never activate it. Bounded non-US fallback (amended 2026-11-10; the US
   due date can fall on a local holiday): a v3 equity close window that is short only on non-US listings by
-  symbol, whose every window starts within the anchor tolerance and whose origin is not quarantined, also
-  waits, until the expression's own due date plus 10 days. That deadline binds this fallback only; the
-  withheld-session wait above keeps none. Other missing observations consume an attempt.
+  symbol, whose origin is not quarantined and whose every window starts within the anchor tolerance (an
+  empty non-US window only while the scoring date is within it), also waits. Both waits end by the unresolved
+  base expression's own due date plus 10 days, on every listing (amended 2026-11-11); for a conditional
+  that is the unresolved leg's due date. An empty non-US window's wait ends at the earlier of the anchor
+  date plus the tolerance and that deadline. After either wait ends, or for any other missing observation, it
+  consumes an attempt; withheld sessions stay in the evidence, including on abandonment.
   Never cache a window that withheld anything or accept a cached window acquired after the requested cutoff;
   bypass uncertified older cache versions without deleting them.
 - Horizon waits, including the non-US fallback, consume no attempts and persist no `nextAttemptAt`. Persist

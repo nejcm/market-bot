@@ -587,7 +587,8 @@ market-bot score
 - Equity close windows (policy v3 and legacy v2) grade only completed sessions: a bar whose
   regular session had not closed at the scoring clock is withheld, and such windows are never
   cached. A withheld in-progress session keeps the score `horizon-not-elapsed` without spending an
-  attempt only when it alone explains the unresolved result.
+  attempt only when it alone explains the unresolved result, and only until the unresolved
+  expression's due date plus 10 days; after that it spends attempts and stays in the evidence.
 
 ### `score repair`
 

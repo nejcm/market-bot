@@ -3,9 +3,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { DAY_MS } from "../src/config/shared";
 import type { Prediction } from "../src/domain/prediction";
 import type { ResearchReport } from "../src/domain/report";
 import { runScorePass } from "../src/scoring/index";
+import { scoringPolicyFor } from "../src/scoring/policy";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import { resolveOutcome } from "../src/scoring/resolver";
 import type { PredictionScore } from "../src/scoring/types";
@@ -494,7 +496,6 @@ describe("completed-session scoring", () => {
 // Bursa skipped 2026-11-09 (Deepavali replacement); the US-calendar +1 due date fell on it.
 const KL_ISSUED = "2026-11-06T05:46:13.672Z";
 const AFTER_KL_DUE = new Date("2026-11-09T12:00:00.000Z");
-const PAST_PLUS_FIVE_DEADLINE = new Date("2026-11-24T12:00:00.000Z");
 
 const range = (horizon: number, subject = "0097.KL", scoringPolicyVersion: 2 | 3 = 3) =>
   prediction({
@@ -523,6 +524,9 @@ const klConditional = prediction({
   horizonTradingDays: 5,
   scoringPolicyVersion: 3,
 });
+const waitDeadline = (pred: Prediction) =>
+  scoringPolicyFor(pred).closeDueDate(KL_ISSUED, pred.horizonTradingDays, "equity").getTime() +
+  10 * DAY_MS;
 const bars = (subject: string, ...dates: readonly string[]): readonly Observation[] =>
   dates.map((date, index) => ({ subject, date, value: 10.5 + index * 0.1 }));
 const inProgress = (date: string): WithheldSession => ({
@@ -604,26 +608,157 @@ describe("non-US short-window fallback wait", () => {
       status: "pending",
       attemptCount: 0,
     });
-    const late = await scorePass(range(5), window, PAST_PLUS_FIVE_DEADLINE);
+    const deadline = waitDeadline(range(5));
+    const late = await scorePass(range(5), window, new Date(deadline));
 
     expect(late).toMatchObject({
       status: "pending",
       attemptCount: 1,
-      nextAttemptAt: "2026-11-25T12:00:00.000Z",
+      nextAttemptAt: new Date(deadline + DAY_MS).toISOString(),
       evidence: { reason: "observation unavailable", withheldSessions: [inProgress("2026-11-10")] },
     });
   });
 
-  test("keeps the withheld-session wait past the fallback deadline when the counterfactual resolves", async () => {
-    for (const day of ["2026-11-20", "2026-12-20"]) {
-      const score = await scorePass(
-        range(1),
-        (subject) => withheldWindow(bars(subject, "2026-11-06"), [inProgress(day)]),
-        new Date(`${day}T12:00:00.000Z`),
-      );
-      expect(score).toMatchObject({ status: "pending", attemptCount: 0 });
-      expect(score).not.toHaveProperty("nextAttemptAt");
+  test.each([
+    ["a Bursa", range(1), {}],
+    ["a US", range(1, "AAPL"), { symbol: "AAPL" }],
+    ["a policy-v2 Bursa", range(1, "0097.KL", 2), {}],
+  ] as const)(
+    "ends %s withheld-session wait at the due date plus 10 days",
+    async (_name, pred, overrides) => {
+      const deadline = waitDeadline(pred);
+      const window = (subject: string) =>
+        withheldWindow(bars(subject, "2026-11-06"), [inProgress("2026-11-10")]);
+
+      const waiting = await scorePass(pred, window, new Date(deadline - 1), overrides);
+      expect(waiting).toMatchObject({ status: "pending", attemptCount: 0 });
+      expect(waiting).not.toHaveProperty("nextAttemptAt");
+
+      expect(await scorePass(pred, window, new Date(deadline), overrides)).toMatchObject({
+        status: "pending",
+        attemptCount: 1,
+        nextAttemptAt: new Date(deadline + DAY_MS).toISOString(),
+        evidence: {
+          reason: "observation unavailable",
+          withheldSessions: [inProgress("2026-11-10")],
+        },
+      });
+    },
+  );
+
+  test("abandons a still-withheld session on the fourth attempt past the deadline and keeps it in evidence", async () => {
+    const deadline = waitDeadline(range(1));
+    const window = (subject: string) =>
+      withheldWindow(bars(subject, "2026-11-06"), [inProgress("2026-11-10")]);
+    let score: PredictionScore | undefined;
+    for (const days of [0, 1, 4, 11]) {
+      score = await scorePass(range(1), window, new Date(deadline + days * DAY_MS));
     }
+
+    expect(score).toMatchObject({
+      status: "abandoned",
+      attemptCount: 4,
+      evidence: {
+        reason: "abandoned after fourth observation failure",
+        withheldSessions: [inProgress("2026-11-10")],
+      },
+    });
+  });
+
+  test("keeps withheld sessions when a row already at four attempts is abandoned", async () => {
+    const runDir = join(root, "runs", "run-kl");
+    await mkdir(runDir, { recursive: true });
+    const withheldSessions = [inProgress("2026-11-10")];
+    await writeFile(
+      join(runDir, "score.json"),
+      JSON.stringify({
+        runId: "run-kl",
+        scoredAt: KL_ISSUED,
+        scores: [
+          {
+            predictionId: "pred-kl",
+            runId: "run-kl",
+            status: "pending",
+            attemptCount: 4,
+            scoringVersion: 3,
+            evidence: { reason: "observation unavailable", withheldSessions },
+          },
+        ],
+      }),
+    );
+
+    const score = await scorePass(range(1), () => [], new Date(waitDeadline(range(1))));
+
+    expect(score).toMatchObject({
+      status: "abandoned",
+      attemptCount: 4,
+      evidence: { reason: "abandoned after fourth observation failure", withheldSessions },
+    });
+  });
+
+  test("resolves past the deadline once the withheld session completes", async () => {
+    const score = await scorePass(
+      range(1),
+      (subject) => bars(subject, "2026-11-06", "2026-11-10"),
+      new Date(waitDeadline(range(1))),
+    );
+
+    expect(score).toMatchObject({ status: "resolved", attemptCount: 1 });
+  });
+
+  test("measures a withheld antecedent against the antecedent's deadline", async () => {
+    const conditional = prediction({
+      id: "pred-kl",
+      kind: "conditional",
+      subject: "0097.KL",
+      measurableAs:
+        "if (close(0097.KL, +1) > close(0097.KL, 0)) then (close(0097.KL, +20) > close(0097.KL, 0))",
+      horizonTradingDays: 20,
+      scoringPolicyVersion: 3,
+    });
+    const deadline = waitDeadline(range(1));
+    const window = (subject: string) =>
+      withheldWindow(bars(subject, "2026-11-06"), [inProgress("2026-11-10")]);
+
+    expect(await scorePass(conditional, window, new Date(deadline - 1))).toMatchObject({
+      status: "pending-condition",
+      attemptCount: 0,
+    });
+    expect(await scorePass(conditional, window, new Date(deadline))).toMatchObject({
+      status: "pending-condition",
+      attemptCount: 1,
+    });
+    let score: PredictionScore | undefined;
+    for (const days of [1, 4, 11]) {
+      score = await scorePass(conditional, window, new Date(deadline + days * DAY_MS));
+    }
+    const consequentDue = scoringPolicyFor(conditional)
+      .closeDueDate(KL_ISSUED, 20, "equity")
+      .getTime();
+
+    expect(score).toMatchObject({ status: "abandoned", attemptCount: 4 });
+    expect(Date.parse(String(score?.status === "abandoned" ? score.abandonedAt : ""))).toBeLessThan(
+      consequentDue,
+    );
+  });
+
+  test("measures a withheld consequent against the consequent's deadline", async () => {
+    const deadline = waitDeadline(range(5));
+    const window = (subject: string) =>
+      withheldWindow(
+        bars(subject, "2026-11-06", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"),
+        [inProgress("2026-11-16")],
+      );
+
+    expect(await scorePass(klConditional, window, new Date(deadline - 1))).toMatchObject({
+      status: "active-pending",
+      attemptCount: 0,
+    });
+    expect(await scorePass(klConditional, window, new Date(deadline))).toMatchObject({
+      status: "active-pending",
+      attemptCount: 1,
+      evidence: { withheldSessions: [inProgress("2026-11-16")] },
+    });
   });
 
   test("spends an attempt on each rolling fragment anchored outside the provider tolerance", async () => {
@@ -640,15 +775,89 @@ describe("non-US short-window fallback wait", () => {
     expect(attempts).toEqual([1, 2]);
   });
 
-  test("spends an attempt on an empty Bursa window", async () => {
+  test("waits without an attempt on an empty Bursa window inside the anchor tolerance", async () => {
     const score = await scorePass(range(1), () => [], AFTER_KL_DUE);
 
+    expect(score).toMatchObject({ status: "pending", attemptCount: 0 });
+    expect(score).not.toHaveProperty("nextAttemptAt");
+  });
+
+  // Run 2026-11-07T10-12-13-737Z-3f1aa431: issued Saturday, no Bursa bar yet on the Monday pass.
+  test("waits on an empty window for a weekend-issued +1 and resolves once Bursa prints", async () => {
+    const generatedAt = "2026-11-07T10:12:13.737Z";
+    const waiting = await scorePass(range(1), () => [], AFTER_KL_DUE, { generatedAt });
+    expect(waiting).toMatchObject({ status: "pending", attemptCount: 0 });
+
+    const score = await scorePass(
+      range(1),
+      (subject) => bars(subject, "2026-11-10", "2026-11-11"),
+      new Date("2026-11-11T12:00:00.000Z"),
+      { generatedAt },
+    );
     expect(score).toMatchObject({
+      status: "resolved",
+      attemptCount: 1,
+      forecastOrigin: "2026-11-10",
+    });
+  });
+
+  test("stops waiting on an empty Bursa window after the anchor tolerance and abandons on the fourth attempt", async () => {
+    const lastToleranceDay = Date.parse(`${KL_ISSUED.slice(0, 10)}T12:00:00.000Z`) + 5 * DAY_MS;
+    expect(await scorePass(range(1), () => [], new Date(lastToleranceDay))).toMatchObject({
+      status: "pending",
+      attemptCount: 0,
+    });
+    const firstLate = lastToleranceDay + DAY_MS;
+    expect(await scorePass(range(1), () => [], new Date(firstLate))).toMatchObject({
       status: "pending",
       attemptCount: 1,
-      nextAttemptAt: "2026-11-10T12:00:00.000Z",
-      evidence: { reason: "observation unavailable" },
+      nextAttemptAt: new Date(firstLate + DAY_MS).toISOString(),
     });
+    let score: PredictionScore | undefined;
+    for (const days of [1, 4, 11]) {
+      score = await scorePass(range(1), () => [], new Date(firstLate + days * DAY_MS));
+    }
+
+    expect(score).toMatchObject({ status: "abandoned", attemptCount: 4 });
+  });
+
+  test.each([
+    ["a Bursa +5 due past the anchor tolerance", range(5), {}],
+    ["a US listing", range(1, "AAPL"), { symbol: "AAPL" }],
+  ] as const)("spends an attempt on an empty window for %s", async (_name, pred, overrides) => {
+    const due = scoringPolicyFor(pred).closeDueDate(KL_ISSUED, pred.horizonTradingDays, "equity");
+    const score = await scorePass(pred, () => [], due, overrides);
+
+    expect(score).toMatchObject({ status: "pending", attemptCount: 1 });
+  });
+
+  test.each([
+    ["an empty Bursa leg beside a complete SPY leg", ["2026-11-06", "2026-11-09"], 0],
+    ["an empty Bursa leg beside an empty SPY leg", [], 1],
+  ] as const)("counts attempts for %s", async (_name, spy, attempts) => {
+    const score = await scorePass(
+      klRelative,
+      (subject) => (subject === "SPY" ? bars(subject, ...spy) : []),
+      AFTER_KL_DUE,
+    );
+
+    expect(score).toMatchObject({ status: "pending", attemptCount: attempts });
+  });
+
+  test("spends an attempt on an empty Bursa window when the origin session is quarantined", async () => {
+    const score = await scorePass(range(1), () => [], AFTER_KL_DUE, {
+      sources: [
+        verifiedSnapshotSource(
+          verifiedMarketSnapshot({
+            symbol: "0097.KL",
+            latestSessionDate: "2026-11-06",
+            latestSessionStatus: "unverified",
+          }),
+        ),
+      ],
+    });
+
+    expect(score).toMatchObject({ status: "pending", attemptCount: 1 });
   });
 
   test("spends an attempt when the origin session is quarantined", async () => {

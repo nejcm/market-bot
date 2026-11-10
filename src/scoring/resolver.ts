@@ -30,6 +30,7 @@ import type { CloseWindow } from "../sources/yahoo-chart";
 export type { Observation };
 
 const PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS = 5;
+const OBSERVATION_WAIT_DEADLINE_DAYS = 10;
 
 interface ResolveOutcomeResolved {
   readonly status: "resolved";
@@ -71,18 +72,17 @@ function ymd(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function withinProviderAnchorTolerance(date: string, anchor: Date): boolean {
+  const delay = Date.parse(`${date}T00:00:00Z`) - Date.parse(`${ymd(anchor)}T00:00:00Z`);
+  return delay >= 0 && delay <= PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS * DAY_MS;
+}
+
 function startsWithinProviderAnchorTolerance(
   window: readonly Observation[],
   anchor: Date,
 ): boolean {
   const [first] = window;
-  if (first === undefined) {
-    return false;
-  }
-  const anchorTime = Date.parse(`${ymd(anchor)}T00:00:00Z`);
-  const firstTime = Date.parse(`${first.date}T00:00:00Z`);
-  const delay = firstTime - anchorTime;
-  return delay >= 0 && delay <= PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS * DAY_MS;
+  return first !== undefined && withinProviderAnchorTolerance(first.date, anchor);
 }
 
 function unverifiedSession(report: ResearchReport, subject: string): UnverifiedSession | undefined {
@@ -561,7 +561,7 @@ function withPendingPlaceholders(subject: string, window: CloseWindow): readonly
 }
 
 // A non-US listing can print its Nth session after the US-calendar due date (local holidays).
-// Wait for it, bounded, only on a clean in-tolerance anchor; everything else spends an attempt.
+// Wait only while its first bar is, or could still be, in tolerance; everything else spends an attempt.
 async function awaitsShortNonUsWindow(
   expression: ObservableBaseExpression,
   report: ResearchReport,
@@ -571,12 +571,10 @@ async function awaitsShortNonUsWindow(
 ): Promise<boolean> {
   const strategy = observationStrategyForExpression(expression);
   const anchor = new Date(report.generatedAt);
-  const deadline = baseExpressionDueDate(expression, report, policy).getTime() + 10 * DAY_MS;
   if (
     policy.version !== 3 ||
     report.assetClass !== "equity" ||
     strategy.mode !== "close-window" ||
-    now.getTime() >= deadline ||
     unverifiedSessions(report, strategy.subjects, policy).some(
       (session) => session.date <= ymd(anchor),
     )
@@ -597,7 +595,11 @@ async function awaitsShortNonUsWindow(
   return (
     short.length > 0 &&
     short.every(({ subject }) => !isUsListing(subject)) &&
-    windows.every(({ observations }) => startsWithinProviderAnchorTolerance(observations, anchor))
+    windows.every(({ subject, observations }) =>
+      observations.length === 0
+        ? !isUsListing(subject) && withinProviderAnchorTolerance(ymd(now), anchor)
+        : startsWithinProviderAnchorTolerance(observations, anchor),
+    )
   );
 }
 
@@ -638,9 +640,19 @@ export async function resolveOutcome(
   const unresolvedExpression =
     expression.kind === "conditional" ? expression[conditionalSide] : expression;
   const policy = scoringPolicyFor(prediction);
+  const waitOpen =
+    now.getTime() <
+    baseExpressionDueDate(unresolvedExpression, report, policy).getTime() +
+      OBSERVATION_WAIT_DEADLINE_DAYS * DAY_MS;
   const fetched = await Promise.all(windows.values());
   const withheld = fetched.flatMap((window) => window.withheldSessions ?? []);
-  let unavailable = result;
+  const unavailable =
+    withheld.length === 0
+      ? result
+      : { ...result, evidence: { ...result.evidence, withheldSessions: withheld } };
+  if (!waitOpen) {
+    return unavailable;
+  }
   if (withheld.length > 0) {
     const counterfactual = await resolveBaseExpression(
       unresolvedExpression,
@@ -660,7 +672,6 @@ export async function resolveOutcome(
     if (counterfactual.resolution.status !== "unresolved") {
       return { ...result, reason: "horizon-not-elapsed" };
     }
-    unavailable = { ...result, evidence: { ...result.evidence, withheldSessions: withheld } };
   }
   return (await awaitsShortNonUsWindow(unresolvedExpression, report, memoized, now, policy))
     ? { ...result, reason: "horizon-not-elapsed" }

@@ -172,8 +172,19 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-20", 0.3989],
     ["grid-relative-5", 0.5],
   ],
-  "equity-bursa-deep": [["grid-relative-5", 0.5]],
-  "equity-bursa-brief": [["grid-relative-5", 0.5]],
+  // Bursa runs on 2026-11-06 against a 2026-11-05 close, so scoring spans one more session.
+  "equity-bursa-deep": [
+    ["grid-range-1", 0.479],
+    ["grid-range-5", 0.3568],
+    ["grid-range-20", 0.3252],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-bursa-brief": [
+    ["grid-range-1", 0.479],
+    ["grid-range-5", 0.3568],
+    ["grid-range-20", 0.3252],
+    ["grid-relative-5", 0.5],
+  ],
 };
 
 const runResults: RunFixtureResult[] = [];
@@ -788,9 +799,7 @@ describe("static equity run fixtures", () => {
       expect(metric("issuer-report-net-margin-ytd")?.value).toBeCloseTo(253_351 / 1_127_067, 6);
       expect(result.markdown).toContain("### Issuer report figures");
       expect(result.collectedSources.businessFramework?.phase).toBe("hyper-growth");
-      expect(result.report.dataGaps).toContain(
-        "event-grid: Event Grid range events not issued: 0097.KL trades outside the US session calendar scoring counts on, so no Forecast Baseline could be stamped for them",
-      );
+      expect(result.report.dataGaps.join("\n")).not.toContain("Event Grid range events not issued");
       const dps = metric("issuer-report-dividend-per-share-ytd-2026-09-30");
       if (name === "equity-bursa-brief") {
         expect(dps).toMatchObject({ value: "MYR 0.0118 or 1.18 sen", periodMonths: 9 });

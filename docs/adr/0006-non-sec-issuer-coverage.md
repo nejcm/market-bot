@@ -118,8 +118,10 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - **Forecasts.** A non-SEC listing without verified closes issues no Observable Predictions and declares a
   `forecast-book` gap; final synthesis is asked for no predictions or Event Grid, and no Prediction Shortfall
   is reported. With closes, [ADR 0003](./0003-forecasts-scoring-and-calibration.md) applies unchanged: a range
-  Prediction whose scored sessions are unknown (non-US listing) omits its baseline with a `forecast-baseline`
-  gap, direction and relative keep their 0.5 baseline, and range references fall back to 0.5. On a listing
+  Prediction whose scored sessions are unknown (a listing without an Exchange Profile, or a weekday between
+  the reference close and the run date; amended 2026-11-10) omits its baseline with a `forecast-baseline`
+  gap, and direction and relative keep their 0.5 baseline. Near-Base-Rate references a range Prediction on a listed ±1σ
+  band to 0.32 when its session count is unknown, and to 0.5 when no band matches (amended 2026-11-10). On a listing
   with an Exchange Profile, a model Prediction with a leg outside that exchange other than its benchmark (SPY
   on a MYR listing) is withheld with a diagnostic `forecast-book` gap: its outcome would mix currencies and
   session calendars (amended 2026-11-06). The final-synthesis prompt offers that benchmark as the only relative

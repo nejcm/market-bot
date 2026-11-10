@@ -252,16 +252,22 @@ function assertListingCoverageInvariants(result: RunFixtureResult, meta: Fixture
   if (withheld) {
     expect(result.report.predictions).toEqual([]);
   }
-  for (const { id } of result.report.predictions.filter(
+  assertGridBaselineGapsDeclared(result.report);
+  return withheld;
+}
+
+export function assertGridBaselineGapsDeclared(
+  report: Pick<ResearchReport, "predictions" | "dataGaps">,
+): void {
+  for (const { id } of report.predictions.filter(
     ({ origin, baselineProbability }) => origin === "grid" && baselineProbability === undefined,
   )) {
-    expect(result.report.dataGaps).toContainEqual(
+    expect(report.dataGaps).toContainEqual(
       expect.stringMatching(
-        new RegExp(`^forecast-baseline: .*\\b${id}\\b.*\\(non-US listing`, "u"),
+        new RegExp(`^forecast-baseline: Forecast Baseline omitted for [^:]*\\b${id}\\b`, "u"),
       ),
     );
   }
-  return withheld;
 }
 
 // A profiled non-SEC listing publishes issuer report figures or declares why not; every figure quotes its source text.

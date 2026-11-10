@@ -31,7 +31,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   Center it on the band's stated base rate only for range Predictions whose subject, listed reference horizon (+1/+5/+10/+20),
   and bounds match the ±1σ band reconstructed from the run's saved closes at printed two-decimal precision:
   the two-decimal Gaussian outside probability for the sessions scoring spans after the reference close,
-  or 0.32 when that count is unknown (non-US listing, unverified latest session); use 0.5 otherwise, including unavailable references. Kept Predictions retain evidence-supported probabilities.
+  or 0.32 when that count is unknown (non-US listing without an Exchange Profile, a weekday between a profiled
+  listing's reference close and the run date, unverified latest session; amended 2026-11-10); use 0.5 otherwise, including unavailable references. Kept Predictions retain evidence-supported probabilities.
   In-band Predictions remain valid telemetry; never pad the target with coin flips. Gaussian outside-±1σ
   probability is about 0.32; five-year AAPL/AMD/MSFT/SPY frequency was 0.285–0.334. This
   construction-specific Gaussian reference is not the Forecast Baseline.
@@ -148,6 +149,10 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   last 60 split-adjusted daily log returns, zero drift, √h aggregation where h is the sessions scoring spans
   after `infoCutoff`: the nominal horizon plus the US exchange sessions up to the first session on or after
   the run date (UTC calendar days for crypto), so a premarket, intraday or weekend run scores h + 1 or more.
+  On an Exchange Profile listing that stretch is 0 when the reference close is on the run date, 1 when only
+  Saturdays and Sundays lie between them (the anchor is the only possible session), and unknown otherwise
+  (amended 2026-11-10): policy v3 counts the forward h on provider-observed sessions, so only this stretch
+  needs a count. Holiday tables were rejected, because a missed holiday would publish a wrong, never-rewritten stamp.
   `ewma-0.94-w60-v1` stamps used the nominal horizon and are kept as written. Range is the lognormal
   outside-band probability; direction and plain outperform relative (A−B) are 0.5 by construction (any
   zero-drift symmetric distribution) but still require their close windows and are stamped with
@@ -155,7 +160,8 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   scored for skill. Fewer than 61 closes (kept for the constant-0.5 kinds too, amended 2026-11-08: on
   2026-11-07 data it excluded no event, and the closes still anchor `infoCutoff` and the stale-leg check), a residual split, zero movement, a
   missing series, relative legs whose last closes are more than 4 days apart, or a range whose scored
-  sessions are unknown (non-US listing, or the primary's unverified latest session) omit the baseline and
+  sessions are unknown (non-US listing without an Exchange Profile, a weekday before a profiled listing's
+  anchor, or the primary's unverified latest session) omit the baseline and
   declare a `forecast-baseline` data gap; it is never defaulted to 0.5. The Prediction still carries
   `infoCutoff` (the last close the baseline could have used) unless no close was collected. A non-positive range bound
   contributes zero tail probability. The primary symbol's window extends to the snapshot's newer
@@ -168,16 +174,16 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   nearby means a genuine move, which stays volatility. Without split metadata (the verified chart), a genuine 10–65% one-day move inside those windows is treated as a split. That is a
   documented shortcut; volume is not consulted.
 - Equity instrument runs issue a fixed Event Grid: the ±1σ reference band outside-event at h ∈ {1, 5, 20}
-  on US listings only (scoring counts US sessions, so elsewhere no range baseline could be stamped and
-  the range events are an `event-grid` gap until an exchange calendar exists; amended 2026-11-09)
+  on US and Exchange Profile listings (elsewhere scoring has no session count, so no range baseline could be
+  stamped and the range events are an `event-grid` gap; amended 2026-11-09, widened to profiled listings 2026-11-10)
   (the prompt lists only the other ±1σ bands as prediction anchors, each with the same session-true base
   rate, or 0.32 when the session count is unknown) and relative vs SPY at h = 5. The primary synthesis prices them in the same
   response as a top-level `eventGrid: [{ id, probability }]` — no extra model call — and is not shown the
   Forecast Baseline. Each range grid row is named as its ±1σ band around the dated reference close with
   the Gaussian outside probability for the sessions scoring actually spans (the resolver counts +h from
   the first session on or after the run date, so a premarket or weekend run adds one; about 0.48 at +1),
-  stated as a base rate, not a default, assuming complete US exchange sessions, and omitted when the
-  latest session is unverified, the listing is non-US or volatility is zero. A repair attempt
+  stated as a base rate, not a default, assuming complete US exchange sessions (the profiled exchange's on a
+  profiled listing), and omitted when the latest session is unverified, the session count is unknown or volatility is zero. A repair attempt
   that omits a grid probability keeps the last valid one. A missing or out-of-range probability, a missing range reference, a leg (each symbol in the expression) with none of the event's close sources for it collected,
   crypto runs and SPY's own relative event each leave the event unissued and declare an `event-grid` data
   gap. A model Prediction identical to an issuable grid event (same id or `claimKey`) is folded into the

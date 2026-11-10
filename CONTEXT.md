@@ -51,7 +51,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Identity Gate** — Pre-model check on every equity instrument run: the listing resolves from its Yahoo quote or a single exact Yahoo search match (the run then continues under that code), or the run stops with candidates before any model stage. Also stops a non-SEC listing without an Exa key or with Web Gather disabled. See [ADR 0006](./docs/adr/0006-non-sec-issuer-coverage.md).
 
-**Exchange Profile** — Checked-in row per non-US exchange (Yahoo suffix, local benchmark, currency) that market regime, the Event Grid relative event, the final-synthesis relative benchmark, and Price Performance read instead of US proxies. An exchange without a row keeps the US proxies with a declared gap. See ADR 0006.
+**Exchange Profile** — Checked-in row per non-US exchange (Yahoo suffix, local benchmark, currency) that market regime, the Event Grid relative event, the final-synthesis relative benchmark, and Price Performance read instead of US proxies; its listings also get Event Grid range events. An exchange without a row keeps the US proxies with a declared gap. See ADR 0006.
 
 **Issuer Report Figure** — Interim or annual figure for a non-SEC listing, read by code from a report table cell on an Exchange Profile report host. A model names only the concept and cell; code checks value, period, unit, currency, announcement date, and Accounting Scope from the table, and withholds what fails into an `issuer-report` Source Gap. Published in the `issuer-report` Metric Section; feeds the Business Framework on runs without SEC facts. See ADR 0006.
 
@@ -71,7 +71,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Near-Base-Rate Prediction** — Valid Prediction within an inclusive ±0.10 band of its reference: the band's base rate (Gaussian over the scoring sessions, or 0.32 when unknown) for a range Prediction matching its subject's reconstructed ±1σ band at a listed horizon and printed two-decimal precision; 0.5 otherwise. Analytics counts it apart from informative Predictions.
 
-**Event Grid** — Fixed set of events code issues on every equity instrument run (±1σ range outside-events at +1/+5/+20 on US listings only, relative vs SPY, or the Exchange Profile benchmark, at +5), priced by the primary synthesis or a Forecast Grid Job and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into it. An unpriced event is a declared gap, never dropped or defaulted. See ADR 0003.
+**Event Grid** — Fixed set of events code issues on every equity instrument run (±1σ range outside-events at +1/+5/+20 on US and Exchange Profile listings, relative vs SPY, or the Exchange Profile benchmark, at +5), priced by the primary synthesis or a Forecast Grid Job and stamped `origin: "grid"`. A model Prediction restating a grid event (same id or `claimKey`) is folded into it. An unpriced event is a declared gap, never dropped or defaulted. See ADR 0003.
 
 **Forecast Grid Job** — `forecast-grid --watchlist <name>`: issues the Event Grid with Baselines for every equity on a watchlist, one quick-model call per symbol from a compact fact sheet. No synthesis or Web Gather. Dry run unless `--yes`. Publishes one symbol-less run (`jobType: "forecast-grid"`) scored and calibrated like any other.
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { rangeReferenceSessions } from "../src/research/range-volatility-reference";
-import { isExchangeTradingDay } from "../src/scoring/exchange-calendar";
+import { rangeReferenceSessions, scoredSessions } from "../src/research/range-volatility-reference";
+import { exchangeSessionsAfter, isExchangeTradingDay } from "../src/scoring/exchange-calendar";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import { resolveOutcome } from "../src/scoring/resolver";
 import { prediction, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
@@ -88,6 +88,47 @@ describe("range reference sessions", () => {
     expect(
       await resolvesOn("2026-10-23T06:22:50.113Z", "2026-10-22", elapsed + 1, "2026-10-23"),
     ).toMatchObject({ outcome: "hit" });
+  });
+
+  test.each([
+    ["Friday to Monday", "2026-11-06", "2026-11-09T05:00:00.000Z", 6],
+    ["Friday to Saturday", "2026-11-06", "2026-11-07", 6],
+    ["same day", "2026-11-06", "2026-11-06T09:00:00.000Z", 5],
+    ["Thursday to Friday", "2026-11-05", "2026-11-06", 6],
+    ["Friday to Tuesday", "2026-11-06", "2026-11-10", undefined],
+    ["reference after run", "2026-11-09", "2026-11-06", undefined],
+  ])("counts a profiled listing's sessions %s", (_, referenceDate, runDate, expected) => {
+    expect(
+      scoredSessions({ symbol: "0097.KL", assetClass: "equity" }, referenceDate, runDate, 5),
+    ).toBe(expected);
+  });
+
+  test("leaves a range on an unprofiled index uncounted", () => {
+    expect(
+      scoredSessions({ symbol: "^KLSE", assetClass: "equity" }, "2026-11-06", "2026-11-06", 5),
+    ).toBeUndefined();
+  });
+
+  test("agrees with the US calendar wherever the profiled weekend rule gives a count", () => {
+    let determinable = 0;
+    for (let from = Date.UTC(2026, 0, 1); from <= Date.UTC(2026, 11, 31); from += DAY_MS) {
+      for (let days = 0; days <= 5 && from + days * DAY_MS <= Date.UTC(2026, 11, 31); days += 1) {
+        const [reference, run] = [ymd(from), ymd(from + days * DAY_MS)];
+        const profiled = scoredSessions(
+          { symbol: "0097.KL", assetClass: "equity" },
+          reference,
+          run,
+          0,
+        );
+        if (profiled !== undefined) {
+          determinable += 1;
+          expect(`${reference}..${run}: ${String(profiled)}`).toBe(
+            `${reference}..${run}: ${String(exchangeSessionsAfter(reference, run))}`,
+          );
+        }
+      }
+    }
+    expect(determinable).toBeGreaterThan(800);
   });
 
   test("returns no session count for a non-US listing", () => {

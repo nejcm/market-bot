@@ -3,6 +3,7 @@ import type { InstrumentIdentity } from "../domain/instrument";
 import type { AssetClass } from "../domain/job-type";
 import type { SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
+import { exchangeProfileFor } from "../domain/exchange-profile";
 import { hasSplitSignature, rangeOutsideProbability } from "../forecast/baseline";
 import { exchangeSessionsAfter } from "../scoring/exchange-calendar";
 import { isUsListing } from "../sources/instrument-capability";
@@ -58,7 +59,23 @@ export function rangeReferenceBand(
   return lo < hi ? [lo, hi] : undefined;
 }
 
-// The resolver counts +horizon from the first US session on or after the run date (resolver.ts);
+// Sessions in (reference close, first session on or after the run date]: 0 on the same day, 1 when only a weekend lies between.
+// Shortcut: assumes a Monday–Friday week on every profiled exchange; add a per-profile trading week when one differs.
+function profiledSessionsBeforeAnchor(referenceDate: string, runDate: string): number | undefined {
+  const reference = Date.parse(referenceDate.slice(0, 10));
+  const run = Date.parse(runDate.slice(0, 10));
+  if (!(reference <= run)) {
+    return undefined;
+  }
+  for (let day = reference + 86_400_000; day < run; day += 86_400_000) {
+    if (![0, 6].includes(new Date(day).getUTCDay())) {
+      return undefined;
+    }
+  }
+  return reference === run ? 0 : 1;
+}
+
+// The resolver counts +horizon from the first session on or after the run date (resolver.ts);
 // Crypto scores the UTC calendar day +horizon after the run date (scoring policy v3).
 export function scoredSessions(
   instrument: {
@@ -73,10 +90,14 @@ export function scoredSessions(
   if (instrument.assetClass === "crypto") {
     return horizon + Math.max(0, (Date.parse(runDate) - Date.parse(referenceDate)) / 86_400_000);
   }
-  if (!isUsListing(instrument.symbol, instrument.identity)) {
-    return undefined;
+  if (isUsListing(instrument.symbol, instrument.identity)) {
+    return horizon + exchangeSessionsAfter(referenceDate, runDate);
   }
-  return horizon + exchangeSessionsAfter(referenceDate, runDate);
+  const elapsed =
+    exchangeProfileFor(instrument.symbol) === undefined
+      ? undefined
+      : profiledSessionsBeforeAnchor(referenceDate, runDate);
+  return elapsed === undefined ? undefined : horizon + elapsed;
 }
 
 export function rangeReferenceSessions(

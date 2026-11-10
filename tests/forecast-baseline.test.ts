@@ -23,6 +23,8 @@ import {
   researchReport,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
+import { assertGridBaselineGapsDeclared } from "./support/run-fixtures/assertions";
+import { sourceGapScopedReportText } from "../src/domain/source-gaps";
 
 const RANGE_REFERENCE = { sigma: 0.01, spot: 100 };
 
@@ -364,7 +366,7 @@ describe("Event Grid", () => {
     ).not.toThrow();
   });
 
-  test("a Bursa listing issues only the relative event, against its Exchange Profile benchmark", () => {
+  test("a Bursa listing issues range events and a relative event against its Exchange Profile benchmark", () => {
     const bursa: ResearchCommand = { ...EQUITY, symbol: "0097.KL" };
     const grid = eventGrid(
       bursa,
@@ -375,21 +377,76 @@ describe("Event Grid", () => {
         }),
       }),
     );
-    expect(grid.events.map(({ id }) => id)).toEqual(["grid-relative-5"]);
-    expect(grid.events[0]?.measurableAs).toContain("^KLSE");
-    expect(grid.events[0]?.measurableAs).not.toContain("SPY");
-    expect(grid.gaps.map(({ source, message }) => `${source}: ${message}`)).toEqual([
-      "event-grid: Event Grid range events not issued: 0097.KL trades outside the US session calendar scoring counts on, so no Forecast Baseline could be stamped for them",
-    ]);
-    expect(plannedEventGrid("0097.KL", RANGE_REFERENCE).map(({ id }) => id)).toEqual([
-      "grid-relative-5",
-    ]);
-    expect(plannedEventGrid("AAPL", RANGE_REFERENCE).map(({ id }) => id)).toEqual([
+    expect(grid.events.map(({ id }) => id)).toEqual([
       "grid-range-1",
       "grid-range-5",
       "grid-range-20",
       "grid-relative-5",
     ]);
+    expect(grid.events.at(-1)?.measurableAs).toContain("^KLSE");
+    expect(grid.events.at(-1)?.measurableAs).not.toContain("SPY");
+    expect(grid.gaps).toEqual([]);
+    expect(plannedEventGrid("0097.KL", RANGE_REFERENCE).map(({ id }) => id)).toEqual(
+      grid.events.map(({ id }) => id),
+    );
+    expect(
+      plannedEventGrid("^KLSE", RANGE_REFERENCE).filter(({ kind }) => kind === "range"),
+    ).toEqual([]);
+  });
+
+  test("stamps a Bursa range baseline over the sessions before the anchor, or declares it unknown", () => {
+    // 61 alternating closes ending Friday 2026-11-06.
+    const bars = alternatingCloses(61).map((bar, index) => ({
+      ...bar,
+      date: new Date(Date.UTC(2026, 10, 6) + (index - 60) * 86_400_000).toISOString().slice(0, 10),
+      completed: true,
+    }));
+    const book = (generatedAt: string, latestSessionStatus?: "unverified") =>
+      issueForecastBook({
+        command: { ...EQUITY, symbol: "0097.KL" },
+        collectedSources: collectedSources({
+          verifiedMarketSnapshot: verifiedMarketSnapshot({
+            symbol: "0097.KL",
+            analysisDate: generatedAt.slice(0, 10),
+            ...(latestSessionStatus === undefined ? {} : { latestSessionStatus }),
+            recentCloses: bars.slice(-30).map(({ date, close }) => ({ date, close })),
+          }),
+          priceHistory: [
+            {
+              symbol: "0097.KL",
+              sourceId: "price-history-0097.KL",
+              priceMode: "split-adjusted-close",
+              bars,
+            },
+          ],
+        }),
+        modelPredictions: [],
+        modelEventGrid: [{ id: "grid-range-1", probability: 0.4 }],
+        knownSourceIds: new Set(["verified-snapshot-0097.KL", "price-history-0097.KL"]),
+        generatedAt,
+      });
+    const monday = book("2026-11-09T05:00:00.000Z").predictions[0]!;
+    const expected = (sessions: number) =>
+      forecastBaseline(range(monday.measurableAs), closes({ "0097.KL": bars }), () => sessions);
+    expect(monday).toMatchObject({ id: "grid-range-1", infoCutoff: "2026-11-06" });
+    expect(expected(2)).toMatchObject({ probability: monday.baselineProbability! });
+    expect(expected(1)).not.toMatchObject({ probability: monday.baselineProbability! });
+
+    for (const unknown of [
+      book("2026-11-10T05:00:00.000Z"),
+      book("2026-11-09T05:00:00.000Z", "unverified"),
+    ]) {
+      expect(unknown.predictions[0]).not.toHaveProperty("baselineProbability");
+      expect(unknown.gaps.map(({ message }) => message)).toContain(
+        "Forecast Baseline omitted for grid-range-1: the sessions scoring spans after its latest close are unknown (a non-US listing without an Exchange Profile or with a weekday between its latest close and the run date, or an unverified latest session) for 0097.KL",
+      );
+      const report = {
+        predictions: unknown.predictions,
+        dataGaps: unknown.gaps.map(sourceGapScopedReportText),
+      };
+      expect(() => assertGridBaselineGapsDeclared(report)).not.toThrow();
+      expect(() => assertGridBaselineGapsDeclared({ ...report, dataGaps: [] })).toThrow();
+    }
   });
 
   test("withholds a Bursa model prediction measured against a US benchmark", () => {
@@ -579,7 +636,9 @@ describe("Event Grid", () => {
       );
     const athens = withIdentity("ETE.AT", "Athens", "EUR");
     expect(athens.events.map(({ kind }) => kind)).toEqual(["relative"]);
-    expect(athens.gaps[0]?.message).toContain("ETE.AT trades outside the US session calendar");
+    expect(athens.gaps[0]?.message).toContain(
+      "ETE.AT trades outside the US on an exchange with no Exchange Profile",
+    );
     expect(
       eventGrid(
         { ...EQUITY, symbol: "ETE.AT" },
@@ -635,7 +694,7 @@ describe("Event Grid", () => {
       "baselineProbability",
     );
     expect(book.gaps.map(({ message }) => message)).toContain(
-      "Forecast Baseline omitted for r1: the sessions scoring spans after its latest close are unknown (non-US listing or unverified latest session) for ETE.AT",
+      "Forecast Baseline omitted for r1: the sessions scoring spans after its latest close are unknown (a non-US listing without an Exchange Profile or with a weekday between its latest close and the run date, or an unverified latest session) for ETE.AT",
     );
   });
 
@@ -930,7 +989,7 @@ describe("Event Grid", () => {
       ["r2", "RY.TO"],
     ]) {
       expect(gaps).toContain(
-        `forecast-baseline: Forecast Baseline omitted for ${id!}: the sessions scoring spans after its latest close are unknown (non-US listing or unverified latest session) for ${symbol!}`,
+        `forecast-baseline: Forecast Baseline omitted for ${id!}: the sessions scoring spans after its latest close are unknown (a non-US listing without an Exchange Profile or with a weekday between its latest close and the run date, or an unverified latest session) for ${symbol!}`,
       );
     }
   });

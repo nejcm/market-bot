@@ -373,18 +373,6 @@ function assertForecastBookInvariants(result: RunFixtureResult, meta: FixtureMet
   }
 }
 
-// Recorded model output attached row quotes to code-rendered metric references and misquoted one cell
-// (34,720 vs 34,716), so only those quotes drop.
-const EXPECTED_DROPPED_QUOTES: Readonly<Record<string, [string, string][]>> = {
-  "equity-bursa-brief": [
-    ["keyFindings[0]", "quote-too-short"],
-    ["keyFindings[1]", "quote-not-in-source"],
-    ["bullCase[0]", "quote-too-short"],
-    ["bullCase[0]", "quote-not-in-source"],
-    ["extras.businessFramework.sections[3]", "quote-too-short"],
-  ],
-};
-
 export async function assertInvariants(
   result: RunFixtureResult,
   meta: FixtureMeta,
@@ -519,7 +507,7 @@ export async function assertInvariants(
       location,
       reason,
     ]),
-  ).toEqual(EXPECTED_DROPPED_QUOTES[fixtureName] ?? []);
+  ).toEqual([]);
   assertVerifiedWebFigures(result, report);
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();

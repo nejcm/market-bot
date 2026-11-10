@@ -9,8 +9,9 @@ import { runScorePass } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import { resolveOutcome } from "../src/scoring/resolver";
 import type { PredictionScore } from "../src/scoring/types";
+import { verifiedSnapshotSource } from "../src/sources/verified-snapshot-contract";
 import type { WithheldSession } from "../src/sources/yahoo-chart";
-import { prediction, researchReport } from "./support/fixtures";
+import { prediction, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
 
 let root = "";
 const originalFetch = globalThis.fetch;
@@ -486,6 +487,262 @@ describe("completed-session scoring", () => {
       await runScorePass(dataDir, new Date(scoredAt.getTime() + 86_400_000), options);
 
       expect(await readScore()).toMatchObject({ status: "resolved", evidence: { closeN: 31.8 } });
+    },
+  );
+});
+
+// Bursa skipped 2026-11-09 (Deepavali replacement); the US-calendar +1 due date fell on it.
+const KL_ISSUED = "2026-11-06T05:46:13.672Z";
+const AFTER_KL_DUE = new Date("2026-11-09T12:00:00.000Z");
+const PAST_PLUS_FIVE_DEADLINE = new Date("2026-11-24T12:00:00.000Z");
+
+const range = (horizon: number, subject = "0097.KL", scoringPolicyVersion: 2 | 3 = 3) =>
+  prediction({
+    id: "pred-kl",
+    kind: "range",
+    subject,
+    measurableAs: `close(${subject}, +${String(horizon)}) outside [10.35, 10.86]`,
+    horizonTradingDays: horizon,
+    probability: 0.32,
+    ...(scoringPolicyVersion === 3 ? { scoringPolicyVersion } : {}),
+  });
+const klRelative = prediction({
+  id: "pred-kl",
+  kind: "relative",
+  subject: "0097.KL:SPY",
+  measurableAs: "close(0097.KL, +1) / close(0097.KL, 0) > close(SPY, +1) / close(SPY, 0)",
+  horizonTradingDays: 1,
+  scoringPolicyVersion: 3,
+});
+const klConditional = prediction({
+  id: "pred-kl",
+  kind: "conditional",
+  subject: "0097.KL",
+  measurableAs:
+    "if (close(0097.KL, +1) > close(0097.KL, 0)) then (close(0097.KL, +5) > close(0097.KL, 0))",
+  horizonTradingDays: 5,
+  scoringPolicyVersion: 3,
+});
+const bars = (subject: string, ...dates: readonly string[]): readonly Observation[] =>
+  dates.map((date, index) => ({ subject, date, value: 10.5 + index * 0.1 }));
+const inProgress = (date: string): WithheldSession => ({
+  date,
+  status: "in-progress",
+  closesAt: `${date}T09:00:00.000Z`,
+});
+
+describe("non-US short-window fallback wait", () => {
+  async function scorePass(
+    pred: Prediction,
+    window: (subject: string) => readonly Observation[],
+    now: Date,
+    overrides: Partial<ResearchReport> = {},
+  ): Promise<PredictionScore | undefined> {
+    const runDir = join(root, "runs", "run-kl");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "report.json"),
+      JSON.stringify(
+        researchReport({
+          runId: "run-kl",
+          jobType: "equity",
+          assetClass: "equity",
+          symbol: "0097.KL",
+          generatedAt: KL_ISSUED,
+          predictions: [pred],
+          ...overrides,
+        }),
+      ),
+    );
+    await runScorePass(join(root, "runs"), now, {
+      observationRepository: repository(async (subject) => window(subject)),
+      refreshProviderHealth: async () => undefined,
+    });
+    const file = JSON.parse(await readFile(join(runDir, "score.json"), "utf8")) as {
+      scores: readonly PredictionScore[];
+    };
+    return file.scores[0];
+  }
+
+  test("waits without an attempt when a Bursa window is short and carries no withheld session", async () => {
+    const score = await scorePass(range(1), (subject) => bars(subject, "2026-11-06"), AFTER_KL_DUE);
+
+    expect(score).toEqual({
+      predictionId: "pred-kl",
+      runId: "run-kl",
+      status: "pending",
+      attemptCount: 0,
+      scoringVersion: 3,
+      evidence: { reason: "horizon not yet elapsed" },
+    });
+  });
+
+  test("resolves the same Prediction once the next Bursa session prints", async () => {
+    const score = await scorePass(
+      range(1),
+      (subject) => [
+        { subject, date: "2026-11-06", value: 10.5 },
+        { subject, date: "2026-11-10", value: 10.2 },
+      ],
+      new Date("2026-11-10T12:00:00.000Z"),
+    );
+
+    expect(score).toMatchObject({
+      status: "resolved",
+      outcome: "hit",
+      attemptCount: 1,
+      forecastOrigin: "2026-11-06",
+      evidence: { closeN: 10.2 },
+    });
+  });
+
+  test("waits on a short window whose withheld session cannot complete it, until the deadline", async () => {
+    const window = (subject: string) =>
+      withheldWindow(bars(subject, "2026-11-06"), [inProgress("2026-11-10")]);
+
+    expect(await scorePass(range(5), window, new Date("2026-11-16T12:00:00.000Z"))).toMatchObject({
+      status: "pending",
+      attemptCount: 0,
+    });
+    const late = await scorePass(range(5), window, PAST_PLUS_FIVE_DEADLINE);
+
+    expect(late).toMatchObject({
+      status: "pending",
+      attemptCount: 1,
+      nextAttemptAt: "2026-11-25T12:00:00.000Z",
+      evidence: { reason: "observation unavailable", withheldSessions: [inProgress("2026-11-10")] },
+    });
+  });
+
+  test("keeps the withheld-session wait past the fallback deadline when the counterfactual resolves", async () => {
+    for (const day of ["2026-11-20", "2026-12-20"]) {
+      const score = await scorePass(
+        range(1),
+        (subject) => withheldWindow(bars(subject, "2026-11-06"), [inProgress(day)]),
+        new Date(`${day}T12:00:00.000Z`),
+      );
+      expect(score).toMatchObject({ status: "pending", attemptCount: 0 });
+      expect(score).not.toHaveProperty("nextAttemptAt");
+    }
+  });
+
+  test("spends an attempt on each rolling fragment anchored outside the provider tolerance", async () => {
+    const attempts = [];
+    for (const day of ["2026-11-20", "2026-12-20"]) {
+      const score = await scorePass(
+        range(5),
+        (subject) => bars(subject, day),
+        new Date(`${day}T12:00:00.000Z`),
+      );
+      attempts.push(score?.attemptCount);
+    }
+
+    expect(attempts).toEqual([1, 2]);
+  });
+
+  test("spends an attempt on an empty Bursa window", async () => {
+    const score = await scorePass(range(1), () => [], AFTER_KL_DUE);
+
+    expect(score).toMatchObject({
+      status: "pending",
+      attemptCount: 1,
+      nextAttemptAt: "2026-11-10T12:00:00.000Z",
+      evidence: { reason: "observation unavailable" },
+    });
+  });
+
+  test("spends an attempt when the origin session is quarantined", async () => {
+    const score = await scorePass(
+      range(1),
+      (subject) => bars(subject, "2026-11-06"),
+      AFTER_KL_DUE,
+      {
+        sources: [
+          verifiedSnapshotSource(
+            verifiedMarketSnapshot({
+              symbol: "0097.KL",
+              latestSessionDate: "2026-11-06",
+              latestSessionStatus: "unverified",
+            }),
+          ),
+        ],
+      },
+    );
+
+    expect(score).toMatchObject({ status: "pending", attemptCount: 1 });
+  });
+
+  test.each([
+    [
+      "a short Bursa leg beside a complete SPY leg",
+      ["2026-11-06"],
+      ["2026-11-06", "2026-11-09"],
+      0,
+    ],
+    ["a short SPY leg", ["2026-11-06", "2026-11-10"], ["2026-11-06"], 1],
+    ["a Bursa leg anchored out of tolerance", ["2026-11-12"], ["2026-11-06", "2026-11-09"], 1],
+    ["a SPY leg anchored out of tolerance", ["2026-11-06"], ["2026-11-12", "2026-11-13"], 1],
+  ] as const)("scores %s with %d attempts", async (_name, kl, spy, attempts) => {
+    const score = await scorePass(
+      klRelative,
+      (subject) => bars(subject, ...(subject === "SPY" ? spy : kl)),
+      new Date("2026-11-14T00:00:00.000Z"),
+    );
+
+    expect(score).toMatchObject({ status: "pending", attemptCount: attempts });
+  });
+
+  test.each([
+    [
+      "active-pending",
+      ["2026-11-06", "2026-11-10", "2026-11-11", "2026-11-12"],
+      new Date("2026-11-16T12:00:00.000Z"),
+    ],
+    ["pending-condition", ["2026-11-06"], AFTER_KL_DUE],
+  ] as const)("keeps a Bursa conditional %s without an attempt", async (status, dates, now) => {
+    const score = await scorePass(klConditional, (subject) => bars(subject, ...dates), now);
+
+    expect(score).toMatchObject({ status, attemptCount: 0 });
+  });
+
+  test.each([
+    ["an AAPL short window", range(1, "AAPL"), [], { symbol: "AAPL" }],
+    [
+      "an AAPL short window with a withheld session",
+      range(5, "AAPL"),
+      [inProgress("2026-11-09")],
+      { symbol: "AAPL" },
+    ],
+    ["a policy-v2 Bursa window", range(1, "0097.KL", 2), [], {}],
+    [
+      "a policy-v2 Bursa window with a withheld session",
+      range(5, "0097.KL", 2),
+      [inProgress("2026-11-10")],
+      {},
+    ],
+  ] as const)(
+    "spends an attempt on %s, as before the fallback",
+    async (_name, pred, withheld, overrides) => {
+      const now = new Date("2026-11-16T12:00:00.000Z");
+      const score = await scorePass(
+        pred,
+        (subject) =>
+          withheld.length === 0
+            ? bars(subject, "2026-11-06")
+            : withheldWindow(bars(subject, "2026-11-06"), withheld),
+        now,
+        overrides,
+      );
+
+      expect(score).toMatchObject({
+        status: "pending",
+        attemptCount: 1,
+        nextAttemptAt: "2026-11-17T12:00:00.000Z",
+        evidence: {
+          reason: "observation unavailable",
+          ...(withheld.length === 0 ? {} : { withheldSessions: withheld }),
+        },
+      });
     },
   );
 });

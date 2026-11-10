@@ -61,11 +61,15 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   close rejects the window, because dropping an earlier bar would shift the session count onto a wrong close.
 - Withheld in-progress/awaiting-open or scheduled-unopened sessions cause a horizon wait only if filling exactly
   those sessions resolves the one unresolved base expression. For conditionals consider only the antecedent
-  until resolved; placeholder prices never activate it. Other missing observations consume an attempt.
+  until resolved; placeholder prices never activate it. Bounded non-US fallback (amended 2026-11-10; the US
+  due date can fall on a local holiday): a v3 equity close window that is short only on non-US listings by
+  symbol, whose every window starts within the anchor tolerance and whose origin is not quarantined, also
+  waits, until the expression's own due date plus 10 days. That deadline binds this fallback only; the
+  withheld-session wait above keeps none. Other missing observations consume an attempt.
   Never cache a window that withheld anything or accept a cached window acquired after the requested cutoff;
   bypass uncertified older cache versions without deleting them.
-- Horizon waits consume no attempts. Persist `nextAttemptAt` for unavailable observations; retry after 1/3/7
-  days and abandon on the fourth failed fetch. `score --force` bypasses timing only, never resolution/abandonment.
+- Horizon waits, including the non-US fallback, consume no attempts and persist no `nextAttemptAt`. Persist
+  `nextAttemptAt` for unavailable observations; retry after 1/3/7 days and abandon on the fourth failed fetch. `score --force` bypasses timing only, never resolution/abandonment.
 - A score's required `status` is its lifecycle; abandonment persists `abandonedAt` (amended 2026-11-10). A score
   pass may re-serialise a terminal row without the redundant `resolved` key (and a legacy abandoned `observedAt`
   as `abandonedAt`); status, outcome and observation never change. Rows a pass does not rescore (malformed, id-less, duplicated ids,

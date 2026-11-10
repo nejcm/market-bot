@@ -1,12 +1,12 @@
 {
   "values": {
-    "cache:93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3:2026-11-06": [
+    "cache:93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3:2026-11-10": [
       {
         "value": {
           "cacheKey": "93b920a677ef3a5ecb64ac6092a06ddd42a36a2e0dc220e183d291d55fe1b3b3",
           "adapter": "yahoo-ticker",
-          "fetchedAt": "2026-11-06T05:46:13.672Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
             "quoteResponse": {
               "result": [
@@ -19,30 +19,7 @@
                   "triggerable": false,
                   "customPriceAlertConfidence": "LOW",
                   "currency": "MYR",
-                  "earningsTimestampStart": 1753268340,
-                  "earningsTimestampEnd": 1753704000,
-                  "isEarningsDateEstimate": true,
-                  "trailingAnnualDividendRate": 0.012,
-                  "trailingPE": 92.36363,
-                  "dividendRate": 0.02,
-                  "trailingAnnualDividendYield": 0.0011320754,
-                  "dividendYield": 0.17,
-                  "epsTrailingTwelveMonths": 0.11,
-                  "epsForward": 0.21035,
-                  "epsCurrentYear": 0.1723,
-                  "priceEpsCurrentYear": 58.96692,
-                  "sharesOutstanding": 1894902800,
-                  "impliedSharesOutstanding": 1894902800,
-                  "bookValue": 0.659,
-                  "fiftyDayAverage": 10.1182,
-                  "fiftyDayAverageChange": 0.041799545,
-                  "fiftyDayAverageChangePercent": 0.0041311244,
-                  "twoHundredDayAverage": 7.14365,
-                  "twoHundredDayAverageChange": 3.0163498,
-                  "twoHundredDayAverageChangePercent": 0.4222421,
-                  "marketCap": 19252211712,
-                  "forwardPE": 48.30045,
-                  "priceToBook": 15.417299,
+                  "marketState": "POSTPOST",
                   "sourceInterval": 15,
                   "exchangeDataDelayedBy": 15,
                   "averageAnalystRating": "1.9 - Buy",
@@ -51,45 +28,68 @@
                   "hasPrePostMarketData": false,
                   "firstTradeDateMilliseconds": 1126486800000,
                   "priceHint": 2,
-                  "regularMarketChange": -0.44000053,
-                  "regularMarketChangePercent": -4.150948,
-                  "fulldayChange": -0.44000053,
-                  "fulldayChangePercent": -4.150948,
-                  "fulldayPrice": 10.16,
-                  "regularMarketPrice": 10.16,
-                  "regularMarketDayHigh": 10.4,
-                  "regularMarketDayRange": "9.88 - 10.4",
-                  "regularMarketDayLow": 9.88,
-                  "regularMarketVolume": 10338700,
-                  "regularMarketPreviousClose": 10.6,
-                  "bid": 10.16,
-                  "ask": 10.18,
+                  "regularMarketChange": -0.2699995,
+                  "regularMarketChangePercent": -2.6679792,
+                  "fulldayChange": -0.2699995,
+                  "fulldayChangePercent": -2.6679792,
+                  "fulldayPrice": 9.85,
+                  "regularMarketPrice": 9.85,
+                  "regularMarketDayHigh": 10.6,
+                  "regularMarketDayRange": "9.68 - 10.6",
+                  "regularMarketDayLow": 9.68,
+                  "regularMarketVolume": 13887600,
+                  "regularMarketPreviousClose": 10.12,
+                  "bid": 9.85,
+                  "ask": 9.87,
                   "bidSize": 0,
                   "askSize": 0,
                   "fullExchangeName": "Kuala Lumpur",
                   "financialCurrency": "MYR",
-                  "regularMarketOpen": 10.2,
-                  "averageDailyVolume3Month": 3553825,
-                  "averageDailyVolume10Day": 4012400,
-                  "fiftyTwoWeekLowChange": 6.22,
-                  "fiftyTwoWeekLowChangePercent": 1.5786802,
+                  "regularMarketOpen": 10.6,
+                  "averageDailyVolume3Month": 3699183,
+                  "averageDailyVolume10Day": 5284880,
+                  "fiftyTwoWeekLowChange": 5.9100003,
+                  "fiftyTwoWeekLowChangePercent": 1.5000001,
                   "fiftyTwoWeekRange": "3.94 - 11.3",
-                  "fiftyTwoWeekHighChange": -1.1400003,
-                  "fiftyTwoWeekHighChangePercent": -0.10088498,
+                  "fiftyTwoWeekHighChange": -1.4499998,
+                  "fiftyTwoWeekHighChangePercent": -0.12831856,
                   "fiftyTwoWeekLow": 3.94,
                   "fiftyTwoWeekHigh": 11.3,
-                  "fiftyTwoWeekChangePercent": 134.51328,
-                  "marketState": "REGULAR",
-                  "corporateActions": [],
-                  "regularMarketTime": 1793939390,
-                  "shortName": "VITROX",
-                  "longName": "ViTrox Corporation Berhad",
+                  "fiftyTwoWeekChangePercent": 121.92984,
+                  "earningsTimestampStart": 1753268340,
+                  "earningsTimestampEnd": 1753704000,
+                  "isEarningsDateEstimate": true,
+                  "trailingAnnualDividendRate": 0.012,
+                  "trailingPE": 61.562504,
+                  "dividendRate": 0.02,
+                  "trailingAnnualDividendYield": 0.0011857707,
+                  "dividendYield": 0.18,
+                  "epsTrailingTwelveMonths": 0.16,
+                  "epsForward": 0.2245,
+                  "epsCurrentYear": 0.19342,
+                  "priceEpsCurrentYear": 50.92545,
+                  "sharesOutstanding": 1894902800,
+                  "impliedSharesOutstanding": 1894902800,
+                  "bookValue": 0.723,
+                  "fiftyDayAverage": 10.1484,
+                  "fiftyDayAverageChange": -0.29839993,
+                  "fiftyDayAverageChangePercent": -0.029403642,
+                  "twoHundredDayAverage": 7.20055,
+                  "twoHundredDayAverageChange": 2.6494503,
+                  "twoHundredDayAverageChangePercent": 0.3679511,
+                  "marketCap": 18664794112,
+                  "forwardPE": 43.87528,
+                  "priceToBook": 13.623791,
                   "exchange": "KLS",
                   "exchangeTimezoneName": "Asia/Kuala_Lumpur",
                   "exchangeTimezoneShortName": "MYT",
                   "gmtOffSetMilliseconds": 28800000,
                   "market": "my_market",
                   "esgPopulated": false,
+                  "shortName": "VITROX",
+                  "longName": "ViTrox Corporation Berhad",
+                  "corporateActions": [],
+                  "regularMarketTime": 1794301174,
                   "symbol": "0097.KL"
                 }
               ],
@@ -99,13 +99,13 @@
         }
       }
     ],
-    "cache:13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6:2026-11-06": [
+    "cache:13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6:2026-11-10": [
       {
         "value": {
           "cacheKey": "13d4adca2b61e5f65669fdbd53627d098bd12be270399a59e2ee4acc54e4b6b6",
           "adapter": "yahoo-regime",
-          "fetchedAt": "2026-11-06T05:46:13.672Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
             "quoteResponse": {
               "result": [
@@ -118,9 +118,9 @@
                   "triggerable": false,
                   "customPriceAlertConfidence": "LOW",
                   "currency": "MYR",
-                  "marketState": "REGULAR",
+                  "marketState": "POSTPOST",
                   "corporateActions": [],
-                  "regularMarketTime": 1793943030,
+                  "regularMarketTime": 1794301185,
                   "exchange": "KLS",
                   "messageBoardId": "finmb_INDEXKLSE",
                   "exchangeTimezoneName": "Asia/Kuala_Lumpur",
@@ -130,39 +130,23 @@
                   "esgPopulated": false,
                   "shortName": "FTSE Bursa Malaysia KLCI",
                   "longName": "FTSE Bursa Malaysia KLCI",
-                  "regularMarketChange": -22.01001,
-                  "regularMarketChangePercent": -1.3454703,
-                  "fulldayChange": -22.01001,
-                  "fulldayChangePercent": -1.3454703,
-                  "fulldayPrice": 1613.85,
-                  "regularMarketPrice": 1613.85,
-                  "regularMarketDayHigh": 1620.55,
-                  "regularMarketDayRange": "1612.33 - 1620.55",
-                  "regularMarketDayLow": 1612.33,
-                  "regularMarketVolume": 0,
-                  "regularMarketPreviousClose": 1616.56,
-                  "bid": 0,
-                  "ask": 0,
-                  "bidSize": 0,
-                  "askSize": 0,
-                  "fullExchangeName": "Kuala Lumpur",
-                  "regularMarketOpen": 1620.55,
-                  "averageDailyVolume3Month": 221953803,
-                  "averageDailyVolume10Day": 191175300,
-                  "fiftyTwoWeekLowChange": 21.28003,
-                  "fiftyTwoWeekLowChangePercent": 0.013362069,
+                  "regularMarketOpen": 1626.55,
+                  "averageDailyVolume3Month": 223524965,
+                  "averageDailyVolume10Day": 201565930,
+                  "fiftyTwoWeekLowChange": 11.5,
+                  "fiftyTwoWeekLowChangePercent": 0.007221033,
                   "fiftyTwoWeekRange": "1592.57 - 1771.25",
-                  "fiftyTwoWeekHighChange": -157.40002,
-                  "fiftyTwoWeekHighChangePercent": -0.08886381,
+                  "fiftyTwoWeekHighChange": -167.18005,
+                  "fiftyTwoWeekHighChangePercent": -0.09438535,
                   "fiftyTwoWeekLow": 1592.57,
                   "fiftyTwoWeekHigh": 1771.25,
-                  "fiftyTwoWeekChangePercent": -0.1470089,
-                  "fiftyDayAverage": 1655.0883,
-                  "fiftyDayAverageChange": -41.23828,
-                  "fiftyDayAverageChangePercent": -0.024916062,
-                  "twoHundredDayAverage": 1698.9495,
-                  "twoHundredDayAverageChange": -85.09949,
-                  "twoHundredDayAverageChangePercent": -0.050089475,
+                  "fiftyTwoWeekChangePercent": -1.1163235,
+                  "fiftyDayAverage": 1650.4396,
+                  "fiftyDayAverageChange": -46.36963,
+                  "fiftyDayAverageChangePercent": -0.02809532,
+                  "twoHundredDayAverage": 1698.0813,
+                  "twoHundredDayAverageChange": -94.01135,
+                  "twoHundredDayAverageChangePercent": -0.055363283,
                   "sourceInterval": 15,
                   "exchangeDataDelayedBy": 15,
                   "tradeable": false,
@@ -170,6 +154,22 @@
                   "hasPrePostMarketData": false,
                   "firstTradeDateMilliseconds": 754880400000,
                   "priceHint": 2,
+                  "regularMarketChange": -12.51001,
+                  "regularMarketChangePercent": -0.7738565,
+                  "fulldayChange": -12.51001,
+                  "fulldayChangePercent": -0.7738565,
+                  "fulldayPrice": 1604.07,
+                  "regularMarketPrice": 1604.07,
+                  "regularMarketDayHigh": 1626.55,
+                  "regularMarketDayRange": "1595.26 - 1626.55",
+                  "regularMarketDayLow": 1595.26,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 1616.58,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Kuala Lumpur",
                   "symbol": "^KLSE"
                 }
               ],
@@ -179,13 +179,13 @@
         }
       }
     ],
-    "cache:736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474:2026-11-06": [
+    "cache:b3cad79d7f2dadc7189632414128ac15ec50b119b4c2f8ba54c47a152355bbb7:2026-11-10": [
       {
         "value": {
-          "cacheKey": "736a97809a910291eeee2b5b5f16baf0d3acd97a18ed26894edb517d54d00474",
+          "cacheKey": "b3cad79d7f2dadc7189632414128ac15ec50b119b4c2f8ba54c47a152355bbb7",
           "adapter": "marketaux-news",
-          "fetchedAt": "2026-11-06T05:46:13.672Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
             "warnings": ["limit is higher than your plan allows"],
             "meta": {
@@ -199,41 +199,24 @@
         }
       }
     ],
-    "cache:ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88:2026-11-06": [
+    "cache:ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88:2026-11-10": [
       {
         "value": {
           "cacheKey": "ce1cea8cabbfec52f5c713a8517549709764980dfbaef1e5d887bf25c785eb88",
           "adapter": "yahoo-news",
-          "fetchedAt": "2026-11-06T05:46:13.672Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
             "explains": [],
-            "count": 1,
-            "quotes": [
-              {
-                "exchange": "KLS",
-                "shortname": "VITROX",
-                "quoteType": "EQUITY",
-                "symbol": "0097.KL",
-                "index": "quotes",
-                "score": 10063500,
-                "typeDisp": "Equity",
-                "longname": "ViTrox Corporation Berhad",
-                "exchDisp": "Kuala Lumpur Stock Exchange",
-                "sector": "Technology",
-                "sectorDisp": "Technology",
-                "industry": "Semiconductor Equipment & Materials",
-                "industryDisp": "Semiconductor Equipment & Materials",
-                "isYahooFinance": true
-              }
-            ],
+            "count": 0,
+            "quotes": [],
             "news": [],
             "nav": [],
             "lists": [],
             "researchReports": [],
             "screenerFieldResults": [],
-            "totalTime": 45,
-            "timeTakenForQuotes": 420,
+            "totalTime": 57,
+            "timeTakenForQuotes": 407,
             "timeTakenForNews": 600,
             "timeTakenForAlgowatchlist": 400,
             "timeTakenForPredefinedScreener": 400,
@@ -248,16 +231,16 @@
         }
       }
     ],
-    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-06": [
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-10": [
       {
         "value": {
           "cacheKey": "975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba",
           "adapter": "fred-DGS10",
-          "fetchedAt": "2026-11-06T03:07:03.043Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
-            "realtime_start": "2026-11-05",
-            "realtime_end": "2026-11-05",
+            "realtime_start": "2026-11-09",
+            "realtime_end": "2026-11-09",
             "observation_start": "1600-01-01",
             "observation_end": "9999-12-31",
             "units": "lin",
@@ -265,37 +248,37 @@
             "file_type": "json",
             "order_by": "observation_date",
             "sort_order": "desc",
-            "count": 16917,
+            "count": 16919,
             "offset": 0,
             "limit": 2,
             "observations": [
               {
-                "realtime_start": "2026-11-05",
-                "realtime_end": "2026-11-05",
-                "date": "2026-11-04",
-                "value": "4.9"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-06",
+                "value": "4.86"
               },
               {
-                "realtime_start": "2026-11-05",
-                "realtime_end": "2026-11-05",
-                "date": "2026-11-03",
-                "value": "4.95"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-05",
+                "value": "4.84"
               }
             ]
           }
         }
       }
     ],
-    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-06": [
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-10": [
       {
         "value": {
           "cacheKey": "f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47",
           "adapter": "fred-DGS2",
-          "fetchedAt": "2026-11-06T03:07:03.043Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
-            "realtime_start": "2026-11-05",
-            "realtime_end": "2026-11-05",
+            "realtime_start": "2026-11-09",
+            "realtime_end": "2026-11-09",
             "observation_start": "1600-01-01",
             "observation_end": "9999-12-31",
             "units": "lin",
@@ -303,37 +286,37 @@
             "file_type": "json",
             "order_by": "observation_date",
             "sort_order": "desc",
-            "count": 13157,
+            "count": 13159,
             "offset": 0,
             "limit": 2,
             "observations": [
               {
-                "realtime_start": "2026-11-05",
-                "realtime_end": "2026-11-05",
-                "date": "2026-11-04",
-                "value": "4.58"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-06",
+                "value": "4.51"
               },
               {
-                "realtime_start": "2026-11-05",
-                "realtime_end": "2026-11-05",
-                "date": "2026-11-03",
-                "value": "4.61"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-05",
+                "value": "4.46"
               }
             ]
           }
         }
       }
     ],
-    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-06": [
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-10": [
       {
         "value": {
           "cacheKey": "a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d",
           "adapter": "fred-T10Y2Y",
-          "fetchedAt": "2026-11-06T03:07:03.043Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
-            "realtime_start": "2026-11-05",
-            "realtime_end": "2026-11-05",
+            "realtime_start": "2026-11-09",
+            "realtime_end": "2026-11-09",
             "observation_start": "1600-01-01",
             "observation_end": "9999-12-31",
             "units": "lin",
@@ -341,34 +324,34 @@
             "file_type": "json",
             "order_by": "observation_date",
             "sort_order": "desc",
-            "count": 13158,
+            "count": 13160,
             "offset": 0,
             "limit": 2,
             "observations": [
               {
-                "realtime_start": "2026-11-05",
-                "realtime_end": "2026-11-05",
-                "date": "2026-11-05",
-                "value": "0.38"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-09",
+                "value": "0.32"
               },
               {
-                "realtime_start": "2026-11-05",
-                "realtime_end": "2026-11-05",
-                "date": "2026-11-04",
-                "value": "0.32"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-06",
+                "value": "0.35"
               }
             ]
           }
         }
       }
     ],
-    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-06": [
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-10": [
       {
         "value": {
           "cacheKey": "a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8",
           "adapter": "fred-FEDFUNDS",
-          "fetchedAt": "2026-11-06T03:07:03.043Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
             "realtime_start": "2026-11-02",
             "realtime_end": "2026-11-02",
@@ -400,13 +383,13 @@
         }
       }
     ],
-    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-06": [
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-10": [
       {
         "value": {
           "cacheKey": "299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1",
           "adapter": "fred-CPIAUCSL",
-          "fetchedAt": "2026-11-06T03:07:03.043Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
             "realtime_start": "2026-10-26",
             "realtime_end": "2026-10-26",
@@ -438,16 +421,16 @@
         }
       }
     ],
-    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-06": [
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-10": [
       {
         "value": {
           "cacheKey": "729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed",
           "adapter": "fred-UNRATE",
-          "fetchedAt": "2026-11-06T03:07:03.043Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
-            "realtime_start": "2026-10-21",
-            "realtime_end": "2026-10-21",
+            "realtime_start": "2026-11-06",
+            "realtime_end": "2026-11-06",
             "observation_start": "1600-01-01",
             "observation_end": "9999-12-31",
             "units": "lin",
@@ -455,37 +438,37 @@
             "file_type": "json",
             "order_by": "observation_date",
             "sort_order": "desc",
-            "count": 945,
+            "count": 946,
             "offset": 0,
             "limit": 2,
             "observations": [
               {
-                "realtime_start": "2026-10-21",
-                "realtime_end": "2026-10-21",
-                "date": "2026-09-01",
-                "value": "4.2"
+                "realtime_start": "2026-11-06",
+                "realtime_end": "2026-11-06",
+                "date": "2026-10-01",
+                "value": "4.1"
               },
               {
-                "realtime_start": "2026-10-21",
-                "realtime_end": "2026-10-21",
-                "date": "2026-08-01",
-                "value": "4.1"
+                "realtime_start": "2026-11-06",
+                "realtime_end": "2026-11-06",
+                "date": "2026-09-01",
+                "value": "4.2"
               }
             ]
           }
         }
       }
     ],
-    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-06": [
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-10": [
       {
         "value": {
           "cacheKey": "8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8",
           "adapter": "fred-DTWEXBGS",
-          "fetchedAt": "2026-11-06T03:07:03.043Z",
-          "cachedDate": "2026-11-06",
+          "fetchedAt": "2026-11-10T13:11:54.401Z",
+          "cachedDate": "2026-11-10",
           "payload": {
-            "realtime_start": "2026-11-02",
-            "realtime_end": "2026-11-02",
+            "realtime_start": "2026-11-09",
+            "realtime_end": "2026-11-09",
             "observation_start": "1600-01-01",
             "observation_end": "9999-12-31",
             "units": "lin",
@@ -493,242 +476,207 @@
             "file_type": "json",
             "order_by": "observation_date",
             "sort_order": "desc",
-            "count": 5435,
+            "count": 5440,
             "offset": 0,
             "limit": 2,
             "observations": [
               {
-                "realtime_start": "2026-11-02",
-                "realtime_end": "2026-11-02",
-                "date": "2026-10-30",
-                "value": "121.6656"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-06",
+                "value": "121.8803"
               },
               {
-                "realtime_start": "2026-11-02",
-                "realtime_end": "2026-11-02",
-                "date": "2026-10-29",
-                "value": "121.7361"
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-05",
+                "value": "121.5061"
               }
             ]
           }
         }
       }
     ],
-    "cache:f385be787fd3baf272616ad8e3656003fd02e286622b76534ae5d60df886e909:2026-11-06": [
+    "cache:89aed71d7e4e58ee53f1b152be8c9729498cbf0498686b3e2f5f0c0c7792f686:2026-11-10": [
       {
-        "bodyFile": "bodies/ff0b909016466ddbd8ec9eb74edf753113447be46376597283d32b6bd5d2154d.json",
-        "sha256": "ff0b909016466ddbd8ec9eb74edf753113447be46376597283d32b6bd5d2154d"
+        "bodyFile": "bodies/40a9af649cdef1c96c5eb61892e19f6edc65a5a1b554e1674f43eeae8f572fc9.json",
+        "sha256": "40a9af649cdef1c96c5eb61892e19f6edc65a5a1b554e1674f43eeae8f572fc9"
       }
     ],
-    "cache:af1e7992cb38c0188d4b3fd8106c3a528d49aed404abe188054849c1968c73aa:2026-11-06": [
+    "cache:cae88f7611e85eed44e0b2c9b229c7b9fec7d6d526af861d4cb9613840ad5d6b:2026-11-10": [
       {
-        "bodyFile": "bodies/80d45e99e5f2ef4cc2e43d17707ebc058cfd91d745b189617b5509dcba55bf39.json",
-        "sha256": "80d45e99e5f2ef4cc2e43d17707ebc058cfd91d745b189617b5509dcba55bf39"
-      }
-    ],
-    "cache:0ccbdc1663d2ab55c44fdb144f12f3b9b9c68f0142bf07fe0cce2440f5778c73:2026-11-06": [
-      {
-        "bodyFile": "bodies/83b16ca851105228274faf4dc8ab01968ee4c40b16c2e0a28e3df50f9c082d18.json",
-        "sha256": "83b16ca851105228274faf4dc8ab01968ee4c40b16c2e0a28e3df50f9c082d18"
+        "bodyFile": "bodies/f16bf87c8046df6676b2b1f9ea1de646130a374bd6b9c2cd56cdf054c4babeb4.json",
+        "sha256": "f16bf87c8046df6676b2b1f9ea1de646130a374bd6b9c2cd56cdf054c4babeb4"
       }
     ],
     "news-seen": [
       {
-        "bodyFile": "bodies/233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d.json",
-        "sha256": "233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d"
+        "bodyFile": "bodies/e02753da407befdef23a76af0189b7e744d150e6c7625f3c302a2c48a87d5e6d.json",
+        "sha256": "e02753da407befdef23a76af0189b7e744d150e6c7625f3c302a2c48a87d5e6d"
       },
       {
-        "bodyFile": "bodies/233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d.json",
-        "sha256": "233966537bb946aa45e16b1061b7ba26f9668fb4f071f4aefef70a21fa91d57d"
-      }
-    ],
-    "cache:2f3aab0c645bd116849b2d7f1c6c86d1b6ad47d6659647169e7eba46f345327a:2026-11-06": [
-      {
-        "bodyFile": "bodies/741e556f996b5552c0e45c15ae54f17bd8dc16bd80c516d08338253f0bbb9d6e.json",
-        "sha256": "741e556f996b5552c0e45c15ae54f17bd8dc16bd80c516d08338253f0bbb9d6e"
+        "bodyFile": "bodies/e02753da407befdef23a76af0189b7e744d150e6c7625f3c302a2c48a87d5e6d.json",
+        "sha256": "e02753da407befdef23a76af0189b7e744d150e6c7625f3c302a2c48a87d5e6d"
       }
     ],
     "calibration": [
       {
         "value": {
-          "generatedAt": "2026-11-06T05:46:58.749Z",
-          "resolvedCount": 134,
-          "duplicateForecastCount": 100,
-          "missAutopsyCount": 27,
-          "brierScore": 0.2368171641791044,
-          "hitRate": 0.44776119402985076,
+          "generatedAt": "2026-11-10T13:16:02.081Z",
+          "resolvedCount": 112,
+          "duplicateForecastCount": 62,
+          "missAutopsyCount": 20,
+          "brierScore": 0.25890446428571406,
+          "hitRate": 0.5178571428571429,
           "bins": [
             {
               "pLow": 0.1,
               "pHigh": 0.2,
               "label": "0.1-0.2",
               "hitCount": 1,
-              "totalCount": 8,
-              "hitRate": 0.125
+              "totalCount": 1,
+              "hitRate": 1
             },
             {
               "pLow": 0.2,
               "pHigh": 0.3,
               "label": "0.2-0.3",
-              "hitCount": 3,
-              "totalCount": 10,
-              "hitRate": 0.3
+              "hitCount": 1,
+              "totalCount": 4,
+              "hitRate": 0.25
             },
             {
               "pLow": 0.3,
               "pHigh": 0.4,
               "label": "0.3-0.4",
-              "hitCount": 21,
-              "totalCount": 53,
-              "hitRate": 0.39622641509433965
+              "hitCount": 18,
+              "totalCount": 38,
+              "hitRate": 0.47368421052631576
             },
             {
               "pLow": 0.4,
               "pHigh": 0.5,
               "label": "0.4-0.5",
-              "hitCount": 25,
-              "totalCount": 45,
-              "hitRate": 0.5555555555555556
+              "hitCount": 31,
+              "totalCount": 54,
+              "hitRate": 0.5740740740740741
             },
             {
               "pLow": 0.5,
               "pHigh": 0.6,
               "label": "0.5-0.6",
               "hitCount": 7,
-              "totalCount": 13,
-              "hitRate": 0.5384615384615384
-            },
-            {
-              "pLow": 0.6,
-              "pHigh": 0.7,
-              "label": "0.6-0.7",
-              "hitCount": 3,
-              "totalCount": 5,
-              "hitRate": 0.6
+              "totalCount": 15,
+              "hitRate": 0.4666666666666667
             }
           ],
           "byKind": {
-            "relative": {
-              "brierScore": 0.20644516129032262,
-              "count": 31,
-              "runCount": 30,
-              "brierStandardError": 0.012480964906475857
-            },
             "range": {
-              "brierScore": 0.2425571428571428,
-              "count": 91,
-              "runCount": 61,
-              "brierStandardError": 0.014993490441123969
+              "brierScore": 0.27200389610389597,
+              "count": 77,
+              "runCount": 55,
+              "brierStandardError": 0.012272786216086814
+            },
+            "relative": {
+              "brierScore": 0.22069615384615388,
+              "count": 26,
+              "runCount": 25,
+              "brierStandardError": 0.013154899220658342
             },
             "direction": {
-              "brierScore": 0.24765714285714285,
-              "count": 7,
-              "runCount": 7,
-              "brierStandardError": 0.03125002748298111
-            },
-            "earnings-direction": {
-              "brierScore": 0.24505,
-              "count": 2,
-              "runCount": 2,
-              "brierStandardError": 0.00495000000000001
-            },
-            "conditional": {
-              "brierScore": 0.4624000000000001,
-              "count": 1,
-              "runCount": 1
+              "brierScore": 0.24998000000000004,
+              "count": 5,
+              "runCount": 5,
+              "brierStandardError": 0.021963547072365166
             },
             "earnings-move": {
               "brierScore": 0.28745,
               "count": 2,
               "runCount": 2,
               "brierStandardError": 0.03744999999999998
+            },
+            "earnings-direction": {
+              "brierScore": 0.24505,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0.00495000000000001
             }
           },
           "byAssetClass": {
             "equity": {
-              "brierScore": 0.2368171641791044,
-              "count": 134,
-              "runCount": 67,
-              "brierStandardError": 0.010634343565366433
+              "brierScore": 0.25890446428571406,
+              "count": 112,
+              "runCount": 57,
+              "brierStandardError": 0.00853744408982231
             }
           },
           "byJobType": {
             "equity": {
-              "brierScore": 0.23710230769230764,
-              "count": 130,
-              "runCount": 66,
-              "brierStandardError": 0.010959088457076242
+              "brierScore": 0.2600657407407405,
+              "count": 108,
+              "runCount": 56,
+              "brierStandardError": 0.008629294561221922
             },
             "forecast-grid": {
               "brierScore": 0.22754999999999997,
               "count": 4,
-              "runCount": 1
+              "runCount": 1,
+              "brierStandardError": 0.06257499999999999
             }
           },
           "byMarketUpdateHorizonBucket": {},
           "byHorizonBucket": {
             "1d": {
-              "brierScore": 0.24106923076923084,
-              "count": 52,
-              "runCount": 48,
-              "brierStandardError": 0.01731984311273737
+              "brierScore": 0.2807039215686275,
+              "count": 51,
+              "runCount": 47,
+              "brierStandardError": 0.012392044542855054
             },
             "2-5d": {
-              "brierScore": 0.23856142857142865,
-              "count": 70,
-              "runCount": 41,
-              "brierStandardError": 0.015672205017090927
+              "brierScore": 0.2419571428571428,
+              "count": 56,
+              "runCount": 27,
+              "brierStandardError": 0.014054167736428135
             },
             "6-10d": {
-              "brierScore": 0.23442222222222225,
-              "count": 9,
-              "runCount": 9,
-              "brierStandardError": 0.06917983564951444
-            },
-            "11-15d": {
-              "brierScore": 0.1296,
-              "count": 2,
-              "runCount": 2,
-              "brierStandardError": 0
-            },
-            "16-20d": {
-              "brierScore": 0.1296,
-              "count": 1,
-              "runCount": 1
+              "brierScore": 0.22636000000000003,
+              "count": 5,
+              "runCount": 5,
+              "brierStandardError": 0.07540605217089677
             }
           },
           "byMarketRegime": {
             "risk-on": {
-              "brierScore": 0.22636875,
-              "count": 32,
+              "brierScore": 0.24290740740740746,
+              "count": 27,
               "runCount": 16,
-              "brierStandardError": 0.022623349184062832
+              "brierStandardError": 0.018348563601786265
             },
             "risk-off": {
-              "brierScore": 0.22481269841269855,
-              "count": 63,
-              "runCount": 32,
-              "brierStandardError": 0.01686842095286897
+              "brierScore": 0.2633108695652174,
+              "count": 46,
+              "runCount": 22,
+              "brierStandardError": 0.011189683353377753
             },
             "mixed": {
-              "brierScore": 0.2690371428571428,
+              "brierScore": 0.269037142857143,
               "count": 35,
               "runCount": 18,
-              "brierStandardError": 0.017251368885856468
+              "brierStandardError": 0.017112786677615406
             }
           },
           "marketRegimeCoverage": {
-            "risk-on": 32,
-            "risk-off": 63,
+            "risk-on": 27,
+            "risk-off": 46,
             "mixed": 35,
             "unknown": 4
           },
           "byMissAutopsyCause": {
-            "insufficient_evidence": 25,
+            "insufficient_evidence": 18,
             "model_overconfidence": 2
           },
           "conditionalPredictions": {
-            "activatedCount": 1,
+            "activatedCount": 0,
             "voidedCount": 3
           }
         }
@@ -926,69 +874,377 @@
     "history:null": [
       {
         "value": {
-          "generatedAt": "2026-11-06T05:46:58.749Z",
+          "generatedAt": "2026-11-10T13:16:02.081Z",
           "recentDays": 90,
           "anchorMonths": [3, 6, 12],
           "runs": [
             {
-              "runId": "2026-11-06T03-07-03-043Z-4135821d",
-              "sourceId": "history-report-2026-11-06T03-07-03-043Z-4135821d",
+              "runId": "2026-11-10T13-11-54-401Z-c4717588",
+              "sourceId": "history-report-2026-11-10T13-11-54-401Z-c4717588",
               "jobType": "equity",
               "assetClass": "equity",
               "symbol": "0097.KL",
-              "generatedAt": "2026-11-06T03:07:03.043Z",
+              "generatedAt": "2026-11-10T13:11:54.401Z",
               "selectionReasons": ["recent", "same-symbol"],
-              "summary": "ViTrox reported a sharply stronger third quarter amid semiconductor inspection demand and a favorable management outlook. The evidence supports a constructive operating narrative, but does not establish how durable or broad-based the growth is. Financial-statement coverage, segment detail, and independent forward estimates are limited; recent market behavior and technical indicators are mixed.",
+              "summary": "ViTrox’s latest reported results indicate rapid growth, while the breadth and durability of demand remain uncertain. Reported supply constraints and incomplete operating, customer, and segment disclosures limit assessment of execution and resilience. Market indicators are mixed, and valuation evidence has important basis limitations.",
               "confidence": "medium",
               "confidenceLegacy": false,
               "keyFindings": [
                 {
-                  "text": "ViTrox makes automated inspection equipment for semiconductor components and printed circuit board assemblies. The supplied sources identify Automated Board Inspection and Machine Vision System segments but do not give revenue by segment.",
-                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                  "text": "The unaudited quarterly report mirror records 3Q26 revenue of MYR 485.1M (3-month period ending 2026-09-30) and year-over-year revenue growth of 112.2%. The mirror identifies itself as a copy of the issuer report, not an exchange-hosted filing.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 62,
+                      "text": "MYR 485.1M (3-month period ending 2026-09-30)"
+                    },
+                    {
+                      "field": "text",
+                      "start": 145,
+                      "text": "112.2%"
+                    }
+                  ]
                 },
                 {
-                  "text": "The Edge reported 3QFY2026 revenue of RM485.1 million, up more than 110% year over year. The cited web source states: “Revenue was up more than 110% year-on-year to RM485.1 million”.",
-                  "sourceIds": ["web-0097.kl-4225acb7"]
+                  "text": "For the nine months ended 2026-09-30, revenue grew 103.9% and profit attributable to owners of the parent grew 192.9%. The reported net margin of 22.5% uses profit for the period including non-controlling interests divided by revenue for the same period.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 51,
+                      "text": "103.9%"
+                    },
+                    {
+                      "field": "text",
+                      "start": 111,
+                      "text": "192.9%"
+                    },
+                    {
+                      "field": "text",
+                      "start": 146,
+                      "text": "22.5%"
+                    }
+                  ]
                 },
                 {
-                  "text": "The Star reported 3QFY2026 net profit of RM118.58 million compared with RM34.72 million in the same quarter a year earlier. The cited web source states: “coming in at RM118.58mil compared to RM34.72mil registered in the same quarter last year”.",
-                  "sourceIds": ["web-0097.kl-2df06f20"]
+                  "text": "ViTrox supplies automated inspection equipment and manufacturing intelligence solutions; coverage links demand to AI infrastructure and networking, but supplied sources do not quantify segment contributions or name customers.",
+                  "sourceIds": [
+                    "web-0097.kl-02b640c4",
+                    "web-0097.kl-5fe2b455",
+                    "web-0097.kl-2df06f20"
+                  ]
                 },
                 {
-                  "text": "A market report attributes demand across Automated Board Inspection and Machine Vision System to the quarterly results; supplied sources do not quantify each segment’s contribution or establish repeatability.",
-                  "sourceIds": ["web-0097.kl-2df06f20", "web-0097.kl-4225acb7"]
-                },
-                {
-                  "text": "The company’s favorable outlook through the remainder of FY2026 and into 2027 is reported alongside semiconductor-sector growth, data-center investment, and edge-AI demand. This is issuer outlook conveyed by a market report, not a verified future result.",
-                  "sourceIds": ["web-0097.kl-4225acb7"]
+                  "text": "The share closed at MYR 9.85 on 2026-11-10, with a session change of -2.7% vs prior close; the close was below the 50-day average of MYR 10.14 and above the 200-day average of MYR 7.14. The KLCI was also negative and below its 50-day average; the supplied regime reading uses one local benchmark proxy.",
+                  "sourceIds": [
+                    "market-yahoo-equity-0097.kl",
+                    "market-yahoo-equity-^klse",
+                    "verified-snapshot-0097.KL"
+                  ],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 20,
+                      "text": "MYR 9.85"
+                    },
+                    {
+                      "field": "text",
+                      "start": 69,
+                      "text": "-2.7% vs prior close"
+                    },
+                    {
+                      "field": "text",
+                      "start": 133,
+                      "text": "MYR 10.14"
+                    },
+                    {
+                      "field": "text",
+                      "start": 176,
+                      "text": "MYR 7.14"
+                    }
+                  ]
                 }
               ],
               "risks": [
                 {
-                  "text": "Missing required source: The reports do not establish whether quarterly growth is broad-based or repeatable; segment contributions, order trends, backlog, conversion timing, and customer corroboration are absent.",
-                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                  "text": "The growth evidence rests on an unaudited report mirror, with limited independent corroboration in supplied sources; segment mix and customer concentration are not established.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c", "web-0097.kl-02b640c4"]
                 },
                 {
-                  "text": "Assumption: Weaker AI-infrastructure spending, a semiconductor downturn, component shortages, delayed capital spending, competition, or currency movements could weigh on results. A market report identifies these risks without quantifying issuer exposure.",
-                  "sourceIds": ["web-0097.kl-cd5a78ad"]
-                },
-                {
-                  "text": "Observed fact: Yahoo forward PE uses forward EPS without a provider as-of date. Target valuation and peer comparisons are unavailable, limiting interpretation against a normalized earnings base.",
+                  "text": "Yahoo provider trailing EPS has undisclosed accounting scope and period basis, while forward EPS has no provider as-of date. The run flags reported trailing P/E and payout ratio as unreconciled.",
                   "sourceIds": ["market-yahoo-equity-0097.kl"]
                 },
                 {
-                  "text": "Observed fact: The 2026-11-06 quote was captured during an unfinished session; completed-session indicators are anchored to 2026-11-05.",
-                  "sourceIds": ["market-yahoo-equity-0097.kl", "verified-snapshot-0097.KL"]
+                  "text": "Reported supply constraints could limit output despite demand strength; the supplied report is a news account rather than an issuer filing disclosure.",
+                  "sourceIds": ["web-0097.kl-e57df7e1"]
                 }
               ],
               "catalysts": [
                 {
-                  "text": "Observed fact: The reported 3QFY2026 results provide evidence of stronger recent business activity: revenue was reported up more than 110% year over year and net profit was reported at RM118.58 million versus RM34.72 million a year earlier.",
-                  "sourceIds": ["web-0097.kl-4225acb7", "web-0097.kl-2df06f20"]
+                  "text": "Management’s reported outlook cites semiconductor-sector growth, data-center investment, and edge-AI demand into 2027; supplied evidence gives no dated order, delivery, or backlog milestone.",
+                  "sourceIds": ["web-0097.kl-2df06f20"]
                 },
                 {
-                  "text": "Issuer claim: Management’s reported outlook through FY2026 and into 2027 cites semiconductor-sector growth, data-center investment, and edge-AI demand; the supplied evidence does not include a confirmed future event date.",
-                  "sourceIds": ["web-0097.kl-4225acb7"]
+                  "text": "The latest quarterly report mirror supplies a recent operating benchmark for revenue and parent-attributable profit growth, subject to its unaudited and mirror-source status.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"]
+                }
+              ],
+              "dataGaps": [
+                "sec-edgar: SEC EDGAR does not support 0097.KL (non-US listing)",
+                "finnhub-events: Finnhub event endpoints do not support 0097.KL (non-US listing)",
+                "tradier-options: Tradier options do not support 0097.KL (non-US listing)",
+                "web-gather: a repeated model web request was skipped",
+                "The supplied evidence does not establish customer concentration, segment or geographic revenue, purchase recurrence, or dated order and backlog milestones.",
+                "The supplied issuer-report mirror has no checked figures for operating cash flow, capital expenditure, cash and cash equivalents, current assets, current liabilities, or total equity; liquidity and cash conversion remain unassessed.",
+                "The supplied sources do not provide a complete dividend history or annual share-repurchase, diluted-share-count, and stock-based-compensation figures.",
+                "Checked operating income, gross profit, and interest expense figures remain unavailable for assessing operating margins and interest coverage."
+              ],
+              "predictions": [
+                {
+                  "id": "pred-relative-10",
+                  "claim": "0097.KL outperforms ^KLSE over 10 trading days",
+                  "kind": "relative",
+                  "subject": "0097.KL:^KLSE",
+                  "measurableAs": "close(0097.KL, +10) / close(0097.KL, 0) > close(^KLSE, +10) / close(^KLSE, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.62,
+                  "scoreStatus": "pending"
+                },
+                {
+                  "id": "pred-direction-5",
+                  "claim": "0097.KL closes above its origin close over 5 trading days",
+                  "kind": "direction",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +5) > close(0097.KL, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.43,
+                  "scoreStatus": "pending"
+                },
+                {
+                  "id": "grid-range-1",
+                  "claim": "0097.KL closes outside 9.6-10.11 over 1 trading day",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +1) outside [9.6, 10.11]",
+                  "horizonTradingDays": 1,
+                  "probability": 0.32,
+                  "scoreStatus": "pending"
+                },
+                {
+                  "id": "grid-range-5",
+                  "claim": "0097.KL closes outside 9.29-10.44 over 5 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +5) outside [9.29, 10.44]",
+                  "horizonTradingDays": 5,
+                  "probability": 0.32,
+                  "scoreStatus": "pending"
+                },
+                {
+                  "id": "grid-range-20",
+                  "claim": "0097.KL closes outside 8.76-11.08 over 20 trading days",
+                  "kind": "range",
+                  "subject": "0097.KL",
+                  "measurableAs": "close(0097.KL, +20) outside [8.76, 11.08]",
+                  "horizonTradingDays": 20,
+                  "probability": 0.32,
+                  "scoreStatus": "pending"
+                },
+                {
+                  "id": "grid-relative-5",
+                  "claim": "0097.KL outperforms ^KLSE over 5 trading days",
+                  "kind": "relative",
+                  "subject": "0097.KL:^KLSE",
+                  "measurableAs": "close(0097.KL, +5)/close(0097.KL, 0) > close(^KLSE, +5)/close(^KLSE, 0)",
+                  "horizonTradingDays": 5,
+                  "probability": 0.46,
+                  "scoreStatus": "pending"
+                }
+              ],
+              "scoreSummary": {
+                "total": 6,
+                "resolved": 0,
+                "hit": 0,
+                "miss": 0,
+                "voided": 0,
+                "abandoned": 0,
+                "unresolved": 6
+              },
+              "marketSnapshots": [
+                {
+                  "symbol": "0097.KL",
+                  "price": 9.85,
+                  "changePercent24h": -2.6679792,
+                  "volume": 13887600,
+                  "observedAt": "2026-11-10T13:11:54.401Z"
+                }
+              ],
+              "keyExtras": {
+                "depth": "brief",
+                "marketRegime": {
+                  "label": "risk-off",
+                  "proxyCount": 1,
+                  "drivers": [
+                    "local benchmark ^KLSE negative: 1/1",
+                    "trend negative: 1/1 proxies below 50-day average"
+                  ]
+                }
+              }
+            },
+            {
+              "runId": "2026-11-09T20-17-17-166Z-9d944d80",
+              "sourceId": "history-report-2026-11-09T20-17-17-166Z-9d944d80",
+              "jobType": "equity",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "generatedAt": "2026-11-09T20:17:17.166Z",
+              "selectionReasons": ["recent", "same-symbol"],
+              "summary": "ViTrox’s latest reported results show rapid revenue and earnings growth, with coverage linking demand to automated inspection for AI infrastructure and networking. The demand outlook is promising but its breadth and durability remain unclear because segment, customer, and order visibility are limited. Recent price weakness contrasts with strong one-year price performance, while valuation context remains constrained by incomplete earnings-basis and peer evidence.",
+              "confidence": "medium",
+              "confidenceLegacy": false,
+              "keyFindings": [
+                {
+                  "text": "ViTrox supplies automated inspection equipment and machine vision systems for semiconductor components and printed circuit board assemblies. Coverage links demand for its ABI and MVS businesses to AI infrastructure and networking equipment, without quantifying segment contributions or identifying customers.",
+                  "sourceIds": ["web-0097.kl-02b640c4", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "The unaudited issuer-report mirror records quarterly revenue of MYR 485.1M (3-month period ending 2026-09-30) and reported year-over-year revenue growth of 112.2% (3-month period ending 2026-09-30). The mirror identifies itself as a copy of the issuer report rather than an exchange-hosted filing.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"],
+                  "figureQuotes": [
+                    {
+                      "sourceId": "web-0097.kl-a11bbc9c",
+                      "quote": "30 Sep 2026 | | | INDIVIDUAL PERIOD"
+                    }
+                  ],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 64,
+                      "text": "MYR 485.1M (3-month period ending 2026-09-30)"
+                    },
+                    {
+                      "field": "text",
+                      "start": 156,
+                      "text": "112.2% (3-month period ending 2026-09-30)"
+                    }
+                  ]
+                },
+                {
+                  "text": "For the nine months ended 2026-09-30, the mirror reports revenue growth of 103.9% (9-month period ending 2026-09-30) and growth in profit attributable to owners of the parent of 192.9% (9-month period ending 2026-09-30). The nine-month net margin of 22.5% (9-month period ending 2026-09-30) uses profit for the period including non-controlling interests divided by revenue for the same period; that profit scope differs from parent-attributable profit growth.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"],
+                  "figureQuotes": [
+                    {
+                      "sourceId": "web-0097.kl-a11bbc9c",
+                      "quote": "| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |",
+                      "unitQuote": "MYR'000"
+                    }
+                  ],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 75,
+                      "text": "103.9% (9-month period ending 2026-09-30)"
+                    },
+                    {
+                      "field": "text",
+                      "start": 178,
+                      "text": "192.9% (9-month period ending 2026-09-30)"
+                    },
+                    {
+                      "field": "text",
+                      "start": 250,
+                      "text": "22.5% (9-month period ending 2026-09-30)"
+                    }
+                  ]
+                },
+                {
+                  "text": "The issuer mirror reports nine-month basic EPS of MYR 0.1345 or 13.45 sen (9-month period ending 2026-09-30). Yahoo reports provider trailing EPS of MYR 0.16, with accounting scope and period basis undisclosed; these are stated on different bases. The mirror’s nine-month basic EPS is not a trailing-twelve-month figure.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c", "market-yahoo-equity-0097.kl"],
+                  "figureQuotes": [],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 50,
+                      "text": "MYR 0.1345 or 13.45 sen (9-month period ending 2026-09-30)"
+                    }
+                  ]
+                },
+                {
+                  "text": "At the 2026-11-06 session close, the share price was MYR 10.12 and the session change was -4.5% vs prior close. Bar-close indicators for that session place the close near SMA50 at MYR 10.14, below EMA10 at MYR 10.59, and above SMA200 at MYR 7.11.",
+                  "sourceIds": ["verified-snapshot-0097.KL"],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 53,
+                      "text": "MYR 10.12"
+                    },
+                    {
+                      "field": "text",
+                      "start": 90,
+                      "text": "-4.5% vs prior close"
+                    },
+                    {
+                      "field": "text",
+                      "start": 180,
+                      "text": "MYR 10.14"
+                    },
+                    {
+                      "field": "text",
+                      "start": 206,
+                      "text": "MYR 10.59"
+                    },
+                    {
+                      "field": "text",
+                      "start": 237,
+                      "text": "MYR 7.11"
+                    }
+                  ]
+                }
+              ],
+              "risks": [
+                {
+                  "text": "The latest issuer results are unaudited and come through a KLSE Screener mirror copy, not an exchange-hosted filing. Independent corroboration is limited in the supplied sources.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"]
+                },
+                {
+                  "text": "Yahoo provider trailing EPS is MYR 0.16 with undisclosed period and accounting basis; forward EPS has no provider as-of date. The reported P/E multiples inherit these limitations.",
+                  "sourceIds": ["market-yahoo-equity-0097.kl"]
+                },
+                {
+                  "text": "Segment revenue, customer concentration, purchase recurrence, and dated order or backlog milestones are not established, limiting assessment of demand breadth and durability.",
+                  "sourceIds": ["web-0097.kl-02b640c4", "web-0097.kl-2df06f20"]
+                },
+                {
+                  "text": "The issuer-report text supplied no checked values for annual operating cash flow, capital expenditure, cash and cash equivalents, current assets, current liabilities, or total equity. Cash conversion, liquidity, leverage, and operating margins therefore remain unassessed.",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"]
+                },
+                {
+                  "text": "The captured market-regime classification uses one local benchmark proxy. The single-session share-price decline does not establish its cause or reveal order flow.",
+                  "sourceIds": ["market-yahoo-equity-^klse", "verified-snapshot-0097.KL"]
+                }
+              ],
+              "catalysts": [
+                {
+                  "text": "The latest unaudited report provides a recent operating benchmark: quarterly revenue growth was 112.2% (3-month period ending 2026-09-30), and parent-attributable profit growth was 241.6% (3-month period ending 2026-09-30).",
+                  "sourceIds": ["web-0097.kl-a11bbc9c"],
+                  "figureQuotes": [],
+                  "renderedMetrics": [
+                    {
+                      "field": "text",
+                      "start": 96,
+                      "text": "112.2% (3-month period ending 2026-09-30)"
+                    },
+                    {
+                      "field": "text",
+                      "start": 181,
+                      "text": "241.6% (3-month period ending 2026-09-30)"
+                    }
+                  ]
+                },
+                {
+                  "text": "Management’s reported outlook cites semiconductor-sector growth, data-center investment, and edge-AI demand into 2027. No dated order, delivery, or backlog milestone is supplied to establish the timing or breadth of this potential demand.",
+                  "sourceIds": ["web-0097.kl-2df06f20"]
                 }
               ],
               "dataGaps": [
@@ -1003,54 +1259,24 @@
               ],
               "predictions": [
                 {
-                  "id": "pred-relative-spy-20",
-                  "claim": "0097.KL outperforms SPY over 20 trading days",
-                  "kind": "relative",
-                  "subject": "0097.KL:SPY",
-                  "measurableAs": "close(0097.KL, +20) / close(0097.KL, 0) > close(SPY, +20) / close(SPY, 0)",
-                  "horizonTradingDays": 20,
-                  "probability": 0.42,
-                  "scoreStatus": "unresolved"
-                },
-                {
                   "id": "pred-range-10",
-                  "claim": "0097.KL closes outside 9.82-11.44 over 10 trading days",
+                  "claim": "0097.KL closes outside 9.33-10.98 over 10 trading days",
                   "kind": "range",
                   "subject": "0097.KL",
-                  "measurableAs": "close(0097.KL, +10) outside [9.82, 11.44]",
+                  "measurableAs": "close(0097.KL, +10) outside [9.33, 10.98]",
                   "horizonTradingDays": 10,
                   "probability": 0.32,
-                  "scoreStatus": "unresolved"
+                  "scoreStatus": "pending"
                 },
                 {
-                  "id": "grid-range-1",
-                  "claim": "0097.KL closes outside 10.35-10.86 over 1 trading day",
-                  "kind": "range",
-                  "subject": "0097.KL",
-                  "measurableAs": "close(0097.KL, +1) outside [10.35, 10.86]",
-                  "horizonTradingDays": 1,
-                  "probability": 0.32,
-                  "scoreStatus": "unresolved"
-                },
-                {
-                  "id": "grid-range-5",
-                  "claim": "0097.KL closes outside 10.04-11.19 over 5 trading days",
-                  "kind": "range",
-                  "subject": "0097.KL",
-                  "measurableAs": "close(0097.KL, +5) outside [10.04, 11.19]",
-                  "horizonTradingDays": 5,
-                  "probability": 0.32,
-                  "scoreStatus": "unresolved"
-                },
-                {
-                  "id": "grid-range-20",
-                  "claim": "0097.KL closes outside 9.51-11.81 over 20 trading days",
-                  "kind": "range",
-                  "subject": "0097.KL",
-                  "measurableAs": "close(0097.KL, +20) outside [9.51, 11.81]",
-                  "horizonTradingDays": 20,
-                  "probability": 0.32,
-                  "scoreStatus": "unresolved"
+                  "id": "pred-relative-10",
+                  "claim": "0097.KL outperforms ^KLSE over 10 trading days",
+                  "kind": "relative",
+                  "subject": "0097.KL:^KLSE",
+                  "measurableAs": "close(0097.KL, +10) / close(0097.KL, 0) > close(^KLSE, +10) / close(^KLSE, 0)",
+                  "horizonTradingDays": 10,
+                  "probability": 0.53,
+                  "scoreStatus": "pending"
                 },
                 {
                   "id": "grid-relative-5",
@@ -1059,24 +1285,26 @@
                   "subject": "0097.KL:^KLSE",
                   "measurableAs": "close(0097.KL, +5)/close(0097.KL, 0) > close(^KLSE, +5)/close(^KLSE, 0)",
                   "horizonTradingDays": 5,
-                  "probability": 0.49,
-                  "scoreStatus": "unresolved"
+                  "probability": 0.48,
+                  "scoreStatus": "pending"
                 }
               ],
               "scoreSummary": {
-                "total": 6,
+                "total": 3,
                 "resolved": 0,
                 "hit": 0,
                 "miss": 0,
-                "unresolved": 6
+                "voided": 0,
+                "abandoned": 0,
+                "unresolved": 3
               },
               "marketSnapshots": [
                 {
                   "symbol": "0097.KL",
-                  "price": 10.32,
-                  "changePercent24h": -2.6415157,
-                  "volume": 4674900,
-                  "observedAt": "2026-11-06T03:07:03.043Z"
+                  "price": 10.12,
+                  "changePercent24h": -4.5283065,
+                  "volume": 0,
+                  "observedAt": "2026-11-09T20:12:16.531Z"
                 }
               ],
               "keyExtras": {
@@ -1094,27 +1322,38 @@
           ],
           "sources": [
             {
-              "id": "history-report-2026-11-06T03-07-03-043Z-4135821d",
+              "id": "history-report-2026-11-10T13-11-54-401Z-c4717588",
               "title": "equity 0097.KL prior report",
-              "fetchedAt": "2026-11-06T03:07:03.043Z",
+              "fetchedAt": "2026-11-10T13:11:54.401Z",
               "kind": "model",
               "assetClass": "equity",
               "symbol": "0097.KL",
               "provider": "market-bot",
-              "rawRef": "2026-11-06T03-07-03-043Z-4135821d/report.json",
-              "summary": "ViTrox reported a sharply stronger third quarter amid semiconductor inspection demand and a favorable management outlook. The evidence supports a constructive operating narrative, but does not establish how durable or broad-based the growth is. Financial-statement coverage, segment detail, and independent forward estimates are limited; recent market behavior and technical indicators are mixed."
+              "rawRef": "2026-11-10T13-11-54-401Z-c4717588/report.json",
+              "summary": "ViTrox’s latest reported results indicate rapid growth, while the breadth and durability of demand remain uncertain. Reported supply constraints and incomplete operating, customer, and segment disclosures limit assessment of execution and resilience. Market indicators are mixed, and valuation evidence has important basis limitations."
+            },
+            {
+              "id": "history-report-2026-11-09T20-17-17-166Z-9d944d80",
+              "title": "equity 0097.KL prior report",
+              "fetchedAt": "2026-11-09T20:17:17.166Z",
+              "kind": "model",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "provider": "market-bot",
+              "rawRef": "2026-11-09T20-17-17-166Z-9d944d80/report.json",
+              "summary": "ViTrox’s latest reported results show rapid revenue and earnings growth, with coverage linking demand to automated inspection for AI infrastructure and networking. The demand outlook is promising but its breadth and durability remain unclear because segment, customer, and order visibility are limited. Recent price weakness contrasts with strong one-year price performance, while valuation context remains constrained by incomplete earnings-basis and peer evidence."
             }
           ],
           "gaps": ["No prior equity market-update runs found"],
           "audit": {
-            "scannedRunCount": 110,
+            "scannedRunCount": 91,
             "malformedRunCount": 0,
             "malformedScoreCount": 0,
-            "candidateRunCount": 1,
-            "selectedRunCount": 1,
-            "recentSelectedCount": 1,
+            "candidateRunCount": 11,
+            "selectedRunCount": 2,
+            "recentSelectedCount": 2,
             "anchorSelectedCount": 0,
-            "sameSymbolSelectedCount": 1,
+            "sameSymbolSelectedCount": 2,
             "spotlightSymbolSelectedCount": 0,
             "sameSubjectSelectedCount": 0,
             "sameHorizonSelectedCount": 0,
@@ -1127,46 +1366,273 @@
         }
       }
     ],
-    "reused-profile": [{}],
-    "cache:1b66305ac1a525675afa610b8b38b5c99f7e65e49e0eac9d36d622f17b97f9df:2026-11-06": [{}],
+    "reused-profile": [
+      {
+        "value": {
+          "profile": {
+            "version": 3,
+            "generatedAt": "2026-11-09T20:12:59.074Z",
+            "originRunDirName": "2026-11-09T20-12-59-074Z-8cc0700d",
+            "subjectKind": "company",
+            "subjectId": "0097.KL",
+            "subjectLabel": "ViTrox Corporation Berhad (VITROX, 0097.KL)",
+            "subjectSummary": {
+              "answer": "ViTrox makes equipment that automatically inspects semiconductor components and printed circuit board assemblies. Its latest reported quarter showed higher revenue and profit, with the company citing demand for inspection solutions used in AI infrastructure and networking equipment.",
+              "sourceIds": ["web-0097.kl-a11bbc9c", "web-0097.kl-02b640c4"],
+              "figureQuotes": [
+                {
+                  "sourceId": "web-0097.kl-a11bbc9c",
+                  "quote": "30 Sep 2026 | | | INDIVIDUAL PERIOD"
+                },
+                {
+                  "sourceId": "web-0097.kl-02b640c4",
+                  "quote": "Revenue was up more than 110% year-on-year to RM485.1 million."
+                }
+              ]
+            },
+            "recentMaterialEvents": [
+              {
+                "claim": "For the quarter ended 30 September 2026, ViTrox reported revenue of RM485.1 million, compared with RM228.57 million a year earlier.",
+                "sourceIds": ["web-0097.kl-2df06f20"],
+                "figureQuotes": [
+                  {
+                    "sourceId": "web-0097.kl-2df06f20",
+                    "quote": "Revenue for the quarter under review was also higher at RM485.10mil, compared with RM228.57mil a year earlier."
+                  }
+                ]
+              },
+              {
+                "claim": "Web Subject Profile: 1 of 2 recent material events withheld because a figure failed the Verified Web Figure check; the original wording stays in the run's raw stage output.",
+                "sourceIds": ["web-0097.kl-a11bbc9c"]
+              }
+            ],
+            "factLedger": [
+              {
+                "claim": "The Q3 2026 report says its figures have not been audited.",
+                "sourceIds": ["web-0097.kl-a11bbc9c"],
+                "figureQuotes": []
+              },
+              {
+                "claim": "The Star reported that ViTrox attributed higher results to demand in its ABI and MVS segments, supported by adoption of inspection solutions for AI infrastructure and networking equipment.",
+                "sourceIds": ["web-0097.kl-2df06f20"],
+                "figureQuotes": []
+              }
+            ],
+            "openGaps": [
+              {
+                "text": "The supplied sources do not contain revenue amounts by business segment.",
+                "topic": "segment-results"
+              },
+              {
+                "text": "The supplied sources do not contain revenue shares by region.",
+                "topic": "geographic-revenue"
+              },
+              {
+                "text": "The supplied sources do not contain a history of dividends.",
+                "topic": "dividend-history"
+              },
+              {
+                "text": "The supplied sources do not contain analyst estimate coverage from an authoritative provider.",
+                "topic": "analyst-estimates"
+              },
+              {
+                "text": "The supplied sources do not contain options data for this listing.",
+                "topic": "options-data"
+              },
+              {
+                "text": "The supplied sources do not contain evidence about management's longer-term track record.",
+                "topic": "management-track-record"
+              },
+              {
+                "text": "The supplied sources do not contain evidence about pricing power.",
+                "topic": "pricing-power"
+              },
+              {
+                "text": "The supplied sources do not contain evidence about recession performance.",
+                "topic": "cyclicality"
+              },
+              {
+                "text": "The supplied sources do not contain customer names or customer concentration data.",
+                "topic": "other"
+              },
+              {
+                "text": "The supplied sources do not contain purchase recurrence data or disclosed risk factors.",
+                "topic": "other"
+              }
+            ],
+            "sourceIds": ["web-0097.kl-02b640c4", "web-0097.kl-2df06f20", "web-0097.kl-a11bbc9c"],
+            "symbol": "0097.KL",
+            "questions": {
+              "whatItDoes": {
+                "answer": "ViTrox makes machines that automatically inspect semiconductor components and printed circuit board assemblies. Its Automated Board Inspection (ABI) and Machine Vision System (MVS) businesses serve demand for advanced inspection in AI infrastructure and networking equipment.",
+                "sourceIds": ["web-0097.kl-02b640c4", "web-0097.kl-2df06f20"],
+                "figureQuotes": []
+              },
+              "howItMakesMoney": {
+                "answer": "The supplied evidence identifies ABI and MVS as business segments, but does not provide their revenue amounts or shares. It reports higher quarterly revenue without a quantified breakdown by segment.",
+                "sourceIds": ["web-0097.kl-2df06f20"],
+                "figureQuotes": [
+                  {
+                    "sourceId": "web-0097.kl-2df06f20",
+                    "quote": "Revenue for the third quarter was also higher at RM485.10mil"
+                  }
+                ]
+              },
+              "customers": {
+                "answer": "The supplied sources describe demand from AI infrastructure and networking equipment, but do not name ViTrox's customers or report customer concentration.",
+                "sourceIds": ["web-0097.kl-2df06f20"],
+                "figureQuotes": []
+              },
+              "geography": {
+                "answer": "The supplied evidence does not report revenue by region.",
+                "sourceIds": ["web-0097.kl-a11bbc9c"],
+                "figureQuotes": []
+              },
+              "purchaseRecurrence": {
+                "answer": "The supplied evidence does not describe how often customers replace or reorder ViTrox equipment.",
+                "sourceIds": ["web-0097.kl-2df06f20"],
+                "figureQuotes": []
+              },
+              "pricingPower": {
+                "answer": "The supplied evidence does not show whether ViTrox can raise prices or how pricing affects demand.",
+                "sourceIds": ["web-0097.kl-2df06f20"],
+                "figureQuotes": []
+              },
+              "recessionCyclicality": {
+                "answer": "The supplied evidence links demand to semiconductor and AI infrastructure investment, but does not describe how ViTrox performed during a recession.",
+                "sourceIds": ["web-0097.kl-02b640c4"],
+                "figureQuotes": []
+              },
+              "managementTrackRecord": {
+                "answer": "The supplied evidence does not provide a record of management's past performance or decisions.",
+                "sourceIds": ["web-0097.kl-a11bbc9c"],
+                "figureQuotes": []
+              },
+              "capitalAllocation": {
+                "answer": "The supplied evidence does not explain the company's broader capital allocation approach.",
+                "sourceIds": ["web-0097.kl-a11bbc9c"],
+                "figureQuotes": []
+              },
+              "companyKpis": {
+                "answer": "These are unaudited figures from the Q3 2026 results.",
+                "sourceIds": ["web-0097.kl-a11bbc9c"],
+                "figureQuotes": [
+                  {
+                    "sourceId": "web-0097.kl-a11bbc9c",
+                    "quote": "| 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 |",
+                    "unitQuote": "MYR'000"
+                  }
+                ]
+              },
+              "riskFactors": {
+                "answer": "The supplied evidence does not provide the company's disclosed risk factors. One news report says the company plans to maintain prudent cost management and operational discipline.",
+                "sourceIds": ["web-0097.kl-2df06f20"],
+                "figureQuotes": []
+              }
+            },
+            "issuerReportBasisDate": "2026-11-05"
+          },
+          "withheldGaps": [
+            {
+              "source": "web-subject-profile",
+              "message": "Web Subject Profile: 1 of 2 recent material events withheld because a figure failed the Verified Web Figure check; the original wording stays in the run's raw stage output.",
+              "provider": "market-bot",
+              "capability": "extended-evidence",
+              "cause": "validation-failed",
+              "evidenceQualityImpact": "extended-evidence-cap"
+            }
+          ],
+          "sources": [
+            {
+              "id": "web-0097.kl-02b640c4",
+              "title": "ViTrox posts record 3Q as volume surges, sees bright outlook | KLSE Screener",
+              "url": "https://www.klsescreener.com/v2/news/view/1822549/vitrox-posts-record-3q-as-volume-surges-sees-bright-outlook",
+              "fetchedAt": "2026-11-05T10:22:45.000Z",
+              "kind": "web",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "provider": "exa",
+              "providerArticleId": "https://www.klsescreener.com/v2/news/view/1822549/vitrox-posts-record-3q-as-volume-surges-sees-bright-outlook",
+              "canonicalUrl": "https://klsescreener.com/v2/news/view/1822549/vitrox-posts-record-3q-as-volume-surges-sees-bright-outlook",
+              "rawRef": "raw-exa-search-2026-11-09T20:12:59.074Z",
+              "summary": "ViTrox Corporation Bhd (KL: VITROX) reported strong 3QFY2026 results, driven by record volume. Key figures: - 3QFY2026 net profit: RM118.6 million (up from RM34.7 million YoY) - 3QFY2026 revenue: RM485.1 million (up ~110% YoY) - 9MFY2026 net profit: RM254.8 million (up from RM87 million YoY) - 9MFY2026 revenue: RM1.13 billion (up from RM552.7 million) Outlook: - Expects a favorable business environment through FY2026 and into 2027. - Growth drivers: robust semiconductor sector, continued data centre capex, rising demand for edge AI devices. - Aims to capture opportunities in AI accelerators and high-bandwidth memory (HBM) complexity. Note: The summary reflects the latest quarterly (3QFY2026) and year-to-date performance reported by ViTrox; no separate annual report figures beyond nine-month results are provided in the excerpt. For the full latest Bursa Malaysia quarterly and annual reports, refer to ViTrox’s official disclosures and Bursa filing.",
+              "snippet": "KUALA LUMPUR (Nov 5): ViTrox Corporation Bhd (KL: VITROX) is upbeat after the semiconductor equipment maker posted its best quarter since listing in 2005, as higher volume drove down unit costs. Net profit for the three months ended Sept 30, 2026 (3QFY2026) was RM118.6 million, more than tripled from RM34.7 million a year earlier, according to an exchange filing. Revenue was up more than 110% year-on-year to RM485.1 million. Looking ahead, ViTrox expects a favourable business environment for the remainder of the financial year and into 2027, supported by robust growth in the semiconductor sector, continued investment in data centre infrastructure and rising demand for edge artificial intelligence (AI) devices. The company — which makes machines used to automatically inspect and detect defects in semiconductor components and printed circuit board assemblies — said it is seeking to capture a slice of the increasing complexity of AI accelerators and high bandwidth memory."
+            },
+            {
+              "id": "web-0097.kl-2df06f20",
+              "title": "ViTrox’s 3Q26 profit more than triples | The Star",
+              "url": "https://www.thestar.com.my/business/business-news/2026/11/06/vitroxs-3q26-profit-more-than-triples",
+              "publisher": "The Star Online",
+              "fetchedAt": "2026-11-05T16:00:00.000Z",
+              "kind": "web",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "provider": "exa",
+              "providerArticleId": "https://www.thestar.com.my/business/business-news/2026/11/06/vitroxs-3q26-profit-more-than-triples",
+              "canonicalUrl": "https://thestar.com.my/business/business-news/2026/11/06/vitroxs-3q26-profit-more-than-triples",
+              "rawRef": "raw-exa-search-2026-11-09T20:12:59.074Z",
+              "summary": "ViTrox Corp Bhd (Bursa Malaysia) – Latest quarterly results (3Q26) - Profit: RM118.58 million in 3Q26, up from RM34.72 million a year earlier (more than triple). - Revenue: RM485.10 million in 3Q26, up from RM228.57 million year-ago. - Drivers: Strong demand in Automated Board Inspection and Machine Vision System segments, boosted by AI infrastructure and networking equipment adoption. - Additional note: Tax incentives from ViTrox Technologies Sdn Bhd contributed to net profit; company aims for prudent cost control and operational discipline. Context: The article reports ViTrox’s quarterly results for the quarter ended 30 Sept 2026, with positive year-over-year growth across revenue and profit, supported by expanded advanced inspection solutions. No annual report details are provided in the excerpt. If you need the latest annual report (2026 full-year results) or the official Bursa announcements, I can pull those next.",
+              "snippet": "# ViTrox’s 3Q26 profit more than triples Friday, 06 Nov 2026 Revenue for the third quarter was also higher at RM485.10mil, compared with RM228.57mil a year earlier. PETALING JAYA: Vitrox Corp Bhd’s profit has more than tripled in the third quarter ended Sept 30, 2026 (3Q26), coming in at RM118.58mil compared to RM34.72mil registered in the same quarter last year. Revenue for the quarter under review was also higher at RM485.10mil, compared with RM228.57mil a year earlier. In a statement to Bursa Malaysia, the industrial Internet-of-Things solutions provider said the increases were on the back of strong demand across its Automated Board Inspection and Machine Vision System segments. Both segments were supported by expanded adoption of advanced inspection solutions for artificial intelligence infrastructure and networking equipment. The group noted that tax incentives from its key subsidiary, ViTrox Technologies Sdn Bhd, contributed to its bottom line. “We will continue to exercise prudent cost management and operational discipline,” it added."
+            },
+            {
+              "id": "web-0097.kl-a11bbc9c",
+              "title": "VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener",
+              "url": "https://www.klsescreener.com/v2/announcements/view/11698017",
+              "fetchedAt": "2026-11-05T00:00:00.000Z",
+              "kind": "web",
+              "assetClass": "equity",
+              "symbol": "0097.KL",
+              "provider": "exa",
+              "providerArticleId": "https://www.klsescreener.com/v2/announcements/view/11698017",
+              "canonicalUrl": "https://klsescreener.com/v2/announcements/view/11698017",
+              "rawRef": "raw-exa-search-2026-11-09T20:12:59.074Z",
+              "summary": "Summary: - Company: ViTrox Corporation Berhad (VITROX) – Bursa Malaysia listing - Report: Quarterly report on consolidated results for the financial period ended 30 September 2026 (Q3 2026) - Date disclosed: 5 November 2026 - Status: Quarterly results announced; figures are unaudited Key figures (current year quarter vs. year-ago quarter; year-to-date vs. prior year-to-date): - Revenue: 3Q2026 MYR 485.1 million; 3Q2025 MYR 228.6k? (likely a misread in the excerpt—actual figures show substantial growth; refer to attachment for exact numbers) - Profit before tax: MYR 136.774 million (3Q2026); MYR 50.464 million (3Q2025) - Profit for the period: MYR 118.073 million (3Q2026); MYR 34.311 million (3Q2025) - Profit attributable to ordinary equity holders: MYR 118.58 million (3Q2026); MYR 34.716 million (3Q2025) - Basic earnings per share: 6.26 sen (3Q2026); 1.83 sen (3Q2025) - Proposed/Declared dividend per share: 0.00 sen (3Q2026); 0.00 sen (3Q2025) for the quarter; Year-to-date dividend per share: 1.18 sen (2026) vs 0.70 sen (2025) - Net assets per share: 0.7230 MYR (as at 30 Sep 2026) - Note: The summary comes from the KLSE Screener announcement; the detailed figures are in the attach…",
+              "snippet": "VITROX - Quarterly rpt on consolidated results for the financial period ended 30/09/2026 | KLSE Screener # 10.120 ### -0.48 (-4.5%) ### Quarterly rpt on consolidated results for the financial period ended 30 Sep 2026 | VITROX CORPORATION BERHAD | | --- | | Financial Year End | 31 Dec 2026 | | --- | --- | | Quarter | 3 Qtr | | Quarterly report for the financial period ended | 30 Sep 2026 | | The figures | have not been audited | #### Attachments ViTrox -Announcement (Q3_2026).pdf 684.1 kB Currency: Malaysian Ringgit (MYR) #### SUMMARY OF KEY FINANCIAL INFORMATION 30 Sep 2026 | | | INDIVIDUAL PERIOD | | CUMULATIVE PERIOD | | | --- | --- | --- | --- | --- | --- | | | | CURRENT YEAR QUARTER | PRECEDING YEAR CORRESPONDING QUARTER | CURRENT YEAR TO DATE | PRECEDING YEAR CORRESPONDING PERIOD | | | | 30 Sep 2026 | 30 Sep 2025 | 30 Sep 2026 | 30 Sep 2025 | | | | MYR'000 | MYR'000 | MYR'000 | MYR'000 | | 1 | Revenue | 485,101 | 228,567 | 1,127,067 | 552,728 | | 2 | Profit/(loss) before tax | 136,774 | 50,464 | 298,379 | 115,784 | | 3 | Profit/(loss) for the period | 118,073 | 34,311 | 253,351 | 86,024 | | 4 | Profit/(loss) attributable to ordinary equity holders of the parent | 118,580 | 34…"
+            }
+          ],
+          "gap": {
+            "source": "web-subject-profile",
+            "message": "Reused web subject profile from 2026-11-09T20:12:59.074Z (0.7 days old).",
+            "provider": "market-bot",
+            "capability": "extended-evidence",
+            "cause": "reused-in-window",
+            "evidenceQualityImpact": "no-cap"
+          },
+          "runDirName": "2026-11-09T20-17-17-166Z-9d944d80",
+          "ageDays": 0.7,
+          "originRunDirName": "2026-11-09T20-12-59-074Z-8cc0700d",
+          "priorUtilizationLevel": "low",
+          "priorUtilizationRatio": 0
+        }
+      }
+    ],
+    "cache:fbb945f0a200ad1a2f1abeedfc40efbe842335537dce15c00a925b117997b920:2026-11-10": [{}],
     "host-circuit:api.exa.ai": [
       {
         "value": false,
         "count": 4
       }
     ],
-    "cache:6e0429f8051816032b27ad0d665eaa82738f477b34ebe7b252dc1d7cfe530866:2026-11-06": [{}],
-    "cache:6173e0fa1a1da14f9cd677fc0fb8ff1b8ac98312eece14cb10a6cb371658c45c:2026-11-06": [{}],
-    "cache:b40dc002f184d45e335d73d31a73095bb1ff5651f1151d7a077561d731eeba3f:2026-11-06": [{}],
+    "cache:151317f64f26b8ce92c766c37db23231a4298494701eab2a5e4d8ad7530740f5:2026-11-10": [{}],
+    "cache:b40dc002f184d45e335d73d31a73095bb1ff5651f1151d7a077561d731eeba3f:2026-11-10": [{}],
+    "cache:b64460e5460391995b301346d6141af1fe5a33f65829d6e715b3e5e34970f91f:2026-11-10": [{}],
     "forecast-persistence-baseline": [
       {
         "value": {
-          "runId": "2026-11-06T03-07-03-043Z-4135821d",
+          "runId": "2026-11-09T20-17-17-166Z-9d944d80",
           "depth": "deep",
           "predictions": [
             {
-              "measurableAs": "close(0097.KL, +20) / close(0097.KL, 0) > close(SPY, +20) / close(SPY, 0)",
-              "probability": 0.42
-            },
-            {
-              "measurableAs": "close(0097.KL, +10) outside [9.82, 11.44]",
+              "measurableAs": "close(0097.KL, +10) outside [9.33, 10.98]",
               "probability": 0.32
             },
             {
-              "measurableAs": "close(0097.KL, +1) outside [10.35, 10.86]",
-              "probability": 0.32
-            },
-            {
-              "measurableAs": "close(0097.KL, +5) outside [10.04, 11.19]",
-              "probability": 0.32
-            },
-            {
-              "measurableAs": "close(0097.KL, +20) outside [9.51, 11.81]",
-              "probability": 0.32
+              "measurableAs": "close(0097.KL, +10) / close(0097.KL, 0) > close(^KLSE, +10) / close(^KLSE, 0)",
+              "probability": 0.53
             },
             {
               "measurableAs": "close(0097.KL, +5)/close(0097.KL, 0) > close(^KLSE, +5)/close(^KLSE, 0)",
-              "probability": 0.49
+              "probability": 0.48
             }
           ]
         }

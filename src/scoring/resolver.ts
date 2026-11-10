@@ -23,6 +23,7 @@ import {
 import type { ObservationRepository } from "./observations";
 import { scoringPolicyFor, type ScoringPolicy } from "./policy";
 import { ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY, type ScoreOutcome } from "./types";
+import { isUsListing } from "../sources/instrument-capability";
 import { verifiedSnapshotSourceId } from "../sources/verified-snapshot-contract";
 import type { CloseWindow } from "../sources/yahoo-chart";
 
@@ -559,6 +560,47 @@ function withPendingPlaceholders(subject: string, window: CloseWindow): readonly
   );
 }
 
+// A non-US listing can print its Nth session after the US-calendar due date (local holidays).
+// Wait for it, bounded, only on a clean in-tolerance anchor; everything else spends an attempt.
+async function awaitsShortNonUsWindow(
+  expression: ObservableBaseExpression,
+  report: ResearchReport,
+  repo: ObservationRepository,
+  now: Date,
+  policy: ScoringPolicy,
+): Promise<boolean> {
+  const strategy = observationStrategyForExpression(expression);
+  const anchor = new Date(report.generatedAt);
+  const deadline = baseExpressionDueDate(expression, report, policy).getTime() + 10 * DAY_MS;
+  if (
+    policy.version !== 3 ||
+    report.assetClass !== "equity" ||
+    strategy.mode !== "close-window" ||
+    now.getTime() >= deadline ||
+    unverifiedSessions(report, strategy.subjects, policy).some(
+      (session) => session.date <= ymd(anchor),
+    )
+  ) {
+    return false;
+  }
+  const windows = await Promise.all(
+    strategy.subjects.map(async (subject) => ({
+      subject,
+      observations: await repo.window(subject, report.assetClass, anchor, now, {
+        scoringPolicyVersion: policy.version,
+      }),
+    })),
+  );
+  const short = windows.filter(
+    ({ observations }) => observations.length < strategy.horizonTradingDays + 1,
+  );
+  return (
+    short.length > 0 &&
+    short.every(({ subject }) => !isUsListing(subject)) &&
+    windows.every(({ observations }) => startsWithinProviderAnchorTolerance(observations, anchor))
+  );
+}
+
 // A still-trading session is a wait only when filling exactly those sessions would resolve the one
 // Unresolved base expression; placeholders never decide a conditional's antecedent or activation.
 export async function resolveOutcome(
@@ -587,11 +629,6 @@ export async function resolveOutcome(
   if (result.status !== "unresolved" || result.reason !== "observation-unavailable") {
     return result;
   }
-  const fetched = await Promise.all(windows.values());
-  const withheld = fetched.flatMap((window) => window.withheldSessions ?? []);
-  if (withheld.length === 0) {
-    return result;
-  }
   const forecast = observableForecastFromPrediction(prediction);
   if (!("prediction" in forecast)) {
     return result;
@@ -600,24 +637,34 @@ export async function resolveOutcome(
   const conditionalSide = result.scoreStatus === "active-pending" ? "consequent" : "antecedent";
   const unresolvedExpression =
     expression.kind === "conditional" ? expression[conditionalSide] : expression;
-  const counterfactual = await resolveBaseExpression(
-    unresolvedExpression,
-    report,
-    {
-      point: memoized.point,
-      async window(subject, assetClass, from, to, options) {
-        return withPendingPlaceholders(
-          subject,
-          await memoized.window(subject, assetClass, from, to, options),
-        );
+  const policy = scoringPolicyFor(prediction);
+  const fetched = await Promise.all(windows.values());
+  const withheld = fetched.flatMap((window) => window.withheldSessions ?? []);
+  let unavailable = result;
+  if (withheld.length > 0) {
+    const counterfactual = await resolveBaseExpression(
+      unresolvedExpression,
+      report,
+      {
+        point: memoized.point,
+        async window(subject, assetClass, from, to, options) {
+          return withPendingPlaceholders(
+            subject,
+            await memoized.window(subject, assetClass, from, to, options),
+          );
+        },
       },
-    },
-    now,
-    scoringPolicyFor(prediction),
-  );
-  return counterfactual.resolution.status === "unresolved"
-    ? { ...result, evidence: { ...result.evidence, withheldSessions: withheld } }
-    : { ...result, reason: "horizon-not-elapsed" };
+      now,
+      policy,
+    );
+    if (counterfactual.resolution.status !== "unresolved") {
+      return { ...result, reason: "horizon-not-elapsed" };
+    }
+    unavailable = { ...result, evidence: { ...result.evidence, withheldSessions: withheld } };
+  }
+  return (await awaitsShortNonUsWindow(unresolvedExpression, report, memoized, now, policy))
+    ? { ...result, reason: "horizon-not-elapsed" }
+    : unavailable;
 }
 
 async function resolveWithRepository(

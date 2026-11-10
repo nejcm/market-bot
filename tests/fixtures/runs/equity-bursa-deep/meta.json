@@ -1,7 +1,6 @@
 {
   "replayClassification": "clean",
-  "syntheticLlmEntries": ["final-synthesis|gpt-6-luna"],
-  "now": "2026-11-06T05:46:58.749Z",
+  "now": "2026-11-10T13:16:02.081Z",
   "argv": [],
   "command": {
     "jobType": "equity",
@@ -88,5 +87,14 @@
       "anchorMonths": [3, 6, 12],
       "missCorrectionLimit": 2
     }
+  },
+  "expectedIntegrityPrune": {
+    "reportIntegrity": "medium",
+    "pruned": [
+      {
+        "location": "keyFindings[4]",
+        "text": "A 10 November report attributes component supply constraints, including X-ray tubes, and easing book-to-bill to an analyst; it reports book-to-bill at 1.1x versus 1.5x in the previous quarter and an ABI backlog of RM399 million. These are analyst-attributed reports, not confirmed issuer disclosures."
+      }
+    ]
   }
 }

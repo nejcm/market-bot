@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/report";
 import { buildAndWriteAlphaLeadCohorts } from "../src/alpha-search/post-score";
 import { runScorePass } from "../src/scoring/index";
+import { scoringPolicyFor } from "../src/scoring/policy";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { MissAutopsyFile } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
@@ -460,6 +461,83 @@ describe("runScorePass Observation scoring", () => {
     const [score] = await readScores(runDir);
     expect(score).toMatchObject({ status: "abandoned", attemptCount: 4 });
     expect(score).not.toHaveProperty("resolved");
+  });
+
+  describe("a Bursa Prediction short past its US-calendar due date", () => {
+    const bursaPrediction: ResearchReport["predictions"][number] = {
+      id: "grid-range-1",
+      claim: "0097.KL closes outside the range over 1 trading day.",
+      kind: "range",
+      subject: "0097.KL",
+      measurableAs: "close(0097.KL, +1) outside [10.35, 10.86]",
+      horizonTradingDays: 1,
+      probability: 0.32,
+      sourceIds: [],
+      scoringPolicyVersion: 3,
+    };
+    const bursaReport = report([bursaPrediction], {
+      runId: "run-1",
+      jobType: "equity",
+      symbol: "0097.KL",
+      generatedAt: "2026-11-06T05:46:13.672Z",
+    });
+
+    test("spends attempts past due + 10 days and abandons on the fourth failure", async () => {
+      const runDir = await writeRun("run-bursa", bursaReport);
+      const repo: ObservationRepository = {
+        point: noObservation,
+        window: async (subject) => [{ subject, date: "2026-11-06", value: 10.5 }],
+      };
+      const attempts = [];
+      for (const day of ["2026-11-20", "2026-11-21", "2026-11-24", "2026-12-01"]) {
+        await runScorePass(tmpDir, new Date(`${day}T12:00:00.000Z`), {
+          observationRepository: repo,
+        });
+        const [score] = await readScores(runDir);
+        attempts.push(`${String(score?.status)} ${String(score?.attemptCount)}`);
+      }
+
+      expect(attempts).toEqual(["pending 1", "pending 2", "pending 3", "abandoned 4"]);
+    });
+
+    test("never rescores a terminal row while the window is short", async () => {
+      const runDir = await writeRun("run-bursa-terminal", bursaReport);
+      const resolved = {
+        predictionId: "grid-range-1",
+        runId: "run-1",
+        status: "resolved",
+        outcome: "miss",
+        observedAt: "2026-11-11T00:00:00.000Z",
+        attemptCount: 1,
+        scoringVersion: 3,
+        evidence: { close0: 10.5, closeN: 10.6 },
+        forecastOrigin: "2026-11-06",
+      };
+      await writeFile(
+        join(runDir, "score.json"),
+        `${JSON.stringify({ runId: "run-1", scoredAt: "2026-11-11T00:00:00.000Z", scores: [resolved] })}\n`,
+        "utf8",
+      );
+
+      await runScorePass(tmpDir, new Date("2026-11-12T00:00:00.000Z"), {
+        observationRepository: {
+          point: noObservation,
+          window: async () => {
+            throw new Error("unexpected observation request");
+          },
+        },
+      });
+
+      expect(await readScores(runDir)).toEqual([resolved]);
+    });
+
+    test("keeps the US-calendar close due date", () => {
+      expect(
+        scoringPolicyFor(bursaPrediction)
+          .closeDueDate(bursaReport.generatedAt, 5, "equity")
+          .toISOString(),
+      ).toBe("2026-11-13T05:46:13.672Z");
+    });
   });
 
   test("scores volatility from the full close window", async () => {

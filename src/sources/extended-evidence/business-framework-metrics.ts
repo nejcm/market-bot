@@ -296,11 +296,47 @@ function issuerReportYearOverYear(
   if (row.status === "value" && typeof row.value === "number") {
     return { status: "value", value: row.value * 100, ...common };
   }
-  return {
-    status: row.status === "not-meaningful" ? "not-meaningful" : "missing",
-    reason: `issuer report: ${row.reason ?? "no value"}`,
-    ...common,
-  };
+  if (row.status === "not-meaningful") {
+    return {
+      status: "not-meaningful",
+      reason: `issuer report: ${row.reason ?? "no value"}`,
+      ...common,
+      inputs: checkedIssuerInputs(section, common.inputs),
+    };
+  }
+  return { status: "missing", reason: `issuer report: ${row.reason ?? "no value"}`, ...common };
+}
+
+// Issuer inputs quote cell text like "(118,580)"; direction reads the checked figure numbers.
+function checkedIssuerInputs(
+  section: MetricSection,
+  inputs: readonly MetricInput[],
+): readonly MetricInput[] {
+  const checked = inputs.map((input) =>
+    section.metrics.find(
+      (metric) =>
+        metric.status === "value" &&
+        typeof metric.value === "number" &&
+        metric.inputs.length === 1 &&
+        metric.inputs[0]?.label === input.label &&
+        metric.inputs[0].value === input.value &&
+        metric.inputs[0].periodEnd === input.periodEnd &&
+        metric.inputs[0].unit === input.unit &&
+        metric.inputs[0].currency === input.currency &&
+        metric.inputs[0].sourceIds[0] === input.sourceIds[0],
+    ),
+  );
+  return inputs.map((input, index) => {
+    const figure = checked[index];
+    return figure === undefined || typeof figure.value !== "number"
+      ? input
+      : {
+          ...input,
+          value: figure.value,
+          unit: figure.currency ?? input.unit,
+          derivation: `issuer cell ${String(input.value)} (${input.unit})`,
+        };
+  });
 }
 
 function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {

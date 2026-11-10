@@ -189,14 +189,28 @@ export function yearOverYearOutcome(
   if (value !== undefined) {
     return { status: "value", value, ...period, inputs };
   }
-  const endpoints = `(${yoyEndpoint(prior)} to ${yoyEndpoint(latest)})`;
-  let reason = `${label} turns negative ${endpoints}`;
+  return {
+    status: "not-meaningful",
+    reason: notMeaningfulYoyReason(label, prior, latest),
+    ...period,
+    inputs,
+  };
+}
+
+export function notMeaningfulYoyReason(
+  label: string,
+  prior: number,
+  latest: number,
+  unit = "",
+): string {
+  const endpoint = (value: number) => `${yoyEndpoint(value)}${unit}`;
+  const endpoints = `(${endpoint(prior)} to ${endpoint(latest)})`;
   if (prior === 0) {
-    reason = `prior-year ${label} is zero`;
-  } else if (prior < 0) {
-    reason = `prior-year ${label} is negative ${endpoints}`;
+    return `prior-year ${label} is zero`;
   }
-  return { status: "not-meaningful", reason, ...period, inputs };
+  return prior < 0
+    ? `prior-year ${label} is negative ${endpoints}`
+    : `${label} turns negative ${endpoints}`;
 }
 
 // Postures and phase read a not-meaningful YoY by the direction between its two endpoints.
@@ -211,7 +225,8 @@ export function yoyDirection(
 ): number | undefined {
   const [prior, latest] = result?.inputs ?? [];
   if (result?.status === "not-meaningful" && prior !== undefined && latest !== undefined) {
-    return Number(latest.value) - Number(prior.value);
+    const direction = Number(latest.value) - Number(prior.value);
+    return Number.isFinite(direction) ? direction : undefined;
   }
   return result?.status === "value" && typeof result.value === "number" ? result.value : undefined;
 }

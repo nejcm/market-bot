@@ -19,7 +19,12 @@ import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-
 import { renderMarkdownReport } from "../src/report/markdown";
 import { CURRENT_EQUITY_NOTE } from "../src/sources/extended-evidence/enterprise-value-bridge";
 import type { MarketSnapshot } from "../src/domain/market-data";
-import type { MetricResult, MetricSection } from "../src/sources/extended-evidence/metric-engine";
+import { yoyDirection } from "../src/sources/extended-evidence/financial-lens-inputs";
+import type {
+  MetricInput,
+  MetricResult,
+  MetricSection,
+} from "../src/sources/extended-evidence/metric-engine";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 import { assertBusinessFrameworkMetricInvariants } from "./support/run-fixtures/assertions";
 
@@ -332,6 +337,17 @@ const issuerYoyRow = (id: string, fields: Partial<MetricResult>): MetricResult =
   inputs: [],
   sourceIds: ["web-x"],
   ...fields,
+});
+
+const issuerCell = (value: string, unit: string, periodEnd: string): MetricInput => ({
+  label: "Revenue",
+  value,
+  artifact: "issuerReport",
+  periodType: "interim",
+  periodEnd,
+  unit,
+  currency: "MYR",
+  sourceIds: ["web-x"],
 });
 
 describe("business framework evidence", () => {
@@ -1026,6 +1042,35 @@ describe("business framework evidence", () => {
     ).toContain(
       "Business criteria-supported (Revenue $100, Gross profit $45, Operating income $24)",
     );
+  });
+
+  test("reads an issuer YoY direction from the figure row with the same declared unit", () => {
+    const figure = (id: string, value: number, input: MetricInput): MetricResult =>
+      issuerYoyRow(id, { unit: "currency", currency: "MYR", value, inputs: [input] });
+    const thousandsQuarter = issuerCell("(1)", "MYR'000", "2026-09-30");
+    const millionsYtd = issuerCell("(1)", "MYR million", "2026-09-30");
+    const priorYtd = issuerCell("(0.5)", "MYR million", "2025-09-30");
+    const result = businessFrameworkMetrics({
+      symbol: "0097.KL",
+      issuerReport: {
+        id: "issuer-report",
+        title: "Issuer report figures",
+        metrics: [
+          figure("issuer-report-revenue-quarter-2026-09-30", -1000, thousandsQuarter),
+          figure("issuer-report-revenue-ytd-2026-09-30", -1_000_000, millionsYtd),
+          figure("issuer-report-revenue-ytd-2025-09-30", -500_000, priorYtd),
+          issuerYoyRow("issuer-report-revenue-yoy-ytd", {
+            status: "not-meaningful",
+            reason: "prior-year revenue is negative",
+            periodMonths: 9,
+            inputs: [millionsYtd, priorYtd],
+          }),
+        ],
+      },
+    });
+    const revenue = result.sections.Growth?.metrics.find(({ id }) => id === "revenueDeltaPercent");
+    expect(revenue?.inputs.map(({ value }) => value)).toEqual([-500_000, -1_000_000]);
+    expect(yoyDirection(revenue)).toBe(-500_000);
   });
 
   test("issuer report YoY rows feed Growth only on the non-statement path, with their outcome", () => {

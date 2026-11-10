@@ -12,6 +12,7 @@ import {
 import { buildConditionalPredictionActivationGuidance } from "../src/research/prompts/final-synthesis";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { CalibrationSummary } from "../src/scoring/types";
+import { withSharedStateLock } from "../src/shared-state-lock";
 
 async function writeSummary(value: unknown): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "calibration-"));
@@ -590,6 +591,31 @@ describe("refreshCalibrationContext", () => {
 
     expect(context?.generatedAt).toBe(now.toISOString());
     expect(context?.resolvedCount).toBe(0);
+  });
+
+  test("waits for the shared-state lock so it cannot overwrite a locked calibration write", async () => {
+    const dataDir = await writeSummary(validSummary());
+    const events: string[] = [];
+    const held = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const holder = withSharedStateLock(dataDir, async () => {
+      held.resolve();
+      await release.promise;
+      events.push("locked write done");
+    });
+    await held.promise;
+
+    const refresh = refreshCalibrationContext(dataDir, new Date(), async () => {
+      events.push("refresh build");
+      return validSummary() as CalibrationSummary;
+    });
+    await Bun.sleep(50);
+    expect(events).toEqual([]);
+
+    release.resolve();
+    await holder;
+    await refresh;
+    expect(events).toEqual(["locked write done", "refresh build"]);
   });
 
   test("returns undefined when refresh fails without loading the stale summary", async () => {

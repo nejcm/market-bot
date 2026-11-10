@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.4](https://github.com/nejcm/market-bot/compare/v1.15.3...v1.15.4) (2026-11-10)
+
+### Bug Fixes
+
+- **scoring:** lock start-up calibration and type score rows by status (#198) ([1a79496](https://github.com/nejcm/market-bot/commit/1a79496efe531610d40007370f0aa48715e43b94))
+
 ## [1.15.3](https://github.com/nejcm/market-bot/compare/v1.15.2...v1.15.3) (2026-11-10)
 
 ### Bug Fixes

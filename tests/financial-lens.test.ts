@@ -314,6 +314,48 @@ describe("addFinancialLensEvidence", () => {
         "evDateBasis",
       ),
     ).toBeUndefined();
+    const resolvedBridge = {
+      shortTermInvestments: 0,
+      noncontrollingInterest: 0,
+      preferredStock: 0,
+      temporaryEquity: 0,
+    };
+    const staleLensFor = (metrics: Record<string, number | string>) => {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          ...baseEvidence,
+          items: baseEvidence.items.map((item) => {
+            if (item.category !== "valuation") {
+              return item;
+            }
+            const {
+              enterpriseValue: _ev,
+              evToAnnualizedRevenue: _evRev,
+              ...rest
+            } = item.metrics ?? {};
+            return {
+              ...item,
+              metrics: {
+                ...rest,
+                ...quoteDated,
+                cashPeriodEnd: "2025-12-31",
+                debtPeriodEnd: "2025-12-31",
+                ...metrics,
+              },
+            };
+          }),
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
+      return metricByKey(result, "Value", "evDateBasis");
+    };
+    expect(staleLensFor(resolvedBridge)).toBeUndefined();
+    expect(
+      staleLensFor({ ...resolvedBridge, preferredStockIncompleteReason: "untagged" })?.value,
+    ).toBe("EV mixes market cap (quote 2026-06-20) with cash/debt (balance sheet 2025-12-31)");
     expect(formatLensValue(-0.000_01, "ratio")).toBe("0.00x");
     expect(formatLensValue(-0.000_01, "number")).toBe("0.00");
     expect(formatLensValue(-0.000_01, "ratio-percent")).toBe("0.0%");

@@ -303,6 +303,8 @@ whose live integrity prunes are pinned in `expectedIntegrityPrune`.
 The `equity-aapl-brief-prune` final-synthesis entries are the AAPL brief output with one uncited
 summary figure appended. `expectedIntegrityPrune` pins the exact pruned sentence and grade; every
 fixture without it must prune nothing and grade `high`.
+The `equity-nbis-deep` final-synthesis entry drops the one key finding that cited
+`financial-lens-value.evToAnnualizedRevenue`, which a stale balance sheet now withholds.
 
 For example, this invocation only plans a critique evaluation:
 

@@ -590,6 +590,29 @@ describe("static equity run fixtures", () => {
             ),
           }),
         );
+        const valuation = result.report.extendedEvidence?.items.find(
+          ({ category }) => category === "valuation",
+        );
+        expect(valuation?.metrics).toMatchObject({ debtPeriodEnd: "2025-12-31" });
+        expect(valuation?.metrics?.enterpriseValue).toBeUndefined();
+        expect(valuation?.metrics?.evToAnnualizedRevenue).toBeUndefined();
+        expect(valuation?.summary).toContain(
+          "enterprise value withheld (non-current balance sheet)",
+        );
+        expect(result.markdown).not.toContain("EV mixes");
+        const peers = result.collectedSources.valuationWorkbench?.peerComparison;
+        expect(peers?.status).toBe("available");
+        const target = peers?.status === "available" ? peers.valuationComps.target : undefined;
+        expect(target?.symbol).toBe("NBIS");
+        expect(target?.enterpriseValue).toBeUndefined();
+        expect(target?.evToAnnualizedRevenue).toBeUndefined();
+        expect(result.collectedSources.sourceGaps).toContainEqual(
+          expect.objectContaining({
+            message: expect.stringMatching(
+              /^Non-current SEC balance-sheet inputs for NBIS: .*enterprise value and EV\/TTM revenue withheld$/u,
+            ),
+          }),
+        );
         await assertNbisUnsupportedInputs();
       }
       if (name === "equity-web-fallback-deep") {

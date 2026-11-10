@@ -1354,10 +1354,10 @@ const EXPECTED_LENS_VALUES: Readonly<
     payoutRatio: 0,
     valuationCaveat:
       "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
-    evDateBasis: "EV mixes market cap (quote 2026-11-04) with cash/debt (balance sheet 2025-12-31)",
-    enterpriseValue: 39_595_391_488,
+    // Withheld: 2025-12-31 debt and cash are over 180 days before the 2026-11-04 cutoff.
+    enterpriseValue: null,
     annualizedRevenue: 529_800_000,
-    evToAnnualizedRevenue: 74.736_488_274_820_69,
+    evToAnnualizedRevenue: null,
     marketCapToAnnualizedRevenue: 73.887_866_153_265_38,
     valuationSupportability: "not-meaningful",
     // Yahoo quote 2026-11-04: price 143.995, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 39.15B.

@@ -257,8 +257,12 @@ export function addValuationEvidence(
   const depositorySic = depositoryIssuerSic(extendedEvidence);
   const netDebtWithheld = bridgeIncompleteReasons(secItem.metrics, ["shortTermInvestments"]);
   const enterpriseValueWithheld = bridgeIncompleteReasons(secItem.metrics);
+  const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
+  const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
+  const staleEnterpriseValue =
+    depositorySic === undefined && debt !== undefined && !(debtCurrent && cashCurrent);
   const enterpriseValue =
-    depositorySic === undefined
+    depositorySic === undefined && !staleEnterpriseValue
       ? enterpriseValueFromMetrics(marketCap, secItem.metrics)
       : undefined;
   const evToAnnualizedRevenue =
@@ -267,8 +271,6 @@ export function addValuationEvidence(
       : ratio(enterpriseValue, annualizedRevenue);
   const marketCapToAnnualizedRevenue =
     annualizedRevenue === undefined ? undefined : ratio(marketCap, annualizedRevenue);
-  const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
-  const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
   const debtToMarketCap = debtCurrent && debt !== undefined ? ratio(debt, marketCap) : undefined;
   const netDebt = depositorySic === undefined ? netDebtFromMetrics(secItem.metrics) : undefined;
   const netDebtToMarketCap =
@@ -288,11 +290,13 @@ export function addValuationEvidence(
       ? `enterprise value withheld (debt incomplete as of ${withheldDebtPeriodEnd ?? "an undated period"})`
       : depositorySic !== undefined
         ? `enterprise value not applicable (depository issuer, SIC ${depositorySic}: deposits and borrowings fund operations rather than sitting on top of them)`
-        : enterpriseValue === undefined
-          ? `enterprise value withheld (${enterpriseValueWithheld.join("; ")})`
-          : `enterprise value ${formatUsd(enterpriseValue)}`;
+        : staleEnterpriseValue && !bridgeWithheld
+          ? "enterprise value withheld (non-current balance sheet)"
+          : enterpriseValue === undefined
+            ? `enterprise value withheld (${enterpriseValueWithheld.join("; ")})`
+            : `enterprise value ${formatUsd(enterpriseValue)}`;
   const evToRevenueText =
-    debt === undefined || bridgeWithheld
+    debt === undefined || bridgeWithheld || staleEnterpriseValue
       ? "EV/TTM revenue withheld"
       : enterpriseValue === undefined
         ? "EV/TTM revenue not applicable"
@@ -341,12 +345,13 @@ export function addValuationEvidence(
     ...(staleBalances.length === 0
       ? []
       : [
-          nonCurrentBalanceSheetGap(
-            command.symbol,
-            analysisAsOf,
-            staleBalances,
-            debtCurrent ? ["net debt/market cap"] : ["debt/market cap", "net debt/market cap"],
-          ),
+          nonCurrentBalanceSheetGap(command.symbol, analysisAsOf, staleBalances, [
+            ...(debtCurrent ? [] : ["debt/market cap"]),
+            "net debt/market cap",
+            ...(staleEnterpriseValue && !bridgeWithheld
+              ? ["enterprise value", "EV/TTM revenue"]
+              : []),
+          ]),
         ]),
     ...(divergence === undefined || depositorySic !== undefined
       ? []

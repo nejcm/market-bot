@@ -8,6 +8,7 @@ import {
 } from "../../domain/market-data";
 import type { SourceGap } from "../../domain/sources";
 import { type SecFactMetricKey, type SecMetricKey } from "./financial-lens-canonical";
+import { bridgeIncompleteReasons } from "./enterprise-value-bridge";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
 import { readNumberMetric } from "./utils";
 import { formatPeRatio, type LensValueUnit } from "./value-format";
@@ -185,7 +186,16 @@ export function valuationDateBasisMetric(
       : [cashPeriodEnd, debtPeriodEnd]
           .filter((value): value is string => value !== undefined)
           .toSorted()[0];
-  if (quoteObservedAt === undefined || balanceSheetPeriodEnd === undefined) {
+  // A resolved bridge with no EV means the stale-balance gate withheld it, so there is no mix to caveat.
+  const staleBalanceWithheld =
+    valuationItem?.metrics?.enterpriseValue === undefined &&
+    readNumberMetric(valuationItem?.metrics, "netDebt") !== undefined &&
+    bridgeIncompleteReasons(valuationItem?.metrics).length === 0;
+  if (
+    quoteObservedAt === undefined ||
+    balanceSheetPeriodEnd === undefined ||
+    staleBalanceWithheld
+  ) {
     return [];
   }
   const priceAsOf = resolveMarketSnapshotPriceAsOf({

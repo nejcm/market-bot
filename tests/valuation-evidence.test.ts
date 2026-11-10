@@ -173,7 +173,9 @@ describe("addValuationEvidence", () => {
       expect(item?.metrics?.netDebtToMarketCap).toBeUndefined();
       expect(item?.summary).toContain("depository issuer (SIC 6022)");
       expect(item?.summary).not.toMatch(/mixed-period|enterprise value, net debt[^;]*withheld/u);
-      expect(gaps.map(({ message }) => message).join("\n")).not.toContain("Mixed-period");
+      const messages = gaps.map(({ message }) => message).join("\n");
+      expect(messages).not.toContain("Mixed-period");
+      expect(messages).not.toContain("enterprise value and EV/TTM revenue withheld");
     });
   });
 
@@ -200,7 +202,12 @@ describe("addValuationEvidence", () => {
         cashPeriodEnd: "2026-06-30",
         debtPeriodEnd: "2026-06-30",
       });
-      expect(metrics).toMatchObject({ debtToMarketCap: 0.05, netDebtToMarketCap: 0.02 });
+      expect(metrics).toMatchObject({
+        debtToMarketCap: 0.05,
+        netDebtToMarketCap: 0.02,
+        enterpriseValue: 1020,
+        evToAnnualizedRevenue: 2.55,
+      });
       expect(gaps).toEqual([]);
     });
 
@@ -212,13 +219,76 @@ describe("addValuationEvidence", () => {
       expect(metrics).toMatchObject({ debt: 50, debtPeriodEnd: "2025-06-30", netDebt: 20 });
       expect(metrics?.debtToMarketCap).toBeUndefined();
       expect(metrics?.netDebtToMarketCap).toBeUndefined();
+      expect(metrics?.enterpriseValue).toBeUndefined();
+      expect(metrics?.evToAnnualizedRevenue).toBeUndefined();
       expect(gaps).toEqual([
         expect.objectContaining({
           source: "valuation",
           message:
-            "Non-current SEC balance-sheet inputs for AAPL: debt period end 2025-06-30, cash period end 2025-06-30 not within 180 days before analysis cutoff 2026-10-08 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap withheld",
+            "Non-current SEC balance-sheet inputs for AAPL: debt period end 2025-06-30, cash period end 2025-06-30 not within 180 days before analysis cutoff 2026-10-08 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap and enterprise value and EV/TTM revenue withheld",
         }),
       ]);
+    });
+
+    test("states the stale-balance reason for withheld enterprise value in the summary", () => {
+      const result = addValuationEvidence(
+        command,
+        [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+        secEvidence({
+          revenue: 100,
+          revenueTtm: 400,
+          cash: 30,
+          cashPeriodEnd: "2025-06-30",
+          debt: 50,
+          debtPeriodEnd: "2025-06-30",
+        }),
+        "2026-10-08T00:00:00.000Z",
+      );
+      expect(valuationItem(result)?.summary).toContain(
+        "enterprise value withheld (non-current balance sheet), TTM revenue $400, EV/TTM revenue withheld,",
+      );
+    });
+
+    test("keeps the bridge-incomplete reason when stale balances also withhold enterprise value", () => {
+      const result = addValuationEvidence(
+        command,
+        [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+        secEvidence(
+          {},
+          {
+            items: [
+              {
+                category: "sec-edgar",
+                title: "AAPL SEC Fundamental Evidence",
+                summary: "SEC Fundamental Evidence.",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+                observedAt: "2026-05-18T00:00:00.000Z",
+                metrics: {
+                  ...Object.fromEntries(
+                    Object.entries(UNTAGGED_EV_BRIDGE).filter(([key]) => key !== "preferredStock"),
+                  ),
+                  preferredStockIncompleteReason: "preferred stock untagged",
+                  revenue: 100,
+                  revenueTtm: 400,
+                  cash: 30,
+                  cashPeriodEnd: "2025-06-30",
+                  debt: 50,
+                  debtPeriodEnd: "2025-06-30",
+                },
+              },
+            ],
+          },
+        ),
+        "2026-10-08T00:00:00.000Z",
+      );
+      const messages = result.sourceGaps.map(({ message }) => message);
+      expect(valuationItem(result)?.summary).toContain(
+        "enterprise value withheld (preferred stock untagged)",
+      );
+      expect(messages.find((message) => message.startsWith("Non-current"))).toEndWith(
+        "; debt/market cap and net debt/market cap withheld",
+      );
+      expect(messages.some((message) => message.startsWith("SEC EV bridge incomplete"))).toBe(true);
     });
 
     test.each([
@@ -244,7 +314,11 @@ describe("addValuationEvidence", () => {
       });
       expect(metrics?.debtToMarketCap).toBe(0.05);
       expect(metrics?.netDebtToMarketCap).toBeUndefined();
-      expect(gaps[0]?.message).toEndWith("; net debt/market cap withheld");
+      expect(metrics?.enterpriseValue).toBeUndefined();
+      expect(metrics?.evToAnnualizedRevenue).toBeUndefined();
+      expect(gaps[0]?.message).toEndWith(
+        "; net debt/market cap and enterprise value and EV/TTM revenue withheld",
+      );
     });
 
     test.each([

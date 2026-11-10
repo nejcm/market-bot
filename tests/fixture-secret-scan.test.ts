@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   assertNoSecretsInFiles,
   assertNoSecretsInText,
   knownSecretValues,
+  scanFixtureDirs,
 } from "../scripts/fixture-secret-scan";
 
 /*
@@ -87,5 +88,44 @@ describe("fixture secret scan", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("fixture secret scan entry", () => {
+  test("detects a secret planted in a nested fixture file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "secret-scan-"));
+    try {
+      await mkdir(join(dir, "bodies"));
+      await writeFile(join(dir, "meta.json"), "{}", "utf8");
+      await writeFile(join(dir, "bodies", "abc.txt"), "token=pk_live_abcdefgh", "utf8");
+      await expect(scanFixtureDirs([dir], ["pk_live_abcdefgh"])).rejects.toThrow(
+        `Secret-like value leaked into ${join(dir, "bodies", "abc.txt")}`,
+      );
+      await expect(scanFixtureDirs([dir], ["other_secret_value"])).resolves.toEqual({
+        files: 2,
+        secrets: 1,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("fails as not performed without known secrets or directories", async () => {
+    await expect(scanFixtureDirs(["unused"], [])).rejects.toThrow("scan not performed");
+    await expect(scanFixtureDirs([], ["pk_live_abcdefgh"])).rejects.toThrow("scan not performed");
+  });
+
+  test("the command exits non-zero when no secret is known", () => {
+    const result = Bun.spawnSync(
+      [
+        "bun",
+        "--no-env-file",
+        join(import.meta.dir, "../scripts/fixture-secret-scan.ts"),
+        import.meta.dir,
+      ],
+      { env: { PATH: process.env.PATH ?? "" }, stderr: "pipe" },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr.toString()).toContain("scan not performed");
   });
 });

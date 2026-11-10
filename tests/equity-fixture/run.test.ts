@@ -28,7 +28,7 @@ import {
   runFixture,
   type RunFixtureResult,
 } from "../../src/replay/fixture-run";
-import { makeReplayProvider, requestStage } from "../../src/replay/llm-cassette";
+import { makeReplayProvider } from "../../src/replay/llm-cassette";
 import { countCassetteMisses, makeReplayFetch } from "../../src/replay/data-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
@@ -172,17 +172,16 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-20", 0.3989],
     ["grid-relative-5", 0.5],
   ],
-  // Bursa runs on 2026-11-06 against a 2026-11-05 close, so scoring spans one more session.
   "equity-bursa-deep": [
-    ["grid-range-1", 0.479],
-    ["grid-range-5", 0.3568],
-    ["grid-range-20", 0.3252],
+    ["grid-range-1", 0.3198],
+    ["grid-range-5", 0.3158],
+    ["grid-range-20", 0.3126],
     ["grid-relative-5", 0.5],
   ],
   "equity-bursa-brief": [
-    ["grid-range-1", 0.479],
-    ["grid-range-5", 0.3568],
-    ["grid-range-20", 0.3252],
+    ["grid-range-1", 0.3198],
+    ["grid-range-5", 0.3158],
+    ["grid-range-20", 0.3126],
     ["grid-relative-5", 0.5],
   ],
 };
@@ -800,119 +799,62 @@ describe("static equity run fixtures", () => {
       expect(result.markdown).toContain("### Issuer report figures");
       expect(result.collectedSources.businessFramework?.phase).toBe("hyper-growth");
       expect(result.report.dataGaps.join("\n")).not.toContain("Event Grid range events not issued");
-      const dps = metric("issuer-report-dividend-per-share-ytd-2026-09-30");
-      if (name === "equity-bursa-brief") {
-        expect(dps).toMatchObject({ value: "MYR 0.0118 or 1.18 sen", periodMonths: 9 });
-      } else {
-        // The deep mapping did not read the dividend row.
-        expect(dps).toBeUndefined();
-      }
+      expect(metric("issuer-report-dividend-per-share-ytd-2026-09-30")).toMatchObject({
+        value: "MYR 0.0118 or 1.18 sen",
+        periodMonths: 9,
+      });
     },
   );
 
-  test.each([
-    ["equity-bursa-deep", "Dividend per share, Net cash from operating activities"],
-    ["equity-bursa-brief", "published no checked figure for: Net cash from operating activities"],
-  ])("%s declares the issuer report concepts it could not publish", async (name, expected) => {
-    const fixture = await loadFixture(name);
-    const replayProvider = makeReplayProvider(fixture.llmCassette);
-    const synthesisRequests: string[] = [];
-    const result = await runFixture(name, {
-      llm: "replay",
-      provider: {
-        name: replayProvider.name,
-        generate: async (request: ModelRequest) => {
-          if (requestStage(request) === "final-synthesis") {
-            synthesisRequests.push(JSON.stringify(request));
-          }
-          return replayProvider.generate(request);
-        },
-      },
-    });
-    runResults.push(result);
-    const messages = result.collectedSources.sourceGaps.map(({ message }) => message);
-    expect(messages.find((message) => message.includes("published no checked figure"))).toContain(
-      expected,
-    );
-    expect(result.report.sources.map(({ url }) => url)).toContain(
-      "https://www.klsescreener.com/v2/announcements/view/11698017",
-    );
-    expect(messages.find((message) => message.startsWith("Yahoo trailing EPS"))).toContain(
-      "Yahoo trailing EPS 0.11 MYR",
-    );
-    // Yahoo's trailing PE of 92.36x prices the EPS the gap above contradicts.
-    expect(
-      result.collectedSources.metricSections
-        ?.find(({ id }) => id === "business-framework-valuation")
-        ?.metrics.find(({ id }) => id === "trailingPE")?.status,
-    ).toBe("not-meaningful");
-    expect(result.collectedSources.marketSnapshots[0]?.fundamentals).not.toHaveProperty(
-      "epsTrailingTwelveMonths",
-    );
-    expect(JSON.stringify(result.report)).not.toContain("92.36");
-    expect(result.markdown).not.toContain("EPS TTM 0.11");
-    expect(
-      result.collectedSources.financialLenses?.lenses.flatMap(({ metrics }) =>
-        metrics.map(({ key }) => key),
-      ),
-    ).not.toContainEqual(expect.stringMatching(/^(?:peRatio|payoutRatio)$/u));
-    expect(
-      result.collectedSources.businessFramework?.sections.find(
-        (section) => section.name === "Valuation",
-      )?.summary,
-    ).toBe("Valuation insufficient-data (Forward PE 48.30x)");
-    // The Console reads the subject quote from these artifacts.
-    const artifact =
-      name === "equity-bursa-deep"
-        ? RUN_ARTIFACT_FILES.evidenceBundle
-        : RUN_ARTIFACT_FILES.marketSnapshots;
-    expect(await readFile(join(result.artifacts.runDir, artifact), "utf8")).not.toContain("92.36");
-    // Replayed upstream stage outputs predate the withholding, so only code-built numbers are checked.
-    expect(synthesisRequests.length).toBeGreaterThan(0);
-    for (const request of synthesisRequests) {
-      expect(request).not.toContain("92.36");
-      expect(request).not.toContain("epsTrailingTwelveMonths");
-      expect(request).not.toContain("0.10909");
-      expect(request).toMatch(
-        /<<metric:business-framework-valuation\.trailingPE>>[^}]*\\"status\\":\\"not-meaningful\\"/u,
+  test.each(["equity-bursa-deep", "equity-bursa-brief"])(
+    "%s declares the issuer report concepts it could not publish",
+    async (name) => {
+      const result = await runFixture(name, { llm: "replay" });
+      runResults.push(result);
+      const messages = result.collectedSources.sourceGaps.map(({ message }) => message);
+      expect(messages.find((message) => message.includes("published no checked figure"))).toContain(
+        "published no checked figure for: Net cash from operating activities",
       );
-    }
-  });
+      expect(result.report.sources.map(({ url }) => url)).toContain(
+        "https://www.klsescreener.com/v2/announcements/view/11698017",
+      );
+      // Yahoo's 0.16 is not below the issuer's 9-month YTD EPS of 0.1345, so it publishes flagged.
+      expect(messages.find((message) => message.startsWith("Yahoo trailing EPS"))).toContain(
+        "Yahoo trailing EPS 0.16 MYR (no as-of date; period, share count and basic or diluted basis undisclosed) is published unreconciled",
+      );
+      expect(
+        result.collectedSources.metricSections
+          ?.find(({ id }) => id === "business-framework-valuation")
+          ?.metrics.find(({ id }) => id === "trailingPE"),
+      ).toMatchObject({ status: "value", value: 61.562_504 });
+      expect(
+        result.collectedSources.businessFramework?.sections.find(
+          (section) => section.name === "Valuation",
+        )?.summary,
+      ).toBe("Valuation insufficient-data (Trailing PE 61.56x, Forward PE 43.88x)");
+    },
+  );
 
   test("bursa brief keeps a claim whose quote spans Markdown table cells", async () => {
     const result = await runFixture("equity-bursa-brief", { llm: "replay" });
     runResults.push(result);
-    expect(result.report.catalysts?.[0]?.text).toMatch(
-      /^Observed fact: The reported third-quarter/u,
-    );
-    // The model quoted 34,720 for prior-quarter attributable profit; the table says 34,716.
-    expect(JSON.stringify(result.report)).not.toContain("34,720");
-    // Hand-edited recorded output: the bare 136,774 cell reads as RM136,774 thousand under its MYR'000 header.
-    expect(result.report.catalysts?.[0]).toMatchObject({
-      text: expect.stringContaining("profit before tax of RM136,774 thousand"),
-      figureQuotes: expect.arrayContaining([expect.objectContaining({ unitQuote: "MYR'000" })]),
+    // The bare 485,101 cell reads as RM485,101 thousand under its MYR'000 header.
+    expect(result.report.extras).toHaveProperty("webSubjectProfile.recentMaterialEvents.0", {
+      claim:
+        "For the quarter ended 30 September 2026, revenue was RM485,101 thousand, compared with RM228,567 thousand in the prior-year quarter.",
+      sourceIds: ["web-0097.kl-a11bbc9c"],
+      figureQuotes: [
+        {
+          sourceId: "web-0097.kl-a11bbc9c",
+          quote: "| 1 | Revenue | 485,101 | 228,567 |",
+          unitQuote: "MYR'000",
+        },
+      ],
     });
   });
 
   test("bursa deep fetches the newest issuer report page in code", async () => {
-    const fixture = await loadFixture("equity-bursa-deep");
-    const replayProvider = makeReplayProvider(fixture.llmCassette);
-    const result = await runFixture("equity-bursa-deep", {
-      llm: "replay",
-      provider: {
-        name: replayProvider.name,
-        // Recorded pred-1 cites SPY history, which a profiled listing no longer collects.
-        generate: async (request: ModelRequest) => {
-          const response = await replayProvider.generate(request);
-          return requestStage(request) === "final-synthesis"
-            ? {
-                ...response,
-                content: response.content.replaceAll("price-history-SPY", "price-history-0097.KL"),
-              }
-            : response;
-        },
-      },
-    });
+    const result = await runFixture("equity-bursa-deep", { llm: "replay" });
     runResults.push(result);
     const audit = JSON.parse(
       await readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.webGatherAudit), "utf8"),
@@ -922,8 +864,12 @@ describe("static equity run fixtures", () => {
         .filter(({ tool }) => tool === "web_fetch")
         .map(({ args, rationale }) => [args.url, rationale.startsWith("Issuer report page")]),
     ).toEqual([
-      ["https://www.klsescreener.com/v2/stock/financial-report/0097/2026-09-30", true],
       ["https://www.klsescreener.com/v2/announcements/view/11698017", true],
+      // The second slot reads an older report; every published figure cites the first.
+      [
+        "https://www.marketscreener.com/news/vitrox-quarterly-report-for-the-financial-period-ended-30-june-2026-ce7f50dad889fe22",
+        true,
+      ],
     ]);
     // Issuer 9-month YTD revenue 1,127,067 vs 552,728 (MYR'000) classifies the phase.
     expect(result.report.extras).toHaveProperty("businessFramework.phase", "hyper-growth");
@@ -940,10 +886,6 @@ describe("static equity run fixtures", () => {
       "2026-11-05",
     );
     expect(result.markdown).toContain("profile stage read (latest issuer report 2026-11-05)");
-    expect(result.report.predictions.map(({ id }) => id)).not.toContain("pred-1");
-    expect(result.report.dataGaps.join("\n")).toContain(
-      "Model prediction(s) pred-1 for 0097.KL withheld: they compare against SPY",
-    );
   });
 
   test("deep equity markdown partitions the reader block from preserved appendix detail", async () => {

@@ -67,6 +67,11 @@ approval flag. It prints an expected figure from the recorded calls' token estim
 worst-case bound that reserves every bounded synthesis repair attempt with 25% headroom; estimates
 are not provider cost caps. Tests inject fake providers and never invoke a spending script or approval flag.
 
+To promote a capture to `tests/fixtures/runs/<name>/`, copy its `replay/` files except
+`final-synthesis-input.json`, then scan the fixture directory with the keys loaded:
+`bun scripts/fixture-secret-scan.ts tests/fixtures/runs/<name>` (Bun reads `.env` from the repo root).
+It prints file and secret counts only, and exits non-zero with "scan not performed" when no key is set.
+
 Direct scripts write only fresh `data/evals/<label>/` directories and reject live flags; they never
 refresh production Calibration/history/index/news-seen state. Their `eval-sample.json` declares
 partial scope, duration, call counts and errors. Stage replay also stores current requests,
@@ -167,7 +172,8 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/clfd-zero-debt/` (captured live replay: Tagged Zero Debt at three CLFD 10-Q instants)
 - `tests/fixtures/runs/ebay-extension-investments/` (captured live replay: Extension Short-Term Investments, EBAY 10-Q 809M at 2026-09-30)
 - `tests/fixtures/runs/equity-amd-deep/` (captured live replay: AMD deep, FY2025 10-K and Q3 2026 10-Q calculation linkbases)
-- `tests/fixtures/runs/equity-bursa-deep/` (captured live replay: ViTrox `0097.KL` deep, `2026-11-06T03-07-03-043Z-4135821d`; non-SEC issuer, `^KLSE` benchmark, Exa Web Gather recorded)
+- `tests/fixtures/runs/equity-bursa-deep/` (captured live replay: ViTrox `0097.KL` deep, `2026-11-10T13-16-02-081Z-229e289a`; non-SEC issuer, `^KLSE` benchmark, Exa Web Gather and range grid events recorded)
+- `tests/fixtures/runs/equity-bursa-brief/` (captured live replay: ViTrox `0097.KL` brief, `2026-11-10T13-11-54-401Z-c4717588`)
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
 rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source
@@ -291,10 +297,9 @@ A stage that a fixture or capture never recorded has no cassette entry, so the o
 estimate fails on a miss. Before `--live-stages <new-stage>`, copy the capture under
 `data/evals/` and add a reviewed synthetic `<stage>|<model>` entry to the copy's
 `llm-cassette.json`; never edit `data/runs/`. No checked-in fixture collects usable comps peers,
-so none calls `peer-median-audit` (pinned by the fixture invariants). The `final-synthesis|gpt-6-luna`
-repair responses after the first in `equity-bursa-deep` (two) and `equity-bursa-brief` (one) are reviewed
-synthetic entries, listed in each fixture's `meta.json` `syntheticLlmEntries`: each is the recorded output
-with only the claims on values code now withholds removed, so it proves the code checks, not model quality.
+so none calls `peer-median-audit` (pinned by the fixture invariants). Synthetic entries are listed in
+the fixture's `meta.json` `syntheticLlmEntries`; the `equity-bursa-*` cassettes are unedited captures,
+whose live integrity prunes are pinned in `expectedIntegrityPrune`.
 The `equity-aapl-brief-prune` final-synthesis entries are the AAPL brief output with one uncited
 summary figure appended. `expectedIntegrityPrune` pins the exact pruned sentence and grade; every
 fixture without it must prune nothing and grade `high`.

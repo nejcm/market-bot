@@ -476,6 +476,7 @@ describe("resolveOutcome — earnings scoring", () => {
       expect(result).toMatchObject({
         status: "resolved",
         outcome: "hit",
+        forecastOrigin: `event ${earningsDate}@2026-05-14`,
         evidence: {
           close0: 180,
           closeN: 200,

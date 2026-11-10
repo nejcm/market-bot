@@ -83,7 +83,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Forecast Baseline** — Frozen, versioned no-skill probability on a Prediction (`baselineProbability`, `baselineVersion`, `infoCutoff`): EWMA volatility, zero drift, √h over the sessions scoring spans. Range, direction, relative only; missing inputs omit it with a declared gap, keeping `infoCutoff` when closes were collected. Distinct from the prior-run baseline in Forecast Persistence Telemetry.
 
-**Forecast Event** — The unit Calibration counts: one canonical claim per asset class and origin, where origin follows the claim's resolution clock (next trading day for equity close windows, UTC date for crypto and calendar-day macro/IV, declared date for earnings). Same-session repeats collapse to the earliest (`duplicateForecastCount`). Per-run views still count issuances.
+**Forecast Event** — The unit Calibration counts: one canonical claim per asset class and origin, where origin follows the claim's resolution clock (next trading day for equity close windows, UTC date for crypto and calendar-day macro/IV, declared date and its origin session for earnings). A score that persisted the resolver's actual origin (`forecastOrigin`) is keyed by that instead. Same-session repeats collapse to the earliest (`duplicateForecastCount`). Per-run views still count issuances.
 
 **Paired Skill** — Brier(Baseline) − Brier(model) over the same resolved Forecast Events, overall and per kind, with a subject-clustered block-bootstrap interval. Status: `model-better`, `baseline-better`, `not-yet-decidable` (interval spans 0 or below the 30-event / 5-block floor). Events without a baseline are excluded and counted. See ADR 0003.
 

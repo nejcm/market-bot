@@ -11,6 +11,7 @@ import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { writeProviderHealthSummary } from "../health/provider-health";
 import { scoringPolicyFor } from "./policy";
+import { scoreForecastOrigin } from "./forecast-origin";
 import { resolveOutcome } from "./resolver";
 import {
   loadConditionalCalibrationCountsFromIndex,
@@ -186,6 +187,11 @@ export async function scoreOnePrediction(
     );
   }
 
+  const forecastOrigin =
+    resolveResult.forecastOrigin === undefined
+      ? {}
+      : { forecastOrigin: resolveResult.forecastOrigin };
+
   if (resolveResult.status === "voided") {
     return {
       predictionId: prediction.id,
@@ -197,6 +203,7 @@ export async function scoreOnePrediction(
       attemptCount,
       scoringVersion: scoringPolicyFor(prediction).version,
       evidence: resolveResult.evidence,
+      ...forecastOrigin,
     };
   }
 
@@ -210,6 +217,7 @@ export async function scoreOnePrediction(
     attemptCount,
     scoringVersion: scoringPolicyFor(prediction).version,
     evidence: resolveResult.evidence,
+    ...forecastOrigin,
   };
 }
 
@@ -407,7 +415,11 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
     return [
       {
         prediction,
-        score,
+        // Resolved here because only the report knows the earnings timing a legacy origin needs.
+        score: {
+          ...score,
+          forecastOrigin: scoreForecastOrigin(score, prediction.measurableAs, report),
+        },
         assetClass: report.assetClass,
         jobType: report.jobType,
         ...(marketUpdateHorizonBucket !== undefined ? { marketUpdateHorizonBucket } : {}),
@@ -451,6 +463,7 @@ async function loadCalibrationInputsFromDisk(dataDir: string): Promise<{
             artifact.report.assetClass,
             prediction.measurableAs,
             artifact.report.generatedAt,
+            scoreForecastOrigin(score, prediction.measurableAs, artifact.report),
           ),
         );
       }

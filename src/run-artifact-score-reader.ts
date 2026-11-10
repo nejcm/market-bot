@@ -60,6 +60,7 @@ export function readScores(value: unknown): readonly PredictionScore[] | undefin
         // Preserve the version stamped on already-resolved scores. Undefined for legacy files.
         ...(typeof item.scoringVersion === "number" ? { scoringVersion: item.scoringVersion } : {}),
         evidence: item.evidence,
+        ...(typeof item.forecastOrigin === "string" ? { forecastOrigin: item.forecastOrigin } : {}),
         ...(isRecord(item.repair) ? { repair: item.repair as unknown as ScoreRepair } : {}),
       },
     ];

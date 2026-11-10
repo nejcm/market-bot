@@ -67,14 +67,25 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   days and abandon on the fourth failed fetch. `score --force` bypasses timing only, never resolution/abandonment.
 - Calibration is descriptive and counts Forecast Events, keyed by `assetClass | canonical claim | origin`.
   Equity close origins roll the report UTC date forward to a trading day; crypto and calendar-day macro/IV
-  keep UTC date; earnings use event date; conditional keys combine both origins. Distinct bounds stay distinct.
+  keep UTC date; earnings use `event <date>@<origin session>` (amended 2026-11-10, below); conditional
+  keys combine both origins. Distinct bounds stay distinct.
   Deduplicate before every aggregate, keeping earliest issuance by instant, then Run ID, then Prediction ID;
   voided events use the same key. Publish `duplicateForecastCount`, including zero, distinct Run counts, and
   standard errors clustered by subject (first leg) and origin session when there are at least two clusters;
   Brier remains event-weighted (amended 2026-11-08; Run ID clusters left a multi-subject `forecast-grid` run
   as one cluster, and on 2026-11-07 data the switch moved no slice's standard error by more than 6%).
-- Recompute origins from `generatedAt`/claim rather than unstored legacy windows. Known limits: unverified-session
-  quarantine and changed BMO/AMC timing can split/merge events incorrectly; persist window identity if observed.
+- A resolved or voided score persists `forecastOrigin`, the origin the resolver anchored on, and the Forecast
+  Event key and standard-error cluster use it (amended 2026-11-10): the first close of the window used for
+  close windows (so an unverified-session quarantine keys on its replacement session),
+  `event <date>@<session>` for earnings (so changed BMO/AMC timing stays two events), the report UTC date for point claims,
+  and both legs joined for a conditional; a voided conditional never fetches its consequent window, so
+  that leg stays on the report clock. Scores without the field are legacy: their origin is recomputed from
+  `generatedAt`, the claim and the report's earnings timing in the same string format, so a legacy and a
+  persisted score of one event collide whenever their origins agree; a legacy quarantine-anchored score
+  can still split/merge. Resolved scores are never rewritten to add the field. On 2026-11-10 data (173 resolved or voided scores, 169
+  re-derived from cached closes, 4 not re-derivable) no persisted origin would have differed from the
+  recompute, so no published aggregate moved. The index stores each score's origin already
+  resolved, persisted or recomputed (schema 16).
   Invalid `generatedAt` fails strict reading and is excluded by disk/index scoring and Calibration alike.
   Console listings retain the run, flag malformed detail, and show raw content only if JSON parses.
 - Current summaries aggregate resolved policy-v3 forecasts: counts, hit rate, Brier, reliability, slices,

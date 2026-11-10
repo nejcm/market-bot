@@ -152,8 +152,8 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
   const insertScore = db.prepare(`
     INSERT INTO scores (
       prediction_id, run_id, resolved, status, outcome, observed_at, scoring_version,
-      miss_autopsy_cause
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      miss_autopsy_cause, forecast_origin
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertOutcome = db.prepare(`
     INSERT INTO subsystem_outcomes (
@@ -188,6 +188,7 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
         row.observed_at,
         row.scoring_version,
         row.miss_autopsy_cause,
+        row.forecast_origin,
       );
     }
     for (const row of indexed.outcomes) {
@@ -845,6 +846,7 @@ interface ResolvedPairQueryRow {
   readonly observed_at: string | null;
   readonly scoring_version: number | null;
   readonly miss_autopsy_cause: string | null;
+  readonly forecast_origin: string | null;
   readonly job_type: string;
   readonly asset_class: string;
   readonly generated_at: string;
@@ -875,7 +877,7 @@ export async function loadResolvedPairsFromIndex(
           p.measurable_as, p.source_ids_json,
           p.origin, p.baseline_probability, p.baseline_version, p.info_cutoff,
           s.prediction_id, s.status, s.outcome, s.observed_at, s.scoring_version,
-          s.miss_autopsy_cause,
+          s.miss_autopsy_cause, s.forecast_origin,
           r.job_type, r.asset_class, r.generated_at, r.market_regime_label,
           r.horizon_trading_days AS run_horizon_trading_days
         FROM predictions p
@@ -924,6 +926,7 @@ export async function loadResolvedPairsFromIndex(
             ...(row.scoring_version !== null ? { scoringVersion: row.scoring_version } : {}),
             attemptCount: 0,
             evidence: {},
+            ...(row.forecast_origin !== null ? { forecastOrigin: row.forecast_origin } : {}),
           },
           assetClass: row.asset_class as AssetClass,
           jobType,
@@ -947,7 +950,7 @@ export async function loadConditionalCalibrationCountsFromIndex(
   return await withFreshIndex(dataDir, async (db) => {
     const rows = db
       .query(
-        `SELECT r.asset_class, p.measurable_as, r.generated_at
+        `SELECT r.asset_class, p.measurable_as, r.generated_at, s.forecast_origin
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
         JOIN runs r ON r.run_id = p.run_id
@@ -957,11 +960,19 @@ export async function loadConditionalCalibrationCountsFromIndex(
       readonly asset_class: AssetClass;
       readonly measurable_as: string;
       readonly generated_at: string;
+      readonly forecast_origin: string | null;
     }[];
     const voidedEvents = new Set(
       rows
         .filter((row) => hasParseableGeneratedAt(row))
-        .map((row) => forecastEventKey(row.asset_class, row.measurable_as, row.generated_at)),
+        .map((row) =>
+          forecastEventKey(
+            row.asset_class,
+            row.measurable_as,
+            row.generated_at,
+            row.forecast_origin ?? undefined,
+          ),
+        ),
     );
     // Activated conditionals are the resolved conditional pairs already passed
     // Into buildCalibrationSummary; this query only supplies excluded voids.

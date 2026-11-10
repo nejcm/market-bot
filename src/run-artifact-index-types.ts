@@ -58,6 +58,7 @@ export interface ScoreRow {
   readonly observed_at: string | null;
   readonly scoring_version: number | null;
   readonly miss_autopsy_cause: string | null;
+  readonly forecast_origin: string | null;
 }
 
 export interface SearchEntryRow {

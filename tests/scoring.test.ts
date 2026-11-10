@@ -1556,6 +1556,70 @@ describe("buildCalibrationSummary — Forecast Event dedupe", () => {
     expect(summary.bins.map(({ label }) => label)).toEqual(["0.6-0.7"]);
   });
 
+  test("a persisted resolver origin decides the event, over the report clock", () => {
+    // Friday's run saw an unverified Friday session, so the resolver anchored it on Thursday's close.
+    const thursday = issuance("r-thu", "2026-05-07T21:30:00.000Z", 0.6);
+    const quarantinedFriday = issuance("r-fri", "2026-05-08T15:00:00.000Z", 0.7);
+    const onThursday = { ...thursday.score, forecastOrigin: "2026-05-07" };
+
+    const merged = buildCalibrationSummary([
+      { ...thursday, score: onThursday },
+      { ...quarantinedFriday, score: onThursday },
+    ]);
+    expect(merged.resolvedCount).toBe(1);
+    expect(merged.duplicateForecastCount).toBe(1);
+    expect(merged.bins.map(({ label }) => label)).toEqual(["0.6-0.7"]);
+
+    const sameDay = issuance("r-thu-late", "2026-05-07T22:00:00.000Z", 0.7);
+    const split = buildCalibrationSummary([
+      { ...thursday, score: onThursday },
+      { ...sameDay, score: { ...sameDay.score, forecastOrigin: "2026-05-06" } },
+    ]);
+    expect(split.resolvedCount).toBe(2);
+    expect(split.duplicateForecastCount).toBe(0);
+  });
+
+  test("a legacy score without a persisted origin is keyed by the recomputed one", () => {
+    const thursday = issuance("r-thu", "2026-05-07T21:30:00.000Z", 0.6);
+    const friday = issuance("r-fri", "2026-05-08T15:00:00.000Z", 0.7);
+    expect(thursday.score.forecastOrigin).toBeUndefined();
+
+    const legacy = buildCalibrationSummary([thursday, friday]);
+    expect(legacy.resolvedCount).toBe(2);
+    expect(legacy.duplicateForecastCount).toBe(0);
+
+    const mixed = buildCalibrationSummary([
+      thursday,
+      { ...friday, score: { ...friday.score, forecastOrigin: "2026-05-07" } },
+    ]);
+    expect(mixed.resolvedCount).toBe(1);
+    expect(mixed.duplicateForecastCount).toBe(1);
+  });
+
+  test("changed BMO/AMC timing keeps one earnings event date as two persisted events", () => {
+    const earnings = {
+      kind: "earnings-direction" as const,
+      measurableAs: "earningsReturn(AAPL, 2026-05-06, +1) > 0",
+    };
+    const amc = issuance("r-amc", "2026-05-04T13:00:00.000Z", 0.6, earnings);
+    const bmo = issuance("r-bmo", "2026-05-05T13:00:00.000Z", 0.7, earnings);
+
+    const summary = buildCalibrationSummary([
+      { ...amc, score: { ...amc.score, forecastOrigin: "event 2026-05-06@2026-05-06" } },
+      { ...bmo, score: { ...bmo.score, forecastOrigin: "event 2026-05-06@2026-05-05" } },
+    ]);
+    expect(summary.resolvedCount).toBe(2);
+    expect(summary.duplicateForecastCount).toBe(0);
+
+    // A legacy score recomputes the same string when the origin session agrees, so it collapses.
+    const boundary = buildCalibrationSummary([
+      amc,
+      { ...bmo, score: { ...bmo.score, forecastOrigin: "event 2026-05-06@2026-05-05" } },
+    ]);
+    expect(boundary.resolvedCount).toBe(1);
+    expect(boundary.duplicateForecastCount).toBe(1);
+  });
+
   test("keys and orders issuances by instant, not by the written timestamp", () => {
     const sameInstant = buildCalibrationSummary([
       issuance("r-utc", "2026-05-04T16:30:00.000Z", 0.6),

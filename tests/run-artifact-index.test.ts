@@ -799,6 +799,104 @@ describe("run artifact index", () => {
     expect(existsSync(calibrationPath)).toBe(true);
   });
 
+  test("legacy and persisted Forecast Event origins share one key format, on disk and in the index", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const conditional =
+      "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))";
+    // Persisted origins as the resolver writes them; the earnings one needs the report's AMC timing.
+    const persisted = {
+      "p-close": "2026-05-29",
+      "p-earn": "event 2026-06-03@2026-06-03",
+      "p-void": "2026-06-01 & 2026-06-01",
+    };
+    for (const [runId, origins] of [
+      ["run-legacy", {}],
+      ["run-persisted", persisted],
+    ] as const) {
+      const runDir = join(dataDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeJson(
+        join(runDir, "report.json"),
+        researchReport({
+          runId,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          extras: { earningsSetup: { event: { timing: "amc" } } },
+          predictions: [
+            prediction({ id: "p-close" }),
+            prediction({
+              id: "p-earn",
+              kind: "earnings-direction",
+              subject: "AAPL",
+              measurableAs: "earningsReturn(AAPL, 2026-06-03, +1) > 0",
+              horizonTradingDays: 1,
+            }),
+            prediction({
+              id: "p-void",
+              kind: "conditional",
+              subject: "QQQ",
+              measurableAs: conditional,
+              horizonTradingDays: 10,
+            }),
+          ],
+        }),
+      );
+      const origin = (id: keyof typeof persisted) =>
+        id in origins ? { forecastOrigin: persisted[id] } : {};
+      writeJson(join(runDir, "score.json"), {
+        runId,
+        scores: [
+          predictionScore("hit", {
+            predictionId: "p-close",
+            runId,
+            scoringVersion: 3,
+            ...origin("p-close"),
+          }),
+          predictionScore("hit", {
+            predictionId: "p-earn",
+            runId,
+            scoringVersion: 3,
+            ...origin("p-earn"),
+          }),
+          {
+            predictionId: "p-void",
+            runId,
+            status: "voided",
+            resolved: true,
+            attemptCount: 1,
+            scoringVersion: 3,
+            evidence: { reason: "conditional antecedent did not occur" },
+            ...origin("p-void"),
+          },
+        ],
+      });
+    }
+
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const disk = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
+    delete process.env.MARKET_BOT_INDEX_DISABLE;
+    // The close origins differ (persisted decides); the earnings and voided pairs are one event each.
+    expect(disk?.resolvedCount).toBe(3);
+    expect(disk?.duplicateForecastCount).toBe(1);
+    expect(disk?.conditionalPredictions).toEqual({ activatedCount: 0, voidedCount: 1 });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const pairs = await loadResolvedPairsFromIndex(dataDir);
+    expect(
+      pairs
+        ?.map((pair) => `${pair.runId} ${pair.prediction.id} ${pair.score.forecastOrigin!}`)
+        .toSorted(),
+    ).toEqual([
+      "run-legacy p-close 2026-06-01",
+      "run-legacy p-earn event 2026-06-03@2026-06-03",
+      "run-persisted p-close 2026-05-29",
+      "run-persisted p-earn event 2026-06-03@2026-06-03",
+    ]);
+    const indexed = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
+    expect(indexed?.resolvedCount).toBe(3);
+    expect(indexed?.duplicateForecastCount).toBe(1);
+    expect(indexed?.conditionalPredictions).toEqual({ activatedCount: 0, voidedCount: 1 });
+  });
+
   test("treats a report with an unparseable generatedAt as unreadable instead of aborting", async () => {
     const { dataDir } = await tempDataDir();
     for (const [runId, generatedAt] of [

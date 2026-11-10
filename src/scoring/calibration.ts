@@ -1,16 +1,11 @@
 import { marketUpdateHorizonBucket, type AssetClass, type JobType } from "../domain/job-type";
 import { type Prediction } from "../domain/prediction";
 import { MARKET_REGIME_LABELS, type MarketRegimeLabel } from "../domain/report";
-import {
-  claimKey,
-  observationStrategyForExpression,
-  parseObservableExpression,
-  type ObservationStrategy,
-} from "../forecast/observable";
+import { claimKey, parseObservableExpression } from "../forecast/observable";
 import { hasForecastBaselineEstimator } from "../forecast/baseline";
 import { pairedSkillDecisionRule } from "./calibration-read";
-import { firstExchangeSessionOnOrAfter } from "./exchange-calendar";
 import { scoringPolicyFor } from "./policy";
+import { recomputedForecastOrigin } from "./forecast-origin";
 import type {
   CalibrationBin,
   ConditionalCalibrationSummary,
@@ -74,8 +69,11 @@ function overallBrierScore(pairs: readonly ResolvedPair[]): number | undefined {
 
 // Subject and origin session (ADR 0003), so one grid run's subjects stay separate clusters.
 function standardErrorCluster(pair: ResolvedPair): string {
-  const { assetClass, prediction, generatedAt } = pair;
-  return `${clusterSubject(pair)}|${forecastOrigin(assetClass, prediction.measurableAs, generatedAt)}`;
+  const { assetClass, prediction, generatedAt, score } = pair;
+  const origin =
+    score.forecastOrigin ??
+    recomputedForecastOrigin(assetClass, prediction.measurableAs, generatedAt);
+  return `${clusterSubject(pair)}|${origin}`;
 }
 
 function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
@@ -205,65 +203,16 @@ function buildMarketRegimeCoverage(pairs: readonly ResolvedPair[]): Record<strin
   return result;
 }
 
-function utcDate(instant: Date): string {
-  return instant.toISOString().slice(0, 10);
-}
-
-function closeWindowOrigin(assetClass: AssetClass, issuedAt: Date): string {
-  if (assetClass === "crypto") {
-    return utcDate(issuedAt);
-  }
-  return firstExchangeSessionOnOrAfter(utcDate(issuedAt));
-}
-
-// Mirrors the clock each family resolves on in resolver.ts: sessions, calendar days, or the event.
-function strategyOrigin(
-  strategy: ObservationStrategy,
-  assetClass: AssetClass,
-  issuedAt: Date,
-): string {
-  switch (strategy.mode) {
-    case "close-window": {
-      return closeWindowOrigin(assetClass, issuedAt);
-    }
-    case "point": {
-      return utcDate(issuedAt);
-    }
-    case "earnings-close-window": {
-      return `event ${strategy.eventDate}`;
-    }
-    case "composite": {
-      return strategy.strategies
-        .map((nested) => strategyOrigin(nested, assetClass, issuedAt))
-        .join(" & ");
-    }
-  }
-}
-
-function observationStrategy(measurableAs: string): ObservationStrategy | undefined {
-  try {
-    return observationStrategyForExpression(parseObservableExpression(measurableAs));
-  } catch {
-    return undefined;
-  }
-}
-
-// NOTE — ponytail: origins are recomputed, not read from the resolver's window, so quarantine-anchored
-// Reports and earnings timing that changes between issuances can split or merge; persist the window then.
-function forecastOrigin(assetClass: AssetClass, measurableAs: string, generatedAt: string): string {
-  const issuedAt = new Date(generatedAt);
-  const strategy = observationStrategy(measurableAs);
-  return strategy === undefined
-    ? closeWindowOrigin(assetClass, issuedAt)
-    : strategyOrigin(strategy, assetClass, issuedAt);
-}
-
+// `persistedOrigin` is the score's `forecastOrigin`. Without one the origin is recomputed from the
+// Report clock, in the same format, so a legacy and a persisted score of one event still collide.
 export function forecastEventKey(
   assetClass: AssetClass,
   measurableAs: string,
   generatedAt: string,
+  persistedOrigin: string | undefined,
 ): string {
-  return `${assetClass}|${claimKey(measurableAs)}|${forecastOrigin(assetClass, measurableAs, generatedAt)}`;
+  const origin = persistedOrigin ?? recomputedForecastOrigin(assetClass, measurableAs, generatedAt);
+  return `${assetClass}|${claimKey(measurableAs)}|${origin}`;
 }
 
 function compareIssuance(left: ResolvedPair, right: ResolvedPair): number {
@@ -278,7 +227,12 @@ function compareIssuance(left: ResolvedPair, right: ResolvedPair): number {
 function earliestIssuancePerEvent(pairs: readonly ResolvedPair[]): readonly ResolvedPair[] {
   const events = new Map<string, ResolvedPair>();
   for (const pair of pairs.toSorted(compareIssuance)) {
-    const key = forecastEventKey(pair.assetClass, pair.prediction.measurableAs, pair.generatedAt);
+    const key = forecastEventKey(
+      pair.assetClass,
+      pair.prediction.measurableAs,
+      pair.generatedAt,
+      pair.score.forecastOrigin,
+    );
     if (!events.has(key)) {
       events.set(key, pair);
     }

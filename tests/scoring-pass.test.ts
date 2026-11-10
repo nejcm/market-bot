@@ -405,6 +405,7 @@ describe("runScorePass Observation scoring", () => {
     const [score] = await readScores(runDir);
     expect(score).toMatchObject({
       status: "resolved",
+      forecastOrigin: "2026-04-30",
       evidence: {
         close0: 102,
         closeN: 98,
@@ -586,6 +587,7 @@ describe("runScorePass Observation scoring", () => {
     expect(score).toMatchObject({
       status: "voided",
       resolved: true,
+      forecastOrigin: "2026-05-01 & 2026-05-01",
       evidence: { reason: "conditional antecedent did not occur" },
     });
     expect(score?.outcome).toBeUndefined();

@@ -12,11 +12,17 @@ import {
   resolveObservableExpression,
   resolveObservableForecast,
 } from "../forecast/observable";
-import { isExchangeTradingDay, resolutionDate } from "./exchange-calendar";
+import { resolutionDate } from "./exchange-calendar";
+import {
+  clockForecastOrigin,
+  earningsOriginDate,
+  readEarningsEventTiming,
+  shiftCalendarDay,
+  type EarningsEventTiming,
+} from "./forecast-origin";
 import type { ObservationRepository } from "./observations";
 import { scoringPolicyFor, type ScoringPolicy } from "./policy";
 import { ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY, type ScoreOutcome } from "./types";
-import { isRecord } from "../guards";
 import { verifiedSnapshotSourceId } from "../sources/verified-snapshot-contract";
 import type { CloseWindow } from "../sources/yahoo";
 
@@ -28,11 +34,13 @@ interface ResolveOutcomeResolved {
   readonly status: "resolved";
   readonly outcome: ScoreOutcome;
   readonly evidence: Record<string, unknown>;
+  readonly forecastOrigin?: string;
 }
 
 interface ResolveOutcomeVoided {
   readonly status: "voided";
   readonly evidence: Record<string, unknown>;
+  readonly forecastOrigin?: string;
 }
 
 interface ResolveOutcomeUnresolved {
@@ -266,47 +274,6 @@ async function pointObservations(
   );
 }
 
-type EarningsEventTiming = "bmo" | "amc" | "unknown";
-
-function readEarningsEventTiming(report: ResearchReport): EarningsEventTiming {
-  const setup = report.extras?.earningsSetup;
-  if (!isRecord(setup)) {
-    return "unknown";
-  }
-  const event = isRecord(setup.event) ? setup.event : undefined;
-  const timing = event?.timing;
-  if (timing === "bmo" || timing === "amc") {
-    return timing;
-  }
-  return "unknown";
-}
-
-function shiftCalendarDay(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * DAY_MS);
-}
-
-function previousTradingDay(date: Date): Date {
-  let cursor = shiftCalendarDay(date, -1);
-  while (!isExchangeTradingDay(cursor)) {
-    cursor = shiftCalendarDay(cursor, -1);
-  }
-  return cursor;
-}
-
-function earningsOriginDate(eventDate: Date, timing: EarningsEventTiming): Date {
-  if (timing === "amc") {
-    // AMC: pre-reaction close is the event-date close.
-    // If eventDate is not a trading day, walk backwards to the last trading day.
-    let cursor = eventDate;
-    while (!isExchangeTradingDay(cursor)) {
-      cursor = shiftCalendarDay(cursor, -1);
-    }
-    return cursor;
-  }
-  // BMO / unknown: pre-reaction close is the prior session's close.
-  return previousTradingDay(eventDate);
-}
-
 function earningsHorizonDate(
   eventDate: string,
   timing: EarningsEventTiming,
@@ -490,6 +457,33 @@ function originAnchorQuarantine(
   };
 }
 
+// Forecast Event origin (ADR 0003) from the window actually used, not the report clock.
+function baseForecastOrigin(
+  strategy: ObservationStrategy,
+  report: ResearchReport,
+  observations: readonly Observation[],
+): string | undefined {
+  const anchor = observations[0]?.date;
+  switch (strategy.mode) {
+    case "close-window": {
+      return anchor;
+    }
+    case "earnings-close-window": {
+      return anchor === undefined ? undefined : `event ${strategy.eventDate}@${anchor}`;
+    }
+    case "point": {
+      return ymd(new Date(report.generatedAt));
+    }
+    case "composite": {
+      return undefined;
+    }
+  }
+}
+
+function originField(origin: string | undefined): { readonly forecastOrigin?: string } {
+  return origin === undefined ? {} : { forecastOrigin: origin };
+}
+
 function quarantineEvidence(
   evidence: Record<string, unknown>,
   quarantine: OriginAnchorQuarantine | undefined,
@@ -537,13 +531,16 @@ async function resolveBaseExpression(
 ): Promise<{
   readonly resolution: ReturnType<typeof resolveObservableExpression>;
   readonly quarantine?: OriginAnchorQuarantine;
+  readonly origin?: string;
 }> {
   const strategy = observationStrategyForExpression(expression);
   const observations = await observationsForStrategy(strategy, report, now, repo, policy);
   const quarantine = originAnchorQuarantine(strategy, report, observations, policy);
+  const origin = baseForecastOrigin(strategy, report, observations);
   return {
     resolution: resolveObservableExpression(expression, observations),
     ...(quarantine !== undefined ? { quarantine } : {}),
+    ...(origin !== undefined ? { origin } : {}),
   };
 }
 
@@ -646,6 +643,17 @@ async function resolveWithRepository(
 
     const antecedentSelection = await resolveBaseExpression(antecedent, report, repo, now, policy);
     const antecedentResult = antecedentSelection.resolution;
+    // A voided conditional never fetches its consequent window, so that leg stays on the report clock.
+    const voidedOrigin = originField(
+      antecedentSelection.origin === undefined
+        ? undefined
+        : `${antecedentSelection.origin} & ${clockForecastOrigin(
+            observationStrategyForExpression(consequent),
+            report.assetClass,
+            new Date(report.generatedAt),
+            readEarningsEventTiming(report),
+          )}`,
+    );
     if (antecedentResult.status === "unresolved") {
       return {
         status: "unresolved",
@@ -666,6 +674,7 @@ async function resolveWithRepository(
           reason: "conditional antecedent did not occur",
           antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
         },
+        ...voidedOrigin,
       };
     }
     if (antecedentResult.outcome === "miss") {
@@ -675,6 +684,7 @@ async function resolveWithRepository(
           reason: "conditional antecedent did not occur",
           antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
         },
+        ...voidedOrigin,
       };
     }
 
@@ -716,6 +726,11 @@ async function resolveWithRepository(
         antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
         consequent: quarantineEvidence(consequentResult.evidence, consequentSelection.quarantine),
       },
+      ...originField(
+        antecedentSelection.origin === undefined || consequentSelection.origin === undefined
+          ? undefined
+          : `${antecedentSelection.origin} & ${consequentSelection.origin}`,
+      ),
     };
   }
 
@@ -754,12 +769,18 @@ async function resolveWithRepository(
       evidence: quarantineEvidence({ reason: "observation unavailable" }, quarantine),
     };
   }
+  const origin = originField(baseForecastOrigin(strategy, report, observations));
   if (result.status === "voided") {
-    return { status: "voided", evidence: quarantineEvidence(result.evidence, quarantine) };
+    return {
+      status: "voided",
+      evidence: quarantineEvidence(result.evidence, quarantine),
+      ...origin,
+    };
   }
   return {
     status: "resolved",
     outcome: result.outcome,
     evidence: quarantineEvidence(result.evidence, quarantine),
+    ...origin,
   };
 }

@@ -33,6 +33,8 @@ export interface PredictionScore {
   /** Undefined for legacy score files written before scoring logic versioning. */
   readonly scoringVersion?: number;
   readonly evidence: Record<string, unknown>;
+  /** Forecast Event origin the resolver anchored on; absent on scores written before it was persisted. */
+  readonly forecastOrigin?: string;
   readonly repair?: ScoreRepair;
 }
 

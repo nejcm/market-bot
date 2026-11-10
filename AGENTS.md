@@ -84,7 +84,7 @@ Artifacts land in `data/runs/<run-id>/` — `report.json`, `report.md`, `score.j
 
 Failed final-synthesis and post-synthesis runs leave `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`; no `report.json`, `report.md`, `trace.json`, or `analytics.json`. Run dirs are staged and renamed into `data/runs/` whole (`publishRunArtifacts`), so a visible run dir is always complete.
 
-`data/` also holds `calibration/`, `index.sqlite` (Run Artifact Index), `history/` (search index + instrument timelines), `cache/`, and `news-seen.json` (suppresses repeat news URLs for 30 days). All rebuildable, none disposable.
+`data/` also holds `calibration/`, `index.sqlite` (Run Artifact Index), `history/` (search index + instrument timelines), `cache/`, `news-seen.json` (suppresses repeat news URLs for 30 days), and `replay-bodies/` (content-addressed replay bodies, hardlinked into each `<run>/replay/bodies/`; deleting it never breaks a saved run). All rebuildable, none disposable.
 
 To find a cached payload, filter by adapter: `jq -r 'select(.adapter=="sec-companyfacts") | "\(input_filename) \(.payload.cik) \(.payload.entityName)"' data/cache/<date>/*.json`. Filenames are request-fingerprint hashes; neither cache entries nor `raw/snapshots.json` record the request URL.
 

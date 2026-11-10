@@ -1,6 +1,6 @@
 import type { SourceAdapter } from "../src/sources/adapter-freshness";
 import { afterAll, expect, test } from "bun:test";
-import { cp, mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, stat, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, basename, dirname } from "node:path";
 import { loadFixture, runFixture, createFixtureConfig } from "../src/replay/fixture-run";
@@ -198,7 +198,15 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     expect(loaded.meta.captureVersion).toBe(1);
     expect(loaded.state?.values.calibration).toHaveLength(1);
     expect(Object.values(loaded.dataCassette.entries).some((row) => row.status === 503)).toBe(true);
-    expect(await readdir(join(capture, "bodies"))).not.toHaveLength(0);
+    const capturedBodies = await readdir(join(capture, "bodies"));
+    expect(capturedBodies).not.toHaveLength(0);
+    expect((await readdir(join(dir, "replay-bodies"))).toSorted()).toEqual(
+      capturedBodies.toSorted(),
+    );
+    const [firstBody] = capturedBodies;
+    expect((await stat(join(capture, "bodies", firstBody ?? ""))).ino).toBe(
+      (await stat(join(dir, "replay-bodies", firstBody ?? ""))).ino,
+    );
     const body = Object.values(loaded.dataCassette.entries).find(
       (row) => row.bodyFile !== undefined,
     )!;

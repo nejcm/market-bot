@@ -40,6 +40,8 @@ import {
   periodPublicAt,
   valuationPeriodInputs,
 } from "../src/sources/extended-evidence/valuation-workbench-inputs";
+import type { RunSummary } from "../src/run-artifact-index-types";
+import { valuationWorkbenchView } from "../app/client/run-workspace-view";
 import {
   EMPTY_EV_BRIDGE_FACTS,
   marketSnapshot,
@@ -128,6 +130,20 @@ function ttm(
   };
 }
 
+// Filed with the TTM's latest diluted EPS component, so the TTM row pairs it by accession.
+const QUARTER_SHARES: FinancialStatementFact = {
+  ...fact({
+    key: "dilutedShares",
+    value: 10,
+    periodEnd: "2025-03-31",
+    filedAt: "2025-05-01",
+    periodType: "interim",
+    unit: "shares",
+    currency: null,
+  }),
+  accessionNumber: "2025-03-31-dilutedEps",
+};
+
 function series(
   key: FinancialStatementSeriesKey,
   statement: FinancialStatementName,
@@ -199,7 +215,10 @@ function statements(): FinancialStatementsArtifact {
       perShare: {
         dilutedEps: series("dilutedEps", "perShare", [1, 1.2], 1.3, "USD/shares"),
         continuingDilutedEps: series("continuingDilutedEps", "perShare"),
-        dilutedShares: series("dilutedShares", "perShare", [10, 10], undefined, "shares"),
+        dilutedShares: {
+          ...series("dilutedShares", "perShare", [10, 10], undefined, "shares"),
+          interim: [QUARTER_SHARES],
+        },
         dividendsPerShare: series("dividendsPerShare", "perShare"),
       },
     },
@@ -617,7 +636,7 @@ describe("valuation workbench", () => {
       expect(flagged.slice(1)).toEqual(clean.slice(1));
     });
 
-    test("derives shares from clean EPS when only the filed share count is flagged", () => {
+    test("withholds annual shares, never NI / EPS, when only the filed share count is flagged", () => {
       const base = statements();
       const { dilutedShares } = base.statements.perShare;
       const preSplitShares: FinancialStatementsArtifact = {
@@ -641,7 +660,7 @@ describe("valuation workbench", () => {
 
       expect(first?.[1]).toMatchObject({
         priceToEarnings: { status: "value", value: 20 },
-        priceToSales: { status: "value", value: 2 },
+        priceToSales: { status: "missing", reason: "earlier-share-basis" },
       });
     });
 
@@ -2493,5 +2512,371 @@ describe("historical fiscal-year TTM eligibility from SEC facts", () => {
     expect(secFactRows(refiledFiscalYearFacts("2023-01-02"))).toContain(
       "ttm|2023-12-31|2024-02-15",
     );
+  });
+});
+
+const retimed = (
+  value: FinancialStatementTtm,
+  periodEnd: string,
+  publicAt: string,
+  accession: string,
+): FinancialStatementTtm =>
+  value.formula === "FY"
+    ? value
+    : {
+        ...value,
+        periodEnd,
+        components: {
+          ...value.components,
+          latestYearToDate: {
+            ...value.components.latestYearToDate,
+            periodEnd,
+            periodKey: `interim|${periodEnd}`,
+            filedAt: publicAt,
+            firstPublicAt: publicAt,
+            accessionNumber: accession,
+          },
+        },
+      };
+const ttmShares = (artifact: FinancialStatementsArtifact) =>
+  valuationPeriodInputs(artifact).ttm?.dilutedShares;
+
+describe("TTM diluted shares from the filed period", () => {
+  const count = (input: {
+    readonly value: number;
+    readonly periodStart: string;
+    readonly periodEnd: string;
+    readonly accession: string;
+    readonly firstPublicAt: string;
+  }): FinancialStatementFact => ({
+    ...QUARTER_SHARES,
+    value: input.value,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    periodKey: `${input.periodStart}|${input.periodEnd}`,
+    accessionNumber: input.accession,
+    filedAt: input.firstPublicAt,
+    firstPublicAt: input.firstPublicAt,
+  });
+  const withTtmShares = (input: {
+    readonly periodEnd: string;
+    readonly publicAt: string;
+    readonly epsAccession: string;
+    readonly netIncome: number;
+    readonly dilutedEps: number;
+    readonly counts: readonly FinancialStatementFact[];
+    readonly netIncomeConcept?: string;
+  }): FinancialStatementsArtifact => {
+    const base = statements();
+    const at = (value: FinancialStatementTtm, accession = `${input.periodEnd}-other`) =>
+      retimed(value, input.periodEnd, input.publicAt, accession);
+    const netIncome = at(ttm("netIncome", input.netIncome));
+    return {
+      ...base,
+      statements: {
+        ...base.statements,
+        incomeStatement: {
+          ...base.statements.incomeStatement,
+          revenue: { ...base.statements.incomeStatement.revenue, ttm: at(ttm("revenue", 130)) },
+          netIncome: {
+            ...base.statements.incomeStatement.netIncome,
+            ttm:
+              input.netIncomeConcept === undefined || netIncome.formula === "FY"
+                ? netIncome
+                : {
+                    ...netIncome,
+                    components: {
+                      ...netIncome.components,
+                      latestYearToDate: {
+                        ...netIncome.components.latestYearToDate,
+                        concept: input.netIncomeConcept,
+                      },
+                    },
+                  },
+          },
+        },
+        perShare: {
+          ...base.statements.perShare,
+          dilutedEps: {
+            ...base.statements.perShare.dilutedEps,
+            ttm: at(
+              ttm("dilutedEps", input.dilutedEps, "2025-05-01", "USD/shares"),
+              input.epsAccession,
+            ),
+          },
+          dilutedShares: { ...base.statements.perShare.dilutedShares, interim: input.counts },
+        },
+      },
+    };
+  };
+  // HIVE 10-Q 0001062993-25-016895: NI 34,431,000 / TTM EPS 0.23 gave 149,700,000 shares.
+  const HIVE = {
+    periodEnd: "2025-09-30",
+    publicAt: "2025-11-17",
+    epsAccession: "0001062993-25-016895",
+    netIncome: 34_431_000,
+    dilutedEps: 0.23,
+  };
+  const hiveCounts = [
+    count({
+      value: 218_253_771,
+      periodStart: "2025-04-01",
+      periodEnd: "2025-09-30",
+      accession: "0001062993-25-016895",
+      firstPublicAt: "2025-11-17",
+    }),
+    count({
+      value: 228_137_757,
+      periodStart: "2025-07-01",
+      periodEnd: "2025-09-30",
+      accession: "0001062993-25-016895",
+      firstPublicAt: "2025-11-17",
+    }),
+  ];
+
+  test("uses the shortest filed period's count, not NI / diluted EPS (HIVE TTM 2025-09-30)", () => {
+    expect(ttmShares(withTtmShares({ ...HIVE, counts: hiveCounts }))).toMatchObject({
+      value: 228_137_757,
+      periodEnd: "2025-09-30",
+      publicAt: "2025-11-17",
+      unit: "shares",
+      derivation: "filed 3-month period ending 2025-09-30",
+    });
+  });
+
+  test("never publishes a negative count when NI and TTM EPS differ in sign (CRWD TTM 2026-07-31)", () => {
+    const crwd = {
+      periodEnd: "2026-07-31",
+      publicAt: "2026-08-27",
+      epsAccession: "0001535527-26-000031",
+      netIncome: 44_995_000,
+      dilutedEps: -0.45,
+    };
+    expect(ttmShares(withTtmShares({ ...crwd, counts: [] }))).toBeUndefined();
+    expect(
+      ttmShares(
+        withTtmShares({
+          ...crwd,
+          counts: [
+            count({
+              value: 1_044_469_000,
+              periodStart: "2026-05-01",
+              periodEnd: "2026-07-31",
+              accession: "0001535527-26-000031",
+              firstPublicAt: "2026-08-27",
+            }),
+          ],
+        }),
+      )?.value,
+    ).toBe(1_044_469_000);
+  });
+
+  test("withholds the count and P/S when no filed count ends at the TTM end", () => {
+    const base = statements();
+    const unfiled: FinancialStatementsArtifact = {
+      ...base,
+      statements: {
+        ...base.statements,
+        perShare: {
+          ...base.statements.perShare,
+          dilutedShares: { ...base.statements.perShare.dilutedShares, interim: [] },
+        },
+      },
+    };
+    expect(ttmShares(unfiled)).toBeUndefined();
+    expect(workbenchMetrics(unfiled).find(([key]) => key === "ttm|2025-03-31")?.[1]).toMatchObject({
+      priceToEarnings: { status: "value" },
+      priceToSales: { status: "missing", reason: "diluted-shares-unavailable" },
+    });
+  });
+
+  test("names the filed period in the TTM basis of every share-based metric", () => {
+    const [, metrics] = workbenchMetrics(statements()).find(([key]) => key === "ttm|2025-03-31")!;
+    const sharesBasis =
+      "diluted shares: filed 3-month period ending 2025-03-31 weighted average, a proxy for a trailing-year count when shorter than a fiscal year";
+    expect(metrics.priceToSales?.basis).toContain(sharesBasis);
+    expect(metrics.enterpriseValueToRevenue?.basis).toContain(sharesBasis);
+    expect(metrics.priceToFreeCashFlow?.basis).toContain(sharesBasis);
+    expect(metrics.priceToEarnings?.basis).not.toContain("diluted shares:");
+  });
+
+  test("withholds a count first public after the row's public date", () => {
+    const late = hiveCounts.map((item) => ({ ...item, firstPublicAt: "2026-02-20" }));
+    expect(ttmShares(withTtmShares({ ...HIVE, counts: late }))).toBeUndefined();
+  });
+
+  test("withholds a count from another filing than the EPS it divides (split restated in EPS only)", () => {
+    expect(
+      ttmShares(
+        withTtmShares({ ...HIVE, epsAccession: "0001062993-26-000943", counts: hiveCounts }),
+      ),
+    ).toBeUndefined();
+  });
+
+  test("withholds a count on a noted earlier share basis", () => {
+    const artifact = withTtmShares({ ...HIVE, counts: hiveCounts });
+    const flagged: FinancialStatementsArtifact = {
+      ...artifact,
+      omissionNotes: [
+        {
+          code: "earlier-share-basis",
+          seriesKey: "dilutedShares",
+          periodKey: hiveCounts[1]!.periodKey,
+          message: "test split",
+        },
+      ],
+    };
+    expect(valuationPeriodInputs(flagged).ttm).toMatchObject({
+      earlierShareBasis: ["dilutedShares"],
+    });
+    expect(ttmShares(flagged)).toBeUndefined();
+  });
+
+  test("keeps a row missing when its income is not parent-attributable, even with a filed count", () => {
+    expect(
+      ttmShares(withTtmShares({ ...HIVE, counts: hiveCounts, netIncomeConcept: "ProfitLoss" })),
+    ).toBeUndefined();
+  });
+
+  test("withholds an annual count no filing reports instead of deriving NI / EPS (TAYD shape)", () => {
+    const base = withoutTtm(statements());
+    const unfiled: FinancialStatementsArtifact = {
+      ...base,
+      statements: {
+        ...base.statements,
+        perShare: {
+          ...base.statements.perShare,
+          dilutedShares: { ...base.statements.perShare.dilutedShares, annual: [], interim: [] },
+        },
+      },
+    };
+    const annual = valuationPeriodInputs(unfiled).periods.filter(({ basis }) => basis === "annual");
+    expect(
+      annual.map(({ netIncome, dilutedEps }) => [netIncome?.value, dilutedEps?.value]),
+    ).toEqual([
+      [10, 1],
+      [12, 1.2],
+    ]);
+    expect(annual.map(({ dilutedShares }) => dilutedShares)).toEqual([undefined, undefined]);
+    expect(workbenchMetrics(unfiled)[0]?.[1].priceToSales).toMatchObject({
+      status: "missing",
+      reason: "diluted-shares-unavailable",
+    });
+  });
+
+  test("renders the share-period proxy in Markdown and the Console", () => {
+    const workbench = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [{ date: "2025-05-01", close: 26 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const disclosure =
+      "TTM market cap uses the latest filed period's diluted weighted-average shares, a proxy for a trailing-year count when shorter than a fiscal year, for ttm 2025-03-31 (filed 3-month period ending 2025-03-31)";
+    expect(
+      valuationWorkbenchView({ summary: {} as RunSummary, valuationWorkbench: workbench })
+        ?.scopeDisclosure,
+    ).toBe(disclosure);
+    expect(renderValuationWorkbenchMarkdown(workbench, researchReport())).toContain(
+      `- ${disclosure}.`,
+    );
+  });
+
+  test("names the fiscal-year count of a TTM row that is the fiscal year", () => {
+    const base = withoutTtm(statements());
+    const workbench = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: {
+        ...base,
+        statements: {
+          ...base.statements,
+          incomeStatement: {
+            ...base.statements.incomeStatement,
+            revenue: withDerivedTtm(base.statements.incomeStatement.revenue),
+          },
+        },
+      },
+      priceHistory: [{ date: "2025-05-01", close: 26 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const fiscalYearRow = workbench.historicalMultiples.observations.find(
+      ({ basis }) => basis === "ttm",
+    )!;
+    expect(fiscalYearRow.inputs.dilutedShares).toMatchObject({
+      value: 10,
+      derivation: "filed fiscal-year period ending 2024-12-31",
+    });
+    expect(fiscalYearRow.metrics.priceToSales?.basis).toContain(
+      "diluted shares: filed fiscal-year period ending 2024-12-31 weighted average",
+    );
+    const disclosure =
+      "TTM market cap uses the latest filed period's diluted weighted-average shares, a proxy for a trailing-year count when shorter than a fiscal year, for ttm 2024-12-31 (filed fiscal-year period ending 2024-12-31)";
+    expect(
+      valuationWorkbenchView({ summary: {} as RunSummary, valuationWorkbench: workbench })
+        ?.scopeDisclosure,
+    ).toBe(disclosure);
+    expect(renderValuationWorkbenchMarkdown(workbench, researchReport())).toContain(
+      `- ${disclosure}.`,
+    );
+  });
+});
+
+describe("historical TTM diluted shares from SEC facts", () => {
+  // Q1 2024's count is first tagged by a 10-Q/A that also re-files the quarter's EPS.
+  const facts = (countInOriginal: boolean) => {
+    const flows = (scale: number) => [
+      secFact(100 * scale, "10-K", "FY", "2024-02-15", "2023-01-01", "2023-12-31"),
+      secFact(20 * scale, "10-Q", "Q1", "2023-05-08", "2023-01-01", "2023-03-31"),
+      secFact(45 * scale, "10-Q", "Q2", "2023-08-08", "2023-01-01", "2023-06-30"),
+      secFact(30 * scale, "10-Q", "Q1", "2024-05-08", "2024-01-01", "2024-03-31"),
+      secFact(30 * scale, "10-Q/A", "Q1", "2024-09-01", "2024-01-01", "2024-03-31"),
+      secFact(60 * scale, "10-Q", "Q2", "2024-08-08", "2024-01-01", "2024-06-30"),
+    ];
+    return {
+      facts: {
+        "us-gaap": {
+          Revenues: { units: { USD: flows(10) } },
+          NetIncomeLoss: { units: { USD: flows(1) } },
+          EarningsPerShareDiluted: { units: { "USD/shares": flows(0.1) } },
+          WeightedAverageNumberOfDilutedSharesOutstanding: {
+            units: {
+              shares: [
+                ...(countInOriginal
+                  ? [secFact(10, "10-Q", "Q1", "2024-05-08", "2024-01-01", "2024-03-31")]
+                  : []),
+                secFact(10, "10-Q/A", "Q1", "2024-09-01", "2024-01-01", "2024-03-31"),
+                secFact(10, "10-Q", "Q2", "2024-08-08", "2024-04-01", "2024-06-30"),
+              ],
+            },
+          },
+        },
+      },
+    };
+  };
+  const shares = (countInOriginal: boolean) =>
+    valuationPeriodInputs(
+      deriveFinancialStatements(facts(countInOriginal), {
+        symbol: "TEST",
+        generatedAt: "2025-06-01T00:00:00.000Z",
+        analysisAsOf: "2025-06-01T00:00:00.000Z",
+        sourceId: SOURCE_ID,
+      }),
+    )
+      .periods.filter(({ basis }) => basis === "ttm")
+      .map((period) => [period.periodEnd, periodPublicAt(period), period.dilutedShares?.value]);
+
+  test("withholds a count first public after the historical row's public date", () => {
+    expect(shares(false)).toEqual([
+      ["2024-03-31", "2024-05-08", undefined],
+      ["2024-06-30", "2024-08-08", 10],
+    ]);
+    expect(shares(true)).toEqual([
+      ["2024-03-31", "2024-05-08", 10],
+      ["2024-06-30", "2024-08-08", 10],
+    ]);
   });
 });

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readInstrumentWatchlistRows } from "../src/run-artifact-index";
+import { readInstrumentWatchlistRows } from "../src/run-artifact-index-queries";
 import { getWatchlist, listWatchlistItems, withConsoleDb } from "./console-db";
 import { readInstrumentStalenessInputs } from "./freshness";
 import type { InstrumentStalenessInput, WatchlistDetail } from "./types";

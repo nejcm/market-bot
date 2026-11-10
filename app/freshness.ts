@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isRecord } from "../src/guards";
-import { readLatestSuccessfulInstrumentRuns } from "../src/run-artifact-index";
+import { readLatestSuccessfulInstrumentRuns } from "../src/run-artifact-index-queries";
 import { getRunEarningsDates, putRunEarningsDates, withConsoleDb } from "./console-db";
 import type { InstrumentStalenessInput } from "./types";
 

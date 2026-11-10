@@ -23,7 +23,7 @@ import {
   listRunSummariesFromIndex,
   readRunSummaryFromIndex,
   searchRunReportsFromIndex,
-} from "../src/run-artifact-index";
+} from "../src/run-artifact-index-queries";
 import {
   compareRunSummariesByRecency,
   runSearchResultFromCandidate,

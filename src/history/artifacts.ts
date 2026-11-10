@@ -26,7 +26,7 @@ import {
 import type { HistorySection } from "./sections";
 
 import { scanRunArtifacts } from "../run-artifacts";
-import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
+import { searchHistoryEntriesFromIndex } from "../run-artifact-index-queries";
 import { MUTABLE_SIDECARS, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord, readStringVerbatim } from "../guards";

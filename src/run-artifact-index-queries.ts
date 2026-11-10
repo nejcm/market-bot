@@ -18,6 +18,8 @@ import { indexIsFresh } from "./run-artifact-index-freshness";
 import { readJsonFile } from "./run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES, type ArtifactFileStatus } from "./run-artifact-layout";
 import { readReport } from "./run-artifact-report-reader";
+import { readPredictionScoreStatus } from "./run-artifact-score-reader";
+import { isTerminal } from "./scoring/score-status";
 import { isMissAutopsyCause } from "./run-artifacts";
 import { readRunSubsystemOutcomesFromDisk } from "./run-artifact-index-rows";
 import {
@@ -593,13 +595,13 @@ function predictionMatchesInstrument(row: WatchlistPredictionQueryRow, symbol: s
     : parsedSymbols.includes(symbol);
 }
 
-// Open = unscored (no score row) or unresolved with a pending-family status.
-// Voided/abandoned are terminal; the status check covers scores stored otherwise.
+// Open = unscored (no score row) or a non-terminal status; a row without status is malformed, not open.
 function isOpenWatchlistPrediction(row: WatchlistPredictionQueryRow): boolean {
   if (row.resolved === null) {
     return true;
   }
-  return row.resolved === 0 && row.status !== "voided" && row.status !== "abandoned";
+  const status = readPredictionScoreStatus(row.status);
+  return status !== undefined && !isTerminal(status);
 }
 
 // Symbol-less multi-subject runs (Forecast Grid, market overview) count when a prediction's primary subject matches.

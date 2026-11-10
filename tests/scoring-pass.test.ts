@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { link, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/report";
 import { buildAndWriteAlphaLeadCohorts } from "../src/alpha-search/post-score";
 import { runScorePass } from "../src/scoring/index";
@@ -238,6 +238,57 @@ describe("runScorePass Observation scoring", () => {
       nextAttemptAt: "2026-05-11T12:00:00.000Z",
     });
     expect(observationCalls).toBe(2);
+  });
+
+  test("leaves a status-less pending row as written, even under force, and discloses it", async () => {
+    const prediction: ResearchReport["predictions"][number] = {
+      id: "pred-statusless",
+      claim: "SPY closes higher over 2 trading days.",
+      kind: "direction",
+      subject: "SPY",
+      measurableAs: "close(SPY, +2) > close(SPY, 0)",
+      horizonTradingDays: 2,
+      probability: 0.6,
+      sourceIds: [],
+    };
+    const runDir = await writeRun("run-statusless", report([prediction]));
+    const statusless = {
+      predictionId: prediction.id,
+      runId: "run-1",
+      resolved: false,
+      attemptCount: 1,
+      evidence: { reason: "observation unavailable" },
+    };
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify({ runId: "run-1", scores: [statusless] })}\n`,
+      "utf8",
+    );
+    let observationCalls = 0;
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        observationCalls += 1;
+        return [];
+      },
+    };
+    const stderr = spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    try {
+      await runScorePass(tmpDir, new Date("2026-05-20T00:00:00.000Z"), {
+        observationRepository: repo,
+        force: true,
+      });
+      expect(stderr.mock.calls.map(([line]) => String(line))).toContain(
+        `score run-1/${prediction.id} has no status: malformed, left as written and not rescored\n`,
+      );
+    } finally {
+      stderr.mockRestore();
+    }
+
+    expect(observationCalls).toBe(0);
+    const scores: unknown = await readScores(runDir);
+    expect(scores).toEqual([statusless]);
   });
 
   test("terminalizes a legacy pending score already at four failures", async () => {

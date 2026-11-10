@@ -66,6 +66,7 @@ describe("buildRunChatContext", () => {
         scores: [
           {
             predictionId: "p1",
+            status: "resolved",
             outcome: "hit",
             resolved: true,
             observedAt: "2026-06-10T00:00:00.000Z",
@@ -284,11 +285,29 @@ describe("buildRunChatContext", () => {
   test("handles pending (unresolved) scores", () => {
     const detail = minimalDetail({
       score: {
-        scores: [{ predictionId: "p1", outcome: "pending", resolved: false }],
+        scores: [{ predictionId: "p1", status: "pending", resolved: false }],
       },
     });
     const context = buildRunChatContext(detail);
 
-    expect(context).toContain("p1: pending (pending)");
+    expect(context).toContain("- p1: pending");
+  });
+
+  test("prints voided, abandoned and status-less scores verbatim, never as resolved", () => {
+    const detail = minimalDetail({
+      score: {
+        scores: [
+          { predictionId: "p1", status: "voided", resolved: true },
+          { predictionId: "p2", status: "abandoned", resolved: true },
+          { predictionId: "p3", resolved: true, outcome: "hit" },
+        ],
+      },
+    });
+    const context = buildRunChatContext(detail);
+
+    expect(context).toContain("- p1: voided\n");
+    expect(context).toContain("- p2: abandoned\n");
+    expect(context).toContain("- p3: malformed (no status)");
+    expect(context).not.toContain("(resolved)");
   });
 });

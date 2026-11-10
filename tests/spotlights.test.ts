@@ -38,7 +38,15 @@ function historyContext(): HistoricalResearchContext {
         catalysts: [],
         dataGaps: [],
         predictions: [],
-        scoreSummary: { total: 0, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+        scoreSummary: {
+          total: 0,
+          resolved: 0,
+          hit: 0,
+          miss: 0,
+          voided: 0,
+          abandoned: 0,
+          unresolved: 0,
+        },
         marketSnapshots: [],
       },
       {
@@ -55,7 +63,15 @@ function historyContext(): HistoricalResearchContext {
         catalysts: [],
         dataGaps: [],
         predictions: [],
-        scoreSummary: { total: 0, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+        scoreSummary: {
+          total: 0,
+          resolved: 0,
+          hit: 0,
+          miss: 0,
+          voided: 0,
+          abandoned: 0,
+          unresolved: 0,
+        },
         marketSnapshots: [
           {
             symbol: "AAPL",

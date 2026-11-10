@@ -299,6 +299,16 @@ describe("score repair", () => {
     );
   });
 
+  test("refuses to repair a score row without a status instead of assuming resolved", async () => {
+    const runDir = await seed();
+    const { status: _status, ...statusless } = storedMiss(PRE_CLOSE);
+    await writeJson(join(runDir, "score.json"), { runId: RUN_ID, scores: [statusless] });
+
+    const result = await repairScore(dataDir, request(false));
+    expect(result.verdict).toBe("not-resolved");
+    expect(result.detail).toBe("score status is missing");
+  });
+
   test("leaves crypto scores out of equity session repair", async () => {
     const runDir = await seed();
     await writeJson(join(runDir, "report.json"), { ...report, assetClass: "crypto" });

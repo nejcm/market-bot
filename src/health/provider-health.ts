@@ -38,6 +38,8 @@ import {
   type SubsystemOutcomeRollup,
 } from "../research/subsystem-outcomes";
 import { isRecord, numberAt, readNumber } from "../guards";
+import { readScores } from "../run-artifact-score-reader";
+import { hasOutcome } from "../scoring/score-status";
 import { deriveWebSearchEndpointAvailability } from "../sources/provider-endpoint-availability";
 import type { RunSubsystemOutcome, RunSubsystemOutcomeLedger } from "../run-artifact-projection";
 import {
@@ -294,9 +296,7 @@ function parseScoreCounts(value: unknown): {
     return { scoreCount: 0, resolvedScoreCount: 0 };
   }
 
-  const resolvedScoreCount = value.scores.filter(
-    (score) => isRecord(score) && score.resolved === true,
-  ).length;
+  const resolvedScoreCount = (readScores(value) ?? []).filter((score) => hasOutcome(score)).length;
   return { scoreCount: value.scores.length, resolvedScoreCount };
 }
 

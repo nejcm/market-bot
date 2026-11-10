@@ -5,6 +5,7 @@ import type { Source } from "./domain/sources";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import { isRecord, readStringVerbatim, stringArrayValue } from "./guards";
 import { predictionShortfallMaterialGaps } from "./report/prediction-shortfall";
+import { isTerminal } from "./scoring/score-status";
 import type { PredictionScore } from "./scoring/types";
 
 export const REPORT_SEARCH_SECTIONS = [
@@ -99,7 +100,9 @@ function openQuestionRows(
   scores: readonly PredictionScore[],
 ): readonly OpenQuestion[] {
   const resolved = new Set(
-    scores.filter((score) => score.resolved).map((score) => score.predictionId),
+    scores
+      .filter((score) => score.status !== undefined && isTerminal(score.status))
+      .map((score) => score.predictionId),
   );
   return [
     ...predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).map((gap) => ({

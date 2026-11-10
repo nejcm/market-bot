@@ -103,7 +103,7 @@ async function recordedSchedules(
 function reproducesScore(result: ResolveOutcomeResult, score: PredictionScore): boolean {
   return (
     (result.status === "resolved" || result.status === "voided") &&
-    result.status === (score.status ?? "resolved") &&
+    result.status === score.status &&
     (result.status !== "resolved" || result.outcome === score.outcome) &&
     JSON.stringify(result.evidence) === JSON.stringify(score.evidence)
   );
@@ -125,10 +125,13 @@ async function detect(
       ...none,
     };
   }
-  if (!original.resolved || original.status === "abandoned" || original.observedAt === undefined) {
+  if (
+    (original.status !== "resolved" && original.status !== "voided") ||
+    original.observedAt === undefined
+  ) {
     return {
       verdict: "not-resolved",
-      detail: `score status is ${original.status ?? "unknown"}`,
+      detail: `score status is ${original.status ?? "missing"}`,
       ...none,
     };
   }
@@ -355,7 +358,7 @@ export async function repairScore(
 }
 
 function describeScore(score: PredictionScore): string {
-  return `${score.status ?? "resolved"}${score.outcome === undefined ? "" : ` ${score.outcome}`} observed ${String(score.observedAt)}`;
+  return `${score.status ?? "malformed"}${score.outcome === undefined ? "" : ` ${score.outcome}`} observed ${String(score.observedAt)}`;
 }
 
 function describeWithheld(session: AuditedWithheldSession): string {

@@ -1,6 +1,9 @@
 import { predictions, type PredictionView } from "../src/run-artifact-projection";
 import { isRecord, readNumber, readStringVerbatim } from "../src/guards";
 import { readPredictionShortfall } from "../src/report/prediction-shortfall";
+import { readPredictionScoreStatus } from "../src/run-artifact-score-reader";
+import { hasOutcome } from "../src/scoring/score-status";
+import type { PredictionScoreStatus } from "../src/scoring/types";
 
 export {
   extendedEvidenceItems,
@@ -20,17 +23,9 @@ export {
   type SourceView,
 } from "../src/run-artifact-projection";
 
-type PredictionScoreStatus =
-  | "pending"
-  | "pending-condition"
-  | "active-pending"
-  | "resolved"
-  | "voided"
-  | "abandoned";
-
 export interface PredictionScoreView {
   readonly predictionId: string;
-  readonly status: PredictionScoreStatus;
+  readonly status: PredictionScoreStatus | "malformed";
   readonly resolved: boolean;
   readonly outcome?: "hit" | "miss";
   readonly observedAt?: string;
@@ -76,6 +71,8 @@ export interface ForecastRollup {
   readonly hits: number;
   readonly misses: number;
   readonly voided: number;
+  readonly abandoned: number;
+  readonly malformed: number;
   readonly pending: number;
 }
 
@@ -91,28 +88,6 @@ export interface PredictionTargetHealth {
   readonly targetMet: boolean;
 }
 
-function readPredictionScoreStatus(
-  item: Record<string, unknown>,
-  resolved: boolean,
-  outcome: "hit" | "miss" | undefined,
-): PredictionScoreStatus {
-  const status = readStringVerbatim(item, "status");
-  if (
-    status === "pending" ||
-    status === "pending-condition" ||
-    status === "active-pending" ||
-    status === "resolved" ||
-    status === "voided" ||
-    status === "abandoned"
-  ) {
-    return status;
-  }
-  if (outcome !== undefined) {
-    return "resolved";
-  }
-  return resolved ? "abandoned" : "pending";
-}
-
 export function predictionScores(
   score: Record<string, unknown> | undefined,
 ): readonly PredictionScoreView[] {
@@ -123,16 +98,19 @@ export function predictionScores(
 
   return value
     .filter((item) => isRecord(item))
-    .flatMap((item) => {
+    .flatMap((item): readonly PredictionScoreView[] => {
       const predictionId = readStringVerbatim(item, "predictionId");
       if (predictionId === undefined) {
         return [];
+      }
+      const status = readPredictionScoreStatus(item.status);
+      if (status === undefined) {
+        return [{ predictionId, status: "malformed", resolved: item.resolved === true }];
       }
 
       const resolved = item.resolved === true;
       const rawOutcome = readStringVerbatim(item, "outcome");
       const outcome = rawOutcome === "hit" || rawOutcome === "miss" ? rawOutcome : undefined;
-      const status = readPredictionScoreStatus(item, resolved, outcome);
       const observedAt = readStringVerbatim(item, "observedAt");
       const evidence = isRecord(item.evidence) ? item.evidence : {};
       const close0 = readNumber(evidence, "close0");
@@ -307,17 +285,22 @@ export function scoredForecasts(
 }
 
 export function forecastRollup(items: readonly ScoredForecast[]): ForecastRollup {
-  const resolvedItems = items.filter((item) => item.score?.resolved === true);
-  const hits = resolvedItems.filter((item) => item.score?.outcome === "hit").length;
-  const misses = resolvedItems.filter((item) => item.score?.outcome === "miss").length;
-  const voided = resolvedItems.filter((item) => item.score?.status === "voided").length;
+  const scores = items.flatMap((item) => (item.score === undefined ? [] : [item.score]));
+  const outcomes = scores.filter((score) => hasOutcome(score));
+  const hits = outcomes.filter((score) => score.outcome === "hit").length;
+  const misses = outcomes.length - hits;
+  const voided = scores.filter((score) => score.status === "voided").length;
+  const abandoned = scores.filter((score) => score.status === "abandoned").length;
+  const malformed = scores.filter((score) => score.status === "malformed").length;
   return {
     total: items.length,
-    resolved: resolvedItems.length,
+    resolved: outcomes.length,
     hits,
     misses,
     voided,
-    pending: items.length - resolvedItems.length,
+    abandoned,
+    malformed,
+    pending: items.length - outcomes.length - voided - abandoned - malformed,
   };
 }
 

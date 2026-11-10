@@ -1618,6 +1618,7 @@ describe("forecast outcomes", () => {
       },
       {
         predictionId: "orphan",
+        status: "resolved",
         resolved: true,
         outcome: "hit",
         evidence: {},
@@ -1667,14 +1668,31 @@ describe("forecast outcomes", () => {
     expect(predictionScores({ scores: "broken" })).toEqual([]);
     expect(
       predictionScores({
-        scores: [null, 7, { resolved: true }, { predictionId: "p1", outcome: "draw" }],
+        scores: [
+          null,
+          7,
+          { resolved: true },
+          { predictionId: "p1", outcome: "draw" },
+          { predictionId: "p2", status: "pending" },
+        ],
       }),
-    ).toEqual([{ predictionId: "p1", status: "pending", resolved: false }]);
+    ).toEqual([
+      { predictionId: "p1", status: "malformed", resolved: false },
+      { predictionId: "p2", status: "pending", resolved: false },
+    ]);
   });
 
   test("omits evidence closes unless both are numbers", () => {
     const parsed = predictionScores({
-      scores: [{ predictionId: "p1", resolved: true, outcome: "hit", evidence: { close0: 10 } }],
+      scores: [
+        {
+          predictionId: "p1",
+          status: "resolved",
+          resolved: true,
+          outcome: "hit",
+          evidence: { close0: 10 },
+        },
+      ],
     });
     expect(parsed).toEqual([
       { predictionId: "p1", status: "resolved", resolved: true, outcome: "hit" },
@@ -1684,7 +1702,13 @@ describe("forecast outcomes", () => {
   test("guards percent change against a zero origin close", () => {
     const parsed = predictionScores({
       scores: [
-        { predictionId: "p1", resolved: true, outcome: "hit", evidence: { close0: 0, closeN: 5 } },
+        {
+          predictionId: "p1",
+          status: "resolved",
+          resolved: true,
+          outcome: "hit",
+          evidence: { close0: 0, closeN: 5 },
+        },
       ],
     });
     expect(parsed[0]?.changePct).toBeUndefined();
@@ -1766,6 +1790,8 @@ describe("forecast outcomes", () => {
       hits: 0,
       misses: 1,
       voided: 0,
+      abandoned: 0,
+      malformed: 0,
       pending: 2,
     });
     expect(forecastRollup([])).toEqual({
@@ -1774,8 +1800,45 @@ describe("forecast outcomes", () => {
       hits: 0,
       misses: 0,
       voided: 0,
+      abandoned: 0,
+      malformed: 0,
       pending: 0,
     });
+  });
+
+  test("counts voided and abandoned forecasts apart from scored outcomes", () => {
+    const terminalReport = {
+      predictions: ["p1", "p2", "p3", "p4", "p5", "p6"].map((id) => ({
+        id,
+        claim: id,
+        subject: "AAPL",
+        measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+        probability: 0.5,
+        sourceIds: [],
+      })),
+    };
+    const terminalScore = {
+      scores: [
+        { predictionId: "p1", status: "resolved", resolved: true, outcome: "hit" },
+        { predictionId: "p2", status: "resolved", resolved: true, outcome: "miss" },
+        { predictionId: "p3", status: "voided", resolved: true },
+        { predictionId: "p4", status: "abandoned", resolved: true },
+        { predictionId: "p5", status: "pending", resolved: false },
+        { predictionId: "p6", resolved: false },
+      ],
+    };
+    const rollup = forecastRollup(scoredForecasts(terminalReport, terminalScore));
+    expect(rollup).toEqual({
+      total: 6,
+      resolved: 2,
+      hits: 1,
+      misses: 1,
+      voided: 1,
+      abandoned: 1,
+      malformed: 1,
+      pending: 1,
+    });
+    expect(rollup.hits + rollup.misses + rollup.voided + rollup.abandoned).toBe(4);
   });
 
   test("groups conditional forecasts by identical antecedent", () => {

@@ -62,6 +62,7 @@ function score(runId: string, id: string, resolved: boolean, outcome: "hit" | "m
   return predictionScore(outcome, {
     runId,
     predictionId: `${runId}-${id}`,
+    status: resolved ? "resolved" : "pending",
     resolved,
     ...(resolved ? {} : { outcome: undefined }),
   });

@@ -54,7 +54,15 @@ function tickerRun(
     catalysts: [],
     dataGaps: [],
     predictions,
-    scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+    scoreSummary: {
+      total: predictions.length,
+      resolved: 0,
+      hit: 0,
+      miss: 0,
+      voided: 0,
+      abandoned: 0,
+      unresolved: 0,
+    },
     marketSnapshots: [],
   };
 }
@@ -383,7 +391,15 @@ function marketRun(
     catalysts: [],
     dataGaps: [],
     predictions,
-    scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+    scoreSummary: {
+      total: predictions.length,
+      resolved: 0,
+      hit: 0,
+      miss: 0,
+      voided: 0,
+      abandoned: 0,
+      unresolved: 0,
+    },
     marketSnapshots: [],
     ...(keyExtras !== undefined ? { keyExtras } : {}),
   };
@@ -442,7 +458,15 @@ function researchRun(
     catalysts: [],
     dataGaps: [],
     predictions,
-    scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+    scoreSummary: {
+      total: predictions.length,
+      resolved: 0,
+      hit: 0,
+      miss: 0,
+      voided: 0,
+      abandoned: 0,
+      unresolved: 0,
+    },
     marketSnapshots: [],
     ...overrides,
   };

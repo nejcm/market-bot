@@ -19,7 +19,7 @@ export function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
   return typeof value === "string" && MISS_AUTOPSY_CAUSES.has(value);
 }
 
-function readPredictionScoreStatus(value: unknown): PredictionScoreStatus | undefined {
+export function readPredictionScoreStatus(value: unknown): PredictionScoreStatus | undefined {
   return value === "pending" ||
     value === "pending-condition" ||
     value === "active-pending" ||

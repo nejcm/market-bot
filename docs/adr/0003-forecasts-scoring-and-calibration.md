@@ -202,8 +202,9 @@ Cross-run Intelligence. Prior research supplies context, never current market ob
   subject/instrument, horizon, recency, anchors, and resolved-miss relevance; collapse redundant same-day runs
   while preserving eligible miss-correction runs. Missing/malformed history is a soft Source Gap.
 - Prior reports are citeable internal `model` sources and narrative context. Prompt forecast rows include
-  resolved forecasts only; pending forecasts are counted as `pendingPredictionCount`, never listed as rows
-  (prior summaries/findings may still echo them).
+  terminal forecasts only (resolved, voided, abandoned), each with its stored status; pending forecasts are
+  counted as `pendingPredictionCount` and score rows without a status as `malformedPredictionCount`, never
+  listed as rows (prior summaries/findings may still echo them).
 - Correction scope is same instrument for instrument runs; same asset/horizon bucket and configured subjects
   for market overviews; same subject/proxy for thematic research. History rebuild/search/thesis-delta use
   artifacts only; narrative deltas run only on request and obey [ADR 0001](./0001-research-only-boundary.md).

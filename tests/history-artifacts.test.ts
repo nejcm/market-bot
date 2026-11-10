@@ -90,6 +90,7 @@ function writeRun(
         {
           predictionId: "p1",
           runId,
+          status: runId === "run-new" ? "resolved" : "pending",
           resolved: runId === "run-new",
           outcome: runId === "run-new" ? "hit" : undefined,
           observedAt: runId === "run-new" ? generatedAt : undefined,
@@ -382,6 +383,38 @@ describe("history artifacts", () => {
     );
     expect(persisted).toContain("The research thesis shifted");
     expect(await readFile(`${deltaPath}.link`, "utf8")).toBe("stale");
+  });
+
+  test("keys score deltas on the stored status, not a resolved flag", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-score-status-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+    for (const [runId, status] of [
+      ["run-old", "abandoned"],
+      ["run-new", "voided"],
+    ] as const) {
+      writeJson(join(dataDir, runId, "score.json"), {
+        scores: [
+          { predictionId: "p1", runId, status, resolved: true, attemptCount: 1, evidence: {} },
+        ],
+      });
+    }
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const delta = await buildThesisDelta({
+      dataDir,
+      symbol: "AAPL",
+      assetClass: "equity",
+      since: "run-old",
+      to: "run-new",
+      now: new Date("2026-06-06T00:00:00.000Z"),
+    });
+    expect(delta.sections.scores).toMatchObject({
+      added: ["p1: voided"],
+      removed: ["p1: abandoned"],
+    });
   });
 
   test("carries structured prediction shortfalls into thesis snapshots and deltas", async () => {

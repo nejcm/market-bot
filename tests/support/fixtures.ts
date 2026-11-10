@@ -381,6 +381,7 @@ export function predictionScore(
   return {
     predictionId: "p",
     runId: "r",
+    status: "resolved",
     resolved: true,
     outcome,
     observedAt: DEFAULT_OBSERVED_AT,

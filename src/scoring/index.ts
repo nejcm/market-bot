@@ -13,6 +13,7 @@ import { writeProviderHealthSummary } from "../health/provider-health";
 import { scoringPolicyFor } from "./policy";
 import { scoreForecastOrigin } from "./forecast-origin";
 import { resolveOutcome } from "./resolver";
+import { isTerminal } from "./score-status";
 import { readRunArtifactIndexStatus, writeThroughRunArtifactIndex } from "../run-artifact-index";
 import {
   loadConditionalCalibrationCountsFromIndex,
@@ -149,8 +150,8 @@ export async function scoreOnePrediction(
   options: ScorePassOptions,
 ): Promise<PredictionScore> {
   if (
-    existingScore !== undefined &&
-    !existingScore.resolved &&
+    existingScore?.status !== undefined &&
+    !isTerminal(existingScore.status) &&
     existingScore.attemptCount >= MAX_OBSERVATION_FAILURES
   ) {
     return abandonedScore(prediction, report, existingScore.attemptCount, now);
@@ -258,8 +259,14 @@ async function scoreRunDir(
       if (prev === undefined) {
         return true;
       }
-      if (prev.resolved) {
-        // Resolved scores are historical records; version bumps apply only to new scoring writes.
+      if (prev.status === undefined) {
+        process.stderr.write(
+          `score ${report.runId}/${prediction.id} has no status: malformed, left as written and not rescored\n`,
+        );
+        return false;
+      }
+      // Terminal scores are historical records; version bumps apply only to new scoring writes.
+      if (isTerminal(prev.status)) {
         return false;
       }
       if (prev.attemptCount >= MAX_OBSERVATION_FAILURES) {

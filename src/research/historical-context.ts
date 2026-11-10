@@ -22,7 +22,8 @@ import { type HistoricalContextAudit } from "../domain/run-trace";
 import { type Source } from "../domain/sources";
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { ForecastPersistenceBaseline } from "./forecast-persistence";
-import type { PredictionScore } from "../scoring/types";
+import { hasOutcome, isTerminal } from "../scoring/score-status";
+import type { PredictionScore, PredictionScoreStatus } from "../scoring/types";
 import { isRecord, readNumber, readString } from "../guards";
 import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 import {
@@ -60,7 +61,7 @@ export interface HistoricalPredictionSummary {
   readonly measurableAs: string;
   readonly horizonTradingDays: number;
   readonly probability: number;
-  readonly scoreStatus: "not-scored" | "unresolved" | "resolved";
+  readonly scoreStatus: "not-scored" | "malformed" | PredictionScoreStatus;
   readonly scoreOutcome?: "hit" | "miss";
   // Observed resolution values for misses only (e.g. { close0, closeN }). Kept lean so the prior-
   // Thesis error-correction block can show how wrong a prior thesis was, not just that it missed.
@@ -100,6 +101,8 @@ export interface HistoricalRunContext {
     readonly resolved: number;
     readonly hit: number;
     readonly miss: number;
+    readonly voided: number;
+    readonly abandoned: number;
     readonly unresolved: number;
   };
   readonly marketSnapshots: readonly HistoricalNumericSnapshot[];
@@ -308,15 +311,19 @@ function selectArtifacts(input: {
 }
 
 function scoreSummary(scores: readonly PredictionScore[]): HistoricalRunContext["scoreSummary"] {
-  const resolved = scores.filter((score) => score.resolved);
-  const hit = resolved.filter((score) => score.outcome === "hit").length;
-  const miss = resolved.filter((score) => score.outcome === "miss").length;
+  const outcomes = scores.filter((score) => hasOutcome(score));
+  const hit = outcomes.filter((score) => score.outcome === "hit").length;
+  const terminal = scores.filter(
+    (score) => score.status !== undefined && isTerminal(score.status),
+  ).length;
   return {
     total: scores.length,
-    resolved: resolved.length,
+    resolved: outcomes.length,
     hit,
-    miss,
-    unresolved: scores.length - resolved.length,
+    miss: outcomes.length - hit,
+    voided: scores.filter((score) => score.status === "voided").length,
+    abandoned: scores.filter((score) => score.status === "abandoned").length,
+    unresolved: scores.length - terminal,
   };
 }
 
@@ -351,7 +358,7 @@ function predictionSummaries(
     const score = scoreByPrediction.get(prediction.id);
     let scoreStatus: HistoricalPredictionSummary["scoreStatus"] = "not-scored";
     if (score !== undefined) {
-      scoreStatus = score.resolved ? "resolved" : "unresolved";
+      scoreStatus = score.status ?? "malformed";
     }
     const scoreEvidence =
       score?.outcome === "miss" ? compactScoreEvidence(score.evidence) : undefined;

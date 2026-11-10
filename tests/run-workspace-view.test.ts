@@ -1386,6 +1386,7 @@ describe("run workspace view", () => {
         scores: [
           {
             predictionId: "prediction-1",
+            status: "resolved",
             resolved: true,
             outcome: "hit",
             evidence: { close0: 211, closeN: 215 },
@@ -3681,6 +3682,7 @@ describe("run workspace view", () => {
           scores: [
             {
               predictionId: "prediction-1",
+              status: "resolved",
               resolved: true,
               outcome: "hit",
               evidence: { close0: 211, closeN: 215 },

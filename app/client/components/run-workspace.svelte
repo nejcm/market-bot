@@ -140,6 +140,8 @@
       hits: 0,
       misses: 0,
       voided: 0,
+      abandoned: 0,
+      malformed: 0,
       pending: 0,
     },
   );

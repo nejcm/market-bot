@@ -79,9 +79,15 @@
       {#if forecastStats.resolved > 0}
         scored {forecastStats.resolved}/{forecastStats.total} ·
         {forecastStats.hits} event true · {forecastStats.misses} event false ·
-        {#if forecastStats.voided > 0}
-          {forecastStats.voided} voided ·
-        {/if}
+      {/if}
+      {#if forecastStats.voided > 0}
+        {forecastStats.voided} voided ·
+      {/if}
+      {#if forecastStats.abandoned > 0}
+        {forecastStats.abandoned} abandoned ·
+      {/if}
+      {#if forecastStats.malformed > 0}
+        {forecastStats.malformed} malformed score ·
       {/if}
       td = trading days
     </span>
@@ -233,6 +239,13 @@
               title={forecast.score?.pendingReason ?? "scoring abandoned"}
             >
               ABANDONED
+            </span>
+          {:else if forecast.score?.status === "malformed"}
+            <span
+              class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
+              title="score row has no status; not rescored"
+            >
+              MALFORMED
             </span>
           {:else}
             <span

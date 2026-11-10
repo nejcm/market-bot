@@ -1,6 +1,7 @@
 import type { RunDetail } from "./types";
 import { predictionShortfallMaterialGaps } from "../src/report/prediction-shortfall";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { readPredictionScoreStatus } from "../src/run-artifact-score-reader";
 import { isRecord, stringArrayValue } from "../src/guards";
 
 // ~24k tokens at ~4 chars/token
@@ -35,10 +36,13 @@ function formatScoreOutcomes(score: Record<string, unknown> | undefined): string
     }
 
     const id = typeof entry.predictionId === "string" ? entry.predictionId : "?";
-    const outcome = typeof entry.outcome === "string" ? entry.outcome : "unknown";
-    const resolved = entry.resolved === true ? "resolved" : "pending";
+    const status = readPredictionScoreStatus(entry.status);
+    const outcome = entry.outcome === "hit" || entry.outcome === "miss" ? entry.outcome : undefined;
 
-    let detail = `- ${id}: ${outcome} (${resolved})`;
+    let detail = `- ${id}: ${status ?? "malformed (no status)"}`;
+    if (status !== undefined && outcome !== undefined) {
+      detail = `- ${id}: ${outcome} (${status})`;
+    }
     if (isRecord(entry.evidence)) {
       const { close0 } = entry.evidence;
       const { closeN } = entry.evidence;

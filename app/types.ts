@@ -132,6 +132,7 @@ export type InstrumentForecastOutcome =
   | "event-false"
   | "pending"
   | "voided"
+  | "abandoned"
   | "unscored";
 
 export interface InstrumentTimelinePricePoint {
@@ -170,6 +171,7 @@ export interface InstrumentTimelineDetail {
     readonly eventFalse: number;
     readonly pending: number;
     readonly voided: number;
+    readonly abandoned: number;
     readonly unscored: number;
   };
   readonly warnings: {

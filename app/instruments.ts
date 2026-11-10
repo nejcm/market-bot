@@ -28,19 +28,19 @@ export interface InstrumentConsoleOptions {
 }
 
 function scoreOutcome(score: PredictionScore | undefined): InstrumentForecastOutcome {
-  if (score === undefined) {
+  if (score?.status === undefined) {
     return "unscored";
   }
-  if (!score.resolved) {
+  if (score.status === "voided" || score.status === "abandoned") {
+    return score.status;
+  }
+  if (score.status !== "resolved") {
     return "pending";
   }
-  if (score.status === "voided") {
-    return "voided";
+  if (score.outcome === undefined) {
+    return "unscored";
   }
-  if (score.outcome === "hit") {
-    return "event-true";
-  }
-  return score.outcome === "miss" ? "event-false" : "unscored";
+  return score.outcome === "hit" ? "event-true" : "event-false";
 }
 
 function predictionSymbols(prediction: Prediction): readonly string[] | undefined {
@@ -134,6 +134,7 @@ function countsFor(
     eventFalse: forecasts.filter((forecast) => forecast.outcome === "event-false").length,
     pending: forecasts.filter((forecast) => forecast.outcome === "pending").length,
     voided: forecasts.filter((forecast) => forecast.outcome === "voided").length,
+    abandoned: forecasts.filter((forecast) => forecast.outcome === "abandoned").length,
     unscored: forecasts.filter((forecast) => forecast.outcome === "unscored").length,
   };
 }

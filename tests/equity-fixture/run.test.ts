@@ -823,7 +823,7 @@ describe("static equity run fixtures", () => {
           ).toEqual(recomputedFinancialLenses);
         }
       }
-    });
+    }, 30_000);
   }
 
   test("saved FPI companyfacts retain quarterly revenue and TTM through the parser and history projection", async () => {

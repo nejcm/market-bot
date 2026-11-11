@@ -983,6 +983,38 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
       return reading?.figures[0]?.scope ?? reading?.failures[0]?.reason;
     };
 
+    test("profit YoY reads same-scope revenue for its near-zero base check", async () => {
+      const text = `${QUARTER_HEAD}| Revenue from continuing operations | 320,000 | 300,000 |
+| Revenue from continuing and discontinued operations | 420,000 | 400,000 |
+| Profit attributable to owners of the parent from continuing and discontinued operations | 9,000 | 7,000 |
+`;
+      const { metric } = await phase(
+        [source({ snippet: text })],
+        ["revenue", "t1:r2:c2"],
+        ["revenue", "t1:r3:c2"],
+        ["profit-attributable-to-owners", "t1:r4:c1"],
+        ["profit-attributable-to-owners", "t1:r4:c2"],
+      );
+      expect(metric("issuer-report-profit-attributable-to-owners-yoy-quarter")).toMatchObject({
+        status: "not-meaningful",
+        reason:
+          "prior-year profit attributable to owners of the parent is below 2% of same-period revenue (7.0M MYR of 400.0M MYR)",
+      });
+
+      const unchecked = await phase(
+        [source({ snippet: text })],
+        ["profit-attributable-to-owners", "t1:r4:c1"],
+        ["profit-attributable-to-owners", "t1:r4:c2"],
+      );
+      expect(
+        unchecked.metric("issuer-report-profit-attributable-to-owners-yoy-quarter"),
+      ).toMatchObject({
+        status: "value",
+        basis:
+          "(current − prior-year same period) / |prior-year same period|; no same-period revenue, so the near-zero base check did not run",
+      });
+    });
+
     test("labels continuing figures apart from the total and withholds discontinued or unstated rows", async () => {
       const { metric, gaps } = await phase(
         [scoped],
@@ -1313,6 +1345,28 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
         status: "not-meaningful",
         reason,
       });
+    });
+
+    test.each([
+      ["4,500", "not-meaningful"],
+      ["4,600", "value"],
+    ])("profit YoY on a prior of %s vs 228.6M revenue is %s", async (prior, status) => {
+      const snippet = KLSE_TEXT.replace("| 118,580 | 34,716 |", `| 118,580 | ${prior} |`);
+      const { metric } = await phase(
+        [source({ snippet })],
+        ["revenue", "t1:r4:c3"],
+        ["profit-attributable-to-owners", "t1:r5:c2"],
+        ["profit-attributable-to-owners", "t1:r5:c3"],
+      );
+      expect(metric("issuer-report-profit-attributable-to-owners-yoy-quarter")).toMatchObject(
+        status === "value"
+          ? { status }
+          : {
+              status,
+              reason:
+                "prior-year profit attributable to owners of the parent is below 2% of same-period revenue (4.5M MYR of 228.6M MYR)",
+            },
+      );
     });
 
     test("withholds an unstated figure instead of setting it beside another document's total", async () => {

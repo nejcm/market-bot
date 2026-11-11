@@ -219,8 +219,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   precede real publication. Derived rows reuse only checked
   figures with standard formulas: same-basis YoY, net margin, FCF as operating cash flow − |capex|, and current
   ratio. Mixed currencies or scopes make a derived row `missing`, named in an `issuer-report` Source Gap; a
-  zero or negative denominator makes it `not meaningful`, and so does a YoY whose current figure is negative, the
-  rule the SEC statement path uses (amended 2026-11-11).
+  zero or negative denominator makes it `not meaningful`, and so does a YoY whose current figure is negative or
+  whose positive prior profit is below 2% of same-period revenue, the rule the SEC statement path uses (amended
+  2026-11-11, 2026-11-12).
 - **Absence.** A profiled listing with no report text, an invalid mapping, or no checked figure declares an
   `issuer-report` Source Gap. An unprofiled or SEC listing skips the phase and makes no model call.
 - **Provider EPS cross-check.** A TTM to the newest report date contains that report's quarter and

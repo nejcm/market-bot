@@ -10,8 +10,10 @@ import { priorComparable } from "./financial-lens-canonical";
 import {
   withCurrentEquityNote,
   withRevenueMultipleVerdict,
-  yearOverYearOutcome,
   yoyDirection,
+  YOY_BASIS,
+  statementYearOverYear,
+  summaryYearOverYear,
 } from "./financial-lens-inputs";
 import {
   itemByCategory,
@@ -77,8 +79,6 @@ const SERIES_LABELS: Readonly<Record<FrameworkSeries, string>> = {
 
 const LATEST_PERIOD_BASIS = "latest reported period: a year-aligned annual or an interim filing";
 const YOY_CHANGE = { over: "YoY" };
-const YOY_BASIS =
-  "latest reported period vs the same-length period one year earlier, same concept and unit";
 
 interface PhaseClassificationInput {
   readonly revenueDeltaPercent?: number | undefined;
@@ -378,20 +378,9 @@ function yearOverYear(
   at?: FinancialStatementFact,
 ): MetricOutcome {
   if (ctx.statements === undefined) {
-    const found = secInput(ctx, `${key}DeltaPercent`, `${SERIES_LABELS[key]} YoY`, "whole-percent");
-    if (found !== undefined) {
-      return { status: "value", value: found.value, ...secPeriod(ctx, key), inputs: [found] };
-    }
-    const priorInput = secInput(ctx, `${key}Prior`, SERIES_LABELS[key], "currency");
-    const latestInput = secInput(ctx, key, SERIES_LABELS[key], "currency");
-    if (priorInput !== undefined && latestInput !== undefined) {
-      return yearOverYearOutcome(
-        SERIES_LABELS[key],
-        priorInput.value,
-        latestInput.value,
-        secPeriod(ctx, key),
-        [priorInput, latestInput],
-      );
+    const summary = summaryYearOverYear(ctx, key, SERIES_LABELS[key]);
+    if (summary !== undefined) {
+      return summary;
     }
     return (
       (ctx.issuerReport === undefined
@@ -419,10 +408,7 @@ function yearOverYear(
       inputs: [factInput(latest, key)],
     };
   }
-  return yearOverYearOutcome(label, prior.value, latest.value, periodOf(latest), [
-    factInput(prior, key),
-    factInput(latest, key),
-  ]);
+  return statementYearOverYear(ctx, key, label, prior, latest);
 }
 
 function secMargin(

@@ -20,15 +20,14 @@ import {
   periodOf,
   noFact,
   secItem,
-  evidenceInput,
   summaryPeriod,
   chosenInput,
-  yearOverYearOutcome,
+  YOY_BASIS,
+  statementYearOverYear,
+  summaryYearOverYear,
 } from "./financial-lens-inputs";
 
 const YOY_CHANGE = { over: "YoY" };
-const YOY_BASIS =
-  "latest reported period vs the same-length period one year earlier, same concept and unit";
 
 export function yoyLabel(ctx: MetricContext, key: LensSeries): string {
   if (ctx.statements === undefined) {
@@ -139,7 +138,6 @@ export function yearOverYearDefinition(
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const item = secItem(ctx);
-        const value = readNumberMetric(item?.metrics, `${metricKey}DeltaPercent`);
         const period = summaryPeriod(ctx, metricKey);
         if (
           outflow &&
@@ -153,32 +151,12 @@ export function yearOverYearDefinition(
             inputs: chosenInput(item, metricKey, SERIES_LABELS[key], period),
           };
         }
-        const latest = readNumberMetric(item?.metrics, metricKey);
-        const prior = readNumberMetric(item?.metrics, `${metricKey}Prior`);
-        if (value === undefined && latest !== undefined && prior !== undefined) {
-          const unit = key.endsWith("Eps") ? "currency-per-share" : "currency";
-          return yearOverYearOutcome(SERIES_LABELS[key], prior, latest, period, [
-            evidenceInput(item, `${metricKey}Prior`, SERIES_LABELS[key], unit, prior),
-            evidenceInput(item, metricKey, SERIES_LABELS[key], unit, latest, period),
-          ]);
-        }
-        return value === undefined
-          ? { status: "missing", reason: `no SEC ${SERIES_LABELS[key]} YoY` }
-          : {
-              status: "value",
-              value,
-              inputs: [
-                evidenceInput(
-                  item,
-                  `${metricKey}DeltaPercent`,
-                  label,
-                  "whole-percent",
-                  value,
-                  period,
-                ),
-              ],
-              ...period,
-            };
+        return (
+          summaryYearOverYear(ctx, metricKey, SERIES_LABELS[key]) ?? {
+            status: "missing",
+            reason: `no SEC ${SERIES_LABELS[key]} YoY`,
+          }
+        );
       }
       const anchor = latestFact(ctx, key);
       if (anchor === undefined) {
@@ -193,17 +171,11 @@ export function yearOverYearDefinition(
           inputs: [factInput(anchor, key)],
         };
       }
-      const inputs = [factInput(prior, key), factInput(anchor, key)];
       if (outflow && (prior.value < 0 || anchor.value < 0)) {
+        const inputs = [factInput(prior, key), factInput(anchor, key)];
         return { ...negativeOutflow, ...periodOf(anchor), inputs };
       }
-      return yearOverYearOutcome(
-        SERIES_LABELS[key],
-        prior.value,
-        anchor.value,
-        periodOf(anchor),
-        inputs,
-      );
+      return statementYearOverYear(ctx, key, SERIES_LABELS[key], prior, anchor);
     },
   };
 }

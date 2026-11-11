@@ -29,6 +29,7 @@ import {
 } from "./financial-statement-definitions";
 import {
   earlierShareBasisPeriods,
+  financialStatementFactForPeriod,
   financialStatementFacts,
   financialStatementFactsAreCompatible,
   financialStatementPeriodMonths,
@@ -104,11 +105,15 @@ export function classifyBusinessLifecyclePhase(
   if (input.revenueDeltaPercent === undefined) {
     return undefined;
   }
-  if (
-    input.revenueDeltaPercent < 0 &&
-    (input.operatingIncomeDeltaPercent ?? input.netIncomeDeltaPercent ?? -1) < 0
-  ) {
-    return "decline";
+  if (input.revenueDeltaPercent < 0) {
+    const incomeDirection = input.operatingIncomeDeltaPercent ?? input.netIncomeDeltaPercent;
+    // Every later rule assumes decline was ruled out, so an unknown income direction decides nothing.
+    if (incomeDirection === undefined) {
+      return undefined;
+    }
+    if (incomeDirection < 0) {
+      return "decline";
+    }
   }
   if (input.revenueDeltaPercent >= 30) {
     return "hyper-growth";
@@ -147,6 +152,29 @@ function eligibleFacts(
 function latestFact(ctx: MetricContext, key: FrameworkSeries): FinancialStatementFact | undefined {
   const fact = latestFinancialStatementFact(eligibleFacts(ctx, key));
   return fact === undefined || staleReason(ctx, fact, key) === undefined ? fact : undefined;
+}
+
+function factAt(
+  ctx: MetricContext,
+  key: FrameworkSeries,
+  at: FinancialStatementFact | undefined,
+): FinancialStatementFact | undefined {
+  return at === undefined
+    ? latestFact(ctx, key)
+    : financialStatementFactForPeriod(eligibleFacts(ctx, key), at.periodKey, at.periodType);
+}
+
+function noFactAt(
+  ctx: MetricContext,
+  key: FrameworkSeries,
+  at: FinancialStatementFact | undefined,
+): MetricOutcome {
+  return at === undefined
+    ? noFact(ctx, key)
+    : {
+        status: "missing",
+        reason: `no ${SERIES_LABELS[key]} for the revenue period ending ${at.periodEnd}`,
+      };
 }
 
 function staleReason(
@@ -235,14 +263,14 @@ function secAmount(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
   };
 }
 
-function latestAmount(key: FrameworkSeries) {
+function latestAmount(key: FrameworkSeries, at?: FinancialStatementFact) {
   return (ctx: MetricContext): MetricOutcome => {
     if (ctx.statements === undefined) {
       return secAmount(ctx, key);
     }
-    const fact = latestFact(ctx, key);
+    const fact = factAt(ctx, key, at);
     if (fact === undefined) {
-      return noFact(ctx, key);
+      return noFactAt(ctx, key, at);
     }
     return {
       status: "value",
@@ -344,7 +372,11 @@ function checkedIssuerInputs(
   });
 }
 
-function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
+function yearOverYear(
+  ctx: MetricContext,
+  key: FrameworkSeries,
+  at?: FinancialStatementFact,
+): MetricOutcome {
   if (ctx.statements === undefined) {
     const found = secInput(ctx, `${key}DeltaPercent`, `${SERIES_LABELS[key]} YoY`, "whole-percent");
     if (found !== undefined) {
@@ -367,11 +399,11 @@ function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
         : issuerReportYearOverYear(ctx.issuerReport, key)) ?? noFact(ctx, key)
     );
   }
-  const latest = latestFact(ctx, key);
+  const latest = factAt(ctx, key, at);
   const series =
     ctx.statements === undefined ? undefined : financialStatementSeriesByKey(ctx.statements, key);
   if (latest === undefined || series === undefined || ctx.statements === undefined) {
-    return noFact(ctx, key);
+    return noFactAt(ctx, key, at);
   }
   const prior = priorComparable(
     { ...series, annual: series.annual.filter(isYearAlignedFact) },
@@ -586,17 +618,23 @@ function valueOf(outcome: MetricOutcome): number | undefined {
     : undefined;
 }
 
+const PHASE_BASIS =
+  "lifecycle rule over revenue YoY and same-period income, income YoY and dividends paid, plus dividend yield";
+
 function phaseInputs(ctx: MetricContext): {
   readonly classification: PhaseClassificationInput;
   readonly inputs: readonly MetricInput[];
+  readonly unalignedIncome: string;
 } {
+  // Every statement flow reads revenue YoY's period, so the rule never mixes periods.
+  const anchor = latestFact(ctx, "revenue");
   const outcomes = {
     revenueDeltaPercent: yearOverYear(ctx, "revenue"),
-    operatingIncome: latestAmount("operatingIncome")(ctx),
-    operatingIncomeDeltaPercent: yearOverYear(ctx, "operatingIncome"),
-    netIncome: latestAmount("netIncome")(ctx),
-    netIncomeDeltaPercent: yearOverYear(ctx, "netIncome"),
-    dividendsPaid: latestAmount("dividendsPaid")(ctx),
+    operatingIncome: latestAmount("operatingIncome", anchor)(ctx),
+    operatingIncomeDeltaPercent: yearOverYear(ctx, "operatingIncome", anchor),
+    netIncome: latestAmount("netIncome", anchor)(ctx),
+    netIncomeDeltaPercent: yearOverYear(ctx, "netIncome", anchor),
+    dividendsPaid: latestAmount("dividendsPaid", anchor)(ctx),
     // Only the companyfacts summary carries repurchases; the canonical statement path never fed them.
     ...(ctx.statements === undefined
       ? { shareRepurchases: secAmount(ctx, "shareRepurchases") }
@@ -616,10 +654,25 @@ function phaseInputs(ctx: MetricContext): {
     operatingIncomeDeltaPercent: yoyDirection(outcomes.operatingIncomeDeltaPercent),
     netIncomeDeltaPercent: yoyDirection(outcomes.netIncomeDeltaPercent),
   };
+  const unalignedIncome = [
+    ...new Set(
+      (
+        [
+          outcomes.operatingIncome,
+          outcomes.operatingIncomeDeltaPercent,
+          outcomes.netIncome,
+          outcomes.netIncomeDeltaPercent,
+        ] as const
+      ).flatMap((outcome) =>
+        anchor !== undefined && outcome.status === "missing" ? [outcome.reason] : [],
+      ),
+    ),
+  ].join("; ");
   const used = Object.entries(outcomes).flatMap(([key, outcome]) =>
     classification[key] === undefined ? [] : [outcome],
   );
   return {
+    unalignedIncome,
     classification: { ...classification, dividendYield: dividendYield?.value },
     inputs: [
       ...new Map(
@@ -776,25 +829,34 @@ function sectionDefinitions(
         id: "phase",
         label: "Phase",
         unit: "text",
-        basis:
-          "lifecycle rule over revenue, income and their YoY changes, dividends paid and dividend yield",
+        basis: PHASE_BASIS,
         compute: (context) => {
-          const { classification, inputs } = phaseInputs(context);
+          const { classification, inputs, unalignedIncome } = phaseInputs(context);
           const phase = classifyBusinessLifecyclePhase(classification);
+          const unaligned = unalignedIncome === "" ? "" : ` (${unalignedIncome})`;
           if (!inputs.some((input) => input.sourceIds.length > 0)) {
             return {
               status: "missing",
-              reason: "no cited lifecycle classification inputs",
+              reason: `no cited lifecycle classification inputs${unaligned}`,
               inputs,
             };
           }
-          return phase === undefined
-            ? {
-                status: "missing",
-                reason: "Revenue YoY missing, so no lifecycle phase is classified",
-                inputs,
-              }
-            : { status: "value", value: phase, inputs };
+          if (phase === undefined) {
+            return {
+              status: "missing",
+              reason:
+                classification.revenueDeltaPercent === undefined
+                  ? `Revenue YoY missing${unaligned}, so no lifecycle phase is classified`
+                  : `income YoY direction unknown beside a falling revenue${unaligned}, so no lifecycle phase is classified`,
+              inputs,
+            };
+          }
+          return {
+            status: "value",
+            value: phase,
+            inputs,
+            ...(unalignedIncome === "" ? {} : { basis: `${PHASE_BASIS}; ${unalignedIncome}` }),
+          };
         },
       },
       REVENUE_YOY,
@@ -963,10 +1025,13 @@ function postures(
       [present("revenue"), present("grossProfit"), present("operatingIncome")],
       2,
     ),
-    Phase:
-      revenueDelta === undefined && !hasCapitalReturn(classification)
-        ? "insufficient-data"
-        : "criteria-supported",
+    Phase: (
+      revenueDelta === undefined
+        ? !hasCapitalReturn(classification)
+        : classifyBusinessLifecyclePhase(classification) === undefined
+    )
+      ? "insufficient-data"
+      : "criteria-supported",
     Moat: criteriaPosture([
       meets(valueIn("Moat", "grossMargin"), (value) => value >= 0.4),
       meets(valueIn("Moat", "operatingMargin"), (value) => value > 0),

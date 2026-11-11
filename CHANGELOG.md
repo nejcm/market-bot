@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.13](https://github.com/nejcm/market-bot/compare/v1.16.12...v1.16.13) (2026-11-11)
+
+### Bug Fixes
+
+- **history:** ignore sub-0.1% re-roundings in earlier-basis marks (#218) ([122502a](https://github.com/nejcm/market-bot/commit/122502a3af29991190768df8be74a9f0d83a2551))
+
 ## [1.16.12](https://github.com/nejcm/market-bot/compare/v1.16.11...v1.16.12) (2026-11-11)
 
 ### Bug Fixes

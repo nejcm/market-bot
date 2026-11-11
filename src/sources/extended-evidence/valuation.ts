@@ -34,7 +34,10 @@ import {
   mixedPeriodValuationGap,
 } from "./valuation-comps-support";
 import { SEC_FRESHNESS_DAYS } from "../../config/shared";
-import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps-contract";
+import {
+  MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
+  revenueMultipleNotMeaningfulReason,
+} from "./valuation-comps-contract";
 
 interface ValuationEvidenceResult {
   readonly extendedEvidence?: ExtendedEvidence;
@@ -295,16 +298,25 @@ export function addValuationEvidence(
           : enterpriseValue === undefined
             ? `enterprise value withheld (${enterpriseValueWithheld.join("; ")})`
             : `enterprise value ${formatUsd(enterpriseValue)}`;
+  const revenueMultipleReason = revenueMultipleNotMeaningfulReason({
+    annualizedRevenue,
+    marketCap,
+    evToAnnualizedRevenue,
+  });
+  const revenueMultipleText = (label: string, value: number | undefined) =>
+    revenueMultipleReason === undefined
+      ? `${label} ${fixed(value)}`
+      : `${label} not meaningful (${revenueMultipleReason})`;
   const evToRevenueText =
     debt === undefined || bridgeWithheld || staleEnterpriseValue
       ? "EV/TTM revenue withheld"
       : enterpriseValue === undefined
         ? "EV/TTM revenue not applicable"
-        : `EV/TTM revenue ${fixed(evToAnnualizedRevenue)}`;
+        : revenueMultipleText("EV/TTM revenue", evToAnnualizedRevenue);
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, market cap/TTM revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, ${depositorySic === undefined ? `net debt/market cap ${percent(netDebtToMarketCap)}` : `net debt not applicable (${depositoryNetDebtReason(depositorySic)})`}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}; ${debtLeaseScopeText}${currentEquityText}; EV bridge: ${ENTERPRISE_VALUE_BASIS}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenueText}, ${evToRevenueText}, ${revenueMultipleText("market cap/TTM revenue", marketCapToAnnualizedRevenue)}, debt/market cap ${percent(debtToMarketCap)}, ${depositorySic === undefined ? `net debt/market cap ${percent(netDebtToMarketCap)}` : `net debt not applicable (${depositoryNetDebtReason(depositorySic)})`}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}; ${debtLeaseScopeText}${currentEquityText}; EV bridge: ${ENTERPRISE_VALUE_BASIS}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {

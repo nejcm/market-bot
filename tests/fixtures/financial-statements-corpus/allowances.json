@@ -33,14 +33,6 @@
   },
   {
     "fixture": "nbis",
-    "path": "financialLens.Financial Strength.metrics.cash",
-    "canonicalSha256": "10b587e191a07eb5d6d93a2470a90072dfe2ce0119f070cfd1bed2ef0b019595",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Financial Strength.metrics.cash comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
     "path": "financialLens.Growth.posture",
     "canonicalSha256": "8e4dc849451103e05fcbac90d49addbdca72f34bf77d8146feb4f618d9611334",
     "legacySha256": "664fbc7d28652a5d615db5026767ec834049a0c53941f40f311039fda6416bda",

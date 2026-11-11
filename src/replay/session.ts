@@ -51,11 +51,11 @@ export function assertReplayStateComplete(): void {
 
 export function captureSynthesisInput(input: unknown): void {
   const session = sessions.getStore();
-  if (session?.mode !== "record") {
+  if (session?.checkpoint === undefined) {
     return;
   }
   try {
-    session.checkpoint?.(input);
+    session.checkpoint(input);
   } catch {
     session.failures.push("Final-synthesis input capture failed");
   }

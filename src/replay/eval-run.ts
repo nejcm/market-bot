@@ -58,6 +58,7 @@ export interface EvalSampleInput {
   readonly fetchImpl?: FetchLike;
   readonly provider?: ModelProvider;
   readonly liveStages?: LiveStage;
+  readonly onSynthesisInput?: (input: unknown) => void;
 }
 
 export interface EvalSampleResult extends EvalSampleRecord {
@@ -171,6 +172,7 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
       dataDir,
       keepDataDir: true,
       fetchImpl,
+      ...(input.onSynthesisInput === undefined ? {} : { onSynthesisInput: input.onSynthesisInput }),
       provider: {
         ...routedProvider,
         generate: async (request) => {

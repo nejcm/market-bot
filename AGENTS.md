@@ -90,7 +90,7 @@ To find a cached payload, filter by adapter: `jq -r 'select(.adapter=="sec-compa
 
 Every run records `codeVersion` (package version, git branch/commit, dirty flag) in `trace.json`, `analytics.json`, and `failure.json` — check it before comparing runs across commits.
 
-Outside `data/`, `.reviews/` (run-review output), and `.plans/` are gitignored working files, none a repo record. `plans/issues.md` (tracked) is the issue backlog.
+Outside `data/`, `.reviews/` (run-review output), and `.plans/` are gitignored working files, none a repo record. `.plans/issues.md` (local, untracked) is the issue backlog.
 
 `prompts/` holds the model stage prompts and Domain Playbooks — a stage's behavior is usually changed there, not in `src/`.
 
@@ -98,7 +98,7 @@ Outside `data/`, `.reviews/` (run-review output), and `.plans/` are gitignored w
 
 The recurring defect is a change that lands only on the path you tested (see `684e454`). Walk the chain end to end.
 
-SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a ledger diff from `bun run sweep:sec` (before and after, `--diff`).
+SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a ledger diff from `bun run sweep:sec` (before and after, `--diff`). Projection and report changes report one from `bun run sweep:report`, which replays every saved run that has a `replay/` capture offline and lists the runs it could not replay.
 
 **Every change, not just the ones below:** before calling a task done, check whether these need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "fixture invariants unaffected because Z"):
 
@@ -189,7 +189,7 @@ Never ship these, whatever a reference app does: a composite score, a grade or s
 
 ## Financial data best practices
 
-These rules apply when adding or fixing a metric, parser, or projection. They describe the target. Where current code falls short, the metric's `label` or `basis` says so, and if `plans/issues.md` exists its "Wrong-value risk" section lists the gap. Close a gap deliberately, as its own change with its own tests, never as a side effect of an unrelated fix.
+These rules apply when adding or fixing a metric, parser, or projection. They describe the target. Where current code falls short, the metric's `label` or `basis` says so, and if `.plans/issues.md` exists its "Wrong-value risk" section lists the gap. Close a gap deliberately, as its own change with its own tests, never as a side effect of an unrelated fix.
 
 - **Use standard definitions.** Follow the textbook formula. Where the code deviates, its `label` or `basis` string says how (`freeCashFlowProxy`, `ebitdaProxy`, "period-end invested capital", "latest FY"). A new deviation needs the same.
   - FCF = operating cash flow − capex. FCF margin = FCF / revenue.
@@ -230,7 +230,7 @@ Every value, metric, data, or behavior issue, whether found in a run review, a t
 3. **Debug to the root cause.** Trace the real path: raw payload → normalized → Metric Section → projection → Markdown renderer and Console. Find the first stage where the value diverges from the expected one. Fix there, once, in shared code. Patching the symptom at a downstream stage is not a fix. If the provider itself returns wrong or ambiguous data, declare a gap or disclosure. Do not add a heuristic that guesses.
 4. **Scope the change.** List every surface it reaches (Hit every surface), what happens when the input is absent (Absence is a finding), and any ADR it touches. If the fix changes a documented decision, say so before building it.
 5. **Fix and test.** Write a test that fails before the fix and passes after. A value fix pins the corrected number with the issuer, period, and filing it was checked against. Cover the off-path and the edge cases the research turned up: negative, zero, missing, mixed currency, depository issuers. Prefer a fixture assertion when the behavior should hold across runs.
-6. **Verify on real data.** Re-run the narrowest replay from the Fast iteration table against the reproducing run, and confirm the value now matches the researched expectation. Then prove no other run regressed: replay every fixture in `tests/equity-fixture/run.test.ts` and `rerun-report` a few recent runs (different issuers, one deep) before and after, and explain every changed value. For SEC parser or SEC-derived metric changes, run `bun run sweep:sec` before and after, `--diff` the two ledgers, and explain every changed value in the commit; a withheld→published transition needs a test pinning its proof. Then `bun run check`.
+6. **Verify on real data.** Re-run the narrowest replay from the Fast iteration table against the reproducing run, and confirm the value now matches the researched expectation. Then prove no other run regressed: replay every fixture in `tests/equity-fixture/run.test.ts` and `rerun-report` a few recent runs (different issuers, one deep) before and after, and explain every changed value. For SEC parser or SEC-derived metric changes, run `bun run sweep:sec` before and after, `--diff` the two ledgers, and explain every changed value in the commit; a withheld→published transition needs a test pinning its proof. For projection, Metric Section or report changes, do the same with `bun run sweep:report`; a defect-class fix adds its invariant to `src/corpus/report-invariants.ts` first and shows its count reaching 0; non-`watch:` invariants also fail `bun run check` through the fixtures. Then `bun run check`.
 7. **Review.** Re-read the diff against steps 2–4:
    - Does the definition match the cited source?
    - Is every surface updated?
@@ -239,6 +239,6 @@ Every value, metric, data, or behavior issue, whether found in a run review, a t
 
    For non-trivial changes, get an independent review (the `code-review` skill or a second agent) and validate its findings against the code before acting on them.
 
-8. **Record.** The PR or commit body states, in your own words, the issue, the evidence that it was real (artifact paths, numbers, the filing), the reference that defines correct behavior, the root cause, and how it was verified. Never paste `.reviews/` or `.plans/` content (Non-negotiable 5). Follow-ups you found but did not fix go to `plans/issues.md`, not into the same change.
+8. **Record.** The PR or commit body states, in your own words, the issue, the evidence that it was real (artifact paths, numbers, the filing), the reference that defines correct behavior, the root cause, and how it was verified. Never paste `.reviews/` or `.plans/` content (Non-negotiable 5). Follow-ups you found but did not fix go to `.plans/issues.md`, not into the same change.
 
 Improvements and new features follow the same steps, with step 1 replaced by **Justify**: name the Product goals priority it serves and the user-visible gap it closes, and check that it does not cross the never-ship list above.

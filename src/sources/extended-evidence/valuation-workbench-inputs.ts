@@ -188,7 +188,7 @@ const isParentIncome = (fact: FinancialStatementFact) =>
   fact.taxonomy === "us-gaap" && fact.concept === "NetIncomeLoss";
 
 // Shortcut: the old NI / diluted EPS preconditions gate the filed count, so no row withheld before gains
-// One; recovery needs split-basis proof (plans/issues.md "TTM rows with a filed count").
+// One; recovery needs split-basis proof (.plans/issues.md "TTM rows with a filed count").
 function sharesGateOpen(
   netIncome: ValuationFundamentalInput | undefined,
   dilutedEps: ValuationFundamentalInput | undefined,

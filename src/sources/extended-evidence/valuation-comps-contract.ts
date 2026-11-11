@@ -24,11 +24,11 @@ export const SIZE_GATE_MAX_RATIO = 5;
 // Revenue-multiple applicability gate: above 50x, current revenue is too
 // De-minimis relative to enterprise value for EV/revenue to be a meaningful
 // Target valuation basis.
-export const MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE = 50;
+const MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE = 50;
 
 // Revenue-multiple applicability fallback: below 2% of market cap, current
 // Revenue is de-minimis even when EV/revenue is unavailable.
-export const MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP = 0.02;
+const MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP = 0.02;
 
 export const REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT =
   "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.";
@@ -294,4 +294,39 @@ export function compsCashLabel(row: ValuationCompsRow): string | undefined {
   return row.cashPeriodEnd === undefined
     ? undefined
     : `cash ${row.cashPeriodEnd}${row.shortTermInvestmentsIncludeEquity === true ? " (short-term investments include current equity securities that may be sale-restricted)" : ""}`;
+}
+
+export function revenueMultipleNotMeaningfulReason(target: {
+  readonly annualizedRevenue?: number | undefined;
+  readonly evToAnnualizedRevenue?: number | undefined;
+  readonly marketCap?: number | undefined;
+}): string | undefined {
+  if (target.annualizedRevenue !== undefined && target.annualizedRevenue <= 0) {
+    return "revenue not positive";
+  }
+  if (
+    target.annualizedRevenue !== undefined &&
+    target.marketCap !== undefined &&
+    target.marketCap > 0 &&
+    target.annualizedRevenue < MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP * target.marketCap
+  ) {
+    return `revenue below the ${String(MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP * 100)}% of market cap de-minimis floor`;
+  }
+  return target.evToAnnualizedRevenue !== undefined &&
+    target.evToAnnualizedRevenue > MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE
+    ? `EV/revenue above the ${String(MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE)}x ceiling`
+    : undefined;
+}
+
+export function revenueMultipleMeaningful(
+  target: Pick<ValuationCompsRow, "annualizedRevenue" | "evToAnnualizedRevenue" | "marketCap">,
+): boolean {
+  return revenueMultipleNotMeaningfulReason(target) === undefined;
+}
+
+export function compsRowRevenueMultipleLabel(row: ValuationCompsRow, targetSymbol: string): string {
+  return row.evToAnnualizedRevenue === undefined ||
+    (row.symbol === targetSymbol && !revenueMultipleMeaningful(row))
+    ? "N/M"
+    : `${row.evToAnnualizedRevenue.toFixed(2)}x`;
 }

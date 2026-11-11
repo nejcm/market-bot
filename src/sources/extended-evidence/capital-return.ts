@@ -531,12 +531,6 @@ function freeCashFlowRatio(numerators: FiscalYearSeries) {
   }));
 }
 
-function depositoryIssuer(ctx: MetricContext): string | undefined {
-  return ctx.depositorySic === undefined
-    ? undefined
-    : `depository issuer (SIC ${ctx.depositorySic}): operating cash flow is not a free cash flow basis`;
-}
-
 function latestStockBasedCompensation(ctx: MetricContext): MetricOutcome {
   const fact = ctx.capitalOwnership?.stockBasedCompensation
     .filter(
@@ -637,7 +631,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     label: "Dividends / free cash flow",
     unit: "ratio-percent",
     basis: `latest FY dividends paid / ${FCF_BASIS}`,
-    applicable: depositoryIssuer,
+    cashFlowBased: true,
     compute: freeCashFlowRatio(["dividendsPaid"]),
   },
   {
@@ -645,7 +639,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     label: "Dividends + repurchases / free cash flow",
     unit: "ratio-percent",
     basis: `latest FY dividends paid + share repurchases / ${FCF_BASIS}`,
-    applicable: depositoryIssuer,
+    cashFlowBased: true,
     compute: freeCashFlowRatio(["dividendsPaid", "shareRepurchases"]),
   },
   {

@@ -588,6 +588,32 @@ describe("addValuationEvidence", () => {
     expect(valuation?.summary).not.toContain("9-month");
   });
 
+  test("states revenue multiples as not meaningful below the revenue de-minimis floor", () => {
+    // NBIS shape: FY2025 revenue $529.8M against a ~$36.4B market cap; scaled to keep fixtures small.
+    const result = addValuationEvidence(
+      command,
+      [marketSnapshot({ symbol: "AAPL", marketCap: 36_400 })],
+      secEvidence({
+        revenue: 529.8,
+        revenueTtm: 529.8,
+        revenuePeriodMonths: 12,
+        revenuePeriodEnd: "2026-06-29",
+        cash: 30,
+        cashPeriodEnd: "2026-03-31",
+        debt: 50,
+        debtPeriodEnd: "2026-03-31",
+      }),
+      "2026-07-01T00:00:00.000Z",
+    );
+
+    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
+    const reason = "not meaningful (revenue below the 2% of market cap de-minimis floor)";
+    expect(valuation?.summary).toContain(
+      `EV/TTM revenue ${reason}, market cap/TTM revenue ${reason}`,
+    );
+    expect(valuation?.metrics?.marketCapToAnnualizedRevenue).toBeCloseTo(68.71, 2);
+  });
+
   test("withholds revenue multiples behind a Source Gap when TTM does not reconcile", () => {
     const result = addValuationEvidence(
       command,

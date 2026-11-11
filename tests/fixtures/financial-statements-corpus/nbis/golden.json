@@ -2316,17 +2316,7 @@
       },
       "Financial Strength": {
         "posture": "insufficient-data",
-        "metrics": {
-          "cash": {
-            "key": "cash",
-            "label": "Cash",
-            "value": 3678100000,
-            "unit": "currency",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "currency": "USD",
-            "periodEnd": "2025-12-31"
-          }
-        }
+        "metrics": {}
       },
       "Value": {
         "posture": "insufficient-data",

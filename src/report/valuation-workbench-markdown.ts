@@ -7,7 +7,10 @@ import type {
   ValuationCompsRow,
 } from "../sources/extended-evidence/valuation-comps";
 import { CAPEX_SCOPE_CAVEAT } from "../sources/extended-evidence/financial-statement-definitions";
-import { compsCashLabel } from "../sources/extended-evidence/valuation-comps-contract";
+import {
+  compsCashLabel,
+  compsRowRevenueMultipleLabel,
+} from "../sources/extended-evidence/valuation-comps-contract";
 import { resolveRowPriceAsOf, type MarketSnapshotPriceAsOf } from "../domain/market-data";
 import type { ResearchReport } from "../domain/report";
 import { formatMetricValue } from "../sources/extended-evidence/value-format";
@@ -24,7 +27,7 @@ export function valuationMetricDisplay(metric: MetricResult): string {
     return "N/M";
   }
   if (metric.status === "not-applicable") {
-    return `not applicable (${metric.reason?.replace(/ \(SIC \d+\)$/u, "") ?? "no reason"})`;
+    return `not applicable (${metric.reason?.replace(/ \(SIC \d+\)/u, "") ?? "no reason"})`;
   }
   return `— (${metric.reason ?? "no value"})`;
 }
@@ -122,10 +125,7 @@ function priceAsOfLabel(priceAsOf: MarketSnapshotPriceAsOf | undefined): string 
 }
 
 function peerRow(row: ValuationCompsRow, targetSymbol: string, report: ResearchReport): string {
-  const multiple =
-    typeof row.evToAnnualizedRevenue === "number"
-      ? `${row.evToAnnualizedRevenue.toFixed(2)}x`
-      : "N/M";
+  const multiple = compsRowRevenueMultipleLabel(row, targetSymbol);
   const priceDate = priceAsOfLabel(rowPriceAsOf(row));
   const dates = [
     ...(priceDate === undefined ? [] : [priceDate]),

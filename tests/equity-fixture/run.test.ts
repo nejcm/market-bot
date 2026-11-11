@@ -530,6 +530,24 @@ describe("static equity run fixtures", () => {
         );
       }
       if (name === "equity-nbis-deep") {
+        const revenueMultiples = (result.collectedSources.metricSections ?? []).flatMap(
+          ({ id: section, metrics }) =>
+            metrics
+              .filter(({ id }) =>
+                [
+                  "evToAnnualizedRevenue",
+                  "marketCapToAnnualizedRevenue",
+                  "priceToSales",
+                  "enterpriseValueToRevenue",
+                ].includes(id),
+              )
+              .map(({ id, status }) => `${section}/${id}: ${status}`),
+        );
+        // FY2025 revenue $529.8M sits below 2% of the ~$36B market cap, so no revenue multiple publishes.
+        expect(revenueMultiples.filter((row) => row.endsWith(": value"))).toEqual([]);
+        expect(revenueMultiples).toContain(
+          "financial-lens-value/marketCapToAnnualizedRevenue: not-meaningful",
+        );
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);
         const companyFacts = result.collectedSources.rawSnapshots.find(

@@ -38,21 +38,35 @@ export function instantDefinition(id: string, key: LensSeries, label: string): M
     unit: "currency",
     basis: "latest reported balance-sheet instant",
     compute: (ctx) => {
-      if (ctx.statements === undefined) {
-        return evidenceOutcome(secItem(ctx), key, label, "currency", summaryPeriod(ctx, key));
-      }
-      const fact = latestFact(ctx, key);
-      if (fact === undefined) {
-        return noFact(ctx, key);
-      }
-      return {
-        status: "value",
-        value: fact.value,
-        ...periodOf(fact),
-        ...(fact.currency !== null ? { currency: fact.currency } : {}),
-        inputs: [factInput(fact, key)],
-      };
+      const outcome = latestInstantOutcome(ctx, key, label);
+      return outcome.status !== "value" ||
+        ctx.asOf === undefined ||
+        (outcome.periodEnd !== undefined && isFreshPeriodEnd(outcome.periodEnd, ctx.asOf))
+        ? outcome
+        : {
+            status: "missing",
+            reason: `stale ${key} as of ${outcome.periodEnd ?? "an undated period"}`,
+            ...(outcome.periodEnd === undefined ? {} : { periodEnd: outcome.periodEnd }),
+            inputs: outcome.inputs,
+          };
     },
+  };
+}
+
+function latestInstantOutcome(ctx: MetricContext, key: LensSeries, label: string): MetricOutcome {
+  if (ctx.statements === undefined) {
+    return evidenceOutcome(secItem(ctx), key, label, "currency", summaryPeriod(ctx, key));
+  }
+  const fact = latestFact(ctx, key);
+  if (fact === undefined) {
+    return noFact(ctx, key);
+  }
+  return {
+    status: "value",
+    value: fact.value,
+    ...periodOf(fact),
+    ...(fact.currency !== null ? { currency: fact.currency } : {}),
+    inputs: [factInput(fact, key)],
   };
 }
 

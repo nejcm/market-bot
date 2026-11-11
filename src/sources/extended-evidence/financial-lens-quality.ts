@@ -220,6 +220,7 @@ export function freeCashFlowDefinition(context: MetricContext): MetricDefinition
     label: scopedLabel("FCF proxy", operatingCashFlowScope(context)),
     unit: "currency",
     basis: `operating cash flow less capital expenditure for the latest operating cash flow period; ${CAPEX_SCOPE_CAVEAT}`,
+    cashFlowBased: true,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");
@@ -305,6 +306,7 @@ export function cashConversionDefinition(): MetricDefinition {
     label: "Cash conversion",
     unit: "ratio",
     basis: "operating cash flow / income of the same operations scope for the same period",
+    cashFlowBased: true,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");

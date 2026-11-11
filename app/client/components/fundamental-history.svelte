@@ -55,5 +55,14 @@
         {/if}
       </div>
     {/each}
+    {#each history.notApplicable as entry}
+      <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+        <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+          {entry.label}
+        </div>
+        <div class="mt-1 font-mono text-[17px] font-semibold text-foreground">Not applicable</div>
+        <div class="mt-1 text-[9px] leading-snug text-[#737980]">{entry.reason}</div>
+      </div>
+    {/each}
   </div>
 </section>

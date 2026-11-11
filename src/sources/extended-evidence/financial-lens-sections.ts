@@ -15,7 +15,6 @@ import {
   type MetricPeriod,
   periodEndInput,
   withCompleteDebt,
-  withFreshDebt,
   positiveOf,
   atOrBelow,
   postureFrom,
@@ -266,7 +265,7 @@ function lensDefinitions(
     ],
     "Financial Strength": [
       instantDefinition("cash", "cash", "Cash"),
-      withCompleteDebt(withFreshDebt(instantDefinition("debt", "debt", "Debt"))),
+      withCompleteDebt(instantDefinition("debt", "debt", "Debt")),
       withNetDebtApplicability(withCompleteDebt(withCurrentEquityNote(netDebtDefinition()))),
       withCompleteDebt(marketLeverageDefinition("debtToMarketCap")),
       withNetDebtApplicability(
@@ -299,7 +298,10 @@ export function financialLensMetrics(ctx: MetricContext): {
     );
     return [name, result] as const;
   });
-  const emitted = evaluated.filter(([, { section }]) => section.metrics.some(filedInput));
+  // A not-applicable verdict is decided from the filed SIC, so it anchors a section like a filed input.
+  const emitted = evaluated.filter(([, { section }]) =>
+    section.metrics.some((metric) => filedInput(metric) || metric.status === "not-applicable"),
+  );
   const sections = emitted.map(([, { section }]) => section);
   const lensMetrics = Object.fromEntries(
     evaluated.map(([name, { section }]) => [name, section.metrics] as const),

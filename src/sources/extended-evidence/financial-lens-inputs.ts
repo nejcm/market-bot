@@ -30,7 +30,10 @@ import {
 } from "./enterprise-value-bridge";
 import { depositoryIssuerSic, depositoryNetDebtReason } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
-import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps-contract";
+import {
+  MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
+  revenueMultipleNotMeaningfulReason,
+} from "./valuation-comps-contract";
 import {
   balanceSheetPeriodDivergence,
   isCurrentBalanceSheetPeriod,
@@ -294,23 +297,6 @@ export function withCompleteDebt(definition: MetricDefinition): MetricDefinition
   };
 }
 
-export function withFreshDebt(definition: MetricDefinition): MetricDefinition {
-  return {
-    ...definition,
-    compute: (ctx) => {
-      const outcome = definition.compute(ctx);
-      return outcome.status !== "value" ||
-        ctx.asOf === undefined ||
-        (outcome.periodEnd !== undefined && isFreshPeriodEnd(outcome.periodEnd, ctx.asOf))
-        ? outcome
-        : {
-            status: "missing",
-            reason: `stale debt as of ${outcome.periodEnd ?? "an undated period"}`,
-          };
-    },
-  };
-}
-
 export function annualize(value: number, periodMonths: number | undefined): number {
   return periodMonths !== undefined && periodMonths > 0 ? value * (12 / periodMonths) : value;
 }
@@ -381,6 +367,29 @@ export function valuationOutcome(
         inputs: [{ ...evidenceInput(valuation, key, label, unit, value, period), sourceIds }],
         ...period,
       };
+}
+
+export function withRevenueMultipleVerdict(
+  compute: (ctx: MetricContext) => MetricOutcome,
+): (ctx: MetricContext) => MetricOutcome {
+  return (ctx) => {
+    const outcome = compute(ctx);
+    const metrics = valuationItem(ctx)?.metrics;
+    const reason = revenueMultipleNotMeaningfulReason({
+      annualizedRevenue: readNumberMetric(metrics, "annualizedRevenue"),
+      marketCap: readNumberMetric(metrics, "marketCap"),
+      evToAnnualizedRevenue: readNumberMetric(metrics, "evToAnnualizedRevenue"),
+    });
+    return outcome.status !== "value" || reason === undefined
+      ? outcome
+      : {
+          status: "not-meaningful",
+          reason,
+          ...(outcome.periodEnd === undefined ? {} : { periodEnd: outcome.periodEnd }),
+          ...(outcome.periodMonths === undefined ? {} : { periodMonths: outcome.periodMonths }),
+          inputs: outcome.inputs,
+        };
+  };
 }
 
 export function yahooItem(ctx: MetricContext): ExtendedEvidenceItem | undefined {

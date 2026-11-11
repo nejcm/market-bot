@@ -1479,7 +1479,7 @@ describe("canonical financial statements", () => {
       expect(history.series.revenue.ttm).toMatchObject({ value: 120, periodEnd: "2025-12-31" });
       expect(revenue).toMatchObject({ basis: "ttm", pointCount: 2 });
       expect(revenue?.valuePeriod).toStartWith("TTM = FY2025, 10-K accession ");
-      expect(financialTrends(history, false)?.rows.map((row) => row.period)).toEqual([
+      expect(financialTrends(history, undefined)?.rows.map((row) => row.period)).toEqual([
         "FY ending 2024-12-31 (latest filed 2025-02-15)",
         "FY ending 2025-12-31 (latest filed 2026-02-15)",
       ]);

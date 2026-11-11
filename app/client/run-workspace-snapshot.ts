@@ -70,9 +70,10 @@ export interface RunWorkspaceEquitySnapshotMetric {
     | "dividendYield"
     | "sharesOutstanding";
   readonly label: string;
-  readonly state: "available" | "unavailable";
+  readonly state: "available" | "unavailable" | "not-applicable";
   readonly value?: string;
   readonly dateBasis?: string;
+  readonly reason?: string;
   readonly sourceIds: readonly string[];
 }
 
@@ -86,6 +87,7 @@ interface RunWorkspaceEquitySnapshotMiniChart extends RunWorkspaceEquitySnapshot
   readonly key: "revenue" | "freeCashFlowProxy" | "operatingMargin" | "dilutedEps";
   readonly value?: string;
   readonly period?: string;
+  readonly reason?: string;
   readonly geometry?: RunWorkspaceSparklineGeometry;
 }
 
@@ -208,6 +210,13 @@ function snapshotState(
   return availableCount === expectedCount ? "available" : "partial";
 }
 
+function notApplicableReason(
+  fundamentalHistory: RunWorkspaceFundamentalHistoryView | undefined,
+  key: RunWorkspaceFundamentalHistoryCard["key"],
+): string | undefined {
+  return fundamentalHistory?.notApplicable.find((entry) => entry.key === key)?.reason;
+}
+
 function snapshotTtmMetric(
   definition: (typeof SNAPSHOT_TTM_METRICS)[number],
   fundamentalHistory: RunWorkspaceFundamentalHistoryView | undefined,
@@ -216,10 +225,12 @@ function snapshotTtmMetric(
     (candidate) => candidate.key === definition.historyKey && candidate.basis === "ttm",
   );
   if (card === undefined) {
+    const reason = notApplicableReason(fundamentalHistory, definition.historyKey);
     return {
       key: definition.key,
       label: definition.label,
-      state: "unavailable",
+      state: reason === undefined ? "unavailable" : "not-applicable",
+      ...(reason === undefined ? {} : { reason }),
       sourceIds: [],
     };
   }
@@ -386,10 +397,12 @@ export function composeEquitySnapshot(
   const charts = SNAPSHOT_CHARTS.map(({ key, label }): RunWorkspaceEquitySnapshotMiniChart => {
     const card = fundamentalHistory?.cards.find((candidate) => candidate.key === key);
     if (card === undefined) {
+      const reason = notApplicableReason(fundamentalHistory, key);
       return {
         key,
         label,
         state: "unavailable",
+        ...(reason === undefined ? {} : { reason }),
         sourceIds: [],
       };
     }

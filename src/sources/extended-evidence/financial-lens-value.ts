@@ -25,6 +25,7 @@ import {
   summaryPeriod,
   withNetDebtApplicability,
   withCurrentEquityNote,
+  withRevenueMultipleVerdict,
   marketCapInput,
   CURRENCY_MISMATCH_REASON,
   currencyMismatch,
@@ -227,8 +228,9 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
         label: "EV/revenue",
         unit: "ratio",
         basis: `valuation evidence enterprise value / TTM revenue; ${ENTERPRISE_VALUE_BASIS}`,
-        compute: () =>
+        compute: withRevenueMultipleVerdict(() =>
           valuationOutcome(ctx, "evToAnnualizedRevenue", "EV/revenue", "ratio", ttmPeriod),
+        ),
       }),
     ),
     {
@@ -236,7 +238,7 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
       label: "Market cap/revenue",
       unit: "ratio",
       basis: "valuation evidence market cap / TTM revenue",
-      compute: () =>
+      compute: withRevenueMultipleVerdict(() =>
         valuationOutcome(
           ctx,
           "marketCapToAnnualizedRevenue",
@@ -244,6 +246,7 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
           "ratio",
           ttmPeriod,
         ),
+      ),
     },
     {
       id: "valuationSupportability",
@@ -278,6 +281,7 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
       label: "PCF",
       unit: "ratio",
       basis: "quote market cap / operating cash flow annualized to a year",
+      cashFlowBased: true,
       compute: (context) => {
         const marketCap = marketCapInput(context);
         if (context.statements === undefined) {

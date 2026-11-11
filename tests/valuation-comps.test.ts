@@ -10,6 +10,10 @@ import {
   type ValuationCompsOptions,
 } from "../src/sources/extended-evidence/valuation-comps";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
+import {
+  compsRowRevenueMultipleLabel,
+  type ValuationCompsRow,
+} from "../src/sources/extended-evidence/valuation-comps-contract";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import {
@@ -636,6 +640,27 @@ const astsOptions: ValuationCompsOptions = {
     },
   },
 };
+
+describe("compsRowRevenueMultipleLabel", () => {
+  // NBIS run 1c6c4809: FY2025 revenue $529.8M against a $36.33B quote market cap.
+  const nbis = {
+    symbol: "NBIS",
+    marketCap: 36_330_405_888,
+    annualizedRevenue: 529_800_000,
+    evToAnnualizedRevenue: 69.42,
+  } as ValuationCompsRow;
+
+  test("labels the target multiple N/M below the revenue de-minimis floor", () => {
+    expect(compsRowRevenueMultipleLabel(nbis, "NBIS")).toBe("N/M");
+    expect(
+      compsRowRevenueMultipleLabel(
+        { ...nbis, annualizedRevenue: 1e9, evToAnnualizedRevenue: 36.78 },
+        "NBIS",
+      ),
+    ).toBe("36.78x");
+    expect(compsRowRevenueMultipleLabel(nbis, "CRWV")).toBe("69.42x");
+  });
+});
 
 describe("collectValuationComps", () => {
   test("computes supported median and IQR for usable deterministic peers", async () => {

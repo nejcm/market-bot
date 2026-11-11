@@ -297,6 +297,7 @@ function buildValuationWorkbenchResult(
                 label: "P/FCF proxy",
                 unit: "ratio",
                 basis: PRICE_SELECTION_RULE,
+                cashFlowBased: true,
                 compute: () => ({
                   status: "missing",
                   reason:
@@ -306,7 +307,7 @@ function buildValuationWorkbenchResult(
                 }),
               },
             ],
-            { symbol: input.symbol },
+            { symbol: input.symbol, ...(depositorySic === undefined ? {} : { depositorySic }) },
           ),
         ];
   const sectionResults = [...results, ...unavailable];

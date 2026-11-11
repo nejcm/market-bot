@@ -1,5 +1,6 @@
 {
   "replayClassification": "clean",
+  "syntheticLlmEntries": ["final-synthesis|gpt-6-luna"],
   "now": "2026-11-03T21:32:33.360Z",
   "argv": [],
   "command": {

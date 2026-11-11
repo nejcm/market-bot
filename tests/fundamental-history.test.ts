@@ -81,7 +81,11 @@ function payload(
   };
 }
 
-function derive(companyFacts: unknown, analysisAsOf = "2025-08-01T00:00:00.000Z") {
+function derive(
+  companyFacts: unknown,
+  analysisAsOf = "2025-08-01T00:00:00.000Z",
+  depositorySic?: string,
+) {
   return deriveFundamentalHistoryFromFinancialStatements(
     deriveFinancialStatements(companyFacts, {
       symbol: "TEST",
@@ -89,6 +93,7 @@ function derive(companyFacts: unknown, analysisAsOf = "2025-08-01T00:00:00.000Z"
       analysisAsOf,
       sourceId: "extended-sec-edgar-test-fundamentals",
     }),
+    depositorySic,
   );
 }
 
@@ -454,6 +459,32 @@ describe("fundamental history", () => {
       }
     },
   );
+
+  test("depository issuer FCF proxy is not applicable with paired annual and TTM inputs", () => {
+    const facts = payload({
+      NetCashProvidedByUsedInOperatingActivities: {
+        facts: [...annualFacts([50, 60, 70]), latestYtd(), priorYtd()],
+      },
+      PaymentsToAcquirePropertyPlantAndEquipment: {
+        facts: [...annualFacts([10, 12, 15]), latestYtd({}, 5), priorYtd({}, 4)],
+      },
+    });
+    const bank = derive(facts, undefined, "6022").series;
+    expect(bank.freeCashFlowProxy).toEqual({
+      key: "freeCashFlowProxy",
+      label: "Free cash flow proxy",
+      unit: "currency",
+      annual: [],
+      notes: [
+        "not-applicable: depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
+      ],
+    });
+    const control = derive(facts).series;
+    expect(bank.operatingCashFlow).toEqual(control.operatingCashFlow);
+    expect(bank.capex).toEqual(control.capex);
+    expect(control.freeCashFlowProxy.annual.map((point) => point.value)).toEqual([40, 48, 55]);
+    expect(control.freeCashFlowProxy.ttm?.value).toBe(79);
+  });
 
   test("CAGR counts whole 52/53-week fiscal years: AMD FY2020-FY2025 revenue", () => {
     const years: readonly (readonly [string, string, number])[] = [

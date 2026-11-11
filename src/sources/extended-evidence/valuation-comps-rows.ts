@@ -9,9 +9,8 @@ import { type ExtendedEvidenceItem } from "../../domain/evidence";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../domain/market-data";
 import type { PeerUniverse, PeerUniversePeer } from "../../domain/peer-universe";
 import {
-  MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE,
-  MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP,
   MIXED_PERIOD_METRIC,
+  revenueMultipleMeaningful,
   SIZE_GATE_MAX_RATIO,
   SIZE_GATE_MIN_RATIO,
   type ExcludedValuationPeer,
@@ -137,23 +136,6 @@ const SIZE_GATE_LABEL = `${SIZE_GATE_MIN_RATIO}x-${SIZE_GATE_MAX_RATIO}x`;
 // Which comparability gates apply to a candidate. The checked-in ticker-mapping
 // Tier skips the SIC-group gate; the revenue-exempt profile instead keeps SIC
 // And market-cap checks while skipping only the revenue-size band.
-
-export function revenueMultipleMeaningful(
-  target: Pick<ValuationCompsRow, "annualizedRevenue" | "evToAnnualizedRevenue" | "marketCap">,
-): boolean {
-  const revenueDeMinimis =
-    target.annualizedRevenue !== undefined &&
-    (target.annualizedRevenue <= 0 ||
-      (target.marketCap !== undefined &&
-        target.marketCap > 0 &&
-        target.annualizedRevenue <
-          MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP * target.marketCap));
-  return (
-    !revenueDeMinimis &&
-    (target.evToAnnualizedRevenue === undefined ||
-      target.evToAnnualizedRevenue <= MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE)
-  );
-}
 
 export function gateProfileFor(
   provenance: PeerUniverse["provenance"],

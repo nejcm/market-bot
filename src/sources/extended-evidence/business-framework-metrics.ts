@@ -7,7 +7,12 @@ import type {
   BusinessLifecyclePhase,
 } from "./business-framework";
 import { priorComparable } from "./financial-lens-canonical";
-import { withCurrentEquityNote, yearOverYearOutcome, yoyDirection } from "./financial-lens-inputs";
+import {
+  withCurrentEquityNote,
+  withRevenueMultipleVerdict,
+  yearOverYearOutcome,
+  yoyDirection,
+} from "./financial-lens-inputs";
 import {
   itemByCategory,
   secFundamentalItem,
@@ -15,7 +20,7 @@ import {
   secScope,
 } from "./financial-lens-metrics";
 import { isCurrentBalanceSheetPeriod } from "./valuation-comps-support";
-import { depositoryIssuerSic } from "./industry-classification";
+import { depositoryIssuerSic, depositoryNetDebtReason } from "./industry-classification";
 import { SEC_METRIC_DEFINITIONS } from "./sec-fundamentals-format";
 import {
   conceptScope,
@@ -572,9 +577,7 @@ function observedPeriod(item: ExtendedEvidenceItem | undefined) {
 
 function depositoryEnterpriseValue(ctx: MetricContext): string | undefined {
   const sic = depositoryIssuerSic(ctx.evidence);
-  return sic === undefined
-    ? undefined
-    : `depository issuer (SIC ${sic}): enterprise value is not an operating basis`;
+  return sic === undefined ? undefined : depositoryNetDebtReason(sic);
 }
 
 function valueOf(outcome: MetricOutcome): number | undefined {
@@ -695,7 +698,11 @@ function citedByLens(
   return (ctx) => {
     const outcome = compute(ctx);
     const lens = lensMetrics.find(
-      (metric) => metric.id === id && metric.status === "value" && metric.sourceIds.length > 0,
+      (metric) =>
+        metric.id === id &&
+        (metric.status === "value" ||
+          (metric.status === "not-meaningful" && outcome.status === "not-meaningful")) &&
+        metric.sourceIds.length > 0,
     );
     if (lens === undefined && outcome.status === "value") {
       return {
@@ -887,11 +894,13 @@ function sectionDefinitions(
         compute: citedByLens(
           lensMetrics,
           "evToAnnualizedRevenue",
-          evidenceValue("valuation", "evToAnnualizedRevenue", "EV/revenue", "ratio", (item) => {
-            // TTM revenue spans 12 months whatever length the latest revenue fact has.
-            const { periodEnd } = keyPeriod(item, "revenue");
-            return periodEnd === undefined ? {} : { periodEnd, periodMonths: 12 };
-          }),
+          withRevenueMultipleVerdict(
+            evidenceValue("valuation", "evToAnnualizedRevenue", "EV/revenue", "ratio", (item) => {
+              // TTM revenue spans 12 months whatever length the latest revenue fact has.
+              const { periodEnd } = keyPeriod(item, "revenue");
+              return periodEnd === undefined ? {} : { periodEnd, periodMonths: 12 };
+            }),
+          ),
         ),
       }),
     ],

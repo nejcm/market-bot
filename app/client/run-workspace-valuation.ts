@@ -14,6 +14,7 @@ import type {
 } from "../../src/sources/extended-evidence/valuation-comps";
 import {
   compsCashLabel,
+  compsRowRevenueMultipleLabel,
   storedPeerRangeBasis,
 } from "../../src/sources/extended-evidence/valuation-comps-contract";
 import type { ValuationWorkbenchArtifact } from "../../src/sources/extended-evidence/valuation-workbench-contract";
@@ -246,8 +247,7 @@ function valuationPeerRows(
     symbol: row.symbol,
     role: row.symbol === valuationComps.target.symbol ? "target" : (row.role ?? "peer"),
     status: row.usable ? "usable" : "excluded",
-    multiple:
-      row.evToAnnualizedRevenue === undefined ? "N/M" : `${row.evToAnnualizedRevenue.toFixed(2)}x`,
+    multiple: compsRowRevenueMultipleLabel(row, valuationComps.target.symbol),
     currency: row.quoteCurrency ?? "—",
     inputDates: valuationRowInputDates(row),
     sourceIds: stringArrayValue(row.sourceIds),

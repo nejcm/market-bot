@@ -757,6 +757,14 @@ describe("addFinancialLensEvidence", () => {
 // See plan: financial-lens-ratio-expansion. ADR 0004.
 // ---------------------------------------------------------------------------
 
+const CASH_FLOW_LENS_IDS = [
+  "freeCashFlowProxy",
+  "cashConversion",
+  "operatingCashFlowDeltaPercent",
+  "capexDeltaPercent",
+  "pcfRatio",
+];
+
 function secEvidenceWithRatios(
   overrides: Record<string, number | string> = {},
 ): ExtendedEvidenceItem {
@@ -1778,6 +1786,53 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     );
   });
 
+  test("publishes revenue multiples as not meaningful below the revenue de-minimis floor", () => {
+    // NBIS run 1c6c4809: FY2025 20-F (0001104659-26-052948, public 2026-04-30) revenue $529.8M against a $36.33B quote market cap.
+    const valuation = valuationEvidence();
+    const nbis = {
+      ...valuation.metrics,
+      marketCap: 36_330_405_888,
+      enterpriseValue: 36_780_005_888,
+      annualizedRevenue: 529_800_000,
+      evToAnnualizedRevenue: 69.42,
+      marketCapToAnnualizedRevenue: 68.57,
+      revenuePeriodEnd: "2025-12-31",
+      valuationSupportability: "not-meaningful",
+    };
+    const valueMetric = (metrics: typeof nbis, id: string) =>
+      addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [secEvidenceWithRatios(), { ...valuation, metrics }],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      )
+        .metricSections?.find((section) => section.id === "financial-lens-value")
+        ?.metrics.find((metric) => metric.id === id);
+
+    for (const id of ["evToAnnualizedRevenue", "marketCapToAnnualizedRevenue"]) {
+      const metric = valueMetric(nbis, id);
+      expect(metric).toMatchObject({
+        status: "not-meaningful",
+        reason: "revenue below the 2% of market cap de-minimis floor",
+        periodEnd: "2025-12-31",
+        periodMonths: 12,
+      });
+      expect(metric?.value).toBeUndefined();
+      expect(metric?.sourceIds.length).toBeGreaterThan(0);
+    }
+    expect(
+      valueMetric(
+        { ...nbis, annualizedRevenue: 1_000_000_000, evToAnnualizedRevenue: 36.78 },
+        "marketCapToAnnualizedRevenue",
+      )?.status,
+    ).toBe("value");
+  });
+
   test("Yahoo dividendYield is whole-percent (verified against captured fixture) and display-only", () => {
     const result = addFinancialLensEvidence(
       command,
@@ -1978,6 +2033,39 @@ function strengthReason(
   return strengthSection(result)?.metrics.find(({ id }) => id === metricId)?.reason;
 }
 
+test("cash-flow lens rows are not applicable for a depository issuer (BNS f3c778db, JPM 59814bb4 shape)", () => {
+  const rows = (sic: string) =>
+    (
+      addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [secEvidenceWithRatios({ sic, operatingCashFlowPeriodEnd: "2026-03-28" })],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      ).metricSections ?? []
+    )
+      .flatMap(({ metrics }) => metrics)
+      .filter(({ id }) => CASH_FLOW_LENS_IDS.includes(id));
+  expect(rows("6022").map(({ id, status, reason, value }) => [id, status, reason, value])).toEqual(
+    CASH_FLOW_LENS_IDS.map((id) => [
+      id,
+      "not-applicable",
+      "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
+      undefined,
+    ]),
+  );
+  const industrial = rows("3571");
+  expect(industrial.find(({ id }) => id === "cashConversion")).toMatchObject({
+    status: "value",
+    value: 30 / 18,
+  });
+  expect(industrial.filter(({ status }) => status === "not-applicable")).toEqual([]);
+});
+
 describe("addFinancialLensEvidence — Financial Strength debt currentness", () => {
   const cutoff = "2026-10-08T00:00:00.000Z";
   const strengthAt = (
@@ -2019,6 +2107,22 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       result.metricSectionGaps?.find(({ source }) => source === "financial-lens-financial-strength")
         ?.triage,
     ).toBe("material");
+  });
+
+  test("withholds cash as stale on the same instant as stale debt (NBIS 98e8ca1a shape)", () => {
+    const stale = strengthSection(strengthAt(cutoff, debtPeriods("2025-06-30")));
+    for (const [id, reason] of [
+      ["cash", "stale cash as of 2025-06-30"],
+      ["debt", "stale debt as of 2025-06-30"],
+    ] as const) {
+      expect(stale?.metrics.find((metric) => metric.id === id)).toMatchObject({
+        status: "missing",
+        reason,
+        periodEnd: "2025-06-30",
+      });
+    }
+    const fresh = strengthSection(strengthAt(cutoff, debtPeriods("2026-06-30")));
+    expect(fresh?.metrics.find((metric) => metric.id === "cash")?.status).toBe("value");
   });
 
   test("historical net debt and debt/equity are withheld as stale", () => {

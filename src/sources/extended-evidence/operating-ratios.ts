@@ -12,7 +12,7 @@ import {
   NEGATIVE_CAPEX_REASON,
 } from "./financial-statement-definitions";
 import { shortTermInvestmentsAt } from "./financial-lens-inputs";
-import type { SecIssuerRegistration } from "./industry-classification";
+import { depositoryReason, type SecIssuerRegistration } from "./industry-classification";
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import { debtScopeUnproven, heldForSaleRecast } from "./sec-debt";
 import {
@@ -81,9 +81,7 @@ function ratioOf(
 
 function depository(reason: string) {
   return (ctx: MetricContext): string | undefined =>
-    ctx.depositorySic === undefined
-      ? undefined
-      : `depository issuer (SIC ${ctx.depositorySic}): ${reason}`;
+    ctx.depositorySic === undefined ? undefined : depositoryReason(ctx.depositorySic, reason);
 }
 
 // Balance-sheet inputs are the instants at the flow anchor's own period end, never a nearby one.
@@ -379,7 +377,7 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
     label: "Free cash flow margin",
     unit: "ratio-percent",
     basis: `(operating cash flow - capital expenditure) / revenue, ${FISCAL_YEAR}; revenue at or below zero or negative-filed capex is not meaningful`,
-    applicable: depository("operating cash flow is not a free cash flow basis"),
+    cashFlowBased: true,
     compute: (ctx) => {
       const outcome = ratioOf(
         ([operatingCashFlow, capitalExpenditure]) =>

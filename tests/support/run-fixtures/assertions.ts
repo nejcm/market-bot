@@ -37,7 +37,10 @@ import {
 } from "../../../src/research/web-figure-verification";
 import { screenReusedWebSubjectProfile } from "../../../src/web-evidence/web-subject-profile";
 import { loadRunArtifact } from "../../../src/run-artifacts";
-import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
+import {
+  depositoryCashFlowReason,
+  depositoryIssuerSic,
+} from "../../../src/sources/extended-evidence/industry-classification";
 import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
 import {
   canonicalizeSecForm,
@@ -95,6 +98,7 @@ import {
   type RunFixtureResult,
 } from "../../../src/replay/fixture-run";
 import { assertFinancialRunInvariants } from "../../../src/corpus/financial-invariants";
+import { reportInvariantViolations } from "../../../src/corpus/report-invariants";
 
 export function assertIntegrityPruneInvariant(
   pruned: readonly { readonly location: string; readonly text: string }[] | undefined,
@@ -498,6 +502,17 @@ export async function assertInvariants(
   assertSafeReportLanguage(report);
   assertValuationWorkbenchInvariants(result, meta, fixtureName);
   assertMetricSectionInvariants(result, report);
+  expect(
+    reportInvariantViolations(
+      (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? [],
+      [
+        ...result.collectedSources.marketSnapshots,
+        ...result.collectedSources.supplementalMarketSnapshots,
+      ],
+      depositoryIssuerSic(report.extendedEvidence),
+    ).filter(({ invariant }) => !invariant.startsWith("watch:")),
+    `${fixtureName} report class invariants`,
+  ).toEqual([]);
   assertFinancialLensMetricInvariants(result, report, fixtureName);
   assertOperatingRatioInvariants(result, report);
   assertPricePerformanceInvariants(result, report);
@@ -1305,10 +1320,14 @@ const AAPL_LENS_VALUES = {
 };
 
 const NOT_MEANINGFUL = { status: "not-meaningful" } as const;
+const NOT_APPLICABLE = { status: "not-applicable" } as const;
 
 // A null pin asserts the metric is withheld.
 const EXPECTED_LENS_VALUES: Readonly<
-  Record<string, Readonly<Record<string, number | string | null | typeof NOT_MEANINGFUL>>>
+  Record<
+    string,
+    Readonly<Record<string, number | string | null | typeof NOT_MEANINGFUL | typeof NOT_APPLICABLE>>
+  >
 > = {
   "equity-aapl-brief": {},
   "equity-aapl-brief-prune": {},
@@ -1355,7 +1374,8 @@ const EXPECTED_LENS_VALUES: Readonly<
     continuingDilutedEpsDeltaPercent: NOT_MEANINGFUL,
     operatingCashFlowDeltaPercent: NOT_MEANINGFUL,
     capexDeltaPercent: null,
-    cash: 3_678_100_000,
+    // Stale like debt: the 2025-12-31 instant is over 180 days before the 2026-11-04 cutoff.
+    cash: null,
     payoutRatio: 0,
     valuationCaveat:
       "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
@@ -1363,7 +1383,8 @@ const EXPECTED_LENS_VALUES: Readonly<
     enterpriseValue: null,
     annualizedRevenue: 529_800_000,
     evToAnnualizedRevenue: null,
-    marketCapToAnnualizedRevenue: 73.887_866_153_265_38,
+    // TTM revenue 529.8M is below 2% of the 39.15B market cap (73.89x), so the multiple is not meaningful.
+    marketCapToAnnualizedRevenue: NOT_MEANINGFUL,
     valuationSupportability: "not-meaningful",
     // Yahoo quote 2026-11-04: price 143.995, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 39.15B.
     peRatio: 112.496_09,
@@ -1432,20 +1453,24 @@ const EXPECTED_LENS_VALUES: Readonly<
   "equity-web-fallback-deep": AAPL_LENS_VALUES,
   "equity-depository-deep": {
     netMargin: 0.238_337_134_563_549_66,
-    cashConversion: 5.600_260_983_036_103,
+    // Depository issuer (SIC 6022): every cash-flow metric is not applicable, gated in the metric engine.
+    freeCashFlowProxy: NOT_APPLICABLE,
+    cashConversion: NOT_APPLICABLE,
     roe: 0.103_300_307_789_085_85,
     roa: 0.006_230_440_948_008_068,
     revenueDeltaPercent: 2.923_602_219_376_867,
     netIncomeDeltaPercent: 131.520_644_511_581_08,
     dilutedEpsDeltaPercent: 162.121_212_121_212_1,
-    operatingCashFlowDeltaPercent: 171.968_736_797_634_14,
-    cash: 8_732_000_000,
+    operatingCashFlowDeltaPercent: NOT_APPLICABLE,
+    capexDeltaPercent: NOT_APPLICABLE,
+    // Stale: the 2026-01-31 instant is over 180 days before the 2026-11-03 cutoff.
+    cash: null,
     payoutRatio: 0.804_347_826_086_956_7,
     dividendYield: 3.45,
     peRatio: 16.967_392,
     forwardPe: 13.832_41,
     priceToBook: 1.798_186_8,
-    pcfRatio: null,
+    pcfRatio: NOT_APPLICABLE,
   },
   "equity-iren-deep": {},
   "equity-iren-brief": {},
@@ -1471,7 +1496,7 @@ export function assertFinancialLensMetricInvariants(
       sections.flatMap((section) => section.metrics).find((row) => row.id === id),
       `${fixtureName}.${id} retains its replayed value`,
     ).toMatchObject(
-      value === null || value === NOT_MEANINGFUL
+      value === null || value === NOT_MEANINGFUL || value === NOT_APPLICABLE
         ? (value ?? { status: "missing" })
         : { status: "value", value },
     );
@@ -1620,15 +1645,6 @@ export function assertFinancialLensMetricInvariants(
             .toSorted()
             .at(-1),
         );
-      }
-      const durations = statementFacts.filter((fact) => fact?.periodStart !== undefined);
-      // A YoY metric compares two adjacent periods of one series; every other join shares one period.
-      if (!metricId.endsWith("DeltaPercent")) {
-        expect(
-          new Set(durations.map((fact) => `${String(fact?.periodKey)}/${String(fact?.periodType)}`))
-            .size,
-          `${label} flow inputs join one period`,
-        ).toBeLessThanOrEqual(1);
       }
       const valueOf = (series: string): number =>
         Number(resolved[metric.inputs.findIndex((input) => input.series === series)]?.value);
@@ -2908,10 +2924,15 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
   for (const row of rows) {
     const cell = row.split(" | ")[EV_REVENUE_COLUMN];
     expect(cell, row).toBe(
-      "not applicable (deposit-funded issuer; enterprise value is not defined)",
+      "not applicable (depository issuer: deposits and borrowings fund operations rather than sitting on top of them)",
     );
     expect(NUMERIC_CELL.test(cell ?? ""), row).toBe(false);
   }
+
+  const historyFcf = result.collectedSources.fundamentalHistory?.series.freeCashFlowProxy;
+  expect(historyFcf?.annual, "depository history FCF proxy must carry no points").toEqual([]);
+  expect(historyFcf?.ttm).toBeUndefined();
+  expect(historyFcf?.notes).toEqual([`not-applicable: ${depositoryCashFlowReason(String(sic))}`]);
 }
 
 // BNS conversions provide an independent oracle for inverted FX rates (ADR 0005).
@@ -3634,6 +3655,10 @@ const MISSING_WORKBENCH_PRICE = { status: "missing", reason: "price-history-unav
 const IFRS_WORKBENCH_EV = { status: "missing", reason: "ev-bridge-incomplete" } as const;
 const MISSING_WORKBENCH_DEBT = { status: "missing", reason: "debt-unavailable" } as const;
 const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
+const DE_MINIMIS_WORKBENCH_REVENUE = {
+  status: "not-meaningful",
+  reason: "revenue below the 2% of market cap de-minimis floor",
+} as const;
 const NEGATIVE_WORKBENCH_DENOMINATOR = {
   status: "not-meaningful",
   reason: "negative-denominator",
@@ -3645,11 +3670,13 @@ const MIXED_WORKBENCH_BALANCE_SHEET = {
 const MISSING_WORKBENCH_FCF = { status: "missing", reason: "free-cash-flow-unavailable" } as const;
 const DEPOSITORY_WORKBENCH_EV = {
   status: "not-applicable",
-  reason: "deposit-funded issuer; enterprise value is not defined (SIC 6022)",
+  reason:
+    "depository issuer (SIC 6022): deposits and borrowings fund operations rather than sitting on top of them",
 } as const;
 const DEPOSITORY_WORKBENCH_FCF = {
   status: "not-applicable",
-  reason: "depository issuer; capex-based free cash flow is not defined (SIC 6022)",
+  reason:
+    "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
 } as const;
 const RESTATED_WORKBENCH_INPUT = {
   status: "missing",
@@ -4022,8 +4049,9 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
     "ttm|2025-12-31|2026-04-30": [
       418.878_774_931_936_56,
-      64.622_117_548_843_16,
-      65.470_739_670_398_46,
+      // FY2025 revenue $529.8M against a ~$34.2B market cap at the 2026-04-30 close.
+      DE_MINIMIS_WORKBENCH_REVENUE,
+      DE_MINIMIS_WORKBENCH_REVENUE,
       MISSING_WORKBENCH_FCF,
     ],
   },

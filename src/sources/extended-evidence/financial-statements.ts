@@ -56,6 +56,7 @@ import {
   taxonomyScore,
   selectTaxonomy,
   selectReportingCurrency,
+  withoutTranslationFilings,
 } from "./financial-statement-taxonomy";
 import {
   firstAnnualReports,
@@ -384,15 +385,19 @@ function seriesRecord(
 }
 
 export function deriveFinancialStatements(
-  payload: unknown,
+  companyFacts: unknown,
   input: FinancialStatementsDeriveInput,
 ): FinancialStatementsArtifact {
-  const taxonomy = selectTaxonomy(payload, input.analysisAsOf);
+  const taxonomy = selectTaxonomy(companyFacts, input.analysisAsOf);
   const election =
     taxonomy === undefined
       ? { currency: undefined, candidates: [] }
-      : selectReportingCurrency(payload, taxonomy, input.analysisAsOf);
+      : selectReportingCurrency(companyFacts, taxonomy, input.analysisAsOf);
   const reportingCurrency = election.currency;
+  const { payload, excluded: translationFilings } =
+    taxonomy === undefined || reportingCurrency === undefined
+      ? { payload: companyFacts, excluded: new Map<string, string>() }
+      : withoutTranslationFilings(companyFacts, taxonomy, reportingCurrency, input.analysisAsOf);
   const selected =
     taxonomy === undefined || reportingCurrency === undefined
       ? FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map(
@@ -555,6 +560,11 @@ export function deriveFinancialStatements(
         ),
         ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
         ...shareBasisNotes,
+        ...translationFilingNotes(
+          translationFilings,
+          reportingCurrency,
+          statements.incomeStatement.revenue,
+        ),
       ]),
     ),
     structuredFinancialGaps: structuredFinancialGaps(
@@ -565,6 +575,29 @@ export function deriveFinancialStatements(
       input,
     ),
   };
+}
+
+function translationFilingNotes(
+  filings: ReadonlyMap<string, string>,
+  currency: string | undefined,
+  revenue: FinancialStatementSeries,
+): readonly FinancialStatementNote[] {
+  if (filings.size === 0 || currency === undefined) {
+    return [];
+  }
+  const named = [...new Set(filings.values())].toSorted().join(", ");
+  const accessions = [...filings.keys()].toSorted().join(", ");
+  const [earliest] = revenue.annual.map((fact) => fact.periodEnd).toSorted();
+  const kept =
+    earliest === undefined
+      ? `no annual revenue is reported in ${currency}`
+      : `annual revenue reported in ${currency} starts with the period ended ${earliest}`;
+  return [
+    {
+      code: "translation-filing",
+      message: `Excluded ${currency} convenience translations from ${filings.size} ${filings.size === 1 ? "filing" : "filings"} whose revenue is reported in ${named} (${accessions}); ${kept}`,
+    },
+  ];
 }
 
 // A scope note stands only on a published debt fact filed before the recast.
@@ -674,6 +707,7 @@ export function financialStatementsHistoryGaps(
         note.code === "withheld-derivation" ||
         note.code === "mixed-share-basis" ||
         note.code === "declaration-span" ||
+        note.code === "translation-filing" ||
         (note.code === "incomplete-composite-series" &&
           (note.seriesKey === "depreciationAndAmortization" ||
             note.seriesKey === "capitalExpenditure")),

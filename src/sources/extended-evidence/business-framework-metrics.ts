@@ -7,7 +7,7 @@ import type {
   BusinessLifecyclePhase,
 } from "./business-framework";
 import { priorComparable } from "./financial-lens-canonical";
-import { withCurrentEquityNote } from "./financial-lens-inputs";
+import { withCurrentEquityNote, yearOverYearOutcome, yoyDirection } from "./financial-lens-inputs";
 import {
   itemByCategory,
   secFundamentalItem,
@@ -46,7 +46,7 @@ import {
 } from "./metric-engine";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import type { LensValueUnit } from "./value-format";
+import { peIsClean, type LensValueUnit } from "./value-format";
 
 type FrameworkSeries =
   | "revenue"
@@ -296,11 +296,47 @@ function issuerReportYearOverYear(
   if (row.status === "value" && typeof row.value === "number") {
     return { status: "value", value: row.value * 100, ...common };
   }
-  return {
-    status: row.status === "not-meaningful" ? "not-meaningful" : "missing",
-    reason: `issuer report: ${row.reason ?? "no value"}`,
-    ...common,
-  };
+  if (row.status === "not-meaningful") {
+    return {
+      status: "not-meaningful",
+      reason: `issuer report: ${row.reason ?? "no value"}`,
+      ...common,
+      inputs: checkedIssuerInputs(section, common.inputs),
+    };
+  }
+  return { status: "missing", reason: `issuer report: ${row.reason ?? "no value"}`, ...common };
+}
+
+// Issuer inputs quote cell text like "(118,580)"; direction reads the checked figure numbers.
+function checkedIssuerInputs(
+  section: MetricSection,
+  inputs: readonly MetricInput[],
+): readonly MetricInput[] {
+  const checked = inputs.map((input) =>
+    section.metrics.find(
+      (metric) =>
+        metric.status === "value" &&
+        typeof metric.value === "number" &&
+        metric.inputs.length === 1 &&
+        metric.inputs[0]?.label === input.label &&
+        metric.inputs[0].value === input.value &&
+        metric.inputs[0].periodEnd === input.periodEnd &&
+        metric.inputs[0].unit === input.unit &&
+        metric.inputs[0].currency === input.currency &&
+        metric.inputs[0].sourceIds[0] === input.sourceIds[0],
+    ),
+  );
+  return inputs.map((input, index) => {
+    const figure = checked[index];
+    return figure === undefined || typeof figure.value !== "number"
+      ? input
+      : {
+          ...input,
+          value: figure.value,
+          unit: figure.currency ?? input.unit,
+          derivation: `issuer cell ${String(input.value)} (${input.unit})`,
+        };
+  });
 }
 
 function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
@@ -308,6 +344,17 @@ function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
     const found = secInput(ctx, `${key}DeltaPercent`, `${SERIES_LABELS[key]} YoY`, "whole-percent");
     if (found !== undefined) {
       return { status: "value", value: found.value, ...secPeriod(ctx, key), inputs: [found] };
+    }
+    const priorInput = secInput(ctx, `${key}Prior`, SERIES_LABELS[key], "currency");
+    const latestInput = secInput(ctx, key, SERIES_LABELS[key], "currency");
+    if (priorInput !== undefined && latestInput !== undefined) {
+      return yearOverYearOutcome(
+        SERIES_LABELS[key],
+        priorInput.value,
+        latestInput.value,
+        secPeriod(ctx, key),
+        [priorInput, latestInput],
+      );
     }
     return (
       (ctx.issuerReport === undefined
@@ -335,21 +382,10 @@ function yearOverYear(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
       inputs: [factInput(latest, key)],
     };
   }
-  const inputs = [factInput(prior, key), factInput(latest, key)];
-  if (prior.value === 0) {
-    return {
-      status: "not-meaningful",
-      reason: `prior-year ${label} is zero`,
-      ...periodOf(latest),
-      inputs,
-    };
-  }
-  return {
-    status: "value",
-    value: ((latest.value - prior.value) / Math.abs(prior.value)) * 100,
-    ...periodOf(latest),
-    inputs,
-  };
+  return yearOverYearOutcome(label, prior.value, latest.value, periodOf(latest), [
+    factInput(prior, key),
+    factInput(latest, key),
+  ]);
 }
 
 function secMargin(
@@ -510,6 +546,25 @@ function evidenceValue(
   };
 }
 
+function peValue(key: "trailingPE" | "forwardPE", epsKey: string, basis: "trailing" | "forward") {
+  const compute = evidenceValue("yahoo-fundamentals", key, `${basis} PE`, "ratio", observedPeriod);
+  return (ctx: MetricContext): MetricOutcome => {
+    const outcome = compute(ctx);
+    const eps = readNumberMetric(
+      itemByCategory(ctx.evidence, "yahoo-fundamentals")?.metrics,
+      epsKey,
+    );
+    return outcome.status !== "value" || peIsClean(Number(outcome.value), eps)
+      ? outcome
+      : {
+          status: "not-meaningful",
+          reason: `non-positive ${basis} earnings`,
+          ...(outcome.periodEnd === undefined ? {} : { periodEnd: outcome.periodEnd }),
+          inputs: outcome.inputs,
+        };
+  };
+}
+
 // Provider quotes carry no reporting period; date them by observation, as the financial lens does.
 function observedPeriod(item: ExtendedEvidenceItem | undefined) {
   return item === undefined ? {} : { periodEnd: item.observedAt };
@@ -551,14 +606,18 @@ function phaseInputs(ctx: MetricContext): {
     "dividend yield",
     "whole-percent",
   );
-  const used = Object.values(outcomes).filter((outcome) => valueOf(outcome) !== undefined);
+  const classification: Record<string, number | undefined> = {
+    ...Object.fromEntries(
+      Object.entries(outcomes).map(([key, outcome]) => [key, valueOf(outcome)]),
+    ),
+    operatingIncomeDeltaPercent: yoyDirection(outcomes.operatingIncomeDeltaPercent),
+    netIncomeDeltaPercent: yoyDirection(outcomes.netIncomeDeltaPercent),
+  };
+  const used = Object.entries(outcomes).flatMap(([key, outcome]) =>
+    classification[key] === undefined ? [] : [outcome],
+  );
   return {
-    classification: {
-      ...Object.fromEntries(
-        Object.entries(outcomes).map(([key, outcome]) => [key, valueOf(outcome)]),
-      ),
-      dividendYield: dividendYield?.value,
-    },
+    classification: { ...classification, dividendYield: dividendYield?.value },
     inputs: [
       ...new Map(
         used
@@ -809,13 +868,7 @@ function sectionDefinitions(
         label: "Trailing PE",
         unit: "ratio",
         basis: "Yahoo Finance trailing price/earnings",
-        compute: evidenceValue(
-          "yahoo-fundamentals",
-          "trailingPE",
-          "trailing PE",
-          "ratio",
-          observedPeriod,
-        ),
+        compute: peValue("trailingPE", "epsTrailingTwelveMonths", "trailing"),
       },
       {
         id: "forwardPE",
@@ -823,13 +876,7 @@ function sectionDefinitions(
         unit: "ratio",
         basis:
           "Yahoo Finance forward price/earnings; consensus forward EPS has no provider as-of date",
-        compute: evidenceValue(
-          "yahoo-fundamentals",
-          "forwardPE",
-          "forward PE",
-          "ratio",
-          observedPeriod,
-        ),
+        compute: peValue("forwardPE", "epsForward", "forward"),
       },
       withCurrentEquityNote({
         id: "evToAnnualizedRevenue",
@@ -894,7 +941,11 @@ function postures(
       : undefined;
   };
   const present = (id: string) => meets(valueIn("Business", id), () => true);
-  const positive = (id: string) => meets(valueIn("Growth", id), (value) => value > 0);
+  const positive = (id: string) =>
+    meets(
+      yoyDirection(sections.Growth?.metrics.find((metric) => metric.id === id)),
+      (value) => value > 0,
+    );
   const revenueDelta = valueIn("Growth", "revenueDeltaPercent");
   const supportability = valuationSupportability(ctx);
   const { classification } = phaseInputs(ctx);
@@ -916,7 +967,7 @@ function postures(
         positive("revenueDeltaPercent"),
         positive("operatingIncomeDeltaPercent"),
         positive("netIncomeDeltaPercent"),
-        meets(valueOf(yearOverYear(ctx, "operatingCashFlow")), (value) => value > 0),
+        meets(yoyDirection(yearOverYear(ctx, "operatingCashFlow")), (value) => value > 0),
       ],
       2,
     ),

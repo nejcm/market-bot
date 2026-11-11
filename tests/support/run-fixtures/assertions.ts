@@ -17,7 +17,7 @@ import { resolveMarketSnapshotPriceAsOf } from "../../../src/domain/market-data"
 import { readEarningsForecastTelemetry } from "../../../src/forecast/earnings-eligibility";
 import { claimKey, parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord, readNumber, readString } from "../../../src/guards";
-import type { ResearchReport } from "../../../src/domain/report";
+import type { RenderedMetric, ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
 import { readGapTriage } from "../../../src/report/gap-triage";
@@ -486,6 +486,7 @@ export async function assertInvariants(
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertNoUnresolvedMetricReferences(report, result.collectedSources);
+  assertRenderedMetricLabels(result, report);
   const marketSnapshot = result.collectedSources.marketSnapshots.find(
     (snapshot) =>
       snapshot.assetClass === report.assetClass &&
@@ -1303,9 +1304,11 @@ const AAPL_LENS_VALUES = {
   pcfRatio: 23.076_923_076_923_077,
 };
 
+const NOT_MEANINGFUL = { status: "not-meaningful" } as const;
+
 // A null pin asserts the metric is withheld.
 const EXPECTED_LENS_VALUES: Readonly<
-  Record<string, Readonly<Record<string, number | string | null>>>
+  Record<string, Readonly<Record<string, number | string | null | typeof NOT_MEANINGFUL>>>
 > = {
   "equity-aapl-brief": {},
   "equity-aapl-brief-prune": {},
@@ -1343,26 +1346,27 @@ const EXPECTED_LENS_VALUES: Readonly<
     roe: 0.017_958_206_356_116_675,
     roa: 0.006_636_847_778_868_277,
     revenueDeltaPercent: 479.016_393_442_622_9,
-    operatingIncomeDeltaPercent: -53.078_078_078_078_07,
-    netIncomeDeltaPercent: 112.862_488_306_828_81,
-    dilutedEpsDeltaPercent: 114.473_684_210_526_33,
-    continuingIncomeDeltaPercent: 102.784_090_909_090_9,
-    continuingDilutedEpsDeltaPercent: 103.2,
-    operatingCashFlowDeltaPercent: 248.907_002_593_553_2,
+    // FY2024 -> FY2025: operating income -399.6M -> -611.7M, net income -641.4M -> 82.5M,
+    // Diluted EPS -2.28 -> 0.33, continuing income -352.0M -> 9.8M, OCF -269.9M -> 401.9M.
+    operatingIncomeDeltaPercent: NOT_MEANINGFUL,
+    netIncomeDeltaPercent: NOT_MEANINGFUL,
+    dilutedEpsDeltaPercent: NOT_MEANINGFUL,
+    continuingIncomeDeltaPercent: NOT_MEANINGFUL,
+    continuingDilutedEpsDeltaPercent: NOT_MEANINGFUL,
+    operatingCashFlowDeltaPercent: NOT_MEANINGFUL,
     capexDeltaPercent: null,
     cash: 3_678_100_000,
     payoutRatio: 0,
     valuationCaveat:
       "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
-    evDateBasis: "EV mixes market cap (quote 2026-11-04) with cash/debt (balance sheet 2025-12-31)",
-    enterpriseValue: 39_595_391_488,
+    // Withheld: 2025-12-31 debt and cash are over 180 days before the 2026-11-04 cutoff.
+    enterpriseValue: null,
     annualizedRevenue: 529_800_000,
-    evToAnnualizedRevenue: 74.736_488_274_820_69,
+    evToAnnualizedRevenue: null,
     marketCapToAnnualizedRevenue: 73.887_866_153_265_38,
     valuationSupportability: "not-meaningful",
     // Yahoo quote 2026-11-04: price 143.995, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 39.15B.
     peRatio: 112.496_09,
-    forwardPe: "-40.02x (negative earnings)",
     epsForward: -3.597_83,
     priceToBook: 3.817_268_4,
     pcfRatio: 97.401_820_074_645_43,
@@ -1466,7 +1470,11 @@ export function assertFinancialLensMetricInvariants(
     expect(
       sections.flatMap((section) => section.metrics).find((row) => row.id === id),
       `${fixtureName}.${id} retains its replayed value`,
-    ).toMatchObject(value === null ? { status: "missing" } : { status: "value", value });
+    ).toMatchObject(
+      value === null || value === NOT_MEANINGFUL
+        ? (value ?? { status: "missing" })
+        : { status: "value", value },
+    );
   }
   const statements = run.collectedSources.financialStatements;
   const filedFacts =
@@ -1748,10 +1756,50 @@ export function assertFinancialLensMetricInvariants(
           const [prior, latest] = [Number(resolved[0]?.value), Number(resolved[1]?.value)];
           const comparedSeries = metric.inputs.map((input) => input.series);
           expect(comparedSeries[0], `${label} compares one series`).toBe(comparedSeries[1]);
+          expect(prior > 0 && latest >= 0, `${label} has a positive base and no sign change`).toBe(
+            true,
+          );
           expectClose(metric.value, ((latest - prior) / Math.abs(prior)) * 100, label);
         }
       }
     }
+  }
+}
+
+function renderedMetricSpans(value: unknown): readonly RenderedMetric[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(renderedMetricSpans);
+  }
+  if (!isRecord(value)) {
+    return [];
+  }
+  return [
+    ...(Array.isArray(value.renderedMetrics) ? (value.renderedMetrics as RenderedMetric[]) : []),
+    ...Object.entries(value)
+      .filter(([key]) => key !== "renderedMetrics")
+      .flatMap(([, item]) => renderedMetricSpans(item)),
+  ];
+}
+
+// Every rendered Metric Reference names what it measures, so a wrong surrounding noun shows on the page.
+function assertRenderedMetricLabels(result: RunFixtureResult, report: ResearchReport): void {
+  const catalog = referenceMetricSections(result.collectedSources).flatMap(({ metrics }) =>
+    metrics.flatMap((metric) => {
+      const value =
+        metric.status === "value"
+          ? formatMetricValue(metric.value, metric.unit, metric.currency)
+          : undefined;
+      return value === undefined ? [] : [{ value, label: metric.label }];
+    }),
+  );
+  for (const { text } of renderedMetricSpans(report)) {
+    expect(
+      catalog.some(
+        ({ value, label }) =>
+          text.replace(/^\+/u, "").startsWith(value) && text.includes(`(${label}`),
+      ),
+      `rendered metric "${text}" must carry its metric's label`,
+    ).toBe(true);
   }
 }
 
@@ -2389,6 +2437,10 @@ export function assertBusinessFrameworkMetricInvariants(
           expectClose(metric.value, (first ?? Number.NaN) / (second ?? Number.NaN), label);
         } else if (metric.id.endsWith("DeltaPercent") && !passThrough) {
           const prior = first ?? Number.NaN;
+          expect(
+            prior > 0 && (second ?? Number.NaN) >= 0,
+            `${label} has a positive base and no sign change`,
+          ).toBe(true);
           expectClose(
             metric.value,
             (((second ?? Number.NaN) - prior) / Math.abs(prior)) * 100,
@@ -3949,59 +4001,23 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
   },
   "equity-nbis-deep": {
-    "annual|2016-12-31|2017-03-22": [
+    // Anchored at the period's first annual report (2023-04-20); the fixture has no close that early.
+    "annual|2022-12-31|2023-04-20": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_CASH,
       MISSING_WORKBENCH_PRICE,
     ],
-    "annual|2017-12-31|2018-03-27": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2018-12-31|2019-04-19": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2019-12-31|2020-04-02": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      { status: "missing", reason: "mixed-period-balance-sheet" },
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2020-12-31|2021-04-01": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    "annual|2021-12-31|2022-04-20": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
-    // Anchored at the period's first annual report (2023-04-20); the fixture has no close that early.
-    "annual|2022-12-31|2023-04-20": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
-    ],
     "annual|2023-12-31|2024-04-26": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_CASH,
       MISSING_WORKBENCH_PRICE,
     ],
     "annual|2024-12-31|2025-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,
       RESTATED_WORKBENCH_INPUT,
-      MISSING_WORKBENCH_DEBT,
+      MIXED_WORKBENCH_BALANCE_SHEET,
       RESTATED_WORKBENCH_INPUT,
     ],
     "ttm|2025-12-31|2026-04-30": [

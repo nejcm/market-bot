@@ -169,7 +169,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   history has no legacy derivation. Offline canonical/legacy financial-lens corpus differences need matches
   or exact fixture-specific allowances. Historical non-deep
   artifacts without sidecars/completeness stay readable.
-- Canonical facts apply cutoff before selection, one taxonomy/currency, no extension primary totals; matching
+- Canonical facts apply cutoff before selection, one taxonomy/currency, no extension primary totals. Facts in
+  the elected currency from a filing whose revenue names another currency are convenience translations: they are
+  excluded, and a `translation-filing` gap names the filings; share counts stay. Matching
   periods resolve by filed date, amendment, accession, never unrelated periods. Preserve
   form/accession/filing/period/fiscal/taxonomy/unit/scale/extraction/citation provenance; absent accessions
   stay null with notes. Shared roster caps ten annual/twelve interim exact periods, detects cadence, and
@@ -389,8 +391,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - Financial Strength uses balance-sheet inputs within 180 days of cutoff and 92 days of newest current
   balance-sheet period; canonical ratios check paired period, fallback checks every input. Stale net
   debt/current ratio is unknown, not failed; framework Risk uses same current-ratio gate. Withhold stale
-  debt/equity, debt/cap, net-debt/cap; retain dated raw cash/debt/history, and declare producer no-cap gaps
-  with input dates. Metric Section stale ratio is missing with date reason.
+  debt/equity, debt/cap, net-debt/cap, and EV with its multiples (EV/TTM revenue, the comps target row,
+  reverse DCF) when debt or cash is stale; retain dated raw cash/debt/net debt/history, and declare
+  producer no-cap gaps with input dates. Metric Section stale ratio is missing with date reason.
 - Depository issuers are classified once from valid own-SEC four-digit SIC major group 60 or 6120. EV, peers,
   EV/revenue, reverse DCF, and capex P/FCF are inapplicable with rationale; never compute EV. P/E, P/S, P/B
   remain when supported.
@@ -526,7 +529,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   loop, persist resolved prose. Model-quoted prose may resolve with metric provenance, never modify source
   text. Reject unknown/non-value/malformed (including brace-delimited, and any other `<<`/`>>` residue such as a nested or unclosed token, or an unprefixed one whose text is not exactly a catalog section id and metric id; only that exact match, in a cited claim field, is prefixed in code and then validated like any reference, so residue is never rewritten into a cited number) (amended 2026-11-05: "never auto-prefixed" made a missing `metric:` prefix, the first defect reported in 6 of the newest 40 runs, cost up to three full repairs (CRWV 44ca936f); an exact-id match still guesses nothing, which was that rule's intent)/nonfinite/empty/uncited references; one repair error names each invalid claim-field token plus a single rejection for any reference in summary, dataGaps or predictions; any placeholder surviving assembly outside quoted `sources`/`extendedEvidence` and collected extras fails the report; allow only cited
   findings/cases/risks/catalysts/scenarios/framework/Earnings Setup/Spotlights, never summary/gaps/Prediction
-  expressions. An optional `|period` format appends the metric's period label; an unknown format or
+  expressions. Each rendered value carries the metric's catalog label in parentheses, and an optional `|period`
+  format adds the period label after it (`-162.8% (Diluted EPS YoY, 9-month period ending 2026-09-30)`); a
+  change metric's label replaces the bare `change.over` suffix (an empty label keeps the suffix; a label
+  that does not name its comparison, such as `Session change`, gets it inside the parentheses), and
+  resolved prose is screened both labelled and with bare values, so a label cannot split a blocked phrase
+  ([ADR 0001](./0001-research-only-boundary.md)) (amended 2026-11-11: CECO a620231d published diluted EPS YoY under "diluted shares increased" with nothing on
+  the page naming the metric; matching the noun stays model judgment). An unknown format or
   `|period` without `periodEnd` rejects for repair like an unknown id. References stay inline tokens, not a
   parallel field, so the existing repair loop, citation merge and replays of tokenless outputs are unchanged.
 - Catalog includes Capital Return, five Operating Ratios, six issuer/benchmark returns, framework/lenses,

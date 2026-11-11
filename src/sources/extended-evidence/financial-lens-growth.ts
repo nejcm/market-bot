@@ -23,6 +23,7 @@ import {
   evidenceInput,
   summaryPeriod,
   chosenInput,
+  yearOverYearOutcome,
 } from "./financial-lens-inputs";
 
 const YOY_CHANGE = { over: "YoY" };
@@ -30,52 +31,23 @@ const YOY_BASIS =
   "latest reported period vs the same-length period one year earlier, same concept and unit";
 
 export function yoyLabel(ctx: MetricContext, key: LensSeries): string {
-  const item = secItem(ctx);
   if (ctx.statements === undefined) {
-    const scope = readStringMetric(item?.metrics, `${key}Scope`);
-    if (key === "netIncome") {
-      const prior = readNumberMetric(item?.metrics, "netIncomePrior");
-      return scopedLabel(
-        prior !== undefined && prior < 0
-          ? "Net loss (attrib.) YoY change"
-          : "Net income (attrib.) YoY",
-        scope,
-      );
-    }
-    if (key === "continuingIncome") {
-      const prior = readNumberMetric(item?.metrics, "continuingIncomePrior");
-      return scopedLabel(
-        prior !== undefined && prior < 0 ? "Loss YoY change" : "Income YoY",
-        scope,
-      );
-    }
-    return scopedLabel(yoyBaseLabel(key), scope);
+    return scopedLabel(yoyBaseLabel(key), readStringMetric(secItem(ctx)?.metrics, `${key}Scope`));
   }
   const anchor = latestFact(ctx, key);
-  const prior = anchor === undefined ? undefined : comparablePrior(ctx, key, anchor);
   switch (key) {
-    case "netIncome": {
-      return scopedLabel(
-        prior !== undefined && prior.value < 0
-          ? "Net loss (attrib.) YoY change"
-          : "Net income (attrib.) YoY",
-        anchor === undefined ? undefined : scopeOfTotal(ctx, anchor, "continuingIncome"),
-      );
-    }
-    case "continuingIncome": {
-      return scopedLabel(
-        prior !== undefined && prior.value < 0 ? "Loss YoY change" : "Income YoY",
-        conceptScope(anchor?.concept),
-      );
-    }
+    case "netIncome":
     case "dilutedEps": {
       return scopedLabel(
-        "Diluted EPS YoY",
-        anchor === undefined ? undefined : scopeOfTotal(ctx, anchor, "continuingDilutedEps"),
+        yoyBaseLabel(key),
+        anchor === undefined
+          ? undefined
+          : scopeOfTotal(
+              ctx,
+              anchor,
+              key === "netIncome" ? "continuingIncome" : "continuingDilutedEps",
+            ),
       );
-    }
-    case "continuingDilutedEps": {
-      return scopedLabel("Diluted EPS YoY", conceptScope(anchor?.concept));
     }
     default: {
       return scopedLabel(yoyBaseLabel(key), conceptScope(anchor?.concept));
@@ -96,6 +68,12 @@ function yoyBaseLabel(key: LensSeries): string {
     }
     case "operatingCashFlow": {
       return "Operating cash flow YoY";
+    }
+    case "netIncome": {
+      return "Net income (attrib.) YoY";
+    }
+    case "continuingIncome": {
+      return "Income YoY";
     }
     case "dilutedEps":
     case "continuingDilutedEps": {
@@ -172,6 +150,15 @@ export function yearOverYearDefinition(
             inputs: chosenInput(item, metricKey, SERIES_LABELS[key], period),
           };
         }
+        const latest = readNumberMetric(item?.metrics, metricKey);
+        const prior = readNumberMetric(item?.metrics, `${metricKey}Prior`);
+        if (value === undefined && latest !== undefined && prior !== undefined) {
+          const unit = key.endsWith("Eps") ? "currency-per-share" : "currency";
+          return yearOverYearOutcome(SERIES_LABELS[key], prior, latest, period, [
+            evidenceInput(item, `${metricKey}Prior`, SERIES_LABELS[key], unit, prior),
+            evidenceInput(item, metricKey, SERIES_LABELS[key], unit, latest, period),
+          ]);
+        }
         return value === undefined
           ? { status: "missing", reason: `no SEC ${SERIES_LABELS[key]} YoY` }
           : {
@@ -207,20 +194,13 @@ export function yearOverYearDefinition(
       if (outflow && (prior.value < 0 || anchor.value < 0)) {
         return { ...negativeOutflow, ...periodOf(anchor), inputs };
       }
-      if (prior.value === 0) {
-        return {
-          status: "not-meaningful",
-          reason: `prior-year ${SERIES_LABELS[key]} is zero`,
-          ...periodOf(anchor),
-          inputs,
-        };
-      }
-      return {
-        status: "value",
-        value: ((anchor.value - prior.value) / Math.abs(prior.value)) * 100,
-        ...periodOf(anchor),
+      return yearOverYearOutcome(
+        SERIES_LABELS[key],
+        prior.value,
+        anchor.value,
+        periodOf(anchor),
         inputs,
-      };
+      );
     },
   };
 }

@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import type { MarketFundamentals } from "../src/domain/market-data";
 import type { SourceGap } from "../src/domain/sources";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { classifyGap } from "../src/report/gap-triage";
 import {
   renderBalanceSheetAndShareCount,
   renderCompactEarningsAndConsensus,
+  renderValuationContext,
 } from "../src/report/markdown-equity-sections";
 import {
   WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
@@ -12,7 +14,7 @@ import {
 } from "../src/web-evidence/contract";
 import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { operatingRatioNotes } from "../src/report/equity-reader-statements";
-import { researchReport } from "./support/fixtures";
+import { marketSnapshot, researchReport } from "./support/fixtures";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
@@ -206,6 +208,31 @@ function debtNote(periodEnd: string, reason: string) {
 }
 
 describe("equity reader projection", () => {
+  test("renders a P/E on non-positive earnings as not meaningful in Valuation Context", () => {
+    const report = researchReport({ jobType: "equity", assetClass: "equity", symbol: "AAPL" });
+    const render = (fundamentals: MarketFundamentals) =>
+      renderValuationContext(
+        report,
+        projectEquityReader({ report, marketSnapshot: marketSnapshot({ fundamentals }) })
+          .defaultView.valuationContext,
+      );
+
+    const negative = render({
+      trailingPE: 24,
+      epsTrailingTwelveMonths: -1,
+      forwardPE: -38.42,
+      epsForward: -2,
+      priceToBook: 3,
+    });
+    expect(negative).toContain(
+      "trailing P/E N/M (non-positive earnings), forward P/E N/M (non-positive earnings), price/book 3.00x",
+    );
+    expect(negative).not.toContain("-38.42");
+    expect(render({ trailingPE: 24, epsTrailingTwelveMonths: 2, forwardPE: 21 })).toContain(
+      "trailing P/E 24.00x, forward P/E 21.00x",
+    );
+  });
+
   test("projects each latest available financial-position metric independently", () => {
     const cash = statementSeries("cash", [
       statementFact("cash", 100, "2025-02-01"),

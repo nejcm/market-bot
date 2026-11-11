@@ -303,7 +303,8 @@ export interface FinancialStatementNote {
     | "declaration-span"
     | "debt-held-for-sale"
     | "debt-scope-unproven"
-    | "tagged-zero-debt";
+    | "tagged-zero-debt"
+    | "translation-filing";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;

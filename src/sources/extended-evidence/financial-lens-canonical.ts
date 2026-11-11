@@ -20,6 +20,7 @@ import {
 import type { SecSicClassification } from "./sec-edgar";
 import {
   DEBT_MAY_INCLUDE_FINANCE_LEASES,
+  deltaPercent,
   formatSecFundamentalsSummary,
   type SecMetricDefinitionKey,
 } from "./sec-fundamentals-format";
@@ -148,8 +149,9 @@ function addFactMetrics(
   const prior = priorComparable(series, fact, earlierShareBasis);
   if (prior !== undefined) {
     metrics[`${key}Prior`] = prior.value;
-    if (prior.value !== 0) {
-      metrics[`${key}DeltaPercent`] = ((fact.value - prior.value) / Math.abs(prior.value)) * 100;
+    const delta = deltaPercent(fact.value, prior.value);
+    if (delta !== undefined) {
+      metrics[`${key}DeltaPercent`] = delta;
     }
   }
 }

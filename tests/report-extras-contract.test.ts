@@ -691,7 +691,7 @@ describe("metric sections extra", () => {
     ]);
   });
 
-  test("walks every metric record, marking non-value rows unrendered", () => {
+  test("walks every metric record, marking rows without rendered citations unrendered", () => {
     expect(
       metricSectionsSourceRows([
         {
@@ -700,6 +700,7 @@ describe("metric sections extra", () => {
             { id: "a", status: "value", sourceIds: ["x"] },
             { id: "b", status: "missing", sourceIds: ["y"] },
             { sourceIds: ["z", 1] },
+            { id: "c", status: "not-meaningful", sourceIds: ["w"] },
           ],
         },
       ]),
@@ -707,6 +708,7 @@ describe("metric sections extra", () => {
       { path: "[0].metrics[0]", label: "[0].metrics[0] (s.a)", sourceIds: ["x"] },
       { path: "[0].metrics[1]", label: "[0].metrics[1] (s.b)", sourceIds: ["y"], unrendered: true },
       { path: "[0].metrics[2]", sourceIds: [], unrendered: true },
+      { path: "[0].metrics[3]", label: "[0].metrics[3] (s.c)", sourceIds: ["w"] },
     ]);
   });
 

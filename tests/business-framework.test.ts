@@ -13,12 +13,18 @@ import {
   classifyBusinessLifecyclePhase,
 } from "../src/sources/extended-evidence/business-framework-metrics";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { CURRENT_EQUITY_NOTE } from "../src/sources/extended-evidence/enterprise-value-bridge";
 import type { MarketSnapshot } from "../src/domain/market-data";
-import type { MetricResult, MetricSection } from "../src/sources/extended-evidence/metric-engine";
+import { yoyDirection } from "../src/sources/extended-evidence/financial-lens-inputs";
+import type {
+  MetricInput,
+  MetricResult,
+  MetricSection,
+} from "../src/sources/extended-evidence/metric-engine";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 import { assertBusinessFrameworkMetricInvariants } from "./support/run-fixtures/assertions";
 
@@ -333,6 +339,17 @@ const issuerYoyRow = (id: string, fields: Partial<MetricResult>): MetricResult =
   ...fields,
 });
 
+const issuerCell = (value: string, unit: string, periodEnd: string): MetricInput => ({
+  label: "Revenue",
+  value,
+  artifact: "issuerReport",
+  periodType: "interim",
+  periodEnd,
+  unit,
+  currency: "MYR",
+  sourceIds: ["web-x"],
+});
+
 describe("business framework evidence", () => {
   const phaseCases = [
     {
@@ -451,6 +468,37 @@ describe("business framework evidence", () => {
       status: "missing",
     });
     expect(gapOf(undated, "business-framework-moat")).toBeDefined();
+  });
+
+  test("publishes a P/E on non-positive earnings as not meaningful with the raw value as input", () => {
+    const base = evidence();
+    const withYahoo = (metrics: Record<string, number>) =>
+      framework(
+        evidence({
+          items: base.items.map((item) =>
+            item.category === "yahoo-fundamentals" ? { ...item, metrics } : item,
+          ),
+        }),
+      );
+    const negative = withYahoo({ trailingPE: 24, epsTrailingTwelveMonths: -1, forwardPE: -40.02 });
+
+    expect(metricOf(negative, "business-framework-valuation", "forwardPE")).toMatchObject({
+      status: "not-meaningful",
+      reason: "non-positive forward earnings",
+      periodEnd: "2026-06-20T00:00:00.000Z",
+      inputs: [expect.objectContaining({ key: "forwardPE", value: -40.02 })],
+    });
+    expect(metricOf(negative, "business-framework-valuation", "trailingPE")).toMatchObject({
+      status: "not-meaningful",
+      reason: "non-positive trailing earnings",
+    });
+    expect(
+      metricOf(
+        withYahoo({ trailingPE: 24, forwardPE: 21, epsForward: 2 }),
+        "business-framework-valuation",
+        "forwardPE",
+      ),
+    ).toMatchObject({ status: "value", value: 21 });
   });
 
   test("SEC-summary and evidence-backed values carry the period their own source publishes", () => {
@@ -911,6 +959,72 @@ describe("business framework evidence", () => {
     expect(yoy("2024-01-16")).toMatchObject({ status: "value" });
   });
 
+  // NBIS FY2025 20-F and CECO FY2025 10-K endpoints, as (prior, latest).
+  test.each([
+    { prior: -641_400_000, latest: 82_500_000, reason: "prior-year operating income is negative" },
+    { prior: 89_300_000, latest: -20_800_000, reason: "operating income turns negative" },
+    {
+      prior: -399_600_000,
+      latest: -611_700_000,
+      reason: "prior-year operating income is negative",
+    },
+    { prior: -4_100_000, latest: 121_400_000, reason: "prior-year operating income is negative" },
+  ])(
+    "YoY from $prior to $latest is not meaningful on the statement and summary paths",
+    ({ prior, latest, reason }) => {
+      const artifact = statements({ OperatingIncomeLoss: annual(prior, latest) });
+      const canonical = withCanonicalFinancialLensInputs(undefined, artifact);
+      for (const filed of [artifact, null]) {
+        const metric = metricOf(
+          framework(canonical, AS_OF, filed),
+          "business-framework-growth",
+          "operatingIncomeDeltaPercent",
+        );
+        expect(metric).toMatchObject({
+          status: "not-meaningful",
+          reason: `${reason} (${(prior / 1e6).toFixed(1)}M to ${(latest / 1e6).toFixed(1)}M)`,
+          periodEnd: "2025-12-31",
+        });
+        expect(metric?.inputs.map(({ value }) => value)).toEqual([prior, latest]);
+      }
+    },
+  );
+
+  test("YoY between two positive endpoints keeps its value on both paths", () => {
+    const artifact = statements({ Revenues: annual(91_500_000, 529_800_000) });
+    for (const filed of [artifact, null]) {
+      const metric = metricOf(
+        framework(withCanonicalFinancialLensInputs(undefined, artifact), AS_OF, filed),
+        "business-framework-growth",
+        "revenueDeltaPercent",
+      );
+      expect(metric?.status).toBe("value");
+      expect(metric?.value).toBeCloseTo(479.016_393_442_623, 9);
+    }
+  });
+
+  test.each([
+    { operatingIncome: [-10, -5], phase: "startup" },
+    { operatingIncome: [10, -5], phase: "decline" },
+  ])(
+    "a falling revenue with operating income $operatingIncome classifies as $phase",
+    ({ operatingIncome, phase }) => {
+      const artifact = statements({
+        Revenues: annual(100, 90),
+        OperatingIncomeLoss: annual(operatingIncome[0]!, operatingIncome[1]!),
+      });
+      const result = framework(
+        withCanonicalFinancialLensInputs(undefined, artifact),
+        AS_OF,
+        artifact,
+      );
+      expect(
+        metricOf(result, "business-framework-growth", "operatingIncomeDeltaPercent")?.status,
+      ).toBe("not-meaningful");
+      expect(result.artifact?.phase).toBe(phase);
+    },
+  );
+
   test("keeps SEC summary values and classification when statements are absent", () => {
     const result = framework(evidence(), AS_OF, null);
 
@@ -928,6 +1042,35 @@ describe("business framework evidence", () => {
     ).toContain(
       "Business criteria-supported (Revenue $100, Gross profit $45, Operating income $24)",
     );
+  });
+
+  test("reads an issuer YoY direction from the figure row with the same declared unit", () => {
+    const figure = (id: string, value: number, input: MetricInput): MetricResult =>
+      issuerYoyRow(id, { unit: "currency", currency: "MYR", value, inputs: [input] });
+    const thousandsQuarter = issuerCell("(1)", "MYR'000", "2026-09-30");
+    const millionsYtd = issuerCell("(1)", "MYR million", "2026-09-30");
+    const priorYtd = issuerCell("(0.5)", "MYR million", "2025-09-30");
+    const result = businessFrameworkMetrics({
+      symbol: "0097.KL",
+      issuerReport: {
+        id: "issuer-report",
+        title: "Issuer report figures",
+        metrics: [
+          figure("issuer-report-revenue-quarter-2026-09-30", -1000, thousandsQuarter),
+          figure("issuer-report-revenue-ytd-2026-09-30", -1_000_000, millionsYtd),
+          figure("issuer-report-revenue-ytd-2025-09-30", -500_000, priorYtd),
+          issuerYoyRow("issuer-report-revenue-yoy-ytd", {
+            status: "not-meaningful",
+            reason: "prior-year revenue is negative",
+            periodMonths: 9,
+            inputs: [millionsYtd, priorYtd],
+          }),
+        ],
+      },
+    });
+    const revenue = result.sections.Growth?.metrics.find(({ id }) => id === "revenueDeltaPercent");
+    expect(revenue?.inputs.map(({ value }) => value)).toEqual([-500_000, -1_000_000]);
+    expect(yoyDirection(revenue)).toBe(-500_000);
   });
 
   test("issuer report YoY rows feed Growth only on the non-statement path, with their outcome", () => {

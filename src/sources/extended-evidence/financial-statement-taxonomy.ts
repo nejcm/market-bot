@@ -12,8 +12,11 @@ import {
   allFactsForDefinition,
   isObservable,
   currencyForUnit,
+  parseFact,
   periodType,
+  taxonomyRoot,
 } from "./financial-statement-facts";
+import { isRecord } from "../../guards";
 
 export const ELECTING_DEFINITIONS = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter(
   (definition) => !CAP_FOLLOWER_SERIES.has(definition.key),
@@ -82,12 +85,7 @@ export function selectReportingCurrency(
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
 ): { readonly currency: string | undefined; readonly candidates: readonly string[] } {
-  const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
-    (definition) => definition.key === "revenue",
-  );
-  if (revenue === undefined) {
-    throw new Error("Financial statement definitions must include revenue");
-  }
+  const revenue = revenueDefinition();
   const revenueFacts = allFactsForDefinition(payload, taxonomy, revenue).filter(
     (fact) => isObservable(fact, analysisAsOf) && isAnnualReportForm(fact.canonicalForm),
   );
@@ -122,6 +120,76 @@ export function selectReportingCurrency(
       elected !== undefined && named.every((name) => name === elected) ? elected : undefined,
     candidates,
   };
+}
+
+function revenueDefinition() {
+  const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (definition) => definition.key === "revenue",
+  );
+  if (revenue === undefined) {
+    throw new Error("Financial statement definitions must include revenue");
+  }
+  return revenue;
+}
+
+export function withoutTranslationFilings(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  currency: string,
+  analysisAsOf: string,
+): { readonly payload: unknown; readonly excluded: ReadonlyMap<string, string> } {
+  const byFiling = new Map<string, ParsedFact[]>();
+  for (const fact of allFactsForDefinition(payload, taxonomy, revenueDefinition())) {
+    if (isObservable(fact, analysisAsOf)) {
+      byFiling.set(filingOf(fact), [...(byFiling.get(filingOf(fact)) ?? []), fact]);
+    }
+  }
+  // Shortcut: filings with no revenue fact or an ambiguous named currency are kept, add another anchor concept if one translates.
+  const translations = new Map(
+    [...byFiling].flatMap(([filing, facts]) => {
+      const named = namedCurrency(facts);
+      return named === undefined || named === currency ? [] : [[filing, named] as const];
+    }),
+  );
+  const root = taxonomyRoot(payload, taxonomy);
+  if (
+    translations.size === 0 ||
+    root === undefined ||
+    !isRecord(payload) ||
+    !isRecord(payload.facts)
+  ) {
+    return { payload, excluded: new Map() };
+  }
+  const excluded = new Map<string, string>();
+  const keep = (row: unknown, concept: string, unit: string) => {
+    const fact = parseFact(row, taxonomy, concept, unit);
+    const named = fact === undefined ? undefined : translations.get(filingOf(fact));
+    if (fact !== undefined && named !== undefined) {
+      excluded.set(filingOf(fact), named);
+    }
+    return named === undefined;
+  };
+  const pruned = Object.fromEntries(
+    Object.entries(root).map(([concept, entry]) =>
+      !isRecord(entry) || !isRecord(entry.units)
+        ? [concept, entry]
+        : [
+            concept,
+            {
+              ...entry,
+              units: Object.fromEntries(
+                Object.entries(entry.units).map(([unit, rows]) => [
+                  unit,
+                  currencyForUnit(unit) === currency && Array.isArray(rows)
+                    ? rows.filter((row) => keep(row, concept, unit))
+                    : rows,
+                ]),
+              ),
+            },
+          ],
+    ),
+  );
+  return { payload: { ...payload, facts: { ...payload.facts, [taxonomy]: pruned } }, excluded };
 }
 
 function filingOf(fact: ParsedFact): string {

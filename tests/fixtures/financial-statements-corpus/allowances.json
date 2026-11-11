@@ -1,14 +1,6 @@
 [
   {
     "fixture": "mara",
-    "path": "financialLens.Growth.metrics.netIncomeDeltaPercent",
-    "canonicalSha256": "ec19ac3ed3d9c98cc07605bb33a65d5f7bd8e813e54802db8183f4739070a3a3",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "canonical-exact-period-correction",
-    "justification": "MARA canonical net-income growth uses compatible 2025 and 2024 annual NetIncomeLoss facts; the legacy revenue-anchored selector omits the metric."
-  },
-  {
-    "fixture": "mara",
     "path": "financialLens.Quality.metrics.consolidatedNetIncome",
     "canonicalSha256": "f168415b1fcad8e9ca8f8d98feeaf12d656065b4f8ae275c59f54beb590754cf",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
@@ -57,43 +49,11 @@
   },
   {
     "fixture": "nbis",
-    "path": "financialLens.Growth.metrics.dilutedEpsDeltaPercent",
-    "canonicalSha256": "7cac7fea80619c6f672de4df01be27ec3dcdc7a3f0255a7da9fb6af984e32f10",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Growth.metrics.dilutedEpsDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
-    "path": "financialLens.Growth.metrics.netIncomeDeltaPercent",
-    "canonicalSha256": "2ca0521c6470ab701a8d2c734abfdaf19089ba7e2455581eca06591294e79446",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Growth.metrics.netIncomeDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
-    "path": "financialLens.Growth.metrics.operatingCashFlowDeltaPercent",
-    "canonicalSha256": "21193327b2284c02a48e62e4139520dc99f0d10569c703e225cbb6a37c681708",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Growth.metrics.operatingCashFlowDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
     "path": "financialLens.Growth.metrics.capexDeltaPercent",
     "canonicalSha256": "0b1f87bdb7baa7906af0c5231405bc102482890c7a140fc9df201cc3dcf44d93",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Growth.metrics.capexDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
-    "path": "financialLens.Growth.metrics.operatingIncomeDeltaPercent",
-    "canonicalSha256": "b2ca4e198f914992eca9ab230abfd80616176101291731a34eb8db3c338048f9",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Growth.metrics.operatingIncomeDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   },
   {
     "fixture": "nbis",
@@ -542,13 +502,5 @@
     "legacySha256": "ccc3425735a567c9d4ee041101f6fc5b222070976982f2d124e5114d55549262",
     "kind": "filed-currency",
     "justification": "mara statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
-  },
-  {
-    "fixture": "nbis",
-    "path": "financialLens.Growth.metrics.continuingIncomeDeltaPercent",
-    "canonicalSha256": "ee53ef4e7bab083fc57988942ea69680e2e28d0482e4afcc07633796f37c6c9c",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Growth.metrics.continuingIncomeDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   }
 ]

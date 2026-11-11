@@ -896,6 +896,22 @@ describe("issuer report phase", () => {
       expect(phaseGaps[0]?.message).not.toContain("Revenue YoY");
     });
 
+    test("reads a not-meaningful issuer YoY by its checked direction for the phase", async () => {
+      const text = KLSE_TEXT.replace("| 1,127,067 | 552,728 |", "| 452,728 | 552,728 |").replace(
+        "| 254,821 | 87,009 |",
+        "| (54,821) | 87,009 |",
+      );
+      const { sources, metric } = await frameworkRun(ALL, text);
+      expect(metric("growth", "netIncomeDeltaPercent")).toMatchObject({
+        status: "not-meaningful",
+        inputs: [
+          { value: 87_009_000, derivation: "issuer cell 87,009 (MYR'000)" },
+          { value: -54_821_000, derivation: "issuer cell (54,821) (MYR'000)" },
+        ],
+      });
+      expect(sources.businessFramework?.phase).toBe("decline");
+    });
+
     test("uses the quarter when it is the only same-length pair", async () => {
       const { metric } = await frameworkRun(ALL.filter(([, cell]) => /c[23]$/u.test(cell)));
       expect(metric("growth", "revenueDeltaPercent")).toMatchObject({ periodMonths: 3 });
@@ -1269,6 +1285,36 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
       });
     });
 
+    test.each([
+      [
+        "(118,580)",
+        "34,716",
+        "profit attributable to owners of the parent turns negative (34.7M MYR to -118.6M MYR)",
+      ],
+      [
+        "118,580",
+        "(34,716)",
+        "prior-year profit attributable to owners of the parent is negative (-34.7M MYR to 118.6M MYR)",
+      ],
+      [
+        "(118,580)",
+        "(34,716)",
+        "prior-year profit attributable to owners of the parent is negative (-34.7M MYR to -118.6M MYR)",
+      ],
+      ["118,580", "0", "prior-year profit attributable to owners of the parent is zero"],
+    ])("marks a profit YoY from %s vs %s not meaningful", async (current, prior, reason) => {
+      const snippet = KLSE_TEXT.replace("| 118,580 | 34,716 |", `| ${current} | ${prior} |`);
+      const { metric } = await phase(
+        [source({ snippet })],
+        ["profit-attributable-to-owners", "t1:r5:c2"],
+        ["profit-attributable-to-owners", "t1:r5:c3"],
+      );
+      expect(metric("issuer-report-profit-attributable-to-owners-yoy-quarter")).toMatchObject({
+        status: "not-meaningful",
+        reason,
+      });
+    });
+
     test("withholds an unstated figure instead of setting it beside another document's total", async () => {
       const unstated = source({
         id: "web-unstated",
@@ -1452,8 +1498,8 @@ ${QUARTER_HEAD}| Revenue from continuing operations | 500,000 | 400,000 |
       ).report.keyFindings.map(({ text }) => text);
 
     expect(audit(report.keyFindings)).toEqual([
-      "Quarter revenue was MYR 485.1M, a change of 112.2%.",
-      "Quarter basic EPS was MYR 0.0626 or 6.26 sen through 2026-09-30.",
+      "Quarter revenue was MYR 485.1M (Revenue, quarter), a change of 112.2% (Revenue change vs prior-year quarter).",
+      "Quarter basic EPS was MYR 0.0626 or 6.26 sen (Basic EPS, quarter) through 2026-09-30.",
     ]);
     expect(
       audit(report.keyFindings.map(({ renderedMetrics: _rendered, ...finding }) => finding)),

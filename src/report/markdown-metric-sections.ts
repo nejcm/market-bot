@@ -20,13 +20,6 @@ function metricLine(
     metric.status === "value"
       ? formatMetricValue(metric.value, metric.unit, metric.currency)
       : undefined;
-  if (value === undefined) {
-    const status =
-      metric.status === "not-applicable" || metric.status === "not-meaningful"
-        ? metric.status.replaceAll("-", " ")
-        : "not available";
-    return [`- ${label}: ${status}, ${markdownText(metric.reason ?? "no value")}`];
-  }
   const detail = [
     ...(metric.periodEnd === undefined
       ? []
@@ -42,9 +35,16 @@ function metricLine(
     ...(metric.basis === undefined ? [] : [metric.basis]),
   ].join("; ");
   const refs = sourceRefs(citedSourceIds(report, metric));
-  return [
-    `- ${label}: ${markdownText(value)}${detail === "" ? "" : ` (${markdownText(detail)})`}${refs === "" ? "" : ` ${refs}`}`,
-  ];
+  const provenance = `${detail === "" ? "" : ` (${markdownText(detail)})`}${refs === "" ? "" : ` ${refs}`}`;
+  if (value === undefined) {
+    const reason = markdownText(metric.reason ?? "no value");
+    if (metric.status === "not-meaningful") {
+      return [`- ${label}: not meaningful, ${reason}${provenance}`];
+    }
+    const status = metric.status === "not-applicable" ? "not applicable" : "not available";
+    return [`- ${label}: ${status}, ${reason}`];
+  }
+  return [`- ${label}: ${markdownText(value)}${provenance}`];
 }
 
 export function renderMetricSections(

@@ -195,7 +195,7 @@ describe("capitalReturnSection", () => {
         }),
         [{ id: "capital-return", title: "Capital return", metrics: [result.metric("dpsCagr3y")] }],
       ).keyFindings[0]!.text,
-    ).toMatch(/^DPS grew \+\d+\.\d% CAGR over 3y\.$/u);
+    ).toMatch(/^DPS grew \+\d+\.\d% \(Dividends per share growth \(3y CAGR\)\)\.$/u);
     expect(result.metric("earliestDividendFyInHistory")).toMatchObject({
       status: "value",
       value: "FY2019",

@@ -33,6 +33,7 @@ import {
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { marketSnapshot } from "./support/fixtures";
 import { financialStatementsDebtBasisGaps } from "../src/sources/extended-evidence/sec-debt";
+import { withoutTranslationFilings } from "../src/sources/extended-evidence/financial-statement-taxonomy";
 
 interface FactInput {
   readonly value: number;
@@ -58,6 +59,16 @@ function fact(input: FactInput): Record<string, unknown> {
       `${input.filedAt.replaceAll("-", "")}-${input.form.replaceAll("/", "-")}`,
     ...(input.periodStart !== undefined ? { start: input.periodStart } : {}),
   };
+}
+
+function annualAccessions(series: FinancialStatementSeries): readonly string[] {
+  return series.annual.map(
+    ({ periodEnd, accessionNumber }) => `${periodEnd} ${String(accessionNumber)}`,
+  );
+}
+
+function withoutStart(row: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(row).filter(([field]) => field !== "start"));
 }
 
 function withoutAccession(row: Record<string, unknown>): Record<string, unknown> {
@@ -769,6 +780,112 @@ describe("canonical financial statements", () => {
         concept: "RevenueFromContractWithCustomerExcludingAssessedTax",
       }),
     ]);
+  });
+
+  describe("convenience-translation filings (NBIS: Yandex 20-Fs report RUB, translate the latest year)", () => {
+    const filed = (accessionNumber: string, filedAt: string, value: number, year: number) =>
+      fact({
+        value,
+        accessionNumber,
+        form: "20-F",
+        fiscalYear: year,
+        fiscalPeriod: "FY",
+        filedAt,
+        periodStart: `${String(year)}-01-01`,
+        periodEnd: `${String(year)}-12-31`,
+      });
+    const balance = (accessionNumber: string, filedAt: string, value: number, year: number) =>
+      withoutStart(filed(accessionNumber, filedAt, value, year));
+    const rubFiling = "0001558370-22-005654";
+    const usdFiling = "0001558370-25-005991";
+    const nbisShape = payload({
+      "us-gaap": {
+        Revenues: {
+          RUB: [2019, 2020, 2021].map((year) => filed(rubFiling, "2022-04-20", year * 100, year)),
+          USD: [
+            filed(rubFiling, "2022-04-20", 4794, 2021),
+            filed(usdFiling, "2025-04-30", 13, 2022),
+            filed(usdFiling, "2025-04-30", 21, 2023),
+          ],
+        },
+        CashAndCashEquivalentsAtCarryingValue: {
+          USD: [
+            balance(rubFiling, "2022-04-20", 1127, 2021),
+            balance(usdFiling, "2025-04-30", 110, 2023),
+          ],
+        },
+        EarningsPerShareDiluted: {
+          "USD/shares": [
+            filed(rubFiling, "2022-04-20", -0.5, 2021),
+            filed(usdFiling, "2025-04-30", 0.6, 2023),
+          ],
+        },
+        WeightedAverageNumberOfDilutedSharesOutstanding: {
+          shares: [
+            filed(rubFiling, "2022-04-20", 362, 2021),
+            filed(usdFiling, "2025-04-30", 370, 2023),
+          ],
+        },
+      },
+    });
+
+    test("drops the translated filing's monetary facts and keeps its share counts", () => {
+      const artifact = derive(nbisShape);
+
+      expect(artifact.reportingCurrency).toBe("USD");
+      expect(annualAccessions(artifact.statements.incomeStatement.revenue)).toEqual([
+        `2022-12-31 ${usdFiling}`,
+        `2023-12-31 ${usdFiling}`,
+      ]);
+      expect(annualAccessions(artifact.statements.balanceSheet.cash)).toEqual([
+        `2023-12-31 ${usdFiling}`,
+      ]);
+      expect(annualAccessions(artifact.statements.perShare.dilutedEps)).toEqual([
+        `2023-12-31 ${usdFiling}`,
+      ]);
+      expect(annualAccessions(artifact.statements.perShare.dilutedShares)).toEqual([
+        `2021-12-31 ${rubFiling}`,
+        `2023-12-31 ${usdFiling}`,
+      ]);
+      const message = `Excluded USD convenience translations from 1 filing whose revenue is reported in RUB (${rubFiling}); annual revenue reported in USD starts with the period ended 2022-12-31`;
+      expect(artifact.omissionNotes.filter(({ code }) => code === "translation-filing")).toEqual([
+        { code: "translation-filing", message },
+      ]);
+      expect(historyGapMessages(artifact)).toContain(message);
+    });
+
+    test("a single-currency filer passes through unpruned", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2023), annual(120, 2024)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [instant(50, 2024)] },
+        },
+      });
+      const pruned = withoutTranslationFilings(companyFacts, "us-gaap", "USD", "2026-06-15");
+
+      expect(pruned).toEqual({ payload: companyFacts, excluded: new Map() });
+      expect(pruned.payload).toBe(companyFacts);
+      expect(derive(companyFacts).omissionNotes.map(({ code }) => code)).not.toContain(
+        "translation-filing",
+      );
+    });
+
+    test("a stray foreign-currency fact inside a USD filing's periods prunes nothing (CECO Pillar Two shape)", () => {
+      const tenK = "0000003197-26-000010";
+      const companyFacts = payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [2023, 2024, 2025].map((year) => filed(tenK, "2026-02-20", year, year)),
+            EUR: [filed(tenK, "2026-02-20", 750_000_000, 2025)],
+          },
+        },
+      });
+      const pruned = withoutTranslationFilings(companyFacts, "us-gaap", "USD", "2026-06-15");
+
+      expect(pruned.payload).toBe(companyFacts);
+      expect(pruned.excluded.size).toBe(0);
+      expect(derive(companyFacts).statements.incomeStatement.revenue.annual).toHaveLength(3);
+    });
   });
 
   describe("revenue concept switch on a same-filing dual tag (ORCL FY26 10-K 0001193125-26-277521)", () => {

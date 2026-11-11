@@ -17,6 +17,8 @@ import type {
   MetricResult,
   MetricSection,
 } from "../sources/extended-evidence/metric-engine";
+import { notMeaningfulYoyReason } from "../sources/extended-evidence/financial-lens-inputs";
+import { deltaPercent } from "../sources/extended-evidence/sec-fundamentals-format";
 import { canonicalizeUrl } from "../sources/news-utils";
 import type { CollectedSources, RawSourceSnapshot } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
@@ -794,10 +796,17 @@ function derivedMetrics(figures: readonly IssuerReportFigure[]): readonly Metric
             `${CONCEPTS[concept].label} change vs prior-year ${BASIS_LABELS[basis]}`,
             "(current − prior-year same period) / |prior-year same period|",
             yoy,
-            ([current, prior]) =>
-              prior.value <= 0
-                ? "prior-year figure is zero or negative"
-                : (current.value - prior.value) / Math.abs(prior.value),
+            ([current, prior]) => {
+              if (deltaPercent(current.value, prior.value) !== undefined) {
+                return (current.value - prior.value) / Math.abs(prior.value);
+              }
+              return notMeaningfulYoyReason(
+                CONCEPTS[concept].label.toLowerCase(),
+                prior.value,
+                current.value,
+                ` ${current.currency}`,
+              );
+            },
           ),
         );
       }

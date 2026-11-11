@@ -739,8 +739,10 @@ export function metricSectionsSourceRows(value: unknown): readonly ExtraSourceRo
             ? { label: `${path} (${section.id}.${metric.id})` }
             : {}),
           sourceIds: allStrings(metric.sourceIds),
-          // Only a value row renders its citations; the others render a reason.
-          ...(metric.status === "value" ? {} : { unrendered: true as const }),
+          // Missing and not-applicable rows render only a reason, without citations.
+          ...(metric.status === "value" || metric.status === "not-meaningful"
+            ? {}
+            : { unrendered: true as const }),
         },
       ];
     });

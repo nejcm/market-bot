@@ -4768,42 +4768,6 @@
             "periodEnd": "2026-03-31",
             "periodMonths": 3
           },
-          "operatingIncomeDeltaPercent": {
-            "key": "operatingIncomeDeltaPercent",
-            "label": "Operating income YoY",
-            "value": -96.18713532435224,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2026-03-31",
-            "periodMonths": 3
-          },
-          "netIncomeDeltaPercent": {
-            "key": "netIncomeDeltaPercent",
-            "label": "Net income (attrib.) YoY",
-            "value": -342.3044306451881,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2025-12-31",
-            "periodMonths": 12
-          },
-          "dilutedEpsDeltaPercent": {
-            "key": "dilutedEpsDeltaPercent",
-            "label": "Diluted EPS YoY",
-            "value": -113.54838709677419,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2026-03-31",
-            "periodMonths": 3
-          },
-          "operatingCashFlowDeltaPercent": {
-            "key": "operatingCashFlowDeltaPercent",
-            "label": "Operating cash flow YoY",
-            "value": -14.850478912978913,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2026-03-31",
-            "periodMonths": 3
-          },
           "capexDeltaPercent": {
             "key": "capexDeltaPercent",
             "label": "Capex YoY (outflow amount)",
@@ -4905,33 +4869,6 @@
             "key": "revenueDeltaPercent",
             "label": "Revenue YoY",
             "value": -18.36041966673524,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2026-03-31",
-            "periodMonths": 3
-          },
-          "operatingIncomeDeltaPercent": {
-            "key": "operatingIncomeDeltaPercent",
-            "label": "Operating income YoY",
-            "value": -96.18713532435224,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2026-03-31",
-            "periodMonths": 3
-          },
-          "dilutedEpsDeltaPercent": {
-            "key": "dilutedEpsDeltaPercent",
-            "label": "Diluted EPS YoY",
-            "value": -113.54838709677419,
-            "unit": "whole-percent",
-            "sourceIds": ["offline-sec-companyfacts-mara"],
-            "periodEnd": "2026-03-31",
-            "periodMonths": 3
-          },
-          "operatingCashFlowDeltaPercent": {
-            "key": "operatingCashFlowDeltaPercent",
-            "label": "Operating cash flow YoY",
-            "value": -14.850478912978913,
             "unit": "whole-percent",
             "sourceIds": ["offline-sec-companyfacts-mara"],
             "periodEnd": "2026-03-31",

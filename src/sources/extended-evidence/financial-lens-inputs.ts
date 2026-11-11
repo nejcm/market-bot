@@ -36,7 +36,8 @@ import {
   isCurrentBalanceSheetPeriod,
   isFreshPeriodEnd,
 } from "./valuation-comps-support";
-import { type LensValueUnit } from "./value-format";
+import { scaleCurrency, type LensValueUnit } from "./value-format";
+import { deltaPercent } from "./sec-fundamentals-format";
 import { withheldDebt } from "./sec-debt";
 
 export type LensSeries = Extract<
@@ -175,6 +176,63 @@ export function isCurrentPeriod(ctx: MetricContext, periodEnd: string | undefine
       .map((fact) => Date.parse(fact.periodEnd)),
   );
   return (newest - Date.parse(periodEnd)) / DAY_MS <= MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS;
+}
+
+export function yearOverYearOutcome(
+  label: string,
+  prior: number,
+  latest: number,
+  period: MetricPeriod,
+  inputs: readonly MetricInput[],
+): MetricOutcome {
+  const value = deltaPercent(latest, prior);
+  if (value !== undefined) {
+    return { status: "value", value, ...period, inputs };
+  }
+  return {
+    status: "not-meaningful",
+    reason: notMeaningfulYoyReason(label, prior, latest),
+    ...period,
+    inputs,
+  };
+}
+
+export function notMeaningfulYoyReason(
+  label: string,
+  prior: number,
+  latest: number,
+  unit = "",
+): string {
+  const endpoint = (value: number) => `${yoyEndpoint(value)}${unit}`;
+  const endpoints = `(${endpoint(prior)} to ${endpoint(latest)})`;
+  if (prior === 0) {
+    return `prior-year ${label} is zero`;
+  }
+  return prior < 0
+    ? `prior-year ${label} is negative ${endpoints}`
+    : `${label} turns negative ${endpoints}`;
+}
+
+// Postures and phase read a not-meaningful YoY by the direction between its two endpoints.
+export function yoyDirection(
+  result:
+    | {
+        readonly status: string;
+        readonly value?: unknown;
+        readonly inputs?: readonly MetricInput[];
+      }
+    | undefined,
+): number | undefined {
+  const [prior, latest] = result?.inputs ?? [];
+  if (result?.status === "not-meaningful" && prior !== undefined && latest !== undefined) {
+    const direction = Number(latest.value) - Number(prior.value);
+    return Number.isFinite(direction) ? direction : undefined;
+  }
+  return result?.status === "value" && typeof result.value === "number" ? result.value : undefined;
+}
+
+function yoyEndpoint(value: number): string {
+  return Math.abs(value) >= 999.5 ? scaleCurrency(value) : value.toFixed(2);
 }
 
 export function noFact(ctx: MetricContext, key: LensSeries): MetricOutcome {

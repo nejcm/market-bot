@@ -25,6 +25,7 @@ import {
   withCurrentEquityNote,
   evidenceDisplayNetDebt,
   quoteCurrencyOf,
+  yoyDirection,
 } from "./financial-lens-inputs";
 import {
   netMarginLabel,
@@ -175,7 +176,7 @@ function growthPosture(section: readonly MetricResult[] | undefined): FinancialL
       "netIncomeDeltaPercent",
       "dilutedEpsDeltaPercent",
       "operatingCashFlowDeltaPercent",
-    ].map((id) => positiveOf(valueOf(section, id))),
+    ].map((id) => positiveOf(yoyDirection(section?.find((metric) => metric.id === id)))),
     2,
   );
 }

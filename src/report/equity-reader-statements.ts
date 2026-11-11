@@ -10,6 +10,8 @@ import {
   latestFinancialStatementFact,
 } from "../sources/extended-evidence/financial-statement-selection";
 import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/sec-debt";
+import { isFreshPeriodEnd } from "../sources/extended-evidence/valuation-comps-support";
+import { SEC_FRESHNESS_DAYS } from "../config/shared";
 
 export interface LabeledPeriod {
   readonly kind: "annual" | "interim" | "ttm";
@@ -232,6 +234,22 @@ function latestPositionValue(
   return fact === undefined ? undefined : { ...statementValue(fact), periodEnd: fact.periodEnd };
 }
 
+function staleInstantNote(
+  key: "cash" | "debt",
+  value: EquityReaderFinancialPositionValue | undefined,
+  asOf: string,
+): FinancialStatementNote | undefined {
+  if (value === undefined || isFreshPeriodEnd(value.periodEnd, asOf)) {
+    return undefined;
+  }
+  return {
+    code: "stale-instant-series",
+    seriesKey: key,
+    periodKey: `instant|${value.periodEnd}`,
+    message: `${key === "cash" ? "Cash" : "Debt"} as of ${value.periodEnd} is more than ${SEC_FRESHNESS_DAYS} days before the analysis cutoff; withheld.`,
+  };
+}
+
 export function financialPosition(
   artifact: FinancialStatementsArtifact | undefined,
   reportGeneratedAt: string | undefined,
@@ -239,22 +257,38 @@ export function financialPosition(
   if (artifact === undefined) {
     return undefined;
   }
-  const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
-  const cash = latestPositionValue(artifact, "cash", cutoff);
-  const debt =
+  const asOf = reportGeneratedAt ?? artifact.analysisAsOf;
+  const cutoff = asOf.slice(0, 10);
+  const latestCash = latestPositionValue(artifact, "cash", cutoff);
+  const latestDebt =
     withheldDebt(artifact, cutoff) === undefined
       ? latestPositionValue(artifact, "debt", cutoff)
       : undefined;
+  const cashStale = staleInstantNote("cash", latestCash, asOf);
+  const debtStale = staleInstantNote("debt", latestDebt, asOf);
+  const cash = cashStale === undefined ? latestCash : undefined;
+  const debt = debtStale === undefined ? latestDebt : undefined;
+  const staleNotes = [cashStale, debtStale].filter((note) => note !== undefined);
   const dilutedShares = latestPositionValue(artifact, "dilutedShares", cutoff);
-  if (cash === undefined && debt === undefined && dilutedShares === undefined) {
+  if (
+    cash === undefined &&
+    debt === undefined &&
+    dilutedShares === undefined &&
+    staleNotes.length === 0
+  ) {
     return undefined;
   }
-  const notes = statementSurfaceNotes(
+  const surfaceNotes = statementSurfaceNotes(
     artifact,
     cutoff,
     [],
     debt?.zeroBorrowingsProof === undefined ? [] : [`instant|${debt.periodEnd}`],
   );
+  const newStale = staleNotes.filter(
+    (stale) =>
+      !surfaceNotes?.some((note) => note.code === stale.code && note.seriesKey === stale.seriesKey),
+  );
+  const notes = newStale.length === 0 ? surfaceNotes : [...(surfaceNotes ?? []), ...newStale];
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}

@@ -52,7 +52,12 @@ function resolve(gaap: Readonly<Record<string, readonly Record<string, unknown>[
       "us-gaap": Object.fromEntries(
         Object.entries({ Revenues: [revenue], ...gaap }).map(([concept, usd]) => [
           concept,
-          { units: { USD: usd } },
+          {
+            units: {
+              [concept === "WeightedAverageNumberOfDilutedSharesOutstanding" ? "shares" : "USD"]:
+                usd,
+            },
+          },
         ]),
       ),
     },
@@ -647,7 +652,7 @@ describe("older complete debt never stands in for a newer incomplete instant", (
           ),
         }),
       );
-      const position = financialPosition(artifact, ANALYSIS_AS_OF);
+      const position = financialPosition(artifact, "2026-03-31T00:00:00.000Z");
       expect(position?.debt).toBeUndefined();
       expect(position?.cash?.value).toBe(20);
       expect(position?.notes?.map((note) => note.periodKey)).toContain("instant|2025-12-31");
@@ -2493,6 +2498,74 @@ describe("debt composites drawn from more than one filing", () => {
       reasons: [
         "nonzero debt evidence from filings 0001652044-24-000022, 0001652044-25-000014 decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values",
       ],
+    });
+  });
+});
+
+describe("financial position withholds a cash or debt instant older than 180 days", () => {
+  const fy = (value: number) => instant(value, "2025-12-31", "2026-02-15", "10-K", "FY");
+  const shares = { ...fy(50), start: "2025-01-01" };
+  const balances = {
+    CashAndCashEquivalentsAtCarryingValue: [fy(20)],
+    NotesPayableCurrent: [fy(30)],
+    LongTermNotesPayable: [fy(70)],
+  };
+  const staleNotes = [
+    {
+      code: "stale-instant-series",
+      seriesKey: "cash",
+      periodKey: "instant|2025-12-31",
+      message: "Cash as of 2025-12-31 is more than 180 days before the analysis cutoff; withheld.",
+    },
+    {
+      code: "stale-instant-series",
+      seriesKey: "debt",
+      periodKey: "instant|2025-12-31",
+      message: "Debt as of 2025-12-31 is more than 180 days before the analysis cutoff; withheld.",
+    },
+  ] as const;
+
+  test("a stale instant is replaced by a note; diluted shares stay", () => {
+    const { artifact } = resolve({
+      ...balances,
+      WeightedAverageNumberOfDilutedSharesOutstanding: [shares],
+    });
+    const position = financialPosition(artifact, "2026-11-11T04:02:39.016Z");
+    expect(position?.cash).toBeUndefined();
+    expect(position?.debt).toBeUndefined();
+    expect(position?.dilutedShares?.value).toBe(50);
+    expect(position?.notes).toEqual(staleNotes);
+  });
+
+  test.each([
+    ["2026-06-29T00:00:00.000Z", true],
+    ["2026-06-29T00:00:00.001Z", false],
+    ["2026-03-31T00:00:00.000Z", true],
+  ] as const)("at %s the instant is published: %p", (generatedAt, published) => {
+    const position = financialPosition(resolve(balances).artifact, generatedAt);
+    expect(position?.cash?.value).toBe(published ? 20 : undefined);
+    expect(position?.debt?.value).toBe(published ? 100 : undefined);
+    expect(position?.notes ?? []).toEqual(published ? [] : staleNotes);
+  });
+
+  test("an artifact's own stale note for a series is not repeated", () => {
+    const { artifact } = resolve(balances);
+    const lagNote = {
+      code: "stale-instant-series",
+      seriesKey: "debt",
+      message: "Debt lags.",
+    } as const;
+    const position = financialPosition(
+      { ...artifact, omissionNotes: [...(artifact.omissionNotes ?? []), lagNote] },
+      "2026-11-11T00:00:00.000Z",
+    );
+    expect(position?.notes).toEqual([lagNote, staleNotes[0]]);
+  });
+
+  test("with everything withheld the position carries only the notes", () => {
+    expect(financialPosition(resolve(balances).artifact, "2026-11-11T00:00:00.000Z")).toEqual({
+      reportingCurrency: "USD",
+      notes: staleNotes,
     });
   });
 });

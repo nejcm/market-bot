@@ -3,6 +3,7 @@ import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import { itemByCategory, type FinancialLensPosture } from "./financial-lens-metrics";
 import {
   financialStatementFacts,
+  financialStatementFactsAreCompatible,
   financialStatementPeriodMonths,
   financialStatementSeriesByKey,
   isYearAligned,
@@ -246,7 +247,80 @@ export function summaryYearOverYear(
   );
 }
 
+function instantAt(
+  ctx: MetricContext,
+  key: FinancialStatementSeriesKey,
+  periodEnd: string,
+): FinancialStatementFact | undefined {
+  const series =
+    ctx.statements === undefined ? undefined : financialStatementSeriesByKey(ctx.statements, key);
+  return series === undefined
+    ? undefined
+    : latestFinancialStatementFact(
+        financialStatementFacts(series).filter((fact) => fact.periodEnd === periodEnd),
+      );
+}
+
+const ACQUISITION_SHARE_OF_ASSETS = 0.1;
+
+const millions = (value: number) =>
+  `${(value / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+
+// S-X Rule 1-02(w) significance: a goodwill step of 10% of prior total assets marks reported growth as spanning an acquisition.
+export function acquisitionWindowCaveat(
+  ctx: MetricContext,
+  priorEnd: string,
+  latestEnd: string,
+): { readonly note: string; readonly inputs: readonly MetricInput[] } | undefined {
+  const [before, after, assets] = [
+    instantAt(ctx, "goodwill", priorEnd),
+    instantAt(ctx, "goodwill", latestEnd),
+    instantAt(ctx, "totalAssets", priorEnd),
+  ];
+  if (
+    before === undefined ||
+    after === undefined ||
+    assets === undefined ||
+    assets.value <= 0 ||
+    !financialStatementFactsAreCompatible([before, after, assets]) ||
+    new Set([before.taxonomy, after.taxonomy, assets.taxonomy]).size > 1 ||
+    after.value - before.value < ACQUISITION_SHARE_OF_ASSETS * assets.value
+  ) {
+    return undefined;
+  }
+  const share = Math.round(((after.value - before.value) / assets.value) * 100);
+  return {
+    note: `reported revenue growth spans an acquisition: goodwill ${millions(before.value)} → ${millions(after.value)} between ${priorEnd} and ${latestEnd} (${String(share)}% of prior total assets); organic growth not established`,
+    inputs: [
+      statementInput(before, "goodwill", "goodwill"),
+      statementInput(after, "goodwill", "goodwill"),
+      statementInput(assets, "totalAssets", "total assets"),
+    ],
+  };
+}
+
 export function statementYearOverYear(
+  ctx: MetricContext,
+  key: FinancialStatementSeriesKey,
+  label: string,
+  prior: FinancialStatementFact,
+  latest: FinancialStatementFact,
+): MetricOutcome {
+  const outcome = yearOverYearChange(ctx, key, label, prior, latest);
+  if (key !== "revenue" || outcome.status !== "value") {
+    return outcome;
+  }
+  const acquisition = acquisitionWindowCaveat(ctx, prior.periodEnd, latest.periodEnd);
+  return acquisition === undefined
+    ? outcome
+    : {
+        ...outcome,
+        basis: `${outcome.basis ?? YOY_BASIS}; ${acquisition.note}`,
+        inputs: [...outcome.inputs, ...acquisition.inputs],
+      };
+}
+
+function yearOverYearChange(
   ctx: MetricContext,
   key: FinancialStatementSeriesKey,
   label: string,

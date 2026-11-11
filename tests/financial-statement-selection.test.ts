@@ -455,6 +455,15 @@ describe("financial statement selection", () => {
         concepts: { "us-gaap": ["Assets"], "ifrs-full": ["Assets"] },
       },
       {
+        key: "goodwill",
+        label: "Goodwill",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: { "us-gaap": ["Goodwill"], "ifrs-full": ["Goodwill"] },
+      },
+      {
         key: "totalLiabilities",
         label: "Total liabilities",
         statement: "balanceSheet",

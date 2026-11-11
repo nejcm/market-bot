@@ -88,6 +88,7 @@ export type FinancialTableSemanticField =
       | "incomeTaxExpense"
       | "pretaxIncome"
       | "depreciationAndAmortization"
+      | "goodwill"
     >
   | FinancialTableValidationField
   | "mezzanineEquity";

@@ -8,6 +8,7 @@ import type {
 } from "./business-framework";
 import { priorComparable } from "./financial-lens-canonical";
 import {
+  acquisitionWindowCaveat,
   withCurrentEquityNote,
   withRevenueMultipleVerdict,
   yoyDirection,
@@ -611,6 +612,7 @@ function phaseInputs(ctx: MetricContext): {
   readonly classification: PhaseClassificationInput;
   readonly inputs: readonly MetricInput[];
   readonly unalignedIncome: string;
+  readonly acquisition: string | undefined;
 } {
   // Every statement flow reads revenue YoY's period, so the rule never mixes periods.
   const anchor = latestFact(ctx, "revenue");
@@ -654,11 +656,22 @@ function phaseInputs(ctx: MetricContext): {
       ),
     ),
   ].join("; ");
-  const used = Object.entries(outcomes).flatMap(([key, outcome]) =>
-    classification[key] === undefined ? [] : [outcome],
-  );
+  const [priorRevenue, latestRevenue] = outcomes.revenueDeltaPercent.inputs ?? [];
+  const acquisition =
+    classification.revenueDeltaPercent === undefined ||
+    priorRevenue?.periodEnd === undefined ||
+    latestRevenue?.periodEnd === undefined
+      ? undefined
+      : acquisitionWindowCaveat(ctx, priorRevenue.periodEnd, latestRevenue.periodEnd);
+  const used = [
+    ...Object.entries(outcomes).flatMap(([key, outcome]) =>
+      classification[key] === undefined ? [] : [outcome],
+    ),
+    ...(acquisition === undefined ? [] : [acquisition]),
+  ];
   return {
     unalignedIncome,
+    acquisition: acquisition?.note,
     classification: { ...classification, dividendYield: dividendYield?.value },
     inputs: [
       ...new Map(
@@ -817,7 +830,7 @@ function sectionDefinitions(
         unit: "text",
         basis: PHASE_BASIS,
         compute: (context) => {
-          const { classification, inputs, unalignedIncome } = phaseInputs(context);
+          const { classification, inputs, unalignedIncome, acquisition } = phaseInputs(context);
           const phase = classifyBusinessLifecyclePhase(classification);
           const unaligned = unalignedIncome === "" ? "" : ` (${unalignedIncome})`;
           if (!inputs.some((input) => input.sourceIds.length > 0)) {
@@ -841,7 +854,9 @@ function sectionDefinitions(
             status: "value",
             value: phase,
             inputs,
-            ...(unalignedIncome === "" ? {} : { basis: `${PHASE_BASIS}; ${unalignedIncome}` }),
+            basis: [PHASE_BASIS, unalignedIncome, acquisition ?? ""]
+              .filter((part) => part !== "")
+              .join("; "),
           };
         },
       },

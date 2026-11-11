@@ -4469,6 +4469,41 @@ describe("report schema and rendering", () => {
     ).toThrow("trade-action language");
   });
 
+  test("captions the markdown phase when its Phase metric cites the acquisition goodwill inputs", () => {
+    const phaseLine = (series: string) =>
+      renderMarkdownReport({
+        ...report,
+        extras: {
+          businessFramework: { phase: "hyper-growth", sections: [] },
+          metricSections: [
+            {
+              id: "business-framework-phase",
+              title: "Business Framework: Phase",
+              metrics: [
+                {
+                  id: "phase",
+                  label: "Phase",
+                  unit: "text",
+                  basis: "Lifecycle phase",
+                  status: "value",
+                  value: "hyper-growth",
+                  inputs: [{ series }],
+                  sourceIds: [],
+                },
+              ],
+            },
+          ],
+        },
+      })
+        .split("\n")
+        .find((line) => line.startsWith("Phase: "));
+
+    expect(phaseLine("goodwill")).toBe(
+      String.raw`Phase: hyper-growth \(reported growth spans an acquisition; organic growth not established\)`,
+    );
+    expect(phaseLine("revenue")).toBe("Phase: hyper-growth");
+  });
+
   test("renders business framework extras in markdown", () => {
     const markdown = renderMarkdownReport({
       ...report,

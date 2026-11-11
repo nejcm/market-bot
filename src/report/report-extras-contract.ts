@@ -190,6 +190,7 @@ export interface WebSubjectProfileExtraValue {
 
 interface MetricResultValue {
   readonly inputs: readonly {
+    readonly series?: string;
     readonly periodType?: string;
     readonly periodStart?: string;
     readonly periodEnd?: string;
@@ -406,7 +407,13 @@ function readMetricResult(value: unknown): MetricResultValue | undefined {
     ? value.inputs
         .filter(isRecord)
         .map((input) =>
-          optionalStrings(input, ["periodType", "periodStart", "periodEnd", "derivation"]),
+          optionalStrings(input, [
+            "series",
+            "periodType",
+            "periodStart",
+            "periodEnd",
+            "derivation",
+          ]),
         )
     : [];
   const sourceIds = stringList(value);
@@ -453,6 +460,12 @@ export function readMetricSectionsExtra(value: unknown): readonly MetricSectionV
         ]
       : [],
   );
+}
+
+export function readPhaseMetric(metricSections: unknown): MetricResultValue | undefined {
+  return readMetricSectionsExtra(metricSections)
+    ?.find(({ id }) => id === "business-framework-phase")
+    ?.metrics.find(({ id }) => id === "phase");
 }
 
 // ---------------------------------------------------------------------------

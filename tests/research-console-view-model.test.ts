@@ -94,6 +94,20 @@ function frameworkSection(name: string, metricSectionIds?: readonly string[]) {
   };
 }
 
+function phaseLabelFor(series: string) {
+  return businessFrameworkView({
+    extras: {
+      businessFramework: { phase: "hyper-growth", sections: [], sourceIds: [], gaps: [] },
+      metricSections: [
+        {
+          id: "business-framework-phase",
+          metrics: [{ id: "phase", status: "value", value: "hyper-growth", inputs: [{ series }] }],
+        },
+      ],
+    },
+  })?.phaseLabel;
+}
+
 describe("research console app view model", () => {
   test("round-trips instrument routes with normalized symbols", () => {
     const pathname = instrumentPath("equity", "nvda");
@@ -2321,6 +2335,7 @@ describe("report artifact parsers", () => {
       ),
     ).toEqual({
       phase: "capital-return",
+      phaseLabel: "capital-return",
       sourceIds: ["report-source"],
       gaps: ["Management evidence unavailable"],
       sections: [
@@ -2387,6 +2402,13 @@ describe("report artifact parsers", () => {
         extras: { businessFramework: { sections: [], sourceIds: [], gaps: [] } },
       }),
     ).toEqual({ sections: [], sourceIds: [], gaps: [] });
+  });
+
+  test("captions the phase when its Phase metric cites the acquisition goodwill inputs", () => {
+    expect(phaseLabelFor("goodwill")).toBe(
+      "hyper-growth (reported growth spans an acquisition; organic growth not established)",
+    );
+    expect(phaseLabelFor("revenue")).toBe("hyper-growth");
   });
 
   test("framework tiles come from referenced Metric Sections, value rows only", () => {

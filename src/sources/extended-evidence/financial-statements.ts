@@ -364,6 +364,7 @@ function seriesRecord(
       currentAssets: get("currentAssets"),
       currentLiabilities: get("currentLiabilities"),
       totalAssets: get("totalAssets"),
+      goodwill: get("goodwill"),
       totalLiabilities: get("totalLiabilities"),
       stockholdersEquity: get("stockholdersEquity"),
       debt: get("debt"),

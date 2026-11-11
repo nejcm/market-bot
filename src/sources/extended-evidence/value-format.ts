@@ -38,6 +38,16 @@ const CURRENCY_TIERS = [
   { min: 999.5, unit: 1000, suffix: "K", digits: 1 },
 ] as const;
 
+// The acquisition caveat cites goodwill, so a goodwill input marks a Phase whose growth spans an acquisition.
+export function phaseLabel(
+  phase: string,
+  metric?: { readonly inputs: readonly { readonly series?: string }[] },
+): string {
+  return metric?.inputs.some((input) => input.series === "goodwill") === true
+    ? `${phase} (reported growth spans an acquisition; organic growth not established)`
+    : phase;
+}
+
 export function scaleCurrency(value: number): string {
   const tier = CURRENCY_TIERS.find(({ min }) => Math.abs(value) >= min);
   return tier ? `${(value / tier.unit).toFixed(tier.digits)}${tier.suffix}` : value.toFixed(0);

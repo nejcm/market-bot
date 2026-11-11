@@ -18,7 +18,7 @@ import {
 } from "./business-framework-metrics";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import type { MetricSection } from "./metric-engine";
-import { formatMetricValue, type LensValueUnit } from "./value-format";
+import { formatMetricValue, phaseLabel, type LensValueUnit } from "./value-format";
 
 export {
   isBusinessFrameworkGapCode,
@@ -215,7 +215,10 @@ export function sectionSummary(
         metric.status === "value"
           ? formatMetricValue(metric.value, metric.unit, metric.currency)
           : undefined;
-      return value === undefined ? [] : [`${metric.label} ${value}`];
+      if (value === undefined) {
+        return [];
+      }
+      return [`${metric.label} ${metric.id === "phase" ? phaseLabel(value, metric) : value}`];
     })
     .slice(0, 3)
     .join(", ");

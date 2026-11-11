@@ -3,6 +3,7 @@ import { type ResearchReport } from "../domain/report";
 import { isRecord } from "../guards";
 import {
   readBusinessFrameworkExtra,
+  readPhaseMetric,
   readWebSubjectProfileExtra,
   splitProfileGaps,
   webSubjectProfileQuestionKeys,
@@ -15,6 +16,7 @@ import {
   type WebSubjectProfileQuestionKey,
 } from "../web-evidence/contract";
 import { compactNumber } from "./equity-reader-trends";
+import { phaseLabel } from "../sources/extended-evidence/value-format";
 import { citedSourceIds, markdownText, readStringArray, sourceRefs } from "./markdown-primitives";
 
 export function renderBusinessFramework(report: ResearchReport): string {
@@ -62,7 +64,11 @@ export function renderBusinessFramework(report: ResearchReport): string {
   return [
     "## Business Framework",
     "",
-    `Phase: ${markdownText(framework.phase ?? "not classified")}`,
+    `Phase: ${markdownText(
+      framework.phase === undefined
+        ? "not classified"
+        : phaseLabel(framework.phase, readPhaseMetric(report.extras?.metricSections)),
+    )}`,
     "",
     ...rows,
     ...(gaps.length > 0 ? ["", "### Framework Data Gaps", "", ...gaps] : []),

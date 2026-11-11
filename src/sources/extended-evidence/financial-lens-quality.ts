@@ -32,6 +32,7 @@ import {
   summaryPeriodsMatch,
   chosenInput,
   summaryValue,
+  depositoryInapplicable,
 } from "./financial-lens-inputs";
 
 const LATEST_PERIOD_BASIS = "latest reported period: a year-aligned annual or an interim filing";
@@ -305,6 +306,9 @@ export function cashConversionDefinition(): MetricDefinition {
     label: "Cash conversion",
     unit: "ratio",
     basis: "operating cash flow / income of the same operations scope for the same period",
+    applicable: depositoryInapplicable(
+      "operating cash flow moves with deposits and trading assets, not an earnings-quality basis",
+    ),
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");

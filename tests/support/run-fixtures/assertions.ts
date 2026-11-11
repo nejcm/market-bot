@@ -1305,10 +1305,14 @@ const AAPL_LENS_VALUES = {
 };
 
 const NOT_MEANINGFUL = { status: "not-meaningful" } as const;
+const NOT_APPLICABLE = { status: "not-applicable" } as const;
 
 // A null pin asserts the metric is withheld.
 const EXPECTED_LENS_VALUES: Readonly<
-  Record<string, Readonly<Record<string, number | string | null | typeof NOT_MEANINGFUL>>>
+  Record<
+    string,
+    Readonly<Record<string, number | string | null | typeof NOT_MEANINGFUL | typeof NOT_APPLICABLE>>
+  >
 > = {
   "equity-aapl-brief": {},
   "equity-aapl-brief-prune": {},
@@ -1434,7 +1438,8 @@ const EXPECTED_LENS_VALUES: Readonly<
   "equity-web-fallback-deep": AAPL_LENS_VALUES,
   "equity-depository-deep": {
     netMargin: 0.238_337_134_563_549_66,
-    cashConversion: 5.600_260_983_036_103,
+    // Depository issuer (SIC 6022): bank operating cash flow is not an earnings-quality basis.
+    cashConversion: NOT_APPLICABLE,
     roe: 0.103_300_307_789_085_85,
     roa: 0.006_230_440_948_008_068,
     revenueDeltaPercent: 2.923_602_219_376_867,
@@ -1474,7 +1479,7 @@ export function assertFinancialLensMetricInvariants(
       sections.flatMap((section) => section.metrics).find((row) => row.id === id),
       `${fixtureName}.${id} retains its replayed value`,
     ).toMatchObject(
-      value === null || value === NOT_MEANINGFUL
+      value === null || value === NOT_MEANINGFUL || value === NOT_APPLICABLE
         ? (value ?? { status: "missing" })
         : { status: "value", value },
     );

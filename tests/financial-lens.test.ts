@@ -2025,6 +2025,30 @@ function strengthReason(
   return strengthSection(result)?.metrics.find(({ id }) => id === metricId)?.reason;
 }
 
+test("cash conversion is not applicable for a depository issuer (BNS f3c778db, JPM 59814bb4 shape)", () => {
+  const quality = (sic: string) =>
+    addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios({ sic, operatingCashFlowPeriodEnd: "2026-03-28" })],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    )
+      .metricSections?.find(({ id }) => id === "financial-lens-quality")
+      ?.metrics.find(({ id }) => id === "cashConversion");
+  expect(quality("6022")).toMatchObject({
+    status: "not-applicable",
+    reason:
+      "depository issuer (SIC 6022): operating cash flow moves with deposits and trading assets, not an earnings-quality basis",
+  });
+  expect(quality("6022")?.value).toBeUndefined();
+  expect(quality("3571")).toMatchObject({ status: "value", value: 30 / 18 });
+});
+
 describe("addFinancialLensEvidence — Financial Strength debt currentness", () => {
   const cutoff = "2026-10-08T00:00:00.000Z";
   const strengthAt = (

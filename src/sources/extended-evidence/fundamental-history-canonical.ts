@@ -126,6 +126,19 @@ function ttmPoint(series: FinancialStatementSeries): FundamentalHistoryPoint | u
   };
 }
 
+// Under 0.1% of the original is a re-rounding (CLSK FY2022 revenue 131,524,445 → 131,525,000), not a basis change.
+export function materialRestatement(
+  fact: Pick<FinancialStatementFact, "value" | "restatedFrom">,
+): boolean {
+  const original = fact.restatedFrom?.value;
+  return (
+    original !== undefined &&
+    (original === 0 ||
+      // The tolerance keeps an exact 0.1% (10 → 10.01) from failing on float subtraction.
+      Math.abs(fact.value - original) * 1000 >= Math.abs(original) * (1 - 1e-9))
+  );
+}
+
 function rawSeries(
   artifact: FinancialStatementsArtifact,
   definition: CanonicalHistoryDefinition,
@@ -177,7 +190,7 @@ function rawSeries(
   }
   const retained = series.annual.filter((fact) => annualPoint(fact) !== undefined);
   const recastAt = retained
-    .flatMap((fact) => (fact.restatedFrom === undefined ? [] : [fact.firstPublicAt]))
+    .flatMap((fact) => (materialRestatement(fact) ? [fact.firstPublicAt] : []))
     .toSorted()
     .at(-1);
   for (const fact of retained) {

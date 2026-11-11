@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.5](https://github.com/nejcm/market-bot/compare/v1.16.4...v1.16.5) (2026-11-11)
+
+### Bug Fixes
+
+- **sec:** declare newer interim periods under another revenue tag (#210) ([e4df42f](https://github.com/nejcm/market-bot/commit/e4df42fffcfca37d7b9e3c7cd1c9f2867c69a722))
+
 ## [1.16.4](https://github.com/nejcm/market-bot/compare/v1.16.3...v1.16.4) (2026-11-11)
 
 ### Bug Fixes

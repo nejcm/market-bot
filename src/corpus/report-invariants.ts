@@ -3,6 +3,7 @@ import { isCashFlowInput, PRICE_RELATIVE_KEYS } from "../sources/extended-eviden
 
 interface ReportMetricInput {
   readonly artifact?: string;
+  readonly category?: string;
   readonly series?: string;
   readonly key?: string;
   readonly value?: number | string;
@@ -210,6 +211,15 @@ export function reportInvariantViolations(
         : [];
     }),
   );
+  const filedCurrencies = new Set(
+    sections.flatMap(({ metrics }) =>
+      metrics.flatMap(({ inputs = [] }) =>
+        inputs.flatMap((input) =>
+          input.artifact === "statements" && input.currency ? [input.currency.split("/")[0]!] : [],
+        ),
+      ),
+    ),
+  );
   const numberOf = (input: ReportMetricInput) =>
     typeof input.value === "number" ? input.value : issuerFigures.get(issuerKey(input));
   for (const { section, metric } of rows) {
@@ -237,6 +247,20 @@ export function reportInvariantViolations(
     const currencies = new Set(inputs.flatMap((input) => input.currency ?? []));
     if (currencies.size > 1 && !inputs.some((input) => input.artifact === "fx")) {
       add("currency-mix-without-fx", section, id, [...currencies].join("+"));
+    }
+    // Valuation Evidence is USD-only, so it carries no operand currency of its own.
+    if (
+      metric.unit !== "text" &&
+      [...filedCurrencies].some((currency) => currency !== "USD") &&
+      inputs.some((input) => input.artifact === "evidence" && input.category === "valuation") &&
+      !inputs.some((input) => input.artifact === "fx")
+    ) {
+      add(
+        "currency-mix-without-fx",
+        section,
+        id,
+        [...new Set(["USD", ...filedCurrencies])].join("+"),
+      );
     }
     const flowPeriods = new Map<string, Set<string>>();
     for (const input of inputs) {

@@ -12,6 +12,10 @@ function metric(fields: Record<string, unknown>) {
   return fields as { readonly id?: string };
 }
 
+function filed(currency: string) {
+  return [{ id: "revenue", inputs: [{ artifact: "statements", currency }] }];
+}
+
 function invariantsOf(
   row: Record<string, unknown>,
   extra: readonly Record<string, unknown>[] = [],
@@ -342,6 +346,24 @@ describe("report sweep", () => {
     expect(
       invariantsOf({ id: "priceToSales", value: 3, inputs: [...inputs, { artifact: "fx" }] }),
     ).toEqual([]);
+  });
+
+  test("flags Valuation Evidence rows beside non-USD statements without fx", () => {
+    const valuation = { artifact: "evidence", category: "valuation" };
+    expect(
+      invariantsOf({ id: "evToRevenue", value: 3, inputs: [valuation] }, filed("CAD")),
+    ).toEqual(["currency-mix-without-fx"]);
+    expect(
+      invariantsOf({ id: "evToRevenue", value: 3, inputs: [valuation] }, filed("USD")),
+    ).toEqual([]);
+    expect(
+      invariantsOf(
+        { id: "evToRevenue", value: 3, inputs: [valuation, { artifact: "fx" }] },
+        filed("CAD"),
+      ),
+    ).toEqual([]);
+    const yahoo = { artifact: "evidence", category: "yahoo-fundamentals" };
+    expect(invariantsOf({ id: "trailingPe", value: 3, inputs: [yahoo] }, filed("CAD"))).toEqual([]);
   });
 
   test("flags flow inputs from different periods unless a single-period series sits beside a change", () => {

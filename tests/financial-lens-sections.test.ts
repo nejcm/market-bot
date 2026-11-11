@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { parseArgs, type InstrumentCommand } from "../src/cli/args";
 import type { ExtendedEvidence } from "../src/domain/evidence";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { reportInvariantViolations } from "../src/corpus/report-invariants";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -330,6 +331,46 @@ test("newer incomplete debt withholds net debt and preserves its warning from st
     status: "missing",
     reason: "incomplete debt as of 2026-03-31",
   });
+});
+
+test("CAD statements without the reporting currency trip currency-mix-without-fx", () => {
+  const artifact = statements({
+    Revenues: { units: { CAD: [annualFact(100, "2025-01-01", "2025-12-31")] } },
+    LongTermDebt: { units: { CAD: [instantFact(50, "2025-12-31")] } },
+    CashAndCashEquivalentsAtCarryingValue: { units: { CAD: [instantFact(10, "2025-12-31")] } },
+    NetCashProvidedByUsedInOperatingActivities: {
+      units: { CAD: [annualFact(20, "2025-01-01", "2025-12-31")] },
+    },
+  });
+  expect(artifact.reportingCurrency).toBe("CAD");
+  const snapshots = [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })];
+  const base = withCanonicalFinancialLensInputs(
+    { ...evidence(), items: evidence().items.filter((item) => item.category !== "valuation") },
+    artifact,
+  );
+  const hits = (reportingCurrency?: string) => {
+    const valued = addValuationEvidence(command, snapshots, base, AS_OF, reportingCurrency);
+    const { metricSections = [] } = addFinancialLensEvidence(
+      command,
+      snapshots,
+      valued.extendedEvidence,
+      verifiedMarketSnapshot(),
+      AS_OF,
+      undefined,
+      undefined,
+      artifact,
+    );
+    return reportInvariantViolations(metricSections).filter(
+      ({ invariant }) => invariant === "currency-mix-without-fx",
+    );
+  };
+  expect(hits().map(({ metric }) => metric)).toEqual([
+    "enterpriseValue",
+    "annualizedRevenue",
+    "evToAnnualizedRevenue",
+    "marketCapToAnnualizedRevenue",
+  ]);
+  expect(hits(artifact.reportingCurrency)).toEqual([]);
 });
 
 test("stale statement leverage is withheld with a Source Gap while historical margins remain", () => {

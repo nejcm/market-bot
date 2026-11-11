@@ -42,6 +42,7 @@ import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
   MIXED_PERIOD_METRIC,
 } from "../sources/extended-evidence/valuation-comps";
+import { materialRestatement } from "../sources/extended-evidence/fundamental-history-canonical";
 import { yearsBetween } from "./fiscal-years";
 import { isDeepFixture, type FixtureMeta, type RunFixtureResult } from "../replay/fixture-run";
 import { invariant, assertFinancialStatementInvariants } from "./financial-statement-invariants";
@@ -138,7 +139,7 @@ function earlierBasisFacts(
     return months !== undefined && months >= 10 && months <= 14;
   });
   const recastAt = retained
-    .flatMap((fact) => (fact.restatedFrom === undefined ? [] : [fact.firstPublicAt]))
+    .flatMap((fact) => (materialRestatement(fact) ? [fact.firstPublicAt] : []))
     .toSorted()
     .at(-1);
   const shareBasis = earlierShareBasisPeriods(statements.omissionNotes, key);

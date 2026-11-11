@@ -104,6 +104,10 @@ function tenK(filed: string) {
   return { form: "10-K", filed, accn: `${filed}-10-K` } as const;
 }
 
+function annualReport(filed: string, accn: string) {
+  return { form: "10-K", filed, accn } as const;
+}
+
 function noteStartsWith(notes: readonly string[], prefix: string): boolean {
   return notes.some((note) => note.startsWith(prefix));
 }
@@ -790,6 +794,89 @@ describe("fundamental history", () => {
           })?.cards.find((card) => card.key === "revenue")?.disclosure,
         ).toBeUndefined();
       }
+    });
+
+    // FY2023 as first filed vs as restated; FY2022 is never re-presented. Values from CLSK revenue.
+    test.each([
+      ["a dollars-to-thousands re-rounding", 131_524_445, 131_525_000, false],
+      ["a 0.05% negative restatement", -1_000_000, -1_000_500, false],
+      ["exactly 0.1%", 20_000_000, 20_020_000, true],
+      ["a 0.1% negative restatement", -1_000_000, -1_001_000, true],
+      ["a decimal exactly 0.1%", 10, 10.01, true],
+      ["a negative decimal exactly 0.1%", -10, -10.01, true],
+      ["a decimal just under 0.1%", 10, 10.0099, false],
+      ["an original of 0", 0, 1, true],
+      ["CLSK's 20.5% FY2021 restatement", 49_438_115, 39_287_105, true],
+    ] as const)(
+      "%s: FY2023 %p restated to %p, FY2022 marked %p",
+      (_, firstFiled, restated, marked) => {
+        const companyFacts = payload({
+          Revenues: { facts: filings([131_524_445, firstFiled, 400e6], [restated, 400e6, 500e6]) },
+        });
+        const statements = deriveFinancialStatements(companyFacts, {
+          symbol: "TEST",
+          generatedAt: asOf,
+          analysisAsOf: asOf,
+          sourceId: "sec-test",
+        });
+        const history = deriveFundamentalHistoryFromFinancialStatements(statements);
+        const { revenue } = history.series;
+
+        expect(revenue.annual.find((point) => point.periodEnd === "2023-12-31")?.value).toBe(
+          restated,
+        );
+        expect(noteStartsWith(revenue.notes, "annual:earlier-basis: 2022-12-31 ")).toBe(marked);
+        expect(revenue.cagr?.periodStart).toBe(marked ? undefined : "2022-12-31");
+        expect(() => assertFundamentalHistoryInvariants(history, statements, false)).not.toThrow();
+      },
+    );
+
+    test("EQIX FY2022-23 net income re-roundings leave the FY2020-25 CAGR published", () => {
+      // EQIX companyfacts (CIK 1101239), every annual NetIncomeLoss 10-K fact FY2020-25.
+      const fy2022 = annualReport("2023-02-17", "0001628280-23-004039");
+      const fy2023 = annualReport("2024-02-16", "0001628280-24-005350");
+      const fy2024 = annualReport("2025-02-12", "0001628280-25-005126");
+      const fy2025 = annualReport("2026-02-11", "0001101239-26-000032");
+      const companyFacts = payload({
+        NetIncomeLoss: {
+          facts: [
+            fy(369_777_000, 2020, annualReport("2021-02-19", "0001628280-21-002563")),
+            fy(369_777_000, 2020, annualReport("2022-02-18", "0001628280-22-003171")),
+            fy(369_777_000, 2020, fy2022),
+            fy(500_191_000, 2021, annualReport("2022-02-18", "0001628280-22-003171")),
+            fy(500_191_000, 2021, fy2022),
+            fy(500_191_000, 2021, fy2023),
+            fy(704_345_000, 2022, fy2022),
+            fy(704_345_000, 2022, fy2023),
+            fy(705_000_000, 2022, fy2024),
+            fy(969_178_000, 2023, fy2023),
+            fy(969_000_000, 2023, fy2024),
+            fy(969_000_000, 2023, fy2025),
+            fy(815_000_000, 2024, fy2024),
+            fy(815_000_000, 2024, fy2025),
+            fy(1_350_000_000, 2025, fy2025),
+          ],
+        },
+      });
+      const eqixAsOf = "2026-11-05T00:00:00.000Z";
+      const statements = deriveFinancialStatements(companyFacts, {
+        symbol: "EQIX",
+        generatedAt: eqixAsOf,
+        analysisAsOf: eqixAsOf,
+        sourceId: "sec-test",
+      });
+      const history = deriveFundamentalHistoryFromFinancialStatements(statements);
+      const { netIncome } = history.series;
+
+      expect(netIncome.annual.map((point) => point.value)).toEqual([
+        369_777_000, 500_191_000, 705_000_000, 969_000_000, 815_000_000, 1_350_000_000,
+      ]);
+      expect(noteStartsWith(netIncome.notes, "annual:earlier-basis:")).toBe(false);
+      // (1,350,000,000 / 369,777,000)^(1/5) − 1
+      expect(netIncome.cagr?.periodStart).toBe("2020-12-31");
+      expect(netIncome.cagr?.periodEnd).toBe("2025-12-31");
+      expect(netIncome.cagr?.percent).toBeCloseTo(29.562_337_5, 6);
+      expect(() => assertFundamentalHistoryInvariants(history, statements, false)).not.toThrow();
     });
 
     test("a restated capex flags only the FCF proxy, and a depository keeps FCF not applicable", () => {

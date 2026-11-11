@@ -389,9 +389,16 @@ describe("business framework evidence", () => {
     },
   ] as const;
 
-  test("leaves the phase unclassified when revenue YoY is missing", () => {
+  test("leaves the phase unclassified without revenue YoY or a falling revenue's income direction", () => {
     expect(
       classifyBusinessLifecyclePhase({ operatingIncome: 20, netIncome: 15, dividendYield: 0.02 }),
+    ).toBeUndefined();
+    expect(
+      classifyBusinessLifecyclePhase({
+        revenueDeltaPercent: -4,
+        operatingIncome: 20,
+        dividendYield: 0.02,
+      }),
     ).toBeUndefined();
   });
 
@@ -1345,4 +1352,155 @@ test("phase with no classification inputs is missing rather than an uncited valu
   expect(gapOf(result, "business-framework-phase")?.message).toContain(
     "no cited lifecycle classification inputs",
   );
+});
+
+function series(...facts: readonly unknown[]) {
+  return { units: { USD: facts } };
+}
+
+describe("phase inputs share the revenue YoY period", () => {
+  const asOf = "2026-10-31T00:00:00.000Z";
+  const filed = (val: number, start: string, end: string, form = "10-Q") => ({
+    ...fact(val, Number(end.slice(0, 4)), start, end, form),
+    filed: "2026-09-28",
+  });
+  const phaseOf = (concepts: Record<string, unknown>) => {
+    const derived = deriveFinancialStatements(
+      { facts: { "us-gaap": concepts } },
+      {
+        symbol: "AAPL",
+        generatedAt: asOf,
+        analysisAsOf: asOf,
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    const result = framework(evidence(), asOf, derived);
+    const metric = metricOf(result, "business-framework-phase", "phase");
+    const inputs = metric?.inputs ?? [];
+    return {
+      phase: result.artifact?.phase,
+      metric,
+      gap: gapOf(result, "business-framework-phase")?.message,
+      periods: new Set(
+        inputs.flatMap((input) =>
+          input.periodKey === undefined ? [] : [`${input.periodKey}|${String(input.periodType)}`],
+        ),
+      ),
+      series: new Set(inputs.map((input) => input.series)),
+    };
+  };
+  const keelRevenue = series(
+    filed(200, "2024-01-01", "2024-12-31", "10-K"),
+    filed(180, "2025-01-01", "2025-12-31", "10-K"),
+    filed(47.651, "2025-01-01", "2025-03-31"),
+    filed(36.992, "2026-01-01", "2026-03-31"),
+  );
+
+  // KEEL run 2026-11-05T11-03-17-174Z-d8ee4c0c: Q1 revenue beside 6M income.
+  test("an interim revenue anchors income on the same quarter, not a newer YTD", () => {
+    const result = phaseOf({
+      Revenues: keelRevenue,
+      OperatingIncomeLoss: series(
+        filed(-34.841, "2025-01-01", "2025-03-31"),
+        filed(-98.388, "2026-01-01", "2026-03-31"),
+        filed(-100, "2025-01-01", "2025-06-30"),
+        filed(-239.2, "2026-01-01", "2026-06-30"),
+      ),
+      NetIncomeLoss: series(
+        filed(-55.553, "2025-01-01", "2025-03-31"),
+        filed(-145.353, "2026-01-01", "2026-03-31"),
+        filed(-90, "2025-01-01", "2025-06-30"),
+        filed(-210.3, "2026-01-01", "2026-06-30"),
+      ),
+    });
+
+    expect(result.phase).toBe("decline");
+    expect([...result.periods].toSorted()).toEqual([
+      "duration:3|2025-03-31|interim",
+      "duration:3|2026-03-31|interim",
+    ]);
+    expect(result.series).toEqual(new Set(["revenue", "operatingIncome", "netIncome"]));
+  });
+
+  // CLSK run 2026-11-05T10-45-16-771Z-df74b0c2: FY revenue beside 9M income.
+  test("an annual revenue anchors income on the same fiscal year", () => {
+    const result = phaseOf({
+      Revenues: series(
+        filed(378.968, "2023-10-01", "2024-09-30", "10-K"),
+        filed(766.314, "2024-10-01", "2025-09-30", "10-K"),
+      ),
+      OperatingIncomeLoss: series(
+        filed(-149.043, "2023-10-01", "2024-09-30", "10-K"),
+        filed(318.949, "2024-10-01", "2025-09-30", "10-K"),
+        filed(200, "2024-10-01", "2025-06-30"),
+        filed(-894.6, "2025-10-01", "2026-06-30"),
+      ),
+      NetIncomeLoss: series(
+        filed(-145.777, "2023-10-01", "2024-09-30", "10-K"),
+        filed(364.464, "2024-10-01", "2025-09-30", "10-K"),
+        filed(250, "2024-10-01", "2025-06-30"),
+        filed(-996.9, "2025-10-01", "2026-06-30"),
+      ),
+    });
+
+    expect(result.phase).toBe("hyper-growth");
+    expect([...result.periods].toSorted()).toEqual([
+      "duration:12|2024-09-30|annual",
+      "duration:12|2025-09-30|annual",
+    ]);
+  });
+
+  // Before alignment the newer 6M income read as rising and the label was operating-leverage.
+  test("a falling revenue with no same-period income YoY withholds the phase", () => {
+    const result = phaseOf({
+      Revenues: series(
+        filed(100, "2025-01-01", "2025-03-31"),
+        filed(90, "2026-01-01", "2026-03-31"),
+      ),
+      OperatingIncomeLoss: series(
+        filed(10, "2025-01-01", "2025-06-30"),
+        filed(20, "2026-01-01", "2026-06-30"),
+      ),
+      NetIncomeLoss: series(
+        filed(8, "2025-01-01", "2025-06-30"),
+        filed(16, "2026-01-01", "2026-06-30"),
+      ),
+    });
+    const reason =
+      "income YoY direction unknown beside a falling revenue (no operating income for the revenue period ending 2026-03-31; no net income for the revenue period ending 2026-03-31), so no lifecycle phase is classified";
+
+    expect(result.phase).toBeUndefined();
+    expect(result.metric).toMatchObject({ status: "missing", reason });
+    expect(result.gap).toContain(reason);
+  });
+
+  test("a missing revenue YoY still names the income it could not read", () => {
+    const result = phaseOf({
+      Revenues: series(filed(90, "2026-01-01", "2026-03-31")),
+      OperatingIncomeLoss: series(filed(20, "2026-01-01", "2026-06-30")),
+    });
+
+    expect(result.metric).toMatchObject({
+      status: "missing",
+      reason: expect.stringContaining(
+        "(no operating income for the revenue period ending 2026-03-31;",
+      ),
+    });
+  });
+
+  test("a published phase names the income it could not read for the revenue period", () => {
+    const result = phaseOf({
+      Revenues: series(
+        filed(50, "2025-01-01", "2025-03-31"),
+        filed(80, "2026-01-01", "2026-03-31"),
+      ),
+      OperatingIncomeLoss: series(filed(-239.2, "2026-01-01", "2026-06-30")),
+    });
+
+    expect(result.phase).toBe("hyper-growth");
+    expect(result.metric?.basis).toContain(
+      "; no operating income for the revenue period ending 2026-03-31",
+    );
+    expect(result.series).toEqual(new Set(["revenue"]));
+  });
 });

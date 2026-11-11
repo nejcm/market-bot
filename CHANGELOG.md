@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.12](https://github.com/nejcm/market-bot/compare/v1.16.11...v1.16.12) (2026-11-11)
+
+### Bug Fixes
+
+- **valuation:** withhold revenue-multiple verdict on stale revenue (#217) ([d6a884d](https://github.com/nejcm/market-bot/commit/d6a884dfa2fc2e85e3fc097af03870b6866bbbdb))
+
 ## [1.16.11](https://github.com/nejcm/market-bot/compare/v1.16.10...v1.16.11) (2026-11-11)
 
 ### Bug Fixes

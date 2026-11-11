@@ -468,6 +468,32 @@ describe("equity reader projection", () => {
     );
   });
 
+  test("adds one earlier-basis line naming the flagged trend series", () => {
+    const history = annualAndTtmHistory();
+    const first = history.series.revenue.annual.at(-5)!;
+    const note = `annual:earlier-basis: ${first.periodEnd} last filed ${first.filedAt} (acc), before the 2026-04-30 filing restated later revenue periods; not re-presented`;
+    const flag = (key: "revenue" | "operatingMargin", label: string) => ({
+      ...history.series[key],
+      label,
+      notes: [...history.series[key].notes, note],
+    });
+    const trends = projectEquityReader({
+      report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+      fundamentalHistory: {
+        ...history,
+        series: {
+          ...history.series,
+          revenue: flag("revenue", "Revenue"),
+          operatingMargin: flag("operatingMargin", "Operating margin"),
+        },
+      },
+    }).defaultView.financialTrends;
+
+    expect(trends?.restatements).toEqual([
+      `${trends!.rows[0]!.period} is on an earlier presentation basis for revenue, operating margin: a later filing restated later periods and does not re-present this year, so changes from it to later rows mix bases.`,
+    ]);
+  });
+
   test("labels a restated annual trend value with the original filing's value", () => {
     const history = annualAndTtmHistory();
     const [first, ...rest] = history.series.revenue.annual.slice(-5);

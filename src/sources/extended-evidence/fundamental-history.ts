@@ -85,6 +85,18 @@ export function negativeCapexTtmNote(periodEnd: string): string {
   return `ttm:negative-capex: ${periodEnd} omitted; ${NEGATIVE_CAPEX_REASON}`;
 }
 
+const EARLIER_BASIS_PREFIX = "annual:earlier-basis: ";
+
+export function earlierBasisEnds(notes: readonly string[]): ReadonlySet<string> {
+  return new Set(
+    notes.flatMap((note) =>
+      note.startsWith(EARLIER_BASIS_PREFIX)
+        ? [note.slice(EARLIER_BASIS_PREFIX.length).split(" ")[0]!]
+        : [],
+    ),
+  );
+}
+
 const FISCAL_YEAR_END_TOLERANCE_DAYS = 7;
 
 // 52/53-week fiscal years drift up to a week; a larger offset means the fiscal year end moved.
@@ -145,6 +157,13 @@ export function fundamentalHistoryCagr(
     notes.push("cagr:currency-mismatch: annual endpoints do not use the same unit");
     return undefined;
   }
+  const earlierBasis = earlierBasisEnds(notes);
+  if (earlierBasis.has(first.periodEnd) || earlierBasis.has(latest.periodEnd)) {
+    notes.push(
+      "cagr:earlier-basis: an annual endpoint predates a later restatement of this series",
+    );
+    return undefined;
+  }
   return {
     percent: ((latest.value / first.value) ** (1 / years) - 1) * 100,
     years,
@@ -200,6 +219,12 @@ function pairSeries(
     if (value === undefined) {
       notes.push(`annual:invalid-denominator: ${leftPoint.periodEnd} omitted`);
       return [];
+    }
+    const basisNote = [...left.notes, ...right.notes].find((note) =>
+      note.startsWith(`${EARLIER_BASIS_PREFIX}${leftPoint.periodEnd} `),
+    );
+    if (basisNote !== undefined) {
+      notes.push(basisNote);
     }
     return [derivedPoint(leftPoint, rightPoint, value)];
   });
@@ -258,7 +283,12 @@ function pairSeries(
     );
   } else {
     const years = fiscalYearsBetween(first.periodEnd, latest.periodEnd) ?? 0;
-    if (years <= 0) {
+    const earlierBasis = earlierBasisEnds(notes);
+    if (earlierBasis.has(first.periodEnd) || earlierBasis.has(latest.periodEnd)) {
+      notes.push(
+        "margin-change:earlier-basis: an annual endpoint predates a later restatement of an input series",
+      );
+    } else if (years <= 0) {
       notes.push("margin-change:invalid-span: annual endpoint dates do not define a positive span");
     } else {
       marginChange = {
@@ -385,7 +415,21 @@ function netMarginIncome(
     annual.every((point, index) => point === total.annual[index]) &&
     ttm === total.ttm
       ? total
-      : { ...withoutTtm(total), annual, ...(ttm === undefined ? {} : { ttm }) };
+      : {
+          ...withoutTtm(total),
+          annual,
+          ...(ttm === undefined ? {} : { ttm }),
+          notes: [
+            ...total.notes.filter((note) => !note.startsWith(EARLIER_BASIS_PREFIX)),
+            ...annual.flatMap((point) =>
+              [inputs.consolidatedContinuing, inputs.continuing, inputs.consolidated, total]
+                .find((source) => source.annual.includes(point))!
+                .notes.filter((note) =>
+                  note.startsWith(`${EARLIER_BASIS_PREFIX}${point.periodEnd} `),
+                ),
+            ),
+          ],
+        };
   return { series, continuing: continuingPoints.size > 0 };
 }
 

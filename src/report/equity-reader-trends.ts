@@ -1,7 +1,8 @@
-import type {
-  FundamentalHistoryArtifact,
-  FundamentalHistoryPoint,
-  FundamentalHistorySeries,
+import {
+  earlierBasisEnds,
+  type FundamentalHistoryArtifact,
+  type FundamentalHistoryPoint,
+  type FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
 import type { ValuationMetricSuppressionReason } from "../sources/extended-evidence/valuation-workbench-contract";
 import {
@@ -240,6 +241,29 @@ const RESTATEMENT_SERIES_KEYS = [
   "capex",
 ] as const;
 
+const EARLIER_BASIS_SERIES_KEYS = [
+  "revenue",
+  "operatingIncome",
+  "operatingMargin",
+  "netIncome",
+  "freeCashFlowProxy",
+  "operatingCashFlow",
+] as const;
+
+function earlierBasisLine(history: FundamentalHistoryArtifact, period: TrendPeriod): string[] {
+  const labels = EARLIER_BASIS_SERIES_KEYS.flatMap((key) =>
+    period.kind === "annual" &&
+    earlierBasisEnds(history.series[key]?.notes ?? []).has(period.periodEnd)
+      ? [history.series[key].label.toLowerCase()]
+      : [],
+  );
+  return labels.length === 0
+    ? []
+    : [
+        `${periodLabel(period)} is on an earlier presentation basis for ${labels.join(", ")}: a later filing restated later periods and does not re-present this year, so changes from it to later rows mix bases.`,
+      ];
+}
+
 function financialTrendRestatements(history: FundamentalHistoryArtifact): readonly string[] {
   return trendPeriods(history).flatMap((period) => {
     const originals = RESTATEMENT_SERIES_KEYS.flatMap((key) => {
@@ -255,11 +279,14 @@ function financialTrendRestatements(history: FundamentalHistoryArtifact): readon
             `${series.label.toLowerCase()} ${formatTrendAmount(original.value)} (filed ${original.filedAt})`,
           ];
     });
-    return originals.length === 0
-      ? []
-      : [
-          `${periodLabel(period)} shows restated values; as originally filed: ${originals.join(", ")}.`,
-        ];
+    return [
+      ...(originals.length === 0
+        ? []
+        : [
+            `${periodLabel(period)} shows restated values; as originally filed: ${originals.join(", ")}.`,
+          ]),
+      ...earlierBasisLine(history, period),
+    ];
   });
 }
 

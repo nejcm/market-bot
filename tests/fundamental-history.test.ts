@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
+import type { RunSummary } from "../src/run-artifact-index-types";
+import { assertFundamentalHistoryInvariants } from "../src/corpus/financial-invariants";
 import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -95,6 +98,10 @@ function derive(
     }),
     depositorySic,
   );
+}
+
+function tenK(filed: string) {
+  return { form: "10-K", filed, accn: `${filed}-10-K` } as const;
 }
 
 function noteStartsWith(notes: readonly string[], prefix: string): boolean {
@@ -646,5 +653,166 @@ describe("fundamental history", () => {
 
     expect(migrated.series.revenue.annual).toHaveLength(3);
     expect(migrated.series.revenue.annual.every((point) => point.form === "20-F")).toBe(true);
+  });
+
+  describe("earlier presentation basis", () => {
+    // NBIS 20-F: FY2025 filing (0001104659-26-052948) re-presents FY2023-24 for discontinued ops, not FY2022.
+    const original = { form: "20-F", filed: "2025-04-30", accn: "0001558370-25-005991" } as const;
+    const recast = { form: "20-F", filed: "2026-04-30", accn: "0001104659-26-052948" } as const;
+    const fy = (value: number, year: number, filing: FactOverrides) =>
+      fact(value, {
+        ...filing,
+        fy: year,
+        start: `${String(year)}-01-01`,
+        end: `${String(year)}-12-31`,
+      });
+    const filings = (
+      first: readonly number[],
+      second: readonly number[],
+    ): readonly Record<string, unknown>[] => [
+      ...first.map((value, index) => fy(value, 2022 + index, original)),
+      ...second.map((value, index) => fy(value, 2023 + index, recast)),
+    ];
+    const nbis = payload({
+      Revenues: { facts: filings([13.5e6, 20.9e6, 117.5e6], [9.8e6, 91.5e6, 529.8e6]) },
+      OperatingIncomeLoss: {
+        facts: filings([-158e6, -327.5e6, -440.7e6], [-285.7e6, -399.6e6, -611.7e6]),
+      },
+      NetIncomeLoss: { facts: filings([745.6e6, 241.3e6, -641.4e6], [241.3e6, -641.4e6, 82.5e6]) },
+    });
+    const asOf = "2026-06-01T00:00:00.000Z";
+    const basisNote =
+      "annual:earlier-basis: 2022-12-31 last filed 2025-04-30 (0001558370-25-005991), before the 2026-04-30 filing restated later revenue periods; not re-presented";
+
+    test("flags NBIS FY2022 and withholds the revenue CAGR and margin change from it", () => {
+      const { series } = derive(nbis, asOf);
+
+      expect(series.revenue.annual.map((point) => point.value)).toEqual([
+        13.5e6, 9.8e6, 91.5e6, 529.8e6,
+      ]);
+      expect(series.revenue.notes).toContain(basisNote);
+      expect(series.revenue.cagr).toBeUndefined();
+      expect(series.revenue.notes).toContain(
+        "cagr:earlier-basis: an annual endpoint predates a later restatement of this series",
+      );
+      expect(
+        noteStartsWith(series.operatingIncome.notes, "annual:earlier-basis: 2022-12-31 "),
+      ).toBe(true);
+      expect(series.operatingMargin.annual[0]?.value).toBeCloseTo(-158 / 13.5);
+      expect(
+        noteStartsWith(series.operatingMargin.notes, "annual:earlier-basis: 2022-12-31 "),
+      ).toBe(true);
+      expect(series.operatingMargin.marginChange).toBeUndefined();
+      expect(series.operatingMargin.notes).toContain(
+        "margin-change:earlier-basis: an annual endpoint predates a later restatement of an input series",
+      );
+      expect(noteStartsWith(series.netIncome.notes, "annual:earlier-basis:")).toBe(false);
+      expect(series.netIncome.cagr?.periodStart).toBe("2022-12-31");
+      const cards = fundamentalHistoryView({
+        summary: {} as RunSummary,
+        fundamentalHistory: derive(nbis, asOf),
+      })?.cards;
+      expect(cards?.find((card) => card.key === "revenue")?.disclosure).toBe(
+        "Earlier points predate a restatement and are not re-presented; no CAGR or margin change spans them.",
+      );
+    });
+
+    const tenKs = (first: readonly number[], second: readonly number[]) => [
+      ...first.map((value, index) => fy(value, 2022 + index, tenK("2025-02-01"))),
+      ...second.map((value, index) => fy(value, 2023 + index, tenK("2026-02-01"))),
+    ];
+    const marginInputs = (netIncome: readonly number[], continuing: readonly number[]) => {
+      const statements = deriveFinancialStatements(
+        payload({
+          Revenues: { facts: tenKs([100, 120, 140], [120, 140, 160]) },
+          NetIncomeLoss: { facts: tenKs([10, 12, 14], netIncome) },
+          IncomeLossFromContinuingOperations: { facts: tenKs(continuing, [9, 11, 13]) },
+        }),
+        { symbol: "TEST", generatedAt: asOf, analysisAsOf: asOf, sourceId: "sec-test" },
+      );
+      return { statements, history: deriveFundamentalHistoryFromFinancialStatements(statements) };
+    };
+
+    // Equal and near-equal total income must not stand in for the selected continuing numerator.
+    test.each([8, 10, 10.000_000_005])(
+      "net margin carries the restated continuing numerator's basis note (FY2022 continuing %p)",
+      (continuingFy2022) => {
+        const { statements, history } = marginInputs([12, 14, 16], [continuingFy2022, 10, 12]);
+        const { netMargin } = history.series;
+
+        expect(netMargin.annual[0]?.value).toBe(continuingFy2022 / 100);
+        expect(noteStartsWith(netMargin.notes, "annual:earlier-basis: 2022-12-31 ")).toBe(true);
+        expect(netMargin.marginChange).toBeUndefined();
+        expect(() => assertFundamentalHistoryInvariants(history, statements, false)).not.toThrow();
+        const unflagged = {
+          ...history,
+          series: {
+            ...history.series,
+            netMargin: {
+              ...netMargin,
+              notes: netMargin.notes.filter((note) => !note.startsWith("annual:earlier-basis:")),
+            },
+          },
+        };
+        expect(() => assertFundamentalHistoryInvariants(unflagged, statements, false)).toThrow(
+          /\[B12\] netMargin 2022-12-31 lacks the earlier-basis note/u,
+        );
+      },
+    );
+
+    test("net margin ignores a restatement of the total income it does not use", () => {
+      const { statements, history } = marginInputs([13, 15, 16], [8, 9, 11]);
+      const { netIncome, netMargin } = history.series;
+
+      expect(noteStartsWith(netIncome.notes, "annual:earlier-basis: 2022-12-31 ")).toBe(true);
+      expect(noteStartsWith(netMargin.notes, "annual:earlier-basis:")).toBe(false);
+      expect(netMargin.marginChange?.periodStart).toBe("2022-12-31");
+      expect(() => assertFundamentalHistoryInvariants(history, statements, false)).not.toThrow();
+    });
+
+    test("leaves a series unchanged when nothing was restated or every point was re-presented", () => {
+      const unrestated = payload({
+        Revenues: { facts: filings([10e6, 20e6, 30e6], [20e6, 30e6, 40e6]) },
+      });
+      const represented = payload({
+        Revenues: {
+          facts: [...filings([10e6, 20e6, 30e6], [25e6, 35e6, 40e6]), fy(12e6, 2022, recast)],
+        },
+      });
+      for (const companyFacts of [unrestated, represented]) {
+        const { revenue } = derive(companyFacts, asOf).series;
+        expect(noteStartsWith(revenue.notes, "annual:earlier-basis:")).toBe(false);
+        expect(revenue.cagr?.periodStart).toBe("2022-12-31");
+        expect(
+          fundamentalHistoryView({
+            summary: {} as RunSummary,
+            fundamentalHistory: derive(companyFacts, asOf),
+          })?.cards.find((card) => card.key === "revenue")?.disclosure,
+        ).toBeUndefined();
+      }
+    });
+
+    test("a restated capex flags only the FCF proxy, and a depository keeps FCF not applicable", () => {
+      const companyFacts = payload({
+        Revenues: { facts: filings([10e6, 20e6, 30e6], [20e6, 30e6, 40e6]) },
+        NetCashProvidedByUsedInOperatingActivities: {
+          facts: filings([50e6, 60e6, 70e6], [60e6, 70e6, 80e6]),
+        },
+        PaymentsToAcquirePropertyPlantAndEquipment: {
+          facts: filings([10e6, 12e6, 15e6], [11e6, 14e6, 16e6]),
+        },
+      });
+      const { series } = derive(companyFacts, asOf);
+      expect(noteStartsWith(series.revenue.notes, "annual:earlier-basis:")).toBe(false);
+      expect(noteStartsWith(series.capex.notes, "annual:earlier-basis: 2022-12-31 ")).toBe(true);
+      expect(
+        noteStartsWith(series.freeCashFlowProxy.notes, "annual:earlier-basis: 2022-12-31 "),
+      ).toBe(true);
+      expect(series.freeCashFlowProxy.cagr).toBeUndefined();
+
+      const bank = derive(nbis, asOf, "6022").series;
+      expect(noteStartsWith(bank.freeCashFlowProxy.notes, "not-applicable:")).toBe(true);
+      expect(bank.revenue.notes).toContain(basisNote);
+    });
   });
 });

@@ -603,6 +603,17 @@ describe("static equity run fixtures", () => {
             ({ periodEnd }) => periodEnd === "2021-12-31",
           ),
         ).toBe(true);
+        // FY2022 revenue 13.5M (0001558370-25-005991) predates the FY2025 20-F recast of FY2023-24.
+        const nbisRevenue =
+          result.deepEquityEvidenceBundle?.derived.fundamentalHistory?.series.revenue;
+        expect(nbisRevenue?.annual.slice(0, 2).map(({ value }) => value)).toEqual([13.5e6, 9.8e6]);
+        expect(nbisRevenue?.notes).toContain(
+          "annual:earlier-basis: 2022-12-31 last filed 2025-04-30 (0001558370-25-005991), before the 2026-04-30 filing restated later revenue periods; not re-presented",
+        );
+        expect(nbisRevenue?.cagr).toBeUndefined();
+        expect(result.markdown).toContain(
+          "FY ending 2022-12-31 (latest filed 2025-04-30) is on an earlier presentation basis for revenue, operating income, operating margin",
+        );
         expect(result.collectedSources.sourceGaps).toContainEqual(
           expect.objectContaining({
             message: expect.stringMatching(

@@ -203,6 +203,7 @@ function statements(): FinancialStatementsArtifact {
         currentAssets: series("currentAssets", "balanceSheet"),
         currentLiabilities: series("currentLiabilities", "balanceSheet"),
         totalAssets: series("totalAssets", "balanceSheet"),
+        goodwill: series("goodwill", "balanceSheet"),
         totalLiabilities: series("totalLiabilities", "balanceSheet"),
         stockholdersEquity: series("stockholdersEquity", "balanceSheet"),
         debt: series("debt", "balanceSheet", [10, 11]),

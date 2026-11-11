@@ -305,7 +305,10 @@ export function instantSeriesOmissionNotes(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy | undefined,
 ): readonly FinancialStatementNote[] {
-  const balanceSheet = series.filter((item) => item.statement === "balanceSheet");
+  // Goodwill feeds only the acquisition caveat, where an absent or lagging instant means no caveat.
+  const balanceSheet = series.filter(
+    (item) => item.statement === "balanceSheet" && item.key !== "goodwill",
+  );
   const newestEnd = balanceSheet
     .flatMap((item) => financialStatementFacts(item).map((fact) => fact.periodEnd))
     .toSorted()

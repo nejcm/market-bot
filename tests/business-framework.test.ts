@@ -7,6 +7,7 @@ import {
   frameworkGapCode,
   frameworkGaps,
   QUALITATIVE_GAPS,
+  sectionSummary,
 } from "../src/sources/extended-evidence/business-framework";
 import {
   businessFrameworkMetrics,
@@ -17,9 +18,11 @@ import { withCanonicalFinancialLensInputs } from "../src/sources/extended-eviden
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import { CURRENT_EQUITY_NOTE } from "../src/sources/extended-evidence/enterprise-value-bridge";
 import type { MarketSnapshot } from "../src/domain/market-data";
 import { yoyDirection } from "../src/sources/extended-evidence/financial-lens-inputs";
+import type { FinancialStatementFact } from "../src/sources/extended-evidence/financial-statements-contract";
 import type {
   MetricInput,
   MetricResult,
@@ -1541,5 +1544,166 @@ describe("phase inputs share the revenue YoY period", () => {
       "; no operating income for the revenue period ending 2026-03-31",
     );
     expect(result.series).toEqual(new Set(["revenue"]));
+  });
+});
+
+// CECO 10-Q filed 2026-11-09: the Thermon stock deal steps goodwill from 292.262M to 1,506.007M.
+const CECO_AS_OF = "2026-11-12T00:00:00.000Z";
+
+function cecoQuarter(val: number, start: string, end: string) {
+  return {
+    ...fact(val, Number(end.slice(0, 4)), start, end, "10-Q"),
+    fp: "Q3",
+    filed: end < "2026-01-01" ? "2025-10-28" : "2026-11-09",
+  };
+}
+
+function cecoInstant(val: number, end: string) {
+  const { start: _start, ...instantFact } = cecoQuarter(val, end, end);
+  return instantFact;
+}
+
+function cecoStatements(goodwill: readonly unknown[], priorAssets = 891_884_000) {
+  return deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: series(
+            cecoQuarter(197_599_000, "2025-07-01", "2025-09-30"),
+            cecoQuarter(404_428_000, "2026-07-01", "2026-09-30"),
+          ),
+          Assets: series(
+            cecoInstant(priorAssets, "2025-09-30"),
+            cecoInstant(3_701_156_000, "2026-09-30"),
+          ),
+          ...(goodwill.length === 0 ? {} : { Goodwill: series(...goodwill) }),
+        },
+      },
+    },
+    {
+      symbol: "CECO",
+      generatedAt: CECO_AS_OF,
+      analysisAsOf: CECO_AS_OF,
+      sourceId: "extended-sec-edgar-ceco",
+    },
+  );
+}
+
+type CecoStatements = ReturnType<typeof cecoStatements>;
+
+function metricIn(section: MetricSection | undefined, id: string) {
+  return section?.metrics.find((metric) => metric.id === id);
+}
+
+function revenueGrowthRows(artifact: CecoStatements) {
+  const { sections } = businessFrameworkMetrics({ symbol: "CECO", statements: artifact });
+  return [
+    metricIn(sections.Phase, "phase"),
+    metricIn(sections.Phase, "revenueDeltaPercent"),
+    financialLensMetrics({ symbol: "CECO", statements: artifact }).lensMetrics.Growth.find(
+      ({ id }) => id === "revenueDeltaPercent",
+    ),
+  ];
+}
+
+function patchGoodwill(
+  artifact: CecoStatements,
+  patch: Partial<FinancialStatementFact>,
+): CecoStatements {
+  const { goodwill } = artifact.statements.balanceSheet;
+  expect(goodwill.interim.length + goodwill.annual.length).toBeGreaterThan(0);
+  return {
+    ...artifact,
+    statements: {
+      ...artifact.statements,
+      balanceSheet: {
+        ...artifact.statements.balanceSheet,
+        goodwill: {
+          ...goodwill,
+          annual: goodwill.annual.map((item) => ({ ...item, ...patch })),
+          interim: goodwill.interim.map((item) => ({ ...item, ...patch })),
+        },
+      },
+    },
+  };
+}
+
+describe("acquisition caveat on reported revenue growth", () => {
+  const stepped = [
+    cecoInstant(292_262_000, "2025-09-30"),
+    cecoInstant(1_506_007_000, "2026-09-30"),
+  ];
+  const caveat =
+    "; reported revenue growth spans an acquisition: goodwill 292.3M → 1,506.0M between 2025-09-30 and 2026-09-30 (136% of prior total assets); organic growth not established";
+
+  test("a goodwill step of at least 10% of prior total assets captions Phase and both revenue YoY rows", () => {
+    const [phase, frameworkYoy, lensYoy] = revenueGrowthRows(cecoStatements(stepped));
+
+    expect(phase).toMatchObject({ status: "value", value: "hyper-growth" });
+    for (const metric of [phase, frameworkYoy, lensYoy]) {
+      expect(metric?.basis.endsWith(caveat)).toBe(true);
+      expect(
+        metric?.inputs.filter((input) =>
+          ["goodwill", "totalAssets"].includes(String(input.series)),
+        ),
+      ).toMatchObject([
+        { series: "goodwill", value: 292_262_000, periodEnd: "2025-09-30" },
+        { series: "goodwill", value: 1_506_007_000, periodEnd: "2026-09-30" },
+        { series: "totalAssets", value: 891_884_000, periodEnd: "2025-09-30" },
+      ]);
+      expect(metric?.sourceIds).toContain("extended-sec-edgar-ceco");
+    }
+    const { Phase } = businessFrameworkMetrics({
+      symbol: "CECO",
+      statements: cecoStatements(stepped),
+    }).sections;
+    expect(sectionSummary("Phase", "criteria-supported", Phase)).toContain(
+      "Phase hyper-growth (reported growth spans an acquisition; organic growth not established)",
+    );
+    expect(frameworkYoy?.value).toBeCloseTo(104.67, 2);
+    expect(yoyDirection(lensYoy)).toBe(lensYoy?.value as number);
+  });
+
+  test.each([
+    ["a step below 10% of prior total assets", cecoStatements(stepped, 12_200_000_000)],
+    ["no goodwill filed", cecoStatements([])],
+    ["goodwill missing at the prior end", cecoStatements([stepped[1]])],
+    ["goodwill missing at the latest end", cecoStatements([stepped[0]])],
+    [
+      "a goodwill decrease",
+      cecoStatements([
+        cecoInstant(1_506_007_000, "2025-09-30"),
+        cecoInstant(292_262_000, "2026-09-30"),
+      ]),
+    ],
+    [
+      "a goodwill currency other than total assets'",
+      patchGoodwill(cecoStatements(stepped), { currency: "EUR" }),
+    ],
+    [
+      "a goodwill taxonomy other than total assets'",
+      patchGoodwill(cecoStatements(stepped), { taxonomy: "ifrs-full" }),
+    ],
+  ])("%s leaves the revenue growth uncaptioned and declares no gap", (_name, artifact) => {
+    for (const metric of revenueGrowthRows(artifact)) {
+      expect(metric?.status).toBe("value");
+      expect(metric?.basis).not.toContain("acquisition");
+      expect(metric?.inputs.some((input) => input.series === "goodwill")).toBe(false);
+    }
+    expect(
+      businessFrameworkMetrics({ symbol: "CECO", statements: artifact }).sourceGaps.some(
+        ({ message }) => message.includes("goodwill"),
+      ),
+    ).toBe(false);
+  });
+
+  test("goodwill that lags the other balance-sheet instants adds no stale-instant note", () => {
+    const artifact = cecoStatements([stepped[0]]);
+
+    expect(
+      [...artifact.validationNotes, ...artifact.omissionNotes].filter(
+        (note) => note.code === "stale-instant-series" && note.seriesKey === "goodwill",
+      ),
+    ).toEqual([]);
   });
 });

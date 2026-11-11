@@ -684,6 +684,13 @@
       ],
       "ttm": null
     },
+    "goodwill": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "totalLiabilities": {
       "selectedConcept": "Liabilities",
       "selectedFact": {

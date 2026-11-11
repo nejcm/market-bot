@@ -191,8 +191,9 @@ export const US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS: readonly string[] = [
   US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
 ];
 
-// Ratio inputs follow the core statements: they never displace a capped period or sway taxonomy and currency.
+// Ratio and caveat inputs follow the core statements: they never displace a capped period or sway taxonomy and currency.
 export const CAP_FOLLOWER_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([
+  "goodwill",
   "interestExpense",
   "incomeTaxExpense",
   "pretaxIncome",
@@ -508,6 +509,15 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: false,
       concepts: { "us-gaap": ["Assets"], "ifrs-full": ["Assets"] },
+    },
+    {
+      key: "goodwill",
+      label: "Goodwill",
+      statement: "balanceSheet",
+      kind: "instant",
+      unitKind: "monetary",
+      deriveTtm: false,
+      concepts: { "us-gaap": ["Goodwill"], "ifrs-full": ["Goodwill"] },
     },
     {
       key: "totalLiabilities",

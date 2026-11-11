@@ -1,4 +1,4 @@
-import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
+import { formatLensValue, phaseLabel } from "../../src/sources/extended-evidence/value-format";
 import type {
   BusinessFrameworkMetric,
   BusinessFrameworkPosture,
@@ -11,6 +11,7 @@ import type {
 } from "../../src/web-evidence";
 import {
   readBusinessFrameworkExtra,
+  readPhaseMetric,
   readWebSubjectProfileExtra,
   splitProfileGaps,
   webSubjectProfileQuestionKeys,
@@ -76,6 +77,7 @@ interface BusinessFrameworkSectionView {
 
 export interface BusinessFrameworkView {
   readonly phase?: BusinessLifecyclePhase;
+  readonly phaseLabel?: string;
   readonly sections: readonly BusinessFrameworkSectionView[];
   readonly sourceIds: readonly string[];
   readonly gaps: readonly string[];
@@ -141,6 +143,7 @@ function referencedMetricTiles(
 function businessFrameworkFromValue(
   value: unknown,
   metricSections: readonly MetricSectionView[],
+  phaseMetric?: { readonly inputs: readonly { readonly series?: string }[] },
 ): BusinessFrameworkView | undefined {
   const framework = readBusinessFrameworkExtra(value);
   if (framework === undefined) {
@@ -180,7 +183,7 @@ function businessFrameworkFromValue(
     },
   );
   return {
-    ...(phase === undefined ? {} : { phase }),
+    ...(phase === undefined ? {} : { phase, phaseLabel: phaseLabel(phase, phaseMetric) }),
     sections,
     sourceIds: framework.sourceIds,
     gaps: framework.gaps.map(businessFrameworkGapText),
@@ -194,8 +197,11 @@ export function businessFrameworkView(
   const extras = readRecord(report?.extras);
   const metricSections = metricSectionsView(report) ?? [];
   return (
-    businessFrameworkFromValue(extras?.businessFramework, metricSections) ??
-    businessFrameworkFromValue(artifact, metricSections)
+    businessFrameworkFromValue(
+      extras?.businessFramework,
+      metricSections,
+      readPhaseMetric(extras?.metricSections),
+    ) ?? businessFrameworkFromValue(artifact, metricSections)
   );
 }
 

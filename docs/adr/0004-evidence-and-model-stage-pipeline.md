@@ -106,7 +106,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   ADR 0006) require common completed sessions and benchmark coverage. Missing benchmark history preserves
   issuer returns, never falls back to SPY; fetch failure declares Yahoo gap. Workbench
   outside-window status needs requested start and usable returned closes; unavailable history, interior
-  missing bars, and failures remain material. Lifecycle values require cited classification inputs. Price
+  missing bars, and failures remain material. Lifecycle values require cited classification inputs. When the
+  `goodwill` balance-sheet series (undimensioned `Goodwill`, a cap follower) steps up by ≥10% of prior total assets
+  (S-X 1-02(w)) between the revenue YoY period ends, Phase and both revenue YoY rows keep their values, cite both
+  goodwill instants and prior total assets, and their basis says organic growth is not established. Price
   Performance, Workbench, and snapshot share issuer history; the first two share completed split-adjusted
   closes/source IDs.
 - Financial Lens metrics retain per-metric citations: SEC for filing-intrinsic facts, Yahoo for

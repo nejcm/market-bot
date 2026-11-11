@@ -117,6 +117,7 @@ export type FinancialStatementSeriesKey =
   | "currentAssets"
   | "currentLiabilities"
   | "totalAssets"
+  | "goodwill"
   | "totalLiabilities"
   | "stockholdersEquity"
   | "debt"
@@ -425,6 +426,7 @@ export interface FinancialStatementsArtifact {
         | "currentAssets"
         | "currentLiabilities"
         | "totalAssets"
+        | "goodwill"
         | "totalLiabilities"
         | "stockholdersEquity"
         | "debt",
@@ -476,6 +478,7 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "currentAssets",
   "currentLiabilities",
   "totalAssets",
+  "goodwill",
   "totalLiabilities",
   "stockholdersEquity",
   "debt",
@@ -510,6 +513,7 @@ const LATER_SERIES: Readonly<
     statement: "perShare",
   },
   dividendsPerShare: { label: "Dividends per share", statement: "perShare" },
+  goodwill: { label: "Goodwill", statement: "balanceSheet" },
   interestExpense: { label: "Interest expense", statement: "incomeStatement" },
   incomeTaxExpense: { label: "Income tax expense", statement: "incomeStatement" },
   pretaxIncome: {

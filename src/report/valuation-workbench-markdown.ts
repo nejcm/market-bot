@@ -61,6 +61,17 @@ export function hasNoPriceHistory(observation: HistoricalValuationObservation): 
   );
 }
 
+// Cited like Metric Section rows: missing and not-applicable cells render a reason only.
+export function observationSourceIds(observation: HistoricalValuationObservation): string[] {
+  return [
+    ...new Set(
+      Object.values(observation.metrics)
+        .filter(({ status }) => status === "value" || status === "not-meaningful")
+        .flatMap(({ sourceIds }) => sourceIds),
+    ),
+  ];
+}
+
 function unpricedPeriodsLine(
   observations: readonly HistoricalValuationObservation[],
 ): string | undefined {
@@ -94,15 +105,7 @@ function historicalRow(
   ]
     .map((value) => cell(value))
     .join(" | ")} | ${
-    sourceRefs(
-      knownSourceIds(report, [
-        ...new Set(
-          Object.values(observation.metrics)
-            .filter(({ status }) => status === "value")
-            .flatMap(({ sourceIds }) => sourceIds),
-        ),
-      ]),
-    ) || "—"
+    sourceRefs(knownSourceIds(report, observationSourceIds(observation))) || "—"
   }`;
 }
 

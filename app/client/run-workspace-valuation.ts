@@ -2,6 +2,7 @@ import type { MetricResult } from "../../src/sources/extended-evidence/metric-en
 import {
   hasNoPriceHistory,
   observationBasisLabel,
+  observationSourceIds,
   valuationMetricDisplay,
   valuationScopeDisclosure,
 } from "../../src/report/valuation-workbench-markdown";
@@ -286,13 +287,7 @@ export function valuationWorkbenchView(
           observation.price === null
             ? "—"
             : `${observation.price.close.toFixed(2)} ${observation.price.currency} · ${observation.price.sessionDate}`,
-        sourceIds: [
-          ...new Set(
-            Object.values(observation.metrics)
-              .filter(({ status }) => status === "value")
-              .flatMap(({ sourceIds }) => sourceIds),
-          ),
-        ],
+        sourceIds: observationSourceIds(observation),
         priceToEarnings: valuationMetricCell(observation.metrics.priceToEarnings),
         priceToSales: valuationMetricCell(observation.metrics.priceToSales),
         enterpriseValueToRevenue: valuationMetricCell(observation.metrics.enterpriseValueToRevenue),

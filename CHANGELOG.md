@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.9](https://github.com/nejcm/market-bot/compare/v1.16.8...v1.16.9) (2026-11-11)
+
+### Bug Fixes
+
+- **lens:** withhold yahoo payout across currencies (#214) ([68b1a50](https://github.com/nejcm/market-bot/commit/68b1a50acbfc88d05105e6af60c795e75fad18fd))
+
 ## [1.16.8](https://github.com/nejcm/market-bot/compare/v1.16.7...v1.16.8) (2026-11-11)
 
 ### Bug Fixes

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.0](https://github.com/nejcm/market-bot/compare/v1.15.8...v1.16.0) (2026-11-11)
+
+### Features
+
+- catch defect classes across every saved run and in check (#205) ([6aad90d](https://github.com/nejcm/market-bot/commit/6aad90d84d7c6f7694a5e067dc4d18f44654ca50))
+
 ## [1.15.8](https://github.com/nejcm/market-bot/compare/v1.15.7...v1.15.8) (2026-11-11)
 
 ### Bug Fixes

@@ -9,6 +9,7 @@ import { renderMarkdownReport } from "../src/report/markdown";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { dividendYieldDefinition } from "../src/sources/extended-evidence/financial-lens-strength";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
@@ -1851,6 +1852,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     // Captured AAPL fixture: dividendYield 0.36 means 0.36% (whole-percent), NOT 36%.
     // A fraction unit would be ratio-percent and render as 36.0% in the tile.
     expect(divYield).toMatchObject({ value: 0.36, unit: "whole-percent" });
+    expect(dividendYieldDefinition().basis).toBe("Yahoo Finance forward indicated dividend yield");
     expect(divYield?.sourceIds).toEqual(["market-yahoo-equity-aapl"]);
     // Display-only: dividendYield does not add a posture criterion.
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
@@ -2393,7 +2395,7 @@ describe("buildYahooFundamentals", () => {
     expect(item?.summary).toContain("EPS TTM 8.26,");
     expect(item?.summary).toContain("annual dividend rate 1.040 CAD.");
     expect(item?.summary).toContain("trailing PE 36.08x");
-    expect(item?.summary).toContain("dividend yield 0.36%");
+    expect(item?.summary).toContain("forward dividend yield 0.36%");
   });
 
   test("summarizes negative-earnings P/E values as not meaningful", () => {

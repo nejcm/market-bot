@@ -864,7 +864,7 @@ function sectionDefinitions(
         id: "dividendYield",
         label: "Dividend yield",
         unit: "whole-percent",
-        basis: "Yahoo Finance trailing dividend yield",
+        basis: "Yahoo Finance forward indicated dividend yield",
         compute: evidenceValue(
           "yahoo-fundamentals",
           "dividendYield",

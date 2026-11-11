@@ -70,9 +70,8 @@ export interface MarketFundamentals {
   readonly forwardPE?: number;
   readonly priceToBook?: number;
   readonly bookValue?: number;
-  // Yahoo quote dividendYield is in whole-percent units (0.36 -> 0.36%), verified
-  // Against captured RR.L/AAPL fixtures. Do not confuse with trailingAnnualDividendYield
-  // (a fraction). See plan revision 4.
+  // Forward indicated yield (from dividendRate) in whole-percent units (0.36 -> 0.36%);
+  // Not trailingAnnualDividendYield, a fraction whose rate can be in the reporting currency.
   readonly dividendYield?: number;
   readonly epsTrailingTwelveMonths?: number;
   readonly epsForward?: number;

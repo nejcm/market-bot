@@ -60,7 +60,7 @@ export function yahooFundamentalsSummary(
   // Dividend yield is whole-percent (verified against captured fixtures).
   const yieldText = formatPercent(fundamentals.dividendYield);
   if (yieldText !== "") {
-    parts.push(`dividend yield ${yieldText}`);
+    parts.push(`forward dividend yield ${yieldText}`);
   }
   if (fundamentals.epsTrailingTwelveMonths !== undefined) {
     parts.push(`EPS TTM ${fundamentals.epsTrailingTwelveMonths.toFixed(2)}${currency}`);

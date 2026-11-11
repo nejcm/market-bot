@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.17.0](https://github.com/nejcm/market-bot/compare/v1.16.13...v1.17.0) (2026-11-11)
+
+### Features
+
+- **framework:** caveat revenue growth that spans an acquisition (#219) ([0e55a2b](https://github.com/nejcm/market-bot/commit/0e55a2b20d8d0d417d98b7d9364bbf5ff76386f8))
+
 ## [1.16.13](https://github.com/nejcm/market-bot/compare/v1.16.12...v1.16.13) (2026-11-11)
 
 ### Bug Fixes

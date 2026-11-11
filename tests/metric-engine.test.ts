@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import {
   evaluateMetricSection,
+  isCashFlowInput,
   type MetricDefinition,
 } from "../src/sources/extended-evidence/metric-engine";
 
@@ -174,5 +175,50 @@ describe("evaluateMetricSection", () => {
     });
     expect(section.metrics[0]?.value).toBeUndefined();
     expect(sourceGaps[0]?.triage).toBe("diagnostic");
+  });
+});
+
+describe("depository cash-flow gate", () => {
+  const CASH_FLOW_REASON =
+    "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful";
+  // No cashFlowBased flag: the input alone must trip the gate.
+  const unflagged: MetricDefinition = {
+    id: "ocfRatio",
+    label: "OCF ratio",
+    unit: "ratio",
+    basis: "test basis",
+    compute: () => ({
+      status: "value",
+      value: 2,
+      inputs: [{ ...input(10, ["sec-a"]), series: "operatingCashFlow" }],
+    }),
+  };
+  const flagged: MetricDefinition = { ...missingMetric, cashFlowBased: true };
+  const evaluate = (definitions: readonly MetricDefinition[], depositorySic?: string) =>
+    evaluateMetricSection("section", "Section", definitions, {
+      ...CTX,
+      ...(depositorySic === undefined ? {} : { depositorySic }),
+    }).section.metrics.map(({ status, reason, inputs }) => ({ status, reason, inputs }));
+
+  test("withholds a row with a cash-flow input for a depository issuer", () => {
+    expect(evaluate([unflagged, flagged, valueMetric], "6022")).toEqual([
+      { status: "not-applicable", reason: CASH_FLOW_REASON, inputs: [] },
+      { status: "not-applicable", reason: CASH_FLOW_REASON, inputs: [] },
+      expect.objectContaining({ status: "value" }),
+    ]);
+  });
+
+  test("leaves a non-bank's cash-flow rows untouched", () => {
+    expect(evaluate([unflagged, flagged])).toEqual([
+      expect.objectContaining({ status: "value" }),
+      expect.objectContaining({ status: "missing", reason: "no input fact" }),
+    ]);
+  });
+
+  test("detects summary evidence keys as cash-flow inputs", () => {
+    expect(isCashFlowInput({ key: "capex" })).toBe(true);
+    expect(isCashFlowInput({ key: "freeCashFlowProxy" })).toBe(true);
+    expect(isCashFlowInput({ series: "netIncome" })).toBe(false);
+    expect(isCashFlowInput({ key: "trailingPE" })).toBe(false);
   });
 });

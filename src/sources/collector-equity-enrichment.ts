@@ -313,7 +313,7 @@ export async function collectEquityEnrichment(
   const fundamentalHistory =
     financialStatements === undefined
       ? undefined
-      : deriveFundamentalHistoryFromFinancialStatements(financialStatements);
+      : deriveFundamentalHistoryFromFinancialStatements(financialStatements, depositorySic);
   const financialLensEvidence =
     financialStatements === undefined
       ? evidenceWithYahooFundamentals
@@ -411,7 +411,9 @@ export async function collectEquityEnrichment(
     financialStatements,
     periodicFilings,
     financialStatementGaps:
-      financialStatements === undefined ? [] : financialStatementGapsOf(financialStatements),
+      financialStatements === undefined
+        ? []
+        : financialStatementGapsOf(financialStatements, depositoryIssuer),
     reportingFreshness,
     subsequentFinancing,
     capitalOwnership,
@@ -637,10 +639,11 @@ interface CollectedFinancialStatements {
 
 export function financialStatementGapsOf(
   financialStatements: FinancialStatementsArtifact,
+  depositoryIssuer = false,
 ): readonly SourceGap[] {
   return [
     ...financialStatementsDebtBasisGaps(financialStatements),
-    ...cashConversionScopeGaps(financialStatements),
+    ...(depositoryIssuer ? [] : cashConversionScopeGaps(financialStatements)),
     ...canonicalStaleSeriesGaps(financialStatements),
     ...financialStatementsHistoryGaps(financialStatements),
   ];

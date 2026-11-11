@@ -61,8 +61,15 @@ export interface RunWorkspaceFundamentalHistoryCard {
   readonly geometry: RunWorkspaceSparklineGeometry;
 }
 
+interface RunWorkspaceFundamentalHistoryNotApplicable {
+  readonly key: RunWorkspaceFundamentalHistoryCard["key"];
+  readonly label: string;
+  readonly reason: string;
+}
+
 export interface RunWorkspaceFundamentalHistoryView {
   readonly cards: readonly RunWorkspaceFundamentalHistoryCard[];
+  readonly notApplicable: readonly RunWorkspaceFundamentalHistoryNotApplicable[];
 }
 
 interface RunWorkspaceFinancialTrendRow {
@@ -278,7 +285,14 @@ export function fundamentalHistoryView(
       },
     ];
   });
-  return cards.length === 0 ? undefined : { cards };
+  const notApplicable = FUNDAMENTAL_HISTORY_CARD_KEYS.flatMap((key) => {
+    const { label, notes } = artifact.series[key];
+    const reason = notes.find((note) => note.startsWith("not-applicable: "));
+    return reason === undefined
+      ? []
+      : [{ key, label, reason: reason.slice("not-applicable: ".length) }];
+  });
+  return cards.length === 0 && notApplicable.length === 0 ? undefined : { cards, notApplicable };
 }
 
 export function financialTrendFromProjection(

@@ -522,7 +522,8 @@ const CASES: readonly ReferenceCase[] = [
     metrics: {
       freeCashFlowMargin: {
         status: "not-applicable",
-        reason: "depository issuer (SIC 6022): operating cash flow is not a free cash flow basis",
+        reason:
+          "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
       },
       interestCoverage: {
         status: "not-applicable",

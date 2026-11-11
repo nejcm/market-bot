@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { financialStatementGapsOf } from "../src/sources/collector-equity-enrichment";
 import { resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
 import type { RunDetail } from "../app/types";
@@ -474,13 +475,20 @@ describe("accounting scope", () => {
     expect(cashConversionScopeGaps(artifact).map((gap) => gap.message)).toEqual([
       "SEC cash conversion withheld: no net income shares the operating cash flow period, currency, and unit",
     ]);
+    // A depository issuer's cash conversion is not applicable, so no withheld-gap is declared for it.
+    const gaps = (depository: boolean) =>
+      financialStatementGapsOf(artifact, depository).filter(({ message }) =>
+        message.startsWith("SEC cash conversion withheld"),
+      );
+    expect(gaps(false)).toHaveLength(1);
+    expect(gaps(true)).toEqual([]);
   });
 
   test("scopes history earnings by their own continuing counterpart, not by cash flow", () => {
     const { [CONTINUING_OCF]: ocf, ...rest } = clfd();
     const concepts = { ...rest, [TOTAL_OCF]: ocf! };
     const canonical = deriveFundamentalHistoryFromFinancialStatements(statements(concepts));
-    const trends = financialTrends(canonical, false)!;
+    const trends = financialTrends(canonical, undefined)!;
     const cards = fundamentalHistoryView({
       summary: {} as RunSummary,
       fundamentalHistory: canonical,
@@ -522,7 +530,7 @@ describe("accounting scope", () => {
   test("labels trend net income as total operations beside continuing FCF", () => {
     const trends = financialTrends(
       deriveFundamentalHistoryFromFinancialStatements(statements(clfd())),
-      false,
+      undefined,
     )!;
 
     expect(renderProjectedFinancialTrends(researchReport(), trends)).toContain(

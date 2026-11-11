@@ -45,15 +45,8 @@ export function isDepositorySic(sic: string | undefined): sic is string {
   );
 }
 
-// The issuer's SIC when it is a depository institution, otherwise undefined.
-// The single predicate for "is a depository issuer" — nothing else may decide this independently.
-// Five call sites evaluate it (collector's peer gate, valuation, valuation-workbench, reverse-dcf,
-// Equity-reader). They agree because canonicalization replaces the sec-edgar item in place and
-// Later stages only append, so every site sees the same issuer SIC; keep that true when reordering
-// The evidence chain.
-// Takes `unknown` because callers hand it evidence of different provenance: the collector passes a
-// Typed ExtendedEvidence, the report layer passes the extendedEvidence field of a report JSON read
-// Back from disk.
+// The single "is a depository issuer" predicate; every call site agrees because canonicalization
+// Replaces the sec-edgar item in place and later stages only append.
 export function depositoryIssuerSic(extendedEvidence: unknown): string | undefined {
   const items =
     isRecord(extendedEvidence) && Array.isArray(extendedEvidence.items)
@@ -72,8 +65,23 @@ export function depositoryIssuerSic(extendedEvidence: unknown): string | undefin
   return undefined;
 }
 
+export function depositoryReason(sic: string, why: string): string {
+  return `depository issuer (SIC ${sic}): ${why}`;
+}
+
 export function depositoryNetDebtReason(sic: string): string {
-  return `depository issuer (SIC ${sic}): deposits and borrowings fund operations rather than sitting on top of them`;
+  return depositoryReason(
+    sic,
+    "deposits and borrowings fund operations rather than sitting on top of them",
+  );
+}
+
+// Damodaran: cash flows cannot be easily estimated for financial service firms.
+export function depositoryCashFlowReason(sic: string): string {
+  return depositoryReason(
+    sic,
+    "operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
+  );
 }
 
 export interface SecIssuerRegistration {

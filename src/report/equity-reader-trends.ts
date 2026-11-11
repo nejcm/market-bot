@@ -9,6 +9,10 @@ import {
   NEGATIVE_CAPEX_REASON,
 } from "../sources/extended-evidence/financial-statement-definitions";
 import { periodLabel } from "./equity-reader-statements";
+import {
+  depositoryCashFlowReason,
+  depositoryReason,
+} from "../sources/extended-evidence/industry-classification";
 
 function metricCell(
   metric:
@@ -175,23 +179,24 @@ function notApplicableTrendMetric(rationale: string) {
   return { status: "not-applicable" as const, display: "not applicable", rationale };
 }
 
-const DEPOSITORY_OPERATING_MARGIN_RATIONALE =
-  "depository issuer; no operating income in the industrial sense";
-const DEPOSITORY_FREE_CASH_FLOW_RATIONALE =
-  "depository issuer; capex-based free cash flow is not defined";
-
 function financialTrendRows(
   history: FundamentalHistoryArtifact,
-  depositoryIssuer: boolean,
+  depositorySic: string | undefined,
 ): readonly FinancialTrendRow[] {
   // Both whole-column cells are resolved here, outside the per-period map, so a depository issuer
   // Renders the same verdict on every row whatever any single period happens to have tagged.
-  const inapplicableOperatingMargin = depositoryIssuer
-    ? metricCell(notApplicableTrendMetric(DEPOSITORY_OPERATING_MARGIN_RATIONALE))
-    : undefined;
-  const inapplicableFreeCashFlow = depositoryIssuer
-    ? metricCell(notApplicableTrendMetric(DEPOSITORY_FREE_CASH_FLOW_RATIONALE))
-    : undefined;
+  const inapplicableOperatingMargin =
+    depositorySic === undefined
+      ? undefined
+      : metricCell(
+          notApplicableTrendMetric(
+            depositoryReason(depositorySic, "no operating income in the industrial sense"),
+          ),
+        );
+  const inapplicableFreeCashFlow =
+    depositorySic === undefined
+      ? undefined
+      : metricCell(notApplicableTrendMetric(depositoryCashFlowReason(depositorySic)));
   return trendPeriods(history).map((period) => {
     const revenue = trendValue(history, "revenue", period);
     const netIncome = trendValue(history, "netIncome", period);
@@ -264,12 +269,12 @@ function financialTrendCurrency(history: FundamentalHistoryArtifact): string | u
 
 export function financialTrends(
   history: FundamentalHistoryArtifact | undefined,
-  depositoryIssuer: boolean,
+  depositorySic: string | undefined,
 ): EquityReaderFinancialTrends | undefined {
   if (history === undefined) {
     return undefined;
   }
-  const rows = financialTrendRows(history, depositoryIssuer);
+  const rows = financialTrendRows(history, depositorySic);
   if (rows.length === 0) {
     return undefined;
   }

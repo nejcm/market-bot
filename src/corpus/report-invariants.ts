@@ -1,5 +1,5 @@
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../domain/market-data";
-import { PRICE_RELATIVE_KEYS } from "../sources/extended-evidence/metric-engine";
+import { isCashFlowInput, PRICE_RELATIVE_KEYS } from "../sources/extended-evidence/metric-engine";
 
 interface ReportMetricInput {
   readonly artifact?: string;
@@ -96,6 +96,7 @@ function issuerKey(input: ReportMetricInput): string {
 export function reportInvariantViolations(
   sections: MetricSections,
   quoteSnapshots: QuoteSnapshots = [],
+  depositorySic?: string,
 ): readonly ReportViolation[] {
   const violations: ReportViolation[] = [];
   const add = (invariant: string, section: string, metric: string, detail: string) =>
@@ -266,6 +267,9 @@ export function reportInvariantViolations(
           .map(([series, periods]) => `${series}@${[...periods].join("+")}`)
           .join(" "),
       );
+    }
+    if (depositorySic !== undefined && inputs.some(isCashFlowInput)) {
+      add("cash-flow-row-published-for-depository-issuer", section, id, `SIC ${depositorySic}`);
     }
     if (VALUATION_MULTIPLES.has(id) && typeof metric.value === "number" && metric.value <= 0) {
       add("nonpositive-valuation-multiple", section, id, String(metric.value));

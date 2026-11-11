@@ -1357,7 +1357,7 @@ describe("collectSources", () => {
     ).not.toMatch(/Enterprise value missing|EV\/revenue missing/);
     expect(businessFrameworkEvMetrics).toEqual([]);
     expect(markdown).toContain(
-      "not applicable (deposit-funded issuer; enterprise value is not defined)",
+      "not applicable (depository issuer: deposits and borrowings fund operations rather than sitting on top of them)",
     );
     expect(markdown).not.toContain("2.48x");
     expect(markdown).not.toContain("$1.04T");

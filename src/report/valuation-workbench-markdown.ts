@@ -27,7 +27,7 @@ export function valuationMetricDisplay(metric: MetricResult): string {
     return "N/M";
   }
   if (metric.status === "not-applicable") {
-    return `not applicable (${metric.reason?.replace(/ \(SIC \d+\)$/u, "") ?? "no reason"})`;
+    return `not applicable (${metric.reason?.replace(/ \(SIC \d+\)/u, "") ?? "no reason"})`;
   }
   return `— (${metric.reason ?? "no value"})`;
 }

@@ -1,3 +1,4 @@
+import { depositoryCashFlowReason } from "./industry-classification";
 import {
   buildFundamentalHistorySeries,
   CONTINUING_INCOME_HISTORY,
@@ -243,40 +244,55 @@ function noncontrollingPeriods(
 
 export function deriveFundamentalHistoryFromFinancialStatements(
   artifact: FinancialStatementsArtifact,
+  depositorySic?: string,
 ): FundamentalHistoryArtifact {
   const raw = Object.fromEntries(
     DEFINITIONS.map((definition) => [definition.key, rawSeries(artifact, definition)]),
   ) as FundamentalHistoryRawSeries;
+  const series = buildFundamentalHistorySeries(
+    raw,
+    totalOperationsScopes(
+      (key) =>
+        latestFinancialStatementFact(
+          financialStatementFacts(financialStatementSeriesByKey(artifact, key)!),
+        )?.periodEnd,
+    ),
+    {
+      continuing: rawSeries(artifact, {
+        ...CONTINUING_INCOME_HISTORY,
+        canonicalKey: "continuingIncome",
+      }),
+      consolidatedContinuing: rawSeries(artifact, {
+        ...CONTINUING_INCOME_HISTORY,
+        canonicalKey: "consolidatedContinuingIncome",
+      }),
+      consolidated: rawSeries(artifact, {
+        ...CONTINUING_INCOME_HISTORY,
+        canonicalKey: "consolidatedNetIncome",
+      }),
+      reportsDiscontinued: notedPeriods(artifact, ["continuingIncome"]),
+      reportsNoncontrolling: noncontrollingPeriods(artifact),
+    },
+  );
+  const { key, label, unit } = series.freeCashFlowProxy;
   return {
     version: 1,
     generatedAt: artifact.generatedAt,
     symbol: artifact.symbol,
     sourceId: artifact.sourceId,
     ...(artifact.sourceUrl !== undefined ? { sourceUrl: artifact.sourceUrl } : {}),
-    series: buildFundamentalHistorySeries(
-      raw,
-      totalOperationsScopes(
-        (key) =>
-          latestFinancialStatementFact(
-            financialStatementFacts(financialStatementSeriesByKey(artifact, key)!),
-          )?.periodEnd,
-      ),
-      {
-        continuing: rawSeries(artifact, {
-          ...CONTINUING_INCOME_HISTORY,
-          canonicalKey: "continuingIncome",
-        }),
-        consolidatedContinuing: rawSeries(artifact, {
-          ...CONTINUING_INCOME_HISTORY,
-          canonicalKey: "consolidatedContinuingIncome",
-        }),
-        consolidated: rawSeries(artifact, {
-          ...CONTINUING_INCOME_HISTORY,
-          canonicalKey: "consolidatedNetIncome",
-        }),
-        reportsDiscontinued: notedPeriods(artifact, ["continuingIncome"]),
-        reportsNoncontrolling: noncontrollingPeriods(artifact),
-      },
-    ),
+    series:
+      depositorySic === undefined
+        ? series
+        : {
+            ...series,
+            freeCashFlowProxy: {
+              key,
+              label,
+              unit,
+              annual: [],
+              notes: [`not-applicable: ${depositoryCashFlowReason(depositorySic)}`],
+            },
+          },
   };
 }

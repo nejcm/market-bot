@@ -20,7 +20,7 @@ import {
   secScope,
 } from "./financial-lens-metrics";
 import { isCurrentBalanceSheetPeriod } from "./valuation-comps-support";
-import { depositoryIssuerSic } from "./industry-classification";
+import { depositoryIssuerSic, depositoryNetDebtReason } from "./industry-classification";
 import { SEC_METRIC_DEFINITIONS } from "./sec-fundamentals-format";
 import {
   conceptScope,
@@ -577,9 +577,7 @@ function observedPeriod(item: ExtendedEvidenceItem | undefined) {
 
 function depositoryEnterpriseValue(ctx: MetricContext): string | undefined {
   const sic = depositoryIssuerSic(ctx.evidence);
-  return sic === undefined
-    ? undefined
-    : `depository issuer (SIC ${sic}): enterprise value is not an operating basis`;
+  return sic === undefined ? undefined : depositoryNetDebtReason(sic);
 }
 
 function valueOf(outcome: MetricOutcome): number | undefined {

@@ -565,12 +565,14 @@ describe("equity reader projection", () => {
     expect(rows.length).toBe(6);
     expect(rows.map((row) => row.operatingMargin)).toEqual(
       rows.map(
-        () => "not applicable (depository issuer; no operating income in the industrial sense)",
+        () =>
+          "not applicable (depository issuer (SIC 6022): no operating income in the industrial sense)",
       ),
     );
     expect(rows.map((row) => row.freeCashFlow)).toEqual(
       rows.map(
-        () => "not applicable (depository issuer; capex-based free cash flow is not defined)",
+        () =>
+          "not applicable (depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful)",
       ),
     );
     // Revenue and net income stay computed for a bank.

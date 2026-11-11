@@ -16,7 +16,11 @@ import {
 } from "./financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import type { LensValueUnit } from "./value-format";
-import type { SecIssuerRegistration } from "./industry-classification";
+import {
+  depositoryCashFlowReason,
+  depositoryIssuerSic,
+  type SecIssuerRegistration,
+} from "./industry-classification";
 
 type MetricStatus = "value" | "missing" | "not-meaningful" | "not-applicable";
 // Structural absence is diagnostic; provider failures leave the cause unset.
@@ -175,25 +179,54 @@ export interface MetricDefinition {
   readonly basis: string;
   readonly change?: MetricChange;
   readonly applicable?: (ctx: MetricContext) => string | undefined;
+  // Declares the verdict before compute; a cash-flow input is gated after compute either way.
+  readonly cashFlowBased?: true;
   readonly compute: (ctx: MetricContext) => MetricOutcome;
+}
+
+const CASH_FLOW_SERIES: ReadonlySet<string> = new Set(["operatingCashFlow", "capitalExpenditure"]);
+const CASH_FLOW_EVIDENCE_KEY = /^(?:operatingCashFlow|capex|capitalExpenditure|freeCashFlow)/u;
+
+export function isCashFlowInput(input: {
+  readonly series?: string;
+  readonly key?: string;
+}): boolean {
+  return (
+    (input.series !== undefined && CASH_FLOW_SERIES.has(input.series)) ||
+    (input.key !== undefined && CASH_FLOW_EVIDENCE_KEY.test(input.key))
+  );
+}
+
+function depositoryCashFlowGate(ctx: MetricContext): string | undefined {
+  const sic = ctx.depositorySic ?? depositoryIssuerSic(ctx.evidence);
+  return sic === undefined ? undefined : depositoryCashFlowReason(sic);
 }
 
 function evaluateMetric(definition: MetricDefinition, ctx: MetricContext): MetricResult {
   const { id, label, unit, basis, change } = definition;
   const identity = { id, label, unit, ...(change !== undefined ? { change } : {}) };
-  const inapplicable = definition.applicable?.(ctx);
+  const notApplicable = (reason: string): MetricResult => ({
+    ...identity,
+    basis,
+    status: "not-applicable",
+    reason,
+    inputs: [],
+    sourceIds: [],
+  });
+  const inapplicable =
+    definition.applicable?.(ctx) ??
+    (definition.cashFlowBased === true ? depositoryCashFlowGate(ctx) : undefined);
   if (inapplicable !== undefined) {
-    return {
-      ...identity,
-      basis,
-      status: "not-applicable",
-      reason: inapplicable,
-      inputs: [],
-      sourceIds: [],
-    };
+    return notApplicable(inapplicable);
   }
   const outcome = definition.compute(ctx);
   const inputs = outcome.inputs ?? [];
+  const cashFlowInapplicable = inputs.some(isCashFlowInput)
+    ? depositoryCashFlowGate(ctx)
+    : undefined;
+  if (cashFlowInapplicable !== undefined) {
+    return notApplicable(cashFlowInapplicable);
+  }
   const derivations = [
     ...new Set(
       inputs.flatMap((input) => (input.derivation === undefined ? [] : [input.derivation])),

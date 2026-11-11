@@ -298,7 +298,10 @@ export function financialLensMetrics(ctx: MetricContext): {
     );
     return [name, result] as const;
   });
-  const emitted = evaluated.filter(([, { section }]) => section.metrics.some(filedInput));
+  // A not-applicable verdict is decided from the filed SIC, so it anchors a section like a filed input.
+  const emitted = evaluated.filter(([, { section }]) =>
+    section.metrics.some((metric) => filedInput(metric) || metric.status === "not-applicable"),
+  );
   const sections = emitted.map(([, { section }]) => section);
   const lensMetrics = Object.fromEntries(
     evaluated.map(([name, { section }]) => [name, section.metrics] as const),

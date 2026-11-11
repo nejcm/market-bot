@@ -567,7 +567,7 @@ describe("continuing-operations scope in reader views", () => {
   const history = deriveFundamentalHistoryFromFinancialStatements(artifact);
 
   test("financial trends, history cards, and snapshot carry the scope", () => {
-    const trends = financialTrends(history, false)!;
+    const trends = financialTrends(history, undefined)!;
     const cards = fundamentalHistoryView(detail({ fundamentalHistory: history }))!;
     const snapshot = composeEquitySnapshot({
       fundamentalHistory: cards,

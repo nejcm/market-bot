@@ -37,7 +37,10 @@ import {
 } from "../../../src/research/web-figure-verification";
 import { screenReusedWebSubjectProfile } from "../../../src/web-evidence/web-subject-profile";
 import { loadRunArtifact } from "../../../src/run-artifacts";
-import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
+import {
+  depositoryCashFlowReason,
+  depositoryIssuerSic,
+} from "../../../src/sources/extended-evidence/industry-classification";
 import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
 import {
   canonicalizeSecForm,
@@ -506,6 +509,7 @@ export async function assertInvariants(
         ...result.collectedSources.marketSnapshots,
         ...result.collectedSources.supplementalMarketSnapshots,
       ],
+      depositoryIssuerSic(report.extendedEvidence),
     ).filter(({ invariant }) => !invariant.startsWith("watch:")),
     `${fixtureName} report class invariants`,
   ).toEqual([]);
@@ -1449,14 +1453,16 @@ const EXPECTED_LENS_VALUES: Readonly<
   "equity-web-fallback-deep": AAPL_LENS_VALUES,
   "equity-depository-deep": {
     netMargin: 0.238_337_134_563_549_66,
-    // Depository issuer (SIC 6022): bank operating cash flow is not an earnings-quality basis.
+    // Depository issuer (SIC 6022): every cash-flow metric is not applicable, gated in the metric engine.
+    freeCashFlowProxy: NOT_APPLICABLE,
     cashConversion: NOT_APPLICABLE,
     roe: 0.103_300_307_789_085_85,
     roa: 0.006_230_440_948_008_068,
     revenueDeltaPercent: 2.923_602_219_376_867,
     netIncomeDeltaPercent: 131.520_644_511_581_08,
     dilutedEpsDeltaPercent: 162.121_212_121_212_1,
-    operatingCashFlowDeltaPercent: 171.968_736_797_634_14,
+    operatingCashFlowDeltaPercent: NOT_APPLICABLE,
+    capexDeltaPercent: NOT_APPLICABLE,
     // Stale: the 2026-01-31 instant is over 180 days before the 2026-11-03 cutoff.
     cash: null,
     payoutRatio: 0.804_347_826_086_956_7,
@@ -1464,7 +1470,7 @@ const EXPECTED_LENS_VALUES: Readonly<
     peRatio: 16.967_392,
     forwardPe: 13.832_41,
     priceToBook: 1.798_186_8,
-    pcfRatio: null,
+    pcfRatio: NOT_APPLICABLE,
   },
   "equity-iren-deep": {},
   "equity-iren-brief": {},
@@ -2918,10 +2924,15 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
   for (const row of rows) {
     const cell = row.split(" | ")[EV_REVENUE_COLUMN];
     expect(cell, row).toBe(
-      "not applicable (deposit-funded issuer; enterprise value is not defined)",
+      "not applicable (depository issuer: deposits and borrowings fund operations rather than sitting on top of them)",
     );
     expect(NUMERIC_CELL.test(cell ?? ""), row).toBe(false);
   }
+
+  const historyFcf = result.collectedSources.fundamentalHistory?.series.freeCashFlowProxy;
+  expect(historyFcf?.annual, "depository history FCF proxy must carry no points").toEqual([]);
+  expect(historyFcf?.ttm).toBeUndefined();
+  expect(historyFcf?.notes).toEqual([`not-applicable: ${depositoryCashFlowReason(String(sic))}`]);
 }
 
 // BNS conversions provide an independent oracle for inverted FX rates (ADR 0005).
@@ -3659,11 +3670,13 @@ const MIXED_WORKBENCH_BALANCE_SHEET = {
 const MISSING_WORKBENCH_FCF = { status: "missing", reason: "free-cash-flow-unavailable" } as const;
 const DEPOSITORY_WORKBENCH_EV = {
   status: "not-applicable",
-  reason: "deposit-funded issuer; enterprise value is not defined (SIC 6022)",
+  reason:
+    "depository issuer (SIC 6022): deposits and borrowings fund operations rather than sitting on top of them",
 } as const;
 const DEPOSITORY_WORKBENCH_FCF = {
   status: "not-applicable",
-  reason: "depository issuer; capex-based free cash flow is not defined (SIC 6022)",
+  reason:
+    "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
 } as const;
 const RESTATED_WORKBENCH_INPUT = {
   status: "missing",

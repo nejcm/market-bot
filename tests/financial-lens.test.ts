@@ -757,6 +757,14 @@ describe("addFinancialLensEvidence", () => {
 // See plan: financial-lens-ratio-expansion. ADR 0004.
 // ---------------------------------------------------------------------------
 
+const CASH_FLOW_LENS_IDS = [
+  "freeCashFlowProxy",
+  "cashConversion",
+  "operatingCashFlowDeltaPercent",
+  "capexDeltaPercent",
+  "pcfRatio",
+];
+
 function secEvidenceWithRatios(
   overrides: Record<string, number | string> = {},
 ): ExtendedEvidenceItem {
@@ -2025,28 +2033,37 @@ function strengthReason(
   return strengthSection(result)?.metrics.find(({ id }) => id === metricId)?.reason;
 }
 
-test("cash conversion is not applicable for a depository issuer (BNS f3c778db, JPM 59814bb4 shape)", () => {
-  const quality = (sic: string) =>
-    addFinancialLensEvidence(
-      command,
-      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
-      {
-        instrument: { symbol: "AAPL", assetClass: "equity" },
-        items: [secEvidenceWithRatios({ sic, operatingCashFlowPeriodEnd: "2026-03-28" })],
-        gaps: [],
-      },
-      verifiedSnapshot(),
-      "2026-06-22T00:00:00.000Z",
+test("cash-flow lens rows are not applicable for a depository issuer (BNS f3c778db, JPM 59814bb4 shape)", () => {
+  const rows = (sic: string) =>
+    (
+      addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [secEvidenceWithRatios({ sic, operatingCashFlowPeriodEnd: "2026-03-28" })],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      ).metricSections ?? []
     )
-      .metricSections?.find(({ id }) => id === "financial-lens-quality")
-      ?.metrics.find(({ id }) => id === "cashConversion");
-  expect(quality("6022")).toMatchObject({
-    status: "not-applicable",
-    reason:
-      "depository issuer (SIC 6022): operating cash flow moves with deposits and trading assets, not an earnings-quality basis",
+      .flatMap(({ metrics }) => metrics)
+      .filter(({ id }) => CASH_FLOW_LENS_IDS.includes(id));
+  expect(rows("6022").map(({ id, status, reason, value }) => [id, status, reason, value])).toEqual(
+    CASH_FLOW_LENS_IDS.map((id) => [
+      id,
+      "not-applicable",
+      "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
+      undefined,
+    ]),
+  );
+  const industrial = rows("3571");
+  expect(industrial.find(({ id }) => id === "cashConversion")).toMatchObject({
+    status: "value",
+    value: 30 / 18,
   });
-  expect(quality("6022")?.value).toBeUndefined();
-  expect(quality("3571")).toMatchObject({ status: "value", value: 30 / 18 });
+  expect(industrial.filter(({ status }) => status === "not-applicable")).toEqual([]);
 });
 
 describe("addFinancialLensEvidence — Financial Strength debt currentness", () => {

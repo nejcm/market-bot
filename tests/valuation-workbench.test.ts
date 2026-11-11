@@ -1,3 +1,4 @@
+import { depositoryCashFlowReason } from "../src/sources/extended-evidence/industry-classification";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -986,7 +987,8 @@ describe("valuation workbench", () => {
         status: "not-applicable",
         inputs: [],
         sourceIds: [],
-        reason: "deposit-funded issuer; enterprise value is not defined (SIC 6022)",
+        reason:
+          "depository issuer (SIC 6022): deposits and borrowings fund operations rather than sitting on top of them",
       })),
     );
     // No EV cell renders a number, on any rendered row.
@@ -996,7 +998,10 @@ describe("valuation workbench", () => {
       .map((line) => line.split(" | ")[6]);
     expect(evCells.length).toBeGreaterThan(0);
     expect(evCells).toEqual(
-      evCells.map(() => "not applicable (deposit-funded issuer; enterprise value is not defined)"),
+      evCells.map(
+        () =>
+          "not applicable (depository issuer: deposits and borrowings fund operations rather than sitting on top of them)",
+      ),
     );
     // P/FCF follows the same capex verdict Financial Trends gives, so it must NOT stay computed.
     expect(
@@ -1010,7 +1015,8 @@ describe("valuation workbench", () => {
     expect(
       depository.historicalMultiples.observations[0]?.metrics.priceToFreeCashFlow,
     ).toMatchObject({
-      reason: "depository issuer; capex-based free cash flow is not defined (SIC 6022)",
+      reason:
+        "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
     });
     // Only the price-based multiples are untouched.
     for (const key of ["priceToEarnings", "priceToSales"] as const) {
@@ -2008,6 +2014,32 @@ test("absent valuation statements emit one missing section and material Source G
     triage: "material",
   });
 });
+test("absent valuation statements declare P/FCF not applicable for a depository issuer", async () => {
+  const result = await evaluateWorkbench({
+    symbol: "TEST",
+    generatedAt: "2025-06-01T00:00:00.000Z",
+    priceHistory: [],
+    extendedEvidence: {
+      items: [
+        {
+          category: "sec-edgar",
+          title: "TEST fundamentals",
+          summary: "",
+          sourceIds: [SOURCE_ID],
+          observedAt: "2025-06-01T00:00:00.000Z",
+          metrics: { sic: "6022", sicDescription: "State Commercial Banks" },
+        },
+      ],
+      gaps: [],
+    },
+  });
+  expect(result.metricSections[0]?.metrics[0]).toMatchObject({
+    id: "priceToFreeCashFlow",
+    status: "not-applicable",
+    reason: depositoryCashFlowReason("6022"),
+  });
+});
+
 test("missing FCF partners propagate independently filed absence and keep available lineage", async () => {
   const value = workbenchInput();
   const filedStatements = structuredClone(value.financialStatements!);

@@ -322,7 +322,10 @@ function balanceSheetHistoryFixture() {
   );
 }
 
-function fundamentalHistoryFixture(epsValues: readonly number[] = [2, 2.5, 6.13]) {
+function fundamentalHistoryFixture(
+  epsValues: readonly number[] = [2, 2.5, 6.13],
+  depositorySic?: string,
+) {
   return deriveFundamentalHistoryFromFinancialStatements(
     deriveFinancialStatements(
       {
@@ -353,6 +356,7 @@ function fundamentalHistoryFixture(epsValues: readonly number[] = [2, 2.5, 6.13]
         sourceId: "extended-sec-edgar-aapl-fundamentals",
       },
     ),
+    depositorySic,
   );
 }
 
@@ -2659,6 +2663,40 @@ describe("run workspace view", () => {
     expect(text).toContain("financial core · complete");
     expect(text).toContain("coverage · comprehensive");
     expect(text).toContain("Annual statement remains current");
+  }, 15_000);
+
+  test("declares the FCF proxy not applicable for a depository issuer on every console surface", async () => {
+    const reason =
+      "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful";
+    const bank: RunDetail = {
+      summary: summary(),
+      fundamentalHistory: fundamentalHistoryFixture(undefined, "6022"),
+    };
+    const view = buildRunWorkspaceView(bank);
+    expect(view.fundamentalHistory?.cards.map((card) => card.key)).not.toContain(
+      "freeCashFlowProxy",
+    );
+    expect(view.fundamentalHistory?.notApplicable).toEqual([
+      { key: "freeCashFlowProxy", label: "Free cash flow proxy", reason },
+    ]);
+    const snapshotView = equitySnapshotView(bank);
+    expect(
+      snapshotView?.keyDatedMetrics.metrics.find(({ key }) => key === "ttmFreeCashFlowProxy"),
+    ).toMatchObject({ state: "not-applicable", reason });
+    expect(
+      snapshotView?.miniCharts.charts.find(({ key }) => key === "freeCashFlowProxy"),
+    ).toMatchObject({ state: "unavailable", reason });
+    const text = (await renderRunWorkspaceComponent(bank, "advanced")).replaceAll(/\s+/gu, " ");
+    expect(text).toContain(`Not applicable: ${reason}`);
+
+    const control = buildRunWorkspaceView({
+      summary: summary(),
+      fundamentalHistory: fundamentalHistoryFixture(),
+    });
+    expect(control.fundamentalHistory?.notApplicable).toEqual([]);
+    expect(control.fundamentalHistory?.cards.map((card) => card.key)).toContain(
+      "freeCashFlowProxy",
+    );
   }, 15_000);
 
   test("uses trailing P/E as the Simple valuation fallback", () => {

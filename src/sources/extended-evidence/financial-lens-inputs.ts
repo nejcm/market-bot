@@ -495,13 +495,6 @@ function netDebtInapplicable(ctx: MetricContext): string | undefined {
   return sic === undefined ? undefined : depositoryNetDebtReason(sic);
 }
 
-export function depositoryInapplicable(reason: string): (ctx: MetricContext) => string | undefined {
-  return (ctx: MetricContext): string | undefined => {
-    const sic = depositoryIssuerSic(ctx.evidence);
-    return sic === undefined ? undefined : `depository issuer (SIC ${sic}): ${reason}`;
-  };
-}
-
 export function withNetDebtApplicability(definition: MetricDefinition): MetricDefinition {
   return { ...definition, applicable: netDebtInapplicable };
 }

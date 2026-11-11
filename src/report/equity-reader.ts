@@ -519,7 +519,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
   const gaps = projectedGaps(input.report, input.fundamentalHistory, input.sourceGaps ?? []);
   const projectedFinancialTrends = financialTrends(
     input.fundamentalHistory,
-    depositoryIssuerSic(record?.extendedEvidence) !== undefined,
+    depositoryIssuerSic(record?.extendedEvidence),
   );
   const projectedFinancialPosition = financialPosition(input.financialStatements, generatedAt);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);

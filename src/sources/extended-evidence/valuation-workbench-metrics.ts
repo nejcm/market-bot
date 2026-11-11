@@ -2,6 +2,7 @@ import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
 import { revenueMultipleNotMeaningfulReason } from "./valuation-comps-contract";
 import { isYearAligned } from "./financial-statement-selection";
 import { DEBT_SCOPE_CAVEAT } from "./financial-statement-definitions";
+import { depositoryNetDebtReason } from "./industry-classification";
 import {
   evaluateMetricSection,
   type MetricDefinition,
@@ -133,18 +134,15 @@ export function valuationMetricSection(input: {
       label,
       unit: "ratio",
       basis: `${period.basis.toUpperCase()}; ${formula}${id === "priceToEarnings" ? "" : sharesBasis}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}`,
-      ...(id === "enterpriseValueToRevenue" || id === "priceToFreeCashFlow"
+      ...(id === "enterpriseValueToRevenue"
         ? {
-            applicable: () => {
-              if (input.depositorySic === undefined) {
-                return undefined;
-              }
-              return id === "enterpriseValueToRevenue"
-                ? `deposit-funded issuer; enterprise value is not defined (SIC ${input.depositorySic})`
-                : `depository issuer; capex-based free cash flow is not defined (SIC ${input.depositorySic})`;
-            },
+            applicable: () =>
+              input.depositorySic === undefined
+                ? undefined
+                : depositoryNetDebtReason(input.depositorySic),
           }
         : {}),
+      ...(id === "priceToFreeCashFlow" ? { cashFlowBased: true as const } : {}),
       compute: (): MetricOutcome => {
         const needsShares = id !== "priceToEarnings";
         const fundamentals: readonly (ValuationFundamentalInput | undefined)[] = [
@@ -345,7 +343,10 @@ export function valuationMetricSection(input: {
     `valuation-workbench-${period.basis}-${period.periodEnd}-${publicAt}${span === undefined ? "" : `-${span}m`}`,
     `Valuation Workbench ${period.basis.toUpperCase()} ${period.periodEnd}${span === undefined ? "" : ` (${span} months)`} public ${publicAt}`,
     definitions,
-    { symbol: input.symbol },
+    {
+      symbol: input.symbol,
+      ...(input.depositorySic !== undefined ? { depositorySic: input.depositorySic } : {}),
+    },
   );
 }
 

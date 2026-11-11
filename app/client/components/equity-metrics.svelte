@@ -39,12 +39,14 @@
     <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
       {#each [...keyDatedMetrics.metrics, ...keyDatedMetrics.foldedYahooMetrics] as metric}
         <div class="rounded border border-border bg-secondary px-2.5 py-2">
-          <div class="font-mono text-[13px] font-semibold">{metric.value ?? "Unavailable"}</div>
+          <div class="font-mono text-[13px] font-semibold">
+            {metric.value ?? (metric.state === "not-applicable" ? "Not applicable" : "Unavailable")}
+          </div>
           <div class="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#5c6066]">
             {metric.label}
           </div>
           <div class="mt-1 font-mono text-[8px] text-[#8a8f96]">
-            {metric.dateBasis ?? "Date unavailable"}
+            {metric.reason ?? metric.dateBasis ?? "Date unavailable"}
           </div>
           {@render citeChips(metric.sourceIds)}
         </div>
@@ -60,7 +62,9 @@
         <div class="rounded border border-border bg-secondary px-2.5 py-2">
           <div class="text-[9px] font-semibold uppercase tracking-wider">{chart.label}</div>
           {#if chart.geometry === undefined}
-            <div class="mt-3 text-xs text-muted-foreground">Unavailable</div>
+            <div class="mt-3 text-xs text-muted-foreground">
+              {chart.reason === undefined ? "Unavailable" : `Not applicable: ${chart.reason}`}
+            </div>
           {:else}
             <div class="mt-1 font-mono text-[12px] font-semibold">{chart.value}</div>
             <SparklineBars geometry={chart.geometry} label={`${chart.label} history`} />

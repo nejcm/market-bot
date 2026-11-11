@@ -395,8 +395,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   reverse DCF) when debt or cash is stale; retain dated raw cash/debt/net debt/history, and declare
   producer no-cap gaps with input dates. Metric Section stale ratio is missing with date reason.
 - Depository issuers are classified once from valid own-SEC four-digit SIC major group 60 or 6120. EV, peers,
-  EV/revenue, reverse DCF, and capex P/FCF are inapplicable with rationale; never compute EV. P/E, P/S, P/B
-  remain when supported.
+  EV/revenue, and reverse DCF are inapplicable with rationale; never compute EV. Every Metric Section row on
+  operating cash flow, capex, or FCF is inapplicable through one metric-engine gate (`cashFlowBased`, or any
+  such input), and the fundamental-history FCF proxy carries the same reason with no points. P/E, P/S, P/B remain when supported.
 - Cited structured Web Subject Profile answers may clear matching atomic Business Framework gaps, never
   postures or Evidence Quality. Official earnings dates require exact future date/issuer identity and retained
   Source ID, URL, basis, span. Issuer HTTPS hosts come only from SEC metadata or hand-verified CIK fallback

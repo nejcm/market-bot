@@ -32,7 +32,6 @@ import {
   summaryPeriodsMatch,
   chosenInput,
   summaryValue,
-  depositoryInapplicable,
 } from "./financial-lens-inputs";
 
 const LATEST_PERIOD_BASIS = "latest reported period: a year-aligned annual or an interim filing";
@@ -221,6 +220,7 @@ export function freeCashFlowDefinition(context: MetricContext): MetricDefinition
     label: scopedLabel("FCF proxy", operatingCashFlowScope(context)),
     unit: "currency",
     basis: `operating cash flow less capital expenditure for the latest operating cash flow period; ${CAPEX_SCOPE_CAVEAT}`,
+    cashFlowBased: true,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");
@@ -306,9 +306,7 @@ export function cashConversionDefinition(): MetricDefinition {
     label: "Cash conversion",
     unit: "ratio",
     basis: "operating cash flow / income of the same operations scope for the same period",
-    applicable: depositoryInapplicable(
-      "operating cash flow moves with deposits and trading assets, not an earnings-quality basis",
-    ),
+    cashFlowBased: true,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");

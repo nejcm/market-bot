@@ -133,6 +133,9 @@ export function yearOverYearDefinition(
     unit: "whole-percent",
     basis: YOY_BASIS,
     change: YOY_CHANGE,
+    ...(key === "operatingCashFlow" || key === "capitalExpenditure"
+      ? { cashFlowBased: true as const }
+      : {}),
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const item = secItem(ctx);

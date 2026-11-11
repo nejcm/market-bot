@@ -281,6 +281,7 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
       label: "PCF",
       unit: "ratio",
       basis: "quote market cap / operating cash flow annualized to a year",
+      cashFlowBased: true,
       compute: (context) => {
         const marketCap = marketCapInput(context);
         if (context.statements === undefined) {

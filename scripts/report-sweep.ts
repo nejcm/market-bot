@@ -7,6 +7,7 @@ import { listRunDirNames } from "../src/data-paths";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { runEvalSample } from "../src/replay/eval-run";
+import { depositoryIssuerSic } from "../src/sources/extended-evidence/industry-classification";
 import {
   reportInvariantViolations,
   type MetricSections,
@@ -75,6 +76,7 @@ interface ReportSweep {
 interface ReplayedReport {
   readonly symbol?: string;
   readonly extras?: { readonly metricSections?: unknown };
+  readonly extendedEvidence?: unknown;
 }
 
 async function replayRun(runsDir: string, run: string, root: string) {
@@ -126,7 +128,11 @@ export async function sweepReports(runsDir: string, root: string): Promise<Repor
     const symbol = report.symbol ?? "";
     ledger.push(...reportLedgerRows(run, symbol, sections as MetricSections));
     violations.push(
-      ...reportInvariantViolations(sections as MetricSections, snapshots).map((violation) => ({
+      ...reportInvariantViolations(
+        sections as MetricSections,
+        snapshots,
+        depositoryIssuerSic(report.extendedEvidence),
+      ).map((violation) => ({
         run,
         symbol,
         ...violation,

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.4](https://github.com/nejcm/market-bot/compare/v1.16.3...v1.16.4) (2026-11-11)
+
+### Bug Fixes
+
+- **framework:** read phase inputs at the revenue period (#209) ([cb1cf3d](https://github.com/nejcm/market-bot/commit/cb1cf3db933ddd7499cf4fca23493e8f5b3b6808))
+
 ## [1.16.3](https://github.com/nejcm/market-bot/compare/v1.16.2...v1.16.3) (2026-11-11)
 
 ### Bug Fixes

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { sourceGap } from "../src/domain/source-gaps";
 import type { ExtendedEvidence } from "../src/domain/evidence";
+import type { MarketSnapshot } from "../src/domain/market-data";
 import type { SourceGapCause } from "../src/domain/sources";
 import {
   collectValuationComps,
@@ -267,8 +268,24 @@ function fpiSecPayload(): unknown {
   };
 }
 
+function nvdaSnapshot(): MarketSnapshot {
+  return marketSnapshot({
+    sourceId: "market-yahoo-equity-nvda",
+    symbol: "NVDA",
+    marketCap: 1000,
+    identity: { quoteCurrency: "USD" },
+    fundamentals: { sharesOutstanding: 10 },
+    observedAt: generatedAt,
+  });
+}
+
 function yahooPayload(
-  overrides: Readonly<Record<string, { readonly marketCap?: number | undefined }>> = {},
+  overrides: Readonly<
+    Record<
+      string,
+      { readonly marketCap?: number | undefined; readonly currency?: string | undefined }
+    >
+  > = {},
 ): unknown {
   const defaults: Readonly<Record<string, number>> = {
     AMD: 390,
@@ -285,6 +302,9 @@ function yahooPayload(
         regularMarketChangePercent: 1,
         regularMarketVolume: 1_000_000,
         marketCap: Object.hasOwn(overrides, symbol) ? overrides[symbol]?.marketCap : marketCap,
+        currency: Object.hasOwn(overrides[symbol] ?? {}, "currency")
+          ? overrides[symbol]?.currency
+          : "USD",
       })),
     },
   };
@@ -371,7 +391,12 @@ function astsValuationEvidence(): ExtendedEvidence {
 function requestExecutor(
   options: {
     readonly quoteFetchedAt?: string;
-    readonly quoteOverrides?: Readonly<Record<string, { readonly marketCap?: number | undefined }>>;
+    readonly quoteOverrides?: Readonly<
+      Record<
+        string,
+        { readonly marketCap?: number | undefined; readonly currency?: string | undefined }
+      >
+    >;
     readonly secOverrides?: Readonly<
       Record<
         string,
@@ -464,6 +489,7 @@ function astsRequestExecutor(
               regularMarketChangePercent: 1,
               regularMarketVolume: 1_000_000,
               marketCap: options.quoteOverrides?.[peer.symbol] ?? peer.marketCap,
+              currency: "USD",
             })),
           },
         });
@@ -743,6 +769,76 @@ describe("collectValuationComps", () => {
     expect(result.sources.map((source) => source.id)).toContain("market-yahoo-equity-amd");
     expect(result.sources.map((source) => source.id)).toContain(
       "extended-sec-edgar-amd-fundamentals",
+    );
+  });
+
+  test("copies the peer quote currency onto its comps row", async () => {
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      command,
+      [nvdaSnapshot()],
+      valuationEvidence(),
+    );
+
+    expect(result.artifact.peers.map((peer) => peer.quoteCurrency)).toEqual([
+      "USD",
+      "USD",
+      "USD",
+      "USD",
+    ]);
+  });
+
+  test("excludes a peer quoted outside USD from the median", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({ quoteOverrides: { AMD: { marketCap: 390, currency: "EUR" } } }),
+      ),
+      command,
+      [nvdaSnapshot()],
+      valuationEvidence(),
+    );
+
+    expect(result.artifact.peers.find((peer) => peer.symbol === "AMD")).toMatchObject({
+      quoteCurrency: "EUR",
+      usable: false,
+    });
+    expect(result.artifact.peers.find((peer) => peer.symbol === "AMD")).not.toHaveProperty(
+      "enterpriseValue",
+    );
+    expect(result.artifact.peers.find((peer) => peer.symbol === "AMD")).not.toHaveProperty(
+      "evToAnnualizedRevenue",
+    );
+    expect(result.artifact.summary.usablePeerCount).toBe(3);
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "quote currency EUR is not USD",
+        cause: "suppressed-by-design",
+      }),
+    );
+  });
+
+  test("excludes a peer whose quote currency is missing", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({ quoteOverrides: { AMD: { marketCap: 390, currency: undefined } } }),
+      ),
+      command,
+      [nvdaSnapshot()],
+      valuationEvidence(),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd?.usable).toBe(false);
+    expect(amd).not.toHaveProperty("quoteCurrency");
+    expect(amd).not.toHaveProperty("enterpriseValue");
+    expect(amd).not.toHaveProperty("evToAnnualizedRevenue");
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "missing quote currency",
+        cause: "provider-data-missing",
+      }),
     );
   });
 
@@ -2575,6 +2671,7 @@ describe("collectValuationComps", () => {
                 regularMarketPrice: 100,
                 regularMarketChangePercent: 1,
                 regularMarketVolume: 1_000_000,
+                currency: "USD",
                 marketCap: symbol === "DELL" ? 100 : 500,
               })),
             },

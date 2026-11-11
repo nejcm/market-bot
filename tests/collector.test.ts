@@ -114,6 +114,7 @@ function collectorQuote(symbol: string, marketCap: number): Record<string, unkno
     regularMarketChangePercent: 1,
     regularMarketVolume: 1_000_000,
     marketCap,
+    currency: "USD",
   };
 }
 

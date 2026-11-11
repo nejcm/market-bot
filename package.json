@@ -28,6 +28,7 @@
     "test": "bun test",
     "sweep:sec": "bun run scripts/sec-cache-sweep.ts",
     "sweep:packets": "bun run scripts/sec-packet-diff.ts",
+    "sweep:report": "bun run scripts/report-sweep.ts",
     "test:coverage": "bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit && bun run app:check",
     "lint": "oxlint",

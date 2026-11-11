@@ -1329,7 +1329,9 @@ const NOT_APPLICABLE = { status: "not-applicable" } as const;
 const EXPECTED_LENS_VALUES: Readonly<
   Record<
     string,
-    Readonly<Record<string, number | string | null | typeof NOT_MEANINGFUL | typeof NOT_APPLICABLE>>
+    Readonly<
+      Record<string, number | string | null | { readonly status: string; readonly reason?: string }>
+    >
   >
 > = {
   "equity-aapl-brief": {},
@@ -1468,7 +1470,12 @@ const EXPECTED_LENS_VALUES: Readonly<
     capexDeltaPercent: NOT_APPLICABLE,
     // Stale: the 2026-01-31 instant is over 180 days before the 2026-11-03 cutoff.
     cash: null,
-    payoutRatio: 0.804_347_826_086_956_7,
+    // Yahoo trailingAnnualDividendRate 4.44 is CAD; dividing by USD EPS 5.52 gave 80.4% (same-currency ~58%).
+    payoutRatio: {
+      status: "missing",
+      reason:
+        "Yahoo trailing dividend rate is in CAD and trailing EPS in USD; not divided across currencies",
+    },
     dividendYield: 3.45,
     peRatio: 16.967_392,
     forwardPe: 13.832_41,
@@ -1499,7 +1506,7 @@ export function assertFinancialLensMetricInvariants(
       sections.flatMap((section) => section.metrics).find((row) => row.id === id),
       `${fixtureName}.${id} retains its replayed value`,
     ).toMatchObject(
-      value === null || value === NOT_MEANINGFUL || value === NOT_APPLICABLE
+      value === null || typeof value === "object"
         ? (value ?? { status: "missing" })
         : { status: "value", value },
     );

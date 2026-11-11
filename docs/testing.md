@@ -313,7 +313,9 @@ It also drops the two operating-income YoY clauses (`financial-lens-growth` and
 The `clfd-zero-debt` final-synthesis entries replace the same two references, not meaningful
 across a sign change, with plain wording.
 The `equity-depository-deep` final-synthesis entry drops the one key-finding clause that cited
-`financial-lens-growth.operatingCashFlowDeltaPercent`, not applicable for a depository issuer.
+`financial-lens-growth.operatingCashFlowDeltaPercent`, not applicable for a depository issuer,
+and the payout-ratio clause citing `financial-lens-financial-strength.payoutRatio`, withheld
+because Yahoo's trailing dividend rate is CAD while its EPS is USD.
 The `equity-iren-brief` final-synthesis entries replace the two
 `business-framework-valuation.forwardPE` references (forward P/E on negative earnings, now not
 meaningful) with plain wording.

@@ -18,6 +18,7 @@ import {
   targetValuationIds,
   valuationOutcome,
   yahooItem,
+  quoteCurrencyOf,
   evidenceInput,
   evidenceOutcome,
   summaryPeriod,
@@ -413,30 +414,46 @@ export function payoutRatioDefinition(): MetricDefinition {
       const yahooRate = readNumberMetric(yahoo?.metrics, "trailingAnnualDividendRate");
       const yahooEps = readNumberMetric(yahoo?.metrics, "epsTrailingTwelveMonths");
       const yahooPeriod = periodEndInput(yahoo?.observedAt);
+      const quoteCurrency = quoteCurrencyOf(ctx);
+      const rateCurrency = readStringMetric(yahoo?.metrics, "financialCurrency");
       const yahooInputs =
         yahoo === undefined || yahooRate === undefined || yahooEps === undefined
           ? undefined
           : [
-              evidenceInput(
-                yahoo,
-                "trailingAnnualDividendRate",
-                "trailing dividend rate",
-                "currency",
-                yahooRate,
-                yahooPeriod,
-              ),
-              evidenceInput(
-                yahoo,
-                "epsTrailingTwelveMonths",
-                "trailing EPS",
-                "number",
-                yahooEps,
-                yahooPeriod,
-              ),
+              {
+                ...evidenceInput(
+                  yahoo,
+                  "trailingAnnualDividendRate",
+                  "trailing dividend rate",
+                  "currency",
+                  yahooRate,
+                  yahooPeriod,
+                ),
+                currency: rateCurrency ?? quoteCurrency,
+              },
+              {
+                ...evidenceInput(
+                  yahoo,
+                  "epsTrailingTwelveMonths",
+                  "trailing EPS",
+                  "number",
+                  yahooEps,
+                  yahooPeriod,
+                ),
+                currency: quoteCurrency,
+              },
             ];
       const yahooOutcome = ((): MetricOutcome | undefined => {
         if (yahooInputs === undefined || yahooRate === undefined || yahooEps === undefined) {
           return undefined;
+        }
+        if (rateCurrency !== undefined && rateCurrency !== quoteCurrency) {
+          return {
+            status: "missing",
+            reason: `Yahoo trailing dividend rate is in ${rateCurrency} and trailing EPS in ${quoteCurrency}; not divided across currencies`,
+            inputs: yahooInputs,
+            ...yahooPeriod,
+          };
         }
         if (yahooEps <= 0) {
           return {

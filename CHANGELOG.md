@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.10](https://github.com/nejcm/market-bot/compare/v1.16.9...v1.16.10) (2026-11-11)
+
+### Bug Fixes
+
+- **lens:** label yahoo dividend yield as forward indicated (#215) ([f38fb95](https://github.com/nejcm/market-bot/commit/f38fb95d0102402d8950546e64cd9741aa4a4fca))
+
 ## [1.16.9](https://github.com/nejcm/market-bot/compare/v1.16.8...v1.16.9) (2026-11-11)
 
 ### Bug Fixes

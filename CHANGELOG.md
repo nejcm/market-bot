@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.6](https://github.com/nejcm/market-bot/compare/v1.16.5...v1.16.6) (2026-11-11)
+
+### Bug Fixes
+
+- **console:** withhold stale cash and debt in the equity ledger (#211) ([9ca9956](https://github.com/nejcm/market-bot/commit/9ca9956dc35e79fbde689d58ad6f5a23c503f459))
+
 ## [1.16.5](https://github.com/nejcm/market-bot/compare/v1.16.4...v1.16.5) (2026-11-11)
 
 ### Bug Fixes

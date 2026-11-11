@@ -281,7 +281,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   below the other same-period combined alias (DDA under DA) is withheld, never replaced by the higher alias; the
   reverse split publishes. IFRS is unchanged.
 - Never splice alternative financial concepts to extend history. Shortening is silent unless an alias has a
-  newer annual period, or any annual period when selected has none: emit `stale-concept-history` without
+  newer period of any type, or any annual period when selected has none: emit `stale-concept-history` without
   combining. Offline alias detection requires eligible same-unit/currency strict annual superset with exact
   shared value/form/fiscal/period/filing tuples; no-overlap renames are not interchangeable proof. EPS TTM can
   mix independently restated YTD facts and remains approximate. Consistent integer/reciprocal share

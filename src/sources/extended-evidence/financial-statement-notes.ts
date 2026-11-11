@@ -25,6 +25,7 @@ import {
   taxonomyRoot,
   unitFacts,
   isObservable,
+  isStatementPeriod,
   periodType,
   periodKey,
 } from "./financial-statement-facts";
@@ -226,6 +227,10 @@ export function declarationSpanNotes(
       ];
 }
 
+function isNewer(aliasEnd: string | undefined, selectedEnd: string | undefined): boolean {
+  return aliasEnd !== undefined && (selectedEnd === undefined || aliasEnd > selectedEnd);
+}
+
 export function staleConceptHistoryNotes(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -238,25 +243,49 @@ export function staleConceptHistoryNotes(
   if (root === undefined || concept === undefined) {
     return [];
   }
-  const latestAnnualEnd = (facts: readonly ParsedFact[]) =>
+  const latestEnd = (facts: readonly ParsedFact[], annualOnly: boolean) =>
     facts
-      .filter((fact) => eligible(fact) && periodType(fact, definition) === "annual")
+      .filter(
+        (fact) =>
+          eligible(fact) &&
+          (annualOnly
+            ? periodType(fact, definition) === "annual"
+            : isStatementPeriod(fact, definition)),
+      )
       .map((fact) => fact.periodEnd)
       .toSorted()
       .at(-1);
-  const selectedEnd = latestAnnualEnd(selected);
+  const selectedAnnualEnd = latestEnd(selected, true);
+  const selectedEnd = latestEnd(selected, false);
+  const label = definition.label.toLowerCase();
   return definition.concepts[taxonomy].flatMap((alias): FinancialStatementNote[] => {
-    const aliasEnd =
-      alias === concept ? undefined : latestAnnualEnd(unitFacts(taxonomy, root, alias));
-    return aliasEnd === undefined || (selectedEnd !== undefined && aliasEnd <= selectedEnd)
-      ? []
-      : [
+    if (alias === concept) {
+      return [];
+    }
+    const aliasFacts = unitFacts(taxonomy, root, alias);
+    const aliasAnnualEnd = latestEnd(aliasFacts, true);
+    const aliasEnd = latestEnd(aliasFacts, false);
+    const scope = "the tags are not combined because their scope may differ";
+    if (isNewer(aliasAnnualEnd, selectedAnnualEnd)) {
+      const selectedText =
+        selectedAnnualEnd === undefined ? "has no annual period" : `ends ${selectedAnnualEnd}`;
+      return [
+        {
+          code: "stale-concept-history",
+          seriesKey: definition.key,
+          message: `SEC ${label} annual history under ${concept} ${selectedText}, while ${alias} reports annual periods to ${aliasAnnualEnd}; ${scope}`,
+        },
+      ];
+    }
+    return isNewer(aliasEnd, selectedEnd)
+      ? [
           {
             code: "stale-concept-history",
             seriesKey: definition.key,
-            message: `SEC ${definition.label.toLowerCase()} annual history under ${concept} ${selectedEnd === undefined ? "has no annual period" : `ends ${selectedEnd}`}, while ${alias} reports annual periods to ${aliasEnd}; the tags are not combined because their scope may differ`,
+            message: `SEC ${label} history under ${concept} ends ${selectedEnd ?? "with no eligible period"}, while ${alias} reports periods to ${aliasEnd}; ${scope}`,
           },
-        ];
+        ]
+      : [];
   });
 }
 

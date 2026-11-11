@@ -2435,6 +2435,69 @@ describe("canonical financial statements", () => {
 
       expect(staleGapMessages(companyFacts)).toEqual([]);
     });
+
+    test("declares an alias whose only newer period is an interim, unchanged (KEEL Q2 2026)", () => {
+      const q1 = (value: number, year: number) =>
+        interim({ value, year, endMonthDay: "03-31", form: "10-Q", fiscalPeriod: "Q1" });
+      const companyFacts = payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(229_276, 2025), q1(47_651, 2025), q1(36_992, 2026)] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: {
+            USD: [ytd(108_559, 2025), ytd(67_422, 2026)],
+          },
+        },
+      });
+      const { revenue } = derive(companyFacts, {
+        analysisAsOf: "2026-09-01",
+      }).statements.incomeStatement;
+
+      expect(revenue.interim.map((item) => [item.concept, item.value])).toEqual([
+        ["Revenues", 47_651],
+        ["Revenues", 36_992],
+      ]);
+      expect(staleGapMessages(companyFacts)).toEqual([
+        "SEC revenue history under Revenues ends 2026-03-31, while RevenueFromContractWithCustomerExcludingAssessedTax reports periods to 2026-06-30; the tags are not combined because their scope may differ",
+      ]);
+    });
+
+    test("leaves an alias whose interims end with the selected series undeclared", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025), ytd(600, 2026)] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: {
+            USD: [ytd(500, 2025), ytd(550, 2026)],
+          },
+        },
+      });
+
+      expect(staleGapMessages(companyFacts)).toEqual([]);
+    });
+
+    test("does not count an alias's newer declaration-date span as a period", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(1, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              fact({
+                value: 0.25,
+                form: "10-Q",
+                fiscalYear: 2026,
+                fiscalPeriod: "Q2",
+                filedAt: "2026-08-15",
+                periodStart: "2026-08-01",
+                periodEnd: "2026-08-01",
+              }),
+            ],
+          },
+        },
+      });
+
+      expect(
+        staleGapMessages(companyFacts).filter((message) => message.includes("dividends")),
+      ).toEqual([]);
+    });
   });
 
   describe("mixed share basis", () => {

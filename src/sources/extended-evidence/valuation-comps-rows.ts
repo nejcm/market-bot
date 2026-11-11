@@ -245,6 +245,7 @@ export function peerRow(
   const { peer, quote, sec } = entry;
   const { metrics } = sec;
   const marketCap = quote?.marketCap;
+  const usdQuote = quote?.identity?.quoteCurrency === "USD";
   const cash = readNumberMetric(metrics, "cash");
   const debt = readNumberMetric(metrics, "debt");
   const cashPeriodEnd = readStringMetric(metrics, "cashPeriodEnd");
@@ -299,7 +300,7 @@ export function peerRow(
     enterpriseValue = MIXED_PERIOD_METRIC;
     netDebt = MIXED_PERIOD_METRIC;
     evToAnnualizedRevenue = undefined;
-  } else if (unverifiableVintage || incompleteDebtBasis) {
+  } else if (unverifiableVintage || incompleteDebtBasis || !usdQuote) {
     enterpriseValue = undefined;
     evToAnnualizedRevenue = undefined;
   }
@@ -329,7 +330,8 @@ export function peerRow(
     Number.isFinite(evToAnnualizedRevenue) &&
     !unverifiableVintage &&
     !mixedPeriod &&
-    !incompleteDebtBasis;
+    !incompleteDebtBasis &&
+    usdQuote;
   const row: Omit<ValuationCompsRow, "usable"> = {
     symbol: peer.symbol,
     ...(peer.name !== undefined ? { name: peer.name } : {}),
@@ -352,6 +354,9 @@ export function peerRow(
     ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),
     ...(annualizedRevenue !== undefined ? { annualizedRevenue } : {}),
     ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),
+    ...(quote?.identity?.quoteCurrency !== undefined
+      ? { quoteCurrency: quote.identity.quoteCurrency }
+      : {}),
     ...(quote?.observedAt !== undefined ? { quoteObservedAt: quote.observedAt } : {}),
     ...(quote !== undefined ? { priceAsOf: resolveMarketSnapshotPriceAsOf(quote) } : {}),
     sourceIds,
@@ -414,6 +419,12 @@ function exclusionReason(
   }
   if (row.quoteObservedAt === undefined) {
     return missing("missing quote");
+  }
+  if (row.quoteCurrency === undefined) {
+    return missing("missing quote currency");
+  }
+  if (row.quoteCurrency !== "USD") {
+    return gated(`quote currency ${row.quoteCurrency} is not USD`);
   }
   if (row.marketCap === undefined) {
     return missing("missing market cap");

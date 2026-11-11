@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.2](https://github.com/nejcm/market-bot/compare/v1.16.1...v1.16.2) (2026-11-11)
+
+### Bug Fixes
+
+- **workbench:** cite the sources behind not-meaningful cells (#207) ([738d378](https://github.com/nejcm/market-bot/commit/738d378e85a3d7d50e65c68b27e77d0fa1b42ecd))
+
 ## [1.16.1](https://github.com/nejcm/market-bot/compare/v1.16.0...v1.16.1) (2026-11-11)
 
 ### Bug Fixes

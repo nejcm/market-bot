@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.11](https://github.com/nejcm/market-bot/compare/v1.16.10...v1.16.11) (2026-11-11)
+
+### Bug Fixes
+
+- **metrics:** withhold yoy and cash conversion on near-zero bases (#216) ([be3efaf](https://github.com/nejcm/market-bot/commit/be3efaff90ac8be26b2fd01a1ba0c0b93500e749))
+
 ## [1.16.10](https://github.com/nejcm/market-bot/compare/v1.16.9...v1.16.10) (2026-11-11)
 
 ### Bug Fixes

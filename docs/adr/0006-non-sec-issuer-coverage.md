@@ -21,7 +21,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
     canonical URL. A provider `summary` is a model-written abstract and never counts.
   - Every figure parsed from the claim matches a figure parsed from a verified quote on value, scale, currency,
     and unit. No cross-scale, rounding, or conversion matching. A figure is a number with a currency, scale,
-    unit, decimal point, or thousands separator; bare integers (counts, ranks, years, "iPhone 17") are not.
+    unit (power and energy units such as MW or GWh included, matched same-unit only), decimal point, or thousands
+    separator; bare integers (counts, ranks, years, "iPhone 17") are not.
   - Every persisted quote is a proven span. A quote that fails is dropped from the claim and recorded, and the
     claim is then judged on its figures alone (amended 2026-11-08). The earlier rule failed the whole claim on any
     failing quote, which pruned claims whose figures were all code-rendered over a redundant quote the prompt never

@@ -211,6 +211,37 @@ describe("figure parsing", () => {
       ),
     ).toEqual([]);
   });
+
+  test("reads power and energy units, case-sensitive, and leaves look-alike tokens unread", () => {
+    expect(
+      parsed("65 MW, 65MW, 1 GW, 500kW, 3 TWh, 40 megawatts, 2 gigawatt-hours, 1.2 billion kWh"),
+    ).toEqual([
+      [65, 1, "", "mw"],
+      [65, 1, "", "mw"],
+      [1, 1, "", "gw"],
+      [500, 1, "", "kw"],
+      [3, 1, "", "twh"],
+      [40, 1, "", "mw"],
+      [2, 1, "", "gwh"],
+      [1.2, 1e9, "", "kwh"],
+    ]);
+    expect(
+      parsed("65 MWp, 65 megawatthours, 65 GW-hours, 65 MW/hour, 65 MW·h, 65 MW / hour"),
+    ).toEqual([
+      [65, 1, "", "mwp"],
+      [65, 1, "", "mwh"],
+    ]);
+    expect(parsed("50-65 MW")).toEqual([
+      [50, 1, "", "mw"],
+      [65, 1, "", "mw"],
+    ]);
+    expect(
+      parsed(
+        "5G, Q3 2026, 3nm, H100 GPUs, GB200 NVL72, 2330 TW, 5 mW, 65 MWe, 100 W, in fiscal 2027",
+      ),
+    ).toEqual([]);
+    expect(parsed("4K")).toEqual([[4, 1e3, "", ""]]);
+  });
 });
 
 describe("Verified Web Figure", () => {
@@ -1364,6 +1395,67 @@ describe("Verified Web Figure", () => {
         bare,
       ),
     ).toMatchObject({ reason: "no-stored-text" });
+  });
+
+  test("checks a power figure on value and unit, never converting MW to GW (NBIS run 1c6c4809)", () => {
+    const source = webSource({
+      id: "web-nbis",
+      snippet:
+        "The deployments will reach 65 MW when fully ramped up in 2027, and 1,000 MW by 2030.",
+    });
+    const claim = (text: string, quote?: string) =>
+      unverifiedWebFigure(
+        {
+          text,
+          sourceIds: [source.id],
+          ...(quote === undefined ? {} : { figureQuotes: [{ sourceId: source.id, quote }] }),
+        },
+        webSourceTexts([source]),
+      );
+    const claimText = "Deployments reach 65 MW when fully ramped in 2027.";
+    expect(claim(claimText)).toMatchObject({ reason: "figure-not-quoted", figure: "65 MW" });
+    expect(claim(claimText, "reach 65 MW when fully ramped in 2027")).toMatchObject({
+      reason: "quote-not-in-source",
+      figure: "65 MW",
+    });
+    expect(claim(claimText, "will reach 65 MW when fully ramped up in 2027")).toBeUndefined();
+    expect(
+      claim("Capacity reaches 1 GW by 2030.", "fully ramped up in 2027, and 1,000 MW by 2030"),
+    ).toMatchObject({
+      reason: "figure-not-in-quote",
+    });
+    expect(
+      claim("Deployments reach 65 GW when fully ramped.", "will reach 65 MW when fully ramped up"),
+    ).toMatchObject({
+      reason: "unit-mismatch",
+    });
+    const words = webSource({
+      id: "web-nbis",
+      snippet: "The site will reach 65 megawatts in 2027.",
+    });
+    expect(
+      unverifiedWebFigure(
+        {
+          text: "The site reaches 65 MW in 2027.",
+          sourceIds: [words.id],
+          figureQuotes: [{ sourceId: words.id, quote: "The site will reach 65 megawatts in 2027" }],
+        },
+        webSourceTexts([words]),
+      ),
+    ).toBeUndefined();
+    expect(claim("The solar park adds 65 MWp.")).toMatchObject({ reason: "figure-not-quoted" });
+    const hours = webSource({ id: "web-nbis", snippet: "Capacity is 65 GW-hours at this site." });
+    expect(
+      unverifiedWebFigure(
+        {
+          text: "Capacity is 65 GW at this site.",
+          sourceIds: [hours.id],
+          figureQuotes: [{ sourceId: hours.id, quote: "Capacity is 65 GW-hours at this site." }],
+        },
+        webSourceTexts([hours]),
+      ),
+    ).toMatchObject({ reason: "figure-not-in-quote" });
+    expect(check("The campus draws 40 MW.", undefined, ["sec-10q"])).toBeUndefined();
   });
 
   test("leaves claims without a cited web source or without figures alone", () => {

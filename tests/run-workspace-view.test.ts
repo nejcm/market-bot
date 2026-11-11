@@ -856,6 +856,20 @@ describe("run workspace view", () => {
     expect(position?.notes).toEqual([note]);
   });
 
+  test("a position with every value withheld keeps its notes and no metrics", () => {
+    const note = {
+      code: "stale-instant-series" as const,
+      seriesKey: "cash" as const,
+      periodKey: "instant|2025-12-31",
+      message: "Cash as of 2025-12-31 is more than 180 days before the analysis cutoff; withheld.",
+    };
+    expect(financialPositionFromProjection({ reportingCurrency: "USD", notes: [note] })).toEqual({
+      reportingCurrency: "USD",
+      metrics: [],
+      notes: [note],
+    });
+  });
+
   test("renders Failed Run Artifact diagnostics", async () => {
     const detail = failedDetail();
 

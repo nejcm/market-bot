@@ -323,23 +323,25 @@
             "Financial position",
             defaultView.financialPosition.reportingCurrency ?? "currency unavailable",
           )}
-          <div class="grid border border-[#e4e0d6] bg-secondary font-mono sm:grid-cols-3">
-            {#each defaultView.financialPosition.metrics as metric}
-              <div class="border-r border-[#e4e0d6] px-3 py-3 last:border-r-0">
-                <div class="text-[15px] text-foreground">{metric.value}</div>
-                <div class="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {metric.label}
+          {#if defaultView.financialPosition.metrics.length > 0}
+            <div class="grid border border-[#e4e0d6] bg-secondary font-mono sm:grid-cols-3">
+              {#each defaultView.financialPosition.metrics as metric}
+                <div class="border-r border-[#e4e0d6] px-3 py-3 last:border-r-0">
+                  <div class="text-[15px] text-foreground">{metric.value}</div>
+                  <div class="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+                    {metric.label}
+                  </div>
+                  <div class="mt-1.5 text-[10px] leading-snug text-[#a09a8d]">
+                    {metric.dateBasis}
+                  </div>
+                  {#if metric.proof !== undefined}
+                    <p class="mt-1.5 block font-sans text-[10px] leading-snug text-muted-foreground">0 per the filing's tagged fact: {metric.proof}</p>
+                  {/if}
+                  {@render citeChips(metric.sourceIds)}
                 </div>
-                <div class="mt-1.5 text-[10px] leading-snug text-[#a09a8d]">
-                  {metric.dateBasis}
-                </div>
-                {#if metric.proof !== undefined}
-                  <p class="mt-1.5 block font-sans text-[10px] leading-snug text-muted-foreground">0 per the filing's tagged fact: {metric.proof}</p>
-                {/if}
-                {@render citeChips(metric.sourceIds)}
-              </div>
-            {/each}
-          </div>
+              {/each}
+            </div>
+          {/if}
           {#if defaultView.financialPosition.notes !== undefined && defaultView.financialPosition.notes.length > 0}
             <p class="mt-2 font-sans text-[11px] text-muted-foreground">
               {defaultView.financialPosition.notes.map((note) => note.message).join(" ")}

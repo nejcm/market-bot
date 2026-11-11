@@ -557,7 +557,7 @@ describe("CLFD-shaped zero borrowings after the last debt instant", () => {
 
   test("the reader carries the zero-borrowings proof beside the zero debt", async () => {
     const artifact = await clfdDerive(clfdServed());
-    expect(financialPosition(artifact, "2026-06-30")?.debt?.zeroBorrowingsProof).toBe(PROOF);
+    expect(financialPosition(artifact, "2026-03-31")?.debt?.zeroBorrowingsProof).toBe(PROOF);
     const rows = balanceSheetHistory(artifact, "2026-06-30")?.rows ?? [];
     expect(rows.find((row) => row.debt?.value === 0)?.debt?.zeroBorrowingsProof).toBe(PROOF);
     expect(rows.filter((row) => row.debt?.zeroBorrowingsProof !== undefined)).toHaveLength(1);

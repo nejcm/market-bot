@@ -839,6 +839,50 @@ describe("business framework evidence", () => {
     expect(valuation?.summary).toContain(REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT);
   });
 
+  test("publishes EV/revenue as not meaningful below the revenue de-minimis floor", () => {
+    // NBIS run 1c6c4809: FY2025 20-F (0001104659-26-052948, public 2026-04-30) revenue $529.8M against a $36.33B quote market cap.
+    const sourceIds = ["market-aapl", "extended-sec-edgar-aapl-fundamentals"];
+    const reason = "revenue below the 2% of market cap de-minimis floor";
+    const baseEvidence = evidence();
+    const result = framework(
+      {
+        ...baseEvidence,
+        items: baseEvidence.items.map((item) =>
+          item.category === "valuation"
+            ? {
+                ...item,
+                metrics: {
+                  ...item.metrics,
+                  marketCap: 36_330_405_888,
+                  annualizedRevenue: 529_800_000,
+                  evToAnnualizedRevenue: 69.42,
+                  valuationSupportability: "not-meaningful",
+                },
+              }
+            : item,
+        ),
+      },
+      AS_OF,
+      ANNUAL_STATEMENTS,
+      [
+        {
+          id: "financial-lens-value",
+          title: "Financial Lens: Value",
+          metrics: [
+            {
+              ...lensMetric("evToAnnualizedRevenue", 69.42, sourceIds),
+              status: "not-meaningful",
+              reason,
+            },
+          ],
+        },
+      ],
+    );
+
+    const metric = metricOf(result, "business-framework-valuation", "evToAnnualizedRevenue");
+    expect(metric).toMatchObject({ status: "not-meaningful", reason, sourceIds });
+  });
+
   test("carries the current-equity note on EV/revenue only when the valuation bridge used it", () => {
     const sourceIds = ["market-aapl", "extended-sec-edgar-aapl-fundamentals"];
     const lens: readonly MetricSection[] = [

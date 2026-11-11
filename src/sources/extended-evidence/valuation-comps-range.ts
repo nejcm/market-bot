@@ -1,9 +1,10 @@
-import { gateProfileFor, revenueMultipleMeaningful } from "./valuation-comps-rows";
+import { gateProfileFor } from "./valuation-comps-rows";
 import type { SourceGap } from "../../domain/sources";
 import type { PeerUniverse } from "../../domain/peer-universe";
 import {
   MIN_USABLE_PEERS,
   MIXED_PERIOD_METRIC,
+  revenueMultipleMeaningful,
   type ExcludedValuationPeer,
   type PeerImpliedRange,
   type PeerImpliedRangeDerivedInputs,

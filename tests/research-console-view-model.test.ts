@@ -2075,6 +2075,26 @@ describe("report artifact parsers", () => {
     ]);
   });
 
+  test("shows EV/revenue as N/M below the revenue de-minimis floor", () => {
+    // NBIS run 1c6c4809: FY2025 revenue $529.8M against a $36.33B quote market cap.
+    expect(
+      valuationMetricTiles(
+        {
+          marketCap: 36_330_405_888,
+          annualizedRevenue: 529_800_000,
+          evToAnnualizedRevenue: 69.42,
+          valuationSupportability: "not-meaningful",
+        },
+        "TTM revenue",
+      ),
+    ).toEqual([
+      { label: "Market cap", value: "$36.3B" },
+      { label: "TTM revenue", value: "$529.8M" },
+      { label: "EV / TTM revenue", value: "N/M" },
+      { label: "Supportability", value: "not-meaningful" },
+    ]);
+  });
+
   test("falls back to the core peer count when a run predates usablePeerCount", () => {
     expect(
       valuationMetricTiles({ corePeerCount: 2, peerMedianEvToAnnualizedRevenue: 4.2 }),

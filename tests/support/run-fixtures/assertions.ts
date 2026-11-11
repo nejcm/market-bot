@@ -1363,7 +1363,8 @@ const EXPECTED_LENS_VALUES: Readonly<
     enterpriseValue: null,
     annualizedRevenue: 529_800_000,
     evToAnnualizedRevenue: null,
-    marketCapToAnnualizedRevenue: 73.887_866_153_265_38,
+    // TTM revenue 529.8M is below 2% of the 39.15B market cap (73.89x), so the multiple is not meaningful.
+    marketCapToAnnualizedRevenue: NOT_MEANINGFUL,
     valuationSupportability: "not-meaningful",
     // Yahoo quote 2026-11-04: price 143.995, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 39.15B.
     peRatio: 112.496_09,
@@ -3634,6 +3635,10 @@ const MISSING_WORKBENCH_PRICE = { status: "missing", reason: "price-history-unav
 const IFRS_WORKBENCH_EV = { status: "missing", reason: "ev-bridge-incomplete" } as const;
 const MISSING_WORKBENCH_DEBT = { status: "missing", reason: "debt-unavailable" } as const;
 const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
+const DE_MINIMIS_WORKBENCH_REVENUE = {
+  status: "not-meaningful",
+  reason: "revenue below the 2% of market cap de-minimis floor",
+} as const;
 const NEGATIVE_WORKBENCH_DENOMINATOR = {
   status: "not-meaningful",
   reason: "negative-denominator",
@@ -4022,8 +4027,9 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
     "ttm|2025-12-31|2026-04-30": [
       418.878_774_931_936_56,
-      64.622_117_548_843_16,
-      65.470_739_670_398_46,
+      // FY2025 revenue $529.8M against a ~$34.2B market cap at the 2026-04-30 close.
+      DE_MINIMIS_WORKBENCH_REVENUE,
+      DE_MINIMIS_WORKBENCH_REVENUE,
       MISSING_WORKBENCH_FCF,
     ],
   },

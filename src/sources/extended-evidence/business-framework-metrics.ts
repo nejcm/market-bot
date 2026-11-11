@@ -7,7 +7,12 @@ import type {
   BusinessLifecyclePhase,
 } from "./business-framework";
 import { priorComparable } from "./financial-lens-canonical";
-import { withCurrentEquityNote, yearOverYearOutcome, yoyDirection } from "./financial-lens-inputs";
+import {
+  withCurrentEquityNote,
+  withRevenueMultipleVerdict,
+  yearOverYearOutcome,
+  yoyDirection,
+} from "./financial-lens-inputs";
 import {
   itemByCategory,
   secFundamentalItem,
@@ -695,7 +700,11 @@ function citedByLens(
   return (ctx) => {
     const outcome = compute(ctx);
     const lens = lensMetrics.find(
-      (metric) => metric.id === id && metric.status === "value" && metric.sourceIds.length > 0,
+      (metric) =>
+        metric.id === id &&
+        (metric.status === "value" ||
+          (metric.status === "not-meaningful" && outcome.status === "not-meaningful")) &&
+        metric.sourceIds.length > 0,
     );
     if (lens === undefined && outcome.status === "value") {
       return {
@@ -887,11 +896,13 @@ function sectionDefinitions(
         compute: citedByLens(
           lensMetrics,
           "evToAnnualizedRevenue",
-          evidenceValue("valuation", "evToAnnualizedRevenue", "EV/revenue", "ratio", (item) => {
-            // TTM revenue spans 12 months whatever length the latest revenue fact has.
-            const { periodEnd } = keyPeriod(item, "revenue");
-            return periodEnd === undefined ? {} : { periodEnd, periodMonths: 12 };
-          }),
+          withRevenueMultipleVerdict(
+            evidenceValue("valuation", "evToAnnualizedRevenue", "EV/revenue", "ratio", (item) => {
+              // TTM revenue spans 12 months whatever length the latest revenue fact has.
+              const { periodEnd } = keyPeriod(item, "revenue");
+              return periodEnd === undefined ? {} : { periodEnd, periodMonths: 12 };
+            }),
+          ),
         ),
       }),
     ],

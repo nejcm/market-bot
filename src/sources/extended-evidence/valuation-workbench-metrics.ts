@@ -1,4 +1,5 @@
 import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
+import { revenueMultipleNotMeaningfulReason } from "./valuation-comps-contract";
 import { isYearAligned } from "./financial-statement-selection";
 import { DEBT_SCOPE_CAVEAT } from "./financial-statement-definitions";
 import {
@@ -27,6 +28,11 @@ const DENOMINATOR_LABELS = {
   freeCashFlow: "free-cash-flow",
   revenue: "revenue",
 } as const;
+
+const EV_WITHHELD_SERIES: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
+  "cash-unavailable": ["cash"],
+  "debt-unavailable": ["debt"],
+};
 
 function withheldReason(
   period: ValuationPeriodInputs,
@@ -96,6 +102,31 @@ export function valuationMetricSection(input: {
     period.basis === "ttm" && period.dilutedShares?.derivation !== undefined
       ? `; diluted shares: ${period.dilutedShares.derivation} weighted average, a proxy for a trailing-year count when shorter than a fiscal year`
       : "";
+  const enterpriseValueWithheld = (): string | undefined => {
+    if (period.cash === undefined) {
+      return "cash-unavailable";
+    }
+    if (period.debtScopeMismatch) {
+      return "mixed-scope-debt";
+    }
+    if (period.debt === undefined) {
+      return "debt-unavailable";
+    }
+    if (period.enterpriseValueBridgeIncomplete) {
+      return "ev-bridge-incomplete";
+    }
+    const mixed = balanceSheetPeriodDivergence({
+      cashPeriodEnd: period.cash.periodEnd,
+      debtPeriodEnd: period.debt.periodEnd,
+    });
+    const laggingRow = balanceSheetPeriodDivergence({
+      cashPeriodEnd: [period.cash.periodEnd, period.debt.periodEnd].toSorted()[0]!,
+      debtPeriodEnd: period.periodEnd,
+    });
+    return mixed !== undefined || laggingRow !== undefined || period.debtBehindIncompleteInstant
+      ? "mixed-period-balance-sheet"
+      : undefined;
+  };
   const definitions: readonly MetricDefinition[] = METRICS.map(
     ([id, label, formula, denominatorKey]) => ({
       id,
@@ -167,34 +198,9 @@ export function valuationMetricSection(input: {
             ? { cause: "not-filed" as const }
             : {}),
         });
-        if (id === "enterpriseValueToRevenue") {
-          if (period.cash === undefined) {
-            return missing("cash-unavailable", ["cash"]);
-          }
-          if (period.debtScopeMismatch) {
-            return missing("mixed-scope-debt");
-          }
-          if (period.debt === undefined) {
-            return missing("debt-unavailable", ["debt"]);
-          }
-          if (period.enterpriseValueBridgeIncomplete) {
-            return missing("ev-bridge-incomplete");
-          }
-          const mixed = balanceSheetPeriodDivergence({
-            cashPeriodEnd: period.cash.periodEnd,
-            debtPeriodEnd: period.debt.periodEnd,
-          });
-          const laggingRow = balanceSheetPeriodDivergence({
-            cashPeriodEnd: [period.cash.periodEnd, period.debt.periodEnd].toSorted()[0]!,
-            debtPeriodEnd: period.periodEnd,
-          });
-          if (
-            mixed !== undefined ||
-            laggingRow !== undefined ||
-            period.debtBehindIncompleteInstant
-          ) {
-            return missing("mixed-period-balance-sheet");
-          }
+        const evWithheld = enterpriseValueWithheld();
+        if (id === "enterpriseValueToRevenue" && evWithheld !== undefined) {
+          return missing(evWithheld, EV_WITHHELD_SERIES[evWithheld]);
         }
         const sharesWithheld =
           needsShares && period.dilutedShares === undefined
@@ -273,20 +279,64 @@ export function valuationMetricSection(input: {
         }
         const close = price.close * (fx?.rate ?? 1);
         const marketCap = close * (period.dilutedShares?.value ?? 1);
+        // One verdict per observation: P/S also yields when the same row's valid EV breaches the ceiling.
+        const evAvailable =
+          input.depositorySic === undefined &&
+          evWithheld === undefined &&
+          [period.cash, period.debt, period.enterpriseValueBridge].every(
+            (row) => typeof row?.currency !== "string" || row.currency === reportingCurrency,
+          );
+        const enterpriseValue = evAvailable
+          ? marketCap +
+            (period.debt?.value ?? 0) -
+            (period.cash?.value ?? 0) +
+            (period.enterpriseValueBridge?.value ?? 0)
+          : undefined;
         let numerator = marketCap;
         if (id === "priceToEarnings") {
           numerator = close;
         } else if (id === "enterpriseValueToRevenue") {
-          numerator =
-            marketCap +
-            (period.debt?.value ?? 0) -
-            (period.cash?.value ?? 0) +
-            (period.enterpriseValueBridge?.value ?? 0);
+          if (enterpriseValue === undefined) {
+            return missing("incompatible currency");
+          }
+          numerator = enterpriseValue;
         }
         const value = numerator / denominator.value;
-        return Number.isFinite(value)
-          ? { status: "value", value, periodEnd: period.periodEnd, inputs: lineage }
-          : missing("non-finite numerator");
+        if (!Number.isFinite(value)) {
+          return missing("non-finite numerator");
+        }
+        if (denominatorKey !== "revenue") {
+          return { status: "value", value, periodEnd: period.periodEnd, inputs: lineage };
+        }
+        const floorReason = revenueMultipleNotMeaningfulReason({
+          annualizedRevenue: denominator.value,
+          marketCap,
+        });
+        const ceilingReason =
+          floorReason === undefined && enterpriseValue !== undefined
+            ? revenueMultipleNotMeaningfulReason({
+                evToAnnualizedRevenue: enterpriseValue / denominator.value,
+              })
+            : undefined;
+        const revenueMultipleReason = floorReason ?? ceilingReason;
+        if (revenueMultipleReason === undefined) {
+          return { status: "value", value, periodEnd: period.periodEnd, inputs: lineage };
+        }
+        return {
+          status: "not-meaningful",
+          reason: revenueMultipleReason,
+          periodEnd: period.periodEnd,
+          // P/S yielding to the EV ceiling cites the debt, cash and bridge facts that decided it.
+          inputs:
+            ceilingReason !== undefined && id === "priceToSales"
+              ? [
+                  ...lineage,
+                  ...[period.cash, period.debt, period.enterpriseValueBridge].flatMap(
+                    (row) => row?.lineage ?? [],
+                  ),
+                ]
+              : lineage,
+        };
       },
     }),
   );

@@ -28,6 +28,7 @@ import {
   readValuationWorkbenchArtifact,
   type ValuationWorkbenchArtifact,
 } from "../src/sources/extended-evidence/valuation-workbench-contract";
+import { valuationMetricSection } from "../src/sources/extended-evidence/valuation-workbench-metrics";
 import {
   hasNoPriceHistory,
   renderValuationWorkbenchMarkdown,
@@ -2878,5 +2879,110 @@ describe("historical TTM diluted shares from SEC facts", () => {
       ["2024-03-31", "2024-05-08", 10],
       ["2024-06-30", "2024-08-08", 10],
     ]);
+  });
+});
+
+function ttmInput(value: number) {
+  return {
+    value,
+    label: "input",
+    periodEnd: "2025-12-31",
+    publicAt: "2026-04-30",
+    currency: "USD",
+    unit: "USD",
+    sourceIds: ["sec"],
+  };
+}
+
+describe("valuation workbench revenue-multiple verdict", () => {
+  // NBIS FY2025 revenue $529.8M (20-F 0001104659-26-052948) vs a ~$34.2B market cap at the post-filing close.
+  const revenueMultiples = (
+    revenue: number,
+    debt: number | null = 4_449_600_000,
+    basis: "ttm" | "annual" = "ttm",
+  ) =>
+    Object.fromEntries(
+      valuationMetricSection({
+        symbol: "NBIS",
+        period: {
+          basis,
+          periodEnd: "2025-12-31",
+          revenue: ttmInput(revenue),
+          dilutedShares: { ...ttmInput(250_000_000), unit: "shares", currency: null },
+          cash: ttmInput(4_000_000_000),
+          ...(debt === null
+            ? {}
+            : {
+                debt: {
+                  ...ttmInput(debt),
+                  lineage: [
+                    {
+                      label: "Debt",
+                      value: debt,
+                      artifact: "statements" as const,
+                      series: "debt" as const,
+                      unit: "USD",
+                      periodEnd: "2025-12-31",
+                      periodKey: "instant|2025-12-31",
+                      sourceIds: ["debt-filing"],
+                    },
+                  ],
+                },
+              }),
+        },
+        price: { close: 136.95, sessionDate: "2026-04-30", currency: "USD", sourceId: "quote" },
+        reportingCurrency: "USD",
+        quoteCurrency: "USD",
+      })
+        .section.metrics.filter(
+          ({ id }) => id === "priceToSales" || id === "enterpriseValueToRevenue",
+        )
+        .map((metric) => [metric.id, metric]),
+    );
+
+  test("publishes P/S and EV/revenue as not meaningful below the revenue de-minimis floor", () => {
+    const metrics = revenueMultiples(529_800_000);
+    for (const id of ["priceToSales", "enterpriseValueToRevenue"]) {
+      expect(metrics[id]).toMatchObject({
+        status: "not-meaningful",
+        reason: "revenue below the 2% of market cap de-minimis floor",
+        periodEnd: "2025-12-31",
+      });
+      expect(metrics[id]?.value).toBeUndefined();
+    }
+    expect(metrics["priceToSales"]?.sourceIds).toEqual(["quote"]);
+    expect(metrics["enterpriseValueToRevenue"]?.sourceIds).toEqual(["debt-filing", "quote"]);
+  });
+
+  test("keeps revenue multiples at the de-minimis floor and above it", () => {
+    const atFloor = revenueMultiples(684_750_000, 4_000_000_000);
+    expect(atFloor["priceToSales"]?.status).toBe("value");
+    expect(atFloor["priceToSales"]?.value).toBeCloseTo(50);
+    expect(revenueMultiples(1_200_000_000)["enterpriseValueToRevenue"]?.status).toBe("value");
+  });
+
+  test.each(["ttm", "annual"] as const)(
+    "withholds P/S with EV/revenue when the %s row's net debt lifts EV above the ceiling",
+    (basis) => {
+      const metrics = revenueMultiples(855_937_500, 20_000_000_000, basis);
+      for (const id of ["priceToSales", "enterpriseValueToRevenue"]) {
+        expect(metrics[id]).toMatchObject({
+          status: "not-meaningful",
+          reason: "EV/revenue above the 50x ceiling",
+        });
+        expect(metrics[id]?.value).toBeUndefined();
+        expect(metrics[id]?.sourceIds).toContain("debt-filing");
+      }
+    },
+  );
+
+  test("falls back to the de-minimis floor for P/S when EV is unavailable", () => {
+    const metrics = revenueMultiples(855_937_500, null);
+    expect(metrics["priceToSales"]?.status).toBe("value");
+    expect(metrics["priceToSales"]?.value).toBeCloseTo(40);
+    expect(metrics["enterpriseValueToRevenue"]).toMatchObject({
+      status: "missing",
+      reason: "debt-unavailable",
+    });
   });
 });

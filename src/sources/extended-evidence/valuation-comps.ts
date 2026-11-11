@@ -1,9 +1,4 @@
-import {
-  excludedPeer,
-  peerRow,
-  revenueMultipleMeaningful,
-  targetRow,
-} from "./valuation-comps-rows";
+import { excludedPeer, peerRow, targetRow } from "./valuation-comps-rows";
 import { buildArtifact } from "./valuation-comps-range";
 import {
   balanceSheetPeriodDivergence,
@@ -18,6 +13,7 @@ import {
 } from "./valuation-comps-support";
 import {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+  revenueMultipleMeaningful,
   supportabilitySuppressionCause,
   type ValuationCompsOptions,
   type ValuationCompsResult,

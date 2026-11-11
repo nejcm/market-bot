@@ -1778,6 +1778,53 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     );
   });
 
+  test("publishes revenue multiples as not meaningful below the revenue de-minimis floor", () => {
+    // NBIS run 1c6c4809: FY2025 20-F (0001104659-26-052948, public 2026-04-30) revenue $529.8M against a $36.33B quote market cap.
+    const valuation = valuationEvidence();
+    const nbis = {
+      ...valuation.metrics,
+      marketCap: 36_330_405_888,
+      enterpriseValue: 36_780_005_888,
+      annualizedRevenue: 529_800_000,
+      evToAnnualizedRevenue: 69.42,
+      marketCapToAnnualizedRevenue: 68.57,
+      revenuePeriodEnd: "2025-12-31",
+      valuationSupportability: "not-meaningful",
+    };
+    const valueMetric = (metrics: typeof nbis, id: string) =>
+      addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [secEvidenceWithRatios(), { ...valuation, metrics }],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      )
+        .metricSections?.find((section) => section.id === "financial-lens-value")
+        ?.metrics.find((metric) => metric.id === id);
+
+    for (const id of ["evToAnnualizedRevenue", "marketCapToAnnualizedRevenue"]) {
+      const metric = valueMetric(nbis, id);
+      expect(metric).toMatchObject({
+        status: "not-meaningful",
+        reason: "revenue below the 2% of market cap de-minimis floor",
+        periodEnd: "2025-12-31",
+        periodMonths: 12,
+      });
+      expect(metric?.value).toBeUndefined();
+      expect(metric?.sourceIds.length).toBeGreaterThan(0);
+    }
+    expect(
+      valueMetric(
+        { ...nbis, annualizedRevenue: 1_000_000_000, evToAnnualizedRevenue: 36.78 },
+        "marketCapToAnnualizedRevenue",
+      )?.status,
+    ).toBe("value");
+  });
+
   test("Yahoo dividendYield is whole-percent (verified against captured fixture) and display-only", () => {
     const result = addFinancialLensEvidence(
       command,

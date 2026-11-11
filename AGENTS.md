@@ -90,7 +90,7 @@ To find a cached payload, filter by adapter: `jq -r 'select(.adapter=="sec-compa
 
 Every run records `codeVersion` (package version, git branch/commit, dirty flag) in `trace.json`, `analytics.json`, and `failure.json` — check it before comparing runs across commits.
 
-Outside `data/`, `.reviews/` (run-review output), and `.plans/` are gitignored working files, none a repo record. `plans/issues.md` (tracked) is the issue backlog.
+Outside `data/`, `.reviews/` (run-review output), and `.plans/` are gitignored working files, none a repo record. `.plans/issues.md` (local, untracked) is the issue backlog.
 
 `prompts/` holds the model stage prompts and Domain Playbooks — a stage's behavior is usually changed there, not in `src/`.
 
@@ -189,7 +189,7 @@ Never ship these, whatever a reference app does: a composite score, a grade or s
 
 ## Financial data best practices
 
-These rules apply when adding or fixing a metric, parser, or projection. They describe the target. Where current code falls short, the metric's `label` or `basis` says so, and if `plans/issues.md` exists its "Wrong-value risk" section lists the gap. Close a gap deliberately, as its own change with its own tests, never as a side effect of an unrelated fix.
+These rules apply when adding or fixing a metric, parser, or projection. They describe the target. Where current code falls short, the metric's `label` or `basis` says so, and if `.plans/issues.md` exists its "Wrong-value risk" section lists the gap. Close a gap deliberately, as its own change with its own tests, never as a side effect of an unrelated fix.
 
 - **Use standard definitions.** Follow the textbook formula. Where the code deviates, its `label` or `basis` string says how (`freeCashFlowProxy`, `ebitdaProxy`, "period-end invested capital", "latest FY"). A new deviation needs the same.
   - FCF = operating cash flow − capex. FCF margin = FCF / revenue.
@@ -239,6 +239,6 @@ Every value, metric, data, or behavior issue, whether found in a run review, a t
 
    For non-trivial changes, get an independent review (the `code-review` skill or a second agent) and validate its findings against the code before acting on them.
 
-8. **Record.** The PR or commit body states, in your own words, the issue, the evidence that it was real (artifact paths, numbers, the filing), the reference that defines correct behavior, the root cause, and how it was verified. Never paste `.reviews/` or `.plans/` content (Non-negotiable 5). Follow-ups you found but did not fix go to `plans/issues.md`, not into the same change.
+8. **Record.** The PR or commit body states, in your own words, the issue, the evidence that it was real (artifact paths, numbers, the filing), the reference that defines correct behavior, the root cause, and how it was verified. Never paste `.reviews/` or `.plans/` content (Non-negotiable 5). Follow-ups you found but did not fix go to `.plans/issues.md`, not into the same change.
 
 Improvements and new features follow the same steps, with step 1 replaced by **Justify**: name the Product goals priority it serves and the user-visible gap it closes, and check that it does not cross the never-ship list above.

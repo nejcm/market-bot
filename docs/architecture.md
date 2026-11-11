@@ -37,8 +37,7 @@ scripts/              Coverage floor, fixture record/replay, Frozen-Input Eval, 
 tests/                Bun test suites
 app/                  Local Svelte + Bun Research Console App
 docs/adr/             Architecture decision records
-plans/                Tracked issue backlog (issues.md)
-.plans/               Requested planning docs, humans only (gitignored, never committed)
+.plans/               Requested planning docs and the issue backlog (gitignored, never committed)
 data/                 Run artifacts and calibration output (gitignored)
 ```
 

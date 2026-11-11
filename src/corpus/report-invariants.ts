@@ -69,7 +69,7 @@ const REVENUE_MULTIPLE_VERDICT = /de-minimis floor|x ceiling$/u;
 const CURRENT_VALUATION_SECTION = /^(financial-lens|business-framework)-/u;
 const EQUIVALENT_SURFACES = [/^financial-lens-/u, /^business-framework-/u] as const;
 const STALE_REASON = /^stale .+ as of (\d{4}-\d{2}-\d{2})$/u;
-// Shortcut: watch threshold until the near-zero-denominator floor in plans/issues.md is decided.
+// Shortcut: watch threshold until the near-zero-denominator floor in .plans/issues.md is decided.
 const CASH_CONVERSION_WATCH = 5;
 
 function published(sections: MetricSections) {
@@ -92,7 +92,7 @@ function issuerKey(input: ReportMetricInput): string {
   ]);
 }
 
-// Class checks over one report's Metric Sections; each names a defect class from plans/issues.md.
+// Class checks over one report's Metric Sections; each names a defect class from .plans/issues.md.
 export function reportInvariantViolations(
   sections: MetricSections,
   quoteSnapshots: QuoteSnapshots = [],

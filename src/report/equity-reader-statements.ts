@@ -10,8 +10,7 @@ import {
   latestFinancialStatementFact,
 } from "../sources/extended-evidence/financial-statement-selection";
 import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/sec-debt";
-import { isFreshPeriodEnd } from "../sources/extended-evidence/valuation-comps-support";
-import { SEC_FRESHNESS_DAYS } from "../config/shared";
+import { isFreshPeriodEnd, SEC_FRESHNESS_DAYS } from "../config/shared";
 
 export interface LabeledPeriod {
   readonly kind: "annual" | "interim" | "ttm";

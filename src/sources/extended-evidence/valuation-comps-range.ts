@@ -4,7 +4,7 @@ import type { PeerUniverse } from "../../domain/peer-universe";
 import {
   MIN_USABLE_PEERS,
   MIXED_PERIOD_METRIC,
-  revenueMultipleMeaningful,
+  revenueMultipleVerdict,
   type ExcludedValuationPeer,
   type PeerImpliedRange,
   type PeerImpliedRangeDerivedInputs,
@@ -16,7 +16,8 @@ import {
   type ValuationSupportability,
 } from "./valuation-comps-contract";
 
-import { isFreshDate, isFreshPeriodEnd, percentile, unique } from "./valuation-comps-support";
+import { isFreshPeriodEnd } from "../../config/shared";
+import { isFreshDate, percentile, unique } from "./valuation-comps-support";
 
 export function buildArtifact(
   generatedAt: string,
@@ -31,7 +32,7 @@ export function buildArtifact(
   const multiples = usablePeers.flatMap((peer) =>
     peer.evToAnnualizedRevenue === undefined ? [] : [peer.evToAnnualizedRevenue],
   );
-  const supportability = supportabilityFor(target, usablePeers.length);
+  const supportability = supportabilityFor(target, usablePeers.length, generatedAt);
   const peerPercentiles =
     multiples.length >= MIN_USABLE_PEERS
       ? {
@@ -249,8 +250,9 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
 function supportabilityFor(
   target: ValuationCompsRow,
   usablePeerCount: number,
+  generatedAt: string,
 ): ValuationSupportability {
-  if (!revenueMultipleMeaningful(target)) {
+  if (revenueMultipleVerdict(target, generatedAt)?.status === "not-meaningful") {
     return "not-meaningful";
   }
   if (!target.usable) {

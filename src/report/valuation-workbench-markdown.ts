@@ -4,6 +4,7 @@ import type {
 } from "../sources/extended-evidence/valuation-workbench-contract";
 import type {
   PeerImpliedRange,
+  ValuationCompsArtifact,
   ValuationCompsRow,
 } from "../sources/extended-evidence/valuation-comps";
 import { CAPEX_SCOPE_CAVEAT } from "../sources/extended-evidence/financial-statement-definitions";
@@ -127,8 +128,12 @@ function priceAsOfLabel(priceAsOf: MarketSnapshotPriceAsOf | undefined): string 
   return `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
 }
 
-function peerRow(row: ValuationCompsRow, targetSymbol: string, report: ResearchReport): string {
-  const multiple = compsRowRevenueMultipleLabel(row, targetSymbol);
+function peerRow(
+  row: ValuationCompsRow,
+  comps: ValuationCompsArtifact,
+  report: ResearchReport,
+): string {
+  const multiple = compsRowRevenueMultipleLabel(row, comps.target.symbol, comps.generatedAt);
   const priceDate = priceAsOfLabel(rowPriceAsOf(row));
   const dates = [
     ...(priceDate === undefined ? [] : [priceDate]),
@@ -139,7 +144,7 @@ function peerRow(row: ValuationCompsRow, targetSymbol: string, report: ResearchR
   return [
     ...[
       row.symbol,
-      peerRole(row, targetSymbol),
+      peerRole(row, comps.target.symbol),
       row.usable ? "usable" : "excluded",
       multiple,
       row.quoteCurrency ?? "—",
@@ -167,7 +172,7 @@ function peerSection(artifact: ValuationWorkbenchArtifact, report: ResearchRepor
   }
   const { valuationComps } = artifact.peerComparison;
   const rows = [valuationComps.target, ...valuationComps.peers].map((row) =>
-    peerRow(row, valuationComps.target.symbol, report),
+    peerRow(row, valuationComps, report),
   );
   const rangeLine = peerReferenceRangeLine(
     valuationComps.impliedPriceRange,

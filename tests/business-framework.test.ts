@@ -865,6 +865,7 @@ describe("business framework evidence", () => {
                   marketCap: 36_330_405_888,
                   annualizedRevenue: 529_800_000,
                   evToAnnualizedRevenue: 69.42,
+                  revenuePeriodEnd: "2025-12-31",
                   valuationSupportability: "not-meaningful",
                 },
               }
@@ -1328,7 +1329,13 @@ test("pass-through lens values cite the lens metric's inputs, never the lens bun
     ...input,
     items: input.items.map((item) =>
       item.category === "financial-lens" || item.category === "valuation"
-        ? { ...item, sourceIds: [...item.sourceIds, ...peerIds] }
+        ? {
+            ...item,
+            sourceIds: [...item.sourceIds, ...peerIds],
+            ...(item.category === "valuation"
+              ? { metrics: { ...item.metrics, revenuePeriodEnd: "2026-03-28" } }
+              : {}),
+          }
         : item,
     ),
   };

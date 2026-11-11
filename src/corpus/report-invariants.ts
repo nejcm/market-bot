@@ -1,3 +1,4 @@
+import { isFreshPeriodEnd } from "../config/shared";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../domain/market-data";
 import { isCashFlowInput, PRICE_RELATIVE_KEYS } from "../sources/extended-evidence/metric-engine";
 import {
@@ -117,11 +118,33 @@ export function reportInvariantViolations(
   sections: MetricSections,
   quoteSnapshots: QuoteSnapshots = [],
   depositorySic?: string,
+  generatedAt?: string,
 ): readonly ReportViolation[] {
   const violations: ReportViolation[] = [];
   const add = (invariant: string, section: string, metric: string, detail: string) =>
     violations.push({ invariant, section, metric, detail });
   const rows = published(sections);
+
+  for (const section of sections) {
+    for (const metric of section.metrics) {
+      if (
+        generatedAt !== undefined &&
+        CURRENT_VALUATION_SECTION.test(section.id ?? "") &&
+        REVENUE_MULTIPLES.has(metric.id ?? "") &&
+        (metric.status === "value" ||
+          (metric.status === "not-meaningful" &&
+            REVENUE_MULTIPLE_VERDICT.test(metric.reason ?? ""))) &&
+        (metric.periodEnd === undefined || !isFreshPeriodEnd(metric.periodEnd, generatedAt))
+      ) {
+        add(
+          "revenue-multiple-on-stale-revenue",
+          section.id!,
+          metric.id!,
+          `${metric.status ?? ""} ${metric.periodEnd ?? "undated"}`,
+        );
+      }
+    }
+  }
 
   const supportabilityNotMeaningful = rows.some(
     ({ metric }) => metric.id === "valuationSupportability" && metric.value === "not-meaningful",

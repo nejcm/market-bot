@@ -1,3 +1,9 @@
 export { SEC_COMPANYFACTS_MAX_RESPONSE_BYTES, SEC_TICKERS_URL } from "./endpoints";
 export { LISTED_SYMBOL_RE, RESEARCH_SUBJECT_SYMBOL_RE } from "./patterns";
-export { DAY_MS, daysBetween, roundedDaysAfter, SEC_FRESHNESS_DAYS } from "./time";
+export {
+  DAY_MS,
+  daysBetween,
+  isFreshPeriodEnd,
+  roundedDaysAfter,
+  SEC_FRESHNESS_DAYS,
+} from "./time";

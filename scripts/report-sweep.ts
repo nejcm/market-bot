@@ -77,6 +77,7 @@ interface ReportSweep {
 
 interface ReplayedReport {
   readonly symbol?: string;
+  readonly generatedAt?: string;
   readonly extras?: { readonly metricSections?: unknown };
   readonly extendedEvidence?: unknown;
 }
@@ -86,6 +87,7 @@ interface SweptRun {
   readonly sections: unknown;
   readonly snapshots: Parameters<typeof reportInvariantViolations>[1];
   readonly extendedEvidence: unknown;
+  readonly generatedAt: string | undefined;
   // Set when only final-synthesis missed: sections come from the synthesis input, not a report.
   readonly upstreamOnlyError?: string;
 }
@@ -93,6 +95,7 @@ interface SweptRun {
 interface SynthesisInput {
   readonly command?: { readonly symbol?: string };
   readonly collectedSources?: CollectedSources;
+  readonly generatedAt?: string;
 }
 
 async function replayRun(runsDir: string, run: string, root: string): Promise<SweptRun> {
@@ -118,6 +121,7 @@ async function replayRun(runsDir: string, run: string, root: string): Promise<Sw
       sections: report.extras?.metricSections,
       snapshots: artifact?.marketSnapshots ?? [],
       extendedEvidence: report.extendedEvidence,
+      generatedAt: report.generatedAt,
     };
   }
   const collected = captured.synthesisInput?.collectedSources;
@@ -136,6 +140,7 @@ async function replayRun(runsDir: string, run: string, root: string): Promise<Sw
     sections: collected.metricSections,
     snapshots: collected.marketSnapshots,
     extendedEvidence: collected.extendedEvidence,
+    generatedAt: captured.synthesisInput?.generatedAt,
     upstreamOnlyError: error,
   };
 }
@@ -178,6 +183,7 @@ export async function sweepReports(runsDir: string, root: string): Promise<Repor
         sections as MetricSections,
         snapshots,
         depositoryIssuerSic(replay.extendedEvidence),
+        replay.generatedAt,
       ).map((violation) => ({
         run,
         symbol,

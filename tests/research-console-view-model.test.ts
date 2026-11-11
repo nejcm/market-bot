@@ -2095,6 +2095,20 @@ describe("report artifact parsers", () => {
     ]);
   });
 
+  test("withholds the EV/revenue verdict on a stale revenue period", () => {
+    const tiles = valuationMetricTiles(
+      {
+        marketCap: 36_330_405_888,
+        annualizedRevenue: 529_800_000,
+        evToAnnualizedRevenue: 69.42,
+        revenuePeriodEnd: "2025-12-31",
+      },
+      "TTM revenue",
+      "2026-11-11T00:00:00.000Z",
+    );
+    expect(tiles).toContainEqual({ label: "EV / TTM revenue", value: "withheld" });
+  });
+
   test("falls back to the core peer count when a run predates usablePeerCount", () => {
     expect(
       valuationMetricTiles({ corePeerCount: 2, peerMedianEvToAnnualizedRevenue: 4.2 }),

@@ -10,7 +10,7 @@ import type {
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
 import { financialLensNameFromSectionId } from "../../src/sources/extended-evidence/financial-lens-contract";
-import { revenueMultipleNotMeaningfulReason } from "../../src/sources/extended-evidence/valuation-comps-contract";
+import { revenueMultipleVerdict } from "../../src/sources/extended-evidence/valuation-comps-contract";
 import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/market-data";
 import { readRecord } from "./view-model-format";
@@ -57,6 +57,7 @@ function valuationMetricLabels(revenue: string): Readonly<Record<string, string>
 export function valuationMetricTiles(
   metrics: Readonly<Record<string, number | string>> | undefined,
   revenueBasisLabel = "revenue",
+  asOf?: string,
 ): readonly ValuationMetricTile[] {
   if (metrics === undefined) {
     return [];
@@ -77,12 +78,16 @@ export function valuationMetricTiles(
 
   const labels = valuationMetricLabels(revenueBasisLabel);
   const number = (key: string) => (typeof metrics[key] === "number" ? metrics[key] : undefined);
-  const revenueMultipleNotMeaningful =
-    revenueMultipleNotMeaningfulReason({
+  const { revenuePeriodEnd } = metrics;
+  const revenueMultiple = revenueMultipleVerdict(
+    {
       annualizedRevenue: number("annualizedRevenue"),
       marketCap: number("marketCap"),
       evToAnnualizedRevenue: number("evToAnnualizedRevenue"),
-    }) !== undefined;
+      revenuePeriodEnd: typeof revenuePeriodEnd === "string" ? revenuePeriodEnd : undefined,
+    },
+    asOf,
+  );
   const { usablePeerCount } = metrics;
   const hasUsablePeerCount =
     typeof usablePeerCount === "number" && Number.isFinite(usablePeerCount);
@@ -91,8 +96,8 @@ export function valuationMetricTiles(
     const raw = metrics[key];
     const label = labels[key] ?? key;
     if (typeof raw === "number" && Number.isFinite(raw)) {
-      if (key === "evToAnnualizedRevenue" && revenueMultipleNotMeaningful) {
-        return [{ label, value: "N/M" }];
+      if (key === "evToAnnualizedRevenue" && revenueMultiple !== undefined) {
+        return [{ label, value: revenueMultiple.status === "missing" ? "withheld" : "N/M" }];
       }
       if (
         key === "evToAnnualizedRevenue" ||

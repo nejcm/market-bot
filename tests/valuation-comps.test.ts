@@ -13,6 +13,7 @@ import {
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import {
   compsRowRevenueMultipleLabel,
+  revenueMultipleVerdict,
   type ValuationCompsRow,
 } from "../src/sources/extended-evidence/valuation-comps-contract";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -674,17 +675,63 @@ describe("compsRowRevenueMultipleLabel", () => {
     marketCap: 36_330_405_888,
     annualizedRevenue: 529_800_000,
     evToAnnualizedRevenue: 69.42,
+    revenuePeriodEnd: "2025-12-31",
   } as ValuationCompsRow;
+  const fresh = "2026-06-22T00:00:00.000Z";
 
   test("labels the target multiple N/M below the revenue de-minimis floor", () => {
-    expect(compsRowRevenueMultipleLabel(nbis, "NBIS")).toBe("N/M");
+    expect(compsRowRevenueMultipleLabel(nbis, "NBIS", fresh)).toBe("N/M");
     expect(
       compsRowRevenueMultipleLabel(
         { ...nbis, annualizedRevenue: 1e9, evToAnnualizedRevenue: 36.78 },
         "NBIS",
+        fresh,
       ),
     ).toBe("36.78x");
-    expect(compsRowRevenueMultipleLabel(nbis, "CRWV")).toBe("69.42x");
+    expect(compsRowRevenueMultipleLabel(nbis, "CRWV", fresh)).toBe("69.42x");
+  });
+
+  test("labels the target multiple withheld on a stale revenue basis", () => {
+    // NBIS run 98e8ca1a reads FY2025 revenue 315 days after its 2025-12-31 period end.
+    expect(compsRowRevenueMultipleLabel(nbis, "NBIS", "2026-11-11T04:02:39.016Z")).toBe("withheld");
+  });
+});
+
+describe("revenueMultipleVerdict", () => {
+  const stale = {
+    status: "missing",
+    reason:
+      "revenue basis period end 2025-12-31 is older than 180 days; no revenue-multiple verdict",
+  } as const;
+
+  test("withholds a current multiple from day 181 after the revenue period end", () => {
+    const floor = { annualizedRevenue: 1, marketCap: 100, revenuePeriodEnd: "2025-12-31" };
+    expect(revenueMultipleVerdict(floor, "2026-06-29T00:00:00.000Z")?.status).toBe(
+      "not-meaningful",
+    );
+    expect(revenueMultipleVerdict(floor, "2026-06-30T00:00:00.000Z")).toEqual(stale);
+  });
+
+  test("withholds a stale multiple whether or not a verdict would fire", () => {
+    const asOf = "2026-11-11T00:00:00.000Z";
+    const base = { annualizedRevenue: 100, marketCap: 1000, revenuePeriodEnd: "2025-12-31" };
+    expect(revenueMultipleVerdict({ ...base, evToAnnualizedRevenue: 60 }, asOf)).toEqual(stale);
+    expect(revenueMultipleVerdict({ ...base, evToAnnualizedRevenue: 18 }, asOf)).toEqual(stale);
+    expect(revenueMultipleVerdict({ ...base, annualizedRevenue: 0 }, asOf)?.reason).toBe(
+      "revenue not positive",
+    );
+  });
+
+  test("withholds a current multiple on an undated revenue basis", () => {
+    expect(
+      revenueMultipleVerdict(
+        { annualizedRevenue: 100, marketCap: 1000, evToAnnualizedRevenue: 60 },
+        "2026-11-11T00:00:00.000Z",
+      ),
+    ).toEqual({
+      status: "missing",
+      reason: "revenue basis has no period end; no revenue-multiple verdict",
+    });
   });
 });
 
@@ -1948,7 +1995,13 @@ describe("collectValuationComps", () => {
     expect(result.artifact.summary.gateProfile).toBe("revenue-exempt");
     expect(result.artifact.summary.usablePeerCount).toBe(2);
     expect(result.artifact.summary.corePeerCount).toBe(1);
-    expect(result.artifact.summary.valuationSupportability).toBe("not-meaningful");
+    // FY2025 revenue ends 2025-12-31, 196 days before generatedAt: no de-minimis verdict.
+    expect(result.artifact.summary.valuationSupportability).toBe("not-supportable");
+    expect(result.gaps.map((gap) => gap.message)).toContainEqual(
+      expect.stringContaining(
+        "Valuation peer comps not-supportable for ASTS: revenue basis period end 2025-12-31 is older than 180 days; no revenue-multiple verdict;",
+      ),
+    );
     expect(result.artifact.excludedPeers).toContainEqual(
       expect.objectContaining({
         symbol: "IRDM",

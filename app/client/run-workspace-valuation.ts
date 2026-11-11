@@ -248,7 +248,11 @@ function valuationPeerRows(
     symbol: row.symbol,
     role: row.symbol === valuationComps.target.symbol ? "target" : (row.role ?? "peer"),
     status: row.usable ? "usable" : "excluded",
-    multiple: compsRowRevenueMultipleLabel(row, valuationComps.target.symbol),
+    multiple: compsRowRevenueMultipleLabel(
+      row,
+      valuationComps.target.symbol,
+      valuationComps.generatedAt,
+    ),
     currency: row.quoteCurrency ?? "—",
     inputDates: valuationRowInputDates(row),
     sourceIds: stringArrayValue(row.sourceIds),

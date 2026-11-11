@@ -14,6 +14,7 @@ import {
 import {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
   revenueMultipleMeaningful,
+  revenueMultipleVerdict,
   supportabilitySuppressionCause,
   type ValuationCompsOptions,
   type ValuationCompsResult,
@@ -226,6 +227,7 @@ export async function collectValuationComps(
       .catch(() => {});
   }
   const usablePeers = usablePeersLabel(usablePeerCount);
+  const staleVerdict = revenueMultipleVerdict(target, ctx.fetchedAt);
   const supportabilityGaps =
     valuationSupportability === "supported"
       ? []
@@ -233,7 +235,7 @@ export async function collectValuationComps(
           valuationCompsGap(
             valuationSupportability === "not-meaningful"
               ? `Valuation peer comps not-meaningful for ${command.symbol}: ${REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT} ${usablePeers} passed the applicable gates`
-              : `Valuation peer comps ${valuationSupportability} for ${command.symbol}: ${usablePeers}`,
+              : `Valuation peer comps ${valuationSupportability} for ${command.symbol}: ${staleVerdict?.status === "missing" ? `${staleVerdict.reason}; ` : ""}${usablePeers}`,
             supportabilitySuppressionCause(valuationSupportability, artifact),
             "valuation",
             command.symbol.toUpperCase(),

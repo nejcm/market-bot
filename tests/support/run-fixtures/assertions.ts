@@ -513,6 +513,7 @@ export async function assertInvariants(
         ...result.collectedSources.supplementalMarketSnapshots,
       ],
       depositoryIssuerSic(report.extendedEvidence),
+      report.generatedAt,
     ).filter(({ invariant }) => !invariant.startsWith("watch:")),
     `${fixtureName} report class invariants`,
   ).toEqual([]);
@@ -1390,15 +1391,17 @@ const EXPECTED_LENS_VALUES: Readonly<
     // Stale like debt: the 2025-12-31 instant is over 180 days before the 2026-11-04 cutoff.
     cash: null,
     payoutRatio: 0,
-    valuationCaveat:
-      "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
     // Withheld: 2025-12-31 debt and cash are over 180 days before the 2026-11-04 cutoff.
     enterpriseValue: null,
     annualizedRevenue: 529_800_000,
     evToAnnualizedRevenue: null,
-    // TTM revenue 529.8M is below 2% of the 39.15B market cap (73.89x), so the multiple is not meaningful.
-    marketCapToAnnualizedRevenue: NOT_MEANINGFUL,
-    valuationSupportability: "not-meaningful",
+    // 529.8M is below 2% of the 39.15B cap, but its 2025-12-31 end is stale at the 2026-11-04 cutoff: no verdict.
+    marketCapToAnnualizedRevenue: {
+      status: "missing",
+      reason:
+        "revenue basis period end 2025-12-31 is older than 180 days; no revenue-multiple verdict",
+    },
+    valuationSupportability: "not-supportable",
     // Yahoo quote 2026-11-04: price 143.995, TTM EPS 1.28, forward EPS -3.59783, book 37.722, cap 39.15B.
     peRatio: 112.496_09,
     epsForward: -3.597_83,

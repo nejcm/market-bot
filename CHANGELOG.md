@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.3](https://github.com/nejcm/market-bot/compare/v1.16.2...v1.16.3) (2026-11-11)
+
+### Bug Fixes
+
+- **web-figures:** verify power and energy figures (#208) ([d712ff7](https://github.com/nejcm/market-bot/commit/d712ff7744722a2c59c9179db807fbf923be1411))
+
 ## [1.16.2](https://github.com/nejcm/market-bot/compare/v1.16.1...v1.16.2) (2026-11-11)
 
 ### Bug Fixes

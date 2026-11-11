@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../src/domain/evidence";
 import type { VerifiedMarketSnapshot } from "../src/domain/market-data";
+import { reportInvariantViolations } from "../src/corpus/report-invariants";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
@@ -1957,6 +1958,53 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
   });
 
+  // BNS f3c778db: trailingAnnualDividendRate 4.44 is CAD, epsTrailingTwelveMonths 5.52 is USD.
+  const {
+    dividendsPaid: _paid,
+    dividendsPaidPeriodEnd: _end,
+    ...secMetrics
+  } = secEvidenceWithRatios().metrics ?? {};
+  const secWithoutDividends = { ...secEvidenceWithRatios(), metrics: secMetrics };
+  const yahooPayoutRow = (overrides: Record<string, number | string>) =>
+    strengthSection(
+      addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [secWithoutDividends, yahooFundamentalsEvidence(overrides)],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      ),
+    )?.metrics.find(({ id }) => id === "payoutRatio");
+  const bns = { trailingAnnualDividendRate: 4.44, epsTrailingTwelveMonths: 5.52 };
+
+  test("withholds the Yahoo payout when the dividend rate is in another currency than EPS", () => {
+    const row = yahooPayoutRow({ ...bns, financialCurrency: "CAD" });
+    expect(row).toMatchObject({
+      status: "missing",
+      reason:
+        "Yahoo trailing dividend rate is in CAD and trailing EPS in USD; not divided across currencies",
+    });
+    expect(row?.inputs?.map(({ currency }) => currency)).toEqual(["CAD", "USD"]);
+    const sections = [{ id: "financial-lens-financial-strength", metrics: [row!] }];
+    expect(reportInvariantViolations(sections)).toEqual([]);
+    // A regression that published the mixed division would trip the generic currency check.
+    expect(
+      reportInvariantViolations([
+        { ...sections[0]!, metrics: [{ ...row!, status: "value", value: 4.44 / 5.52 }] },
+      ]).map(({ invariant, detail }) => [invariant, detail]),
+    ).toContainEqual(["currency-mix-without-fx", "CAD+USD"]);
+  });
+
+  test("publishes the Yahoo payout when financialCurrency matches the quote currency or is absent", () => {
+    for (const overrides of [{ ...bns, financialCurrency: "USD" }, bns]) {
+      expect(yahooPayoutRow(overrides)).toMatchObject({ status: "value", value: 4.44 / 5.52 });
+    }
+  });
+
   test("non-US listing: only Yahoo + Momentum, SEC-dependent lenses insufficient-data", () => {
     const rrlCommand = {
       jobType: "equity",
@@ -2321,6 +2369,7 @@ describe("buildYahooFundamentals", () => {
             epsForward: 9.595,
             sharesOutstanding: 14_687_356_000,
             trailingAnnualDividendRate: 1.04,
+            financialCurrency: "CAD",
           },
         }),
       ],
@@ -2339,7 +2388,10 @@ describe("buildYahooFundamentals", () => {
       epsForward: 9.595,
       sharesOutstanding: 14_687_356_000,
       trailingAnnualDividendRate: 1.04,
+      financialCurrency: "CAD",
     });
+    expect(item?.summary).toContain("EPS TTM 8.26,");
+    expect(item?.summary).toContain("annual dividend rate 1.040 CAD.");
     expect(item?.summary).toContain("trailing PE 36.08x");
     expect(item?.summary).toContain("dividend yield 0.36%");
   });

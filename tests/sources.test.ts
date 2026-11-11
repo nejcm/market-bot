@@ -354,6 +354,7 @@ describe("source normalization", () => {
               epsForward: 9.595,
               sharesOutstanding: 14_687_356_000,
               trailingAnnualDividendRate: 1.04,
+              financialCurrency: "USD",
             },
           ],
         },
@@ -372,6 +373,7 @@ describe("source normalization", () => {
       epsForward: 9.595,
       sharesOutstanding: 14_687_356_000,
       trailingAnnualDividendRate: 1.04,
+      financialCurrency: "USD",
     });
   });
 

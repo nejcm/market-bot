@@ -78,6 +78,8 @@ export interface MarketFundamentals {
   readonly epsForward?: number;
   readonly sharesOutstanding?: number;
   readonly trailingAnnualDividendRate?: number;
+  // Yahoo's statement currency; trailingAnnualDividendRate is in it, not the quote currency (BNS: CAD vs USD).
+  readonly financialCurrency?: string;
 }
 
 export interface MarketBenchmark {

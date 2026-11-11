@@ -128,7 +128,7 @@ function readYahooQuoteTimeUtc(value: Record<string, unknown>): string | undefin
 
 // Reads the pre-computed fundamental fields the Yahoo quote endpoint carries
 // Alongside price/volume. dividendYield is whole-percent (verified against captured
-// RR.L/AAPL fixtures); trailingAnnualDividendRate is in the quote currency per share.
+// RR.L/AAPL fixtures); trailingAnnualDividendRate is per share in financialCurrency.
 // Returns undefined when no fundamental field is present, so the snapshot omits the
 // Key entirely (no fundamentals for Massive fallback / ETF / ADR payloads).
 function readYahooFundamentals(value: Record<string, unknown>): MarketFundamentals | undefined {
@@ -141,6 +141,7 @@ function readYahooFundamentals(value: Record<string, unknown>): MarketFundamenta
   const epsForward = readNumber(value, "epsForward");
   const sharesOutstanding = readNumber(value, "sharesOutstanding");
   const trailingAnnualDividendRate = readNumber(value, "trailingAnnualDividendRate");
+  const financialCurrency = readString(value, "financialCurrency");
   const fundamentals: MarketFundamentals = {
     ...(trailingPE !== undefined ? { trailingPE } : {}),
     ...(forwardPE !== undefined ? { forwardPE } : {}),
@@ -152,7 +153,10 @@ function readYahooFundamentals(value: Record<string, unknown>): MarketFundamenta
     ...(sharesOutstanding !== undefined ? { sharesOutstanding } : {}),
     ...(trailingAnnualDividendRate !== undefined ? { trailingAnnualDividendRate } : {}),
   };
-  return Object.keys(fundamentals).length > 0 ? fundamentals : undefined;
+  if (Object.keys(fundamentals).length === 0) {
+    return undefined;
+  }
+  return financialCurrency === undefined ? fundamentals : { ...fundamentals, financialCurrency };
 }
 
 interface EquityMoverSnapshot {

@@ -69,8 +69,13 @@ export function yahooFundamentalsSummary(
     parts.push(`forward EPS ${fundamentals.epsForward.toFixed(2)}${currency}`);
   }
   if (fundamentals.trailingAnnualDividendRate !== undefined) {
+    const { financialCurrency } = fundamentals;
+    const rateCurrency =
+      financialCurrency === undefined
+        ? currency
+        : perShareCurrency({ quoteCurrency: financialCurrency });
     parts.push(
-      `annual dividend rate ${fundamentals.trailingAnnualDividendRate.toFixed(3)}${currency}`,
+      `annual dividend rate ${fundamentals.trailingAnnualDividendRate.toFixed(3)}${rateCurrency}`,
     );
   }
   return parts.length > 0 ? `Yahoo Fundamentals: ${parts.join(", ")}.` : "Yahoo Fundamentals.";
@@ -116,6 +121,9 @@ export function buildYahooFundamentals(
   }
   if (fundamentals.trailingAnnualDividendRate !== undefined) {
     metrics.trailingAnnualDividendRate = fundamentals.trailingAnnualDividendRate;
+  }
+  if (fundamentals.financialCurrency !== undefined) {
+    metrics.financialCurrency = fundamentals.financialCurrency;
   }
   return {
     category: "yahoo-fundamentals",

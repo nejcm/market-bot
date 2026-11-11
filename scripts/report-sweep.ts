@@ -7,6 +7,7 @@ import { listRunDirNames } from "../src/data-paths";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { runEvalSample } from "../src/replay/eval-run";
+import type { CollectedSources } from "../src/sources/types";
 import { depositoryIssuerSic } from "../src/sources/extended-evidence/industry-classification";
 import {
   reportInvariantViolations,
@@ -67,6 +68,7 @@ interface ReportSweep {
   readonly replayed: number;
   readonly withSections: number;
   readonly noCapture: readonly string[];
+  readonly upstreamOnly: readonly { readonly run: string; readonly error: string }[];
   readonly failures: readonly { readonly run: string; readonly error: string }[];
   readonly violationCounts: Readonly<Record<string, number>>;
   readonly violations: readonly RunViolation[];
@@ -79,27 +81,69 @@ interface ReplayedReport {
   readonly extendedEvidence?: unknown;
 }
 
-async function replayRun(runsDir: string, run: string, root: string) {
+interface SweptRun {
+  readonly symbol: string;
+  readonly sections: unknown;
+  readonly snapshots: Parameters<typeof reportInvariantViolations>[1];
+  readonly extendedEvidence: unknown;
+  // Set when only final-synthesis missed: sections come from the synthesis input, not a report.
+  readonly upstreamOnlyError?: string;
+}
+
+interface SynthesisInput {
+  readonly command?: { readonly symbol?: string };
+  readonly collectedSources?: CollectedSources;
+}
+
+async function replayRun(runsDir: string, run: string, root: string): Promise<SweptRun> {
+  const captured: { synthesisInput?: SynthesisInput } = {};
   const result = await runEvalSample({
     root,
     label: "sweep",
     fixture: join(runsDir, run, "replay"),
     sample: "1",
     llm: "replay",
+    onSynthesisInput: (input) => {
+      captured.synthesisInput = input as SynthesisInput;
+    },
   });
-  if (result.status !== "completed" || result.runDir === undefined) {
-    throw new Error(`${result.status}: ${result.error ?? "no published run"}`);
+  const error = `${result.status}: ${result.error ?? "no published run"}`;
+  if (result.status === "completed" && result.runDir !== undefined) {
+    const report = (await Bun.file(
+      join(result.runDir, RUN_ARTIFACT_FILES.report),
+    ).json()) as ReplayedReport;
+    const { artifact } = await loadRunArtifact(result.runDir);
+    return {
+      symbol: report.symbol ?? "",
+      sections: report.extras?.metricSections,
+      snapshots: artifact?.marketSnapshots ?? [],
+      extendedEvidence: report.extendedEvidence,
+    };
   }
-  const report = (await Bun.file(
-    join(result.runDir, RUN_ARTIFACT_FILES.report),
-  ).json()) as ReplayedReport;
-  const { artifact } = await loadRunArtifact(result.runDir);
-  return { report, snapshots: artifact?.marketSnapshots ?? [] };
+  const collected = captured.synthesisInput?.collectedSources;
+  const { keys } = result.modelReplayMisses;
+  if (
+    collected === undefined ||
+    result.cassetteMisses.count > 0 ||
+    keys.length === 0 ||
+    !keys.every((key) => key.startsWith("final-synthesis|")) ||
+    /Replay state/iu.test(result.error ?? "")
+  ) {
+    throw new Error(error);
+  }
+  return {
+    symbol: captured.synthesisInput?.command?.symbol ?? "",
+    sections: collected.metricSections,
+    snapshots: collected.marketSnapshots,
+    extendedEvidence: collected.extendedEvidence,
+    upstreamOnlyError: error,
+  };
 }
 
 export async function sweepReports(runsDir: string, root: string): Promise<ReportSweep> {
   const names = await listRunDirNames(runsDir);
   const noCapture: string[] = [];
+  const upstreamOnly: { run: string; error: string }[] = [];
   const failures: { run: string; error: string }[] = [];
   const violations: RunViolation[] = [];
   const ledger: LedgerRow[] = [];
@@ -110,7 +154,7 @@ export async function sweepReports(runsDir: string, root: string): Promise<Repor
       noCapture.push(run);
       continue;
     }
-    let replay: Awaited<ReturnType<typeof replayRun>>;
+    let replay: SweptRun;
     try {
       // oxlint-disable-next-line no-await-in-loop -- samples share process-level index overrides
       replay = await replayRun(runsDir, run, root);
@@ -118,20 +162,22 @@ export async function sweepReports(runsDir: string, root: string): Promise<Repor
       failures.push({ run, error: error instanceof Error ? error.message : String(error) });
       continue;
     }
-    replayed += 1;
-    const { report, snapshots } = replay;
-    const sections = report.extras?.metricSections;
+    if (replay.upstreamOnlyError === undefined) {
+      replayed += 1;
+    } else {
+      upstreamOnly.push({ run, error: replay.upstreamOnlyError });
+    }
+    const { symbol, sections, snapshots } = replay;
     if (!Array.isArray(sections)) {
       continue;
     }
     withSections += 1;
-    const symbol = report.symbol ?? "";
     ledger.push(...reportLedgerRows(run, symbol, sections as MetricSections));
     violations.push(
       ...reportInvariantViolations(
         sections as MetricSections,
         snapshots,
-        depositoryIssuerSic(report.extendedEvidence),
+        depositoryIssuerSic(replay.extendedEvidence),
       ).map((violation) => ({
         run,
         symbol,
@@ -148,6 +194,7 @@ export async function sweepReports(runsDir: string, root: string): Promise<Repor
     replayed,
     withSections,
     noCapture,
+    upstreamOnly,
     failures,
     violationCounts,
     violations,
@@ -200,7 +247,8 @@ if (import.meta.main) {
   await writeFile(`${stem}.ledger.jsonl`, serializeLedger(ledger), { flag: "wx" });
   process.stdout.write(
     [
-      `Runs: ${sweep.runs}, replayed: ${sweep.replayed} (with Metric Sections: ${sweep.withSections}), replay failed: ${sweep.failures.length}, no capture: ${sweep.noCapture.length}`,
+      `Runs: ${sweep.runs}, replayed: ${sweep.replayed}, upstream-only: ${sweep.upstreamOnly.length} (with Metric Sections: ${sweep.withSections}), replay failed: ${sweep.failures.length}, no capture: ${sweep.noCapture.length}`,
+      ...sweep.upstreamOnly.map(({ run, error }) => `  upstream-only ${run}: ${error}`),
       ...sweep.failures.map(({ run, error }) => `  failed ${run}: ${error}`),
       ...sweep.noCapture.map((run) => `  no capture ${run}`),
       `Violations: ${

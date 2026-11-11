@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { reportLedgerRows, sweepReports } from "../scripts/report-sweep";
@@ -519,6 +519,7 @@ describe("report sweep", () => {
         runs: 0,
         replayed: 0,
         noCapture: [],
+        upstreamOnly: [],
         failures: [],
         ledger: [],
       });
@@ -555,6 +556,53 @@ describe("report sweep", () => {
       expect(
         sweep.violationCounts["revenue-multiple-published-when-not-meaningful"],
       ).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("salvages Metric Sections only when every replay miss is final-synthesis", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "report-sweep-"));
+    try {
+      const runsDir = join(dir, "runs");
+      const fixtureDir = join(import.meta.dir, "fixtures/runs/equity-bursa-brief");
+      const cassette = JSON.parse(await readFile(join(fixtureDir, "llm-cassette.json"), "utf8"));
+      // The web-subject-profile miss is swallowed, so that run still reaches the checkpoint.
+      for (const [run, droppedStages] of [
+        ["synthesis-miss", ["final-synthesis|gpt-6-luna"]],
+        ["profile-miss", ["web-subject-profile|gpt-6-luna", "final-synthesis|gpt-6-luna"]],
+      ] as const) {
+        const replayDir = join(runsDir, run, "replay");
+        await cp(fixtureDir, replayDir, { recursive: true });
+        await writeFile(join(runsDir, run, "report.json"), "{}");
+        const entries = Object.fromEntries(
+          Object.entries(cassette.entries).filter(
+            ([key]) => !(droppedStages as readonly string[]).includes(key),
+          ),
+        );
+        await writeFile(
+          join(replayDir, "llm-cassette.json"),
+          JSON.stringify({ ...cassette, entries }),
+        );
+      }
+      const sweep = await sweepReports(runsDir, join(dir, "replays"));
+      expect(sweep).toMatchObject({ runs: 2, replayed: 0, withSections: 1 });
+      expect(sweep.upstreamOnly).toEqual([
+        {
+          run: "synthesis-miss",
+          error: expect.stringMatching(/^incomplete: .*final-synthesis\|/u),
+        },
+      ]);
+      expect(sweep.failures).toEqual([
+        {
+          run: "profile-miss",
+          error: expect.stringMatching(/^incomplete: .*final-synthesis\|/u),
+        },
+      ]);
+      expect(sweep.ledger.length).toBeGreaterThan(0);
+      expect(new Set(sweep.ledger.map((row) => `${row.cik} ${row.symbol}`))).toEqual(
+        new Set(["synthesis-miss 0097.KL"]),
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

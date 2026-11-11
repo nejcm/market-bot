@@ -85,6 +85,7 @@ export interface RunFixtureOptions {
   readonly fetchImpl?: FetchLike;
   readonly provider?: ModelProvider;
   readonly onDataRequest?: (request: FixtureDataRequest) => void;
+  readonly onSynthesisInput?: (input: unknown) => void;
 }
 
 export interface RunFixtureResult extends PersistedResearchJobResult {
@@ -470,6 +471,9 @@ export async function runFixture(
       indexes: new Map(),
       failures,
       offline: resolvedOptions.pacing !== true,
+      ...(resolvedOptions.onSynthesisInput === undefined
+        ? {}
+        : { checkpoint: resolvedOptions.onSynthesisInput }),
     },
     run,
   );

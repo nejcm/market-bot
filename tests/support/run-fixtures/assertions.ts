@@ -717,7 +717,11 @@ function resolveInput(
   } else if (input.artifact === "evidence") {
     const item = extendedEvidence?.items.find(({ category }) => category === input.category);
     const value = item?.metrics?.[input.key ?? ""];
-    resolved = value === undefined ? undefined : { value };
+    const periodEnd = item?.metrics?.[`${input.key ?? ""}PeriodEnd`];
+    resolved =
+      value === undefined
+        ? undefined
+        : { value, ...(input.periodEnd === undefined ? {} : { periodEnd: String(periodEnd) }) };
     expect(input.sourceIds, `${label} cites its own lineage`).toEqual(
       evidenceLineage(run, input, item?.sourceIds ?? []),
     );
@@ -1366,7 +1370,11 @@ const EXPECTED_LENS_VALUES: Readonly<
     netMargin: 0.018_497_546_243_865_61,
     // FY2025 20-F reports -0.1M discontinued investing beside continuing OCF, so capex scope is unproven.
     freeCashFlowProxy: null,
-    cashConversion: 41.010_204_081_632_65,
+    // OCF 401.9M over continuing income 9.8M (1.85% of revenue) would read 41.0x.
+    cashConversion: {
+      status: "not-meaningful",
+      reason: "continuing operations income is below 2% of same-period revenue (9.8M of 529.8M)",
+    },
     roe: 0.017_958_206_356_116_675,
     roa: 0.006_636_847_778_868_277,
     revenueDeltaPercent: 479.016_393_442_622_9,
@@ -2451,7 +2459,7 @@ export function assertBusinessFrameworkMetricInvariants(
           ),
         );
         const ratio = FRAMEWORK_RATIOS[metric.id];
-        // SEC-summary pass-through (no statements): inputs name evidence keys and YoY is filed.
+        // SEC-summary pass-through (no statements): inputs name evidence keys.
         const passThrough = metric.inputs.every(({ artifact }) => artifact === "evidence");
         if (ratio !== undefined && !passThrough) {
           expect(resolved[0]?.periodKey, `${label} joins one period`).toBe(resolved[1]?.periodKey);
@@ -2461,7 +2469,7 @@ export function assertBusinessFrameworkMetricInvariants(
             readonly (string | undefined)[]
           >(ratio);
           expectClose(metric.value, (first ?? Number.NaN) / (second ?? Number.NaN), label);
-        } else if (metric.id.endsWith("DeltaPercent") && !passThrough) {
+        } else if (metric.id.endsWith("DeltaPercent")) {
           const prior = first ?? Number.NaN;
           expect(
             prior > 0 && (second ?? Number.NaN) >= 0,

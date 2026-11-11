@@ -12,6 +12,14 @@ function metric(fields: Record<string, unknown>) {
   return fields as { readonly id?: string };
 }
 
+function statementFact(series: string, periodKey: string, value: number) {
+  return { artifact: "statements", series, periodKey, periodType: "annual", value };
+}
+
+function evidenceKey(key: string, value: number) {
+  return { artifact: "evidence", key, value };
+}
+
 function filed(currency: string) {
   return [{ id: "revenue", inputs: [{ artifact: "statements", currency }] }];
 }
@@ -165,6 +173,149 @@ describe("report sweep", () => {
     expect(reportInvariantViolations(sections).map((row) => [row.invariant, row.metric])).toEqual([
       ["instant-published-beside-stale-sibling", "cash"],
     ]);
+  });
+
+  test("flags YoY and cash conversion published on a base below 2% of same-period revenue", () => {
+    const sections = (incomeFy24: number) => [
+      {
+        id: "financial-lens-growth",
+        metrics: [
+          metric({
+            id: "revenueDeltaPercent",
+            status: "value",
+            value: 0,
+            inputs: [
+              statementFact("revenue", "FY2024", 100),
+              statementFact("revenue", "FY2025", 100),
+            ],
+          }),
+          metric({
+            id: "netIncomeDeltaPercent",
+            status: "value",
+            value: 1500,
+            inputs: [
+              statementFact("netIncome", "FY2024", incomeFy24),
+              statementFact("netIncome", "FY2025", 30),
+            ],
+          }),
+          metric({
+            id: "cashConversion",
+            status: "value",
+            value: 5,
+            inputs: [
+              statementFact("operatingCashFlow", "FY2024", 10),
+              statementFact("netIncome", "FY2024", incomeFy24),
+            ],
+          }),
+        ],
+      },
+    ];
+    expect(
+      reportInvariantViolations(sections(1.9)).map((row) => [row.invariant, row.metric]),
+    ).toEqual([
+      ["yoy-on-near-zero-base", "netIncomeDeltaPercent"],
+      ["watch:yoy-above-1000-percent", "netIncomeDeltaPercent"],
+      ["cash-conversion-near-zero-denominator", "cashConversion"],
+    ]);
+    expect(reportInvariantViolations(sections(2)).map((row) => row.invariant)).toEqual([
+      "watch:yoy-above-1000-percent",
+    ]);
+  });
+
+  test("resolves EPS, evidence-key and issuer-report YoY to their prior-year base", () => {
+    const priorProfit = issuerCell("4,500", "2024-06-30");
+    const sections = (revenue: Record<string, unknown> = {}) => [
+      {
+        id: "financial-lens-growth",
+        metrics: [
+          metric({
+            id: "revenueDeltaPercent",
+            status: "value",
+            value: 0,
+            inputs: [
+              statementFact("revenue", "FY2024", 100),
+              statementFact("revenue", "FY2025", 100),
+            ],
+          }),
+          metric({
+            id: "netIncomeDeltaPercent",
+            status: "not-meaningful",
+            inputs: [
+              statementFact("netIncome", "FY2024", 1),
+              statementFact("netIncome", "FY2025", 30),
+            ],
+          }),
+          metric({
+            id: "dilutedEpsDeltaPercent",
+            status: "value",
+            value: 900,
+            inputs: [
+              statementFact("dilutedEps", "FY2024", 0.1),
+              statementFact("dilutedEps", "FY2025", 1),
+            ],
+          }),
+        ],
+      },
+      {
+        id: "business-framework-growth",
+        metrics: [
+          metric({
+            id: "revenueDeltaPercent",
+            status: "value",
+            value: 0,
+            periodEnd: "2025-12-31",
+            periodMonths: 12,
+            inputs: [evidenceKey("revenuePrior", 100), evidenceKey("revenue", 100)],
+          }),
+          metric({
+            id: "operatingIncomeDeltaPercent",
+            status: "value",
+            value: 900,
+            periodEnd: "2025-12-31",
+            periodMonths: 12,
+            inputs: [evidenceKey("operatingIncomePrior", 1), evidenceKey("operatingIncome", 10)],
+          }),
+        ],
+      },
+      {
+        id: "issuer-report",
+        metrics: [
+          metric({
+            id: "issuer-report-revenue-quarter-2024-06-30",
+            status: "value",
+            value: 228_600_000,
+            currency: "MYR",
+            periodMonths: 3,
+            inputs: [{ ...issuerCell("228,600", "2024-06-30"), label: "Revenue" }],
+            ...revenue,
+          }),
+          metric({
+            id: "issuer-report-profit-attributable-to-owners-quarter-2024-06-30",
+            status: "value",
+            value: 4_500_000,
+            inputs: [priorProfit],
+          }),
+          metric({
+            id: "issuer-report-profit-attributable-to-owners-yoy-quarter",
+            status: "value",
+            value: 25,
+            periodMonths: 3,
+            inputs: [issuerCell("118,580", "2025-06-30"), priorProfit],
+          }),
+        ],
+      },
+    ];
+    const flagged = (revenue?: Record<string, unknown>) =>
+      reportInvariantViolations(sections(revenue))
+        .filter((row) => row.invariant === "yoy-on-near-zero-base")
+        .map((row) => row.metric);
+    const nonIssuer = ["dilutedEpsDeltaPercent", "operatingIncomeDeltaPercent"];
+    expect(flagged()).toEqual([
+      ...nonIssuer,
+      "issuer-report-profit-attributable-to-owners-yoy-quarter",
+    ]);
+    expect(flagged({ currency: "USD" })).toEqual(nonIssuer);
+    expect(flagged({ periodMonths: 6 })).toEqual(nonIssuer);
   });
 
   test("flags a Lens and Framework pair that disagrees on the same period", () => {

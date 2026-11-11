@@ -131,9 +131,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   discontinued operations and no continuing income, or with NCI income and no income including NCI, is
   withheld with a gap; a TTM is withheld when any FY, YTD, or prior-YTD component is.
   Older continuing data is history, not a current split. Current counterparts require total-operation labels
-  through summaries, Growth, framework, trends, and Workbench P/E; label growth scope.
+  through summaries, Growth, framework, trends, and Workbench P/E; label growth scope. A YoY is not meaningful
+  on a zero or negative prior, a negative latest, or a positive income, gross profit or OCF prior below 2% of
+  same-period revenue (EPS reads its income series); no same-period revenue publishes with a basis note
+  (amended 2026-11-12: HLIT continuing income +1,666% on 0.88% of revenue).
 - Cash conversion pairs OCF/income by operations scope, period, currency, and unit. Missing compatible
-  continuing income withholds ratio with gap; zero denominator withholds without gap. Deterministic
+  continuing income withholds ratio with gap; a zero, negative or below-2%-of-same-period-revenue denominator
+  withholds without gap (amended 2026-11-12: NBIS FY2025 published 41.0x on 9.8M of 529.8M revenue). Deterministic
   Markdown/Console EPS/P/E disclosure retains provider basis as undisclosed and SEC approximate
   diluted/continuing TTM with dates; state two-decimal agreement, mismatch, or currency mismatch without
   substitution or invented explanation.

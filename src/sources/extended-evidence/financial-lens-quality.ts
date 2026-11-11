@@ -13,7 +13,12 @@ import {
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
 import type { FinancialStatementFact } from "./financial-statements-contract";
-import { type MetricContext, type MetricDefinition } from "./metric-engine";
+import {
+  type MetricContext,
+  type MetricDefinition,
+  type MetricInput,
+  type MetricOutcome,
+} from "./metric-engine";
 import { readNumberMetric, readStringMetric } from "./utils";
 import {
   type LensSeries,
@@ -32,6 +37,8 @@ import {
   summaryPeriodsMatch,
   chosenInput,
   summaryValue,
+  revenueShareCheck,
+  type MetricPeriod,
 } from "./financial-lens-inputs";
 
 const LATEST_PERIOD_BASIS = "latest reported period: a year-aligned annual or an interim filing";
@@ -300,41 +307,46 @@ export function freeCashFlowDefinition(context: MetricContext): MetricDefinition
   };
 }
 
+const CASH_CONVERSION_BASIS =
+  "operating cash flow / income of the same operations scope for the same period";
+
 export function cashConversionDefinition(): MetricDefinition {
   return {
     id: "cashConversion",
     label: "Cash conversion",
     unit: "ratio",
-    basis: "operating cash flow / income of the same operations scope for the same period",
+    basis: CASH_CONVERSION_BASIS,
     cashFlowBased: true,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
-        const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");
-        const continuing = isContinuingScope(
-          readStringMetric(secItem(ctx)?.metrics, "operatingCashFlowScope"),
-        );
-        const income = readNumberMetric(
-          secItem(ctx)?.metrics,
-          continuing ? "continuingIncome" : "netIncome",
-        );
+        const item = secItem(ctx);
+        const incomeKey: LensSeries = isContinuingScope(
+          readStringMetric(item?.metrics, "operatingCashFlowScope"),
+        )
+          ? "continuingIncome"
+          : "netIncome";
+        const operatingCashFlow = readNumberMetric(item?.metrics, "operatingCashFlow");
+        const income = readNumberMetric(item?.metrics, incomeKey);
         if (
-          !summaryPeriodsMatch(
-            ctx,
-            "operatingCashFlow",
-            continuing ? "continuingIncome" : "netIncome",
-          )
+          !summaryPeriodsMatch(ctx, "operatingCashFlow", incomeKey) ||
+          operatingCashFlow === undefined ||
+          income === undefined
         ) {
           return { status: "missing", reason: "no same-period SEC Cash conversion" };
         }
-        return summaryValue(
-          ctx,
-          "cashConversion",
-          operatingCashFlow === undefined || income === undefined || income === 0
-            ? undefined
-            : operatingCashFlow / income,
-          "Cash conversion",
-          "ratio",
-          "operatingCashFlow",
+        const period = summaryPeriod(ctx, "operatingCashFlow");
+        return cashConversionOutcome(
+          incomeKey,
+          operatingCashFlow,
+          income,
+          summaryPeriodsMatch(ctx, "operatingCashFlow", "revenue")
+            ? readNumberMetric(item?.metrics, "revenue")
+            : undefined,
+          period,
+          [
+            ...chosenInput(item, "operatingCashFlow", SERIES_LABELS.operatingCashFlow, period),
+            ...chosenInput(item, incomeKey, SERIES_LABELS[incomeKey], period),
+          ],
         );
       }
       const anchor = latestFact(ctx, "operatingCashFlow");
@@ -348,22 +360,39 @@ export function cashConversionDefinition(): MetricDefinition {
       if (income === undefined) {
         return missingPartner(ctx, incomeKey, anchor, [factInput(anchor, "operatingCashFlow")]);
       }
-      const inputs = [factInput(anchor, "operatingCashFlow"), factInput(income, incomeKey)];
-      return income.value <= 0
-        ? {
-            status: "not-meaningful",
-            reason: `${SERIES_LABELS[incomeKey]} is not positive`,
-            ...periodOf(anchor),
-            inputs,
-          }
-        : {
-            status: "value",
-            value: anchor.value / income.value,
-            ...periodOf(anchor),
-            inputs,
-          };
+      return cashConversionOutcome(
+        incomeKey,
+        anchor.value,
+        income.value,
+        samePeriodFact(ctx, anchor, "revenue")?.value,
+        periodOf(anchor),
+        [factInput(anchor, "operatingCashFlow"), factInput(income, incomeKey)],
+      );
     },
   };
+}
+
+function cashConversionOutcome(
+  incomeKey: LensSeries,
+  operatingCashFlow: number,
+  income: number,
+  revenue: number | undefined,
+  period: MetricPeriod,
+  inputs: readonly MetricInput[],
+): MetricOutcome {
+  const { reason, note } =
+    income <= 0
+      ? { reason: `${SERIES_LABELS[incomeKey]} is not positive`, note: undefined }
+      : revenueShareCheck(SERIES_LABELS[incomeKey], income, revenue);
+  return reason === undefined
+    ? {
+        status: "value",
+        value: operatingCashFlow / income,
+        ...period,
+        inputs,
+        ...(note === undefined ? {} : { basis: `${CASH_CONVERSION_BASIS}; ${note}` }),
+      }
+    : { status: "not-meaningful", reason, ...period, inputs };
 }
 
 export function returnOnLabel(

@@ -17,7 +17,10 @@ import type {
   MetricResult,
   MetricSection,
 } from "../sources/extended-evidence/metric-engine";
-import { notMeaningfulYoyReason } from "../sources/extended-evidence/financial-lens-inputs";
+import {
+  notMeaningfulYoyReason,
+  revenueShareCheck,
+} from "../sources/extended-evidence/financial-lens-inputs";
 import { deltaPercent } from "../sources/extended-evidence/sec-fundamentals-format";
 import { canonicalizeUrl } from "../sources/news-utils";
 import type { CollectedSources, RawSourceSnapshot } from "../sources/types";
@@ -755,6 +758,24 @@ const newestFirst = (left: FigurePair, right: FigurePair) =>
   right[0].periodEnd.localeCompare(left[0].periodEnd) ||
   SCOPE_ORDER.indexOf(left[0].scope) - SCOPE_ORDER.indexOf(right[0].scope);
 
+function priorRevenueCheck(figures: readonly IssuerReportFigure[], prior: IssuerReportFigure) {
+  const revenue = figures.find(
+    (figure) =>
+      figure.concept === "revenue" &&
+      figure.scope === prior.scope &&
+      figure.basis === prior.basis &&
+      figure.periodMonths === prior.periodMonths &&
+      figure.periodEnd === prior.periodEnd &&
+      figure.currency === prior.currency,
+  );
+  return revenueShareCheck(
+    `prior-year ${CONCEPTS[prior.concept].label.toLowerCase()}`,
+    prior.value,
+    revenue?.value,
+    ` ${prior.currency}`,
+  );
+}
+
 function derivedMetrics(figures: readonly IssuerReportFigure[]): readonly MetricResult[] {
   // The newest same-scope pair; else a mixed pair, so the derived row is withheld; else "unpaired".
   const pair = (
@@ -790,24 +811,27 @@ function derivedMetrics(figures: readonly IssuerReportFigure[]): readonly Metric
     for (const concept of ["revenue", "profit-attributable-to-owners"] as const) {
       const yoy = pair(concept, basis, concept, (like) => priorYearEnd(like.periodEnd));
       if (yoy !== undefined) {
+        const check =
+          yoy === "unpaired" || concept === "revenue" ? {} : priorRevenueCheck(figures, yoy[1]);
+        const metric = derivedMetric(
+          `issuer-report-${concept}-yoy-${basis}`,
+          `${CONCEPTS[concept].label} change vs prior-year ${BASIS_LABELS[basis]}`,
+          "(current − prior-year same period) / |prior-year same period|",
+          yoy,
+          ([current, prior]) =>
+            deltaPercent(current.value, prior.value) === undefined
+              ? notMeaningfulYoyReason(
+                  CONCEPTS[concept].label.toLowerCase(),
+                  prior.value,
+                  current.value,
+                  ` ${current.currency}`,
+                )
+              : (check.reason ?? (current.value - prior.value) / Math.abs(prior.value)),
+        );
         metrics.push(
-          derivedMetric(
-            `issuer-report-${concept}-yoy-${basis}`,
-            `${CONCEPTS[concept].label} change vs prior-year ${BASIS_LABELS[basis]}`,
-            "(current − prior-year same period) / |prior-year same period|",
-            yoy,
-            ([current, prior]) => {
-              if (deltaPercent(current.value, prior.value) !== undefined) {
-                return (current.value - prior.value) / Math.abs(prior.value);
-              }
-              return notMeaningfulYoyReason(
-                CONCEPTS[concept].label.toLowerCase(),
-                prior.value,
-                current.value,
-                ` ${current.currency}`,
-              );
-            },
-          ),
+          metric.status === "value" && check.note !== undefined
+            ? { ...metric, basis: `${metric.basis}; ${check.note}` }
+            : metric,
         );
       }
     }

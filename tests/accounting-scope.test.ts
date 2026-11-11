@@ -164,6 +164,22 @@ function lensMetric(artifact: FinancialStatementsArtifact, key: string) {
   ].find((metric) => metric.key === key);
 }
 
+// CLFD's income is under 2% of revenue, so these rows are withheld and only full sections show them.
+function lensRow(artifact: FinancialStatementsArtifact, id: string) {
+  return addFinancialLensEvidence(
+    { jobType: "equity", assetClass: "equity", symbol: "CLFD", depth: "deep" },
+    [],
+    { items: [secItem(artifact)], gaps: [] },
+    undefined,
+    "2026-10-08T00:00:00.000Z",
+    undefined,
+    undefined,
+    artifact,
+  )
+    .metricSections?.flatMap(({ metrics }) => metrics)
+    .find((metric) => metric.id === id);
+}
+
 function yahoo(eps: number | null = 0.54, quoteCurrency: string | null = "USD"): MarketSnapshot {
   return marketSnapshot({
     sourceId: "market-yahoo-equity-clfd",
@@ -191,7 +207,11 @@ describe("accounting scope", () => {
       (metric) => metric.label,
     );
 
-    expect(lensMetric(artifact, "cashConversion")?.value).toBeCloseTo(7_345_000 / 2_195_000, 6);
+    expect(lensRow(artifact, "cashConversion")).toMatchObject({
+      status: "not-meaningful",
+      reason: "continuing operations income is below 2% of same-period revenue (2.2M of 112.6M)",
+      inputs: [{ value: 7_345_000 }, { value: 2_195_000 }],
+    });
     expect(artifact.statements.cashFlowStatement.operatingCashFlow.interim[0]?.concept).toBe(
       CONTINUING_OCF,
     );
@@ -205,10 +225,14 @@ describe("accounting scope", () => {
       continuingDilutedEps: 0.16,
     });
     expect(metrics.continuingIncomeDeltaPercent).toBeCloseTo(-51.46, 2);
+    for (const [id, label] of [
+      ["netIncomeDeltaPercent", "Net income (attrib.) YoY (total operations)"],
+      ["dilutedEpsDeltaPercent", "Diluted EPS YoY (total operations)"],
+    ] as const) {
+      expect(lensRow(artifact, id)).toMatchObject({ label, status: "not-meaningful" });
+    }
     expect(labels).toEqual([
       "Revenue YoY",
-      "Net income (attrib.) YoY (total operations)",
-      "Diluted EPS YoY (total operations)",
       "Income YoY (continuing operations, including NCI)",
       "Diluted EPS YoY (continuing operations)",
       "Operating cash flow YoY (continuing operations)",
@@ -238,8 +262,9 @@ describe("accounting scope", () => {
   test("states continuing income in the SEC fundamentals summary", () => {
     const summary = summarizeSecFundamentals(payload(clfd()), AS_OF)!;
 
+    // The prior-year total income is below 2% of revenue, so its YoY is withheld.
     expect(summary.summary).toContain(
-      "net income attributable to parent (total operations) 1858000 (80.7% YoY)",
+      "net income attributable to parent (total operations) 1858000, diluted EPS (total operations) 0.14,",
     );
     expect(summary.summary).toContain(
       "income (continuing operations, including NCI) 2195000 (-51.5% YoY)",
@@ -258,10 +283,14 @@ describe("accounting scope", () => {
     const artifact = statements({ ...rest, [TOTAL_OCF]: ocf! });
     const metrics = secItem(artifact).metrics!;
 
-    expect(lensMetric(artifact, "cashConversion")?.value).toBeCloseTo(7_345_000 / 1_858_000, 6);
+    expect(lensRow(artifact, "cashConversion")).toMatchObject({
+      status: "not-meaningful",
+      reason: "net income is below 2% of same-period revenue (1.9M of 112.6M)",
+      inputs: [{ value: 7_345_000 }, { value: 1_858_000 }],
+    });
     expect(metrics.continuingIncome).toBeUndefined();
     expect(metrics.netIncomeScope).toBeUndefined();
-    expect(lensMetric(artifact, "netIncomeDeltaPercent")?.label).toBe("Net income (attrib.) YoY");
+    expect(lensRow(artifact, "netIncomeDeltaPercent")?.label).toBe("Net income (attrib.) YoY");
     expect(lensMetric(artifact, "continuingIncomeDeltaPercent")).toBeUndefined();
     expect(cashConversionScopeGaps(artifact)).toEqual([]);
   });

@@ -168,6 +168,7 @@ function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
           revenue: 100,
           revenuePeriodEnd: "2026-03-31",
           revenuePeriodMonths: 6,
+          revenuePrior: 94,
           revenueDeltaPercent: 6,
           grossProfit: 45,
           grossProfitPeriodEnd: "2026-03-31",
@@ -175,6 +176,7 @@ function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
           operatingIncome: 24,
           operatingIncomePeriodEnd: "2026-03-31",
           operatingIncomePeriodMonths: 6,
+          operatingIncomePrior: 22,
           operatingIncomeDeltaPercent: 8,
           netIncome: 18,
           netIncomeDeltaPercent: 5,
@@ -1041,6 +1043,34 @@ describe("business framework evidence", () => {
     },
   );
 
+  // RELL FY2026 10-K: operating income 968.0K on 54.6M prior revenue.
+  test.each([
+    { prior: 968_000, status: "not-meaningful" },
+    { prior: 1_092_000, status: "value" },
+  ])(
+    "operating income YoY on a $prior base vs 54.6M revenue is $status on both paths",
+    ({ prior, status }) => {
+      const artifact = statements({
+        Revenues: annual(54_600_000, 60_000_000),
+        OperatingIncomeLoss: annual(prior, 5_112_000),
+      });
+      for (const filed of [artifact, null]) {
+        const metric = metricOf(
+          framework(withCanonicalFinancialLensInputs(undefined, artifact), AS_OF, filed),
+          "business-framework-growth",
+          "operatingIncomeDeltaPercent",
+        );
+        expect(metric?.status).toBe(status);
+        if (status === "not-meaningful") {
+          expect(metric?.inputs.map(({ value }) => value)).toEqual([prior, 5_112_000]);
+          expect(metric?.reason).toBe(
+            "prior-year operating income is below 2% of same-period revenue (968.0K of 54.6M)",
+          );
+        }
+      }
+    },
+  );
+
   test("YoY between two positive endpoints keeps its value on both paths", () => {
     const artifact = statements({ Revenues: annual(91_500_000, 529_800_000) });
     for (const filed of [artifact, null]) {
@@ -1085,7 +1115,9 @@ describe("business framework evidence", () => {
       currency: "USD",
     });
     expect(metricOf(result, "business-framework-moat", "grossMargin")?.value).toBeCloseTo(0.45);
-    expect(metricOf(result, "business-framework-growth", "revenueDeltaPercent")?.value).toBe(6);
+    expect(metricOf(result, "business-framework-growth", "revenueDeltaPercent")?.value).toBeCloseTo(
+      (6 / 94) * 100,
+    );
     expect(result.artifact?.phase).toBe("capital-return");
     expect(
       result.extendedEvidence?.items.find((item) => item.category === "business-framework")

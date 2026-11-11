@@ -40,7 +40,14 @@ import {
   isFreshPeriodEnd,
 } from "./valuation-comps-support";
 import { scaleCurrency, type LensValueUnit } from "./value-format";
-import { deltaPercent } from "./sec-fundamentals-format";
+import {
+  deltaPercent,
+  MIN_MEANINGFUL_BASE_REVENUE_SHARE,
+  nearZeroBase,
+  summaryPriorBase,
+  summarySamePeriod,
+  YOY_BASE_SERIES,
+} from "./sec-fundamentals-format";
 import { withheldDebt } from "./sec-debt";
 
 export type LensSeries = Extract<
@@ -181,20 +188,114 @@ export function isCurrentPeriod(ctx: MetricContext, periodEnd: string | undefine
   return (newest - Date.parse(periodEnd)) / DAY_MS <= MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS;
 }
 
-export function yearOverYearOutcome(
+export const YOY_BASIS =
+  "latest reported period vs the same-length period one year earlier, same concept and unit";
+
+interface BaseCheck {
+  readonly reason?: string;
+  readonly note?: string;
+}
+
+// SEC revenue is continuing-scope and total ≥ continuing, so it bounds a total-scope base from below.
+export function revenueShareCheck(
+  label: string,
+  base: number,
+  revenue: number | undefined,
+  unit = "",
+): BaseCheck {
+  if (base <= 0) {
+    return {};
+  }
+  if (revenue === undefined) {
+    return {
+      note: "no same-period revenue, so the near-zero base check did not run",
+    };
+  }
+  return nearZeroBase(base, revenue)
+    ? {
+        reason: `${label} is below ${String(MIN_MEANINGFUL_BASE_REVENUE_SHARE * 100)}% of same-period revenue (${yoyEndpoint(base)}${unit} of ${yoyEndpoint(revenue)}${unit})`,
+      }
+    : {};
+}
+
+const priorLabel = (baseKey: string) => `prior-year ${SERIES_LABELS[baseKey as LensSeries]}`;
+
+export function summaryYearOverYear(
+  ctx: MetricContext,
+  key: string,
+  label: string,
+): MetricOutcome | undefined {
+  const item = secItem(ctx);
+  const latest = readNumberMetric(item?.metrics, key);
+  const prior = readNumberMetric(item?.metrics, `${key}Prior`);
+  if (latest === undefined || prior === undefined) {
+    return undefined;
+  }
+  const unit = key.endsWith("Eps") ? "currency-per-share" : "currency";
+  const period = summaryPeriod(ctx, key);
+  const base = summaryPriorBase(item?.metrics, key);
+  return yearOverYearOutcome(
+    label,
+    prior,
+    latest,
+    period,
+    [
+      evidenceInput(item, `${key}Prior`, label, unit, prior),
+      evidenceInput(item, key, label, unit, latest, period),
+    ],
+    base === undefined ? {} : revenueShareCheck(priorLabel(base.baseKey), base.base, base.revenue),
+  );
+}
+
+export function statementYearOverYear(
+  ctx: MetricContext,
+  key: FinancialStatementSeriesKey,
+  label: string,
+  prior: FinancialStatementFact,
+  latest: FinancialStatementFact,
+): MetricOutcome {
+  const baseKey = YOY_BASE_SERIES[key] as LensSeries | undefined;
+  const base =
+    baseKey === undefined || baseKey === key ? prior : samePeriodFact(ctx, prior, baseKey);
+  return yearOverYearOutcome(
+    label,
+    prior.value,
+    latest.value,
+    periodOf(latest),
+    [statementInput(prior, key, label), statementInput(latest, key, label)],
+    baseKey === undefined || base === undefined
+      ? {}
+      : revenueShareCheck(
+          priorLabel(baseKey),
+          base.value,
+          samePeriodFact(ctx, prior, "revenue")?.value,
+        ),
+  );
+}
+
+function yearOverYearOutcome(
   label: string,
   prior: number,
   latest: number,
   period: MetricPeriod,
   inputs: readonly MetricInput[],
+  check: BaseCheck = {},
 ): MetricOutcome {
   const value = deltaPercent(latest, prior);
-  if (value !== undefined) {
-    return { status: "value", value, ...period, inputs };
+  if (value !== undefined && check.reason === undefined) {
+    return {
+      status: "value",
+      value,
+      ...period,
+      inputs,
+      ...(check.note === undefined ? {} : { basis: `${YOY_BASIS}; ${check.note}` }),
+    };
   }
   return {
     status: "not-meaningful",
-    reason: notMeaningfulYoyReason(label, prior, latest),
+    reason:
+      (value === undefined ? undefined : check.reason) ??
+      notMeaningfulYoyReason(label, prior, latest),
     ...period,
     inputs,
   };
@@ -445,9 +546,7 @@ export function summaryPeriod(ctx: MetricContext, fallback: string): MetricPerio
 }
 
 export function summaryPeriodsMatch(ctx: MetricContext, left: string, right: string): boolean {
-  const metrics = secItem(ctx)?.metrics;
-  const periodEnd = readStringMetric(metrics, `${left}PeriodEnd`);
-  return periodEnd !== undefined && periodEnd === readStringMetric(metrics, `${right}PeriodEnd`);
+  return summarySamePeriod(secItem(ctx)?.metrics, left, right);
 }
 
 export function chosenInput(

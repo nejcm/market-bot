@@ -1,5 +1,9 @@
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../domain/market-data";
 import { isCashFlowInput, PRICE_RELATIVE_KEYS } from "../sources/extended-evidence/metric-engine";
+import {
+  nearZeroBase,
+  YOY_BASE_SERIES,
+} from "../sources/extended-evidence/sec-fundamentals-format";
 
 interface ReportMetricInput {
   readonly artifact?: string;
@@ -27,6 +31,7 @@ interface ReportMetric {
   readonly periodMonths?: number;
   readonly priceAsOf?: string;
   readonly reason?: string;
+  readonly label?: string;
   readonly inputs?: readonly ReportMetricInput[];
 }
 
@@ -70,8 +75,7 @@ const REVENUE_MULTIPLE_VERDICT = /de-minimis floor|x ceiling$/u;
 const CURRENT_VALUATION_SECTION = /^(financial-lens|business-framework)-/u;
 const EQUIVALENT_SURFACES = [/^financial-lens-/u, /^business-framework-/u] as const;
 const STALE_REASON = /^stale .+ as of (\d{4}-\d{2}-\d{2})$/u;
-// Shortcut: watch threshold until the near-zero-denominator floor in .plans/issues.md is decided.
-const CASH_CONVERSION_WATCH = 5;
+const YOY_WATCH = 1000;
 
 function published(sections: MetricSections) {
   return sections.flatMap((section) =>
@@ -79,6 +83,21 @@ function published(sections: MetricSections) {
       .filter((metric) => metric.status === "value")
       .map((metric) => ({ section: section.id ?? "", metric })),
   );
+}
+
+// One value's identity across rows: a statement fact by period, an evidence key by its row's period.
+function slot(metric: ReportMetric, input: ReportMetricInput, series: string): string | undefined {
+  if (input.artifact === "statements") {
+    return `${series}@${input.periodKey}/${input.periodType}`;
+  }
+  const prior = input.key?.endsWith("Prior") === true ? "Prior" : "";
+  return input.artifact === "evidence"
+    ? `${series}${prior}@${metric.periodEnd}/${metric.periodMonths}`
+    : undefined;
+}
+
+function seriesOf(input: ReportMetricInput | undefined): string {
+  return input?.series ?? input?.key?.replace(/Prior$/u, "") ?? "";
 }
 
 // Issuer inputs quote cell text; the matching single-figure row holds its checked number.
@@ -313,13 +332,50 @@ export function reportInvariantViolations(
     }
   }
 
+  const slots = new Map(
+    sections.flatMap(({ metrics }) =>
+      metrics.flatMap((metric) =>
+        (metric.inputs ?? []).flatMap((input) => {
+          const key = slot(metric, input, seriesOf(input));
+          return key !== undefined && typeof input.value === "number"
+            ? [[key, input.value] as const]
+            : [];
+        }),
+      ),
+    ),
+  );
+  const belowFloor = (metric: ReportMetric, input: ReportMetricInput | undefined, series = "") => {
+    const at = (name: string) =>
+      input === undefined ? undefined : slots.get(slot(metric, input, name) ?? "");
+    const [base, revenue] = [at(series), at("revenue")];
+    return base !== undefined && revenue !== undefined && nearZeroBase(base, revenue);
+  };
+  const byId = new Map(rows.map(({ metric }) => [metric.id, metric]));
   for (const { section, metric } of rows) {
-    if (
-      metric.id === "cashConversion" &&
-      typeof metric.value === "number" &&
-      Math.abs(metric.value) > CASH_CONVERSION_WATCH
-    ) {
-      add("watch:cash-conversion-near-zero-denominator", section, metric.id, String(metric.value));
+    const id = metric.id ?? "";
+    const [first, second] = metric.inputs ?? [];
+    if (id === "cashConversion" && belowFloor(metric, second, seriesOf(second))) {
+      add("cash-conversion-near-zero-denominator", section, id, String(metric.value));
+    }
+    const issuer = /^issuer-report-(.+)-yoy-(quarter|ytd|annual)$/u.exec(id);
+    if (issuer !== null && issuer[1] !== "revenue" && second !== undefined) {
+      const scope = metric.label?.endsWith(", continuing operations") === true ? "-continuing" : "";
+      const row = byId.get(`issuer-report-revenue${scope}-${issuer[2]}-${second.periodEnd}`);
+      const sameBasis =
+        row?.currency === second.currency && row?.periodMonths === metric.periodMonths;
+      const [base, revenue] = [numberOf(second), sameBasis ? row?.value : undefined];
+      if (typeof revenue === "number" && typeof base === "number" && nearZeroBase(base, revenue)) {
+        add("yoy-on-near-zero-base", section, id, String(metric.value));
+      }
+    }
+    if (!id.endsWith("DeltaPercent")) {
+      continue;
+    }
+    if (belowFloor(metric, first, YOY_BASE_SERIES[seriesOf(first)])) {
+      add("yoy-on-near-zero-base", section, id, String(metric.value));
+    }
+    if (Math.abs(Number(metric.value)) > YOY_WATCH) {
+      add("watch:yoy-above-1000-percent", section, id, String(metric.value));
     }
   }
   return violations;

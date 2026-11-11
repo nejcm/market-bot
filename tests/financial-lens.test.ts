@@ -87,16 +87,23 @@ function evidence(): ExtendedEvidence {
           revenue: 100,
           revenuePeriodEnd: "2025-06-28",
           revenuePeriodMonths: 12,
-          revenueDeltaPercent: 12,
+          revenuePrior: 80,
+          revenueDeltaPercent: 25,
           grossProfit: 42,
-          grossProfitDeltaPercent: 10,
+          grossProfitPrior: 40,
+          grossProfitDeltaPercent: 5,
           operatingIncome: 24,
-          operatingIncomeDeltaPercent: 8,
+          operatingIncomePrior: 20,
+          operatingIncomeDeltaPercent: 20,
           netIncome: 18,
-          netIncomeDeltaPercent: 6,
-          dilutedEpsDeltaPercent: 5,
+          netIncomePrior: 15,
+          netIncomeDeltaPercent: 20,
+          dilutedEps: 2,
+          dilutedEpsPrior: 1.6,
+          dilutedEpsDeltaPercent: 25,
           operatingCashFlow: 30,
-          operatingCashFlowDeltaPercent: 4,
+          operatingCashFlowPrior: 25,
+          operatingCashFlowDeltaPercent: 20,
           capex: 5,
           cash: 35,
           cashPeriodEnd: "2026-03-28",
@@ -420,8 +427,8 @@ describe("addFinancialLensEvidence", () => {
         item.category === "sec-edgar"
           ? {
               ...item,
-              // Here 0.5 means +0.5% YoY: must render as 0.5%, never 50.0%.
-              metrics: { ...item.metrics, revenueDeltaPercent: 0.5 },
+              // 100 vs 99.5 is +0.5% YoY: must render as 0.5%, never 50.0%.
+              metrics: { ...item.metrics, revenuePrior: 99.5 },
             }
           : item,
       ),
@@ -444,7 +451,7 @@ describe("addFinancialLensEvidence", () => {
     expect(
       result.extendedEvidence?.items.find((i) => i.category === "financial-lens")?.summary,
     ).toContain("Gross margin 42.0%");
-    // Revenue YoY = 0.5 (already whole-percent) -> 0.5%
+    // Revenue YoY is a whole percent -> 0.5%
     expect(lenses.Growth?.metrics.find((m) => m.key === "revenueDeltaPercent")).toMatchObject({
       unit: "whole-percent",
     });
@@ -1317,6 +1324,329 @@ describe("financial lens artifact compatibility", () => {
       expect(metric?.status).toBe("value");
       expect(metric?.value).toBeCloseTo(479.016_393_442_623, 9);
     }
+  });
+
+  // HLIT FY2025 10-K continuing income 1.5M on 171.8M revenue; NBIS FY2025 20-F 9.8M on 529.8M; TWLO 2.15%.
+  test.each([
+    {
+      name: "HLIT-like base",
+      revenue: 171_800_000,
+      income: [1_512_000, 26_700_000],
+      ocf: 20_000_000,
+      yoy: undefined,
+      eps: undefined,
+      cc: 20_000_000 / 26_700_000,
+    },
+    {
+      name: "NBIS-like cash conversion",
+      revenue: 529_800_000,
+      income: [20_000_000, 9_800_000],
+      ocf: 401_900_000,
+      yoy: -51,
+      eps: -51,
+      cc: undefined,
+    },
+    {
+      name: "TWLO-like 2.15% base",
+      revenue: 100_000_000,
+      income: [2_150_000, 35_600_000],
+      ocf: 40_000_000,
+      yoy: 1555.81,
+      eps: 1555.81,
+      cc: 40_000_000 / 35_600_000,
+    },
+    {
+      name: "exactly 2%",
+      revenue: 100_000_000,
+      income: [2_000_000, 2_000_000],
+      ocf: 10_000_000,
+      yoy: 0,
+      eps: 0,
+      cc: 5,
+    },
+    {
+      name: "just below 2%",
+      revenue: 100_000_000,
+      income: [1_999_999, 1_999_999],
+      ocf: 10_000_000,
+      yoy: undefined,
+      eps: undefined,
+      cc: undefined,
+    },
+  ])("near-zero base floor: $name", ({ revenue, income, ocf, yoy, eps, cc }) => {
+    const [prior, latest] = income as [number, number];
+    const pair = (a: number, b: number) => ({
+      units: { USD: [canonicalAnnualFact(a, 2024), canonicalAnnualFact(b, 2025)] },
+    });
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: pair(revenue, revenue),
+            NetIncomeLoss: pair(prior, latest),
+            NetCashProvidedByUsedInOperatingActivities: pair(ocf, ocf),
+            EarningsPerShareDiluted: {
+              units: {
+                "USD/shares": [
+                  canonicalAnnualFact(prior / 1e6, 2024),
+                  canonicalAnnualFact(latest / 1e6, 2025),
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        analysisAsOf: "2026-06-22T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    for (const statements of [artifact, undefined]) {
+      const rows = (
+        addFinancialLensEvidence(
+          command,
+          [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+          withCanonicalFinancialLensInputs(undefined, artifact),
+          verifiedSnapshot(),
+          "2026-06-22T00:00:00.000Z",
+          undefined,
+          undefined,
+          statements,
+        ).metricSections ?? []
+      ).flatMap(({ metrics }) => metrics);
+      const row = (id: string) => rows.find((metric) => metric.id === id);
+      for (const [id, expected] of [
+        ["netIncomeDeltaPercent", yoy],
+        ["dilutedEpsDeltaPercent", eps],
+      ] as const) {
+        if (expected === undefined) {
+          expect(row(id)).toMatchObject({
+            status: "not-meaningful",
+            reason: expect.stringMatching(
+              /^prior-year net income is below 2% of same-period revenue \(/u,
+            ),
+          });
+        } else {
+          expect(row(id)?.status).toBe("value");
+          expect(row(id)?.value).toBeCloseTo(expected, 1);
+        }
+      }
+      if (cc === undefined) {
+        expect(row("cashConversion")).toMatchObject({
+          status: "not-meaningful",
+          reason: expect.stringMatching(/^net income is below 2% of same-period revenue \(/u),
+        });
+      } else {
+        expect(row("cashConversion")?.value).toBeCloseTo(cc, 9);
+      }
+    }
+  });
+
+  test("near-zero base floor publishes with a note when same-period revenue is missing", () => {
+    const pair = (a: number, b: number) => ({
+      units: { USD: [canonicalAnnualFact(a, 2024), canonicalAnnualFact(b, 2025)] },
+    });
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetIncomeLoss: pair(1_000_000, 20_000_000),
+            NetCashProvidedByUsedInOperatingActivities: pair(50_000_000, 50_000_000),
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        analysisAsOf: "2026-06-22T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    for (const statements of [artifact, undefined]) {
+      const rows = (
+        addFinancialLensEvidence(
+          command,
+          [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+          withCanonicalFinancialLensInputs(undefined, artifact),
+          verifiedSnapshot(),
+          "2026-06-22T00:00:00.000Z",
+          undefined,
+          undefined,
+          statements,
+        ).metricSections ?? []
+      ).flatMap(({ metrics }) => metrics);
+      for (const [id, value] of [
+        ["netIncomeDeltaPercent", 1900],
+        ["cashConversion", 2.5],
+      ] as const) {
+        const metric = rows.find((row) => row.id === id);
+        expect(metric?.status).toBe("value");
+        expect(metric?.value).toBeCloseTo(value, 9);
+        expect(metric?.basis).toEndWith(
+          "; no same-period revenue, so the near-zero base check did not run",
+        );
+      }
+    }
+  });
+
+  test.each([
+    [12, "not-meaningful"],
+    [3, "value"],
+  ] as const)(
+    "summary YoY reads revenue only over the same duration (%i months)",
+    (months, status) => {
+      const base = evidence();
+      const summary: ExtendedEvidence = {
+        ...base,
+        items: base.items.map((item) =>
+          item.category === "sec-edgar"
+            ? {
+                ...item,
+                metrics: {
+                  ...item.metrics,
+                  netIncomePrior: 1,
+                  netIncomePeriodEnd: "2025-06-28",
+                  netIncomePeriodMonths: months,
+                },
+              }
+            : item,
+        ),
+      };
+      const metric = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        summary,
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      )
+        .metricSections?.flatMap(({ metrics }) => metrics)
+        .find(({ id }) => id === "netIncomeDeltaPercent");
+      expect(metric?.status).toBe(status);
+      if (status === "value") {
+        expect(metric?.basis).toEndWith(
+          "no same-period revenue, so the near-zero base check did not run",
+        );
+      }
+    },
+  );
+
+  test.each([
+    [12, "not-meaningful", "not-meaningful"],
+    [3, "value", "missing"],
+  ] as const)(
+    "summary EPS base and cash conversion join income of the same duration (%i months)",
+    (months, eps, cashConversion) => {
+      const base = evidence();
+      const summary: ExtendedEvidence = {
+        ...base,
+        items: base.items.map((item) =>
+          item.category === "sec-edgar"
+            ? {
+                ...item,
+                metrics: {
+                  ...item.metrics,
+                  netIncome: 1,
+                  netIncomePrior: 1,
+                  netIncomePeriodEnd: "2025-06-28",
+                  netIncomePeriodMonths: months,
+                  dilutedEpsPeriodEnd: "2025-06-28",
+                  dilutedEpsPeriodMonths: 12,
+                  operatingCashFlowPeriodEnd: "2025-06-28",
+                  operatingCashFlowPeriodMonths: 12,
+                },
+              }
+            : item,
+        ),
+      };
+      const rows = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        summary,
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      ).metricSections?.flatMap(({ metrics }) => metrics);
+      const row = (id: string) => rows?.find((metric) => metric.id === id);
+      expect(row("dilutedEpsDeltaPercent")?.status).toBe(eps);
+      expect(row("cashConversion")?.status).toBe(cashConversion);
+    },
+  );
+
+  test("the near-zero base floor reads negative revenue by magnitude", () => {
+    const pair = (a: number, b: number) => ({
+      units: { USD: [canonicalAnnualFact(a, 2024), canonicalAnnualFact(b, 2025)] },
+    });
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: pair(-100_000_000, -100_000_000),
+            NetIncomeLoss: pair(1_000_000, 20_000_000),
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        analysisAsOf: "2026-06-22T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    const metric = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    )
+      .metricSections?.flatMap(({ metrics }) => metrics)
+      .find(({ id }) => id === "netIncomeDeltaPercent");
+    expect(metric).toMatchObject({
+      status: "not-meaningful",
+      reason: "prior-year net income is below 2% of same-period revenue (1.0M of -100.0M)",
+    });
+  });
+
+  test("a negative prior stays not meaningful for its sign, not the revenue floor", () => {
+    const pair = (a: number, b: number) => ({
+      units: { USD: [canonicalAnnualFact(a, 2024), canonicalAnnualFact(b, 2025)] },
+    });
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: pair(100_000_000, 100_000_000),
+            NetIncomeLoss: pair(-1_000_000, 20_000_000),
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        analysisAsOf: "2026-06-22T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    const metric = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    )
+      .metricSections?.flatMap(({ metrics }) => metrics)
+      .find(({ id }) => id === "netIncomeDeltaPercent");
+    expect(metric).toMatchObject({
+      status: "not-meaningful",
+      reason: "prior-year net income is negative (-1.0M to 20.0M)",
+    });
   });
 
   test.each([

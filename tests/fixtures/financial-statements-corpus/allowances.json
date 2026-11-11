@@ -65,14 +65,6 @@
   },
   {
     "fixture": "nbis",
-    "path": "financialLens.Quality.metrics.cashConversion",
-    "canonicalSha256": "46e9b545447009d520a61f5cd4b98523ee6dbf9e0580a17df39142e3ce1b07ca",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Quality.metrics.cashConversion comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
     "path": "financialLens.Quality.metrics.freeCashFlowProxy",
     "canonicalSha256": "69ae50784af6f288674a5f64dd9ebe32137988ed0426f156ccdb63735c5d27f6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",

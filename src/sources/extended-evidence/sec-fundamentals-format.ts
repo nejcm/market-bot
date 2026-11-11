@@ -215,6 +215,50 @@ export function deltaPercent(latest: number, prior: number): number | undefined 
   return prior > 0 && latest >= 0 ? ((latest - prior) / prior) * 100 : undefined;
 }
 
+// Below 2% of revenue, a one-point margin move swings the ratio by 50% or more.
+export const MIN_MEANINGFUL_BASE_REVENUE_SHARE = 0.02;
+
+export function nearZeroBase(base: number, revenue: number): boolean {
+  return base > 0 && base < MIN_MEANINGFUL_BASE_REVENUE_SHARE * Math.abs(revenue);
+}
+
+// The series whose prior-year base a YoY's materiality reads; EPS reads its income.
+export const YOY_BASE_SERIES: Readonly<Partial<Record<string, string>>> = {
+  grossProfit: "grossProfit",
+  operatingIncome: "operatingIncome",
+  netIncome: "netIncome",
+  consolidatedNetIncome: "consolidatedNetIncome",
+  consolidatedContinuingIncome: "consolidatedContinuingIncome",
+  continuingIncome: "continuingIncome",
+  operatingCashFlow: "operatingCashFlow",
+  dilutedEps: "netIncome",
+  continuingDilutedEps: "continuingIncome",
+};
+
+type SummaryMetrics = Readonly<Record<string, number | string>> | undefined;
+
+export function summarySamePeriod(metrics: SummaryMetrics, left: string, right: string): boolean {
+  return (
+    metrics?.[`${left}PeriodEnd`] !== undefined &&
+    metrics[`${left}PeriodEnd`] === metrics[`${right}PeriodEnd`] &&
+    metrics[`${left}PeriodMonths`] === metrics[`${right}PeriodMonths`]
+  );
+}
+
+export function summaryPriorBase(
+  metrics: SummaryMetrics,
+  key: string,
+): { readonly baseKey: string; readonly base: number; readonly revenue?: number } | undefined {
+  const baseKey = YOY_BASE_SERIES[key];
+  const aligned =
+    baseKey === key || (baseKey !== undefined && summarySamePeriod(metrics, key, baseKey));
+  const base = aligned ? metrics?.[`${baseKey}Prior`] : undefined;
+  const revenue = summarySamePeriod(metrics, key, "revenue") ? metrics?.revenuePrior : undefined;
+  return baseKey === undefined || typeof base !== "number"
+    ? undefined
+    : { baseKey, base, ...(typeof revenue === "number" ? { revenue } : {}) };
+}
+
 function formatMetric(label: string, latest: number, delta: number | undefined): string {
   return delta === undefined
     ? `${label} ${String(latest)}`
@@ -245,7 +289,11 @@ export function formatSecFundamentalsSummary(
     ) {
       return [];
     }
-    const delta = metrics?.[`${key}DeltaPercent`];
+    const prior = summaryPriorBase(metrics, key);
+    const delta =
+      prior?.revenue !== undefined && nearZeroBase(prior.base, prior.revenue)
+        ? undefined
+        : metrics?.[`${key}DeltaPercent`];
     const scope = metrics?.[`${key}Scope`];
     return [
       formatMetric(

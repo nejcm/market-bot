@@ -1,3 +1,4 @@
+import { DAY_MS } from "../../config/shared";
 import { isRecord, readNumber, readString } from "../../guards";
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import {
@@ -311,7 +312,7 @@ function selectRevenueConcept(
     );
   });
   if (sameScopeNewer === undefined) {
-    return { facts: preferred.facts, notes: [] };
+    return forwardRevenueSplice(preferred, ranked, eligible, []);
   }
   const cappedKeys = (annual: ReadonlyMap<string, ParsedFact>) =>
     [...annual.values()]
@@ -326,27 +327,157 @@ function selectRevenueConcept(
         .map((fact) => periodKey(fact)),
     );
   const switchedInterim = interimKeys(sameScopeNewer.facts);
-  return {
-    facts: sameScopeNewer.facts,
-    notes: [
-      ...cappedKeys(preferredAnnual)
-        .filter((key) => !switchedKeys.has(key))
-        .map((key) => ({
-          code: "history-cap" as const,
-          seriesKey: definition.key,
-          periodKey: `annual|${key}`,
-          message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
+  return forwardRevenueSplice(sameScopeNewer, ranked, eligible, [
+    ...cappedKeys(preferredAnnual)
+      .filter((key) => !switchedKeys.has(key))
+      .map((key) => ({
+        code: "history-cap" as const,
+        seriesKey: definition.key,
+        periodKey: `annual|${key}`,
+        message: `Older annual period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, and the ${String(MAX_ANNUAL_PERIODS_PER_SHAPE)}-period annual cap keeps its newer periods`,
+      })),
+    ...[...interimKeys(preferred.facts)]
+      .filter((key) => !switchedInterim.has(key))
+      .map((key) => ({
+        code: "history-cap" as const,
+        seriesKey: definition.key,
+        periodKey: `interim|${key}`,
+        message: `Interim period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, which does not tag that period`,
+      })),
+  ]);
+}
+
+interface RevenueCandidate {
+  readonly facts: readonly ParsedFact[];
+  readonly latest: ParsedFact;
+}
+
+interface RevenueSpan {
+  readonly start: string;
+  readonly end: string;
+  readonly value: number;
+  readonly accession: string | null;
+  readonly filedAt: string;
+}
+
+function dayBefore(date: string): string {
+  return new Date(Date.parse(date) - DAY_MS).toISOString().slice(0, 10);
+}
+
+function rawSpans(facts: readonly ParsedFact[]): readonly RevenueSpan[] {
+  return facts.flatMap((fact) =>
+    fact.periodStart === undefined
+      ? []
+      : [
+          {
+            start: fact.periodStart,
+            end: fact.periodEnd,
+            value: fact.value,
+            accession: fact.accessionNumber,
+            filedAt: fact.filedAt,
+          },
+        ],
+  );
+}
+
+// A same-filing YTD less a later-starting span of the same end implies the span before it.
+function derivedSpans(facts: readonly ParsedFact[]): readonly RevenueSpan[] {
+  const raw = rawSpans(facts);
+  return raw.flatMap((ytd) =>
+    raw
+      .filter(
+        (part) =>
+          ytd.accession !== null &&
+          part.accession === ytd.accession &&
+          part.end === ytd.end &&
+          part.start > ytd.start,
+      )
+      .map((part) => ({ ...ytd, end: dayBefore(part.start), value: ytd.value - part.value })),
+  );
+}
+
+const sameSpan = (left: RevenueSpan, right: RevenueSpan) =>
+  left.start === right.start && left.end === right.end;
+
+const conflicts = (left: readonly RevenueSpan[], right: readonly RevenueSpan[]) =>
+  left.some((a) => right.some((b) => sameSpan(a, b) && a.value !== b.value));
+
+// Extends the selected revenue concept with a newer alias's later periods only when an overlap proves both tag one line.
+function forwardRevenueSplice(
+  selected: RevenueCandidate,
+  ranked: readonly RevenueCandidate[],
+  eligible: (fact: ParsedFact) => boolean,
+  notes: readonly FinancialStatementNote[],
+): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
+  const { concept, unit, periodEnd: selectedEnd } = selected.latest;
+  const selectedRaw = rawSpans(selected.facts.filter(eligible));
+  const selectedDerived = derivedSpans(selected.facts.filter(eligible));
+  const roster = ranked.flatMap((candidate) => candidate.facts.filter(eligible));
+  for (const alias of ranked) {
+    const aliasConcept = alias.latest.concept;
+    const facts = alias.facts.filter(eligible);
+    if (aliasConcept === concept || alias.latest.periodEnd <= selectedEnd) {
+      continue;
+    }
+    const appended = facts.filter((fact) => fact.periodEnd > selectedEnd);
+    const forward = new Set(appended.map((fact) => fact.accessionNumber));
+    const aliasRaw = rawSpans(facts);
+    const aliasDerived = derivedSpans(facts);
+    const otherTotal = rawSpans(roster.filter((fact) => fact.concept !== aliasConcept));
+    const [proof] = [...aliasRaw, ...aliasDerived]
+      .filter((span) => span.accession !== null && forward.has(span.accession))
+      .flatMap((span) =>
+        selectedRaw
+          .filter((other) => sameSpan(span, other) && other.value === span.value)
+          .map((other) => ({
+            span,
+            publicAt: other.filedAt > span.filedAt ? other.filedAt : span.filedAt,
+          })),
+      )
+      .toSorted((left, right) => left.publicAt.localeCompare(right.publicAt));
+    if (
+      proof === undefined ||
+      facts.some((fact) => fact.unit !== unit) ||
+      conflicts(selectedRaw, aliasRaw) ||
+      conflicts(selectedRaw, aliasDerived) ||
+      conflicts(aliasRaw, selectedDerived) ||
+      conflicts(rawSpans(appended), otherTotal)
+    ) {
+      continue;
+    }
+    const periodEnds = [...new Set(appended.map((fact) => fact.periodEnd))].toSorted();
+    const spans = [
+      ...new Set(appended.map((fact) => `${fact.periodStart ?? "instant"} to ${fact.periodEnd}`)),
+    ];
+    const { start, end, value, accession } = proof.span;
+    return {
+      facts: [
+        ...selected.facts,
+        ...appended.map((fact) => ({
+          ...fact,
+          firstPublicAt: fact.filedAt > proof.publicAt ? fact.filedAt : proof.publicAt,
         })),
-      ...[...interimKeys(preferred.facts)]
-        .filter((key) => !switchedInterim.has(key))
-        .map((key) => ({
-          code: "history-cap" as const,
-          seriesKey: definition.key,
-          periodKey: `interim|${key}`,
-          message: `Interim period ${key} under ${preferred.latest.concept} omitted: revenue switched to ${sameScopeNewer.latest.concept} on same-filing proof, which does not tag that period`,
-        })),
-    ],
-  };
+      ],
+      notes: [
+        ...notes,
+        {
+          code: "revenue-concept-splice",
+          seriesKey: "revenue",
+          revenueSplice: {
+            selectedConcept: concept,
+            selectedEnd,
+            aliasConcept,
+            proofStart: start,
+            proofEnd: end,
+            proofAccession: accession!,
+            periodEnds,
+          },
+          message: `SEC revenue under ${concept} ends ${selectedEnd}; ${spans.toSorted().join(", ")} come from ${aliasConcept} in ${[...forward].toSorted().join(", ")}, proven by ${aliasConcept} in ${accession!} matching ${concept} ${start} to ${end} at ${String(value)}`,
+        },
+      ],
+    };
+  }
+  return { facts: selected.facts, notes };
 }
 
 export function revenueConceptSwitchNotes(
@@ -419,7 +550,13 @@ export function withCompositeFirstPublicAt(
   );
   return {
     ...composite,
-    firstPublicAt: firstPublicDate(composite.value, composite.filedAt, histories),
+    // A spliced revenue component is public no earlier than its proof.
+    firstPublicAt: [
+      firstPublicDate(composite.value, composite.filedAt, histories),
+      ...histories.flat().flatMap((fact) => fact.firstPublicAt ?? []),
+    ]
+      .toSorted()
+      .at(-1)!,
   };
 }
 

@@ -486,6 +486,30 @@ export function assertFinancialStatementInvariants(
   assertBalanceSheetIdentity(artifact, check);
   assertCompositeFactIntegrity(artifact, check);
   assertEnterpriseValueBridge(artifact, check);
+  const { revenue } = artifact.statements.incomeStatement;
+  const splice = artifact.omissionNotes.find(
+    (note) => note.code === "revenue-concept-splice",
+  )?.revenueSplice;
+  const revenueFacts = [
+    ...financialStatementFacts(revenue),
+    ...Object.values(revenue.ttm?.components ?? {}),
+  ];
+  const selectedConcept = splice?.selectedConcept ?? revenueFacts[0]?.concept;
+  for (const fact of revenueFacts.filter((item) => item.concept !== selectedConcept)) {
+    check(
+      splice !== undefined &&
+        splice.proofAccession !== "" &&
+        splice.proofStart !== "" &&
+        splice.proofStart < splice.proofEnd &&
+        splice.proofEnd <= splice.selectedEnd &&
+        fact.concept === splice.aliasConcept &&
+        fact.periodEnd > splice.selectedEnd &&
+        splice.periodEnds.includes(fact.periodEnd),
+      "A10",
+      `revenue ${fact.concept} ${fact.periodEnd} is not covered by a revenue-concept-splice proof`,
+      fact.periodEnd,
+    );
+  }
   const surfaced = new Set(artifact.validationNotes.map(noteKey));
   for (const note of incompleteFinancialStatementNotes(series)) {
     check(
@@ -508,7 +532,7 @@ export function collectFinancialStatementInvariants(
     results.push({ passed, periodEnd });
     checks.set(code, results);
   });
-  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"].map((code) => {
+  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10"].map((code) => {
     const results = checks.get(code) ?? [];
     const failures = results.filter((result) => !result.passed);
     const periods = new Set(

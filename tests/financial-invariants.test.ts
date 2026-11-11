@@ -229,6 +229,73 @@ describe("live financial invariant negative controls", () => {
     expect(() => assertFinancialStatementInvariants(injected)).toThrow(/\[A9\]/u);
   });
 
+  test("A10 fires when an alias revenue period is not covered by a structured splice proof", () => {
+    const artifact = financialStatements(fixtureResult(results, 0));
+    const { revenue } = artifact.statements.incomeStatement;
+    const last = revenue.annual.at(-1);
+    if (last === undefined) {
+      throw new Error("Fixture has no annual revenue");
+    }
+    expect(() => assertFinancialStatementInvariants(artifact)).not.toThrow();
+    const mixed = {
+      ...revenue,
+      annual: [...revenue.annual.slice(0, -1), { ...last, concept: "SalesRevenueNet" }],
+    };
+    const withNote = (
+      periodEnds: readonly string[],
+      selectedEnd = "2000-01-01",
+      proof: Record<string, string> = {},
+    ) => ({
+      ...artifact,
+      statements: {
+        ...artifact.statements,
+        incomeStatement: { ...artifact.statements.incomeStatement, revenue: mixed },
+      },
+      omissionNotes: [
+        ...artifact.omissionNotes,
+        {
+          code: "revenue-concept-splice" as const,
+          seriesKey: "revenue" as const,
+          message: "proof",
+          revenueSplice: {
+            selectedConcept: last.concept,
+            selectedEnd,
+            aliasConcept: "SalesRevenueNet",
+            proofStart: "1999-01-01",
+            proofEnd: "1999-12-31",
+            proofAccession: "0000000000-00-000000",
+            periodEnds,
+            ...proof,
+          },
+        },
+      ],
+    });
+    const { revenueSplice: _, ...unstructured } = withNote([]).omissionNotes.at(-1)!;
+
+    expect(() =>
+      assertFinancialStatementInvariants({
+        ...withNote([]),
+        omissionNotes: [...artifact.omissionNotes, unstructured],
+      }),
+    ).toThrow(/\[A10\]/u);
+    expect(() => assertFinancialStatementInvariants(withNote([]))).toThrow(/\[A10\]/u);
+    expect(() =>
+      assertFinancialStatementInvariants(withNote([last.periodEnd], last.periodEnd)),
+    ).toThrow(/\[A10\]/u);
+    expect(() => assertFinancialStatementInvariants(withNote([last.periodEnd]))).not.toThrow();
+    for (const proof of [
+      { proofAccession: "" },
+      { proofStart: "" },
+      { proofEnd: "" },
+      { proofStart: "1999-12-31", proofEnd: "1999-01-01" },
+      { proofEnd: "2000-03-31" },
+    ]) {
+      expect(() =>
+        assertFinancialStatementInvariants(withNote([last.periodEnd], "2000-01-01", proof)),
+      ).toThrow(/\[A10\]/u);
+    }
+  });
+
   test("C12 fires when a sourceIds entry is rewritten", () => {
     const result = fixtureResult(results, 0);
     const artifact = financialStatements(result);

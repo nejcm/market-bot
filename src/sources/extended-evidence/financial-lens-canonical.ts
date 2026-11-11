@@ -402,10 +402,11 @@ const CANONICAL_FACT_METRIC_KEYS = new Set<string>([
 function canonicalSummary(
   legacy: ExtendedEvidenceItem | undefined,
   metrics: Readonly<Record<string, number | string>>,
+  disclosures: readonly string[],
 ): string {
   // Without a legacy item there is no us-gaap label or USD basis to render prose against.
   if (legacy === undefined) {
-    return "Canonical SEC financial statement inputs.";
+    return ["Canonical SEC financial statement inputs.", ...disclosures].join(" ");
   }
   if (hasCanonicalFinancialLensSelection(legacy)) {
     return legacy.summary;
@@ -415,7 +416,9 @@ function canonicalSummary(
     CANONICAL_FACT_METRIC_KEYS.has(key) ? metrics : legacy.metrics,
   );
   const filings = legacy.summary.replace(/SEC Fundamental Evidence: .*$/su, "").trim();
-  return [filings, fundamentals].filter((part) => part !== undefined && part !== "").join(" ");
+  return [filings, fundamentals, ...disclosures]
+    .filter((part) => part !== undefined && part !== "")
+    .join(" ");
 }
 
 export function withCanonicalFinancialLensInputs(
@@ -436,7 +439,13 @@ export function withCanonicalFinancialLensInputs(
   const canonical: ExtendedEvidenceItem = {
     category: "sec-edgar",
     title: legacy?.title ?? `${artifact.symbol} canonical financial statements`,
-    summary: canonicalSummary(legacy, metrics),
+    summary: canonicalSummary(
+      legacy,
+      metrics,
+      artifact.omissionNotes
+        .filter((note) => note.code === "revenue-concept-splice")
+        .map((note) => note.message),
+    ),
     sourceIds: unique([...(legacy?.sourceIds ?? []), artifact.sourceId]),
     observedAt: legacy?.observedAt ?? artifact.analysisAsOf,
     metrics: {

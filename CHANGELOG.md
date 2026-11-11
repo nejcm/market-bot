@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.7](https://github.com/nejcm/market-bot/compare/v1.16.6...v1.16.7) (2026-11-11)
+
+### Bug Fixes
+
+- **comps:** carry peer quote currency and gate non-usd peers (#212) ([06243f9](https://github.com/nejcm/market-bot/commit/06243f943dec2c440cbdd64e71eac5b18eca344c))
+
 ## [1.16.6](https://github.com/nejcm/market-bot/compare/v1.16.5...v1.16.6) (2026-11-11)
 
 ### Bug Fixes

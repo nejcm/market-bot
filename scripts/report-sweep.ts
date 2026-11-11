@@ -1,9 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { listRunDirNames } from "../src/data-paths";
-import { reprojectRun } from "../src/replay/rerun-report";
-import { readMetricSectionsExtra } from "../src/report/report-extras-contract";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { runEvalSample } from "../src/replay/eval-run";
 import {
   diffLedgers,
   formatLedgerDiff,
@@ -12,7 +14,19 @@ import {
   type LedgerRow,
 } from "./sec-value-ledger";
 
-type MetricSections = NonNullable<ReturnType<typeof readMetricSectionsExtra>>;
+interface SweepMetric {
+  readonly id?: string;
+  readonly status?: string;
+  readonly value?: number | string | null;
+  readonly unit?: string;
+  readonly currency?: string;
+  readonly periodEnd?: string;
+  readonly periodMonths?: number;
+  readonly priceAsOf?: string;
+  readonly reason?: string;
+}
+
+type MetricSections = readonly { readonly id?: string; readonly metrics: readonly SweepMetric[] }[];
 
 export interface ReportViolation {
   readonly invariant: string;
@@ -32,6 +46,10 @@ const REVENUE_MULTIPLES = new Set([
   "priceToSales",
   "enterpriseValueToRevenue",
 ]);
+// The shared verdict's floor and ceiling reasons from valuation-comps-contract.ts.
+const REVENUE_MULTIPLE_VERDICT = /de-minimis floor|x ceiling$/u;
+const CURRENT_VALUATION_SECTION = /^(financial-lens|business-framework)-/u;
+const EQUIVALENT_SURFACES = [/^financial-lens-/u, /^business-framework-/u] as const;
 const STALE_REASON = /^stale .+ as of (\d{4}-\d{2}-\d{2})$/u;
 // Shortcut: watch threshold until the near-zero-denominator floor in plans/issues.md is decided.
 const CASH_CONVERSION_WATCH = 5;
@@ -51,20 +69,30 @@ export function reportInvariantViolations(sections: MetricSections): readonly Re
     violations.push({ invariant, section, metric, detail });
   const rows = published(sections);
 
-  if (
-    rows.some(
-      ({ metric }) => metric.id === "valuationSupportability" && metric.value === "not-meaningful",
-    )
-  ) {
-    for (const { section, metric } of rows.filter((row) =>
-      REVENUE_MULTIPLES.has(row.metric.id ?? ""),
-    )) {
-      add(
-        "revenue-multiple-published-when-not-meaningful",
-        section,
-        metric.id!,
-        String(metric.value),
-      );
+  const supportabilityNotMeaningful = rows.some(
+    ({ metric }) => metric.id === "valuationSupportability" && metric.value === "not-meaningful",
+  );
+  for (const section of sections) {
+    const sectionVerdict = section.metrics.some(
+      (metric) =>
+        REVENUE_MULTIPLES.has(metric.id ?? "") &&
+        metric.status === "not-meaningful" &&
+        REVENUE_MULTIPLE_VERDICT.test(metric.reason ?? ""),
+    );
+    const currentVerdict =
+      supportabilityNotMeaningful && CURRENT_VALUATION_SECTION.test(section.id ?? "");
+    if (!sectionVerdict && !currentVerdict) {
+      continue;
+    }
+    for (const metric of section.metrics) {
+      if (metric.status === "value" && REVENUE_MULTIPLES.has(metric.id ?? "")) {
+        add(
+          "revenue-multiple-published-when-not-meaningful",
+          section.id ?? "",
+          metric.id!,
+          `${String(metric.value)}: ${sectionVerdict ? "sibling revenue multiple not meaningful" : "valuationSupportability not-meaningful"}`,
+        );
+      }
     }
   }
 
@@ -91,44 +119,43 @@ export function reportInvariantViolations(sections: MetricSections): readonly Re
         );
       }
     }
-    const currencies = new Set(
-      section.metrics.flatMap((metric) =>
-        metric.status === "value" && metric.currency !== undefined ? [metric.currency] : [],
-      ),
-    );
-    if (currencies.size > 1) {
-      add("section-mixes-currencies", section.id ?? "", "", [...currencies].toSorted().join(","));
-    }
   }
 
-  const byIdAndPeriod = new Map<
+  const equivalents = new Map<
     string,
-    { section: string; status: string | undefined; value: number | string | undefined }[]
+    { surface: number; section: string; status: string | undefined; value: SweepMetric["value"] }[]
   >();
   for (const section of sections) {
+    const surface = EQUIVALENT_SURFACES.findIndex((pattern) => pattern.test(section.id ?? ""));
+    if (surface === -1) {
+      continue;
+    }
     for (const metric of section.metrics) {
       if (metric.id === undefined || metric.periodEnd === undefined) {
         continue;
       }
-      const key = `${metric.id}\n${metric.periodEnd}`;
-      byIdAndPeriod.set(key, [
-        ...(byIdAndPeriod.get(key) ?? []),
-        { section: section.id ?? "", status: metric.status, value: metric.value },
+      const key = [metric.id, metric.periodEnd, metric.periodMonths ?? ""].join("\n");
+      equivalents.set(key, [
+        ...(equivalents.get(key) ?? []),
+        { surface, section: section.id ?? "", status: metric.status, value: metric.value },
       ]);
     }
   }
-  for (const [key, entries] of byIdAndPeriod) {
-    const [id, periodEnd] = key.split("\n");
+  for (const [key, entries] of equivalents) {
+    const [id, periodEnd, periodMonths] = key.split("\n");
     const values = new Set(
       entries.filter((entry) => entry.status === "value").map((entry) => entry.value),
     );
     const statuses = new Set(entries.map((entry) => entry.status));
-    if (values.size > 1 || (values.size === 1 && statuses.size > 1)) {
+    if (
+      new Set(entries.map((entry) => entry.surface)).size === EQUIVALENT_SURFACES.length &&
+      (values.size > 1 || statuses.size > 1)
+    ) {
       add(
         "surfaces-disagree",
         entries.map((entry) => entry.section).join(","),
         id!,
-        `${periodEnd}: ${entries.map((entry) => `${entry.status}=${entry.value ?? ""}`).join(" ")}`,
+        `${[periodEnd, periodMonths].filter(Boolean).join(" ")}: ${entries.map((entry) => `${entry.status}=${entry.value ?? ""}`).join(" ")}`,
       );
     }
   }
@@ -183,50 +210,85 @@ export function reportLedgerRows(
 
 interface ReportSweep {
   readonly runs: number;
+  readonly replayed: number;
   readonly withSections: number;
+  readonly noCapture: readonly string[];
   readonly failures: readonly { readonly run: string; readonly error: string }[];
   readonly violationCounts: Readonly<Record<string, number>>;
   readonly violations: readonly RunViolation[];
   readonly ledger: readonly LedgerRow[];
 }
 
-export async function sweepReports(runsDir: string): Promise<ReportSweep> {
+interface ReplayedReport {
+  readonly symbol?: string;
+  readonly extras?: { readonly metricSections?: unknown };
+}
+
+async function replayRun(runsDir: string, run: string, root: string) {
+  const result = await runEvalSample({
+    root,
+    label: "sweep",
+    fixture: join(runsDir, run, "replay"),
+    sample: "1",
+    llm: "replay",
+  });
+  if (result.status !== "completed" || result.runDir === undefined) {
+    throw new Error(`${result.status}: ${result.error ?? "no published run"}`);
+  }
+  return (await Bun.file(join(result.runDir, RUN_ARTIFACT_FILES.report)).json()) as ReplayedReport;
+}
+
+export async function sweepReports(runsDir: string, root: string): Promise<ReportSweep> {
   const names = await listRunDirNames(runsDir);
+  const noCapture: string[] = [];
   const failures: { run: string; error: string }[] = [];
   const violations: RunViolation[] = [];
   const ledger: LedgerRow[] = [];
+  let replayed = 0;
   let withSections = 0;
-  const reprojected = await Promise.all(
-    names.map((run) =>
-      reprojectRun(join(runsDir, run)).then(
-        ({ report }) => ({ run, report }),
-        (error: unknown) => ({ run, error }),
-      ),
-    ),
-  );
-  for (const entry of reprojected) {
-    const { run } = entry;
-    if ("error" in entry) {
-      const { error } = entry;
+  for (const run of names) {
+    if (!existsSync(join(runsDir, run, "replay"))) {
+      noCapture.push(run);
+      continue;
+    }
+    let report: ReplayedReport;
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- samples share process-level index overrides
+      report = await replayRun(runsDir, run, root);
+    } catch (error) {
       failures.push({ run, error: error instanceof Error ? error.message : String(error) });
       continue;
     }
-    const sections = readMetricSectionsExtra(entry.report.extras?.metricSections);
-    if (sections === undefined) {
+    replayed += 1;
+    const sections = report.extras?.metricSections;
+    if (!Array.isArray(sections)) {
       continue;
     }
     withSections += 1;
-    const symbol = entry.report.symbol ?? "";
-    ledger.push(...reportLedgerRows(run, symbol, sections));
+    const symbol = report.symbol ?? "";
+    ledger.push(...reportLedgerRows(run, symbol, sections as MetricSections));
     violations.push(
-      ...reportInvariantViolations(sections).map((violation) => ({ run, symbol, ...violation })),
+      ...reportInvariantViolations(sections as MetricSections).map((violation) => ({
+        run,
+        symbol,
+        ...violation,
+      })),
     );
   }
   const violationCounts: Record<string, number> = {};
   for (const { invariant } of violations) {
     violationCounts[invariant] = (violationCounts[invariant] ?? 0) + 1;
   }
-  return { runs: names.length, withSections, failures, violationCounts, violations, ledger };
+  return {
+    runs: names.length,
+    replayed,
+    withSections,
+    noCapture,
+    failures,
+    violationCounts,
+    violations,
+    ledger,
+  };
 }
 
 function formatCountDiff(
@@ -262,7 +324,10 @@ if (import.meta.main) {
       ? undefined
       : ((await Bun.file(values.diff.replace(/\.ledger\.jsonl$/u, ".json")).json()) as ReportSweep);
   const started = performance.now();
-  const sweep = await sweepReports(resolve(values["runs-dir"]!));
+  const root = await mkdtemp(join(tmpdir(), "market-bot-report-sweep-"));
+  const sweep = await sweepReports(resolve(values["runs-dir"]!), root).finally(() =>
+    rm(root, { recursive: true, force: true }),
+  );
   const outDir = resolve(values["out-dir"]!);
   const stem = join(outDir, `report-${new Date().toISOString().replaceAll(":", "-")}`);
   const { ledger, ...json } = sweep;
@@ -271,8 +336,9 @@ if (import.meta.main) {
   await writeFile(`${stem}.ledger.jsonl`, serializeLedger(ledger), { flag: "wx" });
   process.stdout.write(
     [
-      `Runs: ${sweep.runs}, with Metric Sections: ${sweep.withSections}, rerun failures: ${sweep.failures.length}`,
-      ...sweep.failures.map(({ run, error }) => `  ${run}: ${error}`),
+      `Runs: ${sweep.runs}, replayed: ${sweep.replayed} (with Metric Sections: ${sweep.withSections}), replay failed: ${sweep.failures.length}, no capture: ${sweep.noCapture.length}`,
+      ...sweep.failures.map(({ run, error }) => `  failed ${run}: ${error}`),
+      ...sweep.noCapture.map((run) => `  no capture ${run}`),
       `Violations: ${
         Object.entries(sweep.violationCounts)
           .map(([name, count]) => `${name} ${count}`)

@@ -15,7 +15,6 @@ import { assertSafeReportLanguage, validateResearchReport } from "../report/sche
 import { assertNoUnresolvedMetricReferences } from "../research/metric-references";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources } from "../sources/types";
-import type { ResearchReport } from "../domain/report";
 import { freshEvalDir, writeEvalJson } from "./eval-output";
 
 async function readJson(path: string, optional = false): Promise<unknown> {
@@ -140,42 +139,6 @@ async function normalizedSources(
   } as unknown as CollectedSources;
 }
 
-export interface ReprojectedRun {
-  readonly report: ResearchReport;
-  readonly markdown: string;
-}
-
-// Re-projects a saved run's report extras at the current code; throws when the run cannot be rebuilt.
-export async function reprojectRun(runDir: string): Promise<ReprojectedRun> {
-  const original = readReport(await readJson(join(runDir, RUN_ARTIFACT_FILES.report)));
-  if (original === undefined) {
-    throw new Error("Past run has no readable report");
-  }
-  const collected = await normalizedSources(
-    runDir,
-    isDeepEquityReport(original),
-    new Set(original.sources.map((source) => source.id)),
-  );
-  const report = validateResearchReport({
-    ...original,
-    extras: {
-      ...Object.fromEntries(
-        Object.entries(original.extras ?? {}).filter(
-          ([key]) => !EXTENDED_EVIDENCE_EXTRA_KEYS.has(key),
-        ),
-      ),
-      ...projectExtendedEvidenceReportExtras({
-        modelExtras: original.extras ?? {},
-        collectedSources: collected,
-      }),
-    },
-  });
-  assertNoUnresolvedMetricReferences(report, collected);
-  assertSafeReportLanguage(report);
-  const snapshot = collected.marketSnapshots.find((row) => row.symbol === report.symbol);
-  return { report, markdown: renderMarkdownReport(report, snapshot, collected) };
-}
-
 export async function rerunReport(options: {
   readonly run: string;
   readonly label: string;
@@ -188,7 +151,8 @@ export async function rerunReport(options: {
   const runDir = options.run.includes("/")
     ? resolve(options.run)
     : resolve(import.meta.dir, "../../data/runs", options.run);
-  if (readReport(await readJson(join(runDir, RUN_ARTIFACT_FILES.report))) === undefined) {
+  const original = readReport(await readJson(join(runDir, RUN_ARTIFACT_FILES.report)));
+  if (original === undefined) {
     throw new Error("Past run has no readable report");
   }
   const dir = await freshEvalDir(options.label, options.root);
@@ -196,9 +160,30 @@ export async function rerunReport(options: {
   let status: "completed" | "failed" = "completed";
   let failureMessage: string | undefined = undefined;
   try {
-    const { report, markdown } = await reprojectRun(runDir);
+    const collected = await normalizedSources(
+      runDir,
+      isDeepEquityReport(original),
+      new Set(original.sources.map((source) => source.id)),
+    );
+    const report = validateResearchReport({
+      ...original,
+      extras: {
+        ...Object.fromEntries(
+          Object.entries(original.extras ?? {}).filter(
+            ([key]) => !EXTENDED_EVIDENCE_EXTRA_KEYS.has(key),
+          ),
+        ),
+        ...projectExtendedEvidenceReportExtras({
+          modelExtras: original.extras ?? {},
+          collectedSources: collected,
+        }),
+      },
+    });
+    assertNoUnresolvedMetricReferences(report, collected);
+    assertSafeReportLanguage(report);
     await writeEvalJson(dir, "report.json", report);
-    await writeFile(join(dir, "report.md"), markdown);
+    const snapshot = collected.marketSnapshots.find((row) => row.symbol === report.symbol);
+    await writeFile(join(dir, "report.md"), renderMarkdownReport(report, snapshot, collected));
     await writeEvalJson(dir, "validation.json", {
       schema: "passed",
       researchLanguage: "passed",

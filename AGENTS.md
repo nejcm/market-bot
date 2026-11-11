@@ -98,7 +98,7 @@ Outside `data/`, `.reviews/` (run-review output), and `.plans/` are gitignored w
 
 The recurring defect is a change that lands only on the path you tested (see `684e454`). Walk the chain end to end.
 
-SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a ledger diff from `bun run sweep:sec` (before and after, `--diff`). Projection and report changes report one from `bun run sweep:report`, which re-projects every saved run offline.
+SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a ledger diff from `bun run sweep:sec` (before and after, `--diff`). Projection and report changes report one from `bun run sweep:report`, which replays every saved run that has a `replay/` capture offline and lists the runs it could not replay.
 
 **Every change, not just the ones below:** before calling a task done, check whether these need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "fixture invariants unaffected because Z"):
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.8](https://github.com/nejcm/market-bot/compare/v1.16.7...v1.16.8) (2026-11-11)
+
+### Bug Fixes
+
+- **invariants:** catch valuation evidence beside non-usd statements (#213) ([a0d711e](https://github.com/nejcm/market-bot/commit/a0d711e001135ce1259ce2b69f4dd36a2fd8fac4))
+
 ## [1.16.7](https://github.com/nejcm/market-bot/compare/v1.16.6...v1.16.7) (2026-11-11)
 
 ### Bug Fixes

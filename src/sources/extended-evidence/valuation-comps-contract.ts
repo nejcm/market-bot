@@ -10,6 +10,7 @@ import type { Source, SourceGap, SourceGapCause } from "../../domain/sources";
 import type { RawSourceSnapshot } from "../types";
 import type { ResearchSubjectRegistryEntry } from "../../domain/subject-registry";
 import type { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
+import { isFreshPeriodEnd, SEC_FRESHNESS_DAYS } from "../../config/shared";
 
 export const MIN_USABLE_PEERS = 3;
 export const MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS = 92;
@@ -296,14 +297,49 @@ export function compsCashLabel(row: ValuationCompsRow): string | undefined {
     : `cash ${row.cashPeriodEnd}${row.shortTermInvestmentsIncludeEquity === true ? " (short-term investments include current equity securities that may be sale-restricted)" : ""}`;
 }
 
-export function revenueMultipleNotMeaningfulReason(target: {
+interface RevenueMultipleVerdict {
+  readonly status: "missing" | "not-meaningful";
+  readonly reason: string;
+}
+
+// With asOf, a current multiple on an undated or stale revenue basis is withheld, verdict or not.
+export function revenueMultipleVerdict(
+  target: {
+    readonly annualizedRevenue?: number | undefined;
+    readonly evToAnnualizedRevenue?: number | undefined;
+    readonly marketCap?: number | undefined;
+    readonly revenuePeriodEnd?: string | undefined;
+  },
+  asOf?: string,
+): RevenueMultipleVerdict | undefined {
+  if (target.annualizedRevenue !== undefined && target.annualizedRevenue <= 0) {
+    return { status: "not-meaningful", reason: "revenue not positive" };
+  }
+  if (asOf !== undefined && target.revenuePeriodEnd === undefined) {
+    return {
+      status: "missing",
+      reason: "revenue basis has no period end; no revenue-multiple verdict",
+    };
+  }
+  if (
+    asOf !== undefined &&
+    target.revenuePeriodEnd !== undefined &&
+    !isFreshPeriodEnd(target.revenuePeriodEnd, asOf)
+  ) {
+    return {
+      status: "missing",
+      reason: `revenue basis period end ${target.revenuePeriodEnd} is older than ${String(SEC_FRESHNESS_DAYS)} days; no revenue-multiple verdict`,
+    };
+  }
+  const reason = sizeVerdictReason(target);
+  return reason === undefined ? undefined : { status: "not-meaningful", reason };
+}
+
+function sizeVerdictReason(target: {
   readonly annualizedRevenue?: number | undefined;
   readonly evToAnnualizedRevenue?: number | undefined;
   readonly marketCap?: number | undefined;
 }): string | undefined {
-  if (target.annualizedRevenue !== undefined && target.annualizedRevenue <= 0) {
-    return "revenue not positive";
-  }
   if (
     target.annualizedRevenue !== undefined &&
     target.marketCap !== undefined &&
@@ -321,12 +357,20 @@ export function revenueMultipleNotMeaningfulReason(target: {
 export function revenueMultipleMeaningful(
   target: Pick<ValuationCompsRow, "annualizedRevenue" | "evToAnnualizedRevenue" | "marketCap">,
 ): boolean {
-  return revenueMultipleNotMeaningfulReason(target) === undefined;
+  return revenueMultipleVerdict(target) === undefined;
 }
 
-export function compsRowRevenueMultipleLabel(row: ValuationCompsRow, targetSymbol: string): string {
-  return row.evToAnnualizedRevenue === undefined ||
-    (row.symbol === targetSymbol && !revenueMultipleMeaningful(row))
+export function compsRowRevenueMultipleLabel(
+  row: ValuationCompsRow,
+  targetSymbol: string,
+  generatedAt: string,
+): string {
+  const verdict =
+    row.symbol === targetSymbol ? revenueMultipleVerdict(row, generatedAt) : undefined;
+  if (verdict?.status === "missing") {
+    return "withheld";
+  }
+  return row.evToAnnualizedRevenue === undefined || verdict !== undefined
     ? "N/M"
     : `${row.evToAnnualizedRevenue.toFixed(2)}x`;
 }

@@ -1,7 +1,7 @@
 import { type MetricContext, type MetricDefinition, type MetricOutcome } from "./metric-engine";
 import { NET_DEBT_BASIS } from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
-import { isFreshPeriodEnd } from "./valuation-comps-support";
+import { isFreshPeriodEnd } from "../../config/shared";
 import {
   type LensSeries,
   SERIES_LABELS,

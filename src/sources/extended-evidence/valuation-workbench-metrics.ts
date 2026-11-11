@@ -1,5 +1,5 @@
 import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
-import { revenueMultipleNotMeaningfulReason } from "./valuation-comps-contract";
+import { revenueMultipleVerdict } from "./valuation-comps-contract";
 import { isYearAligned } from "./financial-statement-selection";
 import { DEBT_SCOPE_CAVEAT } from "./financial-statement-definitions";
 import { depositoryNetDebtReason } from "./industry-classification";
@@ -306,15 +306,15 @@ export function valuationMetricSection(input: {
         if (denominatorKey !== "revenue") {
           return { status: "value", value, periodEnd: period.periodEnd, inputs: lineage };
         }
-        const floorReason = revenueMultipleNotMeaningfulReason({
+        const floorReason = revenueMultipleVerdict({
           annualizedRevenue: denominator.value,
           marketCap,
-        });
+        })?.reason;
         const ceilingReason =
           floorReason === undefined && enterpriseValue !== undefined
-            ? revenueMultipleNotMeaningfulReason({
+            ? revenueMultipleVerdict({
                 evToAnnualizedRevenue: enterpriseValue / denominator.value,
-              })
+              })?.reason
             : undefined;
         const revenueMultipleReason = floorReason ?? ceilingReason;
         if (revenueMultipleReason === undefined) {

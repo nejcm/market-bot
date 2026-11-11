@@ -1,5 +1,5 @@
 import type { InstrumentCommand } from "../../cli/job-registry";
-import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
+import { DAY_MS, isFreshPeriodEnd } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
 import type { Source, SourceGap } from "../../domain/sources";
@@ -145,16 +145,6 @@ export function sourcesForPeer(
 
 export function isFreshDate(observedAt: string | undefined, generatedAt: string): boolean {
   return observedAt !== undefined && observedAt.slice(0, 10) === generatedAt.slice(0, 10);
-}
-
-export function isFreshPeriodEnd(periodEnd: string, generatedAt: string): boolean {
-  const periodMs = Date.parse(periodEnd);
-  const generatedMs = Date.parse(generatedAt);
-  if (!Number.isFinite(periodMs) || !Number.isFinite(generatedMs)) {
-    return false;
-  }
-  const ageMs = generatedMs - periodMs;
-  return ageMs >= 0 && ageMs <= SEC_FRESHNESS_DAYS * DAY_MS;
 }
 
 const BALANCE_SHEET_PERIOD_KEYS = [

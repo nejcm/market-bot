@@ -144,6 +144,38 @@ describe("report sweep", () => {
     ]);
   });
 
+  test("flags a current revenue multiple on revenue older than 180 days or undated", () => {
+    const verdict = {
+      id: "evToAnnualizedRevenue",
+      status: "not-meaningful",
+      reason: "revenue below the 2% of market cap de-minimis floor",
+    };
+    const sections = (periodEnd?: string) => [
+      {
+        id: "financial-lens-value",
+        metrics: [
+          metric({ ...verdict, periodEnd }),
+          metric({ id: "marketCapToAnnualizedRevenue", status: "value", value: 18, periodEnd }),
+          metric({ id: "evToAnnualizedRevenue", status: "missing", periodEnd }),
+        ],
+      },
+      {
+        id: "valuation-workbench-annual-2025-12-31-2026-04-30",
+        metrics: [metric({ ...verdict, id: "priceToSales", periodEnd })],
+      },
+    ];
+    const flagged = (periodEnd: string | undefined, generatedAt: string) =>
+      reportInvariantViolations(sections(periodEnd), [], undefined, generatedAt)
+        .filter(({ invariant }) => invariant === "revenue-multiple-on-stale-revenue")
+        .map((row) => `${row.invariant} ${row.section}/${row.metric}: ${row.detail}`);
+    expect(flagged("2025-12-31", "2026-06-30T00:00:00.000Z")).toEqual([
+      "revenue-multiple-on-stale-revenue financial-lens-value/evToAnnualizedRevenue: not-meaningful 2025-12-31",
+      "revenue-multiple-on-stale-revenue financial-lens-value/marketCapToAnnualizedRevenue: value 2025-12-31",
+    ]);
+    expect(flagged("2025-12-31", "2026-06-29T00:00:00.000Z")).toEqual([]);
+    expect(flagged(undefined, "2026-06-29T00:00:00.000Z")).toHaveLength(2);
+  });
+
   test("flags a currency instant published beside a sibling withheld as stale on the same date", () => {
     const sections = [
       {

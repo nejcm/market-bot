@@ -23,10 +23,10 @@ import {
 import { isDepositorySic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { latestFilingWithoutDebtFacts } from "./sec-edgar";
+import { isFreshPeriodEnd } from "../../config/shared";
 import {
   balanceSheetPeriodDivergence,
   isFreshDate,
-  isFreshPeriodEnd,
   mixedPeriodMetrics,
   unique,
 } from "./valuation-comps-support";

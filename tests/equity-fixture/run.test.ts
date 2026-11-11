@@ -545,8 +545,12 @@ describe("static equity run fixtures", () => {
         );
         // FY2025 revenue $529.8M sits below 2% of the ~$36B market cap, so no revenue multiple publishes.
         expect(revenueMultiples.filter((row) => row.endsWith(": value"))).toEqual([]);
-        expect(revenueMultiples).toContain(
-          "financial-lens-value/marketCapToAnnualizedRevenue: not-meaningful",
+        // The current Lens verdict waits on revenue fresher than 2025-12-31; the Workbench prices it at 2026-04-30.
+        expect(revenueMultiples).toEqual(
+          expect.arrayContaining([
+            "financial-lens-value/marketCapToAnnualizedRevenue: missing",
+            "valuation-workbench-ttm-2025-12-31-2026-04-30/priceToSales: not-meaningful",
+          ]),
         );
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);

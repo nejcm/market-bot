@@ -36,7 +36,7 @@ import {
 import { SEC_FRESHNESS_DAYS } from "../../config/shared";
 import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
-  revenueMultipleNotMeaningfulReason,
+  revenueMultipleVerdict,
 } from "./valuation-comps-contract";
 
 interface ValuationEvidenceResult {
@@ -298,15 +298,14 @@ export function addValuationEvidence(
           : enterpriseValue === undefined
             ? `enterprise value withheld (${enterpriseValueWithheld.join("; ")})`
             : `enterprise value ${formatUsd(enterpriseValue)}`;
-  const revenueMultipleReason = revenueMultipleNotMeaningfulReason({
-    annualizedRevenue,
-    marketCap,
-    evToAnnualizedRevenue,
-  });
+  const revenueMultipleReason = revenueMultipleVerdict(
+    { annualizedRevenue, marketCap, evToAnnualizedRevenue, revenuePeriodEnd },
+    analysisAsOf,
+  );
   const revenueMultipleText = (label: string, value: number | undefined) =>
     revenueMultipleReason === undefined
       ? `${label} ${fixed(value)}`
-      : `${label} not meaningful (${revenueMultipleReason})`;
+      : `${label} ${revenueMultipleReason.status === "missing" ? "withheld" : "not meaningful"} (${revenueMultipleReason.reason})`;
   const evToRevenueText =
     debt === undefined || bridgeWithheld || staleEnterpriseValue
       ? "EV/TTM revenue withheld"

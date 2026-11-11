@@ -488,8 +488,14 @@ describe("enterprise value bridge on both SEC producers", () => {
       .filter((tile) => tile.label === "Net debt");
     return { rows, markdown: renderMetricSections(report), tiles };
   };
+  // A fiscal year ending at the balance-sheet instant keeps current EV/revenue within 180 days.
+  const freshRevenue = {
+    ...fact(120_000 * M, "2026-07-26", "2026-08-26", "0001045810-26-000075", "10-K"),
+    fp: "FY",
+    start: "2025-07-28",
+  };
   const lensSurfaces = (gaap: Facts) => {
-    const { artifact, legacy, canonical } = valuations(gaap);
+    const { artifact, legacy, canonical } = valuations({ ...gaap, Revenues: [freshRevenue] });
     return [
       { symbol: "TEST", statements: artifact, asOf: ANALYSIS_AS_OF, evidence: canonical.evidence! },
       { symbol: "TEST", asOf: ANALYSIS_AS_OF, evidence: legacy.evidence! },

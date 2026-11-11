@@ -1,4 +1,4 @@
-import { DAY_MS } from "../../config/shared";
+import { DAY_MS, isFreshPeriodEnd } from "../../config/shared";
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import { itemByCategory, type FinancialLensPosture } from "./financial-lens-metrics";
 import {
@@ -32,12 +32,11 @@ import { depositoryIssuerSic, depositoryNetDebtReason } from "./industry-classif
 import { readNumberMetric, readStringMetric } from "./utils";
 import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
-  revenueMultipleNotMeaningfulReason,
+  revenueMultipleVerdict,
 } from "./valuation-comps-contract";
 import {
   balanceSheetPeriodDivergence,
   isCurrentBalanceSheetPeriod,
-  isFreshPeriodEnd,
 } from "./valuation-comps-support";
 import { scaleCurrency, type LensValueUnit } from "./value-format";
 import {
@@ -476,16 +475,19 @@ export function withRevenueMultipleVerdict(
   return (ctx) => {
     const outcome = compute(ctx);
     const metrics = valuationItem(ctx)?.metrics;
-    const reason = revenueMultipleNotMeaningfulReason({
-      annualizedRevenue: readNumberMetric(metrics, "annualizedRevenue"),
-      marketCap: readNumberMetric(metrics, "marketCap"),
-      evToAnnualizedRevenue: readNumberMetric(metrics, "evToAnnualizedRevenue"),
-    });
-    return outcome.status !== "value" || reason === undefined
+    const verdict = revenueMultipleVerdict(
+      {
+        annualizedRevenue: readNumberMetric(metrics, "annualizedRevenue"),
+        marketCap: readNumberMetric(metrics, "marketCap"),
+        evToAnnualizedRevenue: readNumberMetric(metrics, "evToAnnualizedRevenue"),
+        revenuePeriodEnd: readStringMetric(metrics, "revenuePeriodEnd"),
+      },
+      ctx.asOf,
+    );
+    return outcome.status !== "value" || verdict === undefined
       ? outcome
       : {
-          status: "not-meaningful",
-          reason,
+          ...verdict,
           ...(outcome.periodEnd === undefined ? {} : { periodEnd: outcome.periodEnd }),
           ...(outcome.periodMonths === undefined ? {} : { periodMonths: outcome.periodMonths }),
           inputs: outcome.inputs,

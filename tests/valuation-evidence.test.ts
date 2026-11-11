@@ -614,6 +614,33 @@ describe("addValuationEvidence", () => {
     expect(valuation?.metrics?.marketCapToAnnualizedRevenue).toBeCloseTo(68.71, 2);
   });
 
+  test("withholds the revenue-multiple verdict when the revenue period is stale", () => {
+    // NBIS: FY2025 revenue $529.8M through 2025-12-31, read 315 days later; scaled like the floor case.
+    const result = addValuationEvidence(
+      command,
+      [marketSnapshot({ symbol: "AAPL", marketCap: 36_400 })],
+      secEvidence({
+        revenue: 529.8,
+        revenueTtm: 529.8,
+        revenuePeriodMonths: 12,
+        revenuePeriodEnd: "2025-12-31",
+        cash: 30,
+        cashPeriodEnd: "2025-12-31",
+        debt: 50,
+        debtPeriodEnd: "2025-12-31",
+      }),
+      "2026-11-11T00:00:00.000Z",
+    );
+
+    const summary = result.extendedEvidence?.items.find(
+      (item) => item.category === "valuation",
+    )?.summary;
+    expect(summary).toContain(
+      "market cap/TTM revenue withheld (revenue basis period end 2025-12-31 is older than 180 days; no revenue-multiple verdict)",
+    );
+    expect(summary).not.toContain("de-minimis");
+  });
+
   test("withholds revenue multiples behind a Source Gap when TTM does not reconcile", () => {
     const result = addValuationEvidence(
       command,

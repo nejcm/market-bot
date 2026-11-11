@@ -7,20 +7,21 @@
   interface Props {
     readonly items: readonly ExtendedEvidenceItemView[];
     readonly revenueBasisLabel: string | undefined;
+    readonly generatedAt: string | undefined;
     readonly sectionKey: RunWorkspaceSectionKey;
     readonly citeChips: Snippet<[readonly string[]]>;
     readonly sectionHeading: Snippet<[string]>;
     readonly bindSection: BindSection;
   }
 
-  let { items, revenueBasisLabel, sectionKey, citeChips, sectionHeading, bindSection }: Props = $props();
+  let { items, revenueBasisLabel, generatedAt, sectionKey, citeChips, sectionHeading, bindSection }: Props = $props();
 </script>
 
 <section {@attach bindSection(sectionKey)} class="mt-8.5 scroll-mt-5">
   {@render sectionHeading("Extended evidence")}
   <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
     {#each items as item}
-      {@const metricTiles = item.category === "valuation" ? valuationMetricTiles(item.metrics, revenueBasisLabel) : []}
+      {@const metricTiles = item.category === "valuation" ? valuationMetricTiles(item.metrics, revenueBasisLabel, generatedAt) : []}
       <div class="rounded-lg border border-border bg-card px-4 py-3.5">
         <div class="flex flex-wrap items-center gap-2">
           <span

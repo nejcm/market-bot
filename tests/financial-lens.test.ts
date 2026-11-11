@@ -176,14 +176,20 @@ describe("addFinancialLensEvidence", () => {
       periodEnd: "2025-06-28",
       periodMonths: 12,
     });
-    for (const key of [
-      "annualizedRevenue",
-      "evToAnnualizedRevenue",
-      "marketCapToAnnualizedRevenue",
-    ]) {
-      expect(metricByKey(result, "Value", key)).toMatchObject({
-        periodEnd: "2025-06-28",
-        periodMonths: 12,
+    expect(metricByKey(result, "Value", "annualizedRevenue")).toMatchObject({
+      periodEnd: "2025-06-28",
+      periodMonths: 12,
+    });
+    // Revenue through 2025-06-28 is 359 days old at the cutoff, so current revenue multiples are withheld.
+    for (const id of ["evToAnnualizedRevenue", "marketCapToAnnualizedRevenue"]) {
+      expect(
+        result.metricSections
+          ?.find((section) => section.id === "financial-lens-value")
+          ?.metrics.find((metric) => metric.id === id),
+      ).toMatchObject({
+        status: "missing",
+        reason:
+          "revenue basis period end 2025-06-28 is older than 180 days; no revenue-multiple verdict",
       });
     }
     const supportability = metricByKey(result, "Value", "valuationSupportability");
@@ -845,6 +851,7 @@ function valuationEvidence(): ExtendedEvidenceItem {
       annualizedRevenue: 400,
       evToAnnualizedRevenue: 2.46,
       marketCapToAnnualizedRevenue: 2.5,
+      revenuePeriodEnd: "2026-03-28",
       debtToMarketCap: 0.02,
       netDebt: -15,
       netDebtToMarketCap: -0.015,
@@ -2131,7 +2138,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       revenuePeriodEnd: "2025-12-31",
       valuationSupportability: "not-meaningful",
     };
-    const valueMetric = (metrics: typeof nbis, id: string) =>
+    const valueMetric = (metrics: typeof nbis, id: string, asOf = "2026-06-22T00:00:00.000Z") =>
       addFinancialLensEvidence(
         command,
         [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
@@ -2141,7 +2148,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
           gaps: [],
         },
         verifiedSnapshot(),
-        "2026-06-22T00:00:00.000Z",
+        asOf,
       )
         .metricSections?.find((section) => section.id === "financial-lens-value")
         ?.metrics.find((metric) => metric.id === id);
@@ -2163,6 +2170,12 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
         "marketCapToAnnualizedRevenue",
       )?.status,
     ).toBe("value");
+    // NBIS run 98e8ca1a reads the same FY2025 revenue 315 days after its period end.
+    expect(valueMetric(nbis, "evToAnnualizedRevenue", "2026-11-11T00:00:00.000Z")).toMatchObject({
+      status: "missing",
+      reason:
+        "revenue basis period end 2025-12-31 is older than 180 days; no revenue-multiple verdict",
+    });
   });
 
   test("Yahoo dividendYield is whole-percent (verified against captured fixture) and display-only", () => {

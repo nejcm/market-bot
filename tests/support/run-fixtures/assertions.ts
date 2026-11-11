@@ -27,7 +27,10 @@ import {
   assertNoUnresolvedMetricReferences,
   referenceMetricSections,
 } from "../../../src/research/metric-references";
-import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
+import {
+  hasNoPriceHistory,
+  observationBasisLabel,
+} from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { auditReportIntegrity } from "../../../src/research/report-integrity-audit";
 import {
@@ -3271,6 +3274,20 @@ function assertValuationWorkbenchInvariants(
         `${fixtureName} FY TTM ${periodEnd} public ${publicAt} was still the trailing period`,
       ).toEqual([]);
     }
+  }
+  const reportSourceIds = new Set(run.report.sources.map(({ id }) => id));
+  for (const observation of observations.filter((row) => !hasNoPriceHistory(row))) {
+    const citesNotMeaningful = Object.values(observation.metrics).some(
+      ({ status, sourceIds }) =>
+        status === "not-meaningful" && sourceIds.some((id) => reportSourceIds.has(id)),
+    );
+    if (!citesNotMeaningful) {
+      continue;
+    }
+    const prefix = `${observationBasisLabel(observation)} | ${observation.periodEnd} | ${observation.publicAt} |`;
+    const line = run.markdown.split("\n").find((candidate) => candidate.startsWith(prefix));
+    expect(line, `${fixtureName} renders workbench row ${prefix}`).toBeDefined();
+    expect(line!.endsWith("| —"), `${fixtureName} ${prefix} cites its N/M inputs`).toBe(false);
   }
   const outsideSections = sections.filter((section) => outsideOnly(section));
   expect(gaps).toHaveLength(

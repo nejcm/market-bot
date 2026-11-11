@@ -31,6 +31,7 @@ import {
 } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
+import type { MetricResult } from "../src/sources/extended-evidence/metric-engine";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { readPeerImpliedRange } from "../src/run-artifact-evidence-reader";
 import { violatesResearchOnly } from "../src/domain/research-language";
@@ -2177,6 +2178,74 @@ describe("run workspace view", () => {
     expect(view?.rows[0]?.price).toBe("—");
     expect(view?.rows[0]?.priceToEarnings.status).toBe("missing");
     expect(view?.unpricedPeriods).toEqual([]);
+  });
+
+  test("cites not-meaningful cells but not missing or not-applicable ones in both readers", () => {
+    const base = valuationWorkbench();
+    const [observation] = base.historicalMultiples.observations;
+    if (observation === undefined) {
+      throw new Error("valuation workbench fixture observation missing");
+    }
+    const cell = {
+      id: "fixture",
+      label: "fixture",
+      unit: "ratio" as const,
+      basis: "fixture",
+      inputs: [],
+    };
+    const missing = {
+      ...cell,
+      status: "missing" as const,
+      reason: "restated-after-first-filing",
+      sourceIds: ["sec-restated"],
+    };
+    const row = (priceToEarnings: MetricResult) => ({
+      ...observation,
+      metrics: {
+        priceToEarnings,
+        priceToSales: missing,
+        enterpriseValueToRevenue: {
+          ...cell,
+          status: "not-applicable" as const,
+          reason: "depository",
+          sourceIds: ["sec-na"],
+        },
+        priceToFreeCashFlow: missing,
+      },
+    });
+    const workbench = valuationWorkbench({
+      historicalMultiples: {
+        ...base.historicalMultiples,
+        observations: [
+          row({
+            ...cell,
+            status: "not-meaningful",
+            reason: "negative-denominator",
+            sourceIds: ["sec-x", "px-x"],
+          }),
+          { ...row(missing), periodEnd: "2023-12-31" },
+        ],
+      },
+    });
+    const report = researchReport({
+      sources: ["sec-x", "px-x", "sec-restated", "sec-na"].map((id) => ({
+        id,
+        title: id,
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "market-data" as const,
+      })),
+    });
+
+    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
+    const markdownRows = renderValuationWorkbenchMarkdown(workbench, report).split("\n");
+
+    expect(view?.rows.map((viewRow) => viewRow.sourceIds)).toEqual([["sec-x", "px-x"], []]);
+    expect(
+      markdownRows.find((line) => line.startsWith(`ANNUAL | ${observation.periodEnd} |`)),
+    ).toEndWith(
+      "| N/M | — (restated-after-first-filing) | not applicable (depository) | — (restated-after-first-filing) | [sec-x] [px-x]",
+    );
+    expect(markdownRows.find((line) => line.startsWith("ANNUAL | 2023-12-31 |"))).toEndWith(" | —");
   });
 
   test("projects the equity market regime from report extras", () => {

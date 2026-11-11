@@ -1355,7 +1355,8 @@ const EXPECTED_LENS_VALUES: Readonly<
     continuingDilutedEpsDeltaPercent: NOT_MEANINGFUL,
     operatingCashFlowDeltaPercent: NOT_MEANINGFUL,
     capexDeltaPercent: null,
-    cash: 3_678_100_000,
+    // Stale like debt: the 2025-12-31 instant is over 180 days before the 2026-11-04 cutoff.
+    cash: null,
     payoutRatio: 0,
     valuationCaveat:
       "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
@@ -1440,7 +1441,8 @@ const EXPECTED_LENS_VALUES: Readonly<
     netIncomeDeltaPercent: 131.520_644_511_581_08,
     dilutedEpsDeltaPercent: 162.121_212_121_212_1,
     operatingCashFlowDeltaPercent: 171.968_736_797_634_14,
-    cash: 8_732_000_000,
+    // Stale: the 2026-01-31 instant is over 180 days before the 2026-11-03 cutoff.
+    cash: null,
     payoutRatio: 0.804_347_826_086_956_7,
     dividendYield: 3.45,
     peRatio: 16.967_392,

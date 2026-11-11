@@ -15,7 +15,6 @@ import {
   type MetricPeriod,
   periodEndInput,
   withCompleteDebt,
-  withFreshDebt,
   positiveOf,
   atOrBelow,
   postureFrom,
@@ -266,7 +265,7 @@ function lensDefinitions(
     ],
     "Financial Strength": [
       instantDefinition("cash", "cash", "Cash"),
-      withCompleteDebt(withFreshDebt(instantDefinition("debt", "debt", "Debt"))),
+      withCompleteDebt(instantDefinition("debt", "debt", "Debt")),
       withNetDebtApplicability(withCompleteDebt(withCurrentEquityNote(netDebtDefinition()))),
       withCompleteDebt(marketLeverageDefinition("debtToMarketCap")),
       withNetDebtApplicability(

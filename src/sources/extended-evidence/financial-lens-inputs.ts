@@ -297,23 +297,6 @@ export function withCompleteDebt(definition: MetricDefinition): MetricDefinition
   };
 }
 
-export function withFreshDebt(definition: MetricDefinition): MetricDefinition {
-  return {
-    ...definition,
-    compute: (ctx) => {
-      const outcome = definition.compute(ctx);
-      return outcome.status !== "value" ||
-        ctx.asOf === undefined ||
-        (outcome.periodEnd !== undefined && isFreshPeriodEnd(outcome.periodEnd, ctx.asOf))
-        ? outcome
-        : {
-            status: "missing",
-            reason: `stale debt as of ${outcome.periodEnd ?? "an undated period"}`,
-          };
-    },
-  };
-}
-
 export function annualize(value: number, periodMonths: number | undefined): number {
   return periodMonths !== undefined && periodMonths > 0 ? value * (12 / periodMonths) : value;
 }

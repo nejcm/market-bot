@@ -2068,6 +2068,22 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     ).toBe("material");
   });
 
+  test("withholds cash as stale on the same instant as stale debt (NBIS 98e8ca1a shape)", () => {
+    const stale = strengthSection(strengthAt(cutoff, debtPeriods("2025-06-30")));
+    for (const [id, reason] of [
+      ["cash", "stale cash as of 2025-06-30"],
+      ["debt", "stale debt as of 2025-06-30"],
+    ] as const) {
+      expect(stale?.metrics.find((metric) => metric.id === id)).toMatchObject({
+        status: "missing",
+        reason,
+        periodEnd: "2025-06-30",
+      });
+    }
+    const fresh = strengthSection(strengthAt(cutoff, debtPeriods("2026-06-30")));
+    expect(fresh?.metrics.find((metric) => metric.id === "cash")?.status).toBe("value");
+  });
+
   test("historical net debt and debt/equity are withheld as stale", () => {
     const noCurrentRatio = debtPeriods("2025-06-30", "2025-06-30");
     const result = strengthAt(cutoff, noCurrentRatio);

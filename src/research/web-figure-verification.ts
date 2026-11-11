@@ -64,9 +64,11 @@ const COUNT_WORD_AFTER =
 const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
 // Only a subunit may be glued ("26.4sen"); a glued main-unit word is too often a label.
 const SUBUNITS = "sen|cents?|pence|¢";
+// Case-sensitive so "mW" stays unread; bare "TW" is a Taiwan listing suffix ("2330 TW"), so only "TWh" reads.
+const POWER_UNITS = String.raw`(?-i:[kMG]W[hp]?|TWh)|(?:kilo|mega|giga|tera)watt(?:[\s-]?hours?|s)?`;
 const SUBUNIT_AFTER = new RegExp(String.raw`^\s?(?:${SUBUNITS})(?!\p{L})`, "iu");
 const FIGURE_PATTERN = new RegExp(
-  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?)|\s?(?<power>${POWER_UNITS})(?!-\p{L}|\s?[/·⋅]\s?\p{L}))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
   "giu",
 );
 const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
@@ -163,6 +165,10 @@ function currencyOf(mark: string | undefined): string | undefined {
 function unitOf(groups: Readonly<Record<string, string | undefined>>): string {
   if (groups.multiple !== undefined) {
     return "x";
+  }
+  if (groups.power !== undefined) {
+    const power = groups.power.toLowerCase();
+    return power.includes("watt") ? `${power.charAt(0)}w${power.includes("h") ? "h" : ""}` : power;
   }
   const unit = groups.unit?.toLowerCase().replaceAll(/\s+/gu, " ");
   if (unit === undefined) {

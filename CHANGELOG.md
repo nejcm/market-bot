@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.8](https://github.com/nejcm/market-bot/compare/v1.15.7...v1.15.8) (2026-11-11)
+
+### Bug Fixes
+
+- stop publishing translated, stale and sign-flipped values (#203) ([1756392](https://github.com/nejcm/market-bot/commit/1756392a69fcd743b5b78f82ce092f0e31764114))
+
 ## [1.15.7](https://github.com/nejcm/market-bot/compare/v1.15.6...v1.15.7) (2026-11-10)
 
 ### Bug Fixes

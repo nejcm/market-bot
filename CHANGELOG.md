@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.1](https://github.com/nejcm/market-bot/compare/v1.16.0...v1.16.1) (2026-11-11)
+
+### Bug Fixes
+
+- **trends:** flag points filed before a later restatement (#206) ([5a42df5](https://github.com/nejcm/market-bot/commit/5a42df53ba5b69021af319e2c6ac84740d101858))
+
 ## [1.16.0](https://github.com/nejcm/market-bot/compare/v1.15.8...v1.16.0) (2026-11-11)
 
 ### Features

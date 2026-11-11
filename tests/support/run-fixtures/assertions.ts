@@ -95,6 +95,7 @@ import {
   type RunFixtureResult,
 } from "../../../src/replay/fixture-run";
 import { assertFinancialRunInvariants } from "../../../src/corpus/financial-invariants";
+import { reportInvariantViolations } from "../../../src/corpus/report-invariants";
 
 export function assertIntegrityPruneInvariant(
   pruned: readonly { readonly location: string; readonly text: string }[] | undefined,
@@ -498,6 +499,16 @@ export async function assertInvariants(
   assertSafeReportLanguage(report);
   assertValuationWorkbenchInvariants(result, meta, fixtureName);
   assertMetricSectionInvariants(result, report);
+  expect(
+    reportInvariantViolations(
+      (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? [],
+      [
+        ...result.collectedSources.marketSnapshots,
+        ...result.collectedSources.supplementalMarketSnapshots,
+      ],
+    ).filter(({ invariant }) => !invariant.startsWith("watch:")),
+    `${fixtureName} report class invariants`,
+  ).toEqual([]);
   assertFinancialLensMetricInvariants(result, report, fixtureName);
   assertOperatingRatioInvariants(result, report);
   assertPricePerformanceInvariants(result, report);
@@ -1628,15 +1639,6 @@ export function assertFinancialLensMetricInvariants(
             .toSorted()
             .at(-1),
         );
-      }
-      const durations = statementFacts.filter((fact) => fact?.periodStart !== undefined);
-      // A YoY metric compares two adjacent periods of one series; every other join shares one period.
-      if (!metricId.endsWith("DeltaPercent")) {
-        expect(
-          new Set(durations.map((fact) => `${String(fact?.periodKey)}/${String(fact?.periodType)}`))
-            .size,
-          `${label} flow inputs join one period`,
-        ).toBeLessThanOrEqual(1);
       }
       const valueOf = (series: string): number =>
         Number(resolved[metric.inputs.findIndex((input) => input.series === series)]?.value);

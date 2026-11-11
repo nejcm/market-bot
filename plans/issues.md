@@ -4,7 +4,7 @@ Sorted by impact. Each entry stays at three lines or fewer, gives its issuer cou
 
 A recovery for a withheld value is built only after `bun run sweep:sec --diff` shows that the rule publishes at least one instant on the cache and moves no other published value.
 
-Fix classes, not instances. Before fixing a Wrong-value class, add its invariant to `scripts/report-sweep.ts` (or a ledger check to `sweep:sec`) and note the count here; the fix is done when `bun run sweep:report --diff` shows the count at 0 and every other transition is explained. A finding from a new deep run is first checked against the sweep, to see whether it is one more instance of a listed class or a new one.
+Fix classes, not instances. Before fixing a Wrong-value class, add its invariant to `src/corpus/report-invariants.ts` (or a ledger check to `sweep:sec`) and note the count here; the fix is done when `bun run sweep:report --diff` shows the count at 0 and every other transition is explained. A finding from a new deep run is first checked against the sweep, to see whether it is one more instance of a listed class or a new one.
 
 ## Wrong-value risk
 
@@ -57,6 +57,7 @@ These publish today but may be wrong, mixed-scope, or unproven. They also cover 
 ## Tooling
 
 - **`sweep:report` replays only 19 of 95 saved runs** (2026-11-11). 64 strict replays miss a recorded cache entry (51) or a final-synthesis model recording (13), because their captures predate later request or prompt-shape changes; 12 runs have no `replay/`. `replay-fixture-run` fails the same way on those runs. Only NBIS `98e8ca1a` replays among the NBIS runs. Coverage grows as new runs are captured with `MARKET_BOT_CAPTURE_REPLAY=1`. Recomputing Metric Sections from saved normalized evidence would cover more runs but needs per-producer rebuild plumbing, and old runs lack full price-history bars.
+- **`currency-mix-without-fx` cannot see Valuation Evidence ratios.** Lens and Framework evidence inputs (`financial-lens-inputs.ts` `evidenceInput`, `business-framework-metrics.ts`) carry an already-divided ratio with no operand currencies, so losing the reporting-currency argument to `addValuationEvidence` (the `0768c1ba` regression) publishes with no hit. Only `tests/valuation-evidence.test.ts` guards it; closing it needs the evidence item to record its operand currencies.
 
 ## Time-boxed
 

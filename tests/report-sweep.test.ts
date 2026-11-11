@@ -2,10 +2,81 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { reportInvariantViolations, reportLedgerRows, sweepReports } from "../scripts/report-sweep";
+import { reportLedgerRows, sweepReports } from "../scripts/report-sweep";
+import { reportInvariantViolations } from "../src/corpus/report-invariants";
+import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
+import { valuationMetricSection } from "../src/sources/extended-evidence/valuation-workbench-metrics";
+import { marketSnapshot } from "./support/fixtures";
 
 function metric(fields: Record<string, unknown>) {
   return fields as { readonly id?: string };
+}
+
+function invariantsOf(
+  row: Record<string, unknown>,
+  extra: readonly Record<string, unknown>[] = [],
+  section = "s",
+): readonly string[] {
+  return reportInvariantViolations([
+    {
+      id: section,
+      metrics: [metric({ status: "value", ...row }), ...extra.map((fields) => metric(fields))],
+    },
+  ]).map(({ invariant }) => invariant);
+}
+
+function workbenchFact(series: string, value: number, instant = false) {
+  const unit = series === "dilutedShares" ? "shares" : "USD";
+  return {
+    value,
+    label: series,
+    periodEnd: "2025-12-31",
+    publicAt: "2026-02-15",
+    currency: series === "dilutedShares" ? null : "USD",
+    unit,
+    sourceIds: ["filing"],
+    lineage: [
+      {
+        artifact: "statements" as const,
+        series,
+        label: series,
+        value,
+        periodType: instant ? ("instant" as const) : ("annual" as const),
+        ...(instant ? {} : { periodStart: "2025-01-01" }),
+        periodEnd: "2025-12-31",
+        periodKey: instant ? "instant|2025-12-31" : "duration:2025-01-01|2025-12-31",
+        unit,
+        ...(series === "dilutedShares" ? {} : { currency: "USD" }),
+        sourceIds: ["filing"],
+      },
+    ],
+  };
+}
+
+function fact(series: string, periodEnd: string, value: number, months = 12) {
+  return {
+    artifact: "statements",
+    series,
+    value,
+    periodType: months === 12 ? "annual" : "interim",
+    periodStart: `${String(Number(periodEnd.slice(0, 4)) - 1)}${periodEnd.slice(4)}`,
+    periodEnd,
+    periodKey: `duration:${String(months)}|${periodEnd}`,
+    currency: "USD",
+  };
+}
+
+function issuerCell(value: string, periodEnd: string) {
+  return {
+    label: "Profit attributable to owners",
+    value,
+    artifact: "issuerReport",
+    periodType: "interim",
+    periodEnd,
+    unit: "MYR'000",
+    currency: "MYR",
+    sourceIds: ["web-issuer"],
+  };
 }
 
 describe("report sweep", () => {
@@ -178,6 +249,234 @@ describe("report sweep", () => {
       },
     ];
     expect(reportInvariantViolations(sections)).toEqual([]);
+  });
+
+  test("flags a price-relative row without its quote date unless periodEnd is that date", () => {
+    const quote = {
+      artifact: "quote",
+      series: "marketCap",
+      value: 1e12,
+      currency: "USD",
+      sourceIds: ["market-aapl"],
+    };
+    const row = {
+      id: "debtToMarketCap",
+      unit: "ratio-percent",
+      value: 0.1,
+      periodEnd: "2025-12-31",
+    };
+    expect(invariantsOf({ ...row, inputs: [quote] })).toEqual(["price-relative-row-undated"]);
+    expect(
+      invariantsOf({
+        ...row,
+        id: "peRatio",
+        inputs: [{ artifact: "evidence", key: "trailingPE" }],
+      }),
+    ).toEqual(["price-relative-row-undated"]);
+    expect(invariantsOf({ ...row, priceAsOf: "2026-04-30", inputs: [quote] })).toEqual([]);
+    // Another row's priceAsOf on that date does not stand in for the quote's own date.
+    expect(
+      invariantsOf({ ...row, periodEnd: "2026-04-30", inputs: [quote] }, [
+        { id: "trailingPE", status: "value", priceAsOf: "2026-04-30 (fetch time)" },
+      ]),
+    ).toEqual(["price-relative-row-undated"]);
+    expect(invariantsOf({ ...row, unit: "text", inputs: [quote] })).toEqual([]);
+    const { periodEnd: _periodEnd, ...undated } = row;
+    expect(
+      invariantsOf({
+        ...undated,
+        inputs: [{ artifact: "evidence", key: "trailingPE", sourceIds: ["filing"] }],
+      }),
+    ).toEqual(["price-relative-row-undated"]);
+  });
+
+  test("accepts a same-day PCF the Lens producer leaves undated, by its own quote date", () => {
+    const snapshot = marketSnapshot({
+      symbol: "TEST",
+      marketCap: 1000,
+      observedAt: "2026-04-30T21:00:00Z",
+      quoteTimeUtc: "2026-03-31T21:00:00Z",
+    });
+    const { sections } = financialLensMetrics({
+      symbol: "TEST",
+      snapshot,
+      asOf: "2026-04-30T21:00:00Z",
+      evidence: {
+        instrument: { assetClass: "equity", symbol: "TEST" },
+        gaps: [],
+        items: [
+          {
+            category: "sec-edgar",
+            title: "SEC",
+            summary: "SEC",
+            observedAt: "2026-04-30T21:00:00Z",
+            sourceIds: ["filing"],
+            metrics: {
+              operatingCashFlow: 100,
+              operatingCashFlowPeriodMonths: 12,
+              operatingCashFlowPeriodEnd: "2026-03-31",
+            },
+          },
+        ],
+      },
+    });
+    const pcf = sections.flatMap((section) => section.metrics).find(({ id }) => id === "pcfRatio");
+    expect(pcf).toMatchObject({ status: "value", value: 10, periodEnd: "2026-03-31" });
+    expect(pcf?.priceAsOf).toBeUndefined();
+    expect(reportInvariantViolations(sections, [snapshot])).toEqual([]);
+    expect(
+      reportInvariantViolations(sections, [{ ...snapshot, quoteTimeUtc: "2026-04-29T21:00:00Z" }]),
+    ).toEqual([
+      expect.objectContaining({ invariant: "price-relative-row-undated", metric: "pcfRatio" }),
+    ]);
+  });
+
+  test("flags mixed input currencies without an fx input", () => {
+    const inputs = [
+      { artifact: "priceHistory", currency: "USD" },
+      { artifact: "statements", currency: "CAD" },
+    ];
+    expect(invariantsOf({ id: "priceToSales", value: 3, inputs })).toEqual([
+      "currency-mix-without-fx",
+    ]);
+    expect(
+      invariantsOf({ id: "priceToSales", value: 3, inputs: [...inputs, { artifact: "fx" }] }),
+    ).toEqual([]);
+  });
+
+  test("flags flow inputs from different periods unless a single-period series sits beside a change", () => {
+    expect(
+      invariantsOf({
+        id: "freeCashFlowMargin",
+        value: 0.1,
+        inputs: [fact("operatingCashFlow", "2025-12-31", 2), fact("revenue", "2024-12-31", 10)],
+      }),
+    ).toEqual(["flow-inputs-period-mismatch"]);
+    expect(
+      invariantsOf({
+        id: "freeCashFlowMargin",
+        value: 0.1,
+        inputs: [fact("operatingCashFlow", "2025-12-31", 2), fact("revenue", "2025-12-31", 10, 9)],
+      }),
+    ).toEqual(["flow-inputs-period-mismatch"]);
+    expect(
+      invariantsOf({
+        id: "phase",
+        unit: "text",
+        value: "operating-leverage",
+        inputs: [
+          fact("revenue", "2024-12-31", 8),
+          fact("revenue", "2025-12-31", 10),
+          fact("operatingIncome", "2025-12-31", 3),
+          fact("operatingIncome", "2024-12-31", 2),
+          fact("dividendsPaid", "2025-12-31", 1),
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      invariantsOf({
+        id: "phase",
+        unit: "text",
+        value: "operating-leverage",
+        inputs: [
+          fact("revenue", "2024-12-31", 8),
+          fact("revenue", "2025-12-31", 10),
+          fact("operatingIncome", "2023-12-31", 2),
+          fact("operatingIncome", "2024-12-31", 3),
+        ],
+      }),
+    ).toEqual(["flow-inputs-period-mismatch"]);
+  });
+
+  test("flags a non-positive valuation multiple but not a negative non-multiple ratio", () => {
+    expect(invariantsOf({ id: "forwardPE", unit: "ratio", value: -38.4 })).toEqual([
+      "nonpositive-valuation-multiple",
+    ]);
+    expect(invariantsOf({ id: "forwardPE", unit: "ratio", value: 12 })).toEqual([]);
+    expect(invariantsOf({ id: "interestCoverage", unit: "ratio", value: -17.7 })).toEqual([]);
+  });
+
+  test("accepts the negative EV/revenue the Workbench publishes when cash exceeds market cap plus debt", () => {
+    const { section } = valuationMetricSection({
+      symbol: "TEST",
+      period: {
+        basis: "annual",
+        periodEnd: "2025-12-31",
+        revenue: workbenchFact("revenue", 100),
+        dilutedShares: workbenchFact("dilutedShares", 10),
+        cash: workbenchFact("cash", 2000, true),
+        debt: workbenchFact("debt", 100, true),
+      },
+      price: { close: 100, sessionDate: "2026-02-16", currency: "USD", sourceId: "price" },
+      reportingCurrency: "USD",
+      quoteCurrency: "USD",
+    } as Parameters<typeof valuationMetricSection>[0]);
+    expect(section.metrics.find(({ id }) => id === "enterpriseValueToRevenue")).toMatchObject({
+      status: "value",
+      value: -9,
+    });
+    expect(reportInvariantViolations([section])).toEqual([]);
+  });
+
+  test("a Lens ratio joins one period even when one operand spans two", () => {
+    const gross = {
+      id: "grossMargin",
+      unit: "ratio-percent",
+      value: 100 / 189,
+      inputs: [
+        fact("grossProfit", "2026-03-31", 100, 6),
+        fact("revenue", "2025-03-31", 189, 6),
+        fact("grossProfit", "2025-03-31", 88, 6),
+      ],
+    };
+    expect(invariantsOf(gross, [], "financial-lens-quality")).toEqual([
+      "flow-inputs-period-mismatch",
+    ]);
+    expect(
+      invariantsOf(
+        { ...gross, id: "grossProfitDeltaPercent", inputs: gross.inputs.toSpliced(1, 1) },
+        [],
+        "financial-lens-growth",
+      ),
+    ).toEqual([]);
+  });
+
+  test("reads issuer growth bases from the checked figure rows, not the quoted cell text", () => {
+    const prior = issuerCell("(87,009)", "2025-09-30");
+    const current = issuerCell("254,821", "2026-09-30");
+    const figures = [
+      { id: "issuer-report-prior", status: "value", value: -87_009_000, inputs: [prior] },
+      { id: "issuer-report-current", status: "value", value: 254_821_000, inputs: [current] },
+    ];
+    const growth = (id: string, inputs: readonly unknown[]) =>
+      invariantsOf({ id, value: 3.93, inputs }, figures);
+    expect(growth("issuer-report-profit-attributable-to-owners-yoy-ytd", [current, prior])).toEqual(
+      ["growth-on-nonpositive-base-or-sign-flip"],
+    );
+    expect(growth("netIncomeDeltaPercent", [prior, current])).toEqual([
+      "growth-on-nonpositive-base-or-sign-flip",
+    ]);
+    const positivePrior = issuerCell("87,009", "2025-09-30");
+    expect(
+      invariantsOf(
+        { id: "netIncomeDeltaPercent", value: 192.9, inputs: [positivePrior, current] },
+        [figures[1]!, { ...figures[0]!, value: 87_009_000, inputs: [positivePrior] }],
+      ),
+    ).toEqual([]);
+  });
+
+  test("flags growth over a non-positive base or across a sign flip", () => {
+    const growth = (prior: number, latest: number) =>
+      invariantsOf({
+        id: "netIncomeDeltaPercent",
+        value: 1,
+        inputs: [fact("netIncome", "2025-12-31", latest), fact("netIncome", "2024-12-31", prior)],
+      });
+    expect(growth(-4.1e6, 121.4e6)).toEqual(["growth-on-nonpositive-base-or-sign-flip"]);
+    expect(growth(47e6, -37.2e6)).toEqual(["growth-on-nonpositive-base-or-sign-flip"]);
+    expect(growth(0, 5)).toEqual(["growth-on-nonpositive-base-or-sign-flip"]);
+    expect(growth(47e6, 52e6)).toEqual([]);
+    expect(growth(47e6, 0)).toEqual([]);
   });
 
   test("a consistent report has no violations", () => {

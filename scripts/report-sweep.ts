@@ -5,7 +5,13 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { listRunDirNames } from "../src/data-paths";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { loadRunArtifact } from "../src/run-artifacts";
 import { runEvalSample } from "../src/replay/eval-run";
+import {
+  reportInvariantViolations,
+  type MetricSections,
+  type ReportViolation,
+} from "../src/corpus/report-invariants";
 import {
   diffLedgers,
   formatLedgerDiff,
@@ -14,162 +20,9 @@ import {
   type LedgerRow,
 } from "./sec-value-ledger";
 
-interface SweepMetric {
-  readonly id?: string;
-  readonly status?: string;
-  readonly value?: number | string | null;
-  readonly unit?: string;
-  readonly currency?: string;
-  readonly periodEnd?: string;
-  readonly periodMonths?: number;
-  readonly priceAsOf?: string;
-  readonly reason?: string;
-}
-
-type MetricSections = readonly { readonly id?: string; readonly metrics: readonly SweepMetric[] }[];
-
-export interface ReportViolation {
-  readonly invariant: string;
-  readonly section: string;
-  readonly metric: string;
-  readonly detail: string;
-}
-
 interface RunViolation extends ReportViolation {
   readonly run: string;
   readonly symbol: string;
-}
-
-const REVENUE_MULTIPLES = new Set([
-  "marketCapToAnnualizedRevenue",
-  "evToAnnualizedRevenue",
-  "priceToSales",
-  "enterpriseValueToRevenue",
-]);
-// The shared verdict's floor and ceiling reasons from valuation-comps-contract.ts.
-const REVENUE_MULTIPLE_VERDICT = /de-minimis floor|x ceiling$/u;
-const CURRENT_VALUATION_SECTION = /^(financial-lens|business-framework)-/u;
-const EQUIVALENT_SURFACES = [/^financial-lens-/u, /^business-framework-/u] as const;
-const STALE_REASON = /^stale .+ as of (\d{4}-\d{2}-\d{2})$/u;
-// Shortcut: watch threshold until the near-zero-denominator floor in plans/issues.md is decided.
-const CASH_CONVERSION_WATCH = 5;
-
-function published(sections: MetricSections) {
-  return sections.flatMap((section) =>
-    section.metrics
-      .filter((metric) => metric.status === "value")
-      .map((metric) => ({ section: section.id ?? "", metric })),
-  );
-}
-
-// Class checks over one report's Metric Sections; each names a defect class from plans/issues.md.
-export function reportInvariantViolations(sections: MetricSections): readonly ReportViolation[] {
-  const violations: ReportViolation[] = [];
-  const add = (invariant: string, section: string, metric: string, detail: string) =>
-    violations.push({ invariant, section, metric, detail });
-  const rows = published(sections);
-
-  const supportabilityNotMeaningful = rows.some(
-    ({ metric }) => metric.id === "valuationSupportability" && metric.value === "not-meaningful",
-  );
-  for (const section of sections) {
-    const sectionVerdict = section.metrics.some(
-      (metric) =>
-        REVENUE_MULTIPLES.has(metric.id ?? "") &&
-        metric.status === "not-meaningful" &&
-        REVENUE_MULTIPLE_VERDICT.test(metric.reason ?? ""),
-    );
-    const currentVerdict =
-      supportabilityNotMeaningful && CURRENT_VALUATION_SECTION.test(section.id ?? "");
-    if (!sectionVerdict && !currentVerdict) {
-      continue;
-    }
-    for (const metric of section.metrics) {
-      if (metric.status === "value" && REVENUE_MULTIPLES.has(metric.id ?? "")) {
-        add(
-          "revenue-multiple-published-when-not-meaningful",
-          section.id ?? "",
-          metric.id!,
-          `${String(metric.value)}: ${sectionVerdict ? "sibling revenue multiple not meaningful" : "valuationSupportability not-meaningful"}`,
-        );
-      }
-    }
-  }
-
-  for (const section of sections) {
-    const staleDates = new Set(
-      section.metrics.flatMap((metric) => {
-        const match = metric.status === "value" ? null : STALE_REASON.exec(metric.reason ?? "");
-        return match === null ? [] : [match[1]!];
-      }),
-    );
-    for (const metric of section.metrics) {
-      if (
-        metric.status === "value" &&
-        metric.unit === "currency" &&
-        metric.periodMonths === undefined &&
-        metric.periodEnd !== undefined &&
-        staleDates.has(metric.periodEnd)
-      ) {
-        add(
-          "instant-published-beside-stale-sibling",
-          section.id ?? "",
-          metric.id ?? "",
-          metric.periodEnd,
-        );
-      }
-    }
-  }
-
-  const equivalents = new Map<
-    string,
-    { surface: number; section: string; status: string | undefined; value: SweepMetric["value"] }[]
-  >();
-  for (const section of sections) {
-    const surface = EQUIVALENT_SURFACES.findIndex((pattern) => pattern.test(section.id ?? ""));
-    if (surface === -1) {
-      continue;
-    }
-    for (const metric of section.metrics) {
-      if (metric.id === undefined || metric.periodEnd === undefined) {
-        continue;
-      }
-      const key = [metric.id, metric.periodEnd, metric.periodMonths ?? ""].join("\n");
-      equivalents.set(key, [
-        ...(equivalents.get(key) ?? []),
-        { surface, section: section.id ?? "", status: metric.status, value: metric.value },
-      ]);
-    }
-  }
-  for (const [key, entries] of equivalents) {
-    const [id, periodEnd, periodMonths] = key.split("\n");
-    const values = new Set(
-      entries.filter((entry) => entry.status === "value").map((entry) => entry.value),
-    );
-    const statuses = new Set(entries.map((entry) => entry.status));
-    if (
-      new Set(entries.map((entry) => entry.surface)).size === EQUIVALENT_SURFACES.length &&
-      (values.size > 1 || statuses.size > 1)
-    ) {
-      add(
-        "surfaces-disagree",
-        entries.map((entry) => entry.section).join(","),
-        id!,
-        `${[periodEnd, periodMonths].filter(Boolean).join(" ")}: ${entries.map((entry) => `${entry.status}=${entry.value ?? ""}`).join(" ")}`,
-      );
-    }
-  }
-
-  for (const { section, metric } of rows) {
-    if (
-      metric.id === "cashConversion" &&
-      typeof metric.value === "number" &&
-      Math.abs(metric.value) > CASH_CONVERSION_WATCH
-    ) {
-      add("watch:cash-conversion-near-zero-denominator", section, metric.id, String(metric.value));
-    }
-  }
-  return violations;
 }
 
 function ledgerStatus(status: string | undefined): LedgerRow["status"] {
@@ -235,7 +88,11 @@ async function replayRun(runsDir: string, run: string, root: string) {
   if (result.status !== "completed" || result.runDir === undefined) {
     throw new Error(`${result.status}: ${result.error ?? "no published run"}`);
   }
-  return (await Bun.file(join(result.runDir, RUN_ARTIFACT_FILES.report)).json()) as ReplayedReport;
+  const report = (await Bun.file(
+    join(result.runDir, RUN_ARTIFACT_FILES.report),
+  ).json()) as ReplayedReport;
+  const { artifact } = await loadRunArtifact(result.runDir);
+  return { report, snapshots: artifact?.marketSnapshots ?? [] };
 }
 
 export async function sweepReports(runsDir: string, root: string): Promise<ReportSweep> {
@@ -251,15 +108,16 @@ export async function sweepReports(runsDir: string, root: string): Promise<Repor
       noCapture.push(run);
       continue;
     }
-    let report: ReplayedReport;
+    let replay: Awaited<ReturnType<typeof replayRun>>;
     try {
       // oxlint-disable-next-line no-await-in-loop -- samples share process-level index overrides
-      report = await replayRun(runsDir, run, root);
+      replay = await replayRun(runsDir, run, root);
     } catch (error) {
       failures.push({ run, error: error instanceof Error ? error.message : String(error) });
       continue;
     }
     replayed += 1;
+    const { report, snapshots } = replay;
     const sections = report.extras?.metricSections;
     if (!Array.isArray(sections)) {
       continue;
@@ -268,7 +126,7 @@ export async function sweepReports(runsDir: string, root: string): Promise<Repor
     const symbol = report.symbol ?? "";
     ledger.push(...reportLedgerRows(run, symbol, sections as MetricSections));
     violations.push(
-      ...reportInvariantViolations(sections as MetricSections).map((violation) => ({
+      ...reportInvariantViolations(sections as MetricSections, snapshots).map((violation) => ({
         run,
         symbol,
         ...violation,

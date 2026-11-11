@@ -175,6 +175,22 @@ function rawSeries(
       "share-basis:mixed: some annual points are on an earlier or unconfirmed share basis and are not adjusted",
     );
   }
+  const retained = series.annual.filter((fact) => annualPoint(fact) !== undefined);
+  const recastAt = retained
+    .flatMap((fact) => (fact.restatedFrom === undefined ? [] : [fact.firstPublicAt]))
+    .toSorted()
+    .at(-1);
+  for (const fact of retained) {
+    if (
+      recastAt !== undefined &&
+      fact.filedAt < recastAt &&
+      !earlierShareBasis.has(fact.periodKey)
+    ) {
+      notes.push(
+        `annual:earlier-basis: ${fact.periodEnd} last filed ${fact.filedAt} (${fact.accessionNumber ?? "no accession"}), before the ${recastAt} filing restated later ${definition.label.toLowerCase()} periods; not re-presented`,
+      );
+    }
+  }
   const cagr = fundamentalHistoryCagr(annual, notes);
   const mixedBasis =
     cagr !== undefined &&

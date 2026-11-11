@@ -114,8 +114,47 @@ describe("live financial invariant negative controls", () => {
       },
     };
 
-    expect(() => assertFundamentalHistoryInvariants(injected, true)).toThrow(
+    expect(() => assertFundamentalHistoryInvariants(injected, undefined, true)).toThrow(
       /\[B9\].*sign disagrees/u,
+    );
+  });
+
+  test("B12 fires when NBIS FY2022 loses its earlier-basis note or a CAGR spans it", () => {
+    const result = fixtureResult(results, 1);
+    const statements = financialStatements(result);
+    const history = result.deepEquityEvidenceBundle?.derived.fundamentalHistory;
+    if (history === undefined) {
+      throw new Error("NBIS deep fixture has no fundamental history");
+    }
+    const { revenue } = history.series;
+    expect(() => assertFundamentalHistoryInvariants(history, statements, true)).not.toThrow();
+
+    const stripped = {
+      ...history,
+      series: {
+        ...history.series,
+        revenue: {
+          ...revenue,
+          notes: revenue.notes.filter((note) => !note.startsWith("annual:earlier-basis:")),
+        },
+      },
+    };
+    expect(() => assertFundamentalHistoryInvariants(stripped, statements, true)).toThrow(
+      /\[B12\] revenue 2022-12-31 lacks the earlier-basis note/u,
+    );
+
+    const spanning = {
+      ...history,
+      series: {
+        ...history.series,
+        revenue: {
+          ...revenue,
+          cagr: { percent: 239.8, years: 3, periodStart: "2022-12-31", periodEnd: "2025-12-31" },
+        },
+      },
+    };
+    expect(() => assertFundamentalHistoryInvariants(spanning, statements, true)).toThrow(
+      /\[B12\] revenue summarizes across an earlier-basis point/u,
     );
   });
 

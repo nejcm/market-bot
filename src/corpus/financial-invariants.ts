@@ -24,12 +24,15 @@ import {
   financialStatementFactsAreCompatible,
   financialStatementPeriodMonths,
   financialStatementSeriesByKey,
+  earlierShareBasisPeriods,
   latestFinancialStatementFact,
 } from "../sources/extended-evidence/financial-statement-selection";
 import {
+  earlierBasisEnds,
   MIN_CAGR_ANNUAL_POINTS,
   type FundamentalHistoryArtifact,
   type FundamentalHistorySeries,
+  type FundamentalHistorySeriesKey,
 } from "../sources/extended-evidence/fundamental-history";
 import {
   conceptScope,
@@ -106,10 +109,85 @@ function assertSummarySpan(
   );
 }
 
+// Each group resolves to its first input with the point's period, matching the producer's numerator precedence.
+const HISTORY_INPUTS: Readonly<
+  Record<FundamentalHistorySeriesKey, readonly (readonly FinancialStatementSeriesKey[])[]>
+> = {
+  revenue: [["revenue"]],
+  grossProfit: [["grossProfit"]],
+  operatingIncome: [["operatingIncome"]],
+  netIncome: [["netIncome"]],
+  dilutedEps: [["dilutedEps"]],
+  operatingCashFlow: [["operatingCashFlow"]],
+  capex: [["capitalExpenditure"]],
+  freeCashFlowProxy: [["operatingCashFlow"], ["capitalExpenditure"]],
+  grossMargin: [["grossProfit"], ["revenue"]],
+  operatingMargin: [["operatingIncome"], ["revenue"]],
+  netMargin: [
+    ["consolidatedContinuingIncome", "continuingIncome", "consolidatedNetIncome", "netIncome"],
+    ["revenue"],
+  ],
+};
+
+function earlierBasisFacts(
+  statements: FinancialStatementsArtifact,
+  key: FinancialStatementSeriesKey,
+): readonly FinancialStatementFact[] {
+  const retained = (financialStatementSeriesByKey(statements, key)?.annual ?? []).filter((fact) => {
+    const months = financialStatementPeriodMonths(fact);
+    return months !== undefined && months >= 10 && months <= 14;
+  });
+  const recastAt = retained
+    .flatMap((fact) => (fact.restatedFrom === undefined ? [] : [fact.firstPublicAt]))
+    .toSorted()
+    .at(-1);
+  const shareBasis = earlierShareBasisPeriods(statements.omissionNotes, key);
+  return recastAt === undefined
+    ? []
+    : retained.filter((fact) => fact.filedAt < recastAt && !shareBasis.has(fact.periodKey));
+}
+
+// B12: no history series shows, unflagged, or summarizes a point that predates a restatement it was not re-presented in.
+function assertEarlierBasis(
+  history: FundamentalHistoryArtifact,
+  statements: FinancialStatementsArtifact,
+): void {
+  for (const series of Object.values(history.series)) {
+    const flagged = earlierBasisEnds(series.notes);
+    for (const point of series.annual) {
+      const samePeriod = (fact: FinancialStatementFact) =>
+        fact.periodStart === point.periodStart && fact.periodEnd === point.periodEnd;
+      const inherits = HISTORY_INPUTS[series.key].some((group) => {
+        const input = group.find((key) =>
+          financialStatementSeriesByKey(statements, key)?.annual.some(samePeriod),
+        );
+        return input !== undefined && earlierBasisFacts(statements, input).some(samePeriod);
+      });
+      invariant(
+        !inherits || flagged.has(point.periodEnd),
+        "B12",
+        `${series.key} ${point.periodEnd} lacks the earlier-basis note of an input restated later`,
+      );
+    }
+    for (const summary of [series.cagr, series.marginChange]) {
+      invariant(
+        summary === undefined ||
+          (!flagged.has(summary.periodStart) && !flagged.has(summary.periodEnd)),
+        "B12",
+        `${series.key} summarizes across an earlier-basis point`,
+      );
+    }
+  }
+}
+
 export function assertFundamentalHistoryInvariants(
   history: FundamentalHistoryArtifact,
+  statements: FinancialStatementsArtifact | undefined,
   requireRevenueDepth: boolean,
 ): void {
+  if (statements !== undefined) {
+    assertEarlierBasis(history, statements);
+  }
   for (const series of Object.values(history.series)) {
     if (series.cagr !== undefined) {
       assertSummarySpan(series, series.cagr, "cagr");
@@ -629,7 +707,11 @@ export async function assertFinancialRunInvariants(
     assertFinancialStatementInvariants(statements);
   }
   if (history !== undefined) {
-    assertFundamentalHistoryInvariants(history, statements !== undefined && isDeepFixture(meta));
+    assertFundamentalHistoryInvariants(
+      history,
+      statements,
+      statements !== undefined && isDeepFixture(meta),
+    );
   }
   if (statements !== undefined && lenses !== undefined) {
     assertFinancialLensPeriodHygiene(statements, lenses);

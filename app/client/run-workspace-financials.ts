@@ -244,6 +244,11 @@ export function fundamentalHistoryView(
       ...(series.notes.some((note) => note.startsWith("share-basis:mixed:"))
         ? ["Earlier EPS points are on an earlier or unconfirmed share basis and are not adjusted."]
         : []),
+      ...(series.notes.some((note) => note.startsWith("annual:earlier-basis:"))
+        ? [
+            "Earlier points predate a restatement and are not re-presented; no CAGR or margin change spans them.",
+          ]
+        : []),
       ...(series.notes.some((note) => note.startsWith("scope:capex-continuing:"))
         ? [`FCF scope: ${CAPEX_SCOPE_CAVEAT}.`]
         : []),

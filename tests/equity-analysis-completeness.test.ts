@@ -426,6 +426,13 @@ describe("equity analysis completeness", () => {
     expect(result.dimensions.primaryFinancials.reasonCodes).not.toContain(
       "current-annual-statement-missing",
     );
+    expect(
+      equityAnalysisCompletenessGaps(result, undefined, "nbis")
+        .map(({ message }) => message)
+        .filter((message) => message.startsWith("untagged-interim-evidence")),
+    ).toEqual([
+      "untagged-interim-evidence: NBIS has a 6-K filed after the current annual report that carries no XBRL financial facts; untagged interim extraction is off (no reported financial statement period is available)",
+    ]);
   });
 
   test("keeps annual financials current when untagged 6-Ks predate the annual period", () => {

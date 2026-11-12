@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.4](https://github.com/nejcm/market-bot/compare/v1.19.3...v1.19.4) (2026-11-12)
+
+### Bug Fixes
+
+- **completeness:** state what the untagged-interim gap means (#227) ([bf131a7](https://github.com/nejcm/market-bot/commit/bf131a719ac778e01e62d602b1698c0a56ccddd8))
+
 ## [1.19.3](https://github.com/nejcm/market-bot/compare/v1.19.2...v1.19.3) (2026-11-12)
 
 ### Bug Fixes

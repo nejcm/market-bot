@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.1](https://github.com/nejcm/market-bot/compare/v1.19.0...v1.19.1) (2026-11-12)
+
+### Bug Fixes
+
+- **scoring:** record close fetch failures instead of waiting (#224) ([03de115](https://github.com/nejcm/market-bot/commit/03de115ebc097fb673024f68d82c58ad3dd2e36c))
+
 ## [1.19.0](https://github.com/nejcm/market-bot/compare/v1.18.2...v1.19.0) (2026-11-12)
 
 ### Features

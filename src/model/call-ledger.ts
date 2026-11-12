@@ -13,6 +13,7 @@ export interface ModelCallRecord {
   readonly costEstimateUsd?: number;
   readonly costPricing?: CostPricing;
   readonly usage: ModelUsage | "unknown";
+  readonly codexItems?: Readonly<Record<string, number>>;
 }
 
 export interface LedgeredModelProvider extends ModelProvider {
@@ -51,6 +52,7 @@ export function withModelCallLedger(provider: ModelProvider): LedgeredModelProvi
             : {}),
           ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
           usage: response.usage ?? "unknown",
+          ...(response.codexItems !== undefined ? { codexItems: response.codexItems } : {}),
         });
         return response;
       } catch (error: unknown) {

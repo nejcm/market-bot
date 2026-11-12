@@ -1170,6 +1170,111 @@ describe("issuer domain from the issuer's own SEC filing text", () => {
     expect(statusWithFiling("https://www.amd.com/en/newsroom/q3")).toBe("issuer-confirmed");
   });
 
+  const nbisUrl =
+    "https://nebius.com/newsroom/nebius-group-announces-date-of-third-quarter-2026-results-and-conference-call";
+  const nbisSnippet =
+    "Nebius Group N.V. (Nasdaq: NBIS), will release its third quarter 2026 financial results on Thursday, November 12, 2026, before market open.";
+
+  function confirmFiledHost(input: {
+    readonly filedHost: string;
+    readonly url: string;
+    readonly symbol?: string;
+    readonly name?: string;
+    readonly snippet?: string;
+  }) {
+    const { symbol = "NBIS", name = "Nebius Group N.V.", snippet = nbisSnippet } = input;
+    const filingRawRef = "raw-sec-earnings-release-exhibit-nbis";
+    return confirmEarningsDateFromOfficialSources({
+      setup: {
+        event: { ...amdSetup.event, symbol, date: "2026-11-12", timing: "bmo" },
+        gaps: [],
+      },
+      sources: [
+        { ...amdSource(input.url), id: "web-nbis-c62bcf2a", symbol, snippet },
+        amdEightK({
+          id: "extended-sec-edgar-nbis-6k-0001104659-26-094568",
+          url: "https://www.sec.gov/Archives/edgar/data/1513845/000110465926094568/tm2622968d1_ex99-1.htm",
+          symbol,
+          rawRef: filingRawRef,
+          identity: { aliases: [{ provider: "sec-edgar", idKind: "ticker", value: symbol }] },
+        }),
+      ],
+      rawSnapshots: [
+        amdSubmissions({ cik: "0001513845", name, tickers: [symbol] }),
+        amdExhibit(`For more information, please visit ${input.filedHost}.`, filingRawRef),
+      ],
+      analysisAsOf: "2026-11-11T12:00:00.000Z",
+    })?.event;
+  }
+
+  test("confirms from a filed brand domain that is the leading word of the issuer name", () => {
+    expect(confirmFiledHost({ filedHost: "www.nebius.com", url: nbisUrl })).toMatchObject({
+      date: "2026-11-12",
+      eventDateStatus: "issuer-confirmed",
+      dateConfirmation: {
+        sourceId: "web-nbis-c62bcf2a",
+        sourceUrl: nbisUrl,
+        issuerIdentity: { symbol: "NBIS", matchedBy: "official-host" },
+      },
+    });
+    for (const input of [
+      {
+        filedHost: "www.applieddigital.com",
+        url: "https://ir.applieddigital.com/q3",
+        symbol: "APLD",
+        name: "Applied Digital Data Corp.",
+        snippet: nbisSnippet.replace("Nebius Group N.V. (Nasdaq: NBIS)", "Applied Digital Data"),
+      },
+      {
+        filedHost: "www.uber.com",
+        url: "https://investor.uber.com/q3",
+        symbol: "UBFX",
+        name: "Uber Freight Holdings Inc.",
+        snippet: nbisSnippet.replace("Nebius Group N.V. (Nasdaq: NBIS)", "Uber Freight Holdings"),
+      },
+      {
+        filedHost: "www.abc.com",
+        url: "https://news.abc.com/q3",
+        symbol: "ABC",
+        name: "Abc Widgets Holdings Inc.",
+        snippet: nbisSnippet,
+      },
+      {
+        filedHost: "www.united.com",
+        url: "https://news.united.com/q3",
+        symbol: "URI",
+        name: "UNITED RENTALS, INC.",
+        snippet: nbisSnippet.replace("Nebius Group N.V. (Nasdaq: NBIS)", "United Rentals"),
+      },
+    ]) {
+      expect(confirmFiledHost(input)?.eventDateStatus).toBe("issuer-confirmed");
+    }
+  });
+
+  test("rejects leading-word domains that are short, not leading, or not named by the source", () => {
+    for (const input of [
+      { filedHost: "www.group.com", url: "https://news.group.com/q3" },
+      { filedHost: "www.neb.com", url: "https://news.neb.com/q3" },
+      { filedHost: "www.nebius.com.evil.net", url: "https://news.nebius.com.evil.net/q3" },
+      {
+        filedHost: "www.abc.com",
+        url: "https://news.abc.com/q3",
+        symbol: "ABCH",
+        name: "Abc Widgets Holdings Inc.",
+        snippet: nbisSnippet.replace("Nebius Group N.V. (Nasdaq: NBIS)", "Abc Widgets Holdings"),
+      },
+      {
+        filedHost: "www.united.com",
+        url: "https://news.united.com/q3",
+        symbol: "URI",
+        name: "UNITED RENTALS, INC.",
+        snippet: nbisSnippet.replace("Nebius Group N.V. (Nasdaq: NBIS)", "United Airlines"),
+      },
+    ]) {
+      expect(confirmFiledHost(input)?.eventDateStatus).toBe("provider-estimated");
+    }
+  });
+
   test("rejects other subdomains, lookalikes, and plain HTTP", () => {
     for (const url of [
       "https://community.amd.com/t5/q3-earnings",

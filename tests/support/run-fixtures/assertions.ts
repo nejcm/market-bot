@@ -4063,18 +4063,18 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
   },
   "equity-nbis-deep": {
-    // Anchored at the period's first annual report (2023-04-20); the fixture has no close that early.
-    "annual|2022-12-31|2023-04-20": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_CASH,
-      MISSING_WORKBENCH_PRICE,
+    // FY2022-23 USD figures first appear in the FY2024 20-F (0001558370-25-005991), not the RUB 20-Fs.
+    "annual|2022-12-31|2025-04-30": [
+      14.295_597_196_375_049,
+      DE_MINIMIS_WORKBENCH_REVENUE,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_FCF,
     ],
-    "annual|2023-12-31|2024-04-26": [
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_PRICE,
-      MISSING_WORKBENCH_CASH,
-      MISSING_WORKBENCH_PRICE,
+    "annual|2023-12-31|2025-04-30": [
+      34.969_230_064_978_966,
+      RESTATED_WORKBENCH_INPUT,
+      MIXED_WORKBENCH_BALANCE_SHEET,
+      RESTATED_WORKBENCH_INPUT,
     ],
     "annual|2024-12-31|2025-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,

@@ -854,6 +854,41 @@ describe("canonical financial statements", () => {
       expect(historyGapMessages(artifact)).toContain(message);
     });
 
+    test("dates each period by its first elected-currency annual report, not a RUB-only or translation filing", () => {
+      const rub2023 = "0001558370-23-006319";
+      const rub2024 = "0001558370-24-005891";
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              RUB: [2021, 2022].flatMap((year) => [
+                filed(rub2023, "2023-04-20", year, year),
+                filed(rub2024, "2024-04-26", year + 1, year + 1),
+              ]),
+              USD: [
+                filed(rub2024, "2024-04-26", 8, 2023),
+                filed(usdFiling, "2025-04-30", 13, 2022),
+                filed(usdFiling, "2025-04-30", 21, 2023),
+                filed(usdFiling, "2025-04-30", 34, 2024),
+              ],
+            },
+          },
+        }),
+      );
+
+      expect(
+        artifact.firstAnnualReports?.map((report) => [
+          report.periodEnd,
+          report.filedAt,
+          report.accessionNumber,
+        ]),
+      ).toEqual([
+        ["2022-12-31", "2025-04-30", usdFiling],
+        ["2023-12-31", "2025-04-30", usdFiling],
+        ["2024-12-31", "2025-04-30", usdFiling],
+      ]);
+    });
+
     test("a single-currency filer passes through unpruned", () => {
       const companyFacts = payload({
         "us-gaap": {
@@ -863,7 +898,11 @@ describe("canonical financial statements", () => {
       });
       const pruned = withoutTranslationFilings(companyFacts, "us-gaap", "USD", "2026-06-15");
 
-      expect(pruned).toEqual({ payload: companyFacts, excluded: new Map() });
+      expect(pruned).toEqual({
+        payload: companyFacts,
+        excluded: new Map(),
+        translations: new Map(),
+      });
       expect(pruned.payload).toBe(companyFacts);
       expect(derive(companyFacts).omissionNotes.map(({ code }) => code)).not.toContain(
         "translation-filing",

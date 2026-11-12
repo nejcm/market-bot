@@ -108,7 +108,7 @@ function abandonedScore(
   report: ResearchReport,
   attemptCount: number,
   now: Date,
-  { withheldSessions }: Record<string, unknown>,
+  { withheldSessions, fetchFailures }: Record<string, unknown>,
 ): AbandonedPredictionScore {
   return {
     predictionId: prediction.id,
@@ -120,6 +120,7 @@ function abandonedScore(
     evidence: {
       reason: "abandoned after fourth observation failure",
       ...(withheldSessions === undefined ? {} : { withheldSessions }),
+      ...(fetchFailures === undefined ? {} : { fetchFailures }),
     },
   };
 }

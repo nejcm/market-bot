@@ -86,8 +86,10 @@ function parseEventStream(jsonl: string): {
   content: string;
   tokenEstimate: number;
   usage: ModelUsage | undefined;
+  items: Record<string, number> | undefined;
 } {
   let content = "";
+  let items: Record<string, number> | undefined = undefined;
   let tokenEstimate = 0;
   let usage: ModelUsage | undefined = undefined;
 
@@ -102,6 +104,12 @@ function parseEventStream(jsonl: string): {
       event = JSON.parse(trimmed) as CodexEvent;
     } catch {
       continue;
+    }
+
+    if (event.type === "item.completed" && event.item !== undefined) {
+      const key = event.item.type ?? "unknown";
+      items ??= {};
+      items[key] = (items[key] ?? 0) + 1;
     }
 
     if (
@@ -125,7 +133,7 @@ function parseEventStream(jsonl: string): {
     }
   }
 
-  return { content, tokenEstimate, usage };
+  return { content, tokenEstimate, usage, items };
 }
 
 // Under --json the CLI reports failures as structured stdout events, and stderr can be empty.
@@ -446,7 +454,7 @@ export function createCodexProvider(
         throw new Error(codexFailureMessage(result.exitCode, stderr, result.stdout));
       }
 
-      const { content: raw, tokenEstimate, usage } = parseEventStream(result.stdout);
+      const { content: raw, tokenEstimate, usage, items } = parseEventStream(result.stdout);
 
       if (raw === "") {
         throw new Error("Codex response did not include an agent_message");
@@ -463,6 +471,7 @@ export function createCodexProvider(
         content,
         tokenEstimate: estimate,
         ...(usage !== undefined ? { usage } : {}),
+        ...(items !== undefined ? { codexItems: items } : {}),
       };
     },
   };

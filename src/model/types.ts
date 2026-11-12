@@ -74,6 +74,8 @@ export interface ModelResponse {
   readonly content: string;
   readonly tokenEstimate: number;
   readonly usage?: ModelUsage;
+  // Codex exec completed items by type; more than one model request per call shows up here.
+  readonly codexItems?: Readonly<Record<string, number>>;
   readonly costEstimateUsd?: number;
   readonly costPricing?: CostPricing;
 }

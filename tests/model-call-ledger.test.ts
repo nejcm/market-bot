@@ -23,7 +23,12 @@ describe("model call ledger", () => {
         }
         return input.model === "quiet"
           ? { content: "{}", tokenEstimate: 7 }
-          : { content: "{}", tokenEstimate: 30, usage: { inputTokens: 20, outputTokens: 0 } };
+          : {
+              content: "{}",
+              tokenEstimate: 30,
+              usage: { inputTokens: 20, outputTokens: 0 },
+              codexItems: { agent_message: 1 },
+            };
       },
     };
     const ledger = withModelCallLedger(provider);
@@ -47,6 +52,7 @@ describe("model call ledger", () => {
         status: "ok",
         tokenEstimate: 30,
         usage: { inputTokens: 20, outputTokens: 0 },
+        codexItems: { agent_message: 1 },
       },
       {
         stage: "web-gather",
@@ -65,8 +71,10 @@ describe("model call ledger", () => {
         status: "ok",
         tokenEstimate: 30,
         usage: { inputTokens: 20, outputTokens: 0 },
+        codexItems: { agent_message: 1 },
       },
     ]);
+    expect(ledger.modelCalls()[1]).not.toHaveProperty("codexItems");
     expect(seen[0]?.messages).toEqual([{ role: "user", content: "{}" }]);
   });
 

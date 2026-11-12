@@ -239,9 +239,10 @@ export async function executeSynthesisInput(
       calls += 1;
       const response = await provider.generate(request);
       options.onResponse?.(response);
+      const { codexItems: _codexItems, ...recorded } = response;
       return {
         stage: "final-synthesis",
-        ...response,
+        ...recorded,
         usage: response.usage ?? "unknown",
         ...(steering === undefined ? {} : { steering }),
       };

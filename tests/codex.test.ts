@@ -388,6 +388,30 @@ describe("createCodexProvider — generate", () => {
     expect(result.tokenEstimate).toBe(40);
   });
 
+  test("counts completed exec items by type", async () => {
+    const spawn = makeSpawn({
+      exec: {
+        exitCode: 0,
+        stdout: [
+          { type: "item.started", item: { type: "reasoning" } },
+          { type: "item.completed", item: { type: "reasoning", text: "thinking" } },
+          { type: "item.completed", item: { type: "agent_message", text: "checking" } },
+          { type: "item.completed", item: { type: "agent_message", text: "final" } },
+          { type: "turn.completed", usage: { input_tokens: 5, output_tokens: 5 } },
+        ]
+          .map((event) => JSON.stringify(event))
+          .join("\n"),
+      },
+    });
+    const result = await createCodexProvider(baseConfig, spawn).generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(result.content).toBe("final");
+    expect(result.codexItems).toEqual({ reasoning: 1, agent_message: 2 });
+  });
+
   test("does not strip fences when responseFormat is not json", async () => {
     const raw = '```json\n{"summary":"ok"}\n```';
     const spawn = makeSpawn({ exec: { exitCode: 0, stdout: agentMessageStream(raw) } });

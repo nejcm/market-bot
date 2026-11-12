@@ -122,7 +122,9 @@ function segmentDefinitions(item: ExtendedEvidenceItem, periods: readonly Segmen
     const amount = (row: MetricInput | undefined, name: string): MetricOutcome =>
       unitGate ??
       (row === undefined
-        ? missing(`no ${name} fact tagged for this segment and period`)
+        ? missing(
+            `no us-gaap ${name} fact tagged for this segment and period; the issuer may report it under its own measure`,
+          )
         : {
             status: "value",
             value: row.value,
@@ -160,7 +162,7 @@ function segmentDefinitions(item: ExtendedEvidenceItem, periods: readonly Segmen
                 }
                 if (current === undefined || earlier === undefined) {
                   return missing(
-                    "segment revenue or operating income is not tagged for this period or its prior-year comparative",
+                    "no us-gaap segment revenue or operating income fact tagged for this period or its prior-year comparative; the issuer may report them under its own measure",
                   );
                 }
                 return current === "not-meaningful" || earlier === "not-meaningful"
@@ -206,7 +208,9 @@ function segmentDefinitions(item: ExtendedEvidenceItem, periods: readonly Segmen
             return unitGate;
           }
           if (revenue === undefined || operatingIncome === undefined) {
-            return missing("segment revenue or operating income is not tagged for this period");
+            return missing(
+              "no us-gaap segment revenue or operating income fact tagged for this period; the issuer may report them under its own measure",
+            );
           }
           if (Number(revenue.value) <= 0) {
             return {
@@ -237,7 +241,7 @@ function missingFactsGap(symbol: string, item: ExtendedEvidenceItem): SourceGap 
     source: SEGMENT_RESULTS_SECTION_ID,
     message:
       form === "10-K" || form === "10-Q"
-        ? `No ASC 280 segment revenue or operating income facts were read from ${filing}; segment margins are not computed`
+        ? `No us-gaap ASC 280 segment revenue or operating income facts were read from ${filing}; the issuer may report them under its own measure, and segment margins are not computed`
         : `Segment facts are read only from 10-K/10-Q inline XBRL, so ${filing} yields no segment revenue, operating income or margins`,
     symbol,
     provider: "sec-edgar",

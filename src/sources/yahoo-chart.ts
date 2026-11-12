@@ -4,7 +4,7 @@ import { type FetchLike } from "./types";
 import { isRecord, readNumber, readString } from "../guards";
 import { isUsListing } from "./instrument-capability";
 import { fetchMassiveCloseWindow } from "./massive-fallback";
-import { fetchYahooJsonWithResilience, fetchYahooResponseWithResilience } from "./yahoo-resilience";
+import { fetchYahooResponseWithResilience } from "./yahoo-resilience";
 
 const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 
@@ -273,8 +273,11 @@ export type WithheldSession = { readonly date: string } & (
 // A stale or inconsistent schedule, not an upcoming session.
 const MAX_AWAITED_OPEN_SECONDS = 10 * 86_400;
 
+type CloseFetchFailure = "fetch-failed" | "malformed-response";
+
 export type CloseWindow = readonly Observation[] & {
   readonly withheldSessions?: readonly WithheldSession[];
+  readonly fetchFailure?: CloseFetchFailure;
 };
 
 // Scoring withholds what the snapshot keeps. A scheduled session that has not closed and has no
@@ -442,7 +445,7 @@ export function parseYahooChartOhlcv(
  */
 export type YahooCloseWindowResult =
   | { readonly ok: true; readonly observations: CloseWindow }
-  | { readonly ok: false; readonly cause: "fetch-failed" | "malformed-response" };
+  | { readonly ok: false; readonly cause: CloseFetchFailure };
 
 // Yahoo states "there is genuinely no series here" in the response body, and pairs it with a
 // Non-2xx status: an unknown symbol is 404 Not Found, an out-of-range window is 400 Bad Request.
@@ -477,7 +480,7 @@ function isYahooNoSeriesError(payload: unknown): boolean {
 type YahooChartWindowFetch =
   | { readonly kind: "payload"; readonly payload: unknown }
   | { readonly kind: "no-series" }
-  | { readonly kind: "failed"; readonly cause: "fetch-failed" | "malformed-response" };
+  | { readonly kind: "failed"; readonly cause: CloseFetchFailure };
 
 async function fetchYahooChartWindowPayload(
   url: string,
@@ -687,20 +690,24 @@ export async function fetchYahooSplitAdjustedCloseWindow(
   to: Date,
   fetchImpl: FetchLike = fetch,
 ): Promise<CloseWindow> {
-  const fetched = await fetchYahooJsonWithResilience(
+  const fetched = await fetchYahooChartWindowPayload(
     yahooScoringWindowUrl(symbol, from, to),
     fetchImpl,
-    {
-      signal: AbortSignal.timeout(10_000),
-      headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
-    },
   );
-  return fetched.ok
-    ? withholdUnfinishedSessions(
-        splitAdjustedObservationsFromYahooChart(symbol, fetched.payload),
-        readYahooRegularSession(fetched.payload),
-        // Scoring passes its clock as `to`, captured before this request: a conservative cutoff.
-        to.toISOString(),
-      )
-    : [];
+  if (fetched.kind === "no-series") {
+    return [];
+  }
+  if (fetched.kind === "failed") {
+    return Object.assign([], { fetchFailure: fetched.cause });
+  }
+  const observations = splitAdjustedObservationsFromYahooChart(symbol, fetched.payload);
+  if (observations.length === 0 && !yahooChartHasNoRows(fetched.payload)) {
+    return Object.assign([], { fetchFailure: "malformed-response" as const });
+  }
+  return withholdUnfinishedSessions(
+    observations,
+    readYahooRegularSession(fetched.payload),
+    // Scoring passes its clock as `to`, captured before this request: a conservative cutoff.
+    to.toISOString(),
+  );
 }

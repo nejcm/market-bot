@@ -178,20 +178,3 @@ export async function fetchYahooResponseWithResilience(
     return response;
   }, retryDelaysMs);
 }
-
-export async function fetchYahooJsonWithResilience(
-  url: string,
-  fetchImpl: FetchLike,
-  init: RequestInit = {},
-  retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
-): Promise<{ readonly ok: true; readonly payload: unknown } | { readonly ok: false }> {
-  try {
-    const response = await fetchYahooResponseWithResilience(url, fetchImpl, init, retryDelaysMs);
-    if (!response.ok) {
-      return { ok: false };
-    }
-    return { ok: true, payload: (await response.json()) as unknown };
-  } catch {
-    return { ok: false };
-  }
-}

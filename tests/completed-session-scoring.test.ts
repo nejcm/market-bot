@@ -782,6 +782,36 @@ describe("non-US short-window fallback wait", () => {
     expect(score).not.toHaveProperty("nextAttemptAt");
   });
 
+  test("spends an attempt on a failed Bursa fetch inside the anchor tolerance", async () => {
+    const score = await scorePass(
+      range(1),
+      () => Object.assign([], { fetchFailure: "fetch-failed" }),
+      AFTER_KL_DUE,
+    );
+
+    expect(score).toMatchObject({
+      status: "pending",
+      attemptCount: 1,
+      nextAttemptAt: new Date(AFTER_KL_DUE.getTime() + DAY_MS).toISOString(),
+      evidence: { fetchFailures: ["fetch-failed"] },
+    });
+  });
+
+  test("keeps the fetch failure cause on the fourth failed attempt", async () => {
+    const failed = (now: number) =>
+      scorePass(range(1), () => Object.assign([], { fetchFailure: "fetch-failed" }), new Date(now));
+    let score: PredictionScore | undefined;
+    for (const days of [0, 1, 4, 11]) {
+      score = await failed(AFTER_KL_DUE.getTime() + days * DAY_MS);
+    }
+
+    expect(score).toMatchObject({
+      status: "abandoned",
+      attemptCount: 4,
+      evidence: { fetchFailures: ["fetch-failed"] },
+    });
+  });
+
   // Run 2026-11-07T10-12-13-737Z-3f1aa431: issued Saturday, no Bursa bar yet on the Monday pass.
   test("waits on an empty window for a weekend-issued +1 and resolves once Bursa prints", async () => {
     const generatedAt = "2026-11-07T10:12:13.737Z";

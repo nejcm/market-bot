@@ -330,6 +330,11 @@ describe("ObservationRepository window routing", () => {
       test(name, async () => {
         expect(await fetchYahooCloseWindow("AAPL", from, to, fetchImpl)).toEqual(expected);
       });
+      test(`policy v3: ${name}`, async () => {
+        const v3 = await fetchYahooSplitAdjustedCloseWindow("^KLSE", from, to, fetchImpl);
+        expect([...v3]).toEqual([]);
+        expect(v3.fetchFailure).toBe(expected.ok ? undefined : expected.cause);
+      });
     }
 
     test("a Massive fallback that throws is a failed fallback, not a rejection", async () => {
@@ -429,6 +434,16 @@ describe("ObservationRepository window routing", () => {
       const result = await window(chart(clfdOpens, oct8), "2026-10-08T15:58:52.674Z");
 
       expect(result.map((observation) => observation.date)).toEqual(["2026-10-06", "2026-10-07"]);
+      expect(result.withheldSessions).toEqual([
+        { date: "2026-10-08", status: "in-progress", closesAt: "2026-10-08T20:00:00.000Z" },
+      ]);
+    });
+
+    test("keeps an in-progress session on a genuinely empty chart", async () => {
+      const result = await window(chart([], oct8), "2026-10-08T15:58:52.674Z");
+
+      expect([...result]).toEqual([]);
+      expect(result.fetchFailure).toBeUndefined();
       expect(result.withheldSessions).toEqual([
         { date: "2026-10-08", status: "in-progress", closesAt: "2026-10-08T20:00:00.000Z" },
       ]);
@@ -595,29 +610,35 @@ describe("ObservationRepository window routing", () => {
     });
 
     expect(
-      await fetchYahooSplitAdjustedCloseWindow(
-        "AAPL",
-        from,
-        to,
-        fetchPayload(yahooChartPayload([100, 51, 52], split({ denominator: undefined }).events)),
-      ),
-    ).toEqual([]);
+      (
+        await fetchYahooSplitAdjustedCloseWindow(
+          "AAPL",
+          from,
+          to,
+          fetchPayload(yahooChartPayload([100, 51, 52], split({ denominator: undefined }).events)),
+        )
+      ).fetchFailure,
+    ).toBe("malformed-response");
     expect(
-      await fetchYahooSplitAdjustedCloseWindow(
-        "AAPL",
-        from,
-        to,
-        fetchPayload(yahooChartPayload([100, 51, 52], split({ splitRatio: "3:1" }).events)),
-      ),
-    ).toEqual([]);
+      (
+        await fetchYahooSplitAdjustedCloseWindow(
+          "AAPL",
+          from,
+          to,
+          fetchPayload(yahooChartPayload([100, 51, 52], split({ splitRatio: "3:1" }).events)),
+        )
+      ).fetchFailure,
+    ).toBe("malformed-response");
     expect(
-      await fetchYahooSplitAdjustedCloseWindow(
-        "AAPL",
-        from,
-        to,
-        fetchPayload(yahooChartPayload([100, null, 52])),
-      ),
-    ).toEqual([]);
+      (
+        await fetchYahooSplitAdjustedCloseWindow(
+          "AAPL",
+          from,
+          to,
+          fetchPayload(yahooChartPayload([100, null, 52])),
+        )
+      ).fetchFailure,
+    ).toBe("malformed-response");
   });
 
   test("drops only a null newest close, as an unverified session; any other bad close rejects", () => {
@@ -664,7 +685,8 @@ describe("ObservationRepository window routing", () => {
       { scoringPolicyVersion: 3 },
     );
 
-    expect(result).toEqual([]);
+    expect([...result]).toEqual([]);
+    expect(result.fetchFailure).toBe("fetch-failed");
     expect(calls).toHaveLength(1);
     expect(calls[0]).toContain("query1.finance.yahoo.com");
     expect(calls.some((url) => url.includes("api.massive.com"))).toBe(false);

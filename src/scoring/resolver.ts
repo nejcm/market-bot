@@ -597,7 +597,9 @@ async function awaitsShortNonUsWindow(
     short.every(({ subject }) => !isUsListing(subject)) &&
     windows.every(({ subject, observations }) =>
       observations.length === 0
-        ? !isUsListing(subject) && withinProviderAnchorTolerance(ymd(now), anchor)
+        ? observations.fetchFailure === undefined &&
+          !isUsListing(subject) &&
+          withinProviderAnchorTolerance(ymd(now), anchor)
         : startsWithinProviderAnchorTolerance(observations, anchor),
     )
   );
@@ -646,10 +648,15 @@ export async function resolveOutcome(
       OBSERVATION_WAIT_DEADLINE_DAYS * DAY_MS;
   const fetched = await Promise.all(windows.values());
   const withheld = fetched.flatMap((window) => window.withheldSessions ?? []);
-  const unavailable =
-    withheld.length === 0
-      ? result
-      : { ...result, evidence: { ...result.evidence, withheldSessions: withheld } };
+  const fetchFailures = fetched.flatMap((window) => window.fetchFailure ?? []);
+  const unavailable = {
+    ...result,
+    evidence: {
+      ...result.evidence,
+      ...(withheld.length === 0 ? {} : { withheldSessions: withheld }),
+      ...(fetchFailures.length === 0 ? {} : { fetchFailures }),
+    },
+  };
   if (!waitOpen) {
     return unavailable;
   }

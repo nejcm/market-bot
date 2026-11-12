@@ -14,7 +14,8 @@ The CLI, Research Console, orchestration, and durable Run Artifacts share one pl
   Node, ESLint, Prettier, and Biome are not repository toolchain dependencies. An external Codex installation
   may require Node; that does not make Node an application runtime.
 - Isolate OpenAI, Anthropic, OpenAI-compatible, and Codex access behind `ModelProvider`. Codex uses external
-  `codex exec` in an ephemeral directory with user configuration ignored and a read-only sandbox. Adapters
+  `codex exec` in an ephemeral directory with user configuration ignored, a read-only sandbox, and built-in
+  tools disabled (web search only when a request asks for it). Adapters
   validate sent parameters and may omit unsupported sampling parameters.
 - API cost estimates use checked-in exact-model prices with sources and as-of metadata. Unknown prices and
   subscription-backed Codex cost stay absent, never zero; any unknown included stage makes the run total absent.

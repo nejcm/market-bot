@@ -125,7 +125,7 @@ describe("SEC segment facts", () => {
     expect(result?.sourceGaps.map(({ source, message }) => [source, message])).toEqual([
       [
         "segment-results",
-        "No ASC 280 segment revenue or operating income facts were read from the SEC 10-Q for AMD (filed 2026-08-05); segment margins are not computed",
+        "No us-gaap ASC 280 segment revenue or operating income facts were read from the SEC 10-Q for AMD (filed 2026-08-05); the issuer may report them under its own measure, and segment margins are not computed",
       ],
     ]);
   });

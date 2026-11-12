@@ -384,7 +384,7 @@ export function excludedPeer(
   if (peer === undefined) {
     return [];
   }
-  const untaggedForm =
+  const missingDebt =
     sec === undefined || row.debtPeriodEnd === undefined
       ? undefined
       : latestFilingWithoutDebtFacts(sec, row.debtPeriodEnd, generatedAt);
@@ -395,12 +395,16 @@ export function excludedPeer(
       symbol: row.symbol,
       role: peer.role,
       reason:
-        vintage && untaggedForm !== undefined
-          ? `${exclusion.reason}; latest ${untaggedForm} debt not in SEC companyfacts (issuer-extension or dimensional tagging)`
+        vintage && missingDebt !== undefined
+          ? `${exclusion.reason}; latest ${missingDebt.form} ${
+              missingDebt.ingested
+                ? "debt not in SEC companyfacts (issuer-extension or dimensional tagging)"
+                : `(filed ${missingDebt.filingDate}) not yet in SEC companyfacts`
+            }`
           : exclusion.reason,
       cause: exclusion.cause,
       sourceIds:
-        vintage && untaggedForm !== undefined && sec?.submissionsSourceId !== undefined
+        vintage && missingDebt !== undefined && sec?.submissionsSourceId !== undefined
           ? unique([...row.sourceIds, sec.submissionsSourceId])
           : row.sourceIds,
     },

@@ -33,7 +33,7 @@ interface OfficialIssuerIdentity {
   readonly names: readonly string[];
   readonly hosts: ReadonlySet<string>;
   readonly ciks: ReadonlySet<number>;
-  readonly filedDomains?: ReadonlySet<string>;
+  readonly filedDomains?: ReadonlyMap<string, boolean>;
 }
 
 interface ConfirmationCandidate {
@@ -228,28 +228,39 @@ function issuerFilingText(
     : undefined;
 }
 
-// Only `<ticker|full name>.<letters>` counts; anything else is ambiguous without a suffix list.
+// Only `<ticker|name|leading words of name>.<letters>` counts; anything else is ambiguous without a suffix list.
+// Maps domain to whether it matched only by leading words, which can be generic ("united").
 function filedIssuerDomains(
   identity: OfficialIssuerIdentity,
   sources: readonly Source[],
   snapshots: readonly RawSourceSnapshot[],
-): ReadonlySet<string> {
-  const labels = new Set(identity.names.map((name) => normalizedName(name).replaceAll(" ", "")));
+): ReadonlyMap<string, boolean> {
+  const labels = new Map(
+    identity.names.map((name) => [normalizedName(name).replaceAll(" ", ""), false]),
+  );
   if (identity.symbol.length >= 3) {
-    labels.add(identity.symbol.toLowerCase());
+    labels.set(identity.symbol.toLowerCase(), false);
   }
-  const domains = new Set<string>();
+  for (const words of identity.names.map((name) => normalizedName(name).split(" "))) {
+    for (let count = 1; count < words.length; count += 1) {
+      const label = words.slice(0, count).join("");
+      if (label.length >= 4 && !labels.has(label)) {
+        labels.set(label, true);
+      }
+    }
+  }
+  const domains = new Map<string, boolean>();
   for (const source of sources) {
     const text = issuerFilingText(source, identity, snapshots) ?? "";
     for (const [, host = ""] of text.matchAll(FILED_WWW_HOST_PATTERN)) {
       const [label, tld, ...rest] = host.toLowerCase().replace(/\.+$/u, "").split(".");
+      const prefixOnly = labels.get(label ?? "");
       if (
         rest.length === 0 &&
-        label !== undefined &&
-        labels.has(label) &&
+        prefixOnly !== undefined &&
         /^(?:com|net|org|[a-z]{2})$/u.test(tld ?? "")
       ) {
-        domains.add(`${label}.${tld}`);
+        domains.set(`${label}.${tld}`, prefixOnly);
       }
     }
   }
@@ -405,7 +416,13 @@ function confirmationCandidate(input: {
     host !== undefined &&
     parsedUrl(source.url)?.protocol === "https:" &&
     ([...identity.hosts].some((officialHost) => hostMatches(host, officialHost)) ||
-      [...(identity.filedDomains ?? [])].some((domain) => onFiledIssuerSite(host, domain)))
+      [...(identity.filedDomains ?? [])].some(
+        ([domain, prefixOnly]) =>
+          onFiledIssuerSite(host, domain) &&
+          (!prefixOnly ||
+            textMatchesIssuerName(text, identity) ||
+            textMatchesSymbolWithIssuerContext(text, identity)),
+      ))
   ) {
     return {
       source,

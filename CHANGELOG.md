@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.2](https://github.com/nejcm/market-bot/compare/v1.18.1...v1.18.2) (2026-11-12)
+
+### Bug Fixes
+
+- **model:** disable codex built-in tools on pipeline exec calls (#222) ([4b55791](https://github.com/nejcm/market-bot/commit/4b55791d07369da890c69586d70e18461ff72e37))
+
 ## [1.18.1](https://github.com/nejcm/market-bot/compare/v1.18.0...v1.18.1) (2026-11-12)
 
 ### Bug Fixes

@@ -48,6 +48,9 @@ function gapMessage(
   if (code === "reporting-currency-ambiguous") {
     return `${code}: ${subject} filed facts do not establish which currency is the reporting currency`;
   }
+  if (code === "untagged-interim-evidence") {
+    return `${code}: ${subject} has a 6-K filed after the current annual report that carries no XBRL financial facts; untagged interim extraction is off (${detail})`;
+  }
   return code === "current-primary-statements-incomplete" && incompleteStatements.length > 0
     ? `${code}: ${subject} current primary statements are incomplete: ${incompleteStatements.join("; ")} (${detail})`
     : `${code}: ${subject} reporting surface is not current (${detail})`;

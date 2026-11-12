@@ -1443,11 +1443,13 @@ describe("collectValuationComps", () => {
 
   describe("names an untagged latest-filing debt cause", () => {
     const UNTAGGED = "debt not in SEC companyfacts (issuer-extension or dimensional tagging)";
-    const staleDebt = (accn = "0000000001-26-000001") =>
+    const latestAccn = { accn: "0000000001-26-000009" };
+    const staleDebt = (accn = "0000000001-26-000001", latestFiled = true) =>
       secPayloadWithGaap({
         LongTermDebt: {
           units: { USD: [{ ...secInstantFact(20, "2025-12-28", "FY", "10-K"), accn }] },
         },
+        ...(latestFiled ? { GrossProfit: secFactUnits(40, 35, latestAccn) } : {}),
       });
     const latestQ = recentFilings(
       ["10-Q", "0000000001-26-000009", "2026-06-29", "2026-07-01"],
@@ -1459,6 +1461,12 @@ describe("collectValuationComps", () => {
     test("WULF/HUT-shaped: newer 10-Q contributed no debt fact", async () => {
       expect(await amdExclusionReason(staleDebt(), latestQ)).toBe(
         `${divergence}; latest 10-Q ${UNTAGGED}`,
+      );
+    });
+
+    test("PYPL-shaped: companyfacts holds no fact from the newer 10-Q yet", async () => {
+      expect(await amdExclusionReason(staleDebt(undefined, false), latestQ)).toBe(
+        `${divergence}; latest 10-Q (filed 2026-07-01) not yet in SEC companyfacts`,
       );
     });
 
@@ -1545,6 +1553,7 @@ describe("collectValuationComps", () => {
               ],
             },
           },
+          GrossProfit: secFactUnits(40, 35, latestAccn),
         });
 
       expect(await amdExclusionReason(gross(20.5), latestQ)).toBe(

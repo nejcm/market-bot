@@ -179,7 +179,7 @@ export function latestFilingWithoutDebtFacts(
   sec: Pick<SecCompanyFactsResult, "factsPayload" | "submissionsPayload">,
   debtPeriodEnd: string,
   asOf: string,
-): "10-K" | "10-Q" | undefined {
+): { form: "10-K" | "10-Q"; filingDate: string; ingested: boolean } | undefined {
   const recent =
     isRecord(sec.submissionsPayload) && isRecord(sec.submissionsPayload.filings)
       ? sec.submissionsPayload.filings.recent
@@ -206,31 +206,38 @@ export function latestFilingWithoutDebtFacts(
         : [];
     })
     .toSorted((left, right) => right.filingDate.localeCompare(left.filingDate));
-  const gaap =
-    isRecord(sec.factsPayload) && isRecord(sec.factsPayload.facts)
-      ? sec.factsPayload.facts["us-gaap"]
-      : undefined;
+  const facts = isRecord(sec.factsPayload) ? sec.factsPayload.facts : undefined;
+  const gaap = isRecord(facts) ? facts["us-gaap"] : undefined;
   if (
     latest === undefined ||
     typeof latest.accession !== "string" ||
     typeof latest.reportDate !== "string" ||
     latest.reportDate === "" ||
     latest.reportDate <= debtPeriodEnd ||
+    !isRecord(facts) ||
     !isRecord(gaap)
   ) {
     return undefined;
   }
-  const contributed = debtCandidateConcepts("us-gaap", gaap).some((concept) => {
-    const units = isRecord(gaap[concept]) ? gaap[concept].units : undefined;
-    return (
-      isRecord(units) &&
-      Object.values(units).some(
-        (rows) =>
-          Array.isArray(rows) && rows.some((row) => isRecord(row) && row.accn === latest.accession),
-      )
-    );
-  });
-  return contributed ? undefined : latest.form;
+  const debtConcepts = new Set(debtCandidateConcepts("us-gaap", gaap));
+  let ingested = false;
+  for (const [taxonomy, concepts] of Object.entries(facts)) {
+    for (const [concept, fact] of isRecord(concepts) ? Object.entries(concepts) : []) {
+      const units = isRecord(fact) ? fact.units : undefined;
+      const fromLatest =
+        isRecord(units) &&
+        Object.values(units).some(
+          (rows) =>
+            Array.isArray(rows) &&
+            rows.some((row) => isRecord(row) && row.accn === latest.accession),
+        );
+      if (fromLatest && taxonomy === "us-gaap" && debtConcepts.has(concept)) {
+        return undefined;
+      }
+      ingested ||= fromLatest;
+    }
+  }
+  return { form: latest.form, filingDate: latest.filingDate, ingested };
 }
 
 // SIC arrives as a string in current SEC submissions payloads, but tolerate a

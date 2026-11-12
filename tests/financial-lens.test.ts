@@ -88,6 +88,7 @@ function evidence(): ExtendedEvidence {
           revenuePeriodEnd: "2025-06-28",
           revenuePeriodMonths: 12,
           revenuePrior: 80,
+          revenuePriorPeriodEnd: "2024-06-29",
           revenueDeltaPercent: 25,
           grossProfit: 42,
           grossProfitPrior: 40,
@@ -97,9 +98,11 @@ function evidence(): ExtendedEvidence {
           operatingIncomeDeltaPercent: 20,
           netIncome: 18,
           netIncomePrior: 15,
+          netIncomePriorPeriodEnd: "2024-06-29",
           netIncomeDeltaPercent: 20,
           dilutedEps: 2,
           dilutedEpsPrior: 1.6,
+          dilutedEpsPriorPeriodEnd: "2024-06-29",
           dilutedEpsDeltaPercent: 25,
           operatingCashFlow: 30,
           operatingCashFlowPrior: 25,
@@ -1577,6 +1580,48 @@ describe("financial lens artifact compatibility", () => {
       const row = (id: string) => rows?.find((metric) => metric.id === id);
       expect(row("dilutedEpsDeltaPercent")?.status).toBe(eps);
       expect(row("cashConversion")?.status).toBe(cashConversion);
+    },
+  );
+
+  test.each([
+    ["2024-06-29", "not-meaningful"],
+    ["2024-06-30", "value"],
+  ] as const)(
+    "summary near-zero floor needs income and revenue priors to end together (%s)",
+    (incomePriorEnd, status) => {
+      const base = evidence();
+      const summary: ExtendedEvidence = {
+        ...base,
+        items: base.items.map((item) =>
+          item.category === "sec-edgar"
+            ? {
+                ...item,
+                metrics: {
+                  ...item.metrics,
+                  netIncomePrior: 1,
+                  netIncomePriorPeriodEnd: incomePriorEnd,
+                  netIncomePeriodEnd: "2025-06-28",
+                  netIncomePeriodMonths: 12,
+                },
+              }
+            : item,
+        ),
+      };
+      const metric = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        summary,
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      )
+        .metricSections?.flatMap(({ metrics }) => metrics)
+        .find(({ id }) => id === "netIncomeDeltaPercent");
+      expect(metric?.status).toBe(status);
+      if (status === "value") {
+        expect(metric?.basis).toEndWith(
+          "no same-period revenue, so the near-zero base check did not run",
+        );
+      }
     },
   );
 

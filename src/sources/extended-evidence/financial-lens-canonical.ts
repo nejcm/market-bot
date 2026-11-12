@@ -92,6 +92,7 @@ export type SecMetricKey =
   | `${SecFactMetricKey}PeriodEnd`
   | `${SecFactMetricKey}PeriodMonths`
   | `${SecFactMetricKey}Prior`
+  | `${SecFactMetricKey}PriorPeriodEnd`
   | `${SecFactMetricKey}DeltaPercent`
   | `${SecFactMetricKey}Scope`
   | "revenuePeriodEnd"
@@ -149,6 +150,7 @@ function addFactMetrics(
   const prior = priorComparable(series, fact, earlierShareBasis);
   if (prior !== undefined) {
     metrics[`${key}Prior`] = prior.value;
+    metrics[`${key}PriorPeriodEnd`] = prior.periodEnd;
     const delta = deltaPercent(fact.value, prior.value);
     if (delta !== undefined) {
       metrics[`${key}DeltaPercent`] = delta;

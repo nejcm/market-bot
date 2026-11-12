@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.7](https://github.com/nejcm/market-bot/compare/v1.19.6...v1.19.7) (2026-11-12)
+
+### Bug Fixes
+
+- **workbench:** date annual rows only by reporting-currency filings (#230) ([24da6b3](https://github.com/nejcm/market-bot/commit/24da6b35643d9d903c9717b52e7751baaed17eb9))
+
 ## [1.19.6](https://github.com/nejcm/market-bot/compare/v1.19.5...v1.19.6) (2026-11-12)
 
 ### Bug Fixes

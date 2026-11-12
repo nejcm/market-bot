@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.6](https://github.com/nejcm/market-bot/compare/v1.19.5...v1.19.6) (2026-11-12)
+
+### Bug Fixes
+
+- **comps:** name sec ingestion lag in peer debt exclusions (#229) ([7b905cf](https://github.com/nejcm/market-bot/commit/7b905cf42b8ddb8d78d34d73942201336807e487))
+
 ## [1.19.5](https://github.com/nejcm/market-bot/compare/v1.19.4...v1.19.5) (2026-11-12)
 
 ### Bug Fixes

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.2](https://github.com/nejcm/market-bot/compare/v1.19.1...v1.19.2) (2026-11-12)
+
+### Bug Fixes
+
+- **segments:** ignore geography totals outside the region unit (#225) ([2c6c1cf](https://github.com/nejcm/market-bot/commit/2c6c1cfe6dd33820a1bb87838d7226b1c21d411e))
+
 ## [1.19.1](https://github.com/nejcm/market-bot/compare/v1.19.0...v1.19.1) (2026-11-12)
 
 ### Bug Fixes

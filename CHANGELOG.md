@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.0](https://github.com/nejcm/market-bot/compare/v1.18.2...v1.19.0) (2026-11-12)
+
+### Features
+
+- **model:** record codex item counts per exec call (#223) ([ac7ceab](https://github.com/nejcm/market-bot/commit/ac7ceab8f82677e7ec7d8fa9cff516a415bfd5c4))
+
 ## [1.18.2](https://github.com/nejcm/market-bot/compare/v1.18.1...v1.18.2) (2026-11-12)
 
 ### Bug Fixes

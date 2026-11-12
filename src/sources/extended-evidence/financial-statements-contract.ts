@@ -298,6 +298,7 @@ export interface FinancialStatementNote {
     | "capex-scope-unproven"
     | "stale-instant-series"
     | "stale-concept-history"
+    | "revenue-concept-splice"
     | "withheld-derivation"
     | "mixed-share-basis"
     | "earlier-share-basis"
@@ -316,6 +317,15 @@ export interface FinancialStatementNote {
   readonly unprovenDebt?: readonly UnprovenDebtFact[];
   readonly periods?: readonly FinancialStatementNotePeriod[];
   readonly reason?: string;
+  readonly revenueSplice?: {
+    readonly selectedConcept: string;
+    readonly selectedEnd: string;
+    readonly aliasConcept: string;
+    readonly proofStart: string;
+    readonly proofEnd: string;
+    readonly proofAccession: string;
+    readonly periodEnds: readonly string[];
+  };
 }
 
 type UnprovenDebtFact = Pick<FinancialStatementFact, "periodType" | "filedAt">;

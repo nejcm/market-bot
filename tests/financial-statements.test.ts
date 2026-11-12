@@ -6,7 +6,7 @@ import {
 } from "../src/sources/extended-evidence/financial-statements";
 import { grossPrincipalWithholdsDebt } from "../src/sources/extended-evidence/financial-statement-period-identity";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
-import { balanceSheetHistory } from "../src/report/equity-reader-statements";
+import { balanceSheetHistory, operatingRatioNotes } from "../src/report/equity-reader-statements";
 import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
 import { financialTrends } from "../src/report/equity-reader-trends";
 import {
@@ -6099,5 +6099,459 @@ describe("annual Workbench rows anchor at the period's first annual report", () 
         .filter(({ basis }) => basis === "annual")
         .map(({ publicAt }) => publicAt),
     ).toEqual(["2024-02-15", "2024-03-15"]);
+  });
+});
+
+describe("forward revenue concept splice", () => {
+  const asc606 = "RevenueFromContractWithCustomerExcludingAssessedTax";
+  const keelQ2 = "0001812477-26-000023";
+  const sec = (
+    value: number,
+    form: string,
+    fiscalPeriod: string,
+    periodStart: string,
+    periodEnd: string,
+    accessionNumber: string,
+    filedAt: string,
+  ) => fact({ value, form, fiscalPeriod, periodStart, periodEnd, accessionNumber, filedAt });
+  // KEEL companyfacts (CIK 1812477): Revenues stops at Q1 2026; the Q2 2026 10-Q tags only ASC 606 revenue.
+  const keelRevenues = [
+    sec(
+      133_274_000,
+      "10-K",
+      "FY",
+      "2024-01-01",
+      "2024-12-31",
+      "0001213900-26-037514",
+      "2026-03-31",
+    ),
+    sec(
+      229_276_000,
+      "10-K",
+      "FY",
+      "2025-01-01",
+      "2025-12-31",
+      "0001213900-26-037514",
+      "2026-03-31",
+    ),
+    sec(47_651_000, "10-Q", "Q1", "2025-01-01", "2025-03-31", "0001213900-26-054166", "2026-05-11"),
+    sec(36_992_000, "10-Q", "Q1", "2026-01-01", "2026-03-31", "0001213900-26-054166", "2026-05-11"),
+  ];
+  const keelAsc606 = [
+    sec(108_559_000, "10-Q", "Q2", "2025-01-01", "2025-06-30", keelQ2, "2026-08-10"),
+    sec(60_908_000, "10-Q", "Q2", "2025-04-01", "2025-06-30", keelQ2, "2026-08-10"),
+    sec(67_422_000, "10-Q", "Q2", "2026-01-01", "2026-06-30", keelQ2, "2026-08-10"),
+    sec(30_430_000, "10-Q", "Q2", "2026-04-01", "2026-06-30", keelQ2, "2026-08-10"),
+  ];
+  const keelNetIncome = [
+    sec(
+      -284_544_000,
+      "10-K",
+      "FY",
+      "2025-01-01",
+      "2025-12-31",
+      "0001213900-26-037514",
+      "2026-03-31",
+    ),
+    sec(
+      -55_553_000,
+      "10-Q",
+      "Q1",
+      "2025-01-01",
+      "2025-03-31",
+      "0001213900-26-054166",
+      "2026-05-11",
+    ),
+    sec(
+      -145_353_000,
+      "10-Q",
+      "Q1",
+      "2026-01-01",
+      "2026-03-31",
+      "0001213900-26-054166",
+      "2026-05-11",
+    ),
+    sec(-61_054_000, "10-Q", "Q2", "2025-01-01", "2025-06-30", keelQ2, "2026-08-10"),
+    sec(-210_348_000, "10-Q", "Q2", "2026-01-01", "2026-06-30", keelQ2, "2026-08-10"),
+  ];
+  const keel = (
+    alias: readonly Record<string, unknown>[] = [],
+    unit = "USD",
+    { aliasBase = keelAsc606, revenues = [], others = {} } = {} as {
+      aliasBase?: readonly Record<string, unknown>[];
+      revenues?: readonly Record<string, unknown>[];
+      others?: Record<string, { USD: readonly Record<string, unknown>[] }>;
+    },
+  ) =>
+    derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [...keelRevenues, ...revenues] },
+          NetIncomeLoss: { USD: keelNetIncome },
+          [asc606]: unit === "USD" ? { USD: [...aliasBase, ...alias] } : { [unit]: aliasBase },
+          ...others,
+        },
+      }),
+      { analysisAsOf: "2026-11-05T00:00:00.000Z" },
+    );
+  const spliced = (artifact: ReturnType<typeof derive>) =>
+    financialStatementFacts(artifact.statements.incomeStatement.revenue).some(
+      (item) => item.concept === asc606,
+    );
+
+  test("extends KEEL revenue forward to Q2 2026 only, on its 6M less Q2 proof in 10-Q 0001812477-26-000023", () => {
+    const artifact = keel();
+    const { revenue } = artifact.statements.incomeStatement;
+
+    expect(
+      revenue.interim
+        .filter((item) => item.periodEnd === "2026-06-30")
+        .map((item) => [item.concept, item.periodStart, item.value]),
+    ).toEqual([
+      [asc606, "2026-01-01", 67_422_000],
+      [asc606, "2026-04-01", 30_430_000],
+    ]);
+    expect(revenue.annual.map((item) => [item.concept, item.value])).toEqual([
+      ["Revenues", 133_274_000],
+      ["Revenues", 229_276_000],
+    ]);
+    expect(
+      financialStatementFacts(revenue).filter((item) => item.periodEnd <= "2026-03-31"),
+    ).not.toContainEqual(expect.objectContaining({ concept: asc606 }));
+    expect(revenue.ttm).toBeUndefined();
+    const note = artifact.omissionNotes.find((item) => item.code === "revenue-concept-splice");
+    expect(note?.message).toBe(
+      `SEC revenue under Revenues ends 2026-03-31; 2026-01-01 to 2026-06-30, 2026-04-01 to 2026-06-30 come from ${asc606} in ${keelQ2}, proven by ${asc606} in ${keelQ2} matching Revenues 2025-01-01 to 2025-03-31 at 47651000`,
+    );
+    expect(note?.revenueSplice).toEqual({
+      selectedConcept: "Revenues",
+      selectedEnd: "2026-03-31",
+      aliasConcept: asc606,
+      proofStart: "2025-01-01",
+      proofEnd: "2025-03-31",
+      proofAccession: keelQ2,
+      periodEnds: ["2026-06-30"],
+    });
+    const { ttm, periods } = valuationPeriodInputs(artifact);
+    expect(ttm).toBeUndefined();
+    const q1Row = periods.find((row) => row.basis === "ttm" && row.periodEnd === "2026-03-31");
+    expect([q1Row?.revenue?.value, q1Row?.netIncome?.value]).toEqual([218_617_000, -374_344_000]);
+    expect(historyGapMessages(artifact)).toEqual([]);
+    expect(operatingRatioNotes(artifact)).toContainEqual(note!);
+    expect(withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.summary).toContain(
+      note!.message,
+    );
+  });
+
+  test("extends TAYD revenue to Q1 FY2027 on the Q1 FY2026 value both tags carry in 10-Q 0001376474-26-000624", () => {
+    const tayd = "0001376474-26-000624";
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [
+              sec(
+                46_292_725,
+                "10-K",
+                "FY",
+                "2024-06-01",
+                "2025-05-31",
+                "0001376474-25-000751",
+                "2025-08-15",
+              ),
+              sec(
+                9_918_350,
+                "10-Q",
+                "Q1",
+                "2025-06-01",
+                "2025-08-31",
+                "0001376474-25-000835",
+                "2025-10-01",
+              ),
+              sec(
+                41_649_673,
+                "10-K",
+                "FY",
+                "2025-06-01",
+                "2026-05-31",
+                "0001376474-26-000567",
+                "2026-08-18",
+              ),
+            ],
+          },
+          [asc606]: {
+            USD: [
+              sec(9_918_350, "10-Q", "Q1", "2025-06-01", "2025-08-31", tayd, "2026-10-02"),
+              sec(7_300_239, "10-Q", "Q1", "2026-06-01", "2026-08-31", tayd, "2026-10-02"),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-11-05T00:00:00.000Z" },
+    );
+    const { revenue } = artifact.statements.incomeStatement;
+
+    expect(revenue.interim.map((item) => [item.concept, item.periodEnd, item.value])).toEqual([
+      ["Revenues", "2025-08-31", 9_918_350],
+      [asc606, "2026-08-31", 7_300_239],
+    ]);
+    expect(revenue.ttm).toMatchObject({ value: 39_031_562, periodEnd: "2026-08-31" });
+    expect(artifact.validationNotes).toContainEqual(
+      expect.objectContaining({
+        code: "ttm-component-basis",
+        message: expect.stringContaining(`latestYearToDate ${asc606}`),
+      }),
+    );
+    expect(
+      artifact.omissionNotes.find((item) => item.code === "revenue-concept-splice")?.message,
+    ).toContain(
+      `proven by ${asc606} in ${tayd} matching Revenues 2025-06-01 to 2025-08-31 at 9918350`,
+    );
+  });
+
+  test.each([
+    {
+      name: "one disagreeing shared period",
+      alias: [sec(133_275_000, "10-K", "FY", "2024-01-01", "2024-12-31", keelQ2, "2026-08-10")],
+      unit: "USD",
+    },
+    {
+      name: "a disagreeing derived period from an earlier filing",
+      alias: [
+        sec(
+          100_000_000,
+          "10-Q",
+          "Q2",
+          "2025-01-01",
+          "2025-06-30",
+          "0001812477-25-000001",
+          "2025-08-10",
+        ),
+        sec(
+          52_349_001,
+          "10-Q",
+          "Q2",
+          "2025-04-01",
+          "2025-06-30",
+          "0001812477-25-000001",
+          "2025-08-10",
+        ),
+      ],
+      unit: "USD",
+    },
+    { name: "a different currency", alias: [], unit: "EUR" },
+    {
+      name: "another roster concept filing a different value for a spliced period",
+      alias: [],
+      unit: "USD",
+      options: {
+        others: {
+          SalesRevenueNet: {
+            USD: [sec(31_000_000, "10-Q", "Q2", "2026-04-01", "2026-06-30", keelQ2, "2026-08-10")],
+          },
+        },
+      },
+    },
+    {
+      name: "an alias quarter disagreeing with the selected H1 less Q2",
+      alias: [
+        sec(110, "10-Q", "Q1", "2024-01-01", "2024-03-31", "0001812477-24-000001", "2024-05-10"),
+      ],
+      unit: "USD",
+      options: {
+        revenues: [
+          sec(250, "10-Q", "Q2", "2024-01-01", "2024-06-30", "0001812477-24-000002", "2024-08-10"),
+          sec(150, "10-Q", "Q2", "2024-04-01", "2024-06-30", "0001812477-24-000002", "2024-08-10"),
+        ],
+      },
+    },
+    {
+      name: "a proof span starting a day off the selected quarter",
+      alias: [],
+      unit: "USD",
+      options: {
+        aliasBase: [
+          sec(67_422_000, "10-Q", "Q2", "2026-01-02", "2026-06-30", keelQ2, "2026-08-10"),
+          sec(30_430_000, "10-Q", "Q2", "2026-04-01", "2026-06-30", keelQ2, "2026-08-10"),
+        ],
+      },
+    },
+  ])(
+    "withholds the splice on $name and keeps the stale-concept gap",
+    ({ alias, unit, options }) => {
+      expect(spliced(keel())).toBe(true);
+      const artifact = keel(alias, unit, options);
+
+      expect(spliced(artifact)).toBe(false);
+      expect(artifact.omissionNotes.map((item) => item.code)).not.toContain(
+        "revenue-concept-splice",
+      );
+      if (unit === "USD") {
+        expect(historyGapMessages(artifact)).toContainEqual(
+          expect.stringContaining(`while ${asc606} reports periods to 2026-06-30`),
+        );
+      }
+    },
+  );
+
+  test("withholds the splice when contract revenue is a fraction of total revenue (MARA-shaped)", () => {
+    const filings = ["0001507605-26-000007", "0001507605-26-000016", "0001507605-26-000022"];
+    const mara = (fiscalYear: number, firstQuarter: number) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: [
+                sec(
+                  fiscalYear,
+                  "10-K",
+                  "FY",
+                  "2025-01-01",
+                  "2025-12-31",
+                  filings[0]!,
+                  "2026-03-02",
+                ),
+                sec(
+                  firstQuarter,
+                  "10-Q",
+                  "Q1",
+                  "2026-01-01",
+                  "2026-03-31",
+                  filings[1]!,
+                  "2026-05-11",
+                ),
+              ],
+            },
+            [asc606]: {
+              USD: [
+                sec(
+                  17_413_000,
+                  "10-Q",
+                  "Q1",
+                  "2026-01-01",
+                  "2026-03-31",
+                  filings[1]!,
+                  "2026-05-11",
+                ),
+                sec(
+                  31_224_000,
+                  "10-Q",
+                  "Q2",
+                  "2026-01-01",
+                  "2026-06-30",
+                  filings[2]!,
+                  "2026-08-06",
+                ),
+                sec(
+                  13_811_000,
+                  "10-Q",
+                  "Q2",
+                  "2026-04-01",
+                  "2026-06-30",
+                  filings[2]!,
+                  "2026-08-06",
+                ),
+              ],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-11-05T00:00:00.000Z" },
+      );
+    expect(spliced(mara(58_704_000, 17_413_000))).toBe(true);
+    const artifact = mara(907_093_000, 174_614_000);
+
+    expect(spliced(artifact)).toBe(false);
+    expect(historyGapMessages(artifact)).toContainEqual(
+      expect.stringContaining(`while ${asc606} reports periods to 2026-06-30`),
+    );
+  });
+
+  test("dates a spliced period no earlier than the amendment that proves it", () => {
+    const original = "0001812477-26-000020";
+    const amendment = "0001812477-26-000025";
+    const artifact = keel([], "USD", {
+      aliasBase: [
+        sec(30_430_000, "10-Q", "Q2", "2026-04-01", "2026-06-30", original, "2026-08-01"),
+        sec(67_422_000, "10-Q/A", "Q2", "2026-01-01", "2026-06-30", amendment, "2026-08-15"),
+        sec(30_430_000, "10-Q/A", "Q2", "2026-04-01", "2026-06-30", amendment, "2026-08-15"),
+      ],
+    });
+
+    expect(
+      artifact.statements.incomeStatement.revenue.interim
+        .filter((item) => item.periodEnd === "2026-06-30")
+        .map((item) => [item.periodStart, item.firstPublicAt]),
+    ).toEqual([
+      ["2026-01-01", "2026-08-15"],
+      ["2026-04-01", "2026-08-15"],
+    ]);
+  });
+
+  test("dates a TTM built on a spliced quarter no earlier than its later proof filing", () => {
+    const original = "0001376474-26-000600";
+    const amendment = "0001376474-26-000650";
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [
+              sec(
+                9_918_350,
+                "10-Q",
+                "Q1",
+                "2025-06-01",
+                "2025-08-31",
+                "0001376474-25-000835",
+                "2025-10-01",
+              ),
+              sec(
+                41_649_673,
+                "10-K",
+                "FY",
+                "2025-06-01",
+                "2026-05-31",
+                "0001376474-26-000567",
+                "2026-08-18",
+              ),
+            ],
+          },
+          [asc606]: {
+            USD: [
+              sec(7_300_239, "10-Q", "Q1", "2026-06-01", "2026-08-31", original, "2026-10-02"),
+              sec(9_918_350, "10-Q/A", "Q1", "2025-06-01", "2025-08-31", amendment, "2026-10-20"),
+              sec(7_300_239, "10-Q/A", "Q1", "2026-06-01", "2026-08-31", amendment, "2026-10-20"),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-11-05T00:00:00.000Z" },
+    );
+    const { ttm } = artifact.statements.incomeStatement.revenue;
+
+    expect(ttm).toMatchObject({ value: 39_031_562, periodEnd: "2026-08-31" });
+    expect(ttm?.components).toMatchObject({
+      latestYearToDate: { concept: asc606, firstPublicAt: "2026-10-20" },
+    });
+    expect(valuationPeriodInputs(artifact).ttm?.revenue?.publicAt).toBe("2026-10-20");
+  });
+
+  test("never fills an earlier gap from an alias filing that reports no newer period", () => {
+    const olderQ3 = sec(
+      55_000_000,
+      "10-Q",
+      "Q3",
+      "2025-07-01",
+      "2025-09-30",
+      "0001812477-25-000002",
+      "2025-11-10",
+    );
+    const artifact = keel([olderQ3]);
+
+    expect(spliced(artifact)).toBe(true);
+    expect(
+      financialStatementFacts(artifact.statements.incomeStatement.revenue).map(
+        (item) => item.periodEnd,
+      ),
+    ).not.toContain("2025-09-30");
   });
 });

@@ -115,7 +115,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - Financial Lens metrics retain per-metric citations: SEC for filing-intrinsic facts, Yahoo for
   price-relative/non-US fallback. Parent `NetIncomeLoss` remains net income; consolidated `ProfitLoss` is
   otherwise separate, same-period disclosure. ROE/ROA keep parent income and existing balance scopes.
-- The one sanctioned tag splice: a period without `NetIncomeLoss` takes a derived `ProfitLoss` net income
+- A sanctioned tag splice: a period without `NetIncomeLoss` takes a derived `ProfitLoss` net income
   only when no noncontrolling-interest income fact observable at the analysis cutoff is tagged for it, or
   all are zero and a zero `NetIncomeLossAttributableToNoncontrollingInterest` shares a filing with a
   `ProfitLoss` of the current value (partial-scope or comprehensive zeros alone, or any nonzero NCI,
@@ -287,7 +287,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   and Markdown/Console note; retain lineage and name EBITDA proxy basis. A selected combined fact more than 1%
   below the other same-period combined alias (DDA under DA) is withheld, never replaced by the higher alias; the
   reverse split publishes. IFRS is unchanged.
-- Never splice alternative financial concepts to extend history. Shortening is silent unless an alias has a
+- Never splice alternative financial concepts to extend history, except a forward-only revenue extension: a
+  newer total-revenue roster alias appends only periods ending after the selected concept's latest period end,
+  when one of those filings tags, or derives as YTD less a later-starting part, a selected span with the exact
+  same start, end and value; no raw or derived span differs in either direction, no other roster concept files a
+  different value for an appended span, units match, and each appended period is public no earlier than its
+  proof's filing. Emit `revenue-concept-splice` with structured proof fields, which invariant A10 checks
+  (amended 2026-11-12: KEEL Q2 2026, TAYD Q1 FY2027). Otherwise, shortening is silent unless an alias has a
   newer period of any type, or any annual period when selected has none: emit `stale-concept-history` without
   combining. Offline alias detection requires eligible same-unit/currency strict annual superset with exact
   shared value/form/fiscal/period/filing tuples; no-overlap renames are not interchangeable proof. EPS TTM can

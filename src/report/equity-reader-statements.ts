@@ -172,7 +172,8 @@ export function operatingRatioNotes(
       (note.code === "incomplete-composite-series" &&
         (note.seriesKey === "depreciationAndAmortization" ||
           note.seriesKey === "capitalExpenditure")) ||
-      note.code === "unchecked-extension-capex",
+      note.code === "unchecked-extension-capex" ||
+      note.code === "revenue-concept-splice",
   );
   const unchecked = notes.filter(
     (note) =>

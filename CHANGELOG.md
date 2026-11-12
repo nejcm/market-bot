@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.5](https://github.com/nejcm/market-bot/compare/v1.19.4...v1.19.5) (2026-11-12)
+
+### Bug Fixes
+
+- **events:** accept issuer domains named by a leading-words prefix (#228) ([73fb3e2](https://github.com/nejcm/market-bot/commit/73fb3e207701ac01abc0bea627690c95c165bfdb))
+
 ## [1.19.4](https://github.com/nejcm/market-bot/compare/v1.19.3...v1.19.4) (2026-11-12)
 
 ### Bug Fixes

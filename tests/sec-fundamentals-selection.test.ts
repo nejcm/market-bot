@@ -382,6 +382,8 @@ describe("legacy YoY comparatives", () => {
     expect(summary.metrics.revenuePrior).toBe(109_074_000);
     expect(summary.summary).toContain("revenue 112596000 (3.2% YoY)");
     expect(item.metrics?.revenuePrior).toBe(summary.metrics.revenuePrior);
+    expect(item.metrics?.revenuePriorPeriodEnd).toBe(summary.metrics.revenuePriorPeriodEnd);
+    expect(summary.metrics.revenuePriorPeriodEnd).toBe("2025-06-30");
     expect(item.metrics?.revenueDeltaPercent).toBeCloseTo(
       summary.metrics.revenueDeltaPercent as number,
       10,

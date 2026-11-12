@@ -542,6 +542,9 @@ export function summarizeSecFundamentals(
       }
     } else {
       metrics[`${definition.key}Prior`] = prior.val;
+      if (prior.end !== undefined) {
+        metrics[`${definition.key}PriorPeriodEnd`] = prior.end;
+      }
       if (delta !== undefined) {
         metrics[`${definition.key}DeltaPercent`] = delta;
       }

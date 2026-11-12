@@ -253,7 +253,12 @@ export function summaryPriorBase(
   const aligned =
     baseKey === key || (baseKey !== undefined && summarySamePeriod(metrics, key, baseKey));
   const base = aligned ? metrics?.[`${baseKey}Prior`] : undefined;
-  const revenue = summarySamePeriod(metrics, key, "revenue") ? metrics?.revenuePrior : undefined;
+  // Each series picks its prior independently, so a floor verdict needs one prior end (none on pre-key artifacts).
+  const priorEnds = new Set([key, baseKey, "revenue"].map((k) => metrics?.[`${k}PriorPeriodEnd`]));
+  const revenue =
+    summarySamePeriod(metrics, key, "revenue") && priorEnds.size === 1
+      ? metrics?.revenuePrior
+      : undefined;
   return baseKey === undefined || typeof base !== "number"
     ? undefined
     : { baseKey, base, ...(typeof revenue === "number" ? { revenue } : {}) };

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.3](https://github.com/nejcm/market-bot/compare/v1.19.2...v1.19.3) (2026-11-12)
+
+### Bug Fixes
+
+- **segments:** say segment gaps cover us-gaap facts only (#226) ([4706157](https://github.com/nejcm/market-bot/commit/4706157260e062b77338690d12d15a28cc7b7e57))
+
 ## [1.19.2](https://github.com/nejcm/market-bot/compare/v1.19.1...v1.19.2) (2026-11-12)
 
 ### Bug Fixes

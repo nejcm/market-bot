@@ -150,19 +150,20 @@ export function secGeographyFactMetrics(
   if (periodEnd === undefined || !html.includes(GEOGRAPHY_AXIS)) {
     return {};
   }
-  const metrics = dimensionalFactMetrics(
-    html,
-    segmentContexts(html, periodEnd, GEOGRAPHY_AXIS, GEOGRAPHY_TOTAL_MEMBER),
-    GEOGRAPHY_CONCEPTS.map((concept) => [concept, concept] as const),
-    GEOGRAPHY_FACT_PREFIX,
-    GEOGRAPHY_UNIT_KEY,
-  );
-  const hasRegion = Object.keys(metrics).some(
-    (key) =>
-      key.startsWith(GEOGRAPHY_FACT_PREFIX) &&
-      !key.startsWith(`${GEOGRAPHY_FACT_PREFIX}${GEOGRAPHY_TOTAL_MEMBER}|`),
-  );
-  return hasRegion ? metrics : {};
+  const contexts = segmentContexts(html, periodEnd, GEOGRAPHY_AXIS, GEOGRAPHY_TOTAL_MEMBER);
+  const facts = (scoped: ReadonlyMap<string, SegmentContext>, totalUnit?: string) =>
+    dimensionalFactMetrics(
+      html,
+      scoped,
+      GEOGRAPHY_CONCEPTS.map((concept) => [concept, concept] as const),
+      GEOGRAPHY_FACT_PREFIX,
+      GEOGRAPHY_UNIT_KEY,
+      totalUnit,
+    );
+  const regionUnit = facts(
+    new Map([...contexts].filter(([, { member }]) => member !== GEOGRAPHY_TOTAL_MEMBER)),
+  )[GEOGRAPHY_UNIT_KEY];
+  return regionUnit === undefined ? {} : facts(contexts, String(regionUnit));
 }
 
 function dimensionalFactMetrics(
@@ -171,6 +172,7 @@ function dimensionalFactMetrics(
   concepts: readonly (readonly [string, string])[],
   prefix: string,
   unitKey: string,
+  totalUnit?: string,
 ): Record<string, number | string> {
   const unitMeasures = units(html);
   const values = new Map<
@@ -192,6 +194,10 @@ function dimensionalFactMetrics(
       continue;
     }
     const unit = unitMeasures.get(attribute(attrs, "unitRef") ?? "") ?? "unknown";
+    // A total in another unit than its regions is not their total (CECO tags the €750M Pillar Two threshold as Revenues).
+    if (context.member === GEOGRAPHY_TOTAL_MEMBER && unit !== totalUnit) {
+      continue;
+    }
     const key = `${prefix}${context.member}|${concepts[rank]![1]}|${context.start}|${context.end}`;
     const prior = values.get(key);
     if (prior === undefined || (prior !== "conflict" && rank < prior.rank)) {

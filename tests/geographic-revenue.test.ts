@@ -139,6 +139,57 @@ describe("geographic revenue section", () => {
     expect(share(html, "srt_AmericasMember")).toMatchObject({ status: "missing" });
   });
 
+  test("ignores CECO's undimensioned EUR Revenues threshold (10-Q 0001193125-26-453470, 2026-01-01..2026-09-30)", () => {
+    const regions = [
+      ["us", "country:US", "559,416"],
+      ["ca", "country:CA", "77,814"],
+      ["cn", "country:CN", "58,125"],
+      ["gb", "country:GB", "38,006"],
+      ["nl", "country:NL", "79,587"],
+      ["other", "ceco:OtherMember", "82,360"],
+    ] as const;
+    const html = [
+      UNITS,
+      `<xbrli:unit id="U_EUR"><xbrli:measure>iso4217:EUR</xbrli:measure></xbrli:unit>`,
+      context("C_total", undefined, "2026-01-01", "2026-09-30"),
+      context("C_aa400dd4", undefined, "2026-01-01", "2026-09-30"),
+      fact("C_total", "895,308"),
+      fact("C_aa400dd4", "750", "us-gaap:Revenues")
+        .replace("U_USD", "U_EUR")
+        .replace('scale="3"', 'scale="6"'),
+      ...regions.flatMap(([id, member, value]) => [
+        context(id, member, "2026-01-01", "2026-09-30"),
+        fact(id, value),
+      ]),
+    ].join("");
+    const metrics = secGeographyFactMetrics(html, "2026-09-30");
+    expect(metrics.geographyUnit).toBe("iso4217:USD");
+    expect(metrics["geography|total|us-gaap:Revenues|2026-01-01|2026-09-30"]).toBeUndefined();
+    const rows = geographicRevenueSection("ceco", [
+      filingItem({ ...metrics, reportDate: "2026-09-30", accessionNumber: "0001193125-26-453470" }),
+    ])?.section?.metrics;
+    expect(rows?.filter(({ status }) => status === "value")).toHaveLength(regions.length * 2);
+    const row = (id: string) => rows?.find((metric) => metric.id === id);
+    expect(row("country_US-2026-01-01-2026-09-30-revenue")).toMatchObject({
+      status: "value",
+      value: 559_416_000,
+      label: "United States revenue",
+    });
+    const usShare = row("country_US-2026-01-01-2026-09-30-share");
+    expect(usShare?.label).toBe("United States share of revenue");
+    expect(usShare?.status === "value" ? usShare.value : undefined).toBeCloseTo(0.6248, 4);
+  });
+
+  test("keeps a USD Revenues total tagged beside the EUR threshold fact in the same context", () => {
+    const threshold = fact("total", "750", "us-gaap:Revenues")
+      .replace("U_USD", "U_EUR")
+      .replace('scale="3"', 'scale="6"');
+    const html = `<xbrli:unit id="U_EUR"><xbrli:measure>iso4217:EUR</xbrli:measure></xbrli:unit>${HLIT_10Q}${fact("total", "260,000", "us-gaap:Revenues")}${threshold}`;
+    const metrics = secGeographyFactMetrics(html, "2026-07-03");
+    expect(metrics.geographyUnit).toBe("iso4217:USD");
+    expect(metrics["geography|total|us-gaap:Revenues|2026-01-01|2026-07-03"]).toBe(260_000_000);
+  });
+
   test("marks the share not meaningful when total revenue is zero", () => {
     const html = HLIT_10Q.replace(fact("total", "255,157"), fact("total", "0"));
     expect(share(html, "srt_AmericasMember")).toMatchObject({ status: "not-meaningful" });

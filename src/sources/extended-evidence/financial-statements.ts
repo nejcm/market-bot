@@ -395,10 +395,13 @@ export function deriveFinancialStatements(
       ? { currency: undefined, candidates: [] }
       : selectReportingCurrency(companyFacts, taxonomy, input.analysisAsOf);
   const reportingCurrency = election.currency;
-  const { payload, excluded: translationFilings } =
-    taxonomy === undefined || reportingCurrency === undefined
-      ? { payload: companyFacts, excluded: new Map<string, string>() }
-      : withoutTranslationFilings(companyFacts, taxonomy, reportingCurrency, input.analysisAsOf);
+  const {
+    payload,
+    excluded: translationFilings,
+    translations,
+  } = taxonomy === undefined || reportingCurrency === undefined
+    ? { payload: companyFacts, excluded: new Map<string, string>(), translations: new Map() }
+    : withoutTranslationFilings(companyFacts, taxonomy, reportingCurrency, input.analysisAsOf);
   const selected =
     taxonomy === undefined || reportingCurrency === undefined
       ? FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map(
@@ -530,7 +533,7 @@ export function deriveFinancialStatements(
       ? {
           dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
           unfiledSeries: unfiledSeries(payload, input.analysisAsOf),
-          firstAnnualReports: firstAnnualReports(payload, input.analysisAsOf),
+          firstAnnualReports: firstAnnualReports(payload, input.analysisAsOf, translations),
         }
       : {}),
     statements,

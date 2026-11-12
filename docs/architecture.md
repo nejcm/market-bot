@@ -142,7 +142,8 @@ legacy summary withholds its monetary metrics.
 Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual
 or reconciled-TTM fundamentals to a verified close no more than seven calendar days after the row's
 public date: an annual row's first annual report (the earliest 10-K, 20-F or 40-F with a
-fiscal-year span of the same duration identity, in any taxonomy or concept; recorded as
+fiscal-year span of the same duration identity, in any taxonomy or concept, skipping excluded
+convenience-translation filings; recorded as
 `firstAnnualReports`), withholding any input first filed after it, or every flow input when that
 record has no entry for the span, or for TTM the latest filing date among its inputs. A TTM row that is the fiscal year itself (formula `FY`) is withheld, with a diagnostic Source Gap, once a later duration fact of any concept (other than a subsequent event in the filing that first published the series' fiscal-year value: same concept, period and value, filed on its `firstPublicAt`) was public by the row's public date; the series' `supersedingFacts` records the earliest such fact per fiscal year, and statements saved before that field existed leave these rows unchecked and say so in the suppression reasons. It reports historical P/E, P/S, EV/revenue, and
 P/FCF as engine `MetricResult`s (`value`, `missing`, `not-meaningful`, `not-applicable`), embeds the existing peer comparison contract, and

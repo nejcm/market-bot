@@ -137,7 +137,11 @@ export function withoutTranslationFilings(
   taxonomy: FinancialStatementTaxonomy,
   currency: string,
   analysisAsOf: string,
-): { readonly payload: unknown; readonly excluded: ReadonlyMap<string, string> } {
+): {
+  readonly payload: unknown;
+  readonly excluded: ReadonlyMap<string, string>;
+  readonly translations: ReadonlyMap<string, string>;
+} {
   const byFiling = new Map<string, ParsedFact[]>();
   for (const fact of allFactsForDefinition(payload, taxonomy, revenueDefinition())) {
     if (isObservable(fact, analysisAsOf)) {
@@ -158,7 +162,7 @@ export function withoutTranslationFilings(
     !isRecord(payload) ||
     !isRecord(payload.facts)
   ) {
-    return { payload, excluded: new Map() };
+    return { payload, excluded: new Map(), translations };
   }
   const excluded = new Map<string, string>();
   const keep = (row: unknown, concept: string, unit: string) => {
@@ -189,10 +193,14 @@ export function withoutTranslationFilings(
           ],
     ),
   );
-  return { payload: { ...payload, facts: { ...payload.facts, [taxonomy]: pruned } }, excluded };
+  return {
+    payload: { ...payload, facts: { ...payload.facts, [taxonomy]: pruned } },
+    excluded,
+    translations,
+  };
 }
 
-function filingOf(fact: ParsedFact): string {
+export function filingOf(fact: ParsedFact): string {
   return fact.accessionNumber ?? fact.filedAt;
 }
 

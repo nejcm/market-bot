@@ -29,7 +29,7 @@ import {
   isObservable,
   periodKey,
 } from "./financial-statement-facts";
-import { ELECTING_DEFINITIONS } from "./financial-statement-taxonomy";
+import { ELECTING_DEFINITIONS, filingOf } from "./financial-statement-taxonomy";
 
 interface SubmissionFiling {
   readonly form: "6-K" | "6-K/A";
@@ -43,6 +43,7 @@ interface SubmissionFiling {
 export function firstAnnualReports(
   payload: unknown,
   analysisAsOf: string,
+  translationFilings: ReadonlyMap<string, string>,
 ): readonly FirstAnnualReport[] {
   const earliest = new Map<string, FirstAnnualReport>();
   for (const taxonomy of TAXONOMIES) {
@@ -53,6 +54,7 @@ export function firstAnnualReports(
       const current = earliest.get(key);
       if (
         isAnnualReportForm(fact.canonicalForm) &&
+        !translationFilings.has(filingOf(fact)) &&
         isObservable(fact, analysisAsOf) &&
         [fact.periodStart ?? "", fact.periodEnd, fact.filedAt].every(isCalendarDate) &&
         fact.periodEnd < fact.filedAt &&

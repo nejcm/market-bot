@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.0](https://github.com/nejcm/market-bot/compare/v1.17.0...v1.18.0) (2026-11-12)
+
+### Features
+
+- **statements:** extend revenue across a proven concept switch (#220) ([a15f0c4](https://github.com/nejcm/market-bot/commit/a15f0c45ddc9f4e5c0895a62918639f378dd8ecd))
+
 ## [1.17.0](https://github.com/nejcm/market-bot/compare/v1.16.13...v1.17.0) (2026-11-11)
 
 ### Features

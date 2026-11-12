@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.1](https://github.com/nejcm/market-bot/compare/v1.18.0...v1.18.1) (2026-11-12)
+
+### Bug Fixes
+
+- **metrics:** require one prior period end for the near-zero floor (#221) ([eb1e992](https://github.com/nejcm/market-bot/commit/eb1e99201eaa5e5fb5e5446de9b9471fee0e7eea))
+
 ## [1.18.0](https://github.com/nejcm/market-bot/compare/v1.17.0...v1.18.0) (2026-11-12)
 
 ### Features

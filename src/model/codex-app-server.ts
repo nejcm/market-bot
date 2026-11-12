@@ -120,7 +120,7 @@ function errorDetail(value: unknown): string {
   return readString(value, "message") ?? JSON.stringify(value);
 }
 
-function appServerArgs(webSearch: boolean): readonly string[] {
+export function codexToolOverrides(webSearch: boolean): readonly string[] {
   const disabledFeatures = [
     "apps",
     "browser_use",
@@ -140,12 +140,10 @@ function appServerArgs(webSearch: boolean): readonly string[] {
     "skill_mcp_dependency_install",
     "tool_suggest",
     "unified_exec",
+    "view_image",
     "workspace_dependencies",
   ];
   return [
-    "codex",
-    "app-server",
-    "--stdio",
     ...disabledFeatures.flatMap((feature) => ["-c", `features.${feature}=false`]),
     "-c",
     "mcp_servers={}",
@@ -154,6 +152,10 @@ function appServerArgs(webSearch: boolean): readonly string[] {
     "-c",
     `web_search=${webSearch ? "live" : "disabled"}`,
   ];
+}
+
+function appServerArgs(webSearch: boolean): readonly string[] {
+  return ["codex", "app-server", "--stdio", ...codexToolOverrides(webSearch)];
 }
 
 function abortError(): Error {

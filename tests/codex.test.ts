@@ -557,7 +557,7 @@ describe("createCodexProvider — generate", () => {
       messages: [{ role: "user", content: "hi" }],
     });
 
-    expect(capturedArgs[0]).not.toContain("-c");
+    expect(capturedArgs[0]?.some((arg) => arg.startsWith("model_reasoning_effort="))).toBe(false);
   });
 
   test("passes web search config args when webSearch is true", async () => {
@@ -588,9 +588,10 @@ describe("createCodexProvider — generate", () => {
     const liveModeIdx = args.indexOf("web_search=live");
     expect(liveModeIdx).toBeGreaterThan(-1);
     expect(args[liveModeIdx - 1]).toBe("-c");
+    expect(args).toContain("features.shell_tool=false");
   });
 
-  test("omits web search args when webSearch is false or unset", async () => {
+  test("disables built-in tools and web search when webSearch is false or unset", async () => {
     const capturedArgs: string[][] = [];
     const spawn: SpawnImpl = async (args) => {
       if (args[1] === "--version") {
@@ -615,9 +616,18 @@ describe("createCodexProvider — generate", () => {
       messages: [{ role: "user", content: "hi" }],
     });
 
+    expect(capturedArgs).toHaveLength(2);
     for (const args of capturedArgs) {
       expect(args).not.toContain("tools.web_search=true");
       expect(args).not.toContain("web_search=live");
+      expect(args).toContain("tools.web_search=false");
+      expect(args).toContain("web_search=disabled");
+      expect(args).toContain("features.shell_tool=false");
+      expect(args).toContain("features.unified_exec=false");
+      expect(args).toContain("features.multi_agent=false");
+      expect(args).toContain("features.view_image=false");
+      expect(args).toContain("mcp_servers={}");
+      expect(args.at(-1)).toBe("-");
     }
   });
 
@@ -640,7 +650,7 @@ describe("createCodexProvider — generate", () => {
       params: { temperature: 0.7, top_p: 0.9, seed: 42 },
     });
 
-    expect(capturedArgs[0]).not.toContain("-c");
+    expect(capturedArgs[0]?.some((arg) => arg.startsWith("model_reasoning_effort="))).toBe(false);
     expect(capturedArgs[0]).not.toContain("temperature");
     expect(capturedArgs[0]).not.toContain("0.7");
   });

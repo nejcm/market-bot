@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.9](https://github.com/nejcm/market-bot/compare/v1.19.8...v1.19.9) (2026-11-14)
+
+### Bug Fixes
+
+- **metric-engine:** list each unresolved label once with its periods (#232) ([4b1598e](https://github.com/nejcm/market-bot/commit/4b1598e2b858bc8fd2dc8f5dc02876d9a5aa2cb8))
+
 ## [1.19.8](https://github.com/nejcm/market-bot/compare/v1.19.7...v1.19.8) (2026-11-14)
 
 ### Bug Fixes

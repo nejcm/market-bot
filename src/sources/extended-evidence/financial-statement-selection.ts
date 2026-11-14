@@ -40,8 +40,8 @@ export function financialStatementPeriodMonths(
   return days !== undefined && days > 0 ? Math.round(days / DAYS_PER_MONTH) : undefined;
 }
 
-// Calendar-month spans keep the exact 12/months factor and a fiscal year (52/53-week too) is
-// Not rescaled; 52/53-week interim spans (a 28-week half) annualize by actual days.
+// Calendar quarters, halves and nine months keep 12/months and a 52/53-week fiscal year stays
+// Unscaled; any other span (12/16/17/28/40 weeks) annualizes by actual days.
 export function financialStatementAnnualizationFactor(period: {
   readonly periodStart?: string | undefined;
   readonly periodEnd?: string | undefined;
@@ -61,7 +61,8 @@ export function financialStatementAnnualizationFactor(period: {
   if (months === 0) {
     return undefined;
   }
-  return months === 12 || Math.abs(days - months * DAYS_PER_MONTH) <= MONTH_ALIGNED_TOLERANCE_DAYS
+  return months === 12 ||
+    (months % 3 === 0 && Math.abs(days - months * DAYS_PER_MONTH) <= MONTH_ALIGNED_TOLERANCE_DAYS)
     ? 12 / months
     : DAYS_PER_YEAR / days;
 }

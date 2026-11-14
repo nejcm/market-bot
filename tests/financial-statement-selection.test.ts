@@ -1524,6 +1524,8 @@ describe("financialStatementAnnualizationFactor", () => {
     expect(factor("2026-02-01", "2026-08-15")).toBeCloseTo(365.2416 / 196, 10);
     expect(factor("2026-02-01", "2026-05-23")).toBeCloseTo(365.2416 / 112, 10);
     expect(factor("2026-02-01", "2026-11-07")).toBeCloseTo(365.2416 / 280, 10);
+    // 17 weeks sits within 3 days of 4 months but is no calendar quarter multiple.
+    expect(factor("2026-02-01", "2026-05-30")).toBeCloseTo(365.2416 / 119, 10);
   });
 
   test("keeps the exact 12/months factor for calendar-month and 13-week spans", () => {

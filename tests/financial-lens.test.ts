@@ -2033,6 +2033,38 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(lensByName(result, "Quality")?.posture).not.toBe("insufficient-data");
   });
 
+  // Kroger 28-week YTD to 2026-08-15 (run 2026-11-14T18-11-39-305Z-5488dc9c): 1543M net income, 5840M equity.
+  test("the SEC summary path annualizes a 28-week ROE by its own days", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({
+            netIncome: 1543,
+            netIncomePeriodMonths: 6,
+            netIncomePeriodStart: "2026-02-01",
+            netIncomePeriodEnd: "2026-08-15",
+            stockholdersEquity: 5840,
+            stockholdersEquityPeriodEnd: "2026-08-15",
+            assets: 26_000,
+            assetsPeriodEnd: "2026-08-15",
+          }),
+          valuationEvidence(),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-11-14T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Quality", "roe")?.value).toBeCloseTo(
+      (1543 * (365.2416 / 196)) / 5840,
+      5,
+    );
+  });
+
   test("SEC debt-to-equity is display-only", () => {
     const result = addFinancialLensEvidence(
       command,

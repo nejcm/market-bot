@@ -412,6 +412,48 @@ describe("createCodexProvider — generate", () => {
     expect(result.codexItems).toEqual({ reasoning: 1, agent_message: 2 });
   });
 
+  test("does not count the expected Code Mode unavailable notice", async () => {
+    const notice =
+      "Code Mode is unavailable because code-mode host is disabled; enable `features.code_mode_host` and install `codex-code-mode-host`";
+    const spawn = makeSpawn({
+      exec: {
+        exitCode: 0,
+        stdout: [
+          { type: "item.completed", item: { type: "error", message: notice } },
+          { type: "item.completed", item: { type: "agent_message", text: "final" } },
+        ]
+          .map((event) => JSON.stringify(event))
+          .join("\n"),
+      },
+    });
+    const result = await createCodexProvider(baseConfig, spawn).generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(result.codexItems).toEqual({ agent_message: 1 });
+  });
+
+  test("counts other error items", async () => {
+    const spawn = makeSpawn({
+      exec: {
+        exitCode: 0,
+        stdout: [
+          { type: "item.completed", item: { type: "error", message: "stream disconnected" } },
+          { type: "item.completed", item: { type: "agent_message", text: "final" } },
+        ]
+          .map((event) => JSON.stringify(event))
+          .join("\n"),
+      },
+    });
+    const result = await createCodexProvider(baseConfig, spawn).generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(result.codexItems).toEqual({ error: 1, agent_message: 1 });
+  });
+
   test("does not strip fences when responseFormat is not json", async () => {
     const raw = '```json\n{"summary":"ok"}\n```';
     const spawn = makeSpawn({ exec: { exitCode: 0, stdout: agentMessageStream(raw) } });

@@ -49,6 +49,7 @@ interface CodexEvent {
     readonly type?: string;
     readonly text?: string;
     readonly phase?: string;
+    readonly message?: string;
   };
 }
 
@@ -106,7 +107,17 @@ function parseEventStream(jsonl: string): {
       continue;
     }
 
-    if (event.type === "item.completed" && event.item !== undefined) {
+    // CodexToolOverrides disables code_mode_host on purpose, so exec reports this notice every call.
+    if (
+      event.type === "item.completed" &&
+      event.item !== undefined &&
+      !(
+        event.item.type === "error" &&
+        event.item.message?.startsWith(
+          "Code Mode is unavailable because code-mode host is disabled",
+        ) === true
+      )
+    ) {
       const key = event.item.type ?? "unknown";
       items ??= {};
       items[key] = (items[key] ?? 0) + 1;

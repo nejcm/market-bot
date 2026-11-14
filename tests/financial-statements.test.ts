@@ -7008,3 +7008,303 @@ describe("forward revenue concept splice", () => {
     ).not.toContain("2025-09-30");
   });
 });
+
+function interimAt(series: FinancialStatementSeries, periodStart: string, periodEnd: string) {
+  return series.interim.find(
+    (item) => item.periodStart === periodStart && item.periodEnd === periodEnd,
+  );
+}
+
+describe("unproven restatements", () => {
+  const SHIFTED = "0001193125-26-338382";
+  const FILINGS = {
+    "0000950170-24-132565": ["10-K", "FY", "2024-12-03", "2024-07-01", "2024-09-30"],
+    "0000950170-25-067219": ["10-Q", "Q2", "2025-05-08", "2025-01-01", "2025-03-31"],
+    "0000827876-25-000005": ["10-Q", "Q3", "2025-08-07", "2025-04-01", "2025-06-30"],
+    "0001193125-25-297510": ["10-K", "FY", "2025-11-25", "2025-07-01", "2025-09-30"],
+    "0001193125-26-039538": ["10-Q", "Q1", "2026-02-05", "2025-10-01", "2025-12-31"],
+    "0001193125-26-217036": ["10-Q", "Q2", "2026-05-11", "2026-01-01", "2026-03-31"],
+    [SHIFTED]: ["10-Q", "Q3", "2026-08-06", "2026-04-01", "2026-06-30"],
+  } as const;
+  type Accession = keyof typeof FILINGS;
+  type Row = readonly [start: string, end: string, value: number, accession: Accession];
+
+  function rows(input: readonly Row[]): Record<string, unknown>[] {
+    return input.map(([periodStart, periodEnd, value, accessionNumber]) => {
+      const [form, fiscalPeriod, filedAt] = FILINGS[accessionNumber];
+      return fact({ value, form, fiscalPeriod, filedAt, periodStart, periodEnd, accessionNumber });
+    });
+  }
+
+  // Each filing's own period end: a balance-sheet instant and a quarter duration ending there.
+  function periodEndSupport(accessions: readonly Accession[]) {
+    const support = (isInstant: boolean) =>
+      accessions.map((accessionNumber) => {
+        const [form, fiscalPeriod, filedAt, periodStart, periodEnd] = FILINGS[accessionNumber];
+        return fact({
+          value: 1,
+          form,
+          fiscalPeriod,
+          filedAt,
+          ...(isInstant ? {} : { periodStart }),
+          periodEnd,
+          accessionNumber,
+        });
+      });
+    return {
+      Assets: { USD: support(true) },
+      OtherNonoperatingIncomeExpense: { USD: support(false) },
+    };
+  }
+
+  const EPS: readonly Row[] = [
+    ["2023-10-01", "2024-09-30", -0.69, "0000950170-24-132565"],
+    ["2023-10-01", "2024-09-30", -0.69, "0001193125-25-297510"],
+    ["2024-10-01", "2025-03-31", 0.34, "0000950170-25-067219"],
+    ["2024-10-01", "2025-03-31", 0.34, "0001193125-26-217036"],
+    ["2024-10-01", "2025-03-31", 1.13, SHIFTED],
+    ["2025-01-01", "2025-03-31", -0.49, "0000950170-25-067219"],
+    ["2025-01-01", "2025-03-31", -0.49, "0001193125-26-217036"],
+    ["2025-01-01", "2025-03-31", 0.78, SHIFTED],
+    ["2024-10-01", "2025-06-30", 1.13, "0000827876-25-000005"],
+    ["2025-04-01", "2025-06-30", 0.78, "0000827876-25-000005"],
+    ["2024-10-01", "2025-09-30", 1.12, "0001193125-25-297510"],
+    ["2025-10-01", "2025-12-31", -1.35, "0001193125-26-039538"],
+    ["2025-10-01", "2026-03-31", -2.86, "0001193125-26-217036"],
+    ["2025-10-01", "2026-03-31", -3.77, SHIFTED],
+    ["2026-01-01", "2026-03-31", -1.52, "0001193125-26-217036"],
+    ["2026-01-01", "2026-03-31", -0.89, SHIFTED],
+  ];
+  const SHARES: readonly Row[] = [
+    ["2025-10-01", "2026-03-31", 274_726_414, "0001193125-26-217036"],
+    ["2025-10-01", "2026-03-31", 272_626_480, SHIFTED],
+    ["2026-01-01", "2026-03-31", 267_827_913, "0001193125-26-217036"],
+    ["2026-01-01", "2026-03-31", 268_426_611, SHIFTED],
+  ];
+  const AS_OF = "2026-11-14T00:00:00.000Z";
+  const ALL_FILINGS = Object.keys(FILINGS) as Accession[];
+
+  function companyFacts(supported: readonly Accession[], eps: readonly Row[]) {
+    return payload({
+      "us-gaap": {
+        ...periodEndSupport(supported),
+        IncomeLossFromContinuingOperationsPerDilutedShare: { "USD/shares": rows(eps) },
+        WeightedAverageNumberOfDilutedSharesOutstanding: { shares: rows(SHARES) },
+      },
+    });
+  }
+
+  function clsk(supported: readonly Accession[] = ALL_FILINGS, eps: readonly Row[] = EPS) {
+    return derive(companyFacts(supported, eps), { generatedAt: AS_OF, analysisAsOf: AS_OF });
+  }
+
+  function sixMonthEps(supported: readonly Accession[], eps: readonly Row[]) {
+    return interimAt(
+      clsk(supported, eps).statements.perShare.continuingDilutedEps,
+      "2025-10-01",
+      "2026-03-31",
+    );
+  }
+
+  test("CLSK 10-Q 0001193125-26-338382 tags its EPS table a quarter early: earlier values stand", () => {
+    const artifact = clsk();
+    const { continuingDilutedEps: dilutedEps, dilutedShares } = artifact.statements.perShare;
+
+    const sixMonths = interimAt(dilutedEps, "2025-10-01", "2026-03-31");
+    expect(sixMonths).toMatchObject({
+      value: -2.86,
+      accessionNumber: "0001193125-26-217036",
+      firstPublicAt: "2026-05-11",
+    });
+    expect(sixMonths?.restatedFrom).toBeUndefined();
+    expect(interimAt(dilutedEps, "2024-10-01", "2025-03-31")?.value).toBe(0.34);
+    expect(dilutedEps.ttm?.periodEnd).toBe("2026-03-31");
+    expect(dilutedEps.ttm?.value).toBeCloseTo(-2.08);
+    expect(interimAt(dilutedShares, "2025-10-01", "2026-03-31")?.value).toBe(274_726_414);
+    expect(artifact.omissionNotes.filter((note) => note.code === "unproven-restatement")).toEqual([
+      expect.objectContaining({
+        seriesKey: "continuingDilutedEps",
+        message: expect.stringContaining("period ending 2026-06-30"),
+      }),
+      expect.objectContaining({ seriesKey: "dilutedShares" }),
+    ]);
+    expect(historyGapMessages(artifact)).toContainEqual(
+      expect.stringContaining(
+        `SEC IncomeLossFromContinuingOperationsPerDilutedShare in 10-Q accession ${SHIFTED}`,
+      ),
+    );
+  });
+
+  test("the legacy SEC metrics reader drops the same rows", () => {
+    expect(summarizeSecFundamentals(companyFacts(ALL_FILINGS, EPS), AS_OF)?.metrics).toMatchObject({
+      continuingDilutedEps: -2.86,
+      dilutedShares: 274_726_414,
+    });
+  });
+
+  test("without a derivable period end the latest filing still wins", () => {
+    const supported = ALL_FILINGS.filter((accession) => accession !== SHIFTED);
+
+    expect(sixMonthEps(supported, EPS)).toMatchObject({
+      value: -3.77,
+      restatedFrom: { value: -2.86 },
+    });
+  });
+
+  test("a filing that also tags its own period end still restates", () => {
+    const eps: readonly Row[] = [...EPS, ["2025-10-01", "2026-06-30", -4.5, SHIFTED]];
+
+    expect(sixMonthEps(ALL_FILINGS, eps)).toMatchObject({
+      value: -3.77,
+      restatedFrom: { value: -2.86 },
+    });
+  });
+
+  test("a restated prior-year comparative is aligned with the filing's period end", () => {
+    const eps: readonly Row[] = [...EPS, ["2024-10-01", "2025-06-30", 1.2, SHIFTED]];
+
+    expect(
+      interimAt(
+        clsk(ALL_FILINGS, eps).statements.perShare.continuingDilutedEps,
+        "2024-10-01",
+        "2025-06-30",
+      ),
+    ).toMatchObject({ value: 1.2, restatedFrom: { value: 1.13 } });
+  });
+
+  test("a 52/53-week comparative a few days off the period end is aligned", () => {
+    const eps: readonly Row[] = [...EPS, ["2024-09-29", "2025-06-28", 1.2, SHIFTED]];
+
+    expect(sixMonthEps(ALL_FILINGS, eps)).toMatchObject({
+      value: -3.77,
+      restatedFrom: { value: -2.86 },
+    });
+  });
+
+  test("an off-period value with no earlier filing is kept", () => {
+    const eps: readonly Row[] = [...EPS, ["2023-10-01", "2024-03-31", 0.1, SHIFTED]];
+    const { continuingDilutedEps: dilutedEps } = clsk(ALL_FILINGS, eps).statements.perShare;
+
+    expect(interimAt(dilutedEps, "2023-10-01", "2024-03-31")?.value).toBe(0.1);
+    expect(interimAt(dilutedEps, "2025-10-01", "2026-03-31")?.value).toBe(-2.86);
+  });
+
+  test("CCI 10-Q 0001051470-22-000115 tags its Q1 2022 dividend paid on the Q3 2021 span", () => {
+    const filings = {
+      "0001051470-21-000191": ["10-Q", "Q3", "2021-11-05", "2021-07-01", "2021-09-30"],
+      "0001051470-22-000115": ["10-Q", "Q1", "2022-04-29", "2022-01-01", "2022-03-31"],
+    } as const;
+    const row = (accessionNumber: keyof typeof filings, value: number, isInstant = false) => {
+      const [form, fiscalPeriod, filedAt, periodStart, periodEnd] = filings[accessionNumber];
+      return fact({
+        value,
+        form,
+        fiscalPeriod,
+        filedAt,
+        ...(isInstant ? {} : { periodStart }),
+        periodEnd,
+        accessionNumber,
+      });
+    };
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Assets: {
+            USD: [row("0001051470-21-000191", 1, true), row("0001051470-22-000115", 1, true)],
+          },
+          OtherNonoperatingIncomeExpense: {
+            USD: [row("0001051470-21-000191", 1), row("0001051470-22-000115", 1)],
+          },
+          CommonStockDividendsPerShareCashPaid: {
+            "USD/shares": [
+              fact({
+                value: 1.33,
+                form: "10-Q",
+                fiscalPeriod: "Q3",
+                filedAt: "2021-11-05",
+                periodStart: "2021-07-01",
+                periodEnd: "2021-09-30",
+                accessionNumber: "0001051470-21-000191",
+              }),
+              fact({
+                value: 1.47,
+                form: "10-Q",
+                fiscalPeriod: "Q1",
+                filedAt: "2022-04-29",
+                periodStart: "2021-07-01",
+                periodEnd: "2021-09-30",
+                accessionNumber: "0001051470-22-000115",
+              }),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2022-06-30T00:00:00.000Z" },
+    );
+
+    const quarter = artifact.statements.perShare.dividendsPerShare.interim.find(
+      (item) => item.periodEnd === "2021-09-30",
+    );
+    expect(quarter).toMatchObject({ value: 1.33, accessionNumber: "0001051470-21-000191" });
+    expect(quarter?.restatedFrom).toBeUndefined();
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "unproven-restatement",
+        seriesKey: "dividendsPerShare",
+        message: expect.stringContaining("0001051470-22-000115"),
+      }),
+    );
+  });
+
+  test("an off-period value a later filing supersedes needs no gap (COST FY2021 10-K special dividend)", () => {
+    const tenK = "0000909832-21-000014";
+    const quarter = (value: number, filedAt: string, accessionNumber: string, form = "10-Q") =>
+      fact({
+        value,
+        form,
+        fiscalPeriod: form === "10-K" ? "FY" : "Q1",
+        filedAt,
+        periodStart: "2020-08-31",
+        periodEnd: "2020-11-22",
+        accessionNumber,
+      });
+    const tenKPeriod = { form: "10-K", fiscalPeriod: "FY", filedAt: "2021-10-06" };
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Assets: {
+            USD: [
+              fact({ ...tenKPeriod, value: 1, periodEnd: "2021-08-29", accessionNumber: tenK }),
+            ],
+          },
+          OtherNonoperatingIncomeExpense: {
+            USD: [
+              fact({
+                ...tenKPeriod,
+                value: 1,
+                periodStart: "2020-08-31",
+                periodEnd: "2021-08-29",
+                accessionNumber: tenK,
+              }),
+            ],
+          },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              quarter(0.7, "2020-12-16", "0000909832-20-000026"),
+              quarter(10, "2021-10-06", tenK, "10-K"),
+              quarter(0.7, "2021-12-22", "0000909832-21-000021"),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2022-01-31T00:00:00.000Z" },
+    );
+
+    expect(
+      artifact.statements.perShare.dividendsPerShare.interim.find(
+        (item) => item.periodEnd === "2020-11-22",
+      )?.value,
+    ).toBe(0.7);
+    expect(artifact.omissionNotes.map((note) => note.code)).not.toContain("unproven-restatement");
+  });
+});

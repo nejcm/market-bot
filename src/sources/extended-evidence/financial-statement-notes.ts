@@ -1,4 +1,5 @@
 import { DAY_MS } from "../../config/shared";
+import { isRecord } from "../../guards";
 import {
   DISCONTINUED_OPERATIONS_CONCEPTS,
   NONCONTROLLING_INCOME_CONCEPTS,
@@ -8,6 +9,7 @@ import {
   financialStatementFacts,
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
+import { unprovenRestatements } from "./financial-statement-period-identity";
 import { debtAliasesTagged } from "./sec-debt";
 import {
   type FinancialStatementFact,
@@ -357,4 +359,40 @@ export function instantSeriesOmissionNotes(
     });
   }
   return notes;
+}
+
+export function unprovenRestatementNotes(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  definition: FinancialStatementSeriesDefinition,
+  selected: readonly ParsedFact[],
+  analysisAsOf: string,
+): readonly FinancialStatementNote[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  if (root === undefined) {
+    return [];
+  }
+  const cutoff = analysisAsOf.slice(0, 10);
+  return [...new Set(selected.map((fact) => fact.concept))].flatMap((concept) => {
+    const units = isRecord(root[concept]) ? root[concept].units : undefined;
+    const byAccession = new Map(
+      (isRecord(units) ? Object.values(units) : [])
+        .flatMap((values) => [
+          ...unprovenRestatements(root, Array.isArray(values) ? values : []).values(),
+        ])
+        // A later filing that supersedes the shifted value anyway leaves nothing to declare.
+        .filter(
+          ({ filedAt, supersededAt }) =>
+            filedAt <= cutoff && (supersededAt === undefined || supersededAt > cutoff),
+        )
+        .map((restatement) => [restatement.accessionNumber, restatement]),
+    );
+    return [...byAccession.values()].map(
+      (restatement): FinancialStatementNote => ({
+        code: "unproven-restatement",
+        seriesKey: definition.key,
+        message: `SEC ${concept} in ${restatement.form} accession ${restatement.accessionNumber} (filed ${restatement.filedAt}, period ending ${restatement.periodEnd}) tags only ${restatement.spans.join(", ")}, none at its own period end; its values are not used as restatements and the earlier filed values stand. ${concept} for the period ending ${restatement.periodEnd} is not tagged.`,
+      }),
+    );
+  });
 }

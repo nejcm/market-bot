@@ -71,6 +71,7 @@ import {
   untaggedConsolidatedIncomeNotes,
   declarationSpanNotes,
   staleConceptHistoryNotes,
+  unprovenRestatementNotes,
   instantSeriesOmissionNotes,
 } from "./financial-statement-notes";
 import { factsForDepreciationAndAmortization } from "./financial-statement-depreciation";
@@ -305,6 +306,7 @@ function selectSeries(
         ...(depreciationAndAmortization?.notes ?? []),
         ...(derived?.notes ?? []),
         ...revenueConceptSwitchNotes(payload, taxonomy, definition, eligible),
+        ...unprovenRestatementNotes(payload, taxonomy, definition, facts, input.analysisAsOf),
         ...(operatingCashFlow === undefined
           ? staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible)
           : []),
@@ -852,6 +854,7 @@ export function financialStatementsHistoryGaps(
         note.code === "declaration-span" ||
         note.code === "translation-filing" ||
         note.code === "dps-unreconciled" ||
+        note.code === "unproven-restatement" ||
         (note.code === "incomplete-composite-series" &&
           (note.seriesKey === "depreciationAndAmortization" ||
             note.seriesKey === "capitalExpenditure")),

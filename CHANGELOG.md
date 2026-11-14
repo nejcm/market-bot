@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.13](https://github.com/nejcm/market-bot/compare/v1.19.12...v1.19.13) (2026-11-14)
+
+### Bug Fixes
+
+- **dividends:** interim rows follow the concept of the newest year (#236) ([ac63980](https://github.com/nejcm/market-bot/commit/ac6398077458e9722535152b695338b6bffcdac5))
+
 ## [1.19.12](https://github.com/nejcm/market-bot/compare/v1.19.11...v1.19.12) (2026-11-14)
 
 ### Bug Fixes

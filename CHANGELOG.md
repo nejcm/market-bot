@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.16](https://github.com/nejcm/market-bot/compare/v1.19.15...v1.19.16) (2026-11-14)
+
+### Bug Fixes
+
+- **statements:** reject restatements a filing cannot prove (#239) ([f87b3fc](https://github.com/nejcm/market-bot/commit/f87b3fc7cebbb45b5fdcdffc344fcebd3bd4af18))
+
 ## [1.19.15](https://github.com/nejcm/market-bot/compare/v1.19.14...v1.19.15) (2026-11-14)
 
 ### Bug Fixes

@@ -1461,7 +1461,7 @@ describe("canonical financial statements", () => {
     );
     expect(historyGapMessages(spansOnly)).toEqual([
       expect.stringContaining(
-        "dividends per share has 1 non-zero facts (latest duration:1|2025-12-31) omitted because their spans are shorter than a fiscal quarter",
+        "dividends per share has 1 non-zero facts (latest duration:1|2025-12-31) omitted because they are declaration dates or spans shorter than a fiscal quarter",
       ),
     ]);
   });

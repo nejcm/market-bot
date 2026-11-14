@@ -224,7 +224,7 @@ export function declarationSpanNotes(
           periodKey: periodKey(latest),
           message:
             definition.key === "dividendsPerShare"
-              ? `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero facts (latest ${periodKey(latest)}) omitted because their spans are shorter than a fiscal quarter`
+              ? `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero facts (latest ${periodKey(latest)}) omitted because they are declaration dates or spans shorter than a fiscal quarter`
               : `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero off-period facts (latest ${periodKey(latest)}) omitted because their spans fall outside supported statement-period lengths`,
         },
       ];

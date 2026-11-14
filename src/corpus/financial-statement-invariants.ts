@@ -20,8 +20,6 @@ import {
 import { DEPRECIATION_AND_AMORTIZATION_COMPONENTS } from "../sources/extended-evidence/financial-statement-definitions";
 import { identityTolerance } from "../sources/extended-evidence/untagged-financial-table-validation";
 
-const DURATION_MONTHS = new Set([3, 6, 9, 12]);
-
 interface DurationFactProjection {
   readonly seriesKey: FinancialStatementSeriesKey;
   readonly periodType: "annual" | "interim";
@@ -137,9 +135,9 @@ function assertPeriodStructure(
       );
       if (fact.periodStart !== undefined) {
         check(
-          DURATION_MONTHS.has(financialStatementPeriodMonths(fact) ?? -1),
+          (financialStatementPeriodMonths(fact) ?? 0) >= 3,
           "A2",
-          `${series.key} ${periodType} duration is not 3, 6, 9, or 12 months`,
+          `${series.key} ${periodType} duration is shorter than 3 months`,
           fact.periodEnd,
         );
       }

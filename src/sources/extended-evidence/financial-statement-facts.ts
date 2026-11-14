@@ -16,7 +16,10 @@ import {
   isYearAligned,
   MAX_ANNUAL_PERIODS_PER_SHAPE,
 } from "./financial-statement-selection";
-import { calendarYearFromPeriodEnd } from "./financial-statement-period-identity";
+import {
+  calendarYearFromPeriodEnd,
+  unprovenRestatements,
+} from "./financial-statement-period-identity";
 import {
   COMPOSITE_STATEMENT_FACT_FORMULA,
   SEC_COMPANYFACTS_UNIT_SCALE,
@@ -151,12 +154,14 @@ export function unitFacts(
   if (units === undefined) {
     return [];
   }
-  return Object.entries(units).flatMap(([unit, values]) =>
-    (Array.isArray(values) ? values : []).flatMap((value) => {
-      const parsed = parseFact(value, taxonomy, concept, unit);
+  return Object.entries(units).flatMap(([unit, values]) => {
+    const rows: readonly unknown[] = Array.isArray(values) ? values : [];
+    const unproven = unprovenRestatements(root, rows);
+    return rows.flatMap((value) => {
+      const parsed = unproven.has(value) ? undefined : parseFact(value, taxonomy, concept, unit);
       return parsed === undefined ? [] : [parsed];
-    }),
-  );
+    });
+  });
 }
 
 export function factsForLatestPeriodConcept(

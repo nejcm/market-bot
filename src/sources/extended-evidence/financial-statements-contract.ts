@@ -315,7 +315,8 @@ export interface FinancialStatementNote {
     | "debt-scope-unproven"
     | "tagged-zero-debt"
     | "translation-filing"
-    | "dps-unreconciled";
+    | "dps-unreconciled"
+    | "unproven-restatement";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;

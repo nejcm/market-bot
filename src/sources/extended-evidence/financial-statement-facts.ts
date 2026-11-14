@@ -90,7 +90,6 @@ export interface FinancialStatementsDeriveInput {
 }
 
 export const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
-const STATEMENT_DURATION_MONTHS = new Set([3, 6, 9, 12]);
 
 export function parseFact(
   value: unknown,
@@ -628,7 +627,8 @@ export function isStatementPeriod(
 ): boolean {
   return (
     periodType(fact, definition) === "annual" ||
-    STATEMENT_DURATION_MONTHS.has(financialStatementPeriodMonths(fact) ?? -1)
+    // 52/53-week calendars file 16-week quarters (4 months) and 24/36-week YTDs (5, 8 months).
+    (financialStatementPeriodMonths(fact) ?? 0) >= 3
   );
 }
 

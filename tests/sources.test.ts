@@ -2267,6 +2267,7 @@ describe("SEC fundamental evidence", () => {
     expect(result?.metrics.netIncomePeriodMonths).toBe(3);
     expect(result?.metrics.operatingCashFlowPeriodMonths).toBe(3);
     expect(result?.metrics.netIncomePeriodMonths).toBe(result?.metrics.revenuePeriodMonths);
+    expect(result?.metrics.netIncomePeriodStart).toBe("2026-04-01");
   });
 
   test("emits optional stockholdersEquity, assets, and dividendsPaid when present", () => {

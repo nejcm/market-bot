@@ -903,6 +903,18 @@ function canonicalInstantFact(
   return { val: value, form, fp, fy: Number(end.slice(0, 4)), filed, end };
 }
 
+function krogerYtdFact(val: number) {
+  return {
+    val,
+    form: "10-Q",
+    fp: "Q2",
+    fy: 2026,
+    filed: "2026-09-12",
+    start: "2026-02-01",
+    end: "2026-08-15",
+  };
+}
+
 describe("financial lens artifact compatibility", () => {
   test("preserves populated lens values at the canonical input seam", () => {
     const facts = {
@@ -1863,6 +1875,42 @@ describe("financial lens artifact compatibility", () => {
     });
   });
 
+  test("annualizes a 52/53-week 28-week YTD by its days, not rounded months", () => {
+    // Kroger 10-Q for the 28 weeks ended 2026-08-15 ($M); 196 days, not 6 months.
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetIncomeLoss: { units: { USD: [krogerYtdFact(1543)] } },
+            NetCashProvidedByUsedInOperatingActivities: { units: { USD: [krogerYtdFact(3085)] } },
+            StockholdersEquity: { units: { USD: [{ ...krogerYtdFact(5840), start: undefined }] } },
+            Assets: { units: { USD: [{ ...krogerYtdFact(49_491), start: undefined }] } },
+          },
+        },
+      },
+      {
+        symbol: "KR",
+        generatedAt: "2026-11-14T00:00:00.000Z",
+        analysisAsOf: "2026-11-14T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-kr-fundamentals",
+      },
+    );
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 41_813.680_128 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-11-14T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    );
+    // Rounded-month annualization (×2) published 52.8% / 6.2% / 6.78x.
+    expect(metricByKey(result, "Quality", "roe")?.value).toBeCloseTo(0.492, 3);
+    expect(metricByKey(result, "Quality", "roa")?.value).toBeCloseTo(0.0581, 4);
+    expect(metricByKey(result, "Value", "pcfRatio")?.value).toBeCloseTo(7.27, 2);
+  });
+
   test("drops unavailable canonical ratios after serialization instead of mixing periods", () => {
     const canonicalEvidence = jsonRoundTrip<ExtendedEvidence>({
       instrument: { symbol: "AAPL", assetClass: "equity" },
@@ -1983,6 +2031,38 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(roa?.value).toBeCloseTo((71.7 * (12 / 9)) / 120, 5);
     // Display-only: Quality posture is unaffected by ROE/ROA (no threshold).
     expect(lensByName(result, "Quality")?.posture).not.toBe("insufficient-data");
+  });
+
+  // Kroger 28-week YTD to 2026-08-15 (run 2026-11-14T18-11-39-305Z-5488dc9c): 1543M net income, 5840M equity.
+  test("the SEC summary path annualizes a 28-week ROE by its own days", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({
+            netIncome: 1543,
+            netIncomePeriodMonths: 6,
+            netIncomePeriodStart: "2026-02-01",
+            netIncomePeriodEnd: "2026-08-15",
+            stockholdersEquity: 5840,
+            stockholdersEquityPeriodEnd: "2026-08-15",
+            assets: 26_000,
+            assetsPeriodEnd: "2026-08-15",
+          }),
+          valuationEvidence(),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-11-14T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Quality", "roe")?.value).toBeCloseTo(
+      (1543 * (365.2416 / 196)) / 5840,
+      5,
+    );
   });
 
   test("SEC debt-to-equity is display-only", () => {

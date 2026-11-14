@@ -9,7 +9,6 @@ import {
 } from "./financial-statement-definitions";
 import {
   financialStatementFactsAreCompatible,
-  financialStatementPeriodMonths,
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
 import type { FinancialStatementFact } from "./financial-statements-contract";
@@ -31,6 +30,7 @@ import {
   noFact,
   missingPartner,
   annualize,
+  annualizeSummary,
   secItem,
   evidenceOutcome,
   summaryPeriod,
@@ -439,13 +439,12 @@ export function returnOnDefinition(
       if (ctx.statements === undefined) {
         const netIncome = readNumberMetric(secItem(ctx)?.metrics, "netIncome");
         const base = readNumberMetric(secItem(ctx)?.metrics, evidenceSeriesKey(id, denominator));
-        const months = readNumberMetric(secItem(ctx)?.metrics, "netIncomePeriodMonths");
         return summaryValue(
           ctx,
           id,
           netIncome === undefined || base === undefined || base === 0
             ? undefined
-            : annualize(netIncome, months) / base,
+            : annualizeSummary(ctx, "netIncome", netIncome) / base,
           id.toUpperCase(),
           "ratio-percent",
           "netIncome",
@@ -473,7 +472,7 @@ export function returnOnDefinition(
           }
         : {
             status: "value",
-            value: annualize(anchor.value, financialStatementPeriodMonths(anchor)) / instant.value,
+            value: annualize(anchor.value, anchor) / instant.value,
             ...periodOf(anchor),
             inputs,
           };

@@ -20,6 +20,9 @@ import {
 } from "./financial-statements-contract";
 
 const DAYS_PER_MONTH = 30.4368;
+const DAYS_PER_YEAR = 12 * DAYS_PER_MONTH;
+// Calendar-month spans sit within ~2.5 days of whole months; 52/53-week stubs (12, 16, 28, 40 weeks) sit 6+ away.
+const MONTH_ALIGNED_TOLERANCE_DAYS = 3;
 const FY_BOUNDARY_TOLERANCE_DAYS = 10;
 // Two facts in one duration bucket can differ by at most twice this; 7 covers 52/53-week years.
 const PERIOD_DRIFT_TOLERANCE_DAYS = 7;
@@ -35,6 +38,33 @@ export function financialStatementPeriodMonths(
   }
   const days = daysBetween(fact.periodStart, fact.periodEnd);
   return days !== undefined && days > 0 ? Math.round(days / DAYS_PER_MONTH) : undefined;
+}
+
+// Calendar quarters, halves and nine months keep 12/months and a 52/53-week fiscal year stays
+// Unscaled; any other span (12/16/17/28/40 weeks) annualizes by actual days.
+export function financialStatementAnnualizationFactor(period: {
+  readonly periodStart?: string | undefined;
+  readonly periodEnd?: string | undefined;
+  readonly periodMonths?: number | undefined;
+}): number | undefined {
+  const span =
+    period.periodStart === undefined || period.periodEnd === undefined
+      ? undefined
+      : daysBetween(period.periodStart, period.periodEnd);
+  if (span === undefined || span <= 0) {
+    return period.periodMonths !== undefined && period.periodMonths > 0
+      ? 12 / period.periodMonths
+      : undefined;
+  }
+  const months = Math.round(span / DAYS_PER_MONTH);
+  const days = span + 1;
+  if (months === 0) {
+    return undefined;
+  }
+  return months === 12 ||
+    (months % 3 === 0 && Math.abs(days - months * DAYS_PER_MONTH) <= MONTH_ALIGNED_TOLERANCE_DAYS)
+    ? 12 / months
+    : DAYS_PER_YEAR / days;
 }
 
 // Same-end periods share one identity only when their spans differ by filing drift

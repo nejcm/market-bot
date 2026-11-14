@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.14](https://github.com/nejcm/market-bot/compare/v1.19.13...v1.19.14) (2026-11-14)
+
+### Bug Fixes
+
+- **financial-lens:** annualize interim flows by days, not rounded months (#237) ([273afa5](https://github.com/nejcm/market-bot/commit/273afa58ff494515549858cfa14ca91894311e84))
+
 ## [1.19.13](https://github.com/nejcm/market-bot/compare/v1.19.12...v1.19.13) (2026-11-14)
 
 ### Bug Fixes

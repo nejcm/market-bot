@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.11](https://github.com/nejcm/market-bot/compare/v1.19.10...v1.19.11) (2026-11-14)
+
+### Bug Fixes
+
+- **statements:** drop sub-quarter spans from every duration series (#234) ([f372660](https://github.com/nejcm/market-bot/commit/f372660936b0950733794c9b2ee8b5522ee31542))
+
 ## [1.19.10](https://github.com/nejcm/market-bot/compare/v1.19.9...v1.19.10) (2026-11-14)
 
 ### Bug Fixes

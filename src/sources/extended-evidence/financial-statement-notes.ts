@@ -208,7 +208,7 @@ export function untaggedConsolidatedIncomeNotes(
   });
 }
 
-// Dropped declaration-date spans stay visible so a non-zero one still counts as dividend history.
+// Dropped spans stay visible as a declared gap; for dividends a non-zero one still counts as history.
 export function declarationSpanNotes(
   spans: readonly ParsedFact[],
   definition: FinancialStatementSeriesDefinition,
@@ -222,7 +222,10 @@ export function declarationSpanNotes(
           code: "declaration-span",
           seriesKey: definition.key,
           periodKey: periodKey(latest),
-          message: `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero declaration-date facts (latest ${periodKey(latest)}) omitted because their spans are not statement periods`,
+          message:
+            definition.key === "dividendsPerShare"
+              ? `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero declaration-date facts (latest ${periodKey(latest)}) omitted because their spans are not statement periods`
+              : `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero off-period facts (latest ${periodKey(latest)}) omitted because their spans fall outside supported statement-period lengths`,
         },
       ];
 }

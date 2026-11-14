@@ -1,0 +1,1338 @@
+{
+  "values": {
+    "cache:819a77d19200909b72f349c5f8b386a7a94e77c3bb8b6147a90accdac7a90ee6:2026-11-12": [{}],
+    "host-circuit:query1.finance.yahoo.com": [
+      {
+        "value": false,
+        "count": 7
+      }
+    ],
+    "cache:b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "b95959958cc114643c9188311fc081cfd850b9ac10b2a82aa101fefbe65bc6ce",
+          "adapter": "yahoo-regime",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "quoteResponse": {
+              "result": [
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "twoHundredDayAverageChange": 28.824219,
+                  "twoHundredDayAverageChangePercent": 0.03943198,
+                  "netExpenseRatio": 0.0945,
+                  "priceToBook": 1.7702111,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "corporateActions": [],
+                  "postMarketTime": 1794445197,
+                  "regularMarketTime": 1794430801,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_6160262",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "marketState": "POSTPOST",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 756.8,
+                  "averageDailyVolume3Month": 42868453,
+                  "averageDailyVolume10Day": 56980360,
+                  "fiftyTwoWeekLowChange": 130.52997,
+                  "fiftyTwoWeekLowChangePercent": 0.20742747,
+                  "fiftyTwoWeekRange": "629.28 - 781.62",
+                  "fiftyTwoWeekHighChange": -21.809998,
+                  "fiftyTwoWeekHighChangePercent": -0.027903581,
+                  "fiftyTwoWeekLow": 629.28,
+                  "fiftyTwoWeekHigh": 781.62,
+                  "fiftyTwoWeekChangePercent": 9.736896,
+                  "trailingAnnualDividendRate": 5.662,
+                  "trailingPE": 24.172848,
+                  "trailingAnnualDividendYield": 0.007550139,
+                  "dividendYield": 1,
+                  "ytdReturn": 11.68683,
+                  "trailingThreeMonthReturns": 1.45386,
+                  "trailingThreeMonthNavReturns": 1.45386,
+                  "netAssets": 796865200000,
+                  "epsTrailingTwelveMonths": 31.432375,
+                  "sharesOutstanding": 917782016,
+                  "bookValue": 429.22,
+                  "fiftyDayAverage": 765.004,
+                  "fiftyDayAverageChange": -5.194031,
+                  "fiftyDayAverageChangePercent": -0.006789547,
+                  "twoHundredDayAverage": 730.9858,
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 728317800000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": -0.48828286,
+                  "postMarketPrice": 756.1,
+                  "postMarketChange": -3.710022,
+                  "regularMarketChange": 9.89001,
+                  "regularMarketChangePercent": 1.31881,
+                  "fulldayChange": 7.25,
+                  "fulldayChangePercent": 0.9667698,
+                  "fulldayPrice": 759.81,
+                  "regularMarketPrice": 759.81,
+                  "regularMarketDayHigh": 762.51,
+                  "regularMarketDayRange": "754.91 - 762.51",
+                  "regularMarketDayLow": 754.91,
+                  "regularMarketVolume": 37707134,
+                  "regularMarketPreviousClose": 749.92,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 1720,
+                  "askSize": 280,
+                  "fullExchangeName": "NYSEArca",
+                  "shortName": "State Street SPDR S&P 500 ETF T",
+                  "longName": "State Street SPDR S&P 500 ETF Trust",
+                  "displayName": "S&P 500 ETF Trust",
+                  "symbol": "SPY"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "twoHundredDayAverageChange": 8.9644165,
+                  "twoHundredDayAverageChangePercent": 0.013155579,
+                  "netExpenseRatio": 0.18,
+                  "priceToBook": 1.929654,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "corporateActions": [],
+                  "postMarketTime": 1794445182,
+                  "regularMarketTime": 1794430800,
+                  "exchange": "NGM",
+                  "messageBoardId": "finmb_8108558",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "marketState": "POSTPOST",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 687.275,
+                  "averageDailyVolume3Month": 38112812,
+                  "averageDailyVolume10Day": 60375470,
+                  "fiftyTwoWeekLowChange": 134.78003,
+                  "fiftyTwoWeekLowChangePercent": 0.24258466,
+                  "fiftyTwoWeekRange": "555.6 - 762.86",
+                  "fiftyTwoWeekHighChange": -72.47998,
+                  "fiftyTwoWeekHighChangePercent": -0.095010854,
+                  "fiftyTwoWeekLow": 555.6,
+                  "fiftyTwoWeekHigh": 762.86,
+                  "fiftyTwoWeekChangePercent": 8.643007,
+                  "trailingAnnualDividendRate": 1.77,
+                  "trailingPE": 28.436878,
+                  "trailingAnnualDividendYield": 0.0026231548,
+                  "dividendYield": 0.45,
+                  "ytdReturn": 12.803,
+                  "trailingThreeMonthReturns": 0.48847,
+                  "trailingThreeMonthNavReturns": 0.48847,
+                  "netAssets": 463833596000,
+                  "epsTrailingTwelveMonths": 24.27763,
+                  "sharesOutstanding": 393100000,
+                  "bookValue": 357.774,
+                  "fiftyDayAverage": 719.3894,
+                  "fiftyDayAverageChange": -29.0094,
+                  "fiftyDayAverageChangePercent": -0.04032503,
+                  "twoHundredDayAverage": 681.4156,
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 921076200000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": -0.92122966,
+                  "postMarketPrice": 684.02,
+                  "postMarketChange": -6.3599854,
+                  "regularMarketChange": 15.62,
+                  "regularMarketChangePercent": 2.3149,
+                  "fulldayChange": 10.159973,
+                  "fulldayChangePercent": 1.5057166,
+                  "fulldayPrice": 690.38,
+                  "regularMarketPrice": 690.38,
+                  "regularMarketDayHigh": 695.57,
+                  "regularMarketDayRange": "683.6 - 695.57",
+                  "regularMarketDayLow": 683.6,
+                  "regularMarketVolume": 42821615,
+                  "regularMarketPreviousClose": 674.76,
+                  "bid": 717.24,
+                  "ask": 717.49,
+                  "bidSize": 1,
+                  "askSize": 1,
+                  "fullExchangeName": "NasdaqGM",
+                  "shortName": "Invesco QQQ Trust, Series 1",
+                  "longName": "Invesco QQQ Trust",
+                  "symbol": "QQQ"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "twoHundredDayAverageChange": 3.9172974,
+                  "twoHundredDayAverageChangePercent": 0.014031807,
+                  "netExpenseRatio": 0.19,
+                  "priceToBook": 1.2944571,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "corporateActions": [],
+                  "postMarketTime": 1794445188,
+                  "regularMarketTime": 1794430800,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_8797658",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "marketState": "POSTPOST",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 282.99,
+                  "averageDailyVolume3Month": 22782670,
+                  "averageDailyVolume10Day": 26708400,
+                  "fiftyTwoWeekLowChange": 54.190002,
+                  "fiftyTwoWeekLowChangePercent": 0.23674095,
+                  "fiftyTwoWeekRange": "228.9 - 305.18",
+                  "fiftyTwoWeekHighChange": -22.089996,
+                  "fiftyTwoWeekHighChangePercent": -0.0723835,
+                  "fiftyTwoWeekLow": 228.9,
+                  "fiftyTwoWeekHigh": 305.18,
+                  "fiftyTwoWeekChangePercent": 15.161716,
+                  "trailingAnnualDividendRate": 2.017,
+                  "trailingPE": 16.496431,
+                  "trailingAnnualDividendYield": 0.0071886806,
+                  "dividendYield": 0.98,
+                  "ytdReturn": 14.26069,
+                  "trailingThreeMonthReturns": -3.79727,
+                  "trailingThreeMonthNavReturns": -3.79727,
+                  "netAssets": 75491910000,
+                  "epsTrailingTwelveMonths": 17.16068,
+                  "sharesOutstanding": 281049984,
+                  "bookValue": 218.694,
+                  "fiftyDayAverage": 281.577,
+                  "fiftyDayAverageChange": 1.5130005,
+                  "fiftyDayAverageChangePercent": 0.00537331,
+                  "twoHundredDayAverage": 279.1727,
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 959347800000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": -0.2331427,
+                  "postMarketPrice": 282.43,
+                  "postMarketChange": -0.66000366,
+                  "regularMarketChange": 2.51001,
+                  "regularMarketChangePercent": 0.894579,
+                  "fulldayChange": 2.7400208,
+                  "fulldayChangePercent": 0.976556,
+                  "fulldayPrice": 283.09,
+                  "regularMarketPrice": 283.09,
+                  "regularMarketDayHigh": 283.72,
+                  "regularMarketDayRange": "281.485 - 283.72",
+                  "regularMarketDayLow": 281.485,
+                  "regularMarketVolume": 17370168,
+                  "regularMarketPreviousClose": 280.58,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 240,
+                  "askSize": 760,
+                  "fullExchangeName": "NYSEArca",
+                  "shortName": "iShares Russell 2000 Index Fund",
+                  "longName": "iShares Russell 2000 ETF",
+                  "symbol": "IWM"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "ETF",
+                  "typeDisp": "ETF",
+                  "quoteSourceName": "Nasdaq Real Time Price",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "twoHundredDayAverageChange": 17.49405,
+                  "twoHundredDayAverageChangePercent": 0.034508705,
+                  "netExpenseRatio": 0.16,
+                  "priceToBook": 1.4641228,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 0,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "corporateActions": [],
+                  "postMarketTime": 1794445161,
+                  "regularMarketTime": 1794430800,
+                  "exchange": "PCX",
+                  "messageBoardId": "finmb_6184218",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "marketState": "POSTPOST",
+                  "financialCurrency": "USD",
+                  "regularMarketOpen": 522.79,
+                  "averageDailyVolume3Month": 3442864,
+                  "averageDailyVolume10Day": 4614510,
+                  "fiftyTwoWeekLowChange": 74,
+                  "fiftyTwoWeekLowChangePercent": 0.16428381,
+                  "fiftyTwoWeekRange": "450.44 - 546.75",
+                  "fiftyTwoWeekHighChange": -22.309998,
+                  "fiftyTwoWeekHighChangePercent": -0.04080475,
+                  "fiftyTwoWeekLow": 450.44,
+                  "fiftyTwoWeekHigh": 546.75,
+                  "fiftyTwoWeekChangePercent": 8.072329,
+                  "trailingAnnualDividendRate": 5.62,
+                  "trailingPE": 20.771576,
+                  "trailingAnnualDividendYield": 0.010771856,
+                  "dividendYield": 1.39,
+                  "ytdReturn": 8.8145,
+                  "trailingThreeMonthReturns": -1.03008,
+                  "trailingThreeMonthNavReturns": -1.03008,
+                  "netAssets": 45135512000,
+                  "epsTrailingTwelveMonths": 25.247963,
+                  "sharesOutstanding": 81242896,
+                  "bookValue": 358.194,
+                  "fiftyDayAverage": 519.7636,
+                  "fiftyDayAverageChange": 4.6763916,
+                  "fiftyDayAverageChangePercent": 0.008997151,
+                  "twoHundredDayAverage": 506.94595,
+                  "hasPrePostMarketData": true,
+                  "firstTradeDateMilliseconds": 885306600000,
+                  "priceHint": 2,
+                  "postMarketChangePercent": -0.039278783,
+                  "postMarketPrice": 524.234,
+                  "postMarketChange": -0.20599365,
+                  "regularMarketChange": 2.71002,
+                  "regularMarketChangePercent": 0.51943,
+                  "fulldayChange": 3.420044,
+                  "fulldayChangePercent": 0.6555199,
+                  "fulldayPrice": 524.44,
+                  "regularMarketPrice": 524.44,
+                  "regularMarketDayHigh": 524.63,
+                  "regularMarketDayRange": "520.07 - 524.63",
+                  "regularMarketDayLow": 520.07,
+                  "regularMarketVolume": 2632888,
+                  "regularMarketPreviousClose": 521.73,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 40,
+                  "askSize": 80,
+                  "fullExchangeName": "NYSEArca",
+                  "shortName": "State Street SPDR Dow Jones Ind",
+                  "longName": "State Street SPDR Dow Jones Industrial Average ETF Trust",
+                  "displayName": "Dow Jones Indl Average ETF",
+                  "symbol": "DIA"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "triggerable": false,
+                  "customPriceAlertConfidence": "LOW",
+                  "currency": "USD",
+                  "twoHundredDayAverageChange": -0.93930054,
+                  "twoHundredDayAverageChangePercent": -0.05096778,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "corporateActions": [],
+                  "regularMarketTime": 1794431701,
+                  "exchange": "CXI",
+                  "messageBoardId": "finmb_INDEXVIX",
+                  "exchangeTimezoneName": "America/Chicago",
+                  "exchangeTimezoneShortName": "CST",
+                  "gmtOffSetMilliseconds": -21600000,
+                  "market": "cboe_market",
+                  "esgPopulated": false,
+                  "marketState": "POSTPOST",
+                  "regularMarketOpen": 18.81,
+                  "averageDailyVolume3Month": 0,
+                  "averageDailyVolume10Day": 0,
+                  "fiftyTwoWeekLowChange": 4.1099997,
+                  "fiftyTwoWeekLowChangePercent": 0.30717486,
+                  "fiftyTwoWeekRange": "13.38 - 35.3",
+                  "fiftyTwoWeekHighChange": -17.81,
+                  "fiftyTwoWeekHighChangePercent": -0.5045326,
+                  "fiftyTwoWeekLow": 13.38,
+                  "fiftyTwoWeekHigh": 35.3,
+                  "fiftyTwoWeekChangePercent": 11.136496,
+                  "fiftyDayAverage": 17.0844,
+                  "fiftyDayAverageChange": 0.4055996,
+                  "fiftyDayAverageChangePercent": 0.023740932,
+                  "twoHundredDayAverage": 18.4293,
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 631267200000,
+                  "priceHint": 2,
+                  "regularMarketChange": -1.9699993,
+                  "regularMarketChangePercent": -10.123327,
+                  "fulldayChange": -1.9699993,
+                  "fulldayChangePercent": -10.123327,
+                  "fulldayPrice": 17.49,
+                  "regularMarketPrice": 17.49,
+                  "regularMarketDayHigh": 18.96,
+                  "regularMarketDayRange": "17.33 - 18.96",
+                  "regularMarketDayLow": 17.33,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 19.46,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Cboe Indices",
+                  "shortName": "CBOE Volatility Index",
+                  "longName": "CBOE Volatility Index",
+                  "symbol": "^VIX"
+                },
+                {
+                  "language": "en-US",
+                  "region": "US",
+                  "quoteType": "INDEX",
+                  "typeDisp": "Index",
+                  "quoteSourceName": "Delayed Quote",
+                  "triggerable": true,
+                  "customPriceAlertConfidence": "HIGH",
+                  "currency": "USD",
+                  "twoHundredDayAverageChange": -1.3574009,
+                  "twoHundredDayAverageChangePercent": -0.06590156,
+                  "sourceInterval": 15,
+                  "exchangeDataDelayedBy": 15,
+                  "tradeable": false,
+                  "cryptoTradeable": false,
+                  "corporateActions": [],
+                  "regularMarketTime": 1794431701,
+                  "exchange": "WCB",
+                  "messageBoardId": "finmb_INDEXVIX3M",
+                  "exchangeTimezoneName": "America/New_York",
+                  "exchangeTimezoneShortName": "EST",
+                  "gmtOffSetMilliseconds": -18000000,
+                  "market": "us_market",
+                  "esgPopulated": false,
+                  "marketState": "POSTPOST",
+                  "regularMarketOpen": 19.96,
+                  "averageDailyVolume3Month": 0,
+                  "averageDailyVolume10Day": 0,
+                  "fiftyTwoWeekLowChange": 9.179999,
+                  "fiftyTwoWeekLowChangePercent": 0.91252476,
+                  "fiftyTwoWeekRange": "10.06 - 29.46",
+                  "fiftyTwoWeekHighChange": -10.219999,
+                  "fiftyTwoWeekHighChangePercent": -0.34691104,
+                  "fiftyTwoWeekLow": 10.06,
+                  "fiftyTwoWeekHigh": 29.46,
+                  "fiftyTwoWeekChangePercent": 1.4749289,
+                  "fiftyDayAverage": 19.1252,
+                  "fiftyDayAverageChange": 0.1147995,
+                  "fiftyDayAverageChangePercent": 0.0060025253,
+                  "twoHundredDayAverage": 20.5974,
+                  "hasPrePostMarketData": false,
+                  "firstTradeDateMilliseconds": 1153143000000,
+                  "priceHint": 2,
+                  "regularMarketChange": -1.3999996,
+                  "regularMarketChangePercent": -6.7829447,
+                  "fulldayChange": -1.3999996,
+                  "fulldayChangePercent": -6.7829447,
+                  "fulldayPrice": 19.24,
+                  "regularMarketPrice": 19.24,
+                  "regularMarketDayHigh": 20.26,
+                  "regularMarketDayRange": "18.94 - 20.26",
+                  "regularMarketDayLow": 18.94,
+                  "regularMarketVolume": 0,
+                  "regularMarketPreviousClose": 20.64,
+                  "bid": 0,
+                  "ask": 0,
+                  "bidSize": 0,
+                  "askSize": 0,
+                  "fullExchangeName": "Chicago Options",
+                  "shortName": "CBOE S&P 500 3-Month Volatility",
+                  "longName": "CBOE S&P 500 3-Month Volatility",
+                  "symbol": "^VIX3M"
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    ],
+    "cache:809e8e153f408c3e60177bc791e02317a7de9aecc8530b618b7dcb81676a67a3:2026-11-12": [{}],
+    "host-circuit:api.marketaux.com": [
+      {
+        "value": false
+      }
+    ],
+    "cache:f36d077354a1645e4a07b2deb10025710d2be27826395fdc39e363f3baf8cd60:2026-11-12": [{}],
+    "host-circuit:finnhub.io": [
+      {
+        "value": false,
+        "count": 10
+      }
+    ],
+    "cache:56fc32e1ae540acd86bfcba5fac3edb8a30c10f6858724ce246b301fd1dc4d9f:2026-11-12": [{}],
+    "cache:555e5d42ec16dd182214aca48aa6a2a41ad5d9caef4485cc68765d4fc914a1b4:2026-11-12": [{}],
+    "host-circuit:api.massive.com": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:0565adeb3c92510ede007bc4a4f3ac3baefacbf40f1fc06b73786d19c5ca0779:2026-11-12": [{}],
+    "cache:2b72c8e3fa5a68fe7e4fa57561bf21b6e97152698e4e595787d59cdece92a601:2026-11-12": [{}],
+    "cache:04794954256d40ca987b80207381e1ec4ee47f6cbb2f81b01366a4bef1f6d347:2026-11-12": [{}],
+    "cache:007d17cdaff70f2595f4cc427f17e91d255f55f5d6607752d0daaa06028bc0d0:2026-11-12": [{}],
+    "cache:9f03fd08b74c6f4db465fa5ed43e7d11966acfbd3c2b79ca4e6e2a2abdbd75ea:2026-11-12": [{}],
+    "cache:1fec11129cc7362a72e2a1bb2ab1a6f34dfa7cb0d1479ea96d2f662c1e825783:2026-11-12": [{}],
+    "cache:b81278c8c68523857900272182cfadf9a288390146bf8ecad80ef1e0c5f7e295:2026-11-12": [{}],
+    "cache:c237fd5490ed3831c835e2b64d827b669005efb41639e5a8fe5758458c33187f:2026-11-12": [{}],
+    "cache:b6b9208fc1609e7a60055f1de3a8cbc6012879f4044c79625e5cde5dec021be6:2026-11-12": [{}],
+    "cache:975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "975454be289c13d3509d6db33f98253ec4b6bf948ec39749ecb2d3fb267621ba",
+          "adapter": "fred-DGS10",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "realtime_start": "2026-11-10",
+            "realtime_end": "2026-11-10",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 16920,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-11-09",
+                "value": "4.88"
+              },
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-11-06",
+                "value": "4.86"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "f5cc0006404fb11943ce34f0ef9479e5dca21111464f2f5783cc8f4845c51b47",
+          "adapter": "fred-DGS2",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "realtime_start": "2026-11-10",
+            "realtime_end": "2026-11-10",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13160,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-11-09",
+                "value": "4.56"
+              },
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-11-06",
+                "value": "4.51"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "a75609d3ea62b1d3043bb8c0c3e81ac43a7669208f6f2e35de8909ec9b44630d",
+          "adapter": "fred-T10Y2Y",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "realtime_start": "2026-11-10",
+            "realtime_end": "2026-11-10",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 13161,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-11-10",
+                "value": "0.25"
+              },
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-11-09",
+                "value": "0.32"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "a7287e17f506c3b7f3f975606921b4a334eaa54dc027bb81242284279573aff8",
+          "adapter": "fred-FEDFUNDS",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "realtime_start": "2026-11-02",
+            "realtime_end": "2026-11-02",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 868,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-10-01",
+                "value": "3.88"
+              },
+              {
+                "realtime_start": "2026-11-02",
+                "realtime_end": "2026-11-02",
+                "date": "2026-09-01",
+                "value": "3.75"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "299d1d46b1dbceb8a7cfda3230ec91ce2ab1a52e458b0940b1feeebbd35edad1",
+          "adapter": "fred-CPIAUCSL",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "realtime_start": "2026-11-10",
+            "realtime_end": "2026-11-10",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 958,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-10-01",
+                "value": "337.476"
+              },
+              {
+                "realtime_start": "2026-11-10",
+                "realtime_end": "2026-11-10",
+                "date": "2026-09-01",
+                "value": "336.298"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "729cc8ef038a9188823c389d1c5c9c34bdc97851ab258784514c1bede0002aed",
+          "adapter": "fred-UNRATE",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "realtime_start": "2026-11-06",
+            "realtime_end": "2026-11-06",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 946,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-06",
+                "realtime_end": "2026-11-06",
+                "date": "2026-10-01",
+                "value": "4.1"
+              },
+              {
+                "realtime_start": "2026-11-06",
+                "realtime_end": "2026-11-06",
+                "date": "2026-09-01",
+                "value": "4.2"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8:2026-11-12": [
+      {
+        "value": {
+          "cacheKey": "8ee1965546a60d5089f5084e907048e4b2d7509a529b7ab733844b31f428b9a8",
+          "adapter": "fred-DTWEXBGS",
+          "fetchedAt": "2026-11-12T04:08:33.732Z",
+          "cachedDate": "2026-11-12",
+          "payload": {
+            "realtime_start": "2026-11-09",
+            "realtime_end": "2026-11-09",
+            "observation_start": "1600-01-01",
+            "observation_end": "9999-12-31",
+            "units": "lin",
+            "output_type": 1,
+            "file_type": "json",
+            "order_by": "observation_date",
+            "sort_order": "desc",
+            "count": 5440,
+            "offset": 0,
+            "limit": 2,
+            "observations": [
+              {
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-06",
+                "value": "121.8803"
+              },
+              {
+                "realtime_start": "2026-11-09",
+                "realtime_end": "2026-11-09",
+                "date": "2026-11-05",
+                "value": "121.5061"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "cache:72d1f2875f19d9a0a54db3b075914c2183346b134ed362a9fde8cd3eb3122084:2026-11-12": [{}],
+    "cache:9880759501687b297801f6d0724af36fb70436f61d7fa170b1a442b7c74475db:2026-11-12": [
+      {
+        "bodyFile": "bodies/be075bc0a63895c61c0af949ed910cb7c4cb8b46cd503e09f76f277bf256dbda.json",
+        "sha256": "be075bc0a63895c61c0af949ed910cb7c4cb8b46cd503e09f76f277bf256dbda"
+      }
+    ],
+    "cache:ec360efb8a2ea63a1f3e4944da57fa9dffb4abc5fdf7319784669fe8477d8f20:2026-11-12": [
+      {
+        "bodyFile": "bodies/f89ad48cc53480a70f95d5c559c10c1814fd41beb1ff37769940ef9dbfb96ac7.json",
+        "sha256": "f89ad48cc53480a70f95d5c559c10c1814fd41beb1ff37769940ef9dbfb96ac7"
+      },
+      {
+        "bodyFile": "bodies/f89ad48cc53480a70f95d5c559c10c1814fd41beb1ff37769940ef9dbfb96ac7.json",
+        "sha256": "f89ad48cc53480a70f95d5c559c10c1814fd41beb1ff37769940ef9dbfb96ac7"
+      }
+    ],
+    "cache:cb9e67a5d07b089925b6a0bcf03e265e9255182fdd0036d1e5f003b624c4b4f0:2026-11-12": [{}],
+    "cache:6a6464b14d33837c038c19a3123a4f9153c58433b825774ab808df40648ea9cf:2026-11-12": [
+      {
+        "bodyFile": "bodies/5c1ba805a9012d644ab3342b537de25bdc7ca3a57274ca9c8da86b551ff3586e.json",
+        "sha256": "5c1ba805a9012d644ab3342b537de25bdc7ca3a57274ca9c8da86b551ff3586e"
+      }
+    ],
+    "cache:02f2dc41b3fd4e613d3495d014ebc96cd6195ea19d3c66c3195a3e80ec330f11:2026-11-12": [
+      {
+        "bodyFile": "bodies/b306ffd28ec75fe159f9cc4339acfc6d4a287f3cc04e36e4e18246a75d907c12.json",
+        "sha256": "b306ffd28ec75fe159f9cc4339acfc6d4a287f3cc04e36e4e18246a75d907c12"
+      }
+    ],
+    "news-seen": [
+      {
+        "bodyFile": "bodies/acd57ec1f21dddf793f37e554e711f95213364e9fdddffde7fccf358b70a5416.json",
+        "sha256": "acd57ec1f21dddf793f37e554e711f95213364e9fdddffde7fccf358b70a5416"
+      },
+      {
+        "bodyFile": "bodies/acd57ec1f21dddf793f37e554e711f95213364e9fdddffde7fccf358b70a5416.json",
+        "sha256": "acd57ec1f21dddf793f37e554e711f95213364e9fdddffde7fccf358b70a5416"
+      }
+    ],
+    "cache-stale:cb9e67a5d07b089925b6a0bcf03e265e9255182fdd0036d1e5f003b624c4b4f0": [{}],
+    "cache-stale:2b72c8e3fa5a68fe7e4fa57561bf21b6e97152698e4e595787d59cdece92a601": [{}],
+    "cache:0fd2a9ef275365720a8a83f76e3e9e5c7bd2ccf782aa003b750307bf4a4e80cf:2026-11-12": [
+      {
+        "bodyFile": "bodies/e34d5a49a165d485f9b8efb58b504415f22e5ada2862607ebf5c6f56343c5da2.json",
+        "sha256": "e34d5a49a165d485f9b8efb58b504415f22e5ada2862607ebf5c6f56343c5da2"
+      }
+    ],
+    "cache-stale:04794954256d40ca987b80207381e1ec4ee47f6cbb2f81b01366a4bef1f6d347": [{}],
+    "cache-stale:007d17cdaff70f2595f4cc427f17e91d255f55f5d6607752d0daaa06028bc0d0": [{}],
+    "cache-stale:9f03fd08b74c6f4db465fa5ed43e7d11966acfbd3c2b79ca4e6e2a2abdbd75ea": [{}],
+    "cache-stale:1fec11129cc7362a72e2a1bb2ab1a6f34dfa7cb0d1479ea96d2f662c1e825783": [{}],
+    "cache-stale:b81278c8c68523857900272182cfadf9a288390146bf8ecad80ef1e0c5f7e295": [{}],
+    "cache-stale:c237fd5490ed3831c835e2b64d827b669005efb41639e5a8fe5758458c33187f": [{}],
+    "cache:5316e5f36d812c1c06aa90bbfb143584115653dfc8dcd9932cd5881a46d48e46:accession": [{}],
+    "host-circuit:www.sec.gov": [
+      {
+        "value": false,
+        "count": 10
+      }
+    ],
+    "cache:5f017db2686d6dd11dfead162b3c0ed3f5107c49f8ba1eba812720f6a3823ba0:accession": [{}],
+    "cache:8d6b1348008efa3ace8b287c79703e09715acac693d8ad2dbcfb2cc2fd03593d:accession": [{}],
+    "cache:d55da6e310866c56175860e799e31846316c10e9a04ef7e22662d6f9a790a6f6:accession": [{}],
+    "cache:36b57e70c1f462bafae584b7a51b61dfe317ed7f9919b89e2f2dc23c05b872ae:accession": [{}],
+    "cache:6922f9e5fb0a015e3c9ee47fe41226f09ba5c41d5b5484df6839b6197b5b2b6d:accession": [{}],
+    "cache:c705cec8a514a90f1c7626322de513bd09cec376d5a5e194c96ddd36c6b65bd0:2026-11-12": [{}],
+    "cache:d659d9db9b02127256172824ec5e10584ebdbe8e508448d7513ff1e4b0900df4:accession": [{}],
+    "cache:fa9a377c6737ad162e72230a7164e989c73ea6dbc59ac102f063b13537559fc4:accession": [{}],
+    "cache:ee400523d21669ee7beb56ac7fd66ae7e2c83b81b06c095a7df78496beaf46e7:accession": [{}],
+    "learned-peers": [
+      {
+        "bodyFile": "bodies/0feab4378b1b78ac7188fe8b4eac687d776c63a0e157e1c86620e7760bb62936.json",
+        "sha256": "0feab4378b1b78ac7188fe8b4eac687d776c63a0e157e1c86620e7760bb62936"
+      },
+      {
+        "bodyFile": "bodies/0feab4378b1b78ac7188fe8b4eac687d776c63a0e157e1c86620e7760bb62936.json",
+        "sha256": "0feab4378b1b78ac7188fe8b4eac687d776c63a0e157e1c86620e7760bb62936"
+      },
+      {
+        "bodyFile": "bodies/43fcaab60e8602663e55ced6b1424e0b959237fe1f7c8894081ac870da5c5f70.json",
+        "sha256": "43fcaab60e8602663e55ced6b1424e0b959237fe1f7c8894081ac870da5c5f70"
+      }
+    ],
+    "cache:cb95485075e86bf2028ca60490b26313e18a43d2dbc44cbaa1e64a6f82aae9a1:2026-11-12": [
+      {
+        "bodyFile": "bodies/847183a6021d535a05d7092e97980fdc01cfd3317ba6399d25a7a9b7d96bc5d8.json",
+        "sha256": "847183a6021d535a05d7092e97980fdc01cfd3317ba6399d25a7a9b7d96bc5d8"
+      }
+    ],
+    "cache:2be40f04b6a686189fc1288916cdb14512a74170759afd45112955181bef33e2:2026-11-12": [
+      {
+        "bodyFile": "bodies/c4cd921df218c7a690d2c28bc69681f70a59dceff2933b05b57090a9558f319f.json",
+        "sha256": "c4cd921df218c7a690d2c28bc69681f70a59dceff2933b05b57090a9558f319f"
+      }
+    ],
+    "cache:77638519d5a9a37044ff0d53fb2d9e70603f27e7bc46a4616145e0c2bab83e7f:2026-11-12": [
+      {
+        "bodyFile": "bodies/47cca486e14576c3d9ad78c1c8685ae4a05d687f754d0620f94e73f0348ff7ce.json",
+        "sha256": "47cca486e14576c3d9ad78c1c8685ae4a05d687f754d0620f94e73f0348ff7ce"
+      }
+    ],
+    "cache:cd1cd1b9565b29a0fd6c82eac1723b42ad58d5d3209b7028f7c0c64292459771:2026-11-12": [{}],
+    "cache:0fb24da1b739eb48138218bce5b37bc88e6093303a0e4949945de47e029a16c1:2026-11-12": [
+      {
+        "bodyFile": "bodies/fc86df185b4a6b4d82ab6cfb35586180ea11150c588db782422ca2069f01104d.json",
+        "sha256": "fc86df185b4a6b4d82ab6cfb35586180ea11150c588db782422ca2069f01104d"
+      }
+    ],
+    "cache:917deb1ac08516f32e684793e07702d13c9b53db31f063c939e970ef2ce41ffb:2026-11-12": [
+      {
+        "bodyFile": "bodies/58f97005ca1214439d5a4cc391d76ba02e29ffd9ffc86b05c5dd1cc765802caa.json",
+        "sha256": "58f97005ca1214439d5a4cc391d76ba02e29ffd9ffc86b05c5dd1cc765802caa"
+      }
+    ],
+    "cache:1fee3e14400a22feceaebd473151293ce255e15e95dc5b11417fbb1cf53cff4c:2026-11-12": [
+      {
+        "bodyFile": "bodies/d16068074132cc7df9c31b5470f2db796387d2cdb1d33479c2d80a3221e184a7.json",
+        "sha256": "d16068074132cc7df9c31b5470f2db796387d2cdb1d33479c2d80a3221e184a7"
+      }
+    ],
+    "cache:e3633667b55097ff3ee05d8deb065f9b5975dfa7dd9a637a5202c7e81b9cc2dc:2026-11-12": [
+      {
+        "bodyFile": "bodies/730be07bf433177000584591f4ebc403668d74916971d9609a84394869b2910b.json",
+        "sha256": "730be07bf433177000584591f4ebc403668d74916971d9609a84394869b2910b"
+      }
+    ],
+    "cache:e3fc054820c015065d782887d51c2c4652ebdbfb793fbd5173b4e40a9e03947e:2026-11-12": [{}],
+    "host-circuit:data.sec.gov": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:546d08c1a26bcc12c227f38602c2e3f688c8a550f4b79a37e6526d1cd9517b01:2026-11-12": [
+      {
+        "bodyFile": "bodies/d439b05e99f3b3123f4f8bf5adb39cf675e1af680ca406450a843b76d0eb149d.json",
+        "sha256": "d439b05e99f3b3123f4f8bf5adb39cf675e1af680ca406450a843b76d0eb149d"
+      }
+    ],
+    "cache:59c71366f99925ec92702913ef28cafed052e6b47ce27ee16a92e783abdca211:2026-11-12": [
+      {
+        "bodyFile": "bodies/20b8fb9472b6ba48c95b9877b15625bd5ca4349b4e032531af7c50c98aa15ca2.json",
+        "sha256": "20b8fb9472b6ba48c95b9877b15625bd5ca4349b4e032531af7c50c98aa15ca2"
+      }
+    ],
+    "cache:9c95c0cae1a98f44c811b9f069c29b1402a7b05fb8b0b1af9b235f7cb1437daa:2026-11-12": [
+      {
+        "bodyFile": "bodies/4b305405278a75449dfe4c516a27561ef465008d41c82e508da389eeef868444.json",
+        "sha256": "4b305405278a75449dfe4c516a27561ef465008d41c82e508da389eeef868444"
+      }
+    ],
+    "cache:3598995baf8428697143942a907332b1e045d738194489f3e0c27d6617777765:2026-11-12": [
+      {
+        "bodyFile": "bodies/40f68951b3577ee686ab7bc3cbd0e2e4087a5f3ff74aec137df9f40e4017218c.json",
+        "sha256": "40f68951b3577ee686ab7bc3cbd0e2e4087a5f3ff74aec137df9f40e4017218c"
+      }
+    ],
+    "cache:5080e6b69ef2a20c5c01d3e41e4f0abd1cc69c160ba7a21a26accdcb1e9511af:2026-11-12": [
+      {
+        "bodyFile": "bodies/fb80ac7e21f03bea5a4ff9467e87802aa78286d732f50f31f3c24d4b7893760c.json",
+        "sha256": "fb80ac7e21f03bea5a4ff9467e87802aa78286d732f50f31f3c24d4b7893760c"
+      }
+    ],
+    "cache:9f741c416a2655bc7ffb879fe7aa204cc3eee4d2df54d9c1030a3ffc94e97004:2026-11-12": [
+      {
+        "bodyFile": "bodies/a053418ae8d97a73cda8418ccee33f591afd9166008a99b11cd19f0931d5b3cc.json",
+        "sha256": "a053418ae8d97a73cda8418ccee33f591afd9166008a99b11cd19f0931d5b3cc"
+      }
+    ],
+    "cache:807032fc6f29df453a91b1e0ff3c4198408c3f41dc7093966a5818510f2beff3:2026-11-12": [{}],
+    "calibration": [
+      {
+        "value": {
+          "generatedAt": "2026-11-12T04:35:44.577Z",
+          "resolvedCount": 173,
+          "duplicateForecastCount": 80,
+          "missAutopsyCount": 31,
+          "brierScore": 0.24930635838150314,
+          "hitRate": 0.4797687861271676,
+          "bins": [
+            {
+              "pLow": 0.1,
+              "pHigh": 0.2,
+              "label": "0.1-0.2",
+              "hitCount": 1,
+              "totalCount": 1,
+              "hitRate": 1
+            },
+            {
+              "pLow": 0.2,
+              "pHigh": 0.3,
+              "label": "0.2-0.3",
+              "hitCount": 1,
+              "totalCount": 4,
+              "hitRate": 0.25
+            },
+            {
+              "pLow": 0.3,
+              "pHigh": 0.4,
+              "label": "0.3-0.4",
+              "hitCount": 27,
+              "totalCount": 67,
+              "hitRate": 0.40298507462686567
+            },
+            {
+              "pLow": 0.4,
+              "pHigh": 0.5,
+              "label": "0.4-0.5",
+              "hitCount": 42,
+              "totalCount": 78,
+              "hitRate": 0.5384615384615384
+            },
+            {
+              "pLow": 0.5,
+              "pHigh": 0.6,
+              "label": "0.5-0.6",
+              "hitCount": 12,
+              "totalCount": 23,
+              "hitRate": 0.5217391304347826
+            }
+          ],
+          "byKind": {
+            "range": {
+              "brierScore": 0.25594433962264135,
+              "count": 106,
+              "runCount": 63,
+              "brierStandardError": 0.010829851321590646
+            },
+            "relative": {
+              "brierScore": 0.23526600000000003,
+              "count": 50,
+              "runCount": 42,
+              "brierStandardError": 0.01148250861596421
+            },
+            "direction": {
+              "brierScore": 0.24,
+              "count": 12,
+              "runCount": 12,
+              "brierStandardError": 0.011607442753368521
+            },
+            "earnings-move": {
+              "brierScore": 0.28745,
+              "count": 2,
+              "runCount": 2,
+              "brierStandardError": 0.03744999999999998
+            },
+            "earnings-direction": {
+              "brierScore": 0.26056666666666667,
+              "count": 3,
+              "runCount": 3,
+              "brierStandardError": 0.01577765649405655
+            }
+          },
+          "byAssetClass": {
+            "equity": {
+              "brierScore": 0.24930635838150314,
+              "count": 173,
+              "runCount": 67,
+              "brierStandardError": 0.007069506340652653
+            }
+          },
+          "byJobType": {
+            "equity": {
+              "brierScore": 0.24982130177514816,
+              "count": 169,
+              "runCount": 66,
+              "brierStandardError": 0.007145283270979087
+            },
+            "forecast-grid": {
+              "brierScore": 0.22754999999999997,
+              "count": 4,
+              "runCount": 1,
+              "brierStandardError": 0.06257499999999999
+            }
+          },
+          "byMarketUpdateHorizonBucket": {},
+          "byHorizonBucket": {
+            "1d": {
+              "brierScore": 0.2719237288135594,
+              "count": 59,
+              "runCount": 54,
+              "brierStandardError": 0.012338979931322776
+            },
+            "2-5d": {
+              "brierScore": 0.23743510638297868,
+              "count": 94,
+              "runCount": 45,
+              "brierStandardError": 0.010296366042195804
+            },
+            "6-10d": {
+              "brierScore": 0.23837999999999998,
+              "count": 20,
+              "runCount": 15,
+              "brierStandardError": 0.026386135061808504
+            }
+          },
+          "byMarketRegime": {
+            "risk-on": {
+              "brierScore": 0.250209090909091,
+              "count": 33,
+              "runCount": 16,
+              "brierStandardError": 0.02068013284839549
+            },
+            "risk-off": {
+              "brierScore": 0.2456828571428571,
+              "count": 70,
+              "runCount": 30,
+              "brierStandardError": 0.009751532556464028
+            },
+            "mixed": {
+              "brierScore": 0.25401666666666667,
+              "count": 66,
+              "runCount": 20,
+              "brierStandardError": 0.011573610058314131
+            }
+          },
+          "marketRegimeCoverage": {
+            "risk-on": 33,
+            "risk-off": 70,
+            "mixed": 66,
+            "unknown": 4
+          },
+          "byMissAutopsyCause": {
+            "insufficient_evidence": 29,
+            "model_overconfidence": 2
+          },
+          "conditionalPredictions": {
+            "activatedCount": 0,
+            "voidedCount": 3
+          }
+        }
+      }
+    ],
+    "alpha-watchlist": [
+      {
+        "value": {
+          "watchlist": {
+            "generatedAt": "2026-08-17T04:02:33.492Z",
+            "candidates": [
+              {
+                "symbol": "ATR",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 24,
+                  "socialMomentumScore": 16.7,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "BILL",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 25,
+                  "socialMomentumScore": 15.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DRTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 13,
+                  "socialMomentumScore": 20.06,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "DSGX",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "sec-only",
+                  "discoverySources": ["sec-filings"],
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "EOSE",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 14,
+                  "socialMomentumScore": 19.98,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "FA",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 17,
+                  "socialMomentumScore": 18.73,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "GETY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 11,
+                  "socialMomentumScore": 20.34,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 22,
+                  "socialMomentumScore": 16.99,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "MP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 20,
+                  "socialMomentumScore": 17.67,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NEXT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 15,
+                  "socialMomentumScore": 19.54,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "NVTS",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 18,
+                  "socialMomentumScore": 18.39,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "OUT",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 19,
+                  "socialMomentumScore": 18.31,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "PUMP",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 21,
+                  "socialMomentumScore": 17.12,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "TMC",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 10,
+                  "socialMomentumScore": 20.44,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              },
+              {
+                "symbol": "WAY",
+                "annotation": {
+                  "seenCount": 1,
+                  "lastSeenAt": "2026-07-16T06:04:51.960Z",
+                  "sourceGroup": "apewisdom-only",
+                  "discoverySources": ["apewisdom"],
+                  "socialRank": 4,
+                  "socialMomentumScore": 24.18,
+                  "latestValidation": ["5d:resolved", "20d:resolved"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "history:null": [
+      {
+        "value": {
+          "generatedAt": "2026-11-12T04:35:44.577Z",
+          "recentDays": 90,
+          "anchorMonths": [3, 6, 12],
+          "runs": [],
+          "sources": [],
+          "gaps": ["No prior ticker runs found for O", "No prior equity market-update runs found"],
+          "audit": {
+            "scannedRunCount": 97,
+            "malformedRunCount": 0,
+            "malformedScoreCount": 0,
+            "candidateRunCount": 0,
+            "selectedRunCount": 0,
+            "recentSelectedCount": 0,
+            "anchorSelectedCount": 0,
+            "sameSymbolSelectedCount": 0,
+            "spotlightSymbolSelectedCount": 0,
+            "sameSubjectSelectedCount": 0,
+            "sameHorizonSelectedCount": 0,
+            "crossHorizonSelectedCount": 0,
+            "resolvedMissRunCount": 0,
+            "missCorrectionSelectedCount": 0,
+            "gapCount": 2
+          },
+          "artifactDeltas": []
+        }
+      }
+    ],
+    "reused-profile": [{}],
+    "cache:5614dfbb4b01e069ea0f8fb0b002861c350827014bd5b796119ba05bfdd07f6d:2026-11-12": [{}],
+    "host-circuit:api.exa.ai": [
+      {
+        "value": false,
+        "count": 2
+      }
+    ],
+    "cache:4c2d21108c507d69f7526b5ab5643976240fb15fe173f0c55b7cb054a8635a5a:2026-11-12": [{}],
+    "forecast-persistence-baseline": [{}]
+  }
+}

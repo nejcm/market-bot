@@ -513,4 +513,5 @@ export const EQUITY_RUN_FIXTURES = [
   "equity-amd-deep",
   "equity-bursa-deep",
   "equity-bursa-brief",
+  "equity-reit-deep",
 ] as const;

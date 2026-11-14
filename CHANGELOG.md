@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.10](https://github.com/nejcm/market-bot/compare/v1.19.9...v1.19.10) (2026-11-14)
+
+### Bug Fixes
+
+- **statements:** ignore forward-period facts as ttm superseding proof (#233) ([d460dc8](https://github.com/nejcm/market-bot/commit/d460dc8355871098a01aa54081bcb5f91abc188a))
+
 ## [1.19.9](https://github.com/nejcm/market-bot/compare/v1.19.8...v1.19.9) (2026-11-14)
 
 ### Bug Fixes

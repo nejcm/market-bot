@@ -1460,8 +1460,59 @@ describe("canonical financial statements", () => {
       expect.objectContaining({ code: "declaration-span", seriesKey: "dividendsPerShare" }),
     );
     expect(historyGapMessages(spansOnly)).toEqual([
-      expect.stringContaining("dividends per share has 1 non-zero declaration-date facts"),
+      expect.stringContaining(
+        "dividends per share has 1 non-zero facts (latest duration:1|2025-12-31) omitted because they are declaration dates or spans shorter than a fiscal quarter",
+      ),
     ]);
+  });
+
+  test("keeps a 52/53-week issuer's 16-week first-quarter dividends per share", () => {
+    // Kroger Q2 FY2026 10-Q 0001104659-26-108926: 16-week Q1 (112 days) and 12-week Q2 declarations.
+    const quarter = (periodStart: string, periodEnd: string, value: number) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalYear: 2026,
+        fiscalPeriod: "Q2",
+        filedAt: "2026-09-18",
+        periodStart,
+        periodEnd,
+        accessionNumber: "0001104659-26-108926",
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              fact({
+                value: 1.37,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-03-31",
+                periodStart: "2025-02-02",
+                periodEnd: "2026-01-31",
+              }),
+              quarter("2025-02-02", "2025-05-24", 0.32),
+              quarter("2026-02-01", "2026-05-23", 0.35),
+              quarter("2026-05-24", "2026-08-15", 0.39),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-10-01" },
+    );
+
+    const dividends = artifact.statements.perShare.dividendsPerShare;
+    expect(dividends.interim.map((item) => [item.periodStart, item.periodEnd, item.value])).toEqual(
+      expect.arrayContaining([
+        ["2025-02-02", "2025-05-24", 0.32],
+        ["2026-02-01", "2026-05-23", 0.35],
+        ["2026-05-24", "2026-08-15", 0.39],
+      ]),
+    );
+    expect(artifact.omissionNotes.filter((note) => note.code === "declaration-span")).toEqual([]);
   });
 
   test("drops one-month spans from every duration series, not only dividends per share", () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.15](https://github.com/nejcm/market-bot/compare/v1.19.14...v1.19.15) (2026-11-14)
+
+### Bug Fixes
+
+- **dividends:** accept 52/53-week quarter spans for dividends per share (#238) ([5b51454](https://github.com/nejcm/market-bot/commit/5b51454a4c17abd470c3c0e4a515d0feb57880e5))
+
 ## [1.19.14](https://github.com/nejcm/market-bot/compare/v1.19.13...v1.19.14) (2026-11-14)
 
 ### Bug Fixes

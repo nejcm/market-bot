@@ -49,9 +49,13 @@ interface SecFactRow {
   readonly val: unknown;
 }
 
-const MIN_FILING_PERIOD_DAYS = 80;
+const MIN_STATEMENT_DURATION_DAYS = 80;
 const CALENDAR_POSITION_DAYS = 7;
-const filingPeriodEndsByRoot = new WeakMap<Record<string, unknown>, ReadonlyMap<string, string>>();
+const statementDatesByRoot = new WeakMap<
+  Record<string, unknown>,
+  ReadonlyMap<string, readonly string[]>
+>();
+const unprovenByRows = new WeakMap<readonly unknown[], ReadonlyMap<unknown, UnprovenRestatement>>();
 
 function secFactRow(value: unknown): SecFactRow | undefined {
   if (!isRecord(value)) {
@@ -74,48 +78,47 @@ function secFactRow(value: unknown): SecFactRow | undefined {
       };
 }
 
-function taxonomyRows(root: Record<string, unknown>): readonly SecFactRow[] {
-  return Object.values(root).flatMap((fact) =>
-    isRecord(fact) && isRecord(fact.units)
-      ? Object.values(fact.units).flatMap((values) =>
-          (Array.isArray(values) ? values : []).flatMap((value) => secFactRow(value) ?? []),
-        )
-      : [],
-  );
+function conceptRows(fact: unknown): readonly SecFactRow[] {
+  return isRecord(fact) && isRecord(fact.units)
+    ? Object.values(fact.units).flatMap((values) =>
+        (Array.isArray(values) ? values : []).flatMap((value) => secFactRow(value) ?? []),
+      )
+    : [];
 }
 
-// A filing's own period end: its latest pre-filing date tagged with both a balance-sheet instant and an 80+ day duration.
-function filingPeriodEnds(root: Record<string, unknown>): ReadonlyMap<string, string> {
-  const cached = filingPeriodEndsByRoot.get(root);
+// A filing's statement dates: each pre-filing date with both an Assets instant and an 80+ day duration.
+function filingStatementDates(
+  root: Record<string, unknown>,
+): ReadonlyMap<string, readonly string[]> {
+  const cached = statementDatesByRoot.get(root);
   if (cached !== undefined) {
     return cached;
   }
-  const instants = new Map<string, Set<string>>();
-  const durations = new Map<string, Set<string>>();
-  for (const row of taxonomyRows(root)) {
+  const durationEnds = new Set<string>();
+  for (const row of Object.values(root).flatMap((fact) => conceptRows(fact))) {
     const length = row.start === undefined ? undefined : daysBetween(row.start, row.end);
-    const target = row.start === undefined ? instants : durations;
-    if (row.end < row.filed && (length === undefined || length >= MIN_FILING_PERIOD_DAYS)) {
-      target.set(row.accn, (target.get(row.accn) ?? new Set()).add(row.end));
+    if (length !== undefined && length >= MIN_STATEMENT_DURATION_DAYS && row.end < row.filed) {
+      durationEnds.add(`${row.accn}|${row.end}`);
     }
   }
-  const ends = new Map<string, string>();
-  for (const [accn, dates] of instants) {
-    const end = [...dates]
-      .filter((date) => durations.get(accn)?.has(date) === true)
-      .toSorted()
-      .at(-1);
-    if (end !== undefined) {
-      ends.set(accn, end);
+  const dates = new Map<string, string[]>();
+  for (const row of conceptRows(root.Assets)) {
+    const accnDates = dates.get(row.accn) ?? [];
+    if (
+      row.start === undefined &&
+      durationEnds.has(`${row.accn}|${row.end}`) &&
+      !accnDates.includes(row.end)
+    ) {
+      dates.set(row.accn, [...accnDates, row.end].toSorted());
     }
   }
-  filingPeriodEndsByRoot.set(root, ends);
-  return ends;
+  statementDatesByRoot.set(root, dates);
+  return dates;
 }
 
-// The period end itself or a prior-year comparative; the slack absorbs 52/53-week fiscal years.
-function sameCalendarPosition(end: string, periodEnd: string): boolean {
-  const [, month, day] = periodEnd.split("-").map(Number);
+// The date itself or a comparative in another year; the slack absorbs 52/53-week fiscal years.
+function sameCalendarPosition(end: string, statementDate: string): boolean {
+  const [, month, day] = statementDate.split("-").map(Number);
   const year = Number(end.slice(0, 4));
   return [year - 1, year, year + 1].some(
     (candidate) =>
@@ -140,59 +143,74 @@ export interface UnprovenRestatement {
   readonly supersededAt?: string;
 }
 
-// Duration rows (of one concept and unit) whose filing never tags the concept at its own period end
-// Yet would supersede an earlier filing's value: a shifted context, not a proven restatement.
-export function unprovenRestatements(
+function findUnprovenRestatements(
   root: Record<string, unknown>,
   values: readonly unknown[],
 ): ReadonlyMap<unknown, UnprovenRestatement> {
-  const periodEnds = filingPeriodEnds(root);
+  const statementDates = filingStatementDates(root);
   const rows = values.flatMap((value) => {
     const row = secFactRow(value);
     return row === undefined ? [] : [{ value, row }];
   });
-  const offPeriod = new Set(
-    [...new Set(rows.map(({ row }) => row.accn))].filter((accn) => {
-      const periodEnd = periodEnds.get(accn);
-      return (
-        periodEnd !== undefined &&
-        !rows.some(
-          ({ row }) =>
-            row.accn === accn &&
-            row.start !== undefined &&
-            sameCalendarPosition(row.end, periodEnd),
-        )
-      );
-    }),
+  const aligned = new Set(
+    rows
+      .filter(
+        ({ row }) =>
+          row.start !== undefined &&
+          (statementDates.get(row.accn) ?? []).some((date) => sameCalendarPosition(row.end, date)),
+      )
+      .map(({ row }) => row.accn),
   );
+  const offPeriod = (accn: string) => statementDates.has(accn) && !aligned.has(accn);
   const unproven = new Map<unknown, UnprovenRestatement>();
   for (const { value, row } of rows) {
-    const peers =
-      row.start !== undefined && offPeriod.has(row.accn)
-        ? rows
-            .map(({ row: peer }) => peer)
-            .filter((peer) => peer.accn !== row.accn && rowPeriodKey(peer) === rowPeriodKey(row))
-        : [];
-    if (peers.some((earlier) => earlier.filed < row.filed && earlier.val !== row.val)) {
-      const supersededAt = peers
-        .map((later) => later.filed)
-        .filter((filed) => filed > row.filed)
-        .toSorted()[0];
-      unproven.set(value, {
-        ...(supersededAt === undefined ? {} : { supersededAt }),
-        accessionNumber: row.accn,
-        form: row.form ?? "filing",
-        filedAt: row.filed,
-        periodEnd: periodEnds.get(row.accn)!,
-        spans: [
-          ...new Set(
-            rows
-              .filter(({ row: peer }) => peer.accn === row.accn && peer.start !== undefined)
-              .map(({ row: peer }) => `${peer.start!}..${peer.end}`),
-          ),
-        ].toSorted(),
-      });
+    if (row.start === undefined || !offPeriod(row.accn)) {
+      continue;
     }
+    const peers = rows
+      .map(({ row: peer }) => peer)
+      .filter((peer) => peer.accn !== row.accn && rowPeriodKey(peer) === rowPeriodKey(row));
+    const standingFiled = peers
+      .map((peer) => peer.filed)
+      .filter((filed) => filed < row.filed)
+      .toSorted()
+      .at(-1);
+    const standing = peers.filter((peer) => peer.filed === standingFiled);
+    if (standing.length === 0 || standing.some((peer) => peer.val === row.val)) {
+      continue;
+    }
+    const [supersededAt] = peers
+      .map((peer) => peer.filed)
+      .filter((filed) => filed > row.filed)
+      .toSorted();
+    unproven.set(value, {
+      ...(supersededAt === undefined ? {} : { supersededAt }),
+      accessionNumber: row.accn,
+      form: row.form ?? "filing",
+      filedAt: row.filed,
+      periodEnd: statementDates.get(row.accn)!.at(-1)!,
+      spans: [
+        ...new Set(
+          rows
+            .filter(({ row: peer }) => peer.accn === row.accn && peer.start !== undefined)
+            .map(({ row: peer }) => `${peer.start!}..${peer.end}`),
+        ),
+      ].toSorted(),
+    });
   }
+  return unproven;
+}
+
+// Off-period rows that would replace the standing value: a shifted context, not a proven restatement.
+export function unprovenRestatements(
+  root: Record<string, unknown>,
+  values: readonly unknown[],
+): ReadonlyMap<unknown, UnprovenRestatement> {
+  const cached = unprovenByRows.get(values);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const unproven = findUnprovenRestatements(root, values);
+  unprovenByRows.set(values, unproven);
   return unproven;
 }

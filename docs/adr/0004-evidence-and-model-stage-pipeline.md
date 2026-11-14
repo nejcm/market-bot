@@ -167,12 +167,14 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   discontinued OCF or discontinued investing fact, or where it differs from total. It does so only when the
   continuing amount is filed no earlier than the newest total; otherwise the period is withheld. IFRS capex beside
   it follows the same capex rule. Narrower current concepts carry continuing-operation labels through every OCF/FCF consumer. Apply cutoff; keep up to ten 10–14-month 10-K
-  periods and latest-filed restatements. A later filing restates a filed duration only when the same concept
-  also has a duration ending at that filing's own period end or a prior-year comparative (±7 days); the
-  period end is the filing's latest pre-filing date tagged with both an instant and an 80+ day duration. A
-  filing whose concept tags only off-period spans keeps the earlier value (no `restatedFrom`) and emits an
-  `unproven-restatement` Source Gap; with no derivable period end, latest-filed still wins (amended
-  2026-11-15: CLSK 10-Q 0001193125-26-338382 tagged its EPS table a quarter early). Derive TTM as FY + aligned current YTD − prior YTD; mismatches are
+  periods and latest-filed restatements. A later filing's duration fact (per concept and unit) restates
+  only when that filing also tags the concept on a duration ending at one of its statement dates (a pre-filing
+  date with both an `Assets` instant and an 80+ day duration), in any year, ±7 days. Otherwise a value that
+  differs from the standing one (the latest earlier filing's) is dropped before selection: the standing value
+  keeps no `restatedFrom`, and for a series-selected concept an `unproven-restatement` Source Gap is declared
+  unless a later filing within the cutoff supersedes it. Instants are never touched; with no statement date,
+  latest-filed still wins (amended 2026-11-15: CLSK 10-Q 0001193125-26-338382 tagged its EPS table a quarter
+  early). Derive TTM as FY + aligned current YTD − prior YTD; mismatches are
   omitted/audited. Each component is the fact its series already selected; a difference in concept or
   extraction method is disclosed on the published TTM with a `ttm-component-basis` note (also on the workbench TTM input derivation). EPS TTM is approximate; FCF/margins/CAGR/margin change need matched periods/units and CAGR
   is annual-only.

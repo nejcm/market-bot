@@ -4,7 +4,10 @@ import {
   financialStatementsHistoryGaps,
   withinRetainedWindow,
 } from "../src/sources/extended-evidence/financial-statements";
-import { grossPrincipalWithholdsDebt } from "../src/sources/extended-evidence/financial-statement-period-identity";
+import {
+  grossPrincipalWithholdsDebt,
+  unprovenRestatements,
+} from "../src/sources/extended-evidence/financial-statement-period-identity";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { balanceSheetHistory, operatingRatioNotes } from "../src/report/equity-reader-statements";
 import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
@@ -7015,6 +7018,38 @@ function interimAt(series: FinancialStatementSeries, periodStart: string, period
   );
 }
 
+type RawRow = readonly [
+  start: string | undefined,
+  end: string,
+  value: number,
+  accn: string,
+  filed: string,
+];
+const raw = ([start, end, val, accn, filed]: RawRow) => ({
+  ...(start === undefined ? {} : { start }),
+  end,
+  val,
+  accn,
+  filed,
+  form: "10-K",
+  fp: "FY",
+});
+function unproven(statementRows: readonly RawRow[], conceptRows: readonly RawRow[]) {
+  const values = conceptRows.map(raw);
+  const root = {
+    Assets: {
+      units: {
+        USD: statementRows.map(([, end, , accn, filed]) => raw([undefined, end, 1, accn, filed])),
+      },
+    },
+    OtherNonoperatingIncomeExpense: { units: { USD: statementRows.map(raw) } },
+    Concept: { units: { USD: values } },
+  };
+  return [...unprovenRestatements(root, values).keys()].map(
+    (value) => (value as { accn: string }).accn,
+  );
+}
+
 describe("unproven restatements", () => {
   const SHIFTED = "0001193125-26-338382";
   const FILINGS = {
@@ -7306,5 +7341,130 @@ describe("unproven restatements", () => {
       )?.value,
     ).toBe(0.7);
     expect(artifact.omissionNotes.map((note) => note.code)).not.toContain("unproven-restatement");
+  });
+
+  describe("predicate over raw companyfacts rows", () => {
+    test("an 8-K recast with several statement dates restates years it carries (GPN 0001123360-25-000080)", () => {
+      const recast = "0001123360-25-000080";
+      expect(
+        unproven(
+          [
+            ["2023-01-01", "2023-12-31", 1, recast, "2025-11-04"],
+            ["2024-01-01", "2024-12-31", 1, recast, "2025-11-04"],
+            ["2025-01-01", "2025-03-31", 1, recast, "2025-11-04"],
+          ],
+          [
+            ["2022-01-01", "2022-12-31", -189_030_000, "0001123360-25-000011", "2025-02-14"],
+            ["2022-01-01", "2022-12-31", -447_432_000, recast, "2025-11-04"],
+          ],
+        ),
+      ).toEqual([]);
+    });
+
+    test("a repeat of the standing value is no restatement (Flowserve 8-K 0000030625-12-000018)", () => {
+      const recast = "0000030625-12-000018";
+      expect(
+        unproven(
+          [["2012-01-01", "2012-06-30", 1, recast, "2012-08-30"]],
+          [
+            ["2009-01-01", "2009-12-31", -60_838_000, "0000950123-10-016384", "2010-02-24"],
+            ["2009-01-01", "2009-12-31", 60_838_000, "0000030625-12-000005", "2012-02-22"],
+            ["2009-01-01", "2009-12-31", 60_838_000, recast, "2012-08-30"],
+          ],
+        ),
+      ).toEqual([]);
+    });
+
+    test("a correction re-filed unchanged by the next filing stands (Cognex SBC 2020-03-30..2020-06-28)", () => {
+      expect(
+        unproven(
+          [
+            ["2021-01-01", "2021-12-31", 1, "0000851205-22-000008", "2022-02-17"],
+            ["2022-01-01", "2022-12-31", 1, "0000851205-23-000004", "2023-02-16"],
+          ],
+          [
+            ["2020-03-30", "2020-06-28", -1_401_000, "0000851205-21-000020", "2021-08-05"],
+            ["2020-03-30", "2020-06-28", 1_401_000, "0000851205-22-000008", "2022-02-17"],
+            ["2020-03-30", "2020-06-28", 1_401_000, "0000851205-23-000004", "2023-02-16"],
+          ],
+        ),
+      ).toEqual(["0000851205-22-000008"]);
+    });
+  });
+
+  test("the shifted value is withheld before its superseder is filed (COST as of 2021-11-01)", () => {
+    const quarter = (value: number, filedAt: string, accessionNumber: string, form = "10-Q") =>
+      fact({
+        value,
+        form,
+        fiscalPeriod: form === "10-K" ? "FY" : "Q1",
+        filedAt,
+        periodStart: "2020-08-31",
+        periodEnd: "2020-11-22",
+        accessionNumber,
+      });
+    const tenK = "0000909832-21-000014";
+    const tenKPeriod = {
+      form: "10-K",
+      fiscalPeriod: "FY",
+      filedAt: "2021-10-06",
+      accessionNumber: tenK,
+    };
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Assets: { USD: [fact({ ...tenKPeriod, value: 1, periodEnd: "2021-08-29" })] },
+          OtherNonoperatingIncomeExpense: {
+            USD: [
+              fact({ ...tenKPeriod, value: 1, periodStart: "2020-08-31", periodEnd: "2021-08-29" }),
+            ],
+          },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              quarter(0.7, "2020-12-16", "0000909832-20-000026"),
+              quarter(10, "2021-10-06", tenK, "10-K"),
+              quarter(0.7, "2021-12-22", "0000909832-21-000021"),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2021-11-01T00:00:00.000Z" },
+    );
+
+    expect(
+      artifact.statements.perShare.dividendsPerShare.interim.find(
+        (item) => item.periodEnd === "2020-11-22",
+      ),
+    ).toMatchObject({ value: 0.7, accessionNumber: "0000909832-20-000026" });
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "unproven-restatement",
+        message: expect.stringContaining(tenK),
+      }),
+    );
+  });
+
+  test("ifrs-full facts follow the same rule", () => {
+    const usGaapFacts = companyFacts(ALL_FILINGS, EPS) as {
+      facts: Record<string, Record<string, unknown>>;
+    };
+    const gaap = usGaapFacts.facts["us-gaap"]!;
+    const ifrs = derive(
+      {
+        facts: {
+          "ifrs-full": {
+            Assets: gaap.Assets,
+            OtherNonoperatingIncomeExpense: gaap.OtherNonoperatingIncomeExpense,
+            DilutedEarningsLossPerShareFromContinuingOperations:
+              gaap.IncomeLossFromContinuingOperationsPerDilutedShare,
+          },
+        },
+      },
+      { generatedAt: AS_OF, analysisAsOf: AS_OF },
+    );
+
+    expect(
+      interimAt(ifrs.statements.perShare.continuingDilutedEps, "2025-10-01", "2026-03-31")?.value,
+    ).toBe(-2.86);
   });
 });

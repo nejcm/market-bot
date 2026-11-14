@@ -1,6 +1,7 @@
 import { isFreshPeriodEnd } from "../config/shared";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../domain/market-data";
 import { isCashFlowInput, PRICE_RELATIVE_KEYS } from "../sources/extended-evidence/metric-engine";
+import { unreconciledDividendsPerShare } from "../sources/extended-evidence/financial-statements";
 import {
   nearZeroBase,
   YOY_BASE_SERIES,
@@ -20,6 +21,7 @@ interface ReportMetricInput {
   readonly label?: string;
   readonly unit?: string;
   readonly sourceIds?: readonly string[];
+  readonly derivation?: string;
 }
 
 interface ReportMetric {
@@ -390,6 +392,22 @@ export function reportInvariantViolations(
       if (typeof revenue === "number" && typeof base === "number" && nearZeroBase(base, revenue)) {
         add("yoy-on-near-zero-base", section, id, String(metric.value));
       }
+    }
+    const [shares, paid] = ["dilutedShares", "dividendsPaid"].map((name) =>
+      id !== "dpsLatestFy" || first === undefined
+        ? undefined
+        : slots.get(slot(metric, first, name) ?? ""),
+    );
+    const ratio =
+      first?.derivation === undefined &&
+      typeof metric.value === "number" &&
+      metric.value > 0 &&
+      shares &&
+      paid
+        ? unreconciledDividendsPerShare(metric.value, shares, Math.abs(paid))
+        : undefined;
+    if (ratio !== undefined) {
+      add("dps-unreconciled-with-dividends", section, id, `${metric.value}: ${ratio.toFixed(3)}x`);
     }
     if (!id.endsWith("DeltaPercent")) {
       continue;

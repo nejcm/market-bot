@@ -254,6 +254,48 @@ describe("report sweep", () => {
     ]);
   });
 
+  // Prologis FY2025 before the fix: declared 0.03 vs 956.8M diluted shares and $3,764.7M paid.
+  test("flags latest dividends per share that does not reconcile with dividends paid", () => {
+    const sections = (dps: number, paid: number, derivation?: string) => [
+      {
+        id: "capital-return",
+        metrics: [
+          metric({
+            id: "dividendsLatestFy",
+            inputs: [statementFact("dividendsPaid", "FY2025", paid)],
+          }),
+          metric({
+            id: "shareCountChange1y",
+            inputs: [statementFact("dilutedShares", "FY2025", 956_832_000)],
+          }),
+          metric({
+            id: "dpsLatestFy",
+            status: "value",
+            value: dps,
+            inputs: [{ ...statementFact("dividendsPerShare", "FY2025", dps), derivation }],
+          }),
+        ],
+      },
+    ];
+    expect(reportInvariantViolations(sections(0.03, 3_764_745_000))).toEqual([
+      {
+        invariant: "dps-unreconciled-with-dividends",
+        section: "capital-return",
+        metric: "dpsLatestFy",
+        detail: "0.03: 0.008x",
+      },
+    ]);
+    expect(reportInvariantViolations(sections(4.04, -3_764_745_000))).toEqual([]);
+    expect(reportInvariantViolations(sections(0, 0))).toEqual([]);
+    expect(reportInvariantViolations(sections(0, 902_000))).toEqual([]);
+    // The producer reconciled it against its own filing's shares; later restated shares read 0.10x.
+    expect(
+      reportInvariantViolations(
+        sections(0.4, 3_764_745_000, "reconciled in its own filing: DPS x 9568320000"),
+      ),
+    ).toEqual([]);
+  });
+
   test("resolves EPS, evidence-key and issuer-report YoY to their prior-year base", () => {
     const priorProfit = issuerCell("4,500", "2024-06-30");
     const sections = (revenue: Record<string, unknown> = {}) => [

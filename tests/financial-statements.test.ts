@@ -1168,6 +1168,189 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  describe("dividends per share reconciliation with dividends paid", () => {
+    const dividendFacts = (
+      perShare: Readonly<Record<string, number>>,
+      { paid, shares }: { paid?: number; shares: number },
+      year = 2025,
+      laterShares: readonly Record<string, unknown>[] = [],
+    ) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: [annual(1000, year)] },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [annual(shares, year), ...laterShares],
+            },
+            ...(paid === undefined ? {} : { PaymentsOfDividends: { USD: [annual(paid, year)] } }),
+            ...Object.fromEntries(
+              Object.entries(perShare).map(([concept, value]) => [
+                concept,
+                { "USD/shares": [annual(value, year)] },
+              ]),
+            ),
+          },
+        }),
+        { analysisAsOf: `${String(year + 1)}-06-15T00:00:00.000Z` },
+      );
+
+    // Prologis FY2025, 10-K 0001193125-26-051453 (R7: $4.04 per common share; $3,764.7M dividends paid).
+    test("uses the cash-paid concept when the declared one does not reconcile", () => {
+      const artifact = dividendFacts(
+        {
+          CommonStockDividendsPerShareDeclared: 0.03,
+          CommonStockDividendsPerShareCashPaid: 4.04,
+        },
+        { paid: 3_764_745_000, shares: 956_832_000 },
+      );
+
+      expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+        expect.objectContaining({ value: 4.04, concept: "CommonStockDividendsPerShareCashPaid" }),
+      ]);
+      expect(artifact.omissionNotes.map(({ code }) => code)).not.toContain("dps-unreconciled");
+    });
+
+    // ADTRAN FY2023: $0.09 is the quarterly rate; $21.2M dividends paid on 78.4M diluted shares.
+    // Belden FY2017 lands here too: its $43.4M common-dividend payments carry $34.9M of preferred.
+    test.each([
+      ["ADTRAN FY2023", 0.09, 21_237_000, 78_416_000, 2023, "is 0.33x dividends paid of 21237000"],
+      ["Belden FY2017", 0.2, 43_376_000, 42_643_000, 2017, "is 0.20x dividends paid of 43376000"],
+    ])(
+      "withholds %s, which neither concept reconciles, and declares it",
+      (_case, dps, paid, shares, year, reason) => {
+        const artifact = dividendFacts(
+          { CommonStockDividendsPerShareCashPaid: dps },
+          { paid, shares },
+          year,
+        );
+        const periodKey = `duration:12|${String(year)}-12-31`;
+
+        expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([]);
+        expect(artifact.omissionNotes).toContainEqual(
+          expect.objectContaining({
+            code: "dps-unreconciled",
+            seriesKey: "dividendsPerShare",
+            periodKey,
+            reason: expect.stringContaining(reason),
+          }),
+        );
+        expect(historyGapMessages(artifact)).toContainEqual(
+          expect.stringContaining(`SEC dividends per share is withheld for ${periodKey}`),
+        );
+      },
+    );
+
+    // A later 1-for-10 restatement of shares must not judge DPS filed on the earlier basis.
+    test("reconciles against the shares in the DPS filing, not a later restatement", () => {
+      const restated = {
+        ...annual(95_683_200, 2025),
+        form: "10-K/A",
+        filed: "2026-05-15",
+        accn: "20260515-10-K-A",
+      };
+      const artifact = dividendFacts(
+        { CommonStockDividendsPerShareCashPaid: 4.04 },
+        { paid: 3_764_745_000, shares: 956_832_000 },
+        2025,
+        [restated],
+      );
+
+      expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+        expect.objectContaining({
+          value: 4.04,
+          dividendsPaidProof: expect.stringContaining("later restated figures give 0.10x"),
+        }),
+      ]);
+    });
+
+    // ADTRAN FY2019: the quarterly $0.09 is re-tagged as cash paid in 10-K/A 0000950170-23-042432,
+    // Which carries no FY2019 dividends paid or shares; the true annual rate is $0.36.
+    test.each([
+      ["declared is primary", {}],
+      ["the amendment's cash paid is primary", { CommonStockDividendsPerShareCashPaid: 0.09 }],
+    ])(
+      "withholds a year whose fallback sits in a filing without operands when %s",
+      (_case, later) => {
+        const fy2019 = (value: number, accessionNumber: string, form: string, filedAt: string) =>
+          fact({
+            value,
+            form,
+            fiscalYear: 2019,
+            fiscalPeriod: "FY",
+            filedAt,
+            periodStart: "2019-01-01",
+            periodEnd: "2019-12-31",
+            accessionNumber,
+          });
+        const tenK = (value: number) => fy2019(value, "0001564590-20-006425", "10-K", "2020-02-25");
+        const artifact = derive(
+          payload({
+            "us-gaap": {
+              Revenues: { USD: [tenK(530_062_000)] },
+              PaymentsOfDividends: { USD: [tenK(17_212_000)] },
+              WeightedAverageNumberOfDilutedSharesOutstanding: { shares: [tenK(47_836_000)] },
+              CommonStockDividendsPerShareDeclared: { "USD/shares": [tenK(0.09)] },
+              CommonStockDividendsPerShareCashPaid: {
+                "USD/shares": [
+                  fy2019(0.09, "0000950170-23-042432", "10-K/A", "2023-08-14"),
+                  ...Object.values(later).map((value) => annual(value, 2020)),
+                ],
+              },
+            },
+          }),
+          { analysisAsOf: "2023-09-15T00:00:00.000Z" },
+        );
+
+        expect(
+          artifact.statements.perShare.dividendsPerShare.annual.map(({ periodKey }) => periodKey),
+        ).not.toContain("duration:12|2019-12-31");
+        expect(artifact.omissionNotes).toContainEqual(
+          expect.objectContaining({
+            code: "dps-unreconciled",
+            periodKey: "duration:12|2019-12-31",
+            reason: expect.stringContaining("is 0.25x dividends paid of 17212000"),
+          }),
+        );
+      },
+    );
+
+    test("does not swap in a fallback that overshoots dividends paid", () => {
+      const artifact = dividendFacts(
+        {
+          CommonStockDividendsPerShareDeclared: 0.03,
+          CommonStockDividendsPerShareCashPaid: 12,
+        },
+        { paid: 3_764_745_000, shares: 956_832_000 },
+      );
+
+      expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([]);
+      expect(artifact.omissionNotes).toContainEqual(
+        expect.objectContaining({
+          code: "dps-unreconciled",
+          reason: expect.stringContaining("CommonStockDividendsPerShareDeclared 0.03"),
+        }),
+      );
+    });
+
+    test.each([
+      ["dividends paid is not tagged", { shares: 956_832_000 }, 0.03],
+      ["a non-payer tags zero", { paid: 0, shares: 956_832_000 }, 0],
+      ["dividends paid is negative", { paid: -2_720_000_000, shares: 434_000_000 }, 6.26],
+      // Generac FY2014, 10-K 0001437749-15-003654: no 2014 declarations; $902k settles earlier ones.
+      [
+        "a declared zero meets earlier declarations paid this year",
+        { paid: 902_000, shares: 70_171_044 },
+        0,
+      ],
+    ])("keeps the declared figure when %s", (_case, totals, value) => {
+      const artifact = dividendFacts({ CommonStockDividendsPerShareDeclared: value }, totals);
+
+      expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+        expect.objectContaining({ value, concept: "CommonStockDividendsPerShareDeclared" }),
+      ]);
+    });
+  });
+
   test("drops dividend-per-share declaration spans that are not statement periods", () => {
     const declared = (periodStart: string, value: number) =>
       fact({

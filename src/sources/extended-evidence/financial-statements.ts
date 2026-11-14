@@ -327,6 +327,123 @@ function selectSeries(
   };
 }
 
+const DIVIDENDS_PER_SHARE = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+  (definition) => definition.key === "dividendsPerShare",
+)!;
+// Observed quarterly-as-annual rows sit at or below 0.332x; a semiannual rate (0.5x) still passes.
+const DPS_RECONCILIATION_FLOOR = 0.4;
+const DPS_FALLBACK_CEILING = 2;
+
+export function unreconciledDividendsPerShare(
+  dividendsPerShare: number,
+  dilutedShares: number,
+  dividendsPaid: number,
+): number | undefined {
+  const ratio = (dividendsPerShare * dilutedShares) / dividendsPaid;
+  return ratio < DPS_RECONCILIATION_FLOOR ? ratio : undefined;
+}
+
+function reconciledDividendsPerShare(
+  selected: readonly SelectedSeries[],
+  taxonomy: FinancialStatementTaxonomy,
+  select: (definition: FinancialStatementSeriesDefinition) => SelectedSeries,
+  filed: (concept: string) => readonly ParsedFact[],
+): readonly SelectedSeries[] {
+  const annual = (key: FinancialStatementSeriesKey) =>
+    selected.find((item) => item.series.key === key)?.series.annual ?? [];
+  const [paid, shares] = [annual("dividendsPaid"), annual("dilutedShares")];
+  // The DPS filing's own operands first, else the selected series; undefined is unproven.
+  const reconcile = (fact: FinancialStatementFact) => {
+    const chosen = (series: readonly FinancialStatementFact[]) =>
+      series.find((other) => other.periodKey === fact.periodKey);
+    const inFiling = (series: readonly FinancialStatementFact[]) => {
+      const pick = chosen(series);
+      if (pick === undefined || fact.accessionNumber === null) {
+        return undefined;
+      }
+      return filed(pick.concept).find(
+        (other) =>
+          other.accessionNumber === fact.accessionNumber &&
+          other.unit === pick.unit &&
+          periodKey(other) === fact.periodKey,
+      );
+    };
+    const ratioOf = (operands: readonly (ParsedFact | FinancialStatementFact | undefined)[]) => {
+      const [dividends, diluted] = [Math.abs(operands[0]?.value ?? 0), operands[1]?.value ?? 0];
+      // A negative figure is unproven: the metric's not-meaningful verdict, unless a fallback reconciles.
+      return fact.value >= 0 && dividends > 0 && diluted > 0
+        ? { fact, dividends, diluted, ratio: (fact.value * diluted) / dividends }
+        : undefined;
+    };
+    const latest = ratioOf([chosen(paid), chosen(shares)]);
+    const found = ratioOf([inFiling(paid), inFiling(shares)]) ?? latest;
+    return found && { ...found, latestRatio: latest?.ratio ?? found.ratio };
+  };
+  const verdicts = new Map<FinancialStatementFact, ReturnType<typeof reconcile>>();
+  const verdict = (fact: FinancialStatementFact) => {
+    if (!verdicts.has(fact)) {
+      verdicts.set(fact, reconcile(fact));
+    }
+    return verdicts.get(fact);
+  };
+  // Proof is recorded only where the latest restated operands would not reconcile.
+  const proven = (fact: FinancialStatementFact): FinancialStatementFact => {
+    const { dividends, diluted, ratio, latestRatio } = verdict(fact)!;
+    return latestRatio >= DPS_RECONCILIATION_FLOOR
+      ? fact
+      : {
+          ...fact,
+          dividendsPaidProof: `reconciled in its own filing: DPS x ${String(diluted)} diluted shares is ${ratio.toFixed(2)}x dividends paid of ${String(dividends)}; later restated figures give ${latestRatio.toFixed(2)}x`,
+        };
+  };
+  const ok = (fact: FinancialStatementFact) =>
+    (verdict(fact)?.ratio ?? 0) >= DPS_RECONCILIATION_FLOOR;
+  return selected.map((item) => {
+    if (item.series.key !== "dividendsPerShare") {
+      return item;
+    }
+    const used = new Set(item.series.annual.map((fact) => fact.concept));
+    const others = DIVIDENDS_PER_SHARE.concepts[taxonomy].filter((concept) => !used.has(concept));
+    const alternate =
+      others.length === 0 || item.series.annual.every(ok)
+        ? []
+        : select({
+            ...DIVIDENDS_PER_SHARE,
+            concepts: { ...DIVIDENDS_PER_SHARE.concepts, [taxonomy]: others },
+          }).series.annual;
+    const notes: FinancialStatementNote[] = [];
+    const reconciled = item.series.annual.flatMap((fact) => {
+      if (ok(fact)) {
+        return [proven(fact)];
+      }
+      const fallback = alternate.find((other) => other.periodKey === fact.periodKey);
+      const fallbackRatio = fallback === undefined ? undefined : verdict(fallback)?.ratio;
+      if (fallbackRatio !== undefined && fallbackRatio <= DPS_FALLBACK_CEILING && ok(fallback!)) {
+        return [proven(fallback!)];
+      }
+      const failed = verdict(fact);
+      // A declared zero stands even when earlier declarations settle in this year.
+      if (failed === undefined || fact.value === 0) {
+        return [fact];
+      }
+      const reason = `${failed.fact.concept} ${String(failed.fact.value)} x ${String(failed.diluted)} diluted shares is ${failed.ratio.toFixed(2)}x dividends paid of ${String(failed.dividends)}, below the ${String(DPS_RECONCILIATION_FLOOR)}x floor`;
+      notes.push({
+        code: "dps-unreconciled",
+        seriesKey: "dividendsPerShare",
+        periodKey: fact.periodKey,
+        reason,
+        message: `SEC dividends per share is withheld for ${fact.periodKey}: ${reason}`,
+      });
+      return [];
+    });
+    return {
+      ...item,
+      series: { ...item.series, annual: reconciled },
+      omissionNotes: [...item.omissionNotes, ...notes],
+    };
+  });
+}
+
 function emptySeries(definition: FinancialStatementSeriesDefinition): FinancialStatementSeries {
   return {
     key: definition.key,
@@ -414,11 +531,16 @@ export function deriveFinancialStatements(
               omissionNotes: [],
             }) satisfies SelectedSeries,
         )
-      : FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map((definition) =>
-          withheldExtensionCapex(
-            selectSeries(payload, taxonomy, reportingCurrency, definition, input),
-            input.secFilings ?? [],
+      : reconciledDividendsPerShare(
+          FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map((definition) =>
+            withheldExtensionCapex(
+              selectSeries(payload, taxonomy, reportingCurrency, definition, input),
+              input.secFilings ?? [],
+            ),
           ),
+          taxonomy,
+          (definition) => selectSeries(payload, taxonomy, reportingCurrency, definition, input),
+          (concept) => unitFacts(taxonomy, taxonomyRoot(payload, taxonomy) ?? {}, concept),
         );
   const equityStackSelection =
     taxonomy === undefined || reportingCurrency === undefined
@@ -714,6 +836,7 @@ export function financialStatementsHistoryGaps(
         note.code === "mixed-share-basis" ||
         note.code === "declaration-span" ||
         note.code === "translation-filing" ||
+        note.code === "dps-unreconciled" ||
         (note.code === "incomplete-composite-series" &&
           (note.seriesKey === "depreciationAndAmortization" ||
             note.seriesKey === "capitalExpenditure")),

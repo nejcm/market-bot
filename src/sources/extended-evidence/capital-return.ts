@@ -418,6 +418,31 @@ function unlessPaymentEvidenceUnknown(
       : compute(ctx);
 }
 
+// A withheld unreconciled year must not let another year stand in as latest or earliest.
+function unlessDpsWithheld(
+  compute: MetricDefinition["compute"],
+  earliest = false,
+): MetricDefinition["compute"] {
+  return (ctx) => {
+    const outcome = compute(ctx);
+    const bound = earliest
+      ? (outcome.periodEnd ?? "")
+      : (eligibleAnnualFacts(ctx, "dividendsPerShare")[0]?.periodEnd ?? "");
+    const withheld = ctx.statements?.omissionNotes.findLast((note) => {
+      const end = note.periodKey?.split("|").at(-1) ?? "";
+      return note.code === "dps-unreconciled" && (earliest ? end < bound : end > bound);
+    });
+    return withheld === undefined
+      ? outcome
+      : {
+          status: "missing",
+          reason: `dividends per share withheld: ${withheld.reason!}`,
+          periodEnd: withheld.periodKey!.split("|").at(-1)!,
+          inputs: [],
+        };
+  };
+}
+
 function latestDividendsPerShare(ctx: MetricContext): MetricOutcome {
   const outcome = latestFyAmount("dividendsPerShare")(ctx);
   const latest = outcome.status === "value" ? outcome.inputs[0]?.value : undefined;
@@ -647,8 +672,8 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     label: "Dividends per share (latest FY)",
     unit: "currency-per-share",
     basis:
-      "dividends declared per share, else cash paid per share, in the latest year-aligned fiscal year",
-    compute: latestDividendsPerShare,
+      "dividends declared per share, else cash paid per share, whichever reconciles with dividends paid in its own filing, else in the selected same-year series, in the latest year-aligned fiscal year; a year without dividends paid or diluted shares publishes unchecked; a declared zero that no concept replaces publishes as declared",
+    compute: unlessDpsWithheld(latestDividendsPerShare),
   },
   ...[3, 5].map(
     (years): MetricDefinition => ({
@@ -658,7 +683,9 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
       basis: `compound annual change in dividends per share, latest fiscal year vs the fiscal year ${String(years)}y earlier`,
       change: { over: `CAGR over ${String(years)}y` },
       applicable: noDividendHistory,
-      compute: unlessPaymentEvidenceUnknown((ctx) => dividendsPerShareCagr(ctx, years)),
+      compute: unlessDpsWithheld(
+        unlessPaymentEvidenceUnknown((ctx) => dividendsPerShareCagr(ctx, years)),
+      ),
     }),
   ),
   {
@@ -668,7 +695,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     basis:
       "earliest year-aligned fiscal year with positive dividends per share among retained annual filings",
     applicable: noDividendHistory,
-    compute: unlessPaymentEvidenceUnknown(earliestDividendFiscalYear),
+    compute: unlessDpsWithheld(unlessPaymentEvidenceUnknown(earliestDividendFiscalYear), true),
   },
   {
     id: "sbcLatestFy",

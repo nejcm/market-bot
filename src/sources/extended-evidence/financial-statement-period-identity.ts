@@ -55,7 +55,10 @@ const statementDatesByRoot = new WeakMap<
   Record<string, unknown>,
   ReadonlyMap<string, readonly string[]>
 >();
-const unprovenByRows = new WeakMap<readonly unknown[], ReadonlyMap<unknown, UnprovenRestatement>>();
+const unprovenByRoot = new WeakMap<
+  Record<string, unknown>,
+  WeakMap<readonly unknown[], ReadonlyMap<unknown, UnprovenRestatement>>
+>();
 
 function secFactRow(value: unknown): SecFactRow | undefined {
   if (!isRecord(value)) {
@@ -143,6 +146,14 @@ export interface UnprovenRestatement {
   readonly supersededAt?: string;
 }
 
+function latestFiled(rows: readonly SecFactRow[]): readonly SecFactRow[] {
+  const filed = rows
+    .map((row) => row.filed)
+    .toSorted()
+    .at(-1);
+  return rows.filter((row) => row.filed === filed);
+}
+
 function findUnprovenRestatements(
   root: Record<string, unknown>,
   values: readonly unknown[],
@@ -162,23 +173,32 @@ function findUnprovenRestatements(
       .map(({ row }) => row.accn),
   );
   const offPeriod = (accn: string) => statementDates.has(accn) && !aligned.has(accn);
+  const latestStatementDate = (accn: string) => statementDates.get(accn)?.at(-1);
+  const dropped = new Set<SecFactRow>();
   const unproven = new Map<unknown, UnprovenRestatement>();
-  for (const { value, row } of rows) {
+  for (const { value, row } of rows.toSorted((left, right) =>
+    left.row.filed.localeCompare(right.row.filed),
+  )) {
     if (row.start === undefined || !offPeriod(row.accn)) {
       continue;
     }
     const peers = rows
       .map(({ row: peer }) => peer)
       .filter((peer) => peer.accn !== row.accn && rowPeriodKey(peer) === rowPeriodKey(row));
-    const standingFiled = peers
-      .map((peer) => peer.filed)
-      .filter((filed) => filed < row.filed)
-      .toSorted()
-      .at(-1);
-    const standing = peers.filter((peer) => peer.filed === standingFiled);
+    // A re-filing of the same off-period report (e.g. a 10-Q/A) cannot corroborate it.
+    const earlier = peers.filter(
+      (peer) =>
+        peer.filed < row.filed &&
+        !(offPeriod(peer.accn) && latestStatementDate(peer.accn) === latestStatementDate(row.accn)),
+    );
+    const standing = [
+      ...latestFiled(earlier),
+      ...latestFiled(earlier.filter((peer) => !dropped.has(peer))),
+    ];
     if (standing.length === 0 || standing.some((peer) => peer.val === row.val)) {
       continue;
     }
+    dropped.add(row);
     const [supersededAt] = peers
       .map((peer) => peer.filed)
       .filter((filed) => filed > row.filed)
@@ -206,11 +226,13 @@ export function unprovenRestatements(
   root: Record<string, unknown>,
   values: readonly unknown[],
 ): ReadonlyMap<unknown, UnprovenRestatement> {
-  const cached = unprovenByRows.get(values);
+  const byRows = unprovenByRoot.get(root) ?? new WeakMap();
+  unprovenByRoot.set(root, byRows);
+  const cached = byRows.get(values);
   if (cached !== undefined) {
     return cached;
   }
   const unproven = findUnprovenRestatements(root, values);
-  unprovenByRows.set(values, unproven);
+  byRows.set(values, unproven);
   return unproven;
 }

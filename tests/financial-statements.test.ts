@@ -7052,6 +7052,7 @@ function unproven(statementRows: readonly RawRow[], conceptRows: readonly RawRow
 
 describe("unproven restatements", () => {
   const SHIFTED = "0001193125-26-338382";
+  const REFILED = "0001193125-26-350000";
   const FILINGS = {
     "0000950170-24-132565": ["10-K", "FY", "2024-12-03", "2024-07-01", "2024-09-30"],
     "0000950170-25-067219": ["10-Q", "Q2", "2025-05-08", "2025-01-01", "2025-03-31"],
@@ -7060,6 +7061,7 @@ describe("unproven restatements", () => {
     "0001193125-26-039538": ["10-Q", "Q1", "2026-02-05", "2025-10-01", "2025-12-31"],
     "0001193125-26-217036": ["10-Q", "Q2", "2026-05-11", "2026-01-01", "2026-03-31"],
     [SHIFTED]: ["10-Q", "Q3", "2026-08-06", "2026-04-01", "2026-06-30"],
+    [REFILED]: ["10-Q/A", "Q3", "2026-08-26", "2026-04-01", "2026-06-30"],
   } as const;
   type Accession = keyof typeof FILINGS;
   type Row = readonly [start: string, end: string, value: number, accession: Accession];
@@ -7175,6 +7177,23 @@ describe("unproven restatements", () => {
       continuingDilutedEps: -2.86,
       dilutedShares: 274_726_414,
     });
+  });
+
+  test("a 10-Q/A re-filing the shifted rows cannot corroborate them", () => {
+    const refiled: readonly Row[] = [
+      ...EPS,
+      ...EPS.filter(([, , , accession]) => accession === SHIFTED).map(
+        ([start, end, value]): Row => [start, end, value, REFILED],
+      ),
+    ];
+    const artifact = clsk(ALL_FILINGS, refiled);
+
+    expect(
+      interimAt(artifact.statements.perShare.continuingDilutedEps, "2025-10-01", "2026-03-31")
+        ?.value,
+    ).toBe(-2.86);
+    expect(artifact.statements.perShare.continuingDilutedEps.ttm?.value).toBeCloseTo(-2.08);
+    expect(historyGapMessages(artifact)).toContainEqual(expect.stringContaining(REFILED));
   });
 
   test("without a derivable period end the latest filing still wins", () => {
@@ -7359,6 +7378,22 @@ describe("unproven restatements", () => {
           ],
         ),
       ).toEqual([]);
+    });
+
+    test("a row matching the surviving value stands after a dropped shift", () => {
+      expect(
+        unproven(
+          [
+            ["2021-01-01", "2021-06-30", 1, "shifted", "2021-08-05"],
+            ["2022-01-01", "2022-06-30", 1, "matching", "2022-08-05"],
+          ],
+          [
+            ["2020-01-01", "2020-03-31", 1, "original", "2020-05-05"],
+            ["2020-01-01", "2020-03-31", 2, "shifted", "2021-08-05"],
+            ["2020-01-01", "2020-03-31", 1, "matching", "2022-08-05"],
+          ],
+        ),
+      ).toEqual(["shifted"]);
     });
 
     test("a repeat of the standing value is no restatement (Flowserve 8-K 0000030625-12-000018)", () => {

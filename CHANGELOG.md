@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.12](https://github.com/nejcm/market-bot/compare/v1.19.11...v1.19.12) (2026-11-14)
+
+### Bug Fixes
+
+- **dividends:** reconcile dividends per share with dividends paid (#235) ([b18c041](https://github.com/nejcm/market-bot/commit/b18c0416c2c149f720c5d6877ee7de51ea3d7ec1))
+
 ## [1.19.11](https://github.com/nejcm/market-bot/compare/v1.19.10...v1.19.11) (2026-11-14)
 
 ### Bug Fixes

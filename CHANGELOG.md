@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.8](https://github.com/nejcm/market-bot/compare/v1.19.7...v1.19.8) (2026-11-14)
+
+### Bug Fixes
+
+- **codex:** skip the expected code mode notice in item counts (#231) ([718c85c](https://github.com/nejcm/market-bot/commit/718c85c2f2900b869c856b79d391656c1cc49102))
+
 ## [1.19.7](https://github.com/nejcm/market-bot/compare/v1.19.6...v1.19.7) (2026-11-12)
 
 ### Bug Fixes

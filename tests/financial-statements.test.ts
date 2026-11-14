@@ -1233,6 +1233,82 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  test("drops one-month spans from every duration series, not only dividends per share", () => {
+    // Realty Income Q3 2026 10-Q 0000726728-26-000059 tags January and August 2026 repurchases as one-month spans.
+    const repurchase = (periodStart: string, periodEnd: string, value: number) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalYear: 2026,
+        fiscalPeriod: "Q3",
+        filedAt: "2026-11-03",
+        accessionNumber: "0000726728-26-000059",
+        periodStart,
+        periodEnd,
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          PaymentsForRepurchaseOfCommonStock: {
+            USD: [
+              repurchase("2026-01-01", "2026-01-31", 101_900_000),
+              repurchase("2026-08-01", "2026-08-31", 188_700_000),
+              repurchase("2026-01-01", "2026-09-30", 290_631_000),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-11-12" },
+    );
+
+    expect(
+      artifact.statements.cashFlowStatement.shareRepurchases.interim.map(
+        ({ periodKey }) => periodKey,
+      ),
+    ).toEqual(["duration:9|2026-09-30"]);
+    expect(historyGapMessages(artifact)).toContainEqual(
+      expect.stringContaining(
+        "share repurchases has 2 non-zero off-period facts (latest duration:1|2026-08-31)",
+      ),
+    );
+  });
+
+  test("keeps 52-53-week calendar quarters whose spans round to 4, 5 or 8 months", () => {
+    const interimEnds = (periods: readonly (readonly [string, string])[]) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: periods.map(([periodStart, periodEnd], index) =>
+                fact({
+                  value: 100 * (index + 1),
+                  form: "10-Q",
+                  fiscalYear: 2024,
+                  fiscalPeriod: `Q${String(index + 1)}`,
+                  filedAt: "2024-10-15",
+                  periodStart,
+                  periodEnd,
+                }),
+              ),
+            },
+          },
+        }),
+        { analysisAsOf: "2024-11-01" },
+      ).statements.incomeStatement.revenue.interim.map(({ periodEnd }) => periodEnd);
+
+    // PepsiCo-style 12-week Q1 with 24- and 36-week YTDs.
+    expect(
+      interimEnds([
+        ["2023-12-31", "2024-03-23"],
+        ["2023-12-31", "2024-06-15"],
+        ["2023-12-31", "2024-09-07"],
+      ]),
+    ).toEqual(["2024-03-23", "2024-06-15", "2024-09-07"]);
+    // Kroger-style 16-week Q1.
+    expect(interimEnds([["2024-02-04", "2024-05-25"]])).toEqual(["2024-05-25"]);
+  });
+
   test("ranks only year-length annual dividend-per-share bases, so a declared stub cannot win", () => {
     const artifact = derive(
       payload({

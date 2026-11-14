@@ -63,6 +63,7 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-amd-deep": ["complete", "substantial"],
   "equity-bursa-deep": ["blocked", "limited"],
   "equity-bursa-brief": ["blocked", "limited"],
+  "equity-reit-deep": ["complete", "limited"],
 } as const;
 
 // The recording predates figureQuotes; both spans are verbatim in the web-amd-a0601b8d (Reuters) snippet.
@@ -183,6 +184,12 @@ const EXPECTED_EVENT_GRID: Record<
     ["grid-range-1", 0.3198],
     ["grid-range-5", 0.3158],
     ["grid-range-20", 0.3126],
+    ["grid-relative-5", 0.5],
+  ],
+  "equity-reit-deep": [
+    ["grid-range-1", 0.4795],
+    ["grid-range-5", 0.3596],
+    ["grid-range-20", 0.3275],
     ["grid-relative-5", 0.5],
   ],
 };
@@ -757,6 +764,35 @@ describe("static equity run fixtures", () => {
             message.includes("section packet"),
           ),
         ).toEqual([]);
+      }
+      if (name === "equity-reit-deep") {
+        // Realty Income FY2025 10-K 0000726728-26-000011 and Q3 2026 10-Q 0000726728-26-000059.
+        const sections = result.collectedSources.metricSections ?? [];
+        const row = (id: string) =>
+          sections.flatMap(({ metrics }) => metrics).find((metric) => metric.id === id);
+        // Known defect: O files PaymentsForCapitalImprovements (131.8M FY2025), which the capex series does not read.
+        expect(row("freeCashFlowProxy")).toMatchObject({
+          status: "missing",
+          reason: "capital expenditure not filed by the issuer",
+          inputs: [{ series: "operatingCashFlow", value: 2_945_560_000, periodEnd: "2026-09-30" }],
+        });
+        expect(JSON.stringify(sections)).not.toContain("depository issuer");
+        expect(row("dividendsLatestFy")).toMatchObject({
+          value: 2_920_895_000,
+          periodEnd: "2025-12-31",
+        });
+        expect(row("dpsLatestFy")).toMatchObject({ value: 3.217, periodEnd: "2025-12-31" });
+        expect(row("dividendYieldFiled")).toMatchObject({ value: 0.051_414_569_730_549_93 });
+        expect(row("effectiveTaxRate")).toMatchObject({
+          value: 0.073_884_388_670_010_01,
+          inputs: [{ value: 85_346_000 }, { value: 1_155_129_000 }],
+        });
+        // Quote market cap / 9-month OCF 2,945,560,000 annualized ×12/9.
+        expect(
+          result.report.extendedEvidence?.items.find(
+            ({ metrics }) => metrics?.pcfRatio !== undefined,
+          )?.metrics?.pcfRatio,
+        ).toBe(14.465_156_256_874_755);
       }
       if (name === "equity-depository-deep") {
         assertDepositoryEnterpriseValueAbsent(result);

@@ -661,6 +661,35 @@ describe("capitalReturnSection", () => {
     });
   });
 
+  test("a withheld unreconciled latest year does not let an older year stand in", () => {
+    const result = evaluate(
+      context(
+        usGaap({
+          PaymentsOfDividends: series("USD", (year) => (year === 2025 ? 100_000 : 60)),
+        }),
+      ),
+    );
+
+    for (const id of ["dpsLatestFy", "dpsCagr3y", "dpsCagr5y"]) {
+      expect(result.metric(id)).toMatchObject({ status: "missing", periodEnd: "2025-12-31" });
+      expect(result.metric(id).reason).toMatch(
+        /^dividends per share withheld: .+ below the 0\.4x floor$/u,
+      );
+    }
+    expect(result.metric("earliestDividendFyInHistory").status).toBe("value");
+
+    const oldest = evaluate(
+      context(
+        usGaap({ PaymentsOfDividends: series("USD", (year) => (year === 2019 ? 100_000 : 60)) }),
+      ),
+    );
+    expect(oldest.metric("dpsLatestFy").status).toBe("value");
+    expect(oldest.metric("earliestDividendFyInHistory")).toMatchObject({
+      status: "missing",
+      periodEnd: "2019-12-31",
+    });
+  });
+
   test("no taxonomy: every metric is missing and the section still exists", () => {
     const result = evaluate(context({}));
 
@@ -1321,7 +1350,7 @@ describe("Capital Return in report.json and report.md", () => {
       "- Buyback yield: not available, reporting currency USD differs from quote currency EUR",
     );
     expect(markdown).toContain(
-      `- Dividends per share \\(latest FY\\): $0.64 (FY ending 2025-12-31; dividends declared per share, else cash paid per share, in the latest year-aligned fiscal year) [${SOURCE_ID}]`,
+      `- Dividends per share \\(latest FY\\): $0.64 (FY ending 2025-12-31; dividends declared per share, else cash paid per share, whichever reconciles with dividends paid in its own filing, else in the selected same-year series, in the latest year-aligned fiscal year; a year without dividends paid or diluted shares publishes unchecked; a declared zero that no concept replaces publishes as declared) [${SOURCE_ID}]`,
     );
     expect(markdown).toContain(`- [${SOURCE_ID}] ${SOURCE_ID}`);
     // The quote is cited only by the missing yields, which render a reason and no reference.

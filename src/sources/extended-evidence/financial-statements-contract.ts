@@ -168,6 +168,8 @@ export interface FinancialStatementFact {
   readonly shortTermInvestmentsProof?: string;
   // Short-term investments only: why a proven extension line withholds its instant instead of publishing.
   readonly shortTermInvestmentsWithheld?: string;
+  // Dividends per share only: how DPS x diluted shares reconciled with dividends paid.
+  readonly dividendsPaidProof?: string;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly {
@@ -183,8 +185,14 @@ export interface FinancialStatementFact {
 
 export function derivedFactDisclosure(
   key: FinancialStatementSeriesKey,
-  fact: Pick<FinancialStatementFact, "composite" | "concept" | "restatedFrom">,
+  fact: Pick<
+    FinancialStatementFact,
+    "composite" | "concept" | "restatedFrom" | "dividendsPaidProof"
+  >,
 ): string | undefined {
+  if (key === "dividendsPerShare") {
+    return fact.dividendsPaidProof;
+  }
   if (fact.composite === undefined) {
     return undefined;
   }
@@ -306,7 +314,8 @@ export interface FinancialStatementNote {
     | "debt-held-for-sale"
     | "debt-scope-unproven"
     | "tagged-zero-debt"
-    | "translation-filing";
+    | "translation-filing"
+    | "dps-unreconciled";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
@@ -616,6 +625,7 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     (value.lineScope === undefined || value.lineScope === true) &&
     (value.faceLeases === undefined || stringArrayField(value, "faceLeases") !== undefined) &&
     (value.zeroBorrowingsProof === undefined || typeof value.zeroBorrowingsProof === "string") &&
+    (value.dividendsPaidProof === undefined || typeof value.dividendsPaidProof === "string") &&
     stringArrayField(value, "sourceIds") !== undefined
   );
 }

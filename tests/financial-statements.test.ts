@@ -3262,6 +3262,62 @@ describe("canonical financial statements", () => {
     expect(artifact.validationNotes.map((note) => note.code)).not.toContain("unreconciled-ttm");
   });
 
+  // CLSK FY2023 10-K 0000950170-23-067339 (filed 2023-12-01) tags amortization for FY2026.
+  test("a forward period tagged in an older 10-K does not supersede a later FY-as-TTM", () => {
+    const fiscalYear = fact({
+      value: 766,
+      form: "10-K",
+      fiscalYear: 2025,
+      fiscalPeriod: "FY",
+      filedAt: "2025-11-25",
+      periodStart: "2024-10-01",
+      periodEnd: "2025-09-30",
+    });
+    const forwardPeriod = fact({
+      value: 1,
+      form: "10-K",
+      fiscalYear: 2023,
+      fiscalPeriod: "FY",
+      filedAt: "2023-12-01",
+      periodStart: "2025-10-01",
+      periodEnd: "2026-09-30",
+      accessionNumber: "0000950170-23-067339",
+    });
+    const laterQuarter = fact({
+      value: 181,
+      form: "10-Q",
+      fiscalYear: 2026,
+      fiscalPeriod: "Q1",
+      filedAt: "2026-02-05",
+      periodStart: "2025-10-01",
+      periodEnd: "2025-12-31",
+    });
+    const derivedWith = (...revenue: Record<string, unknown>[]) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: revenue },
+            AmortizationOfIntangibleAssets: { USD: [forwardPeriod] },
+          },
+        }),
+        { analysisAsOf: "2026-10-01T00:00:00.000Z" },
+      ).statements.incomeStatement.revenue;
+
+    const fyOnly = derivedWith(fiscalYear);
+    expect(fyOnly.ttm?.formula).toBe("FY");
+    expect(fyOnly.supersedingFacts).toEqual([]);
+
+    const withQuarter = derivedWith(fiscalYear, laterQuarter);
+    expect(withQuarter.ttm?.formula).not.toBe("FY");
+    expect(withQuarter.supersedingFacts).toEqual([
+      expect.objectContaining({
+        form: "10-Q",
+        periodEnd: "2025-12-31",
+        firstPublicAt: "2026-02-05",
+      }),
+    ]);
+  });
+
   test("withholds FY-as-TTM when a 10-K/A also tags the completed next quarter", () => {
     const accessionNumber = "0000000000-25-000077";
     const restatedFiscalYear = fact({

@@ -46,8 +46,13 @@ function isSubsequentEventFact(fact: ParsedFact, fiscalYear: FiscalYearFiling): 
 }
 
 // A later period tagged under any concept (e.g. a newer revenue tag) means the FY is no longer trailing.
+// A period not yet ended when filed (a forward schedule) cannot prove a later period is public.
 export function isSupersedingFact(fact: ParsedFact, fiscalYear: FiscalYearFiling): boolean {
-  return fact.periodEnd > fiscalYear.periodEnd && !isSubsequentEventFact(fact, fiscalYear);
+  return (
+    fact.periodEnd > fiscalYear.periodEnd &&
+    fact.periodEnd < factPublicAt(fact) &&
+    !isSubsequentEventFact(fact, fiscalYear)
+  );
 }
 
 export function factPublicAt(fact: ParsedFact): string {

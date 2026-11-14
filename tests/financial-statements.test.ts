@@ -1210,6 +1210,54 @@ describe("canonical financial statements", () => {
       expect(artifact.omissionNotes.map(({ code }) => code)).not.toContain("dps-unreconciled");
     });
 
+    // Prologis run 2026-11-14T18-11-33-016Z-4e03119d: Declared ends 2025-12-31, CashPaid has Q1 2026 at $1.07.
+    test("a cash-paid newest year brings its interim rows and drops the declared staleness note", () => {
+      const quarter = (value: number) =>
+        fact({
+          value,
+          form: "10-Q",
+          fiscalYear: 2026,
+          fiscalPeriod: "Q1",
+          filedAt: "2026-04-30",
+          periodStart: "2026-01-01",
+          periodEnd: "2026-03-31",
+        });
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: [annual(1000, 2025)] },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [annual(950_000_000, 2024), annual(956_832_000, 2025)],
+            },
+            PaymentsOfDividends: {
+              USD: [annual(3_650_000_000, 2024), annual(3_764_745_000, 2025)],
+            },
+            CommonStockDividendsPerShareDeclared: {
+              "USD/shares": [annual(3.84, 2024), annual(0.03, 2025)],
+            },
+            CommonStockDividendsPerShareCashPaid: {
+              "USD/shares": [annual(4.04, 2025), quarter(1.07)],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-06-15T00:00:00.000Z" },
+      );
+      const dps = artifact.statements.perShare.dividendsPerShare;
+
+      expect(dps.annual.map(({ concept }) => concept)).toEqual([
+        "CommonStockDividendsPerShareDeclared",
+        "CommonStockDividendsPerShareCashPaid",
+      ]);
+      expect(dps.interim).toEqual([
+        expect.objectContaining({ value: 1.07, concept: "CommonStockDividendsPerShareCashPaid" }),
+      ]);
+      expect(
+        artifact.omissionNotes.filter(
+          (note) => note.seriesKey === "dividendsPerShare" && note.code === "stale-concept-history",
+        ),
+      ).toEqual([]);
+    });
+
     // ADTRAN FY2023: $0.09 is the quarterly rate; $21.2M dividends paid on 78.4M diluted shares.
     // Belden FY2017 lands here too: its $43.4M common-dividend payments carry $34.9M of preferred.
     test.each([

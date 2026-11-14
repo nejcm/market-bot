@@ -3,6 +3,7 @@ import { deltaPercent } from "../sources/extended-evidence/sec-fundamentals-form
 import {
   financialStatementFacts,
   financialStatementFactsAreCompatible,
+  financialStatementAnnualizationFactor,
   financialStatementPeriodMonths,
   financialStatementPeriodsYearAligned,
   financialStatementSeriesByKey,
@@ -272,7 +273,7 @@ function verifyExactPeriodMetric(
       months === undefined ||
       flow.periodEnd !== instant.periodEnd
         ? undefined
-        : (flow.value * (12 / months)) / instant.value;
+        : (flow.value * (financialStatementAnnualizationFactor(flow) ?? 1)) / instant.value;
     return (
       expected !== undefined &&
       Math.abs(value - expected) <= Math.max(1, Math.abs(value), Math.abs(expected)) * 1e-12 &&

@@ -10,6 +10,7 @@ import type {
 import {
   capFinancialStatementPeriods,
   deriveFinancialStatementTtm,
+  financialStatementAnnualizationFactor,
   financialStatementFactForPeriod,
   financialStatementFacts,
   financialStatementFactsAreCompatible,
@@ -1511,5 +1512,39 @@ describe("canonical metrics withhold a stale series", () => {
     const artifact = derive("2025-05-31");
     expect(canonicalFinancialMetrics(artifact).grossProfit).toBe(24_287_000_000);
     expect(canonicalStaleSeriesGaps(artifact)).toEqual([]);
+  });
+});
+
+function factor(periodStart: string, periodEnd: string) {
+  return financialStatementAnnualizationFactor({ periodStart, periodEnd });
+}
+
+describe("financialStatementAnnualizationFactor", () => {
+  test("annualizes 52/53-week interim spans by actual days", () => {
+    expect(factor("2026-02-01", "2026-08-15")).toBeCloseTo(365.2416 / 196, 10);
+    expect(factor("2026-02-01", "2026-05-23")).toBeCloseTo(365.2416 / 112, 10);
+    expect(factor("2026-02-01", "2026-11-07")).toBeCloseTo(365.2416 / 280, 10);
+  });
+
+  test("keeps the exact 12/months factor for calendar-month and 13-week spans", () => {
+    expect(factor("2026-01-01", "2026-03-31")).toBe(4);
+    expect(factor("2026-04-01", "2026-06-30")).toBe(4);
+    expect(factor("2026-01-01", "2026-06-30")).toBe(2);
+    expect(factor("2026-01-01", "2026-09-30")).toBe(12 / 9);
+    expect(factor("2025-12-28", "2026-03-28")).toBe(4);
+  });
+
+  test("never rescales a fiscal year, including a 53-week one", () => {
+    expect(factor("2025-01-01", "2025-12-31")).toBe(1);
+    expect(factor("2025-02-02", "2026-01-31")).toBe(1);
+    expect(factor("2024-02-04", "2025-02-08")).toBe(1);
+  });
+
+  test("falls back to rounded months without a span, and to none without either", () => {
+    expect(
+      financialStatementAnnualizationFactor({ periodEnd: "2026-03-28", periodMonths: 9 }),
+    ).toBe(12 / 9);
+    expect(financialStatementAnnualizationFactor({ periodEnd: "2026-03-28" })).toBeUndefined();
+    expect(factor("2026-03-20", "2026-03-28")).toBeUndefined();
   });
 });

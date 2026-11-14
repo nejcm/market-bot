@@ -903,6 +903,18 @@ function canonicalInstantFact(
   return { val: value, form, fp, fy: Number(end.slice(0, 4)), filed, end };
 }
 
+function krogerYtdFact(val: number) {
+  return {
+    val,
+    form: "10-Q",
+    fp: "Q2",
+    fy: 2026,
+    filed: "2026-09-12",
+    start: "2026-02-01",
+    end: "2026-08-15",
+  };
+}
+
 describe("financial lens artifact compatibility", () => {
   test("preserves populated lens values at the canonical input seam", () => {
     const facts = {
@@ -1861,6 +1873,42 @@ describe("financial lens artifact compatibility", () => {
       periodEnd: "2025-12-31",
       periodMonths: 12,
     });
+  });
+
+  test("annualizes a 52/53-week 28-week YTD by its days, not rounded months", () => {
+    // Kroger 10-Q for the 28 weeks ended 2026-08-15 ($M); 196 days, not 6 months.
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetIncomeLoss: { units: { USD: [krogerYtdFact(1543)] } },
+            NetCashProvidedByUsedInOperatingActivities: { units: { USD: [krogerYtdFact(3085)] } },
+            StockholdersEquity: { units: { USD: [{ ...krogerYtdFact(5840), start: undefined }] } },
+            Assets: { units: { USD: [{ ...krogerYtdFact(49_491), start: undefined }] } },
+          },
+        },
+      },
+      {
+        symbol: "KR",
+        generatedAt: "2026-11-14T00:00:00.000Z",
+        analysisAsOf: "2026-11-14T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-kr-fundamentals",
+      },
+    );
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 41_813.680_128 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-11-14T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    );
+    // Rounded-month annualization (×2) published 52.8% / 6.2% / 6.78x.
+    expect(metricByKey(result, "Quality", "roe")?.value).toBeCloseTo(0.492, 3);
+    expect(metricByKey(result, "Quality", "roa")?.value).toBeCloseTo(0.0581, 4);
+    expect(metricByKey(result, "Value", "pcfRatio")?.value).toBeCloseTo(7.27, 2);
   });
 
   test("drops unavailable canonical ratios after serialization instead of mixing periods", () => {

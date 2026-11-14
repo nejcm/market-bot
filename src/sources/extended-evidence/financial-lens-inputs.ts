@@ -2,6 +2,7 @@ import { DAY_MS, isFreshPeriodEnd } from "../../config/shared";
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import { itemByCategory, type FinancialLensPosture } from "./financial-lens-metrics";
 import {
+  financialStatementAnnualizationFactor,
   financialStatementFacts,
   financialStatementFactsAreCompatible,
   financialStatementPeriodMonths,
@@ -471,8 +472,16 @@ export function withCompleteDebt(definition: MetricDefinition): MetricDefinition
   };
 }
 
-export function annualize(value: number, periodMonths: number | undefined): number {
-  return periodMonths !== undefined && periodMonths > 0 ? value * (12 / periodMonths) : value;
+export function annualize(
+  value: number,
+  period: Parameters<typeof financialStatementAnnualizationFactor>[0],
+): number {
+  return value * (financialStatementAnnualizationFactor(period) ?? 1);
+}
+
+export function annualizeSummary(ctx: MetricContext, key: string, value: number): number {
+  const periodStart = readStringMetric(secItem(ctx)?.metrics, `${key}PeriodStart`);
+  return annualize(value, { ...summaryPeriod(ctx, key), periodStart });
 }
 
 export function positiveOf(value: number | undefined): boolean | undefined {

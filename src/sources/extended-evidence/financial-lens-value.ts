@@ -1,6 +1,5 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import { valuationDateBasisMetric } from "./financial-lens-metrics";
-import { financialStatementPeriodMonths } from "./financial-statement-selection";
 import { type MetricContext, type MetricDefinition, type MetricOutcome } from "./metric-engine";
 import { ENTERPRISE_VALUE_BASIS } from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
@@ -15,6 +14,7 @@ import {
   periodEndInput,
   noFact,
   annualize,
+  annualizeSummary,
   secItem,
   valuationItem,
   targetValuationIds,
@@ -287,9 +287,10 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
         if (context.statements === undefined) {
           const item = secItem(context);
           const operatingCashFlow = readNumberMetric(item?.metrics, "operatingCashFlow");
-          const months = readNumberMetric(item?.metrics, "operatingCashFlowPeriodMonths");
           const denominator =
-            operatingCashFlow === undefined ? undefined : annualize(operatingCashFlow, months);
+            operatingCashFlow === undefined
+              ? undefined
+              : annualizeSummary(context, "operatingCashFlow", operatingCashFlow);
           const period = summaryPeriod(context, "operatingCashFlow");
           return marketCap === undefined ||
             marketCap.value === undefined ||
@@ -317,7 +318,7 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
         if (anchor === undefined) {
           return noFact(context, "operatingCashFlow");
         }
-        const denominator = annualize(anchor.value, financialStatementPeriodMonths(anchor));
+        const denominator = annualize(anchor.value, anchor);
         const inputs = [
           factInput(anchor, "operatingCashFlow"),
           ...(marketCap === undefined ? [] : [marketCap]),

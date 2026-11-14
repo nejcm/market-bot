@@ -531,13 +531,14 @@ export function summarizeSecFundamentals(
     if (latest.end !== undefined) {
       metrics[`${definition.key}PeriodEnd`] = latest.end;
     }
-    // Expose each flow fact's own reporting-period length so downstream ratios
+    // Expose each flow fact's own reporting span (start, months) so downstream ratios
     // (ROE/ROA/PCF) annualize by the metric's own period, not revenue's. Instant
     // Facts (no start/end span) yield undefined and emit no key. Revenue keeps its
     // Dedicated revenuePeriodEnd sidecar for the valuation module.
     const months = periodMonths(latest);
     if (months !== undefined) {
       metrics[`${definition.key}PeriodMonths`] = months;
+      metrics[`${definition.key}PeriodStart`] = latest.start!;
     }
     if (definition.key === "revenue" && latest.end !== undefined) {
       metrics.revenuePeriodEnd = latest.end;

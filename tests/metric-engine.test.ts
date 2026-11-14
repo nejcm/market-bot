@@ -95,6 +95,54 @@ describe("evaluateMetricSection", () => {
     expect(violatesResearchOnly(sourceGaps[0]!.message)).toBeNull();
   });
 
+  test("names a repeated label once with each period it is missing for", () => {
+    const segmentOperatingIncome = (periodStart: string): MetricDefinition => ({
+      ...missingMetric,
+      id: `seg-oi-${periodStart}`,
+      label: "Seg OI",
+      compute: () => ({
+        status: "missing",
+        reason: "no input fact",
+        periodEnd: "2026-09-30",
+        inputs: [{ ...input(1, ["sec-a"]), periodStart, periodEnd: "2026-09-30" }],
+      }),
+    });
+    const { sourceGaps } = evaluateMetricSection(
+      "s",
+      "Section",
+      [
+        segmentOperatingIncome("2026-07-01"),
+        segmentOperatingIncome("2026-01-01"),
+        segmentOperatingIncome("2026-01-01"),
+        { ...missingMetric, id: "solo", label: "Solo" },
+      ],
+      CTX,
+    );
+
+    expect(sourceGaps[0]?.message).toBe(
+      "Section metrics for TEST not computed: Seg OI (2026-07-01 to 2026-09-30, 2026-01-01 to 2026-09-30), Solo missing (no input fact)",
+    );
+    expect(violatesResearchOnly(sourceGaps[0]!.message)).toBeNull();
+  });
+
+  test("a repeated label keeps its period when every occurrence shares it", () => {
+    const repeated: MetricDefinition = {
+      ...missingMetric,
+      label: "Repeated",
+      compute: () => ({ status: "missing", reason: "absent", periodEnd: "2026-09-30" }),
+    };
+    const { sourceGaps } = evaluateMetricSection(
+      "s",
+      "Section",
+      [repeated, { ...repeated, id: "again" }],
+      CTX,
+    );
+
+    expect(sourceGaps[0]?.message).toBe(
+      "Section metrics for TEST not computed: Repeated (2026-09-30) missing (absent)",
+    );
+  });
+
   test("diagnostic when every missing metric was never filed; any other missing keeps it material", () => {
     const notFiledMetric: MetricDefinition = {
       ...missingMetric,

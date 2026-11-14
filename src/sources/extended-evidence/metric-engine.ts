@@ -308,15 +308,34 @@ function sectionGap(
       metric.cause !== "insufficient-history" &&
       metric.cause !== "outside-price-history-window",
   );
-  const labelsByCause = new Map<string, string[]>();
+  const periodsByLabelByCause = new Map<string, Map<string, (string | undefined)[]>>();
   for (const metric of unresolved) {
     const cause = `${metric.status} (${metric.reason ?? "no reason"})`;
-    labelsByCause.set(cause, [...(labelsByCause.get(cause) ?? []), metric.label]);
+    const periodsByLabel = periodsByLabelByCause.get(cause) ?? new Map();
+    const start = metric.inputs.find((input) => input.periodEnd === metric.periodEnd)?.periodStart;
+    const period =
+      start === undefined || metric.periodEnd === undefined
+        ? metric.periodEnd
+        : `${start} to ${metric.periodEnd}`;
+    periodsByLabelByCause.set(
+      cause,
+      periodsByLabel.set(metric.label, [...(periodsByLabel.get(metric.label) ?? []), period]),
+    );
   }
   return sourceGap({
     source: id,
-    message: `${title} metrics for ${symbol} not computed: ${[...labelsByCause]
-      .map(([cause, labels]) => `${labels.join(", ")} ${cause}`)
+    message: `${title} metrics for ${symbol} not computed: ${[...periodsByLabelByCause]
+      .map(
+        ([cause, periodsByLabel]) =>
+          `${[...periodsByLabel]
+            .map(([label, periods]) => {
+              const known = [...new Set(periods.filter((period) => period !== undefined))];
+              return periods.length > 1 && known.length > 0
+                ? `${label} (${known.join(", ")})`
+                : label;
+            })
+            .join(", ")} ${cause}`,
+      )
       .join("; ")}`,
     symbol,
     provider: "market-bot",

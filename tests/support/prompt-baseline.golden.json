@@ -23,7 +23,7 @@
   "stage:final-synthesis:kind-calibration-insufficient": "53db3ada681ac6dcbf55477c13dec90d573ac4b0bdceb35244d5f8c3fa1d0ac2",
   "stage:final-synthesis:overview-steering": "baef2e4d96a27a2e91588875013a40df04288fc05b20ed7146677a43ec01b6e2",
   "stage:final-synthesis:research-registry": "e50a8ef044ea510c962e662de885f40996d8aba1541fcfdb60844c80c324630f",
-  "selector:spotlight-selection": "3e23edd59e52aed613f8d18648361d2491d92eb6a2b254b6823538668f016589",
+  "selector:spotlight-selection": "9d0c92be37c3589f6e18c21bf8172ef4cf5e651e6c866d63bb6351f5600211c5",
   "segment:steering:primary": "0c3d88159b6afec11ee2892a1beadf324757d574c862920ed83c39ff2c29761c",
   "segment:steering:repair": "51fa720a7b266473735a17906ac683b347cc890329c060514efa1769a77d4656",
   "segment:steering:profiled-exchange-repair": "59db9d44512de75ef0b51207c6eee0c6aa61b4976c7d93d59d8349c8cacd7325",
@@ -55,7 +55,7 @@
   "file:prompts/playbooks/thematic-research.md": "4ade0be42a7458662363b9ac1328c04b1cd736e0d807534c8255f137b4d67936",
   "file:prompts/regime-context-analysis/base.md": "ceabef0544ec34f269c21dc54fe5b59069371ae3888225c10a82393167d56e56",
   "file:prompts/specialist-analysis/base.md": "265daa5474b02b79f1143c2801c5e00d5ab2e23aaed3f4b41fff1f6ec99911d1",
-  "file:prompts/spotlight-selection/base.md": "534db80c3ea34c167034debe0f59f5178dca15d2078ff0efef13b342f389a306",
+  "file:prompts/spotlight-selection/base.md": "64aa5e5c8883993dfcd00a6cafb90aa3c577b45e570bb924e30e9e3a6b70ed56",
   "file:prompts/web-gather/base.md": "69d7c7310cdd5b6e5033a37a76c5f094be3217c1aff5438e6481e013dea84a8e",
   "file:prompts/web-subject-profile/base.md": "d0228752fc3228d23620c814abd702c86f14e62c062489202f33b4459d6d555c"
 }

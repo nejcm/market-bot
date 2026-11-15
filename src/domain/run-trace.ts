@@ -192,6 +192,12 @@ export interface RunTrace {
       readonly webFigure?: WebFigureFailure;
     }[];
     readonly droppedFigureQuotes?: readonly (DroppedFigureQuote & { readonly location: string })[];
+    // Sentences pruned from unrendered fields (the spotlight selection rationale); never graded.
+    readonly ungradedPruned?: readonly {
+      readonly location: string;
+      readonly text: string;
+      readonly sourceIds: readonly string[];
+    }[];
   };
   readonly sourcePlan?: {
     readonly plannedLaneCount: number;

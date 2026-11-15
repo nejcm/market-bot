@@ -135,6 +135,7 @@ function traceFor(
       prunedItemCount: 0,
       pruned: [],
       droppedFigureQuotes: [],
+      ungradedPruned: [],
     },
     sourcePlanning,
     configuredForecastDisagreementModels: [],
@@ -284,6 +285,11 @@ describe("run trace builder", () => {
 
   test("builds trace fields from run inputs and stage records", () => {
     const generatedAt = "2026-05-19T00:00:00.000Z";
+    const prunedRationale = {
+      location: "extras.spotlights.rationale[0]",
+      text: "Three movers exceeded 8% daily moves.",
+      sourceIds: [],
+    };
     const command = {
       jobType: "market-overview",
       assetClass: "equity",
@@ -372,12 +378,14 @@ describe("run trace builder", () => {
         prunedItemCount: 0,
         pruned: [],
         droppedFigureQuotes: [],
+        ungradedPruned: [prunedRationale],
       },
       sourcePlanning,
       configuredForecastDisagreementModels: [],
       challengerModels: [],
     });
 
+    expect(trace.reportIntegrityAudit?.ungradedPruned).toEqual([prunedRationale]);
     expect(trace).toMatchObject({
       schemaVersion: 2,
       runId: "run-1",

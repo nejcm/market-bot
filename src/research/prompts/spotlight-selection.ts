@@ -13,7 +13,7 @@ import { userSteeringField } from "./steering";
 
 function spotlightSelectionShape(): Record<string, unknown> {
   return {
-    rationale: "short string",
+    rationale: "short qualitative string, no figures",
     selections: [
       { symbol: "ticker", rationale: "string", sourceIds: ["current-market-source-id"] },
     ],

@@ -950,4 +950,125 @@ describe("auditReportIntegrity", () => {
       expect(result.prunedItemCount).toBe(0);
     });
   });
+
+  describe("spotlight selection rationale", () => {
+    const item = {
+      symbol: "SMCI",
+      rationale: "SMCI rose 14.2% on 3.1x average volume.",
+      sourceIds: ["market-yahoo-equity-smci"],
+    };
+
+    function auditSpotlights(spotlights: unknown) {
+      return auditReportIntegrity(
+        researchReport({
+          keyFindings: [citedFinding("Cited finding.")],
+          risks: [citedFinding("Cited risk.")],
+          scenarios: [{ name: "Base", description: "Conditions remain mixed.", sourceIds: CITED }],
+          predictions: [
+            prediction({
+              claim: "SMCI closes outside 41.2-47.9 over 5 trading days",
+              sourceIds: CITED,
+            }),
+          ],
+          extras: { spotlights },
+        }),
+      );
+    }
+
+    test("prunes an uncited figure sentence, records it ungraded and warns", () => {
+      const result = auditSpotlights({
+        rationale: "Three movers exceeded 8% daily moves. Breadth stayed narrow across sectors.",
+        items: [item],
+      });
+
+      expect(result.report.extras?.spotlights).toEqual({
+        rationale: "Breadth stayed narrow across sectors.",
+        items: [item],
+      });
+      expect(result.ungradedPruned).toEqual([
+        {
+          location: "extras.spotlights.rationale[0]",
+          text: "Three movers exceeded 8% daily moves.",
+          sourceIds: [],
+        },
+      ]);
+      expect(result.pruned).toEqual([]);
+      expect(result.reportIntegrity).toBe("high");
+      expect(result.report.researchQualityDriver).toBeUndefined();
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: "unsupported-numeric-claim",
+          location: "extras.spotlights.rationale[0]",
+        }),
+      );
+      expect(result.warnings.map(({ location }) => location)).not.toContain(
+        "extras.spotlights.rationale[1]",
+      );
+    });
+
+    test("drops the rationale key when every sentence carries a figure, keeping cited items", () => {
+      const result = auditSpotlights({ rationale: "Two movers gained over 10%.", items: [item] });
+
+      expect(result.report.extras?.spotlights).toEqual({ items: [item] });
+      expect(result.ungradedPruned).toHaveLength(1);
+      expect(result.prunedItemCount).toBe(0);
+    });
+
+    test("keeps a rendered metric reference and drops a pruned one's provenance", () => {
+      const rendered = "+2.1% (Revenue YoY, latest FY)";
+      const kept = `Revenue grew ${rendered} for the lead mover.`;
+      const metricRow = {
+        sourceIds: ["extended-sec-edgar-smci-fundamentals"],
+        metricSourceIds: ["extended-sec-edgar-smci-fundamentals"],
+      };
+      const keptOnly = auditSpotlights({
+        rationale: kept,
+        ...metricRow,
+        renderedMetrics: [{ field: "rationale", start: 13, text: rendered }],
+        items: [item],
+      });
+      expect(keptOnly.ungradedPruned).toEqual([]);
+      expect(keptOnly.report.extras?.spotlights).toMatchObject({ rationale: kept });
+
+      const lead = "Two movers gained over 10%.";
+      const mixed = auditSpotlights({
+        rationale: `${lead} ${kept}`,
+        ...metricRow,
+        renderedMetrics: [{ field: "rationale", start: lead.length + 14, text: rendered }],
+        items: [item],
+      });
+      expect(mixed.report.extras?.spotlights).toEqual({
+        rationale: kept,
+        ...metricRow,
+        renderedMetrics: [{ field: "rationale", start: 13, text: rendered }],
+        items: [item],
+      });
+
+      const pruned = auditSpotlights({
+        rationale: `${lead.slice(0, -1)} after ${rendered}.`,
+        ...metricRow,
+        renderedMetrics: [{ field: "rationale", start: 33, text: rendered }],
+        items: [item],
+      });
+      expect(pruned.report.extras?.spotlights).toEqual({ items: [item] });
+    });
+
+    test("keeps a qualitative rationale, cited item figures and prediction parameters", () => {
+      const spotlights = { rationale: "Semiconductor movers led the session.", items: [item] };
+      const result = auditSpotlights(spotlights);
+
+      expect(result.report.extras?.spotlights).toBe(spotlights);
+      expect(result.report.predictions[0]?.claim).toBe(
+        "SMCI closes outside 41.2-47.9 over 5 trading days",
+      );
+      expect(result.reportIntegrity).toBe("high");
+    });
+
+    test("leaves reports without spotlights or without a rationale untouched", () => {
+      expect(auditSpotlights(undefined).report.extras).toEqual({ spotlights: undefined });
+      const noRationale = auditSpotlights({ items: [item] });
+      expect(noRationale.report.extras?.spotlights).toEqual({ items: [item] });
+      expect(noRationale.ungradedPruned).toEqual([]);
+    });
+  });
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.27](https://github.com/nejcm/market-bot/compare/v1.19.26...v1.19.27) (2026-11-15)
+
+### Bug Fixes
+
+- **lens:** keep reit capex summary and rows in step with the lens (#251) ([fd84414](https://github.com/nejcm/market-bot/commit/fd844148ade9dabfc683a60bd3b4b5ccfa863c8e))
+
 ## [1.19.26](https://github.com/nejcm/market-bot/compare/v1.19.25...v1.19.26) (2026-11-15)
 
 ### Bug Fixes

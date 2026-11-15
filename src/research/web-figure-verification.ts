@@ -7,7 +7,9 @@ import type {
 } from "../domain/report";
 import type { Source } from "../domain/sources";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
+import { FIRECRAWL_PROVIDER } from "../sources/firecrawl-web-tools";
 import { canonicalizeUrl } from "../sources/news-utils";
+import { EXA_PROVIDER } from "../sources/web-gather-emit";
 import { readFigureQuotes } from "../report/figure-quotes";
 import { cellNumber, headedAmountUnit } from "./unit-header";
 
@@ -16,6 +18,8 @@ export interface WebSourceTexts {
   readonly web: ReadonlyMap<string, readonly string[]>;
   // Normalized collector text per deterministic Source id: the evidence item summaries citing it.
   readonly deterministic: ReadonlyMap<string, readonly string[]>;
+  // Normalized title, snippet and feed summary per news Source id.
+  readonly news: ReadonlyMap<string, readonly string[]>;
 }
 
 interface QuotableEvidenceItem {
@@ -39,6 +43,7 @@ interface Figure {
 }
 
 const RAW_TEXT_ADAPTER_PATTERN = /^(?:exa|firecrawl)-/u;
+const WEB_GATHER_PROVIDERS: ReadonlySet<string> = new Set([EXA_PROVIDER, FIRECRAWL_PROVIDER]);
 const DETERMINISTIC_KINDS: ReadonlySet<Source["kind"]> = new Set([
   "market-data",
   "market-context",
@@ -155,6 +160,7 @@ const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
   "quote-source-not-cited": "rests on a quote from a source the claim does not cite",
   "no-stored-text": "rests on a source with no stored text to check",
   "quote-too-short": "rests on a quote with too little text around the figure",
+  "figure-not-in-source": "does not appear in any cited news source's stored text",
 };
 
 function currencyOf(mark: string | undefined): string | undefined {
@@ -834,7 +840,25 @@ export function webSourceTexts(
       .filter((text) => text !== "");
     texts.set(source.id, [...new Set([...(texts.get(source.id) ?? []), ...stored])]);
   }
-  return { web: texts, deterministic };
+  const news = new Map<string, string[]>();
+  for (const source of sources.filter((row) => row.kind === "news")) {
+    // Exa and Firecrawl summaries are model abstracts, and dedupe can adopt one under a feed provider.
+    const providers = [
+      source.provider,
+      ...(source.providerAliases ?? []).map((row) => row.provider),
+    ];
+    const feedSummary =
+      source.provider === undefined ||
+      providers.some((provider) => provider !== undefined && WEB_GATHER_PROVIDERS.has(provider))
+        ? undefined
+        : source.summary;
+    const stored = [source.title, source.snippet, feedSummary]
+      .filter((text): text is string => text !== undefined)
+      .map((text) => normalizedQuoteText(text))
+      .filter((text) => text !== "");
+    news.set(source.id, [...new Set([...(news.get(source.id) ?? []), ...stored])]);
+  }
+  return { web: texts, deterministic, news };
 }
 
 function readRenderedMetrics(value: unknown): readonly RenderedMetric[] {
@@ -1022,6 +1046,38 @@ export function failedFigureQuotes(
   );
 }
 
+// News text is a headline plus a short feed summary, so a figure is matched in it directly rather than quoted.
+// Matching is pooled across cited news and checks the figure, not what it measures.
+function unverifiedNewsFigure(
+  claim: WebFigureClaim,
+  texts: WebSourceTexts,
+): WebFigureFailure | undefined {
+  const citedNews = claim.sourceIds.filter((id) => texts.news.has(id));
+  if (citedNews.length === 0 || claim.sourceIds.some((id) => texts.deterministic.has(id))) {
+    return undefined;
+  }
+  const ambiguousSpan = claim.ambiguousSpans?.[0];
+  if (ambiguousSpan !== undefined) {
+    return { reason: "figure-ambiguous", figure: ambiguousSpan, sourceIds: citedNews };
+  }
+  const stored = citedNews.flatMap((id) => texts.news.get(id) ?? []);
+  const sourceFigures = stored.flatMap((text) => figuresIn(text));
+  for (const figure of figuresIn(claim.text)) {
+    if (sourceFigures.some((stated) => sameFigure(stated, figure))) {
+      continue;
+    }
+    const near = sourceFigures.find((stated) => stated.value === figure.value);
+    let reason: WebFigureFailureReason = "figure-not-in-source";
+    if (Number.isNaN(figure.value)) {
+      reason = "figure-ambiguous";
+    } else if (near !== undefined) {
+      reason = mismatchReason(figure, near);
+    }
+    return { reason, figure: figure.raw, sourceIds: citedNews };
+  }
+  return undefined;
+}
+
 // Every typed figure in a web-cited claim needs a proven quote; a co-cited deterministic source proves nothing
 // By itself, since code cannot tell which cited source a figure came from.
 export function unverifiedWebFigure(
@@ -1029,13 +1085,16 @@ export function unverifiedWebFigure(
   texts: WebSourceTexts,
 ): WebFigureFailure | undefined {
   const citedWeb = claim.sourceIds.filter((id) => texts.web.has(id));
-  const figures = citedWeb.length === 0 ? [] : figuresIn(claim.text);
+  if (citedWeb.length === 0) {
+    return unverifiedNewsFigure(claim, texts);
+  }
+  const figures = figuresIn(claim.text);
   const quotes = checkedQuotes(claim, texts, figures);
   const failed = quotes.filter((quote) => quote.failure !== undefined);
   const proven = quotes.filter((quote) => quote.failure === undefined);
   const quotedFigures = proven.flatMap((quote) => quote.figures);
   const ambiguousSpan = claim.ambiguousSpans?.[0];
-  if (citedWeb.length > 0 && ambiguousSpan !== undefined) {
+  if (ambiguousSpan !== undefined) {
     return { reason: "figure-ambiguous", figure: ambiguousSpan, sourceIds: citedWeb };
   }
   for (const figure of figures) {

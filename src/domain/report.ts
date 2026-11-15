@@ -44,7 +44,8 @@ export type WebFigureFailureReason =
   | "unit-not-in-source"
   | "quote-source-not-cited"
   | "no-stored-text"
-  | "quote-too-short";
+  | "quote-too-short"
+  | "figure-not-in-source";
 
 export interface DroppedFigureQuote extends FigureQuote {
   readonly reason: WebFigureFailureReason;

@@ -289,7 +289,16 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - A deterministic source is quotable only through its snippet and item summaries; a figure held in a structured
   field those omit can reach a web-cited claim only as a metric reference, or the claim prunes.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
-- News-kind sources and the qualitative summary are outside the check.
+- A claim citing news sources and no web or deterministic source publishes a figure only when it parses, by the
+  same value, scale, currency and unit rule, from a cited news source's stored title, snippet, or feed summary
+  (amended 2026-11-15). No quote is asked for, since feed news stores only a headline and a short publisher
+  summary. A summary on a source whose provider is unknown, or whose provider or any provider alias is Exa or
+  Firecrawl, is a model abstract and never counts; fetched page text is not read, since a whole page holds
+  unrelated figures. Bare-figure matching does not check meaning: figures are pooled across every cited headline
+  and summary, and no quote is persisted, so a same-valued figure about something else passes. A failing figure
+  prunes the claim as `figure-not-in-source` (or a mismatch or `figure-ambiguous`) with a declared gap.
+  Before this, news-only claims skipped the check (10 such claims across 104 saved runs: 8 match their feed text,
+  2 withhold over a glued "5-MWh", which a quote would withhold too; run `988c553f`). A claim co-citing a news and a deterministic source stays unchecked; the qualitative summary stays outside.
 - A redirected run collects market data twice (typed code, then the resolved code).
 - Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and Valuation Evidence
   do not read them yet. The Business Framework reads their same-basis YoY rows (amended 2026-11-07): on a run

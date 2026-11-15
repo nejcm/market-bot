@@ -291,53 +291,51 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
         if (context.statements === undefined) {
           const item = secItem(context);
           const operatingCashFlow = readNumberMetric(item?.metrics, "operatingCashFlow");
-          const annualized =
-            operatingCashFlow === undefined
-              ? undefined
-              : annualizeSummary(context, "operatingCashFlow", operatingCashFlow);
-          const denominator = annualized?.value;
+          if (operatingCashFlow === undefined) {
+            return { status: "missing", reason: "no SEC cash flow for PCF" };
+          }
+          const annualized = annualizeSummary(context, "operatingCashFlow", operatingCashFlow);
           const period = summaryPeriod(context, "operatingCashFlow");
-          if (operatingCashFlow !== undefined && denominator === undefined) {
+          const flowInput = evidenceInput(
+            item,
+            "operatingCashFlow",
+            "operating cash flow",
+            "currency",
+            operatingCashFlow,
+            period,
+          );
+          if (annualized === undefined || annualized.value <= 0) {
             return {
               status: "not-meaningful",
-              reason: `operating cash flow ${ANNUALIZATION_UNKNOWN_REASON}`,
+              reason:
+                annualized === undefined
+                  ? `operating cash flow ${ANNUALIZATION_UNKNOWN_REASON}`
+                  : "operating cash flow is not positive",
               ...period,
-              inputs: [
-                evidenceInput(
-                  item,
-                  "operatingCashFlow",
-                  "operating cash flow",
-                  "currency",
-                  operatingCashFlow,
-                  period,
-                ),
-              ],
+              inputs: [flowInput],
             };
           }
-          return marketCap === undefined ||
-            marketCap.value === undefined ||
-            denominator === undefined ||
-            denominator === 0
-            ? { status: "missing", reason: "no SEC cash flow for PCF" }
-            : {
-                status: "value",
-                value: Number(marketCap.value) / denominator,
-                inputs: [
-                  evidenceInput(
-                    item,
-                    "operatingCashFlow",
-                    "operating cash flow",
-                    "currency",
-                    operatingCashFlow ?? 0,
-                    period,
-                  ),
-                  marketCap,
-                ],
-                ...period,
-                ...(annualized?.annualizedFrom === undefined
-                  ? {}
-                  : { basis: `${PCF_BASIS}; operating cash flow ${annualized.annualizedFrom}` }),
-              };
+          const inputs = [flowInput, ...(marketCap === undefined ? [] : [marketCap])];
+          if (
+            marketCap === undefined ||
+            typeof marketCap.value !== "number" ||
+            marketCap.value <= 0
+          ) {
+            return { status: "missing", reason: "no quote market cap", ...period, inputs };
+          }
+          // Summary SEC metrics read USD-unit facts only.
+          if (marketCap.currency !== undefined && marketCap.currency !== "USD") {
+            return { status: "missing", reason: CURRENCY_MISMATCH_REASON, ...period, inputs };
+          }
+          return {
+            status: "value",
+            value: marketCap.value / annualized.value,
+            inputs,
+            ...period,
+            ...(annualized.annualizedFrom === undefined
+              ? {}
+              : { basis: `${PCF_BASIS}; operating cash flow ${annualized.annualizedFrom}` }),
+          };
         }
         const anchor = latestFact(context, "operatingCashFlow");
         if (anchor === undefined) {

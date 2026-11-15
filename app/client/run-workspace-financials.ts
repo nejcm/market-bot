@@ -1,6 +1,7 @@
 import type { RunDetail } from "../types";
 import {
   NOT_APPLICABLE_NOTE,
+  WITHHELD_NOTE,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
   type FundamentalHistorySeriesKey,
@@ -66,6 +67,7 @@ interface RunWorkspaceFundamentalHistoryNotApplicable {
   readonly key: RunWorkspaceFundamentalHistoryCard["key"];
   readonly label: string;
   readonly reason: string;
+  readonly withheld?: true;
 }
 
 export interface RunWorkspaceFundamentalHistoryView {
@@ -294,9 +296,13 @@ export function fundamentalHistoryView(
   const notApplicable = FUNDAMENTAL_HISTORY_CARD_KEYS.flatMap((key) => {
     const { label, notes } = artifact.series[key];
     const reason = notes.find((note) => note.startsWith(NOT_APPLICABLE_NOTE));
-    return reason === undefined
+    const withheld = notes.find((note) => note.startsWith(WITHHELD_NOTE));
+    if (reason !== undefined) {
+      return [{ key, label, reason: reason.slice(NOT_APPLICABLE_NOTE.length) }];
+    }
+    return withheld === undefined
       ? []
-      : [{ key, label, reason: reason.slice(NOT_APPLICABLE_NOTE.length) }];
+      : [{ key, label, reason: withheld.slice(WITHHELD_NOTE.length), withheld: true as const }];
   });
   return cards.length === 0 && notApplicable.length === 0 ? undefined : { cards, notApplicable };
 }

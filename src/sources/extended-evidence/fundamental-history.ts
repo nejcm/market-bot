@@ -50,6 +50,7 @@ interface FundamentalHistoryMarginChange {
 }
 
 export const NOT_APPLICABLE_NOTE = "not-applicable: ";
+export const WITHHELD_NOTE = "withheld: ";
 
 export interface FundamentalHistorySeries {
   readonly key: FundamentalHistorySeriesKey;

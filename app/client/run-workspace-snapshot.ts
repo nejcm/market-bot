@@ -210,11 +210,11 @@ function snapshotState(
   return availableCount === expectedCount ? "available" : "partial";
 }
 
-function notApplicableReason(
+function notApplicableEntry(
   fundamentalHistory: RunWorkspaceFundamentalHistoryView | undefined,
   key: RunWorkspaceFundamentalHistoryCard["key"],
-): string | undefined {
-  return fundamentalHistory?.notApplicable.find((entry) => entry.key === key)?.reason;
+) {
+  return fundamentalHistory?.notApplicable.find((entry) => entry.key === key);
 }
 
 function snapshotTtmMetric(
@@ -225,11 +225,12 @@ function snapshotTtmMetric(
     (candidate) => candidate.key === definition.historyKey && candidate.basis === "ttm",
   );
   if (card === undefined) {
-    const reason = notApplicableReason(fundamentalHistory, definition.historyKey);
+    const entry = notApplicableEntry(fundamentalHistory, definition.historyKey);
+    const reason = entry?.reason;
     return {
       key: definition.key,
       label: definition.label,
-      state: reason === undefined ? "unavailable" : "not-applicable",
+      state: reason === undefined || entry?.withheld === true ? "unavailable" : "not-applicable",
       ...(reason === undefined ? {} : { reason }),
       sourceIds: [],
     };
@@ -397,7 +398,7 @@ export function composeEquitySnapshot(
   const charts = SNAPSHOT_CHARTS.map(({ key, label }): RunWorkspaceEquitySnapshotMiniChart => {
     const card = fundamentalHistory?.cards.find((candidate) => candidate.key === key);
     if (card === undefined) {
-      const reason = notApplicableReason(fundamentalHistory, key);
+      const reason = notApplicableEntry(fundamentalHistory, key)?.reason;
       return {
         key,
         label,

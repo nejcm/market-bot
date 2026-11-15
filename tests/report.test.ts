@@ -395,6 +395,7 @@ test("declares missing revenue history instead of leaving unexplained trend-tabl
         sourceId: "extended-sec-edgar-aapl-fundamentals",
       },
     ),
+    "3571",
   );
   const markdown = renderMarkdownReport(
     {

@@ -586,7 +586,13 @@ describe("fundamental history", () => {
         "6798",
       ),
     ).toEqual([503_183_000, 679_435_000]);
-    expect(fcf({ ...cashFlows, ...realEstate })).toEqual([503_183_000, 679_435_000]);
+    expect(fcf({ ...cashFlows, ...realEstate }, "3571")).toEqual([503_183_000, 679_435_000]);
+    expect(
+      derive(payload({ ...cashFlows, ...realEstate }), asOf).series.freeCashFlowProxy,
+    ).toMatchObject({
+      annual: [],
+      notes: ["withheld: capex scope undecided without the SEC SIC classification"],
+    });
     // PSA FY2019 10-K 0001393311-20-000008 construction in process.
     const constructionInProcess = {
       PaymentsForConstructionInProcess: {
@@ -594,7 +600,9 @@ describe("fundamental history", () => {
       },
     };
     expect(fcf({ ...cashFlows, ...constructionInProcess }, "6798")).toEqual([]);
-    expect(fcf({ ...cashFlows, ...constructionInProcess })).toEqual([503_183_000, 679_435_000]);
+    expect(fcf({ ...cashFlows, ...constructionInProcess }, "3571")).toEqual([
+      503_183_000, 679_435_000,
+    ]);
   });
 
   test("CAGR counts whole 52/53-week fiscal years: AMD FY2020-FY2025 revenue", () => {

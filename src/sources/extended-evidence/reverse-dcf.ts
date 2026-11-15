@@ -3,6 +3,7 @@ import type { ExtendedEvidence } from "../../domain/evidence";
 import {
   depositoryIssuerSic,
   reitCapexReason,
+  reitCapexUndecided,
   secIssuerRegistration,
 } from "./industry-classification";
 import type { ValuationWorkbenchArtifact } from "./valuation-workbench-contract";
@@ -28,6 +29,7 @@ const SUPPRESSION_REASONS = new Set<ReverseDcfSuppressionReason>([
   "enterprise-value-unavailable",
   "enterprise-value-not-applicable",
   "free-cash-flow-not-applicable",
+  "free-cash-flow-scope-undecided",
   "enterprise-value-not-positive",
   "input-date-unavailable",
   "input-currency-unavailable",
@@ -75,6 +77,7 @@ type ReverseDcfSuppressionReason =
   | "enterprise-value-unavailable"
   | "enterprise-value-not-applicable"
   | "free-cash-flow-not-applicable"
+  | "free-cash-flow-scope-undecided"
   | "enterprise-value-not-positive"
   | "input-date-unavailable"
   | "input-currency-unavailable"
@@ -235,15 +238,22 @@ export function buildReverseDcf(input: BuildReverseDcfInput): ReverseDcfArtifact
       workbench?.sourceIds ?? [],
     );
   }
-  const freeCashFlowInapplicable = reitCapexReason(
-    secIssuerRegistration(input.extendedEvidence)?.sic,
-    input,
-  );
+  const sic = secIssuerRegistration(input.extendedEvidence)?.sic;
+  const freeCashFlowInapplicable = reitCapexReason(sic, input);
   if (freeCashFlowInapplicable !== undefined) {
     return suppressed(
       input,
       "free-cash-flow-not-applicable",
       `A reverse DCF solves for free-cash-flow growth, which is not applicable: ${freeCashFlowInapplicable}.`,
+      workbench?.sourceIds ?? [],
+    );
+  }
+  const freeCashFlowUndecided = reitCapexUndecided(sic, input);
+  if (freeCashFlowUndecided !== undefined) {
+    return suppressed(
+      input,
+      "free-cash-flow-scope-undecided",
+      `A reverse DCF solves for free-cash-flow growth, which is withheld: ${freeCashFlowUndecided}.`,
       workbench?.sourceIds ?? [],
     );
   }

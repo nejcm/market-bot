@@ -8,7 +8,9 @@ import type { FetchLike } from "../types";
 import {
   depositoryIssuerSic,
   reitCapexReason,
+  reitCapexUndecided,
   secIssuerRegistration,
+  type SecIssuerRegistration,
 } from "./industry-classification";
 import { fiscalYearTtmLabel } from "./financial-statement-selection";
 import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
@@ -85,7 +87,8 @@ function observation(
   // Classified once per issuer by the caller, never per period: a per-period decision would let
   // One row print a multiple and the next declare the metric inapplicable for the same issuer.
   depositorySic: string | undefined,
-  freeCashFlowInapplicable: string | undefined,
+  secIssuer: SecIssuerRegistration | undefined,
+  freeCashFlowUndecided: boolean,
 ): {
   readonly observation: HistoricalValuationObservation;
   readonly section: MetricSection;
@@ -111,7 +114,9 @@ function observation(
     ...(periodInputs.dilutedShares !== undefined
       ? { dilutedShares: periodInputs.dilutedShares }
       : {}),
-    ...(periodInputs.freeCashFlow !== undefined ? { freeCashFlow: periodInputs.freeCashFlow } : {}),
+    ...(periodInputs.freeCashFlow !== undefined && !freeCashFlowUndecided
+      ? { freeCashFlow: periodInputs.freeCashFlow }
+      : {}),
     ...(periodInputs.cash !== undefined ? { cash: periodInputs.cash } : {}),
     ...(periodInputs.debt !== undefined ? { debt: periodInputs.debt } : {}),
     ...(periodInputs.enterpriseValueBridge !== undefined
@@ -135,7 +140,7 @@ function observation(
     reportingCurrency,
     quoteCurrency: input.quoteCurrency,
     depositorySic,
-    freeCashFlowInapplicable,
+    secIssuer,
     statements: input.financialStatements,
     ...(fxClose === undefined
       ? {}
@@ -286,12 +291,18 @@ function buildValuationWorkbenchResult(
   const ttm = inputsForArtifact?.ttm;
   const periodInputs = inputsForArtifact?.periods ?? [];
   const depositorySic = depositoryIssuerSic(input.extendedEvidence);
-  const freeCashFlowInapplicable = reitCapexReason(
-    secIssuerRegistration(input.extendedEvidence)?.sic,
-    artifact,
-  );
+  const secIssuer = secIssuerRegistration(input.extendedEvidence);
+  const freeCashFlowInapplicable = reitCapexReason(secIssuer?.sic, artifact);
+  const freeCashFlowUndecided = reitCapexUndecided(secIssuer?.sic, artifact) !== undefined;
   const results = periodInputs.map((period) =>
-    observation(input, period, fxClosesByPriceDate, depositorySic, freeCashFlowInapplicable),
+    observation(
+      input,
+      period,
+      fxClosesByPriceDate,
+      depositorySic,
+      secIssuer,
+      freeCashFlowUndecided,
+    ),
   );
   const observations = results.map((result) => result.observation);
   const unavailable =

@@ -107,6 +107,16 @@ export function reitCapexReason(
     : undefined;
 }
 
+// Without the SIC, a filing the REIT predicate would rule on leaves the capex scope undecided.
+export function reitCapexUndecided(
+  sic: string | undefined,
+  filing: ReitCapexFiling | undefined,
+): string | undefined {
+  return sic === undefined && reitCapexReason(REIT_SIC, filing) !== undefined
+    ? "capex scope undecided without the SEC SIC classification"
+    : undefined;
+}
+
 export interface SecIssuerRegistration {
   readonly sic?: string;
   readonly stateOfIncorporation?: string;

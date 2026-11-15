@@ -21,6 +21,7 @@ import {
   depositoryIssuerSic,
   REIT_SIC,
   reitCapexReason,
+  reitCapexUndecided,
   type SecIssuerRegistration,
 } from "./industry-classification";
 
@@ -224,19 +225,37 @@ function evaluateMetric(definition: MetricDefinition, ctx: MetricContext): Metri
   if (inapplicable !== undefined) {
     return notApplicable(inapplicable);
   }
+  const undecided = (reason: string, inputs: readonly MetricInput[]): MetricResult => ({
+    ...identity,
+    basis,
+    status: "missing",
+    reason,
+    inputs,
+    sourceIds: [...new Set(inputs.flatMap((input) => input.sourceIds))],
+  });
   // The REIT capex predicate reads the statements, so without them the row cannot be proven applicable.
   if (reitCapexBased && ctx.secIssuer?.sic === REIT_SIC && ctx.statements === undefined) {
-    return {
-      ...identity,
-      basis,
-      status: "missing",
-      reason: "REIT capex scope undecided without SEC statements",
-      inputs: [],
-      sourceIds: [],
-    };
+    return undecided("REIT capex scope undecided without SEC statements", [
+      {
+        label: "SEC SIC",
+        value: REIT_SIC,
+        artifact: "evidence",
+        category: "sec-edgar",
+        key: "sic",
+        unit: "text",
+        sourceIds: ctx.secIssuer.sourceIds,
+      },
+    ]);
   }
   const outcome = definition.compute(ctx);
   const inputs = outcome.inputs ?? [];
+  const unclassified =
+    reitCapexBased && outcome.status === "value"
+      ? reitCapexUndecided(ctx.secIssuer?.sic, ctx.statements)
+      : undefined;
+  if (unclassified !== undefined) {
+    return undecided(unclassified, inputs);
+  }
   const cashFlowInapplicable = inputs.some(isCashFlowInput)
     ? depositoryCashFlowGate(ctx)
     : undefined;

@@ -2815,6 +2815,38 @@ describe("run workspace view", () => {
     ]);
   });
 
+  test("declares the FCF proxy withheld when the SIC is unknown for a filer read as a REIT", () => {
+    const fundamentalHistory = deriveFundamentalHistoryFromFinancialStatements(
+      deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: { units: { USD: fundamentalHistoryAnnualFacts([100, 120, 150]) } },
+              NetCashProvidedByUsedInOperatingActivities: {
+                units: { USD: fundamentalHistoryAnnualFacts([30, 36, 45]) },
+              },
+            },
+          },
+        },
+        {
+          symbol: "O",
+          generatedAt: "2025-08-01T00:00:00.000Z",
+          analysisAsOf: "2025-08-01T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-o-fundamentals",
+        },
+      ),
+    );
+    const view = buildRunWorkspaceView({ summary: summary(), fundamentalHistory });
+    expect(view.fundamentalHistory?.notApplicable).toEqual([
+      {
+        key: "freeCashFlowProxy",
+        label: "Free cash flow proxy",
+        reason: "capex scope undecided without the SEC SIC classification",
+        withheld: true,
+      },
+    ]);
+  });
+
   test("uses trailing P/E as the Simple valuation fallback", () => {
     const view = buildRunWorkspaceView({
       summary: summary(),

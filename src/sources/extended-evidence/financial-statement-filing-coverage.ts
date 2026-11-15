@@ -101,6 +101,34 @@ export function dividendPaymentFiled(
   );
 }
 
+// Investing outflows for properties that sit outside the us-gaap capex aliases.
+const REAL_ESTATE_INVESTMENT_CONCEPTS = [
+  "PaymentsToAcquireRealEstate",
+  "PaymentsToAcquireCommercialRealEstate",
+  "PaymentsToAcquireResidentialRealEstate",
+  "PaymentsToAcquireOtherRealEstate",
+  "PaymentsToAcquireRealEstateHeldForInvestment",
+  "PaymentsToAcquireRealEstateAndRealEstateJointVentures",
+  "PaymentsToAcquireAndDevelopRealEstate",
+  "PaymentsToDevelopRealEstateAssets",
+  "PaymentsForCapitalImprovements",
+  "PaymentsForLeasingCostsCommissionsAndTenantImprovements",
+  "PaymentsToAcquireBuildings",
+  "PaymentsToAcquireLand",
+  "PaymentsToAcquireLandHeldForUse",
+  "PaymentsForConstructionInProcess",
+] as const;
+
+export function realEstateInvestmentFiled(payload: unknown, analysisAsOf: string): boolean {
+  const root = taxonomyRoot(payload, "us-gaap");
+  return REAL_ESTATE_INVESTMENT_CONCEPTS.some((concept) =>
+    rawConceptRows(root, concept, analysisAsOf).some((fact) => {
+      const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
+      return value !== undefined && value !== 0;
+    }),
+  );
+}
+
 // Any raw row, even malformed, counts as filed.
 export function unfiledSeries(
   payload: unknown,

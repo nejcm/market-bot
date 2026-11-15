@@ -288,7 +288,7 @@ function buildValuationWorkbenchResult(
   const depositorySic = depositoryIssuerSic(input.extendedEvidence);
   const freeCashFlowInapplicable = reitCapexReason(
     secIssuerRegistration(input.extendedEvidence)?.sic,
-    artifact?.unfiledSeries,
+    artifact,
   );
   const results = periodInputs.map((period) =>
     observation(input, period, fxClosesByPriceDate, depositorySic, freeCashFlowInapplicable),

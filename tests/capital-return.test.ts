@@ -293,6 +293,23 @@ describe("capitalReturnSection", () => {
       status: "value",
       value: 0.2,
     });
+    const ppeBesideRealEstate = usGaap({
+      PaymentsToAcquireRealEstate: series("USD", () => 900),
+    });
+    expect(metrics(context(ppeBesideRealEstate, reit))).toEqual(
+      ids.map(() =>
+        expect.objectContaining({
+          status: "not-applicable",
+          reason: expect.stringContaining("tags real estate acquisition"),
+          inputs: [],
+        }),
+      ),
+    );
+    expect(
+      evaluate(context(ppeBesideRealEstate, { secIssuer: { sic: "7372", sourceIds: [] } })).metric(
+        "fcfPayoutRatio",
+      ),
+    ).toMatchObject({ status: "value", value: 0.2 });
   });
 
   test("never-filed beside a stale series keeps the gap material", () => {

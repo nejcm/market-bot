@@ -108,6 +108,19 @@ function annualReport(filed: string, accn: string) {
   return { form: "10-K", filed, accn } as const;
 }
 
+function calendarTenK(accn: string, fy: number, val: number) {
+  return {
+    val,
+    form: "10-K",
+    fp: "FY",
+    fy,
+    filed: "2020-02-20",
+    start: `${String(fy)}-01-01`,
+    end: `${String(fy)}-12-31`,
+    accn,
+  };
+}
+
 function noteStartsWith(notes: readonly string[], prefix: string): boolean {
   return notes.some((note) => note.startsWith(prefix));
 }
@@ -526,6 +539,62 @@ describe("fundamental history", () => {
     expect(
       derive(withPpe, undefined, "6798").series.freeCashFlowProxy.annual.map(({ value }) => value),
     ).toEqual([40, 48, 55]);
+  });
+
+  test("REIT FCF proxy is not applicable when real estate investment sits beside a small PP&E line", () => {
+    // VICI 10-K 0001705696-20-000048 (OCF, PP&E) and 0001705696-19-000064 / -22-000046 (real estate).
+    const cashFlows = {
+      NetCashProvidedByUsedInOperatingActivities: {
+        facts: [
+          calendarTenK("0001705696-20-000048", 2018, 504_082_000),
+          calendarTenK("0001705696-20-000048", 2019, 682_159_000),
+        ],
+      },
+      PaymentsToAcquirePropertyPlantAndEquipment: {
+        facts: [
+          calendarTenK("0001705696-20-000048", 2018, 899_000),
+          calendarTenK("0001705696-20-000048", 2019, 2_724_000),
+        ],
+      },
+    };
+    const realEstate = {
+      PaymentsToAcquireRealEstate: {
+        facts: [
+          calendarTenK("0001705696-19-000064", 2018, 771_507_000),
+          calendarTenK("0001705696-22-000046", 2019, 1_812_404_000),
+        ],
+      },
+    };
+    const asOf = "2020-03-01T00:00:00.000Z";
+
+    expect(
+      derive(payload({ ...cashFlows, ...realEstate }), asOf, "6798").series.freeCashFlowProxy,
+    ).toMatchObject({
+      annual: [],
+      notes: [
+        "not-applicable: REIT issuer (SIC 6798) tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases; operating cash flow less capex would omit that investment in properties",
+      ],
+    });
+    const fcf = (concepts: Parameters<typeof payload>[0], sic?: string) =>
+      derive(payload(concepts), asOf, sic).series.freeCashFlowProxy.annual.map(
+        ({ value }) => value,
+      );
+    expect(fcf(cashFlows, "6798")).toEqual([503_183_000, 679_435_000]);
+    expect(
+      fcf(
+        { ...cashFlows, PaymentsToAcquireRealEstate: { facts: [calendarTenK("x", 2019, 0)] } },
+        "6798",
+      ),
+    ).toEqual([503_183_000, 679_435_000]);
+    expect(fcf({ ...cashFlows, ...realEstate })).toEqual([503_183_000, 679_435_000]);
+    // PSA FY2019 10-K 0001393311-20-000008 construction in process.
+    const constructionInProcess = {
+      PaymentsForConstructionInProcess: {
+        facts: [calendarTenK("0001393311-20-000008", 2019, 284_700_000)],
+      },
+    };
+    expect(fcf({ ...cashFlows, ...constructionInProcess }, "6798")).toEqual([]);
+    expect(fcf({ ...cashFlows, ...constructionInProcess })).toEqual([503_183_000, 679_435_000]);
   });
 
   test("CAGR counts whole 52/53-week fiscal years: AMD FY2020-FY2025 revenue", () => {

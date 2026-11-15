@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.22](https://github.com/nejcm/market-bot/compare/v1.19.21...v1.19.22) (2026-11-15)
+
+### Bug Fixes
+
+- **statements:** gate reit fcf when real estate investment is tagged (#246) ([16c7495](https://github.com/nejcm/market-bot/commit/16c74953d9b9c2982854e23752b5741742b2fc35))
+
 ## [1.19.21](https://github.com/nejcm/market-bot/compare/v1.19.20...v1.19.21) (2026-11-15)
 
 ### Bug Fixes

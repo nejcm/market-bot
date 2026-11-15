@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.23](https://github.com/nejcm/market-bot/compare/v1.19.22...v1.19.23) (2026-11-15)
+
+### Bug Fixes
+
+- **figures:** read hyphenated power units and describe figure pruning (#247) ([75e9358](https://github.com/nejcm/market-bot/commit/75e93582c567307d33dd66eeb594011ed58b6fde))
+
 ## [1.19.22](https://github.com/nejcm/market-bot/compare/v1.19.21...v1.19.22) (2026-11-15)
 
 ### Bug Fixes

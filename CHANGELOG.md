@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.29](https://github.com/nejcm/market-bot/compare/v1.19.28...v1.19.29) (2026-11-15)
+
+### Bug Fixes
+
+- **statements:** drop companyfacts facts whose period ends after filing (#253) ([ac61a9f](https://github.com/nejcm/market-bot/commit/ac61a9fc9f4c2e37cf796089ebe841c4f39d4d5b))
+
 ## [1.19.28](https://github.com/nejcm/market-bot/compare/v1.19.27...v1.19.28) (2026-11-15)
 
 ### Bug Fixes

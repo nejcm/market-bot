@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.34](https://github.com/nejcm/market-bot/compare/v1.19.33...v1.19.34) (2026-11-15)
+
+### Bug Fixes
+
+- **figures:** check typed figures in fred-only market-update claims (#258) ([bca8ebc](https://github.com/nejcm/market-bot/commit/bca8ebca43839950fdd1d09068e56f52a33d2a21))
+
 ## [1.19.33](https://github.com/nejcm/market-bot/compare/v1.19.32...v1.19.33) (2026-11-15)
 
 ### Bug Fixes

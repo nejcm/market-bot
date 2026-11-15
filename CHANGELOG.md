@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.24](https://github.com/nejcm/market-bot/compare/v1.19.23...v1.19.24) (2026-11-15)
+
+### Bug Fixes
+
+- **figures:** check both figures of a slash pair, withhold unreadable (#248) ([c562180](https://github.com/nejcm/market-bot/commit/c56218061647e85cf892d9b4a313da3017b65910))
+
 ## [1.19.23](https://github.com/nejcm/market-bot/compare/v1.19.22...v1.19.23) (2026-11-15)
 
 ### Bug Fixes

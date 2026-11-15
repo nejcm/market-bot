@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.20](https://github.com/nejcm/market-bot/compare/v1.19.19...v1.19.20) (2026-11-15)
+
+### Bug Fixes
+
+- **lens:** align summary pcf guards with the statements path (#243) ([33d0702](https://github.com/nejcm/market-bot/commit/33d0702c0edfd273b3ff3352c15d4c755303a541))
+
 ## [1.19.19](https://github.com/nejcm/market-bot/compare/v1.19.18...v1.19.19) (2026-11-15)
 
 ### Bug Fixes

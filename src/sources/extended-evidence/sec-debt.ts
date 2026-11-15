@@ -364,7 +364,15 @@ export function factsForDebt(
         (fact) => seen(fact),
       );
     };
-    const faces = faceDebtLines(filings, instant.periodEnd, recognized, taxonomy);
+    const faces = faceDebtLines(
+      filings,
+      instant.periodEnd,
+      recognized,
+      taxonomy,
+      candidates.filter(
+        (fact) => fact.periodStart === undefined && fact.periodEnd === instant.periodEnd,
+      ),
+    );
     const resolveWith = (lines: ReadonlyMap<string, ParsedFact>, filing?: Filing) =>
       withFaceStatementDebt(
         resolveAt(lines, undefined, filing),
@@ -738,6 +746,25 @@ const KNOWN_NON_BORROWING_ROWS: ReadonlySet<string> = new Set([
   "AssetRetirementObligation",
 ]);
 
+const US_GAAP_DEBT = DEBT_CONCEPTS["us-gaap"];
+// Lease-free debt line plus the finance-lease leg of one face side; an extension row equal to their same-filing sum is composed of them.
+const COMPOSED_ROW_LINES: Readonly<Record<DebtFaceSide, readonly string[]>> = {
+  current: [
+    ...US_GAAP_DEBT.current.generic.filter(
+      (concept) => US_GAAP_DEBT.leaseInclusive?.[concept] === undefined,
+    ),
+    ...(US_GAAP_DEBT.financeLeases?.split.slice(0, 1) ?? []),
+  ],
+  noncurrent: [
+    ...US_GAAP_DEBT.noncurrent.generic.filter(
+      (concept) =>
+        US_GAAP_DEBT.leaseInclusive?.[concept] === undefined &&
+        concept !== US_GAAP_DEBT.ambiguousLongTermDebt?.concept,
+    ),
+    ...(US_GAAP_DEBT.financeLeases?.split.slice(1) ?? []),
+  ],
+};
+
 interface FaceDebtLines {
   readonly accessionNumber: string;
   readonly sourceIds: readonly string[];
@@ -752,6 +779,7 @@ function faceDebtLines(
   periodEnd: string,
   recognized: ReadonlySet<string>,
   taxonomy: FinancialStatementTaxonomy,
+  instantFacts: readonly ParsedFact[],
 ): readonly FaceDebtLines[] {
   const pattern = DEBT_CONCEPTS[taxonomy].unrecognizedBorrowing;
   const noRows = {
@@ -763,73 +791,142 @@ function faceDebtLines(
     const debt = FACE_DEBT_WORDS.test(text);
     return debt === FACE_NON_DEBT_WORDS.test(text) ? undefined : debt;
   };
-  return filings.flatMap(({ metrics, sourceIds }): readonly FaceDebtLines[] => {
-    if (taxonomy !== "us-gaap" || metrics === undefined) {
-      return [];
+  const rowPrefix = (reportDate: unknown) =>
+    reportDate === periodEnd ? FACE_LINE_PREFIX : `${PRIOR_FACE_LINE_PREFIX}${periodEnd}|`;
+  const presents = (metrics: Record<string, unknown>, concept: string) =>
+    ["current", "noncurrent"].some(
+      (side) => metrics[`${rowPrefix(metrics.reportDate)}${side}|us-gaap:${concept}`] !== undefined,
+    );
+  const tagsAt = (accession: unknown, lines: readonly string[]) =>
+    lines.flatMap(
+      (line) =>
+        instantFacts.find((fact) => fact.concept === line && fact.accessionNumber === accession) ??
+        [],
+    );
+  // Proven by its own or an earlier face presenting the same row and value, whose filing tags every part summing to it.
+  const composedOf = (
+    provers: ReadonlySet<unknown>,
+    own: Record<string, unknown>,
+    side: string | undefined,
+    qualified: string,
+    value: number,
+  ) => {
+    const lines = side === "current" || side === "noncurrent" ? COMPOSED_ROW_LINES[side] : [];
+    if (lines.some((line) => presents(own, line))) {
+      return undefined;
     }
-    const linePrefix =
-      metrics.reportDate === periodEnd
-        ? FACE_LINE_PREFIX
-        : `${PRIOR_FACE_LINE_PREFIX}${periodEnd}|`;
-    const reject = (concept: string): readonly FaceDebtLines[] =>
-      typeof metrics.accessionNumber === "string"
-        ? [{ ...noRows, accessionNumber: metrics.accessionNumber, sourceIds, rejected: concept }]
-        : [];
-    const standard = new Map<string, number>();
-    const sides = new Map<string, DebtFaceSide>();
-    const extensions: { concept: string; value: number }[] = [];
-    for (const [key, value] of Object.entries(metrics)) {
-      const [side, qualified] = key.startsWith(linePrefix)
-        ? key.slice(linePrefix.length).split("|")
-        : [];
-      const [prefix, concept] = qualified?.split(":") ?? [];
-      if (prefix === undefined || concept === undefined || typeof value !== "number") {
+    const ownTags = tagsAt(own.accessionNumber, lines);
+    for (const { metrics: other } of filings) {
+      const earlier =
+        other === own ||
+        (provers.has(other?.accessionNumber) &&
+          typeof other?.filingDate === "string" &&
+          typeof own.filingDate === "string" &&
+          other.filingDate <= own.filingDate);
+      if (
+        !earlier ||
+        other?.[`${rowPrefix(other.reportDate)}${side ?? ""}|${qualified}`] !== value
+      ) {
         continue;
       }
-      const labelKey =
-        linePrefix === FACE_LINE_PREFIX ? qualified : `${periodEnd}|${qualified ?? ""}`;
-      const label = String(metrics[`${FACE_LABEL_PREFIX}${labelKey ?? ""}`] ?? "");
-      if (prefix === "us-gaap") {
-        if (recognized.has(concept) || pattern?.test(concept) === true) {
-          standard.set(concept, value);
-          sides.set(concept, side === "current" ? "current" : "noncurrent");
+      const parts = tagsAt(other.accessionNumber, lines);
+      if (
+        parts.length === lines.length &&
+        !lines.some((line) => presents(other, line)) &&
+        sumOf(parts.map((fact) => fact.value)) === value &&
+        ownTags.every((tag) =>
+          parts.some((part) => part.concept === tag.concept && part.value === tag.value),
+        )
+      ) {
+        return parts;
+      }
+    }
+    return undefined;
+  };
+  const facesWith = (provers: ReadonlySet<unknown>) =>
+    filings.flatMap(({ metrics, sourceIds }): readonly FaceDebtLines[] => {
+      if (taxonomy !== "us-gaap" || metrics === undefined) {
+        return [];
+      }
+      const linePrefix = rowPrefix(metrics.reportDate);
+      const reject = (concept: string): readonly FaceDebtLines[] =>
+        typeof metrics.accessionNumber === "string"
+          ? [{ ...noRows, accessionNumber: metrics.accessionNumber, sourceIds, rejected: concept }]
+          : [];
+      const standard = new Map<string, number>();
+      const sides = new Map<string, DebtFaceSide>();
+      const extensions: { concept: string; value: number }[] = [];
+      const composed: { concept: string; parts: readonly ParsedFact[]; side: DebtFaceSide }[] = [];
+      for (const [key, value] of Object.entries(metrics)) {
+        const [side, qualified] = key.startsWith(linePrefix)
+          ? key.slice(linePrefix.length).split("|")
+          : [];
+        const [prefix, concept] = qualified?.split(":") ?? [];
+        if (prefix === undefined || concept === undefined || typeof value !== "number") {
           continue;
         }
-        if (FACE_SCOPED_BORROWINGS.has(concept)) {
+        const labelKey =
+          linePrefix === FACE_LINE_PREFIX ? qualified : `${periodEnd}|${qualified ?? ""}`;
+        const label = String(metrics[`${FACE_LABEL_PREFIX}${labelKey ?? ""}`] ?? "");
+        if (prefix === "us-gaap") {
+          if (recognized.has(concept) || pattern?.test(concept) === true) {
+            standard.set(concept, value);
+            sides.set(concept, side === "current" ? "current" : "noncurrent");
+            continue;
+          }
+          if (FACE_SCOPED_BORROWINGS.has(concept)) {
+            extensions.push({ concept, value });
+          } else if (
+            value !== 0 &&
+            !KNOWN_NON_BORROWING_ROWS.has(concept) &&
+            (BORROWING_HINT.test(concept) ||
+              BORROWING_HINT.test(label) ||
+              (label === "" && classify(concept) !== false))
+          ) {
+            return reject(concept);
+          }
+          continue;
+        }
+        // Debt needs name and label to agree; only both naming non-debt words (lease, tax) clears a borrowing hint.
+        const named = classify(concept);
+        const labelled = classify(label);
+        if (named === true && labelled === true) {
           extensions.push({ concept, value });
         } else if (
-          value !== 0 &&
-          !KNOWN_NON_BORROWING_ROWS.has(concept) &&
-          (BORROWING_HINT.test(concept) ||
-            BORROWING_HINT.test(label) ||
-            (label === "" && classify(concept) !== false))
+          named === true ||
+          labelled === true ||
+          ((named === undefined || labelled === undefined) &&
+            (BORROWING_HINT.test(concept) || BORROWING_HINT.test(label)))
         ) {
+          const parts = composedOf(provers, metrics, side, qualified ?? "", value);
+          if (parts === undefined) {
+            return reject(concept);
+          }
+          composed.push({ concept, parts, side: side === "current" ? "current" : "noncurrent" });
+        }
+      }
+      for (const { concept, parts, side } of composed) {
+        if (parts.some((part) => standard.has(part.concept))) {
           return reject(concept);
         }
-        continue;
+        for (const part of parts) {
+          standard.set(part.concept, part.value);
+          sides.set(part.concept, side);
+        }
       }
-      // Debt needs name and label to agree; only both naming non-debt words (lease, tax) clears a borrowing hint.
-      const named = classify(concept);
-      const labelled = classify(label);
-      if (named === true && labelled === true) {
-        extensions.push({ concept, value });
-      } else if (
-        named === true ||
-        labelled === true ||
-        ((named === undefined || labelled === undefined) &&
-          (BORROWING_HINT.test(concept) || BORROWING_HINT.test(label)))
-      ) {
-        return reject(concept);
+      const unproven = extensions.find(({ value }) => value !== 0);
+      if (standard.size === 0 && unproven !== undefined) {
+        return reject(unproven.concept);
       }
-    }
-    const unproven = extensions.find(({ value }) => value !== 0);
-    if (standard.size === 0 && unproven !== undefined) {
-      return reject(unproven.concept);
-    }
-    return standard.size === 0 || typeof metrics.accessionNumber !== "string"
-      ? []
-      : [{ accessionNumber: metrics.accessionNumber, sourceIds, standard, sides, extensions }];
-  });
+      return standard.size === 0 || typeof metrics.accessionNumber !== "string"
+        ? []
+        : [{ accessionNumber: metrics.accessionNumber, sourceIds, standard, sides, extensions }];
+    });
+  // Only a face accepted on its own proof lends it to another filing's row.
+  const own = facesWith(new Set());
+  return facesWith(
+    new Set(own.flatMap((face) => (face.rejected === undefined ? [face.accessionNumber] : []))),
+  );
 }
 
 interface Filed {

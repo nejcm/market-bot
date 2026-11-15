@@ -262,7 +262,14 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   checked against that face: a tagged amount unequal to its face row withholds debt; another nonzero face borrowing
   row (standard, or an extension whose name and label both read as debt) is beside those lines and withholds debt
   rather than being subsumed; a face finance-lease row is not deducted and clears the possible-lease gap for its own
-  side only (other sides keep their deductions and gaps).
+  side only (other sides keep their deductions and gaps). An extension face row that might be a borrowing counts
+  as its side's lease-free generic debt line plus that side's finance-lease leg only when its own face, or the
+  accepted face of an earlier-or-same-dated filing presenting the same row and value, has its filing tag every
+  part at the instant (a zero-lease filer needs a tagged 0) summing to it exactly; neither face may show a part
+  as its own row, any part the row's own filing tags at the instant must equal the proving value, and two rows
+  on one side may not share the parts (KR 10-K 0001104659-26-037723 2026-01-31: 1,366M + 436M and 14,509M +
+  1,255M, which its 10-Q comparative column reuses); the lease leg then stays out of debt. Otherwise it withholds
+  (KR 10-Q 2026-08-15 tags no finance lease).
 - Never publish an incomplete debt instant, and never let an older amount stand in for one. Every incomplete instant
   emits a dated `incomplete-composite-series` note. When the newest debt instant is incomplete, both paths drop the
   latest-debt metrics: SEC prose, the lens debt row, the financial-position projection, peers, alpha debt features,

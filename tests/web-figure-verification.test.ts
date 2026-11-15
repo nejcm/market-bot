@@ -1861,3 +1861,159 @@ describe("Report Integrity Audit with Verified Web Figures", () => {
     );
   });
 });
+
+function revenue(source: Source) {
+  return unverifiedWebFigure(
+    { text: "Revenue was $3.21B.", sourceIds: [source.id] },
+    webSourceTexts([source]),
+  );
+}
+
+// EBAY Q3 2026 Massive feed item, run 2026-11-03T20-49-25-844Z-5bcabb05 keyFindings[1].
+describe("news-cited figures", () => {
+  const EBAY_CLAIM =
+    "Observed fact: a secondary Q3 summary reports revenue of $3.21B, non-GAAP EPS of $1.51, GMV of $23.17B, and Q4 revenue guidance of $3.19B–$3.24B.";
+  const ebayNews: Source = {
+    id: "news-equity-4",
+    title: "EBAY Q3 Earnings & Revenues Beat Estimates, Both Increase Y/Y",
+    url: "https://www.zacks.com/stock/news/3018915/ebay-q3-earnings-revenues-beat-estimates-both-increase-y-y",
+    publisher: "Zacks Investment Research",
+    provider: "massive",
+    fetchedAt: "2026-10-29T14:46:00Z",
+    kind: "news",
+    summary:
+      "eBay exceeded expectations in Q3 2026 with non-GAAP EPS rising 11.9% to $1.51 and revenues up 13.7% to $3.21B. GMV grew 15.2% to $23.17B, driven by a 27% U.S. surge, while advertising revenues jumped 16% to $575M. The company projects continued growth for Q4 with revenues of $3.19-$3.24B.",
+  };
+  const headline: Source = {
+    id: "news-equity-9",
+    title: "eBay shares rise after earnings",
+    fetchedAt: "2026-10-29T14:46:00Z",
+    kind: "news",
+    provider: "yahoo-news",
+  };
+  const newsTexts = webSourceTexts([ebayNews, headline, SEC_SOURCE, webSource()]);
+  const news = (text: string, sourceIds: readonly string[] = ["news-equity-4"]) =>
+    unverifiedWebFigure({ text, sourceIds }, newsTexts);
+
+  test("publishes a news-only claim whose every figure is in the cited feed text", () => {
+    expect(news(EBAY_CLAIM)).toBeUndefined();
+  });
+
+  test("withholds a news-only figure absent from the cited feed text", () => {
+    expect(news(EBAY_CLAIM.replace("$3.21B", "$3.25B"))).toEqual({
+      reason: "figure-not-in-source",
+      figure: "$3.25B",
+      sourceIds: ["news-equity-4"],
+    });
+    expect(news("GMV reached $23.17M.")).toMatchObject({ reason: "scale-mismatch" });
+    expect(news("Revenue rose 3.21%.", ["news-equity-9"])).toMatchObject({
+      reason: "figure-not-in-source",
+    });
+  });
+
+  test("never reads a summary that may be a web-gather model abstract", () => {
+    const base = { ...ebayNews, title: "eBay results" };
+    expect(revenue(base)).toBeUndefined();
+    expect(revenue({ ...base, provider: "exa" })).toMatchObject({
+      reason: "figure-not-in-source",
+    });
+    expect(
+      revenue({ ...base, provider: "yahoo-news", providerAliases: [{ provider: "exa" }] }),
+    ).toMatchObject({ reason: "figure-not-in-source" });
+    const { provider: _provider, ...unknown } = base;
+    expect(revenue(unknown)).toMatchObject({ reason: "figure-not-in-source" });
+  });
+
+  test("never matches a news figure against fetched page text", () => {
+    const page = "eBay results. Related: Rival Corp revenue was $9.99B in the quarter.";
+    const rawSnapshots = [
+      {
+        id: "raw-exa-search-1",
+        adapter: "exa-search",
+        fetchedAt: "2026-10-29T15:00:00.000Z",
+        payload: { results: [{ url: ebayNews.url, text: page }] },
+      },
+    ];
+    expect(
+      unverifiedWebFigure(
+        { text: "Revenue was $9.99B.", sourceIds: ["news-equity-4"] },
+        webSourceTexts([ebayNews], rawSnapshots),
+      ),
+    ).toMatchObject({ reason: "figure-not-in-source", figure: "$9.99B" });
+  });
+
+  // Run 2026-11-03T17-25-57-999Z-988c553f bullCase[1]: the glued unit withholds on both sides.
+  test("withholds an ambiguous news figure even when the headline repeats it", () => {
+    const headlined: Source = {
+      id: "news-equity-3",
+      title: "Richardson Plans to Install 5-MWh Demonstration Project",
+      fetchedAt: "2026-11-03T12:00:00.000Z",
+      kind: "news",
+      provider: "yahoo-news",
+    };
+    expect(
+      unverifiedWebFigure(
+        {
+          text: "Richardson and ComEd announced a planned 5-MWh demonstration project.",
+          sourceIds: ["news-equity-3"],
+        },
+        webSourceTexts([headlined]),
+      ),
+    ).toMatchObject({ reason: "figure-ambiguous", figure: "5" });
+    expect(
+      unverifiedWebFigure(
+        { text: "Revenue was $3.21B.", sourceIds: ["news-equity-4"], ambiguousSpans: ["12.5%"] },
+        newsTexts,
+      ),
+    ).toEqual({ reason: "figure-ambiguous", figure: "12.5%", sourceIds: ["news-equity-4"] });
+  });
+
+  test("checks a news claim co-citing a discussion source against the news text only", () => {
+    const discussion: Source = {
+      id: "discussion-1",
+      title: "Forum thread",
+      fetchedAt: "2026-10-29T15:00:00.000Z",
+      kind: "discussion",
+      snippet: "Someone said revenue was $3.25B.",
+    };
+    const withDiscussion = webSourceTexts([ebayNews, discussion]);
+    const cite = (text: string) =>
+      unverifiedWebFigure({ text, sourceIds: ["news-equity-4", "discussion-1"] }, withDiscussion);
+    expect(cite("Revenue was $3.21B.")).toBeUndefined();
+    expect(cite("Revenue was $3.25B.")).toEqual({
+      reason: "figure-not-in-source",
+      figure: "$3.25B",
+      sourceIds: ["news-equity-4"],
+    });
+  });
+
+  test("leaves bare counts and deterministic co-cites to their own rules", () => {
+    expect(news("Q4 2026 brought 27 new markets.")).toBeUndefined();
+    expect(news("Revenue was $9.99B.", ["news-equity-4", "sec-10q"])).toBeUndefined();
+    expect(news("Revenue was $3.21B.", ["news-equity-4", "web-vitrox"])).toMatchObject({
+      reason: "figure-not-quoted",
+    });
+  });
+
+  test("prunes the absent claim and declares it as a gap", () => {
+    const report = researchReport({
+      sources: [ebayNews],
+      keyFindings: [
+        { text: EBAY_CLAIM, sourceIds: ["news-equity-4"] },
+        { text: "Revenue was $3.25B.", sourceIds: ["news-equity-4"] },
+      ],
+    });
+    const result = auditReportIntegrity(
+      report,
+      undefined,
+      undefined,
+      undefined,
+      webSourceTexts(report.sources),
+    );
+    expect(result.report.keyFindings.map(({ text }) => text)).toEqual([EBAY_CLAIM]);
+    expect(result.report.dataGaps).toEqual([
+      ...report.dataGaps,
+      "Verified Web Figure check withheld keyFindings[1]: $3.25B does not appear in any cited news source's stored text (news-equity-4).",
+    ]);
+  });
+});

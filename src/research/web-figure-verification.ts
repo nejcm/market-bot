@@ -53,6 +53,8 @@ const MIN_QUOTE_CONTEXT_WORDS = 3;
 // A unitQuote row verifies only as a whole-label monetary row, so its label is the context.
 const MIN_UNIT_QUOTE_CONTEXT_WORDS = 1;
 const GAP_PREFIX = "Verified Web Figure check withheld";
+// An inline citation ("[extended-sec-edgar-clsk-10k]") is not a figure; only whole cited IDs are blanked.
+const INLINE_CITATION = /\[[^\]]*\]/gu;
 
 const CURRENCY_PREFIX = String.raw`US\$|S\$|HK\$|A\$|C\$|NT\$|USD|SGD|HKD|AUD|CAD|TWD|MYR|RMB|CNY|EUR|GBP|JPY|INR|IDR|THB|KRW|RM|Rs\.?|Rp|\p{Sc}`;
 // A dash before a digit or currency prefix joins a range ("RM5m-RM6m").
@@ -168,7 +170,7 @@ const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
   "quote-source-not-cited": "rests on a quote from a source the claim does not cite",
   "no-stored-text": "rests on a source with no stored text to check",
   "quote-too-short": "rests on a quote with too little text around the figure",
-  "figure-not-in-source": "does not appear in any cited news source's stored text",
+  "figure-not-in-source": "does not appear in any cited news or deterministic source's stored text",
 };
 
 function currencyOf(mark: string | undefined): string | undefined {
@@ -911,7 +913,7 @@ export function rawTextsByUrl(rawSnapshots: readonly unknown[]): ReadonlyMap<str
 
 // Provider summaries are model-written abstracts, not source text, so only the snippet and page text count.
 // A deterministic source is quotable through its collector-written snippet (SEC filing text) and the item
-// Summaries citing it; market-data rows hold structured values only, so their figures come via metric references.
+// Summaries citing it alone; market-data rows hold structured values only, so their figures come via metric references.
 export function webSourceTexts(
   sources: readonly Source[],
   rawSnapshots: readonly unknown[] = [],
@@ -927,7 +929,7 @@ export function webSourceTexts(
         : [
             source.snippet,
             ...evidenceItems
-              .filter((item) => item.sourceIds.includes(source.id))
+              .filter((item) => item.sourceIds.length === 1 && item.sourceIds[0] === source.id)
               .map((item) => item.summary),
           ];
     const stored = quotable
@@ -1153,21 +1155,27 @@ export function failedFigureQuotes(
 }
 
 // News text is a headline plus a short feed summary, so a figure is matched in it directly rather than quoted.
-// Matching is pooled across cited news and checks the figure, not what it measures.
+// Matching is pooled across cited news and co-cited deterministic text and checks the figure, not what it measures.
 function unverifiedNewsFigure(
   claim: WebFigureClaim,
   texts: WebSourceTexts,
 ): WebFigureFailure | undefined {
   const citedNews = claim.sourceIds.filter((id) => texts.news.has(id));
-  if (citedNews.length === 0 || claim.sourceIds.some((id) => texts.deterministic.has(id))) {
+  if (citedNews.length === 0) {
     return undefined;
   }
+  const citedDeterministic = claim.sourceIds.filter((id) => texts.deterministic.has(id));
+  const checked = [...citedNews, ...citedDeterministic];
   const ambiguousSpan = claim.ambiguousSpans?.[0];
   if (ambiguousSpan !== undefined) {
-    return { reason: "figure-ambiguous", figure: ambiguousSpan, sourceIds: citedNews };
+    return { reason: "figure-ambiguous", figure: ambiguousSpan, sourceIds: checked };
   }
-  const stored = citedNews.flatMap((id) => texts.news.get(id) ?? []);
-  const sourceFigures = stored.flatMap((text) => figuresIn(text));
+  const sourceFigures = [
+    ...citedNews.flatMap((id) => texts.news.get(id) ?? []).flatMap((text) => figuresIn(text)),
+    ...citedDeterministic
+      .flatMap((id) => texts.deterministic.get(id) ?? [])
+      .flatMap((text) => placedSourceFigures(text).map(({ figure }) => figure)),
+  ];
   for (const figure of figuresIn(claim.text)) {
     if (sourceFigures.some((stated) => sameFigure(stated, figure))) {
       continue;
@@ -1179,7 +1187,7 @@ function unverifiedNewsFigure(
     } else if (near !== undefined) {
       reason = mismatchReason(figure, near);
     }
-    return { reason, figure: figure.raw, sourceIds: citedNews };
+    return { reason, figure: figure.raw, sourceIds: checked };
   }
   return undefined;
 }
@@ -1187,9 +1195,15 @@ function unverifiedNewsFigure(
 // Every typed figure in a web-cited claim needs a proven quote; a co-cited deterministic source proves nothing
 // By itself, since code cannot tell which cited source a figure came from.
 export function unverifiedWebFigure(
-  claim: WebFigureClaim,
+  cited: WebFigureClaim,
   texts: WebSourceTexts,
 ): WebFigureFailure | undefined {
+  const text = cited.text.replaceAll(INLINE_CITATION, (group: string) =>
+    group.replaceAll(/[^[\],]+/gu, (token) =>
+      cited.sourceIds.includes(token.trim()) ? " " : token,
+    ),
+  );
+  const claim = { ...cited, text };
   const citedWeb = claim.sourceIds.filter((id) => texts.web.has(id));
   if (citedWeb.length === 0) {
     return unverifiedNewsFigure(claim, texts);

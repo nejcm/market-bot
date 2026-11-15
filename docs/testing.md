@@ -303,7 +303,8 @@ estimate fails on a miss. Before `--live-stages <new-stage>`, copy the capture u
 `llm-cassette.json`; never edit `data/runs/`. No checked-in fixture collects usable comps peers,
 so none calls `peer-median-audit` (pinned by the fixture invariants). Synthetic entries are listed in
 the fixture's `meta.json` `syntheticLlmEntries`; the `equity-bursa-*` cassettes are unedited captures,
-whose live integrity prunes are pinned in `expectedIntegrityPrune`.
+whose live integrity prunes are pinned in `expectedIntegrityPrune`, as is the `clfd-zero-debt` bull case whose
+$22 million order is in neither its cited headline nor its cited 10-Q text.
 The `equity-aapl-brief-prune` final-synthesis entries are the AAPL brief output with one uncited
 summary figure appended. `expectedIntegrityPrune` pins the exact pruned sentence and grade; every
 fixture without it must prune nothing and grade `high`.

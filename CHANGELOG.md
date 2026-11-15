@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.18](https://github.com/nejcm/market-bot/compare/v1.19.17...v1.19.18) (2026-11-15)
+
+### Bug Fixes
+
+- **lens:** declare reit capex not applicable instead of not filed (#242) ([a9fb9e4](https://github.com/nejcm/market-bot/commit/a9fb9e4a84b3bf9a86e9e515d7de2d8528c08f78))
+
 ## [1.19.17](https://github.com/nejcm/market-bot/compare/v1.19.16...v1.19.17) (2026-11-15)
 
 ### Bug Fixes

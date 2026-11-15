@@ -13,7 +13,8 @@ import {
   periodOf,
   periodEndInput,
   noFact,
-  annualize,
+  annualFlow,
+  ANNUALIZATION_UNKNOWN_REASON,
   annualizeSummary,
   secItem,
   valuationItem,
@@ -120,6 +121,9 @@ function peDefinitionsFor(
     },
   ];
 }
+
+const PCF_BASIS =
+  "quote market cap / annual or reconciled TTM operating cash flow, else the latest period's annualized by its span";
 
 export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
   const valuation = valuationItem(ctx);
@@ -280,18 +284,36 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
       id: "pcfRatio",
       label: "PCF",
       unit: "ratio",
-      basis: "quote market cap / operating cash flow annualized to a year",
+      basis: PCF_BASIS,
       cashFlowBased: true,
       compute: (context) => {
         const marketCap = marketCapInput(context);
         if (context.statements === undefined) {
           const item = secItem(context);
           const operatingCashFlow = readNumberMetric(item?.metrics, "operatingCashFlow");
-          const denominator =
+          const annualized =
             operatingCashFlow === undefined
               ? undefined
               : annualizeSummary(context, "operatingCashFlow", operatingCashFlow);
+          const denominator = annualized?.value;
           const period = summaryPeriod(context, "operatingCashFlow");
+          if (operatingCashFlow !== undefined && denominator === undefined) {
+            return {
+              status: "not-meaningful",
+              reason: `operating cash flow ${ANNUALIZATION_UNKNOWN_REASON}`,
+              ...period,
+              inputs: [
+                evidenceInput(
+                  item,
+                  "operatingCashFlow",
+                  "operating cash flow",
+                  "currency",
+                  operatingCashFlow,
+                  period,
+                ),
+              ],
+            };
+          }
           return marketCap === undefined ||
             marketCap.value === undefined ||
             denominator === undefined ||
@@ -312,23 +334,31 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
                   marketCap,
                 ],
                 ...period,
+                ...(annualized?.annualizedFrom === undefined
+                  ? {}
+                  : { basis: `${PCF_BASIS}; operating cash flow ${annualized.annualizedFrom}` }),
               };
         }
         const anchor = latestFact(context, "operatingCashFlow");
         if (anchor === undefined) {
           return noFact(context, "operatingCashFlow");
         }
-        const denominator = annualize(anchor.value, anchor);
-        const inputs = [
-          factInput(anchor, "operatingCashFlow"),
-          ...(marketCap === undefined ? [] : [marketCap]),
-        ];
-        if (denominator <= 0) {
+        const flow = annualFlow(context, anchor, "operatingCashFlow");
+        if (flow === undefined) {
+          return {
+            status: "not-meaningful",
+            reason: `operating cash flow ${ANNUALIZATION_UNKNOWN_REASON}`,
+            ...periodOf(anchor),
+            inputs: [factInput(anchor, "operatingCashFlow")],
+          };
+        }
+        const inputs = [flow.input, ...(marketCap === undefined ? [] : [marketCap])];
+        if (flow.value <= 0) {
           return {
             status: "not-meaningful",
             reason: "operating cash flow is not positive",
-            ...periodOf(anchor),
-            inputs: [factInput(anchor, "operatingCashFlow")],
+            ...flow.period,
+            inputs: [flow.input],
           };
         }
         if (
@@ -339,7 +369,7 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
           return {
             status: "missing",
             reason: "no quote market cap",
-            ...periodOf(anchor),
+            ...flow.period,
             inputs,
           };
         }
@@ -347,15 +377,18 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
           return {
             status: "missing",
             reason: CURRENCY_MISMATCH_REASON,
-            ...periodOf(anchor),
+            ...flow.period,
             inputs,
           };
         }
         return {
           status: "value",
-          value: marketCap.value / denominator,
-          ...periodOf(anchor),
+          value: marketCap.value / flow.value,
+          ...flow.period,
           inputs,
+          ...(flow.annualizedFrom === undefined
+            ? {}
+            : { basis: `${PCF_BASIS}; operating cash flow ${flow.annualizedFrom}` }),
         };
       },
     },

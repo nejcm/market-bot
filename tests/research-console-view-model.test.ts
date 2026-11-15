@@ -3196,6 +3196,15 @@ describe("report artifact parsers", () => {
               periodEnd: "2025-06-28",
               periodMonths: 12,
             },
+            {
+              key: "roe",
+              label: "ROE",
+              value: 0.186,
+              unit: "ratio-percent",
+              sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              periodEnd: "2026-08-15",
+              periodMonths: 12,
+            },
           ],
         },
         {
@@ -3248,7 +3257,8 @@ describe("report artifact parsers", () => {
     });
 
     expect(tiles.map((tile) => tile.caption)).toEqual([
-      "SEC EDGAR · FY period ended 2025-06-28",
+      "SEC EDGAR · 12M period ended 2025-06-28",
+      "SEC EDGAR · 12M period ended 2026-08-15",
       "Yahoo quote · fetch time 2026-06-21T14:30:00.000Z",
       "SEC EDGAR + Yahoo quote · balance sheet 2025-12-31",
       "SEC EDGAR · period ending 2026-06-30",

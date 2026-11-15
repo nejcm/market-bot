@@ -359,8 +359,8 @@ function financialLensMetricCaption(
     }
     return `${source} · observed ${date}`;
   }
-  const period = metric.periodMonths === 12 ? "FY" : `${String(metric.periodMonths)}M`;
-  const ended = `${period} period ended ${date}`;
+  // A 12-month row may be a TTM at an interim end, and the metric does not say which, so never "FY".
+  const ended = `${String(metric.periodMonths)}M period ended ${date}`;
   return priceCaption === undefined
     ? `${source} · ${ended}`
     : `${source} · ${priceCaption} · fundamentals ${ended}`;

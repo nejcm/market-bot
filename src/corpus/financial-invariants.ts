@@ -91,6 +91,12 @@ const FLOW_OVER_INSTANT_INPUTS: Readonly<
   roa: ["netIncome", "totalAssets"],
 };
 
+const TTM_FLOW_INPUTS: Readonly<Record<string, FinancialStatementSeriesKey>> = {
+  roe: "netIncome",
+  roa: "netIncome",
+  pcfRatio: "operatingCashFlow",
+};
+
 function assertSummarySpan(
   series: FundamentalHistorySeries,
   summary: { readonly years: number; readonly periodStart: string; readonly periodEnd: string },
@@ -228,6 +234,7 @@ function statementInputFact(
   periodEnd: string,
   periodMonths: number,
   allowNearbyInstant: boolean,
+  allowTtm: boolean,
 ): FinancialStatementFact | undefined {
   const series = financialStatementSeriesByKey(artifact, key);
   if (series === undefined) {
@@ -239,6 +246,23 @@ function statementInputFact(
   );
   if (exactDuration.length > 0) {
     return latestFinancialStatementFact(exactDuration);
+  }
+  // A 12-month row at an interim end reads the reconciled TTM; its newest leg carries the period basis.
+  const { ttm } = series;
+  if (allowTtm && periodMonths === 12 && ttm?.periodEnd === periodEnd) {
+    const { components } = ttm;
+    const reconciled =
+      "latestYearToDate" in components
+        ? components.fiscalYear.value +
+          components.latestYearToDate.value -
+          components.priorYearToDate.value
+        : components.fiscalYear.value;
+    invariant(
+      Math.abs(reconciled - ttm.value) <= 1e-9 * Math.max(1, Math.abs(ttm.value)),
+      "B8",
+      `${key} TTM value does not reconcile to its components`,
+    );
+    return "latestYearToDate" in components ? components.latestYearToDate : components.fiscalYear;
   }
   if (!allowNearbyInstant) {
     return;
@@ -301,6 +325,7 @@ export function assertFinancialLensPeriodHygiene(
         metric.periodEnd!,
         metric.periodMonths!,
         flowOverInstant?.[1] === key,
+        TTM_FLOW_INPUTS[metric.key] === key,
       ),
     );
     invariant(

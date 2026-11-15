@@ -29,8 +29,10 @@ import {
   periodOf,
   noFact,
   missingPartner,
-  annualize,
+  annualFlow,
+  ANNUALIZATION_UNKNOWN_REASON,
   annualizeSummary,
+  evidenceInput,
   secItem,
   evidenceOutcome,
   summaryPeriod,
@@ -430,25 +432,48 @@ export function returnOnDefinition(
   denominator: LensSeries,
   label: string,
 ): MetricDefinition {
+  const basis = `annual or reconciled TTM net income, else the latest period's annualized by its span, over ${SERIES_LABELS[denominator]} at that period end`;
   return {
     id,
     label,
     unit: "ratio-percent",
-    basis: `net income annualized by its own period, over ${SERIES_LABELS[denominator]} at that period end`,
+    basis,
     compute: (ctx) => {
       if (ctx.statements === undefined) {
         const netIncome = readNumberMetric(secItem(ctx)?.metrics, "netIncome");
         const base = readNumberMetric(secItem(ctx)?.metrics, evidenceSeriesKey(id, denominator));
-        return summaryValue(
+        const annualized =
+          netIncome === undefined ? undefined : annualizeSummary(ctx, "netIncome", netIncome);
+        const annualizedFrom = annualized?.annualizedFrom;
+        if (
+          netIncome !== undefined &&
+          base !== undefined &&
+          base !== 0 &&
+          annualized === undefined
+        ) {
+          const period = summaryPeriod(ctx, "netIncome");
+          return {
+            status: "not-meaningful",
+            reason: `net income ${ANNUALIZATION_UNKNOWN_REASON}`,
+            ...period,
+            inputs: [
+              evidenceInput(secItem(ctx), "netIncome", "net income", "currency", netIncome, period),
+            ],
+          };
+        }
+        const outcome = summaryValue(
           ctx,
           id,
-          netIncome === undefined || base === undefined || base === 0
+          annualized === undefined || base === undefined || base === 0
             ? undefined
-            : annualizeSummary(ctx, "netIncome", netIncome) / base,
+            : annualized.value / base,
           id.toUpperCase(),
           "ratio-percent",
           "netIncome",
         );
+        return outcome.status === "value" && annualizedFrom !== undefined
+          ? { ...outcome, basis: `${basis}; net income ${annualizedFrom}` }
+          : outcome;
       }
       const anchor = latestFact(ctx, "netIncome");
       if (anchor === undefined) {
@@ -462,19 +487,31 @@ export function returnOnDefinition(
       if (instant === undefined) {
         return missingPartner(ctx, denominator, anchor, [factInput(anchor, "netIncome")]);
       }
-      const inputs = [factInput(anchor, "netIncome"), factInput(instant, denominator)];
+      const flow = annualFlow(ctx, anchor, "netIncome");
+      if (flow === undefined) {
+        return {
+          status: "not-meaningful",
+          reason: `net income ${ANNUALIZATION_UNKNOWN_REASON}`,
+          ...periodOf(anchor),
+          inputs: [factInput(anchor, "netIncome"), factInput(instant, denominator)],
+        };
+      }
+      const inputs = [flow.input, factInput(instant, denominator)];
       return instant.value <= 0
         ? {
             status: "not-meaningful",
             reason: `${SERIES_LABELS[denominator]} is not positive`,
-            ...periodOf(anchor),
+            ...flow.period,
             inputs,
           }
         : {
             status: "value",
-            value: annualize(anchor.value, anchor) / instant.value,
-            ...periodOf(anchor),
+            value: flow.value / instant.value,
+            ...flow.period,
             inputs,
+            ...(flow.annualizedFrom === undefined
+              ? {}
+              : { basis: `${basis}; net income ${flow.annualizedFrom}` }),
           };
     },
   };

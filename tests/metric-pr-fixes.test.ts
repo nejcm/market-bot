@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { financialLensSectionTiles } from "../app/client/view-model-lens";
 import { renderMetricSections } from "../src/report/markdown-metric-sections";
-import { metricPeriodLabel } from "../src/sources/extended-evidence/value-format";
+import { flowSpanLabel, metricPeriodLabel } from "../src/sources/extended-evidence/value-format";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import {
@@ -124,6 +124,25 @@ test("markdown cites a not-meaningful row with its period and basis", () => {
 test("period labels name the date of a provider observation timestamp", () => {
   expect(metricPeriodLabel("2026-10-16T16:25:17.700Z")).toBe("As of 2026-10-16");
   expect(metricPeriodLabel("2026-03-31")).toBe("As of 2026-03-31");
+});
+
+function flow(periodStart: string, periodEnd: string) {
+  return [{ periodType: "interim", periodStart, periodEnd }];
+}
+
+test("period labels name a 52/53-week stub in weeks, not rounded months", () => {
+  expect(metricPeriodLabel("2026-08-15", 6, undefined, flow("2026-02-01", "2026-08-15"))).toBe(
+    "28-week period ending 2026-08-15",
+  );
+  expect(metricPeriodLabel("2026-06-30", 6, undefined, flow("2026-01-01", "2026-06-30"))).toBe(
+    "6-month period ending 2026-06-30",
+  );
+  expect(metricPeriodLabel("2026-03-28", 3, undefined, flow("2025-12-28", "2026-03-28"))).toBe(
+    "3-month period ending 2026-03-28",
+  );
+  expect(flowSpanLabel("2025-02-02", "2026-02-07")).toBe("53-week");
+  expect(flowSpanLabel("2026-01-01", "2026-07-19")).toBe("200-day");
+  expect(flowSpanLabel("2025-01-01", "2025-12-31")).toBeUndefined();
 });
 
 test("console labels a balance-sheet instant as of its date", () => {

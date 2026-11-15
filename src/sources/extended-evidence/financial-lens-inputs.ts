@@ -7,6 +7,7 @@ import {
   financialStatementFactsAreCompatible,
   financialStatementPeriodMonths,
   financialStatementSeriesByKey,
+  financialStatementTtmComponentBasis,
   isYearAligned,
   latestFinancialStatementFact,
   staleSeriesReason,
@@ -40,7 +41,7 @@ import {
   balanceSheetPeriodDivergence,
   isCurrentBalanceSheetPeriod,
 } from "./valuation-comps-support";
-import { scaleCurrency, type LensValueUnit } from "./value-format";
+import { flowSpanLabel, scaleCurrency, type LensValueUnit } from "./value-format";
 import {
   deltaPercent,
   MIN_MEANINGFUL_BASE_REVENUE_SHARE,
@@ -472,16 +473,94 @@ export function withCompleteDebt(definition: MetricDefinition): MetricDefinition
   };
 }
 
-export function annualize(
-  value: number,
-  period: Parameters<typeof financialStatementAnnualizationFactor>[0],
-): number {
-  return value * (financialStatementAnnualizationFactor(period) ?? 1);
+export const ANNUALIZATION_UNKNOWN_REASON = "period length unknown, so it cannot be annualized";
+
+interface Annualized {
+  readonly value: number;
+  readonly annualizedFrom?: string;
 }
 
-export function annualizeSummary(ctx: MetricContext, key: string, value: number): number {
+function annualized(
+  value: number,
+  period: {
+    readonly periodStart?: string;
+    readonly periodEnd?: string;
+    readonly periodMonths?: number;
+  },
+): Annualized | undefined {
+  const factor = financialStatementAnnualizationFactor(period);
+  if (factor === undefined) {
+    return undefined;
+  }
+  if (factor === 1) {
+    return { value };
+  }
+  const span =
+    flowSpanLabel(period.periodStart ?? "", period.periodEnd ?? "") ??
+    (period.periodMonths === undefined ? "filed" : `${String(period.periodMonths)}-month`);
+  return {
+    value: value * factor,
+    annualizedFrom: `annualized from the ${span} period; no reconciled TTM`,
+  };
+}
+
+export function annualizeSummary(
+  ctx: MetricContext,
+  key: string,
+  value: number,
+): Annualized | undefined {
   const periodStart = readStringMetric(secItem(ctx)?.metrics, `${key}PeriodStart`);
-  return annualize(value, { ...summaryPeriod(ctx, key), periodStart });
+  return annualized(value, {
+    ...summaryPeriod(ctx, key),
+    ...(periodStart === undefined ? {} : { periodStart }),
+  });
+}
+
+export interface AnnualFlow extends Annualized {
+  readonly input: MetricInput;
+  readonly period: MetricPeriod;
+}
+
+// An interim anchor reads its series' reconciled TTM; without one it annualizes by its own span.
+export function annualFlow(
+  ctx: MetricContext,
+  anchor: FinancialStatementFact,
+  key: LensSeries,
+): AnnualFlow | undefined {
+  const ttm =
+    anchor.periodType === "interim" && ctx.statements !== undefined
+      ? financialStatementSeriesByKey(ctx.statements, key)?.ttm
+      : undefined;
+  if (ttm !== undefined && ttm.periodEnd === anchor.periodEnd) {
+    return {
+      value: ttm.value,
+      input: {
+        label: `TTM ${SERIES_LABELS[key]}`,
+        value: ttm.value,
+        artifact: "statements",
+        series: key,
+        periodStart: ttm.periodStart,
+        periodEnd: ttm.periodEnd,
+        periodKey: `${ttm.periodStart}|${ttm.periodEnd}`,
+        unit: ttm.unit,
+        currency: ttm.currency,
+        sourceIds: ttm.sourceIds,
+        derivation: [`TTM = ${ttm.formula}`, financialStatementTtmComponentBasis(ttm.components)]
+          .filter((part) => part !== undefined)
+          .join("; "),
+      },
+      period: { periodEnd: ttm.periodEnd, periodMonths: 12 },
+    };
+  }
+  const months = financialStatementPeriodMonths(anchor);
+  const flow = annualized(anchor.value, {
+    ...(anchor.periodStart === undefined ? {} : { periodStart: anchor.periodStart }),
+    periodEnd: anchor.periodEnd,
+    ...(months === undefined ? {} : { periodMonths: months }),
+  });
+  return flow === undefined
+    ? undefined
+    : { ...flow, input: factInput(anchor, key), period: periodOf(anchor) };
 }
 
 export function positiveOf(value: number | undefined): boolean | undefined {

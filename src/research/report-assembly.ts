@@ -739,7 +739,10 @@ export function assembleResearchReportWithRelocations(
     context,
     sources,
   } = input;
-  const payload = citeMetricReferences(draftPayload, referenceMetricSections(collectedSources));
+  const payload = citeMetricReferences(
+    draftPayload,
+    referenceMetricSections(collectedSources, command),
+  );
   const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
   /*
    * `classifyGap` is a heuristic over a gap's source, provider and prose. A collector that already
@@ -951,7 +954,7 @@ export function assembleResearchReportWithRelocations(
         : {}),
     },
   });
-  const sections = referenceMetricSections(collectedSources);
+  const sections = referenceMetricSections(collectedSources, command);
   const resolvedReport = resolveMetricReferences(report, sections);
   assertNoUnresolvedMetricReferences(resolvedReport);
   assertSafeReportLanguage(resolvedReport);

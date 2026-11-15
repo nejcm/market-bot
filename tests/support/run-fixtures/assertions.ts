@@ -164,7 +164,7 @@ export function assertMetricPromptCatalog(
       defaults?: Record<string, unknown>;
       metrics: Record<string, unknown>[];
     }[];
-    const sections = referenceMetricSections(result.collectedSources);
+    const sections = referenceMetricSections(result.collectedSources, command);
     expect(catalog.map(({ id }) => id)).toEqual(sections.map(({ id }) => id));
     expect(catalog.some(({ id }) => id === "market-session")).toBe(
       result.collectedSources.verifiedMarketSnapshot !== undefined,
@@ -1861,7 +1861,7 @@ function renderedMetricSpans(value: unknown): readonly RenderedMetric[] {
 
 // Every rendered Metric Reference names what it measures, so a wrong surrounding noun shows on the page.
 function assertRenderedMetricLabels(result: RunFixtureResult, report: ResearchReport): void {
-  const catalog = referenceMetricSections(result.collectedSources).flatMap(({ metrics }) =>
+  const catalog = referenceMetricSections(result.collectedSources, report).flatMap(({ metrics }) =>
     metrics.flatMap((metric) => {
       const value =
         metric.status === "value"

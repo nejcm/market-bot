@@ -17,6 +17,16 @@ import { rederivePredictionShortfallReportAfterPruning } from "../report/predict
 import { reconcileEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { validateResearchReport } from "../report/schema";
 import { webSourceTexts } from "./web-figure-verification";
+import { isMarketUpdateJobType } from "../domain/job-type";
+
+function marketSnapshotSourceIds(collected: CollectedSources): readonly string[] {
+  return [...collected.marketSnapshots, ...collected.supplementalMarketSnapshots].flatMap(
+    ({ sourceId, benchmark }) => [
+      sourceId,
+      ...(benchmark === undefined ? [] : [benchmark.sourceId]),
+    ],
+  );
+}
 
 export async function finalizeSynthesis(
   synthesis: SynthesizeReportUntilValidResult,
@@ -52,6 +62,7 @@ export async function finalizeSynthesis(
       [...collected.extendedSources, ...synthesis.report.sources],
       collected.rawSnapshots,
       [...(collected.extendedEvidence?.items ?? []), ...(collected.marketContext?.items ?? [])],
+      isMarketUpdateJobType(synthesis.report.jobType) ? marketSnapshotSourceIds(collected) : [],
     ),
     runCurrencies,
   );

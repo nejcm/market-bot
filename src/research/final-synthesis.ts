@@ -636,7 +636,10 @@ function withCatalogFigureHints(
 ): Pick<StageReprompt, "reportValidationErrors" | "catalogFigureHints"> {
   const hints =
     state.parseError === undefined
-      ? catalogFigureHints(state.payload, referenceMetricSections(input.collectedSources))
+      ? catalogFigureHints(
+          state.payload,
+          referenceMetricSections(input.collectedSources, input.command),
+        )
       : [];
   return hints.length === 0
     ? { reportValidationErrors }

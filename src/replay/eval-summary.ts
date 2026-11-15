@@ -325,7 +325,7 @@ async function sampleMetricCatalog(
   const cached =
     catalogs.get(record.input) ??
     loadSynthesisReplayInput(record.input).then(
-      ({ input }) => referenceMetricSections(input.collectedSources),
+      ({ input }) => referenceMetricSections(input.collectedSources, input.command),
       () => undefined,
     );
   catalogs.set(record.input, cached);

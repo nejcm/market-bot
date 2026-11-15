@@ -11,6 +11,8 @@ export type LensValueUnit =
   | "currency"
   | "currency-per-share"
   | "number"
+  | "shares"
+  | "reported-percent"
   | "text";
 
 export const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
@@ -86,6 +88,15 @@ export function formatLensValue(value: number, unit: LensValueUnit, currency?: s
     const code = currency ?? "USD";
     const symbol = CURRENCY_SYMBOLS[code];
     return symbol === undefined ? `${code} ${amount}` : `${symbol}${amount}`;
+  }
+  // A percent quoted at its source's precision (FRED yields to 2 decimals), unlike whole-percent's fixed 1.
+  if (unit === "reported-percent") {
+    return `${clampRoundedZero(value, 2).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
+  }
+  if (unit === "shares") {
+    return Math.abs(value) >= 999_995
+      ? `${(value / 1_000_000).toFixed(2)} million shares`
+      : `${Math.round(value).toLocaleString("en-US")} shares`;
   }
   return clampRoundedZero(value, 2).toFixed(2);
 }

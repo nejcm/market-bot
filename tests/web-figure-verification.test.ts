@@ -284,6 +284,17 @@ describe("figure parsing", () => {
       [Number.NaN, 1, "", ""],
     ]);
     expect(parsed("52-week, 10-K, 10-Q, S-1, COVID-19, Form 8-K, 24-hour, 5-year")).toEqual([]);
+    // Live eval 4 (6fe50ea1): a forecast horizon is a time span, not a figure.
+    expect(
+      parsed(
+        "a 15-trading-day forecast, 15 trading days, 5-Trading-Days, a 3-session run, 20-sessions",
+      ),
+    ).toEqual([]);
+    expect(parsed("15-trading-day 4%, a 15-trading 4%")).toEqual([
+      [4, 1, "", "%"],
+      [Number.NaN, 1, "", ""],
+      [4, 1, "", "%"],
+    ]);
     expect(parsed("a 3-for-1 split")).toEqual([[Number.NaN, 1, "", ""]]);
     expect(parsed("5-10%, -5%")).toEqual([
       [5, 1, "", "%"],

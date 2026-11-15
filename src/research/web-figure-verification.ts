@@ -20,6 +20,8 @@ export interface WebSourceTexts {
   readonly deterministic: ReadonlyMap<string, readonly string[]>;
   // Normalized title, snippet and feed summary per news Source id.
   readonly news: ReadonlyMap<string, readonly string[]>;
+  // Market-update snapshot Source ids: a claim citing one is checked even without a news co-cite.
+  readonly marketSnapshots?: ReadonlySet<string>;
 }
 
 interface QuotableEvidenceItem {
@@ -66,7 +68,7 @@ const UNIT_WORDS = String.raw`per\s?cent|pct|pc|percentage[\s-]points?|percentag
 const POINTS_AFTER = /^\s?(?:points?|pts?)(?!\p{L})/iu;
 // Words a bare count may be glued to and still be no figure ("52-week", "10-K"); any other word may be a unit.
 const COUNT_WORD_AFTER =
-  /^-(?:[AC-JLN-Z]|(?:[Dd]ay|[Ww]eek|[Mm]onth|[Qq]uarter|[Yy]ear|[Yy]r|[Hh]our)s?|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?!\p{L})/u;
+  /^-(?:[AC-JLN-Z]|(?:(?:[Tt]rading-)?(?:[Dd]ay|[Ss]ession)|[Ww]eek|[Mm]onth|[Qq]uarter|[Yy]ear|[Yy]r|[Hh]our)s?|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?!\p{L})/u;
 // K, M and B may be scales, so only the SEC form codes keep them.
 const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
 // Only a subunit may be glued ("26.4sen"); a glued main-unit word is too often a label.
@@ -939,6 +941,7 @@ export function webSourceTexts(
   sources: readonly Source[],
   rawSnapshots: readonly unknown[] = [],
   evidenceItems: readonly QuotableEvidenceItem[] = [],
+  marketSnapshotIds: readonly string[] = [],
 ): WebSourceTexts {
   const raw = rawTextsByUrl(rawSnapshots);
   const texts = new Map<string, string[]>();
@@ -987,7 +990,12 @@ export function webSourceTexts(
       .filter((text) => text !== "");
     news.set(source.id, [...new Set([...(news.get(source.id) ?? []), ...stored])]);
   }
-  return { web: texts, deterministic, news };
+  return {
+    web: texts,
+    deterministic,
+    news,
+    ...(marketSnapshotIds.length === 0 ? {} : { marketSnapshots: new Set(marketSnapshotIds) }),
+  };
 }
 
 function readRenderedMetrics(value: unknown): readonly RenderedMetric[] {
@@ -1177,13 +1185,14 @@ export function failedFigureQuotes(
 }
 
 // News text is a headline plus a short feed summary, so a figure is matched in it directly rather than quoted.
-// Matching is pooled across cited news and co-cited deterministic text and checks the figure, not what it measures.
+// Matching pools cited news and deterministic text (no news needed beside a market-update snapshot) and checks the figure.
 function unverifiedNewsFigure(
   claim: WebFigureClaim,
   texts: WebSourceTexts,
 ): WebFigureFailure | undefined {
   const citedNews = claim.sourceIds.filter((id) => texts.news.has(id));
-  if (citedNews.length === 0) {
+  const citesSnapshot = claim.sourceIds.some((id) => texts.marketSnapshots?.has(id) === true);
+  if (citedNews.length === 0 && !citesSnapshot) {
     return undefined;
   }
   const citedDeterministic = claim.sourceIds.filter((id) => texts.deterministic.has(id));
@@ -1268,8 +1277,17 @@ export function isWebFigureGapText(text: string): boolean {
   return text.startsWith(GAP_PREFIX);
 }
 
-export function webFigureGapText(location: string, failure: WebFigureFailure): string {
-  return `${GAP_PREFIX} ${location}: ${failure.figure} ${REASON_TEXT[failure.reason]} (${failure.sourceIds.join(", ")}).`;
+export function webFigureGapText(
+  location: string,
+  failure: WebFigureFailure,
+  marketSnapshots?: ReadonlySet<string>,
+): string {
+  const hint =
+    failure.reason === "figure-not-in-source" &&
+    failure.sourceIds.some((id) => marketSnapshots?.has(id) === true)
+      ? " A market snapshot or FRED macro value is written as its market-day or macro-fred metric reference."
+      : "";
+  return `${GAP_PREFIX} ${location}: ${failure.figure} ${REASON_TEXT[failure.reason]} (${failure.sourceIds.join(", ")}).${hint}`;
 }
 
 export function droppedFigureQuoteText(location: string, quote: DroppedFigureQuote): string {

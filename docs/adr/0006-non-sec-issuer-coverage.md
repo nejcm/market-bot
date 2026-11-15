@@ -277,7 +277,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   its sign, so the figure and any range it starts withhold ("Revenue-$574.9 million", "profit-5m-9"); a bare count
   there is dropped ("COVID-19"). A dash glued to a word after a figure keeps a scaled or unit figure whole ("$574.9
   million—up") and withholds one whose scale may follow ("$5-million"). A bare number there withholds, since the
-  word may be a unit ("5-per-cent", "25-basis-point", "5-fold"), unless the word is a time noun, a month
+  word may be a unit ("5-per-cent", "25-basis-point", "5-fold"), unless the word is a time noun (including
+  "session", "trading-day" and "trading-session", so "a 15-trading-day forecast" is no figure), a month
   abbreviation, a single capital letter other than the scale letters K, M and B, or an SEC form code ("52-week",
   "30-Jun", "20-F", "10-K"; "5-M" withholds); such a count is dropped and ends any range. A power or energy unit may be
   hyphenated ("5-MWh", "100-MW", "5-megawatt-hour") and reads as if spaced; "MWac" and "MWdc" are units of their own:
@@ -319,13 +320,23 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
 - A claim citing news and a deterministic source, and no web source, pools the same bare-figure match over the
   cited news text and each cited deterministic source's stored collector text (its snippet and sole-source item summaries),
   read as table-aware source text (amended 2026-11-15). Market-data stores no text, so a figure it alone holds
-  passes only as a metric reference; a figure in neither withholds as `figure-not-in-source`, naming every
+  passes only as a metric reference (on market updates, every snapshot value is a `market-day-<SYMBOL>`
+  reference, amended 2026-11-16; run 6fe50ea1 withheld exact typed snapshot values); a figure in neither withholds as `figure-not-in-source`, naming every
   checked source. A cited source ID typed inline in a claim's citation bracket ("[extended-sec-edgar-clsk-10k]")
   is blanked as a whole token before any figure check; an uncited ID in the bracket stays and is read as text. Before this, any deterministic co-cite exempted the claim: 12 non-prediction claims
   across 104 saved runs, of which a replay of the 92 captured final-synthesis inputs withholds 5 (a filing
   figure absent from the stored filing excerpt, a Yahoo volume, cloud revenue shares, a $22 million order),
   passes 6 (2 only once the inline ID is blanked), and cannot replay 1 (`43cf5df7`, no capture).
-  Deterministic-only claims stay unchecked.
+  Deterministic-only claims stay unchecked, except on market-update runs (amended 2026-11-16): a claim citing a
+  market or supplemental snapshot (or its benchmark) and no news or web source gets the same pooled match over its
+  cited deterministic text, and since snapshots store none, a typed snapshot figure withholds as
+  `figure-not-in-source` with a gap pointing at its `market-day` or `macro-fred` reference (live eval of
+  6fe50ea1, sample 2: "HTFL fell 19.1255%", "VIX was 19.30"). FRED's stored text holds series names, not values,
+  so a typed FRED value in a claim that also cites a snapshot withholds; the reference-only `macro-fred` rows
+  (one per collected series, citing `market-context-fred-macro`) are how such a claim publishes it (live eval 3:
+  "DGS10 ... 5.1%" withheld). A claim citing only `market-context` (FRED) still stays unchecked; the saved runs
+  hold one (6fe50ea1, "10-year Treasury yield ... 5.1%"), and checking it waits for evidence that the model uses
+  the `macro-fred` references.
 - A redirected run collects market data twice (typed code, then the resolved code).
 - Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and Valuation Evidence
   do not read them yet. The Business Framework reads their same-basis YoY rows (amended 2026-11-07): on a run

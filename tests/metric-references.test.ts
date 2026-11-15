@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { EvidenceQualityAssessment } from "../src/domain/evidence";
 import { finalizeSynthesis } from "../src/research/finalize-synthesis";
+import { auditReportIntegrity } from "../src/research/report-integrity-audit";
 import { readReport } from "../src/run-artifact-report-reader";
 import { buildWebSubjectProfileEvidence } from "../src/web-evidence/web-subject-profile";
 import { assembleResearchReport, type ModelReportPayload } from "../src/research/report-assembly";
 import { synthesizeReportUntilValid } from "../src/research/final-synthesis";
 import {
   evaluateMetricSection,
+  type MetricSection,
   type MetricDefinition,
 } from "../src/sources/extended-evidence/metric-engine";
 import { renderMarkdownReport } from "../src/report/markdown";
@@ -1189,11 +1191,13 @@ test("market-session previousClose|period dates the prior session (run 7912637b)
 });
 
 const session = (overrides: Parameters<typeof collectedSources>[0]) =>
-  referenceMetricSections(collectedSources(overrides)).find(({ id }) => id === "market-session");
+  referenceMetricSections(collectedSources(overrides), { jobType: "equity" }).find(
+    ({ id }) => id === "market-session",
+  );
 
 test("market-session catalog: currency from price history, single bar, unverified session, no snapshot", () => {
   expect(session({})).toBeUndefined();
-  expect(referenceMetricSections(collectedSources({}))).toEqual([]);
+  expect(referenceMetricSections(collectedSources({}), { jobType: "equity" })).toEqual([]);
   const priced = session({
     verifiedMarketSnapshot: verifiedMarketSnapshot({ latestSessionStatus: "unverified" }),
     priceHistory: [
@@ -1405,5 +1409,438 @@ describe("metric references through finalization", () => {
       renderedMetrics: [{ field: "text", start: 11, text: "12.5% (Margin)" }],
     });
     expect(readReport(JSON.parse(JSON.stringify(report)))?.keyFindings).toEqual(report.keyFindings);
+  });
+});
+
+const rows = (day: MetricSection | undefined) =>
+  day?.metrics.map(({ id, label, value, sourceIds }) => [id, label, value, sourceIds]);
+
+describe("market-day references on market updates (run 6fe50ea1)", () => {
+  const overview = {
+    jobType: "market-overview",
+    assetClass: "equity",
+    depth: "brief",
+    horizonTradingDays: 5,
+  } as const;
+  const fetched = "2026-11-15T15:27:15.203Z";
+  const equityCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "CBRS",
+    depth: "brief",
+  } as const;
+  const cbrs = marketSnapshot({
+    sourceId: "market-yahoo-equity-cbrs",
+    symbol: "CBRS",
+    price: 108.72,
+    open: 104,
+    previousClose: 97.75,
+    identity: { quoteCurrency: "USD" },
+    changePercent24h: 11.222_507,
+    volume: 36_873_109,
+    averageVolume: 14_019_640,
+    quoteTimeUtc: "2026-11-14T21:00:00.000Z",
+    benchmark: {
+      sourceId: "market-yahoo-equity-spy",
+      symbol: "SPY",
+      basis: "broad-index",
+      changePercent24h: -0.363_219,
+      observedAt: fetched,
+    },
+  });
+  const vix = marketSnapshot({
+    sourceId: "market-yahoo-equity-^vix",
+    symbol: "^VIX",
+    price: 19.3,
+    changePercent24h: 3.208_547_8,
+    volume: 0,
+    averageVolume: 0,
+    observedAt: fetched,
+  });
+  const news = newsSource({
+    id: "news-equity-11",
+    snippet: "Cerebras shares jumped after the listing as AI chip demand stayed strong.",
+  });
+  const marketSources = [
+    news,
+    newsSource({ id: cbrs.sourceId, kind: "market-data" }),
+    newsSource({ id: "market-yahoo-equity-spy", kind: "market-data" }),
+    newsSource({ id: vix.sourceId, kind: "market-data" }),
+    newsSource({ id: "market-context-fred-macro", kind: "market-context" }),
+  ];
+  // Run 6fe50ea1's FRED Market Context (normalized/market-context.json), trimmed.
+  const fredContext = {
+    assetClass: "equity",
+    gaps: [],
+    items: [
+      {
+        category: "fred-macro",
+        title: "FRED macro Market Context",
+        summary: "Latest FRED macro observations captured for DGS10, DGS2, T10Y2Y, CPIAUCSL.",
+        sourceIds: ["market-context-fred-macro"],
+        observedAt: fetched,
+        metrics: {
+          DGS10: 5.1,
+          DGS10Date: "2026-11-12",
+          DGS2: 4.86,
+          DGS2Date: "2026-11-12",
+          T10Y2Y: 0.27,
+          T10Y2YChange: 0.03,
+          T10Y2YDate: "2026-11-13",
+          CPIAUCSL: 337.476,
+          CPIAUCSLDate: "2026-10-01",
+          UNRATE: 4.1,
+        },
+      },
+    ],
+  } as const;
+  const collected = collectedSources({ marketSnapshots: [cbrs, vix], marketContext: fredContext });
+  const assembled = (
+    payload: ModelReportPayload,
+    runCommand: typeof overview | typeof equityCommand = overview,
+  ) =>
+    assembleResearchReport({
+      ...input(payload, []),
+      command: runCommand,
+      sources: marketSources,
+      collectedSources: collected,
+    });
+  const finalized = async (
+    text: string,
+    sourceIds: readonly string[] = [news.id, cbrs.sourceId],
+    runCommand: typeof overview | typeof equityCommand = overview,
+  ) => {
+    const result = await finalizeSynthesis(
+      {
+        report: assembled({ keyFindings: [{ text, sourceIds }] }, runCommand),
+        sourceGaps: [],
+        stageOutputs: [],
+        predictionRetryErrors: [],
+        predictionTrimWarnings: [],
+        predictionErrors: [],
+        reportValidationErrors: [],
+        relocatedGapClaims: [],
+      },
+      collected,
+      {
+        version: 1,
+        rubricVersion: 3,
+        label: "high",
+        checks: [],
+        limitingReasons: [],
+        advisoryReasons: [],
+      },
+      async () => ({ labels: new Map(), warnings: [] }),
+    );
+    return {
+      pruned: result.integrityAudit.pruned.map(({ location, webFigure }) => ({
+        location,
+        reason: webFigure?.reason,
+        figure: webFigure?.figure,
+      })),
+      gaps: result.report.dataGaps,
+    };
+  };
+  const finalizedPruned = async (...args: Parameters<typeof finalized>) =>
+    (await finalized(...args)).pruned;
+
+  test("catalogs one quote per symbol with every row, its benchmark, and nothing on equity runs", () => {
+    const sections = referenceMetricSections(collected, overview);
+    expect(sections.map(({ id }) => id)).toEqual([
+      "market-day-CBRS",
+      "market-day-^VIX",
+      "market-day-SPY",
+      "macro-fred",
+    ]);
+    const fred = ["market-context-fred-macro"];
+    expect(rows(sections[3])).toEqual([
+      [
+        "DGS10",
+        "DGS10 10-year Treasury constant-maturity yield, observation 2026-11-12",
+        5.1,
+        fred,
+      ],
+      ["DGS2", "DGS2 2-year Treasury constant-maturity yield, observation 2026-11-12", 4.86, fred],
+      [
+        "T10Y2Y",
+        "T10Y2Y 10-year minus 2-year Treasury yield spread, observation 2026-11-13",
+        0.27,
+        fred,
+      ],
+      [
+        "CPIAUCSL",
+        "CPIAUCSL CPI for all urban consumers, index, observation 2026-10-01",
+        337.476,
+        fred,
+      ],
+    ]);
+    const quoted = "2026-11-14 session";
+    expect(rows(sections[0])).toEqual([
+      ["changePercent", `CBRS day change, ${quoted}`, 11.222_507, [cbrs.sourceId]],
+      ["price", `CBRS last price, ${quoted}`, 108.72, [cbrs.sourceId]],
+      ["gapPercent", `CBRS opening gap, ${quoted}`, ((104 - 97.75) / 97.75) * 100, [cbrs.sourceId]],
+      ["volume", `CBRS day volume, ${quoted}`, 36_873_109, [cbrs.sourceId]],
+      ["averageVolume", `CBRS average daily volume, ${quoted}`, 14_019_640, [cbrs.sourceId]],
+      [
+        "volumeRatio",
+        `CBRS day volume vs average daily volume, ${quoted}`,
+        36_873_109 / 14_019_640,
+        [cbrs.sourceId],
+      ],
+    ]);
+    expect(rows(sections[1])).toEqual([
+      ["changePercent", "^VIX day change, quote fetched 2026-11-15", 3.208_547_8, [vix.sourceId]],
+      ["price", "^VIX level, quote fetched 2026-11-15", 19.3, [vix.sourceId]],
+    ]);
+    expect(rows(sections[2])?.map(([id]) => id)).toEqual(["changePercent"]);
+    expect(referenceMetricSections(collected, command)).toEqual([]);
+    const crypto = referenceMetricSections(
+      collectedSources({
+        marketSnapshots: [
+          marketSnapshot({
+            assetClass: "crypto",
+            symbol: "BTC",
+            sourceId: "market-btc",
+            observedAt: fetched,
+            averageVolume: 2_000_000,
+          }),
+        ],
+      }),
+      overview,
+    );
+    expect(crypto[0]!.metrics.map(({ id, label }) => [id, label])).toEqual([
+      ["changePercent", "BTC 24h change, quote fetched 2026-11-15"],
+      ["price", "BTC last price, quote fetched 2026-11-15"],
+    ]);
+  });
+
+  test("keeps the market snapshot over a supplemental quote for the same symbol (review P1)", () => {
+    const massive = marketSnapshot({
+      sourceId: "market-massive-equity-cbrs",
+      symbol: "CBRS",
+      changePercent24h: 9,
+      volume: 1_000_000,
+    });
+    const withSupplemental = collectedSources({
+      marketSnapshots: [cbrs],
+      supplementalMarketSnapshots: [massive, { ...massive, symbol: "ONLY" }],
+    });
+    const sections = referenceMetricSections(withSupplemental, overview);
+    expect(sections.map(({ id }) => id)).toEqual([
+      "market-day-CBRS",
+      "market-day-ONLY",
+      "market-day-SPY",
+    ]);
+    expect(
+      rows(sections[0])?.map(([id, , value, sourceIds]) => [id, value, sourceIds]),
+    ).toContainEqual(["volume", 36_873_109, [cbrs.sourceId]]);
+    expect(rows(sections[1])?.[0]?.[3]).toEqual([massive.sourceId]);
+  });
+
+  test("omits a missing, zero or non-finite volume rather than rendering 0 shares (review P2)", () => {
+    const sections = referenceMetricSections(
+      collectedSources({
+        marketSnapshots: [
+          { ...cbrs, volume: Number.NaN, averageVolume: Number.NaN },
+          { ...cbrs, symbol: "ZERO", volume: 0, averageVolume: Number.POSITIVE_INFINITY },
+        ],
+      }),
+      overview,
+    );
+    for (const day of sections.slice(0, 2)) {
+      expect(day.metrics.map(({ id }) => id)).toEqual(["changePercent", "price", "gapPercent"]);
+    }
+  });
+
+  test("renders values with their own unit and an unlabelled-unit label", async () => {
+    const text =
+      "Cerebras moved <<metric:market-day-CBRS.changePercent>> on <<metric:market-day-CBRS.volume>>, <<metric:market-day-CBRS.volumeRatio>> its average, after a <<metric:market-day-CBRS.gapPercent>> open at <<metric:market-day-CBRS.price>>; VIX stood at <<metric:market-day-^VIX.price>>.";
+    expect(
+      assembled({ keyFindings: [{ text, sourceIds: [news.id] }] }).keyFindings[0],
+    ).toMatchObject({
+      text: "Cerebras moved +11.2% (CBRS day change, 2026-11-14 session) on 36.87 million shares (CBRS day volume, 2026-11-14 session), 2.63x (CBRS day volume vs average daily volume, 2026-11-14 session) its average, after a +6.4% (CBRS opening gap, 2026-11-14 session) open at $108.72 (CBRS last price, 2026-11-14 session); VIX stood at 19.30 (^VIX level, quote fetched 2026-11-15).",
+      sourceIds: [news.id, cbrs.sourceId, vix.sourceId],
+      metricSourceIds: [cbrs.sourceId, vix.sourceId],
+    });
+    expect(await finalizedPruned(text)).toEqual([]);
+    expect(await finalizedPruned(text, [cbrs.sourceId, vix.sourceId])).toEqual([]);
+  });
+
+  test("withholds a typed copy of the same values", async () => {
+    expect(await finalizedPruned("Cerebras rose 11.22% on 36.87 million shares.")).toEqual([
+      { location: "keyFindings[0]", reason: "figure-not-in-source", figure: "11.22%" },
+    ]);
+  });
+
+  test("checks typed figures in a claim citing only market data, on market updates only (live eval sample 2)", async () => {
+    const typed = "HTFL fell 19.1255% while SPY declined 0.363219%; VIX was 19.30.";
+    const marketOnly = [cbrs.sourceId, "market-yahoo-equity-spy", vix.sourceId];
+    const { pruned, gaps } = await finalized(typed, marketOnly);
+    expect(pruned).toEqual([
+      { location: "keyFindings[0]", reason: "figure-not-in-source", figure: "19.1255%" },
+    ]);
+    expect(gaps.at(-1)).toEndWith(
+      "A market snapshot or FRED macro value is written as its market-day or macro-fred metric reference.",
+    );
+    expect(await finalizedPruned("Volatility stayed elevated.", marketOnly)).toEqual([]);
+    expect(await finalizedPruned(typed, marketOnly, equityCommand)).toEqual([]);
+    const newsOnly = await finalized("Cerebras rose 11.22%.", [news.id]);
+    expect(newsOnly.pruned).toHaveLength(1);
+    expect(newsOnly.gaps.at(-1)).not.toContain("market-day");
+  });
+
+  test("renders a FRED macro reference that the audit keeps, and withholds a typed copy (live eval 3)", async () => {
+    const cited = [cbrs.sourceId, "market-context-fred-macro"];
+    const text =
+      "Cerebras moved <<metric:market-day-CBRS.changePercent>> with the 10-year yield at <<metric:macro-fred.DGS10>> and the 2-year at <<metric:macro-fred.DGS2>>.";
+    expect(
+      assembled({ keyFindings: [{ text, sourceIds: [cbrs.sourceId] }] }).keyFindings[0],
+    ).toMatchObject({
+      text: "Cerebras moved +11.2% (CBRS day change, 2026-11-14 session) with the 10-year yield at 5.1% (DGS10 10-year Treasury constant-maturity yield, observation 2026-11-12) and the 2-year at 4.86% (DGS2 2-year Treasury constant-maturity yield, observation 2026-11-12).",
+      sourceIds: cited,
+    });
+    expect(await finalizedPruned(text, cited)).toEqual([]);
+    expect(await finalizedPruned("The 10-year yield was 5.1%.", cited)).toEqual([
+      { location: "keyFindings[0]", reason: "figure-not-in-source", figure: "5.1%" },
+    ]);
+    expect(
+      referenceMetricSections(collectedSources({ marketSnapshots: [cbrs] }), overview).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["market-day-CBRS", "market-day-SPY"]);
+  });
+
+  test("reads a forecast horizon as a time span, not a figure, in a market-only claim (live eval 4)", async () => {
+    const marketOnly = [cbrs.sourceId, vix.sourceId];
+    const horizon =
+      "The mover universe is a single-day multi-screener sample, not a trailing-horizon measure; extending sharp individual moves into a 15-trading-day forecast is weakly supported";
+    expect(await finalizedPruned(`${horizon}.`, marketOnly)).toEqual([]);
+    expect(await finalizedPruned(`${horizon} after an 11.22% move.`, marketOnly)).toEqual([
+      { location: "keyFindings[0]", reason: "figure-not-in-source", figure: "11.22%" },
+    ]);
+  });
+
+  test("rejects an unknown symbol's reference like any unknown metric", () => {
+    expect(() =>
+      assembled({
+        keyFindings: [
+          { text: "Moved <<metric:market-day-ZZZZ.changePercent>>.", sourceIds: [news.id] },
+        ],
+      }),
+    ).toThrow("unknown, unavailable, or unciteable");
+  });
+
+  test("renders a spotlight item reference that the audit keeps, and prunes a typed one", () => {
+    const withSpotlight = (rationale: string, selectionRationale?: string) =>
+      auditReportIntegrity(
+        assembleResearchReport({
+          ...input(
+            {
+              extras: {
+                spotlights: {
+                  ...(selectionRationale === undefined ? {} : { rationale: selectionRationale }),
+                  items: [{ symbol: "CBRS", rationale }],
+                },
+              },
+            },
+            [],
+          ),
+          command: overview,
+          sources: marketSources,
+          collectedSources: collected,
+          context: {
+            ...context,
+            spotlightSelection: {
+              selected: [
+                {
+                  symbol: "CBRS",
+                  rationale: "Cerebras led the AI hardware movers.",
+                  sourceIds: [cbrs.sourceId],
+                  candidate: undefined as never,
+                },
+              ],
+              rejected: [],
+              audit: {
+                cap: 3,
+                candidateCount: 1,
+                selectedCount: 1,
+                rejectedCount: 0,
+                malformed: false,
+              },
+            },
+          },
+        }),
+      );
+    const referenced = withSpotlight(
+      "Cerebras moved <<metric:market-day-CBRS.changePercent>> after its listing.",
+    );
+    expect(referenced.ungradedPruned).toEqual([]);
+    expect(referenced.report.extras?.spotlights).toMatchObject({
+      items: [
+        {
+          symbol: "CBRS",
+          rationale:
+            "Cerebras moved +11.2% (CBRS day change, 2026-11-14 session) after its listing.",
+        },
+      ],
+    });
+    const typed = withSpotlight("Cerebras rose 11.22% after its listing.");
+    expect(typed.report.extras?.spotlights).toEqual({
+      items: [{ symbol: "CBRS", sourceIds: [cbrs.sourceId] }],
+    });
+    expect(typed.ungradedPruned.map(({ location }) => location)).toEqual([
+      "extras.spotlights.items[0].rationale[0]",
+    ]);
+    for (const glued of [
+      "Cerebras traded $<<metric:market-day-CBRS.volume>>.",
+      "Cerebras traded <<metric:market-day-CBRS.volume>> million shares.",
+    ]) {
+      expect(withSpotlight(glued).ungradedPruned.map(({ location }) => location)).toEqual([
+        "extras.spotlights.items[0].rationale[0]",
+      ]);
+    }
+    // Masking is by recorded offset, so a typed copy of a rendered span is still checked.
+    const copied =
+      "Cerebras traded <<metric:market-day-CBRS.volume>>. Cerebras traded $36.87 million shares (CBRS day volume, 2026-11-14 session).";
+    const both = withSpotlight(copied, copied);
+    expect(both.ungradedPruned.map(({ location }) => location)).toEqual([
+      "extras.spotlights.rationale[1]",
+      "extras.spotlights.items[0].rationale[1]",
+    ]);
+    expect(both.report.extras?.spotlights).toMatchObject({
+      rationale: "Cerebras traded 36.87 million shares (CBRS day volume, 2026-11-14 session).",
+      items: [
+        {
+          rationale: "Cerebras traded 36.87 million shares (CBRS day volume, 2026-11-14 session).",
+        },
+      ],
+    });
+  });
+
+  test("withholds a nonzero row its fixed precision would render as zero (review 5 P1)", () => {
+    const [shib] = referenceMetricSections(
+      collectedSources({
+        marketSnapshots: [
+          {
+            ...cbrs,
+            sourceId: "market-coingecko-crypto-shib",
+            symbol: "SHIB",
+            assetClass: "crypto",
+            price: 0.000_012_34,
+            changePercent24h: 0.004,
+          },
+        ],
+      }),
+      overview,
+    );
+    expect(shib?.metrics.map(({ id }) => id)).toEqual(["gapPercent"]);
+    const [flat] = referenceMetricSections(
+      collectedSources({ marketSnapshots: [{ ...cbrs, price: 0.012, changePercent24h: 0 }] }),
+      overview,
+    );
+    expect(rows(flat)?.slice(0, 2)).toEqual([
+      ["changePercent", "CBRS day change, 2026-11-14 session", 0, [cbrs.sourceId]],
+      ["price", "CBRS last price, 2026-11-14 session", 0.012, [cbrs.sourceId]],
+    ]);
   });
 });

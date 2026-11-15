@@ -954,7 +954,7 @@ describe("auditReportIntegrity", () => {
   describe("spotlight selection rationale", () => {
     const item = {
       symbol: "SMCI",
-      rationale: "SMCI rose 14.2% on 3.1x average volume.",
+      rationale: "SMCI led the server hardware movers.",
       sourceIds: ["market-yahoo-equity-smci"],
     };
 
@@ -1053,7 +1053,47 @@ describe("auditReportIntegrity", () => {
       expect(pruned.report.extras?.spotlights).toEqual({ items: [item] });
     });
 
-    test("keeps a qualitative rationale, cited item figures and prediction parameters", () => {
+    test("prunes a typed figure from an item rationale and keeps a rendered market-day one", () => {
+      const rendered = "+14.2% (SMCI day change, 2026-11-14 session)";
+      const referenced = {
+        symbol: "SMCI",
+        rationale: `SMCI moved ${rendered}. Server demand news drove it.`,
+        sourceIds: ["market-yahoo-equity-smci"],
+        metricSourceIds: ["market-yahoo-equity-smci"],
+        renderedMetrics: [{ field: "rationale", start: 11, text: rendered }],
+      };
+      const typed = {
+        symbol: "AMD",
+        rationale: "AMD fell 8.75% on 49.4 million shares. Chip names sold off.",
+        sourceIds: ["market-yahoo-equity-amd"],
+      };
+      const emptied = { symbol: "NBIS", rationale: "NBIS fell 9.9%.", sourceIds: ["n"] };
+      const result = auditSpotlights({ items: [referenced, typed, emptied] });
+
+      expect(result.report.extras?.spotlights).toEqual({
+        items: [
+          referenced,
+          { ...typed, rationale: "Chip names sold off." },
+          { symbol: "NBIS", sourceIds: ["n"] },
+        ],
+      });
+      expect(result.ungradedPruned).toEqual([
+        {
+          location: "extras.spotlights.items[1].rationale[0]",
+          text: "AMD fell 8.75% on 49.4 million shares.",
+          sourceIds: [],
+        },
+        {
+          location: "extras.spotlights.items[2].rationale[0]",
+          text: "NBIS fell 9.9%.",
+          sourceIds: [],
+        },
+      ]);
+      expect(result.pruned).toEqual([]);
+      expect(result.prunedItemCount).toBe(0);
+    });
+
+    test("keeps a qualitative rationale, qualitative items and prediction parameters", () => {
       const spotlights = { rationale: "Semiconductor movers led the session.", items: [item] };
       const result = auditSpotlights(spotlights);
 

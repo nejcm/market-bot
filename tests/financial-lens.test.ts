@@ -375,6 +375,12 @@ describe("addFinancialLensEvidence", () => {
     ).toBe("EV mixes market cap (quote 2026-06-20) with cash/debt (balance sheet 2025-12-31)");
     expect(formatLensValue(-0.000_01, "ratio")).toBe("0.00x");
     expect(formatLensValue(-0.000_01, "number")).toBe("0.00");
+    expect(formatLensValue(36_873_109, "shares")).toBe("36.87 million shares");
+    expect(formatLensValue(999_995, "shares")).toBe("1.00 million shares");
+    expect(formatLensValue(48_250.4, "shares")).toBe("48,250 shares");
+    expect(
+      [4.86, 5.1, -0.05, 4, 0.004].map((value) => formatLensValue(value, "reported-percent")),
+    ).toEqual(["4.86%", "5.1%", "-0.05%", "4.0%", "0.0%"]);
     expect(formatLensValue(-0.000_01, "ratio-percent")).toBe("0.0%");
     expect(formatLensValue(-0.000_01, "whole-percent")).toBe("0.0%");
   });

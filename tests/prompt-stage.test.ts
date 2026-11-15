@@ -582,6 +582,48 @@ describe("buildStagePrompt", () => {
     expect(finalSynthesisGuidance).toContain("exact numeric market claims");
   });
 
+  test("catalogs market-day references for the ranked movers only, within the mover limit, and FRED macro", () => {
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "brief",
+    });
+    const snapshots = Array.from({ length: 8 }, (_, index) =>
+      marketSnapshot({
+        symbol: `S${String(index)}`,
+        sourceId: `market-s${String(index)}`,
+        changePercent24h: index,
+      }),
+    );
+    const catalog = buildEvidencePayload(
+      { includePriorCalibration: true, sourceGapView: "all", webSourceText: "fresh-only" },
+      command,
+      collectedSources({
+        marketSnapshots: snapshots,
+        marketContext: {
+          assetClass: "equity",
+          gaps: [],
+          items: [
+            {
+              category: "fred-macro",
+              title: "FRED macro Market Context",
+              summary: "Latest FRED macro observations captured for DGS10.",
+              sourceIds: ["market-context-fred-macro"],
+              observedAt: "2026-11-15T15:27:15.203Z",
+              metrics: { DGS10: 5.1, DGS10Date: "2026-11-12" },
+            },
+          ],
+        },
+      }),
+      config,
+      contextWithHistory(command),
+    ).metricReferences as readonly { readonly id: string }[];
+
+    expect(catalog.map(({ id }) => id)).toEqual([
+      ...["S6", "S7"].map((symbol) => `market-day-${symbol}`),
+      "macro-fred",
+    ]);
+  });
+
   test("adds warn-only post-synthesis audit guidance to final synthesis", () => {
     const command: ResearchCommand = {
       jobType: "equity",

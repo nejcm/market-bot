@@ -13,6 +13,14 @@ function finitePositive(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+export function openingGapPercent(
+  snapshot: Pick<MarketSnapshot, "open" | "previousClose">,
+): number | undefined {
+  return finitePositive(snapshot.open) && finitePositive(snapshot.previousClose)
+    ? ((snapshot.open - snapshot.previousClose) / snapshot.previousClose) * 100
+    : undefined;
+}
+
 function roundFeature(value: number): number {
   return Number(value.toFixed(4));
 }
@@ -64,10 +72,7 @@ function buildMover(snapshot: MarketSnapshot): Omit<Mover, "rank"> {
           MAX_UNUSUAL_VOLUME_BOOST,
         )
       : 0;
-  const gapPercent =
-    finitePositive(snapshot.open) && finitePositive(snapshot.previousClose)
-      ? ((snapshot.open - snapshot.previousClose) / snapshot.previousClose) * 100
-      : undefined;
+  const gapPercent = openingGapPercent(snapshot);
   const gapIsNotable = gapPercent !== undefined && Math.abs(gapPercent) >= GAP_THRESHOLD_PERCENT;
   const gapBoost =
     gapIsNotable && gapPercent !== undefined

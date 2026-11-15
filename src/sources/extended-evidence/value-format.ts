@@ -160,7 +160,26 @@ function fundamentalsPeriodLabel(
   if (annual) {
     return `FY ending ${end}`;
   }
+  const spans = new Set(
+    flows.map((input) => flowSpanLabel(input.periodStart ?? "", input.periodEnd ?? "")),
+  );
+  const [span] = spans;
+  if (spans.size === 1 && span !== undefined) {
+    return `${span} period ending ${end}`;
+  }
   return periodMonths === undefined
     ? `Period ending ${end}`
     : `${String(periodMonths)}-month period ending ${end}`;
+}
+
+const DAYS_PER_MONTH = 30.4368;
+
+// 52/53-week stubs (12, 16, 28, 40 weeks) sit 6+ days off whole months, so they name weeks.
+export function flowSpanLabel(periodStart: string, periodEnd: string): string | undefined {
+  const days = (Date.parse(periodEnd) - Date.parse(periodStart)) / 86_400_000 + 1;
+  const months = Math.round(days / DAYS_PER_MONTH);
+  if (!Number.isFinite(days) || days <= 0 || Math.abs(days - months * DAYS_PER_MONTH) <= 3) {
+    return undefined;
+  }
+  return days % 7 === 0 ? `${String(days / 7)}-week` : `${String(days)}-day`;
 }

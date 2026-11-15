@@ -256,7 +256,11 @@ describe("accounting scope", () => {
     };
     const artifact = statements(concepts);
 
-    expect(lensMetric(artifact, "roe")?.value).toBeCloseTo((1_858_000 * (12 / 9)) / 245_920_000, 8);
+    // TTM parent income: FY25 −8.05M + YTD 1.858M − prior YTD 1.028M.
+    expect(lensMetric(artifact, "roe")?.value).toBeCloseTo(
+      (-8_050_000 + 1_858_000 - 1_028_000) / 245_920_000,
+      8,
+    );
   });
 
   test("states continuing income in the SEC fundamentals summary", () => {
@@ -406,6 +410,45 @@ describe("accounting scope", () => {
       AS_OF,
     ).artifact!;
     expect(() => assertFinancialLensPeriodHygiene(artifact, lenses)).not.toThrow();
+  });
+
+  test("period hygiene checks a TTM ROE against its reconciled components", () => {
+    const artifact = statements({
+      ...clfd(),
+      StockholdersEquity: [
+        {
+          val: 245_920_000,
+          end: "2026-06-30",
+          form: "10-Q",
+          fy: 2026,
+          fp: "Q3",
+          filed: "2026-08-06",
+        },
+      ],
+    });
+    const lenses = addFinancialLensEvidence(
+      { jobType: "equity", assetClass: "equity", symbol: "CLFD", depth: "deep" },
+      [],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      undefined,
+      AS_OF,
+      undefined,
+      undefined,
+      artifact,
+    ).artifact!;
+    expect(
+      lenses.lenses.flatMap((lens) => lens.metrics).find((m) => m.key === "roe"),
+    ).toMatchObject({
+      periodEnd: "2026-06-30",
+      periodMonths: 12,
+    });
+    expect(() => assertFinancialLensPeriodHygiene(artifact, lenses)).not.toThrow();
+    const tampered = structuredClone(artifact);
+    const { ttm } = tampered.statements.incomeStatement.netIncome;
+    Object.assign(ttm!, { value: ttm!.value + 1 });
+    expect(() => assertFinancialLensPeriodHygiene(tampered, lenses)).toThrow(
+      "netIncome TTM value does not reconcile to its components",
+    );
   });
 
   test("withholds consolidated net income off net income's period or equal to it", () => {

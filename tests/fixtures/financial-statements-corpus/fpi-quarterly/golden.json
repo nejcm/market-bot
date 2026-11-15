@@ -1742,20 +1742,20 @@
           "roe": {
             "key": "roe",
             "label": "ROE",
-            "value": 0.2961538461538462,
+            "value": 0.2855769230769231,
             "unit": "ratio-percent",
             "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
             "periodEnd": "2026-03-31",
-            "periodMonths": 3
+            "periodMonths": 12
           },
           "roa": {
             "key": "roa",
             "label": "ROA",
-            "value": 0.5923076923076924,
+            "value": 0.5711538461538462,
             "unit": "ratio-percent",
             "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
             "periodEnd": "2026-03-31",
-            "periodMonths": 3
+            "periodMonths": 12
           }
         }
       },

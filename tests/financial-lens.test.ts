@@ -915,6 +915,28 @@ function krogerYtdFact(val: number) {
   };
 }
 
+function krogerFiscalYearFact(val: number) {
+  return {
+    val,
+    form: "10-K",
+    fp: "FY",
+    fy: 2025,
+    filed: "2026-04-01",
+    start: "2025-02-02",
+    end: "2026-01-31",
+  };
+}
+
+function krogerPriorYtdFact(val: number) {
+  return {
+    ...krogerYtdFact(val),
+    fy: 2025,
+    filed: "2025-09-12",
+    start: "2025-02-02",
+    end: "2025-08-16",
+  };
+}
+
 describe("financial lens artifact compatibility", () => {
   test("preserves populated lens values at the canonical input seam", () => {
     const facts = {
@@ -1909,6 +1931,161 @@ describe("financial lens artifact compatibility", () => {
     expect(metricByKey(result, "Quality", "roe")?.value).toBeCloseTo(0.492, 3);
     expect(metricByKey(result, "Quality", "roa")?.value).toBeCloseTo(0.0581, 4);
     expect(metricByKey(result, "Value", "pcfRatio")?.value).toBeCloseTo(7.27, 2);
+    const roe = result.metricSections
+      ?.flatMap((section) => section.metrics)
+      .find((metric) => metric.id === "roe");
+    expect(roe?.basis).toContain(
+      "net income annualized from the 28-week period; no reconciled TTM",
+    );
+  });
+
+  // Kroger FY2025 10-K and Q2 10-Qs ($M): TTM = 1016 + 1543 − 1475 = 1084; OCF 7311 + 3085 − 3688 = 6708.
+  test("prefers the reconciled TTM over annualizing a 28-week YTD", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetIncomeLoss: {
+              units: {
+                USD: [krogerFiscalYearFact(1016), krogerPriorYtdFact(1475), krogerYtdFact(1543)],
+              },
+            },
+            NetCashProvidedByUsedInOperatingActivities: {
+              units: {
+                USD: [krogerFiscalYearFact(7311), krogerPriorYtdFact(3688), krogerYtdFact(3085)],
+              },
+            },
+            StockholdersEquity: { units: { USD: [{ ...krogerYtdFact(5840), start: undefined }] } },
+            Assets: { units: { USD: [{ ...krogerYtdFact(49_491), start: undefined }] } },
+          },
+        },
+      },
+      {
+        symbol: "KR",
+        generatedAt: "2026-11-14T00:00:00.000Z",
+        analysisAsOf: "2026-11-14T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-kr-fundamentals",
+      },
+    );
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 41_813.680_128 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-11-14T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    );
+    expect(metricByKey(result, "Quality", "roe")).toMatchObject({
+      periodEnd: "2026-08-15",
+      periodMonths: 12,
+    });
+    expect(metricByKey(result, "Quality", "roe")?.value).toBeCloseTo(1084 / 5840, 10);
+    expect(metricByKey(result, "Quality", "roa")?.value).toBeCloseTo(1084 / 49_491, 10);
+    expect(metricByKey(result, "Value", "pcfRatio")?.value).toBeCloseTo(41_813.680_128 / 6708, 10);
+    const roe = result.metricSections
+      ?.flatMap((section) => section.metrics)
+      .find((metric) => metric.id === "roe");
+    expect(roe?.inputs[0]).toMatchObject({
+      label: "TTM net income",
+      value: 1084,
+      periodStart: "2025-08-17",
+      periodEnd: "2026-08-15",
+      derivation: "TTM = FY + latest-YTD - prior-YTD",
+    });
+    expect(roe?.basis).not.toContain("annualized from");
+  });
+
+  test("PCF is not meaningful when the TTM operating cash flow is negative though the YTD is positive", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetCashProvidedByUsedInOperatingActivities: {
+              units: {
+                USD: [krogerFiscalYearFact(100), krogerPriorYtdFact(500), krogerYtdFact(300)],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "KR",
+        generatedAt: "2026-11-14T00:00:00.000Z",
+        analysisAsOf: "2026-11-14T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-kr-fundamentals",
+      },
+    );
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 41_813.680_128 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-11-14T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    );
+    const pcf = result.metricSections
+      ?.flatMap((section) => section.metrics)
+      .find((metric) => metric.id === "pcfRatio");
+    expect(pcf).toMatchObject({
+      status: "not-meaningful",
+      reason: "operating cash flow is not positive",
+      periodEnd: "2026-08-15",
+      periodMonths: 12,
+    });
+    expect(pcf?.inputs[0]).toMatchObject({ label: "TTM operating cash flow", value: -100 });
+  });
+
+  // DeriveFinancialStatements drops spans under 3 months; only a persisted artifact reaches this.
+  test("marks statements ROE and PCF not meaningful when the interim flow has no period start", () => {
+    const derived = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            NetIncomeLoss: { units: { USD: [krogerYtdFact(1543)] } },
+            NetCashProvidedByUsedInOperatingActivities: { units: { USD: [krogerYtdFact(3085)] } },
+            StockholdersEquity: { units: { USD: [{ ...krogerYtdFact(5840), start: undefined }] } },
+          },
+        },
+      },
+      {
+        symbol: "KR",
+        generatedAt: "2026-11-14T00:00:00.000Z",
+        analysisAsOf: "2026-11-14T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-kr-fundamentals",
+      },
+    );
+    const artifact = structuredClone(derived);
+    for (const series of [
+      artifact.statements.incomeStatement.netIncome,
+      artifact.statements.cashFlowStatement.operatingCashFlow,
+    ]) {
+      Object.assign(series, {
+        interim: series.interim.map(({ periodStart: _, ...fact }) => fact),
+      });
+    }
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 41_813.680_128 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      "2026-11-14T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
+    );
+    const metrics = result.metricSections?.flatMap((section) => section.metrics) ?? [];
+    expect(metrics.find((metric) => metric.id === "roe")).toMatchObject({
+      status: "not-meaningful",
+      reason: "net income period length unknown, so it cannot be annualized",
+    });
+    expect(metrics.find((metric) => metric.id === "pcfRatio")).toMatchObject({
+      status: "not-meaningful",
+      reason: "operating cash flow period length unknown, so it cannot be annualized",
+    });
   });
 
   test("drops unavailable canonical ratios after serialization instead of mixing periods", () => {
@@ -2063,6 +2240,49 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       (1543 * (365.2416 / 196)) / 5840,
       5,
     );
+    const roe = result.metricSections
+      ?.flatMap((section) => section.metrics)
+      .find((metric) => metric.id === "roe");
+    expect(roe?.basis).toContain(
+      "net income annualized from the 28-week period; no reconciled TTM",
+    );
+  });
+
+  test("the SEC summary path marks ROE/ROA/PCF not meaningful when the period length is unknown", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({
+            netIncome: 71.7,
+            netIncomePeriodEnd: "2026-03-28",
+            operatingCashFlow: 30,
+            operatingCashFlowPeriodEnd: "2026-03-28",
+            stockholdersEquity: 50,
+            stockholdersEquityPeriodEnd: "2026-03-28",
+            assets: 120,
+            assetsPeriodEnd: "2026-03-28",
+          }),
+          valuationEvidence(),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+    const metrics = result.metricSections?.flatMap((section) => section.metrics) ?? [];
+    for (const [id, series] of [
+      ["roe", "net income"],
+      ["roa", "net income"],
+      ["pcfRatio", "operating cash flow"],
+    ] as const) {
+      expect(metrics.find((metric) => metric.id === id)).toMatchObject({
+        status: "not-meaningful",
+        reason: `${series} period length unknown, so it cannot be annualized`,
+      });
+    }
   });
 
   test("SEC debt-to-equity is display-only", () => {
@@ -2389,7 +2609,11 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
       {
         instrument: { symbol: "AAPL", assetClass: "equity" },
-        items: [secEvidenceWithRatios(), valuationEvidence(), yahooFundamentalsEvidence()],
+        items: [
+          secEvidenceWithRatios({ netIncomePeriodMonths: 12 }),
+          valuationEvidence(),
+          yahooFundamentalsEvidence(),
+        ],
         gaps: [],
       },
       verifiedSnapshot(),

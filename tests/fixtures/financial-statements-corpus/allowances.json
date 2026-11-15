@@ -242,7 +242,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "financialLens.Quality.metrics.roa",
-    "canonicalSha256": "3c624528e5b8fd84cb39b89ee63573fc2a872770cfc5e7fb47619e9304407bc6",
+    "canonicalSha256": "89275dc9fc7aa984733c721cc8c043709de3f78be31051ee8c9ebcfe42db21af",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical Quality.metrics.roa comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -250,7 +250,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "financialLens.Quality.metrics.roe",
-    "canonicalSha256": "4bd827f8dc4ecaacc6873324e01bb115933fdcbd8c411fa0b2f0d2370417fee0",
+    "canonicalSha256": "ef9faf754abf04c309bd06623b766191fba4ff5eaa3366c918bce13fe56c9a58",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical Quality.metrics.roe comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."

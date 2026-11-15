@@ -699,14 +699,27 @@ function resolveInput(
       (candidate) =>
         candidate.periodKey === input.periodKey && candidate.periodType === input.periodType,
     );
-    resolved = fact && {
-      value: fact.value,
-      ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
-      periodEnd: fact.periodEnd,
-      periodKey: fact.periodKey,
-      periodType: fact.periodType,
-      ...(fact.currency !== null ? { currency: fact.currency } : {}),
-    };
+    const ttm = series?.ttm;
+    resolved =
+      fact === undefined &&
+      input.periodType === undefined &&
+      ttm !== undefined &&
+      input.periodKey === `${ttm.periodStart}|${ttm.periodEnd}`
+        ? {
+            value: ttm.value,
+            periodStart: ttm.periodStart,
+            periodEnd: ttm.periodEnd,
+            periodKey: input.periodKey,
+            currency: ttm.currency,
+          }
+        : fact && {
+            value: fact.value,
+            ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
+            periodEnd: fact.periodEnd,
+            periodKey: fact.periodKey,
+            periodType: fact.periodType,
+            ...(fact.currency !== null ? { currency: fact.currency } : {}),
+          };
     if (fact?.periodStart !== undefined) {
       if (annualFlowsOnly) {
         expect(fact.periodType, `${label} flow input is annual`).toBe("annual");
@@ -1324,7 +1337,7 @@ const AAPL_LENS_VALUES = {
   peRatio: 31,
   forwardPe: 28,
   priceToBook: 45,
-  pcfRatio: 23.076_923_076_923_077,
+  pcfRatio: 22.727_272_727_272_727,
 };
 
 const NOT_MEANINGFUL = { status: "not-meaningful" } as const;
@@ -1413,8 +1426,8 @@ const EXPECTED_LENS_VALUES: Readonly<
     operatingMargin: 0.7,
     netMargin: 0.55,
     cashConversion: 1.090_909_090_909_090_8,
-    roe: 0.987_179_487_179_487_3,
-    roa: 0.592_307_692_307_692_4,
+    roe: 0.951_923_076_923_077_1,
+    roa: 0.571_153_846_153_846_2,
     revenueDeltaPercent: 40,
     grossProfitDeltaPercent: 40,
     operatingIncomeDeltaPercent: 40,
@@ -1435,7 +1448,7 @@ const EXPECTED_LENS_VALUES: Readonly<
     peRatio: 31,
     forwardPe: 28,
     priceToBook: 45,
-    pcfRatio: 19.841_269_841_269_842,
+    pcfRatio: 20.576_131_687_242_8,
   },
   "equity-fpi-ifrs-semiannual": {
     grossMargin: 0.85,
@@ -1472,8 +1485,8 @@ const EXPECTED_LENS_VALUES: Readonly<
     // Depository issuer (SIC 6022): every cash-flow metric is not applicable, gated in the metric engine.
     freeCashFlowProxy: NOT_APPLICABLE,
     cashConversion: NOT_APPLICABLE,
-    roe: 0.103_300_307_789_085_85,
-    roa: 0.006_230_440_948_008_068,
+    roe: 0.101_817_528_251_443_47,
+    roa: 0.006_141_008_781_290_248_5,
     revenueDeltaPercent: 2.923_602_219_376_867,
     netIncomeDeltaPercent: 131.520_644_511_581_08,
     dilutedEpsDeltaPercent: 162.121_212_121_212_1,
@@ -1776,6 +1789,20 @@ export function assertFinancialLensMetricInvariants(
             ...(incomeSeries?.annual ?? []),
             ...(incomeSeries?.interim ?? []),
           ].find((fact) => fact.periodKey === incomeInput?.periodKey);
+          const ttm = incomeSeries?.ttm;
+          if (
+            incomeFact === undefined &&
+            ttm !== undefined &&
+            incomeInput?.periodKey === `${ttm.periodStart}|${ttm.periodEnd}`
+          ) {
+            expect(metric.periodMonths, `${label} reads a 12-month TTM`).toBe(12);
+            expectClose(
+              metric.value,
+              valueOf(String(numerator)) / valueOf(String(denominator)),
+              label,
+            );
+            break;
+          }
           const months =
             incomeFact === undefined ? undefined : financialStatementPeriodMonths(incomeFact);
           expect(months, `${label} annualizes by net income's own period`).toBeGreaterThan(0);

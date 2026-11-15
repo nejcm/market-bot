@@ -787,12 +787,17 @@ describe("static equity run fixtures", () => {
           value: 0.073_884_388_670_010_01,
           inputs: [{ value: 85_346_000 }, { value: 1_155_129_000 }],
         });
-        // Quote market cap / 9-month OCF 2,945,560,000 annualized ×12/9.
+        // Quote market cap / reconciled TTM OCF 4,148,994,000, not the 9-month 2,945,560,000 × 12/9.
         expect(
           result.report.extendedEvidence?.items.find(
             ({ metrics }) => metrics?.pcfRatio !== undefined,
           )?.metrics?.pcfRatio,
-        ).toBe(14.465_156_256_874_755);
+        ).toBe(13.692_631_889_079_617);
+        expect(row("pcfRatio")?.inputs[0]).toMatchObject({
+          label: "TTM operating cash flow",
+          value: 4_148_994_000,
+          periodEnd: "2026-09-30",
+        });
       }
       if (name === "equity-depository-deep") {
         assertDepositoryEnterpriseValueAbsent(result);

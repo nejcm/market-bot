@@ -265,21 +265,33 @@ function verifyExactPeriodMetric(
     ]);
     const flow = facts?.[0];
     const instant = facts?.[1];
-    const months = flow === undefined ? undefined : financialStatementPeriodMonths(flow);
+    const ttm =
+      flow?.periodType === "interim"
+        ? financialStatementSeriesByKey(execution.artifact, flowKey)?.ttm
+        : undefined;
+    const ttmFlow = ttm !== undefined && ttm.periodEnd === flow?.periodEnd ? ttm : undefined;
+    const factor = flow === undefined ? undefined : financialStatementAnnualizationFactor(flow);
+    const months = ttmFlow === undefined ? flow && financialStatementPeriodMonths(flow) : 12;
+    const annual =
+      ttmFlow?.value ??
+      (flow === undefined || factor === undefined ? undefined : flow.value * factor);
     const expected =
       flow === undefined ||
       instant === undefined ||
       instant.value === 0 ||
       months === undefined ||
+      annual === undefined ||
       flow.periodEnd !== instant.periodEnd
         ? undefined
-        : (flow.value * (financialStatementAnnualizationFactor(flow) ?? 1)) / instant.value;
+        : annual / instant.value;
     return (
       expected !== undefined &&
       Math.abs(value - expected) <= Math.max(1, Math.abs(value), Math.abs(expected)) * 1e-12 &&
       periodEnd === flow!.periodEnd &&
       (periodMonths === undefined || periodMonths === months) &&
-      sourceContainsFact(execution.input, flow!) &&
+      (ttmFlow === undefined ? [flow!] : Object.values(ttmFlow.components)).every((fact) =>
+        sourceContainsFact(execution.input, fact),
+      ) &&
       sourceContainsFact(execution.input, instant!)
     );
   }

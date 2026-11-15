@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.19](https://github.com/nejcm/market-bot/compare/v1.19.18...v1.19.19) (2026-11-15)
+
+### Bug Fixes
+
+- **audit:** prune uncited figures from the spotlight selection rationale (#244) ([25cc7ed](https://github.com/nejcm/market-bot/commit/25cc7ed693cf034ac465f2f69d8835389ecdde4e))
+
 ## [1.19.18](https://github.com/nejcm/market-bot/compare/v1.19.17...v1.19.18) (2026-11-15)
 
 ### Bug Fixes

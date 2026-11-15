@@ -23,6 +23,7 @@ import {
   type FinancialStatementNote,
   type FinancialStatementSeriesKey,
   type FinancialStatementSeries,
+  readSecFactPeriodMetadata,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
@@ -3682,6 +3683,25 @@ describe("canonical financial statements", () => {
     expect(fyOnly.ttm?.formula).toBe("FY");
     expect(fyOnly.supersedingFacts).toEqual([]);
 
+    const sameDay = { ...forwardPeriod, filed: forwardPeriod.end };
+    expect(readSecFactPeriodMetadata(sameDay)).toEqual({
+      filed: "2026-09-30",
+      end: "2026-09-30",
+      fp: "FY",
+    });
+    expect(readSecFactPeriodMetadata(forwardPeriod)).toBeUndefined();
+    expect(
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: [fiscalYear] },
+            AmortizationOfIntangibleAssets: { USD: [sameDay] },
+          },
+        }),
+        { analysisAsOf: "2026-10-01T00:00:00.000Z" },
+      ).statements.incomeStatement.revenue.supersedingFacts,
+    ).toEqual([]);
+
     const withQuarter = derivedWith(fiscalYear, laterQuarter);
     expect(withQuarter.ttm?.formula).not.toBe("FY");
     expect(withQuarter.supersedingFacts).toEqual([
@@ -4182,7 +4202,7 @@ describe("canonical financial statements", () => {
         form: "6-K",
         fiscalYear: 2024 + Math.floor(index / 4),
         fiscalPeriod: `Q${String((index % 4) + 1)}`,
-        filedAt: `${String(2024 + Math.floor(index / 4))}-${String((index % 4) * 3 + 2).padStart(2, "0")}-15`,
+        filedAt: `${String(2024 + Math.floor(index / 4))}-${String((index % 4) * 3 + 3).padStart(2, "0")}-29`,
         periodStart: `${String(2024 + Math.floor(index / 4))}-01-01`,
         periodEnd: `${String(2024 + Math.floor(index / 4))}-${String((index % 4) * 3 + 3).padStart(2, "0")}-28`,
         accessionNumber: `tagged-${String(index)}`,
@@ -4214,7 +4234,7 @@ describe("canonical financial statements", () => {
           filings: {
             recent: {
               form: ["6-K", "6-K"],
-              filingDate: ["2024-02-15", "2025-08-20"],
+              filingDate: ["2024-03-29", "2025-08-20"],
               accessionNumber: ["tagged-0", "tagged-eur"],
             },
           },
@@ -4658,7 +4678,7 @@ describe("first-public dating of selected facts", () => {
   test("dates a composite restored after an amended composite to the restoration", () => {
     expect(
       compositeDebt([
-        [10, 90, "2024-02-15"],
+        [10, 90, "2025-01-15"],
         [10, 95, "2025-02-15", "10-K/A"],
         [10, 90, "2026-02-15"],
       ]),
@@ -6458,7 +6478,7 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
         taxonomy: "ifrs-full",
         unit: "EUR",
         debtEnd: "2025-09-27",
-        debtFiledAt: "2024-12-01",
+        debtFiledAt: "2025-10-15",
         heldEnd: "2025-09-27",
         yearEnd: "2025-09-27",
       }),
@@ -6578,20 +6598,20 @@ describe("annual Workbench rows anchor at the period's first annual report", () 
   });
 
   test("a span with no first annual report withholds every flow input instead of guessing a date", () => {
-    const misdated = (value: number) =>
+    const sameDay = (value: number) =>
       fact({
         value,
         form: "10-K",
         fiscalPeriod: "FY",
-        filedAt: "2012-03-01",
+        filedAt: "2023-12-31",
         periodStart: "2023-01-01",
         periodEnd: "2023-12-31",
       });
     const artifact = derive(
       payload({
         "us-gaap": {
-          Revenues: { USD: [misdated(90), annual(120, 2024)] },
-          NetIncomeLoss: { USD: [misdated(9), annual(12, 2024)] },
+          Revenues: { USD: [sameDay(90), annual(120, 2024)] },
+          NetIncomeLoss: { USD: [sameDay(9), annual(12, 2024)] },
         },
       }),
     );
@@ -6599,7 +6619,7 @@ describe("annual Workbench rows anchor at the period's first annual report", () 
       generatedAt: "2026-06-15T00:00:00.000Z",
       symbol: "TEST",
       financialStatements: artifact,
-      priceHistory: [{ date: "2012-03-01", close: 180 }],
+      priceHistory: [{ date: "2023-12-31", close: 180 }],
       priceSourceId: "verified-snapshot-TEST",
       quoteCurrency: "USD",
     });

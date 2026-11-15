@@ -445,3 +445,51 @@ describe("D&A component sum disclosure", () => {
     );
   });
 });
+
+// CLSK FY2023 10-K 0000950170-23-067339 (filed 2023-12-01) tags its expected-amortization schedule as future fiscal years.
+const CLSK_FY2023: Filing = {
+  accn: "0000950170-23-067339",
+  form: "10-K",
+  filed: "2023-12-01",
+  concepts: {
+    DepreciationDepletionAndAmortization: [["2022-10-01", "2023-09-30", 120_728_000]],
+    Depreciation: [["2022-10-01", "2023-09-30", 118_615_000]],
+    AmortizationOfIntangibleAssets: [
+      ["2022-10-01", "2023-09-30", 2_113_000],
+      ["2024-10-01", "2025-09-30", 2_050_000],
+      ["2025-10-01", "2026-09-30", 415_000],
+    ],
+  },
+};
+
+describe("forward amortization schedules", () => {
+  test("CLSK's FY2026 schedule row is not a reported period and leaves no D&A note", () => {
+    const result = derive([CLSK_FY2023]);
+    expect(result.value("2022-10-01", "2023-09-30")).toBe(120_728_000);
+    expect(result.value("2025-10-01", "2026-09-30")).toBeUndefined();
+    expect(result.note("2026-09-30")).toBeUndefined();
+  });
+
+  test("a component sum keeps its reported amortization beside a forward row", () => {
+    const filing: Filing = {
+      ...MSFT_FY2025,
+      concepts: {
+        ...MSFT_FY2025.concepts,
+        AmortizationOfIntangibleAssets: [
+          ["2024-07-01", "2025-06-30", 6_000_000_000],
+          ["2025-07-01", "2026-06-30", 5_000_000_000],
+        ],
+      },
+    };
+    const result = derive([filing]);
+    expect(result.value("2024-07-01", "2025-06-30")).toBe(28_000_000_000);
+    expect(result.value("2025-07-01", "2026-06-30")).toBeUndefined();
+    expect(result.note("2026-06-30")).toBeUndefined();
+  });
+
+  test("an issuer with no amortization is unchanged", () => {
+    const result = derive([RIOT_FY2018]);
+    expect(result.value("2018-01-01", "2018-12-31")).toBe(5_267_372);
+    expect(result.note("2018-12-31")).toBeUndefined();
+  });
+});

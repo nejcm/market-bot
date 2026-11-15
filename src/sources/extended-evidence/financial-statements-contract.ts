@@ -72,7 +72,8 @@ export function readSecFactPeriodMetadata(
   const filed = readString(value, "filed");
   const end = readString(value, "end");
   const fp = readString(value, "fp");
-  if (filed === undefined || end === undefined || fp === undefined) {
+  // A period not ended when filed is a forward schedule (CLSK's expected amortization), not a reported value.
+  if (filed === undefined || end === undefined || fp === undefined || end > filed) {
     return undefined;
   }
   return { filed, end, fp };

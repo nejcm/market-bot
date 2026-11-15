@@ -57,11 +57,22 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   const skipCode = webGatherSkipCode(input.command, input.config, identity);
   if (skipCode !== undefined) {
     const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config, identity);
+    const withUnavailableGap =
+      unavailableGap === undefined
+        ? input.collectedSources
+        : mergeGaps(input.command, input.collectedSources, [unavailableGap]);
+    const configSkipGap = webGatherConfigSkipGap(input.command, input.config, identity);
+    const profileGapDeclared = withUnavailableGap.sourceGaps.some(
+      (gap) => gap.source === "web-subject-profile",
+    );
     return {
       collectedSources:
-        unavailableGap === undefined
-          ? input.collectedSources
-          : mergeGaps(input.command, input.collectedSources, [unavailableGap]),
+        configSkipGap === undefined || profileGapDeclared
+          ? withUnavailableGap
+          : {
+              ...withUnavailableGap,
+              sourceGaps: [...withUnavailableGap.sourceGaps, configSkipGap],
+            },
       stageOutputs: [],
       skipCode,
     };
@@ -542,6 +553,30 @@ function isWebGatherScope(
     (runTypeSupportsWebGather(command.jobType) && command.depth === "deep") ||
     isNonSecEquityListing(command, identity)
   );
+}
+
+function webGatherConfigSkipGap(
+  command: ResearchCommand,
+  config: AppConfig,
+  identity: InstrumentIdentity | undefined,
+): SourceGap | undefined {
+  if (!isWebGatherScope(command, identity)) {
+    return undefined;
+  }
+  let reason: string;
+  if (config.webGatherDisabled) {
+    reason = "disabled by configuration";
+  } else if (webGatherBudgetDisabled(effectiveWebGatherOptions(command, config))) {
+    reason = "skipped at a zero round, tool-call or source budget";
+  } else {
+    return undefined;
+  }
+  return sourceGap({
+    source: "web-gather",
+    message: `Web Gather ${reason}; no Web Subject Profile or Extended Evidence from web sources`,
+    capability: "web-gather",
+    evidenceQualityImpact: "no-cap",
+  });
 }
 
 function webGatherSearchUnavailableGap(

@@ -308,9 +308,7 @@ test.each([
   ],
   ["top-level field", { summary: "<<metric:x.y>>" }, "summary"],
 ])("names the field path of an unresolved token in a %s", (_shape, overrides, path) => {
-  expect(() =>
-    assertNoUnresolvedMetricReferences(researchReport(overrides), collectedSources()),
-  ).toThrow(
+  expect(() => assertNoUnresolvedMetricReferences(researchReport(overrides))).toThrow(
     `Unresolved metric reference in assembled report at ${path}; remove it or use a supported cited narrative claim`,
   );
 });
@@ -562,41 +560,66 @@ test("collected profile digest preserves literal metric tokens on the first synt
   });
 });
 
-test.each(["notes", "webSubjectProfile"])(
-  "repairs unresolved tokens in unsupported extras.%s",
-  async (key) => {
-    const assembly = input({});
-    let calls = 0;
-    const result = await synthesizeReportUntilValid({
-      ...assembly,
-      knownSourceIds: new Set(sources.map(({ id }) => id)),
-      priorStages: [],
-      maxPredictionReprompts: 0,
-      runFinalSynthesis: async (_prior, reprompt) => {
-        calls += 1;
-        if (calls === 2) {
-          expect(reprompt?.reportValidationErrors?.join(" ")).toContain(
-            "Unresolved metric reference",
-          );
-        }
-        return {
-          stage: "final-synthesis",
-          tokenEstimate: 0,
-          content: JSON.stringify({
-            ...assembly.payload,
-            extras: {
-              [key]: {
-                nested: [calls === 1 ? "<<\nMeTrIc\t:operating-ratios.margin>>" : "Filed margin."],
-              },
+test("drops a draft-authored extras.webSubjectProfile when none was collected", async () => {
+  const assembly = input({});
+  let calls = 0;
+  const result = await synthesizeReportUntilValid({
+    ...assembly,
+    knownSourceIds: new Set(sources.map(({ id }) => id)),
+    priorStages: [],
+    maxPredictionReprompts: 0,
+    runFinalSynthesis: async () => {
+      calls += 1;
+      return {
+        stage: "final-synthesis",
+        tokenEstimate: 0,
+        content: JSON.stringify({
+          ...assembly.payload,
+          extras: {
+            webSubjectProfile: {
+              subjectSummary: { answer: "Revenue grew 40% to $9.1B.", sourceIds: [sources[0]?.id] },
             },
-          }),
-        };
-      },
-    });
-    expect(calls).toBe(2);
-    expect(result.report.extras?.[key]).toEqual({ nested: ["Filed margin."] });
-  },
-);
+          },
+        }),
+      };
+    },
+  });
+  expect(calls).toBe(1);
+  expect(result.report.extras?.webSubjectProfile).toBeUndefined();
+});
+
+test.each(["notes"])("repairs unresolved tokens in unsupported extras.%s", async (key) => {
+  const assembly = input({});
+  let calls = 0;
+  const result = await synthesizeReportUntilValid({
+    ...assembly,
+    knownSourceIds: new Set(sources.map(({ id }) => id)),
+    priorStages: [],
+    maxPredictionReprompts: 0,
+    runFinalSynthesis: async (_prior, reprompt) => {
+      calls += 1;
+      if (calls === 2) {
+        expect(reprompt?.reportValidationErrors?.join(" ")).toContain(
+          "Unresolved metric reference",
+        );
+      }
+      return {
+        stage: "final-synthesis",
+        tokenEstimate: 0,
+        content: JSON.stringify({
+          ...assembly.payload,
+          extras: {
+            [key]: {
+              nested: [calls === 1 ? "<<\nMeTrIc\t:operating-ratios.margin>>" : "Filed margin."],
+            },
+          },
+        }),
+      };
+    },
+  });
+  expect(calls).toBe(2);
+  expect(result.report.extras?.[key]).toEqual({ nested: ["Filed margin."] });
+});
 
 test("prefixes an exact catalog id missing only metric: and validates it like any reference (CRWV run 44ca936f)", () => {
   const dated = {

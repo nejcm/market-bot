@@ -179,6 +179,13 @@ export function screenReusedWebSubjectProfile(
   return { artifact: applyScreenedFields(artifact, screened), withheldGaps: screened.withheldGaps };
 }
 
+export function webSubjectProfileSkippedGap(subjectId: string): SourceGap {
+  return profileGap(
+    `Web Subject Profile skipped for ${subjectId}: no gathered web Sources`,
+    "provider-data-missing",
+  );
+}
+
 export function buildWebSubjectProfileEvidence(input: {
   readonly command: ResearchCommand;
   readonly subject: WebSubjectProfileSubject;
@@ -194,15 +201,14 @@ export function buildWebSubjectProfileEvidence(input: {
 }): WebSubjectProfileResult {
   const webSourceIds = new Set(input.webSources.map((source) => source.id));
   if (webSourceIds.size === 0) {
-    const message = `Web Subject Profile skipped for ${input.subject.subjectId}: no gathered web Sources`;
+    const gap = webSubjectProfileSkippedGap(input.subject.subjectId);
     const artifact = emptyArtifact(
       input.subject,
       input.generatedAt,
       input.runId,
-      message,
+      gap.message,
       basisDates(input),
     );
-    const gap = profileGap(message, "provider-data-missing");
     return profileResult(input.command, input.extendedEvidence, input.subject, artifact, [], [gap]);
   }
 

@@ -97,6 +97,7 @@ import {
 import { FORECAST_BASELINE_VERSION } from "../../../src/forecast/baseline";
 import { eventGrid } from "../../../src/research/event-grid";
 import {
+  createFixtureConfig,
   fixtureCommand,
   isDeepFixture,
   type FixtureMeta,
@@ -494,7 +495,7 @@ export async function assertInvariants(
     );
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
-  assertNoUnresolvedMetricReferences(report, result.collectedSources);
+  assertNoUnresolvedMetricReferences(report);
   assertRenderedMetricLabels(result, report);
   const marketSnapshot = result.collectedSources.marketSnapshots.find(
     (snapshot) =>
@@ -524,6 +525,16 @@ export async function assertInvariants(
   assertPricePerformanceInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
   assertIntegrityPruneInvariant(result.trace.reportIntegrityAudit?.pruned, report, meta);
+  expect(
+    report.dataGaps.filter((gap) => gap.startsWith("web-gather: Web Gather disabled")),
+    `${fixtureName} declares a disabled Web Gather only where it applies`,
+  ).toEqual(
+    isDeepFixture(meta) && createFixtureConfig(meta, result.dataDir).webGatherDisabled
+      ? [
+          "web-gather: Web Gather disabled by configuration; no Web Subject Profile or Extended Evidence from web sources",
+        ]
+      : [],
+  );
   expect(
     (result.trace.reportIntegrityAudit?.droppedFigureQuotes ?? []).map(({ location, reason }) => [
       location,

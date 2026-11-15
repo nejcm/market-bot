@@ -402,10 +402,12 @@ export interface StructuredFinancialGap {
     | "no-standard-taxonomy"
     | "no-reporting-currency"
     | "ambiguous-reporting-currency"
-    | "untagged-6-k";
+    | "untagged-6-k"
+    | "filed-interim-not-in-companyfacts";
   readonly message: string;
   readonly forms: readonly SupportedSecForm[];
   readonly sourceIds: readonly string[];
+  readonly filings?: readonly string[];
 }
 
 export interface FinancialStatementsArtifact {

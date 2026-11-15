@@ -720,6 +720,7 @@ export function deriveFinancialStatements(
       supportedSixKFacts(payload, input.analysisAsOf),
       currentAnnual,
       input,
+      payload,
     ),
   };
 }

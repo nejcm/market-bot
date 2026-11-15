@@ -18,6 +18,7 @@ export const EQUITY_FRESHNESS_GAP_REASON_CODES: readonly string[] = [
   "per-share-evidence-missing",
   "current-primary-statements-incomplete",
   "untagged-interim-evidence",
+  "filed-interim-not-in-companyfacts",
   "reporting-currency-missing",
   "reporting-currency-ambiguous",
   "reporting-currency-incompatible",
@@ -44,12 +45,17 @@ function gapMessage(
   subject: string,
   detail: string,
   incompleteStatements: readonly string[],
+  laggingInterims: readonly string[],
 ): string {
   if (code === "reporting-currency-ambiguous") {
     return `${code}: ${subject} filed facts do not establish which currency is the reporting currency`;
   }
   if (code === "untagged-interim-evidence") {
     return `${code}: ${subject} has a 6-K filed after the current annual report that carries no XBRL financial facts; untagged interim extraction is off (${detail})`;
+  }
+  if (code === "filed-interim-not-in-companyfacts") {
+    const [them, their] = laggingInterims.length > 1 ? ["them", "their"] : ["it", "its"];
+    return `${code}: ${subject} filed ${laggingInterims.join("; ")} with XBRL after the current annual report, but SEC companyfacts does not carry ${them}, so ${their} periods are absent from structured statements (${detail})`;
   }
   return code === "current-primary-statements-incomplete" && incompleteStatements.length > 0
     ? `${code}: ${subject} current primary statements are incomplete: ${incompleteStatements.join("; ")} (${detail})`
@@ -65,6 +71,7 @@ export function equityAnalysisCompletenessGaps(
   freshness: EquityReportingFreshness | undefined,
   symbol: string | undefined,
   incompleteStatements: readonly string[] = [],
+  laggingInterims: readonly string[] = [],
 ): readonly SourceGap[] {
   const detail = freshnessDetail(freshness);
   const subject = symbol?.toUpperCase() ?? "the subject";
@@ -77,7 +84,7 @@ export function equityAnalysisCompletenessGaps(
     .map((code) =>
       sourceGap({
         source: "equity-analysis-completeness",
-        message: gapMessage(code, subject, detail, incompleteStatements),
+        message: gapMessage(code, subject, detail, incompleteStatements, laggingInterims),
         ...(symbol !== undefined ? { symbol } : {}),
         provider: "market-bot",
         capability: "extended-evidence",

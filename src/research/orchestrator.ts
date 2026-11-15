@@ -37,6 +37,7 @@ import { loadAlphaWatchlistForSpotlights } from "./spotlights";
 import { runMarketUpdatePhase } from "./market-update-phase";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
+  companyFactsLaggingInterims,
   currentIncompleteStatements,
   deriveEquityAnalysisCompleteness,
   equityAnalysisCompletenessGaps,
@@ -390,6 +391,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
             collectedSources.financialStatements,
             equityAnalysisCompleteness.asOf,
           ),
+          companyFactsLaggingInterims(collectedSources.financialStatements),
         ),
       ],
     };

@@ -236,7 +236,7 @@ function freeCashFlowScopeDisclosure(
   observations: readonly HistoricalValuationObservation[],
 ): string | undefined {
   const disclosure = inputScopeDisclosure(
-    observations,
+    observations.filter(({ metrics }) => metrics.priceToFreeCashFlow?.status !== "not-applicable"),
     "freeCashFlow",
     "P/FCF uses free cash flow proxy",
   );

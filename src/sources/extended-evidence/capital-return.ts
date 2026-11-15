@@ -22,7 +22,6 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
-  reitCapexInapplicable,
   seriesNotFiled,
   statementInput as metricStatementInput,
 } from "./metric-engine";
@@ -658,7 +657,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     unit: "ratio-percent",
     basis: `latest FY dividends paid / ${FCF_BASIS}`,
     cashFlowBased: true,
-    applicable: reitCapexInapplicable,
+    reitCapexBased: true,
     compute: freeCashFlowRatio(["dividendsPaid"]),
   },
   {
@@ -667,7 +666,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     unit: "ratio-percent",
     basis: `latest FY dividends paid + share repurchases / ${FCF_BASIS}`,
     cashFlowBased: true,
-    applicable: reitCapexInapplicable,
+    reitCapexBased: true,
     compute: freeCashFlowRatio(["dividendsPaid", "shareRepurchases"]),
   },
   {

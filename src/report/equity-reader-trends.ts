@@ -1,6 +1,7 @@
 import {
   earlierBasisEnds,
   NOT_APPLICABLE_NOTE,
+  WITHHELD_NOTE,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
   type FundamentalHistorySeries,
@@ -100,7 +101,14 @@ function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod
   return ttm === undefined || annual.has(ttm.periodEnd) ? annualRows : [...annualRows, ttm];
 }
 
+function freeCashFlowWithheldReason(history: FundamentalHistoryArtifact): string | undefined {
+  return history.series.freeCashFlowProxy.notes
+    .find((note) => note.startsWith(WITHHELD_NOTE))
+    ?.slice(WITHHELD_NOTE.length);
+}
+
 export function financialTrendGaps(history: FundamentalHistoryArtifact): readonly string[] {
+  const withheldReason = freeCashFlowWithheldReason(history);
   const periods = trendPeriods(history);
   const missingRevenuePeriods = periods.filter(
     (period) => historyPoint(history.series.revenue, period.periodEnd, period.kind) === undefined,
@@ -120,6 +128,11 @@ export function financialTrendGaps(history: FundamentalHistoryArtifact): readonl
       ? []
       : [
           `fundamental-history-free-cash-flow: free cash flow proxy withheld for ${negativeCapexPeriods.map(periodLabel).join(", ")}; ${NEGATIVE_CAPEX_REASON} [${history.sourceId}]`,
+        ]),
+    ...(withheldReason === undefined
+      ? []
+      : [
+          `fundamental-history-free-cash-flow: free cash flow proxy withheld for every period; ${withheldReason} [${history.sourceId}]`,
         ]),
   ];
 }
@@ -201,9 +214,12 @@ function financialTrendRows(
           .find((note) => note.startsWith(NOT_APPLICABLE_NOTE))
           ?.slice(NOT_APPLICABLE_NOTE.length)
       : depositoryCashFlowReason(depositorySic);
+  const withheldReason = freeCashFlowWithheldReason(history);
+  const withheldFreeCashFlow =
+    withheldReason === undefined ? undefined : `withheld (${withheldReason})`;
   const inapplicableFreeCashFlow =
     freeCashFlowReason === undefined
-      ? undefined
+      ? withheldFreeCashFlow
       : metricCell(notApplicableTrendMetric(freeCashFlowReason));
   return trendPeriods(history).map((period) => {
     const revenue = trendValue(history, "revenue", period);

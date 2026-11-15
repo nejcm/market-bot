@@ -8,7 +8,7 @@ import {
 } from "../app/client/run-workspace-financials";
 import { composeEquitySnapshot } from "../app/client/run-workspace-snapshot";
 import { reverseDcfView, valuationWorkbenchView } from "../app/client/run-workspace-valuation";
-import { financialTrends } from "../src/report/equity-reader-trends";
+import { financialTrendGaps, financialTrends } from "../src/report/equity-reader-trends";
 import { renderProjectedFinancialTrends } from "../src/report/markdown-equity-sections";
 import { renderReverseDcfMarkdown } from "../src/report/reverse-dcf-markdown";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
@@ -29,6 +29,10 @@ import { financialStatementFacts } from "../src/sources/extended-evidence/financ
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import {
+  metricReferenceEvidence,
+  withoutRestatedMetricValues,
+} from "../src/research/prompts/metric-references";
 import { deltaPercent } from "../src/sources/extended-evidence/sec-fundamentals-format";
 import { CAPEX_CALC_PREFIX } from "../src/sources/sec-calculation-linkbase";
 
@@ -699,6 +703,9 @@ function eqixStatements(concepts: Readonly<Record<string, readonly Row[]>>) {
   });
 }
 
+const capexKeys = (item: ExtendedEvidenceItem) =>
+  Object.keys(item.metrics ?? {}).filter((key) => key.startsWith("capex"));
+
 describe("REIT capex scope outside the lens", () => {
   const secItem = (sic: string, concepts = eqixConcepts()): ExtendedEvidenceItem => {
     const legacy = summarizeSecFundamentals(payload(concepts), AS_OF, sic)!;
@@ -720,11 +727,27 @@ describe("REIT capex scope outside the lens", () => {
       ).items[0]!.summary;
 
     expect(secItem("6798").summary).not.toContain("capex");
-    expect(secItem("6798").metrics?.capex).toBe(4_311_000_000);
     expect(secItem("3661").summary).toContain("capex 4311000000 (40.6% YoY)");
     expect(canonical("6798", eqixConcepts())).not.toContain("capex");
     expect(canonical("6798", withoutRealEstate())).toContain("capex 4311000000 (40.6% YoY)");
     expect(canonical("3661", eqixConcepts())).toContain("capex 4311000000 (40.6% YoY)");
+  });
+
+  // SPG FY2025 10-K (cached 2026-11-14) carried capex 694964000 (2.28% YoY) into the model's metrics.
+  test("the SEC item's metrics drop a REIT's capex wherever its summary does", () => {
+    const canonical = (sic: string, concepts: Readonly<Record<string, readonly Row[]>>) =>
+      withCanonicalFinancialLensInputs(
+        { items: [secItem(sic, concepts)], gaps: [] },
+        eqixStatements(concepts),
+      ).items[0]!;
+
+    expect(capexKeys(secItem("6798"))).toEqual([]);
+    expect(secItem("3661").metrics).toMatchObject({ capex: 4_311_000_000 });
+    expect(capexKeys(canonical("6798", eqixConcepts()))).toEqual([]);
+    expect(canonical("6798", withoutRealEstate()).metrics).toMatchObject({
+      capex: 4_311_000_000,
+    });
+    expect(canonical("3661", eqixConcepts()).metrics).toMatchObject({ capex: 4_311_000_000 });
   });
 
   // The scope line needs a continuing-operations FCF input, so CLFD's shape carries the real estate tag.
@@ -777,6 +800,194 @@ describe("REIT capex scope outside the lens", () => {
       expect.arrayContaining(["freeCashFlowProxy", "capexDeltaPercent"]),
     );
     expect(control.gaps).not.toContain(undecided);
+  });
+
+  // Realty Income shape: no PP&E capex, no OCF or net income, so no Quality row has a filed input.
+  test("without statements a REIT's withheld FCF proxy still anchors the Quality section", () => {
+    const {
+      RevenueFromContractWithCustomerExcludingAssessedTax: revenue,
+      PaymentsToAcquireRealEstate,
+    } = eqixConcepts();
+    const result = addFinancialLensEvidence(
+      { jobType: "equity", assetClass: "equity", symbol: "O", depth: "brief" },
+      [],
+      {
+        items: [
+          secItem("6798", {
+            RevenueFromContractWithCustomerExcludingAssessedTax: revenue!,
+            PaymentsToAcquireRealEstate: PaymentsToAcquireRealEstate!,
+          }),
+        ],
+        gaps: [],
+      },
+      undefined,
+      AS_OF,
+    );
+
+    expect(result.metricSections?.map(({ id }) => id)).toContain("financial-lens-quality");
+    expect(gapText(result.metricSectionGaps)).toContain(
+      "FCF proxy missing (REIT capex scope undecided without SEC statements)",
+    );
+  });
+
+  test("without the SEC SIC, capex rows beside real estate investment are withheld", () => {
+    const unclassified = (concepts: Readonly<Record<string, readonly Row[]>>) => {
+      const legacy = summarizeSecFundamentals(payload(concepts), AS_OF)!;
+      return {
+        category: "sec-edgar",
+        title: "EQIX SEC fundamentals",
+        summary: legacy.summary,
+        sourceIds: ["sec-eqix"],
+        observedAt: AS_OF,
+        metrics: legacy.metrics,
+      } satisfies ExtendedEvidenceItem;
+    };
+    const lens = (concepts: Readonly<Record<string, readonly Row[]>>) => {
+      const statements = eqixStatements(concepts);
+      const result = addFinancialLensEvidence(
+        { jobType: "equity", assetClass: "equity", symbol: "EQIX", depth: "brief" },
+        [],
+        withCanonicalFinancialLensInputs({ items: [unclassified(concepts)], gaps: [] }, statements),
+        undefined,
+        AS_OF,
+        undefined,
+        undefined,
+        statements,
+      );
+      const keys = result.artifact!.lenses.flatMap(({ metrics }) => metrics.map(({ key }) => key));
+      return { keys, gaps: gapText(result.metricSectionGaps) };
+    };
+    const undecided = "capex scope undecided without the SEC SIC classification";
+
+    const { keys, gaps } = lens(eqixConcepts());
+    expect(keys).not.toContain("freeCashFlowProxy");
+    expect(keys).not.toContain("capexDeltaPercent");
+    expect(gaps).toContain(`FCF proxy missing (${undecided})`);
+    expect(gaps).toContain(`Capex YoY (outflow amount) missing (${undecided})`);
+    const control = lens(withoutRealEstate());
+    expect(control.keys).toEqual(
+      expect.arrayContaining(["freeCashFlowProxy", "capexDeltaPercent"]),
+    );
+    expect(control.gaps).not.toContain(undecided);
+  });
+
+  test("without the SEC SIC, every FCF surface and the model input withhold the undecided capex", () => {
+    const shares = eqixYears([94_000_000, 95_000_000, 97_000_000]);
+    const statementsWithShares = (concepts: Readonly<Record<string, readonly Row[]>>) => {
+      const facts = payload(concepts) as { facts: { "us-gaap": Record<string, unknown> } };
+      facts.facts["us-gaap"].WeightedAverageNumberOfDilutedSharesOutstanding = {
+        units: { shares },
+      };
+      return deriveFinancialStatements(facts, {
+        secFilings: [],
+        symbol: "EQIX",
+        generatedAt: AS_OF,
+        analysisAsOf: AS_OF,
+        sourceId: "sec-eqix",
+      });
+    };
+    const surfaces = (concepts: Readonly<Record<string, readonly Row[]>>) => {
+      const statements = statementsWithShares(concepts);
+      const legacy = summarizeSecFundamentals(payload(concepts), AS_OF)!;
+      const evidence = withCanonicalFinancialLensInputs(
+        {
+          items: [
+            {
+              category: "sec-edgar",
+              title: "EQIX SEC fundamentals",
+              summary: legacy.summary,
+              sourceIds: ["sec-eqix"],
+              observedAt: AS_OF,
+              metrics: legacy.metrics,
+            },
+          ],
+          gaps: [],
+        },
+        statements,
+      );
+      const lens = addFinancialLensEvidence(
+        { jobType: "equity", assetClass: "equity", symbol: "EQIX", depth: "brief" },
+        [],
+        evidence,
+        undefined,
+        AS_OF,
+        undefined,
+        undefined,
+        statements,
+      );
+      const workbench = buildValuationWorkbench({
+        generatedAt: AS_OF,
+        symbol: "EQIX",
+        financialStatements: statements,
+        priceHistory: [{ date: "2026-02-11", close: 100 }],
+        priceSourceId: "price-eqix",
+        quoteCurrency: "USD",
+        extendedEvidence: evidence,
+      });
+      const fy2024 = workbench.historicalMultiples.observations.find(
+        ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2024-12-31",
+      )!;
+      const modelEvidence = withoutRestatedMetricValues(
+        lens.extendedEvidence!,
+        lens.metricSections ?? [],
+      );
+      return {
+        legacyCapexKeys: Object.keys(legacy.metrics ?? {}).filter((key) => key.startsWith("capex")),
+        modelCapexKeys: modelEvidence.items.flatMap(capexKeys),
+        modelSummaries: modelEvidence.items.map(({ summary }) => summary).join("\n"),
+        modelText: JSON.stringify([
+          modelEvidence.items,
+          metricReferenceEvidence(lens.metricSections ?? []),
+        ]),
+        priceToFreeCashFlow: fy2024.metrics.priceToFreeCashFlow,
+        workbenchFreeCashFlow: fy2024.inputs.freeCashFlow,
+        history: deriveFundamentalHistoryFromFinancialStatements(statements),
+      };
+    };
+    const undecided = "capex scope undecided without the SEC SIC classification";
+
+    const withheld = surfaces(eqixConcepts());
+    expect(withheld.legacyCapexKeys).toEqual([]);
+    expect(withheld.modelCapexKeys).toEqual([]);
+    expect(withheld.modelText).not.toMatch(/4311000000|4,311|4\.31|994000000|40\.6%/u);
+    expect(withheld.modelSummaries).not.toMatch(/capex/iu);
+    expect(withheld.priceToFreeCashFlow).toMatchObject({ status: "missing", reason: undecided });
+    expect(withheld.workbenchFreeCashFlow).toBeUndefined();
+    expect(withheld.history.series.freeCashFlowProxy).toMatchObject({
+      annual: [],
+      notes: [`withheld: ${undecided}`],
+    });
+    expect(
+      financialTrends(withheld.history, undefined)!.rows.map(({ freeCashFlow }) => freeCashFlow),
+    ).toEqual([`withheld (${undecided})`, `withheld (${undecided})`, `withheld (${undecided})`]);
+    expect(financialTrendGaps(withheld.history)).toContain(
+      `fundamental-history-free-cash-flow: free cash flow proxy withheld for every period; ${undecided} [sec-eqix]`,
+    );
+    const cards = fundamentalHistoryView(detail({ fundamentalHistory: withheld.history }))!;
+    expect(cards.notApplicable).toEqual([
+      {
+        key: "freeCashFlowProxy",
+        label: "Free cash flow proxy",
+        reason: undecided,
+        withheld: true,
+      },
+    ]);
+    const snapshot = composeEquitySnapshot({
+      fundamentalHistory: cards,
+      financialLensGroups: [],
+      cases: [],
+    });
+    expect(
+      snapshot.keyDatedMetrics.metrics.find(({ key }) => key === "ttmFreeCashFlowProxy"),
+    ).toMatchObject({ state: "unavailable", reason: undecided });
+
+    const control = surfaces(withoutRealEstate());
+    expect(control.legacyCapexKeys).not.toEqual([]);
+    expect(control.modelCapexKeys).not.toEqual([]);
+    expect(control.priceToFreeCashFlow?.status).toBe("value");
+    expect(control.workbenchFreeCashFlow?.value).toBe(183_000_000);
+    expect(control.history.series.freeCashFlowProxy.annual.length).toBeGreaterThan(0);
+    expect(financialTrendGaps(control.history).join("\n")).not.toContain(undecided);
   });
 
   test("a brief run whose statements fetch fails withholds the capex rows with a gap", async () => {

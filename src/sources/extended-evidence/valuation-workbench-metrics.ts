@@ -2,7 +2,7 @@ import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
 import { revenueMultipleVerdict } from "./valuation-comps-contract";
 import { isYearAligned } from "./financial-statement-selection";
 import { DEBT_SCOPE_CAVEAT } from "./financial-statement-definitions";
-import { depositoryNetDebtReason } from "./industry-classification";
+import { depositoryNetDebtReason, type SecIssuerRegistration } from "./industry-classification";
 import {
   evaluateMetricSection,
   type MetricDefinition,
@@ -88,7 +88,7 @@ export function valuationMetricSection(input: {
   readonly reportingCurrency?: string | undefined;
   readonly quoteCurrency?: string | undefined;
   readonly depositorySic?: string | undefined;
-  readonly freeCashFlowInapplicable?: string | undefined;
+  readonly secIssuer?: SecIssuerRegistration | undefined;
   readonly statements?: FinancialStatementsArtifact | undefined;
   readonly fx?: {
     readonly rate: number;
@@ -144,7 +144,7 @@ export function valuationMetricSection(input: {
           }
         : {}),
       ...(id === "priceToFreeCashFlow"
-        ? { applicable: () => input.freeCashFlowInapplicable, cashFlowBased: true as const }
+        ? { reitCapexBased: true as const, cashFlowBased: true as const }
         : {}),
       compute: (): MetricOutcome => {
         const needsShares = id !== "priceToEarnings";
@@ -349,6 +349,8 @@ export function valuationMetricSection(input: {
     {
       symbol: input.symbol,
       ...(input.depositorySic !== undefined ? { depositorySic: input.depositorySic } : {}),
+      ...(input.secIssuer !== undefined ? { secIssuer: input.secIssuer } : {}),
+      ...(input.statements !== undefined ? { statements: input.statements } : {}),
     },
   );
 }

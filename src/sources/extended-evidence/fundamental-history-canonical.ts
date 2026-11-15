@@ -2,6 +2,7 @@ import {
   depositoryCashFlowReason,
   isDepositorySic,
   reitCapexReason,
+  reitCapexUndecided,
 } from "./industry-classification";
 import {
   buildFundamentalHistorySeries,
@@ -10,6 +11,7 @@ import {
   fundamentalHistoryCagr,
   negativeCapexTtmNote,
   NOT_APPLICABLE_NOTE,
+  WITHHELD_NOTE,
   totalOperationsScopes,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
@@ -283,6 +285,13 @@ export function deriveFundamentalHistoryFromFinancialStatements(
   const freeCashFlowInapplicable = isDepositorySic(issuerSic)
     ? depositoryCashFlowReason(issuerSic)
     : reitCapexReason(issuerSic, artifact);
+  const freeCashFlowUndecided = reitCapexUndecided(issuerSic, artifact);
+  const withheldNote =
+    freeCashFlowUndecided === undefined ? undefined : `${WITHHELD_NOTE}${freeCashFlowUndecided}`;
+  const freeCashFlowNote =
+    freeCashFlowInapplicable === undefined
+      ? withheldNote
+      : `${NOT_APPLICABLE_NOTE}${freeCashFlowInapplicable}`;
   const raw = Object.fromEntries(
     DEFINITIONS.map((definition) => [definition.key, rawSeries(artifact, definition)]),
   ) as FundamentalHistoryRawSeries;
@@ -319,7 +328,7 @@ export function deriveFundamentalHistoryFromFinancialStatements(
     sourceId: artifact.sourceId,
     ...(artifact.sourceUrl !== undefined ? { sourceUrl: artifact.sourceUrl } : {}),
     series:
-      freeCashFlowInapplicable === undefined
+      freeCashFlowNote === undefined
         ? series
         : {
             ...series,
@@ -328,7 +337,7 @@ export function deriveFundamentalHistoryFromFinancialStatements(
               label,
               unit,
               annual: [],
-              notes: [`${NOT_APPLICABLE_NOTE}${freeCashFlowInapplicable}`],
+              notes: [freeCashFlowNote],
             },
           },
   };

@@ -39,7 +39,7 @@ import { deriveFinancialStatements } from "./financial-statements";
 import { canonicalFinancialMetrics, staleSecRevenueGaps } from "./financial-lens-canonical";
 import { financialStatementsDebtBasisGaps } from "./sec-debt";
 import { debtCandidateConcepts } from "./sec-debt-resolution";
-import { REIT_SIC, reitCapexReason } from "./industry-classification";
+import { REIT_SIC, reitCapexReason, reitCapexUndecided } from "./industry-classification";
 
 type SecForm = "10-K" | "10-Q" | "10-K/A" | "10-Q/A";
 
@@ -656,13 +656,13 @@ export function summarizeSecFundamentals(
       ? ambiguityGap
       : `monetary metrics: us-gaap facts are reported in ${translated}, so USD-unit facts are convenience translations at an undeclared rate`;
   const withheld = (key: string) => translationGap !== undefined && !UNTRANSLATED_METRIC.test(key);
-  for (const key of Object.keys(metrics).filter(withheld)) {
+  const capexWithheld = sic === REIT_SIC || reitCapexUndecided(sic, statements) !== undefined;
+  const reitCapex = (key: string) => capexWithheld && /^capex(?:[A-Z]|$)/u.test(key);
+  for (const key of Object.keys(metrics).filter((name) => withheld(name) || reitCapex(name))) {
     delete metrics[key];
   }
   const summary =
-    formatSecFundamentalsSummary((key) =>
-      key === "capex" && sic === REIT_SIC ? undefined : metrics,
-    ) ??
+    formatSecFundamentalsSummary(() => metrics) ??
     (translationGap === undefined
       ? undefined
       : `SEC Fundamental Evidence withheld ${translationGap}.`);

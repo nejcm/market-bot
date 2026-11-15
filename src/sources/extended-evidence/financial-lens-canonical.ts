@@ -38,7 +38,7 @@ import {
 } from "./financial-statement-selection";
 import { withheldDebt } from "./sec-debt";
 import { unadjustedLeaseInclusiveDebt } from "./sec-debt-resolution";
-import { reitCapexReason } from "./industry-classification";
+import { reitCapexReason, reitCapexUndecided } from "./industry-classification";
 
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION = 1;
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY = "financialLensSelectionVersion";
@@ -406,7 +406,6 @@ function canonicalSummary(
   legacy: ExtendedEvidenceItem | undefined,
   metrics: Readonly<Record<string, number | string>>,
   disclosures: readonly string[],
-  capexNotApplicable: boolean,
 ): string {
   // Without a legacy item there is no us-gaap label or USD basis to render prose against.
   if (legacy === undefined) {
@@ -416,12 +415,9 @@ function canonicalSummary(
     return legacy.summary;
   }
   // Canonical keys render only from canonical metrics; legacy fills keys canonical never produces.
-  const fundamentals = formatSecFundamentalsSummary((key) => {
-    if (key === "capex" && capexNotApplicable) {
-      return undefined;
-    }
-    return CANONICAL_FACT_METRIC_KEYS.has(key) ? metrics : legacy.metrics;
-  });
+  const fundamentals = formatSecFundamentalsSummary((key) =>
+    CANONICAL_FACT_METRIC_KEYS.has(key) ? metrics : legacy.metrics,
+  );
   const filings = legacy.summary.replace(/SEC Fundamental Evidence: .*$/su, "").trim();
   return [filings, fundamentals, ...disclosures]
     .filter((part) => part !== undefined && part !== "")
@@ -434,7 +430,14 @@ export function withCanonicalFinancialLensInputs(
   sicClassification?: SecSicClassification,
 ): ExtendedEvidence {
   const legacy = legacySecItem(evidence);
-  const metrics = canonicalFinancialMetrics(artifact);
+  const sic = sicClassification?.sic ?? legacy?.metrics?.sic?.toString();
+  const capexNotApplicable =
+    (reitCapexReason(sic, artifact) ?? reitCapexUndecided(sic, artifact)) !== undefined;
+  const metrics = Object.fromEntries(
+    Object.entries(canonicalFinancialMetrics(artifact)).filter(
+      ([key]) => !capexNotApplicable || !/^capex(?:[A-Z]|$)/u.test(key),
+    ),
+  );
   if (legacy === undefined && Object.keys(metrics).length === 0) {
     return evidence ?? { items: [], gaps: [] };
   }
@@ -452,8 +455,6 @@ export function withCanonicalFinancialLensInputs(
       artifact.omissionNotes
         .filter((note) => note.code === "revenue-concept-splice")
         .map((note) => note.message),
-      reitCapexReason(sicClassification?.sic ?? legacy?.metrics?.sic?.toString(), artifact) !==
-        undefined,
     ),
     sourceIds: unique([...(legacy?.sourceIds ?? []), artifact.sourceId]),
     observedAt: legacy?.observedAt ?? artifact.analysisAsOf,

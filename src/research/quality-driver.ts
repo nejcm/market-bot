@@ -7,7 +7,7 @@ type FailedCheckKind = "coverage" | "freshness" | "corroboration";
 export interface QualityDriverIntegrityResult {
   readonly reportIntegrity: ReportIntegrity;
   readonly researchQuality: ReportIntegrity;
-  readonly pruned: readonly { readonly location: string }[];
+  readonly pruned: readonly { readonly location: string; readonly webFigure?: unknown }[];
 }
 
 const FAILED_CHECK_ORDER: readonly FailedCheckKind[] = ["coverage", "freshness", "corroboration"];
@@ -178,22 +178,34 @@ function sectionName(location: string): string {
   return section.startsWith("extras.") ? (section.split(".")[1] ?? section) : section;
 }
 
+function sectionList(pruned: QualityDriverIntegrityResult["pruned"]): readonly string[] {
+  return [...new Set(pruned.map((item) => sectionName(item.location)))];
+}
+
 function integrityDriverParts(integrity: QualityDriverIntegrityResult): {
   readonly drivers: readonly string[];
   readonly remediations: readonly string[];
 } {
-  const sections = [...new Set(integrity.pruned.map((item) => sectionName(item.location)))];
-  const target = sections.join(", ");
+  const figureSections = sectionList(
+    integrity.pruned.filter((item) => item.webFigure !== undefined),
+  );
+  const sections = sectionList(integrity.pruned.filter((item) => item.webFigure === undefined));
+  const drivers: string[] = [];
+  const remediations: string[] = [];
   if (sections.length === 1 && sections[0] === "summary") {
-    return {
-      drivers: ["report integrity pruning removed uncited figures from summary"],
-      remediations: ["keep figures in cited sections; write the summary qualitatively"],
-    };
+    drivers.push("report integrity pruning removed uncited figures from summary");
+    remediations.push("keep figures in cited sections; write the summary qualitatively");
+  } else if (sections.length > 0) {
+    drivers.push(
+      `report integrity pruning removed unsupported content from ${sections.join(", ")}`,
+    );
+    remediations.push("improve source coverage for the pruned sections");
   }
-  return {
-    drivers: [`report integrity pruning removed unsupported content from ${target}`],
-    remediations: ["improve source coverage for the pruned sections"],
-  };
+  if (figureSections.length > 0) {
+    drivers.push(`Verified Web Figure check withheld claims from ${figureSections.join(", ")}`);
+    remediations.push("see the Verified Web Figure gaps for each withheld figure");
+  }
+  return { drivers, remediations };
 }
 
 function dedupe(values: readonly string[]): readonly string[] {

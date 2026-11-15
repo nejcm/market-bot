@@ -97,6 +97,31 @@ describe("deriveResearchQualityDriver", () => {
     );
   });
 
+  test("points figure-check pruning at its gaps rather than source coverage", () => {
+    const webFigure = { reason: "figure-not-in-source", figure: "6-MWh", sourceIds: ["news-1"] };
+    expect(
+      deriveResearchQualityDriver(assessment("high", []), {
+        reportIntegrity: "medium",
+        researchQuality: "medium",
+        pruned: [
+          { location: "bullCase[1]", webFigure },
+          { location: "catalysts[0]", webFigure },
+        ],
+      }),
+    ).toBe(
+      "Verified Web Figure check withheld claims from bull case, catalysts; remediation: see the Verified Web Figure gaps for each withheld figure",
+    );
+    expect(
+      deriveResearchQualityDriver(assessment("high", []), {
+        reportIntegrity: "medium",
+        researchQuality: "medium",
+        pruned: [{ location: "summary[0]" }, { location: "risks[0]", webFigure }],
+      }),
+    ).toBe(
+      "report integrity pruning removed uncited figures from summary; Verified Web Figure check withheld claims from risks; remediation: keep figures in cited sections; write the summary qualitatively; see the Verified Web Figure gaps for each withheld figure",
+    );
+  });
+
   test("combines evidence and integrity when both bind", () => {
     expect(
       deriveResearchQualityDriver(

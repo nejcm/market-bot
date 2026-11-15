@@ -72,8 +72,9 @@ const SUBUNITS = "sen|cents?|pence|¢";
 // Case-sensitive so "mW" stays unread; bare "TW" is a Taiwan listing suffix ("2330 TW"), so only "TWh" reads.
 const POWER_UNITS = String.raw`(?-i:[kMG]W[hp]?|TWh)|(?:kilo|mega|giga|tera)watt(?:[\s-]?hours?|s)?`;
 const SUBUNIT_AFTER = new RegExp(String.raw`^\s?(?:${SUBUNITS})(?!\p{L})`, "iu");
+// A slash after a power figure pairs ratings ("250 MW/1,000 MWh"), so the second is read too.
 const FIGURE_PATTERN = new RegExp(
-  String.raw`(?<![\p{L}\d.,'’%×]|[\p{L}\d]/)(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?)|\s?(?<power>${POWER_UNITS})(?!-\p{L}|\s?[/·⋅]\s?\p{L}))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  String.raw`(?<![\p{L}\d.,'’%×])(?:(?<![\p{L}\d]/)|(?<=\d[\s-]?(?:${POWER_UNITS})/))(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?)|[\s-]?(?<power>${POWER_UNITS})(?!-\p{L}|\s?[/·⋅]\s?\p{L}))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
   "giu",
 );
 const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
@@ -151,7 +152,7 @@ const SCALES: Readonly<Record<string, number>> = {
 const REASON_TEXT: Readonly<Record<WebFigureFailureReason, string>> = {
   "figure-not-quoted": "has no verbatim quote from a cited source",
   "figure-not-in-quote": "does not appear in any verified quote",
-  "figure-ambiguous": "has a sign or range structure that cannot be read reliably",
+  "figure-ambiguous": "has a sign, range or unit that cannot be read reliably",
   "scale-mismatch": "is quoted at a different scale",
   "currency-mismatch": "is quoted in a different currency",
   "unit-mismatch": "is quoted with a different unit",

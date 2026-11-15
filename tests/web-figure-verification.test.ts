@@ -2160,12 +2160,112 @@ describe("news-cited figures", () => {
     });
   });
 
-  test("leaves bare counts and deterministic co-cites to their own rules", () => {
+  test("leaves bare counts and web co-cites to their own rules", () => {
     expect(news("Q4 2026 brought 27 new markets.")).toBeUndefined();
-    expect(news("Revenue was $9.99B.", ["news-equity-4", "sec-10q"])).toBeUndefined();
     expect(news("Revenue was $3.21B.", ["news-equity-4", "web-vitrox"])).toMatchObject({
       reason: "figure-not-quoted",
     });
+  });
+
+  describe("a news claim co-citing a deterministic source", () => {
+    const filing: Source = {
+      id: "extended-sec-edgar-ebay-10k",
+      title: "10-K",
+      fetchedAt: "2026-10-29T15:00:00.000Z",
+      kind: "extended-evidence",
+      snippet:
+        "10-K filed 2026-02-05. Filing excerpt: Active buyers were 134 million and take rate was 13.9%.",
+    };
+    const snapshot: Source = {
+      id: "verified-snapshot-EBAY",
+      title: "Verified snapshot",
+      fetchedAt: "2026-10-29T15:00:00.000Z",
+      kind: "market-data",
+    };
+    const coTexts = webSourceTexts([ebayNews, filing, snapshot]);
+    const coCite = (text: string, sourceIds: readonly string[] = ["news-equity-4", filing.id]) =>
+      unverifiedWebFigure({ text, sourceIds }, coTexts);
+
+    test("withholds a figure in neither the news nor the deterministic text", () => {
+      expect(coCite("Revenue was $9.99B.")).toEqual({
+        reason: "figure-not-in-source",
+        figure: "$9.99B",
+        sourceIds: ["news-equity-4", filing.id],
+      });
+    });
+
+    test("publishes figures found in the news text or the deterministic text", () => {
+      expect(
+        coCite("Revenue was $3.21B with 134 million active buyers and a 13.9% take rate."),
+      ).toBeUndefined();
+    });
+
+    test("withholds a figure typed against market data, which has no text", () => {
+      expect(coCite("Shares traded 6.18 million.", ["news-equity-4", snapshot.id])).toEqual({
+        reason: "figure-not-in-source",
+        figure: "6.18 million",
+        sourceIds: ["news-equity-4", snapshot.id],
+      });
+    });
+
+    test("never reads an inline citation as a figure", () => {
+      const tenK = `Margins are under pressure. [${filing.id}, news-equity-4]`;
+      expect(coCite(tenK)).toBeUndefined();
+    });
+
+    test("leaves a deterministic-only claim unchecked", () => {
+      expect(coCite("Revenue was $9.99B.", [filing.id, snapshot.id])).toBeUndefined();
+    });
+
+    test("reads an item summary only on the item's sole source", () => {
+      const peer: Source = {
+        id: "extended-sec-edgar-amzn-fundamentals",
+        title: "Fundamentals",
+        fetchedAt: "2026-10-29T15:00:00.000Z",
+        kind: "extended-evidence",
+      };
+      const items = [
+        { summary: "eBay gross margin was 71.8%.", sourceIds: [filing.id] },
+        {
+          summary: "Peer lens: eBay gross margin 71.8% vs peer 48.9%.",
+          sourceIds: [filing.id, peer.id],
+        },
+      ];
+      const pooled = webSourceTexts([ebayNews, filing, peer], [], items);
+      const cite = (text: string, id: string) =>
+        unverifiedWebFigure({ text, sourceIds: ["news-equity-4", id] }, pooled);
+      expect(cite("Gross margin was 71.8%.", filing.id)).toBeUndefined();
+      expect(cite("Its gross margin is 48.9%.", filing.id)).toMatchObject({ figure: "48.9%" });
+      expect(cite("Its gross margin is 71.8%.", peer.id)).toEqual({
+        reason: "figure-not-in-source",
+        figure: "71.8%",
+        sourceIds: ["news-equity-4", peer.id],
+      });
+    });
+
+    test("blanks only whole cited IDs inside a citation bracket", () => {
+      const vix = "market-yahoo-equity-^vix";
+      const cite = (text: string) => coCite(text, ["news-equity-4", vix]);
+      expect(cite(`Volatility rose. [${vix}3m]`)).toBeUndefined();
+      expect(cite(`Volatility rose. [${vix}, ${vix}3m]`)).toBeUndefined();
+      expect(cite(`Volatility rose 3m. [${vix}]`)).toMatchObject({ figure: "3m" });
+    });
+
+    test("names the deterministic source in the declared gap", () => {
+      const failure = coCite("Revenue was $9.99B.");
+      expect(failure && webFigureGapText("bullCase[0]", failure)).toBe(
+        `Verified Web Figure check withheld bullCase[0]: $9.99B does not appear in any cited news or deterministic source's stored text (news-equity-4, ${filing.id}).`,
+      );
+    });
+  });
+
+  test("never reads an inline citation as a figure in a web-cited claim", () => {
+    expect(
+      check("Demand stays cyclical. [web-vitrox, extended-sec-edgar-clsk-10k]", undefined, [
+        "web-vitrox",
+        "extended-sec-edgar-clsk-10k",
+      ]),
+    ).toBeUndefined();
   });
 
   test("prunes the absent claim and declares it as a gap", () => {
@@ -2186,7 +2286,7 @@ describe("news-cited figures", () => {
     expect(result.report.keyFindings.map(({ text }) => text)).toEqual([EBAY_CLAIM]);
     expect(result.report.dataGaps).toEqual([
       ...report.dataGaps,
-      "Verified Web Figure check withheld keyFindings[1]: $3.25B does not appear in any cited news source's stored text (news-equity-4).",
+      "Verified Web Figure check withheld keyFindings[1]: $3.25B does not appear in any cited news or deterministic source's stored text (news-equity-4).",
     ]);
   });
 });

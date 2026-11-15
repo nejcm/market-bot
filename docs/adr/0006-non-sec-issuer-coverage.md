@@ -60,7 +60,8 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
     span fails the claim whatever else it cites. A quote may instead name a deterministic source, and is then
     checked against that source's stored collector text: its `snippet` (the sanitized SEC filing text, the
     only text a Web Subject Profile sees) and the `summary` of every Extended Evidence or Market Context item
-    citing the ID, normalized and matched as web text is. Market-data rows hold structured values only, so
+    whose sole source is the ID (amended 2026-11-15: a multi-source item such as a peer lens lists other
+    issuers' sources, so its summary belongs to none of them), normalized and matched as web text is. Market-data rows hold structured values only, so
     nothing is stored under one, not even a multi-source item summary that lists it, and a quote on one
     fails as `no-stored-text`; their figures reach a web-cited claim as metric references, which code renders
     and blanks. The earlier rule let any model-cited deterministic ID exempt every
@@ -299,7 +300,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   endpoint (no scale, unit or currency of its own), which takes the high's scale, unit and currency, unless the low
   is a year ("fiscal 2024 to 51%") or both endpoints are bare. The low withholds when it exceeds the high ("from 500
   to 2 million", "up 100 to $5 million") or the high withholds ("5 to $7-million").
-- A deterministic source is quotable only through its snippet and item summaries; a figure held in a structured
+- A deterministic source is quotable only through its snippet and its sole-source item summaries; a figure held in a structured
   field those omit can reach a web-cited claim only as a metric reference, or the claim prunes.
 - Pre-change profiles fail reuse once and are regenerated, one profile stage per subject.
 - A claim citing news sources and no web or deterministic source publishes a figure only when it parses, by the
@@ -311,7 +312,17 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   and summary, and no quote is persisted, so a same-valued figure about something else passes. A failing figure
   prunes the claim as `figure-not-in-source` (or a mismatch or `figure-ambiguous`) with a declared gap.
   Before this, news-only claims skipped the check (10 such claims across 104 saved runs: 8 match their feed text,
-  2 withheld over a hyphenated "5-MWh" until power units read through a hyphen; run `988c553f`). A claim co-citing a news and a deterministic source stays unchecked; the qualitative summary stays outside.
+  2 withheld over a hyphenated "5-MWh" until power units read through a hyphen; run `988c553f`). The qualitative summary stays outside.
+- A claim citing news and a deterministic source, and no web source, pools the same bare-figure match over the
+  cited news text and each cited deterministic source's stored collector text (its snippet and sole-source item summaries),
+  read as table-aware source text (amended 2026-11-15). Market-data stores no text, so a figure it alone holds
+  passes only as a metric reference; a figure in neither withholds as `figure-not-in-source`, naming every
+  checked source. A cited source ID typed inline in a claim's citation bracket ("[extended-sec-edgar-clsk-10k]")
+  is blanked as a whole token before any figure check; an uncited ID in the bracket stays and is read as text. Before this, any deterministic co-cite exempted the claim: 12 non-prediction claims
+  across 104 saved runs, of which a replay of the 92 captured final-synthesis inputs withholds 5 (a filing
+  figure absent from the stored filing excerpt, a Yahoo volume, cloud revenue shares, a $22 million order),
+  passes 6 (2 only once the inline ID is blanked), and cannot replay 1 (`43cf5df7`, no capture).
+  Deterministic-only claims stay unchecked.
 - A redirected run collects market data twice (typed code, then the resolved code).
 - Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and Valuation Evidence
   do not read them yet. The Business Framework reads their same-basis YoY rows (amended 2026-11-07): on a run

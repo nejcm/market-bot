@@ -168,7 +168,7 @@ function rendered(text: string, ...values: readonly string[]) {
   return values.map((value) => {
     const start = text.indexOf(value, from);
     from = start + value.length;
-    return { field: "text", start, text: value };
+    return { field: "text", start, text: value, sourceIds: ["metric-source"] };
   });
 }
 
@@ -1129,7 +1129,7 @@ test("market-session references resolve verified snapshot values with its citati
       "105.00 (Prior session close)",
       "+2.9% (Session change vs prior close)",
       "55.00 (RSI14, as of 2026-05-18)",
-    ),
+    ).map((span) => ({ ...span, sourceIds: ["verified-snapshot-AAPL"] })),
   });
   expect(() =>
     assembleResearchReport(

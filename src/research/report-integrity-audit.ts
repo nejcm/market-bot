@@ -493,10 +493,15 @@ function partitionSpotlights(spotlights: unknown, context: ClaimContext): Spotli
     if (!isRecord(item) || typeof item.rationale !== "string") {
       return item;
     }
-    const { rationale, metricSourceIds, renderedMetrics: _renderedMetrics, ...rest } = item;
-    const rendered = (readClaimProvenance(item).renderedMetrics ?? []).filter(
-      ({ field }) => field === "rationale",
-    );
+    const {
+      rationale,
+      sourceIds: _sourceIds,
+      metricSourceIds: _metricSourceIds,
+      renderedMetrics: _renderedMetrics,
+      ...rest
+    } = item;
+    const allRendered = readClaimProvenance(item).renderedMetrics ?? [];
+    const rendered = allRendered.filter(({ field }) => field === "rationale");
     const partition = pruneUncitedSentences(
       rationale,
       `extras.spotlights.items[${String(index)}].rationale`,
@@ -507,11 +512,14 @@ function partitionSpotlights(spotlights: unknown, context: ClaimContext): Spotli
       return item;
     }
     pruned.push(...partition.pruned);
-    const keptMetrics = relocatedMetrics(partition.kept, rendered);
+    const survivors = [
+      ...allRendered.filter(({ field }) => field !== "rationale"),
+      ...relocatedMetrics(partition.kept, rendered),
+    ];
     return {
       ...rest,
       ...(partition.kept === "" ? {} : { rationale: partition.kept }),
-      ...(keptMetrics.length === 0 ? {} : { metricSourceIds, renderedMetrics: keptMetrics }),
+      ...survivingProvenance(item, survivors),
     };
   });
   return {
@@ -531,8 +539,8 @@ function partitionSelectionRationale(
   }
   const {
     rationale,
-    sourceIds,
-    metricSourceIds,
+    sourceIds: _sourceIds,
+    metricSourceIds: _metricSourceIds,
     renderedMetrics: _renderedMetrics,
     ...rest
   } = spotlights;
@@ -553,16 +561,28 @@ function partitionSelectionRationale(
     spotlights: {
       ...rest,
       ...(kept === "" ? {} : { rationale: kept }),
-      ...(keptMetrics.length === 0
-        ? {}
-        : {
-            ...(sourceIds === undefined ? {} : { sourceIds }),
-            ...(metricSourceIds === undefined ? {} : { metricSourceIds }),
-            renderedMetrics: keptMetrics,
-          }),
+      ...(keptMetrics.length === 0 ? {} : survivingProvenance(spotlights, keptMetrics)),
     },
     pruned,
     warnings,
+  };
+}
+
+// A metric-only source id leaves with the last rendered metric citing it; the model's own citations stay.
+function survivingProvenance(
+  item: Readonly<Record<string, unknown>>,
+  survivors: readonly RenderedMetric[],
+): Readonly<Record<string, unknown>> {
+  const used = new Set(survivors.flatMap(({ sourceIds }) => sourceIds));
+  const metricIds = readClaimProvenance(item).metricSourceIds ?? [];
+  const metricSourceIds = metricIds.filter((id) => used.has(id));
+  const orphaned = new Set(metricIds.filter((id) => !used.has(id)));
+  return {
+    ...(Array.isArray(item.sourceIds)
+      ? { sourceIds: item.sourceIds.filter((id) => !orphaned.has(id)) }
+      : {}),
+    ...(metricSourceIds.length === 0 ? {} : { metricSourceIds }),
+    ...(survivors.length === 0 ? {} : { renderedMetrics: survivors }),
   };
 }
 

@@ -505,7 +505,12 @@ function transformClaims(
         if (!resolve) {
           return prefixed;
         }
-        renderedMetrics.push({ field: key, start: offset + shift, text: formatted });
+        renderedMetrics.push({
+          field: key,
+          start: offset + shift,
+          text: formatted,
+          sourceIds: metric.sourceIds,
+        });
         shift += formatted.length - prefixed.length;
         return formatted;
       },

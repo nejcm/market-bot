@@ -272,13 +272,15 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   or more numbers ("1-2-3%"). An endpoint still bare after sharing withholds the claim when its partner is a figure,
   across a tight dash, a spaced dash, or a signed spaced number ("7% -15"). A spaced range shares nothing, so it
   withholds when one endpoint carries a scale, unit or currency the other lacks ("$1.2 - 1.4 billion"). A claim
-  figure with an unreadable sign or range fails as `figure-ambiguous`. A hyphen glued to a word before a figure may be
+  figure with an unreadable sign, range or unit fails as `figure-ambiguous`. A hyphen glued to a word before a figure may be
   its sign, so the figure and any range it starts withhold ("Revenue-$574.9 million", "profit-5m-9"); a bare count
   there is dropped ("COVID-19"). A dash glued to a word after a figure keeps a scaled or unit figure whole ("$574.9
   million—up") and withholds one whose scale may follow ("$5-million"). A bare number there withholds, since the
   word may be a unit ("5-per-cent", "25-basis-point", "5-fold"), unless the word is a time noun, a month
   abbreviation, a single capital letter other than the scale letters K, M and B, or an SEC form code ("52-week",
-  "30-Jun", "20-F", "10-K"; "5-M" withholds); such a count is dropped and ends any range. SEC accession ids
+  "30-Jun", "20-F", "10-K"; "5-M" withholds); such a count is dropped and ends any range. A power or energy unit may be
+  hyphenated ("5-MWh", "100-MW", "5-megawatt-hour") and reads as if spaced; a figure after a slash glued to a letter or digit is read only
+  when a power figure precedes it ("250 MW/1,000 MWh"), and a unit-ratio tail withholds ("5-MWh/year"). SEC accession ids
   ("sec-8k-0001193125-26-337999") are not figures. A whole number with only an M or B letter scale and no currency
   or unit ("9M FY2026", "3m ago", "1M 6M" chart tabs) may be a period or a time, so it withholds, with any range it
   ends; a currency, unit, decimal or comma grouping keeps it ("RM9m", "9M USD", "12.3M", "9,000M"), and "k" always
@@ -298,7 +300,7 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   and summary, and no quote is persisted, so a same-valued figure about something else passes. A failing figure
   prunes the claim as `figure-not-in-source` (or a mismatch or `figure-ambiguous`) with a declared gap.
   Before this, news-only claims skipped the check (10 such claims across 104 saved runs: 8 match their feed text,
-  2 withhold over a glued "5-MWh", which a quote would withhold too; run `988c553f`). A claim co-citing a news and a deterministic source stays unchecked; the qualitative summary stays outside.
+  2 withheld over a hyphenated "5-MWh" until power units read through a hyphen; run `988c553f`). A claim co-citing a news and a deterministic source stays unchecked; the qualitative summary stays outside.
 - A redirected run collects market data twice (typed code, then the resolved code).
 - Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and Valuation Evidence
   do not read them yet. The Business Framework reads their same-basis YoY rows (amended 2026-11-07): on a run

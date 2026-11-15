@@ -235,6 +235,37 @@ describe("figure parsing", () => {
       [50, 1, "", "mw"],
       [65, 1, "", "mw"],
     ]);
+    expect(parsed("5-MWh, 100-MW, 2-GWp, 5-megawatt-hour, 40-megawatts, 5-10 MWh")).toEqual([
+      [5, 1, "", "mwh"],
+      [100, 1, "", "mw"],
+      [2, 1, "", "gwp"],
+      [5, 1, "", "mwh"],
+      [40, 1, "", "mw"],
+      [5, 1, "", "mwh"],
+      [10, 1, "", "mwh"],
+    ]);
+    expect(parsed("250-MW/1,000-MWh, 250 MW/2,000 MWh")).toEqual([
+      [250, 1, "", "mw"],
+      [1000, 1, "", "mwh"],
+      [250, 1, "", "mw"],
+      [2000, 1, "", "mwh"],
+    ]);
+    expect(parsed("$5/share, 24/7, $5/$6, Q3/5%, 5-MWh/year, 5-MW/h")).toEqual([
+      [5, 1, "USD", ""],
+      [5, 1, "USD", ""],
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", ""],
+    ]);
+    expect(parsed("a 5-MW-scale site, 5-MW/hour, 5-mW, 5-M battery")).toEqual(
+      Array.from({ length: 4 }, () => [Number.NaN, 1, "", ""]),
+    );
+    expect(parsed("52-week, 10-K, 10-Q, S-1, COVID-19, Form 8-K, 24-hour, 5-year")).toEqual([]);
+    expect(parsed("a 3-for-1 split")).toEqual([[Number.NaN, 1, "", ""]]);
+    expect(parsed("5-10%, -5%")).toEqual([
+      [5, 1, "", "%"],
+      [10, 1, "", "%"],
+      [-5, 1, "", "%"],
+    ]);
     expect(
       parsed(
         "5G, Q3 2026, 3nm, H100 GPUs, GB200 NVL72, 2330 TW, 5 mW, 65 MWe, 100 W, in fiscal 2027",
@@ -1942,8 +1973,8 @@ describe("news-cited figures", () => {
     ).toMatchObject({ reason: "figure-not-in-source", figure: "$9.99B" });
   });
 
-  // Run 2026-11-03T17-25-57-999Z-988c553f bullCase[1]: the glued unit withholds on both sides.
-  test("withholds an ambiguous news figure even when the headline repeats it", () => {
+  // Run 2026-11-03T17-25-57-999Z-988c553f bullCase[1]: the headline states the hyphenated unit verbatim.
+  test("verifies a unit-hyphenated news figure the headline repeats, and still withholds ambiguous spans", () => {
     const headlined: Source = {
       id: "news-equity-3",
       title: "Richardson Plans to Install 5-MWh Demonstration Project",
@@ -1951,15 +1982,34 @@ describe("news-cited figures", () => {
       kind: "news",
       provider: "yahoo-news",
     };
-    expect(
-      unverifiedWebFigure(
-        {
-          text: "Richardson and ComEd announced a planned 5-MWh demonstration project.",
-          sourceIds: ["news-equity-3"],
-        },
-        webSourceTexts([headlined]),
-      ),
-    ).toMatchObject({ reason: "figure-ambiguous", figure: "5" });
+    const cite = (text: string) =>
+      unverifiedWebFigure({ text, sourceIds: ["news-equity-3"] }, webSourceTexts([headlined]));
+    expect(cite("Richardson and ComEd announced a planned 5-MWh demonstration project.")).toBe(
+      undefined,
+    );
+    expect(cite("Richardson plans a 5 MWh demonstration project.")).toBeUndefined();
+    expect(cite("Richardson plans a 5-megawatt-hour demonstration project.")).toBeUndefined();
+    expect(cite("Richardson plans a 6-MWh demonstration project.")).toMatchObject({
+      reason: "figure-not-in-source",
+      figure: "6-MWh",
+    });
+    const paired: Source = { ...headlined, title: "Plans 250-MW/1,000-MWh battery" };
+    const citePaired = (text: string) =>
+      unverifiedWebFigure({ text, sourceIds: ["news-equity-3"] }, webSourceTexts([paired]));
+    expect(citePaired("A 250-MW/1,000-MWh battery is planned.")).toBeUndefined();
+    expect(citePaired("A 250 MW/1,000 MWh battery is planned.")).toBeUndefined();
+    expect(citePaired("A 250-MW/2,000-MWh battery is planned.")).toMatchObject({
+      reason: "figure-not-in-source",
+      figure: "2,000-MWh",
+    });
+    expect(citePaired("A 250 MW/2,000 MWh battery is planned.")).toMatchObject({
+      reason: "figure-not-in-source",
+      figure: "2,000 MWh",
+    });
+    expect(cite("Richardson plans a 5-MW demonstration project.")).toMatchObject({
+      reason: "unit-mismatch",
+      figure: "5-MW",
+    });
     expect(
       unverifiedWebFigure(
         { text: "Revenue was $3.21B.", sourceIds: ["news-equity-4"], ambiguousSpans: ["12.5%"] },

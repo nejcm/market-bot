@@ -20,8 +20,8 @@ export interface WebSourceTexts {
   readonly deterministic: ReadonlyMap<string, readonly string[]>;
   // Normalized title, snippet and feed summary per news Source id.
   readonly news: ReadonlyMap<string, readonly string[]>;
-  // Market-update snapshot Source ids: a claim citing one is checked even without a news co-cite.
-  readonly marketSnapshots?: ReadonlySet<string>;
+  // Market-update snapshot and Market Context Source ids: a claim citing one is checked even without a news co-cite.
+  readonly marketReferenceSources?: ReadonlySet<string>;
 }
 
 interface QuotableEvidenceItem {
@@ -941,7 +941,7 @@ export function webSourceTexts(
   sources: readonly Source[],
   rawSnapshots: readonly unknown[] = [],
   evidenceItems: readonly QuotableEvidenceItem[] = [],
-  marketSnapshotIds: readonly string[] = [],
+  marketReferenceSourceIds: readonly string[] = [],
 ): WebSourceTexts {
   const raw = rawTextsByUrl(rawSnapshots);
   const texts = new Map<string, string[]>();
@@ -994,7 +994,9 @@ export function webSourceTexts(
     web: texts,
     deterministic,
     news,
-    ...(marketSnapshotIds.length === 0 ? {} : { marketSnapshots: new Set(marketSnapshotIds) }),
+    ...(marketReferenceSourceIds.length === 0
+      ? {}
+      : { marketReferenceSources: new Set(marketReferenceSourceIds) }),
   };
 }
 
@@ -1192,14 +1194,16 @@ export function failedFigureQuotes(
 }
 
 // News text is a headline plus a short feed summary, so a figure is matched in it directly rather than quoted.
-// Matching pools cited news and deterministic text (no news needed beside a market-update snapshot) and checks the figure.
+// Matching pools cited news and deterministic text (no news needed beside a market-update snapshot or FRED) and checks the figure.
 function unverifiedNewsFigure(
   claim: WebFigureClaim,
   texts: WebSourceTexts,
 ): WebFigureFailure | undefined {
   const citedNews = claim.sourceIds.filter((id) => texts.news.has(id));
-  const citesSnapshot = claim.sourceIds.some((id) => texts.marketSnapshots?.has(id) === true);
-  if (citedNews.length === 0 && !citesSnapshot) {
+  const citesMarketReference = claim.sourceIds.some(
+    (id) => texts.marketReferenceSources?.has(id) === true,
+  );
+  if (citedNews.length === 0 && !citesMarketReference) {
     return undefined;
   }
   const citedDeterministic = claim.sourceIds.filter((id) => texts.deterministic.has(id));
@@ -1287,11 +1291,11 @@ export function isWebFigureGapText(text: string): boolean {
 export function webFigureGapText(
   location: string,
   failure: WebFigureFailure,
-  marketSnapshots?: ReadonlySet<string>,
+  marketReferenceSources?: ReadonlySet<string>,
 ): string {
   const hint =
     failure.reason === "figure-not-in-source" &&
-    failure.sourceIds.some((id) => marketSnapshots?.has(id) === true)
+    failure.sourceIds.some((id) => marketReferenceSources?.has(id) === true)
       ? " A market snapshot or FRED macro value is written as its market-day or macro-fred metric reference."
       : "";
   return `${GAP_PREFIX} ${location}: ${failure.figure} ${REASON_TEXT[failure.reason]} (${failure.sourceIds.join(", ")}).${hint}`;

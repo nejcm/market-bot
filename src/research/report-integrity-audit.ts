@@ -817,7 +817,7 @@ export function auditReportIntegrity(
   const webFigureGaps = pruned.flatMap((item) =>
     item.webFigure === undefined
       ? []
-      : [webFigureGapText(item.location, item.webFigure, webTexts?.marketSnapshots)],
+      : [webFigureGapText(item.location, item.webFigure, webTexts?.marketReferenceSources)],
   );
 
   const sectionState: Readonly<

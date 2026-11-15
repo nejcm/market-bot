@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.30](https://github.com/nejcm/market-bot/compare/v1.19.29...v1.19.30) (2026-11-15)
+
+### Bug Fixes
+
+- **profile:** drop drafted profiles and gap skipped web evidence (#254) ([43441d6](https://github.com/nejcm/market-bot/commit/43441d61a113a2ef33bab7d26f10cd2710f10316))
+
 ## [1.19.29](https://github.com/nejcm/market-bot/compare/v1.19.28...v1.19.29) (2026-11-15)
 
 ### Bug Fixes

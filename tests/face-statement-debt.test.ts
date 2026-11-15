@@ -1377,3 +1377,172 @@ test("a blank-labelled row's prior label drops the current column's number, so 2
     ).filter(({ periodEnd }) => periodEnd === "2026-05-31"),
   ).toEqual([]);
 });
+
+const KR_10K = "0001104659-26-037723";
+const KR_10Q = "0001104659-26-108926";
+// Face values in thousands; payables stand in for the rows that do not bear on debt.
+const krRows = (debtCurrent: number, debtNoncurrent: number, other: number): readonly Row[] => [
+  ["Total assets", "us-gaap:Assets", 50_000_000],
+  ["Accounts payable and other", "us-gaap:AccountsPayableCurrent", other],
+  [
+    "Current portion of long-term debt including obligations under finance leases",
+    "kr:LongTermDebtAndFinanceLeaseCurrent",
+    debtCurrent,
+  ],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", other + debtCurrent],
+  [
+    "Long-term debt including obligations under finance leases",
+    "kr:LongTermDebtAndFinanceLease",
+    debtNoncurrent,
+  ],
+  ["Other long-term liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 10_145_000],
+  ["Total liabilities", "us-gaap:Liabilities", other + debtCurrent + debtNoncurrent + 10_145_000],
+];
+const JANUARY = krRows(1_802_000, 15_764_000, 16_306_000);
+const AUGUST = krRows(1_838_000, 15_159_000, 16_580_000);
+const twoColumn = (current: readonly Row[], prior: readonly Row[]) =>
+  [
+    `<xbrli:context id="c"><xbrli:period><xbrli:instant>2026-08-15</xbrli:instant></xbrli:period></xbrli:context>`,
+    `<xbrli:context id="p"><xbrli:period><xbrli:instant>2026-01-31</xbrli:instant></xbrli:period></xbrli:context>`,
+    "<table>",
+    ...current.map(
+      ([label, concept, value], index) =>
+        `<tr><td>${label}</td>${cell(concept, value, "c")}${cell(concept, prior[index]![2], "p")}</tr>`,
+    ),
+    "</table>",
+  ].join("");
+
+const withFiled = (item: ExtendedEvidenceItem, filingDate: string) =>
+  ({ ...item, metrics: { ...item.metrics, filingDate } }) as unknown as ExtendedEvidenceItem;
+describe("KR combined debt and finance-lease face rows", () => {
+  const q2FaceOf = (january: readonly Row[]) =>
+    withFiled(
+      {
+        sourceIds: [`sec-filing-${KR_10Q}`],
+        metrics: {
+          accessionNumber: KR_10Q,
+          reportDate: "2026-08-15",
+          ...secBalanceSheetFaceMetrics(twoColumn(AUGUST, january), "2026-08-15"),
+        },
+      } as unknown as ExtendedEvidenceItem,
+      "2026-09-18",
+    );
+  const annualFaceOf = (january: readonly Row[], filingDate = "2026-03-31") =>
+    withFiled(faceFiling(KR_10K, "2026-01-31", january), filingDate);
+  const q2Face = q2FaceOf(JANUARY);
+  const annualFace = annualFaceOf(JANUARY);
+  const tenK = (value: number) => fact(value, "2026-01-31", "2026-03-31", KR_10K, "10-K");
+  const q2 = (value: number, end = "2026-08-15") => fact(value, end, "2026-09-18", KR_10Q);
+  const GAAP = {
+    LongTermDebt: [tenK(15_875_000_000), q2(15_875_000_000, "2026-01-31"), q2(15_367_000_000)],
+    LongTermDebtCurrent: [tenK(1_366_000_000), q2(1_366_000_000, "2026-01-31"), q2(1_452_000_000)],
+    LongTermDebtNoncurrent: [
+      tenK(14_509_000_000),
+      q2(14_509_000_000, "2026-01-31"),
+      q2(13_915_000_000),
+    ],
+    FinanceLeaseLiabilityCurrent: [tenK(436_000_000)],
+    FinanceLeaseLiabilityNoncurrent: [tenK(1_255_000_000)],
+  };
+  const januaryDebt = (
+    faces: readonly ExtendedEvidenceItem[],
+    overrides: Readonly<Record<string, readonly Record<string, unknown>[]>> = {},
+  ) =>
+    financialStatementFacts(
+      derive({ ...GAAP, ...overrides }, faces).artifact.statements.balanceSheet.debt,
+    ).filter(({ periodEnd }) => periodEnd === "2026-01-31");
+
+  test("10-K rows equal to 1,366M + 436M and 14,509M + 1,255M publish lease-free 15,875M", () => {
+    expect(januaryDebt([annualFace, q2Face])).toEqual([
+      expect.objectContaining({ value: 15_875_000_000, accessionNumber: KR_10K }),
+      expect.objectContaining({ value: 15_875_000_000, accessionNumber: KR_10Q }),
+    ]);
+  });
+
+  test("the 10-Q comparative column alone proves nothing: it tags no finance lease", () => {
+    expect(januaryDebt([q2Face])).toEqual([]);
+  });
+
+  test("10-Q 2026-08-15 rows with no finance-lease tags at that date stay withheld", () => {
+    const { debt, notes } = derive(GAAP, [annualFace, q2Face]);
+    expect(debt?.periodEnd).not.toBe("2026-08-15");
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        periodKey: "instant|2026-08-15",
+        message: expect.stringContaining(
+          "LongTermDebtAndFinanceLeaseCurrent as a possible borrowing",
+        ),
+      }),
+    );
+  });
+
+  test("rows 1M off the tagged parts stay withheld", () => {
+    const off = { FinanceLeaseLiabilityCurrent: [tenK(435_000_000)] };
+    expect(januaryDebt([annualFace, q2Face], off)).toEqual([]);
+  });
+
+  test("rows equal to the debt lines alone, with no finance-lease tag, stay withheld", () => {
+    const rows = krRows(1_366_000, 14_509_000, 16_306_000);
+    const noLeases = { FinanceLeaseLiabilityCurrent: [], FinanceLeaseLiabilityNoncurrent: [] };
+    expect(januaryDebt([annualFaceOf(rows), q2FaceOf(rows)], noLeases)).toEqual([]);
+  });
+
+  test.each([
+    [
+      "tags a different finance lease",
+      { FinanceLeaseLiabilityCurrent: [tenK(436_000_000), q2(470_000_000, "2026-01-31")] },
+    ],
+    [
+      "restates the current debt line",
+      {
+        LongTermDebtCurrent: [
+          tenK(1_366_000_000),
+          q2(1_400_000_000, "2026-01-31"),
+          q2(1_452_000_000),
+        ],
+      },
+    ],
+  ] as const)("a 10-Q comparative that %s does not borrow the 10-K proof", (_name, overrides) => {
+    expect(
+      januaryDebt([annualFace, q2Face], overrides).map(({ accessionNumber }) => accessionNumber),
+    ).not.toContain(KR_10Q);
+  });
+
+  test("a later filing's face never proves an earlier filing's row", () => {
+    const late = annualFaceOf(JANUARY, "2026-10-01");
+    expect(januaryDebt([late, q2Face]).map(({ accessionNumber }) => accessionNumber)).not.toContain(
+      KR_10Q,
+    );
+  });
+
+  test("a proven row beside its own debt-line row withholds rather than counting twice", () => {
+    const doubled = withRow(JANUARY, "us-gaap:OtherLiabilitiesNoncurrent", [
+      "Long-term debt",
+      "us-gaap:LongTermDebtNoncurrent",
+      10_145_000,
+    ]);
+    expect(januaryDebt([annualFaceOf(doubled), q2Face])).toEqual([]);
+  });
+
+  test("a finance-lease leg on its own row withholds", () => {
+    const leaseRow = withRow(JANUARY, "us-gaap:OtherLiabilitiesNoncurrent", [
+      "Finance lease liabilities",
+      "us-gaap:FinanceLeaseLiabilityNoncurrent",
+      10_145_000,
+    ]);
+    expect(januaryDebt([annualFaceOf(leaseRow), q2Face])).toEqual([]);
+  });
+
+  test("two rows on one side proven by the same parts withhold", () => {
+    const twice = withRow(
+      krRows(1_802_000, 15_764_000, 1_802_000),
+      "us-gaap:AccountsPayableCurrent",
+      [
+        "Current debt and finance lease obligations",
+        "kr:DebtAndFinanceLeaseObligationsCurrent",
+        1_802_000,
+      ],
+    );
+    expect(januaryDebt([annualFaceOf(twice), q2Face])).toEqual([]);
+  });
+});

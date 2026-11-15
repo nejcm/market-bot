@@ -2579,6 +2579,66 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(pcf).toMatchObject({ periodEnd: "2026-03-28", periodMonths: 9 });
   });
 
+  test("summary PCF is not meaningful when operating cash flow is negative", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({ operatingCashFlow: -30, operatingCashFlowPeriodMonths: 12 }),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Value", "pcfRatio")).toBeUndefined();
+    const pcf = result.metricSections
+      ?.flatMap((section) => section.metrics)
+      .find((metric) => metric.id === "pcfRatio");
+    expect(pcf).toMatchObject({
+      status: "not-meaningful",
+      reason: "operating cash flow is not positive",
+    });
+    expect(pcf?.inputs[0]).toMatchObject({ label: "operating cash flow", value: -30 });
+  });
+
+  test.each([
+    ["zero operating cash flow", 0, {}, "not-meaningful", "operating cash flow is not positive"],
+    ["zero market cap", 30, { marketCap: 0 }, "missing", "no quote market cap"],
+    ["negative market cap", 30, { marketCap: -5 }, "missing", "no quote market cap"],
+    [
+      "a non-USD quote",
+      30,
+      { identity: { quoteCurrency: "CAD" } },
+      "missing",
+      "filed amounts and quote market cap have incompatible currency",
+    ],
+  ] as const)(
+    "summary PCF publishes no value on %s",
+    (_, operatingCashFlow, quote, status, reason) => {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000, ...quote })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [secEvidenceWithRatios({ operatingCashFlow, operatingCashFlowPeriodMonths: 12 })],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
+
+      const pcf = result.metricSections
+        ?.flatMap((section) => section.metrics)
+        .find((metric) => metric.id === "pcfRatio");
+      expect(pcf).toMatchObject({ status, reason });
+      expect(pcf?.value).toBeUndefined();
+    },
+  );
+
   test("PCF sourceIds reflect SEC + market snapshot even with no valuation item", () => {
     // Regression guard: PCF computes from snapshot marketCap + SEC operating cash
     // Flow without any valuation item. Provenance must not fall back to the (absent)

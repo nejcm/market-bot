@@ -2067,6 +2067,10 @@ describe("news-cited figures", () => {
       ["a 100 MW/4h battery", "a 120 MW/4h battery"],
       ["5-10%/15-20%", "5-10%/15-25%"],
       ["NZD/USD 0.60", "NZD/USD 0.65"],
+      ["AUD/USD 0.65", "AUD/USD 0.70"],
+      ["a 100 MW/6h battery", "a 100 MW/4h battery"],
+      ["a 100 MW/6-hour battery", "a 100 MW/4-hour battery"],
+      ["a 100 MW/6 hours battery", "a 100 MW/4 hours battery"],
     ];
     for (const [claim, source] of mismatched) {
       expect([claim, citeNews(claim, source)]).toEqual([claim, "figure-not-in-source"]);
@@ -2077,18 +2081,41 @@ describe("news-cited figures", () => {
     expect(citeNews("250 MWdc", "250 MWac")).toBe("unit-mismatch");
     expect(citeNews("250 MW AC", "250 MW")).toBe("unit-mismatch");
     expect(citeNews("250 MWAC and 300 MW DC", "250 MWac, 300 MWdc")).toBeUndefined();
-    expect(citeNews("the ringgit traded at 4.45 against the dollar", "USD/MYR 4.45")).toBe(
-      undefined,
-    );
-    for (const battery of ["4-hr", "4h", "4hr", "4 hours", "4-h"]) {
+    for (const battery of ["4-hr", "4h", "4hr", "4 hours", "4-h", " / 4h"]) {
       expect([battery, citeNews("a 100 MW battery", `a 100 MW/${battery} battery`)]).toEqual([
         battery,
         undefined,
       ]);
     }
-    expect(citeNews("the kiwi traded at 0.60", "NZD/USD 0.60")).toBeUndefined();
-    expect(citeNews("bitcoin at 60,000", "BTC/USD 60,000")).toBeUndefined();
-    expect(citeNews("gold at 2,400", "XAU/USD 2,400")).toBeUndefined();
+    expect(citeNews("a 100 MW/4h battery", "a 100 MW battery")).toBe("figure-not-in-source");
+    expect(citeNews("a 100 MW / 6h battery", "a 100 MW / 4h battery")).toBe("figure-not-in-source");
+    expect(citeNews("a 100 MW / 4h battery", "a 100 MW/4h battery")).toBeUndefined();
+    for (const hours of ["4h-6h", "4h–6h"]) {
+      expect(citeNews(`a 100 MW/${hours} battery`, `a 100 MW/${hours} battery`)).toBe(
+        "figure-ambiguous",
+      );
+    }
+    for (const notDuration of ["open 24/7 hours", "1/2 hour", "11/15 h", "2026/4h"]) {
+      expect([notDuration, parsed(notDuration)]).toEqual([notDuration, []]);
+    }
+    for (const [claim, source] of [
+      ["PAT/USD 5.5m", "PAT/MYR 5.5m"],
+      ["EPS/USD 1.20", "EPS/EUR 1.20"],
+      ["NAV/USD 12.5", "NAV/SGD 12.5"],
+      ["IRR/USD 5.5m", "IRR/MYR 5.5m"],
+      ["IRR/USD 5.5m", "an IRR of 5.5m"],
+      ["EUR/USD 1.08", "GBP/USD 1.08"],
+      ["a dividend of RM0.65", "RMB/MYR 0.65"],
+      ["$0.14", "RMB/USD 0.14"],
+      ["bitcoin at $60,000", "BTC/USD 60,000"],
+      ["the ringgit traded at 4.45 against the dollar", "USD/MYR 4.45"],
+      ["the kiwi traded at 0.60", "NZD/USD 0.60"],
+      ["gold at 2,400", "XAU/USD 2,400"],
+    ] as const) {
+      expect([claim, citeNews(claim, source)]).toEqual([claim, "unit-mismatch"]);
+    }
+    expect(citeNews("PAT/USD 5.5m", "PAT/USD 5.5m")).toBeUndefined();
+    expect(citeNews("eur/usd 1.08", "EUR/USD 1.08")).toBeUndefined();
     expect(parsed("https://fool.com/investing/2026/10/20/2-stocks, www.x.com/q3/5%")).toEqual([
       [Number.NaN, 1, "", ""],
     ]);

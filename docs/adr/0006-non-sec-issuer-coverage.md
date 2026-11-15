@@ -286,13 +286,16 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   unit-ratio tail withholds, glued or spaced ("5MWh/year", "65 MW/hour", "5-MW/h"). A figure glued after a slash is
   read with its own sign, currency and scale ("$5/$9", "EUR5m/EUR9m", "250 MW/1,000 MWh", "Q3/$5.5m", "Q3/-5%",
   "Q3/5%"), so both halves of a pair are checked; two bare numbers are not figures ("24/7", "11/15", "2025/26"), and
-  a range endpoint counts as a figure side ("5-10%/15-20%"). After any three-letter upper-case code and slash, a
-  figure led by a second three-letter code is an exchange-rate or asset-pair quote and reads without a currency
-  ("USD/MYR 4.45", "NZD/USD 0.60", "BTC/USD 60,000"). A pair withholds when only one side is bare ("5 MW/2027", "4.5/5",
+  a range endpoint counts as a figure side ("5-10%/15-20%"). After a three-letter code and slash, a figure led by
+  a second three-letter code may be a rate quote ("USD/MYR 4.45") or a labelled amount ("PAT/USD 5.5m"), so the pair
+  itself is the figure's unit, matched case-insensitively and with no currency: "EUR/USD 1.08" verifies only against
+  "EUR/USD 1.08", never "GBP/USD 1.08", "$1.08" or a bare "1.08", so "bitcoin at $60,000" does not verify against
+  "BTC/USD 60,000". A pair withholds when only one side is bare ("5 MW/2027", "4.5/5",
   "$5/100 shares"), when either side has a scale before its unit ("1.2 million MWh/300 MW", "5k MW/10k MWh"), or when
-  a figure before the slash is followed by a number the grammar cannot read ("5 MW/3yr"). A duration after the slash
-  (h, hr, hrs, hour or hours, glued, spaced or hyphenated) is not a figure, so "100 MW/4h", "100 MW/4 hours" and
-  "100 MW/4-hour" check only the 100 MW. URL spans are not figures ("https://fool.com/investing/2026/10/20/2-stocks"), but a figure the grammar reads starting inside one, beyond a bare whole number, may be prose glued to it, so it withholds ("(https://x.com/a):5%", "?x=5%", ":5 million"). SEC accession ids
+  a figure before the slash is followed by a number the grammar cannot read ("5 MW/3yr"). A duration after a
+  figure and slash (h, hr, hrs, hour or hours, glued, spaced or hyphenated, "MW/4h" or "MW / 4h") is a figure of its
+  own in hours, so "100 MW/4h" checks both the 100 MW and the 4 hours, and a "100 MW battery" claim still verifies
+  against it; an hour range ("4h-6h") withholds, and after a bare number ("24/7 hours", "2026/4h") nothing is read. URL spans are not figures ("https://fool.com/investing/2026/10/20/2-stocks"), but a figure the grammar reads starting inside one, beyond a bare whole number, may be prose glued to it, so it withholds ("(https://x.com/a):5%", "?x=5%", ":5 million"). SEC accession ids
   ("sec-8k-0001193125-26-337999") are not figures. A whole number with only an M or B letter scale and no currency
   or unit ("9M FY2026", "3m ago", "1M 6M" chart tabs) may be a period or a time, so it withholds, with any range it
   ends; a currency, unit, decimal or comma grouping keeps it ("RM9m", "9M USD", "12.3M", "9,000M"), and "k" always

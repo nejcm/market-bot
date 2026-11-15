@@ -75,9 +75,10 @@ const SUBUNITS = "sen|cents?|pence|¢";
 const POWER_UNITS = String.raw`(?-i:[kMG]W(?:[hp]|[\s-]?[aAdD][cC])?|TWh)|(?:kilo|mega|giga|tera)watt(?:[\s-]?hours?|s)?`;
 const UNIT_RATIO_AFTER = /^\s?[/·⋅]\s?\p{L}/u;
 const SLASH_FIGURE_AFTER = new RegExp(`^/${RANGE_HIGH}`, "iu");
-const SLASH_DURATION_AFTER = /^\/\d+(?:\.\d+)?[\s-]?(?:hours?|hrs?|h)(?!\p{L})/iu;
-const FX_PAIR_BEFORE = /(?<!\p{L})[A-Z]{3}\/$/u;
-const CODE_LEAD = /^[A-Z]{3}/u;
+const SLASH_DURATION_AFTER =
+  /^\s?\/\s?(?<hours>\d+(?:\.\d+)?[\s-]?(?:hours?|hrs?|h))(?!\p{L})(?<range>-\d)?/iu;
+const PAIR_BEFORE = /(?<!\p{L})(?<base>[A-Z]{3})\/$/iu;
+const CODE_LEAD = /^[A-Z]{3}/iu;
 const RANGE_END_BEFORE = /\d[%\p{L}]{0,3}-$/u;
 // URL-safe ASCII only, ending before trailing punctuation, so a glued prose figure ("…/a):$5m") stays outside.
 const URL_PATTERN = /\b(?:https?:\/\/|www\.)(?:[\w\-.~/?#@!&'*+=%()[\],;:]*[\w\-~/?#@!&'*+=%])?/giu;
@@ -461,13 +462,12 @@ function slashPairs(rows: readonly ParsedRow[], blanked: string): ParsedRow[] {
     const previous = rows[index - 1];
     const next = rows[index + 1];
     const before = blanked.slice(Math.max(0, row.rawStart - 8), row.rawStart);
-    // "USD/MYR 4.45" quotes a rate, so the code after the slash names the pair, not the figure's currency.
-    if (
-      FX_PAIR_BEFORE.test(before) &&
-      !slashJoined(previous, row, blanked) &&
-      CODE_LEAD.test(row.figure.raw)
-    ) {
-      return { ...row, figure: { ...row.figure, currency: "" } };
+    // "USD/MYR 4.45" may be a rate or a label ("PAT/USD 5.5m"), so the whole pair is the unit.
+    const base = PAIR_BEFORE.exec(before)?.groups?.base;
+    const quote = CODE_LEAD.exec(row.figure.raw)?.[0];
+    if (base !== undefined && quote !== undefined && !slashJoined(previous, row, blanked)) {
+      const unit = `${base}/${quote}${row.figure.unit}`.toLowerCase();
+      return { ...row, figure: { ...row.figure, currency: "", unit } };
     }
     const tail = blanked.slice(row.rawEnd, row.rawEnd + 16);
     if (SLASH_DURATION_AFTER.test(tail)) {
@@ -620,10 +620,31 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       placed.push(placedRow(row, row.figure));
     }
   }
-  const glued = urlGluedFigures(text.normalize("NFKC"));
-  return glued.length === 0
+  const extra = [...durationFigures(rows, blanked), ...urlGluedFigures(text.normalize("NFKC"))];
+  return extra.length === 0
     ? placed
-    : [...placed, ...glued].toSorted((a, b) => a.numStart - b.numStart);
+    : [...placed, ...extra].toSorted((a, b) => a.numStart - b.numStart);
+}
+
+// The hour count after a slash ("100 MW/4h") is its own figure; an hour range ("4h-6h") withholds.
+function durationFigures(rows: readonly ParsedRow[], blanked: string): PlacedFigure[] {
+  return rows.flatMap((row) => {
+    const tail = blanked.slice(row.rawEnd, row.rawEnd + 20);
+    const duration = SLASH_DURATION_AFTER.exec(tail);
+    const raw = duration?.groups?.hours;
+    if (duration === null || raw === undefined || isBare(row, row.figure)) {
+      return [];
+    }
+    const numStart = row.rawEnd + tail.indexOf(raw);
+    const value = duration.groups?.range === undefined ? Number.parseFloat(raw) : Number.NaN;
+    return [
+      {
+        figure: { raw, value, scale: 1, currency: "", unit: "h" },
+        numStart,
+        numEnd: numStart + raw.length,
+      },
+    ];
+  });
 }
 
 // A figure starting inside a URL may be prose glued to it ("(https://x.com/a):5%"), so it withholds.
@@ -1127,7 +1148,8 @@ function mismatchReason(figure: Figure, near: Figure): WebFigureFailureReason {
   if (near.scale !== figure.scale) {
     return "scale-mismatch";
   }
-  return near.currency === figure.currency ? "unit-mismatch" : "currency-mismatch";
+  const pair = [near, figure].some(({ unit }) => unit.includes("/"));
+  return pair || near.currency === figure.currency ? "unit-mismatch" : "currency-mismatch";
 }
 
 function checkedQuotes(

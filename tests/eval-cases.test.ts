@@ -956,6 +956,7 @@ describe("deterministic checks", () => {
   test("rendered metric references are verified figures; typed ones are still checked", () => {
     const sections = referenceMetricSections(
       collectedSources({ verifiedMarketSnapshot: verifiedMarketSnapshot() }),
+      { jobType: "equity" },
     );
     const report = resolveMetricReferences(
       researchReport({
@@ -1016,6 +1017,7 @@ describe("deterministic checks", () => {
   test("synthesis figure counts take an unprefixed catalog id as the reference assembly makes it", () => {
     const sections = referenceMetricSections(
       collectedSources({ verifiedMarketSnapshot: verifiedMarketSnapshot() }),
+      { jobType: "equity" },
     );
     const content = JSON.stringify({
       keyFindings: [

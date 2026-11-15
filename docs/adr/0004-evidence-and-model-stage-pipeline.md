@@ -558,7 +558,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `summary[i]` prunes. The uncitable, unrendered Market Spotlight selection rationale gets the same
   sentence prune with its code-rendered metric spans masked, keeps the summary's warnings, and loses the
   key when empty; its prunes go to `trace.json:reportIntegrityAudit.ungradedPruned` and never move the
-  grade (amended 2026-11-15). Stamp integrity high/no pruning, medium/pruning with required sections retained,
+  grade (amended 2026-11-15). Each spotlight item rationale gets the same prune, ungraded and without warnings,
+  keeping the item's symbol and source IDs when emptied; a market figure belongs there only as a rendered
+  `market-day-<SYMBOL>` reference, and a span glued to a currency, scale or unit stays unmasked so its
+  sentence prunes (amended 2026-11-16). Stamp integrity high/no pruning, medium/pruning with required sections retained,
   low/pruning emptied previously populated required section; research quality is worse of evidence/integrity.
   Old fields are optional; counts persist, pruned Predictions never reach disagreement/scoring. Deterministic
   alpha-search stamps high without audit; only audited below-high reports may get deterministic quality
@@ -581,7 +584,21 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   parallel field, so the existing repair loop, citation merge and replays of tokenless outputs are unchanged.
 - Catalog includes Capital Return, five Operating Ratios, six issuer/benchmark returns, framework/lenses,
   Workbench observations, and a reference-only `market-session` section built from the Verified Market
-  Snapshot at prompt and assembly time (not persisted as a Metric Section). Rows retain exact ID/label/status, available formatted value, unit/currency,
+  Snapshot at prompt and assembly time (not persisted as a Metric Section). Market-update runs add reference-only
+  `market-day-<SYMBOL>` sections the same way (amended 2026-11-16, run 6fe50ea1): day (crypto: 24h) change, last
+  price (index level for `^` symbols), opening gap, and for equities day volume, average volume and their ratio,
+  each citing that snapshot's own source ID; a missing or non-finite value, a zero price or
+  volume, or a nonzero value its fixed precision renders as zero (a $0.00001 token price) omits its row. Volume renders in
+  the `shares` unit ("36.87 million shares"), so labels carry no units. One quote per symbol: a market snapshot wins
+  over a supplemental one, and a benchmark counts only without a snapshot. The resolver holds every symbol; the
+  prompt lists the same quotes for the ranked movers (`moverLimitFor`) and their benchmarks only, since
+  `marketSnapshots` already carries every value. They also add one reference-only `macro-fred` section from the
+  FRED Market Context, a row per collected series (`DGS10`, ...) labelled with its observation date and citing
+  `market-context-fred-macro`, listed in the prompt in full. Rates and the spread use the `reported-percent`
+  unit, up to the 2 decimals FRED publishes ("4.86%"), not whole-percent's fixed 1. Instrument runs collect FRED as Extended Evidence
+  (`extended-fred-macro`) and get no rows: their FRED-citing claims are unchecked deterministic-only claims, none
+  was withheld in the saved runs, and the rows would add prompt surface to every equity run for no prune they
+  avoid. Rows retain exact ID/label/status, available formatted value, unit/currency,
   basis/period/citations; identical section metadata may inherit defaults, never another row. Exclude raw
   rows/duplicate IDs; reasons stay in artifacts/gaps. Compact JSON and frozen-duration eval preserve
   serialization. Omit exact symbol-scoped nested duplicate gaps only; all

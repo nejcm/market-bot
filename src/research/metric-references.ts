@@ -1,3 +1,6 @@
+import { isMarketUpdateJobType, type JobType } from "../domain/job-type";
+import type { MarketSnapshot } from "../domain/market-data";
+import { openingGapPercent } from "../movers/ranking";
 import type { RenderedMetric, ResearchReport } from "../domain/report";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import type { MetricResult, MetricSection } from "../sources/extended-evidence/metric-engine";
@@ -7,6 +10,7 @@ import {
   type LensValueUnit,
 } from "../sources/extended-evidence/value-format";
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
+import { FRED_SERIES } from "../sources/fred";
 import type { ModelReportPayload } from "./report-assembly";
 import type { CollectedSources } from "../sources/types";
 import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
@@ -120,10 +124,190 @@ function marketSessionSection(collected: CollectedSources): MetricSection | unde
   return { id: SESSION_SECTION, title: "Latest market session", metrics };
 }
 
-// The referenceable catalog: collected Metric Sections plus the market-session rows.
-export function referenceMetricSections(collected: CollectedSources): readonly MetricSection[] {
+interface MarketDayQuote {
+  readonly sourceId: string;
+  readonly symbol: string;
+  readonly assetClass: MarketSnapshot["assetClass"];
+  readonly changePercent24h: number;
+  readonly observedAt: string;
+  readonly quoteTimeUtc?: string;
+  readonly price?: number;
+  readonly identity?: MarketSnapshot["identity"];
+  readonly open?: number;
+  readonly previousClose?: number;
+  readonly volume?: number;
+  readonly averageVolume?: number;
+}
+
+const MARKET_DAY_SECTION_PREFIX = "market-day-";
+const MACRO_FRED_SECTION = "macro-fred";
+
+function positive(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+// A nonzero value the fixed precision rounds to zero (a $0.00001 token price) would render false.
+function rendersFalseZero(value: number, unit: LensValueUnit, currency?: string): boolean {
+  const rendered = formatMetricValue(value, unit, currency);
+  return rendered === undefined || (value !== 0 && !/[1-9]/u.test(rendered));
+}
+
+// Reference-only rows from one market snapshot (or its benchmark); never in report.extras.metricSections.
+function marketDaySection(quote: MarketDayQuote): MetricSection {
+  const { symbol, assetClass, quoteTimeUtc } = quote;
+  const crypto = assetClass === "crypto";
+  // Yahoo prefixes index symbols with "^"; an index level is points, not a per-share price.
+  const index = symbol.startsWith("^");
+  const currency = index ? undefined : quote.identity?.quoteCurrency;
+  const when =
+    quoteTimeUtc === undefined
+      ? `quote fetched ${quote.observedAt.slice(0, 10)}`
+      : `${quoteTimeUtc.slice(0, 10)} session`;
+  const row = (
+    id: string,
+    label: string,
+    unit: LensValueUnit,
+    value: number | undefined,
+    change?: MetricResult["change"],
+  ): MetricResult[] => {
+    const rowCurrency = unit === "currency-per-share" ? currency : undefined;
+    if (value === undefined || rendersFalseZero(value, unit, rowCurrency)) {
+      return [];
+    }
+    return [
+      {
+        id,
+        label: `${symbol} ${label}, ${when}`,
+        unit,
+        basis: `${symbol} market snapshot ${quote.sourceId}`,
+        ...(change === undefined ? {} : { change }),
+        status: "value",
+        value,
+        ...(rowCurrency === undefined ? {} : { currency: rowCurrency }),
+        inputs: [],
+        sourceIds: [quote.sourceId],
+      },
+    ];
+  };
+  const volume = crypto ? undefined : positive(quote.volume);
+  const averageVolume = crypto ? undefined : positive(quote.averageVolume);
+  return {
+    id: `${MARKET_DAY_SECTION_PREFIX}${symbol}`,
+    title: `${symbol} market day`,
+    metrics: [
+      ...row(
+        "changePercent",
+        crypto ? "24h change" : "day change",
+        "whole-percent",
+        quote.changePercent24h,
+        { over: crypto ? "over 24h" : "vs prior close" },
+      ),
+      ...row(
+        "price",
+        index ? "level" : "last price",
+        currency === undefined ? "number" : "currency-per-share",
+        positive(quote.price),
+      ),
+      ...row("gapPercent", "opening gap", "whole-percent", openingGapPercent(quote), {
+        over: "open vs prior close",
+      }),
+      ...row("volume", "day volume", "shares", volume),
+      ...row("averageVolume", "average daily volume", "shares", averageVolume),
+      ...row(
+        "volumeRatio",
+        "day volume vs average daily volume",
+        "ratio",
+        volume === undefined || averageVolume === undefined ? undefined : volume / averageVolume,
+      ),
+    ],
+  };
+}
+
+// One quote per symbol: the market snapshot the prompt shows wins over a supplemental one, and a benchmark
+// Counts only when no snapshot exists. `symbols` narrows the result without changing which quote wins.
+export function marketDaySections(
+  collected: Pick<CollectedSources, "marketSnapshots" | "supplementalMarketSnapshots">,
+  symbols?: ReadonlySet<string>,
+): readonly MetricSection[] {
+  const snapshots = [...collected.marketSnapshots, ...collected.supplementalMarketSnapshots];
+  const quotes = new Map<string, MarketDayQuote>();
+  for (const snapshot of snapshots) {
+    if (!quotes.has(snapshot.symbol)) {
+      quotes.set(snapshot.symbol, snapshot);
+    }
+  }
+  for (const { benchmark, assetClass } of snapshots) {
+    if (benchmark !== undefined && !quotes.has(benchmark.symbol)) {
+      quotes.set(benchmark.symbol, { ...benchmark, assetClass });
+    }
+  }
+  return [...quotes.values()]
+    .filter(({ symbol }) => symbols === undefined || symbols.has(symbol))
+    .map((quote) => marketDaySection(quote));
+}
+
+const FRED_SERIES_LABELS: Readonly<Record<(typeof FRED_SERIES)[number], [string, LensValueUnit]>> =
+  {
+    DGS10: ["10-year Treasury constant-maturity yield", "reported-percent"],
+    DGS2: ["2-year Treasury constant-maturity yield", "reported-percent"],
+    T10Y2Y: ["10-year minus 2-year Treasury yield spread", "reported-percent"],
+    FEDFUNDS: ["effective federal funds rate, monthly average", "reported-percent"],
+    CPIAUCSL: ["CPI for all urban consumers, index", "number"],
+    UNRATE: ["unemployment rate", "reported-percent"],
+    DTWEXBGS: ["nominal broad U.S. dollar index", "number"],
+  };
+
+// Reference-only rows from the market-update FRED Market Context, one per series' latest observation.
+export function macroFredSection(
+  collected: Pick<CollectedSources, "marketContext">,
+): MetricSection | undefined {
+  const item = collected.marketContext?.items.find(({ category }) => category === "fred-macro");
+  const sourceId = item?.sourceIds[0];
+  if (item?.metrics === undefined || sourceId === undefined) {
+    return undefined;
+  }
+  const { metrics } = item;
+  const rows = FRED_SERIES.flatMap((seriesId): MetricResult[] => {
+    const value = metrics[seriesId];
+    const date = metrics[`${seriesId}Date`];
+    const [name, unit] = FRED_SERIES_LABELS[seriesId];
+    return typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      typeof date !== "string" ||
+      rendersFalseZero(value, unit)
+      ? []
+      : [
+          {
+            id: seriesId,
+            label: `${seriesId} ${name}, observation ${date}`,
+            unit,
+            basis: `FRED series ${seriesId} via ${sourceId}`,
+            status: "value",
+            value,
+            inputs: [],
+            sourceIds: [sourceId],
+          },
+        ];
+  });
+  return rows.length === 0
+    ? undefined
+    : { id: MACRO_FRED_SECTION, title: "FRED macro", metrics: rows };
+}
+
+// The referenceable catalog: collected Metric Sections, the market-session rows, and a market update's market-day
+// And FRED macro rows.
+export function referenceMetricSections(
+  collected: CollectedSources,
+  command: { readonly jobType: JobType },
+): readonly MetricSection[] {
   const session = marketSessionSection(collected);
-  return [...(collected.metricSections ?? []), ...(session === undefined ? [] : [session])];
+  const macro = isMarketUpdateJobType(command.jobType) ? macroFredSection(collected) : undefined;
+  return [
+    ...(collected.metricSections ?? []),
+    ...(session === undefined ? [] : [session]),
+    ...(isMarketUpdateJobType(command.jobType) ? marketDaySections(collected) : []),
+    ...(macro === undefined ? [] : [macro]),
+  ];
 }
 
 // Change metrics whose label does not name the comparison; every other change label in the catalog does.

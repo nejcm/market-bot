@@ -15,7 +15,11 @@ function spotlightSelectionShape(): Record<string, unknown> {
   return {
     rationale: "short qualitative string, no figures",
     selections: [
-      { symbol: "ticker", rationale: "string", sourceIds: ["current-market-source-id"] },
+      {
+        symbol: "ticker",
+        rationale: "short qualitative string, no figures",
+        sourceIds: ["current-market-source-id"],
+      },
     ],
   };
 }

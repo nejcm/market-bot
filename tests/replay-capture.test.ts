@@ -485,7 +485,7 @@ test("production deep capture round-trips HTTP failures, state, synthesis repair
     ).stageOutputs.findLast((row: { stage: string }) => row.stage === "final-synthesis").content;
     const { metricReferences } = synthesisFigureCounts(
       accepted,
-      referenceMetricSections(saved.input.collectedSources),
+      referenceMetricSections(saved.input.collectedSources, saved.input.command),
     );
     expect(metricReferences).toBeNumber();
     expect(summarized?.metrics["synthesis.metricReferences"]).toBe(metricReferences);

@@ -35,7 +35,8 @@ import {
 } from "./source-gap-view";
 import { isFreshWebSource, userSteeringField } from "./steering";
 import { metricReferenceEvidence, withoutRestatedMetricValues } from "./metric-references";
-import { referenceMetricSections } from "../metric-references";
+import { macroFredSection, marketDaySections, referenceMetricSections } from "../metric-references";
+import { isMarketUpdateJobType } from "../../domain/job-type";
 
 function normalizedSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
@@ -120,7 +121,7 @@ const projectMetricReferences: EvidenceProjector = (options, command, collectedS
   command.assetClass === "equity" &&
   options.sourceGapView === "all" &&
   collectedSources.metricSections !== undefined
-    ? metricReferenceEvidence(referenceMetricSections(collectedSources))
+    ? metricReferenceEvidence(referenceMetricSections(collectedSources, command))
     : {};
 
 const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSources) =>
@@ -304,6 +305,21 @@ export function buildEvidencePayload(
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
   const priorThematicForecastErrors = buildResearchForecastErrorBlock(command, historicalContext);
   const deterministicCitationGuidance = citationGuidanceFor(options);
+  const catalogSymbols = new Set(
+    movers.flatMap(({ snapshot }) => [
+      snapshot.symbol,
+      ...(snapshot.benchmark === undefined ? [] : [snapshot.benchmark.symbol]),
+    ]),
+  );
+  const macro = macroFredSection(collectedSources);
+  // The catalog lists movers and their benchmarks; every other snapshot's rows resolve by the same id shape.
+  const marketDayReferences =
+    isMarketUpdateJobType(command.jobType) && options.sourceGapView === "all"
+      ? metricReferenceEvidence([
+          ...marketDaySections(collectedSources, catalogSymbols),
+          ...(macro === undefined ? [] : [macro]),
+        ])
+      : {};
 
   const evidenceProjections = EVIDENCE_PROJECTORS.reduce<Record<string, unknown>>(
     (payload, project) => ({ ...payload, ...project(options, command, collectedSources) }),
@@ -357,6 +373,7 @@ export function buildEvidencePayload(
     supplementalMarketSnapshots: forPrompt(collectedSources.supplementalMarketSnapshots),
     newsSources: collectedSources.newsSources,
     ...evidenceProjections,
+    ...marketDayReferences,
     ...(historicalContext !== undefined
       ? {
           historicalContext: compactHistoricalContext(historicalContext, options.sourceGapView),

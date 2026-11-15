@@ -477,11 +477,55 @@ function partitionExtras(
   };
 }
 
+type SpotlightPartition = Omit<Partition<never>, "kept" | "dropped"> & {
+  readonly spotlights: unknown;
+};
+
+// Item rationales get the selection rationale's prune: a typed figure drops its sentence, a rendered one is masked.
+function partitionSpotlights(spotlights: unknown, context: ClaimContext): SpotlightPartition {
+  const selection = partitionSelectionRationale(spotlights, context);
+  const outer = selection.spotlights;
+  if (!isRecord(outer) || !Array.isArray(outer.items)) {
+    return selection;
+  }
+  const pruned: ReportIntegrityPrunedItem[] = [];
+  const items = outer.items.map((item: unknown, index) => {
+    if (!isRecord(item) || typeof item.rationale !== "string") {
+      return item;
+    }
+    const { rationale, metricSourceIds, renderedMetrics: _renderedMetrics, ...rest } = item;
+    const rendered = (readClaimProvenance(item).renderedMetrics ?? []).filter(
+      ({ field }) => field === "rationale",
+    );
+    const partition = pruneUncitedSentences(
+      rationale,
+      `extras.spotlights.items[${String(index)}].rationale`,
+      context,
+      typedReading({ rationale, renderedMetrics: rendered }, "rationale").text,
+    );
+    if (partition.pruned.length === 0) {
+      return item;
+    }
+    pruned.push(...partition.pruned);
+    const keptMetrics = relocatedMetrics(partition.kept, rendered);
+    return {
+      ...rest,
+      ...(partition.kept === "" ? {} : { rationale: partition.kept }),
+      ...(keptMetrics.length === 0 ? {} : { metricSourceIds, renderedMetrics: keptMetrics }),
+    };
+  });
+  return {
+    spotlights: pruned.length === 0 ? outer : { ...outer, items },
+    pruned: [...selection.pruned, ...pruned],
+    warnings: selection.warnings,
+  };
+}
+
 // The selection rationale is uncitable and unrendered: it gets the summary's sentence prune, ungraded.
-function partitionSpotlights(
+function partitionSelectionRationale(
   spotlights: unknown,
   context: ClaimContext,
-): Omit<Partition<never>, "kept" | "dropped"> & { readonly spotlights: unknown } {
+): SpotlightPartition {
   if (!isRecord(spotlights) || typeof spotlights.rationale !== "string") {
     return { spotlights, pruned: [], warnings: [] };
   }
@@ -499,7 +543,7 @@ function partitionSpotlights(
     rationale,
     "extras.spotlights.rationale",
     context,
-    rendered.map(({ text }) => text),
+    typedReading({ rationale, renderedMetrics: rendered }, "rationale").text,
   );
   if (pruned.length === 0) {
     return { spotlights, pruned, warnings };
@@ -608,10 +652,12 @@ function lineBreakCount(separator: string): number {
 // Drops blocked sentences, keeping the surviving text's original separators.
 export function pruneSentences(
   text: string,
-  isBlocked: (sentence: string) => boolean,
+  isBlocked: (sentence: string, index: number) => boolean,
 ): { readonly kept: string; readonly pruned: readonly { index: number; text: string }[] } {
   const pieces = splitSummarySentences(text);
-  const blocking = pieces.map(({ text: piece }) => piece.trim() !== "" && isBlocked(piece.trim()));
+  const blocking = pieces.map(
+    ({ text: piece }, index) => piece.trim() !== "" && isBlocked(piece.trim(), index),
+  );
   // Right to left so a chain of initials ("J. R. Smith ...") follows its pruned continuation.
   for (let index = pieces.length - 2; index >= 0; index -= 1) {
     const piece = pieces[index];
@@ -655,32 +701,40 @@ function partitionSummary(
   return { warnings, summary: kept === "" ? SUMMARY_FALLBACK : kept, pruned };
 }
 
-// Code-rendered metric spans are masked before classification.
+// `masked` is `text` with its proven rendered spans blanked in place, so sentences classify by offset.
 function pruneUncitedSentences(
   text: string,
   location: string,
   context: ClaimContext,
-  renderedSpans: readonly string[] = [],
+  masked = text,
 ): {
   readonly kept: string;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
   readonly warnings: readonly PostSynthesisAuditWarning[];
 } {
-  const masked = (sentence: string) =>
-    renderedSpans.reduce((rest, span) => rest.replaceAll(span, " "), sentence);
+  let offset = 0;
+  const maskedSentences = splitSummarySentences(text).map(({ text: piece, separator }) => {
+    const sentence = masked.slice(offset, offset + piece.length).trim();
+    offset += piece.length + separator.length;
+    return sentence;
+  });
   // Uncitable text, so the posture rule would flag every sentence.
   const warnings = summarySentenceTexts(text)
     .flatMap((sentence, index) =>
       sentence === ""
         ? []
         : claimWarnings(
-            { location: `${location}[${String(index)}]`, text: masked(sentence), sourceIds: [] },
+            {
+              location: `${location}[${String(index)}]`,
+              text: maskedSentences[index] ?? sentence,
+              sourceIds: [],
+            },
             context,
           ),
     )
     .filter(({ code }) => code !== "weak-evidence-posture-missing");
-  const { kept, pruned } = pruneSentences(text, (sentence) =>
-    isPruned({ location, text: masked(sentence), sourceIds: [] }, context),
+  const { kept, pruned } = pruneSentences(text, (sentence, index) =>
+    isPruned({ location, text: maskedSentences[index] ?? sentence, sourceIds: [] }, context),
   );
   return {
     kept,
@@ -741,7 +795,9 @@ export function auditReportIntegrity(
   ];
   const droppedFigureQuotes = [...walked.flatMap((section) => section.dropped), ...extras.dropped];
   const webFigureGaps = pruned.flatMap((item) =>
-    item.webFigure === undefined ? [] : [webFigureGapText(item.location, item.webFigure)],
+    item.webFigure === undefined
+      ? []
+      : [webFigureGapText(item.location, item.webFigure, webTexts?.marketSnapshots)],
   );
 
   const sectionState: Readonly<

@@ -43,7 +43,7 @@ interface SubmissionFiling {
 }
 
 // Taxonomy switches and restatements re-file a period later, so no selected fact can date its first report;
-// A duration ending after its filing date is forward-looking (CLSK, LLY), not that period's report.
+// A period ending on its filing date is not proven to be that period's report.
 export function firstAnnualReports(
   payload: unknown,
   analysisAsOf: string,

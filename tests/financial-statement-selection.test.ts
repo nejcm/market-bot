@@ -1360,7 +1360,12 @@ describe("canonical metrics withhold a stale series", () => {
             GrossProfit: {
               units: {
                 USD: [
-                  orclFact(grossProfitEnd, 24_287_000_000, "0001193125-18-201034", "2018-06-22"),
+                  orclFact(
+                    grossProfitEnd,
+                    24_287_000_000,
+                    "0001193125-18-201034",
+                    `${grossProfitEnd.slice(0, 4)}-06-22`,
+                  ),
                 ],
               },
             },

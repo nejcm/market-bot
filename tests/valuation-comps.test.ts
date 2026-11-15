@@ -145,7 +145,7 @@ function secInstantFact(val: number, end: string, fp: string, form = "10-Q") {
     form,
     fp,
     fy: Number.parseInt(end.slice(0, 4), 10),
-    filed: end === "2026-06-29" ? "2026-07-01" : "2026-02-01",
+    filed: { "2026-06-29": "2026-07-01", "2026-03-29": "2026-05-01" }[end] ?? "2026-02-01",
     end,
   };
 }

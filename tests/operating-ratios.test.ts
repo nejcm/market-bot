@@ -1363,10 +1363,10 @@ describe("operatingRatiosSection", () => {
     ["2017-07-02", "2018-06-30", undefined],
   ] as const)("ROIC statutory rate for a fiscal year %s to %s", (start, end, rate) => {
     const filed = (value: number) => ({
-      units: { USD: [fact(value, 2017, { start, end })] },
+      units: { USD: [fact(value, 2017, { start, end, filed: "2019-01-10" })] },
     });
     const at = (value: number) => ({
-      units: { USD: [fact(value, 2017, { start: undefined, end })] },
+      units: { USD: [fact(value, 2017, { start: undefined, end, filed: "2019-01-10" })] },
     });
     const result = evaluate(
       context(

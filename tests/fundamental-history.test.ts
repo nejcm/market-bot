@@ -666,7 +666,7 @@ describe("fundamental history", () => {
         facts: years.map(([start, end, value]) =>
           fact(value, {
             fy: Number(end.slice(0, 4)),
-            filed: `${end.slice(0, 4)}-09-01`,
+            filed: `${String(Number(end.slice(0, 4)) + 1)}-01-15`,
             start,
             end,
           }),

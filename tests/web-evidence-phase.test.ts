@@ -477,5 +477,61 @@ describe("Web Evidence phase", () => {
     expect(generateStageCalls).toBe(0);
     expect(result.webSubjectProfile).toBeUndefined();
     expect(result.collectedSources.webSubjectProfile).toBeUndefined();
+    expect(result.collectedSources.sourceGaps).toContainEqual({
+      source: "web-gather",
+      message:
+        "Web Gather disabled by configuration; no Web Subject Profile or Extended Evidence from web sources",
+      capability: "web-gather",
+      evidenceQualityImpact: "no-cap",
+    });
+  });
+
+  test("declares no web gather gap where web gather does not apply", async () => {
+    const result = await runWebEvidencePhase({
+      command: { jobType: "equity", assetClass: "equity", symbol: "MSFT", depth: "brief" },
+      config: { ...config(tempRunsDir()), webGatherDisabled: true },
+      collectedSources: collectedSources(),
+      context,
+      generatedAt: "2026-08-06T00:00:00.000Z",
+      runId: "current-run",
+      now: new Date("2026-08-06T00:00:00.000Z"),
+      generateStage: async () => {
+        throw new Error("no stage expected");
+      },
+    });
+    expect(result.webGatherLoop.skipCode).toBe("run-not-applicable");
+    expect(result.collectedSources.sourceGaps).toEqual([]);
+  });
+
+  test("declares a profile gap when web gather accepts no citable source", async () => {
+    const stages: string[] = [];
+    const result = await runWebEvidencePhase({
+      command: { jobType: "equity", assetClass: "equity", symbol: "BNS", depth: "deep" },
+      config: config(tempRunsDir()),
+      collectedSources: collectedSources(),
+      context,
+      generatedAt: "2026-11-03T00:00:00.000Z",
+      runId: "current-run",
+      now: new Date("2026-11-03T00:00:00.000Z"),
+      generateStage: async (stage) => {
+        stages.push(stage);
+        return {
+          stage,
+          content: JSON.stringify({ requests: [] }),
+          tokenEstimate: 10,
+          costEstimateUsd: 0.001,
+        };
+      },
+    });
+
+    const message = "Web Subject Profile skipped for BNS: no gathered web Sources";
+    expect(stages).not.toContain("web-subject-profile");
+    expect(result.collectedSources.webSubjectProfile).toBeUndefined();
+    expect(
+      result.collectedSources.sourceGaps.filter(({ source }) => source === "web-subject-profile"),
+    ).toMatchObject([{ message, cause: "provider-data-missing" }]);
+    expect(result.collectedSources.extendedEvidence?.gaps.map((gap) => gap.message)).toEqual([
+      message,
+    ]);
   });
 });

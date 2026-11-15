@@ -11,7 +11,7 @@ import { applyEarningsForecastPolicy } from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
 import { ReportLanguageViolationError } from "../report/schema";
 import { SourceIdValidationError } from "../report/source-id-validation-error";
-import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
+import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
 import { catalogFigureHints, referenceMetricSections } from "./metric-references";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceIdRepair, type SourceIdRepair } from "./prompts/source-id-guidance";
@@ -362,21 +362,12 @@ async function validateBaseReport(
  * than stopped here.) Stop at the first such rejection and record where the wording came from, so
  * the next action is fixing the producing stage or the gate rather than the synthesis prompt.
  * Re-running the producing stage is deliberately not attempted here. An unattributed rejection (`path === undefined`, the match straddles two scanned fields)
- * is not proof of anything, so it keeps repairing.
- *
- * Classification of the key is not enough on its own. A codeAssembledDigest projector that
- * collected nothing omits its key, and assembly spreads the projection over the model extras, so
- * `extras.webSubjectProfile` then holds the draft's own prose -- editable, and repairable. The
- * question is therefore whether this run collected the digest, which is what
- * `collectedCodeAssembledExtraKeys` answers. This is not the draft-absence test: what the current
- * draft happens to contain still decides nothing.
+ * is not proof of anything, so it keeps repairing. Assembly drops a draft's own copy of a
+ * code-assembled key, so a rejection under one always comes from the collected digest.
  */
-function codeAssembledExtraKey(
-  path: string | undefined,
-  collectedSources: CollectedSources,
-): string | undefined {
+function codeAssembledExtraKey(path: string | undefined): string | undefined {
   const key = path === undefined ? undefined : /^extras\.([^.[]+)/u.exec(path)?.[1];
-  return key !== undefined && collectedCodeAssembledExtraKeys(collectedSources).has(key)
+  return key !== undefined && CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS.has(key)
     ? key
     : undefined;
 }
@@ -391,7 +382,7 @@ function unrepairableLanguageRejection(
   if (!(error instanceof ReportLanguageViolationError)) {
     return undefined;
   }
-  const digestKey = codeAssembledExtraKey(error.path, input.collectedSources);
+  const digestKey = codeAssembledExtraKey(error.path);
   if (digestKey === undefined) {
     return undefined;
   }

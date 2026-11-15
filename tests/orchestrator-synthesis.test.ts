@@ -690,14 +690,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(modelPayloadLanguageViolations(rejected.payload)).toEqual([]);
   });
 
-  /*
-   * No Web Subject Profile was collected, so projectExtendedEvidenceReportExtras omits the key and
-   * Assembly keeps `extras.webSubjectProfile` straight from the draft -- the model's own prose,
-   * Which the next draft can simply not write. Classifying the key as code-assembled without
-   * Checking that a digest was actually collected stopped the repair here after one call
-   * ("Absence is a finding, not a no-op", AGENTS.md).
-   */
-  test("keeps the full repair budget when the draft authored a profile the run never collected", async () => {
+  test("drops a profile the draft authored when the run collected none", async () => {
     let finalCalls = 0;
     const draftAuthoredProfileReport = JSON.stringify({
       ...(JSON.parse(modelReport("SPY")) as Record<string, unknown>),
@@ -732,9 +725,8 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    // One repair reprompt spent and the run completes: the rejection was repairable after all.
-    expect(finalCalls).toBe(2);
-    expect(result.trace.reportValidationRetryErrors?.join(" ")).toContain("trade-action language");
+    expect(finalCalls).toBe(1);
+    expect(result.trace.reportValidationRetryErrors).toBeUndefined();
     expect(result.report.extras?.webSubjectProfile).toBeUndefined();
   });
 

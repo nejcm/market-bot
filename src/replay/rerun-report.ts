@@ -179,7 +179,7 @@ export async function rerunReport(options: {
         }),
       },
     });
-    assertNoUnresolvedMetricReferences(report, collected);
+    assertNoUnresolvedMetricReferences(report);
     assertSafeReportLanguage(report);
     await writeEvalJson(dir, "report.json", report);
     const snapshot = collected.marketSnapshots.find((row) => row.symbol === report.symbol);

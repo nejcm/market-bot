@@ -43,7 +43,10 @@ import {
   verifiedSnapshotSource,
   verifiedSnapshotSourceId,
 } from "../sources/verified-snapshot-contract";
-import { projectExtendedEvidenceReportExtras } from "./extended-evidence-projections";
+import {
+  CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS,
+  projectExtendedEvidenceReportExtras,
+} from "./extended-evidence-projections";
 import type { HistoricalResearchContext } from "./historical-context";
 import { deterministicSourceGapEntries } from "./deterministic-gaps";
 import { issueForecastBook } from "./event-grid";
@@ -853,12 +856,13 @@ export function assembleResearchReportWithRelocations(
     ).label;
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
-  // A draft never supplies Metric Sections, even when none were collected (ADR 0001 exemption).
-  const {
-    spotlights: modelSpotlights,
-    metricSections: _metricSections,
-    ...authoredExtras
-  } = modelExtras;
+  // A draft never supplies a code-assembled digest, even when none was collected (ADR 0001 exemption).
+  const { spotlights: modelSpotlights, ...draftExtras } = modelExtras;
+  const authoredExtras = Object.fromEntries(
+    Object.entries(draftExtras).filter(
+      ([key]) => !CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS.has(key),
+    ),
+  );
   // Spotlights originate only in a market-update selection (ADR 0003); the model refines rationale.
   const resolvedSpotlights = isMarketUpdateJobType(command.jobType)
     ? mergeSpotlightsExtra(modelSpotlights, defaultSpotlights)
@@ -949,7 +953,7 @@ export function assembleResearchReportWithRelocations(
   });
   const sections = referenceMetricSections(collectedSources);
   const resolvedReport = resolveMetricReferences(report, sections);
-  assertNoUnresolvedMetricReferences(resolvedReport, collectedSources);
+  assertNoUnresolvedMetricReferences(resolvedReport);
   assertSafeReportLanguage(resolvedReport);
   // A label between a value and the next word can split a blocked phrase ("12.5% (Margin) gap").
   assertSafeReportLanguage(resolveMetricReferences(report, sections, false));

@@ -9,6 +9,7 @@ import {
   buildWebSubjectProfileFailureEvidence,
   isCompanyProfileSecSource,
   profileCitableSources,
+  webSubjectProfileSkippedGap,
   webSubjectProfileSubjectForCommand,
 } from "./web-subject-profile";
 import { reconcileBusinessFramework } from "../sources/extended-evidence/business-framework-reconcile";
@@ -16,6 +17,7 @@ import type { StageOutput } from "../research/final-synthesis";
 import type { ResearchContext } from "../research/research-context-types";
 import { commandWithResolvedResearchSubject } from "../research/research-subject-identity";
 import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
+import { mergeGaps } from "./web-gather-merge";
 import type { RunTrace } from "../domain/run-trace";
 import { isNonSecEquityListing } from "../sources/identity-gate";
 import {
@@ -85,7 +87,11 @@ async function runWebSubjectProfileExtraction(input: {
     subject.subjectKind,
   );
   if (allowedSources.length === 0) {
-    return { collectedSources: input.collectedSources };
+    return {
+      collectedSources: mergeGaps(profileCommand, input.collectedSources, [
+        webSubjectProfileSkippedGap(subject.subjectId),
+      ]),
+    };
   }
   try {
     const output = await input.phaseInput.generateStage(

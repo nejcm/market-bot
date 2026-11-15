@@ -9,7 +9,7 @@ import {
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 import type { ModelReportPayload } from "./report-assembly";
 import type { CollectedSources } from "../sources/types";
-import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
+import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
 
 const REFERENCE = /<<\s*metric\s*:\s*([^<>{}]+)>>/giu;
 // Any << or >> left in authored prose is placeholder residue (unprefixed, nested, unclosed).
@@ -500,19 +500,17 @@ export function resolveMetricReferences(
   return transformNarrative(report, sections, true, labelled);
 }
 
-export function assertNoUnresolvedMetricReferences(
-  report: ResearchReport,
-  collectedSources: CollectedSources,
-): void {
+export function assertNoUnresolvedMetricReferences(report: ResearchReport): void {
   const {
     sources: _sources,
     extendedEvidence: _extendedEvidence,
     extras,
     ...authoredAndDeterministic
   } = report;
-  const collectedKeys = collectedCodeAssembledExtraKeys(collectedSources);
   const authoredExtras = Object.fromEntries(
-    Object.entries(extras ?? {}).filter(([key]) => !collectedKeys.has(key)),
+    Object.entries(extras ?? {}).filter(
+      ([key]) => !CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS.has(key),
+    ),
   );
   const path = metricReferencePath({ ...authoredAndDeterministic, extras: authoredExtras });
   if (path !== undefined) {

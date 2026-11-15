@@ -1,3 +1,4 @@
+import type { SourceGap } from "../src/domain/sources";
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
@@ -11,6 +12,19 @@ import type { ResearchContext } from "../src/research/research-context-types";
 import type { FetchLike } from "../src/sources/types";
 import { resetSourceResilienceForTests } from "../src/sources/source-request";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
+
+const skipGapMessage = (reason: string) =>
+  `Web Gather ${reason}; no Web Subject Profile or Extended Evidence from web sources`;
+const disabledSkipGap: SourceGap = {
+  source: "web-gather",
+  message: skipGapMessage("disabled by configuration"),
+  capability: "web-gather",
+  evidenceQualityImpact: "no-cap",
+};
+const budgetSkipGap: SourceGap = {
+  ...disabledSkipGap,
+  message: skipGapMessage("skipped at a zero round, tool-call or source budget"),
+};
 
 const command: ResearchCommand = {
   jobType: "equity",
@@ -467,8 +481,11 @@ describe("runWebGatherLoop", () => {
     expect(result.stageOutputs).toEqual([]);
     expect(generateRound).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
-    expect(result.collectedSources).toBe(sources);
-    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources).toEqual({
+      ...sources,
+      sourceGaps: [...sources.sourceGaps, disabledSkipGap],
+    });
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap, disabledSkipGap]);
     expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
@@ -543,8 +560,11 @@ describe("runWebGatherLoop", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources).toBe(sources);
-    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources).toEqual({
+      ...sources,
+      sourceGaps: [...sources.sourceGaps, budgetSkipGap],
+    });
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap, budgetSkipGap]);
     expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
@@ -577,8 +597,11 @@ describe("runWebGatherLoop", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources).toBe(sources);
-    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources).toEqual({
+      ...sources,
+      sourceGaps: [...sources.sourceGaps, budgetSkipGap],
+    });
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap, budgetSkipGap]);
     expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
@@ -614,8 +637,11 @@ describe("runWebGatherLoop", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources).toBe(sources);
-    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources).toEqual({
+      ...sources,
+      sourceGaps: [...sources.sourceGaps, budgetSkipGap],
+    });
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap, budgetSkipGap]);
     expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
@@ -648,8 +674,11 @@ describe("runWebGatherLoop", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources).toBe(sources);
-    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources).toEqual({
+      ...sources,
+      sourceGaps: [...sources.sourceGaps, budgetSkipGap],
+    });
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap, budgetSkipGap]);
     expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
@@ -685,8 +714,11 @@ describe("runWebGatherLoop", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources).toBe(sources);
-    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources).toEqual({
+      ...sources,
+      sourceGaps: [...sources.sourceGaps, budgetSkipGap],
+    });
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap, budgetSkipGap]);
     expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
@@ -1872,7 +1904,10 @@ describe("runWebGatherLoop", () => {
     expect(generateRound).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources).toBe(sources);
+    expect(result.collectedSources).toEqual({
+      ...sources,
+      sourceGaps: [...sources.sourceGaps, budgetSkipGap],
+    });
   });
 
   test("validates batch fetches only after every search is charged", async () => {

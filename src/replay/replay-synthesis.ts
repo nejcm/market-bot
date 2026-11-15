@@ -42,7 +42,7 @@ import {
 import { estimateJudgeTokens, JUDGE_MAJORITY_VOTES, type JudgeMeter } from "./eval-judge";
 import { ABLATION_ARMS } from "./eval-decision";
 import { finalSynthesisEvidencePayload } from "../research/prompts/final-synthesis";
-import { collectedCodeAssembledExtraKeys } from "../research/extended-evidence-projections";
+import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "../research/extended-evidence-projections";
 
 type AblationArm = keyof typeof ABLATION_ARMS;
 
@@ -668,10 +668,7 @@ export async function estimateSynthesisFile(
       votes,
       callOverhead,
     );
-  const alwaysCanceled = digestJudgeItems(
-    judgeItems,
-    collectedCodeAssembledExtraKeys(saved.input.collectedSources),
-  );
+  const alwaysCanceled = digestJudgeItems(judgeItems, CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS);
   const judgePerRun = judgeTokens(judgeItems);
   // Worst case: every clipped item draws `unsupported` or `undecided` and is rechecked on its whole evidence.
   const judgeRecheckWorstPerRun = estimateJudgeTokens(

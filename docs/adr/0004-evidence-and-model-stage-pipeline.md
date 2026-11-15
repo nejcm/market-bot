@@ -554,7 +554,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `extension short-term investments disabled`. Residual reliance: the issuer's own calculation and location tagging.
 - Apply the same classifier to uncitable summary sentences: prune numeric/technical sentences, retain
   qualitative ones, never infer citations, and use neutral cited-sections fallback if empty. Record
-  `summary[i]` prunes. Stamp integrity high/no pruning, medium/pruning with required sections retained,
+  `summary[i]` prunes. The uncitable, unrendered Market Spotlight selection rationale gets the same
+  sentence prune with its code-rendered metric spans masked, keeps the summary's warnings, and loses the
+  key when empty; its prunes go to `trace.json:reportIntegrityAudit.ungradedPruned` and never move the
+  grade (amended 2026-11-15). Stamp integrity high/no pruning, medium/pruning with required sections retained,
   low/pruning emptied previously populated required section; research quality is worse of evidence/integrity.
   Old fields are optional; counts persist, pruned Predictions never reach disagreement/scoring. Deterministic
   alpha-search stamps high without audit; only audited below-high reports may get deterministic quality

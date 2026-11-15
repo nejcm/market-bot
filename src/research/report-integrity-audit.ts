@@ -54,6 +54,8 @@ export interface ReportIntegrityAuditResult {
   readonly prunedItemCount: number;
   readonly pruned: readonly ReportIntegrityPrunedItem[];
   readonly droppedFigureQuotes: readonly ReportIntegrityDroppedQuote[];
+  // Pruned from unrendered fields; recorded, never graded.
+  readonly ungradedPruned: readonly ReportIntegrityPrunedItem[];
 }
 
 // Bare calendar/fiscal years and forecast-horizon phrasing are not numeric claims for
@@ -475,6 +477,68 @@ function partitionExtras(
   };
 }
 
+// The selection rationale is uncitable and unrendered: it gets the summary's sentence prune, ungraded.
+function partitionSpotlights(
+  spotlights: unknown,
+  context: ClaimContext,
+): Omit<Partition<never>, "kept" | "dropped"> & { readonly spotlights: unknown } {
+  if (!isRecord(spotlights) || typeof spotlights.rationale !== "string") {
+    return { spotlights, pruned: [], warnings: [] };
+  }
+  const {
+    rationale,
+    sourceIds,
+    metricSourceIds,
+    renderedMetrics: _renderedMetrics,
+    ...rest
+  } = spotlights;
+  const rendered = (readClaimProvenance(spotlights).renderedMetrics ?? []).filter(
+    ({ field }) => field === "rationale",
+  );
+  const { kept, pruned, warnings } = pruneUncitedSentences(
+    rationale,
+    "extras.spotlights.rationale",
+    context,
+    rendered.map(({ text }) => text),
+  );
+  if (pruned.length === 0) {
+    return { spotlights, pruned, warnings };
+  }
+  const keptMetrics = relocatedMetrics(kept, rendered);
+  return {
+    spotlights: {
+      ...rest,
+      ...(kept === "" ? {} : { rationale: kept }),
+      ...(keptMetrics.length === 0
+        ? {}
+        : {
+            ...(sourceIds === undefined ? {} : { sourceIds }),
+            ...(metricSourceIds === undefined ? {} : { metricSourceIds }),
+            renderedMetrics: keptMetrics,
+          }),
+    },
+    pruned,
+    warnings,
+  };
+}
+
+function relocatedMetrics(
+  text: string,
+  rendered: readonly RenderedMetric[],
+): readonly RenderedMetric[] {
+  let cursor = 0;
+  return rendered
+    .toSorted((left, right) => left.start - right.start)
+    .flatMap((metric) => {
+      const start = text.indexOf(metric.text, cursor);
+      if (start === -1) {
+        return [];
+      }
+      cursor = start + metric.text.length;
+      return [{ ...metric, start }];
+    });
+}
+
 const SUMMARY_FALLBACK =
   "Summary withheld: every summary sentence carried an uncited numeric, technical, or peer-median claim. See the cited sections of this report.";
 
@@ -584,26 +648,46 @@ function partitionSummary(
   readonly pruned: readonly ReportIntegrityPrunedItem[];
   readonly warnings: readonly PostSynthesisAuditWarning[];
 } {
-  // Summaries carry no citations, so the posture rule would flag every sentence.
-  const warnings = summarySentenceTexts(summary)
-    .flatMap((text, index) =>
-      text === ""
-        ? []
-        : claimWarnings({ location: `summary[${String(index)}]`, text, sourceIds: [] }, context),
-    )
-    .filter(({ code }) => code !== "weak-evidence-posture-missing");
-  const { kept, pruned } = pruneSentences(summary, (sentence) =>
-    isPruned({ location: "summary", text: sentence, sourceIds: [] }, context),
-  );
+  const { kept, pruned, warnings } = pruneUncitedSentences(summary, "summary", context);
   if (pruned.length === 0) {
     return { summary, pruned: [], warnings };
   }
+  return { warnings, summary: kept === "" ? SUMMARY_FALLBACK : kept, pruned };
+}
+
+// Code-rendered metric spans are masked before classification.
+function pruneUncitedSentences(
+  text: string,
+  location: string,
+  context: ClaimContext,
+  renderedSpans: readonly string[] = [],
+): {
+  readonly kept: string;
+  readonly pruned: readonly ReportIntegrityPrunedItem[];
+  readonly warnings: readonly PostSynthesisAuditWarning[];
+} {
+  const masked = (sentence: string) =>
+    renderedSpans.reduce((rest, span) => rest.replaceAll(span, " "), sentence);
+  // Uncitable text, so the posture rule would flag every sentence.
+  const warnings = summarySentenceTexts(text)
+    .flatMap((sentence, index) =>
+      sentence === ""
+        ? []
+        : claimWarnings(
+            { location: `${location}[${String(index)}]`, text: masked(sentence), sourceIds: [] },
+            context,
+          ),
+    )
+    .filter(({ code }) => code !== "weak-evidence-posture-missing");
+  const { kept, pruned } = pruneSentences(text, (sentence) =>
+    isPruned({ location, text: masked(sentence), sourceIds: [] }, context),
+  );
   return {
+    kept,
     warnings,
-    summary: kept === "" ? SUMMARY_FALLBACK : kept,
-    pruned: pruned.map(({ index, text }) => ({
-      location: `summary[${String(index)}]`,
-      text,
+    pruned: pruned.map(({ index, text: sentence }) => ({
+      location: `${location}[${String(index)}]`,
+      text: sentence,
       sourceIds: [],
     })),
   };
@@ -647,6 +731,7 @@ export function auditReportIntegrity(
   const predictions = walkSection(sections.predictions, context, undefined);
   const extras = partitionExtras(report.extras, context, webTexts);
   const summary = partitionSummary(report.summary, context);
+  const spotlights = partitionSpotlights(extras.extras?.spotlights, context);
   const walked = [keyFindings, bullCase, bearCase, risks, catalysts, scenarios, predictions];
 
   const pruned = [
@@ -696,7 +781,14 @@ export function auditReportIntegrity(
     catalysts: catalysts.kept,
     scenarios: scenarios.kept,
     predictions: predictions.kept,
-    ...(extras.extras === undefined ? {} : { extras: extras.extras }),
+    ...(extras.extras === undefined
+      ? {}
+      : {
+          extras:
+            spotlights.pruned.length === 0
+              ? extras.extras
+              : { ...extras.extras, spotlights: spotlights.spotlights },
+        }),
     ...(webFigureGaps.length === 0 ? {} : { dataGaps: [...report.dataGaps, ...webFigureGaps] }),
     reportIntegrity,
     researchQuality,
@@ -710,10 +802,12 @@ export function auditReportIntegrity(
     prunedItemCount: pruned.length,
     pruned,
     droppedFigureQuotes,
+    ungradedPruned: spotlights.pruned,
     warnings: [
       ...summary.warnings,
       ...walked.flatMap((section) => section.warnings),
       ...extras.warnings,
+      ...spotlights.warnings,
     ],
   };
 }

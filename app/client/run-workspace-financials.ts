@@ -1,8 +1,9 @@
 import type { RunDetail } from "../types";
-import type {
-  FundamentalHistoryArtifact,
-  FundamentalHistoryPoint,
-  FundamentalHistorySeriesKey,
+import {
+  NOT_APPLICABLE_NOTE,
+  type FundamentalHistoryArtifact,
+  type FundamentalHistoryPoint,
+  type FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
 import type {
   EquityReaderAnalystEstimateDistribution,
@@ -292,10 +293,10 @@ export function fundamentalHistoryView(
   });
   const notApplicable = FUNDAMENTAL_HISTORY_CARD_KEYS.flatMap((key) => {
     const { label, notes } = artifact.series[key];
-    const reason = notes.find((note) => note.startsWith("not-applicable: "));
+    const reason = notes.find((note) => note.startsWith(NOT_APPLICABLE_NOTE));
     return reason === undefined
       ? []
-      : [{ key, label, reason: reason.slice("not-applicable: ".length) }];
+      : [{ key, label, reason: reason.slice(NOT_APPLICABLE_NOTE.length) }];
   });
   return cards.length === 0 && notApplicable.length === 0 ? undefined : { cards, notApplicable };
 }

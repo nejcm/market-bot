@@ -1,5 +1,6 @@
 import {
   earlierBasisEnds,
+  NOT_APPLICABLE_NOTE,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
   type FundamentalHistorySeries,
@@ -194,10 +195,16 @@ function financialTrendRows(
             depositoryReason(depositorySic, "no operating income in the industrial sense"),
           ),
         );
-  const inapplicableFreeCashFlow =
+  const freeCashFlowReason =
     depositorySic === undefined
+      ? history.series.freeCashFlowProxy.notes
+          .find((note) => note.startsWith(NOT_APPLICABLE_NOTE))
+          ?.slice(NOT_APPLICABLE_NOTE.length)
+      : depositoryCashFlowReason(depositorySic);
+  const inapplicableFreeCashFlow =
+    freeCashFlowReason === undefined
       ? undefined
-      : metricCell(notApplicableTrendMetric(depositoryCashFlowReason(depositorySic)));
+      : metricCell(notApplicableTrendMetric(freeCashFlowReason));
   return trendPeriods(history).map((period) => {
     const revenue = trendValue(history, "revenue", period);
     const netIncome = trendValue(history, "netIncome", period);

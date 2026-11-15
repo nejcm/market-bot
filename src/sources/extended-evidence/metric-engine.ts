@@ -19,6 +19,7 @@ import type { LensValueUnit } from "./value-format";
 import {
   depositoryCashFlowReason,
   depositoryIssuerSic,
+  reitCapexReason,
   type SecIssuerRegistration,
 } from "./industry-classification";
 
@@ -147,6 +148,10 @@ export type MetricOutcome = (
 
 export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeriesKey): boolean {
   return ctx.statements?.unfiledSeries?.includes(key) === true;
+}
+
+export function reitCapexInapplicable(ctx: MetricContext): string | undefined {
+  return reitCapexReason(ctx.secIssuer?.sic, ctx.statements?.unfiledSeries);
 }
 
 export function statementInput(

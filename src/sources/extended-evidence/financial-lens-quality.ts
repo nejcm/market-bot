@@ -17,6 +17,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  reitCapexInapplicable,
 } from "./metric-engine";
 import { readNumberMetric, readStringMetric } from "./utils";
 import {
@@ -229,6 +230,7 @@ export function freeCashFlowDefinition(context: MetricContext): MetricDefinition
     label: scopedLabel("FCF proxy", operatingCashFlowScope(context)),
     unit: "currency",
     basis: `operating cash flow less capital expenditure for the latest operating cash flow period; ${CAPEX_SCOPE_CAVEAT}`,
+    applicable: reitCapexInapplicable,
     cashFlowBased: true,
     compute: (ctx) => {
       if (ctx.statements === undefined) {

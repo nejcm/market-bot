@@ -39,6 +39,7 @@ import { deriveFinancialStatements } from "./financial-statements";
 import { canonicalFinancialMetrics, staleSecRevenueGaps } from "./financial-lens-canonical";
 import { financialStatementsDebtBasisGaps } from "./sec-debt";
 import { debtCandidateConcepts } from "./sec-debt-resolution";
+import { reitCapexReason } from "./industry-classification";
 
 type SecForm = "10-K" | "10-Q" | "10-K/A" | "10-Q/A";
 
@@ -491,6 +492,7 @@ function reportsDiscontinuedOperations(
 export function summarizeSecFundamentals(
   payload: unknown,
   analysisAsOf?: string,
+  sic?: string,
 ): SecFundamentalsSummary | undefined {
   if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
     return undefined;
@@ -665,7 +667,10 @@ export function summarizeSecFundamentals(
   if (summary === undefined) {
     return undefined;
   }
-  const unwithheld = (keys: readonly string[]) => keys.filter((key) => !withheld(key));
+  const notApplicable =
+    reitCapexReason(sic, statements.unfiledSeries) === undefined ? [] : ["capex"];
+  const unwithheld = (keys: readonly string[]) =>
+    keys.filter((key) => !withheld(key) && !notApplicable.includes(key));
 
   const staleRevenueGap =
     typeof metrics.revenuePeriodEnd === "string"
@@ -886,7 +891,11 @@ export async function fetchSecCompanyFactsForSymbol(
     };
   }
 
-  const fundamentals = summarizeSecFundamentals(facts.payload, ctx.fetchedAt);
+  const fundamentals = summarizeSecFundamentals(
+    facts.payload,
+    ctx.fetchedAt,
+    sicClassification?.sic,
+  );
   const emptyFactsGap =
     fundamentals === undefined
       ? [

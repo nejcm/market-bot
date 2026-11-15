@@ -43,6 +43,8 @@ import { loadRunArtifact } from "../../../src/run-artifacts";
 import {
   depositoryCashFlowReason,
   depositoryIssuerSic,
+  reitCapexReason,
+  secIssuerRegistration,
 } from "../../../src/sources/extended-evidence/industry-classification";
 import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
 import {
@@ -2188,19 +2190,24 @@ export function assertOperatingRatioInvariants(
     "operating-ratios carries every metric in order",
   ).toEqual(Object.keys(OPERATING_RATIO_INPUTS));
   const depositorySic = depositoryIssuerSic(run.collectedSources.extendedEvidence);
+  const reitCapex = reitCapexReason(
+    secIssuerRegistration(run.collectedSources.extendedEvidence)?.sic,
+    statements.unfiledSeries,
+  );
   const reportSourceIds = new Set(report.sources.map(({ id }) => id));
   for (const metric of section.metrics) {
     const id = String(metric.id);
     const label = `operating-ratios.${id}`;
     const required = OPERATING_RATIO_INPUTS[id];
     expect(required, `${label} is a known metric`).toBeDefined();
+    const reitInapplicable = reitCapex !== undefined && id === "freeCashFlowMargin";
     expect(
       metric.status === "not-applicable",
-      `${label} is not-applicable iff the issuer is a depository`,
-    ).toBe(depositorySic !== undefined && OPERATING_RATIO_DEPOSITORY.has(id));
+      `${label} is not-applicable iff the issuer is a depository or a REIT without PP&E capex`,
+    ).toBe((depositorySic !== undefined && OPERATING_RATIO_DEPOSITORY.has(id)) || reitInapplicable);
     if (metric.status === "not-applicable") {
-      expect(metric.reason, `${label} names the depository SIC`).toContain(
-        `SIC ${String(depositorySic)}`,
+      expect(metric.reason, `${label} names the issuer SIC`).toContain(
+        `SIC ${reitInapplicable ? "6798" : String(depositorySic)}`,
       );
       expect(metric.inputs, `${label} has no inputs`).toEqual([]);
       continue;
@@ -3741,6 +3748,11 @@ const DEPOSITORY_WORKBENCH_FCF = {
   reason:
     "depository issuer (SIC 6022): operating cash flow moves with deposits, loans and trading assets, so cash-flow metrics are not meaningful",
 } as const;
+const REIT_WORKBENCH_FCF = {
+  status: "not-applicable",
+  reason:
+    "REIT issuer (SIC 6798) tags no property, plant and equipment purchases; operating cash flow less capex would omit its investment in properties or mortgage assets",
+} as const;
 const RESTATED_WORKBENCH_INPUT = {
   status: "missing",
   reason: "restated-after-first-filing",
@@ -4179,80 +4191,80 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2018-12-31|2019-02-22": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2019-12-31|2020-02-24": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_PRICE,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2020-12-31|2021-02-23": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
       IFRS_WORKBENCH_EV,
-      MISSING_WORKBENCH_PRICE,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2021-12-31|2022-02-23": [
       75,
       RESTATED_WORKBENCH_INPUT,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      RESTATED_WORKBENCH_INPUT,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2022-12-31|2023-02-22": [
       46.140_842_706_384_795,
       RESTATED_WORKBENCH_INPUT,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      RESTATED_WORKBENCH_INPUT,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2023-12-31|2024-02-21": [
       41.817_459_227_546_81,
       8.952_070_672_412_619,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_FCF,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2024-12-31|2025-02-25": [
       57.387_756_814_762_035,
       9.216_155_347_331_98,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_FCF,
+      REIT_WORKBENCH_FCF,
     ],
     "ttm|2025-09-30|2025-11-04": [
       52.467_289_149_204_156,
       9.171_909_558_971_237,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_FCF,
+      REIT_WORKBENCH_FCF,
     ],
     "annual|2025-12-31|2026-02-25": [
       56.401_707_575_871_4,
       10.425_644_155_808_401,
       MIXED_WORKBENCH_BALANCE_SHEET,
-      MISSING_WORKBENCH_FCF,
+      REIT_WORKBENCH_FCF,
     ],
     // O files NotesPayable, SecuredDebt and LoansPayable, but its debt series holds only 2016 LongTermDebt.
     "ttm|2026-03-31|2026-05-07": [
       50.647_541_734_038_81,
       MISSING_WORKBENCH_SHARES,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_SHARES,
+      REIT_WORKBENCH_FCF,
     ],
     "ttm|2026-06-30|2026-08-06": [
       45.518_248_620_694_58,
       MISSING_WORKBENCH_SHARES,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_SHARES,
+      REIT_WORKBENCH_FCF,
     ],
     "ttm|2026-09-30|2026-11-03": [
       39.383_561_643_835_62,
       MISSING_WORKBENCH_SHARES,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_SHARES,
+      REIT_WORKBENCH_FCF,
     ],
   },
   "equity-depository-deep": {

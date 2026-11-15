@@ -1,10 +1,15 @@
-import { depositoryCashFlowReason } from "./industry-classification";
+import {
+  depositoryCashFlowReason,
+  isDepositorySic,
+  reitCapexReason,
+} from "./industry-classification";
 import {
   buildFundamentalHistorySeries,
   CONTINUING_INCOME_HISTORY,
   endsWithin,
   fundamentalHistoryCagr,
   negativeCapexTtmNote,
+  NOT_APPLICABLE_NOTE,
   totalOperationsScopes,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
@@ -273,8 +278,11 @@ function noncontrollingPeriods(
 
 export function deriveFundamentalHistoryFromFinancialStatements(
   artifact: FinancialStatementsArtifact,
-  depositorySic?: string,
+  issuerSic?: string,
 ): FundamentalHistoryArtifact {
+  const freeCashFlowInapplicable = isDepositorySic(issuerSic)
+    ? depositoryCashFlowReason(issuerSic)
+    : reitCapexReason(issuerSic, artifact.unfiledSeries);
   const raw = Object.fromEntries(
     DEFINITIONS.map((definition) => [definition.key, rawSeries(artifact, definition)]),
   ) as FundamentalHistoryRawSeries;
@@ -311,7 +319,7 @@ export function deriveFundamentalHistoryFromFinancialStatements(
     sourceId: artifact.sourceId,
     ...(artifact.sourceUrl !== undefined ? { sourceUrl: artifact.sourceUrl } : {}),
     series:
-      depositorySic === undefined
+      freeCashFlowInapplicable === undefined
         ? series
         : {
             ...series,
@@ -320,7 +328,7 @@ export function deriveFundamentalHistoryFromFinancialStatements(
               label,
               unit,
               annual: [],
-              notes: [`not-applicable: ${depositoryCashFlowReason(depositorySic)}`],
+              notes: [`${NOT_APPLICABLE_NOTE}${freeCashFlowInapplicable}`],
             },
           },
   };

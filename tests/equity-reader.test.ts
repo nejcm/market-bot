@@ -607,6 +607,33 @@ describe("equity reader projection", () => {
     );
   });
 
+  test("reads a not-applicable FCF history note as the whole trend column for a REIT", () => {
+    const history = annualAndTtmHistory();
+    const reason = "REIT issuer (SIC 6798) tags no property, plant and equipment purchases";
+    const reit = {
+      ...history,
+      series: {
+        ...history.series,
+        freeCashFlowProxy: {
+          ...history.series.freeCashFlowProxy,
+          annual: [],
+          notes: [`not-applicable: ${reason}`],
+        },
+      },
+    } as FundamentalHistoryArtifact;
+    const rows =
+      projectEquityReader({
+        report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+        fundamentalHistory: reit,
+      }).defaultView.financialTrends?.rows ?? [];
+
+    expect(rows.length).toBe(6);
+    expect(rows.map((row) => row.freeCashFlow)).toEqual(
+      rows.map(() => `not applicable (${reason})`),
+    );
+    expect(rows.map((row) => row.operatingMargin)).toContain("20.0%");
+  });
+
   test("selects amended values and filing dates jointly before the analysis cutoff", () => {
     const projection = projectEquityReader({
       report: { generatedAt: "2025-04-01T12:00:00.000Z" },

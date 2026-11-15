@@ -87,7 +87,7 @@ function payload(
 function derive(
   companyFacts: unknown,
   analysisAsOf = "2025-08-01T00:00:00.000Z",
-  depositorySic?: string,
+  issuerSic?: string,
 ) {
   return deriveFundamentalHistoryFromFinancialStatements(
     deriveFinancialStatements(companyFacts, {
@@ -96,7 +96,7 @@ function derive(
       analysisAsOf,
       sourceId: "extended-sec-edgar-test-fundamentals",
     }),
-    depositorySic,
+    issuerSic,
   );
 }
 
@@ -495,6 +495,37 @@ describe("fundamental history", () => {
     expect(bank.capex).toEqual(control.capex);
     expect(control.freeCashFlowProxy.annual.map((point) => point.value)).toEqual([40, 48, 55]);
     expect(control.freeCashFlowProxy.ttm?.value).toBe(79);
+  });
+
+  test("REIT FCF proxy is not applicable only when no PP&E capex is filed", () => {
+    const operatingCashFlow = {
+      facts: [...annualFacts([50, 60, 70]), latestYtd(), priorYtd()],
+    };
+    const improvementsOnly = payload({
+      NetCashProvidedByUsedInOperatingActivities: operatingCashFlow,
+      PaymentsForCapitalImprovements: { facts: annualFacts([10, 12, 15]) },
+    });
+    const withPpe = payload({
+      NetCashProvidedByUsedInOperatingActivities: operatingCashFlow,
+      PaymentsToAcquirePropertyPlantAndEquipment: {
+        facts: [...annualFacts([10, 12, 15]), latestYtd({}, 5), priorYtd({}, 4)],
+      },
+    });
+
+    expect(derive(improvementsOnly, undefined, "6798").series.freeCashFlowProxy).toMatchObject({
+      annual: [],
+      notes: [
+        "not-applicable: REIT issuer (SIC 6798) tags no property, plant and equipment purchases; operating cash flow less capex would omit its investment in properties or mortgage assets",
+      ],
+    });
+    expect(
+      derive(improvementsOnly).series.freeCashFlowProxy.notes.some((note) =>
+        note.startsWith("not-applicable:"),
+      ),
+    ).toBe(false);
+    expect(
+      derive(withPpe, undefined, "6798").series.freeCashFlowProxy.annual.map(({ value }) => value),
+    ).toEqual([40, 48, 55]);
   });
 
   test("CAGR counts whole 52/53-week fiscal years: AMD FY2020-FY2025 revenue", () => {

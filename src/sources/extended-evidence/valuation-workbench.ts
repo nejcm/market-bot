@@ -5,7 +5,11 @@ import type { ExtendedEvidence } from "../../domain/evidence";
 import type { OhlcvBar } from "../../domain/market-data";
 import type { Source, SourceGap } from "../../domain/sources";
 import type { FetchLike } from "../types";
-import { depositoryIssuerSic } from "./industry-classification";
+import {
+  depositoryIssuerSic,
+  reitCapexReason,
+  secIssuerRegistration,
+} from "./industry-classification";
 import { fiscalYearTtmLabel } from "./financial-statement-selection";
 import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
@@ -81,6 +85,7 @@ function observation(
   // Classified once per issuer by the caller, never per period: a per-period decision would let
   // One row print a multiple and the next declare the metric inapplicable for the same issuer.
   depositorySic: string | undefined,
+  freeCashFlowInapplicable: string | undefined,
 ): {
   readonly observation: HistoricalValuationObservation;
   readonly section: MetricSection;
@@ -130,6 +135,7 @@ function observation(
     reportingCurrency,
     quoteCurrency: input.quoteCurrency,
     depositorySic,
+    freeCashFlowInapplicable,
     statements: input.financialStatements,
     ...(fxClose === undefined
       ? {}
@@ -280,8 +286,12 @@ function buildValuationWorkbenchResult(
   const ttm = inputsForArtifact?.ttm;
   const periodInputs = inputsForArtifact?.periods ?? [];
   const depositorySic = depositoryIssuerSic(input.extendedEvidence);
+  const freeCashFlowInapplicable = reitCapexReason(
+    secIssuerRegistration(input.extendedEvidence)?.sic,
+    artifact?.unfiledSeries,
+  );
   const results = periodInputs.map((period) =>
-    observation(input, period, fxClosesByPriceDate, depositorySic),
+    observation(input, period, fxClosesByPriceDate, depositorySic, freeCashFlowInapplicable),
   );
   const observations = results.map((result) => result.observation);
   const unavailable =
@@ -297,6 +307,7 @@ function buildValuationWorkbenchResult(
                 label: "P/FCF proxy",
                 unit: "ratio",
                 basis: PRICE_SELECTION_RULE,
+                applicable: () => freeCashFlowInapplicable,
                 cashFlowBased: true,
                 compute: () => ({
                   status: "missing",

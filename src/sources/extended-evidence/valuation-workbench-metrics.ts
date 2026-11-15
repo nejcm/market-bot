@@ -88,6 +88,7 @@ export function valuationMetricSection(input: {
   readonly reportingCurrency?: string | undefined;
   readonly quoteCurrency?: string | undefined;
   readonly depositorySic?: string | undefined;
+  readonly freeCashFlowInapplicable?: string | undefined;
   readonly statements?: FinancialStatementsArtifact | undefined;
   readonly fx?: {
     readonly rate: number;
@@ -142,7 +143,9 @@ export function valuationMetricSection(input: {
                 : depositoryNetDebtReason(input.depositorySic),
           }
         : {}),
-      ...(id === "priceToFreeCashFlow" ? { cashFlowBased: true as const } : {}),
+      ...(id === "priceToFreeCashFlow"
+        ? { applicable: () => input.freeCashFlowInapplicable, cashFlowBased: true as const }
+        : {}),
       compute: (): MetricOutcome => {
         const needsShares = id !== "priceToEarnings";
         const fundamentals: readonly (ValuationFundamentalInput | undefined)[] = [

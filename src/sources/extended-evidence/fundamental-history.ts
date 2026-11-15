@@ -49,6 +49,8 @@ interface FundamentalHistoryMarginChange {
   readonly periodEnd: string;
 }
 
+export const NOT_APPLICABLE_NOTE = "not-applicable: ";
+
 export interface FundamentalHistorySeries {
   readonly key: FundamentalHistorySeriesKey;
   readonly label: string;

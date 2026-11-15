@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.33](https://github.com/nejcm/market-bot/compare/v1.19.32...v1.19.33) (2026-11-15)
+
+### Bug Fixes
+
+- **audit:** drop a pruned metric reference's sources from spotlights (#257) ([c298468](https://github.com/nejcm/market-bot/commit/c2984688544446f6fe3354ae058c05085fce33e1))
+
 ## [1.19.32](https://github.com/nejcm/market-bot/compare/v1.19.31...v1.19.32) (2026-11-15)
 
 ### Bug Fixes

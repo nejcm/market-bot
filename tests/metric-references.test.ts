@@ -1710,6 +1710,35 @@ describe("market-day references on market updates (run 6fe50ea1)", () => {
     ).toEqual(["market-day-CBRS", "market-day-SPY"]);
   });
 
+  test("checks typed figures in a claim citing only FRED, on market updates only (run 6fe50ea1 risks[1])", async () => {
+    const fredOnly = ["market-context-fred-macro"];
+    const typed =
+      "The latest supplied 10-year Treasury yield observation was 5.1%, dated November 12.";
+    const { pruned, gaps } = await finalized(typed, fredOnly);
+    expect(pruned).toEqual([
+      { location: "keyFindings[0]", reason: "figure-not-in-source", figure: "5.1%" },
+    ]);
+    expect(gaps.at(-1)).toEndWith(
+      "A market snapshot or FRED macro value is written as its market-day or macro-fred metric reference.",
+    );
+    for (const spread of [
+      "the spread widened 3 basis points",
+      "UNRATE fell 0.1 percentage points",
+    ]) {
+      expect(await finalizedPruned(`Since 2025, ${spread}.`, fredOnly)).toHaveLength(1);
+    }
+    expect(
+      await finalizedPruned(
+        "The 10-year Treasury (DGS10) and 2-year Treasury (DGS2) observations from 2026 are macro context.",
+        fredOnly,
+      ),
+    ).toEqual([]);
+    expect(
+      await finalizedPruned("The 10-year yield stood at <<metric:macro-fred.DGS10>>.", fredOnly),
+    ).toEqual([]);
+    expect(await finalizedPruned(typed, fredOnly, equityCommand)).toEqual([]);
+  });
+
   test("reads a forecast horizon as a time span, not a figure, in a market-only claim (live eval 4)", async () => {
     const marketOnly = [cbrs.sourceId, vix.sourceId];
     const horizon =

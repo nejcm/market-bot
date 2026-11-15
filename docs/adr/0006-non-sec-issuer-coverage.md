@@ -334,9 +334,9 @@ source IDs. The same gap exists on US runs whenever a claim takes a figure from 
   6fe50ea1, sample 2: "HTFL fell 19.1255%", "VIX was 19.30"). FRED's stored text holds series names, not values,
   so a typed FRED value in a claim that also cites a snapshot withholds; the reference-only `macro-fred` rows
   (one per collected series, citing `market-context-fred-macro`) are how such a claim publishes it (live eval 3:
-  "DGS10 ... 5.1%" withheld). A claim citing only `market-context` (FRED) still stays unchecked; the saved runs
-  hold one (6fe50ea1, "10-year Treasury yield ... 5.1%"), and checking it waits for evidence that the model uses
-  the `macro-fred` references.
+  "DGS10 ... 5.1%" withheld). A claim citing only `market-context` (FRED) is checked the same way (amended
+  2026-11-16), since live eval 3 showed the model writing `macro-fred` references; the one such claim in the saved
+  runs (6fe50ea1 risks[1], "10-year Treasury yield ... 5.1%") now withholds. Instrument runs stay unchecked.
 - A redirected run collects market data twice (typed code, then the resolved code).
 - Issuer Report Figures are interim and annual table rows only. TTM, multi-year history, and Valuation Evidence
   do not read them yet. The Business Framework reads their same-basis YoY rows (amended 2026-11-07): on a run

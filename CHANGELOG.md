@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.32](https://github.com/nejcm/market-bot/compare/v1.19.31...v1.19.32) (2026-11-15)
+
+### Bug Fixes
+
+- **lens:** fail closed on reit capex scope without sic or statements (#256) ([ce44447](https://github.com/nejcm/market-bot/commit/ce444475ac4e4b991183bde7c40ee19f6d5065da))
+
 ## [1.19.31](https://github.com/nejcm/market-bot/compare/v1.19.30...v1.19.31) (2026-11-15)
 
 ### Bug Fixes

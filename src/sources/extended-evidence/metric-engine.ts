@@ -19,6 +19,7 @@ import type { LensValueUnit } from "./value-format";
 import {
   depositoryCashFlowReason,
   depositoryIssuerSic,
+  REIT_SIC,
   reitCapexReason,
   type SecIssuerRegistration,
 } from "./industry-classification";
@@ -150,10 +151,6 @@ export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeries
   return ctx.statements?.unfiledSeries?.includes(key) === true;
 }
 
-export function reitCapexInapplicable(ctx: MetricContext): string | undefined {
-  return reitCapexReason(ctx.secIssuer?.sic, ctx.statements);
-}
-
 export function statementInput(
   fact: FinancialStatementFact,
   series: FinancialStatementSeriesKey,
@@ -186,6 +183,7 @@ export interface MetricDefinition {
   readonly applicable?: (ctx: MetricContext) => string | undefined;
   // Declares the verdict before compute; a cash-flow input is gated after compute either way.
   readonly cashFlowBased?: true;
+  readonly reitCapexBased?: true;
   readonly compute: (ctx: MetricContext) => MetricOutcome;
 }
 
@@ -218,11 +216,24 @@ function evaluateMetric(definition: MetricDefinition, ctx: MetricContext): Metri
     inputs: [],
     sourceIds: [],
   });
+  const reitCapexBased = definition.reitCapexBased === true;
   const inapplicable =
     definition.applicable?.(ctx) ??
+    (reitCapexBased ? reitCapexReason(ctx.secIssuer?.sic, ctx.statements) : undefined) ??
     (definition.cashFlowBased === true ? depositoryCashFlowGate(ctx) : undefined);
   if (inapplicable !== undefined) {
     return notApplicable(inapplicable);
+  }
+  // The REIT capex predicate reads the statements, so without them the row cannot be proven applicable.
+  if (reitCapexBased && ctx.secIssuer?.sic === REIT_SIC && ctx.statements === undefined) {
+    return {
+      ...identity,
+      basis,
+      status: "missing",
+      reason: "REIT capex scope undecided without SEC statements",
+      inputs: [],
+      sourceIds: [],
+    };
   }
   const outcome = definition.compute(ctx);
   const inputs = outcome.inputs ?? [];

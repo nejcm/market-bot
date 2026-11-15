@@ -26,7 +26,6 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
-  reitCapexInapplicable,
   seriesNotFiled,
 } from "./metric-engine";
 
@@ -377,7 +376,7 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
     label: "Free cash flow margin",
     unit: "ratio-percent",
     basis: `(operating cash flow - capital expenditure) / revenue, ${FISCAL_YEAR}; revenue at or below zero or negative-filed capex is not meaningful`,
-    applicable: reitCapexInapplicable,
+    reitCapexBased: true,
     cashFlowBased: true,
     compute: (ctx) => {
       const outcome = ratioOf(

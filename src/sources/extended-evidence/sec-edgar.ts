@@ -39,7 +39,7 @@ import { deriveFinancialStatements } from "./financial-statements";
 import { canonicalFinancialMetrics, staleSecRevenueGaps } from "./financial-lens-canonical";
 import { financialStatementsDebtBasisGaps } from "./sec-debt";
 import { debtCandidateConcepts } from "./sec-debt-resolution";
-import { reitCapexReason } from "./industry-classification";
+import { REIT_SIC, reitCapexReason } from "./industry-classification";
 
 type SecForm = "10-K" | "10-Q" | "10-K/A" | "10-Q/A";
 
@@ -660,7 +660,9 @@ export function summarizeSecFundamentals(
     delete metrics[key];
   }
   const summary =
-    formatSecFundamentalsSummary(() => metrics) ??
+    formatSecFundamentalsSummary((key) =>
+      key === "capex" && sic === REIT_SIC ? undefined : metrics,
+    ) ??
     (translationGap === undefined
       ? undefined
       : `SEC Fundamental Evidence withheld ${translationGap}.`);

@@ -1007,7 +1007,14 @@ function readRenderedMetrics(value: unknown): readonly RenderedMetric[] {
         typeof item.start === "number" &&
         Number.isSafeInteger(item.start) &&
         item.start >= 0
-          ? [{ field: item.field, start: item.start, text: item.text }]
+          ? [
+              {
+                field: item.field,
+                start: item.start,
+                text: item.text,
+                sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+              },
+            ]
           : [],
       )
     : [];

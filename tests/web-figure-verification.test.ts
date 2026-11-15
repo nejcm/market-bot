@@ -13,7 +13,7 @@ import { researchReport } from "./support/fixtures";
 
 // Spans as the resolver records them: the occurrence of `rendered` at or after `from`.
 function renderedAt(text: string, rendered: string, from = 0) {
-  return { field: "text", start: text.indexOf(rendered, from), text: rendered };
+  return { field: "text", start: text.indexOf(rendered, from), text: rendered, sourceIds: [] };
 }
 
 // ViTrox (0097.KL) Q3 2026 coverage, run 2026-11-05T11-14-53-208Z-f5a4cc80.
@@ -1728,9 +1728,11 @@ describe("Verified Web Figure", () => {
     });
     const once = "Revenue grew 112.2%.";
     expect(claim(once, [renderedAt(once, "112.2%")])).toBeUndefined();
-    expect(claim(once, [{ field: "text", start: 0, text: "112.2%" }])).toMatchObject({
-      reason: "figure-not-quoted",
-    });
+    expect(claim(once, [{ field: "text", start: 0, text: "112.2%", sourceIds: [] }])).toMatchObject(
+      {
+        reason: "figure-not-quoted",
+      },
+    );
     expect(claim(once, [{ ...renderedAt(once, "112.2%"), field: "name" }])).toMatchObject({
       reason: "figure-not-quoted",
     });

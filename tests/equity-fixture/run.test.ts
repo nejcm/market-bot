@@ -512,7 +512,9 @@ describe("static equity run fixtures", () => {
           text: `Filed metric reference: ${rendered}.`,
           sourceIds: injectedMetric.sourceIds,
           metricSourceIds: injectedMetric.sourceIds,
-          renderedMetrics: [{ field: "text", start: 24, text: rendered }],
+          renderedMetrics: [
+            { field: "text", start: 24, text: rendered, sourceIds: injectedMetric.sourceIds },
+          ],
         });
         expect(result.markdown).toContain(`Filed metric reference: ${rendered}.`);
       }

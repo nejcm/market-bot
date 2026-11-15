@@ -57,11 +57,12 @@ export interface WebFigureFailure {
   readonly sourceIds: readonly string[];
 }
 
-// Code-rendered metric reference text: `text` substituted at `start` (UTF-16 offset) in claim field `field`.
+// Code-rendered metric reference text: `text` substituted at `start` (UTF-16 offset) in claim field `field`, citing `sourceIds`.
 export interface RenderedMetric {
   readonly field: string;
   readonly start: number;
   readonly text: string;
+  readonly sourceIds: readonly string[];
 }
 
 // The metricSourceIds field holds ids added to sourceIds only by a metric reference.

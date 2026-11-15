@@ -1024,7 +1024,9 @@ describe("auditReportIntegrity", () => {
       const keptOnly = auditSpotlights({
         rationale: kept,
         ...metricRow,
-        renderedMetrics: [{ field: "rationale", start: 13, text: rendered }],
+        renderedMetrics: [
+          { field: "rationale", start: 13, text: rendered, sourceIds: metricRow.sourceIds },
+        ],
         items: [item],
       });
       expect(keptOnly.ungradedPruned).toEqual([]);
@@ -1034,20 +1036,31 @@ describe("auditReportIntegrity", () => {
       const mixed = auditSpotlights({
         rationale: `${lead} ${kept}`,
         ...metricRow,
-        renderedMetrics: [{ field: "rationale", start: lead.length + 14, text: rendered }],
+        renderedMetrics: [
+          {
+            field: "rationale",
+            start: lead.length + 14,
+            text: rendered,
+            sourceIds: metricRow.sourceIds,
+          },
+        ],
         items: [item],
       });
       expect(mixed.report.extras?.spotlights).toEqual({
         rationale: kept,
         ...metricRow,
-        renderedMetrics: [{ field: "rationale", start: 13, text: rendered }],
+        renderedMetrics: [
+          { field: "rationale", start: 13, text: rendered, sourceIds: metricRow.sourceIds },
+        ],
         items: [item],
       });
 
       const pruned = auditSpotlights({
         rationale: `${lead.slice(0, -1)} after ${rendered}.`,
         ...metricRow,
-        renderedMetrics: [{ field: "rationale", start: 33, text: rendered }],
+        renderedMetrics: [
+          { field: "rationale", start: 33, text: rendered, sourceIds: metricRow.sourceIds },
+        ],
         items: [item],
       });
       expect(pruned.report.extras?.spotlights).toEqual({ items: [item] });
@@ -1091,6 +1104,109 @@ describe("auditReportIntegrity", () => {
       ]);
       expect(result.pruned).toEqual([]);
       expect(result.prunedItemCount).toBe(0);
+    });
+
+    test("drops a pruned reference's sources unless a kept reference or a citation uses them", () => {
+      const amd = "-8.8% (AMD day change, 2026-11-14 session)";
+      const nbis = "-9.9% (NBIS day change, 2026-11-14 session)";
+      const pruned = `SMCI tracked AMD at ${amd} on 49.4 million shares.`;
+      const kept = `NBIS moved ${nbis}.`;
+      const spans = [
+        { field: "rationale", start: 20, text: amd, sourceIds: ["market-yahoo-equity-amd"] },
+        {
+          field: "rationale",
+          start: pruned.length + 12,
+          text: nbis,
+          sourceIds: ["market-yahoo-equity-nbis"],
+        },
+      ];
+      const referenced = {
+        symbol: "SMCI",
+        rationale: `${pruned} ${kept}`,
+        sourceIds: [
+          "market-yahoo-equity-smci",
+          "market-yahoo-equity-amd",
+          "market-yahoo-equity-nbis",
+        ],
+        metricSourceIds: ["market-yahoo-equity-amd", "market-yahoo-equity-nbis"],
+        renderedMetrics: spans,
+      };
+      const keptSpan = { ...spans[1], start: 11 };
+
+      expect(auditSpotlights({ items: [referenced] }).report.extras?.spotlights).toEqual({
+        items: [
+          {
+            symbol: "SMCI",
+            rationale: kept,
+            sourceIds: ["market-yahoo-equity-smci", "market-yahoo-equity-nbis"],
+            metricSourceIds: ["market-yahoo-equity-nbis"],
+            renderedMetrics: [keptSpan],
+          },
+        ],
+      });
+
+      const shared = spans.map((span) => ({ ...span, sourceIds: ["market-yahoo-equity-amd"] }));
+      expect(
+        auditSpotlights({
+          items: [
+            {
+              ...referenced,
+              sourceIds: ["market-yahoo-equity-smci", "market-yahoo-equity-amd"],
+              metricSourceIds: ["market-yahoo-equity-amd"],
+              renderedMetrics: shared,
+            },
+          ],
+        }).report.extras?.spotlights,
+      ).toMatchObject({
+        items: [
+          {
+            sourceIds: ["market-yahoo-equity-smci", "market-yahoo-equity-amd"],
+            metricSourceIds: ["market-yahoo-equity-amd"],
+          },
+        ],
+      });
+
+      expect(
+        auditSpotlights({
+          items: [
+            {
+              ...referenced,
+              rationale: `${pruned} Chip names sold off.`,
+              renderedMetrics: [spans[0]],
+              metricSourceIds: ["market-yahoo-equity-amd"],
+              sourceIds: ["market-yahoo-equity-smci", "market-yahoo-equity-amd"],
+            },
+          ],
+        }).report.extras?.spotlights,
+      ).toEqual({
+        items: [
+          {
+            symbol: "SMCI",
+            rationale: "Chip names sold off.",
+            sourceIds: ["market-yahoo-equity-smci"],
+          },
+        ],
+      });
+
+      const cited = auditSpotlights({
+        items: [
+          {
+            ...referenced,
+            metricSourceIds: ["market-yahoo-equity-nbis"],
+          },
+        ],
+      });
+      expect(cited.report.extras?.spotlights).toMatchObject({
+        items: [
+          {
+            sourceIds: [
+              "market-yahoo-equity-smci",
+              "market-yahoo-equity-amd",
+              "market-yahoo-equity-nbis",
+            ],
+          },
+        ],
+      });
     });
 
     test("keeps a qualitative rationale, qualitative items and prediction parameters", () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.25](https://github.com/nejcm/market-bot/compare/v1.19.24...v1.19.25) (2026-11-15)
+
+### Bug Fixes
+
+- **completeness:** name filed 10-qs that companyfacts does not carry (#249) ([fe58a99](https://github.com/nejcm/market-bot/commit/fe58a99178eba2369900df361ea545aaf1f1fd2f))
+
 ## [1.19.24](https://github.com/nejcm/market-bot/compare/v1.19.23...v1.19.24) (2026-11-15)
 
 ### Bug Fixes

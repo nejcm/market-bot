@@ -2192,7 +2192,7 @@ export function assertOperatingRatioInvariants(
   const depositorySic = depositoryIssuerSic(run.collectedSources.extendedEvidence);
   const reitCapex = reitCapexReason(
     secIssuerRegistration(run.collectedSources.extendedEvidence)?.sic,
-    statements.unfiledSeries,
+    statements,
   );
   const reportSourceIds = new Set(report.sources.map(({ id }) => id));
   for (const metric of section.metrics) {

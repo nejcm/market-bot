@@ -403,6 +403,9 @@ export async function collectEquityEnrichment(
     ...(financialStatements?.unfiledSeries === undefined
       ? {}
       : { unfiledSeries: financialStatements.unfiledSeries }),
+    ...(financialStatements?.realEstateInvestmentFiled === undefined
+      ? {}
+      : { realEstateInvestmentFiled: financialStatements.realEstateInvestmentFiled }),
   });
 
   return {

@@ -151,7 +151,7 @@ export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeries
 }
 
 export function reitCapexInapplicable(ctx: MetricContext): string | undefined {
-  return reitCapexReason(ctx.secIssuer?.sic, ctx.statements?.unfiledSeries);
+  return reitCapexReason(ctx.secIssuer?.sic, ctx.statements);
 }
 
 export function statementInput(

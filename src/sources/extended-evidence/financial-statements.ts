@@ -61,6 +61,7 @@ import {
 import {
   firstAnnualReports,
   dividendPaymentFiled,
+  realEstateInvestmentFiled,
   unfiledSeries,
   supportedSixKFacts,
   structuredFinancialGaps,
@@ -674,6 +675,7 @@ export function deriveFinancialStatements(
       ? {
           dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
           unfiledSeries: unfiledSeries(payload, input.analysisAsOf),
+          realEstateInvestmentFiled: realEstateInvestmentFiled(payload, input.analysisAsOf),
           firstAnnualReports: firstAnnualReports(payload, input.analysisAsOf, translations),
         }
       : {}),

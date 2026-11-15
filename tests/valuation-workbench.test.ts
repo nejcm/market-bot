@@ -2041,6 +2041,41 @@ test("absent valuation statements declare P/FCF not applicable for a depository 
   });
 });
 
+test("REIT P/FCF is not applicable when real estate investment is filed beside PP&E capex", async () => {
+  const value = workbenchInput();
+  const reitEvidence = (sic: string) => ({
+    items: [
+      {
+        category: "sec-edgar" as const,
+        title: "TEST fundamentals",
+        summary: "",
+        sourceIds: [SOURCE_ID],
+        observedAt: "2025-06-01T00:00:00.000Z",
+        metrics: { sic },
+      },
+    ],
+    gaps: [],
+  });
+  const reitStatements = { ...value.financialStatements!, realEstateInvestmentFiled: true };
+  const pfcf = async (sic: string, financialStatements = reitStatements) =>
+    (
+      await evaluateWorkbench({
+        ...value,
+        financialStatements,
+        extendedEvidence: reitEvidence(sic),
+      })
+    ).artifact.historicalMultiples.observations[0]!.metrics.priceToFreeCashFlow;
+
+  expect(await pfcf("6798")).toMatchObject({
+    status: "not-applicable",
+    reason: expect.stringContaining("tags real estate acquisition"),
+  });
+  expect((await pfcf("7372")).status).toBe("value");
+  expect((await pfcf("6798", { ...reitStatements, realEstateInvestmentFiled: false })).status).toBe(
+    "value",
+  );
+});
+
 test("missing FCF partners propagate independently filed absence and keep available lineage", async () => {
   const value = workbenchInput();
   const filedStatements = structuredClone(value.financialStatements!);

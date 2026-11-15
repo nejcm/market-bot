@@ -38,7 +38,11 @@ function buildFromWorkbench(workbench: ReturnType<typeof reverseDcfWorkbench>) {
   });
 }
 
-function buildForIssuer(sic: string | undefined, unfiledSeries: readonly string[]) {
+function buildForIssuer(
+  sic: string | undefined,
+  unfiledSeries: readonly string[],
+  realEstateInvestmentFiled = false,
+) {
   return buildReverseDcf({
     generatedAt: "2026-05-19T00:00:00.000Z",
     symbol: "O",
@@ -61,6 +65,7 @@ function buildForIssuer(sic: string | undefined, unfiledSeries: readonly string[
           },
         }),
     unfiledSeries,
+    realEstateInvestmentFiled,
   });
 }
 
@@ -72,6 +77,12 @@ test("suppresses the reverse DCF for a REIT that files no PP&E capex", () => {
   });
   expect(buildForIssuer("6798", []).status).toBe("computed");
   expect(buildForIssuer(undefined, ["capitalExpenditure"]).status).toBe("computed");
+  expect(buildForIssuer("6798", [], true)).toMatchObject({
+    status: "suppressed",
+    reason: "free-cash-flow-not-applicable",
+    detail: expect.stringContaining("real estate acquisition, development or improvement"),
+  });
+  expect(buildForIssuer("3571", [], true).status).toBe("computed");
 });
 
 describe("reverse DCF input sensitivity", () => {

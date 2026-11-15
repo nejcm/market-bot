@@ -118,6 +118,7 @@ export interface BuildReverseDcfInput {
   // Carried only to classify the issuer's industry; see depositoryIssuerSic.
   readonly extendedEvidence?: ExtendedEvidence;
   readonly unfiledSeries?: readonly string[];
+  readonly realEstateInvestmentFiled?: boolean;
 }
 
 function unique(values: readonly string[]): readonly string[] {
@@ -236,7 +237,7 @@ export function buildReverseDcf(input: BuildReverseDcfInput): ReverseDcfArtifact
   }
   const freeCashFlowInapplicable = reitCapexReason(
     secIssuerRegistration(input.extendedEvidence)?.sic,
-    input.unfiledSeries,
+    input,
   );
   if (freeCashFlowInapplicable !== undefined) {
     return suppressed(

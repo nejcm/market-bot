@@ -282,7 +282,7 @@ export function deriveFundamentalHistoryFromFinancialStatements(
 ): FundamentalHistoryArtifact {
   const freeCashFlowInapplicable = isDepositorySic(issuerSic)
     ? depositoryCashFlowReason(issuerSic)
-    : reitCapexReason(issuerSic, artifact.unfiledSeries);
+    : reitCapexReason(issuerSic, artifact);
   const raw = Object.fromEntries(
     DEFINITIONS.map((definition) => [definition.key, rawSeries(artifact, definition)]),
   ) as FundamentalHistoryRawSeries;

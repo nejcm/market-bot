@@ -667,8 +667,7 @@ export function summarizeSecFundamentals(
   if (summary === undefined) {
     return undefined;
   }
-  const notApplicable =
-    reitCapexReason(sic, statements.unfiledSeries) === undefined ? [] : ["capex"];
+  const notApplicable = reitCapexReason(sic, statements) === undefined ? [] : ["capex"];
   const unwithheld = (keys: readonly string[]) =>
     keys.filter((key) => !withheld(key) && !notApplicable.includes(key));
 

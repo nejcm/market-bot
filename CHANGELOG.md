@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.17](https://github.com/nejcm/market-bot/compare/v1.19.16...v1.19.17) (2026-11-15)
+
+### Bug Fixes
+
+- **debt:** accept extension face rows proven to sum debt and leases (#240) ([4a81cdc](https://github.com/nejcm/market-bot/commit/4a81cdc41783b6807d7da560904e422a428dc54b))
+- **lens:** read reconciled ttm for interim roe, roa and pcf (#241) ([464b0f2](https://github.com/nejcm/market-bot/commit/464b0f27df72d5db65ddc2345b184fd14adb4e7c))
+
 ## [1.19.16](https://github.com/nejcm/market-bot/compare/v1.19.15...v1.19.16) (2026-11-14)
 
 ### Bug Fixes

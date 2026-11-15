@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.28](https://github.com/nejcm/market-bot/compare/v1.19.27...v1.19.28) (2026-11-15)
+
+### Bug Fixes
+
+- **figures:** read a code/code pair as the figure's unit and check hours (#252) ([58f31ce](https://github.com/nejcm/market-bot/commit/58f31cefed0b9205b3ffdff1ab161fcd5e549883))
+
 ## [1.19.27](https://github.com/nejcm/market-bot/compare/v1.19.26...v1.19.27) (2026-11-15)
 
 ### Bug Fixes

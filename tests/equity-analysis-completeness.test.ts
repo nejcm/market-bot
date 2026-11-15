@@ -3,6 +3,7 @@ import type { ExtendedEvidence } from "../src/domain/evidence";
 import type { ResearchReport } from "../src/domain/report";
 import { validateResearchReport } from "../src/report/schema";
 import {
+  companyFactsLaggingInterims,
   currentIncompleteStatements,
   deriveEquityAnalysisCompleteness,
   deriveEquityReportingFreshness,
@@ -433,6 +434,47 @@ describe("equity analysis completeness", () => {
     ).toEqual([
       "untagged-interim-evidence: NBIS has a 6-K filed after the current annual report that carries no XBRL financial facts; untagged interim extraction is off (no reported financial statement period is available)",
     ]);
+  });
+
+  test("names filed 10-Qs that companyfacts does not carry in a freshness gap", () => {
+    const artifact = statements({ cadence: "quarterly" });
+    const filings = [
+      "10-Q 0001193125-26-436160 (period end 2026-09-30, filed 2026-10-28)",
+      "10-Q 0001193125-26-323746 (period end 2026-06-30, filed 2026-07-29)",
+    ];
+    const lagging = {
+      ...artifact,
+      structuredFinancialGaps: [
+        {
+          code: "filed-interim-not-in-companyfacts" as const,
+          message: "lag",
+          forms: ["10-Q" as const],
+          sourceIds: [SOURCE_ID],
+          filings,
+        },
+      ],
+    };
+    const lagMessages = (input: typeof artifact) => {
+      const completeness = deriveEquityAnalysisCompleteness({
+        asOf: AS_OF,
+        assetClass: "equity",
+        financialStatements: input,
+      });
+      return equityAnalysisCompletenessGaps(
+        completeness,
+        undefined,
+        "pld",
+        [],
+        companyFactsLaggingInterims(input),
+      )
+        .map(({ message }) => message)
+        .filter((message) => message.startsWith("filed-interim-not-in-companyfacts"));
+    };
+
+    expect(lagMessages(lagging)).toEqual([
+      "filed-interim-not-in-companyfacts: PLD filed 10-Q 0001193125-26-436160 (period end 2026-09-30, filed 2026-10-28); 10-Q 0001193125-26-323746 (period end 2026-06-30, filed 2026-07-29) with XBRL after the current annual report, but SEC companyfacts does not carry them, so their periods are absent from structured statements (no reported financial statement period is available)",
+    ]);
+    expect(lagMessages(artifact)).toEqual([]);
   });
 
   test("keeps annual financials current when untagged 6-Ks predate the annual period", () => {
@@ -1449,6 +1491,26 @@ describe("equity analysis completeness freshness gaps", () => {
             cadence: "quarterly",
             untaggedSixK: true,
           }),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["filed-interim-not-in-companyfacts"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: {
+            ...quarterly,
+            structuredFinancialGaps: [
+              {
+                code: "filed-interim-not-in-companyfacts",
+                message: "lag",
+                forms: ["10-Q"],
+                sourceIds: [SOURCE_ID],
+                filings: ["10-Q 0000000000-26-000002 (period end 2026-06-30, filed 2026-07-29)"],
+              },
+            ],
+          },
         },
       },
       {

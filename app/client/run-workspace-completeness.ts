@@ -11,6 +11,7 @@ export const COMPLETENESS_REASON_CODE_LABELS: Readonly<Record<string, string>> =
   "expectations-inputs-incomplete": "Expectations inputs are incomplete",
   "expectations-provider-credential-missing": "Expectations provider credential is missing",
   "expectations-provider-entitlement-blocked": "Expectations provider access is restricted",
+  "filed-interim-not-in-companyfacts": "Filed interim is absent from SEC companyfacts",
   "irregular-comparison-missing": "Comparable irregular-period evidence is missing",
   "latest-due-interim-missing": "Latest due interim statement is missing",
   "operating-kpi-not-applicable": "Operating KPIs are not applicable",

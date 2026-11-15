@@ -500,6 +500,9 @@ function primaryFinancialsAssessment(
   if (artifact.structuredFinancialGaps.some((gap) => gap.code === "untagged-6-k")) {
     reasons.push("untagged-interim-evidence");
   }
+  if (companyFactsLaggingInterims(artifact).length > 0) {
+    reasons.push("filed-interim-not-in-companyfacts");
+  }
   return {
     status: reasons.length === 0 ? "complete" : "partial",
     reasonCodes: unique([...reasons, ...informationalReasons]),
@@ -515,6 +518,17 @@ export function currentIncompleteStatements(
   asOf: string,
 ): readonly string[] {
   return primaryFinancialsAssessment(artifact, asOf).incompleteStatements ?? [];
+}
+
+// Filed XBRL 10-Qs whose accessions SEC companyfacts does not carry, each named.
+export function companyFactsLaggingInterims(
+  artifact: FinancialStatementsArtifact | undefined,
+): readonly string[] {
+  return (
+    artifact?.structuredFinancialGaps.find(
+      (gap) => gap.code === "filed-interim-not-in-companyfacts",
+    )?.filings ?? []
+  );
 }
 
 function itemByCategory(

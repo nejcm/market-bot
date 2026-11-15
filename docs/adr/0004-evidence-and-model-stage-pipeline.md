@@ -337,7 +337,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   Source Gap allowlist: `current-annual-statement-missing`, `annual-history-insufficient`,
   `latest-due-interim-missing`, `quarterly-periods-insufficient`, `semiannual-comparison-missing`,
   `irregular-comparison-missing`, `ttm-unreconciled`, `cadence-unestablished`, `per-share-evidence-missing`,
-  `current-primary-statements-incomplete`, `untagged-interim-evidence`, `reporting-currency-missing`,
+  `current-primary-statements-incomplete`, `untagged-interim-evidence`, `filed-interim-not-in-companyfacts`
+  (an XBRL 10-Q in SEC submissions whose accession companyfacts lacks), `reporting-currency-missing`,
   `reporting-currency-ambiguous` (set on the blocked result when the reporting-currency election is
   ambiguous), `reporting-currency-incompatible`, `subsequent-financing-unreconciled`. All are no-cap; exclude
   informational/non-freshness reasons and blocked `current-annual-statement-unavailable` from this

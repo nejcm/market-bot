@@ -169,6 +169,20 @@ function annual(value: number, year: number, form = "10-K"): Record<string, unkn
   });
 }
 
+function submissionFiling(form: string, accession: string, filed: string, isXbrl: unknown = 1) {
+  return { form, accession, filed, isXbrl };
+}
+
+function recentFilings(rows: readonly ReturnType<typeof submissionFiling>[]) {
+  return {
+    form: rows.map((row) => row.form),
+    accessionNumber: rows.map((row) => row.accession),
+    filingDate: rows.map((row) => row.filed),
+    reportDate: rows.map((row) => (row.filed > "2026-08-01" ? "2026-09-30" : "2026-06-30")),
+    isXBRL: rows.map((row) => row.isXbrl),
+  };
+}
+
 function instant(value: number, year: number, form = "10-K"): Record<string, unknown> {
   return fact({
     value,
@@ -3944,6 +3958,107 @@ describe("canonical financial statements", () => {
         "SEC submissions include 6-K filing evidence without supported structured companyfacts; table extraction is deferred",
       forms: ["6-K"],
       sourceIds: ["extended-sec-edgar-test-filings"],
+    });
+  });
+
+  describe("filed XBRL 10-Qs missing from companyfacts", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: {
+          USD: [
+            annual(100, 2025),
+            fact({
+              value: 30,
+              form: "10-Q",
+              fiscalYear: 2026,
+              fiscalPeriod: "Q1",
+              filedAt: "2026-05-01",
+              periodStart: "2026-01-01",
+              periodEnd: "2026-03-31",
+              accessionNumber: "0000000000-26-000001",
+            }),
+          ],
+        },
+      },
+    });
+    const gaps = (
+      recent: Record<string, readonly unknown[]> | undefined,
+      facts: unknown = companyFacts,
+    ) =>
+      derive(facts, {
+        analysisAsOf: "2026-11-15T00:00:00.000Z",
+        submissionsSourceId: "extended-sec-edgar-test-filings",
+        ...(recent === undefined ? {} : { submissionsPayload: { filings: { recent } } }),
+      }).structuredFinancialGaps.filter((gap) => gap.code === "filed-interim-not-in-companyfacts");
+
+    test("names each filed XBRL 10-Q accession that companyfacts does not carry", () => {
+      expect(
+        gaps(
+          recentFilings([
+            submissionFiling("10-Q", "0000000000-26-000003", "2026-10-28"),
+            submissionFiling("10-Q", "0000000000-26-000002", "2026-07-29"),
+            submissionFiling("10-Q", "0000000000-26-000001", "2026-05-01"),
+            submissionFiling("10-K", "20260215-10-K", "2026-02-15"),
+          ]),
+        ),
+      ).toEqual([
+        {
+          code: "filed-interim-not-in-companyfacts",
+          message:
+            "SEC submissions list XBRL 10-Q filings that SEC companyfacts does not carry; their periods are absent from structured statements",
+          forms: ["10-Q"],
+          sourceIds: ["extended-sec-edgar-test-filings"],
+          filings: [
+            "10-Q 0000000000-26-000003 (period end 2026-09-30, filed 2026-10-28)",
+            "10-Q 0000000000-26-000002 (period end 2026-06-30, filed 2026-07-29)",
+          ],
+        },
+      ]);
+    });
+
+    test("stays silent without a current annual report or any companyfacts accession", () => {
+      const lagging = recentFilings([
+        submissionFiling("10-Q", "0000000000-26-000002", "2026-07-29"),
+      ]);
+      expect(gaps(lagging, {})).toEqual([]);
+      expect(
+        gaps(lagging, {
+          facts: {
+            dei: { EntityCommonStockSharesOutstanding: { units: { shares: [instant(5, 2025)] } } },
+          },
+        }),
+      ).toEqual([]);
+      expect(
+        gaps(
+          lagging,
+          payload({ "us-gaap": { Revenues: { USD: [withoutAccession(annual(100, 2025))] } } }),
+        ),
+      ).toEqual([]);
+      const { accessionNumber: _accessions, ...withoutAccessions } = lagging;
+      expect(gaps(withoutAccessions)).toEqual([]);
+    });
+
+    test("stays silent without proof of a filed, un-ingested XBRL 10-Q", () => {
+      expect(gaps(undefined)).toEqual([]);
+      expect(
+        gaps(recentFilings([submissionFiling("10-Q", "0000000000-26-000001", "2026-05-01")])),
+      ).toEqual([]);
+      expect(
+        gaps(recentFilings([submissionFiling("10-Q", "0000000000-26-000002", "2026-07-29", 0)])),
+      ).toEqual([]);
+      expect(
+        gaps(recentFilings([submissionFiling("10-Q/A", "0000000000-26-000002", "2026-07-29")])),
+      ).toEqual([]);
+      expect(
+        gaps(recentFilings([submissionFiling("10-Q", "0000000000-25-000009", "2025-11-01")])),
+      ).toEqual([]);
+      expect(
+        gaps(recentFilings([submissionFiling("10-Q", "0000000000-26-000004", "2026-12-01")])),
+      ).toEqual([]);
+      const { isXBRL: _omitted, ...withoutXbrlFlags } = recentFilings([
+        submissionFiling("10-Q", "0000000000-26-000002", "2026-07-29"),
+      ]);
+      expect(gaps(withoutXbrlFlags)).toEqual([]);
     });
   });
 

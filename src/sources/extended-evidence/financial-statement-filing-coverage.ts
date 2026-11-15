@@ -16,7 +16,9 @@ import {
   type FinancialStatementSeriesKey,
   type FinancialStatementTaxonomy,
   type FirstAnnualReport,
+  type CanonicalSecForm,
   type StructuredFinancialGap,
+  type SupportedSecForm,
 } from "./financial-statements-contract";
 import {
   type ParsedFact,
@@ -32,10 +34,12 @@ import {
 import { ELECTING_DEFINITIONS, filingOf } from "./financial-statement-taxonomy";
 
 interface SubmissionFiling {
-  readonly form: "6-K" | "6-K/A";
+  readonly form: SupportedSecForm;
+  readonly canonicalForm: CanonicalSecForm;
   readonly filedAt: string;
   readonly accessionNumber?: string;
   readonly reportDate?: string;
+  readonly xbrl: boolean;
 }
 
 // Taxonomy switches and restatements re-file a period later, so no selected fact can date its first report;
@@ -155,46 +159,63 @@ export function unfiledSeries(
   ).map((definition) => definition.key);
 }
 
-function recentSubmissionSixKFilings(
+function recentSubmissionFilings(
   payload: unknown,
   analysisAsOf: string,
 ): readonly SubmissionFiling[] {
   if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
     return [];
   }
-  const forms = Array.isArray(payload.filings.recent.form) ? payload.filings.recent.form : [];
-  const filingDates = Array.isArray(payload.filings.recent.filingDate)
-    ? payload.filings.recent.filingDate
-    : [];
-  const accessionNumbers = Array.isArray(payload.filings.recent.accessionNumber)
-    ? payload.filings.recent.accessionNumber
-    : [];
-  const reportDates = Array.isArray(payload.filings.recent.reportDate)
-    ? payload.filings.recent.reportDate
-    : [];
+  const { recent } = payload.filings;
+  const column = (key: string): readonly unknown[] =>
+    Array.isArray(recent[key]) ? (recent[key] as unknown[]) : [];
+  const forms = column("form");
+  const filingDates = column("filingDate");
+  const accessionNumbers = column("accessionNumber");
+  const reportDates = column("reportDate");
+  const xbrlFlags = column("isXBRL");
   const cutoff = analysisAsOf.slice(0, 10);
   return forms.flatMap((value, index) => {
     const parsed = typeof value === "string" ? canonicalizeSecForm(value) : undefined;
     const filedAt = filingDates[index];
-    if (
-      parsed === undefined ||
-      parsed.canonicalForm !== "6-K" ||
-      typeof filedAt !== "string" ||
-      filedAt > cutoff
-    ) {
+    if (parsed === undefined || typeof filedAt !== "string" || filedAt > cutoff) {
       return [];
     }
     const accessionNumber = accessionNumbers[index];
     const reportDate = reportDates[index];
     return [
       {
-        form: parsed.form as "6-K" | "6-K/A",
+        form: parsed.form,
+        canonicalForm: parsed.canonicalForm,
         filedAt,
         ...(typeof accessionNumber === "string" ? { accessionNumber } : {}),
         ...(typeof reportDate === "string" && reportDate !== "" ? { reportDate } : {}),
+        xbrl: xbrlFlags[index] === 1,
       },
     ];
   });
+}
+
+function companyFactsAccessions(payload: unknown): ReadonlySet<string> {
+  const taxonomies =
+    isRecord(payload) && isRecord(payload.facts) ? Object.values(payload.facts) : [];
+  return new Set(
+    taxonomies
+      .filter(isRecord)
+      .flatMap((concepts) =>
+        Object.values(concepts).flatMap((concept) =>
+          isRecord(concept) && isRecord(concept.units)
+            ? Object.values(concept.units).flatMap((rows) =>
+                Array.isArray(rows)
+                  ? rows.flatMap((row) =>
+                      isRecord(row) && typeof row.accn === "string" ? [row.accn] : [],
+                    )
+                  : [],
+              )
+            : [],
+        ),
+      ),
+  );
 }
 
 function filingHasStructuredFact(filing: SubmissionFiling, facts: readonly ParsedFact[]): boolean {
@@ -226,6 +247,7 @@ export function structuredFinancialGaps(
   taggedSixKFacts: readonly ParsedFact[],
   currentAnnual: FinancialStatementFact | undefined,
   input: FinancialStatementsDeriveInput,
+  companyFacts: unknown,
 ): readonly StructuredFinancialGap[] {
   const gaps: StructuredFinancialGap[] = [];
   if (taxonomy === undefined) {
@@ -251,11 +273,10 @@ export function structuredFinancialGaps(
       sourceIds: [input.sourceId],
     });
   }
-  const untaggedSixK = recentSubmissionSixKFilings(
-    input.submissionsPayload,
-    input.analysisAsOf,
-  ).filter(
+  const submissionFilings = recentSubmissionFilings(input.submissionsPayload, input.analysisAsOf);
+  const untaggedSixK = submissionFilings.filter(
     (filing) =>
+      filing.canonicalForm === "6-K" &&
       (currentAnnual === undefined ||
         filing.filedAt > currentAnnual.filedAt ||
         (filing.reportDate ?? filing.filedAt) > currentAnnual.periodEnd) &&
@@ -269,6 +290,31 @@ export function structuredFinancialGaps(
       forms: [...new Set(untaggedSixK.map((filing) => filing.form))],
       sourceIds:
         input.submissionsSourceId === undefined ? [input.sourceId] : [input.submissionsSourceId],
+    });
+  }
+  const ingested = companyFactsAccessions(companyFacts);
+  const laggingInterims = submissionFilings.filter(
+    (filing): filing is SubmissionFiling & { readonly accessionNumber: string } =>
+      currentAnnual !== undefined &&
+      ingested.size > 0 &&
+      filing.form === "10-Q" &&
+      filing.xbrl &&
+      filing.accessionNumber !== undefined &&
+      !ingested.has(filing.accessionNumber) &&
+      filing.filedAt > currentAnnual.filedAt,
+  );
+  if (laggingInterims.length > 0) {
+    gaps.push({
+      code: "filed-interim-not-in-companyfacts",
+      message:
+        "SEC submissions list XBRL 10-Q filings that SEC companyfacts does not carry; their periods are absent from structured statements",
+      forms: ["10-Q"],
+      sourceIds:
+        input.submissionsSourceId === undefined ? [input.sourceId] : [input.submissionsSourceId],
+      filings: laggingInterims.map(
+        (filing) =>
+          `10-Q ${filing.accessionNumber} (${filing.reportDate === undefined ? "" : `period end ${filing.reportDate}, `}filed ${filing.filedAt})`,
+      ),
     });
   }
   return gaps;

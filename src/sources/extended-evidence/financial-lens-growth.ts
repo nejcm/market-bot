@@ -9,7 +9,7 @@ import {
   financialStatementSeriesByKey,
 } from "./financial-statement-selection";
 import type { FinancialStatementFact } from "./financial-statements-contract";
-import { type MetricContext, type MetricDefinition } from "./metric-engine";
+import { type MetricContext, type MetricDefinition, reitCapexInapplicable } from "./metric-engine";
 import { readNumberMetric, readStringMetric } from "./utils";
 import {
   type LensSeries,
@@ -132,6 +132,7 @@ export function yearOverYearDefinition(
     unit: "whole-percent",
     basis: YOY_BASIS,
     change: YOY_CHANGE,
+    ...(key === "capitalExpenditure" ? { applicable: reitCapexInapplicable } : {}),
     ...(key === "operatingCashFlow" || key === "capitalExpenditure"
       ? { cashFlowBased: true as const }
       : {}),

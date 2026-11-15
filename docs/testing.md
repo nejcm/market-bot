@@ -177,7 +177,7 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-amd-deep/` (captured live replay: AMD deep, FY2025 10-K and Q3 2026 10-Q calculation linkbases)
 - `tests/fixtures/runs/equity-bursa-deep/` (captured live replay: ViTrox `0097.KL` deep, `2026-11-10T13-16-02-081Z-229e289a`; non-SEC issuer, `^KLSE` benchmark, Exa Web Gather and range grid events recorded)
 - `tests/fixtures/runs/equity-bursa-brief/` (captured live replay: ViTrox `0097.KL` brief, `2026-11-10T13-11-54-401Z-c4717588`)
-- `tests/fixtures/runs/equity-reit-deep/` (captured live replay: Realty Income `O` deep, `2026-11-12T04-35-44-577Z-fda86bad`; REIT whose capex concept is not read, FY2025 10-K and Q3 2026 10-Q)
+- `tests/fixtures/runs/equity-reit-deep/` (captured live replay: Realty Income `O` deep, `2026-11-12T04-35-44-577Z-fda86bad`; REIT that files no PP&E capex, so FCF-based metrics and the reverse DCF are not applicable, and debt stays withheld; FY2025 10-K and Q3 2026 10-Q)
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
 rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source

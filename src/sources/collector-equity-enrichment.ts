@@ -313,7 +313,10 @@ export async function collectEquityEnrichment(
   const fundamentalHistory =
     financialStatements === undefined
       ? undefined
-      : deriveFundamentalHistoryFromFinancialStatements(financialStatements, depositorySic);
+      : deriveFundamentalHistoryFromFinancialStatements(
+          financialStatements,
+          secIssuerRegistration(valuationResult.extendedEvidence ?? input.extendedEvidence)?.sic,
+        );
   const financialLensEvidence =
     financialStatements === undefined
       ? evidenceWithYahooFundamentals
@@ -359,6 +362,7 @@ export async function collectEquityEnrichment(
         identityResult?.identity?.quoteCurrency,
       ),
       ...(depositorySic !== undefined ? { depositorySic } : {}),
+      ...(secIssuer !== undefined ? { secIssuer } : {}),
     }),
     operatingRatiosSection({
       symbol: input.command.symbol,
@@ -396,6 +400,9 @@ export async function collectEquityEnrichment(
     ...(businessFrameworkResult.extendedEvidence !== undefined
       ? { extendedEvidence: businessFrameworkResult.extendedEvidence }
       : {}),
+    ...(financialStatements?.unfiledSeries === undefined
+      ? {}
+      : { unfiledSeries: financialStatements.unfiledSeries }),
   });
 
   return {

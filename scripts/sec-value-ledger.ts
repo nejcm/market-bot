@@ -377,6 +377,7 @@ export function secValueLedgerRows(input: {
     ...(evidence === undefined ? {} : { evidence }),
     asOf: input.asOf,
     ...(subsequentFinancing === undefined ? {} : { subsequentFinancing }),
+    ...(secIssuer === undefined ? {} : { secIssuer }),
   };
   const sections = [
     [
@@ -395,6 +396,7 @@ export function secValueLedgerRows(input: {
         statements,
         capitalOwnership,
         ...(depositorySic === undefined ? {} : { depositorySic }),
+        ...(secIssuer === undefined ? {} : { secIssuer }),
       }).section.metrics,
     ],
     ...Object.entries(financialLensMetrics(lensContext).lensMetrics).map(

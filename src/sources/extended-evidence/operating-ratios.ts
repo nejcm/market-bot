@@ -12,7 +12,7 @@ import {
   NEGATIVE_CAPEX_REASON,
 } from "./financial-statement-definitions";
 import { shortTermInvestmentsAt } from "./financial-lens-inputs";
-import { depositoryReason, type SecIssuerRegistration } from "./industry-classification";
+import { depositoryReason, REIT_SIC, type SecIssuerRegistration } from "./industry-classification";
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import { debtScopeUnproven, heldForSaleRecast } from "./sec-debt";
 import {
@@ -26,6 +26,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  reitCapexInapplicable,
   seriesNotFiled,
 } from "./metric-engine";
 
@@ -119,7 +120,6 @@ type StatutoryRate =
   | { readonly rate: number; readonly basis: string; readonly input: MetricInput }
   | { readonly reason: string };
 
-const REIT_SIC = "6798";
 const NON_CORPORATE_NAME = /\b(?:L\.?P\.?|L\.?L\.?C\.?|TRUST|PARTNERS)$/iu;
 
 function passThroughReason(issuer: SecIssuerRegistration | undefined): string | undefined {
@@ -377,6 +377,7 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
     label: "Free cash flow margin",
     unit: "ratio-percent",
     basis: `(operating cash flow - capital expenditure) / revenue, ${FISCAL_YEAR}; revenue at or below zero or negative-filed capex is not meaningful`,
+    applicable: reitCapexInapplicable,
     cashFlowBased: true,
     compute: (ctx) => {
       const outcome = ratioOf(

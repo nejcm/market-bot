@@ -38,6 +38,42 @@ function buildFromWorkbench(workbench: ReturnType<typeof reverseDcfWorkbench>) {
   });
 }
 
+function buildForIssuer(sic: string | undefined, unfiledSeries: readonly string[]) {
+  return buildReverseDcf({
+    generatedAt: "2026-05-19T00:00:00.000Z",
+    symbol: "O",
+    valuationWorkbench: reverseDcfWorkbench(),
+    ...(sic === undefined
+      ? {}
+      : {
+          extendedEvidence: {
+            items: [
+              {
+                category: "sec-edgar" as const,
+                title: "O",
+                summary: "O SEC fundamentals",
+                sourceIds: [],
+                observedAt: "2026-05-19T00:00:00.000Z",
+                metrics: { sic },
+              },
+            ],
+            gaps: [],
+          },
+        }),
+    unfiledSeries,
+  });
+}
+
+test("suppresses the reverse DCF for a REIT that files no PP&E capex", () => {
+  expect(buildForIssuer("6798", ["capitalExpenditure"])).toMatchObject({
+    status: "suppressed",
+    reason: "free-cash-flow-not-applicable",
+    detail: expect.stringContaining("REIT issuer (SIC 6798)"),
+  });
+  expect(buildForIssuer("6798", []).status).toBe("computed");
+  expect(buildForIssuer(undefined, ["capitalExpenditure"]).status).toBe("computed");
+});
+
 describe("reverse DCF input sensitivity", () => {
   test("solves the full disclosed assumption matrix", () => {
     const artifact = reverseDcfArtifact();

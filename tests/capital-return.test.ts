@@ -255,6 +255,46 @@ describe("capitalReturnSection", () => {
     });
   });
 
+  test("REIT without PP&E capex: FCF payout metrics are not applicable, others stay not filed", () => {
+    const reit = { secIssuer: { sic: "6798", sourceIds: [] } };
+    const improvementsOnly = usGaap({
+      PaymentsToAcquirePropertyPlantAndEquipment: undefined,
+      PaymentsForCapitalImprovements: series("USD", () => 30),
+      PaymentsToAcquireCommercialRealEstate: series("USD", () => 900),
+    });
+    const ids = ["fcfPayoutRatio", "totalPayoutToFcf"];
+    const metrics = (ctx: MetricContext) => ids.map((id) => evaluate(ctx).metric(id));
+
+    expect(metrics(context(improvementsOnly, reit))).toEqual(
+      ids.map(() =>
+        expect.objectContaining({
+          status: "not-applicable",
+          reason:
+            "REIT issuer (SIC 6798) tags no property, plant and equipment purchases; operating cash flow less capex would omit its investment in properties or mortgage assets",
+          inputs: [],
+        }),
+      ),
+    );
+    for (const ctx of [
+      context(improvementsOnly, { secIssuer: { sic: "7372", sourceIds: [] } }),
+      context(improvementsOnly),
+    ]) {
+      expect(metrics(ctx)).toEqual(
+        ids.map(() =>
+          expect.objectContaining({
+            status: "missing",
+            cause: "not-filed",
+            reason: "capital expenditure not filed by the issuer",
+          }),
+        ),
+      );
+    }
+    expect(evaluate(context(usGaap(), reit)).metric("fcfPayoutRatio")).toMatchObject({
+      status: "value",
+      value: 0.2,
+    });
+  });
+
   test("never-filed beside a stale series keeps the gap material", () => {
     const result = evaluate(
       context(

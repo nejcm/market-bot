@@ -2782,6 +2782,39 @@ describe("run workspace view", () => {
     );
   }, 15_000);
 
+  test("declares the FCF proxy not applicable for a REIT that files no PP&E capex", () => {
+    const fundamentalHistory = deriveFundamentalHistoryFromFinancialStatements(
+      deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: { units: { USD: fundamentalHistoryAnnualFacts([100, 120, 150]) } },
+              NetCashProvidedByUsedInOperatingActivities: {
+                units: { USD: fundamentalHistoryAnnualFacts([30, 36, 45]) },
+              },
+            },
+          },
+        },
+        {
+          symbol: "O",
+          generatedAt: "2025-08-01T00:00:00.000Z",
+          analysisAsOf: "2025-08-01T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-o-fundamentals",
+        },
+      ),
+      "6798",
+    );
+    const view = buildRunWorkspaceView({ summary: summary(), fundamentalHistory });
+    expect(view.fundamentalHistory?.notApplicable).toEqual([
+      {
+        key: "freeCashFlowProxy",
+        label: "Free cash flow proxy",
+        reason:
+          "REIT issuer (SIC 6798) tags no property, plant and equipment purchases; operating cash flow less capex would omit its investment in properties or mortgage assets",
+      },
+    ]);
+  });
+
   test("uses trailing P/E as the Simple valuation fallback", () => {
     const view = buildRunWorkspaceView({
       summary: summary(),

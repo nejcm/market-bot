@@ -770,12 +770,41 @@ describe("static equity run fixtures", () => {
         const sections = result.collectedSources.metricSections ?? [];
         const row = (id: string) =>
           sections.flatMap(({ metrics }) => metrics).find((metric) => metric.id === id);
-        // Known defect: O files PaymentsForCapitalImprovements (131.8M FY2025), which the capex series does not read.
-        expect(row("freeCashFlowProxy")).toMatchObject({
-          status: "missing",
-          reason: "capital expenditure not filed by the issuer",
-          inputs: [{ series: "operatingCashFlow", value: 2_945_560_000, periodEnd: "2026-09-30" }],
+        // O files real-estate acquisitions (4,647.9M FY2025) beside improvements (131.8M), not PP&E capex.
+        const reitCapex =
+          "REIT issuer (SIC 6798) tags no property, plant and equipment purchases; operating cash flow less capex would omit its investment in properties or mortgage assets";
+        for (const id of [
+          "freeCashFlowProxy",
+          "capexDeltaPercent",
+          "freeCashFlowMargin",
+          "fcfPayoutRatio",
+          "totalPayoutToFcf",
+          "priceToFreeCashFlow",
+        ]) {
+          expect(row(id), id).toMatchObject({
+            status: "not-applicable",
+            reason: reitCapex,
+            inputs: [],
+          });
+        }
+        expect(JSON.stringify(sections)).not.toContain("capital expenditure not filed");
+        expect(result.markdown).toContain(`| not applicable (${reitCapex})\n`);
+        expect(result.markdown).not.toContain("free-cash-flow-unavailable");
+        expect(result.collectedSources.reverseDcf).toMatchObject({
+          status: "suppressed",
+          reason: "free-cash-flow-not-applicable",
         });
+        expect(
+          result.collectedSources.sourceGaps.find(({ message }) =>
+            message.startsWith("Missing SEC company facts:"),
+          )?.message,
+        ).not.toContain("capex");
+        // The face's o:RevolvingCreditFacilityAndCommercialPaper (2,127,928K) exceeds tagged CommercialPaper (1,500,000K).
+        expect(row("debt")).toMatchObject({
+          status: "missing",
+          reason: "incomplete debt as of 2026-09-30",
+        });
+        expect(row("roic")).toMatchObject({ status: "missing", periodEnd: "2025-12-31" });
         expect(JSON.stringify(sections)).not.toContain("depository issuer");
         expect(row("dividendsLatestFy")).toMatchObject({
           value: 2_920_895_000,

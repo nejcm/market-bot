@@ -5,6 +5,7 @@ import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
 import { financialLensMetrics } from "./financial-lens-sections";
+import { secIssuerRegistration } from "./industry-classification";
 import {
   itemByCategory,
   secFundamentalItem,
@@ -140,6 +141,7 @@ export function addFinancialLensEvidence(
   const valuationItem = itemByCategory(extendedEvidence, "valuation");
   const yahooItem = itemByCategory(extendedEvidence, "yahoo-fundamentals");
   const snapshot = tickerSnapshot(command, marketSnapshots);
+  const secIssuer = secIssuerRegistration(extendedEvidence);
   const ctx: MetricContext = {
     symbol: command.symbol,
     ...(statements !== undefined ? { statements } : {}),
@@ -148,6 +150,7 @@ export function addFinancialLensEvidence(
     ...(snapshot !== undefined ? { snapshot } : {}),
     ...(verifiedMarketSnapshot !== undefined ? { verifiedSnapshot: verifiedMarketSnapshot } : {}),
     ...(subsequentFinancing !== undefined ? { subsequentFinancing } : {}),
+    ...(secIssuer !== undefined ? { secIssuer } : {}),
   };
   const metrics = financialLensMetrics(ctx);
   const sourceIdsOf = {

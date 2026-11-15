@@ -1,6 +1,10 @@
 import { isRecord, readNumber, readString, readStringArray } from "../../guards";
 import type { ExtendedEvidence } from "../../domain/evidence";
-import { depositoryIssuerSic } from "./industry-classification";
+import {
+  depositoryIssuerSic,
+  reitCapexReason,
+  secIssuerRegistration,
+} from "./industry-classification";
 import type { ValuationWorkbenchArtifact } from "./valuation-workbench-contract";
 import {
   type ArtifactObservationDrop,
@@ -23,6 +27,7 @@ const SUPPRESSION_REASONS = new Set<ReverseDcfSuppressionReason>([
   "starting-fcf-not-positive",
   "enterprise-value-unavailable",
   "enterprise-value-not-applicable",
+  "free-cash-flow-not-applicable",
   "enterprise-value-not-positive",
   "input-date-unavailable",
   "input-currency-unavailable",
@@ -69,6 +74,7 @@ type ReverseDcfSuppressionReason =
   | "starting-fcf-not-positive"
   | "enterprise-value-unavailable"
   | "enterprise-value-not-applicable"
+  | "free-cash-flow-not-applicable"
   | "enterprise-value-not-positive"
   | "input-date-unavailable"
   | "input-currency-unavailable"
@@ -111,6 +117,7 @@ export interface BuildReverseDcfInput {
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   // Carried only to classify the issuer's industry; see depositoryIssuerSic.
   readonly extendedEvidence?: ExtendedEvidence;
+  readonly unfiledSeries?: readonly string[];
 }
 
 function unique(values: readonly string[]): readonly string[] {
@@ -224,6 +231,18 @@ export function buildReverseDcf(input: BuildReverseDcfInput): ReverseDcfArtifact
       input,
       "enterprise-value-not-applicable",
       `A reverse DCF solves against enterprise value, which is not applicable to a depository issuer (SIC ${depositorySic}).`,
+      workbench?.sourceIds ?? [],
+    );
+  }
+  const freeCashFlowInapplicable = reitCapexReason(
+    secIssuerRegistration(input.extendedEvidence)?.sic,
+    input.unfiledSeries,
+  );
+  if (freeCashFlowInapplicable !== undefined) {
+    return suppressed(
+      input,
+      "free-cash-flow-not-applicable",
+      `A reverse DCF solves for free-cash-flow growth, which is not applicable: ${freeCashFlowInapplicable}.`,
       workbench?.sourceIds ?? [],
     );
   }

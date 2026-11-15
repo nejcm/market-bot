@@ -84,6 +84,18 @@ export function depositoryCashFlowReason(sic: string): string {
   );
 }
 
+export const REIT_SIC = "6798";
+
+// CFA FCInv: a REIT's fixed-capital investment is its properties or mortgage assets, which no PP&E line holds.
+export function reitCapexReason(
+  sic: string | undefined,
+  unfiledSeries: readonly string[] | undefined,
+): string | undefined {
+  return sic === REIT_SIC && unfiledSeries?.includes("capitalExpenditure") === true
+    ? "REIT issuer (SIC 6798) tags no property, plant and equipment purchases; operating cash flow less capex would omit its investment in properties or mortgage assets"
+    : undefined;
+}
+
 export interface SecIssuerRegistration {
   readonly sic?: string;
   readonly stateOfIncorporation?: string;

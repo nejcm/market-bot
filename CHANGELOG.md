@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.26](https://github.com/nejcm/market-bot/compare/v1.19.25...v1.19.26) (2026-11-15)
+
+### Bug Fixes
+
+- **figures:** check news claims that co-cite a deterministic source (#250) ([401dfd6](https://github.com/nejcm/market-bot/commit/401dfd6a909a993682b8b9941c626be99b70e9aa))
+
 ## [1.19.25](https://github.com/nejcm/market-bot/compare/v1.19.24...v1.19.25) (2026-11-15)
 
 ### Bug Fixes

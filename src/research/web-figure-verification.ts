@@ -69,12 +69,19 @@ const COUNT_WORD_AFTER =
 const SEC_K_FORM = /^(?:6|8|10|11)-K(?!\p{L})/u;
 // Only a subunit may be glued ("26.4sen"); a glued main-unit word is too often a label.
 const SUBUNITS = "sen|cents?|pence|¢";
-// Case-sensitive so "mW" stays unread; bare "TW" is a Taiwan listing suffix ("2330 TW"), so only "TWh" reads.
-const POWER_UNITS = String.raw`(?-i:[kMG]W[hp]?|TWh)|(?:kilo|mega|giga|tera)watt(?:[\s-]?hours?|s)?`;
+// Case-sensitive so "mW" and a bare "TW" listing suffix stay unread; AC and DC ratings are units of their own.
+const POWER_UNITS = String.raw`(?-i:[kMG]W(?:[hp]|[\s-]?[aAdD][cC])?|TWh)|(?:kilo|mega|giga|tera)watt(?:[\s-]?hours?|s)?`;
+const UNIT_RATIO_AFTER = /^\s?[/·⋅]\s?\p{L}/u;
+const SLASH_FIGURE_AFTER = new RegExp(`^/${RANGE_HIGH}`, "iu");
+const SLASH_DURATION_AFTER = /^\/\d+(?:\.\d+)?[\s-]?(?:hours?|hrs?|h)(?!\p{L})/iu;
+const FX_PAIR_BEFORE = /(?<!\p{L})[A-Z]{3}\/$/u;
+const CODE_LEAD = /^[A-Z]{3}/u;
+const RANGE_END_BEFORE = /\d[%\p{L}]{0,3}-$/u;
+// URL-safe ASCII only, ending before trailing punctuation, so a glued prose figure ("…/a):$5m") stays outside.
+const URL_PATTERN = /\b(?:https?:\/\/|www\.)(?:[\w\-.~/?#@!&'*+=%()[\],;:]*[\w\-~/?#@!&'*+=%])?/giu;
 const SUBUNIT_AFTER = new RegExp(String.raw`^\s?(?:${SUBUNITS})(?!\p{L})`, "iu");
-// A slash after a power figure pairs ratings ("250 MW/1,000 MWh"), so the second is read too.
 const FIGURE_PATTERN = new RegExp(
-  String.raw`(?<![\p{L}\d.,'’%×])(?:(?<![\p{L}\d]/)|(?<=\d[\s-]?(?:${POWER_UNITS})/))(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?)|[\s-]?(?<power>${POWER_UNITS})(?!-\p{L}|\s?[/·⋅]\s?\p{L}))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
+  String.raw`(?<![\p{L}\d.,'’%×])(?<sign>[-−](?=\S))?(?<prefix>${CURRENCY_PREFIX})?\s?(?<innerSign>[-−])?(?<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?<scaleWord>${SCALE_WORDS})|(?<scaleLetter>[kmb]))?(?:\s?(?<unit>%|${UNIT_WORDS})|(?<multiple>x|×)|\s?(?<points>points?|pts?)|[\s-]?(?<power>${POWER_UNITS})(?!-\p{L}))?(?:(?:\s|(?=${SUBUNITS}|(?-i:p)))(?<suffix>ringgit|dollars?|euros?|yen|yuan|baht|won|${SUBUNITS}|(?<=\d)(?-i:p)|USD|MYR|SGD|HKD|EUR|GBP|JPY|CNY|RMB)(?!-\p{L}))?(?![\p{L}\d]|[.,]\p{L}|[.,]\d)`,
   "giu",
 );
 const RANGE_TAIL_START = new RegExp(`^${RANGE_TAIL}`, "iu");
@@ -174,7 +181,7 @@ function unitOf(groups: Readonly<Record<string, string | undefined>>): string {
     return "x";
   }
   if (groups.power !== undefined) {
-    const power = groups.power.toLowerCase();
+    const power = groups.power.toLowerCase().replaceAll(/[\s-]/gu, "");
     return power.includes("watt") ? `${power.charAt(0)}w${power.includes("h") ? "h" : ""}` : power;
   }
   const unit = groups.unit?.toLowerCase().replaceAll(/\s+/gu, " ");
@@ -403,10 +410,82 @@ function rangeFigures(
   return [kept(low, bottom), kept(high, top)];
 }
 
+function slashJoined(
+  left: ParsedRow | undefined,
+  right: ParsedRow | undefined,
+  blanked: string,
+): boolean {
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    blanked[left.rawEnd] === "/" &&
+    right.rawStart === left.rawEnd + 1
+  );
+}
+
+// A bare range endpoint is a figure side when its partner is a figure ("5-10%/15-20%", not "5-10/15-20%").
+function bareSide(rows: readonly ParsedRow[], index: number, blanked: string): boolean {
+  const row = rows[index];
+  const figure = (partner: ParsedRow | undefined) =>
+    partner !== undefined && !isBare(partner, partner.figure);
+  return (
+    row !== undefined &&
+    isBare(row, row.figure) &&
+    !(
+      RANGE_TAIL_START.test(blanked.slice(row.rawEnd, row.rawEnd + 8)) && figure(rows[index + 1])
+    ) &&
+    !(
+      RANGE_END_BEFORE.test(blanked.slice(Math.max(0, row.rawStart - 6), row.rawStart)) &&
+      figure(rows[index - 1])
+    )
+  );
+}
+
+function unreadablePair(rows: readonly ParsedRow[], index: number, blanked: string): boolean {
+  const left = rows[index];
+  const right = rows[index + 1];
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    slashJoined(left, right, blanked) &&
+    (bareSide(rows, index, blanked) !== bareSide(rows, index + 1, blanked) ||
+      [left, right].some((row) => row.scaled && row.figure.unit !== ""))
+  );
+}
+
+// A pair with one bare side, a scale before a unit or an unread second number withholds ("5 MW/2027", "5 MW/3yr").
+function slashPairs(rows: readonly ParsedRow[], blanked: string): ParsedRow[] {
+  return rows.map((row, index) => {
+    const previous = rows[index - 1];
+    const next = rows[index + 1];
+    const before = blanked.slice(Math.max(0, row.rawStart - 8), row.rawStart);
+    // "USD/MYR 4.45" quotes a rate, so the code after the slash names the pair, not the figure's currency.
+    if (
+      FX_PAIR_BEFORE.test(before) &&
+      !slashJoined(previous, row, blanked) &&
+      CODE_LEAD.test(row.figure.raw)
+    ) {
+      return { ...row, figure: { ...row.figure, currency: "" } };
+    }
+    const tail = blanked.slice(row.rawEnd, row.rawEnd + 16);
+    if (SLASH_DURATION_AFTER.test(tail)) {
+      return row;
+    }
+    const unreadTail =
+      !slashJoined(row, next, blanked) && SLASH_FIGURE_AFTER.test(tail) && !isBare(row, row.figure);
+    const withheld =
+      unreadablePair(rows, index - 1, blanked) ||
+      unreadablePair(rows, index, blanked) ||
+      unreadTail;
+    return withheld ? { ...row, figure: { ...row.figure, value: Number.NaN } } : row;
+  });
+}
+
 // Accounting parentheses are negative only around a whole table cell; elsewhere a paren or spaced dash is ambiguous.
 function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
   const blanked = text
     .normalize("NFKC")
+    .replaceAll(URL_PATTERN, (token) => " ".repeat(token.length))
     .replaceAll(DIGIT_GAP_DASH, "-")
     .replaceAll(GAP_DASHES, " ")
     .replaceAll(DASHES, "-")
@@ -443,7 +522,9 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
     // Upper-case "PC" may be a computer ("11 PC"); only "pc" is percent.
     const unitUnread =
       (groups.unit?.toLowerCase() === "pc" && groups.unit !== "pc") ||
-      (currencyKey === undefined && (groups.points !== undefined || POINTS_AFTER.test(after)));
+      (currencyKey === undefined && (groups.points !== undefined || POINTS_AFTER.test(after))) ||
+      (groups.power !== undefined &&
+        UNIT_RATIO_AFTER.test(blanked.slice(rawStart + raw.length, rawStart + raw.length + 4)));
     const negative = explicitSign || accounting;
     const magnitude = Number(num.replaceAll(",", ""));
     const signed = negative ? -magnitude : magnitude;
@@ -475,11 +556,12 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
         : {}),
     };
   });
-  const rows = matched.map((row, index) =>
+  const translated = matched.map((row, index) =>
     translatedAside(row, matched[index - 1], matched[index - 2], blanked)
       ? { ...row, figure: { ...row.figure, value: row.parenMagnitude ?? Number.NaN } }
       : row,
   );
+  const rows = slashPairs(translated, blanked);
   const gluedBefore = (row: ParsedRow) =>
     /[\p{L}\d]-$/u.test(blanked.slice(Math.max(0, row.rawStart - 2), row.rawStart));
   const gluedAfter = (row: ParsedRow) =>
@@ -536,7 +618,30 @@ function placedFiguresIn(text: string, cell = false): readonly PlacedFigure[] {
       placed.push(placedRow(row, row.figure));
     }
   }
-  return placed;
+  const glued = urlGluedFigures(text.normalize("NFKC"));
+  return glued.length === 0
+    ? placed
+    : [...placed, ...glued].toSorted((a, b) => a.numStart - b.numStart);
+}
+
+// A figure starting inside a URL may be prose glued to it ("(https://x.com/a):5%"), so it withholds.
+function urlGluedFigures(text: string): PlacedFigure[] {
+  return [...text.matchAll(URL_PATTERN)].flatMap((url) => {
+    const end = url.index + url[0].length;
+    return [...text.slice(url.index, end + 24).matchAll(FIGURE_PATTERN)].flatMap((match) => {
+      const raw = match[0].trim();
+      const start = url.index + match.index + match[0].indexOf(raw);
+      return start >= end || /^\d+$/u.test(raw)
+        ? []
+        : [
+            {
+              figure: { raw, value: Number.NaN, scale: 1, currency: "", unit: "" },
+              numStart: start,
+              numEnd: start + raw.length,
+            },
+          ];
+    });
+  });
 }
 
 export function figuresIn(text: string): readonly Figure[] {

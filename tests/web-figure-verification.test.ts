@@ -54,6 +54,15 @@ function check(text: string, quote?: string, sourceIds: readonly string[] = ["we
   );
 }
 
+function citeNews(claim: string, headline: string) {
+  return unverifiedWebFigure(
+    { text: claim, sourceIds: ["news-1"] },
+    webSourceTexts([
+      { id: "news-1", title: headline, fetchedAt: "2026-11-03T12:00:00.000Z", kind: "news" },
+    ]),
+  )?.reason;
+}
+
 function parsed(text: string) {
   return figuresIn(text).map(({ value, scale, currency, unit }) => [value, scale, currency, unit]);
 }
@@ -230,6 +239,7 @@ describe("figure parsing", () => {
     ).toEqual([
       [65, 1, "", "mwp"],
       [65, 1, "", "mwh"],
+      ...Array.from({ length: 3 }, () => [Number.NaN, 1, "", "mw"]),
     ]);
     expect(parsed("50-65 MW")).toEqual([
       [50, 1, "", "mw"],
@@ -253,12 +263,26 @@ describe("figure parsing", () => {
     expect(parsed("$5/share, 24/7, $5/$6, Q3/5%, 5-MWh/year, 5-MW/h")).toEqual([
       [5, 1, "USD", ""],
       [5, 1, "USD", ""],
+      [6, 1, "USD", ""],
+      [5, 1, "", "%"],
+      [Number.NaN, 1, "", "mwh"],
+      [Number.NaN, 1, "", "mw"],
+    ]);
+    expect(parsed("on 11/15, fiscal 2025/26, S&P 500/Nasdaq, and/or, 24/7")).toEqual([]);
+    expect(parsed("250 MWac/300 MWdc, 5 kWac, 5 MWAC, 5 MW DC, 5 MW-ac")).toEqual([
+      [250, 1, "", "mwac"],
+      [300, 1, "", "mwdc"],
+      [5, 1, "", "kwac"],
+      [5, 1, "", "mwac"],
+      [5, 1, "", "mwdc"],
+      [5, 1, "", "mwac"],
+    ]);
+    expect(parsed("a 5-MW-scale site, 5-MW/hour, 5-mW, 5-M battery")).toEqual([
+      [Number.NaN, 1, "", ""],
+      [Number.NaN, 1, "", "mw"],
       [Number.NaN, 1, "", ""],
       [Number.NaN, 1, "", ""],
     ]);
-    expect(parsed("a 5-MW-scale site, 5-MW/hour, 5-mW, 5-M battery")).toEqual(
-      Array.from({ length: 4 }, () => [Number.NaN, 1, "", ""]),
-    );
     expect(parsed("52-week, 10-K, 10-Q, S-1, COVID-19, Form 8-K, 24-hour, 5-year")).toEqual([]);
     expect(parsed("a 3-for-1 split")).toEqual([[Number.NaN, 1, "", ""]]);
     expect(parsed("5-10%, -5%")).toEqual([
@@ -2016,6 +2040,105 @@ describe("news-cited figures", () => {
         newsTexts,
       ),
     ).toEqual({ reason: "figure-ambiguous", figure: "12.5%", sourceIds: ["news-equity-4"] });
+  });
+
+  test("checks both figures of a slash pair and withholds a pair it cannot read", () => {
+    const mismatched: readonly (readonly [string, string])[] = [
+      ["$5/$9", "$5/$6"],
+      ["RM5/RM9", "RM5/RM6"],
+      ["EUR5m/EUR9m", "EUR5m/EUR6m"],
+      ["1.2x/1.9x", "1.2x/1.5x"],
+      ["5 bps/19 bps", "5 bps/9 bps"],
+      ["5 sen/9 sen", "5 sen/6 sen"],
+      ["5 million/9 million", "5 million/6 million"],
+      ["5.5/9.5", "5.5/6.5"],
+      ["1,000/9,000", "1,000/6,000"],
+      ["250 MWac/2,000 MWh", "250 MWac/1,000 MWh"],
+      ["250 MWdc/300 MWac", "250 MWdc/200 MWac"],
+      ["USD/MYR 4.45", "USD/MYR 4.75"],
+      ["EUR/USD 1.08", "EUR/USD 1.18"],
+      ["Q3/$5.5m", "Q3/$6.5m"],
+      ["FY25/$1.2 billion", "FY25/$1.9 billion"],
+      ["net profit/USD 5.5m", "net profit/USD 9.5m"],
+      ["Q3/-5%", "Q3/-9%"],
+      ["Q3/5%", "Q3/6%"],
+      ["5 million shares/$6m", "5 million shares/$9m"],
+      ["a 100 MW/4-hour battery", "a 120 MW/4-hour battery"],
+      ["a 100 MW/4h battery", "a 120 MW/4h battery"],
+      ["5-10%/15-20%", "5-10%/15-25%"],
+      ["NZD/USD 0.60", "NZD/USD 0.65"],
+    ];
+    for (const [claim, source] of mismatched) {
+      expect([claim, citeNews(claim, source)]).toEqual([claim, "figure-not-in-source"]);
+      expect([claim, citeNews(claim, claim)]).toEqual([claim, undefined]);
+    }
+    expect(citeNews("$1.2B/$1.5B", "$1.2B/€1.5B")).toBe("currency-mismatch");
+    expect(citeNews("250 MWac", "250 MW")).toBe("unit-mismatch");
+    expect(citeNews("250 MWdc", "250 MWac")).toBe("unit-mismatch");
+    expect(citeNews("250 MW AC", "250 MW")).toBe("unit-mismatch");
+    expect(citeNews("250 MWAC and 300 MW DC", "250 MWac, 300 MWdc")).toBeUndefined();
+    expect(citeNews("the ringgit traded at 4.45 against the dollar", "USD/MYR 4.45")).toBe(
+      undefined,
+    );
+    for (const battery of ["4-hr", "4h", "4hr", "4 hours", "4-h"]) {
+      expect([battery, citeNews("a 100 MW battery", `a 100 MW/${battery} battery`)]).toEqual([
+        battery,
+        undefined,
+      ]);
+    }
+    expect(citeNews("the kiwi traded at 0.60", "NZD/USD 0.60")).toBeUndefined();
+    expect(citeNews("bitcoin at 60,000", "BTC/USD 60,000")).toBeUndefined();
+    expect(citeNews("gold at 2,400", "XAU/USD 2,400")).toBeUndefined();
+    expect(parsed("https://fool.com/investing/2026/10/20/2-stocks, www.x.com/q3/5%")).toEqual([
+      [Number.NaN, 1, "", ""],
+    ]);
+    const unreadable = [
+      "65MW/hour",
+      "5MWh/year",
+      "4.5/5",
+      "$5/100 shares",
+      "25/50 bps",
+      "1.2 million MWh/300 MW",
+      "5k MW/10k MWh",
+      "9 MW/RM5m",
+      "5 MWh/year",
+      "5 MW/90",
+      "5 MW/2027",
+    ];
+    for (const claim of unreadable) {
+      expect([claim, citeNews(claim, claim)]).toEqual([claim, "figure-ambiguous"]);
+    }
+    expect(citeNews("9 MW/RM5m", "5 MW/RM5m")).toBe("figure-ambiguous");
+    expect(citeNews("5-10/15-20%", "6-11/15-20%")).toBe("figure-ambiguous");
+    expect(citeNews("15-20%/5-10", "15-20%/6-11")).toBe("figure-ambiguous");
+    for (const [claim, source] of [
+      ["revenue https://x.com/a—5%", "revenue https://x.com/a—6%"],
+      ["(https://x.com/a):$5m", "(https://x.com/a):$6m"],
+    ] as const) {
+      expect([claim, citeNews(claim, source)]).toEqual([claim, "figure-not-in-source"]);
+      expect([claim, citeNews(claim, claim)]).toEqual([claim, undefined]);
+    }
+    expect(citeNews("www.x.com/q3,$9m", "www.x.com/q3,$8m")).toBe("figure-ambiguous");
+  });
+
+  test("withholds a figure glued to a URL and passes a plain URL", () => {
+    const source = "Company reported results; up 7%";
+    const glued = [
+      "(https://x.com/a):5%",
+      "(https://x.com/a);5%",
+      "[src](https://x.com/a)5%",
+      ...[":RM5m", ":USD5m", ":5.5m", ":5bn", ":5 million", ":5 MW", ":5x", ":5 sen", ":1,000"].map(
+        (tail) => `https://x.com/a${tail}`,
+      ),
+      "www.x.com:5%",
+      "https://x.com/a?x=5% up 7%",
+    ];
+    for (const claim of glued) {
+      expect([claim, citeNews(claim, source)]).toEqual([claim, "figure-ambiguous"]);
+    }
+    expect(
+      citeNews("see https://x.com/q3-results and https://x.com/2025/11/report, up 7%", source),
+    ).toBeUndefined();
   });
 
   test("checks a news claim co-citing a discussion source against the news text only", () => {

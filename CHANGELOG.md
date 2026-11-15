@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.21](https://github.com/nejcm/market-bot/compare/v1.19.20...v1.19.21) (2026-11-15)
+
+### Bug Fixes
+
+- **audit:** verify figures in claims citing only news sources (#245) ([2e7ca5f](https://github.com/nejcm/market-bot/commit/2e7ca5f4e8a203764f4b757495483f7c1f17bce7))
+
 ## [1.19.20](https://github.com/nejcm/market-bot/compare/v1.19.19...v1.19.20) (2026-11-15)
 
 ### Bug Fixes

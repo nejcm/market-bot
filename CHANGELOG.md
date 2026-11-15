@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.31](https://github.com/nejcm/market-bot/compare/v1.19.30...v1.19.31) (2026-11-15)
+
+### Bug Fixes
+
+- **figures:** reference market snapshot values instead of typing them (#255) ([e8f715d](https://github.com/nejcm/market-bot/commit/e8f715d090d7e933223fd42c56c9b7b64ef4e51b))
+
 ## [1.19.30](https://github.com/nejcm/market-bot/compare/v1.19.29...v1.19.30) (2026-11-15)
 
 ### Bug Fixes

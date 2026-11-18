@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.43](https://github.com/nejcm/market-bot/compare/v1.19.42...v1.19.43) (2026-11-18)
+
+### Bug Fixes
+
+- **sec:** label early-january 52/53-week years by the prior year (#268) ([7613b4d](https://github.com/nejcm/market-bot/commit/7613b4dc407a89a83941090923c5822c29aefa1b))
+
 ## [1.19.42](https://github.com/nejcm/market-bot/compare/v1.19.41...v1.19.42) (2026-11-18)
 
 ### Bug Fixes

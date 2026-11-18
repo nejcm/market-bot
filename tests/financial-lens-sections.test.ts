@@ -571,3 +571,42 @@ test("lens withholds gross margin and YoY when gross profit stops years before r
   }
   expect(metric(D7_ALIGNED_MARGIN, "grossMargin")).toMatchObject({ status: "value", value: 0.3 });
 });
+
+// EQIX's continuing-operations diluted EPS stops in FY2018 while total diluted EPS runs on.
+test("a stale continuing EPS YoY keeps its scope so it never reads as total diluted EPS YoY", () => {
+  const eps = (rows: readonly (readonly [number, string])[]) => ({
+    units: {
+      "USD/shares": rows.map(([value, year]) =>
+        annualFact(value, `${year}-01-01`, `${year}-12-31`),
+      ),
+    },
+  });
+  const labels = synthetic({
+    Revenues: {
+      units: {
+        USD: [
+          annualFact(95, "2024-01-01", "2024-12-31"),
+          annualFact(100, "2025-01-01", "2025-12-31"),
+        ],
+      },
+    },
+    EarningsPerShareDiluted: eps([
+      [1, "2024"],
+      [1.2, "2025"],
+    ]),
+    IncomeLossFromContinuingOperationsPerDilutedShare: eps([
+      [0.8, "2017"],
+      [0.9, "2018"],
+    ]),
+  })
+    .input.metricSections?.flatMap((section) => section.metrics)
+    .filter(
+      (row) => row.id === "dilutedEpsDeltaPercent" || row.id === "continuingDilutedEpsDeltaPercent",
+    )
+    .map(({ id, label }) => ({ id, label }));
+
+  expect(labels).toEqual([
+    { id: "dilutedEpsDeltaPercent", label: "Diluted EPS YoY" },
+    { id: "continuingDilutedEpsDeltaPercent", label: "Diluted EPS YoY (continuing operations)" },
+  ]);
+});

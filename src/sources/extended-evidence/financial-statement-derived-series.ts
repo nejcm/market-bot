@@ -69,10 +69,58 @@ export function withheldPeriod(fact: ParsedFact, reason: string): WithheldDeriva
   };
 }
 
+// Tagged 10-K quarter tables must foot to their own 10-K's revenue − cost (any revenue concept, e.g. EQIX `Revenues`);
+// That proves the formula for footed years only and excludes issuers whose GP differs (AMGN product sales).
+function unprovenGrossProfitReason(
+  tagged: readonly ParsedFact[],
+  revenue: readonly ParsedFact[],
+  cost: readonly ParsedFact[],
+  costConcept: string,
+  definition: FinancialStatementSeriesDefinition,
+): string | undefined {
+  if (tagged.length === 0) {
+    return undefined;
+  }
+  const footings = revenue
+    .filter(
+      (year) => filingContextKey(year) !== undefined && periodType(year, definition) === "annual",
+    )
+    .flatMap((year) => {
+      const yearCost = cost.find((fact) => filingContextKey(fact) === filingContextKey(year));
+      const quarters = new Map(
+        tagged
+          .filter(
+            (fact) =>
+              fact.accessionNumber === year.accessionNumber &&
+              fact.unit === year.unit &&
+              periodType(fact, definition) === "interim" &&
+              (fact.periodStart ?? "") >= (year.periodStart ?? "") &&
+              fact.periodEnd <= year.periodEnd,
+          )
+          .map((fact) => [periodKey(fact), fact.value]),
+      );
+      if (yearCost === undefined || quarters.size !== 4) {
+        return [];
+      }
+      const formula = year.value - yearCost.value;
+      const sum = [...quarters.values()].reduce((total, value) => total + value, 0);
+      // 0.1% absorbs rounded quarters (NDSN FY2017: 1,139,003k vs 1,139,001k).
+      return [{ year, foots: Math.abs(sum - formula) <= Math.abs(formula) * 0.001 }];
+    });
+  const failed = footings.find(({ foots }) => !foots)?.year;
+  if (failed !== undefined) {
+    return `tagged quarterly GrossProfit in ${String(failed.accessionNumber)} does not sum to its revenue − ${costConcept} for ${String(failed.periodStart)} to ${failed.periodEnd}`;
+  }
+  return footings.length === 0
+    ? `no annual report's tagged quarterly GrossProfit sums to its revenue − ${costConcept}`
+    : undefined;
+}
+
 // Pairs only each period's current revenue and cost revisions, so a restatement never meets a stale cost.
 function derivedGrossProfitFacts(
   payload: unknown,
   definition: FinancialStatementSeriesDefinition,
+  reported: readonly ParsedFact[],
   eligible: (fact: ParsedFact) => boolean,
 ): DerivedSeriesFacts {
   const root = taxonomyRoot(payload, "us-gaap");
@@ -96,12 +144,30 @@ function derivedGrossProfitFacts(
     return NO_DERIVED_FACTS;
   }
   const costGroups = periodGroups(cost, definition);
+  const taggedGroups = periodGroups(reported, definition);
+  const unproven = unprovenGrossProfitReason(
+    reported,
+    revenueDefinition.concepts["us-gaap"].flatMap((concept) =>
+      unitFacts("us-gaap", root, concept).filter(eligible),
+    ),
+    cost,
+    costConcept,
+    definition,
+  );
   const subtracted = new Set([costConcept]);
   const facts: ParsedFact[] = [];
   const withheld: WithheldDerivation[] = [];
   for (const [key, [current]] of periodGroups(revenue, definition)) {
     const [currentCost] = costGroups.get(key) ?? [];
+    const [tagged] = taggedGroups.get(key) ?? [];
     if (current === undefined) {
+      continue;
+    }
+    if (tagged !== undefined) {
+      continue;
+    }
+    if (unproven !== undefined) {
+      withheld.push(withheldPeriod(current, unproven));
       continue;
     }
     const context = filingContextKey(current);
@@ -404,8 +470,12 @@ export function derivedSeriesFacts(
   eligible: (fact: ParsedFact) => boolean,
   observable: (fact: ParsedFact) => boolean,
 ): DerivedSeriesFacts | undefined {
-  if (definition.key === "grossProfit" && reported.length === 0) {
-    return derivedGrossProfitFacts(payload, definition, eligible);
+  // An annual GrossProfit is the issuer's own presentation (CLSK later excludes D&A); never splice into it.
+  if (
+    definition.key === "grossProfit" &&
+    !reported.some((fact) => periodType(fact, definition) === "annual")
+  ) {
+    return derivedGrossProfitFacts(payload, definition, reported, eligible);
   }
   if (definition.key === "pretaxIncome") {
     return derivedPretaxIncomeFacts(payload, definition, reported, eligible);

@@ -6,6 +6,7 @@ import {
   type FundamentalHistoryPoint,
   type FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
+import { materialRestatement } from "../sources/extended-evidence/fundamental-history-canonical";
 import type { ValuationMetricSuppressionReason } from "../sources/extended-evidence/valuation-workbench-contract";
 import {
   conceptScope,
@@ -295,8 +296,10 @@ function financialTrendRestatements(history: FundamentalHistoryArtifact): readon
         series === undefined ? undefined : historyPoint(series, period.periodEnd, period.kind);
       const original = point?.restatedFrom;
       return series === undefined ||
+        point === undefined ||
         original === undefined ||
-        formatTrendAmount(original.value) === formatTrendAmount(point?.value)
+        !materialRestatement(point) ||
+        formatTrendAmount(original.value) === formatTrendAmount(point.value)
         ? []
         : [
             `${series.label.toLowerCase()} ${formatTrendAmount(original.value)} (filed ${original.filedAt})`,

@@ -1,5 +1,6 @@
 import {
   conceptScope,
+  CONTINUING_OPERATIONS_SCOPE,
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
@@ -46,6 +47,13 @@ export function yoyLabel(ctx: MetricContext, key: LensSeries): string {
               anchor,
               key === "netIncome" ? "continuingIncome" : "continuingDilutedEps",
             ),
+      );
+    }
+    case "continuingIncome":
+    case "continuingDilutedEps": {
+      return scopedLabel(
+        yoyBaseLabel(key),
+        conceptScope(anchor?.concept) ?? CONTINUING_OPERATIONS_SCOPE,
       );
     }
     default: {

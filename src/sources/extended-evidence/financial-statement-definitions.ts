@@ -237,7 +237,7 @@ export function isRevenueConceptInRecencyBucket(
   return Number.isFinite(ageDays) && ageDays >= 0 && ageDays <= REVENUE_CONCEPT_RECENCY_BUCKET_DAYS;
 }
 
-const CONTINUING_OPERATIONS_SCOPE = "continuing operations";
+export const CONTINUING_OPERATIONS_SCOPE = "continuing operations";
 
 export const TOTAL_OPERATIONS_SCOPE = "total operations";
 

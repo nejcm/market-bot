@@ -553,6 +553,31 @@ describe("equity reader projection", () => {
         fundamentalHistory: precisionOnly,
       }).defaultView.financialTrends,
     ).not.toHaveProperty("restatements");
+
+    // EQIX FY2023 net income (969,178,000 → 969,000,000 in the FY2025 10-K), set on revenue for brevity.
+    const reRounded = {
+      ...history,
+      series: {
+        ...history.series,
+        revenue: {
+          ...history.series.revenue,
+          annual: [
+            {
+              ...first!,
+              value: 969_000_000,
+              restatedFrom: { value: 969_178_000, filedAt: "2024-02-16" },
+            },
+            ...rest,
+          ],
+        },
+      },
+    } as FundamentalHistoryArtifact;
+    expect(
+      projectEquityReader({
+        report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+        fundamentalHistory: reRounded,
+      }).defaultView.financialTrends,
+    ).not.toHaveProperty("restatements");
   });
 
   test("suppresses the whole inapplicable trend column for a depository issuer, tagged periods included", () => {

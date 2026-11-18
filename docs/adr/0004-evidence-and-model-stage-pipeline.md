@@ -122,9 +122,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   block); and the newest same filing/form/span/unit `NetIncomeLoss`/`ProfitLoss` pair agrees. An
   unexplained difference withholds without implying NCI. Untagged `GrossProfit` derives as revenue −
   `CostOfRevenue`/`CostOfGoodsAndServicesSold` only when current revisions share a defined accession, form,
-  span, and unit. Both carry derived lineage, and metric basis, lens captions, and history cards disclose
-  the formula (tagged cost of revenue may exclude amortization or D&A). Each withheld period is a declared
-  gap.
+  span, and unit. An issuer with an annual `GrossProfit` tag never derives; one with only 10-K
+  quarterly-table tags derives untagged periods only if each footable table's four quarters sum,
+  within 0.1%, to that 10-K's revenue − cost under any revenue concept, and at least one table
+  foots. The proof covers the footed years only; later periods use the current revenue concept and
+  are not re-proven. Both carry derived lineage, and metric basis, lens captions, and history cards
+  disclose the formula (tagged cost of revenue may exclude amortization or D&A). Each withheld
+  period is a declared gap.
 - Keep operations scope (continuing/total), attribution (parent/NCI), and SEC/provider earnings basis
   independent; equal values do not establish equal scope. Continuing income/EPS are separate series (parent
   preferred on equal period), never replacements for total income/EPS or total-income ROE/ROA/payout. Net

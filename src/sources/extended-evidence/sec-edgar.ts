@@ -673,9 +673,17 @@ export function summarizeSecFundamentals(
   if (summary === undefined) {
     return undefined;
   }
-  const notApplicable = reitCapexReason(sic, statements) === undefined ? [] : ["capex"];
+  const { grossProfit } = statements.statements.incomeStatement;
+  const notMissing = new Set([
+    ...(reitCapexReason(sic, statements) === undefined ? [] : ["capex"]),
+    ...([...grossProfit.annual, ...grossProfit.interim].some(
+      (point) => point.periodEnd === metrics.revenuePeriodEnd,
+    )
+      ? ["grossProfit"]
+      : []),
+  ]);
   const unwithheld = (keys: readonly string[]) =>
-    keys.filter((key) => !withheld(key) && !notApplicable.includes(key));
+    keys.filter((key) => !withheld(key) && !notMissing.has(key));
 
   const staleRevenueGap =
     typeof metrics.revenuePeriodEnd === "string"

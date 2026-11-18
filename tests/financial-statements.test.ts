@@ -2006,16 +2006,184 @@ describe("canonical financial statements", () => {
       ]);
     });
 
-    test("keeps tagged gross profit and never derives alongside it", () => {
+    const tenK = (value: number, start: string, end: string, accessionNumber: string) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalPeriod: "FY",
+        filedAt: `${String(Number(end.slice(0, 4)) + 1)}-02-15`,
+        periodStart: start,
+        periodEnd: end,
+        accessionNumber,
+      });
+    const quarterTable = (year: number, values: readonly number[], accessionNumber: string) =>
+      values.map((value, index) =>
+        tenK(
+          value,
+          `${String(year)}-${String(index * 3 + 1).padStart(2, "0")}-01`,
+          `${String(year)}-${["03-31", "06-30", "09-30", "12-31"][index]!}`,
+          accessionNumber,
+        ),
+      );
+    const fullYear = (value: number, year: number, accessionNumber: string) =>
+      tenK(value, `${String(year)}-01-01`, `${String(year)}-12-31`, accessionNumber);
+
+    test("never derives for an issuer that also tags an annual gross profit", () => {
       const { grossProfit } = deriveAt({
-        Revenues: [annual(100, 2025)],
-        CostOfRevenue: [annual(40, 2025)],
-        GrossProfit: [annual(61, 2025)],
+        Revenues: [annual(100, 2024), annual(120, 2025)],
+        CostOfRevenue: [annual(40, 2024), annual(50, 2025)],
+        GrossProfit: [annual(60, 2024), ...quarterTable(2024, [15, 15, 15, 15], "20250215-10-K")],
       }).statements.incomeStatement;
 
       expect(grossProfit.annual.map(({ value, concept }) => ({ value, concept }))).toEqual([
-        { value: 61, concept: "GrossProfit" },
+        { value: 60, concept: "GrossProfit" },
       ]);
+    });
+
+    // EQIX FY2020 10-K quarterly table (0001628280-21-002563) sums to Revenues − CostOfRevenue: 2,924,205,000.
+    test("derives EQIX FY2025 gross profit once its tagged quarters foot to its 10-K", () => {
+      const fy2020 = "0001628280-21-002563";
+      const fy2025 = "0001101239-26-000032";
+      const { grossProfit } = deriveAt({
+        Revenues: [fullYear(5_998_545_000, 2020, fy2020)],
+        RevenueFromContractWithCustomerExcludingAssessedTax: [
+          fullYear(9_217_000_000, 2025, fy2025),
+        ],
+        CostOfRevenue: [
+          fullYear(3_074_340_000, 2020, fy2020),
+          fullYear(4_508_000_000, 2025, fy2025),
+        ],
+        GrossProfit: quarterTable(
+          2020,
+          [708_260_000, 730_777_000, 751_788_000, 733_380_000],
+          fy2020,
+        ),
+      }).statements.incomeStatement;
+
+      expect(grossProfit.annual.map(({ periodEnd, value }) => ({ periodEnd, value }))).toEqual([
+        { periodEnd: "2025-12-31", value: 4_709_000_000 },
+      ]);
+    });
+
+    // NDSN FY2017 10-K (0001564590-17-024983) quarters sum to 1,139,003k vs 2,066,982k − 927,981k.
+    test("accepts a quarter table off by rounding", () => {
+      const fy2017 = "0001564590-17-024983";
+      const { grossProfit } = deriveAt({
+        Revenues: [
+          tenK(2_066_982_000, "2016-11-01", "2017-10-31", fy2017),
+          tenK(2_200_000_000, "2017-11-01", "2018-10-31", "ndsn-2018"),
+        ],
+        CostOfGoodsAndServicesSold: [
+          tenK(927_981_000, "2016-11-01", "2017-10-31", fy2017),
+          tenK(1_000_000_000, "2017-11-01", "2018-10-31", "ndsn-2018"),
+        ],
+        GrossProfit: [
+          tenK(225_138_000, "2016-11-01", "2017-01-31", fy2017),
+          tenK(275_512_000, "2017-02-01", "2017-04-30", fy2017),
+          tenK(326_265_000, "2017-05-01", "2017-07-31", fy2017),
+          tenK(312_088_000, "2017-08-01", "2017-10-31", fy2017),
+        ],
+      }).statements.incomeStatement;
+
+      expect(grossProfit.annual.map(({ value }) => value)).toEqual([1_139_001_000, 1_200_000_000]);
+    });
+
+    test("foots each quarter table against its own 10-K, not a later restatement", () => {
+      const restated = (value: number) => ({
+        ...fullYear(value, 2019, "b-2020"),
+        filedAt: "2021-02-15",
+      });
+      const { grossProfit } = deriveAt({
+        Revenues: [
+          fullYear(100, 2019, "a-2019"),
+          restated(110),
+          fullYear(120, 2020, "b-2020"),
+          tenK(36, "2020-10-01", "2020-12-31", "b-2020"),
+          fullYear(130, 2021, "c-2021"),
+        ],
+        CostOfRevenue: [
+          restated(45),
+          fullYear(40, 2019, "a-2019"),
+          fullYear(50, 2020, "b-2020"),
+          tenK(17, "2020-10-01", "2020-12-31", "b-2020"),
+          fullYear(52, 2021, "c-2021"),
+        ],
+        GrossProfit: [
+          ...quarterTable(2019, [15, 15, 15, 15], "a-2019"),
+          ...quarterTable(2020, [17, 17, 18, 18], "b-2020"),
+        ],
+      }).statements.incomeStatement;
+
+      expect(grossProfit.annual.map(({ value }) => value)).toEqual([65, 70, 78]);
+      expect(grossProfit.interim.find(({ periodEnd }) => periodEnd === "2020-12-31")).toMatchObject(
+        {
+          value: 18,
+          concept: "GrossProfit",
+        },
+      );
+    });
+
+    // NDSN: its FY2012 10-K table is 0.25% off while later tables foot.
+    test("withholds when any quarter table fails though another foots", () => {
+      const artifact = deriveAt({
+        Revenues: [
+          fullYear(100, 2023, "y-2023"),
+          fullYear(120, 2024, "y-2024"),
+          tenK(30, "2024-10-01", "2024-12-31", "y-2024"),
+          annual(130, 2025),
+        ],
+        CostOfRevenue: [
+          fullYear(40, 2023, "y-2023"),
+          fullYear(50, 2024, "y-2024"),
+          annual(52, 2025),
+        ],
+        GrossProfit: [
+          ...quarterTable(2023, [15, 15, 15, 15], "y-2023"),
+          ...quarterTable(2024, [15, 15, 15, 15], "y-2024"),
+        ],
+      });
+
+      expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toContainEqual(
+        expect.stringMatching(
+          /^SEC gross profit is not derived for 2023-01-01 to 2023-12-31, 2024-01-01 to 2024-12-31, 2025-01-01 to 2025-12-31: tagged quarterly GrossProfit in y-2024 does not sum/u,
+        ),
+      );
+    });
+
+    // AMGN FY2020 10-K (0000318154-21-000010) tags product-sales gross profit: 18,081M vs 25,424M − 6,159M.
+    test("withholds every derived period when tagged quarters do not foot (AMGN FY2020)", () => {
+      const accession = "0000318154-21-000010";
+      const artifact = deriveAt({
+        Revenues: [fullYear(25_424_000_000, 2020, accession), annual(26_000_000_000, 2025)],
+        CostOfGoodsAndServicesSold: [
+          fullYear(6_159_000_000, 2020, accession),
+          annual(6_500_000_000, 2025),
+        ],
+        GrossProfit: quarterTable(
+          2020,
+          [4_381_000_000, 4_420_000_000, 4_543_000_000, 4_737_000_000],
+          accession,
+        ),
+      });
+
+      expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toContain(
+        `SEC gross profit is not derived for 2020-01-01 to 2020-12-31, 2025-01-01 to 2025-12-31: tagged quarterly GrossProfit in ${accession} does not sum to its revenue − CostOfGoodsAndServicesSold for 2020-01-01 to 2020-12-31`,
+      );
+    });
+
+    test("withholds when no tagged quarter table can be footed", () => {
+      const artifact = deriveAt({
+        Revenues: [annual(100, 2024), annual(120, 2025)],
+        CostOfRevenue: [annual(40, 2024), annual(50, 2025)],
+        GrossProfit: quarterTable(2024, [15, 15, 15], "20250215-10-K"),
+      });
+
+      expect(artifact.statements.incomeStatement.grossProfit.annual).toEqual([]);
+      expect(historyGapMessages(artifact)).toContain(
+        "SEC gross profit is not derived for 2024-01-01 to 2024-12-31, 2025-01-01 to 2025-12-31: no annual report's tagged quarterly GrossProfit sums to its revenue − CostOfRevenue",
+      );
     });
 
     test("withholds a period whose cost fact spans a different duration and declares it", () => {

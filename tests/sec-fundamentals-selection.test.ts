@@ -284,6 +284,28 @@ describe("continuing-operations cash-flow aliases", () => {
     expect(history.series.operatingCashFlow.concept).toBe(TOTAL_OCF);
   });
 
+  test("declares gross profit missing unless gross profit publishes for the summary period", () => {
+    const missing = (concepts: Readonly<Record<string, readonly Row[]>>) =>
+      summarizeSecFundamentals(payload(concepts), AS_OF)!
+        .gaps.map((gap) => gap.message)
+        .find((message) => message.startsWith("Missing SEC company facts:"));
+
+    expect(missing(clfdConcepts())).toContain("grossProfit");
+    expect(
+      missing({
+        ...clfdConcepts(),
+        CostOfRevenue: [fy25k(95_000_000), q3Current(70_000_000)],
+      }) ?? "",
+    ).not.toContain("grossProfit");
+    // RIOT: GrossProfit tagged through FY2016 only.
+    expect(
+      missing({
+        ...clfdConcepts(),
+        GrossProfit: [row(9_000_000, "2016-01-01", "2016-12-31", "10-K", 2016, "FY", "2017-03-15")],
+      }),
+    ).toContain("grossProfit");
+  });
+
   test("declares the missing fact when neither OCF alias is tagged", () => {
     const { [TOTAL_OCF]: _total, [CONTINUING_OCF]: _continuing, ...concepts } = clfdConcepts();
     const summary = summarizeSecFundamentals(payload(concepts), AS_OF)!;

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.44](https://github.com/nejcm/market-bot/compare/v1.19.43...v1.19.44) (2026-11-18)
+
+### Bug Fixes
+
+- **workbench:** price sub-0.1% restatements at the first filing (#269) ([32ec290](https://github.com/nejcm/market-bot/commit/32ec290ef79353c373f930cf7fa404b29cd70a52))
+
 ## [1.19.43](https://github.com/nejcm/market-bot/compare/v1.19.42...v1.19.43) (2026-11-18)
 
 ### Bug Fixes

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.45](https://github.com/nejcm/market-bot/compare/v1.19.44...v1.19.45) (2026-11-18)
+
+### Bug Fixes
+
+- **sec:** name component capex tags in the not-filed reason (#270) ([fc33d61](https://github.com/nejcm/market-bot/commit/fc33d61c6fb69db97b62d70d6ac0b845e48a2623))
+
 ## [1.19.44](https://github.com/nejcm/market-bot/compare/v1.19.43...v1.19.44) (2026-11-18)
 
 ### Bug Fixes

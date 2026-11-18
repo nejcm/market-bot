@@ -195,8 +195,9 @@ dividend-per-share CAGR to the latest fiscal year; geographic gaps never reconci
 "Profile stage lacked …; published under <section>" from a closed label map and are never persisted.
 
 Brief equity runs retain all twelve qualitative Business Framework gaps. The eleven mapped to
-Web Subject Profile carry `suppressed-by-design` and declare the brief-depth exclusion in both
-the framework artifact and Source Gap text; analyst consensus stays `provider-data-missing`.
+Web Subject Profile carry `suppressed-by-design` and Diagnostic triage, and declare the brief-depth
+exclusion in both the framework artifact and Source Gap text; analyst consensus stays
+`provider-data-missing` and Material.
 
 The Web Gather prompt receives a stage-scoped Source Gap projection that omits only
 `finnhub-analyst-range`, `finnhub-eps-estimate`, `finnhub-revenue-estimate`,

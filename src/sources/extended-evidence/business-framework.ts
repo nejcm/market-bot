@@ -267,19 +267,19 @@ export function frameworkGaps(
   gaps: readonly BusinessFrameworkGapValue[],
   depth: ResearchCommand["depth"],
 ): readonly SourceGap[] {
-  return gaps.map((gap) =>
-    sourceGap({
+  return gaps.map((gap) => {
+    const notAssessedAtDepth =
+      depth === "brief" && typeof gap !== "string" && gap.code !== "analyst-consensus";
+    return sourceGap({
       source: "business-framework",
       message: `Business Framework partial for ${symbol}: ${typeof gap === "string" ? gap : `${gap.code}: ${gap.text}`}`,
       provider: "market-bot",
       capability: "extended-evidence",
-      cause:
-        depth === "brief" && typeof gap !== "string" && gap.code !== "analyst-consensus"
-          ? "suppressed-by-design"
-          : "provider-data-missing",
+      cause: notAssessedAtDepth ? "suppressed-by-design" : "provider-data-missing",
       evidenceQualityImpact: "no-cap",
-    }),
-  );
+      ...(notAssessedAtDepth ? { triage: "diagnostic" as const } : {}),
+    });
+  });
 }
 
 const FRAMEWORK_GAP_CODE_RE = /^Business Framework partial for [^:]+: (?<code>[a-z-]+): /u;

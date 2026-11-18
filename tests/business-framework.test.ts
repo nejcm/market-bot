@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { dedupeSourceGaps, sourceGap, sourceGapScopedReportText } from "../src/domain/source-gaps";
 import type { ExtendedEvidence } from "../src/domain/evidence";
-import { classifyGap } from "../src/report/gap-triage";
+import { classifyGap, readGapTriage } from "../src/report/gap-triage";
 import {
   addBusinessFrameworkEvidence,
   frameworkGapCode,
@@ -648,6 +648,9 @@ describe("business framework evidence", () => {
       for (const gap of result.sourceGaps) {
         const excluded = depth === "brief" && frameworkGapCode(gap) !== "analyst-consensus";
         expect(gap.cause).toBe(excluded ? "suppressed-by-design" : "provider-data-missing");
+        expect(readGapTriage(sourceGapScopedReportText(gap), [gap])).toBe(
+          excluded ? "diagnostic" : "material",
+        );
         expect(gap.evidenceQualityImpact).toBe("no-cap");
         expect(
           gap.message.includes(

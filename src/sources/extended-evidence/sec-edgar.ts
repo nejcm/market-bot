@@ -656,7 +656,11 @@ export function summarizeSecFundamentals(
       ? ambiguityGap
       : `monetary metrics: us-gaap facts are reported in ${translated}, so USD-unit facts are convenience translations at an undeclared rate`;
   const withheld = (key: string) => translationGap !== undefined && !UNTRANSLATED_METRIC.test(key);
-  const capexWithheld = sic === REIT_SIC || reitCapexUndecided(sic, statements) !== undefined;
+  const capexUndecided =
+    metrics.capex === undefined || translationGap !== undefined
+      ? undefined
+      : reitCapexUndecided(sic, statements);
+  const capexWithheld = sic === REIT_SIC || capexUndecided !== undefined;
   const reitCapex = (key: string) => capexWithheld && /^capex(?:[A-Z]|$)/u.test(key);
   for (const key of Object.keys(metrics).filter((name) => withheld(name) || reitCapex(name))) {
     delete metrics[key];
@@ -698,6 +702,18 @@ export function summarizeSecFundamentals(
               }),
             ],
     ),
+    ...(capexUndecided === undefined
+      ? []
+      : [
+          sourceGap({
+            source: "sec-edgar",
+            message: `SEC summary withheld capex: ${capexUndecided}`,
+            provider: "sec-edgar",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ]),
     ...(unwithheld(missingFacts).length > 0
       ? [
           sourceGap({

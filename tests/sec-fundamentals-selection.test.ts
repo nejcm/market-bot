@@ -857,7 +857,8 @@ describe("REIT capex scope outside the lens", () => {
       const keys = result.artifact!.lenses.flatMap(({ metrics }) => metrics.map(({ key }) => key));
       return { keys, gaps: gapText(result.metricSectionGaps) };
     };
-    const undecided = "capex scope undecided without the SEC SIC classification";
+    const undecided =
+      "no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
 
     const { keys, gaps } = lens(eqixConcepts());
     expect(keys).not.toContain("freeCashFlowProxy");
@@ -869,6 +870,62 @@ describe("REIT capex scope outside the lens", () => {
       expect.arrayContaining(["freeCashFlowProxy", "capexDeltaPercent"]),
     );
     expect(control.gaps).not.toContain(undecided);
+  });
+
+  test("without the SEC SIC, the summary declares the capex it withholds", () => {
+    const withheld =
+      "SEC summary withheld capex: no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
+    const summarize = (concepts: Readonly<Record<string, readonly Row[]>>, sic?: string) => {
+      const { metrics, gaps } = summarizeSecFundamentals(payload(concepts), AS_OF, sic)!;
+      return { capex: metrics.capex, gaps: gapText(gaps) };
+    };
+    const { PaymentsToAcquireProductiveAssets: _capex, ...noCapex } = eqixConcepts();
+    const { RevenueFromContractWithCustomerExcludingAssessedTax: revenue, ...rest } =
+      eqixConcepts();
+    const eurFiler = payload(rest) as { facts: { "us-gaap": Record<string, unknown> } };
+    eurFiler.facts["us-gaap"].RevenueFromContractWithCustomerExcludingAssessedTax = {
+      units: { EUR: revenue },
+    };
+
+    expect(summarize(eqixConcepts())).toEqual({
+      capex: undefined,
+      gaps: expect.stringContaining(withheld),
+    });
+    expect(summarize(eqixConcepts(), "6798").gaps).not.toContain("withheld capex");
+    expect(summarize(withoutRealEstate())).toEqual({
+      capex: 4_311_000_000,
+      gaps: expect.not.stringContaining("withheld capex"),
+    });
+    expect(summarize(noCapex).gaps).not.toContain("withheld capex");
+    const eurGaps = gapText(summarizeSecFundamentals(eurFiler, AS_OF)!.gaps);
+    expect(eurGaps).toContain(
+      "SEC summary withheld monetary metrics: us-gaap facts are reported in EUR",
+    );
+    expect(eurGaps).not.toContain("withheld capex");
+
+    const { summary, metrics } = summarizeSecFundamentals(payload(eqixConcepts()), AS_OF)!;
+    const lens = addFinancialLensEvidence(
+      { jobType: "equity", assetClass: "equity", symbol: "EQIX", depth: "brief" },
+      [],
+      {
+        items: [
+          {
+            category: "sec-edgar",
+            title: "EQIX",
+            summary,
+            sourceIds: ["sec-eqix"],
+            observedAt: AS_OF,
+            metrics,
+          },
+        ],
+        gaps: [],
+      },
+      undefined,
+      AS_OF,
+    );
+    expect(
+      lens.artifact!.lenses.flatMap((section) => section.metrics).map(({ key }) => key),
+    ).not.toContain("freeCashFlowProxy");
   });
 
   test("without the SEC SIC, every FCF surface and the model input withhold the undecided capex", () => {
@@ -944,7 +1001,8 @@ describe("REIT capex scope outside the lens", () => {
         history: deriveFundamentalHistoryFromFinancialStatements(statements),
       };
     };
-    const undecided = "capex scope undecided without the SEC SIC classification";
+    const undecided =
+      "no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
 
     const withheld = surfaces(eqixConcepts());
     expect(withheld.legacyCapexKeys).toEqual([]);

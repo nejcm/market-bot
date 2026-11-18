@@ -591,7 +591,9 @@ describe("fundamental history", () => {
       derive(payload({ ...cashFlows, ...realEstate }), asOf).series.freeCashFlowProxy,
     ).toMatchObject({
       annual: [],
-      notes: ["withheld: capex scope undecided without the SEC SIC classification"],
+      notes: [
+        "withheld: no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases",
+      ],
     });
     // PSA FY2019 10-K 0001393311-20-000008 construction in process.
     const constructionInProcess = {

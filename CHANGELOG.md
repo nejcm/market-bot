@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.39](https://github.com/nejcm/market-bot/compare/v1.19.38...v1.19.39) (2026-11-18)
+
+### Bug Fixes
+
+- **dividends:** fill dividends per share years the primary tag skips (#264) ([559d03f](https://github.com/nejcm/market-bot/commit/559d03f72dca15f12b03d798103270dc5a567a94))
+
 ## [1.19.38](https://github.com/nejcm/market-bot/compare/v1.19.37...v1.19.38) (2026-11-18)
 
 ### Bug Fixes

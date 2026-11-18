@@ -2014,7 +2014,7 @@ describe("run workspace view", () => {
       reportingCurrency: "USD",
       quoteCurrency: "USD",
       priceSelectionRule: expect.stringContaining(
-        "inputs first filed after it withheld; TTM rows at the first filing of each selected value",
+        "inputs first filed after it withheld unless restated by under 0.1% from a value public then; TTM rows at the first filing of each selected value",
       ),
       trailingDisclosure: expect.stringContaining("Canonical reconciled TTM is unavailable"),
       rows: [

@@ -1,6 +1,7 @@
 import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
 import { revenueMultipleVerdict } from "./valuation-comps-contract";
 import { isYearAligned } from "./financial-statement-selection";
+import { materialRestatement } from "./fundamental-history-canonical";
 import { DEBT_SCOPE_CAVEAT } from "./financial-statement-definitions";
 import { depositoryNetDebtReason, type SecIssuerRegistration } from "./industry-classification";
 import {
@@ -129,12 +130,25 @@ export function valuationMetricSection(input: {
       ? "mixed-period-balance-sheet"
       : undefined;
   };
+  const restatementBasis = (keys: readonly FinancialStatementSeriesKey[]) => {
+    const restated = keys.filter((key) => period.restatedImmaterially?.[key] !== undefined);
+    return restated.length === 0
+      ? ""
+      : `; ${restated.join(", ")} restated by under 0.1% after the first annual report; restated value used`;
+  };
   const definitions: readonly MetricDefinition[] = METRICS.map(
     ([id, label, formula, denominatorKey]) => ({
       id,
       label,
       unit: "ratio",
-      basis: `${period.basis.toUpperCase()}; ${formula}${id === "priceToEarnings" ? "" : sharesBasis}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}`,
+      basis: `${period.basis.toUpperCase()}; ${formula}${id === "priceToEarnings" ? "" : sharesBasis}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}${restatementBasis(
+        [
+          ...(denominatorKey === "freeCashFlow"
+            ? (["operatingCashFlow", "capitalExpenditure"] as const)
+            : [denominatorKey]),
+          ...(id === "priceToEarnings" ? [] : (["dilutedShares"] as const)),
+        ],
+      )}`,
       ...(id === "enterpriseValueToRevenue"
         ? {
             applicable: () =>
@@ -301,6 +315,20 @@ export function valuationMetricSection(input: {
             return missing("incompatible currency");
           }
           numerator = enterpriseValue;
+          // EV nets claims against market cap, so a sub-0.1% share restatement can move it by more.
+          const originalShares = period.restatedImmaterially?.dilutedShares;
+          if (
+            originalShares !== undefined &&
+            materialRestatement({
+              value: enterpriseValue,
+              restatedFrom: {
+                value: enterpriseValue + close * (originalShares - period.dilutedShares!.value),
+                filedAt: "",
+              },
+            })
+          ) {
+            return missing("restated-after-first-filing");
+          }
         }
         const value = numerator / denominator.value;
         if (!Number.isFinite(value)) {

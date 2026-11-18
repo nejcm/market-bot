@@ -278,6 +278,7 @@ function valuationRows(
       ...VALUATION_FLAGS.filter((flag) => inputs[flag] === true),
       ...(inputs.earlierShareBasis ?? []).map((key) => `earlierShareBasis:${key}`),
       ...(inputs.restatedAfterFirstFiling ?? []).map((key) => `restatedAfterFirstFiling:${key}`),
+      ...Object.keys(inputs.restatedImmaterially ?? {}).map((key) => `restatedImmaterially:${key}`),
     ]);
     push("valuation.publicAt", period, {
       ...EMPTY,

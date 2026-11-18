@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.36](https://github.com/nejcm/market-bot/compare/v1.19.35...v1.19.36) (2026-11-18)
+
+### Bug Fixes
+
+- **sec:** declare capex the sec summary withholds without a sic (#261) ([5d04615](https://github.com/nejcm/market-bot/commit/5d04615ef0e098bf910189babb6c4ab595ea6e2f))
+
 ## [1.19.35](https://github.com/nejcm/market-bot/compare/v1.19.34...v1.19.35) (2026-11-18)
 
 ### Bug Fixes

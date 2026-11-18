@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.42](https://github.com/nejcm/market-bot/compare/v1.19.41...v1.19.42) (2026-11-18)
+
+### Bug Fixes
+
+- **capital-return:** bound a capped earliest dividend year (#267) ([d127bab](https://github.com/nejcm/market-bot/commit/d127babdde0c6731cf455ffaefe9ecf5f7610e82))
+
 ## [1.19.41](https://github.com/nejcm/market-bot/compare/v1.19.40...v1.19.41) (2026-11-18)
 
 ### Bug Fixes

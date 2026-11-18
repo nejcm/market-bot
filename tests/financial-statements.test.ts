@@ -7515,6 +7515,35 @@ describe("unproven restatements", () => {
       ).toEqual([]);
     });
 
+    test("a forward row is no standing value (REGN 10-K 0001206774-12-000709 tags Q1 2012 before it ended)", () => {
+      const tenK = "0001532176-13-000004";
+      expect(
+        unproven(
+          [["2012-01-01", "2012-12-31", 1, tenK, "2013-02-15"]],
+          [
+            ["2012-01-01", "2012-03-31", 64_000, "0001206774-12-000709", "2012-02-21"],
+            ["2012-01-01", "2012-03-31", 63_937, tenK, "2013-02-15"],
+          ],
+        ),
+      ).toEqual([]);
+    });
+
+    test("an 8-K row without fp still stands as the earlier value", () => {
+      const { fp: _fp, ...recast } = {
+        ...raw(["2020-01-01", "2020-03-31", 1, "recast", "2020-05-05"]),
+        form: "8-K",
+      };
+      const shifted = raw(["2020-01-01", "2020-03-31", 2, "shifted", "2021-08-05"]);
+      const root = {
+        Assets: { units: { USD: [raw([undefined, "2021-06-30", 1, "shifted", "2021-08-05"])] } },
+        OtherNonoperatingIncomeExpense: {
+          units: { USD: [raw(["2021-01-01", "2021-06-30", 1, "shifted", "2021-08-05"])] },
+        },
+      };
+
+      expect([...unprovenRestatements(root, [recast, shifted]).keys()]).toEqual([shifted]);
+    });
+
     test("a row matching the surviving value stands after a dropped shift", () => {
       expect(
         unproven(

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { yearsBetween } from "../src/corpus/fiscal-years";
+import { expectedSelectedConcept } from "../src/corpus/offline-financial-history-facts";
 import { isRecord } from "../src/guards";
 import {
   OFFLINE_FINANCIAL_STATEMENT_FIXTURES,
@@ -278,6 +279,40 @@ describe("offline financial-statement corpus — history rosters and alias fault
     for (const key of ["operatingCashFlow", "capex", "freeCashFlowProxy"]) {
       expect(verdicts.get(`canonical.${key}`)?.kind).toMatch(/^verified-/u);
     }
+  });
+
+  test("the selected-concept oracle ignores a forward row, as production does", async () => {
+    const aaplCase = await loadOfflineCorpusCase("aapl");
+    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(
+      aaplCase.execution.input.companyFacts,
+    );
+    usGaap.NetCashProvidedByUsedInOperatingActivitiesContinuingOperations = {
+      units: {
+        USD: [
+          {
+            start: "2025-06-15",
+            end: "2026-06-14",
+            val: 1,
+            accn: "forward-10-k",
+            fy: 2025,
+            fp: "FY",
+            form: "10-K",
+            filed: "2025-11-01",
+          },
+        ],
+      },
+    };
+    const { execution } = mutateOfflineCorpusCase(aaplCase, { input: { companyFacts: payload } });
+
+    expect(execution.projection.statements.operatingCashFlow?.selectedConcept).toBe(
+      "NetCashProvidedByUsedInOperatingActivities",
+    );
+    expect(
+      expectedSelectedConcept(execution, {
+        key: "operatingCashFlow",
+        canonicalKey: "operatingCashFlow",
+      }),
+    ).toBe("NetCashProvidedByUsedInOperatingActivities");
   });
 
   test("rejects source-derivable annual metadata corruption", async () => {

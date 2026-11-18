@@ -96,11 +96,11 @@ function companyfacts(includeCapitalFacts = true): Record<string, unknown> {
   };
 }
 
-function statements(payload: unknown) {
+function statements(payload: unknown, asOf = GENERATED_AT) {
   return deriveFinancialStatements(payload, {
     symbol: "TEST",
-    generatedAt: GENERATED_AT,
-    analysisAsOf: GENERATED_AT,
+    generatedAt: asOf,
+    analysisAsOf: asOf,
     sourceId: SOURCE_ID,
   });
 }
@@ -401,6 +401,112 @@ describe("capital ownership artifact", () => {
       code: "sbc-history-missing",
       message: "Annual stock-based compensation history is missing",
     });
+  });
+
+  test("a forward maturity row from an older 10-K is not the latest bucket (LLY year three at 2014-01-15)", () => {
+    const fy2012 = {
+      accn: "0000059478-13-000007",
+      fy: 2012,
+      fp: "FY",
+      form: "10-K",
+      filed: "2013-02-21",
+    };
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2012)]),
+          LongTermDebtNoncurrent: concept("USD", [{ ...fy2012, end: "2012-12-31", val: 1 }]),
+          LongTermDebtMaturitiesRepaymentsOfPrincipalInYearThree: concept("USD", [
+            { ...fy2012, end: "2012-12-31", val: 9_000_000 },
+            {
+              end: "2013-12-31",
+              val: 15_500_000,
+              accn: "0001193125-11-041620",
+              fy: 2010,
+              fp: "FY",
+              form: "10-K",
+              filed: "2011-02-22",
+            },
+          ]),
+        },
+      },
+    };
+    const asOf = "2014-01-15T00:00:00.000Z";
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload, asOf));
+
+    expect(
+      artifact.debtPrincipal?.maturities.find(({ bucket }) => bucket === "year-three"),
+    ).toMatchObject({
+      value: 9_000_000,
+      periodEnd: "2012-12-31",
+      accessionNumber: "0000059478-13-000007",
+    });
+  });
+
+  test("a forward-only SBC row leaves the annual history missing", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2024)]),
+          ShareBasedCompensation: concept("USD", [{ ...annual(42, 2025), filed: "2025-02-15" }]),
+        },
+      },
+    };
+    const asOf = "2026-01-20T00:00:00.000Z";
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload, asOf));
+
+    expect(artifact.stockBasedCompensation).toEqual([]);
+    expect(artifact.omissions.map(({ code }) => code)).toContain("sbc-history-missing");
+  });
+
+  test("an off-period SBC row from a later filing does not replace the standing value", () => {
+    const shifted = { accn: "shifted", fy: 2026, fp: "FY", form: "10-K", filed: "2026-07-15" };
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2024)]),
+          Assets: concept("USD", [{ ...shifted, end: "2026-03-31", val: 1 }]),
+          OtherNonoperatingIncomeExpense: concept("USD", [
+            { ...shifted, start: "2025-04-01", end: "2026-03-31", val: 1 },
+          ]),
+          ShareBasedCompensation: concept("USD", [
+            annual(42, 2024),
+            { ...annual(999, 2024), ...shifted },
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.stockBasedCompensation).toEqual([
+      expect.objectContaining({ value: 42, periodEnd: "2024-12-31" }),
+    ]);
+  });
+
+  test("a later 10-K restating a prior year at its own statement date replaces the value", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          Assets: concept("USD", [{ ...instant(1), accn: "test-2025" }]),
+          ShareBasedCompensation: concept("USD", [
+            annual(42, 2024),
+            { ...annual(50, 2024), accn: "test-2025", filed: "2026-02-15" },
+            annual(60, 2025),
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.stockBasedCompensation).toEqual([
+      expect.objectContaining({ value: 60, periodEnd: "2025-12-31" }),
+      expect.objectContaining({ value: 50, periodEnd: "2024-12-31", filedAt: "2026-02-15" }),
+    ]);
   });
 
   test("keeps missing filed evidence explicit", () => {

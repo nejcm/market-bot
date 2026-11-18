@@ -202,6 +202,19 @@ describe("subsequent financing bridge", () => {
     expect(JSON.stringify(bridge)).not.toContain("proFormaCash");
   });
 
+  test("does not retain a current-report amount dated after its filing", () => {
+    const payload = companyFacts() as {
+      facts: { "us-gaap": Record<string, { units: { USD: Record<string, unknown>[] } }> };
+    };
+    for (const concept of ["ProceedsFromIssuanceOfLongTermDebt", "PaymentsOfDebtIssuanceFees"]) {
+      for (const row of payload.facts["us-gaap"][concept]!.units.USD) {
+        Object.assign(row, { start: "2025-05-20", end: "2025-05-20" });
+      }
+    }
+
+    expect(deriveSubsequentFinancingBridge(payload, statements(payload))).toBeUndefined();
+  });
+
   test("does not retain an event already covered by a later statement period", () => {
     const payload = companyFacts(true);
 

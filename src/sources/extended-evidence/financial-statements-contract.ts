@@ -66,14 +66,23 @@ export function canonicalizeSecForm(value: string):
   return { form: value as SupportedSecForm, canonicalForm, amendment };
 }
 
+// A period not ended when filed is a forward schedule (CLSK's expected amortization), not a reported value.
+export function isForwardSchedule(end: string, filed: string): boolean {
+  return end > filed;
+}
+
 export function readSecFactPeriodMetadata(
   value: Record<string, unknown>,
 ): { readonly filed: string; readonly end: string; readonly fp: string } | undefined {
   const filed = readString(value, "filed");
   const end = readString(value, "end");
   const fp = readString(value, "fp");
-  // A period not ended when filed is a forward schedule (CLSK's expected amortization), not a reported value.
-  if (filed === undefined || end === undefined || fp === undefined || end > filed) {
+  if (
+    filed === undefined ||
+    end === undefined ||
+    fp === undefined ||
+    isForwardSchedule(end, filed)
+  ) {
     return undefined;
   }
   return { filed, end, fp };

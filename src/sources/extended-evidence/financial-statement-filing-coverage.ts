@@ -143,6 +143,18 @@ export function realEstateInvestmentFiled(
   );
 }
 
+// PP&E payment lines (OtherPropertyPlantAndEquipment, MachineryAndEquipment, ...) that are not total capex.
+export function capexComponentConcepts(payload: unknown, analysisAsOf: string): readonly string[] {
+  const root = taxonomyRoot(payload, "us-gaap");
+  return Object.keys(root ?? {})
+    .filter(
+      (concept) =>
+        /^PaymentsToAcquire\w+Equipment$/u.test(concept) &&
+        rawConceptRows(root, concept, analysisAsOf).length > 0,
+    )
+    .toSorted();
+}
+
 // Any raw row, even malformed, counts as filed.
 export function unfiledSeries(
   payload: unknown,

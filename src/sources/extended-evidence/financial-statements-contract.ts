@@ -486,6 +486,8 @@ export interface FinancialStatementsArtifact {
   readonly dividendPaymentFiled?: boolean;
   // Series with no observable raw fact under any alias in any taxonomy; absent on pre-flag artifacts.
   readonly unfiledSeries?: readonly FinancialStatementSeriesKey[];
+  // Us-gaap PP&E payment component concepts filed while capital expenditure is unfiled.
+  readonly capexComponentConcepts?: readonly string[];
   // Any non-zero us-gaap real estate acquisition, development or improvement outflow; absent on pre-flag artifacts.
   readonly realEstateInvestmentFiled?: boolean;
   // The same, filed in the latest annual report or a later filing; absent on pre-flag artifacts.
@@ -929,6 +931,9 @@ export function readFinancialStatementsArtifact(
         !value.unfiledSeries.every((key) =>
           FINANCIAL_STATEMENT_SERIES_KEYS.includes(key as FinancialStatementSeriesKey),
         ))) ||
+    (value.capexComponentConcepts !== undefined &&
+      (!Array.isArray(value.capexComponentConcepts) ||
+        !value.capexComponentConcepts.every((concept) => typeof concept === "string"))) ||
     !Array.isArray(value.structuredFinancialGaps)
   ) {
     return undefined;

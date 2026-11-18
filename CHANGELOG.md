@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.35](https://github.com/nejcm/market-bot/compare/v1.19.34...v1.19.35) (2026-11-18)
+
+### Bug Fixes
+
+- **sec:** drop forward and unproven companyfacts rows in raw-row readers (#259) ([68c7049](https://github.com/nejcm/market-bot/commit/68c7049ba43e547d92a373fdae5040afe0fe9154))
+
 ## [1.19.34](https://github.com/nejcm/market-bot/compare/v1.19.33...v1.19.34) (2026-11-15)
 
 ### Bug Fixes

@@ -5,7 +5,9 @@ import {
   ANNUAL_REPORT_FORMS_WITH_AMENDMENTS,
   type FinancialStatementTaxonomy,
   type FinancialStatementsArtifact,
+  isForwardSchedule,
 } from "./financial-statements-contract";
+import { unprovenRestatements } from "./financial-statement-period-identity";
 import { isYearAligned } from "./financial-statement-selection";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import {
@@ -296,7 +298,7 @@ function conceptUnitFacts(
   payload: unknown,
   definition: ConceptDefinition,
   unit: string,
-): readonly unknown[] {
+): readonly (Record<string, unknown> & { readonly end: string; readonly filed: string })[] {
   if (!isRecord(payload) || !isRecord(payload.facts)) {
     return [];
   }
@@ -306,7 +308,19 @@ function conceptUnitFacts(
   }
   const concept = taxonomy[definition.concept];
   const units = isRecord(concept) ? concept.units : undefined;
-  return isRecord(units) && Array.isArray(units[unit]) ? units[unit] : [];
+  const rows: unknown = isRecord(units) ? units[unit] : undefined;
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  const unproven = unprovenRestatements(taxonomy, rows);
+  return rows.filter(
+    (row): row is Record<string, unknown> & { readonly end: string; readonly filed: string } =>
+      isRecord(row) &&
+      typeof row.end === "string" &&
+      typeof row.filed === "string" &&
+      !isForwardSchedule(row.end, row.filed) &&
+      !unproven.has(row),
+  );
 }
 
 function annualConceptFacts(
@@ -319,16 +333,11 @@ function annualConceptFacts(
   for (const definition of definitions) {
     const selected = conceptUnitFacts(payload, definition, unit).flatMap(
       (fact): readonly CapitalOwnershipPeriodFact[] => {
-        if (!isRecord(fact)) {
-          return [];
-        }
         const annualForm = ANNUAL_REPORT_FORMS_WITH_AMENDMENTS.find((form) => fact.form === form);
         if (
           annualForm === undefined ||
           typeof fact.val !== "number" ||
           !Number.isFinite(fact.val) ||
-          typeof fact.end !== "string" ||
-          typeof fact.filed !== "string" ||
           (typeof fact.start === "string"
             ? !isYearAligned(fact.start, fact.end)
             : fact.fp !== "FY") ||
@@ -378,11 +387,8 @@ function latestInstantFact(
     const facts = conceptUnitFacts(payload, definition, unit).flatMap(
       (fact): readonly CapitalOwnershipFact[] => {
         if (
-          !isRecord(fact) ||
           typeof fact.val !== "number" ||
           !Number.isFinite(fact.val) ||
-          typeof fact.end !== "string" ||
-          typeof fact.filed !== "string" ||
           fact.end > analysisAsOf.slice(0, 10) ||
           fact.filed > analysisAsOf.slice(0, 10)
         ) {

@@ -8,7 +8,9 @@ import {
   isAnnualReportForm,
   type AnnualReportForm,
   type CanonicalSecForm,
+  readSecFactPeriodMetadata,
 } from "../sources/extended-evidence/financial-statements-contract";
+import { calendarYearFromPeriodEnd } from "../sources/extended-evidence/financial-statement-period-identity";
 import type { FundamentalHistoryPoint } from "../sources/extended-evidence/fundamental-history";
 import type { OfflineCorpusExecution } from "./offline-financial-statements-corpus";
 
@@ -232,20 +234,14 @@ function parseCanonicalFact(
   const factValue = readNumber(value, "val");
   const formValue = readString(value, "form");
   const canonicalForm = formValue === undefined ? undefined : parseCanonicalForm(formValue);
-  const filedAt = readString(value, "filed");
-  const periodEnd = readString(value, "end");
-  const fiscalYear =
-    periodEnd === undefined ? undefined : Number.parseInt(periodEnd.slice(0, 4), 10);
-  const fiscalPeriod = readString(value, "fp");
+  const period = readSecFactPeriodMetadata(value);
+  const fiscalYear = period === undefined ? undefined : calendarYearFromPeriodEnd(period.end);
   if (
     factValue === undefined ||
     formValue === undefined ||
     canonicalForm === undefined ||
-    filedAt === undefined ||
-    periodEnd === undefined ||
-    fiscalYear === undefined ||
-    !Number.isFinite(fiscalYear) ||
-    fiscalPeriod === undefined
+    period === undefined ||
+    fiscalYear === undefined
   ) {
     return undefined;
   }
@@ -255,11 +251,11 @@ function parseCanonicalFact(
     canonicalForm,
     amendment: formValue.endsWith("/A"),
     accessionNumber: readString(value, "accn") ?? null,
-    filedAt,
+    filedAt: period.filed,
     ...(periodStart !== undefined ? { periodStart } : {}),
-    periodEnd,
+    periodEnd: period.end,
     fiscalYear,
-    fiscalPeriod,
+    fiscalPeriod: period.fp,
     concept,
     unit,
   };

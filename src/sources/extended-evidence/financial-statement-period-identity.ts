@@ -1,6 +1,7 @@
 import { DAY_MS, daysBetween } from "../../config/shared";
 import { isRecord, readString } from "../../guards";
 import { financialStatementPeriodKey } from "./financial-statement-selection";
+import { isForwardSchedule } from "./financial-statements-contract";
 
 export interface StatementFiscalPeriod {
   readonly periodEnd: string;
@@ -69,7 +70,10 @@ function secFactRow(value: unknown): SecFactRow | undefined {
   const filed = readString(value, "filed");
   const start = readString(value, "start");
   const form = readString(value, "form");
-  return accn === undefined || end === undefined || filed === undefined
+  return accn === undefined ||
+    end === undefined ||
+    filed === undefined ||
+    isForwardSchedule(end, filed)
     ? undefined
     : {
         accn,

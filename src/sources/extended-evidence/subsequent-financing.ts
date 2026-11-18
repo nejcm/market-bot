@@ -2,9 +2,10 @@ import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/eviden
 import { isRecord } from "../../guards";
 import type { CollectContext } from "../types";
 import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
-import type {
-  FinancialStatementFact,
-  FinancialStatementsArtifact,
+import {
+  type FinancialStatementFact,
+  type FinancialStatementsArtifact,
+  isForwardSchedule,
 } from "./financial-statements-contract";
 import {
   readArtifactObservations,
@@ -244,6 +245,7 @@ function currentReportFacts(
       fact.val <= 0 ||
       typeof fact.filed !== "string" ||
       typeof fact.end !== "string" ||
+      isForwardSchedule(fact.end, fact.filed) ||
       fact.filed <= statementPeriodEnd ||
       fact.end <= statementPeriodEnd ||
       (fact.start !== undefined &&

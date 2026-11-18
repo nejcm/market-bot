@@ -2036,8 +2036,14 @@ export function assertMetricSectionInvariants(
         )
           .filter((fact) => fact.value > 0 && isAnnualSpan(fact))
           .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
+        const capped = statements.omissionNotes.some(
+          (note) =>
+            note.code === "history-cap" &&
+            note.seriesKey === "dividendsPerShare" &&
+            note.periodKey?.startsWith("annual|") === true,
+        );
         expect(metric.value, `${label} names the earliest positive FY`).toBe(
-          `FY${String(earliest?.fiscalYear)}`,
+          `FY${String(earliest?.fiscalYear)}${capped ? " or earlier" : ""}`,
         );
         expect(metric.periodEnd, `${label} ends at that FY`).toBe(earliest?.periodEnd);
         break;

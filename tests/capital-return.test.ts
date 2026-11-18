@@ -237,6 +237,79 @@ describe("capitalReturnSection", () => {
     );
   });
 
+  // EQIX 10-K 0001101239-26-000032 and priors tag DPS FY2015-FY2025; the 10-period cap drops FY2015.
+  test("EQIX-shaped: a capped dividend history reads its earliest year as an upper bound", () => {
+    const declared: Record<number, number> = {
+      2015: 17.71,
+      2016: 7,
+      2017: 8,
+      2018: 9.12,
+      2019: 9.84,
+      2020: 10.64,
+      2021: 11.48,
+      2022: 12.4,
+      2023: 14.49,
+      2024: 17.04,
+      2025: 18.76,
+    };
+    const years = (from: number) =>
+      Object.keys(declared)
+        .map(Number)
+        .filter((year) => year >= from);
+    const annual = (from: number, unit: string, value: (year: number) => number) => ({
+      units: { [unit]: years(from).map((year) => fy(value(year), year)) },
+    });
+    const earliest = (from: number) =>
+      evaluate(
+        context(
+          usGaap({
+            WeightedAverageNumberOfDilutedSharesOutstanding: annual(from, "shares", () => 100),
+            PaymentsOfDividends: annual(from, "USD", (year) => declared[year]! * 100),
+            CommonStockDividendsPerShareDeclared: annual(
+              from,
+              "USD/shares",
+              (year) => declared[year]!,
+            ),
+          }),
+        ),
+      ).metric("earliestDividendFyInHistory");
+
+    expect(earliest(2015)).toMatchObject({
+      status: "value",
+      value: "FY2016 or earlier",
+      periodEnd: "2016-12-31",
+    });
+    expect(earliest(2016)).toMatchObject({
+      status: "value",
+      value: "FY2016",
+      periodEnd: "2016-12-31",
+    });
+  });
+
+  // CALX-shaped: only the capped-out FY2015 declares a positive dividend; retained years declare zero.
+  test("a capped history with no positive retained year says retained, not filed, history", () => {
+    const years = Array.from({ length: 11 }, (_, index) => 2015 + index);
+    const annual = (unit: string, value: (year: number) => number) => ({
+      units: { [unit]: years.map((year) => fy(value(year), year)) },
+    });
+    const result = evaluate(
+      context(
+        usGaap({
+          WeightedAverageNumberOfDilutedSharesOutstanding: annual("shares", () => 100),
+          PaymentsOfDividends: annual("USD", (year) => (year === 2015 ? 50 : 0)),
+          CommonStockDividendsPerShareDeclared: annual("USD/shares", (year) =>
+            year === 2015 ? 0.5 : 0,
+          ),
+        }),
+      ),
+    );
+
+    expect(result.metric("earliestDividendFyInHistory")).toMatchObject({
+      status: "missing",
+      reason: "no positive annual dividends per share fact in retained history",
+    });
+  });
+
   test("GOOG-shaped dividend initiation: the latest FY anchors, earlier years do not matter", () => {
     const result = evaluate(
       context(

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { fiscalYearFromPeriodEnd } from "../src/sources/extended-evidence/financial-statement-period-identity";
 import {
   deriveFinancialStatements,
   financialStatementsHistoryGaps,
@@ -621,6 +622,58 @@ describe("canonical financial statements", () => {
     // A Jan-31 retailer conventionally calls this FY2017; current behavior uses 2018.
     expect(artifact.statements.incomeStatement.revenue.annual).toEqual([
       expect.objectContaining({ periodEnd: "2018-01-31", fiscalYear: 2018 }),
+    ]);
+  });
+
+  test("labels a 52/53-week year ending in early January by its prior calendar year", () => {
+    const yearFact = (periodStart: string, periodEnd: string, value: number, filedAt: string) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalYear: 0,
+        fiscalPeriod: "FY",
+        filedAt,
+        periodStart,
+        periodEnd,
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          SalesRevenueNet: {
+            USD: [
+              // Franklin Electric 10-K 0000038725-11-000017 (dei fy 2010).
+              yearFact("2010-01-03", "2011-01-01", 713_792_000, "2011-03-02"),
+              yearFact("2011-01-02", "2011-12-31", 821_077_000, "2012-02-29"),
+              yearFact("2012-01-01", "2012-12-29", 891_345_000, "2013-02-27"),
+              fact({
+                value: 200_000_000,
+                form: "10-Q",
+                fiscalPeriod: "Q1",
+                filedAt: "2013-02-07",
+                periodStart: "2012-09-30",
+                periodEnd: "2013-01-05",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(
+      artifact.statements.incomeStatement.revenue.annual.map(({ periodEnd, fiscalYear }) => [
+        periodEnd,
+        fiscalYear,
+      ]),
+    ).toEqual([
+      ["2011-01-01", 2010],
+      ["2011-12-31", 2011],
+      ["2012-12-29", 2012],
+    ]);
+    expect(artifact.statements.incomeStatement.revenue.interim).toEqual([
+      expect.objectContaining({ periodEnd: "2013-01-05", fiscalYear: 2012 }),
+    ]);
+    expect(["2026-01-07", "2026-01-08"].map((end) => fiscalYearFromPeriodEnd(end))).toEqual([
+      2025, 2026,
     ]);
   });
 

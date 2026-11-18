@@ -9,15 +9,23 @@ export interface StatementFiscalPeriod {
   readonly fiscalPeriod: string;
 }
 
-// Calendar-year labels fit calendar filers and BNS-style Oct-31 years.
+const FIFTY_TWO_WEEK_YEAR_END_SLACK_DAYS = 7;
+
+// Calendar year of the end date; any period or instant ending Jan 1-7 takes the prior year (52/53-week ends).
 // Jan-31 retailers may call 2018-01-31 FY2017 while this yields 2018; that still beats the reported fy frame.
-export function calendarYearFromPeriodEnd(periodEnd: string): number | undefined {
+export function fiscalYearFromPeriodEnd(periodEnd: string): number | undefined {
   const year = Number.parseInt(periodEnd.slice(0, 4), 10);
-  return Number.isFinite(year) ? year : undefined;
+  if (!Number.isFinite(year)) {
+    return undefined;
+  }
+  const earlyJanuary =
+    periodEnd.slice(5, 7) === "01" &&
+    Number.parseInt(periodEnd.slice(8, 10), 10) <= FIFTY_TWO_WEEK_YEAR_END_SLACK_DAYS;
+  return earlyJanuary ? year - 1 : year;
 }
 
 export function statementFiscalPeriodKey(period: StatementFiscalPeriod): string {
-  const year = calendarYearFromPeriodEnd(period.periodEnd);
+  const year = fiscalYearFromPeriodEnd(period.periodEnd);
   return period.form === "10-K"
     ? `${period.periodEnd}|${period.form}|${String(year ?? "")}`
     : `${period.periodEnd}|${period.form}|${String(year ?? "")}|${period.fiscalPeriod}`;

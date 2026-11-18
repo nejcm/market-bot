@@ -10,7 +10,7 @@ import {
   type CanonicalSecForm,
   readSecFactPeriodMetadata,
 } from "../sources/extended-evidence/financial-statements-contract";
-import { calendarYearFromPeriodEnd } from "../sources/extended-evidence/financial-statement-period-identity";
+import { fiscalYearFromPeriodEnd } from "../sources/extended-evidence/financial-statement-period-identity";
 import type { FundamentalHistoryPoint } from "../sources/extended-evidence/fundamental-history";
 import type { OfflineCorpusExecution } from "./offline-financial-statements-corpus";
 
@@ -235,7 +235,7 @@ function parseCanonicalFact(
   const formValue = readString(value, "form");
   const canonicalForm = formValue === undefined ? undefined : parseCanonicalForm(formValue);
   const period = readSecFactPeriodMetadata(value);
-  const fiscalYear = period === undefined ? undefined : calendarYearFromPeriodEnd(period.end);
+  const fiscalYear = period === undefined ? undefined : fiscalYearFromPeriodEnd(period.end);
   if (
     factValue === undefined ||
     formValue === undefined ||

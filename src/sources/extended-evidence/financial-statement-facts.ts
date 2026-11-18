@@ -17,7 +17,7 @@ import {
   MAX_ANNUAL_PERIODS_PER_SHAPE,
 } from "./financial-statement-selection";
 import {
-  calendarYearFromPeriodEnd,
+  fiscalYearFromPeriodEnd,
   unprovenRestatements,
 } from "./financial-statement-period-identity";
 import {
@@ -112,7 +112,7 @@ export function parseFact(
     return undefined;
   }
   const { filed: filedAt, end: periodEnd, fp: fiscalPeriod } = period;
-  const fiscalYear = calendarYearFromPeriodEnd(periodEnd);
+  const fiscalYear = fiscalYearFromPeriodEnd(periodEnd);
   if (fiscalYear === undefined) {
     return undefined;
   }

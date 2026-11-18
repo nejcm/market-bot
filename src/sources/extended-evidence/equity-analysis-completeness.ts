@@ -606,9 +606,7 @@ function capitalOwnershipDimension(
       ? ["sbc-history-missing"]
       : []),
     ...(buybacks.length === 0 && dividendsPaid.length === 0 ? ["payout-evidence-missing"] : []),
-    ...(artifact?.omissions.some((omission) => omission.code === "debt-maturity-untagged") === true
-      ? ["debt-maturity-untagged"]
-      : []),
+    ...(artifact?.omissions.flatMap(({ code }) => (code.startsWith("debt-") ? [code] : [])) ?? []),
     ...(artifact?.subsequentFinancing !== undefined ? ["subsequent-financing-unreconciled"] : []),
   ];
   const informationalReasons = ownershipInformationalReasons(ownershipSignal);

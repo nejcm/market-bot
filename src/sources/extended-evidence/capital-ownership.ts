@@ -376,47 +376,61 @@ function annualConceptFacts(
   return [];
 }
 
-function latestInstantFact(
+// One instant and accession for every slot: buckets and balance lines add up only within one filing.
+function latestInstantFacts(
   payload: unknown,
-  definitions: readonly ConceptDefinition[],
+  slots: readonly (readonly ConceptDefinition[])[],
   unit: string,
   analysisAsOf: string,
   sourceId: string,
-): CapitalOwnershipFact | undefined {
-  for (const definition of definitions) {
-    const facts = conceptUnitFacts(payload, definition, unit).flatMap(
-      (fact): readonly CapitalOwnershipFact[] => {
-        if (
-          typeof fact.val !== "number" ||
-          !Number.isFinite(fact.val) ||
-          fact.end > analysisAsOf.slice(0, 10) ||
-          fact.filed > analysisAsOf.slice(0, 10)
-        ) {
-          return [];
-        }
-        return [
-          {
-            value: fact.val,
-            periodEnd: fact.end,
-            filedAt: fact.filed,
-            taxonomy: definition.taxonomy,
-            concept: definition.concept,
-            unit,
-            ...(typeof fact.accn === "string" ? { accessionNumber: fact.accn } : {}),
-            sourceIds: [sourceId],
-          },
-        ];
-      },
-    );
-    const [latest] = facts.toSorted(
+  annualOnly = false,
+): readonly (CapitalOwnershipFact | undefined)[] {
+  const cutoff = analysisAsOf.slice(0, 10);
+  const facts = slots.map((definitions) =>
+    definitions.map((definition) =>
+      conceptUnitFacts(payload, definition, unit).flatMap(
+        (fact): readonly CapitalOwnershipFact[] => {
+          if (
+            typeof fact.val !== "number" ||
+            !Number.isFinite(fact.val) ||
+            fact.end > cutoff ||
+            fact.filed > cutoff ||
+            (annualOnly && !ANNUAL_REPORT_FORMS_WITH_AMENDMENTS.some((form) => fact.form === form))
+          ) {
+            return [];
+          }
+          return [
+            {
+              value: fact.val,
+              periodEnd: fact.end,
+              filedAt: fact.filed,
+              taxonomy: definition.taxonomy,
+              concept: definition.concept,
+              unit,
+              ...(typeof fact.accn === "string" ? { accessionNumber: fact.accn } : {}),
+              sourceIds: [sourceId],
+            },
+          ];
+        },
+      ),
+    ),
+  );
+  const [anchor] = facts
+    .flat(2)
+    .toSorted(
       (left, right) =>
         right.periodEnd.localeCompare(left.periodEnd) || right.filedAt.localeCompare(left.filedAt),
     );
-    if (latest !== undefined) {
-      return latest;
-    }
-  }
-  return undefined;
+  return facts.map((definitions) =>
+    definitions
+      .map((rows) =>
+        rows.find(
+          (fact) =>
+            fact.periodEnd === anchor?.periodEnd && fact.accessionNumber === anchor.accessionNumber,
+        ),
+      )
+      .find((fact) => fact !== undefined),
+  );
 }
 
 export function deriveCapitalOwnershipArtifact(
@@ -436,39 +450,47 @@ export function deriveCapitalOwnershipArtifact(
           financialStatements.analysisAsOf,
           sourceId,
         );
-  const current =
-    currency === undefined
-      ? undefined
-      : latestInstantFact(
-          payload,
-          CURRENT_DEBT_CONCEPTS,
-          currency,
-          financialStatements.analysisAsOf,
-          sourceId,
-        );
-  const noncurrent =
-    currency === undefined
-      ? undefined
-      : latestInstantFact(
-          payload,
-          NONCURRENT_DEBT_CONCEPTS,
-          currency,
-          financialStatements.analysisAsOf,
-          sourceId,
-        );
-  const maturities =
+  const [current, noncurrent] =
     currency === undefined
       ? []
-      : MATURITY_CONCEPTS.flatMap((definition) => {
-          const fact = latestInstantFact(
-            payload,
-            [definition],
-            currency,
-            financialStatements.analysisAsOf,
-            sourceId,
-          );
-          return fact === undefined ? [] : [{ bucket: definition.bucket, ...fact }];
-        });
+      : latestInstantFacts(
+          payload,
+          [CURRENT_DEBT_CONCEPTS, NONCURRENT_DEBT_CONCEPTS],
+          currency,
+          financialStatements.analysisAsOf,
+          sourceId,
+        );
+  const ladder =
+    currency === undefined
+      ? []
+      : latestInstantFacts(
+          payload,
+          MATURITY_CONCEPTS.map((definition) => [definition]),
+          currency,
+          financialStatements.analysisAsOf,
+          sourceId,
+          true,
+        ).flatMap((fact, index) =>
+          fact === undefined ? [] : [{ bucket: MATURITY_CONCEPTS[index]!.bucket, ...fact }],
+        );
+  const balanceSheetFloor = financialStatements.statements.balanceSheet.totalAssets.annual
+    .map((fact) => fact.periodEnd)
+    .toSorted()
+    .at(-1);
+  const pairEnd = (current ?? noncurrent)?.periodEnd;
+  const ladderEnd = ladder[0]?.periodEnd;
+  // No annual balance sheet leaves nothing to date the instant against, so it is withheld too.
+  const stale = (periodEnd: string | undefined): boolean =>
+    periodEnd !== undefined && (balanceSheetFloor === undefined || periodEnd < balanceSheetFloor);
+  const staleOmission = (code: string, subject: string, periodEnd: string) => ({
+    code,
+    message:
+      balanceSheetFloor === undefined
+        ? `${subject} at ${periodEnd} has no annual balance sheet to date it against`
+        : `${subject} at ${periodEnd} predates the latest annual balance sheet ${balanceSheetFloor}`,
+  });
+  const pairPublished = (current !== undefined || noncurrent !== undefined) && !stale(pairEnd);
+  const maturities = stale(ladderEnd) ? [] : ladder;
   const omissions = [
     ...(stockBasedCompensation.length === 0
       ? [
@@ -478,11 +500,17 @@ export function deriveCapitalOwnershipArtifact(
           },
         ]
       : []),
-    ...((current !== undefined || noncurrent !== undefined) && maturities.length === 0
+    ...(ladderEnd !== undefined && stale(ladderEnd)
+      ? [staleOmission("debt-maturity-stale", "Debt maturity schedule", ladderEnd)]
+      : []),
+    ...(pairEnd !== undefined && stale(pairEnd)
+      ? [staleOmission("debt-principal-stale", "Debt principal", pairEnd)]
+      : []),
+    ...(pairPublished && ladder.length === 0
       ? [
           {
             code: "debt-maturity-untagged",
-            message: "Debt principal is tagged without maturity buckets",
+            message: "No annual-report debt maturity schedule is tagged",
           },
         ]
       : []),
@@ -492,11 +520,11 @@ export function deriveCapitalOwnershipArtifact(
     generatedAt: financialStatements.generatedAt,
     symbol: financialStatements.symbol,
     stockBasedCompensation,
-    ...(current !== undefined || noncurrent !== undefined || maturities.length > 0
+    ...(current !== undefined || noncurrent !== undefined || ladder.length > 0
       ? {
           debtPrincipal: {
-            ...(current !== undefined ? { current } : {}),
-            ...(noncurrent !== undefined ? { noncurrent } : {}),
+            ...(current !== undefined && pairPublished ? { current } : {}),
+            ...(noncurrent !== undefined && pairPublished ? { noncurrent } : {}),
             maturities,
           },
         }

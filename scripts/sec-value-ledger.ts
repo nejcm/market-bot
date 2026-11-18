@@ -361,6 +361,28 @@ export function secValueLedgerRows(input: {
     statements,
     subsequentFinancing,
   );
+  const debt = capitalOwnership.debtPrincipal;
+  for (const [metric, fact] of [
+    ["debtCurrent", debt?.current],
+    ["debtNoncurrent", debt?.noncurrent],
+    ...(debt?.maturities ?? []).map((row) => [`debtMaturity.${row.bucket}`, row] as const),
+  ] as const) {
+    if (fact !== undefined) {
+      push(`capitalOwnership.${metric}`, "latest", {
+        ...EMPTY,
+        status: "published",
+        value: fact.value,
+        currency: fact.unit,
+        accession: fact.accessionNumber ?? null,
+        detail: `${fact.concept} @ ${fact.periodEnd}`,
+      });
+    }
+  }
+  for (const { code, message } of capitalOwnership.omissions) {
+    if (code.startsWith("debt-")) {
+      push(`capitalOwnership.${code}`, "latest", { ...EMPTY, status: "withheld", reason: message });
+    }
+  }
   const evidence = withSubsequentFinancingEvidence(
     withCanonicalFinancialLensInputs(
       { items: input.sec.items.map(({ item }) => item), gaps: input.sec.gaps },

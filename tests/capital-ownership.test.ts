@@ -663,29 +663,76 @@ describe("debt principal instants", () => {
       value: 1_299_000_000,
       periodEnd: "2025-12-31",
     });
-    expect(artifact.omissions).toEqual([expect.objectContaining({ code: "sbc-history-missing" })]);
+    expect(artifact.omissions).toEqual([
+      expect.objectContaining({ code: "sbc-history-missing" }),
+      {
+        code: "debt-principal-leg-untagged",
+        message: "LongTermDebtNoncurrent is not tagged at 2025-12-31",
+      },
+    ]);
   });
 
-  test("current and noncurrent come from one instant (INTC/MRK shape)", () => {
-    const q3 = { ...instant(30, "2026-09-30"), form: "10-Q", fp: "Q3", filed: "2026-10-28" };
+  test("INTC: a leg untagged at the newest instant is declared, not filled (0000050863-26-000157)", () => {
+    const tenK = { fy: 2025, fp: "FY", form: "10-K", filed: "2026-01-23" };
+    const q2 = { fy: 2026, fp: "Q2", form: "10-Q", filed: "2026-07-24" };
+    const fy2025 = { end: "2025-12-27", accn: "0000050863-26-000011", ...tenK };
     const payload = {
       facts: {
         "us-gaap": {
           RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
-          Assets: concept("USD", [instant(1)]),
-          LongTermDebtCurrent: concept("USD", [instant(50), q3]),
-          LongTermDebtNoncurrent: concept("USD", [instant(200)]),
+          Assets: concept("USD", [{ ...fy2025, val: 1 }]),
+          LongTermDebtCurrent: concept("USD", [{ ...fy2025, val: 2_499_000_000 }]),
+          LongTermDebtNoncurrent: concept("USD", [
+            { ...fy2025, val: 44_086_000_000 },
+            { end: "2026-06-27", accn: "0000050863-26-000157", ...q2, val: 48_549_000_000 },
+          ]),
         },
       },
     };
 
     const artifact = deriveCapitalOwnershipArtifact(
       payload,
-      statements(payload, "2026-11-18T00:00:00.000Z"),
+      statements(payload, "2026-10-28T00:00:00.000Z"),
     );
 
-    expect(artifact.debtPrincipal?.current).toMatchObject({ value: 30, periodEnd: "2026-09-30" });
-    expect(artifact.debtPrincipal?.noncurrent).toBeUndefined();
+    expect(artifact.debtPrincipal?.noncurrent).toMatchObject({
+      value: 48_549_000_000,
+      periodEnd: "2026-06-27",
+    });
+    expect(artifact.debtPrincipal?.current).toBeUndefined();
+    expect(artifact.omissions).toContainEqual({
+      code: "debt-principal-leg-untagged",
+      message: "LongTermDebtCurrent is not tagged at 2026-06-27",
+    });
+    expect(
+      deriveEquityAnalysisCompleteness({
+        asOf: GENERATED_AT,
+        assetClass: "equity",
+        financialStatements: statements(payload),
+        capitalOwnership: artifact,
+      }).dimensions.capitalOwnership.reasonCodes,
+    ).toContain("debt-principal-leg-untagged");
+  });
+
+  test("both legs at one instant declare no untagged leg", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          Assets: concept("USD", [instant(1)]),
+          LongTermDebtCurrent: concept("USD", [instant(50)]),
+          LongTermDebtNoncurrent: concept("USD", [instant(200)]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.debtPrincipal).toMatchObject({
+      current: { value: 50 },
+      noncurrent: { value: 200 },
+    });
+    expect(artifact.omissions.map(({ code }) => code)).not.toContain("debt-principal-leg-untagged");
   });
 
   test("a ladder older than the latest annual balance sheet is withheld as stale (AMAT 2010 shape)", () => {

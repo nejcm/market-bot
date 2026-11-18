@@ -888,6 +888,27 @@ describe("equity analysis completeness", () => {
     expect(partial.financialCoreStatus).toBe("complete");
   });
 
+  test("an untagged debt leg is informational and keeps capital ownership complete", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      financialStatements: statements({}),
+      capitalOwnership: capitalOwnership({
+        omissions: [
+          {
+            code: "debt-principal-leg-untagged",
+            message: "LongTermDebtCurrent is not tagged at 2026-06-27",
+          },
+        ],
+      }),
+    });
+
+    expect(result.dimensions.capitalOwnership).toMatchObject({
+      status: "complete",
+      reasonCodes: ["debt-principal-leg-untagged"],
+    });
+  });
+
   test("adds ownership context without changing the SEC-governed capital status", () => {
     const secComplete = capitalOwnership();
     const baseline = deriveEquityAnalysisCompleteness({

@@ -506,6 +506,18 @@ export function deriveCapitalOwnershipArtifact(
     ...(pairEnd !== undefined && stale(pairEnd)
       ? [staleOmission("debt-principal-stale", "Debt principal", pairEnd)]
       : []),
+    ...(pairPublished && (current === undefined) !== (noncurrent === undefined)
+      ? [
+          {
+            code: "debt-principal-leg-untagged",
+            message: `${
+              (current === undefined ? CURRENT_DEBT_CONCEPTS : NONCURRENT_DEBT_CONCEPTS).find(
+                ({ taxonomy }) => taxonomy === (current ?? noncurrent)?.taxonomy,
+              )?.concept
+            } is not tagged at ${pairEnd}`,
+          },
+        ]
+      : []),
     ...(pairPublished && ladder.length === 0
       ? [
           {

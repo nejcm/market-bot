@@ -7,6 +7,8 @@ export const COMPLETENESS_REASON_CODE_LABELS: Readonly<Record<string, string>> =
   "current-primary-statements-incomplete": "Current primary statements are incomplete",
   "debt-maturity-stale": "Debt maturity schedule predates the latest annual balance sheet",
   "debt-maturity-untagged": "No annual-report debt maturity schedule is tagged",
+  "debt-principal-leg-untagged":
+    "One side of the long-term debt current/noncurrent split is not tagged",
   "debt-principal-stale": "Debt principal predates the latest annual balance sheet",
   "diluted-share-history-missing": "Diluted-share history is missing",
   "expectations-evidence-missing": "Expectations evidence is missing",

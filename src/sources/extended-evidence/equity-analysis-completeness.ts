@@ -559,6 +559,9 @@ function evidenceDimension(input: {
   };
 }
 
+// The published leg is correct as filed; the other leg is untagged under the pair's concepts.
+const DEBT_LEG_UNTAGGED = "debt-principal-leg-untagged";
+
 function ownershipInformationalReasons(
   signal: InstitutionalOwnershipSignal | undefined,
 ): readonly string[] {
@@ -606,10 +609,17 @@ function capitalOwnershipDimension(
       ? ["sbc-history-missing"]
       : []),
     ...(buybacks.length === 0 && dividendsPaid.length === 0 ? ["payout-evidence-missing"] : []),
-    ...(artifact?.omissions.flatMap(({ code }) => (code.startsWith("debt-") ? [code] : [])) ?? []),
+    ...(artifact?.omissions.flatMap(({ code }) =>
+      code.startsWith("debt-") && code !== DEBT_LEG_UNTAGGED ? [code] : [],
+    ) ?? []),
     ...(artifact?.subsequentFinancing !== undefined ? ["subsequent-financing-unreconciled"] : []),
   ];
-  const informationalReasons = ownershipInformationalReasons(ownershipSignal);
+  const informationalReasons = [
+    ...ownershipInformationalReasons(ownershipSignal),
+    ...(artifact?.omissions.some(({ code }) => code === DEBT_LEG_UNTAGGED) === true
+      ? [DEBT_LEG_UNTAGGED]
+      : []),
+  ];
   const sourceIds = unique([
     ...dilutedShares.flatMap((fact) => fact.sourceIds),
     ...(artifact?.stockBasedCompensation.flatMap((fact) => fact.sourceIds) ?? []),

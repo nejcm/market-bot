@@ -493,6 +493,13 @@ export async function assertInvariants(
     expect(loaded.artifact?.capitalOwnership?.stockBasedCompensation).toEqual(
       capitalOwnership.stockBasedCompensation,
     );
+    const debt = capitalOwnership.debtPrincipal;
+    for (const group of [debt?.maturities ?? [], [debt?.current, debt?.noncurrent]]) {
+      const present = group.filter((fact) => fact !== undefined);
+      expect(
+        new Set(present.map((fact) => `${fact.periodEnd} ${fact.accessionNumber}`)).size,
+      ).toBeLessThanOrEqual(1);
+    }
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertNoUnresolvedMetricReferences(report);

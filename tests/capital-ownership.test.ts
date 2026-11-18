@@ -83,6 +83,7 @@ function companyfacts(includeCapitalFacts = true): Record<string, unknown> {
                 "USD",
                 years.map((year) => annual(5 + year, year)),
               ),
+              Assets: concept("USD", [instant(1)]),
               LongTermDebtCurrent: concept("USD", [instant(50)]),
               LongTermDebtNoncurrent: concept("USD", [instant(200)]),
               LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: concept("USD", [
@@ -94,6 +95,29 @@ function companyfacts(includeCapitalFacts = true): Record<string, unknown> {
       },
     },
   };
+}
+
+function ladder(
+  rows: readonly (readonly [string, number])[],
+  filing: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    rows.map(([suffix, val]) => [
+      `LongTermDebtMaturitiesRepaymentsOfPrincipal${suffix}`,
+      concept("USD", [{ ...filing, val }]),
+    ]),
+  );
+}
+
+function merge(...groups: Record<string, unknown>[]): Record<string, unknown> {
+  const merged: Record<string, { units: { USD: unknown[] } }> = {};
+  for (const group of groups) {
+    for (const [name, value] of Object.entries(group)) {
+      const rows = (value as { units: { USD: unknown[] } }).units.USD;
+      merged[name] = { units: { USD: [...(merged[name]?.units.USD ?? []), ...rows] } };
+    }
+  }
+  return merged;
 }
 
 function statements(payload: unknown, asOf = GENERATED_AT) {
@@ -415,6 +439,7 @@ describe("capital ownership artifact", () => {
       facts: {
         "us-gaap": {
           RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2012)]),
+          Assets: concept("USD", [{ ...fy2012, end: "2012-12-31", val: 1 }]),
           LongTermDebtNoncurrent: concept("USD", [{ ...fy2012, end: "2012-12-31", val: 1 }]),
           LongTermDebtMaturitiesRepaymentsOfPrincipalInYearThree: concept("USD", [
             { ...fy2012, end: "2012-12-31", val: 9_000_000 },
@@ -558,5 +583,259 @@ describe("capital ownership artifact", () => {
       reconciled: false,
       sourceIds: [SOURCE_ID],
     });
+  });
+});
+
+describe("debt principal instants", () => {
+  test("EQIX: the ladder is the FY2025 10-K schedule, never 10-Q buckets (0001101239-26-000032)", () => {
+    const tenK = {
+      end: "2025-12-31",
+      accn: "0001101239-26-000032",
+      fy: 2025,
+      fp: "FY",
+      form: "10-K",
+      filed: "2026-02-11",
+    };
+    const q3 = {
+      end: "2026-09-30",
+      accn: "0001101239-26-000180",
+      fy: 2026,
+      fp: "Q3",
+      form: "10-Q",
+      filed: "2026-10-28",
+    };
+    const payload = {
+      facts: {
+        "us-gaap": merge(
+          {
+            RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [
+              annual(100, 2025),
+            ]),
+            Assets: concept("USD", [{ ...tenK, val: 1 }]),
+            LongTermDebtCurrent: concept("USD", [{ ...tenK, val: 1_299_000_000 }]),
+          },
+          ladder(
+            [
+              ["InNextTwelveMonths", 1_317_000_000],
+              ["InYearTwo", 1_764_000_000],
+              ["InYearThree", 1_433_000_000],
+              ["InYearFour", 2_211_000_000],
+              ["InYearFive", 2_739_000_000],
+              ["AfterYearFive", 9_598_000_000],
+            ],
+            tenK,
+          ),
+          ladder(
+            [
+              ["RemainderOfFiscalYear", 601_000_000],
+              ["InNextTwelveMonths", 1_072_000_000],
+              ["InYearTwo", 1_414_000_000],
+              ["InYearThree", 3_025_000_000],
+              ["InYearFour", 3_199_000_000],
+            ],
+            q3,
+          ),
+        ),
+      },
+    };
+    const asOf = "2026-11-18T00:00:00.000Z";
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload, asOf));
+
+    expect(
+      artifact.debtPrincipal?.maturities.map(({ bucket, value, periodEnd, accessionNumber }) => [
+        bucket,
+        value,
+        periodEnd,
+        accessionNumber,
+      ]),
+    ).toEqual(
+      [
+        ["next-twelve-months", 1_317_000_000],
+        ["year-two", 1_764_000_000],
+        ["year-three", 1_433_000_000],
+        ["year-four", 2_211_000_000],
+        ["year-five", 2_739_000_000],
+        ["after-year-five", 9_598_000_000],
+      ].map((row) => [...row, "2025-12-31", "0001101239-26-000032"]),
+    );
+    expect(artifact.debtPrincipal?.current).toMatchObject({
+      value: 1_299_000_000,
+      periodEnd: "2025-12-31",
+    });
+    expect(artifact.omissions).toEqual([expect.objectContaining({ code: "sbc-history-missing" })]);
+  });
+
+  test("current and noncurrent come from one instant (INTC/MRK shape)", () => {
+    const q3 = { ...instant(30, "2026-09-30"), form: "10-Q", fp: "Q3", filed: "2026-10-28" };
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          Assets: concept("USD", [instant(1)]),
+          LongTermDebtCurrent: concept("USD", [instant(50), q3]),
+          LongTermDebtNoncurrent: concept("USD", [instant(200)]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(
+      payload,
+      statements(payload, "2026-11-18T00:00:00.000Z"),
+    );
+
+    expect(artifact.debtPrincipal?.current).toMatchObject({ value: 30, periodEnd: "2026-09-30" });
+    expect(artifact.debtPrincipal?.noncurrent).toBeUndefined();
+  });
+
+  test("a ladder older than the latest annual balance sheet is withheld as stale (AMAT 2010 shape)", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          Assets: concept("USD", [instant(1)]),
+          LongTermDebtNoncurrent: concept("USD", [instant(200)]),
+          LongTermDebtMaturitiesRepaymentsOfPrincipalInYearTwo: concept("USD", [
+            { ...instant(75, "2023-12-31"), filed: "2024-02-15" },
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.debtPrincipal).toEqual({
+      noncurrent: expect.objectContaining({ value: 200 }),
+      maturities: [],
+    });
+    expect(artifact.omissions).toContainEqual({
+      code: "debt-maturity-stale",
+      message:
+        "Debt maturity schedule at 2023-12-31 predates the latest annual balance sheet 2025-12-31",
+    });
+    expect(artifact.omissions.map(({ code }) => code)).not.toContain("debt-maturity-untagged");
+    expect(
+      deriveEquityAnalysisCompleteness({
+        asOf: GENERATED_AT,
+        assetClass: "equity",
+        financialStatements: statements(payload),
+        capitalOwnership: artifact,
+      }).dimensions.capitalOwnership.reasonCodes,
+    ).toContain("debt-maturity-stale");
+  });
+
+  test("a 10-K/A re-tagging the instant wins over the original filing's ladder", () => {
+    const amended = { accn: "amended", form: "10-K/A", filed: "2026-03-01" };
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          Assets: concept("USD", [instant(1)]),
+          LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: concept("USD", [
+            instant(50),
+            { ...instant(55), ...amended },
+          ]),
+          LongTermDebtMaturitiesRepaymentsOfPrincipalInYearTwo: concept("USD", [
+            instant(75),
+            { ...instant(80), ...amended },
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload, "2026-04-01"));
+
+    expect(
+      artifact.debtPrincipal?.maturities.map(({ bucket, value, accessionNumber }) => [
+        bucket,
+        value,
+        accessionNumber,
+      ]),
+    ).toEqual([
+      ["next-twelve-months", 55, "amended"],
+      ["year-two", 80, "amended"],
+    ]);
+  });
+
+  test("debt with only a 10-Q maturity schedule declares no annual-report schedule (CIFR shape)", () => {
+    const q3 = { ...instant(30, "2026-09-30"), form: "10-Q", fp: "Q3", filed: "2026-10-28" };
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          Assets: concept("USD", [instant(1)]),
+          LongTermDebtNoncurrent: concept("USD", [{ ...q3, val: 5447 }]),
+          LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: concept("USD", [q3]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(
+      payload,
+      statements(payload, "2026-11-18T00:00:00.000Z"),
+    );
+
+    expect(artifact.debtPrincipal).toEqual({
+      noncurrent: expect.objectContaining({ value: 5447 }),
+      maturities: [],
+    });
+    expect(artifact.omissions).toContainEqual({
+      code: "debt-maturity-untagged",
+      message: "No annual-report debt maturity schedule is tagged",
+    });
+  });
+
+  test("a debt pair older than the latest annual balance sheet is withheld, not untagged", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          Assets: concept("USD", [instant(1)]),
+          LongTermDebtCurrent: concept("USD", [
+            { ...instant(50, "2013-12-31"), filed: "2014-02-15" },
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.debtPrincipal).toEqual({ maturities: [] });
+    expect(artifact.omissions.filter(({ code }) => code.startsWith("debt-"))).toEqual([
+      {
+        code: "debt-principal-stale",
+        message: "Debt principal at 2013-12-31 predates the latest annual balance sheet 2025-12-31",
+      },
+    ]);
+    expect(
+      deriveEquityAnalysisCompleteness({
+        asOf: GENERATED_AT,
+        assetClass: "equity",
+        financialStatements: statements(payload),
+        capitalOwnership: artifact,
+      }).dimensions.capitalOwnership.reasonCodes,
+    ).toContain("debt-principal-stale");
+  });
+
+  test("without an annual balance sheet the ladder and pair are withheld", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          LongTermDebtCurrent: concept("USD", [instant(50)]),
+          LongTermDebtMaturitiesRepaymentsOfPrincipalInYearTwo: concept("USD", [instant(75)]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.debtPrincipal).toEqual({ maturities: [] });
+    expect(artifact.omissions.map(({ message }) => message)).toEqual(
+      expect.arrayContaining([
+        "Debt maturity schedule at 2025-12-31 has no annual balance sheet to date it against",
+        "Debt principal at 2025-12-31 has no annual balance sheet to date it against",
+      ]),
+    );
   });
 });

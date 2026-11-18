@@ -135,7 +135,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Material Gap** — Affects what a reader can conclude (missing statements, failed verified snapshot, core-lane provider data missing); appears in the Default View. Prediction shortfalls rank last among them.
 
-**Diagnostic Gap** — Instrumentation or entitlement artifact (absent optional provider, entitlement 403, unconfigured KPI registry, forecast-book notes such as `event-grid`, `forecast-baseline`, `earnings-forecasts` suppression, `forecast-grid` skip/fact-sheet notes); appears only in the Appendix, or labeled Diagnostic in the Data Gaps list of runs without one. Non-equity Console views keep the shortfall in a dedicated block.
+**Diagnostic Gap** — Instrumentation or entitlement artifact (absent optional provider, entitlement 403, unconfigured KPI registry, brief-depth Business Framework rows not assessed at that depth, forecast-book notes such as `event-grid`, `forecast-baseline`, `earnings-forecasts` suppression, `forecast-grid` skip/fact-sheet notes); appears only in the Appendix, or labeled Diagnostic in the Data Gaps list of runs without one. Non-equity Console views keep the shortfall in a dedicated block.
 
 **Provider Coverage Gap** — Source Gap from provider, account, region, or instrument limits; usually informational. Gated US-only sources emit `unsupported-coverage` without network calls.
 

@@ -692,6 +692,13 @@ describe("static equity run fixtures", () => {
         expect(frameworkGaps.filter(({ cause }) => cause === "provider-data-missing")).toEqual([
           expect.objectContaining({ message: expect.stringContaining("analyst-consensus:") }),
         ]);
+        expect(frameworkGaps.map(({ cause, triage }) => [cause, triage])).toEqual(
+          frameworkGaps.map(({ cause }) =>
+            cause === "suppressed-by-design"
+              ? ["suppressed-by-design", "diagnostic"]
+              : ["provider-data-missing", "material"],
+          ),
+        );
         for (const gap of frameworkGaps) {
           if (gap.cause === "suppressed-by-design") {
             expect(gap.message).toContain(

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.46](https://github.com/nejcm/market-bot/compare/v1.19.45...v1.19.46) (2026-11-18)
+
+### Bug Fixes
+
+- **business-framework:** triage brief-depth not-assessed rows diagnostic (#271) ([14d6050](https://github.com/nejcm/market-bot/commit/14d60500203db98123a864f3a4f72429b5b66898))
+
 ## [1.19.45](https://github.com/nejcm/market-bot/compare/v1.19.44...v1.19.45) (2026-11-18)
 
 ### Bug Fixes

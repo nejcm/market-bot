@@ -382,16 +382,22 @@ function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
     );
   }
   const earliest = facts.findLast((fact) => fact.value > 0);
+  const capped = ctx.statements?.omissionNotes.some(
+    (note) =>
+      note.code === "history-cap" &&
+      note.seriesKey === "dividendsPerShare" &&
+      note.periodKey?.startsWith("annual|") === true,
+  );
   if (earliest === undefined) {
     return {
       status: "missing",
-      reason: "no positive annual dividends per share fact in filed history",
+      reason: `no positive annual dividends per share fact in ${capped ? "retained" : "filed"} history`,
       inputs: [statementInput(facts[0]!, "dividendsPerShare")],
     };
   }
   return {
     status: "value",
-    value: `FY${String(earliest.fiscalYear)}`,
+    value: `FY${String(earliest.fiscalYear)}${capped ? " or earlier" : ""}`,
     periodEnd: earliest.periodEnd,
     inputs: [statementInput(earliest, "dividendsPerShare")],
   };
@@ -708,7 +714,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     label: "Earliest dividend year in filed history",
     unit: "text",
     basis:
-      "earliest year-aligned fiscal year with positive dividends per share among retained annual filings",
+      'earliest year-aligned fiscal year with positive dividends per share among retained annual filings; "or earlier" when older annual periods fall past the history cap',
     applicable: noDividendHistory,
     compute: unlessDpsWithheld(unlessPaymentEvidenceUnknown(earliestDividendFiscalYear), true),
   },

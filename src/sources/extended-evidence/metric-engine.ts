@@ -152,6 +152,18 @@ export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeries
   return ctx.statements?.unfiledSeries?.includes(key) === true;
 }
 
+export function capexComponentNote(
+  ctx: MetricContext,
+  keys: readonly FinancialStatementSeriesKey[],
+): string {
+  const components = keys.includes("capitalExpenditure")
+    ? ctx.statements?.capexComponentConcepts
+    : undefined;
+  return components === undefined
+    ? ""
+    : `; capital expenditure has no total line: the issuer has tagged PP&E purchases under component concepts ${components.join(" and ")}, which are not read as total capex`;
+}
+
 export function statementInput(
   fact: FinancialStatementFact,
   series: FinancialStatementSeriesKey,

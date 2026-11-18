@@ -19,6 +19,7 @@ import type {
 import {
   PRICE_RELATIVE_KEYS,
   statementInput,
+  capexComponentNote,
   type MetricContext,
   type MetricDefinition,
   type MetricInput,
@@ -418,7 +419,7 @@ export function noFact(ctx: MetricContext, key: LensSeries): MetricOutcome {
   if (ctx.statements?.unfiledSeries?.includes(key) === true) {
     return {
       status: "missing",
-      reason: `${SERIES_LABELS[key]} not filed by the issuer`,
+      reason: `${SERIES_LABELS[key]} not filed by the issuer${capexComponentNote(ctx, [key])}`,
       cause: "not-filed",
     };
   }

@@ -63,6 +63,7 @@ import {
   dividendPaymentFiled,
   realEstateInvestmentFiled,
   unfiledSeries,
+  capexComponentConcepts,
   supportedSixKFacts,
   structuredFinancialGaps,
 } from "./financial-statement-filing-coverage";
@@ -644,6 +645,10 @@ export function deriveFinancialStatements(
   );
   const interimCadence = detectFinancialStatementCadence(series);
   const annualReports = firstAnnualReports(payload, input.analysisAsOf, translations);
+  const unfiled = unfiledSeries(payload, input.analysisAsOf);
+  const capexComponents = unfiled.includes("capitalExpenditure")
+    ? capexComponentConcepts(payload, input.analysisAsOf)
+    : [];
   const otherTaxonomies =
     taxonomy === undefined
       ? []
@@ -683,7 +688,8 @@ export function deriveFinancialStatements(
     ...(taxonomy !== undefined
       ? {
           dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
-          unfiledSeries: unfiledSeries(payload, input.analysisAsOf),
+          unfiledSeries: unfiled,
+          ...(capexComponents.length > 0 ? { capexComponentConcepts: capexComponents } : {}),
           realEstateInvestmentFiled: realEstateInvestmentFiled(payload, input.analysisAsOf),
           currentRealEstateInvestmentFiled: realEstateInvestmentFiled(
             payload,

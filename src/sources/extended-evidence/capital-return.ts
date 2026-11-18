@@ -23,6 +23,7 @@ import {
   type MetricInput,
   type MetricOutcome,
   seriesNotFiled,
+  capexComponentNote,
   statementInput as metricStatementInput,
 } from "./metric-engine";
 
@@ -92,7 +93,11 @@ function notFiledSelection(
   facts: readonly FinancialStatementFact[],
 ): MissingSelection | undefined {
   return seriesNotFiled(ctx, key)
-    ? { facts, missing: `${SERIES_LABELS[key]} not filed by the issuer`, cause: "not-filed" }
+    ? {
+        facts,
+        missing: `${SERIES_LABELS[key]} not filed by the issuer${capexComponentNote(ctx, [key])}`,
+        cause: "not-filed",
+      }
     : undefined;
 }
 
@@ -197,7 +202,7 @@ export function joinedMetric(
     return missingOutcome(
       {
         facts: selection.facts,
-        missing: `${unfiled.map((key) => SERIES_LABELS[key]).join(" and ")} not filed by the issuer`,
+        missing: `${unfiled.map((key) => SERIES_LABELS[key]).join(" and ")} not filed by the issuer${capexComponentNote(ctx, unfiled)}`,
         cause: "not-filed",
       },
       filed,

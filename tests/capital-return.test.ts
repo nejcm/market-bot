@@ -8,6 +8,7 @@ import { projectExtendedEvidenceReportExtras } from "../src/research/extended-ev
 import { deriveCapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import { resolveMetricReferences } from "../src/research/metric-references";
 import { capitalReturnSection } from "../src/sources/extended-evidence/capital-return";
+import { noFact } from "../src/sources/extended-evidence/financial-lens-inputs";
 import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
@@ -358,6 +359,63 @@ describe("capitalReturnSection", () => {
       cause: "provider-data-missing",
       triage: "diagnostic",
       evidenceQualityImpact: "no-cap",
+    });
+  });
+
+  test("PP&E payments under component tags only: not-filed reason names them", () => {
+    // HIVE 10-K 0001062993-26-002973, FY ending 2026-03-31: no total capex tag, two component lines.
+    const hiveFact = (val: number): Fact => ({
+      units: {
+        USD: [
+          fy(val, 2025, {
+            start: "2025-04-01",
+            end: "2026-03-31",
+            accn: "0001062993-26-002973",
+            fy: 2026,
+            filed: "2026-06-02",
+          }),
+        ],
+      },
+    });
+    const components = {
+      PaymentsToAcquirePropertyPlantAndEquipment: undefined,
+      PaymentsToAcquireMachineryAndEquipment: hiveFact(148_310_000),
+      PaymentsToAcquireOtherPropertyPlantAndEquipment: hiveFact(21_573_000),
+      PaymentsToAcquireEquipmentOnLease: hiveFact(5_000_000),
+    };
+    const componentsOnly = context(usGaap(components));
+    const note =
+      "; capital expenditure has no total line: the issuer has tagged PP&E purchases under component concepts PaymentsToAcquireMachineryAndEquipment and PaymentsToAcquireOtherPropertyPlantAndEquipment, which are not read as total capex";
+    expect(componentsOnly.statements?.unfiledSeries).toContain("capitalExpenditure");
+    expect(evaluate(componentsOnly).metric("fcfPayoutRatio")).toMatchObject({
+      status: "missing",
+      cause: "not-filed",
+      reason: `capital expenditure not filed by the issuer${note}`,
+    });
+    expect(noFact(componentsOnly, "capitalExpenditure")).toMatchObject({
+      cause: "not-filed",
+      reason: `capital expenditure not filed by the issuer${note}`,
+    });
+    expect(
+      evaluate(context(usGaap({ ...components, PaymentsOfDividends: undefined }))).metric(
+        "totalPayoutToFcf",
+      ),
+    ).toMatchObject({
+      cause: "not-filed",
+      reason: `dividends paid and capital expenditure not filed by the issuer${note}`,
+    });
+    const withTotal = context(
+      usGaap({
+        ...components,
+        PaymentsToAcquirePropertyPlantAndEquipment: series("USD", () => 100),
+      }),
+    );
+    expect(withTotal.statements?.capexComponentConcepts).toBeUndefined();
+    const noComponents = context(usGaap({ PaymentsToAcquirePropertyPlantAndEquipment: undefined }));
+    expect(noComponents.statements?.capexComponentConcepts).toBeUndefined();
+    expect(noFact(noComponents, "capitalExpenditure")).toMatchObject({
+      cause: "not-filed",
+      reason: "capital expenditure not filed by the issuer",
     });
   });
 

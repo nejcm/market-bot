@@ -1,4 +1,5 @@
 import { statementInput } from "./metric-engine";
+import { materialRestatement } from "./fundamental-history-canonical";
 import { debtScopeUnproven, isWithheldDebtNote } from "./sec-debt";
 import {
   ENTERPRISE_VALUE_BRIDGE_KEYS,
@@ -66,6 +67,8 @@ export interface ValuationPeriodInputs {
   // Annual rows only: the date pricing the row, its first annual report unless that is unavailable.
   readonly rowPublicAt?: string;
   readonly restatedAfterFirstFiling?: readonly FinancialStatementSeriesKey[];
+  // Inputs restated by under 0.1% after the first annual report, mapped to their as-first-filed values.
+  readonly restatedImmaterially?: Readonly<Partial<Record<FinancialStatementSeriesKey, number>>>;
   // The artifact records first annual reports but none for this span, so every flow input is withheld.
   readonly firstAnnualReportUnavailable?: true;
 }
@@ -349,6 +352,8 @@ function debtInput(
   };
 }
 
+const asFirstFiled = (fact: FinancialStatementFact) => fact.restatedFrom?.value ?? fact.value;
+
 function annualInputs(
   artifact: FinancialStatementsArtifact,
   revenueFact: FinancialStatementFact,
@@ -410,12 +415,31 @@ function annualInputs(
       ? preCensusFiledAt
       : census.find((report) => financialStatementPeriodKey(report) === periodKey)?.filedAt;
   const firstAnnualReportUnavailable = census !== undefined && firstFiledAt === undefined;
-  const restatedAfterFirstFiling = (Object.keys(flowFacts) as (keyof typeof flowFacts)[]).filter(
+  const filedLater = (Object.keys(flowFacts) as (keyof typeof flowFacts)[]).filter(
     (key) =>
       firstFiledAt !== undefined &&
       (flowFacts[key]?.firstPublicAt ?? "") > firstFiledAt &&
       !(earlierShareBasis as readonly string[]).includes(key),
   );
+  const { operatingCashFlow: ocfFact, capitalExpenditure: capexFact } = flowFacts;
+  const freeCashFlowImmaterial =
+    ocfFact === undefined ||
+    capexFact === undefined ||
+    !materialRestatement({
+      value: ocfFact.value - capexFact.value,
+      restatedFrom: { value: asFirstFiled(ocfFact) - asFirstFiled(capexFact), filedAt: "" },
+    });
+  // An input restated by under 0.1% from a value public at the first filing prices that filing's close.
+  const immaterialKeys = filedLater.filter((key) => {
+    const original = flowFacts[key]?.restatedFrom;
+    return (
+      original !== undefined &&
+      original.filedAt <= firstFiledAt! &&
+      !materialRestatement(flowFacts[key]!) &&
+      (freeCashFlowImmaterial || (key !== "operatingCashFlow" && key !== "capitalExpenditure"))
+    );
+  });
+  const restatedAfterFirstFiling = filedLater.filter((key) => !immaterialKeys.includes(key));
   const usable = <Key extends keyof typeof flowFacts>(key: Key) =>
     firstAnnualReportUnavailable ||
     restatedAfterFirstFiling.includes(key) ||
@@ -490,11 +514,19 @@ function annualInputs(
     ...(earlierShareBasis.length > 0 ? { earlierShareBasis } : {}),
     ...(anchored ? { rowPublicAt: publicAt } : {}),
     ...(restatedAfterFirstFiling.length > 0 ? { restatedAfterFirstFiling } : {}),
+    ...(immaterialKeys.length > 0
+      ? {
+          restatedImmaterially: Object.fromEntries(
+            immaterialKeys.map((key) => [key, asFirstFiled(flowFacts[key]!)]),
+          ),
+        }
+      : {}),
     ...(firstAnnualReportUnavailable ? { firstAnnualReportUnavailable } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
     ...debtInput(artifact, debtFact, cashFact, publicAt, {
       periodEnd,
-      firstPublicAt: revenue?.publicAt ?? publicAt,
+      firstPublicAt:
+        revenue === undefined || immaterialKeys.includes("revenue") ? publicAt : revenue.publicAt,
     }),
     ...bridgeInput(artifact, cashFact, publicAt),
   };

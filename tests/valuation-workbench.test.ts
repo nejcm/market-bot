@@ -1,3 +1,4 @@
+import { valuationScopeDisclosure } from "../src/report/valuation-workbench-markdown";
 import { depositoryCashFlowReason } from "../src/sources/extended-evidence/industry-classification";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../src/sources/extended-evidence/financial-statement-definitions";
@@ -434,7 +435,12 @@ function lateShareBasisArtifact(
 
 function restatedFy2023(
   artifact: FinancialStatementsArtifact,
-  restated: Partial<Record<"revenue" | "dilutedEps" | "dilutedShares", number>>,
+  restated: Partial<
+    Record<
+      "revenue" | "dilutedEps" | "dilutedShares" | "operatingCashFlow" | "capitalExpenditure",
+      number
+    >
+  >,
 ): FinancialStatementsArtifact {
   const restate = (original: FinancialStatementSeries): FinancialStatementSeries => {
     const value = restated[original.key as keyof typeof restated];
@@ -455,12 +461,17 @@ function restatedFy2023(
           ),
         };
   };
-  const { incomeStatement, perShare } = artifact.statements;
+  const { incomeStatement, cashFlowStatement, perShare } = artifact.statements;
   return {
     ...artifact,
     statements: {
       ...artifact.statements,
       incomeStatement: { ...incomeStatement, revenue: restate(incomeStatement.revenue) },
+      cashFlowStatement: {
+        ...cashFlowStatement,
+        operatingCashFlow: restate(cashFlowStatement.operatingCashFlow),
+        capitalExpenditure: restate(cashFlowStatement.capitalExpenditure),
+      },
       perShare: {
         ...perShare,
         dilutedEps: restate(perShare.dilutedEps),
@@ -619,6 +630,151 @@ describe("valuation workbench", () => {
         enterpriseValueToRevenue: withheld,
         priceToFreeCashFlow: withheld,
       });
+    });
+  });
+
+  describe("annual rows with a restatement under 0.1%", () => {
+    const withFy2023Revenue = (value: number): FinancialStatementsArtifact => {
+      const artifact = statements();
+      const { revenue } = artifact.statements.incomeStatement;
+      return {
+        ...artifact,
+        statements: {
+          ...artifact.statements,
+          incomeStatement: {
+            ...artifact.statements.incomeStatement,
+            revenue: {
+              ...revenue,
+              annual: revenue.annual.map((item, index) =>
+                index === 0 ? { ...item, value } : item,
+              ),
+            },
+          },
+        },
+      };
+    };
+    const withheld = { status: "missing", reason: "restated-after-first-filing" };
+
+    // EQIX FY2023 revenue: 8,188,136k in 10-K 0001628280-24-005350 (2024-02-16), 8,188,000k in 0001628280-25-005126.
+    test("prices a sub-0.1% revenue restatement at the first filing's close", () => {
+      const restated = restatedFy2023(withFy2023Revenue(8_188_136_000), {
+        revenue: 8_188_000_000,
+      });
+      const { observations } = buildValuationWorkbench({
+        generatedAt: "2025-06-01T00:00:00.000Z",
+        symbol: "TEST",
+        financialStatements: restated,
+        priceHistory: [
+          { date: "2024-02-15", close: 20 },
+          { date: "2025-02-18", close: 24 },
+        ],
+        priceSourceId: "verified-snapshot-TEST",
+        quoteCurrency: "USD",
+      }).historicalMultiples;
+      const [first] = observations;
+
+      expect(valuationPeriodInputs(restated).periods[0]).toMatchObject({
+        restatedImmaterially: { revenue: 8_188_136_000 },
+        rowPublicAt: "2024-02-15",
+        revenue: { value: 8_188_000_000 },
+      });
+      expect(valuationPeriodInputs(restated).periods[0]?.restatedAfterFirstFiling).toBeUndefined();
+      expect([first?.publicAt, first?.price?.sessionDate]).toEqual(["2024-02-15", "2024-02-15"]);
+      expect(first?.metrics.priceToSales).toMatchObject({
+        status: "value",
+        value: 200 / 8_188_000_000,
+        basis: expect.stringContaining(
+          "revenue restated by under 0.1% after the first annual report; restated value used",
+        ),
+      });
+      expect(first?.metrics.priceToEarnings?.basis).not.toContain("restated");
+      expect(valuationScopeDisclosure(observations)).toContain(
+        "; Inputs restated by under 0.1% after the row's first annual report use the restated value for annual 2023-12-31 (revenue filed 2025-02-15)",
+      );
+    });
+
+    test.each([
+      { name: "a 0.1% restatement", original: 100, value: 100.1 },
+      { name: "a restatement from zero", original: 0, value: 0.0001 },
+    ])("withholds $name", ({ original, value }) => {
+      const [first] = workbenchMetrics(
+        restatedFy2023(withFy2023Revenue(original), { revenue: value }),
+      );
+
+      expect(first?.[1]).toMatchObject({ priceToSales: withheld });
+    });
+
+    test("reads a negative revenue restated under 0.1% as not meaningful", () => {
+      const [first] = workbenchMetrics(
+        restatedFy2023(withFy2023Revenue(-100), { revenue: -100.05 }),
+      );
+
+      expect(first?.[1].priceToSales).toMatchObject({
+        status: "not-meaningful",
+        reason: "negative-denominator",
+      });
+    });
+
+    test("withholds a restatement whose original was filed after the first annual report", () => {
+      const restated = restatedFy2023(statements(), { revenue: 100.05 });
+      const { revenue } = restated.statements.incomeStatement;
+      const lateOriginal: FinancialStatementsArtifact = {
+        ...restated,
+        statements: {
+          ...restated.statements,
+          incomeStatement: {
+            ...restated.statements.incomeStatement,
+            revenue: {
+              ...revenue,
+              annual: revenue.annual.map((item, index) =>
+                index === 0
+                  ? { ...item, restatedFrom: { value: 100, filedAt: "2024-06-01" } }
+                  : item,
+              ),
+            },
+          },
+        },
+      };
+
+      expect(valuationPeriodInputs(lateOriginal).periods[0]).toMatchObject({
+        rowPublicAt: "2024-02-15",
+        restatedAfterFirstFiling: ["revenue"],
+      });
+      expect(workbenchMetrics(lateOriginal)[0]?.[1]).toMatchObject({ priceToSales: withheld });
+    });
+
+    test("withholds EV/revenue when a share count restated under 0.1% moves EV by 0.1% or more", () => {
+      const restated = restatedFy2023(statements(), { dilutedShares: 10.009 });
+      const { cash } = restated.statements.balanceSheet;
+      const cashRich: FinancialStatementsArtifact = {
+        ...restated,
+        statements: {
+          ...restated.statements,
+          balanceSheet: {
+            ...restated.statements.balanceSheet,
+            cash: {
+              ...cash,
+              annual: cash.annual.map((item, index) =>
+                index === 0 ? { ...item, value: 190 } : item,
+              ),
+            },
+          },
+        },
+      };
+      const [first] = workbenchMetrics(cashRich);
+
+      expect(first?.[1]).toMatchObject({
+        priceToSales: { status: "value", value: 200.18 / 100 },
+        enterpriseValueToRevenue: withheld,
+      });
+    });
+
+    test("withholds free cash flow when inputs restated under 0.1% move it by 0.1% or more", () => {
+      const [first] = workbenchMetrics(restatedFy2023(statements(), { operatingCashFlow: 15.01 }));
+      const [kept] = workbenchMetrics(restatedFy2023(statements(), { operatingCashFlow: 15.005 }));
+
+      expect(first?.[1].priceToFreeCashFlow).toMatchObject(withheld);
+      expect(kept?.[1].priceToFreeCashFlow).toMatchObject({ status: "value", value: 200 / 10.005 });
     });
   });
 

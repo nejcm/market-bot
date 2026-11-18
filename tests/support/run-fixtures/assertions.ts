@@ -9,6 +9,7 @@ import type {
   ValuationFundamentalInput,
   ValuationMetricKey,
 } from "../../../src/sources/extended-evidence/valuation-workbench-contract";
+import { materialRestatement } from "../../../src/sources/extended-evidence/fundamental-history-canonical";
 import { expect } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -3574,7 +3575,18 @@ function assertValuationWorkbenchInvariants(
         fundamentalValue(fundamental),
         `${label}.${key} derives from filed facts`,
       );
-      expect(fundamental.publicAt <= publicAt).toBe(true);
+      expect(
+        (fundamental.lineage ?? [])
+          .map((row) => filedFact(row))
+          .filter((fact) => fact.firstPublicAt > publicAt)
+          .every(
+            (fact) =>
+              fact.restatedFrom !== undefined &&
+              fact.restatedFrom.filedAt <= publicAt &&
+              !materialRestatement(fact),
+          ),
+        `${label}.${key} was public at the row, or restates a value that was by under 0.1%`,
+      ).toBe(true);
       expect(fundamental.periodEnd <= periodEnd).toBe(true);
       if (key !== "cash" && key !== "debt") {
         expect(fundamental.periodEnd).toBe(periodEnd);
@@ -3812,9 +3824,9 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
   ],
   "annual|2021-09-30|2021-11-10": [
     43.952_381_367_586_1,
-    RESTATED_WORKBENCH_INPUT,
+    6.327_329_357_772_48,
     MISSING_WORKBENCH_DEBT,
-    RESTATED_WORKBENCH_INPUT,
+    100.553_600_965_706_83,
   ],
   "annual|2022-09-30|2022-11-23": [
     36.478_873_239_436_62,
@@ -4237,13 +4249,13 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
     "annual|2021-12-31|2022-02-23": [
       75,
-      RESTATED_WORKBENCH_INPUT,
+      13.008_519_017_161_085,
       MIXED_WORKBENCH_BALANCE_SHEET,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2022-12-31|2023-02-22": [
       46.140_842_706_384_795,
-      RESTATED_WORKBENCH_INPUT,
+      11.995_790_586_766_212,
       MIXED_WORKBENCH_BALANCE_SHEET,
       REIT_WORKBENCH_FCF,
     ],

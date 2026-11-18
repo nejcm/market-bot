@@ -275,7 +275,7 @@ export function valuationWorkbenchView(
   return {
     reportingCurrency: artifact.reportingCurrency ?? "unavailable",
     quoteCurrency: artifact.quoteCurrency ?? "unavailable",
-    priceSelectionRule: `Annual rows at the period's first annual report (earliest 10-K, 20-F or 40-F filing a fiscal-year figure for it), inputs first filed after it withheld; TTM rows at the first filing of each selected value; priced at the ${artifact.historicalMultiples.priceSelectionRule}`,
+    priceSelectionRule: `Annual rows at the period's first annual report (earliest 10-K, 20-F or 40-F filing a fiscal-year figure for it), inputs first filed after it withheld unless restated by under 0.1% from a value public then; TTM rows at the first filing of each selected value; priced at the ${artifact.historicalMultiples.priceSelectionRule}`,
     trailingDisclosure:
       trailingBasis.status === "available"
         ? `${trailingBasis.fiscalYearLabel ?? "Reconciled TTM"} through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`

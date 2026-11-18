@@ -256,6 +256,22 @@ function sharePeriodDisclosure(
     : `TTM market cap uses the latest filed period's diluted weighted-average shares, a proxy for a trailing-year count when shorter than a fiscal year, for ${periods.join(", ")}`;
 }
 
+function restatementDisclosure(
+  observations: readonly HistoricalValuationObservation[],
+): string | undefined {
+  const rows = observations.flatMap(({ basis, periodEnd, publicAt, inputs }) => {
+    const restated = Object.values(inputs).filter((input) => input.publicAt > publicAt);
+    return restated.length === 0
+      ? []
+      : [
+          `${basis} ${periodEnd} (${restated.map((input) => `${input.label.toLowerCase()} filed ${input.publicAt}`).join(", ")})`,
+        ];
+  });
+  return rows.length === 0
+    ? undefined
+    : `Inputs restated by under 0.1% after the row's first annual report use the restated value for ${rows.join(", ")}`;
+}
+
 export function valuationScopeDisclosure(
   observations: readonly HistoricalValuationObservation[],
 ): string | undefined {
@@ -264,6 +280,7 @@ export function valuationScopeDisclosure(
     freeCashFlowScopeDisclosure(observations),
     inputScopeDisclosure(observations, "debt", "EV/revenue uses debt"),
     sharePeriodDisclosure(observations),
+    restatementDisclosure(observations),
   ].filter((part) => part !== undefined);
   return parts.length === 0 ? undefined : parts.join("; ");
 }
@@ -305,7 +322,7 @@ export function renderValuationWorkbenchMarkdown(
     "",
     "## Valuation Workbench",
     "",
-    `Annual rows are priced at the period's first annual report (the earliest 10-K, 20-F or 40-F filing a fiscal-year figure for it) and withhold any input first filed after it; TTM rows use the selected fundamentals, with publicAt the first filing that reported each selected value. Both are priced at the ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
+    `Annual rows are priced at the period's first annual report (the earliest 10-K, 20-F or 40-F filing a fiscal-year figure for it) and withhold any input first filed after it unless it restates a value public then by under 0.1%; TTM rows use the selected fundamentals, with publicAt the first filing that reported each selected value. Both are priced at the ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
     "",
     ...trailing,
     ...(scopeDisclosure === undefined ? [] : [`- ${scopeDisclosure}.`, ""]),

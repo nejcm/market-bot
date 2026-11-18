@@ -86,18 +86,22 @@ export function depositoryCashFlowReason(sic: string): string {
 
 export const REIT_SIC = "6798";
 
-interface ReitCapexFiling {
+export interface ReitCapexFiling {
   readonly unfiledSeries?: readonly string[];
   readonly realEstateInvestmentFiled?: boolean;
+  readonly currentRealEstateInvestmentFiled?: boolean;
 }
 
 const NO_PPE_CAPEX = "no property, plant and equipment purchases";
 
-function reitCapexTrigger(filing: ReitCapexFiling | undefined): string | undefined {
+function reitCapexTrigger(
+  filing: ReitCapexFiling | undefined,
+  realEstateFiled: boolean | undefined,
+): string | undefined {
   if (filing?.unfiledSeries?.includes("capitalExpenditure") === true) {
     return NO_PPE_CAPEX;
   }
-  return filing?.realEstateInvestmentFiled === true
+  return realEstateFiled === true
     ? "real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases"
     : undefined;
 }
@@ -107,7 +111,8 @@ export function reitCapexReason(
   sic: string | undefined,
   filing: ReitCapexFiling | undefined,
 ): string | undefined {
-  const trigger = sic === REIT_SIC ? reitCapexTrigger(filing) : undefined;
+  const trigger =
+    sic === REIT_SIC ? reitCapexTrigger(filing, filing?.realEstateInvestmentFiled) : undefined;
   if (trigger === undefined) {
     return undefined;
   }
@@ -118,15 +123,18 @@ export function reitCapexReason(
   return `REIT issuer (SIC 6798) tags ${trigger}; operating cash flow less capex would omit ${omitted}`;
 }
 
-// Without the SIC, a filing the REIT predicate would rule on leaves the capex scope undecided.
+// Without the SIC, a filing the REIT predicate would rule on leaves the capex scope undecided;
+// Only current real estate tags count, so a non-REIT's decade-old purchase does not.
 export function reitCapexUndecided(
   sic: string | undefined,
   filing: ReitCapexFiling | undefined,
 ): string | undefined {
-  const trigger = sic === undefined ? reitCapexTrigger(filing) : undefined;
+  const realEstateFiled =
+    filing?.currentRealEstateInvestmentFiled ?? filing?.realEstateInvestmentFiled;
+  const trigger = sic === undefined ? reitCapexTrigger(filing, realEstateFiled) : undefined;
   return trigger === undefined
     ? undefined
-    : `no SEC SIC classification to rule on REIT scope, and the filing tags ${trigger}`;
+    : `no SEC SIC classification to rule on REIT scope, and its latest annual report or a later filing tags ${trigger}`;
 }
 
 export interface SecIssuerRegistration {

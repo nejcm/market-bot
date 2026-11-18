@@ -1,4 +1,4 @@
-import { isRecord, readNumber } from "../../guards";
+import { isRecord, readNumber, readString } from "../../guards";
 import {
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
@@ -123,12 +123,22 @@ const REAL_ESTATE_INVESTMENT_CONCEPTS = [
   "PaymentsForConstructionInProcess",
 ] as const;
 
-export function realEstateInvestmentFiled(payload: unknown, analysisAsOf: string): boolean {
+// A row with no calendar filed date counts whatever filedSince is.
+export function realEstateInvestmentFiled(
+  payload: unknown,
+  analysisAsOf: string,
+  filedSince = "",
+): boolean {
   const root = taxonomyRoot(payload, "us-gaap");
   return REAL_ESTATE_INVESTMENT_CONCEPTS.some((concept) =>
     rawConceptRows(root, concept, analysisAsOf).some((fact) => {
       const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
-      return value !== undefined && value !== 0;
+      const filed = isRecord(fact) ? readString(fact, "filed") : undefined;
+      return (
+        value !== undefined &&
+        value !== 0 &&
+        !(filed !== undefined && isCalendarDate(filed) && filed < filedSince)
+      );
     }),
   );
 }

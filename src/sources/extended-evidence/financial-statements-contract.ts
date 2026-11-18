@@ -488,6 +488,8 @@ export interface FinancialStatementsArtifact {
   readonly unfiledSeries?: readonly FinancialStatementSeriesKey[];
   // Any non-zero us-gaap real estate acquisition, development or improvement outflow; absent on pre-flag artifacts.
   readonly realEstateInvestmentFiled?: boolean;
+  // The same, filed in the latest annual report or a later filing; absent on pre-flag artifacts.
+  readonly currentRealEstateInvestmentFiled?: boolean;
   // Earliest annual report (any taxonomy or concept) filing each fiscal-year duration identity.
   readonly firstAnnualReports?: readonly FirstAnnualReport[];
   readonly validationNotes: readonly FinancialStatementNote[];
@@ -918,6 +920,8 @@ export function readFinancialStatementsArtifact(
     (value.dividendPaymentFiled !== undefined && typeof value.dividendPaymentFiled !== "boolean") ||
     (value.realEstateInvestmentFiled !== undefined &&
       typeof value.realEstateInvestmentFiled !== "boolean") ||
+    (value.currentRealEstateInvestmentFiled !== undefined &&
+      typeof value.currentRealEstateInvestmentFiled !== "boolean") ||
     (value.firstAnnualReports !== undefined &&
       !areFirstAnnualReports(value.firstAnnualReports, value.analysisAsOf)) ||
     (value.unfiledSeries !== undefined &&

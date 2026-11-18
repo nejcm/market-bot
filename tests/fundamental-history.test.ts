@@ -592,7 +592,7 @@ describe("fundamental history", () => {
     ).toMatchObject({
       annual: [],
       notes: [
-        "withheld: no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases",
+        "withheld: no SEC SIC classification to rule on REIT scope, and its latest annual report or a later filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases",
       ],
     });
     // PSA FY2019 10-K 0001393311-20-000008 construction in process.

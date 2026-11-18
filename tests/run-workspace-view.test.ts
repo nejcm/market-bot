@@ -2842,7 +2842,7 @@ describe("run workspace view", () => {
         key: "freeCashFlowProxy",
         label: "Free cash flow proxy",
         reason:
-          "no SEC SIC classification to rule on REIT scope, and the filing tags no property, plant and equipment purchases",
+          "no SEC SIC classification to rule on REIT scope, and its latest annual report or a later filing tags no property, plant and equipment purchases",
         withheld: true,
       },
     ]);

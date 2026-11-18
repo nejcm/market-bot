@@ -42,6 +42,7 @@ function buildForIssuer(
   sic: string | undefined,
   unfiledSeries: readonly string[],
   realEstateInvestmentFiled = false,
+  currentRealEstateInvestmentFiled?: boolean,
 ) {
   return buildReverseDcf({
     generatedAt: "2026-05-19T00:00:00.000Z",
@@ -64,8 +65,13 @@ function buildForIssuer(
             gaps: [],
           },
         }),
-    unfiledSeries,
-    realEstateInvestmentFiled,
+    financialStatements: {
+      unfiledSeries,
+      realEstateInvestmentFiled,
+      ...(currentRealEstateInvestmentFiled === undefined
+        ? {}
+        : { currentRealEstateInvestmentFiled }),
+    },
   });
 }
 
@@ -80,7 +86,7 @@ test("suppresses the reverse DCF for a REIT that files no PP&E capex", () => {
     status: "suppressed",
     reason: "free-cash-flow-scope-undecided",
     detail: expect.stringContaining(
-      "no SEC SIC classification to rule on REIT scope, and the filing tags no property, plant and equipment purchases",
+      "no SEC SIC classification to rule on REIT scope, and its latest annual report or a later filing tags no property, plant and equipment purchases",
     ),
   });
   expect(buildForIssuer(undefined, []).status).toBe("computed");
@@ -90,6 +96,13 @@ test("suppresses the reverse DCF for a REIT that files no PP&E capex", () => {
     detail: expect.stringContaining("real estate acquisition, development or improvement"),
   });
   expect(buildForIssuer("3571", [], true).status).toBe("computed");
+  expect(buildForIssuer(undefined, [], true)).toMatchObject({
+    reason: "free-cash-flow-scope-undecided",
+  });
+  expect(buildForIssuer(undefined, [], true, false).status).toBe("computed");
+  expect(buildForIssuer("6798", [], true, false)).toMatchObject({
+    reason: "free-cash-flow-not-applicable",
+  });
 });
 
 describe("reverse DCF input sensitivity", () => {

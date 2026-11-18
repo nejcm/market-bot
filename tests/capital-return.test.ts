@@ -204,6 +204,39 @@ describe("capitalReturnSection", () => {
     expect(result.sourceGaps).toEqual([]);
   });
 
+  // Equinix run 3151f393: Declared skips FY2019-21, cash paid fills them; 5y is (18.76 / 10.64)^(1/5) - 1.
+  test("EQIX-shaped: a cash-paid endpoint computes the CAGR and the basis names both bases", () => {
+    const eqix: Record<number, number> = {
+      2019: 9.84,
+      2020: 10.64,
+      2021: 11.48,
+      2022: 12.4,
+      2023: 14.49,
+      2024: 17.04,
+      2025: 18.76,
+    };
+    const result = evaluate(
+      context(
+        usGaap({
+          WeightedAverageNumberOfDilutedSharesOutstanding: series("shares", () => 100),
+          PaymentsOfDividends: series("USD", (year) => eqix[year]! * 100),
+          CommonStockDividendsPerShareDeclared: series("USD/shares", (year) =>
+            year >= 2022 ? eqix[year] : undefined,
+          ),
+          CommonStockDividendsPerShareCashPaid: series("USD/shares", (year) => eqix[year]),
+        }),
+      ),
+    );
+
+    expect(result.metric("dpsCagr5y").value).toBeCloseTo(0.12, 3);
+    expect(result.metric("dpsCagr5y").basis).toEndWith(
+      "the endpoints differ in basis, cash paid per share for the year ending 2020-12-31 and declared per share for 2025-12-31, so payment timing can differ",
+    );
+    expect(result.metric("dpsCagr3y").basis).toBe(
+      "compound annual change in dividends per share, latest fiscal year vs the fiscal year 3y earlier",
+    );
+  });
+
   test("GOOG-shaped dividend initiation: the latest FY anchors, earlier years do not matter", () => {
     const result = evaluate(
       context(

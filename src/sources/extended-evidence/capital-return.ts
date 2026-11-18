@@ -354,7 +354,20 @@ function dividendsPerShareCagr(ctx: MetricContext, years: number): MetricOutcome
     value: (latest.value / prior.value) ** (1 / years) - 1,
     periodEnd: latest.periodEnd,
     inputs,
+    ...(prior.concept === latest.concept
+      ? {}
+      : {
+          basis: `${dpsCagrBasis(years)}; the endpoints differ in basis, ${dpsBasis(prior)} for the year ending ${prior.periodEnd} and ${dpsBasis(latest)} for ${latest.periodEnd}, so payment timing can differ`,
+        }),
   };
+}
+
+function dpsBasis(fact: FinancialStatementFact): string {
+  return fact.concept.endsWith("CashPaid") ? "cash paid per share" : "declared per share";
+}
+
+function dpsCagrBasis(years: number): string {
+  return `compound annual change in dividends per share, latest fiscal year vs the fiscal year ${String(years)}y earlier`;
 }
 
 function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
@@ -682,7 +695,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
       id: `dpsCagr${String(years)}y`,
       label: `Dividends per share growth (${String(years)}y CAGR)`,
       unit: "ratio-percent",
-      basis: `compound annual change in dividends per share, latest fiscal year vs the fiscal year ${String(years)}y earlier`,
+      basis: dpsCagrBasis(years),
       change: { over: `CAGR over ${String(years)}y` },
       applicable: noDividendHistory,
       compute: unlessDpsWithheld(

@@ -408,21 +408,23 @@ function reconciledDividendsPerShare(
     const used = new Set(item.series.annual.map((fact) => fact.concept));
     const others = DIVIDENDS_PER_SHARE.concepts[taxonomy].filter((concept) => !used.has(concept));
     const alternateSelection =
-      others.length === 0 || item.series.annual.every(ok)
+      others.length === 0
         ? undefined
         : select({
             ...DIVIDENDS_PER_SHARE,
             concepts: { ...DIVIDENDS_PER_SHARE.concepts, [taxonomy]: others },
           });
     const alternate = alternateSelection?.series.annual ?? [];
+    const fallbackReconciles = (fallback: FinancialStatementFact | undefined) =>
+      fallback !== undefined && ok(fallback) && verdict(fallback)!.ratio <= DPS_FALLBACK_CEILING;
+    const primaryYears = new Set(item.series.annual.map((fact) => fact.periodKey));
     const notes: FinancialStatementNote[] = [];
     const reconciled = item.series.annual.flatMap((fact) => {
       if (ok(fact)) {
         return [proven(fact)];
       }
       const fallback = alternate.find((other) => other.periodKey === fact.periodKey);
-      const fallbackRatio = fallback === undefined ? undefined : verdict(fallback)?.ratio;
-      if (fallbackRatio !== undefined && fallbackRatio <= DPS_FALLBACK_CEILING && ok(fallback!)) {
+      if (fallbackReconciles(fallback)) {
         return [proven(fallback!)];
       }
       const failed = verdict(fact);
@@ -440,12 +442,18 @@ function reconciledDividendsPerShare(
       });
       return [];
     });
-    const latest = reconciled.at(-1);
+    const filled = alternate.filter(
+      (fact) => !primaryYears.has(fact.periodKey) && fallbackReconciles(fact),
+    );
+    const years = [...reconciled, ...filled.map(proven)].toSorted((left, right) =>
+      left.periodEnd.localeCompare(right.periodEnd),
+    );
+    const latest = years.at(-1);
     // When the fallback supplies the newest year, interim rows follow it and the primary's staleness note no longer holds.
     if (alternateSelection !== undefined && latest !== undefined && !used.has(latest.concept)) {
       return {
         ...alternateSelection,
-        series: { ...alternateSelection.series, annual: reconciled },
+        series: { ...alternateSelection.series, annual: years },
         validationNotes: [...item.validationNotes, ...alternateSelection.validationNotes],
         omissionNotes: [
           ...item.omissionNotes.filter((note) => note.code !== "stale-concept-history"),
@@ -456,7 +464,7 @@ function reconciledDividendsPerShare(
     }
     return {
       ...item,
-      series: { ...item.series, annual: reconciled },
+      series: { ...item.series, annual: years },
       omissionNotes: [...item.omissionNotes, ...notes],
     };
   });

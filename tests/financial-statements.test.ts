@@ -1380,6 +1380,112 @@ describe("canonical financial statements", () => {
       },
     );
 
+    // Equinix: Declared skips FY2019-21; 10-K 0001628280-21-002563 tags FY2020 cash paid $10.64.
+    const eqixFy2020 = {
+      form: "10-K",
+      fiscalYear: 2020,
+      fiscalPeriod: "FY",
+      filedAt: "2021-02-19",
+      periodStart: "2020-01-01",
+      periodEnd: "2020-12-31",
+      accessionNumber: "0001628280-21-002563",
+    };
+    const equinix = (cashPaid2020: number) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: [annual(6_636_000_000, 2020), annual(9_217_000_000, 2025)] },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [fact({ ...eqixFy2020, value: 88_410_000 }), annual(98_123_000, 2025)],
+            },
+            PaymentsOfDividends: {
+              USD: [fact({ ...eqixFy2020, value: 947_933_000 }), annual(1_856_000_000, 2025)],
+            },
+            CommonStockDividendsPerShareDeclared: { "USD/shares": [annual(18.76, 2025)] },
+            CommonStockDividendsPerShareCashPaid: {
+              "USD/shares": [fact({ ...eqixFy2020, value: cashPaid2020 }), annual(18.76, 2025)],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-06-15T00:00:00.000Z" },
+      );
+
+    test("fills a year the declared tag skips with a reconciled cash-paid figure", () => {
+      expect(
+        equinix(10.64).statements.perShare.dividendsPerShare.annual.map(
+          ({ periodEnd, concept, value, accessionNumber }) => [
+            periodEnd,
+            concept,
+            value,
+            accessionNumber,
+          ],
+        ),
+      ).toEqual([
+        ["2020-12-31", "CommonStockDividendsPerShareCashPaid", 10.64, "0001628280-21-002563"],
+        ["2025-12-31", "CommonStockDividendsPerShareDeclared", 18.76, "20260215-10-K"],
+      ]);
+    });
+
+    test("leaves a skipped year empty when its cash-paid figure does not reconcile", () => {
+      const artifact = equinix(2.66);
+
+      expect(
+        artifact.statements.perShare.dividendsPerShare.annual.map(({ periodEnd }) => periodEnd),
+      ).toEqual(["2025-12-31"]);
+    });
+
+    test("leaves a skipped year empty when it has no dividends paid to reconcile against", () => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: [annual(1000, 2024), annual(1000, 2025)] },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [annual(100, 2024), annual(100, 2025)],
+            },
+            PaymentsOfDividends: { USD: [annual(112, 2025)] },
+            CommonStockDividendsPerShareDeclared: { "USD/shares": [annual(1.12, 2025)] },
+            CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(1, 2024)] },
+          },
+        }),
+        { analysisAsOf: "2026-06-15T00:00:00.000Z" },
+      );
+
+      expect(
+        artifact.statements.perShare.dividendsPerShare.annual.map(({ periodEnd }) => periodEnd),
+      ).toEqual(["2025-12-31"]);
+    });
+
+    test("keeps declared in every year it covers, ignoring cash paid", () => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: { USD: [annual(1000, 2024), annual(1000, 2025)] },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [annual(100, 2024), annual(100, 2025)],
+            },
+            PaymentsOfDividends: { USD: [annual(100, 2024), annual(110, 2025)] },
+            CommonStockDividendsPerShareDeclared: {
+              "USD/shares": [annual(1.02, 2024), annual(1.12, 2025)],
+            },
+            CommonStockDividendsPerShareCashPaid: {
+              "USD/shares": [annual(1, 2024), annual(1.1, 2025)],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-06-15T00:00:00.000Z" },
+      );
+
+      expect(
+        artifact.statements.perShare.dividendsPerShare.annual.map(({ concept, value }) => [
+          concept,
+          value,
+        ]),
+      ).toEqual([
+        ["CommonStockDividendsPerShareDeclared", 1.02],
+        ["CommonStockDividendsPerShareDeclared", 1.12],
+      ]);
+    });
+
     test("does not swap in a fallback that overshoots dividends paid", () => {
       const artifact = dividendFacts(
         {

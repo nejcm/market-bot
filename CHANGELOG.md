@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.38](https://github.com/nejcm/market-bot/compare/v1.19.37...v1.19.38) (2026-11-18)
+
+### Bug Fixes
+
+- **sec:** take the debt maturity ladder from one annual filing instant (#263) ([de9fdf2](https://github.com/nejcm/market-bot/commit/de9fdf24f495dabd1af151bf646000614f77b26e))
+
 ## [1.19.37](https://github.com/nejcm/market-bot/compare/v1.19.36...v1.19.37) (2026-11-18)
 
 ### Bug Fixes

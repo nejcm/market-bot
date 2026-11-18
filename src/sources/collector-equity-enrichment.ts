@@ -400,12 +400,7 @@ export async function collectEquityEnrichment(
     ...(businessFrameworkResult.extendedEvidence !== undefined
       ? { extendedEvidence: businessFrameworkResult.extendedEvidence }
       : {}),
-    ...(financialStatements?.unfiledSeries === undefined
-      ? {}
-      : { unfiledSeries: financialStatements.unfiledSeries }),
-    ...(financialStatements?.realEstateInvestmentFiled === undefined
-      ? {}
-      : { realEstateInvestmentFiled: financialStatements.realEstateInvestmentFiled }),
+    ...(financialStatements === undefined ? {} : { financialStatements }),
   });
 
   return {

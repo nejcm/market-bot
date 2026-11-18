@@ -5,6 +5,7 @@ import {
   reitCapexReason,
   reitCapexUndecided,
   secIssuerRegistration,
+  type ReitCapexFiling,
 } from "./industry-classification";
 import type { ValuationWorkbenchArtifact } from "./valuation-workbench-contract";
 import {
@@ -120,8 +121,7 @@ export interface BuildReverseDcfInput {
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   // Carried only to classify the issuer's industry; see depositoryIssuerSic.
   readonly extendedEvidence?: ExtendedEvidence;
-  readonly unfiledSeries?: readonly string[];
-  readonly realEstateInvestmentFiled?: boolean;
+  readonly financialStatements?: ReitCapexFiling;
 }
 
 function unique(values: readonly string[]): readonly string[] {
@@ -239,7 +239,7 @@ export function buildReverseDcf(input: BuildReverseDcfInput): ReverseDcfArtifact
     );
   }
   const sic = secIssuerRegistration(input.extendedEvidence)?.sic;
-  const freeCashFlowInapplicable = reitCapexReason(sic, input);
+  const freeCashFlowInapplicable = reitCapexReason(sic, input.financialStatements);
   if (freeCashFlowInapplicable !== undefined) {
     return suppressed(
       input,
@@ -248,7 +248,7 @@ export function buildReverseDcf(input: BuildReverseDcfInput): ReverseDcfArtifact
       workbench?.sourceIds ?? [],
     );
   }
-  const freeCashFlowUndecided = reitCapexUndecided(sic, input);
+  const freeCashFlowUndecided = reitCapexUndecided(sic, input.financialStatements);
   if (freeCashFlowUndecided !== undefined) {
     return suppressed(
       input,

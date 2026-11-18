@@ -30,6 +30,10 @@ import { deriveFinancialStatements } from "../src/sources/extended-evidence/fina
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import {
+  reitCapexReason,
+  reitCapexUndecided,
+} from "../src/sources/extended-evidence/industry-classification";
+import {
   metricReferenceEvidence,
   withoutRestatedMetricValues,
 } from "../src/research/prompts/metric-references";
@@ -858,7 +862,7 @@ describe("REIT capex scope outside the lens", () => {
       return { keys, gaps: gapText(result.metricSectionGaps) };
     };
     const undecided =
-      "no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
+      "no SEC SIC classification to rule on REIT scope, and its latest annual report or a later filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
 
     const { keys, gaps } = lens(eqixConcepts());
     expect(keys).not.toContain("freeCashFlowProxy");
@@ -874,7 +878,7 @@ describe("REIT capex scope outside the lens", () => {
 
   test("without the SEC SIC, the summary declares the capex it withholds", () => {
     const withheld =
-      "SEC summary withheld capex: no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
+      "SEC summary withheld capex: no SEC SIC classification to rule on REIT scope, and its latest annual report or a later filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
     const summarize = (concepts: Readonly<Record<string, readonly Row[]>>, sic?: string) => {
       const { metrics, gaps } = summarizeSecFundamentals(payload(concepts), AS_OF, sic)!;
       return { capex: metrics.capex, gaps: gapText(gaps) };
@@ -926,6 +930,68 @@ describe("REIT capex scope outside the lens", () => {
     expect(
       lens.artifact!.lenses.flatMap((section) => section.metrics).map(({ key }) => key),
     ).not.toContain("freeCashFlowProxy");
+  });
+
+  // GOOGL companyfacts (cached 2026-10-21): a 2016 building purchase in the FY2016 10-K, none in FY2025's.
+  const fy2016 = (val: number, start = "2016-01-01", end = "2016-12-31") =>
+    row(val, start, end, "10-K", 2016, "FY", "2017-02-03", "0001652044-17-000008");
+  const fy2025 = (val: number, year: number) =>
+    row(
+      val,
+      `${year}-01-01`,
+      `${year}-12-31`,
+      "10-K",
+      2025,
+      "FY",
+      "2026-02-05",
+      "0001652044-26-000018",
+    );
+  const googlConcepts = (): Record<string, readonly Row[]> => ({
+    Revenues: [
+      fy2016(90_272_000_000),
+      fy2025(350_018_000_000, 2024),
+      fy2025(402_836_000_000, 2025),
+    ],
+    [TOTAL_OCF]: [
+      fy2016(36_036_000_000),
+      fy2025(125_299_000_000, 2024),
+      fy2025(164_713_000_000, 2025),
+    ],
+    PaymentsToAcquirePropertyPlantAndEquipment: [
+      fy2025(52_535_000_000, 2024),
+      fy2025(91_447_000_000, 2025),
+    ],
+    PaymentsToAcquireBuildings: [fy2016(220_000_000, "2016-09-01", "2016-09-30")],
+  });
+  const undecidedScope = (concepts: Readonly<Record<string, readonly Row[]>>) =>
+    reitCapexUndecided(undefined, eqixStatements(concepts));
+
+  test("without the SEC SIC, real estate tags filed before the latest annual report leave capex decided", () => {
+    const { metrics, gaps } = summarizeSecFundamentals(payload(googlConcepts()), AS_OF)!;
+    expect(metrics.capex).toBe(91_447_000_000);
+    expect(gapText(gaps)).not.toContain("withheld capex");
+    expect(undecidedScope(googlConcepts())).toBeUndefined();
+    expect(undecidedScope(eqixConcepts())).toBeDefined();
+    const land = row(5_000_000, "2026-01-01", "2026-06-30", "10-Q", 2026, "Q2", "2026-08-04");
+    expect(undecidedScope({ ...googlConcepts(), PaymentsToAcquireLand: [land] })).toBeDefined();
+    const { filed: _filed, ...undated } = fy2016(220_000_000, "2016-09-01", "2016-09-30");
+    expect(
+      undecidedScope({ ...googlConcepts(), PaymentsToAcquireBuildings: [undated] }),
+    ).toBeDefined();
+    const { Revenues: _revenue, ...noAnnualReport } = googlConcepts();
+    const tenQs = Object.fromEntries(
+      Object.entries(noAnnualReport).map(([concept, rows]) => [
+        concept,
+        rows.map((fact) => ({ ...fact, form: "10-Q", fp: "Q3" })),
+      ]),
+    );
+    expect(undecidedScope(tenQs)).toBeDefined();
+  });
+
+  test("a SIC 6798 issuer's stale real estate tags still rule its capex not applicable", () => {
+    expect(reitCapexReason("6798", eqixStatements(googlConcepts()))).toContain(
+      "real estate acquisition, development or improvement outflows",
+    );
   });
 
   test("without the SEC SIC, every FCF surface and the model input withhold the undecided capex", () => {
@@ -1002,7 +1068,7 @@ describe("REIT capex scope outside the lens", () => {
       };
     };
     const undecided =
-      "no SEC SIC classification to rule on REIT scope, and the filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
+      "no SEC SIC classification to rule on REIT scope, and its latest annual report or a later filing tags real estate acquisition, development or improvement outflows outside its property, plant and equipment purchases";
 
     const withheld = surfaces(eqixConcepts());
     expect(withheld.legacyCapexKeys).toEqual([]);

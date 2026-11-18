@@ -635,6 +635,7 @@ export function deriveFinancialStatements(
     }),
   );
   const interimCadence = detectFinancialStatementCadence(series);
+  const annualReports = firstAnnualReports(payload, input.analysisAsOf, translations);
   const otherTaxonomies =
     taxonomy === undefined
       ? []
@@ -676,7 +677,12 @@ export function deriveFinancialStatements(
           dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
           unfiledSeries: unfiledSeries(payload, input.analysisAsOf),
           realEstateInvestmentFiled: realEstateInvestmentFiled(payload, input.analysisAsOf),
-          firstAnnualReports: firstAnnualReports(payload, input.analysisAsOf, translations),
+          currentRealEstateInvestmentFiled: realEstateInvestmentFiled(
+            payload,
+            input.analysisAsOf,
+            annualReports.at(-1)?.filedAt,
+          ),
+          firstAnnualReports: annualReports,
         }
       : {}),
     statements,

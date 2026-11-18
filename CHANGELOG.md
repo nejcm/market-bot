@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.40](https://github.com/nejcm/market-bot/compare/v1.19.39...v1.19.40) (2026-11-18)
+
+### Bug Fixes
+
+- **sec:** derive gross profit for issuers tagging only quarter tables (#265) ([31d6945](https://github.com/nejcm/market-bot/commit/31d6945a03b6dd377a733ffe20da8add4c4f5e7d))
+
 ## [1.19.39](https://github.com/nejcm/market-bot/compare/v1.19.38...v1.19.39) (2026-11-18)
 
 ### Bug Fixes

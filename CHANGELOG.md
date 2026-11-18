@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.41](https://github.com/nejcm/market-bot/compare/v1.19.40...v1.19.41) (2026-11-18)
+
+### Bug Fixes
+
+- **sec:** declare a debt leg untagged at the pair's instant (#266) ([384180d](https://github.com/nejcm/market-bot/commit/384180d5beb9f167a0f3d6691f03a1f5e865753f))
+
 ## [1.19.40](https://github.com/nejcm/market-bot/compare/v1.19.39...v1.19.40) (2026-11-18)
 
 ### Bug Fixes

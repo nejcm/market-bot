@@ -2841,7 +2841,8 @@ describe("run workspace view", () => {
       {
         key: "freeCashFlowProxy",
         label: "Free cash flow proxy",
-        reason: "capex scope undecided without the SEC SIC classification",
+        reason:
+          "no SEC SIC classification to rule on REIT scope, and the filing tags no property, plant and equipment purchases",
         withheld: true,
       },
     ]);

@@ -79,7 +79,9 @@ test("suppresses the reverse DCF for a REIT that files no PP&E capex", () => {
   expect(buildForIssuer(undefined, ["capitalExpenditure"])).toMatchObject({
     status: "suppressed",
     reason: "free-cash-flow-scope-undecided",
-    detail: expect.stringContaining("capex scope undecided without the SEC SIC classification"),
+    detail: expect.stringContaining(
+      "no SEC SIC classification to rule on REIT scope, and the filing tags no property, plant and equipment purchases",
+    ),
   });
   expect(buildForIssuer(undefined, []).status).toBe("computed");
   expect(buildForIssuer("6798", [], true)).toMatchObject({

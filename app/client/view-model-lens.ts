@@ -9,8 +9,10 @@ import type {
   FinancialLensMetric,
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
-import { financialLensNameFromSectionId } from "../../src/sources/extended-evidence/financial-lens-contract";
-import { revenueMultipleVerdict } from "../../src/sources/extended-evidence/valuation-comps-contract";
+import {
+  financialLensMetricSectionId,
+  financialLensNameFromSectionId,
+} from "../../src/sources/extended-evidence/financial-lens-contract";
 import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/market-data";
 import { readRecord } from "./view-model-format";
@@ -53,16 +55,42 @@ function valuationMetricLabels(revenue: string): Readonly<Record<string, string>
   };
 }
 
+// Undefined when the run predates Metric Sections: it published no verdict, so none is invented.
+export function publishedEvToRevenueLabel(
+  report: Record<string, unknown> | undefined,
+  formatValue: (value: number) => string,
+): string | undefined {
+  const metric = readMetricSectionsExtra(readRecord(report?.extras)?.metricSections)
+    ?.find(({ id }) => id === financialLensMetricSectionId("Value"))
+    ?.metrics.find(({ id }) => id === "evToAnnualizedRevenue");
+  switch (metric?.status) {
+    case undefined: {
+      return undefined;
+    }
+    case "value": {
+      return typeof metric.value === "number" ? formatValue(metric.value) : "not available";
+    }
+    case "missing": {
+      return "withheld";
+    }
+    case "not-meaningful": {
+      return "N/M";
+    }
+    case "not-applicable": {
+      return "N/A";
+    }
+    default: {
+      return "not available";
+    }
+  }
+}
+
 // Without the run's recognized peer-range basis the revenue label stays neutral, never assumed TTM.
 export function valuationMetricTiles(
   metrics: Readonly<Record<string, number | string>> | undefined,
   revenueBasisLabel = "revenue",
-  asOf?: string,
+  report?: Record<string, unknown>,
 ): readonly ValuationMetricTile[] {
-  if (metrics === undefined) {
-    return [];
-  }
-
   const keys = [
     "marketCap",
     "enterpriseValue",
@@ -77,30 +105,21 @@ export function valuationMetricTiles(
   ] as const;
 
   const labels = valuationMetricLabels(revenueBasisLabel);
-  const number = (key: string) => (typeof metrics[key] === "number" ? metrics[key] : undefined);
-  const { revenuePeriodEnd } = metrics;
-  const revenueMultiple = revenueMultipleVerdict(
-    {
-      annualizedRevenue: number("annualizedRevenue"),
-      marketCap: number("marketCap"),
-      evToAnnualizedRevenue: number("evToAnnualizedRevenue"),
-      revenuePeriodEnd: typeof revenuePeriodEnd === "string" ? revenuePeriodEnd : undefined,
-    },
-    asOf,
-  );
-  const { usablePeerCount } = metrics;
+  const fields = metrics ?? {};
+  const { usablePeerCount } = fields;
   const hasUsablePeerCount =
     typeof usablePeerCount === "number" && Number.isFinite(usablePeerCount);
 
   return keys.flatMap((key) => {
-    const raw = metrics[key];
+    const raw = fields[key];
     const label = labels[key] ?? key;
+    if (key === "evToAnnualizedRevenue") {
+      return [
+        { label, value: publishedEvToRevenueLabel(report, formatMultiple) ?? "not available" },
+      ];
+    }
     if (typeof raw === "number" && Number.isFinite(raw)) {
-      if (key === "evToAnnualizedRevenue" && revenueMultiple !== undefined) {
-        return [{ label, value: revenueMultiple.status === "missing" ? "withheld" : "N/M" }];
-      }
       if (
-        key === "evToAnnualizedRevenue" ||
         key === "peerMedianEvToAnnualizedRevenue" ||
         key === "peerP25EvToAnnualizedRevenue" ||
         key === "peerP75EvToAnnualizedRevenue"
@@ -108,7 +127,7 @@ export function valuationMetricTiles(
         return [{ label, value: formatMultiple(raw) }];
       }
       if (key === "usablePeerCount") {
-        const core = metrics["corePeerCount"];
+        const core = fields["corePeerCount"];
         const coreSuffix =
           typeof core === "number" && Number.isFinite(core) ? ` (${String(core)} core)` : "";
         return [{ label, value: `${String(raw)} usable${coreSuffix}` }];

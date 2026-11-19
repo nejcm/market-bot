@@ -24,6 +24,7 @@ import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evide
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
 import { stringArrayValue } from "../../src/guards";
 import { priceAsOfLabel, projectEquityReaderForDetail } from "./run-workspace-detail";
+import { publishedEvToRevenueLabel } from "./view-model-lens";
 
 export interface RunWorkspacePeerImpliedRangeGeometry {
   readonly mid: number;
@@ -239,6 +240,7 @@ function valuationMetricCell(metric: MetricResult): RunWorkspaceValuationMetricC
 
 function valuationPeerRows(
   artifact: ValuationWorkbenchArtifact,
+  report: Record<string, unknown> | undefined,
 ): readonly RunWorkspaceValuationPeerRow[] {
   if (artifact.peerComparison.status === "suppressed") {
     return [];
@@ -248,11 +250,14 @@ function valuationPeerRows(
     symbol: row.symbol,
     role: row.symbol === valuationComps.target.symbol ? "target" : (row.role ?? "peer"),
     status: row.usable ? "usable" : "excluded",
-    multiple: compsRowRevenueMultipleLabel(
-      row,
-      valuationComps.target.symbol,
-      valuationComps.generatedAt,
-    ),
+    multiple:
+      row.symbol === valuationComps.target.symbol
+        ? (publishedEvToRevenueLabel(report, (value) => `${value.toFixed(2)}x`) ?? "not available")
+        : compsRowRevenueMultipleLabel(
+            row,
+            valuationComps.target.symbol,
+            valuationComps.generatedAt,
+          ),
     currency: row.quoteCurrency ?? "—",
     inputDates: valuationRowInputDates(row),
     sourceIds: stringArrayValue(row.sourceIds),
@@ -305,7 +310,7 @@ export function valuationWorkbenchView(
     ...(artifact.peerComparison.status === "suppressed"
       ? { peerSuppression: artifact.peerComparison.detail }
       : {}),
-    peerRows: valuationPeerRows(artifact),
+    peerRows: valuationPeerRows(artifact, detail.report),
     excludedPeerRows:
       artifact.peerComparison.status === "available"
         ? artifact.peerComparison.valuationComps.excludedPeers.map((peer) => ({

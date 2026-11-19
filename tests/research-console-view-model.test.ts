@@ -108,6 +108,11 @@ function phaseLabelFor(series: string) {
   })?.phaseLabel;
 }
 
+function publishedEvToRevenue(status: string, value?: number): Record<string, unknown> {
+  const metric = { id: "evToAnnualizedRevenue", status, value, sourceIds: [] };
+  return { extras: { metricSections: [{ id: "financial-lens-value", metrics: [metric] }] } };
+}
+
 describe("research console app view model", () => {
   test("round-trips instrument routes with normalized symbols", () => {
     const pathname = instrumentPath("equity", "nvda");
@@ -2075,6 +2080,7 @@ describe("report artifact parsers", () => {
           valuationSupportability: "supported",
         },
         "TTM revenue",
+        publishedEvToRevenue("value", 5.4),
       ),
     ).toEqual([
       { label: "Market cap", value: "$2.5B" },
@@ -2089,8 +2095,7 @@ describe("report artifact parsers", () => {
     ]);
   });
 
-  test("shows EV/revenue as N/M below the revenue de-minimis floor", () => {
-    // NBIS run 1c6c4809: FY2025 revenue $529.8M against a $36.33B quote market cap.
+  test("shows EV/revenue as N/M when the published metric is not meaningful", () => {
     expect(
       valuationMetricTiles(
         {
@@ -2100,6 +2105,7 @@ describe("report artifact parsers", () => {
           valuationSupportability: "not-meaningful",
         },
         "TTM revenue",
+        publishedEvToRevenue("not-meaningful"),
       ),
     ).toEqual([
       { label: "Market cap", value: "$36.3B" },
@@ -2109,36 +2115,88 @@ describe("report artifact parsers", () => {
     ]);
   });
 
-  test("withholds the EV/revenue verdict on a stale revenue period", () => {
+  test("withholds EV/revenue when the published metric is missing", () => {
     const tiles = valuationMetricTiles(
-      {
-        marketCap: 36_330_405_888,
-        annualizedRevenue: 529_800_000,
-        evToAnnualizedRevenue: 69.42,
-        revenuePeriodEnd: "2025-12-31",
-      },
+      { evToAnnualizedRevenue: 69.42, revenuePeriodEnd: "2025-12-31" },
       "TTM revenue",
-      "2026-11-11T00:00:00.000Z",
+      publishedEvToRevenue("missing"),
     );
     expect(tiles).toContainEqual({ label: "EV / TTM revenue", value: "withheld" });
+  });
+
+  test("renders the published EV/revenue status instead of re-deriving a verdict", () => {
+    // Runs predating the freshness guard published a value on a revenue period it now withholds.
+    const nbis = { evToAnnualizedRevenue: 69.42, revenuePeriodEnd: "2025-12-31" };
+    expect(
+      valuationMetricTiles(nbis, "TTM revenue", publishedEvToRevenue("value", 69.42)),
+    ).toContainEqual({ label: "EV / TTM revenue", value: "69.4x" });
+    const keel = { evToAnnualizedRevenue: 7.11, revenuePeriodEnd: "2026-03-31" };
+    expect(
+      valuationMetricTiles(keel, "TTM revenue", publishedEvToRevenue("value", 7.11)),
+    ).toContainEqual({ label: "EV / TTM revenue", value: "7.1x" });
+  });
+
+  test("shows a published non-value EV/revenue status without a raw multiple", () => {
+    // Depository issuers (JPM 59814bb4) carry no raw multiple; the lens publishes not-applicable.
+    const jpm = { marketCap: 800_000_000_000, annualizedRevenue: 180_000_000_000 };
+    expect(
+      valuationMetricTiles(jpm, "TTM revenue", publishedEvToRevenue("not-applicable")),
+    ).toContainEqual({ label: "EV / TTM revenue", value: "N/A" });
+    expect(valuationMetricTiles({}, "revenue", publishedEvToRevenue("missing"))).toEqual([
+      { label: "EV / revenue", value: "withheld" },
+    ]);
+    expect(valuationMetricTiles({}, "revenue", publishedEvToRevenue("constructor"))).toEqual([
+      { label: "EV / revenue", value: "not available" },
+    ]);
+  });
+
+  test("marks EV/revenue not available when the run predates Metric Sections", () => {
+    const metrics = { evToAnnualizedRevenue: 5.4 };
+    expect(valuationMetricTiles(metrics)).toEqual([
+      { label: "EV / revenue", value: "not available" },
+    ]);
+    expect(valuationMetricTiles(metrics, "revenue", { extras: { metricSections: [] } })).toEqual([
+      { label: "EV / revenue", value: "not available" },
+    ]);
   });
 
   test("falls back to the core peer count when a run predates usablePeerCount", () => {
     expect(
       valuationMetricTiles({ corePeerCount: 2, peerMedianEvToAnnualizedRevenue: 4.2 }),
     ).toEqual([
+      { label: "EV / revenue", value: "not available" },
       { label: "Core peers", value: "2" },
       { label: "Peer median EV / revenue", value: "4.2x" },
     ]);
   });
 
+  test("shows the published EV/revenue status when the valuation item has no metrics", () => {
+    const report = {
+      ...publishedEvToRevenue("not-applicable"),
+      extendedEvidence: {
+        items: [
+          { category: "valuation", title: "JPM Valuation Evidence", summary: "s", metrics: {} },
+        ],
+      },
+    };
+    const [item] = extendedEvidenceItems(report);
+    expect(item?.metrics).toBeUndefined();
+    expect(valuationMetricTiles(item?.metrics, "revenue", report)).toEqual([
+      { label: "EV / revenue", value: "N/A" },
+    ]);
+    expect(valuationMetricTiles(undefined)).toEqual([
+      { label: "EV / revenue", value: "not available" },
+    ]);
+  });
+
   test("labels valuation revenue tiles by basis and stays neutral without one", () => {
     const metrics = { annualizedRevenue: 500_000_000, evToAnnualizedRevenue: 5.4 };
-    expect(valuationMetricTiles(metrics, "annualized revenue")).toEqual([
+    const published = publishedEvToRevenue("value", 5.4);
+    expect(valuationMetricTiles(metrics, "annualized revenue", published)).toEqual([
       { label: "Annualized revenue", value: "$500.0M" },
       { label: "EV / annualized revenue", value: "5.4x" },
     ]);
-    expect(valuationMetricTiles(metrics)).toEqual([
+    expect(valuationMetricTiles(metrics, undefined, published)).toEqual([
       { label: "Revenue", value: "$500.0M" },
       { label: "EV / revenue", value: "5.4x" },
     ]);

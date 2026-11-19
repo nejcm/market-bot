@@ -723,7 +723,7 @@
             <ExtendedEvidence
               items={extendedEvidence}
               revenueBasisLabel={peerImpliedRange?.revenueBasisLabel}
-              generatedAt={detail.summary.generatedAt}
+              report={detail.report}
               sectionKey="extendedEvidence"
               {citeChips}
               {sectionHeading}

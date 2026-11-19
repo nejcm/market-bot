@@ -2009,7 +2009,21 @@ describe("run workspace view", () => {
       },
     });
 
-    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
+    const lensReport = {
+      extras: {
+        metricSections: [
+          {
+            id: "financial-lens-value",
+            metrics: [{ id: "evToAnnualizedRevenue", status: "value", value: 8.5, sourceIds: [] }],
+          },
+        ],
+      },
+    };
+    const view = valuationWorkbenchView({
+      summary: summary(),
+      valuationWorkbench: workbench,
+      report: lensReport,
+    });
     const workspace = buildRunWorkspaceView({
       summary: summary(),
       valuationWorkbench: workbench,
@@ -2070,6 +2084,11 @@ describe("run workspace view", () => {
       })),
     });
     const markdownRows = renderValuationWorkbenchMarkdown(workbench, report).split("\n");
+    // A run that predates Metric Sections published no target verdict.
+    expect(
+      valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench })?.peerRows[0]
+        ?.multiple,
+    ).toBe("not available");
     for (const row of view?.peerRows ?? []) {
       const line = markdownRows.find((candidate) => candidate.startsWith(`${row.symbol} | `));
       expect(line?.endsWith(` | ${row.sourceIds.map((id) => `[${id}]`).join(" ") || "—"}`)).toBe(

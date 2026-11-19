@@ -61,6 +61,7 @@ import {
 import {
   firstAnnualReports,
   dividendPaymentFiled,
+  earliestCommonDividendPaidEnd,
   realEstateInvestmentFiled,
   unfiledSeries,
   capexComponentConcepts,
@@ -649,6 +650,10 @@ export function deriveFinancialStatements(
   const capexComponents = unfiled.includes("capitalExpenditure")
     ? capexComponentConcepts(payload, input.analysisAsOf)
     : [];
+  const commonDividendPaidEnd =
+    taxonomy === undefined
+      ? undefined
+      : earliestCommonDividendPaidEnd(payload, taxonomy, input.analysisAsOf);
   const otherTaxonomies =
     taxonomy === undefined
       ? []
@@ -688,6 +693,9 @@ export function deriveFinancialStatements(
     ...(taxonomy !== undefined
       ? {
           dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
+          ...(commonDividendPaidEnd !== undefined
+            ? { earliestCommonDividendPaidEnd: commonDividendPaidEnd }
+            : {}),
           unfiledSeries: unfiled,
           ...(capexComponents.length > 0 ? { capexComponentConcepts: capexComponents } : {}),
           realEstateInvestmentFiled: realEstateInvestmentFiled(payload, input.analysisAsOf),

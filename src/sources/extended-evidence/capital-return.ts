@@ -4,6 +4,7 @@ import type {
   FinancialStatementSeriesKey,
 } from "./financial-statements-contract";
 import {
+  COMMON_DIVIDENDS_PAID_CONCEPTS,
   conceptScope,
   NEGATIVE_CAPEX_REASON,
   scopedLabel,
@@ -376,9 +377,31 @@ function dpsCagrBasis(years: number): string {
   return `compound annual change in dividends per share, latest fiscal year vs the fiscal year ${String(years)}y earlier`;
 }
 
+const EARLIEST_DIVIDEND_BASIS =
+  'earliest year-aligned fiscal year with positive dividends per share or positive common dividends paid among retained annual filings; "or earlier" when an older dividends per share year falls past the history cap or an older common dividend payment is filed outside the retained series';
+
+function dpsCappedBefore(ctx: MetricContext, periodEnd: string): boolean {
+  return (
+    ctx.statements?.omissionNotes.some((note) => {
+      const [period, first = "", end = ""] = note.periodKey?.split("|") ?? [];
+      return (
+        note.code === "history-cap" &&
+        note.seriesKey === "dividendsPerShare" &&
+        period === "annual" &&
+        (first === "duration:12" || isYearAligned(first, end)) &&
+        end < periodEnd
+      );
+    }) === true
+  );
+}
+
 function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
-  const facts = eligibleAnnualFacts(ctx, "dividendsPerShare");
-  if (facts.length === 0) {
+  const perShare = eligibleAnnualFacts(ctx, "dividendsPerShare");
+  const paid = eligibleAnnualFacts(ctx, "dividendsPaid").filter((fact) =>
+    COMMON_DIVIDENDS_PAID_CONCEPTS.has(fact.concept),
+  );
+  const filedPaidEnd = ctx.statements?.earliestCommonDividendPaidEnd;
+  if (perShare.length === 0 && paid.length === 0 && filedPaidEnd === undefined) {
     return missingOutcome(
       notFiledSelection(ctx, "dividendsPerShare", []) ?? {
         facts: [],
@@ -387,25 +410,40 @@ function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
       ["dividendsPerShare"],
     );
   }
-  const earliest = facts.findLast((fact) => fact.value > 0);
-  const capped = ctx.statements?.omissionNotes.some(
-    (note) =>
-      note.code === "history-cap" &&
-      note.seriesKey === "dividendsPerShare" &&
-      note.periodKey?.startsWith("annual|") === true,
-  );
+  const [earliest] = [
+    ...perShare.map((fact) => ({ fact, key: "dividendsPerShare" as const })),
+    ...paid.map((fact) => ({ fact, key: "dividendsPaid" as const })),
+  ]
+    .filter(({ fact }) => fact.value > 0)
+    .toSorted((left, right) => left.fact.periodEnd.localeCompare(right.fact.periodEnd));
+  const bound = earliest?.fact.periodEnd ?? "9999";
+  const capped = dpsCappedBefore(ctx, bound) || (filedPaidEnd ?? "9999") < bound;
   if (earliest === undefined) {
+    const latest = perShare[0] ?? paid[0];
     return {
       status: "missing",
-      reason: `no positive annual dividends per share fact in ${capped ? "retained" : "filed"} history`,
-      inputs: [statementInput(facts[0]!, "dividendsPerShare")],
+      reason: `no positive annual dividends per share or common dividends paid fact in ${capped ? "retained" : "filed"} history`,
+      inputs:
+        latest === undefined
+          ? []
+          : [
+              statementInput(
+                latest,
+                perShare[0] === undefined ? "dividendsPaid" : "dividendsPerShare",
+              ),
+            ],
     };
   }
   return {
     status: "value",
-    value: `FY${String(earliest.fiscalYear)}${capped ? " or earlier" : ""}`,
-    periodEnd: earliest.periodEnd,
-    inputs: [statementInput(earliest, "dividendsPerShare")],
+    value: `FY${String(earliest.fact.fiscalYear)}${capped ? " or earlier" : ""}`,
+    periodEnd: earliest.fact.periodEnd,
+    inputs: [statementInput(earliest.fact, earliest.key)],
+    ...(earliest.key === "dividendsPaid"
+      ? {
+          basis: `${EARLIEST_DIVIDEND_BASIS}; set by common dividends paid (${earliest.fact.concept}), which can trail the first declaration; no earlier positive dividends per share`,
+        }
+      : {}),
   };
 }
 
@@ -719,8 +757,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     id: "earliestDividendFyInHistory",
     label: "Earliest dividend year in filed history",
     unit: "text",
-    basis:
-      'earliest year-aligned fiscal year with positive dividends per share among retained annual filings; "or earlier" when older annual periods fall past the history cap',
+    basis: EARLIEST_DIVIDEND_BASIS,
     applicable: noDividendHistory,
     compute: unlessDpsWithheld(unlessPaymentEvidenceUnknown(earliestDividendFiscalYear), true),
   },

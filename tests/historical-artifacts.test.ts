@@ -89,6 +89,19 @@ describe("frozen historical artifacts", () => {
     }
   });
 
+  test("reads the earliest common dividend paid end only as a calendar date", async () => {
+    const artifact = (await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json()) as FinancialStatementsArtifact;
+    const read = (earliestCommonDividendPaidEnd: unknown) =>
+      readFinancialStatementsArtifact({ ...artifact, earliestCommonDividendPaidEnd });
+
+    expect(read("2012-12-31")?.earliestCommonDividendPaidEnd).toBe("2012-12-31");
+    expect(read(undefined)?.earliestCommonDividendPaidEnd).toBeUndefined();
+    expect(read("2012-02-30")).toBeUndefined();
+    expect(read(20_121_231)).toBeUndefined();
+  });
+
   test("keeps well-formed superseding facts and leaves a malformed list unchecked", async () => {
     const artifact = (await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),

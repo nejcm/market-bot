@@ -191,6 +191,12 @@ export const US_GAAP_DEBT_DUE_WITHIN_YEAR_CONCEPTS: readonly string[] = [
   US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
 ];
 
+// Generic PaymentsOfDividends can carry preferred or noncontrolling distributions.
+export const COMMON_DIVIDENDS_PAID_CONCEPTS: ReadonlySet<string> = new Set([
+  "PaymentsOfDividendsCommonStock",
+  "PaymentsOfOrdinaryDividends",
+]);
+
 // Ratio and caveat inputs follow the core statements: they never displace a capped period or sway taxonomy and currency.
 export const CAP_FOLLOWER_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([
   "goodwill",

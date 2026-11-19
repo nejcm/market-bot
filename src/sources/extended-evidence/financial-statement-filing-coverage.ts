@@ -1,13 +1,14 @@
 import { isRecord, readNumber, readString } from "../../guards";
 import {
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
+  COMMON_DIVIDENDS_PAID_CONCEPTS,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   MIN_ANNUAL_DURATION_MONTHS,
   MAX_ANNUAL_DURATION_MONTHS,
   isDebtPresenceConcept,
 } from "./financial-statement-definitions";
-import { financialStatementPeriodMonths } from "./financial-statement-selection";
+import { financialStatementPeriodMonths, isYearAligned } from "./financial-statement-selection";
 import {
   canonicalizeSecForm,
   isAnnualReportForm,
@@ -30,6 +31,7 @@ import {
   rawConceptRows,
   isObservable,
   periodKey,
+  selectRestatements,
 } from "./financial-statement-facts";
 import { ELECTING_DEFINITIONS, filingOf } from "./financial-statement-taxonomy";
 
@@ -103,6 +105,38 @@ export function dividendPaymentFiled(
         }),
       ),
   );
+}
+
+// The history cap and single-concept election can drop these from the selected dividends-paid series.
+export function earliestCommonDividendPaidEnd(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+): string | undefined {
+  const root = taxonomyRoot(payload, taxonomy) ?? {};
+  return [...COMMON_DIVIDENDS_PAID_CONCEPTS]
+    .flatMap((concept) => {
+      const eligible = unitFacts(taxonomy, root, concept).filter(
+        (fact) =>
+          isAnnualReportForm(fact.canonicalForm) &&
+          isObservable(fact, analysisAsOf) &&
+          fact.periodStart !== undefined &&
+          isCalendarDate(fact.periodStart) &&
+          isCalendarDate(fact.periodEnd) &&
+          isYearAligned(fact.periodStart, fact.periodEnd),
+      );
+      return [...new Set(eligible.map((fact) => fact.unit))].flatMap(
+        (unit) =>
+          selectRestatements(
+            eligible.filter((fact) => fact.unit === unit),
+            "dividendsPaid",
+            [],
+          ).facts,
+      );
+    })
+    .filter((fact) => fact.value > 0)
+    .map((fact) => fact.periodEnd)
+    .toSorted()[0];
 }
 
 // Investing outflows for properties that sit outside the us-gaap capex aliases.

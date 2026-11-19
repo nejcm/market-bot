@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.54](https://github.com/nejcm/market-bot/compare/v1.19.53...v1.19.54) (2026-11-19)
+
+### Bug Fixes
+
+- **capital-return:** date earliest dividend year from filed common paid (#279) ([876a155](https://github.com/nejcm/market-bot/commit/876a155f09bb7c04f797aa04c914696da9c42c62))
+
 ## [1.19.53](https://github.com/nejcm/market-bot/compare/v1.19.52...v1.19.53) (2026-11-19)
 
 ### Bug Fixes

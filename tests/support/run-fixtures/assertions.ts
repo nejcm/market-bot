@@ -59,6 +59,7 @@ import {
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import {
   CAPEX_SCOPE_CAVEAT,
+  COMMON_DIVIDENDS_PAID_CONCEPTS,
   conceptScope,
   DEBT_SCOPE_CAVEAT,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
@@ -2032,17 +2033,28 @@ export function assertMetricSectionInvariants(
         break;
       }
       case "earliestDividendFyInHistory": {
-        const [earliest] = (
-          financialStatementSeriesByKey(statements, "dividendsPerShare")?.annual ?? []
-        )
-          .filter((fact) => fact.value > 0 && isAnnualSpan(fact))
+        const annualOf = (key: "dividendsPerShare" | "dividendsPaid") =>
+          (financialStatementSeriesByKey(statements, key)?.annual ?? []).filter(
+            (fact) =>
+              isAnnualSpan(fact) &&
+              (key === "dividendsPerShare" || COMMON_DIVIDENDS_PAID_CONCEPTS.has(fact.concept)),
+          );
+        const [earliest] = [...annualOf("dividendsPerShare"), ...annualOf("dividendsPaid")]
+          .filter((fact) => fact.value > 0)
           .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
-        const capped = statements.omissionNotes.some(
-          (note) =>
-            note.code === "history-cap" &&
-            note.seriesKey === "dividendsPerShare" &&
-            note.periodKey?.startsWith("annual|") === true,
-        );
+        const bound = earliest?.periodEnd ?? "9999";
+        const capped =
+          (statements.earliestCommonDividendPaidEnd ?? "9999") < bound ||
+          statements.omissionNotes.some((note) => {
+            const [period, first = "", end = ""] = note.periodKey?.split("|") ?? [];
+            return (
+              note.code === "history-cap" &&
+              note.seriesKey === "dividendsPerShare" &&
+              period === "annual" &&
+              (first === "duration:12" || isAnnualSpan({ periodStart: first, periodEnd: end })) &&
+              end < bound
+            );
+          });
         expect(metric.value, `${label} names the earliest positive FY`).toBe(
           `FY${String(earliest?.fiscalYear)}${capped ? " or earlier" : ""}`,
         );

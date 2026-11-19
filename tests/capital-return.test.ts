@@ -8,10 +8,14 @@ import { projectExtendedEvidenceReportExtras } from "../src/research/extended-ev
 import { deriveCapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import { resolveMetricReferences } from "../src/research/metric-references";
 import { capitalReturnSection } from "../src/sources/extended-evidence/capital-return";
+import { financialStatementSeriesByKey } from "../src/sources/extended-evidence/financial-statement-selection";
 import { noFact } from "../src/sources/extended-evidence/financial-lens-inputs";
 import { NEGATIVE_CAPEX_REASON } from "../src/sources/extended-evidence/financial-statement-definitions";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
-import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
+import {
+  readFinancialStatementsArtifact,
+  type FinancialStatementsArtifact,
+} from "../src/sources/extended-evidence/financial-statements-contract";
 import type { MetricContext, MetricInput } from "../src/sources/extended-evidence/metric-engine";
 import { resolveMarketSnapshotPriceAsOf } from "../src/domain/market-data";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
@@ -127,6 +131,39 @@ function renderMaterialGaps(ctx: MetricContext): string {
     { sourceGaps },
   );
   return markdown.slice(markdown.indexOf("## Material Data Gaps"), markdown.indexOf("## Appendix"));
+}
+
+function nextDay(date: string): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+}
+
+function yearsFrom(from: number): number[] {
+  return Array.from({ length: 2026 - from }, (_, index) => from + index);
+}
+
+function annualFrom(from: number, unit: string, value: (year: number) => number): Fact {
+  return { units: { [unit]: yearsFrom(from).map((year) => fy(value(year), year)) } };
+}
+
+function filedAs(concept: Fact, end: string, accn: string): Fact {
+  const units = concept.units as Record<string, Fact[]>;
+  return {
+    units: Object.fromEntries(
+      Object.entries(units).map(([unit, rows]) => [
+        unit,
+        rows.map((row) => (row.end === end ? { ...row, accn } : row)),
+      ]),
+    ),
+  };
+}
+
+function earliestPaidWithAccession(ctx: MetricContext) {
+  const metric = evaluate(ctx).metric("earliestDividendFyInHistory");
+  const [input] = metric.inputs as readonly MetricInput[];
+  const fact = financialStatementSeriesByKey(ctx.statements!, "dividendsPaid")?.annual.find(
+    (candidate) => input?.series === "dividendsPaid" && candidate.periodKey === input.periodKey,
+  );
+  return { metric, accession: fact?.accessionNumber };
 }
 
 describe("capitalReturnSection", () => {
@@ -307,7 +344,362 @@ describe("capitalReturnSection", () => {
 
     expect(result.metric("earliestDividendFyInHistory")).toMatchObject({
       status: "missing",
-      reason: "no positive annual dividends per share fact in retained history",
+      reason:
+        "no positive annual dividends per share or common dividends paid fact in retained history",
+    });
+  });
+
+  describe("earliest dividend year from per-share and common dividends paid evidence", () => {
+    const dividendContext = (concepts: Record<string, Fact | undefined>, from = 2015) =>
+      context(
+        usGaap({
+          Revenues: annualFrom(from, "USD", (year) => 1000 + year),
+          WeightedAverageNumberOfDilutedSharesOutstanding: annualFrom(from, "shares", () => 100),
+          PaymentsOfDividends: undefined,
+          CommonStockDividendsPerShareDeclared: undefined,
+          ...concepts,
+        }),
+      );
+    const earliest = (concepts: Record<string, Fact | undefined>, from = 2015) =>
+      evaluate(dividendContext(concepts, from)).metric("earliestDividendFyInHistory");
+
+    // Realty Income 10-K 0001104659-17-011170: PaymentsOfDividendsCommonStock FY2016 610,516,000;
+    // CommonStockDividendsPerShareCashPaid starts FY2017 (10-K 0000726728-20-000033, 2.527).
+    test("O-shaped: common dividends paid sets a year the per-share tag starts after", () => {
+      const o = (from: number) =>
+        earliest(
+          {
+            PaymentsOfDividendsCommonStock: annualFrom(from, "USD", () => 610_516_000),
+            CommonStockDividendsPerShareCashPaid: annualFrom(2017, "USD/shares", () => 2.527),
+          },
+          from,
+        );
+
+      expect(o(2015)).toMatchObject({
+        status: "value",
+        value: "FY2016 or earlier",
+        periodEnd: "2016-12-31",
+        inputs: [{ series: "dividendsPaid", periodEnd: "2016-12-31", value: 610_516_000 }],
+      });
+      expect(o(2015).basis).toEndWith(
+        "set by common dividends paid (PaymentsOfDividendsCommonStock), which can trail the first declaration; no earlier positive dividends per share",
+      );
+      expect(o(2016)).toMatchObject({ status: "value", value: "FY2016" });
+    });
+
+    test("a shared cap that drops only years after the earliest DPS year adds no bound", () => {
+      const result = earliest(
+        {
+          PaymentsOfDividendsCommonStock: annualFrom(2007, "USD", () => 50),
+          CommonStockDividendsPerShareDeclared: {
+            units: {
+              "USD/shares": yearsFrom(2007)
+                .filter((year) => year <= 2016)
+                .map((year) => fy(0.5, year)),
+            },
+          },
+        },
+        2007,
+      );
+
+      expect(result).toMatchObject({ status: "value", value: "FY2007", periodEnd: "2007-12-31" });
+      expect(result.inputs).toMatchObject([{ series: "dividendsPerShare" }]);
+    });
+
+    // WULF 10-K: PaymentsOfDividendsCommonStock FY2012 1,998,475 under the same CIK, past the cap.
+    describe("WULF-shaped: a capped-away common payment bounds or explains the result", () => {
+      const wulf = (perShare: Fact | undefined) =>
+        earliest(
+          {
+            PaymentsOfDividendsCommonStock: { units: { USD: [fy(1_998_475, 2012)] } },
+            CommonStockDividendsPerShareDeclared: perShare,
+          },
+          2012,
+        );
+
+      test("zero retained DPS reads retained history", () => {
+        expect(wulf(annualFrom(2022, "USD/shares", () => 0))).toMatchObject({
+          status: "missing",
+          reason:
+            "no positive annual dividends per share or common dividends paid fact in retained history",
+        });
+      });
+
+      test("positive retained DPS reads as an upper bound", () => {
+        expect(wulf(annualFrom(2022, "USD/shares", () => 0.1))).toMatchObject({
+          status: "value",
+          value: "FY2022 or earlier",
+        });
+      });
+
+      test("no DPS series is not a not-filed gap", () => {
+        const result = wulf(undefined);
+
+        expect(result).toMatchObject({
+          status: "missing",
+          reason:
+            "no positive annual dividends per share or common dividends paid fact in retained history",
+          inputs: [],
+        });
+        expect(result.cause).toBeUndefined();
+      });
+    });
+
+    test("a same-period 10-K/A correcting a payment to zero drops it from the filed bound", () => {
+      const paid = {
+        units: {
+          USD: [
+            fy(10, 2020),
+            fy(0, 2020, { form: "10-K/A", filed: "2021-06-01", accn: "test-2020-a" }),
+            fy(0, 2021),
+            fy(25, 2022),
+          ],
+        },
+      };
+      const filedEnd = (analysisAsOf: string) =>
+        deriveFinancialStatements(
+          { facts: { "us-gaap": { PaymentsOfDividendsCommonStock: paid } } },
+          { symbol: "TEST", generatedAt: analysisAsOf, analysisAsOf, sourceId: SOURCE_ID },
+        ).earliestCommonDividendPaidEnd;
+
+      expect(filedEnd("2021-05-01T00:00:00.000Z")).toBe("2020-12-31");
+      expect(filedEnd(AS_OF)).toBe("2022-12-31");
+      expect(earliest({ PaymentsOfDividendsCommonStock: paid }, 2020)).toMatchObject({
+        status: "value",
+        value: "FY2022",
+      });
+    });
+
+    test("a later zero in another unit does not revise a capped USD payment", () => {
+      const usd = annualFrom(2015, "USD", (year) => (year === 2015 ? 10 : 25)).units as Fact;
+      const eur = [fy(0, 2015, { filed: "2017-03-01", accn: "test-2015-eur" })];
+
+      expect(
+        earliest({ PaymentsOfDividendsCommonStock: { units: { ...usd, EUR: eur } } }),
+      ).toMatchObject({ status: "value", value: "FY2016 or earlier" });
+    });
+
+    test("a malformed raw period end never reaches the artifact readers", () => {
+      const statements = deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: annualFrom(2016, "USD", () => 1000),
+              PaymentsOfDividendsCommonStock: {
+                units: {
+                  USD: [
+                    fy(5, 2012, { start: "2011-03-01", end: "2012-02-30", filed: "2012-03-15" }),
+                    ...yearsFrom(2016).map((year) => fy(25, year)),
+                  ],
+                },
+              },
+            },
+          },
+        },
+        { symbol: "TEST", generatedAt: AS_OF, analysisAsOf: AS_OF, sourceId: SOURCE_ID },
+      );
+
+      expect(
+        readFinancialStatementsArtifact(JSON.parse(JSON.stringify(statements)))
+          ?.earliestCommonDividendPaidEnd,
+      ).toBe("2016-12-31");
+    });
+
+    test.each([
+      ["PaymentsOfDividendsCommonStock", "USD"],
+      ["PaymentsOfOrdinaryDividends", "USD"],
+      ["CommonStockDividendsPerShareDeclared", "USD/shares"],
+    ])("a capped 356-day FY2015 %s keyed by dates still bounds FY2016", (concept, unit) => {
+      const units = [
+        fy(1, 2015, { start: "2015-01-09" }),
+        ...yearsFrom(2016).map((year) => fy(1, year)),
+      ];
+      expect(earliest({ [concept]: { units: { [unit]: units } } }, 2016)).toMatchObject({
+        status: "value",
+        value: "FY2016 or earlier",
+        periodEnd: "2016-12-31",
+      });
+    });
+
+    // CECO 10-K 0001564590-19-006619: PaymentsOfDividendsCommonStock FY2016 8,995,000; FY2011 728,000.
+    test("CECO: capped-away FY2011-15 payments bound a paid-only FY2016", () => {
+      const ceco: Record<number, number> = { 2011: 728_000, 2016: 8_995_000, 2017: 7_792_000 };
+      const { metric: result, accession } = earliestPaidWithAccession(
+        dividendContext(
+          {
+            PaymentsOfDividendsCommonStock: filedAs(
+              annualFrom(2011, "USD", (year) => (year <= 2017 ? (ceco[year] ?? 5_000_000) : 0)),
+              "2016-12-31",
+              "0001564590-19-006619",
+            ),
+          },
+          2011,
+        ),
+      );
+
+      expect(accession).toBe("0001564590-19-006619");
+      expect(result).toMatchObject({
+        status: "value",
+        value: "FY2016 or earlier",
+        periodEnd: "2016-12-31",
+        inputs: [{ series: "dividendsPaid", periodStart: "2016-01-01", value: 8_995_000 }],
+      });
+      expect(result.basis).toContain("(PaymentsOfDividendsCommonStock)");
+    });
+
+    // RELL 10-K 0001564590-19-028701: PaymentsOfDividendsCommonStock FY ended 2017-05-27 3,031,000;
+    // FY ended 2016-05-28 3,079,000 falls past the cap; no DPS tag.
+    test("RELL: a 52/53-week paid-only FY2017 is bounded by the capped FY2016 payment", () => {
+      const ends = [
+        "2016-05-28",
+        "2017-05-27",
+        ...Array.from({ length: 9 }, (_, index) => `${String(2018 + index)}-05-31`),
+      ];
+      const rows = (value: (end: string) => number) =>
+        ends.map((end, index) =>
+          fy(value(end), Number(end.slice(0, 4)), {
+            start: index === 0 ? "2015-05-31" : nextDay(ends[index - 1]!),
+            end,
+            filed: `${end.slice(0, 4)}-07-20`,
+          }),
+        );
+      const { metric: result, accession } = earliestPaidWithAccession(
+        context({
+          Revenues: { units: { USD: rows(() => 200_000_000) } },
+          WeightedAverageNumberOfDilutedSharesOutstanding: {
+            units: { shares: rows(() => 13_000_000) },
+          },
+          PaymentsOfDividendsCommonStock: filedAs(
+            {
+              units: {
+                USD: rows((end) =>
+                  end === "2016-05-28" ? 3_079_000 : end === "2017-05-27" ? 3_031_000 : 3_100_000,
+                ),
+              },
+            },
+            "2017-05-27",
+            "0001564590-19-028701",
+          ),
+        }),
+      );
+
+      expect(accession).toBe("0001564590-19-028701");
+      expect(result).toMatchObject({
+        status: "value",
+        value: "FY2017 or earlier",
+        periodEnd: "2017-05-27",
+        inputs: [{ series: "dividendsPaid", periodStart: "2016-05-29", value: 3_031_000 }],
+      });
+    });
+
+    // DPS x diluted shares below 0.4x of the same year's common paid is withheld as dps-unreconciled.
+    const withheldDps = (
+      paid: (year: number) => number,
+      dpsFor: (year: number) => number,
+      dpsFrom: number,
+      shares: number,
+      [paidEnd, accn]: readonly [string, string] = ["", ""],
+    ) =>
+      earliestPaidWithAccession(
+        dividendContext({
+          WeightedAverageNumberOfDilutedSharesOutstanding: annualFrom(2015, "shares", () => shares),
+          PaymentsOfDividendsCommonStock: filedAs(annualFrom(2015, "USD", paid), paidEnd, accn),
+          CommonStockDividendsPerShareDeclared: annualFrom(dpsFrom, "USD/shares", dpsFor),
+        }),
+      );
+
+    // ADTN 10-K 0001564590-19-005179: PaymentsOfDividendsCommonStock FY2016 17,583,000, paid since FY2008;
+    // Dps-unreconciled only in later years (FY2019 shown).
+    test("ADTN: a later unreconciled DPS year does not withhold the paid-set FY2016", () => {
+      const { metric: result, accession } = withheldDps(
+        (year) => (year === 2016 ? 17_583_000 : 17_400_000),
+        (year) => (year === 2019 ? 0.09 : 0.36),
+        2018,
+        48_000_000,
+        ["2016-12-31", "0001564590-19-005179"],
+      );
+
+      expect(accession).toBe("0001564590-19-005179");
+      expect(result).toMatchObject({
+        status: "value",
+        value: "FY2016 or earlier",
+        periodEnd: "2016-12-31",
+        inputs: [{ series: "dividendsPaid", value: 17_583_000 }],
+      });
+    });
+
+    // IRDM 10-K 0001418819-26-000009: PaymentsOfDividendsCommonStock FY2023 64,774,000, FY2021-22 zero;
+    // DPS FY2023 is unreconciled in the same year.
+    test("IRDM: a same-year unreconciled DPS does not withhold the paid-set FY2023", () => {
+      const { metric: result, accession } = withheldDps(
+        (year) => (year < 2023 ? 0 : year === 2023 ? 64_774_000 : 66_000_000),
+        (year) => (year === 2023 ? 0.13 : 0.54),
+        2023,
+        125_000_000,
+        ["2023-12-31", "0001418819-26-000009"],
+      );
+
+      expect(accession).toBe("0001418819-26-000009");
+      expect(result).toMatchObject({
+        status: "value",
+        value: "FY2023",
+        periodEnd: "2023-12-31",
+        inputs: [{ series: "dividendsPaid", value: 64_774_000 }],
+      });
+    });
+
+    // RFIL: earlier DPS years unreconciled; the withheld year must not let a later paid year stand in.
+    test("RFIL-shaped: an earlier unreconciled DPS year keeps the paid-set year withheld", () => {
+      const { metric: result } = withheldDps(
+        () => 36,
+        (year) => (year === 2015 ? 0.09 : 0.36),
+        2015,
+        100,
+      );
+
+      expect(result).toMatchObject({ status: "missing", periodEnd: "2015-12-31" });
+      expect(result.reason).toStartWith("dividends per share withheld: ");
+    });
+
+    test("DPS-only: per-share evidence sets the year and keeps the plain basis", () => {
+      const result = earliest({
+        CommonStockDividendsPerShareDeclared: annualFrom(2018, "USD/shares", () => 1),
+      });
+
+      expect(result).toMatchObject({ status: "value", value: "FY2018" });
+      expect(result.inputs).toMatchObject([{ series: "dividendsPerShare" }]);
+      expect(result.basis).not.toContain("set by common dividends paid");
+    });
+
+    test.each(["PaymentsOfDividendsCommonStock", "PaymentsOfOrdinaryDividends"])(
+      "paid-only: %s without a per-share tag dates the first year",
+      (concept) => {
+        const result = earliest({ [concept]: annualFrom(2016, "USD", () => 50) }, 2016);
+
+        expect(result).toMatchObject({ status: "value", value: "FY2016", periodEnd: "2016-12-31" });
+        expect(result.basis).toContain(`set by common dividends paid (${concept})`);
+      },
+    );
+
+    test("preferred-only and generic payments never date a common dividend year", () => {
+      const preferred = earliest({
+        PaymentsOfDividends: annualFrom(2016, "USD", () => 24),
+        PaymentsOfDividendsPreferredStockAndPreferenceStock: annualFrom(2016, "USD", () => 24),
+      });
+
+      expect(preferred).toMatchObject({ status: "missing", cause: "not-filed" });
+    });
+
+    test("non-payer: zero common dividends paid and zero DPS stay not applicable", () => {
+      expect(
+        earliest(
+          {
+            PaymentsOfDividendsCommonStock: annualFrom(2016, "USD", () => 0),
+            CommonStockDividendsPerShareDeclared: annualFrom(2016, "USD/shares", () => 0),
+          },
+          2016,
+        ),
+      ).toMatchObject({ status: "not-applicable", reason: "no dividend history in filed data" });
     });
   });
 

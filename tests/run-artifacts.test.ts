@@ -393,6 +393,17 @@ describe("loadRunArtifact", () => {
     expect(readDeepEquityEvidenceBundle(withSections({ id: "capital-return" }))).toBeUndefined();
   });
 
+  test("validates the nested earliest common dividend paid end in a deep-equity bundle", () => {
+    const base = deepEquityEvidenceBundle();
+    const withStatements = (financialStatements: Record<string, unknown>) =>
+      readDeepEquityEvidenceBundle({ ...base, derived: { ...base.derived, financialStatements } });
+
+    expect(withStatements({})).toBeDefined();
+    expect(withStatements({ earliestCommonDividendPaidEnd: "2012-12-31" })).toBeDefined();
+    expect(withStatements({ earliestCommonDividendPaidEnd: "2012-02-30" })).toBeUndefined();
+    expect(withStatements({ earliestCommonDividendPaidEnd: 20_121_231 })).toBeUndefined();
+  });
+
   test("round-trips canonical statements and equity completeness", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "canonical-financials");

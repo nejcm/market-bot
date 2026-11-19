@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.55](https://github.com/nejcm/market-bot/compare/v1.19.54...v1.19.55) (2026-11-19)
+
+### Bug Fixes
+
+- **capital-return:** scope earliest dividend year to the xbrl record (#280) ([8241083](https://github.com/nejcm/market-bot/commit/824108323f5a8afe9538da32568a4c8b0f8e25a6))
+
 ## [1.19.54](https://github.com/nejcm/market-bot/compare/v1.19.53...v1.19.54) (2026-11-19)
 
 ### Bug Fixes

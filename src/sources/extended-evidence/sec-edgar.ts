@@ -27,7 +27,7 @@ import {
   readSecFactPeriodMetadata,
 } from "./financial-statements-contract";
 import { readArray } from "./utils";
-import { unprovenRestatements } from "./financial-statement-period-identity";
+import { offPeriodRows } from "./financial-statement-period-identity";
 import {
   DEBT_METRIC,
   deltaPercent,
@@ -375,9 +375,9 @@ function factValuesForConcept(
   }
   return unitKeys.flatMap((unitKey) => {
     const rows = readArray(units, unitKey);
-    const unproven = unprovenRestatements(gaap, rows);
+    const offPeriod = offPeriodRows(gaap, rows);
     return rows.flatMap((value) => {
-      const factValue = unproven.has(value) ? undefined : readSecFactValue(value);
+      const factValue = offPeriod.has(value) ? undefined : readSecFactValue(value);
       return factValue === undefined ? [] : [factValue];
     });
   });

@@ -1,6 +1,11 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import { valuationDateBasisMetric } from "./financial-lens-metrics";
-import { type MetricContext, type MetricDefinition, type MetricOutcome } from "./metric-engine";
+import {
+  sameCurrency,
+  type MetricContext,
+  type MetricDefinition,
+  type MetricOutcome,
+} from "./metric-engine";
 import { ENTERPRISE_VALUE_BASIS } from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
@@ -324,7 +329,7 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
             return { status: "missing", reason: "no quote market cap", ...period, inputs };
           }
           // Summary SEC metrics read USD-unit facts only.
-          if (marketCap.currency !== undefined && marketCap.currency !== "USD") {
+          if (!sameCurrency(marketCap.currency, "USD")) {
             return { status: "missing", reason: CURRENCY_MISMATCH_REASON, ...period, inputs };
           }
           return {

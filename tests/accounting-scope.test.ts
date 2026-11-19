@@ -184,9 +184,7 @@ function yahoo(eps: number | null = 0.54, quoteCurrency: string | null = "USD"):
   return marketSnapshot({
     sourceId: "market-yahoo-equity-clfd",
     symbol: "CLFD",
-    ...(quoteCurrency === null
-      ? {}
-      : { identity: { quoteCurrency } as NonNullable<MarketSnapshot["identity"]> }),
+    identity: quoteCurrency === null ? {} : { quoteCurrency },
     fundamentals: eps === null ? {} : { epsTrailingTwelveMonths: eps },
   });
 }

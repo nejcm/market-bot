@@ -95,6 +95,7 @@ describe("massive-fallback", () => {
             regularMarketPrice: 190,
             marketCap: 2_900_000_000,
             quoteType: "EQUITY",
+            currency: "USD",
           }),
         ],
       },

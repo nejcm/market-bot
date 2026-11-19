@@ -22,6 +22,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  sameCurrency,
   seriesNotFiled,
   capexComponentNote,
   statementInput as metricStatementInput,
@@ -510,7 +511,7 @@ const quoteGate: Gate = (ctx, facts, keys) => {
     return missingOutcome({ facts, missing: "no quote market cap" }, keys);
   }
   const reportingCurrency = facts[0]?.currency ?? ctx.statements?.reportingCurrency ?? null;
-  if (quote.currency === undefined || reportingCurrency !== quote.currency) {
+  if (!sameCurrency(quote.currency, reportingCurrency)) {
     return missingOutcome(
       {
         facts,

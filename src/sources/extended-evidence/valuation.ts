@@ -176,10 +176,10 @@ export function addValuationEvidence(
   const snapshot = tickerSnapshot(command, marketSnapshots);
   const quoteCurrency = snapshot?.identity?.quoteCurrency?.toUpperCase();
   const mismatch =
-    quoteCurrency !== undefined && quoteCurrency !== "USD"
-      ? `quote currency ${quoteCurrency} is not USD, the only basis Valuation Evidence supports`
+    quoteCurrency !== "USD" && (quoteCurrency !== undefined || snapshot?.marketCap !== undefined)
+      ? `quote currency ${quoteCurrency ?? "undeclared"} is not USD, the only basis Valuation Evidence supports`
       : reportingCurrency !== undefined && reportingCurrency !== "USD"
-        ? `reporting currency ${reportingCurrency} differs from quote currency ${quoteCurrency ?? "undeclared (USD assumed)"}`
+        ? `reporting currency ${reportingCurrency} differs from quote currency ${quoteCurrency ?? "undeclared"}`
         : undefined;
   if (mismatch !== undefined) {
     const gaps = [currencyMismatchGap(command, mismatch)];

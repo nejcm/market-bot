@@ -95,6 +95,7 @@ export function marketSnapshot(overrides: Partial<MarketSnapshot> = {}): MarketS
     changePercent24h: 2,
     volume: 1_000_000,
     observedAt: DEFAULT_OBSERVED_AT,
+    identity: { quoteCurrency: "USD" },
     ...overrides,
   };
 }

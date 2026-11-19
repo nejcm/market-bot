@@ -660,7 +660,9 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
       "final-synthesis",
       profiledCommand,
       collectedSources({
-        marketSnapshots: [marketSnapshot({ symbol: "0097.KL" })],
+        marketSnapshots: [
+          marketSnapshot({ symbol: "0097.KL", identity: { quoteCurrency: "MYR" } }),
+        ],
         verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol: "0097.KL" }),
         extendedSources: ["0097.KL", "^KLSE"].map((symbol) =>
           newsSource({ id: `price-history-${symbol}`, kind: "market-data" }),

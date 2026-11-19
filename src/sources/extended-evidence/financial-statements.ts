@@ -657,7 +657,7 @@ export function deriveFinancialStatements(
       ? undefined
       : earliestCommonDividendPaid(payload, taxonomy, input.analysisAsOf, input.sourceId);
   const dividendEnd =
-    taxonomy === undefined ? undefined : earliestDividendEnd(payload, taxonomy, input.analysisAsOf);
+    taxonomy === undefined ? undefined : earliestDividendEnd(payload, input.analysisAsOf);
   const cashFlowEnd =
     taxonomy === undefined
       ? undefined

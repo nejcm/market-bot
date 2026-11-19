@@ -388,7 +388,7 @@ describe("capitalReturnSection", () => {
         inputs: [{ series: "dividendsPaid", periodEnd: "2015-12-31", value: 610_516_000 }],
       });
       expect(o(2015).basis).toEndWith(
-        "set by common dividends paid (PaymentsOfDividendsCommonStock), which can trail the first declaration; no earlier positive dividends per share",
+        "set by common dividends paid (PaymentsOfDividendsCommonStock), which can trail the first declaration",
       );
       expect(o(2016)).toMatchObject({ status: "value", value: "FY2016" });
     });
@@ -502,6 +502,85 @@ describe("capitalReturnSection", () => {
       expect(result).toMatchObject({ status: "value", value: "FY2011", periodEnd: "2011-12-31" });
     });
 
+    // VICR 10-K 0001193125-12-093608: operating cash flow from FY2009, PaymentsOfDividendsCommonStock
+    // FY2010 12,506,000; its FY2008 10-K 0000950135-09-001744 reports $0.15 paid twice in 2008.
+    test("VICR: an exact year is scoped to the XBRL record, where it can be a resumption", () => {
+      const vicr = (value: number, year: number) =>
+        fy(value, year, { accn: "0001193125-12-093608", filed: "2012-03-02" });
+      const { metric: result, accession } = earliestPaidWithAccession(
+        dividendContext(
+          {
+            NetCashProvidedByUsedInOperatingActivities: {
+              units: {
+                USD: [vicr(24_798_000, 2009), vicr(16_894_000, 2010), vicr(26_407_000, 2011)],
+              },
+            },
+            PaymentsOfDividendsCommonStock: {
+              units: { USD: [vicr(12_506_000, 2010), vicr(6_272_000, 2011)] },
+            },
+          },
+          2010,
+        ),
+      );
+
+      expect(accession).toBe("0001193125-12-093608");
+      expect(result).toMatchObject({
+        label: "Earliest dividend year in XBRL filings",
+        status: "value",
+        value: "FY2010",
+        periodEnd: "2010-12-31",
+      });
+      expect(result.basis).toContain(
+        "a dividend before the XBRL record is not ruled out, so an exact year can be a resumption",
+      );
+    });
+
+    test("a positive DPS filed under the other taxonomy before a switch bounds the year", () => {
+      const tenK = (value: number, year: number) =>
+        fy(value, year, { filed: `${String(year + 1)}-03-01` });
+      const earliestWith = (ifrs: Record<string, Fact>) => {
+        const payload = {
+          facts: {
+            "ifrs-full": {
+              Revenue: { units: { USD: [fy(100, 2019, { form: "20-F", filed: "2020-03-01" })] } },
+              ...ifrs,
+            },
+            "us-gaap": {
+              Revenues: { units: { USD: [tenK(100, 2020), tenK(150, 2021)] } },
+              NetCashProvidedByUsedInOperatingActivities: {
+                units: { USD: [tenK(10, 2020), tenK(20, 2021)] },
+              },
+              CommonStockDividendsPerShareDeclared: { units: { "USD/shares": [tenK(1, 2021)] } },
+            },
+          },
+        };
+        const analysisAsOf = "2023-01-01T00:00:00.000Z";
+        const statements = deriveFinancialStatements(payload, {
+          symbol: "TEST",
+          generatedAt: analysisAsOf,
+          analysisAsOf,
+          sourceId: SOURCE_ID,
+        });
+        return evaluate({
+          symbol: "TEST",
+          statements,
+          capitalOwnership: deriveCapitalOwnershipArtifact(payload, statements),
+        }).metric("earliestDividendFyInHistory");
+      };
+      const ifrsDps = {
+        DividendsRecognisedAsDistributionsToOwnersPerShare: {
+          units: { "USD/shares": [fy(1, 2019, { form: "20-F", filed: "2020-03-01" })] },
+        },
+      };
+
+      expect(earliestWith({})).toMatchObject({ status: "value", value: "FY2021" });
+      expect(earliestWith(ifrsDps)).toMatchObject({
+        status: "value",
+        value: "FY2021 or earlier",
+        periodEnd: "2021-12-31",
+      });
+    });
+
     // EMR 10-K 0001144204-09-061535: CommonStockDividendsPerShareDeclared FY2007 1.05, FY2008 1.20;
     // 10-K 0001144204-11-066373 starts the elected CashPaid DPS and common paid at FY2009 (1.32, 998M).
     test("EMR: an earlier DPS under an unelected concept bounds the paid-set FY2009", () => {
@@ -566,6 +645,41 @@ describe("capitalReturnSection", () => {
         status: "value",
         value: "FY2022 or earlier",
       });
+    });
+
+    test("rows filed after analysisAsOf never set the earliest payment, dividend or cash flow", () => {
+      const late = { filed: "2027-03-01", accn: "test-late" };
+      const statementsAt = (analysisAsOf: string) =>
+        deriveFinancialStatements(
+          {
+            facts: {
+              "us-gaap": {
+                NetCashProvidedByUsedInOperatingActivities: {
+                  units: { USD: [fy(400, 2014, late), ...yearsFrom(2016).map((y) => fy(400, y))] },
+                },
+                PaymentsOfDividendsCommonStock: {
+                  units: { USD: [fy(10, 2015, late), ...yearsFrom(2017).map((y) => fy(25, y))] },
+                },
+              },
+            },
+          },
+          { symbol: "TEST", generatedAt: analysisAsOf, analysisAsOf, sourceId: SOURCE_ID },
+        );
+      const fields = (analysisAsOf: string) => {
+        const statements = statementsAt(analysisAsOf);
+        return [
+          statements.earliestCommonDividendPaid?.periodEnd,
+          statements.earliestDividendEnd,
+          statements.firstAnnualCashFlowEnd,
+        ];
+      };
+
+      expect(fields(AS_OF)).toEqual(["2017-12-31", "2017-12-31", "2016-12-31"]);
+      expect(fields("2027-06-01T00:00:00.000Z")).toEqual([
+        "2015-12-31",
+        "2015-12-31",
+        "2014-12-31",
+      ]);
     });
 
     test("a later zero in another unit does not revise a capped USD payment", () => {
@@ -755,23 +869,50 @@ describe("capitalReturnSection", () => {
     });
 
     // IRDM 10-K 0001418819-26-000009: PaymentsOfDividendsCommonStock FY2023 64,774,000, FY2021-22 zero;
-    // DPS FY2023 is unreconciled in the same year.
+    // DPS FY2023 is unreconciled in the same year; 10-Q 0001628280-23-025521 declares 0.13 in Q4 2022.
     test("IRDM: a same-year unreconciled DPS does not withhold the paid-set FY2023", () => {
-      const { metric: result, accession } = withheldDps(
-        (year) => (year < 2023 ? 0 : year === 2023 ? 64_774_000 : 66_000_000),
-        (year) => (year === 2023 ? 0.13 : 0.54),
-        2023,
-        125_000_000,
-        ["2023-12-31", "0001418819-26-000009"],
-      );
+      const declared = annualFrom(2023, "USD/shares", (year) => (year === 2023 ? 0.13 : 0.54));
+      const q4Declared = fy(0.13, 2022, {
+        start: "2022-10-01",
+        form: "10-Q",
+        fy: 2023,
+        fp: "Q2",
+        filed: "2023-07-25",
+        accn: "0001628280-23-025521",
+      });
+      const irdm = (rows: readonly Fact[]) =>
+        earliestPaidWithAccession(
+          dividendContext({
+            WeightedAverageNumberOfDilutedSharesOutstanding: annualFrom(
+              2015,
+              "shares",
+              () => 125_000_000,
+            ),
+            PaymentsOfDividendsCommonStock: filedAs(
+              annualFrom(2015, "USD", (year) =>
+                year < 2023 ? 0 : year === 2023 ? 64_774_000 : 66_000_000,
+              ),
+              "2023-12-31",
+              "0001418819-26-000009",
+            ),
+            CommonStockDividendsPerShareDeclared: { units: { "USD/shares": rows } },
+          }),
+        );
+      const units = (declared.units as Record<string, Fact[]>)["USD/shares"]!;
+      const withoutQ4 = irdm(units);
+      const { metric: result, accession } = irdm([q4Declared, ...units]);
 
+      expect(withoutQ4.metric).toMatchObject({ status: "value", value: "FY2023" });
       expect(accession).toBe("0001418819-26-000009");
       expect(result).toMatchObject({
         status: "value",
-        value: "FY2023",
+        value: "FY2023 or earlier",
         periodEnd: "2023-12-31",
         inputs: [{ series: "dividendsPaid", value: 64_774_000 }],
       });
+      expect(result.basis).toEndWith(
+        "set by common dividends paid (PaymentsOfDividendsCommonStock), which can trail the first declaration",
+      );
     });
 
     // RFIL 10-K 0001144204-12-004278: PaymentsOfDividendsCommonStock FY ended 2010-10-31 84,113;

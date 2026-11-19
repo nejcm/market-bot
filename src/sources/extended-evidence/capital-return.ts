@@ -378,7 +378,7 @@ function dpsCagrBasis(years: number): string {
 }
 
 const EARLIEST_DIVIDEND_BASIS =
-  'earliest year-aligned fiscal year with positive dividends per share among retained annual filings or positive common dividends paid in any annual filing; "or earlier" unless an older annual cash flow statement is filed and no positive dividend fact of any concept ends before that year';
+  'earliest year-aligned fiscal year with positive dividends per share among retained annual filings or positive common dividends paid in any annual XBRL filing; "or earlier" unless an older annual XBRL cash flow statement is filed and no positive dividends-per-share or non-zero dividends-paid fact ends before that year; a dividend before the XBRL record is not ruled out, so an exact year can be a resumption';
 
 function dpsCapped(ctx: MetricContext): boolean {
   return (
@@ -446,7 +446,7 @@ function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
     inputs: [statementInput(earliest.fact, earliest.key)],
     ...(earliest.key === "dividendsPaid"
       ? {
-          basis: `${EARLIEST_DIVIDEND_BASIS}; set by common dividends paid (${earliest.fact.concept}), which can trail the first declaration; no earlier positive dividends per share`,
+          basis: `${EARLIEST_DIVIDEND_BASIS}; set by common dividends paid (${earliest.fact.concept}), which can trail the first declaration`,
         }
       : {}),
   };
@@ -760,7 +760,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
   ),
   {
     id: "earliestDividendFyInHistory",
-    label: "Earliest dividend year in filed history",
+    label: "Earliest dividend year in XBRL filings",
     unit: "text",
     basis: EARLIEST_DIVIDEND_BASIS,
     applicable: noDividendHistory,

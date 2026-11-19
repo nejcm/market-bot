@@ -7,7 +7,7 @@ import {
   type FinancialStatementsArtifact,
   isForwardSchedule,
 } from "./financial-statements-contract";
-import { unprovenRestatements } from "./financial-statement-period-identity";
+import { offPeriodRows } from "./financial-statement-period-identity";
 import { isYearAligned } from "./financial-statement-selection";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import {
@@ -312,14 +312,14 @@ function conceptUnitFacts(
   if (!Array.isArray(rows)) {
     return [];
   }
-  const unproven = unprovenRestatements(taxonomy, rows);
+  const offPeriod = offPeriodRows(taxonomy, rows);
   return rows.filter(
     (row): row is Record<string, unknown> & { readonly end: string; readonly filed: string } =>
       isRecord(row) &&
       typeof row.end === "string" &&
       typeof row.filed === "string" &&
       !isForwardSchedule(row.end, row.filed) &&
-      !unproven.has(row),
+      !offPeriod.has(row),
   );
 }
 

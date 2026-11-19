@@ -8052,3 +8052,198 @@ describe("unproven restatements", () => {
     ).toBe(-2.86);
   });
 });
+
+function yearBefore(date: string): string {
+  return `${String(Number(date.slice(0, 4)) - 1)}${date.slice(4)}`;
+}
+
+describe("12-month spans off their filing's fiscal year", () => {
+  type Row = readonly [start: string, end: string, value: number, accession: string];
+
+  // Each 10-K's two balance-sheet dates, each with a duration ending there.
+  function tenK(rows: readonly Row[], filed: Readonly<Record<string, readonly [string, string]>>) {
+    const support = (isInstant: boolean) =>
+      Object.entries(filed).flatMap(([accessionNumber, [filedAt, end]]) =>
+        [end, yearBefore(end)].map((periodEnd) =>
+          fact({
+            value: 1,
+            form: "10-K",
+            fiscalPeriod: "FY",
+            filedAt,
+            ...(isInstant ? {} : { periodStart: yearBefore(periodEnd) }),
+            periodEnd,
+            accessionNumber,
+          }),
+        ),
+      );
+    return {
+      support: {
+        Assets: { USD: support(true) },
+        OtherNonoperatingIncomeExpense: { USD: support(false) },
+      },
+      rows: rows.map(([periodStart, periodEnd, value, accessionNumber]) =>
+        fact({
+          value,
+          form: "10-K",
+          fiscalPeriod: "FY",
+          filedAt: filed[accessionNumber]![0],
+          periodStart,
+          periodEnd,
+          accessionNumber,
+        }),
+      ),
+    };
+  }
+
+  test("CGNX quarterly DPS tagged over 363-370 day spans no longer displaces FY2016-FY2019", () => {
+    const filed = {
+      "0000851205-19-000003": ["2019-02-14", "2018-12-31"],
+      "0000851205-20-000002": ["2020-02-13", "2019-12-31"],
+      "0000851205-21-000005": ["2021-02-11", "2020-12-31"],
+      "0000851205-22-000008": ["2022-02-17", "2021-12-31"],
+      "0000851205-23-000004": ["2023-02-16", "2022-12-31"],
+      "0000851205-24-000027": ["2024-02-15", "2023-12-31"],
+      "0000851205-25-000012": ["2025-02-13", "2024-12-31"],
+      "0000851205-26-000012": ["2026-02-12", "2025-12-31"],
+    } as const;
+    const { support, rows } = tenK(
+      [
+        ["2016-01-01", "2016-12-31", 0.1475, "0000851205-19-000003"],
+        ["2017-01-01", "2017-12-31", 0.1675, "0000851205-20-000002"],
+        ["2018-01-01", "2018-12-31", 0.185, "0000851205-21-000005"],
+        ["2019-01-01", "2019-12-31", 0.205, "0000851205-22-000008"],
+        ["2020-01-01", "2020-12-31", 2.225, "0000851205-23-000004"],
+        ["2020-09-28", "2021-10-03", 0.06, "0000851205-23-000004"],
+        ["2021-01-01", "2021-12-31", 0.245, "0000851205-23-000004"],
+        ["2021-01-01", "2021-12-31", 0.245, "0000851205-24-000027"],
+        ["2021-10-04", "2022-10-02", 0.065, "0000851205-24-000027"],
+        ["2022-01-01", "2022-12-31", 0.265, "0000851205-24-000027"],
+        ["2022-10-03", "2023-10-01", 0.07, "0000851205-24-000027"],
+        ["2023-01-01", "2023-12-31", 0.286, "0000851205-24-000027"],
+        ["2022-01-01", "2022-12-31", 0.265, "0000851205-25-000012"],
+        ["2022-10-03", "2023-10-01", 0.07, "0000851205-25-000012"],
+        ["2023-10-02", "2024-09-29", 0.075, "0000851205-25-000012"],
+        ["2024-01-01", "2024-12-31", 0.305, "0000851205-25-000012"],
+        ["2023-01-01", "2023-12-31", 0.286, "0000851205-26-000012"],
+        ["2024-01-01", "2024-12-31", 0.305, "0000851205-26-000012"],
+        ["2025-01-01", "2025-12-31", 0.325, "0000851205-26-000012"],
+      ],
+      filed,
+    );
+    const artifact = derive(
+      payload({
+        "us-gaap": { ...support, CommonStockDividendsPerShareCashPaid: { "USD/shares": rows } },
+      }),
+      { analysisAsOf: "2026-11-05T00:00:00.000Z" },
+    );
+    const dps = artifact.statements.perShare.dividendsPerShare;
+
+    expect(dps.annual.map(({ periodEnd }) => periodEnd)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `${String(2016 + index)}-12-31`),
+    );
+    expect(
+      dps.annual.slice(0, 4).map(({ value, accessionNumber }) => [value, accessionNumber]),
+    ).toEqual([
+      [0.1475, "0000851205-19-000003"],
+      [0.1675, "0000851205-20-000002"],
+      [0.185, "0000851205-21-000005"],
+      [0.205, "0000851205-22-000008"],
+    ]);
+  });
+
+  test("a span is kept when the fiscal year it overlaps is filed only later (CGNX-shaped)", () => {
+    const filed = {
+      "0000851205-25-000012": ["2025-02-13", "2024-12-31"],
+      "0000851205-26-000012": ["2026-02-12", "2025-12-31"],
+    } as const;
+    const { support, rows } = tenK(
+      [
+        ["2023-01-01", "2023-12-31", 0.286, "0000851205-25-000012"],
+        ["2023-10-02", "2024-09-29", 0.075, "0000851205-25-000012"],
+        ["2024-01-01", "2024-12-31", 0.305, "0000851205-26-000012"],
+        ["2025-01-01", "2025-12-31", 0.325, "0000851205-26-000012"],
+      ],
+      filed,
+    );
+    const companyFacts = payload({
+      "us-gaap": { ...support, CommonStockDividendsPerShareCashPaid: { "USD/shares": rows } },
+    });
+    const ends = (analysisAsOf: string) =>
+      derive(companyFacts, { analysisAsOf }).statements.perShare.dividendsPerShare.annual.map(
+        ({ periodEnd }) => periodEnd,
+      );
+
+    expect(ends("2025-06-01T00:00:00.000Z")).toEqual(["2023-12-31", "2024-09-29"]);
+    expect(ends("2026-06-01T00:00:00.000Z")).toContain("2024-09-29");
+  });
+
+  // Known limit: a Sep->Dec changer's old year overlaps a recast calendar year by 273 of 364 days.
+  test("a Sep->Dec year-end change keeps its old year only through its original 10-K", () => {
+    const original = ["0000000001-23-000001", "2023-11-20", "2023-09-30"] as const;
+    const postChange = ["0000000001-26-000001", "2026-02-20", "2025-12-31"] as const;
+    const rows = (withOriginal: boolean) =>
+      tenK(
+        [
+          ...(withOriginal ? [["2022-10-01", "2023-09-30", 50, original[0]] as const] : []),
+          ["2022-10-01", "2023-09-30", 50, postChange[0]],
+          ["2023-01-01", "2023-12-31", 60, postChange[0]],
+          ["2024-01-01", "2024-12-31", 70, postChange[0]],
+          ["2025-01-01", "2025-12-31", 80, postChange[0]],
+        ],
+        {
+          ...(withOriginal ? { [original[0]]: [original[1], original[2]] as const } : {}),
+          [postChange[0]]: [postChange[1], postChange[2]],
+        },
+      );
+    const ends = (withOriginal: boolean) => {
+      const { support, rows: revenue } = rows(withOriginal);
+      return derive(
+        payload({ "us-gaap": { ...support, Revenues: { USD: revenue } } }),
+      ).statements.incomeStatement.revenue.annual.map(({ periodEnd }) => periodEnd);
+    };
+
+    expect(ends(true)).toEqual(["2023-09-30", "2023-12-31", "2024-12-31", "2025-12-31"]);
+    expect(ends(false)).toEqual(["2023-12-31", "2024-12-31", "2025-12-31"]);
+  });
+
+  test("KR's 53-week FY2023 (to 2024-02-03) stays an annual period of its 10-K", () => {
+    const { support, rows } = tenK(
+      [
+        ["2023-01-29", "2024-02-03", 1.13, "0001104659-26-037723"],
+        ["2024-02-04", "2025-02-01", 1.25, "0001104659-26-037723"],
+        ["2025-02-02", "2026-01-31", 1.37, "0001104659-26-037723"],
+      ],
+      { "0001104659-26-037723": ["2026-03-31", "2026-01-31"] },
+    );
+    const dps = derive(
+      payload({
+        "us-gaap": { ...support, CommonStockDividendsPerShareDeclared: { "USD/shares": rows } },
+      }),
+    ).statements.perShare.dividendsPerShare;
+
+    expect(dps.annual.map(({ periodEnd, value }) => [periodEnd, value])).toEqual([
+      ["2024-02-03", 1.13],
+      ["2025-02-01", 1.25],
+      ["2026-01-31", 1.37],
+    ]);
+  });
+
+  test("Hut 8's pre-change June fiscal year overlapping calendar 2023 by half a year is kept", () => {
+    const { support, rows } = tenK(
+      [
+        ["2022-07-01", "2023-06-30", -65_611_000, "0001558370-25-001996"],
+        ["2023-01-01", "2023-12-31", 21_850_000, "0001558370-25-001996"],
+        ["2024-01-01", "2024-12-31", 331_409_000, "0001558370-25-001996"],
+      ],
+      { "0001558370-25-001996": ["2025-03-03", "2024-12-31"] },
+    );
+    const consolidated = derive(payload({ "us-gaap": { ...support, ProfitLoss: { USD: rows } } }))
+      .statements.incomeStatement.consolidatedNetIncome;
+
+    expect(consolidated.annual.map(({ periodEnd, value }) => [periodEnd, value])).toEqual([
+      ["2023-06-30", -65_611_000],
+      ["2023-12-31", 21_850_000],
+      ["2024-12-31", 331_409_000],
+    ]);
+  });
+});

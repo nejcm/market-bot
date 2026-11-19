@@ -178,7 +178,14 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   off-period re-filing of the same report (same latest statement date, e.g. a 10-Q/A) never counts as that
   earlier filing. The surviving value keeps no `restatedFrom`, and for a series-selected concept an
   `unproven-restatement` Source Gap is declared unless a later filing within the cutoff supersedes it.
-  Instants are never touched; with no statement date, latest-filed still wins. Known limits: a 10-Q's
+  Instants are never touched; with no statement date, latest-filed still wins. A 350–380-day duration ending off
+  its own filing's statement dates that overlaps, by more than half its span, a same-concept 12-month duration
+  with a different end, filed no later and ending at its own filing's statement dates, is not a fiscal year and is
+  dropped before selection (amended 2026-11-19: CGNX 10-Ks tagged quarterly cash dividends per share over 363–370
+  day spans ending at Q3). A fiscal year survives through its original filing, where it is on-period. Limit: an
+  m-month year-end change overlaps recast years by max(m, 12−m) months, so an old year (or its restatement) seen
+  only in post-change filings beside recast comparatives is dropped with no Source Gap; a 6-month change clears
+  the line by days and a 52/53-week one can cross it. Known limits: a 10-Q's
   statement dates can include the prior fiscal year-end comparative, so a shift onto the year-end position is not
   caught, and a tagging error repeated by the next period's filing corroborates itself (amended 2026-11-15:
   CLSK 10-Q 0001193125-26-338382 tagged its EPS table a quarter early). Derive TTM as FY + aligned current YTD − prior YTD; mismatches are

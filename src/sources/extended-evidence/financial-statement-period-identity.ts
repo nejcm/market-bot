@@ -1,6 +1,6 @@
 import { DAY_MS, daysBetween } from "../../config/shared";
 import { isRecord, readString } from "../../guards";
-import { financialStatementPeriodKey } from "./financial-statement-selection";
+import { financialStatementPeriodKey, isYearAligned } from "./financial-statement-selection";
 import { isForwardSchedule } from "./financial-statements-contract";
 
 export interface StatementFiscalPeriod {
@@ -247,4 +247,58 @@ export function unprovenRestatements(
   const unproven = findUnprovenRestatements(root, values);
   byRows.set(values, unproven);
   return unproven;
+}
+
+// A 12-month span off its filing's statement dates that mostly overlaps a fiscal year filed no later is not one.
+function offFiscalYearSpans(
+  root: Record<string, unknown>,
+  values: readonly unknown[],
+): ReadonlySet<unknown> {
+  const statementDates = filingStatementDates(root);
+  const spans = values.flatMap((value) => {
+    const row = secFactRow(value);
+    const dates = row === undefined ? undefined : statementDates.get(row.accn);
+    return row?.start !== undefined && dates !== undefined && isYearAligned(row.start, row.end)
+      ? [
+          {
+            value,
+            start: row.start,
+            end: row.end,
+            filed: row.filed,
+            onPeriod: dates.some((date) => sameCalendarPosition(row.end, date)),
+          },
+        ]
+      : [];
+  });
+  return new Set(
+    spans
+      .filter(
+        (span) =>
+          !span.onPeriod &&
+          spans.some((fiscal) => {
+            const overlap = daysBetween(
+              fiscal.start > span.start ? fiscal.start : span.start,
+              fiscal.end < span.end ? fiscal.end : span.end,
+            );
+            return (
+              fiscal.onPeriod &&
+              fiscal.filed <= span.filed &&
+              fiscal.end !== span.end &&
+              2 * (overlap ?? 0) > (daysBetween(span.start, span.end) ?? 0)
+            );
+          }),
+      )
+      .map(({ value }) => value),
+  );
+}
+
+// Rows readers drop: shifted contexts that are neither a proven restatement nor a fiscal year.
+export function offPeriodRows(
+  root: Record<string, unknown>,
+  values: readonly unknown[],
+): ReadonlySet<unknown> {
+  return new Set([
+    ...unprovenRestatements(root, values).keys(),
+    ...offFiscalYearSpans(root, values),
+  ]);
 }

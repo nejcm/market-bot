@@ -35,6 +35,8 @@ function toYahooQuoteResult(details: MassiveQuoteDetails): Record<string, unknow
     ...(details.exchange !== undefined ? { exchange: details.exchange } : {}),
     ...(details.name !== undefined ? { shortName: details.name } : {}),
     quoteType: "EQUITY",
+    // The snapshot endpoint is the US-locale stocks market, priced in USD.
+    currency: "USD",
   };
 }
 

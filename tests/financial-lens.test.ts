@@ -2622,6 +2622,13 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       "missing",
       "filed amounts and quote market cap have incompatible currency",
     ],
+    [
+      "an undeclared quote currency",
+      30,
+      { identity: {} },
+      "missing",
+      "filed amounts and quote market cap have incompatible currency",
+    ],
   ] as const)(
     "summary PCF publishes no value on %s",
     (_, operatingCashFlow, quote, status, reason) => {
@@ -2701,7 +2708,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
       {
         instrument: { symbol: "AAPL", assetClass: "equity" },
-        items: [yahooFundamentalsEvidence()],
+        items: [yahooFundamentalsEvidence({ financialCurrency: "USD" })],
         gaps: [],
       },
       verifiedSnapshot(),
@@ -2725,11 +2732,14 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     ...secMetrics
   } = secEvidenceWithRatios().metrics ?? {};
   const secWithoutDividends = { ...secEvidenceWithRatios(), metrics: secMetrics };
-  const yahooPayoutRow = (overrides: Record<string, number | string>) =>
+  const yahooPayoutRow = (
+    overrides: Record<string, number | string>,
+    identity: { readonly quoteCurrency?: string } = { quoteCurrency: "USD" },
+  ) =>
     strengthSection(
       addFinancialLensEvidence(
         command,
-        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", identity })],
         {
           instrument: { symbol: "AAPL", assetClass: "equity" },
           items: [secWithoutDividends, yahooFundamentalsEvidence(overrides)],
@@ -2759,11 +2769,28 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     ).toContainEqual(["currency-mix-without-fx", "CAD+USD"]);
   });
 
-  test("publishes the Yahoo payout when financialCurrency matches the quote currency or is absent", () => {
-    for (const overrides of [{ ...bns, financialCurrency: "USD" }, bns]) {
-      expect(yahooPayoutRow(overrides)).toMatchObject({ status: "value", value: 4.44 / 5.52 });
-    }
+  test("publishes the Yahoo payout when financialCurrency matches the quote currency", () => {
+    expect(yahooPayoutRow({ ...bns, financialCurrency: "USD" })).toMatchObject({
+      status: "value",
+      value: 4.44 / 5.52,
+    });
+    expect(
+      yahooPayoutRow({ ...bns, financialCurrency: "CAD" }, { quoteCurrency: "CAD" }),
+    ).toMatchObject({ status: "value", value: 4.44 / 5.52 });
   });
+
+  test.each([
+    ["financialCurrency", bns, { quoteCurrency: "USD" }, "an undeclared currency", "USD"],
+    ["quote currency", { ...bns, financialCurrency: "USD" }, {}, "USD", "an undeclared currency"],
+  ] as const)(
+    "withholds the Yahoo payout on an undeclared %s",
+    (_, overrides, identity, rate, eps) => {
+      expect(yahooPayoutRow(overrides, identity)).toMatchObject({
+        status: "missing",
+        reason: `Yahoo trailing dividend rate is in ${rate} and trailing EPS in ${eps}; not divided across currencies`,
+      });
+    },
+  );
 
   test("non-US listing: only Yahoo + Momentum, SEC-dependent lenses insufficient-data", () => {
     const rrlCommand = {
@@ -3310,6 +3337,7 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
           instrument: { symbol: "AAPL", assetClass: "equity" },
           items: [
             yahooFundamentalsEvidence({
+              financialCurrency: "USD",
               trailingAnnualDividendRate: 0,
               epsTrailingTwelveMonths: eps,
             }),

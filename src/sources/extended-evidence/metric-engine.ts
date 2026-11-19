@@ -148,6 +148,14 @@ export type MetricOutcome = (
     }
 ) & { readonly basis?: string; readonly label?: string };
 
+// Unknown never matches: an undeclared currency withholds rather than divides.
+export function sameCurrency(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  return typeof left === "string" && left === right;
+}
+
 export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeriesKey): boolean {
   return ctx.statements?.unfiledSeries?.includes(key) === true;
 }

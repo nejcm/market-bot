@@ -1,4 +1,9 @@
-import { type MetricContext, type MetricDefinition, type MetricOutcome } from "./metric-engine";
+import {
+  sameCurrency,
+  type MetricContext,
+  type MetricDefinition,
+  type MetricOutcome,
+} from "./metric-engine";
 import { NET_DEBT_BASIS } from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { isFreshPeriodEnd } from "../../config/shared";
@@ -18,7 +23,6 @@ import {
   targetValuationIds,
   valuationOutcome,
   yahooItem,
-  quoteCurrencyOf,
   evidenceInput,
   evidenceOutcome,
   summaryPeriod,
@@ -414,7 +418,7 @@ export function payoutRatioDefinition(): MetricDefinition {
       const yahooRate = readNumberMetric(yahoo?.metrics, "trailingAnnualDividendRate");
       const yahooEps = readNumberMetric(yahoo?.metrics, "epsTrailingTwelveMonths");
       const yahooPeriod = periodEndInput(yahoo?.observedAt);
-      const quoteCurrency = quoteCurrencyOf(ctx);
+      const quoteCurrency = ctx.snapshot?.identity?.quoteCurrency;
       const rateCurrency = readStringMetric(yahoo?.metrics, "financialCurrency");
       const yahooInputs =
         yahoo === undefined || yahooRate === undefined || yahooEps === undefined
@@ -429,7 +433,7 @@ export function payoutRatioDefinition(): MetricDefinition {
                   yahooRate,
                   yahooPeriod,
                 ),
-                currency: rateCurrency ?? quoteCurrency,
+                ...(rateCurrency === undefined ? {} : { currency: rateCurrency }),
               },
               {
                 ...evidenceInput(
@@ -440,17 +444,17 @@ export function payoutRatioDefinition(): MetricDefinition {
                   yahooEps,
                   yahooPeriod,
                 ),
-                currency: quoteCurrency,
+                ...(quoteCurrency === undefined ? {} : { currency: quoteCurrency }),
               },
             ];
       const yahooOutcome = ((): MetricOutcome | undefined => {
         if (yahooInputs === undefined || yahooRate === undefined || yahooEps === undefined) {
           return undefined;
         }
-        if (rateCurrency !== undefined && rateCurrency !== quoteCurrency) {
+        if (!sameCurrency(rateCurrency, quoteCurrency)) {
           return {
             status: "missing",
-            reason: `Yahoo trailing dividend rate is in ${rateCurrency} and trailing EPS in ${quoteCurrency}; not divided across currencies`,
+            reason: `Yahoo trailing dividend rate is in ${rateCurrency ?? "an undeclared currency"} and trailing EPS in ${quoteCurrency ?? "an undeclared currency"}; not divided across currencies`,
             inputs: yahooInputs,
             ...yahooPeriod,
           };

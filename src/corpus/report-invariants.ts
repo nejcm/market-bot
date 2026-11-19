@@ -288,7 +288,9 @@ export function reportInvariantViolations(
     ) {
       add("price-relative-row-undated", section, id, metric.periodEnd ?? "no periodEnd");
     }
-    const currencies = new Set(inputs.flatMap((input) => input.currency ?? []));
+    const currencies = new Set(
+      inputs.flatMap((input) => input.currency ?? (input.artifact === "quote" ? "undeclared" : [])),
+    );
     if (currencies.size > 1 && !inputs.some((input) => input.artifact === "fx")) {
       add("currency-mix-without-fx", section, id, [...currencies].join("+"));
     }

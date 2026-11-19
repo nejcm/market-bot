@@ -24,6 +24,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  sameCurrency,
 } from "./metric-engine";
 import {
   CURRENT_EQUITY_NOTE,
@@ -866,7 +867,9 @@ export function marketCapInput(ctx: MetricContext): MetricInput | undefined {
       value: ctx.snapshot.marketCap,
       artifact: "quote",
       series: "marketCap",
-      currency: quoteCurrencyOf(ctx),
+      ...(ctx.snapshot.identity?.quoteCurrency === undefined
+        ? {}
+        : { currency: ctx.snapshot.identity.quoteCurrency }),
       unit: "currency",
       sourceIds: [ctx.snapshot.sourceId],
     };
@@ -881,9 +884,8 @@ export function currencyMismatch(
   marketCap: MetricInput,
   facts: readonly (FinancialStatementFact | undefined)[],
 ): boolean {
-  return (
-    typeof marketCap.currency === "string" &&
-    facts.some((fact) => typeof fact?.currency === "string" && fact.currency !== marketCap.currency)
+  return facts.some(
+    (fact) => fact !== undefined && !sameCurrency(marketCap.currency, fact.currency),
   );
 }
 

@@ -210,39 +210,52 @@ test("PCF withholds CAD operating cash flow beside a USD market cap", () => {
   expect(pcf("USD")).toMatchObject({ status: "value", value: 20 });
 });
 
-test("market leverage permits unknown filed currencies", () => {
+test.each([
+  ["both USD", "USD", "USD", "value"],
+  ["both CAD", "CAD", "CAD", "value"],
+  ["a CAD filing beside a USD quote", "USD", "CAD", "missing"],
+  ["an undeclared quote currency", undefined, "USD", "missing"],
+  ["an undeclared filed currency", "USD", null, "missing"],
+] as const)("market leverage on %s", (_, quoteCurrency, filedCurrency, status) => {
+  const unit = filedCurrency ?? "USD";
   const artifact = statements({
-    ...REVENUE,
-    LongTermDebt: { units: { USD: [instantFact(40, "2026-03-31")] } },
-    CashAndCashEquivalentsAtCarryingValue: { units: { USD: [instantFact(10, "2026-03-31")] } },
+    Revenues: { units: { [unit]: [annualFact(100, "2025-01-01", "2025-12-31")] } },
+    LongTermDebt: { units: { [unit]: [instantFact(40, "2026-03-31")] } },
+    CashAndCashEquivalentsAtCarryingValue: { units: { [unit]: [instantFact(10, "2026-03-31")] } },
   });
-  const unknownCurrency = (key: "cash" | "debt") => ({
+  const withCurrency = (key: "cash" | "debt") => ({
     ...artifact.statements.balanceSheet[key],
     interim: artifact.statements.balanceSheet[key].interim.map((fact) => ({
       ...fact,
-      currency: null,
+      currency: filedCurrency,
     })),
   });
-  const unknownStatements = {
+  const filed = {
     ...artifact,
     statements: {
       ...artifact.statements,
       balanceSheet: {
         ...artifact.statements.balanceSheet,
-        debt: unknownCurrency("debt"),
-        cash: unknownCurrency("cash"),
+        debt: withCurrency("debt"),
+        cash: withCurrency("cash"),
       },
     },
   };
   const result = addFinancialLensEvidence(
     command,
-    [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+    [
+      marketSnapshot({
+        sourceId: "market-yahoo-equity-aapl",
+        marketCap: 1000,
+        identity: quoteCurrency === undefined ? {} : { quoteCurrency },
+      }),
+    ],
     evidence(),
     undefined,
     AS_OF,
     undefined,
     undefined,
-    unknownStatements,
+    filed,
   );
   for (const [id, value] of [
     ["debtToMarketCap", 0.04],
@@ -250,7 +263,11 @@ test("market leverage permits unknown filed currencies", () => {
   ] as const) {
     expect(
       result.metricSections?.flatMap((section) => section.metrics).find((row) => row.id === id),
-    ).toMatchObject({ status: "value", value });
+    ).toMatchObject(
+      status === "value"
+        ? { status, value }
+        : { status, reason: "filed amounts and quote market cap have incompatible currency" },
+    );
   }
 });
 

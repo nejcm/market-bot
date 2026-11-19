@@ -783,7 +783,8 @@ describe("deriveCanonicalInstrumentIdentity", () => {
   });
 
   test("emits a no-cap gap when snapshot has no identity", () => {
-    const snapshots = [marketSnapshot({ symbol: "AAPL" })];
+    const { identity: _identity, ...snapshot } = marketSnapshot({ symbol: "AAPL" });
+    const snapshots = [snapshot];
     const result = deriveCanonicalInstrumentIdentity(snapshots, "AAPL");
     expect(result.identity).toBeUndefined();
     expect(result.gap?.message).toContain("AAPL");

@@ -573,6 +573,18 @@ describe("report sweep", () => {
     ).toEqual([]);
   });
 
+  test("flags an undeclared quote currency beside a filed currency", () => {
+    const row = (quote: Record<string, unknown>) =>
+      invariantsOf({
+        id: "pcfRatio",
+        value: 3,
+        priceAsOf: "2026-04-30",
+        inputs: [quote, { artifact: "statements", currency: "USD" }],
+      });
+    expect(row({ artifact: "quote" })).toEqual(["currency-mix-without-fx"]);
+    expect(row({ artifact: "quote", currency: "USD" })).toEqual([]);
+  });
+
   test("flags Valuation Evidence rows beside non-USD statements without fx", () => {
     const valuation = { artifact: "evidence", category: "valuation" };
     expect(

@@ -103,6 +103,29 @@ describe("addValuationEvidence", () => {
       },
     );
 
+    test("withholds Valuation Evidence when the quote currency is undeclared", () => {
+      const result = addValuationEvidence(
+        command,
+        [marketSnapshot({ symbol: "AAPL", marketCap: 1000, identity: {} })],
+        baseExtendedEvidence,
+        "2026-07-01T00:00:00.000Z",
+      );
+
+      expect(valuationItem(result)).toBeUndefined();
+      expect(result.sourceGaps[0]?.message).toContain("quote currency undeclared is not USD");
+    });
+
+    test("declares the missing market cap, not a currency, when the snapshot has neither", () => {
+      const result = addValuationEvidence(
+        command,
+        [marketSnapshot({ symbol: "AAPL", identity: {} })],
+        baseExtendedEvidence,
+        "2026-07-01T00:00:00.000Z",
+      );
+
+      expect(result.sourceGaps[0]?.message).toContain("missing marketCap");
+    });
+
     test("keeps the quote-currency gap when both currencies are non-USD", () => {
       const result = valuationWith("EUR", "MYR");
 

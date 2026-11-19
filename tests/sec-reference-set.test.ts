@@ -183,8 +183,11 @@ const collect = async (ctx: CollectContext) => {
     fy2026: statements?.statements.cashFlowStatement.capitalExpenditure.annual.find(
       ({ periodEnd }) => periodEnd === "2026-06-30",
     )?.value,
+    // The startless FY2025 capex rows' declaration-span note is pinned in the IREN reference tests.
     codes: (statements?.omissionNotes ?? [])
-      .filter(({ seriesKey }) => seriesKey === "capitalExpenditure")
+      .filter(
+        ({ seriesKey, code }) => seriesKey === "capitalExpenditure" && code !== "declaration-span",
+      )
       .map(({ code }) => code),
     periodicFilings,
   };
@@ -655,8 +658,10 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
     const gaps = financialStatementsHistoryGaps(statements).filter(({ message }) =>
       message.startsWith("SEC capital expenditure"),
     );
-    expect(gaps).toHaveLength(3);
+    // FY2025 10-K 0001878848-25-000063 tags capex 411,350K (01-02) and 35,840K (01-22) with no start.
+    expect(gaps[0]?.message).toContain("2 off-period facts (latest instant|2025-01-22)");
     expect(gaps.map((gap) => classifyGap(gap, "IREN"))).toEqual([
+      "material",
       "material",
       "material",
       "material",
@@ -678,8 +683,10 @@ describe("SEC reference set (hand-checked against filed statements)", () => {
       series.capitalExpenditure?.annual.find(({ periodEnd }) => periodEnd === "2026-06-30")?.value,
     ).toBe(2_998_006_000);
     expect(
-      statements.omissionNotes.filter(({ seriesKey }) => seriesKey === "capitalExpenditure"),
-    ).toEqual([]);
+      statements.omissionNotes
+        .filter(({ seriesKey }) => seriesKey === "capitalExpenditure")
+        .map(({ code }) => code),
+    ).toEqual(["declaration-span"]);
   });
 
   test("extension capex detection keeps hardware acquisitions and skips business acquisitions", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { fiscalYearFromPeriodEnd } from "../src/sources/extended-evidence/financial-statement-period-identity";
+import { financialStatementGapsOf } from "../src/sources/collector-equity-enrichment";
 import {
   deriveFinancialStatements,
   financialStatementsHistoryGaps,
@@ -1728,7 +1729,64 @@ describe("canonical financial statements", () => {
     ).toEqual(["duration:9|2026-09-30"]);
     expect(historyGapMessages(artifact)).toContainEqual(
       expect.stringContaining(
-        "share repurchases has 2 non-zero off-period facts (latest duration:1|2026-08-31)",
+        "share repurchases has 2 off-period facts (latest duration:1|2026-08-31)",
+      ),
+    );
+  });
+
+  test("drops a flow fact without a start instead of keying it as an instant interim", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(900, 2024), withoutStart(annual(1000, 2025))] },
+          Assets: { USD: [withoutStart(annual(5000, 2025))] },
+        },
+      }),
+    );
+    const { revenue } = artifact.statements.incomeStatement;
+
+    expect(revenue.annual.map(({ periodKey, value }) => [periodKey, value])).toEqual([
+      ["duration:12|2024-12-31", 900],
+    ]);
+    expect(revenue.interim).toEqual([]);
+    expect(historyGapMessages(artifact)).toContainEqual(
+      expect.stringContaining("revenue has 1 off-period facts (latest instant|2025-12-31)"),
+    );
+    expect(
+      artifact.statements.balanceSheet.totalAssets.annual.map(({ periodKey }) => periodKey),
+    ).toEqual(["instant|2025-12-31"]);
+  });
+
+  test("declares a start-less zero flow instead of dropping it silently", () => {
+    // ClearOne Q2 10-Q 0001753926-26-001521 tags revenue 0 at 2025-10-24 with no start.
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [
+              annual(900, 2024),
+              withoutStart(
+                fact({
+                  value: 0,
+                  form: "10-Q",
+                  fiscalYear: 2026,
+                  fiscalPeriod: "Q2",
+                  filedAt: "2026-08-14",
+                  periodStart: "2025-07-25",
+                  periodEnd: "2025-10-24",
+                }),
+              ),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-10-31" },
+    );
+
+    expect(artifact.statements.incomeStatement.revenue.interim).toEqual([]);
+    expect(financialStatementGapsOf(artifact).map(({ message }) => message)).toContainEqual(
+      expect.stringContaining(
+        "revenue has 1 off-period facts (latest instant|2025-10-24) omitted because no supported statement period could be established",
       ),
     );
   });

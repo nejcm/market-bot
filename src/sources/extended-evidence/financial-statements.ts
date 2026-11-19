@@ -284,7 +284,7 @@ function selectSeries(
     definition.key === "dividendsPerShare"
       ? basis.filter((fact) => !isStatementPeriod(fact, definition))
       : definition.kind === "duration"
-        ? basis.filter((fact) => (financialStatementPeriodMonths(fact) ?? 3) < 3)
+        ? basis.filter((fact) => (financialStatementPeriodMonths(fact) ?? 0) < 3)
         : [];
   const facts = basis.filter((fact) => !declarationSpans.includes(fact));
   const selected = materializeBasis(

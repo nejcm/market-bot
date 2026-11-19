@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.52](https://github.com/nejcm/market-bot/compare/v1.19.51...v1.19.52) (2026-11-19)
+
+### Bug Fixes
+
+- **console:** read published ev/revenue status instead of re-deriving (#277) ([e18a5ea](https://github.com/nejcm/market-bot/commit/e18a5eaafa29d47629e8c11682bccdc76774c773))
+
 ## [1.19.51](https://github.com/nejcm/market-bot/compare/v1.19.50...v1.19.51) (2026-11-19)
 
 ### Bug Fixes

@@ -337,6 +337,7 @@ export function valuationMetricSection(input: {
         if (denominatorKey !== "revenue") {
           return { status: "value", value, periodEnd: period.periodEnd, inputs: lineage };
         }
+        // A historical observation on its own period's revenue, so no current-TTM freshness verdict.
         const floorReason = revenueMultipleVerdict({
           annualizedRevenue: denominator.value,
           marketCap,

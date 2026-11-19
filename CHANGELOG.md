@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.53](https://github.com/nejcm/market-bot/compare/v1.19.52...v1.19.53) (2026-11-19)
+
+### Bug Fixes
+
+- **statements:** drop 12-month spans off their filing's fiscal year (#278) ([c1bff7f](https://github.com/nejcm/market-bot/commit/c1bff7f7440eb32627ba38cf3bdd60a1c65eb0fa))
+
 ## [1.19.52](https://github.com/nejcm/market-bot/compare/v1.19.51...v1.19.52) (2026-11-19)
 
 ### Bug Fixes

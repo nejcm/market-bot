@@ -8,7 +8,7 @@ import {
   financialStatementPeriodMonths,
   financialStatementSeriesByKey,
   financialStatementTtmComponentBasis,
-  isYearAligned,
+  isYearAlignedFact,
   latestFinancialStatementFact,
   staleSeriesReason,
 } from "./financial-statement-selection";
@@ -104,10 +104,6 @@ export interface MetricPeriod {
 
 export const EMPTY_PERIOD: MetricPeriod = {};
 
-export function isYearAlignedFact(fact: FinancialStatementFact): boolean {
-  return fact.periodStart === undefined || isYearAligned(fact.periodStart, fact.periodEnd);
-}
-
 function seriesFacts(ctx: MetricContext, key: LensSeries): readonly FinancialStatementFact[] {
   const series =
     ctx.statements === undefined ? undefined : financialStatementSeriesByKey(ctx.statements, key);
@@ -119,7 +115,7 @@ export function eligibleFacts(
   key: LensSeries,
 ): readonly FinancialStatementFact[] {
   return seriesFacts(ctx, key).filter(
-    (fact) => fact.periodType === "interim" || isYearAlignedFact(fact),
+    (fact) => fact.periodType === "interim" || isYearAlignedFact(key, fact),
   );
 }
 

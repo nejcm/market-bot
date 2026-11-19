@@ -1,6 +1,7 @@
 import { DAY_MS, daysBetween } from "../../config/shared";
 import {
   CAP_FOLLOWER_SERIES,
+  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   type FinancialStatementSeriesDefinition,
 } from "./financial-statement-definitions";
 import {
@@ -394,6 +395,23 @@ export function latestCommonFinancialStatementPeriodEndFacts(
 export function isYearAligned(prior: string, latest: string): boolean {
   const days = daysBetween(prior, latest);
   return days !== undefined && days >= ALIGNMENT_MIN_DAYS && days <= ALIGNMENT_MAX_DAYS;
+}
+
+const INSTANT_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set(
+  FINANCIAL_STATEMENT_SERIES_DEFINITIONS.flatMap((definition) =>
+    definition.kind === "instant" ? [definition.key] : [],
+  ),
+);
+
+// An instant must carry no span; a flow without a start cannot prove it covers a year.
+export function isYearAlignedFact(
+  key: FinancialStatementSeriesKey,
+  fact: FinancialStatementFact,
+): boolean {
+  if (INSTANT_SERIES.has(key)) {
+    return fact.periodStart === undefined;
+  }
+  return fact.periodStart !== undefined && isYearAligned(fact.periodStart, fact.periodEnd);
 }
 
 export function financialStatementPeriodsYearAligned(

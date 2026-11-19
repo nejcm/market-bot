@@ -21,7 +21,10 @@ import { renderMarkdownReport } from "../src/report/markdown";
 import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import { CURRENT_EQUITY_NOTE } from "../src/sources/extended-evidence/enterprise-value-bridge";
 import type { MarketSnapshot } from "../src/domain/market-data";
-import { yoyDirection } from "../src/sources/extended-evidence/financial-lens-inputs";
+import {
+  eligibleFacts,
+  yoyDirection,
+} from "../src/sources/extended-evidence/financial-lens-inputs";
 import type { FinancialStatementFact } from "../src/sources/extended-evidence/financial-statements-contract";
 import type {
   MetricInput,
@@ -1708,5 +1711,87 @@ describe("acquisition caveat on reported revenue growth", () => {
         (note) => note.code === "stale-instant-series" && note.seriesKey === "goodwill",
       ),
     ).toEqual([]);
+  });
+});
+
+function withoutRevenueStart(artifact: typeof ANNUAL_STATEMENTS, periodEnd: string) {
+  const { revenue } = artifact.statements.incomeStatement;
+  const startless = revenue.annual.find((item) => item.periodEnd === periodEnd);
+  expect(startless).toBeDefined();
+  return {
+    ...artifact,
+    statements: {
+      ...artifact.statements,
+      incomeStatement: {
+        ...artifact.statements.incomeStatement,
+        revenue: {
+          ...revenue,
+          annual: revenue.annual.map((item) => {
+            if (item !== startless) {
+              return item;
+            }
+            const { periodStart: _start, ...rest } = item;
+            return rest;
+          }),
+        },
+      },
+    },
+  };
+}
+
+function revenueYoy(artifact: typeof ANNUAL_STATEMENTS) {
+  const ctx = { symbol: "AAPL", statements: artifact, analysisAsOf: AS_OF };
+  return [
+    metricIn(businessFrameworkMetrics(ctx).sections.Phase, "revenueDeltaPercent"),
+    financialLensMetrics(ctx).lensMetrics.Growth.find(({ id }) => id === "revenueDeltaPercent"),
+  ];
+}
+
+describe("year alignment at the framework and lens call sites", () => {
+  test("an annual flow without a start is not a year at either call site", () => {
+    for (const row of revenueYoy(ANNUAL_STATEMENTS)) {
+      expect(row).toMatchObject({ status: "value", periodEnd: "2025-12-31" });
+    }
+    for (const row of revenueYoy(withoutRevenueStart(ANNUAL_STATEMENTS, "2025-12-31"))) {
+      expect(row?.periodEnd).not.toBe("2025-12-31");
+    }
+    for (const row of revenueYoy(withoutRevenueStart(ANNUAL_STATEMENTS, "2024-12-31"))) {
+      expect(row?.status).not.toBe("value");
+    }
+  });
+
+  test("an annual balance-sheet instant stays eligible in the lens", () => {
+    const instant = (val: number, fy: number, end: string) => {
+      const { start: _start, ...rest } = fact(val, fy, end, end);
+      return rest;
+    };
+    const artifact = statements({
+      Assets: {
+        units: { USD: [instant(900, 2024, "2024-12-31"), instant(1000, 2025, "2025-12-31")] },
+      },
+    });
+    expect(
+      eligibleFacts({ symbol: "AAPL", statements: artifact }, "totalAssets").map(
+        ({ periodEnd, periodType }) => [periodEnd, periodType],
+      ),
+    ).toEqual([
+      ["2024-12-31", "annual"],
+      ["2025-12-31", "annual"],
+    ]);
+  });
+
+  test("a cash duration on a 10-K is not a balance-sheet instant", () => {
+    const { start: _start, ...assets } = fact(1000, 2025, "2025-12-31", "2025-12-31");
+    const artifact = statements({
+      Assets: { units: { USD: [assets] } },
+      CashAndCashEquivalentsAtCarryingValue: {
+        units: { USD: [fact(200, 2025, "2025-10-01", "2025-12-31")] },
+      },
+    });
+    const ctx = { symbol: "AAPL", statements: artifact, analysisAsOf: "2026-03-01T00:00:00.000Z" };
+    expect(eligibleFacts(ctx, "cash")).toEqual([]);
+    expect(
+      financialLensMetrics(ctx).lensMetrics["Financial Strength"].find(({ id }) => id === "cash"),
+    ).toMatchObject({ status: "missing" });
   });
 });

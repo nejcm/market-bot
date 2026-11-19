@@ -17,7 +17,10 @@ import {
   incompleteFinancialStatementNotes,
   latestFinancialStatementFact,
 } from "../sources/extended-evidence/financial-statement-selection";
-import { DEPRECIATION_AND_AMORTIZATION_COMPONENTS } from "../sources/extended-evidence/financial-statement-definitions";
+import {
+  DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
+  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+} from "../sources/extended-evidence/financial-statement-definitions";
 import { identityTolerance } from "../sources/extended-evidence/untagged-financial-table-validation";
 
 interface DurationFactProjection {
@@ -121,6 +124,9 @@ function assertPeriodStructure(
   series: FinancialStatementSeries,
   check: FinancialInvariantCheck,
 ): void {
+  const flow = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.some(
+    ({ key, kind }) => key === series.key && kind === "duration",
+  );
   for (const periodType of ["annual", "interim"] as const) {
     const facts = series[periodType];
     const periodKeys = new Set<string>();
@@ -133,11 +139,11 @@ function assertPeriodStructure(
         `${series.key} ${periodType} fact has an invalid periodKey`,
         fact.periodEnd,
       );
-      if (fact.periodStart !== undefined) {
+      if (flow || fact.periodStart !== undefined) {
         check(
           (financialStatementPeriodMonths(fact) ?? 0) >= 3,
           "A2",
-          `${series.key} ${periodType} duration is shorter than 3 months`,
+          `${series.key} ${periodType} duration lacks a span of at least 3 months`,
           fact.periodEnd,
         );
       }

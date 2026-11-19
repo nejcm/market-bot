@@ -229,6 +229,40 @@ describe("live financial invariant negative controls", () => {
     expect(() => assertFinancialStatementInvariants(injected)).toThrow(/\[A9\]/u);
   });
 
+  test("A2 fires when a flow fact carries no start", () => {
+    const artifact = financialStatements(fixtureResult(results, 0));
+    const { revenue } = artifact.statements.incomeStatement;
+    const last = revenue.annual.at(-1);
+    if (last === undefined) {
+      throw new Error("Fixture has no annual revenue");
+    }
+    const { periodStart: _start, ...startless } = last;
+    const injected = {
+      ...artifact,
+      statements: {
+        ...artifact.statements,
+        incomeStatement: {
+          ...artifact.statements.incomeStatement,
+          revenue: {
+            ...revenue,
+            interim: [
+              ...revenue.interim,
+              {
+                ...startless,
+                periodType: "interim" as const,
+                periodKey: `instant|${last.periodEnd}`,
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    expect(() => assertFinancialStatementInvariants(injected)).toThrow(
+      /revenue interim duration lacks a span of at least 3 months/u,
+    );
+  });
+
   test("A10 fires when an alias revenue period is not covered by a structured splice proof", () => {
     const artifact = financialStatements(fixtureResult(results, 0));
     const { revenue } = artifact.statements.incomeStatement;

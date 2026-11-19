@@ -489,9 +489,8 @@ describe("legacy YoY comparatives", () => {
     };
     const item = canonicalSecItem(concepts);
 
-    expect(item.metrics).toMatchObject({ revenue: 100, operatingCashFlow: 40 });
-    expect(item.metrics?.revenuePrior).toBeUndefined();
-    expect(item.metrics?.operatingCashFlowPrior).toBeUndefined();
+    expect(item.metrics?.revenue).toBeUndefined();
+    expect(item.metrics?.operatingCashFlow).toBeUndefined();
     expect(item.summary).not.toContain("100.0% YoY");
   });
 

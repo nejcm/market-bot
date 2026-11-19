@@ -1760,6 +1760,19 @@ describe("year alignment at the framework and lens call sites", () => {
     }
   });
 
+  test("a 10-K revenue row without a start never publishes as the latest period", () => {
+    const { start: _start, ...startless } = fact(100, 2025, "2025-01-01", "2025-12-31");
+    const artifact = statements({
+      Revenues: { units: { USD: [fact(90, 2024, "2024-01-01", "2024-12-31"), startless] } },
+    });
+    const ctx = { symbol: "AAPL", statements: artifact, analysisAsOf: AS_OF };
+    expect(metricIn(businessFrameworkMetrics(ctx).sections.Business, "revenue")).toMatchObject({
+      status: "value",
+      value: 90,
+      periodEnd: "2024-12-31",
+    });
+  });
+
   test("an annual balance-sheet instant stays eligible in the lens", () => {
     const instant = (val: number, fy: number, end: string) => {
       const { start: _start, ...rest } = fact(val, fy, end, end);

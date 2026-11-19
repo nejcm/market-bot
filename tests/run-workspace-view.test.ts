@@ -309,7 +309,12 @@ function balanceSheetHistoryFixture() {
             units: { USD: balanceSheetAnnualFacts([90_000_000_000, 85_000_000_000]) },
           },
           WeightedAverageNumberOfDilutedSharesOutstanding: {
-            units: { shares: balanceSheetAnnualFacts([15_500_000_000, 15_000_000_000]) },
+            units: {
+              shares: balanceSheetAnnualFacts([15_500_000_000, 15_000_000_000]).map((fact) => ({
+                ...fact,
+                start: `${String(fact.fy)}-01-01`,
+              })),
+            },
           },
         },
       },

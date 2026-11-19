@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.50](https://github.com/nejcm/market-bot/compare/v1.19.49...v1.19.50) (2026-11-19)
+
+### Bug Fixes
+
+- **statements:** share one year-alignment rule keyed by series kind (#275) ([e8edf39](https://github.com/nejcm/market-bot/commit/e8edf3914db308db273645202bb92246961ddc32))
+
 ## [1.19.49](https://github.com/nejcm/market-bot/compare/v1.19.48...v1.19.49) (2026-11-19)
 
 ### Bug Fixes

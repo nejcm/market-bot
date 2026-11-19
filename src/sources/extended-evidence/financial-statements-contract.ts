@@ -486,7 +486,7 @@ export interface FinancialStatementsArtifact {
   readonly dividendPaymentFiled?: boolean;
   // Earliest positive annual common dividends paid in raw filings, before the history cap; absent when none.
   readonly earliestCommonDividendPaid?: FinancialStatementFact;
-  // Earliest end of any positive raw dividend row under any alias; absent when none.
+  // Earliest end of any positive raw dividend row under any alias in any taxonomy; absent when none.
   readonly earliestDividendEnd?: string;
   // Earliest observable year-aligned annual operating cash flow period end; absent when none.
   readonly firstAnnualCashFlowEnd?: string;

@@ -121,12 +121,9 @@ export function dividendPaymentFiled(
   return dividendRows(payload, taxonomy, analysisAsOf).length > 0;
 }
 
-export function earliestDividendEnd(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  analysisAsOf: string,
-): string | undefined {
-  return dividendRows(payload, taxonomy, analysisAsOf)
+// Every taxonomy: a dividend filed before a taxonomy switch still precedes the year.
+export function earliestDividendEnd(payload: unknown, analysisAsOf: string): string | undefined {
+  return TAXONOMIES.flatMap((taxonomy) => dividendRows(payload, taxonomy, analysisAsOf))
     .map((fact) => readString(fact, "end") ?? "")
     .filter((end) => isCalendarDate(end))
     .toSorted()[0];

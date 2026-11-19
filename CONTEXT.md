@@ -239,7 +239,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Regression Mode** — Fixture mode replaying both cassettes: zero network, zero model cost. **Eval Mode** — replays Data Cassettes, calls the configured live model.
 
-**Replay Capture** — Opt-in sidecar `<run>/replay/`: sanitized settings, both cassettes, recorded clock and consumed cross-run/cache state, and a Final-Synthesis Input. Published after validation and secret scanning; failure does not invalidate the Run Artifact. Excluded from report fields, Calibration, history, and the index.
+**Replay Capture** — Opt-in sidecar `<run>/replay/`: sanitized settings, both cassettes, recorded clock and consumed cross-run/cache state, and a Final-Synthesis Input (research runs; alpha-search has none). Published after validation and secret scanning; failure does not invalidate the Run Artifact. Excluded from report fields, Calibration, history, and the index.
 
 **Final-Synthesis Input** — Versioned input saved before prompt rendering for direct execution of final synthesis and its deterministic audits (evidence, allowed source/subject identities, prior outputs, consumed context, recorded responses; current Playbooks reload on replay). Direct outputs are partial evaluation artifacts, not Run Artifacts.
 

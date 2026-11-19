@@ -979,6 +979,34 @@ test("capture errors leave the research result usable and never publish a valid 
   });
 });
 
+test("a research run without a Final-Synthesis Input publishes no capture", async () => {
+  const dir = await createRoot();
+  const artifacts = { runDir: join(dir, "run") };
+  await mkdir(artifacts.runDir);
+  const fixture = await loadFixture("equity-aapl-brief");
+  const command = parseArgs(fixture.meta.argv);
+  if (command.jobType !== "equity") {
+    throw new Error("expected equity");
+  }
+  await withRunCapture(
+    {
+      command,
+      config: { ...createFixtureConfig(fixture.meta, dir), captureReplay: true },
+      now: new Date(fixture.meta.now),
+      provider: {
+        name: "throwing",
+        generate: async () => {
+          throw new Error("default model touched");
+        },
+      },
+    },
+    async () => ({ artifacts }),
+  );
+  const runDirEntries = await readdir(artifacts.runDir);
+  expect(runDirEntries).toContain("capture-failure.json");
+  expect(runDirEntries).not.toContain("replay");
+});
+
 test("circuit capture stays compact across distinct requests while preserving transitions and exhaustion", async () => {
   const dir = await createRoot();
   const fixture = await loadFixture("equity-aapl-brief");

@@ -6,7 +6,8 @@ import { withReplaySession, assertReplayStateComplete, type ReplayState } from "
 import { assertCaptureSettings, type CaptureSettings } from "./settings";
 import { isRecord } from "../guards";
 import { readRecordedBody } from "./body-file";
-import { parseArgs, type ResearchCommand } from "../cli/args";
+import { parseArgs, type AlphaSearchCommand, type ResearchCommand } from "../cli/args";
+import { runAlphaSearchWorkflow, type AlphaSearchWorkflowResult } from "../alpha-search/workflow";
 import { resolveConfig, type AppConfig } from "../config";
 import { createProvider } from "../model/factory";
 import type { ModelProvider } from "../model/types";
@@ -24,7 +25,7 @@ import { makeReplayProvider, ModelReplayError, type LlmCassette } from "./llm-ca
 import { peerUniverseSeam } from "../research/peer-universe-seam";
 
 export interface FixtureMeta {
-  readonly command?: ResearchCommand;
+  readonly command?: ResearchCommand | AlphaSearchCommand;
   readonly captureVersion?: 1;
   readonly settings?: CaptureSettings;
   readonly retryDelaysMs?: readonly number[];
@@ -88,10 +89,12 @@ export interface RunFixtureOptions {
   readonly onSynthesisInput?: (input: unknown) => void;
 }
 
-export interface RunFixtureResult extends PersistedResearchJobResult {
+interface ReplayedFixtureDir {
   readonly dataDir: string;
   readonly cleanup: () => Promise<void>;
 }
+
+export type RunFixtureResult = PersistedResearchJobResult & ReplayedFixtureDir;
 
 interface FixtureDataRequest {
   readonly method: string;
@@ -110,6 +113,9 @@ async function readJson<T>(path: string): Promise<T> {
 }
 
 export function fixtureCommand(meta: FixtureMeta): ResearchCommand {
+  if (meta.command?.jobType === "alpha-search") {
+    throw new Error("Fixture command must be a research run: alpha-search");
+  }
   return meta.command ?? researchCommand(meta.argv);
 }
 
@@ -363,6 +369,18 @@ export async function runFixture(
   name: string,
   options?: RunFixtureOptions,
 ): Promise<RunFixtureResult> {
+  const result = await replayFixture(name, options);
+  if (!("collectedSources" in result)) {
+    await result.cleanup();
+    throw new Error(`Fixture is not a research run: ${name}`);
+  }
+  return result;
+}
+
+export async function replayFixture(
+  name: string,
+  options?: RunFixtureOptions,
+): Promise<(PersistedResearchJobResult | AlphaSearchWorkflowResult) & ReplayedFixtureDir> {
   const resolvedOptions = options ?? { llm: "replay" };
   const fixture = await loadFixture(name);
   const { dataDir: requestedDataDir } = resolvedOptions;
@@ -402,16 +420,37 @@ export async function runFixture(
       }
     },
   };
-  const rawCommand = fixtureCommand(fixture.meta);
-  const resolvedSubject = resolveResearchSubject(rawCommand);
-  const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
   const now = new Date(fixture.meta.now);
-  const sourcePlan = buildSourcePlan(command, now.toISOString(), resolvedSubject);
   const failures: string[] = [];
   const retryDelaysMs =
     fixture.meta.retryDelaysMs ?? (fixture.state === undefined ? [] : undefined);
-  const run = () =>
-    withRunCapture(
+  const run = (): Promise<PersistedResearchJobResult | AlphaSearchWorkflowResult> => {
+    const metaCommand = fixture.meta.command;
+    if (metaCommand?.jobType === "alpha-search") {
+      return withRunCapture(
+        {
+          command: metaCommand,
+          config,
+          provider,
+          now,
+          fetchImpl,
+          ...(retryDelaysMs === undefined ? {} : { retryDelaysMs }),
+        },
+        (runtime) =>
+          runAlphaSearchWorkflow({
+            command: metaCommand,
+            config,
+            now,
+            fetchImpl: runtime.fetchImpl,
+            ...(retryDelaysMs === undefined ? {} : { retryDelaysMs }),
+          }),
+      );
+    }
+    const rawCommand = fixtureCommand(fixture.meta);
+    const resolvedSubject = resolveResearchSubject(rawCommand);
+    const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
+    const sourcePlan = buildSourcePlan(command, now.toISOString(), resolvedSubject);
+    return withRunCapture(
       {
         command,
         config,
@@ -464,6 +503,7 @@ export async function runFixture(
         return result;
       },
     );
+  };
   const result = await withReplaySession(
     {
       mode: fixture.state === undefined ? "offline" : "replay",

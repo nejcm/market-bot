@@ -76,7 +76,7 @@ import { mock } from "bun:test";
 import { writeFile } from "node:fs/promises";
 const fixtures = await import(${JSON.stringify(join(import.meta.dir, "../src/replay/fixture-run.ts"))});
 mock.module(${JSON.stringify(join(import.meta.dir, "../src/replay/fixture-run.ts"))}, () => ({
-  ...fixtures, runFixture: async () => ({}),
+  ...fixtures, replayFixture: async () => ({}),
 }));
 const { runEvalSample } = await import(${JSON.stringify(join(import.meta.dir, "../src/replay/eval-run.ts"))});
 const results = [];

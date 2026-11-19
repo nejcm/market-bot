@@ -259,14 +259,13 @@ function sharePeriodDisclosure(
 function restatementDisclosure(
   observations: readonly HistoricalValuationObservation[],
 ): string | undefined {
-  const rows = observations.flatMap(({ basis, periodEnd, publicAt, inputs }) => {
-    const restated = Object.values(inputs).filter((input) => input.publicAt > publicAt);
-    return restated.length === 0
+  const rows = observations.flatMap(({ basis, periodEnd, restatedInputs = [] }) =>
+    restatedInputs.length === 0
       ? []
       : [
-          `${basis} ${periodEnd} (${restated.map((input) => `${input.label.toLowerCase()} filed ${input.publicAt}`).join(", ")})`,
-        ];
-  });
+          `${basis} ${periodEnd} (${restatedInputs.map((input) => `${input.label.toLowerCase()} filed ${input.publicAt}`).join(", ")})`,
+        ],
+  );
   return rows.length === 0
     ? undefined
     : `Inputs restated by under 0.1% after the row's first annual report use the restated value for ${rows.join(", ")}`;

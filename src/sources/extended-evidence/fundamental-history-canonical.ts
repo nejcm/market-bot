@@ -133,7 +133,8 @@ function ttmPoint(series: FinancialStatementSeries): FundamentalHistoryPoint | u
   };
 }
 
-// Under 0.1% of the original is a re-rounding (CLSK FY2022 revenue 131,524,445 → 131,525,000), not a basis change.
+// Under 0.1% of the original is immaterial, not a basis change: a re-rounding
+// (CLSK FY2022 revenue 131,524,445 → 131,525,000) or a small restatement (JPM FY2019 revenue +0.08%).
 export function materialRestatement(
   fact: Pick<FinancialStatementFact, "value" | "restatedFrom">,
 ): boolean {

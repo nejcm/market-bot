@@ -92,7 +92,14 @@ export interface HistoricalValuationObservation {
     readonly enterpriseValueBridge?: ValuationFundamentalInput;
   };
   readonly metrics: Readonly<Record<ValuationMetricKey, MetricResult>>;
+  // Inputs restated by under 0.1% after the row's first annual report that a computed metric used.
+  readonly restatedInputs?: readonly ValuationRestatedInput[];
   readonly sourceIds: readonly string[];
+}
+
+export interface ValuationRestatedInput {
+  readonly label: string;
+  readonly publicAt: string;
 }
 
 export type TrailingValuationBasis =
@@ -345,6 +352,16 @@ function hasObservationShape(value: unknown): boolean {
     (value.fxConversion !== undefined && !hasFxConversionShape(value.fxConversion)) ||
     !isRecord(value.inputs) ||
     metrics === undefined ||
+    (value.restatedInputs !== undefined &&
+      !(
+        Array.isArray(value.restatedInputs) &&
+        value.restatedInputs.every(
+          (row) =>
+            isRecord(row) &&
+            readString(row, "label") !== undefined &&
+            readString(row, "publicAt") !== undefined,
+        )
+      )) ||
     readStringArray(value, "sourceIds") === undefined
   ) {
     return false;

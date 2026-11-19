@@ -660,18 +660,21 @@ describe("valuation workbench", () => {
       const restated = restatedFy2023(withFy2023Revenue(8_188_136_000), {
         revenue: 8_188_000_000,
       });
-      const { observations } = buildValuationWorkbench({
-        generatedAt: "2025-06-01T00:00:00.000Z",
-        symbol: "TEST",
-        financialStatements: restated,
-        priceHistory: [
-          { date: "2024-02-15", close: 20 },
-          { date: "2025-02-18", close: 24 },
-        ],
-        priceSourceId: "verified-snapshot-TEST",
-        quoteCurrency: "USD",
-      }).historicalMultiples;
+      const build = (priceHistory: { date: string; close: number }[]) =>
+        buildValuationWorkbench({
+          generatedAt: "2025-06-01T00:00:00.000Z",
+          symbol: "TEST",
+          financialStatements: restated,
+          priceHistory,
+          priceSourceId: "verified-snapshot-TEST",
+          quoteCurrency: "USD",
+        }).historicalMultiples.observations;
+      const observations = build([
+        { date: "2024-02-15", close: 20 },
+        { date: "2025-02-18", close: 24 },
+      ]);
       const [first] = observations;
+      const [unpriced] = build([{ date: "2025-02-18", close: 24 }]);
 
       expect(valuationPeriodInputs(restated).periods[0]).toMatchObject({
         restatedImmaterially: { revenue: 8_188_136_000 },
@@ -688,6 +691,12 @@ describe("valuation workbench", () => {
         ),
       });
       expect(first?.metrics.priceToEarnings?.basis).not.toContain("restated");
+      expect(unpriced?.metrics.priceToSales).toMatchObject({
+        status: "missing",
+        reason: "price-history-unavailable",
+      });
+      expect(unpriced?.metrics.priceToSales?.basis).not.toContain("restated");
+      expect(valuationScopeDisclosure([unpriced!]) ?? "").not.toContain("Inputs restated");
       expect(valuationScopeDisclosure(observations)).toContain(
         "; Inputs restated by under 0.1% after the row's first annual report use the restated value for annual 2023-12-31 (revenue filed 2025-02-15)",
       );
@@ -712,7 +721,75 @@ describe("valuation workbench", () => {
       expect(first?.[1].priceToSales).toMatchObject({
         status: "not-meaningful",
         reason: "negative-denominator",
+        basis: expect.stringContaining("; revenue restated by under 0.1%"),
       });
+    });
+
+    test("a negative-denominator verdict never claims the restated share count it did not read", () => {
+      const [first] = workbenchMetrics(
+        restatedFy2023(withFy2023Revenue(-100), { dilutedShares: 10.005 }),
+      );
+
+      expect(first?.[1].priceToSales).toMatchObject({
+        status: "not-meaningful",
+        reason: "negative-denominator",
+      });
+      expect(first?.[1].priceToSales.basis).not.toContain("restated");
+    });
+
+    // A 10-K/A restating OCF is flagged, but without capex no metric reads it, so nothing is disclosed.
+    test("discloses a flagged input only when a computed metric used it", () => {
+      const disclosure = (artifact: FinancialStatementsArtifact, sic?: string) =>
+        valuationScopeDisclosure(
+          buildValuationWorkbench({
+            generatedAt: "2025-06-01T00:00:00.000Z",
+            symbol: "TEST",
+            financialStatements: artifact,
+            priceHistory: [{ date: "2024-02-15", close: 20 }],
+            priceSourceId: "verified-snapshot-TEST",
+            quoteCurrency: "USD",
+            ...(sic === undefined
+              ? {}
+              : {
+                  extendedEvidence: {
+                    items: [
+                      {
+                        category: "sec-edgar" as const,
+                        title: "TEST fundamentals",
+                        summary: "",
+                        sourceIds: [SOURCE_ID],
+                        observedAt: "2025-06-01T00:00:00.000Z",
+                        metrics: { sic },
+                      },
+                    ],
+                    gaps: [],
+                  },
+                }),
+          }).historicalMultiples.observations,
+        ) ?? "";
+      const restated = restatedFy2023(statements(), { operatingCashFlow: 15.005 });
+      const { cashFlowStatement } = restated.statements;
+      const withoutCapex: FinancialStatementsArtifact = {
+        ...restated,
+        statements: {
+          ...restated.statements,
+          cashFlowStatement: {
+            ...cashFlowStatement,
+            capitalExpenditure: { ...cashFlowStatement.capitalExpenditure, annual: [] },
+          },
+        },
+      };
+
+      expect(disclosure(restated)).toContain(
+        "use the restated value for annual 2023-12-31 (operating cash flow filed 2025-02-15)",
+      );
+      expect(valuationPeriodInputs(withoutCapex).periods[0]?.restatedImmaterially).toEqual({
+        operatingCashFlow: 15,
+      });
+      expect(disclosure(withoutCapex)).not.toContain("Inputs restated");
+      expect(disclosure({ ...restated, realEstateInvestmentFiled: true }, "6798")).not.toContain(
+        "Inputs restated",
+      );
     });
 
     test("withholds a restatement whose original was filed after the first annual report", () => {
@@ -764,9 +841,14 @@ describe("valuation workbench", () => {
       const [first] = workbenchMetrics(cashRich);
 
       expect(first?.[1]).toMatchObject({
-        priceToSales: { status: "value", value: 200.18 / 100 },
+        priceToSales: {
+          status: "value",
+          value: 200.18 / 100,
+          basis: expect.stringContaining("dilutedShares restated by under 0.1%"),
+        },
         enterpriseValueToRevenue: withheld,
       });
+      expect(first?.[1].enterpriseValueToRevenue.basis).not.toContain("restated");
     });
 
     test("withholds free cash flow when inputs restated under 0.1% move it by 0.1% or more", () => {

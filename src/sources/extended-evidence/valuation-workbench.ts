@@ -173,6 +173,7 @@ function observation(
         : {}),
       inputs,
       metrics: workbenchMetricRecord(result.section),
+      ...(result.restatedInputs.length > 0 ? { restatedInputs: result.restatedInputs } : {}),
       sourceIds,
     },
   };

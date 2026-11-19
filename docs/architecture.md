@@ -153,8 +153,10 @@ canonical TTM remains explicitly suppressed rather than producing an unreconcile
 Workbench withholding reasons: an input first published after the row's first annual report is withheld with
 `restated-after-first-filing` (a material Source Gap), never replaced by an as-filed original, unless it is restated
 by under 0.1% from an original public at that report (`materialRestatement`; P/FCF also needs the FCF difference,
-EV/revenue the EV difference, under 0.1%): then the restated value prices the row, and each affected metric's basis
-and the workbench scope disclosure say so; a span with no
+EV/revenue the EV difference, under 0.1%): then the restated value prices the row. A metric whose value or
+not-meaningful verdict read a restated input says so in its basis (a negative-denominator verdict reads only the
+denominator), and the workbench scope disclosure lists those inputs (`restatedInputs`); a restated input no
+computed metric read is not disclosed as used; a span with no
 `firstAnnualReports` entry withholds every flow input with `first-annual-report-unavailable`. Diluted EPS or a
 filed diluted share count noted `earlier-share-basis` is withheld from its annual and fiscal-year TTM row, never
 rescaled; a flagged share count with clean EPS still derives shares from net income / EPS, flagged EPS never

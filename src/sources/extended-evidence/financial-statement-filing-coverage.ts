@@ -32,6 +32,8 @@ import {
   isObservable,
   periodKey,
   selectRestatements,
+  toSelectedFact,
+  currencyForUnit,
 } from "./financial-statement-facts";
 import { ELECTING_DEFINITIONS, filingOf } from "./financial-statement-taxonomy";
 
@@ -86,45 +88,96 @@ export function firstAnnualReports(
   );
 }
 
+// Positive DPS or non-zero paid rows under any alias, before span filtering, election and cap.
+function dividendRows(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+): readonly Record<string, unknown>[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.flatMap((definition) =>
+    definition.key === "dividendsPerShare" || definition.key === "dividendsPaid"
+      ? definition.concepts[taxonomy].flatMap((concept) =>
+          rawConceptRows(root, concept, analysisAsOf).filter(
+            (fact): fact is Record<string, unknown> => {
+              const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
+              return (
+                value !== undefined &&
+                (definition.key === "dividendsPaid" ? value !== 0 : value > 0)
+              );
+            },
+          ),
+        )
+      : [],
+  );
+}
+
 // Span filtering, alias ranking and caps must not manufacture a non-payer.
 export function dividendPaymentFiled(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
 ): boolean {
-  const root = taxonomyRoot(payload, taxonomy);
-  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.some(
-    (definition) =>
-      (definition.key === "dividendsPerShare" || definition.key === "dividendsPaid") &&
-      definition.concepts[taxonomy].some((concept) =>
-        rawConceptRows(root, concept, analysisAsOf).some((fact) => {
-          const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
-          return (
-            value !== undefined && (definition.key === "dividendsPaid" ? value !== 0 : value > 0)
-          );
-        }),
-      ),
+  return dividendRows(payload, taxonomy, analysisAsOf).length > 0;
+}
+
+export function earliestDividendEnd(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+): string | undefined {
+  return dividendRows(payload, taxonomy, analysisAsOf)
+    .map((fact) => readString(fact, "end") ?? "")
+    .filter((end) => isCalendarDate(end))
+    .toSorted()[0];
+}
+
+function fiscalYearFacts(
+  taxonomy: FinancialStatementTaxonomy,
+  root: Record<string, unknown>,
+  concept: string,
+  analysisAsOf: string,
+): readonly ParsedFact[] {
+  return unitFacts(taxonomy, root, concept).filter(
+    (fact) =>
+      isAnnualReportForm(fact.canonicalForm) &&
+      isObservable(fact, analysisAsOf) &&
+      fact.periodStart !== undefined &&
+      isCalendarDate(fact.periodStart) &&
+      isCalendarDate(fact.periodEnd) &&
+      isYearAligned(fact.periodStart, fact.periodEnd),
   );
 }
 
-// The history cap and single-concept election can drop these from the selected dividends-paid series.
-export function earliestCommonDividendPaidEnd(
+// A dividend year is exact only after a filed cash flow statement that shows none.
+export function firstAnnualCashFlowEnd(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
 ): string | undefined {
   const root = taxonomyRoot(payload, taxonomy) ?? {};
-  return [...COMMON_DIVIDENDS_PAID_CONCEPTS]
+  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (definition) => definition.key === "operatingCashFlow",
+  )!
+    .concepts[taxonomy].flatMap((concept) => fiscalYearFacts(taxonomy, root, concept, analysisAsOf))
+    .map((fact) => fact.periodEnd)
+    .toSorted()[0];
+}
+
+// The history cap and single-concept election can drop these from the selected dividends-paid series.
+export function earliestCommonDividendPaid(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+  sourceId: string,
+): FinancialStatementFact | undefined {
+  const root = taxonomyRoot(payload, taxonomy) ?? {};
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (candidate) => candidate.key === "dividendsPaid",
+  )!;
+  const [earliest] = [...COMMON_DIVIDENDS_PAID_CONCEPTS]
     .flatMap((concept) => {
-      const eligible = unitFacts(taxonomy, root, concept).filter(
-        (fact) =>
-          isAnnualReportForm(fact.canonicalForm) &&
-          isObservable(fact, analysisAsOf) &&
-          fact.periodStart !== undefined &&
-          isCalendarDate(fact.periodStart) &&
-          isCalendarDate(fact.periodEnd) &&
-          isYearAligned(fact.periodStart, fact.periodEnd),
-      );
+      const eligible = fiscalYearFacts(taxonomy, root, concept, analysisAsOf);
       return [...new Set(eligible.map((fact) => fact.unit))].flatMap(
         (unit) =>
           selectRestatements(
@@ -135,8 +188,15 @@ export function earliestCommonDividendPaidEnd(
       );
     })
     .filter((fact) => fact.value > 0)
-    .map((fact) => fact.periodEnd)
-    .toSorted()[0];
+    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
+  return earliest === undefined
+    ? undefined
+    : toSelectedFact(
+        earliest,
+        definition,
+        currencyForUnit(earliest.unit) ?? earliest.unit,
+        sourceId,
+      );
 }
 
 // Investing outflows for properties that sit outside the us-gaap capex aliases.

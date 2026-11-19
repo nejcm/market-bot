@@ -61,7 +61,9 @@ import {
 import {
   firstAnnualReports,
   dividendPaymentFiled,
-  earliestCommonDividendPaidEnd,
+  earliestCommonDividendPaid,
+  earliestDividendEnd,
+  firstAnnualCashFlowEnd,
   realEstateInvestmentFiled,
   unfiledSeries,
   capexComponentConcepts,
@@ -650,10 +652,16 @@ export function deriveFinancialStatements(
   const capexComponents = unfiled.includes("capitalExpenditure")
     ? capexComponentConcepts(payload, input.analysisAsOf)
     : [];
-  const commonDividendPaidEnd =
+  const commonDividendPaid =
     taxonomy === undefined
       ? undefined
-      : earliestCommonDividendPaidEnd(payload, taxonomy, input.analysisAsOf);
+      : earliestCommonDividendPaid(payload, taxonomy, input.analysisAsOf, input.sourceId);
+  const dividendEnd =
+    taxonomy === undefined ? undefined : earliestDividendEnd(payload, taxonomy, input.analysisAsOf);
+  const cashFlowEnd =
+    taxonomy === undefined
+      ? undefined
+      : firstAnnualCashFlowEnd(payload, taxonomy, input.analysisAsOf);
   const otherTaxonomies =
     taxonomy === undefined
       ? []
@@ -693,9 +701,11 @@ export function deriveFinancialStatements(
     ...(taxonomy !== undefined
       ? {
           dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
-          ...(commonDividendPaidEnd !== undefined
-            ? { earliestCommonDividendPaidEnd: commonDividendPaidEnd }
+          ...(commonDividendPaid !== undefined
+            ? { earliestCommonDividendPaid: commonDividendPaid }
             : {}),
+          ...(dividendEnd !== undefined ? { earliestDividendEnd: dividendEnd } : {}),
+          ...(cashFlowEnd !== undefined ? { firstAnnualCashFlowEnd: cashFlowEnd } : {}),
           unfiledSeries: unfiled,
           ...(capexComponents.length > 0 ? { capexComponentConcepts: capexComponents } : {}),
           realEstateInvestmentFiled: realEstateInvestmentFiled(payload, input.analysisAsOf),

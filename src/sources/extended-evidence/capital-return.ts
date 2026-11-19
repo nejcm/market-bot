@@ -378,9 +378,9 @@ function dpsCagrBasis(years: number): string {
 }
 
 const EARLIEST_DIVIDEND_BASIS =
-  'earliest year-aligned fiscal year with positive dividends per share or positive common dividends paid among retained annual filings; "or earlier" when an older dividends per share year falls past the history cap or an older common dividend payment is filed outside the retained series';
+  'earliest year-aligned fiscal year with positive dividends per share among retained annual filings or positive common dividends paid in any annual filing; "or earlier" unless an older annual cash flow statement is filed and no positive dividend fact of any concept ends before that year';
 
-function dpsCappedBefore(ctx: MetricContext, periodEnd: string): boolean {
+function dpsCapped(ctx: MetricContext): boolean {
   return (
     ctx.statements?.omissionNotes.some((note) => {
       const [period, first = "", end = ""] = note.periodKey?.split("|") ?? [];
@@ -388,8 +388,7 @@ function dpsCappedBefore(ctx: MetricContext, periodEnd: string): boolean {
         note.code === "history-cap" &&
         note.seriesKey === "dividendsPerShare" &&
         period === "annual" &&
-        (first === "duration:12" || isYearAligned(first, end)) &&
-        end < periodEnd
+        (first === "duration:12" || isYearAligned(first, end))
       );
     }) === true
   );
@@ -400,8 +399,8 @@ function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
   const paid = eligibleAnnualFacts(ctx, "dividendsPaid").filter((fact) =>
     COMMON_DIVIDENDS_PAID_CONCEPTS.has(fact.concept),
   );
-  const filedPaidEnd = ctx.statements?.earliestCommonDividendPaidEnd;
-  if (perShare.length === 0 && paid.length === 0 && filedPaidEnd === undefined) {
+  const filedPaid = ctx.statements?.earliestCommonDividendPaid;
+  if (perShare.length === 0 && paid.length === 0 && filedPaid === undefined) {
     return missingOutcome(
       notFiledSelection(ctx, "dividendsPerShare", []) ?? {
         facts: [],
@@ -412,13 +411,12 @@ function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
   }
   const [earliest] = [
     ...perShare.map((fact) => ({ fact, key: "dividendsPerShare" as const })),
-    ...paid.map((fact) => ({ fact, key: "dividendsPaid" as const })),
+    ...(filedPaid === undefined ? [] : [{ fact: filedPaid, key: "dividendsPaid" as const }]),
   ]
     .filter(({ fact }) => fact.value > 0)
     .toSorted((left, right) => left.fact.periodEnd.localeCompare(right.fact.periodEnd));
-  const bound = earliest?.fact.periodEnd ?? "9999";
-  const capped = dpsCappedBefore(ctx, bound) || (filedPaidEnd ?? "9999") < bound;
   if (earliest === undefined) {
+    const capped = dpsCapped(ctx);
     const latest = perShare[0] ?? paid[0];
     return {
       status: "missing",
@@ -434,9 +432,16 @@ function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
             ],
     };
   }
+  const firstFiled = ctx.statements?.firstAnnualCashFlowEnd;
+  const earliestFiled = ctx.statements?.earliestDividendEnd;
+  const exact =
+    firstFiled !== undefined &&
+    firstFiled < earliest.fact.periodEnd &&
+    earliestFiled !== undefined &&
+    earliestFiled >= earliest.fact.periodStart!;
   return {
     status: "value",
-    value: `FY${String(earliest.fact.fiscalYear)}${capped ? " or earlier" : ""}`,
+    value: `FY${String(earliest.fact.fiscalYear)}${exact ? "" : " or earlier"}`,
     periodEnd: earliest.fact.periodEnd,
     inputs: [statementInput(earliest.fact, earliest.key)],
     ...(earliest.key === "dividendsPaid"

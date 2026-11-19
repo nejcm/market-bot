@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.48](https://github.com/nejcm/market-bot/compare/v1.19.47...v1.19.48) (2026-11-19)
+
+### Bug Fixes
+
+- **financial-lens:** withhold market-cap ratios on undeclared currency (#273) ([a453594](https://github.com/nejcm/market-bot/commit/a453594ea80909360c8d692a17a5b840be98f6c9))
+
 ## [1.19.47](https://github.com/nejcm/market-bot/compare/v1.19.46...v1.19.47) (2026-11-19)
 
 ### Bug Fixes

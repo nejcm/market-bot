@@ -8,6 +8,7 @@ import { priorComparable } from "./financial-lens-canonical";
 import {
   earlierShareBasisPeriods,
   financialStatementSeriesByKey,
+  isYearAlignedFact,
 } from "./financial-statement-selection";
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import type { MetricContext, MetricDefinition } from "./metric-engine";
@@ -15,7 +16,6 @@ import { readNumberMetric, readStringMetric } from "./utils";
 import {
   type LensSeries,
   SERIES_LABELS,
-  isYearAlignedFact,
   latestFact,
   factInput,
   periodOf,
@@ -118,7 +118,7 @@ function comparablePrior(
     return undefined;
   }
   return priorComparable(
-    { ...series, annual: series.annual.filter(isYearAlignedFact) },
+    { ...series, annual: series.annual.filter((fact) => isYearAlignedFact(key, fact)) },
     anchor,
     earlierShareBasisPeriods(ctx.statements.omissionNotes, key),
   );

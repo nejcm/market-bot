@@ -37,7 +37,7 @@ import {
   financialStatementFactsAreCompatible,
   financialStatementPeriodMonths,
   financialStatementSeriesByKey,
-  isYearAligned,
+  isYearAlignedFact,
   latestFinancialStatementFact,
   staleSeriesReason,
 } from "./financial-statement-selection";
@@ -132,10 +132,6 @@ export function classifyBusinessLifecyclePhase(
   return "operating-leverage";
 }
 
-function isYearAlignedFact(fact: FinancialStatementFact): boolean {
-  return fact.periodStart !== undefined && isYearAligned(fact.periodStart, fact.periodEnd);
-}
-
 // For latest-period metrics, an annual fact counts only when it spans 350-380 days.
 function eligibleFacts(
   ctx: MetricContext,
@@ -146,7 +142,7 @@ function eligibleFacts(
   return series === undefined
     ? []
     : financialStatementFacts(series).filter(
-        (fact) => fact.periodType === "interim" || isYearAlignedFact(fact),
+        (fact) => fact.periodType === "interim" || isYearAlignedFact(key, fact),
       );
 }
 
@@ -396,7 +392,7 @@ function yearOverYear(
     return noFactAt(ctx, key, at);
   }
   const prior = priorComparable(
-    { ...series, annual: series.annual.filter(isYearAlignedFact) },
+    { ...series, annual: series.annual.filter((fact) => isYearAlignedFact(key, fact)) },
     latest,
     earlierShareBasisPeriods(ctx.statements.omissionNotes, key),
   );

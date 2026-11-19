@@ -18,6 +18,7 @@ import {
   financialStatementSeriesByKey,
   financialStatementTtmsAreCompatible,
   financialStatementTtmsSharePeriod,
+  isYearAlignedFact,
   latestCommonFinancialStatementFacts,
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
@@ -1553,5 +1554,27 @@ describe("financialStatementAnnualizationFactor", () => {
     ).toBe(12 / 9);
     expect(financialStatementAnnualizationFactor({ periodEnd: "2026-03-28" })).toBeUndefined();
     expect(factor("2026-03-20", "2026-03-28")).toBeUndefined();
+  });
+});
+
+describe("isYearAlignedFact", () => {
+  const span = (periodStart: string | null, periodEnd: string) => fact({ periodStart, periodEnd });
+
+  test("a flow counts only when its start proves a 350-380 day span", () => {
+    expect(isYearAlignedFact("revenue", span("2024-01-01", "2024-12-31"))).toBe(true);
+    expect(isYearAlignedFact("revenue", span("2023-10-01", "2024-10-06"))).toBe(true);
+    expect(isYearAlignedFact("revenue", span("2025-01-01", "2025-12-17"))).toBe(true);
+    expect(isYearAlignedFact("revenue", span("2025-01-01", "2026-01-16"))).toBe(true);
+    expect(isYearAlignedFact("revenue", span("2025-01-01", "2025-12-16"))).toBe(false);
+    expect(isYearAlignedFact("revenue", span("2025-01-01", "2026-01-17"))).toBe(false);
+    expect(isYearAlignedFact("revenue", span("2025-01-01", "2025-03-31"))).toBe(false);
+    expect(isYearAlignedFact("operatingCashFlow", span(null, "2024-12-31"))).toBe(false);
+  });
+
+  test("an instant counts only without a span", () => {
+    expect(isYearAlignedFact("totalAssets", span(null, "2024-12-31"))).toBe(true);
+    expect(isYearAlignedFact("cash", span(null, "2024-12-31"))).toBe(true);
+    expect(isYearAlignedFact("cash", span("2024-10-01", "2024-12-31"))).toBe(false);
+    expect(isYearAlignedFact("cash", span("2024-01-01", "2024-12-31"))).toBe(false);
   });
 });

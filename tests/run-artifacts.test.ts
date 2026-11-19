@@ -393,15 +393,41 @@ describe("loadRunArtifact", () => {
     expect(readDeepEquityEvidenceBundle(withSections({ id: "capital-return" }))).toBeUndefined();
   });
 
-  test("validates the nested earliest common dividend paid end in a deep-equity bundle", () => {
+  test("validates the nested earliest common dividend paid in a deep-equity bundle", () => {
     const base = deepEquityEvidenceBundle();
     const withStatements = (financialStatements: Record<string, unknown>) =>
       readDeepEquityEvidenceBundle({ ...base, derived: { ...base.derived, financialStatements } });
+    const fact = {
+      value: 728_000,
+      periodKey: "2011-01-01|2011-12-31",
+      periodType: "annual",
+      form: "10-K",
+      canonicalForm: "10-K",
+      amendment: false,
+      accessionNumber: "0001193125-13-109153",
+      filedAt: "2013-03-15",
+      firstPublicAt: "2013-03-15",
+      periodStart: "2011-01-01",
+      periodEnd: "2011-12-31",
+      fiscalYear: 2011,
+      fiscalPeriod: "FY",
+      taxonomy: "us-gaap",
+      concept: "PaymentsOfDividendsCommonStock",
+      currency: "USD",
+      unit: "USD",
+      unitScale: 1,
+      extractionMethod: "sec-companyfacts",
+      sourceIds: ["sec"],
+    };
 
     expect(withStatements({})).toBeDefined();
-    expect(withStatements({ earliestCommonDividendPaidEnd: "2012-12-31" })).toBeDefined();
-    expect(withStatements({ earliestCommonDividendPaidEnd: "2012-02-30" })).toBeUndefined();
-    expect(withStatements({ earliestCommonDividendPaidEnd: 20_121_231 })).toBeUndefined();
+    expect(withStatements({ earliestCommonDividendPaid: fact })).toBeDefined();
+    expect(withStatements({ earliestCommonDividendPaid: { ...fact, value: "1" } })).toBeUndefined();
+    expect(withStatements({ earliestCommonDividendPaid: "2011-12-31" })).toBeUndefined();
+    for (const key of ["earliestDividendEnd", "firstAnnualCashFlowEnd"]) {
+      expect(withStatements({ [key]: "2007-12-31" })).toBeDefined();
+      expect(withStatements({ [key]: "2007-02-30" })).toBeUndefined();
+    }
   });
 
   test("round-trips canonical statements and equity completeness", async () => {

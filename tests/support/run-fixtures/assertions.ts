@@ -59,7 +59,6 @@ import {
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import {
   CAPEX_SCOPE_CAVEAT,
-  COMMON_DIVIDENDS_PAID_CONCEPTS,
   conceptScope,
   DEBT_SCOPE_CAVEAT,
   CASH_FLOW_DEPRECIATION_AND_AMORTIZATION_LINES,
@@ -717,7 +716,15 @@ function resolveInput(
             financialStatements,
             input.series as FinancialStatementSeriesKey,
           );
-    const fact = [...(series?.annual ?? []), ...(series?.interim ?? [])].find(
+    const filedPaid =
+      input.series === "dividendsPaid"
+        ? financialStatements?.earliestCommonDividendPaid
+        : undefined;
+    const fact = [
+      ...(series?.annual ?? []),
+      ...(series?.interim ?? []),
+      ...(filedPaid === undefined ? [] : [filedPaid]),
+    ].find(
       (candidate) =>
         candidate.periodKey === input.periodKey && candidate.periodType === input.periodType,
     );
@@ -2033,30 +2040,19 @@ export function assertMetricSectionInvariants(
         break;
       }
       case "earliestDividendFyInHistory": {
-        const annualOf = (key: "dividendsPerShare" | "dividendsPaid") =>
-          (financialStatementSeriesByKey(statements, key)?.annual ?? []).filter(
-            (fact) =>
-              isAnnualSpan(fact) &&
-              (key === "dividendsPerShare" || COMMON_DIVIDENDS_PAID_CONCEPTS.has(fact.concept)),
-          );
-        const [earliest] = [...annualOf("dividendsPerShare"), ...annualOf("dividendsPaid")]
+        const perShare = (
+          financialStatementSeriesByKey(statements, "dividendsPerShare")?.annual ?? []
+        ).filter(isAnnualSpan);
+        const paid = statements.earliestCommonDividendPaid;
+        const [earliest] = [...perShare, ...(paid === undefined ? [] : [paid])]
           .filter((fact) => fact.value > 0)
           .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
-        const bound = earliest?.periodEnd ?? "9999";
-        const capped =
-          (statements.earliestCommonDividendPaidEnd ?? "9999") < bound ||
-          statements.omissionNotes.some((note) => {
-            const [period, first = "", end = ""] = note.periodKey?.split("|") ?? [];
-            return (
-              note.code === "history-cap" &&
-              note.seriesKey === "dividendsPerShare" &&
-              period === "annual" &&
-              (first === "duration:12" || isAnnualSpan({ periodStart: first, periodEnd: end })) &&
-              end < bound
-            );
-          });
+        const exact =
+          earliest !== undefined &&
+          (statements.firstAnnualCashFlowEnd ?? "9999") < earliest.periodEnd &&
+          (statements.earliestDividendEnd ?? "") >= (earliest.periodStart ?? "9999");
         expect(metric.value, `${label} names the earliest positive FY`).toBe(
-          `FY${String(earliest?.fiscalYear)}${capped ? " or earlier" : ""}`,
+          `FY${String(earliest?.fiscalYear)}${exact ? "" : " or earlier"}`,
         );
         expect(metric.periodEnd, `${label} ends at that FY`).toBe(earliest?.periodEnd);
         break;

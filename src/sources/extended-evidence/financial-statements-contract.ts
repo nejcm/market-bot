@@ -484,8 +484,12 @@ export interface FinancialStatementsArtifact {
   };
   // Any positive filed dividend per share or non-zero dividends paid; absent on pre-flag artifacts.
   readonly dividendPaymentFiled?: boolean;
-  // Earliest positive annual common dividends paid period end in raw filings; absent when none or pre-flag.
-  readonly earliestCommonDividendPaidEnd?: string;
+  // Earliest positive annual common dividends paid in raw filings, before the history cap; absent when none.
+  readonly earliestCommonDividendPaid?: FinancialStatementFact;
+  // Earliest end of any positive raw dividend row under any alias; absent when none.
+  readonly earliestDividendEnd?: string;
+  // Earliest observable year-aligned annual operating cash flow period end; absent when none.
+  readonly firstAnnualCashFlowEnd?: string;
   // Series with no observable raw fact under any alias in any taxonomy; absent on pre-flag artifacts.
   readonly unfiledSeries?: readonly FinancialStatementSeriesKey[];
   // Us-gaap PP&E payment component concepts filed while capital expenditure is unfiled.
@@ -897,9 +901,14 @@ function financialStatementSeriesRecord(value: unknown): Record<string, unknown>
   return record;
 }
 
-export function hasValidEarliestCommonDividendPaidEnd(value: Record<string, unknown>): boolean {
-  const end = value.earliestCommonDividendPaidEnd;
-  return end === undefined || (typeof end === "string" && isCalendarDate(end));
+export function hasValidEarliestDividends(value: Record<string, unknown>): boolean {
+  const { earliestCommonDividendPaid: fact, earliestDividendEnd, firstAnnualCashFlowEnd } = value;
+  return (
+    (fact === undefined || hasFinancialStatementFactShape(fact)) &&
+    [earliestDividendEnd, firstAnnualCashFlowEnd].every(
+      (end) => end === undefined || (typeof end === "string" && isCalendarDate(end)),
+    )
+  );
 }
 
 export function readFinancialStatementsArtifact(
@@ -927,7 +936,7 @@ export function readFinancialStatementsArtifact(
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||
     (value.dividendPaymentFiled !== undefined && typeof value.dividendPaymentFiled !== "boolean") ||
-    !hasValidEarliestCommonDividendPaidEnd(value) ||
+    !hasValidEarliestDividends(value) ||
     (value.realEstateInvestmentFiled !== undefined &&
       typeof value.realEstateInvestmentFiled !== "boolean") ||
     (value.currentRealEstateInvestmentFiled !== undefined &&

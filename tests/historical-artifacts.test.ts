@@ -89,17 +89,18 @@ describe("frozen historical artifacts", () => {
     }
   });
 
-  test("reads the earliest common dividend paid end only as a calendar date", async () => {
+  test("reads the earliest common dividend paid only as a statement fact", async () => {
     const artifact = (await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
     ).json()) as FinancialStatementsArtifact;
-    const read = (earliestCommonDividendPaidEnd: unknown) =>
-      readFinancialStatementsArtifact({ ...artifact, earliestCommonDividendPaidEnd });
+    const read = (earliestCommonDividendPaid: unknown) =>
+      readFinancialStatementsArtifact({ ...artifact, earliestCommonDividendPaid });
+    const fact = artifact.statements.incomeStatement.revenue.annual[0]!;
 
-    expect(read("2012-12-31")?.earliestCommonDividendPaidEnd).toBe("2012-12-31");
-    expect(read(undefined)?.earliestCommonDividendPaidEnd).toBeUndefined();
-    expect(read("2012-02-30")).toBeUndefined();
-    expect(read(20_121_231)).toBeUndefined();
+    expect(read(fact)?.earliestCommonDividendPaid).toEqual(fact);
+    expect(read(undefined)?.earliestCommonDividendPaid).toBeUndefined();
+    expect(read({ ...fact, value: "1" })).toBeUndefined();
+    expect(read("2012-12-31")).toBeUndefined();
   });
 
   test("keeps well-formed superseding facts and leaves a malformed list unchecked", async () => {

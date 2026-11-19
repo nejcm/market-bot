@@ -1,6 +1,6 @@
 import { SOURCE_KINDS, type Source } from "../domain/sources";
 import { isRecord } from "../guards";
-import { hasValidEarliestCommonDividendPaidEnd } from "../sources/extended-evidence/financial-statements-contract";
+import { hasValidEarliestDividends } from "../sources/extended-evidence/financial-statements-contract";
 import type { DeepEquityEvidenceBundleV1 } from "./types";
 
 const SOURCE_KIND_SET: ReadonlySet<string> = new Set(SOURCE_KINDS);
@@ -142,7 +142,7 @@ export function readDeepEquityEvidenceBundle(
     !isRecord(value.derived) ||
     !optionalRecord(value.derived, "financialStatements") ||
     (isRecord(value.derived.financialStatements) &&
-      !hasValidEarliestCommonDividendPaidEnd(value.derived.financialStatements)) ||
+      !hasValidEarliestDividends(value.derived.financialStatements)) ||
     !optionalRecord(value.derived, "fundamentalHistory") ||
     !optionalRecord(value.derived, "financialLenses") ||
     !optionalRecord(value.derived, "capitalOwnership") ||

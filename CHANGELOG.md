@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.51](https://github.com/nejcm/market-bot/compare/v1.19.50...v1.19.51) (2026-11-19)
+
+### Bug Fixes
+
+- **statements:** drop flow facts without a start at normalization (#276) ([50e7d30](https://github.com/nejcm/market-bot/commit/50e7d306a576752bb3b2e71423b61a249e95acee))
+
 ## [1.19.50](https://github.com/nejcm/market-bot/compare/v1.19.49...v1.19.50) (2026-11-19)
 
 ### Bug Fixes

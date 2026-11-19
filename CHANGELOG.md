@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.47](https://github.com/nejcm/market-bot/compare/v1.19.46...v1.19.47) (2026-11-19)
+
+### Bug Fixes
+
+- **replay:** capture and replay alpha-search runs (#272) ([dee1af5](https://github.com/nejcm/market-bot/commit/dee1af5a471e31309b8521ff1924c906911deabc))
+
 ## [1.19.46](https://github.com/nejcm/market-bot/compare/v1.19.45...v1.19.46) (2026-11-18)
 
 ### Bug Fixes

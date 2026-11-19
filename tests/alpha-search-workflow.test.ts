@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAlphaRejectedCandidateFile } from "../src/alpha-search/cohorts";
 import { runAlphaSearchWorkflow } from "../src/alpha-search/workflow";
+import { runCli } from "../src/app";
 import type { AppConfig } from "../src/config";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { replayFixture, runFixture } from "../src/replay/fixture-run";
 import { resetSourceResilienceForTests } from "../src/sources/source-request";
 import type { FetchLike } from "../src/sources/types";
 
@@ -944,5 +946,76 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).toContain("SEC filings S-1 2026-06-02");
     expect(result.report.predictions).toEqual([]);
     expect(result.markdown).not.toMatch(/\b(undervalued|10x|buy|sell|hold)\b/iu);
+  });
+});
+
+describe("alpha-search replay capture", () => {
+  const envKeys = [
+    "MARKET_BOT_DATA_DIR",
+    "MARKET_BOT_CACHE_DIR",
+    "MARKET_BOT_CAPTURE_REPLAY",
+    "MARKET_BOT_SEC_USER_AGENT",
+  ] as const;
+  const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+
+  afterEach(() => {
+    for (const key of envKeys) {
+      if (originalEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = originalEnv[key];
+      }
+    }
+  });
+
+  async function runAlphaSearchCli(captureReplay: boolean): Promise<string> {
+    const runsDir = join(dataDir(), "runs");
+    process.env.MARKET_BOT_DATA_DIR = runsDir;
+    process.env.MARKET_BOT_CACHE_DIR = join(runsDir, "..", "cache");
+    process.env.MARKET_BOT_CAPTURE_REPLAY = captureReplay ? "1" : "0";
+    process.env.MARKET_BOT_SEC_USER_AGENT = "market-bot test capture@example.com";
+    return runCli(["alpha-search", "--asset", "equity"], {
+      fetchImpl: fundamentalsFetchImpl([]),
+      now: () => new Date("2026-06-01T00:00:00.000Z"),
+      writeThroughRunArtifactIndex: async () => {},
+    });
+  }
+
+  test("captures a replayable alpha-search run when MARKET_BOT_CAPTURE_REPLAY is set", async () => {
+    const runDir = await runAlphaSearchCli(true);
+    const replayDir = join(runDir, "replay");
+    const meta = JSON.parse(await readFile(join(replayDir, "meta.json"), "utf8"));
+    expect(meta.command).toEqual({
+      jobType: "alpha-search",
+      assetClass: "equity",
+      depth: "brief",
+    });
+    await expect(readdir(runDir)).resolves.not.toContain("capture-failure.json");
+    await expect(readdir(replayDir)).resolves.not.toContain("final-synthesis-input.json");
+    const captured = await readdir(replayDir).then((names) =>
+      Promise.all(
+        names
+          .filter((name) => name.endsWith(".json"))
+          .map((name) => readFile(join(replayDir, name), "utf8")),
+      ),
+    );
+    expect(captured.join("\n")).not.toContain("capture@example.com");
+
+    const original = JSON.parse(await readFile(join(runDir, "report.json"), "utf8"));
+    const replay = await replayFixture(replayDir);
+    try {
+      expect(replay.report.extras?.researchLeads).toEqual(original.extras.researchLeads);
+      expect(replay.report.extras?.candidateProfiles).toEqual(original.extras.candidateProfiles);
+    } finally {
+      await replay.cleanup();
+    }
+    await expect(runFixture(replayDir)).rejects.toThrow("Fixture is not a research run");
+  });
+
+  test("writes no replay capture when MARKET_BOT_CAPTURE_REPLAY is unset", async () => {
+    const runDir = await runAlphaSearchCli(false);
+    const entries = await readdir(runDir);
+    expect(entries).not.toContain("replay");
+    expect(entries).not.toContain("capture-failure.json");
   });
 });

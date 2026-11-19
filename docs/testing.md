@@ -41,9 +41,9 @@ contract behavior, not model quality after a prompt change.
 
 ### Capturing a future authorized run
 
-Set `MARKET_BOT_CAPTURE_REPLAY=1` for an already-authorized research run. This adds no source/model
+Set `MARKET_BOT_CAPTURE_REPLAY=1` for an already-authorized research or alpha-search run. This adds no source/model
 calls. A successful capture publishes `<run>/replay/{meta,data-cassette,llm-cassette,state}.json`,
-`final-synthesis-input.json` and any large hashed bodies under `bodies/`; the synthesis input's
+`final-synthesis-input.json` (research runs only) and any large hashed bodies under `bodies/`; the synthesis input's
 `rawSnapshots` and `secTargetPacket` subtrees over 32 KB are stored there once as `{"$replayBody": <sha256>}` refs, and
 a subtree equal to a recorded HTTP body as `{"$replayHttpBody": <sha256>}` pointing at that body's `.txt` (envelopes marked `bodyEncoding: "http-body-refs"` only); both
 resolve on load (older inline captures still load). It records ordered HTTP

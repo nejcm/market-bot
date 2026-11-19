@@ -1,6 +1,6 @@
 import { mkdir, rename, writeFile, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import type { ResearchCommand } from "../cli/args";
+import type { AlphaSearchCommand, ResearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type { ModelProvider } from "../model/types";
 import type { FetchLike } from "../sources/types";
@@ -23,7 +23,7 @@ import { readReport } from "../run-artifact-report-reader";
 
 export async function withRunCapture<T extends { readonly artifacts: { readonly runDir: string } }>(
   input: {
-    readonly command: ResearchCommand;
+    readonly command: ResearchCommand | AlphaSearchCommand;
     readonly config: AppConfig;
     readonly provider: ModelProvider;
     readonly now: Date;
@@ -121,7 +121,10 @@ export async function withRunCapture<T extends { readonly artifacts: { readonly 
   const publish = async (runDir: string): Promise<void> => {
     const staged = join(runDir, `.replay-${crypto.randomUUID()}.partial`);
     try {
-      if (failures.length > 0 || checkpoint === undefined) {
+      if (
+        failures.length > 0 ||
+        (checkpoint === undefined && input.command.jobType !== "alpha-search")
+      ) {
         throw new Error("Capture contains incomplete dependencies");
       }
       await mkdir(join(staged, "bodies"), { recursive: true });

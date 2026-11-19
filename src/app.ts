@@ -344,10 +344,26 @@ export async function runCli(
 
   if (command.jobType === "alpha-search") {
     await assertRunStagingUsable(config.dataDir);
-    const result = await (dependencies.runAlphaSearchWorkflow ?? runAlphaSearchWorkflow)({
-      command,
-      config,
-    });
+    const invokedAt = now();
+    const result = await withRunCapture(
+      {
+        command,
+        config,
+        provider: {
+          name: "alpha-search",
+          generate: () => Promise.reject(new Error("alpha-search makes no model calls")),
+        },
+        now: invokedAt,
+        ...(dependencies.fetchImpl !== undefined ? { fetchImpl: dependencies.fetchImpl } : {}),
+      },
+      (runtime) =>
+        (dependencies.runAlphaSearchWorkflow ?? runAlphaSearchWorkflow)({
+          command,
+          config,
+          now: invokedAt,
+          fetchImpl: runtime.fetchImpl,
+        }),
+    );
     progress("updating run artifact index");
     await locked(() =>
       updateRunArtifactIndex(

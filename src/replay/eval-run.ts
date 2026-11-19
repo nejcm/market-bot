@@ -14,6 +14,7 @@ import {
   createFixtureConfig,
   createLiveFixtureConfig,
   loadFixture,
+  replayFixture,
   runFixture,
 } from "./fixture-run";
 import {
@@ -167,7 +168,7 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
     if ("diagnostics" in provider && typeof provider.diagnostics === "function") {
       replay.provider = provider as ReplayProvider;
     }
-    return runFixture(input.fixture, {
+    return replayFixture(input.fixture, {
       llm: input.llm,
       dataDir,
       keepDataDir: true,

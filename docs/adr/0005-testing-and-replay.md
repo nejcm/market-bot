@@ -54,12 +54,13 @@ re-derived properties and targeted assertions, not approving large output snapsh
   versions or accept malformed rows. Before accepting another version, discriminate the return type or migrate
   it to the declared live version; unchecked casts cannot relabel a newer payload as version 1.
 - Standalone recording and opt-in Replay Capture canonicalize requests and reject known credentials through
-  `scripts/fixture-secret-scan.ts`. `MARKET_BOT_CAPTURE_REPLAY` defaults off globally for research runs;
+  `scripts/fixture-secret-scan.ts`. `MARKET_BOT_CAPTURE_REPLAY` defaults off globally for research and alpha-search runs;
   when enabled, wrap source HTTP and every model request before collection, including peers/challengers.
   Explicit metadata identifies prose-only stages without changing prompts. Store engineering capture only at
   `<run>/replay/`, outside report fields/index projections.
 - Captures contain versioned metadata, allowlisted effective settings, ordered HTTP/model cassettes, consumed
-  cache/cross-run state, and versioned Final-Synthesis Input with embedded responses. Retain HTTP status and
+  cache/cross-run state, and versioned Final-Synthesis Input with embedded responses (none for alpha-search, which
+  makes no model calls; amended 2026-11-19). Retain HTTP status and
   transport/model failures as failures. Large HTTP/state bodies, and Final-Synthesis Input `rawSnapshots` /
   `secTargetPacket` subtrees over 32 KB (as `{"$replayBody": <sha256>}` → `bodies/<sha256>.json`, a key
   capture refuses in payloads), are content-addressed; readers check hashes and path containment. A

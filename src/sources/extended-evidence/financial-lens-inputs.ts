@@ -873,18 +873,14 @@ export function marketCapInput(ctx: MetricContext): MetricInput | undefined {
   return undefined;
 }
 
-export const CURRENCY_MISMATCH_REASON =
-  "filed amounts and quote market cap have incompatible currency";
-
-export function currencyMismatch(
-  marketCap: MetricInput,
-  facts: readonly (FinancialStatementFact | undefined)[],
-): boolean {
-  return facts.some(
-    (fact) => fact !== undefined && !sameCurrency(marketCap.currency, fact.currency),
-  );
-}
-
-export function quoteCurrencyOf(ctx: MetricContext): string {
-  return ctx.snapshot?.identity?.quoteCurrency ?? "USD";
+export function currencyMismatchReason(
+  quoteCurrency: string | undefined,
+  filedCurrencies: readonly (string | null)[],
+): string | undefined {
+  if (filedCurrencies.every((currency) => sameCurrency(quoteCurrency, currency))) {
+    return undefined;
+  }
+  return quoteCurrency === undefined || filedCurrencies.includes(null)
+    ? "filed amounts or quote market cap have an undeclared currency"
+    : "filed amounts and quote market cap have incompatible currency";
 }

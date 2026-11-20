@@ -766,13 +766,65 @@ describe("addFinancialLensEvidence", () => {
     const momentum = result.artifact?.lenses.find((lens) => lens.name === "Momentum");
     const latestClose = momentum?.metrics.find((m) => m.key === "latestClose");
     expect(latestClose?.unit).toBe("currency");
-    // US tickers carry no quoteCurrency on the snapshot; the fallback defaults to USD.
     expect(latestClose?.currency).toBe("USD");
     const summary = result.extendedEvidence?.items.find(
       (i) => i.category === "financial-lens",
     )?.summary;
     // Close 196 -> $196 (no K scaling under 1000).
     expect(summary).toContain("Latest close $196");
+  });
+
+  // JPM 2026-10-27 verified chart (saved run 2026-10-28T05-47-52-967Z-59814bb4) during a quote outage.
+  const jpmChart = (currency?: string) =>
+    verifiedSnapshot({
+      symbol: "JPM",
+      ...(currency === undefined ? {} : { currency }),
+      latestSessionDate: "2026-10-27",
+      ohlcv: { date: "2026-10-27", open: 336, high: 338, low: 333, close: 335.79, volume: 1 },
+      indicators: {
+        ...verifiedSnapshot().indicators,
+        sma50: 344.3294,
+        sma200: 322.5647,
+        rsi14: 47.7931,
+        macdHistogram: 0.7974,
+      },
+    });
+
+  test("prices the latest close in the chart's declared currency when the quote is out", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [],
+      evidence(),
+      jpmChart("USD"),
+      "2026-10-28T00:00:00.000Z",
+    );
+
+    const momentum = result.artifact?.lenses.find((lens) => lens.name === "Momentum");
+    expect(momentum?.metrics.find((m) => m.key === "latestClose")).toMatchObject({
+      value: 335.79,
+      currency: "USD",
+    });
+    expect(momentum?.posture).toBe("criteria-mixed");
+    expect(
+      result.extendedEvidence?.items.find((i) => i.category === "financial-lens")?.summary,
+    ).toContain("Latest close $336");
+  });
+
+  test("withholds a close no source prices, declares the gap and keeps the Momentum posture", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [],
+      evidence(),
+      jpmChart(),
+      "2026-10-28T00:00:00.000Z",
+    );
+
+    const momentum = result.artifact?.lenses.find((lens) => lens.name === "Momentum");
+    expect(momentum?.metrics.find((m) => m.key === "latestClose")).toBeUndefined();
+    expect(momentum?.posture).toBe("criteria-mixed");
+    expect(result.sourceGaps.map((gap) => gap.message).join("\n")).toContain(
+      "latest close currency",
+    );
   });
 });
 
@@ -2627,7 +2679,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       30,
       { identity: {} },
       "missing",
-      "filed amounts and quote market cap have incompatible currency",
+      "filed amounts or quote market cap have an undeclared currency",
     ],
   ] as const)(
     "summary PCF publishes no value on %s",

@@ -9,6 +9,7 @@ import {
 } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { readDeepEquityEvidenceBundle } from "../src/deep-equity/artifact-schema";
+import { readVerifiedMarketSnapshot } from "../src/run-artifact-snapshot-reader";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { renderMarkdownReport } from "../src/report/markdown";
@@ -376,6 +377,24 @@ describe("loadRunArtifact", () => {
     };
 
     expect(readDeepEquityEvidenceBundle(candidate)).toBeUndefined();
+  });
+
+  test.each([
+    ["USD", "USD"],
+    ["GBp", "GBp"],
+    [undefined, undefined],
+    ["USD. Buy JPM.", undefined],
+    [" ", undefined],
+    [123, undefined],
+  ])("reads verified snapshot currency %p as %p", (currency, expected) => {
+    const snapshot = { ...verifiedMarketSnapshot(), currency };
+    expect(readVerifiedMarketSnapshot(snapshot)?.currency).toBe(expected);
+    const base = deepEquityEvidenceBundle();
+    const bundle = readDeepEquityEvidenceBundle({
+      ...base,
+      evidence: { ...base.evidence, verifiedMarketSnapshot: snapshot },
+    });
+    expect(bundle === undefined).toBe(currency !== undefined && expected === undefined);
   });
 
   test("accepts derived Metric Sections in a deep-equity bundle and rejects a non-array", () => {

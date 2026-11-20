@@ -32,8 +32,7 @@ import {
   shortTermInvestmentsAt,
   evidenceDisplayNetDebt,
   marketCapInput,
-  CURRENCY_MISMATCH_REASON,
-  currencyMismatch,
+  currencyMismatchReason,
 } from "./financial-lens-inputs";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
@@ -389,10 +388,14 @@ export function marketLeverageDefinition(
           inputs,
         };
       }
-      if (currencyMismatch(marketCap, [anchor, cash])) {
+      const mismatch = currencyMismatchReason(marketCap.currency, [
+        anchor.currency,
+        ...(cash === undefined ? [] : [cash.currency]),
+      ]);
+      if (mismatch !== undefined) {
         return {
           status: "missing",
-          reason: CURRENCY_MISMATCH_REASON,
+          reason: mismatch,
           ...periodOf(anchor),
           inputs,
         };

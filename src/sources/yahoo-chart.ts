@@ -1,4 +1,4 @@
-import { type OhlcvBar } from "../domain/market-data";
+import { declaredCurrencyCode, type OhlcvBar } from "../domain/market-data";
 import type { Observation } from "../forecast/observable";
 import { type FetchLike } from "./types";
 import { isRecord, readNumber, readString } from "../guards";
@@ -63,6 +63,11 @@ function readYahooChartQuote(payload: unknown): YahooChartQuote | undefined {
     return undefined;
   }
   return { timestamps: result.timestamp, quote, result };
+}
+
+export function readYahooChartCurrency(payload: unknown): string | undefined {
+  const meta = readYahooChartQuote(payload)?.result.meta;
+  return isRecord(meta) ? declaredCurrencyCode(meta.currency) : undefined;
 }
 
 function observationsFromYahooChartPayload(

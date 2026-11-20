@@ -13,6 +13,7 @@ import { yahooResilientFetchWrapper } from "./yahoo";
 import {
   classifyLatestSession,
   parseYahooChartOhlcv,
+  readYahooChartCurrency,
   readYahooRegularSession,
   yahooChartWindowUrl,
   type LatestSessionVerdict,
@@ -146,9 +147,11 @@ export function verifiedMarketSnapshotFromChart(
       }),
     );
 
+  const currency = readYahooChartCurrency(fetched.payload);
   const snapshot: VerifiedMarketSnapshot = {
     symbol,
     assetClass: "equity",
+    ...(currency === undefined ? {} : { currency }),
     analysisDate,
     fetchedAt,
     latestSessionDate: latestBar.date,

@@ -1,11 +1,6 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import { valuationDateBasisMetric } from "./financial-lens-metrics";
-import {
-  sameCurrency,
-  type MetricContext,
-  type MetricDefinition,
-  type MetricOutcome,
-} from "./metric-engine";
+import { type MetricContext, type MetricDefinition, type MetricOutcome } from "./metric-engine";
 import { ENTERPRISE_VALUE_BASIS } from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
@@ -33,8 +28,7 @@ import {
   withCurrentEquityNote,
   withRevenueMultipleVerdict,
   marketCapInput,
-  CURRENCY_MISMATCH_REASON,
-  currencyMismatch,
+  currencyMismatchReason,
 } from "./financial-lens-inputs";
 
 function peOutcome(
@@ -329,8 +323,9 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
             return { status: "missing", reason: "no quote market cap", ...period, inputs };
           }
           // Summary SEC metrics read USD-unit facts only.
-          if (!sameCurrency(marketCap.currency, "USD")) {
-            return { status: "missing", reason: CURRENCY_MISMATCH_REASON, ...period, inputs };
+          const mismatch = currencyMismatchReason(marketCap.currency, ["USD"]);
+          if (mismatch !== undefined) {
+            return { status: "missing", reason: mismatch, ...period, inputs };
           }
           return {
             status: "value",
@@ -376,10 +371,11 @@ export function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[
             inputs,
           };
         }
-        if (currencyMismatch(marketCap, [anchor])) {
+        const mismatch = currencyMismatchReason(marketCap.currency, [anchor.currency]);
+        if (mismatch !== undefined) {
           return {
             status: "missing",
-            reason: CURRENCY_MISMATCH_REASON,
+            reason: mismatch,
             ...flow.period,
             inputs,
           };

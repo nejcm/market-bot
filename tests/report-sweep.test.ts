@@ -585,6 +585,23 @@ describe("report sweep", () => {
     expect(row({ artifact: "quote", currency: "USD" })).toEqual([]);
   });
 
+  test("flags an undeclared filed currency beside a declared one, not shares or pure units", () => {
+    const row = (statement: Record<string, unknown>) =>
+      invariantsOf({
+        id: "debtToMarketCap",
+        value: 0.1,
+        priceAsOf: "2026-04-30",
+        inputs: [
+          { artifact: "quote", currency: "USD" },
+          { artifact: "statements", ...statement },
+        ],
+      });
+    expect(row({ unit: "USD" })).toEqual(["currency-mix-without-fx"]);
+    expect(row({ unit: "shares" })).toEqual([]);
+    expect(row({ unit: "pure" })).toEqual([]);
+    expect(row({ unit: "USD", currency: "USD" })).toEqual([]);
+  });
+
   test("flags Valuation Evidence rows beside non-USD statements without fx", () => {
     const valuation = { artifact: "evidence", category: "valuation" };
     expect(

@@ -23,7 +23,6 @@ import {
   withNetDebtApplicability,
   withCurrentEquityNote,
   evidenceDisplayNetDebt,
-  quoteCurrencyOf,
   yoyDirection,
 } from "./financial-lens-inputs";
 import {
@@ -74,6 +73,10 @@ function verifiedInput(
 
 const session = (ctx: MetricContext) => periodEndInput(ctx.verifiedSnapshot?.latestSessionDate);
 
+export function latestCloseCurrency(ctx: MetricContext): string | undefined {
+  return ctx.verifiedSnapshot?.currency ?? ctx.snapshot?.identity?.quoteCurrency;
+}
+
 function momentumDefinitions(): readonly MetricDefinition[] {
   return [
     {
@@ -83,12 +86,16 @@ function momentumDefinitions(): readonly MetricDefinition[] {
       basis: "last completed session close from the verified market snapshot",
       compute: (ctx) => {
         const close = ctx.verifiedSnapshot?.ohlcv.close;
-        return close === undefined
-          ? { status: "missing", reason: "no verified market snapshot close" }
+        const currency = latestCloseCurrency(ctx);
+        if (close === undefined) {
+          return { status: "missing", reason: "no verified market snapshot close" };
+        }
+        return currency === undefined
+          ? { status: "missing", reason: "latest close currency undeclared" }
           : {
               status: "value",
               value: close,
-              currency: quoteCurrencyOf(ctx),
+              currency,
               inputs: [
                 verifiedInput(
                   ctx,
@@ -97,7 +104,7 @@ function momentumDefinitions(): readonly MetricDefinition[] {
                   close,
                   session(ctx),
                   "currency",
-                  quoteCurrencyOf(ctx),
+                  currency,
                 ),
               ],
               ...session(ctx),
@@ -215,8 +222,12 @@ function valuePosture(ctx: MetricContext): FinancialLensPosture {
   ]);
 }
 
-function momentumPosture(section: readonly MetricResult[] | undefined): FinancialLensPosture {
-  const close = valueOf(section, "latestClose");
+// Close vs SMA50 compares one series, so it needs no currency even when the close row is withheld.
+function momentumPosture(
+  ctx: MetricContext,
+  section: readonly MetricResult[] | undefined,
+): FinancialLensPosture {
+  const close = ctx.verifiedSnapshot?.ohlcv.close;
   const sma50 = valueOf(section, "sma50");
   const sma200 = valueOf(section, "sma200");
   const rsi14 = valueOf(section, "rsi14");
@@ -311,7 +322,7 @@ export function financialLensMetrics(ctx: MetricContext): {
     Growth: growthPosture(lensMetrics.Growth),
     "Financial Strength": strengthPosture(ctx, lensMetrics["Financial Strength"]),
     Value: valuePosture(ctx),
-    Momentum: momentumPosture(lensMetrics.Momentum),
+    Momentum: momentumPosture(ctx, lensMetrics.Momentum),
   };
   return {
     sections,

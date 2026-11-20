@@ -44,6 +44,11 @@ export type MetricSections = readonly {
   readonly metrics: readonly ReportMetric[];
 }[];
 
+// A quote or filed amount always has a currency; shares and pure units never do.
+const monetaryInput = (input: ReportMetricInput) =>
+  input.artifact === "quote" ||
+  (input.artifact === "statements" && input.unit !== "shares" && input.unit !== "pure");
+
 type QuoteSnapshots = readonly Pick<MarketSnapshot, "sourceId" | "observedAt" | "quoteTimeUtc">[];
 
 export interface ReportViolation {
@@ -302,7 +307,7 @@ export function reportInvariantViolations(
       add("price-relative-row-undated", section, id, metric.periodEnd ?? "no periodEnd");
     }
     const currencies = new Set(
-      inputs.flatMap((input) => input.currency ?? (input.artifact === "quote" ? "undeclared" : [])),
+      inputs.flatMap((input) => input.currency ?? (monetaryInput(input) ? "undeclared" : [])),
     );
     if (currencies.size > 1 && !inputs.some((input) => input.artifact === "fx")) {
       add("currency-mix-without-fx", section, id, [...currencies].join("+"));

@@ -1,3 +1,4 @@
+import { declaredCurrencyCode } from "../domain/market-data";
 import { SOURCE_KINDS, type Source } from "../domain/sources";
 import { isRecord } from "../guards";
 import { hasValidEarliestDividends } from "../sources/extended-evidence/financial-statements-contract";
@@ -55,6 +56,7 @@ function isVerifiedMarketSnapshot(value: unknown): boolean {
     isRecord(value) &&
     isNonEmptyString(value.symbol) &&
     value.assetClass === "equity" &&
+    (value.currency === undefined || declaredCurrencyCode(value.currency) !== undefined) &&
     isNonEmptyString(value.analysisDate) &&
     isNonEmptyString(value.fetchedAt) &&
     isNonEmptyString(value.latestSessionDate) &&

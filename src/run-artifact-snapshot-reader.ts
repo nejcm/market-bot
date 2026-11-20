@@ -1,4 +1,8 @@
-import type { MarketSnapshot, VerifiedMarketSnapshot } from "./domain/market-data";
+import {
+  declaredCurrencyCode,
+  type MarketSnapshot,
+  type VerifiedMarketSnapshot,
+} from "./domain/market-data";
 import { isRecord, readNumber, readString } from "./guards";
 import { isAssetClass } from "./run-artifact-value-guards";
 
@@ -92,6 +96,7 @@ export function readVerifiedMarketSnapshot(value: unknown): VerifiedMarketSnapsh
   const ohlcv = readOhlcvBar(value.ohlcv);
   const indicators = readIndicators(value.indicators);
   const recentCloses = readRecentCloses(value.recentCloses);
+  const currency = declaredCurrencyCode(value.currency);
   return analysisDate === undefined ||
     fetchedAt === undefined ||
     latestSessionDate === undefined ||
@@ -102,6 +107,7 @@ export function readVerifiedMarketSnapshot(value: unknown): VerifiedMarketSnapsh
     : {
         symbol: value.symbol.toUpperCase(),
         assetClass: "equity",
+        ...(currency === undefined ? {} : { currency }),
         analysisDate,
         fetchedAt,
         latestSessionDate,

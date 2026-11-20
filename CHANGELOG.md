@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.59](https://github.com/nejcm/market-bot/compare/v1.19.58...v1.19.59) (2026-11-20)
+
+### Bug Fixes
+
+- **value-lens:** withhold price/book on negative book, unassessed peers (#284) ([c7e1456](https://github.com/nejcm/market-bot/commit/c7e14568b2017f6905a189b65a465224e733b131))
+
 ## [1.19.58](https://github.com/nejcm/market-bot/compare/v1.19.57...v1.19.58) (2026-11-20)
 
 ### Bug Fixes

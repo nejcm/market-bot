@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.58](https://github.com/nejcm/market-bot/compare/v1.19.57...v1.19.58) (2026-11-20)
+
+### Bug Fixes
+
+- **postures:** require every applicable criterion before support (#283) ([152f0f4](https://github.com/nejcm/market-bot/commit/152f0f479894cafef8044452aff8e956076b5720))
+
 ## [1.19.57](https://github.com/nejcm/market-bot/compare/v1.19.56...v1.19.57) (2026-11-20)
 
 ### Bug Fixes

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.57](https://github.com/nejcm/market-bot/compare/v1.19.56...v1.19.57) (2026-11-20)
+
+### Bug Fixes
+
+- **financial-lens:** price latest close from its chart, not usd default (#282) ([b0bb6bf](https://github.com/nejcm/market-bot/commit/b0bb6bf3afb14b3fcfdf366747a892869b9bab52))
+
 ## [1.19.56](https://github.com/nejcm/market-bot/compare/v1.19.55...v1.19.56) (2026-11-20)
 
 ### Bug Fixes

@@ -4,7 +4,7 @@ import { type MetricContext, type MetricDefinition, type MetricOutcome } from ".
 import { ENTERPRISE_VALUE_BASIS } from "./enterprise-value-bridge";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import { peIsClean } from "./value-format";
+import { multipleIsClean } from "./value-format";
 import {
   type MetricPeriod,
   EMPTY_PERIOD,
@@ -31,23 +31,24 @@ import {
   currencyMismatchReason,
 } from "./financial-lens-inputs";
 
-function peOutcome(
+function multipleOutcome(
   yahoo: ExtendedEvidenceItem | undefined,
   yahooPeriod: MetricPeriod,
-  key: "trailingPE" | "forwardPE",
-  basis: "trailing" | "forward",
-  pe: number | undefined,
+  key: "trailingPE" | "forwardPE" | "priceToBook",
+  label: string,
+  denominator: string,
+  multiple: number | undefined,
   clean: boolean,
 ): MetricOutcome {
-  if (yahoo === undefined || pe === undefined) {
-    return { status: "missing", reason: `no Yahoo ${basis} PE` };
+  if (yahoo === undefined || multiple === undefined) {
+    return { status: "missing", reason: `no Yahoo ${label}` };
   }
-  const inputs = [evidenceInput(yahoo, key, `${basis} PE`, "ratio", pe, yahooPeriod)];
+  const inputs = [evidenceInput(yahoo, key, label, "ratio", multiple, yahooPeriod)];
   return clean
-    ? { status: "value", value: pe, inputs, ...yahooPeriod }
+    ? { status: "value", value: multiple, inputs, ...yahooPeriod }
     : {
         status: "not-meaningful",
-        reason: `non-positive ${basis} earnings`,
+        reason: `non-positive ${denominator}`,
         inputs,
         ...yahooPeriod,
       };
@@ -62,8 +63,10 @@ function peDefinitionsFor(
   const forwardPe = readNumberMetric(yahoo?.metrics, "forwardPE");
   const epsTtm = readNumberMetric(yahoo?.metrics, "epsTrailingTwelveMonths");
   const epsForward = readNumberMetric(yahoo?.metrics, "epsForward");
-  const trailingClean = peIsClean(trailingPe, epsTtm);
-  const forwardClean = peIsClean(forwardPe, epsForward);
+  const trailingClean = multipleIsClean(trailingPe, epsTtm);
+  const forwardClean = multipleIsClean(forwardPe, epsForward);
+  const priceToBook = readNumberMetric(yahoo?.metrics, "priceToBook");
+  const bookValue = readNumberMetric(yahoo?.metrics, "bookValue");
   return [
     {
       id: "peRatio",
@@ -71,7 +74,15 @@ function peDefinitionsFor(
       unit: "ratio",
       basis: "Yahoo Finance trailing price/earnings",
       compute: () =>
-        peOutcome(yahoo, yahooPeriod, "trailingPE", "trailing", trailingPe, trailingClean),
+        multipleOutcome(
+          yahoo,
+          yahooPeriod,
+          "trailingPE",
+          "trailing PE",
+          "trailing earnings",
+          trailingPe,
+          trailingClean,
+        ),
     },
     ...(trailingPe !== undefined && !trailingClean
       ? [
@@ -97,7 +108,16 @@ function peDefinitionsFor(
       unit: "ratio",
       basis:
         "Yahoo Finance forward price/earnings; consensus forward EPS has no provider as-of date",
-      compute: () => peOutcome(yahoo, yahooPeriod, "forwardPE", "forward", forwardPe, forwardClean),
+      compute: () =>
+        multipleOutcome(
+          yahoo,
+          yahooPeriod,
+          "forwardPE",
+          "forward PE",
+          "forward earnings",
+          forwardPe,
+          forwardClean,
+        ),
     },
     ...(forwardPe !== undefined && !forwardClean
       ? [
@@ -116,7 +136,16 @@ function peDefinitionsFor(
       label: "Price/book",
       unit: "ratio",
       basis: "Yahoo Finance price/book",
-      compute: () => evidenceOutcome(yahoo, "priceToBook", "price/book", "ratio", yahooPeriod),
+      compute: () =>
+        multipleOutcome(
+          yahoo,
+          yahooPeriod,
+          "priceToBook",
+          "price/book",
+          "book value",
+          priceToBook,
+          multipleIsClean(priceToBook, bookValue),
+        ),
     },
   ];
 }

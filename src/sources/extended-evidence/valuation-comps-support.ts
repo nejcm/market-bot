@@ -213,6 +213,18 @@ export function valuationCompsSkippedGap(symbol: string): SourceGap {
   );
 }
 
+export function valuationCompsBriefGap(symbol: string): SourceGap {
+  return {
+    ...valuationCompsGap(
+      `Valuation peer comps not collected for ${symbol}: brief runs skip the peer comparison`,
+      "suppressed-by-design",
+      "valuation-peers",
+      symbol.toUpperCase(),
+    ),
+    evidenceQualityImpact: "no-cap",
+  };
+}
+
 export function peerImpliedRangeSuppressionGaps(
   artifact: ValuationCompsArtifact,
 ): readonly SourceGap[] {

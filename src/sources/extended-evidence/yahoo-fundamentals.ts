@@ -6,7 +6,7 @@ import {
 } from "../../cli/job-registry";
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { MarketFundamentals, MarketSnapshot } from "../../domain/market-data";
-import { formatPeRatio } from "./value-format";
+import { formatPeRatio, formatPriceToBook } from "./value-format";
 
 // Derives the `yahoo-fundamentals` ExtendedEvidenceItem from the normalized
 // MarketSnapshot.fundamentals (captured once in normalizeYahooQuote), not from
@@ -24,10 +24,6 @@ function tickerSnapshot(
     (snapshot) =>
       snapshot.assetClass === command.assetClass && snapshot.symbol.toUpperCase() === symbol,
   );
-}
-
-function formatRatio(value: number | undefined): string {
-  return value === undefined ? "" : `${value.toFixed(2)}x`;
 }
 
 function formatPercent(value: number | undefined): string {
@@ -53,9 +49,8 @@ export function yahooFundamentalsSummary(
   if (fundamentals.forwardPE !== undefined) {
     parts.push(`forward PE ${formatPeRatio(fundamentals.forwardPE, fundamentals.epsForward)}`);
   }
-  const pbv = formatRatio(fundamentals.priceToBook);
-  if (pbv !== "") {
-    parts.push(`price/book ${pbv}`);
+  if (fundamentals.priceToBook !== undefined) {
+    parts.push(`price/book ${formatPriceToBook(fundamentals.priceToBook, fundamentals.bookValue)}`);
   }
   // Dividend yield is whole-percent (verified against captured fixtures).
   const yieldText = formatPercent(fundamentals.dividendYield);

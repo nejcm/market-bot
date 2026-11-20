@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { postureLabel } from "../../../src/sources/extended-evidence/value-format";
   import type { RunWorkspaceFinancialLensGroup, BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
   import type { FinancialLensStatTone } from "../view-model";
 
@@ -41,7 +42,7 @@
             {group.lens}
           </div>
           <div class="font-mono text-[10px] text-[#737980]">
-            {group.posture.replaceAll("-", " ")}
+            {postureLabel(group.lens, group.posture).replaceAll("-", " ")}
           </div>
         </div>
         <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">

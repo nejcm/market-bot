@@ -16,7 +16,7 @@ import {
   type WebSubjectProfileQuestionKey,
 } from "../web-evidence/contract";
 import { compactNumber } from "./equity-reader-trends";
-import { phaseLabel } from "../sources/extended-evidence/value-format";
+import { phaseLabel, postureLabel } from "../sources/extended-evidence/value-format";
 import { citedSourceIds, markdownText, readStringArray, sourceRefs } from "./markdown-primitives";
 
 export function renderBusinessFramework(report: ResearchReport): string {
@@ -46,7 +46,7 @@ export function renderBusinessFramework(report: ResearchReport): string {
     }
     const posture =
       name !== "Phase" && section.posture !== undefined
-        ? ` (${markdownText(section.posture)})`
+        ? ` (${markdownText(postureLabel(name, section.posture))})`
         : "";
     const text = section.text ?? section.summary ?? "";
     if (text === "") {

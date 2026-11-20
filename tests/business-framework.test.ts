@@ -902,6 +902,24 @@ describe("business framework evidence", () => {
     expect(valuation?.summary).toContain(REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT);
   });
 
+  test.each(["not-supportable", "screening-only"])(
+    "reads Valuation as insufficient-data when peer supportability is %s",
+    (valuationSupportability) => {
+      const baseEvidence = evidence();
+      const result = framework({
+        ...baseEvidence,
+        items: baseEvidence.items.map((item) =>
+          item.category === "valuation"
+            ? { ...item, metrics: { ...item.metrics, valuationSupportability } }
+            : item,
+        ),
+      });
+      expect(
+        result.artifact?.sections.find((section) => section.name === "Valuation")?.posture,
+      ).toBe("insufficient-data");
+    },
+  );
+
   test("publishes EV/revenue as not meaningful below the revenue de-minimis floor", () => {
     // NBIS run 1c6c4809: FY2025 20-F (0001104659-26-052948, public 2026-04-30) revenue $529.8M against a $36.33B quote market cap.
     const sourceIds = ["market-aapl", "extended-sec-edgar-aapl-fundamentals"];

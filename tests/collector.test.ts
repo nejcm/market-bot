@@ -983,6 +983,47 @@ describe("collectSources", () => {
     );
   });
 
+  test("declares the by-design peer comparison skip on a brief run with target valuation", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({ quoteResponse: { result: [collectorQuote("AAPL", 1000)] } });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload(100, true));
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ sic: "3571", filings: { recent: { form: [], filingDate: [] } } });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.extendedEvidence?.items.some((item) => item.category === "valuation")).toBe(true);
+    expect(result.valuationComps).toBeUndefined();
+    expect(result.sourceGaps.filter((gap) => gap.source === "valuation-peers")).toEqual([
+      expect.objectContaining({
+        message: "Valuation peer comps not collected for AAPL: brief runs skip the peer comparison",
+        cause: "suppressed-by-design",
+        evidenceQualityImpact: "no-cap",
+      }),
+    ]);
+  });
+
   test("declares a stale capex concept history as a collected source gap", async () => {
     const companyFacts = collectorSecPayload() as {
       facts: { "us-gaap": Record<string, unknown> };

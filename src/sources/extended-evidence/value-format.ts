@@ -22,14 +22,34 @@ export const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
 };
 
 export const PE_NOT_MEANINGFUL = "N/M (non-positive earnings)";
+export const PB_NOT_MEANINGFUL = "N/M (non-positive book value)";
 
-// P/E on a loss or zero earnings is not meaningful, never a negative or huge multiple.
-export function peIsClean(pe: number | undefined, eps: number | undefined): pe is number {
-  return pe !== undefined && Number.isFinite(pe) && pe > 0 && (eps === undefined || eps > 0);
+// A multiple on zero or negative earnings or book value is not meaningful, never a negative or huge one.
+export function multipleIsClean(
+  multiple: number | undefined,
+  denominator: number | undefined,
+): multiple is number {
+  return (
+    multiple !== undefined &&
+    Number.isFinite(multiple) &&
+    multiple > 0 &&
+    (denominator === undefined || denominator > 0)
+  );
 }
 
 export function formatPeRatio(pe: number, eps?: number): string {
-  return peIsClean(pe, eps) ? `${pe.toFixed(2)}x` : PE_NOT_MEANINGFUL;
+  return multipleIsClean(pe, eps) ? `${pe.toFixed(2)}x` : PE_NOT_MEANINGFUL;
+}
+
+// Value and Valuation pass on a supportable peer comparison alone, never on where the price sits.
+export function postureLabel(name: string, posture: string): string {
+  return (name === "Value" || name === "Valuation") && posture === "criteria-supported"
+    ? "Peer-multiple comparison supported"
+    : posture;
+}
+
+export function formatPriceToBook(priceToBook: number, bookValue?: number): string {
+  return multipleIsClean(priceToBook, bookValue) ? `${priceToBook.toFixed(2)}x` : PB_NOT_MEANINGFUL;
 }
 
 // Each threshold sits where the tier below would round up to "1000.0".

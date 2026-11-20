@@ -104,17 +104,14 @@ const LENS_CLASSIFIER_FAULT_SCENARIOS: readonly LensClassifierFaultScenario[] = 
   [
     "rejects a corrupted instant-pair lens metric after its hash is regenerated",
     "fpi-quarterly",
-    [
-      [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", -1],
-      [`${FINANCIAL_STRENGTH_PATH}.posture`, "set", "criteria-supported"],
-    ],
-    [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`, `${FINANCIAL_STRENGTH_PATH}.posture`],
+    [[`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", 1]],
+    [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`],
     classifierPattern(
       "fpi-quarterly ",
       `${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`,
       " is not reproduced by financial-lens properties",
     ),
-    [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`, `${FINANCIAL_STRENGTH_PATH}.posture`],
+    [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`],
   ],
   [
     "rejects a corrupted lens posture after its hash is regenerated",
@@ -236,10 +233,10 @@ describe("offline financial-statement corpus — financial-lens properties and c
     expect(postures.toSorted()).toEqual([
       "fpi-ifrs-semiannual:Financial Strength:insufficient-data",
       "fpi-ifrs-semiannual:Growth:criteria-supported",
-      "fpi-ifrs-semiannual:Quality:criteria-supported",
+      "fpi-ifrs-semiannual:Quality:insufficient-data",
       "fpi-quarterly:Financial Strength:criteria-not-supported",
       "fpi-quarterly:Growth:criteria-supported",
-      "fpi-quarterly:Quality:criteria-supported",
+      "fpi-quarterly:Quality:insufficient-data",
       "nbis:Financial Strength:insufficient-data",
       "nbis:Growth:criteria-mixed",
       "nbis:Quality:criteria-mixed",
@@ -305,7 +302,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 61 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 59 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -333,7 +330,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(61);
+    expect(lensAllowances).toHaveLength(59);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(

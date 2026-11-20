@@ -9,6 +9,9 @@ import type {
 import { priorComparable } from "./financial-lens-canonical";
 import {
   acquisitionWindowCaveat,
+  postureFrom,
+  criterionOf,
+  type PostureCriterion,
   withCurrentEquityNote,
   withRevenueMultipleVerdict,
   yoyDirection,
@@ -16,6 +19,7 @@ import {
   statementYearOverYear,
   summaryYearOverYear,
 } from "./financial-lens-inputs";
+import { yoyLabel } from "./financial-lens-growth";
 import {
   itemByCategory,
   secFundamentalItem,
@@ -906,6 +910,15 @@ function sectionDefinitions(
         change: YOY_CHANGE,
         compute: (context) => yearOverYear(context, "netIncome"),
       },
+      {
+        id: "operatingCashFlowDeltaPercent",
+        label: yoyLabel(ctx, "operatingCashFlow"),
+        unit: "whole-percent",
+        basis: YOY_BASIS,
+        change: YOY_CHANGE,
+        cashFlowBased: true,
+        compute: (context) => yearOverYear(context, "operatingCashFlow"),
+      },
     ],
     Risk: [
       {
@@ -966,91 +979,62 @@ function sectionDefinitions(
   };
 }
 
-function criteriaPosture(
-  criteria: readonly (boolean | undefined)[],
-  requiredCount = 1,
-): BusinessFrameworkPosture {
-  const known = criteria.filter((value): value is boolean => value !== undefined);
-  if (known.length < requiredCount || known.length === 0) {
-    return "insufficient-data";
-  }
-  const supported = known.filter(Boolean).length;
-  if (supported === known.length) {
-    return "criteria-supported";
-  }
-  return supported === 0 ? "criteria-not-supported" : "criteria-mixed";
-}
-
 // Revenue growth alone says nothing about balance-sheet risk, so one balance-sheet criterion must be known.
 function riskPosture(
-  balanceSheet: readonly (boolean | undefined)[],
-  revenueGrowth: boolean | undefined,
+  balanceSheet: readonly PostureCriterion[],
+  revenueGrowth: PostureCriterion,
 ): BusinessFrameworkPosture {
   return balanceSheet.every((value) => value === undefined)
     ? "insufficient-data"
-    : criteriaPosture([...balanceSheet, revenueGrowth]);
-}
-
-function meets(
-  value: number | undefined,
-  criterion: (value: number) => boolean,
-): boolean | undefined {
-  return value === undefined ? undefined : criterion(value);
+    : postureFrom([...balanceSheet, revenueGrowth]);
 }
 
 function postures(
   ctx: MetricContext,
   sections: Readonly<Partial<Record<BusinessFrameworkSectionName, MetricSection>>>,
 ): Readonly<Record<BusinessFrameworkSectionName, BusinessFrameworkPosture>> {
-  const valueIn = (name: BusinessFrameworkSectionName, id: string): number | undefined => {
-    const result = sections[name]?.metrics.find((metric) => metric.id === id);
-    return result?.status === "value" && typeof result.value === "number"
-      ? result.value
-      : undefined;
-  };
-  const present = (id: string) => meets(valueIn("Business", id), () => true);
+  const check = (
+    name: BusinessFrameworkSectionName,
+    id: string,
+    test: (value: number) => boolean,
+  ): PostureCriterion => criterionOf(sections[name]?.metrics, id, test);
+  const present = (id: string) => check("Business", id, () => true);
   const positive = (id: string) =>
-    meets(
-      yoyDirection(sections.Growth?.metrics.find((metric) => metric.id === id)),
-      (value) => value > 0,
-    );
-  const revenueDelta = valueIn("Growth", "revenueDeltaPercent");
+    criterionOf(sections.Growth?.metrics, id, (value) => value > 0, yoyDirection);
+  const revenueGrowth = check("Growth", "revenueDeltaPercent", (value) => value >= 0);
   const supportability = valuationSupportability(ctx);
   const { classification } = phaseInputs(ctx);
   return {
-    Business: criteriaPosture(
-      [present("revenue"), present("grossProfit"), present("operatingIncome")],
-      2,
-    ),
+    Business: postureFrom([present("revenue"), present("grossProfit"), present("operatingIncome")]),
     Phase: (
-      revenueDelta === undefined
+      revenueGrowth === undefined
         ? !hasCapitalReturn(classification)
         : classifyBusinessLifecyclePhase(classification) === undefined
     )
       ? "insufficient-data"
       : "criteria-supported",
-    Moat: criteriaPosture([
-      meets(valueIn("Moat", "grossMargin"), (value) => value >= 0.4),
-      meets(valueIn("Moat", "operatingMargin"), (value) => value > 0),
+    Moat: postureFrom([
+      check("Moat", "grossMargin", (value) => value >= 0.4),
+      check("Moat", "operatingMargin", (value) => value > 0),
     ]),
-    Growth: criteriaPosture(
+    Growth: postureFrom(
       [
         positive("revenueDeltaPercent"),
         positive("operatingIncomeDeltaPercent"),
         positive("netIncomeDeltaPercent"),
-        meets(yoyDirection(yearOverYear(ctx, "operatingCashFlow")), (value) => value > 0),
+        positive("operatingCashFlowDeltaPercent"),
       ],
       2,
     ),
     Management: "insufficient-data",
     Risk: riskPosture(
       [
-        meets(valueIn("Risk", "currentRatio"), (value) => value >= 1),
-        meets(valueIn("Risk", "debtToMarketCap"), (value) => value <= 0.5),
+        check("Risk", "currentRatio", (value) => value >= 1),
+        check("Risk", "debtToMarketCap", (value) => value <= 0.5),
       ],
-      meets(revenueDelta, (value) => value >= 0),
+      revenueGrowth,
     ),
-    Valuation: criteriaPosture([
+    Valuation: postureFrom([
       supportability === undefined || supportability === "not-meaningful"
         ? undefined
         : supportability === "supported",

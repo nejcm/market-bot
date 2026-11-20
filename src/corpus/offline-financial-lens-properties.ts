@@ -1,5 +1,6 @@
 import { isRecord } from "../guards";
 import { deltaPercent } from "../sources/extended-evidence/sec-fundamentals-format";
+import { postureFrom } from "../sources/extended-evidence/financial-lens-inputs";
 import {
   financialStatementFacts,
   financialStatementFactsAreCompatible,
@@ -47,11 +48,6 @@ type LensMetricKey =
   | "roa"
   | "roe";
 type LensMetricRelation = "direct-leaf" | "exact-period" | "instant-pair" | "net-income-period";
-type LensPosture =
-  | "criteria-supported"
-  | "criteria-mixed"
-  | "criteria-not-supported"
-  | "insufficient-data";
 type ProjectedConsumers = OfflineCorpusExecution["projection"]["canonical"];
 type ProjectedLensMetrics = ProjectedConsumers["financialLens"][string]["metrics"];
 
@@ -486,21 +482,6 @@ function verifyNetIncomePeriodMetric(
   );
 }
 
-function postureFrom(values: readonly (boolean | undefined)[], requiredCount = 1): LensPosture {
-  const known = values.filter((value): value is boolean => value !== undefined);
-  if (known.length < requiredCount || known.length === 0) {
-    return "insufficient-data";
-  }
-  const supported = known.filter(Boolean).length;
-  if (supported === known.length) {
-    return "criteria-supported";
-  }
-  if (supported === 0) {
-    return "criteria-not-supported";
-  }
-  return "criteria-mixed";
-}
-
 function metricValue(metrics: ProjectedLensMetrics, key: string): number | undefined {
   const value = metrics[key]?.value;
   return typeof value === "number" ? value : undefined;
@@ -580,6 +561,9 @@ function verifyLensPosture(
     posture ===
     postureFrom([
       netDebt === undefined ? undefined : netDebt <= 0,
+      // Without a quote the two market-cap criteria stay unassessed.
+      undefined,
+      undefined,
       currentRatio === undefined ? undefined : currentRatio >= 1,
     ])
   );

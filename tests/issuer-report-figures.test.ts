@@ -883,12 +883,12 @@ describe("issuer report phase", () => {
       expect(phaseSection?.sourceIds).toContain("web-0097.kl-klse");
       expect(phaseSection?.summary).toContain("Phase hyper-growth");
       expect(framework?.sections.find(({ name }) => name === "Growth")?.posture).toBe(
-        "criteria-supported",
+        "insufficient-data",
       );
       expect(
         sources.extendedEvidence?.items.find(({ category }) => category === "business-framework")
           ?.metrics,
-      ).toMatchObject({ phase: "hyper-growth", growthPosture: "criteria-supported" });
+      ).toMatchObject({ phase: "hyper-growth", growthPosture: "insufficient-data" });
       const phaseGaps = sources.sourceGaps.filter(
         ({ source: gap }) => gap === "business-framework-phase",
       );

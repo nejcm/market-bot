@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/sources";
+import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
 import { FINANCIAL_LENS_ORDER, financialLensMetricSectionId } from "./financial-lens-contract";
 import { type FinancialLensName, type FinancialLensPosture } from "./financial-lens-metrics";
@@ -11,13 +12,17 @@ import {
   type MetricSection,
 } from "./metric-engine";
 import { type LensValueUnit } from "./value-format";
+import { readNumberMetric } from "./utils";
+import { latestFinancialStatementFact } from "./financial-statement-selection";
 import {
   type MetricPeriod,
   periodEndInput,
   withCompleteDebt,
-  positiveOf,
-  atOrBelow,
   postureFrom,
+  criterionOf,
+  type PostureCriterion,
+  secItem,
+  eligibleFacts,
   valuationItem,
   summaryCurrentness,
   withNetDebtApplicability,
@@ -120,7 +125,13 @@ function momentumDefinitions(): readonly MetricDefinition[] {
         compute: (ctx) => {
           const value = ctx.verifiedSnapshot?.indicators?.[key] ?? undefined;
           return value === undefined
-            ? { status: "missing", reason: `no verified ${key}` }
+            ? {
+                status: "missing",
+                reason:
+                  ctx.verifiedSnapshot === undefined
+                    ? `no verified ${key}`
+                    : `${key} not computable from the verified chart's sessions`,
+              }
             : {
                 status: "value",
                 value,
@@ -153,24 +164,14 @@ function meets(
   return value === undefined ? undefined : criterion(value);
 }
 
-function filedMetric(section: readonly MetricResult[] | undefined, id: string): boolean {
-  const metric = section?.find((candidate) => candidate.id === id);
-  return (
-    metric?.inputs.some(
-      (input) =>
-        input.artifact === "statements" ||
-        (input.artifact === "evidence" && input.category === "sec-edgar"),
-    ) === true
-  );
-}
+const positive = (value: number): boolean => value > 0;
 
 function qualityPosture(section: readonly MetricResult[] | undefined): FinancialLensPosture {
-  return postureFrom([
-    positiveOf(valueOf(section, "grossMargin")),
-    positiveOf(valueOf(section, "operatingMargin")),
-    positiveOf(valueOf(section, "netMargin")),
-    positiveOf(valueOf(section, "freeCashFlowProxy")),
-  ]);
+  return postureFrom(
+    ["grossMargin", "operatingMargin", "netMargin", "freeCashFlowProxy"].map((id) =>
+      criterionOf(section, id, positive),
+    ),
+  );
 }
 
 function growthPosture(section: readonly MetricResult[] | undefined): FinancialLensPosture {
@@ -182,7 +183,7 @@ function growthPosture(section: readonly MetricResult[] | undefined): FinancialL
       "netIncomeDeltaPercent",
       "dilutedEpsDeltaPercent",
       "operatingCashFlowDeltaPercent",
-    ].map((id) => positiveOf(yoyDirection(section?.find((metric) => metric.id === id)))),
+    ].map((id) => criterionOf(section, id, positive, yoyDirection)),
     2,
   );
 }
@@ -194,22 +195,37 @@ function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
   return meets(evidenceDisplayNetDebt(ctx), (value) => value <= 0);
 }
 
+// Payout applies once the issuer filed a dividend, stale or not; only a current filed ratio assesses it.
+function payoutCriterion(
+  ctx: MetricContext,
+  section: readonly MetricResult[] | undefined,
+): PostureCriterion {
+  const dividend =
+    ctx.statements === undefined
+      ? readNumberMetric(secItem(ctx)?.metrics, "dividendsPaid")
+      : latestFinancialStatementFact(eligibleFacts(ctx, "dividendsPaid"))?.value;
+  if (dividend === undefined || dividend === 0) {
+    return "not-applicable";
+  }
+  const payout = section?.find((metric) => metric.id === "payoutRatio");
+  return payout !== undefined && filedInput(payout)
+    ? criterionOf(section, "payoutRatio", (value) => value <= 0.8)
+    : undefined;
+}
+
 function strengthPosture(
   ctx: MetricContext,
   section: readonly MetricResult[] | undefined,
 ): FinancialLensPosture {
-  const netDebtCriterion =
-    ctx.statements === undefined
-      ? summaryNetDebtCriterion(ctx)
-      : meets(valueOf(section, "netDebt"), (value) => value <= 0);
+  const netDebt = criterionOf(section, "netDebt", (value) => value <= 0);
   return postureFrom([
-    netDebtCriterion,
-    meets(valueOf(section, "netDebtToMarketCap"), (value) => value <= 0.25),
-    meets(valueOf(section, "debtToMarketCap"), (value) => value <= 0.5),
-    meets(valueOf(section, "currentRatio"), (value) => value >= 1),
-    filedMetric(section, "payoutRatio")
-      ? atOrBelow(valueOf(section, "payoutRatio"), 0.8)
-      : undefined,
+    ctx.statements === undefined && netDebt !== "not-applicable"
+      ? summaryNetDebtCriterion(ctx)
+      : netDebt,
+    criterionOf(section, "netDebtToMarketCap", (value) => value <= 0.25),
+    criterionOf(section, "debtToMarketCap", (value) => value <= 0.5),
+    criterionOf(section, "currentRatio", (value) => value >= 1),
+    payoutCriterion(ctx, section),
   ]);
 }
 
@@ -324,10 +340,37 @@ export function financialLensMetrics(ctx: MetricContext): {
     Value: valuePosture(ctx),
     Momentum: momentumPosture(ctx, lensMetrics.Momentum),
   };
+  const strength = lensMetrics["Financial Strength"];
+  const symbol = ctx.symbol.toUpperCase();
+  const displayOnlyPayout =
+    payoutCriterion(ctx, strength) === undefined &&
+    strength.find((metric) => metric.id === "payoutRatio")?.status === "value";
   return {
     sections,
     lensMetrics,
     postures,
-    sourceGaps: emitted.flatMap(([, { sourceGaps }]) => sourceGaps),
+    sourceGaps: [
+      // Momentum never has a filed input, so its gaps follow the verified chart its posture reads.
+      ...evaluated
+        .filter(
+          (entry) =>
+            emitted.includes(entry) ||
+            (entry[0] === "Momentum" && ctx.verifiedSnapshot !== undefined),
+        )
+        .flatMap(([, { sourceGaps }]) => sourceGaps),
+      ...(displayOnlyPayout
+        ? [
+            sourceGap({
+              source: financialLensMetricSectionId("Financial Strength"),
+              message: `Financial Lens: Financial Strength payout criterion for ${symbol} not assessed: no current same-period filed payout ratio; the Yahoo-derived ratio is display-only`,
+              symbol,
+              provider: "market-bot",
+              capability: "extended-evidence",
+              cause: "provider-data-missing",
+              evidenceQualityImpact: "no-cap",
+            }),
+          ]
+        : []),
+    ],
   };
 }

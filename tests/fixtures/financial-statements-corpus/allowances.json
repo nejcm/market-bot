@@ -201,14 +201,6 @@
   },
   {
     "fixture": "fpi-quarterly",
-    "path": "financialLens.Quality.posture",
-    "canonicalSha256": "74a835630410ede1d1f0fb7dff74ff704fdc1ead6d988a8a32b0f47cf5370198",
-    "legacySha256": "664fbc7d28652a5d615db5026767ec834049a0c53941f40f311039fda6416bda",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-quarterly canonical Quality.posture comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "fpi-quarterly",
     "path": "financialLens.Quality.metrics.cashConversion",
     "canonicalSha256": "1359643855a9036e42171d2c6d11fda68b1ae7f114c894884b686b117a645ea7",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
@@ -334,14 +326,6 @@
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-ifrs-semiannual canonical Growth.metrics.revenueDeltaPercent comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "fpi-ifrs-semiannual",
-    "path": "financialLens.Quality.posture",
-    "canonicalSha256": "74a835630410ede1d1f0fb7dff74ff704fdc1ead6d988a8a32b0f47cf5370198",
-    "legacySha256": "664fbc7d28652a5d615db5026767ec834049a0c53941f40f311039fda6416bda",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical Quality.posture comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   },
   {
     "fixture": "fpi-ifrs-semiannual",

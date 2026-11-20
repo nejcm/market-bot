@@ -1251,7 +1251,7 @@ test("prompt evidence keeps nonmigrated summary prose while stripping migrated v
   };
   const projected = withoutRestatedMetricValues(evidence, [migrated]);
   const { summary } = projected.items[0]!;
-  expect(summary).toContain("Momentum criteria-");
+  expect(summary).toContain("Momentum insufficient-data");
   expect(summary).toContain("SMA50");
   expect(summary).not.toBe(item.summary);
   expect(projected.items[0]!.metrics).not.toHaveProperty(latest.key);

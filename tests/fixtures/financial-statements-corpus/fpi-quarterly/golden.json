@@ -1701,7 +1701,7 @@
     },
     "financialLens": {
       "Quality": {
-        "posture": "criteria-supported",
+        "posture": "insufficient-data",
         "metrics": {
           "grossMargin": {
             "key": "grossMargin",

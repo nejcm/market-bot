@@ -4,6 +4,7 @@ import type { ExtendedEvidence } from "../src/domain/evidence";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { reportInvariantViolations } from "../src/corpus/report-invariants";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { postureFrom } from "../src/sources/extended-evidence/financial-lens-inputs";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { marketSnapshot, verifiedMarketSnapshot } from "./support/fixtures";
@@ -120,6 +121,20 @@ const D7_ALIGNED_MARGIN: Record<string, unknown> = {
   ...REVENUE,
   GrossProfit: { units: { USD: [annualFact(30, "2025-01-01", "2025-12-31")] } },
 };
+
+test.each([
+  [[true, true, true, true], "criteria-supported"],
+  [[true, false, true, true], "criteria-mixed"],
+  [[false, false, undefined, false], "criteria-not-supported"],
+  [[true, true, undefined, true], "insufficient-data"],
+  [[true, false, undefined, true], "criteria-mixed"],
+  [[undefined, undefined, undefined, undefined], "insufficient-data"],
+] as const)(
+  "posture of %p is %s: an unassessed criterion never yields support",
+  (criteria, posture) => {
+    expect(postureFrom(criteria)).toBe(posture);
+  },
+);
 
 test("cash carries its filed CAD currency instead of the USD quote currency", () => {
   const { input } = synthetic({

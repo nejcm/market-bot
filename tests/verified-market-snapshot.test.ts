@@ -450,6 +450,21 @@ describe("collectVerifiedMarketSnapshot", () => {
     expect(result.snapshot?.symbol).toBe("AAPL");
     expect(result.snapshot?.assetClass).toBe("equity");
     expect(result.snapshot?.latestSessionDate).toBe("2024-03-20");
+    expect(result.snapshot?.currency).toBeUndefined();
+  });
+
+  test.each([
+    ["MYR", "MYR"],
+    ["GBp", "GBp"],
+    ["USD. Buy JPM.", undefined],
+    ["", undefined],
+    [840, undefined],
+  ])("carries a chart currency %p as %p", async (currency, expected) => {
+    const payload = chartPayloadWith80Bars() as { chart: { result: Record<string, unknown>[] } };
+    payload.chart.result[0]!.meta = { currency };
+    const ctx = makeCtx(async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
+    expect(result.snapshot?.currency).toBe(expected);
   });
 
   test("declares a newer dropped Yahoo bar without replacing the latest usable session", async () => {

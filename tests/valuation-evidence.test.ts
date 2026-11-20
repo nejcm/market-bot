@@ -112,7 +112,10 @@ describe("addValuationEvidence", () => {
       );
 
       expect(valuationItem(result)).toBeUndefined();
-      expect(result.sourceGaps[0]?.message).toContain("quote currency undeclared is not USD");
+      expect(result.sourceGaps[0]).toMatchObject({
+        cause: "provider-data-missing",
+        message: expect.stringContaining("quote currency undeclared,"),
+      });
     });
 
     test("declares the missing market cap, not a currency, when the snapshot has neither", () => {
@@ -130,7 +133,12 @@ describe("addValuationEvidence", () => {
       const result = valuationWith("EUR", "MYR");
 
       expect(result.sourceGaps).toHaveLength(1);
-      expect(result.sourceGaps[0]?.message).toContain("quote currency MYR is not USD");
+      expect(result.sourceGaps[0]).toMatchObject({
+        cause: "unsupported-coverage",
+        message: expect.stringContaining(
+          "quote currency MYR unsupported; Valuation Evidence supports USD only",
+        ),
+      });
     });
   });
 

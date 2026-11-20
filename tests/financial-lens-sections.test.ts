@@ -193,6 +193,9 @@ test("market leverage withholds mismatched currencies and retains quote currency
   ).toContain("currency");
 });
 
+const INCOMPATIBLE = "filed amounts and quote market cap have incompatible currency";
+const UNDECLARED = "filed amounts or quote market cap have an undeclared currency";
+
 test("PCF withholds CAD operating cash flow beside a USD market cap", () => {
   const pcf = (unit: string) =>
     synthetic({
@@ -205,18 +208,18 @@ test("PCF withholds CAD operating cash flow beside a USD market cap", () => {
       .find((metric) => metric.id === "pcfRatio");
   expect(pcf("CAD")).toMatchObject({
     status: "missing",
-    reason: "filed amounts and quote market cap have incompatible currency",
+    reason: INCOMPATIBLE,
   });
   expect(pcf("USD")).toMatchObject({ status: "value", value: 20 });
 });
 
 test.each([
-  ["both USD", "USD", "USD", "value"],
-  ["both CAD", "CAD", "CAD", "value"],
-  ["a CAD filing beside a USD quote", "USD", "CAD", "missing"],
-  ["an undeclared quote currency", undefined, "USD", "missing"],
-  ["an undeclared filed currency", "USD", null, "missing"],
-] as const)("market leverage on %s", (_, quoteCurrency, filedCurrency, status) => {
+  ["both USD", "USD", "USD", undefined],
+  ["both CAD", "CAD", "CAD", undefined],
+  ["a CAD filing beside a USD quote", "USD", "CAD", INCOMPATIBLE],
+  ["an undeclared quote currency", undefined, "USD", UNDECLARED],
+  ["an undeclared filed currency", "USD", null, UNDECLARED],
+] as const)("market leverage on %s", (_, quoteCurrency, filedCurrency, reason) => {
   const unit = filedCurrency ?? "USD";
   const artifact = statements({
     Revenues: { units: { [unit]: [annualFact(100, "2025-01-01", "2025-12-31")] } },
@@ -264,9 +267,7 @@ test.each([
     expect(
       result.metricSections?.flatMap((section) => section.metrics).find((row) => row.id === id),
     ).toMatchObject(
-      status === "value"
-        ? { status, value }
-        : { status, reason: "filed amounts and quote market cap have incompatible currency" },
+      reason === undefined ? { status: "value", value } : { status: "missing", reason },
     );
   }
 });

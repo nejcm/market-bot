@@ -36,6 +36,11 @@ export type MarketSnapshotPriceAsOf =
   | { readonly kind: "quote-time"; readonly instant: string }
   | { readonly kind: "fetch-time-only"; readonly instant: string };
 
+// ISO 4217, plus Yahoo minor-unit codes such as GBp and ZAc.
+export function declaredCurrencyCode(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Z]{2}[A-Za-z]$/u.test(value) ? value : undefined;
+}
+
 export function resolveMarketSnapshotPriceAsOf(
   snapshot: Pick<MarketSnapshot, "observedAt" | "quoteTimeUtc">,
 ): MarketSnapshotPriceAsOf {
@@ -157,6 +162,7 @@ export interface IndicatorMap {
 export interface VerifiedMarketSnapshot {
   readonly symbol: string;
   readonly assetClass: "equity";
+  readonly currency?: string;
   /** YYYY-MM-DD — run/report date (UTC date of the run) */
   readonly analysisDate: string;
   /** ISO timestamp of the underlying payload fetch — original fetch time when served from cache (provenance for the report Source) */

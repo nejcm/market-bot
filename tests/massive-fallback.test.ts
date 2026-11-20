@@ -32,7 +32,8 @@ describe("massive-fallback", () => {
   test("builds Yahoo-compatible quote payload with market cap from ticker details", async () => {
     const fetchImpl: FetchLike = async (input) => {
       const url = String(input);
-      if (url.includes("/v2/snapshot/")) {
+      // The USD currency tag holds only for the US-locale stocks endpoint.
+      if (url.includes("/v2/snapshot/locale/us/markets/stocks/")) {
         return jsonResponse({
           tickers: [
             {
@@ -64,7 +65,7 @@ describe("massive-fallback", () => {
       { enrichTickerDetails: true },
     );
 
-    expect(fallback).toBeDefined();
+    expect(fallback?.payload).toMatchObject({ quoteResponse: { result: [{ currency: "USD" }] } });
     const snapshots = massiveSnapshotsFromQuoteFallback(fallback!);
     expect(snapshots).toEqual([
       expect.objectContaining({

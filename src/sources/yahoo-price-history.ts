@@ -11,6 +11,7 @@ import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "
 import { yahooResilientFetchWrapper } from "./yahoo";
 import {
   classifyLatestSession,
+  readYahooChartCurrency,
   readYahooRegularSession,
   splitAdjustedObservationsFromYahooChart,
   yahooChartSplitDates,
@@ -90,7 +91,7 @@ export async function collectPriceHistory(
         : undefined;
     const result =
       Array.isArray(chart?.result) && isRecord(chart.result[0]) ? chart.result[0] : undefined;
-    const currency = isRecord(result?.meta) ? readString(result.meta, "currency") : undefined;
+    const currency = readYahooChartCurrency(fetched.payload);
     const returnedSymbol = isRecord(result?.meta) ? readString(result.meta, "symbol") : undefined;
     const mismatch = returnedSymbol !== undefined && returnedSymbol.toUpperCase() !== ticker;
     let reason: string | undefined = undefined;

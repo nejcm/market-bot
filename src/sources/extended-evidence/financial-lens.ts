@@ -4,7 +4,7 @@ import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market
 import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
-import { financialLensMetrics } from "./financial-lens-sections";
+import { financialLensMetrics, latestCloseCurrency } from "./financial-lens-sections";
 import { secIssuerRegistration } from "./industry-classification";
 import {
   itemByCategory,
@@ -242,6 +242,9 @@ export function addFinancialLensEvidence(
     ...(secItem === undefined ? ["SEC fundamentals"] : []),
     ...(valuationItem === undefined ? ["valuation evidence"] : []),
     ...(verifiedMarketSnapshot === undefined ? ["verified market snapshot"] : []),
+    ...(verifiedMarketSnapshot !== undefined && latestCloseCurrency(ctx) === undefined
+      ? ["latest close currency"]
+      : []),
   ];
   const gaps = missing.length === 0 ? [] : [financialLensGap(command.symbol, missing)];
   const mergedEvidence: ExtendedEvidence = {

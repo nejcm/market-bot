@@ -23,6 +23,7 @@ import type {
   ValuationFundamentalInput,
   ValuationMetricKey,
   ValuationPriceInput,
+  ValuationRestatedInput,
 } from "./valuation-workbench-contract";
 
 const DENOMINATOR_LABELS = {
@@ -30,6 +31,13 @@ const DENOMINATOR_LABELS = {
   freeCashFlow: "free-cash-flow",
   revenue: "revenue",
 } as const;
+
+type RestatableKey =
+  | "revenue"
+  | "dilutedEps"
+  | "dilutedShares"
+  | "operatingCashFlow"
+  | "capitalExpenditure";
 
 const EV_WITHHELD_SERIES: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
   "cash-unavailable": ["cash"],
@@ -97,7 +105,9 @@ export function valuationMetricSection(input: {
     readonly pair: string;
     readonly sourceId: string;
   };
-}): ReturnType<typeof evaluateMetricSection> {
+}): ReturnType<typeof evaluateMetricSection> & {
+  readonly restatedInputs: readonly ValuationRestatedInput[];
+} {
   const { period, price, reportingCurrency, quoteCurrency, fx } = input;
   const publicAt = periodPublicAt(period);
   const priceBasis = `first verified close within 7 calendar days on or after publicAt ${publicAt}${price === null ? " (unavailable)" : `; close ${price.sessionDate} ${price.currency}`}${fx === undefined ? "" : `; ${fx.pair} ${fx.rate} on ${fx.date}`}`;
@@ -130,25 +140,15 @@ export function valuationMetricSection(input: {
       ? "mixed-period-balance-sheet"
       : undefined;
   };
-  const restatementBasis = (keys: readonly FinancialStatementSeriesKey[]) => {
-    const restated = keys.filter((key) => period.restatedImmaterially?.[key] !== undefined);
-    return restated.length === 0
-      ? ""
-      : `; ${restated.join(", ")} restated by under 0.1% after the first annual report; restated value used`;
-  };
+  const metricBasis = (id: ValuationMetricKey, formula: string) =>
+    `${period.basis.toUpperCase()}; ${formula}${id === "priceToEarnings" ? "" : sharesBasis}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}`;
+  const restatedUsed = new Map<string, readonly RestatableKey[]>();
   const definitions: readonly MetricDefinition[] = METRICS.map(
     ([id, label, formula, denominatorKey]) => ({
       id,
       label,
       unit: "ratio",
-      basis: `${period.basis.toUpperCase()}; ${formula}${id === "priceToEarnings" ? "" : sharesBasis}; ${priceBasis}${id === "enterpriseValueToRevenue" && period.debtScopeUnproven ? `; ${DEBT_SCOPE_CAVEAT}` : ""}${restatementBasis(
-        [
-          ...(denominatorKey === "freeCashFlow"
-            ? (["operatingCashFlow", "capitalExpenditure"] as const)
-            : [denominatorKey]),
-          ...(id === "priceToEarnings" ? [] : (["dilutedShares"] as const)),
-        ],
-      )}`,
+      basis: metricBasis(id, formula),
       ...(id === "enterpriseValueToRevenue"
         ? {
             applicable: () =>
@@ -162,10 +162,20 @@ export function valuationMetricSection(input: {
         : {}),
       compute: (): MetricOutcome => {
         const needsShares = id !== "priceToEarnings";
+        const denominatorKeys: readonly RestatableKey[] =
+          denominatorKey === "freeCashFlow"
+            ? ["operatingCashFlow", "capitalExpenditure"]
+            : [denominatorKey];
+        // Called only on outcomes that evaluated `keys`; a withheld metric used no input.
+        const usedBasis = (keys: readonly RestatableKey[]) => {
+          const restated = keys.filter((key) => period.restatedImmaterially?.[key] !== undefined);
+          restatedUsed.set(id, restated);
+          return `${metricBasis(id, formula)}${restated.length === 0 ? "" : `; ${restated.join(", ")} restated by under 0.1% after the first annual report; restated value used`}`;
+        };
+        const basis = () =>
+          usedBasis([...denominatorKeys, ...(needsShares ? (["dilutedShares"] as const) : [])]);
         const fundamentals: readonly (ValuationFundamentalInput | undefined)[] = [
-          ...(denominatorKey === "freeCashFlow"
-            ? [period.operatingCashFlow, period.capitalExpenditure]
-            : [period[denominatorKey]]),
+          ...denominatorKeys.map((key) => period[key]),
           ...(needsShares ? [period.dilutedShares] : []),
           ...(id === "enterpriseValueToRevenue"
             ? [period.cash, period.debt, period.enterpriseValueBridge]
@@ -283,6 +293,7 @@ export function valuationMetricSection(input: {
             reason: notMeaningfulReason(denominator.value),
             periodEnd: period.periodEnd,
             inputs: lineage,
+            basis: usedBasis(denominatorKeys),
           };
         }
         if (
@@ -335,7 +346,13 @@ export function valuationMetricSection(input: {
           return missing("non-finite numerator");
         }
         if (denominatorKey !== "revenue") {
-          return { status: "value", value, periodEnd: period.periodEnd, inputs: lineage };
+          return {
+            status: "value",
+            value,
+            periodEnd: period.periodEnd,
+            inputs: lineage,
+            basis: basis(),
+          };
         }
         // A historical observation on its own period's revenue, so no current-TTM freshness verdict.
         const floorReason = revenueMultipleVerdict({
@@ -350,12 +367,19 @@ export function valuationMetricSection(input: {
             : undefined;
         const revenueMultipleReason = floorReason ?? ceilingReason;
         if (revenueMultipleReason === undefined) {
-          return { status: "value", value, periodEnd: period.periodEnd, inputs: lineage };
+          return {
+            status: "value",
+            value,
+            periodEnd: period.periodEnd,
+            inputs: lineage,
+            basis: basis(),
+          };
         }
         return {
           status: "not-meaningful",
           reason: revenueMultipleReason,
           periodEnd: period.periodEnd,
+          basis: basis(),
           // P/S yielding to the EV ceiling cites the debt, cash and bridge facts that decided it.
           inputs:
             ceilingReason !== undefined && id === "priceToSales"
@@ -371,7 +395,7 @@ export function valuationMetricSection(input: {
     }),
   );
   const span = transitionMonths(period);
-  return evaluateMetricSection(
+  const evaluated = evaluateMetricSection(
     `valuation-workbench-${period.basis}-${period.periodEnd}-${publicAt}${span === undefined ? "" : `-${span}m`}`,
     `Valuation Workbench ${period.basis.toUpperCase()} ${period.periodEnd}${span === undefined ? "" : ` (${span} months)`} public ${publicAt}`,
     definitions,
@@ -382,6 +406,16 @@ export function valuationMetricSection(input: {
       ...(input.statements !== undefined ? { statements: input.statements } : {}),
     },
   );
+  const restatedKeys = new Set(
+    evaluated.section.metrics.flatMap(({ id, status }) =>
+      status === "value" || status === "not-meaningful" ? (restatedUsed.get(id) ?? []) : [],
+    ),
+  );
+  const restatedInputs = [...restatedKeys].map((key) => ({
+    label: period[key]!.label,
+    publicAt: period[key]!.publicAt,
+  }));
+  return { ...evaluated, restatedInputs };
 }
 
 export function workbenchMetricRecord(

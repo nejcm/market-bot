@@ -35,6 +35,7 @@ interface ReportMetric {
   readonly priceAsOf?: string;
   readonly reason?: string;
   readonly label?: string;
+  readonly basis?: string;
   readonly inputs?: readonly ReportMetricInput[];
 }
 
@@ -129,6 +130,18 @@ export function reportInvariantViolations(
 
   for (const section of sections) {
     for (const metric of section.metrics) {
+      if (
+        metric.status !== "value" &&
+        metric.status !== "not-meaningful" &&
+        metric.basis?.includes("restated value used") === true
+      ) {
+        add(
+          "restated-value-claimed-on-uncomputed-metric",
+          section.id ?? "",
+          metric.id ?? "",
+          `${metric.status ?? ""} ${metric.reason ?? ""}`,
+        );
+      }
       if (
         generatedAt !== undefined &&
         CURRENT_VALUATION_SECTION.test(section.id ?? "") &&

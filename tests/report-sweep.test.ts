@@ -655,6 +655,15 @@ describe("report sweep", () => {
     expect(invariantsOf({ id: "interestCoverage", unit: "ratio", value: -17.7 })).toEqual([]);
   });
 
+  test("flags a restated-value claim on a metric that computed nothing", () => {
+    const basis =
+      "ANNUAL; revenue restated by under 0.1% after the first annual report; restated value used";
+    const claims = (status: string) => invariantsOf({ id: "priceToSales", status, basis });
+    expect(claims("missing")).toEqual(["restated-value-claimed-on-uncomputed-metric"]);
+    expect(claims("not-applicable")).toEqual(["restated-value-claimed-on-uncomputed-metric"]);
+    expect([...claims("value"), ...claims("not-meaningful")]).toEqual([]);
+  });
+
   test("accepts the negative EV/revenue the Workbench publishes when cash exceeds market cap plus debt", () => {
     const { section } = valuationMetricSection({
       symbol: "TEST",

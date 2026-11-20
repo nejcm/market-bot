@@ -3331,6 +3331,18 @@ function assertValuationWorkbenchInvariants(
       id?.startsWith("valuation-workbench-"),
     ),
   ).toEqual(sections);
+  for (const { basis, periodEnd, metrics, restatedInputs } of observations) {
+    expect(
+      restatedInputs !== undefined,
+      `${basis} ${periodEnd} discloses restated inputs only when a computed metric claims one`,
+    ).toBe(
+      Object.values(metrics).some(
+        (metric) =>
+          (metric.status === "value" || metric.status === "not-meaningful") &&
+          metric.basis.includes("restated value used"),
+      ),
+    );
+  }
   const workbenchGaps = run.collectedSources.sourceGaps.filter(({ source }) =>
     source.startsWith("valuation-workbench-"),
   );

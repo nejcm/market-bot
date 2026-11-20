@@ -329,7 +329,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   restatements mark older incompatible periods `mixed-share-basis`; never rescale, withhold touching TTM/EPS
   CAGR/priors, and disclose on charts/tables. Likewise a later filing's restatement of at least 0.1% of the originally filed value (any change
   from an original of 0) marks older retained annual history points it did not re-present `earlier-basis`
-  (unless already on an earlier share basis); smaller deltas are re-roundings and mark nothing. Never splice
+  (unless already on an earlier share basis); smaller deltas, re-roundings or not, mark nothing. Never splice
   or rescale, withhold CAGR/margin change touching them, and disclose on Financial Trends and history
   cards.
 - Equity Analysis Completeness grades issuer-achievable reporting, distinct from source-achieved Evidence

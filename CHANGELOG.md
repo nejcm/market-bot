@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.61](https://github.com/nejcm/market-bot/compare/v1.19.60...v1.19.61) (2026-11-20)
+
+### Bug Fixes
+
+- **financial-lens:** add liquidity, burn and runway to strength (#286) ([18df97b](https://github.com/nejcm/market-bot/commit/18df97b54200b1c925a404659adb94cda3fd308f))
+
 ## [1.19.60](https://github.com/nejcm/market-bot/compare/v1.19.59...v1.19.60) (2026-11-20)
 
 ### Bug Fixes

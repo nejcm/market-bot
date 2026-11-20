@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.56](https://github.com/nejcm/market-bot/compare/v1.19.55...v1.19.56) (2026-11-20)
+
+### Bug Fixes
+
+- **workbench:** claim restated values only where a metric used them (#281) ([1c6ffe9](https://github.com/nejcm/market-bot/commit/1c6ffe94c8e603df5d92b8f808241544cf59fa3d))
+
 ## [1.19.55](https://github.com/nejcm/market-bot/compare/v1.19.54...v1.19.55) (2026-11-19)
 
 ### Bug Fixes

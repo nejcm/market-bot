@@ -54,6 +54,7 @@ export {
 export { derivePeerImpliedRange } from "./valuation-comps-range";
 export {
   peerImpliedRangeSuppressionGaps,
+  valuationCompsBriefGap,
   valuationCompsSkippedGap,
 } from "./valuation-comps-support";
 

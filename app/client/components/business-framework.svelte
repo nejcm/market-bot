@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { postureLabel } from "../../../src/sources/extended-evidence/value-format";
   import type { Snippet } from "svelte";
   import type { BusinessFrameworkView } from "../view-model";
   import type { BindSection } from "../run-workspace-view";
@@ -29,7 +30,7 @@
             <span
               class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary"
             >
-              {section.posture.replaceAll("-", " ")}
+              {postureLabel(section.name, section.posture).replaceAll("-", " ")}
             </span>
           {/if}
           <div class="text-[12.5px] font-semibold text-foreground">

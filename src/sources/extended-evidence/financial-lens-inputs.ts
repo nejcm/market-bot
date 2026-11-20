@@ -608,6 +608,11 @@ export function valuationItem(ctx: MetricContext): ExtendedEvidenceItem | undefi
   return itemByCategory(ctx.evidence, "valuation");
 }
 
+// Only supported peer comps were compared; every other supportability is a declared Source Gap.
+export function valuationCriterion(ctx: MetricContext): PostureCriterion {
+  return valuationItem(ctx)?.metrics?.valuationSupportability === "supported" ? true : undefined;
+}
+
 // Valuation evidence also cites every peer; a target figure cites only its filing and quote.
 export function targetValuationIds(
   ctx: MetricContext,

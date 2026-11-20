@@ -1214,7 +1214,7 @@ describe("static equity run fixtures", () => {
     expect(appendix).toContain("- **Moat** (criteria-supported):");
     expect(appendix).toContain("- **Management** (insufficient-data):");
     expect(appendix).toContain("- **Risk** (insufficient-data):");
-    expect(appendix).toContain("- **Valuation** (criteria-supported):");
+    expect(appendix).toContain("- **Valuation** (Peer-multiple comparison supported):");
     expect(
       appendix!.match(/^\| (?:8|9|10|11|12|13|14|15|16)% \|(?: \d+\.\d{2}% \|){5}$/gmu),
     ).toHaveLength(9);

@@ -60,6 +60,7 @@ import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import {
   collectValuationComps,
+  valuationCompsBriefGap,
   valuationCompsSkippedGap,
 } from "./extended-evidence/valuation-comps";
 import { collectValuationWorkbench } from "./extended-evidence/valuation-workbench";
@@ -279,10 +280,10 @@ export async function collectEquityEnrichment(
     valuationResult.extendedEvidence ?? input.extendedEvidence,
   );
   const depositoryIssuer = depositorySic !== undefined;
+  const targetValuation =
+    valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true;
   const valuationCompsResult =
-    input.command.depth === "deep" &&
-    !depositoryIssuer &&
-    valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true
+    input.command.depth === "deep" && !depositoryIssuer && targetValuation
       ? await collectValuationComps(
           input.identityContext,
           input.command,
@@ -298,10 +299,14 @@ export async function collectEquityEnrichment(
       : undefined;
   // The skipped gap reads "target valuation unavailable", which is untrue for a depository issuer:
   // The workbench's peer comparison already states why the comparison does not apply.
-  const valuationCompsSkippedGaps =
-    input.command.depth === "deep" && valuationCompsResult === undefined && !depositoryIssuer
-      ? [valuationCompsSkippedGap(input.command.symbol)]
-      : [];
+  let valuationCompsSkippedGaps: readonly SourceGap[] = [];
+  if (valuationCompsResult === undefined && !depositoryIssuer) {
+    if (input.command.depth === "deep") {
+      valuationCompsSkippedGaps = [valuationCompsSkippedGap(input.command.symbol)];
+    } else if (targetValuation) {
+      valuationCompsSkippedGaps = [valuationCompsBriefGap(input.command.symbol)];
+    }
+  }
   const evidenceWithComps =
     valuationCompsResult?.extendedEvidence ?? valuationResult.extendedEvidence;
   const evidenceWithYahooFundamentals = addYahooFundamentals(

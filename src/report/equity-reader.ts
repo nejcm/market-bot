@@ -34,7 +34,7 @@ import {
 export interface EquityReaderMarketMultiple {
   readonly key: "trailingPE" | "forwardPE" | "priceToBook";
   readonly value: number;
-  readonly eps?: number;
+  readonly denominator?: number;
 }
 
 export type EquityReaderCompanyDescription =
@@ -232,7 +232,7 @@ function valuationContext(
             value: fundamentals.trailingPE,
             ...(fundamentals.epsTrailingTwelveMonths === undefined
               ? {}
-              : { eps: fundamentals.epsTrailingTwelveMonths }),
+              : { denominator: fundamentals.epsTrailingTwelveMonths }),
           },
         ]),
     ...(fundamentals?.forwardPE === undefined
@@ -241,12 +241,22 @@ function valuationContext(
           {
             key: "forwardPE" as const,
             value: fundamentals.forwardPE,
-            ...(fundamentals.epsForward === undefined ? {} : { eps: fundamentals.epsForward }),
+            ...(fundamentals.epsForward === undefined
+              ? {}
+              : { denominator: fundamentals.epsForward }),
           },
         ]),
     ...(fundamentals?.priceToBook === undefined
       ? []
-      : [{ key: "priceToBook" as const, value: fundamentals.priceToBook }]),
+      : [
+          {
+            key: "priceToBook" as const,
+            value: fundamentals.priceToBook,
+            ...(fundamentals.bookValue === undefined
+              ? {}
+              : { denominator: fundamentals.bookValue }),
+          },
+        ]),
   ];
   const marketSourceIds = marketSnapshot === undefined ? [] : [marketSnapshot.sourceId];
   if (range?.status === "derived") {

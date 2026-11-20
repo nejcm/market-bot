@@ -18,6 +18,7 @@ import {
   YOY_BASIS,
   statementYearOverYear,
   summaryYearOverYear,
+  valuationCriterion,
 } from "./financial-lens-inputs";
 import { yoyLabel } from "./financial-lens-growth";
 import {
@@ -59,7 +60,7 @@ import {
 } from "./metric-engine";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import { peIsClean, type LensValueUnit } from "./value-format";
+import { multipleIsClean, type LensValueUnit } from "./value-format";
 
 type FrameworkSeries =
   | "revenue"
@@ -578,7 +579,7 @@ function peValue(key: "trailingPE" | "forwardPE", epsKey: string, basis: "traili
       itemByCategory(ctx.evidence, "yahoo-fundamentals")?.metrics,
       epsKey,
     );
-    return outcome.status !== "value" || peIsClean(Number(outcome.value), eps)
+    return outcome.status !== "value" || multipleIsClean(Number(outcome.value), eps)
       ? outcome
       : {
           status: "not-meaningful",
@@ -1002,7 +1003,6 @@ function postures(
   const positive = (id: string) =>
     criterionOf(sections.Growth?.metrics, id, (value) => value > 0, yoyDirection);
   const revenueGrowth = check("Growth", "revenueDeltaPercent", (value) => value >= 0);
-  const supportability = valuationSupportability(ctx);
   const { classification } = phaseInputs(ctx);
   return {
     Business: postureFrom([present("revenue"), present("grossProfit"), present("operatingIncome")]),
@@ -1034,11 +1034,7 @@ function postures(
       ],
       revenueGrowth,
     ),
-    Valuation: postureFrom([
-      supportability === undefined || supportability === "not-meaningful"
-        ? undefined
-        : supportability === "supported",
-    ]),
+    Valuation: postureFrom([valuationCriterion(ctx)]),
   };
 }
 

@@ -18,7 +18,7 @@ import {
 } from "./business-framework-metrics";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import type { MetricSection } from "./metric-engine";
-import { formatMetricValue, phaseLabel, type LensValueUnit } from "./value-format";
+import { formatMetricValue, phaseLabel, postureLabel, type LensValueUnit } from "./value-format";
 
 export {
   isBusinessFrameworkGapCode,
@@ -225,7 +225,7 @@ export function sectionSummary(
   if (name === "Phase") {
     return `Phase classification${metricText === "" ? "" : ` (${metricText})`}`;
   }
-  return `${name} ${posture}${metricText === "" ? "" : ` (${metricText})`}`;
+  return `${name} ${postureLabel(name, posture)}${metricText === "" ? "" : ` (${metricText})`}`;
 }
 
 export function businessFrameworkItemMetrics(

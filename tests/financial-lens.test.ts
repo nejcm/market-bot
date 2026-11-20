@@ -21,7 +21,9 @@ import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-f
 import {
   formatLensValue,
   formatPeRatio,
+  PB_NOT_MEANINGFUL,
   PE_NOT_MEANINGFUL,
+  formatPriceToBook,
 } from "../src/sources/extended-evidence/value-format";
 import { UNTAGGED_EV_BRIDGE, marketSnapshot, researchReport } from "./support/fixtures";
 
@@ -2549,6 +2551,69 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(result.extendedEvidence?.items.at(-1)?.metrics?.forwardPe).toBeUndefined();
   });
 
+  // TDG run 2026-11-20T06-07-09-124Z: Yahoo price/book -6.32 on book value -183.22 a share
+  // (FY2026 10-K 0001260221-26-000077 StockholdersEquity -10,000M).
+  test("publishes price/book on non-positive book value as not meaningful", () => {
+    const lens = (overrides: Record<string, number>) =>
+      addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            secEvidenceWithRatios(),
+            valuationEvidence(),
+            yahooFundamentalsEvidence(overrides),
+          ],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      ).metricSections?.find((section) => section.id === "financial-lens-value")?.metrics;
+
+    expect(
+      lens({ priceToBook: -6.323_714_7, bookValue: -183.223 })?.find(
+        (metric) => metric.id === "priceToBook",
+      ),
+    ).toMatchObject({
+      status: "not-meaningful",
+      reason: "non-positive book value",
+      inputs: [expect.objectContaining({ key: "priceToBook", value: -6.323_714_7 })],
+    });
+    expect(
+      lens({ priceToBook: 12, bookValue: -1 })?.find((metric) => metric.id === "priceToBook")
+        ?.status,
+    ).toBe("not-meaningful");
+    expect(lens({})?.find((metric) => metric.id === "priceToBook")).toMatchObject({
+      status: "value",
+      value: 41.05,
+    });
+    expect(formatPriceToBook(-6.323_714_7, -183.223)).toBe(PB_NOT_MEANINGFUL);
+    expect(formatPriceToBook(41.05, 7.26)).toBe("41.05x");
+  });
+
+  test.each(["not-supportable", "screening-only"])(
+    "reads Value as insufficient-data when peer supportability is %s",
+    (valuationSupportability) => {
+      const valuation = valuationEvidence();
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            secEvidenceWithRatios(),
+            { ...valuation, metrics: { ...valuation.metrics, valuationSupportability } },
+          ],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
+      expect(lensByName(result, "Value")?.posture).toBe("insufficient-data");
+    },
+  );
+
   test("renders P/E as not meaningful on non-positive or non-finite earnings", () => {
     expect(formatPeRatio(10, 0)).toBe(PE_NOT_MEANINGFUL);
     expect(formatPeRatio(Number.POSITIVE_INFINITY)).toBe(PE_NOT_MEANINGFUL);
@@ -3322,6 +3387,18 @@ describe("buildYahooFundamentals", () => {
     expect(item?.summary).toContain(`trailing PE ${PE_NOT_MEANINGFUL}`);
     expect(item?.summary).toContain(`forward PE ${PE_NOT_MEANINGFUL}`);
     expect(item?.summary).not.toContain("-40.00x");
+
+    const negativeBook = buildYahooFundamentals(
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-aapl",
+          fundamentals: { priceToBook: -6.323_714_7, bookValue: -183.223 },
+        }),
+      ],
+      "2026-06-22T00:00:00.000Z",
+    );
+    expect(negativeBook?.summary).toContain(`price/book ${PB_NOT_MEANINGFUL}`);
   });
 
   test("returns undefined when the ticker snapshot has no fundamentals (Massive fallback)", () => {

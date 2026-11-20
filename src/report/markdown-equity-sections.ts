@@ -1,4 +1,4 @@
-import { formatPeRatio } from "../sources/extended-evidence/value-format";
+import { formatPeRatio, formatPriceToBook } from "../sources/extended-evidence/value-format";
 import { perShareCurrency } from "../sources/extended-evidence/yahoo-fundamentals";
 import { type ExtendedEvidenceItem } from "../domain/evidence";
 import {
@@ -259,10 +259,10 @@ export function renderValuationContext(
   }
   const renderedMetrics = metrics.map((metric) => {
     if (metric.key === "priceToBook") {
-      return `price/book ${metric.value.toFixed(2)}x`;
+      return `price/book ${formatPriceToBook(metric.value, metric.denominator)}`;
     }
     const label = metric.key === "trailingPE" ? "trailing P/E" : "forward P/E";
-    return `${label} ${formatPeRatio(metric.value, metric.eps)}`;
+    return `${label} ${formatPeRatio(metric.value, metric.denominator)}`;
   });
   const refs = sourceRefs(knownSourceIds(report, sourceIds));
   const includePriceToBook = !metrics.some((metric) => metric.key === "priceToBook");
@@ -371,7 +371,9 @@ function renderCompactValuationMetrics(
         ]),
     ...(!includePriceToBook || priceToBook === undefined
       ? []
-      : [`price/book ${priceToBook.value.toFixed(2)}x`]),
+      : [
+          `price/book ${formatPriceToBook(priceToBook.value, readNumber(priceToBook.item.metrics ?? {}, "bookValue"))}`,
+        ]),
     ...(epsTtm === undefined
       ? []
       : [`EPS TTM ${epsTtm.value.toFixed(2)}${perShareCurrency(epsTtm.item.identity)}`]),

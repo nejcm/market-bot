@@ -3,6 +3,7 @@ import { reportSearchCandidates } from "../app/report-artifact-view";
 import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { financialLensGroupViews } from "../app/client/run-workspace-detail";
 import { parseCalibrationContext } from "../src/research/calibration-context";
+import { postureLabel } from "../src/sources/extended-evidence/value-format";
 import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 import { resolvedPair } from "./support/research-context-helpers";
 import { marketSnapshot as marketSnapshotFixture } from "./support/fixtures";
@@ -3443,6 +3444,30 @@ describe("report artifact parsers", () => {
       ]),
     ).toEqual(expected);
     expect(captions([])).toEqual(expected);
+  });
+
+  test("labels a supported Value posture as a peer-multiple comparison, not a verdict", () => {
+    const tiles = financialLensMetricTiles({
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      lenses: (["Value", "Quality"] as const).map((name) => ({
+        name,
+        posture: "criteria-supported" as const,
+        sourceIds: ["s"],
+        metrics: [],
+      })),
+      sourceIds: ["s"],
+    });
+
+    expect(tiles).toEqual([
+      { label: "Value", value: "Peer multiple comparison supported" },
+      { label: "Quality", value: "criteria supported" },
+    ]);
+    expect(postureLabel("Valuation", "criteria-supported")).toBe(
+      "Peer-multiple comparison supported",
+    );
+    expect(postureLabel("Valuation", "insufficient-data")).toBe("insufficient-data");
   });
 
   test("formats sub-1 percent values by convention, not by magnitude", () => {

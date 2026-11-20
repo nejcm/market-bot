@@ -2,6 +2,7 @@ import {
   formatLensValue,
   formatMetricValue,
   metricPeriodLabel,
+  postureLabel,
   scaleCurrency,
 } from "../../src/sources/extended-evidence/value-format";
 import type {
@@ -166,7 +167,7 @@ export function financialLensMetricTiles(
   return artifact.lenses.flatMap((lens) => {
     const postureTile: ValuationMetricTile = {
       label: lens.name,
-      value: formatPosture(lens.posture),
+      value: formatPosture(postureLabel(lens.name, lens.posture)),
     };
     const metricTiles = lens.metrics.map((metric): ValuationMetricTile => {
       const value =

@@ -228,6 +228,9 @@ describe("equity reader projection", () => {
       "trailing P/E N/M (non-positive earnings), forward P/E N/M (non-positive earnings), price/book 3.00x",
     );
     expect(negative).not.toContain("-38.42");
+    expect(render({ trailingPE: 24, priceToBook: -6.323_714_7, bookValue: -183.223 })).toContain(
+      "price/book N/M (non-positive book value)",
+    );
     expect(render({ trailingPE: 24, epsTrailingTwelveMonths: 2, forwardPE: 21 })).toContain(
       "trailing P/E 24.00x, forward P/E 21.00x",
     );

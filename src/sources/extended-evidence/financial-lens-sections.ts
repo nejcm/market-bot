@@ -23,7 +23,7 @@ import {
   type PostureCriterion,
   secItem,
   eligibleFacts,
-  valuationItem,
+  valuationCriterion,
   summaryCurrentness,
   withNetDebtApplicability,
   withCurrentEquityNote,
@@ -229,15 +229,6 @@ function strengthPosture(
   ]);
 }
 
-function valuePosture(ctx: MetricContext): FinancialLensPosture {
-  const supportability = valuationItem(ctx)?.metrics?.valuationSupportability;
-  return postureFrom([
-    supportability === undefined || supportability === "not-meaningful"
-      ? undefined
-      : supportability === "supported",
-  ]);
-}
-
 // Close vs SMA50 compares one series, so it needs no currency even when the close row is withheld.
 function momentumPosture(
   ctx: MetricContext,
@@ -337,7 +328,7 @@ export function financialLensMetrics(ctx: MetricContext): {
     Quality: qualityPosture(lensMetrics.Quality),
     Growth: growthPosture(lensMetrics.Growth),
     "Financial Strength": strengthPosture(ctx, lensMetrics["Financial Strength"]),
-    Value: valuePosture(ctx),
+    Value: postureFrom([valuationCriterion(ctx)]),
     Momentum: momentumPosture(ctx, lensMetrics.Momentum),
   };
   const strength = lensMetrics["Financial Strength"];

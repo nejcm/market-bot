@@ -4680,6 +4680,22 @@ describe("report schema and rendering", () => {
         ]),
       ),
     ).toEqual("- **Observed metrics:** price/book 45.00x [yahoo-fundamentals]");
+    expect(
+      observedMetricsRow(
+        renderEvidence([
+          {
+            category: "yahoo-fundamentals",
+            title: "TDG Yahoo Fundamentals Evidence",
+            summary: "Yahoo fundamentals captured.",
+            sourceIds: ["yahoo-fundamentals"],
+            observedAt: "2026-11-19T00:00:00.000Z",
+            metrics: { priceToBook: -6.323_714_7, bookValue: -183.223 },
+          },
+        ]),
+      ),
+    ).toEqual(
+      "- **Observed metrics:** price/book N/M (non-positive book value) [yahoo-fundamentals]",
+    );
   });
 
   test("keeps no-snapshot valuation context consistent with persisted multiples", () => {

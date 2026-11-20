@@ -1,6 +1,7 @@
 import type { RunDetail } from "../types";
 import type { MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
+import { postureLabel } from "../../src/sources/extended-evidence/value-format";
 import type {
   FinancialLensName,
   FinancialLensPosture,
@@ -282,8 +283,8 @@ function foldedYahooMetric(
   };
 }
 
-function postureLabel(posture: FinancialLensPosture): string {
-  const label = posture.replaceAll("-", " ");
+function lensPostureLabel(lens: string, posture: FinancialLensPosture): string {
+  const label = postureLabel(lens, posture).replaceAll("-", " ");
   return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
 }
 
@@ -430,7 +431,7 @@ export function composeEquitySnapshot(
   const postures = financialLensGroups.map((group) => ({
     lens: group.lens,
     posture: group.posture,
-    postureLabel: postureLabel(group.posture),
+    postureLabel: lensPostureLabel(group.lens, group.posture),
     sourceIds: group.sourceIds,
   }));
   const postureCard = {

@@ -18,7 +18,7 @@ import {
 } from "./financial-lens-metrics";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import type { MetricContext, MetricResult, MetricSection } from "./metric-engine";
-import { formatLensValue } from "./value-format";
+import { formatLensValue, postureLabel } from "./value-format";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import type { EquityReportingFreshness } from "./equity-analysis-completeness";
 
@@ -57,7 +57,7 @@ function summarizeLens(lens: FinancialLens): string {
     lens.currentStatus === "partial"
       ? " [current status partial: unreconciled post-period financing]"
       : "";
-  return `${lens.name} ${lens.posture}${metricText === "" ? "" : ` (${metricText})`}${currentness}`;
+  return `${lens.name} ${postureLabel(lens.name, lens.posture)}${metricText === "" ? "" : ` (${metricText})`}${currentness}`;
 }
 
 export function financialLensSummary(lenses: readonly FinancialLens[]): string {

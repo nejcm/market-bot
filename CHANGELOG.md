@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.60](https://github.com/nejcm/market-bot/compare/v1.19.59...v1.19.60) (2026-11-20)
+
+### Bug Fixes
+
+- **debt:** sum short-term bank loans beside current maturities (#285) ([ad56d83](https://github.com/nejcm/market-bot/commit/ad56d838083a31d5b2d3265ca9a5a654c525a009))
+
 ## [1.19.59](https://github.com/nejcm/market-bot/compare/v1.19.58...v1.19.59) (2026-11-20)
 
 ### Bug Fixes

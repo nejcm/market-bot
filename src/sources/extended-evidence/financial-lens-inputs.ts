@@ -516,6 +516,7 @@ export function annualizeSummary(
 }
 
 export interface AnnualFlow extends Annualized {
+  readonly ttmComponents?: readonly FinancialStatementFact[];
   readonly input: MetricInput;
   readonly period: MetricPeriod;
 }
@@ -533,6 +534,7 @@ export function annualFlow(
   if (ttm !== undefined && ttm.periodEnd === anchor.periodEnd) {
     return {
       value: ttm.value,
+      ttmComponents: Object.values(ttm.components),
       input: {
         label: `TTM ${SERIES_LABELS[key]}`,
         value: ttm.value,
@@ -744,6 +746,8 @@ export function chosenInput(
 
 const SUMMARY_STALENESS: Readonly<Record<string, { readonly series: readonly LensSeries[] }>> = {
   netDebt: { series: ["debt", "cash"] },
+  liquidity: { series: ["cash"] },
+  trailingOperatingCashFlow: { series: ["operatingCashFlow"] },
   currentRatio: { series: ["currentAssets", "currentLiabilities"] },
   debtToEquity: { series: ["debt", "stockholdersEquity"] },
   debtToMarketCap: { series: ["debt"] },

@@ -199,6 +199,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       "capexDeltaPercent",
       "cash",
       "cashConversion",
+      "cashRunwayYears",
       "consolidatedNetIncome",
       "currentRatio",
       "debt",
@@ -207,6 +208,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       "freeCashFlowProxy",
       "grossMargin",
       "grossProfitDeltaPercent",
+      "liquidity",
       "netDebt",
       "netIncomeDeltaPercent",
       "netMargin",
@@ -216,6 +218,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       "revenueDeltaPercent",
       "roa",
       "roe",
+      "trailingOperatingCashFlow",
     ]);
   });
 
@@ -234,7 +237,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       "fpi-ifrs-semiannual:Financial Strength:insufficient-data",
       "fpi-ifrs-semiannual:Growth:criteria-supported",
       "fpi-ifrs-semiannual:Quality:insufficient-data",
-      "fpi-quarterly:Financial Strength:criteria-not-supported",
+      "fpi-quarterly:Financial Strength:criteria-mixed",
       "fpi-quarterly:Growth:criteria-supported",
       "fpi-quarterly:Quality:insufficient-data",
       "nbis:Financial Strength:insufficient-data",
@@ -302,7 +305,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 59 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 66 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -330,7 +333,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(59);
+    expect(lensAllowances).toHaveLength(66);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(

@@ -3255,9 +3255,7 @@ describe("run workspace view", () => {
     expect(unavailable).toContain("— (numerator-unavailable)");
     expect(unavailable).toContain("— (free-cash-flow-unavailable)");
     expect(revenueUnavailable).toContain("— (revenue-unavailable)");
-    expect(zeroRevenue).toContain(
-      "FY ending 2022-09-30 (latest filed 2022-11-01) | 0 | 20 | — (revenue-unavailable)",
-    );
+    expect(zeroRevenue).toContain("FY ending 2022-09-30 (latest filed 2022-11-01) | 0 | 20 | N/M");
     for (const markdown of [unavailable, revenueUnavailable, zeroRevenue]) {
       const trendRows = markdown
         .split("\n")

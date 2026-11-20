@@ -1,6 +1,7 @@
 import { isRecord } from "../guards";
 import { deltaPercent } from "../sources/extended-evidence/sec-fundamentals-format";
 import { postureFrom } from "../sources/extended-evidence/financial-lens-inputs";
+import { resolveEnterpriseValueBridge } from "../sources/extended-evidence/enterprise-value-bridge";
 import {
   financialStatementFacts,
   financialStatementFactsAreCompatible,
@@ -29,6 +30,7 @@ type LensMetricKey =
   | "capexDeltaPercent"
   | "cash"
   | "cashConversion"
+  | "cashRunwayYears"
   | "consolidatedNetIncome"
   | "continuingIncomeDeltaPercent"
   | "currentRatio"
@@ -38,6 +40,7 @@ type LensMetricKey =
   | "freeCashFlowProxy"
   | "grossMargin"
   | "grossProfitDeltaPercent"
+  | "liquidity"
   | "netDebt"
   | "netIncomeDeltaPercent"
   | "netMargin"
@@ -46,8 +49,16 @@ type LensMetricKey =
   | "operatingMargin"
   | "revenueDeltaPercent"
   | "roa"
-  | "roe";
-type LensMetricRelation = "direct-leaf" | "exact-period" | "instant-pair" | "net-income-period";
+  | "roe"
+  | "trailingOperatingCashFlow";
+type LensMetricRelation =
+  | "direct-leaf"
+  | "exact-period"
+  | "instant-pair"
+  | "net-income-period"
+  | "liquidity"
+  | "trailing-flow"
+  | "runway";
 type ProjectedConsumers = OfflineCorpusExecution["projection"]["canonical"];
 type ProjectedLensMetrics = ProjectedConsumers["financialLens"][string]["metrics"];
 
@@ -155,6 +166,7 @@ const LENS_METRIC_RELATIONS: Readonly<Record<LensMetricKey, LensMetricRelation>>
   capexDeltaPercent: "exact-period",
   cash: "direct-leaf",
   cashConversion: "exact-period",
+  cashRunwayYears: "runway",
   consolidatedNetIncome: "net-income-period",
   continuingIncomeDeltaPercent: "exact-period",
   currentRatio: "exact-period",
@@ -164,6 +176,7 @@ const LENS_METRIC_RELATIONS: Readonly<Record<LensMetricKey, LensMetricRelation>>
   freeCashFlowProxy: "exact-period",
   grossMargin: "exact-period",
   grossProfitDeltaPercent: "exact-period",
+  liquidity: "liquidity",
   netDebt: "instant-pair",
   netIncomeDeltaPercent: "exact-period",
   netMargin: "exact-period",
@@ -173,6 +186,7 @@ const LENS_METRIC_RELATIONS: Readonly<Record<LensMetricKey, LensMetricRelation>>
   revenueDeltaPercent: "exact-period",
   roa: "exact-period",
   roe: "exact-period",
+  trailingOperatingCashFlow: "trailing-flow",
 };
 
 function yoyEndpoints(
@@ -454,6 +468,80 @@ function verifyDirectLeafMetric(
   );
 }
 
+function canonicalNumber(difference: OfflineCorpusDifference) {
+  if (!isRecord(difference.canonical)) {
+    return undefined;
+  }
+  const { value, periodEnd } = difference.canonical;
+  return typeof value === "number" && typeof periodEnd === "string"
+    ? { value, periodEnd }
+    : undefined;
+}
+
+function verifyLiquidityMetric(
+  execution: OfflineCorpusExecution,
+  difference: OfflineCorpusDifference,
+): boolean {
+  const metric = canonicalNumber(difference);
+  const cash = financialStatementSeriesByKey(execution.artifact, "cash");
+  const fact =
+    cash === undefined ? undefined : latestFinancialStatementFact(financialStatementFacts(cash));
+  if (metric === undefined || fact === undefined || !sourceContainsFact(execution.input, fact)) {
+    return false;
+  }
+  const part = resolveEnterpriseValueBridge(
+    execution.artifact.enterpriseValueBridge,
+    fact,
+  ).shortTermInvestments;
+  if (part.status === "incomplete") {
+    return false;
+  }
+  const expected = fact.value + (part.status === "untagged" ? 0 : part.value);
+  return metric.periodEnd === fact.periodEnd && metric.value === expected;
+}
+
+function verifyTrailingFlowMetric(
+  execution: OfflineCorpusExecution,
+  difference: OfflineCorpusDifference,
+): boolean {
+  const metric = canonicalNumber(difference);
+  const series = financialStatementSeriesByKey(execution.artifact, "operatingCashFlow");
+  if (metric === undefined || series === undefined) {
+    return false;
+  }
+  const latest = latestFinancialStatementFact(financialStatementFacts(series));
+  const expected =
+    latest?.periodType === "interim" && series.ttm?.periodEnd === latest.periodEnd
+      ? series.ttm.value
+      : latest?.periodType === "annual"
+        ? latest.value
+        : undefined;
+  return (
+    latest !== undefined &&
+    sourceContainsFact(execution.input, latest) &&
+    metric.periodEnd === latest.periodEnd &&
+    metric.value === expected
+  );
+}
+
+function verifyRunwayMetric(
+  execution: OfflineCorpusExecution,
+  difference: OfflineCorpusDifference,
+) {
+  const metric = canonicalNumber(difference);
+  const strength = execution.projection.canonical.financialLens["Financial Strength"]?.metrics;
+  const liquidity = strength === undefined ? undefined : metricValue(strength, "liquidity");
+  const flow =
+    strength === undefined ? undefined : metricValue(strength, "trailingOperatingCashFlow");
+  return (
+    metric !== undefined &&
+    liquidity !== undefined &&
+    flow !== undefined &&
+    flow < 0 &&
+    Math.abs(metric.value - liquidity / -flow) <= Math.abs(metric.value) * 1e-12
+  );
+}
+
 function verifyNetIncomePeriodMetric(
   execution: OfflineCorpusExecution,
   difference: OfflineCorpusDifference,
@@ -557,6 +645,7 @@ function verifyLensPosture(
       : undefined;
   const netDebt = currentValue("netDebt");
   const currentRatio = currentValue("currentRatio");
+  const operatingCashFlow = metricValue(metrics, "trailingOperatingCashFlow");
   return (
     posture ===
     postureFrom([
@@ -565,6 +654,7 @@ function verifyLensPosture(
       undefined,
       undefined,
       currentRatio === undefined ? undefined : currentRatio >= 1,
+      operatingCashFlow === undefined ? undefined : operatingCashFlow >= 0,
     ])
   );
 }
@@ -613,6 +703,8 @@ export function verifyLensAllowanceProperties(
       cash: "cash",
       debt: "debt",
       netDebt: "debt",
+      liquidity: "cash",
+      trailingOperatingCashFlow: "operatingCashFlow",
       freeCashFlowProxy: "operatingCashFlow",
       consolidatedNetIncome: "consolidatedNetIncome",
     };
@@ -647,6 +739,15 @@ export function verifyLensAllowanceProperties(
     }
     case "net-income-period": {
       return verifyNetIncomePeriodMetric(execution, difference);
+    }
+    case "liquidity": {
+      return verifyLiquidityMetric(execution, difference);
+    }
+    case "trailing-flow": {
+      return verifyTrailingFlowMetric(execution, difference);
+    }
+    case "runway": {
+      return verifyRunwayMetric(execution, difference);
     }
     default: {
       return unreachableLensMetricRelation(relation);

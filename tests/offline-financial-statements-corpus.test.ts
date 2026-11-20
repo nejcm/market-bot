@@ -9,12 +9,12 @@ import {
 describe("offline financial-statement corpus", () => {
   test("locks every issuer projection and classifies every consumer difference offline", async () => {
     const expectedClassifications = {
-      aapl: { matched: 16, allowances: 4 },
-      msft: { matched: 20, allowances: 4 },
-      mara: { matched: 10, allowances: 8 },
+      aapl: { matched: 16, allowances: 6 },
+      msft: { matched: 22, allowances: 4 },
+      mara: { matched: 11, allowances: 10 },
       nbis: { matched: 3, allowances: 9 },
-      "fpi-quarterly": { matched: 3, allowances: 18 },
-      "fpi-ifrs-semiannual": { matched: 4, allowances: 16 },
+      "fpi-quarterly": { matched: 3, allowances: 20 },
+      "fpi-ifrs-semiannual": { matched: 4, allowances: 17 },
     } as const;
     const originalFetch = globalThis.fetch;
     let networkAttempts = 0;
@@ -116,8 +116,10 @@ describe("offline financial-statement corpus", () => {
 
     expect(maraCase.allowances.map((allowance) => allowance.path).toSorted()).toEqual([
       "financialLens.Financial Strength.metrics.cash",
+      "financialLens.Financial Strength.metrics.cashRunwayYears",
       "financialLens.Financial Strength.metrics.debt",
       "financialLens.Financial Strength.metrics.netDebt",
+      "financialLens.Financial Strength.metrics.trailingOperatingCashFlow",
       "financialLens.Quality.metrics.consolidatedNetIncome",
       "financialLens.Quality.metrics.freeCashFlowProxy",
       "financialLens.Quality.metrics.netMargin",
@@ -125,6 +127,8 @@ describe("offline financial-statement corpus", () => {
       "financialLens.Quality.metrics.roe",
     ]);
     expect(exactPeriodPaths).toEqual([
+      "financialLens.Financial Strength.metrics.cashRunwayYears",
+      "financialLens.Financial Strength.metrics.trailingOperatingCashFlow",
       "financialLens.Quality.metrics.consolidatedNetIncome",
       "financialLens.Quality.metrics.netMargin",
       "financialLens.Quality.metrics.roa",

@@ -1554,6 +1554,16 @@
             "currency": "USD",
             "periodEnd": "2025-12-31"
           },
+          "trailingOperatingCashFlow": {
+            "key": "trailingOperatingCashFlow",
+            "label": "Operating cash flow (trailing)",
+            "value": 900000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-fpi-ifrs-semiannual"],
+            "currency": "USD",
+            "periodEnd": "2025-12-31",
+            "periodMonths": 12
+          },
           "debt": {
             "key": "debt",
             "label": "Debt",
